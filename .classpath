@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry excluding="pljava/" output="bin/backend/classes" kind="src" path="src/java"/>
 	<classpathentry kind="src" path="src/java/pljava"/>
 	<classpathentry output="bin/test/classes" kind="src" path="test"/>
-	<classpathentry output="bin/examples/classes" kind="src" path="examples/java"/>
-	<classpathentry output="bin/deploy/classes" kind="src" path="deploy/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="src/java/deploy"/>
+	<classpathentry kind="src" path="src/java/examples"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
