@@ -4,6 +4,10 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Properties;
 import java.util.logging.Filter;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
@@ -113,6 +117,23 @@ public class ELogHandler extends Handler
 	{
 	}
 
+	public static void init()
+	{
+		Properties props = new Properties();
+		props.setProperty("handlers", ELogHandler.class.getName());
+		props.setProperty(".level", getPgLevel().getName());
+		ByteArrayOutputStream po = new ByteArrayOutputStream();
+		try
+		{
+			props.store(po, null);
+			LogManager.getLogManager().readConfiguration(
+				new ByteArrayInputStream(po.toByteArray()));
+		}
+		catch(IOException e)
+		{
+		}
+	}
+
 	/**
 	 * Obtains the &quot;log_min_messages&quot; configuration variable and
 	 * translates it into a {@link Level} object.
@@ -158,7 +179,6 @@ public class ELogHandler extends Handler
 		LogManager mgr = LogManager.getLogManager();
 		String cname = ELogHandler.class.getName();
 
-		this.setLevel(getPgLevel());
 		String val = mgr.getProperty(cname + ".filter");
 		if(val != null)
 		{	

@@ -4,7 +4,6 @@
  */
 package org.postgresql.pljava.example;
 
-import java.io.File;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Time;

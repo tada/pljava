@@ -100,20 +100,6 @@ static void initJavaVM(JNIEnv* env)
 	DirectFunctionCall1(SPI_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
-
-#ifdef GCJ
-	/* GCJ has a bug in that the Logger configurator is never instantiated
-	 */
-	{
-	isCallingJava = true;
-	jclass logConfigClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/LoggerConfigurator");
-	jmethodID init = PgObject_getJavaMethod(env, logConfigClass, "<init>", "()V");
-	jobject instance = (*env)->NewObject(env, logConfigClass, init);
-	isCallingJava = false;
-	(*env)->DeleteLocalRef(env, logConfigClass);
-	(*env)->DeleteLocalRef(env, instance);
-	}
-#endif
 }
 
 static bool s_topLocalFrameInstalled = false;
@@ -622,10 +608,11 @@ static void initializeJavaVM(void)
 #endif
 	const char* tmp;
 	jboolean jstat;
- 
+	jclass logHandlerClass;
+	jmethodID init;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
-	
+
 	JVMOptList_init(&optList);
 
 	DirectFunctionCall1(HashMap_initialize, 0);
@@ -689,13 +676,6 @@ static void initializeJavaVM(void)
 	{
 		JVMOptList_add(&optList, tmp, 0, false);
 	}
-
-	/**
-	 * Default LoggingManager initializer.
-	 */
-	JVMOptList_add(&optList,
-		"-Djava.util.logging.config.class=org.postgresql.pljava.internal.LoggerConfigurator",
-		0, true);
 
 	/**
 	 * As stipulated by JRT-2003
@@ -775,6 +755,15 @@ static void initializeJavaVM(void)
 	 */
 	on_proc_exit(_destroyJavaVM, 0);
 	initJavaVM(s_mainEnv);
+
+	/* Initialize the logger
+	 */
+	isCallingJava = true;
+	logHandlerClass = PgObject_getJavaClass(s_mainEnv, "org/postgresql/pljava/internal/ELogHandler");
+	init = PgObject_getStaticJavaMethod(s_mainEnv, logHandlerClass, "init", "()V");
+	(*s_mainEnv)->CallStaticVoidMethod(s_mainEnv, logHandlerClass, init);
+	isCallingJava = false;
+	(*s_mainEnv)->DeleteLocalRef(s_mainEnv, logHandlerClass);
 }
 
 JNIEnv* Backend_getMainEnv(void)

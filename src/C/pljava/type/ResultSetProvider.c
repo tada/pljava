@@ -42,6 +42,7 @@ typedef struct _CallContextData* CallContextData;
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
+	MemoryContext currCtx;
 	CallContextData  ctxData;
 	FuncCallContext* context;
 	bool saveicj = isCallingJava;
@@ -54,16 +55,15 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		jclass rsClass;
 #endif
 		jobject tmp;
-		MemoryContext oldContext;
 		TupleDesc tupleDesc;
 
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
-		
+
 		/* switch to memory context appropriate for multiple function calls
 		 */
-		oldContext = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
 		/* Call the declared Java function. It returns the ResultSetProvider
 		 * that later is used once for each row that should be obtained.
@@ -103,7 +103,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp);
 		(*env)->DeleteLocalRef(env, tmp);
 
-		MemoryContextSwitchTo(oldContext);
+		MemoryContextSwitchTo(currCtx);
 	}
 
 	context = SRF_PERCALL_SETUP();
@@ -128,7 +128,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
+		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 		Datum result = TupleGetDatum(context->slot, tuple);
 		MemoryContextSwitchTo(currCtx);
@@ -138,10 +138,12 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	/*
 	 * This is the end of the set.
 	 */
+	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
 
 	pfree(ctxData);
+	MemoryContextSwitchTo(currCtx);
 	SRF_RETURN_DONE(context);
 }
 

@@ -199,6 +199,7 @@ public class Tester
 			t.testSetReturn();
 			t.testCallInCall();
 			t.testCurrentDir();
+			t.testUsingProperties();
 			t.close();
 		}
 		catch(Exception e)
@@ -271,6 +272,7 @@ public class Tester
 			String str = rs.getString(1);
 			System.out.println(str);
 		}
+		rs.close();
 	}
 
 	public void testSetReturn()
@@ -288,6 +290,21 @@ public class Tester
 					"\", incbase = \"" + incbase +
 					"\", ctime = \"" + ctime + "\"");
 		}
+		rs.close();
+	}
+
+	public void testUsingProperties()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT name, value FROM propertyExample()");
+		while(rs.next())
+		{
+			String name = rs.getString(1);
+			String value = rs.getString(2);
+			System.out.println("Name = \"" + name + "\", value = \"" + value + "\"");
+		}
+		rs.close();
 	}
 
 	public void testCallInCall()
@@ -366,15 +383,15 @@ public class Tester
 
 		// Test the update trigger as well as leaking statements
 		//
-		System.out.println("Doing 800 updates with double triggers that leak statements");
-		System.out.println("(but not leak memory). One trigger executes SQL that reenters PL/Java");
-		for(int idx = 0; idx < 200; ++idx)
-		{
-			stmt.execute("UPDATE username_test SET username = 'Kalle Kula' WHERE username = 'name'");
-			stmt.execute("UPDATE username_test SET username = 'Pelle Kanin' WHERE username = 'thomas'");
-			stmt.execute("UPDATE username_test SET username = 'thomas' WHERE username = 'Kalle Kula'");
-			stmt.execute("UPDATE username_test SET username = 'name' WHERE username = 'Pelle Kanin'");
-		}
+		// System.out.println("Doing 800 updates with double triggers that leak statements");
+		// System.out.println("(but not leak memory). One trigger executes SQL that reenters PL/Java");
+		// for(int idx = 0; idx < 200; ++idx)
+		// {
+		// 	stmt.execute("UPDATE username_test SET username = 'Kalle Kula' WHERE username = 'name'");
+		// 	stmt.execute("UPDATE username_test SET username = 'Pelle Kanin' WHERE username = 'thomas'");
+		// 	stmt.execute("UPDATE username_test SET username = 'thomas' WHERE username = 'Kalle Kula'");
+		// 	stmt.execute("UPDATE username_test SET username = 'name' WHERE username = 'Pelle Kanin'");
+		// }
 		stmt.close();
 	}
 

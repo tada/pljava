@@ -138,6 +138,14 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE TYPE javatest._properties
+			AS (name varchar(200), value varchar(200));
+
+		CREATE FUNCTION javatest.propertyExample()
+			RETURNS SETOF javatest._properties
+			AS 'org.postgresql.pljava.example.UsingProperties.getProperties'
+			IMMUTABLE LANGUAGE java;
+
 	END INSTALL",
 	
 	"BEGIN REMOVE

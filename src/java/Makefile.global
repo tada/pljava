@@ -6,7 +6,7 @@
 #-------------------------------------------------------------------------
 SRCDIR		:= $(MODULEROOT)/$(NAME)
 SRCS		:= $(shell find $(SRCDIR) -type f -name \*.java)
-CLASSES		= $(shell find . -type f -name \*.class)
+CLASSES		:= $(shell find . -type f -name \*.class)
 JAR			:= jar
 JAVADOC		:= javadoc
 
