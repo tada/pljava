@@ -163,4 +163,28 @@ public class SPIActions
 			conn.close();
 		}
 	}
+
+	public static String getTimeAsString()
+	throws SQLException
+	{
+		ResultSet rs = null;
+		Statement stmt = null;
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			stmt = conn.createStatement();
+			rs = stmt.executeQuery("SELECT CURRENT_TIME");
+			if(rs.next())
+				return rs.getTime(1).toString();
+			return "Time could not be retrieved";
+		}
+		finally
+		{
+			if(rs != null)
+				rs.close();
+			if(stmt != null)
+				stmt.close();
+			conn.close();
+		}
+	}
 }

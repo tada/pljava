@@ -83,7 +83,6 @@ static jvalue _Timetz_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	TimeTzADT* tza = DatumGetTimeTzADTP(arg);
 	TimeADT t = tza->time + tza->zone; /* Convert to UTC */
-	pfree(tza);
 	return Time_coerceDatumTZ(self, env, t, false);
 }
 
