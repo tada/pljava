@@ -47,6 +47,11 @@ static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 static int callLevel = 0;
 
+#ifdef PGSQL_CUSTOM_VARIABLES
+static char* vmoptions;
+static char* classpath;
+#endif
+
 static void initJavaVM(JNIEnv* env)
 {
 	Datum envDatum = PointerGetDatum(env);
@@ -314,8 +319,7 @@ static char* getLibraryPath(const char* prefix)
 	const char* dynPath = GetConfigOption("dynamic_library_path");
 
 	initStringInfo(&buf);
-	if(dynPath != 0)
-		appendPathParts(dynPath, &buf, unique, prefix);
+	appendPathParts(dynPath, &buf, unique, prefix);
 
 #if WIN32 || CYGWIN
 	appendPathParts(getenv("PATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
@@ -342,7 +346,10 @@ static char* getClassPath(const char* prefix)
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
+#ifdef PGSQL_CUSTOM_VARIABLES
+	appendPathParts(classpath, &buf, unique, prefix);
+#endif
+	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix);
 	PgObject_free((PgObject)unique);
 	path = buf.data;
 	if(strlen(path) == 0)
@@ -464,8 +471,6 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 }
 
 #ifdef PGSQL_CUSTOM_VARIABLES
-static char* vmoptions;
-
 /* Split JVM options. The string is split on whitespace unless the
  * whitespace is found within a string or is escaped by backslash. A
  * backslash escaped quote is not considered a string delimiter.
@@ -550,8 +555,7 @@ static void initializeJavaVM()
 	pqsigfunc saveSigHup;
 	pqsigfunc saveSigQuit;
 #endif
-	char* classPath;
-	char* dynLibPath;
+	const char* tmp;
 	jboolean jstat;
  
 	JavaVMInitArgs vm_args;
@@ -562,7 +566,6 @@ static void initializeJavaVM()
 	DirectFunctionCall1(HashMap_initialize, 0);
 
 #ifdef PGSQL_CUSTOM_VARIABLES
-	elog(INFO, "Defining pljava.vmoptions");
 	DefineCustomStringVariable(
 		"pljava.vmoptions",
 		"Options sent to the JVM when it is created",
@@ -571,25 +574,33 @@ static void initializeJavaVM()
 		PGC_USERSET,
 		NULL, NULL);
 
+	DefineCustomStringVariable(
+		"pljava.classpath",
+		"Classpath used by the JVM",
+		NULL,
+		&classpath,
+		PGC_USERSET,
+		NULL, NULL);
+
 	EmittWarningsOnPlaceholders("pljava");
-	elog(INFO, "option defined. Value was %s\n", (vmoptions == NULL) ? "NULL" : vmoptions);
+
 	addUserJVMOptions(&optList);
 #endif
 
-	classPath = getClassPath("-Djava.class.path=");
-	if(classPath != 0)
+	tmp = getClassPath("-Djava.class.path=");
+	if(classPathDef != 0)
 	{
-		JVMOptList_add(&optList, classPath, 0, false);
+		JVMOptList_add(&optList, tmp, 0, false);
 	}
 
 	/**
 	 * The JVM needs the java.library.path to find its way back to
 	 * the loaded module.
 	 */
-	dynLibPath = getLibraryPath("-Djava.library.path=");
-	if(dynLibPath != 0)
+	tmp = getLibraryPath("-Djava.library.path=");
+	if(tmp != 0)
 	{
-		JVMOptList_add(&optList, dynLibPath, 0, false);
+		JVMOptList_add(&optList, tmp, 0, false);
 	}
 
 	/**
