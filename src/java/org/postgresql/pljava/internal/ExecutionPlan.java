@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
 
@@ -52,4 +52,10 @@ public class ExecutionPlan extends NativeStruct
 	 */
 	public native static ExecutionPlan prepare(String statement, Oid[] argTypes)
 	throws SQLException;
+
+	/**
+	 * Invalidates this structure and frees up memory using the
+	 * internal function <code>SPI_freeplan</code>
+	 */
+	public native void invalidate();
 }

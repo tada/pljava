@@ -75,10 +75,10 @@ Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 /*
  * Class:     org_postgresql_pljava_TriggerData
  * Method:    getRelation
- * Signature: ()Lorg/postgresql/pljava/Relation;
+ * Signature: ()Lorg/postgresql/pljava/internal/Relation;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TriggerData_getRelation(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TriggerData_getRelation(JNIEnv* env, jobject _this)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
@@ -89,10 +89,10 @@ Java_org_postgresql_pljava_TriggerData_getRelation(JNIEnv* env, jobject _this)
 /*
  * Class:     org_postgresql_pljava_TriggerData
  * Method:    getTriggerTuple
- * Signature: ()Lorg/postgresql/pljava/Tuple;
+ * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TriggerData_getTriggerTuple(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TriggerData_getTriggerTuple(JNIEnv* env, jobject _this)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
@@ -103,10 +103,10 @@ Java_org_postgresql_pljava_TriggerData_getTriggerTuple(JNIEnv* env, jobject _thi
 /*
  * Class:     org_postgresql_pljava_TriggerData
  * Method:    getNewTuple
- * Signature: ()Lorg/postgresql/pljava/Tuple;
+ * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TriggerData_getNewTuple(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TriggerData_getNewTuple(JNIEnv* env, jobject _this)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
@@ -120,7 +120,7 @@ Java_org_postgresql_pljava_TriggerData_getNewTuple(JNIEnv* env, jobject _this)
  * Signature: ()[Ljava/lang/String;
  */
 JNIEXPORT jobjectArray JNICALL
-Java_org_postgresql_pljava_TriggerData_getArguments(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TriggerData_getArguments(JNIEnv* env, jobject _this)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
@@ -146,7 +146,7 @@ Java_org_postgresql_pljava_TriggerData_getArguments(JNIEnv* env, jobject _this)
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_TriggerData_getName(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_getName(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -160,7 +160,7 @@ Java_org_postgresql_pljava_TriggerData_getName(JNIEnv* env, jobject triggerData)
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredAfter(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredAfter(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -174,7 +174,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredAfter(JNIEnv* env, jobject trigger
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredBefore(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredBefore(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -188,7 +188,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredBefore(JNIEnv* env, jobject trigge
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredForEachRow(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredForEachRow(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -202,7 +202,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredForEachRow(JNIEnv* env, jobject tr
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredForStatement(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredForStatement(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -216,7 +216,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredForStatement(JNIEnv* env, jobject 
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredByDelete(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredByDelete(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -230,7 +230,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredByDelete(JNIEnv* env, jobject trig
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredByInsert(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredByInsert(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
@@ -244,7 +244,7 @@ Java_org_postgresql_pljava_TriggerData_isFiredByInsert(JNIEnv* env, jobject trig
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_TriggerData_isFiredByUpdate(JNIEnv* env, jobject triggerData)
+Java_org_postgresql_pljava_internal_TriggerData_isFiredByUpdate(JNIEnv* env, jobject triggerData)
 {
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)

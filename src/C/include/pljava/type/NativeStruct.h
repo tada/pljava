@@ -54,6 +54,11 @@ extern void NativeStruct_init(JNIEnv* env, jobject self, void* nativePointer);
 extern void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct);
 
 /*
+ * Reset the pointer in the java object and remove the entry from the weak cache.
+ */
+extern void* NativeStruct_releasePointer(JNIEnv* env, jobject nativeStruct);
+
+/*
  * Allocates a new TypeClass and assigns a default coerceObject method used by
  * all NativeStruct derivates.
  */

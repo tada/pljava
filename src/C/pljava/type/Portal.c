@@ -12,8 +12,10 @@
 
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
+#include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
 #include "pljava/type/Portal_JNI.h"
+#include "pljava/type/String.h"
 
 static Type      s_Portal;
 static TypeClass s_PortalClass;
@@ -78,27 +80,12 @@ Datum Portal_initialize(PG_FUNCTION_ARGS)
  ****************************************/
 
 /*
- * Class:     org_postgresql_pljava_Portal
- * Method:    close
- * Signature: ()V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_Portal_close(JNIEnv* env, jobject _this)
-{
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
-	if(portal == 0)
-		return;
-	
-	SPI_cursor_close(portal);
-}
-
-/*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    getPortalPos
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_Portal_getPortalPos(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Portal_getPortalPos(JNIEnv* env, jobject _this)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -107,12 +94,12 @@ Java_org_postgresql_pljava_Portal_getPortalPos(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    fetch
  * Signature: (ZI)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_Portal_fetch(JNIEnv* env, jobject _this, jboolean forward, jint count)
+Java_org_postgresql_pljava_internal_Portal_fetch(JNIEnv* env, jobject _this, jboolean forward, jint count)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -122,12 +109,56 @@ Java_org_postgresql_pljava_Portal_fetch(JNIEnv* env, jobject _this, jboolean for
 }
 
 /*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    getName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Portal_getName(JNIEnv* env, jobject _this)
+{
+	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	if(portal == 0)
+		return 0;
+	const char* name = portal->name;
+	if(name == 0)
+		return 0;
+	return String_createJavaStringFromNTS(env, name);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    getTupleDesc
+ * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal_getTupleDesc(JNIEnv* env, jobject _this)
+{
+	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	if(portal == 0)
+		return 0;
+	return TupleDesc_create(env, portal->tupDesc);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    invalidate
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Portal_invalidate(JNIEnv* env, jobject _this)
+{
+	Portal portal = (Portal)NativeStruct_releasePointer(env, _this);
+	if(portal != 0)
+		SPI_cursor_close(portal);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    isAtStart
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_Portal_isAtStart(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Portal_isAtStart(JNIEnv* env, jobject _this)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -137,12 +168,12 @@ Java_org_postgresql_pljava_Portal_isAtStart(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    isAtEnd
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_Portal_isAtEnd(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Portal_isAtEnd(JNIEnv* env, jobject _this)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -152,12 +183,12 @@ Java_org_postgresql_pljava_Portal_isAtEnd(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    isPosOverflow
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_Portal_isPosOverflow(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Portal_isPosOverflow(JNIEnv* env, jobject _this)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -167,12 +198,12 @@ Java_org_postgresql_pljava_Portal_isPosOverflow(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_Portal
+ * Class:     org_postgresql_pljava_internal_Portal
  * Method:    move
  * Signature: (ZI)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_Portal_move(JNIEnv* env, jobject _this, jboolean forward, jint count)
+Java_org_postgresql_pljava_internal_Portal_move(JNIEnv* env, jobject _this, jboolean forward, jint count)
 {
 	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
@@ -180,4 +211,3 @@ Java_org_postgresql_pljava_Portal_move(JNIEnv* env, jobject _this, jboolean forw
 	SPI_cursor_move(portal, forward == JNI_TRUE, (int)count);
 	return (jint)SPI_result;
 }
-

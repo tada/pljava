@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
 

@@ -11,12 +11,12 @@
 #include "pljava/type/SPITupleTable.h"
 
 /*
- * Class:     org_postgresql_pljava_SPI
+ * Class:     org_postgresql_pljava_internal_SPI
  * Method:    exec
  * Signature: (Ljava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_SPI_exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
+Java_org_postgresql_pljava_internal_SPI_exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
 	char* command = String_createNTS(env, cmd);
 	jint result = (jint)SPI_exec(command, (int)count);
@@ -25,34 +25,34 @@ Java_org_postgresql_pljava_SPI_exec(JNIEnv* env, jclass cls, jstring cmd, jint c
 }
 
 /*
- * Class:     org_postgresql_pljava_SPI
+ * Class:     org_postgresql_pljava_internal_SPI
  * Method:    getProcessed
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_SPI_getProcessed(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI_getProcessed(JNIEnv* env, jclass cls)
 {
 	return (jint)SPI_processed;
 }
 
 /*
- * Class:     org_postgresql_pljava_SPI
+ * Class:     org_postgresql_pljava_internal_SPI
  * Method:    getResult
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_SPI_getResult(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI_getResult(JNIEnv* env, jclass cls)
 {
 	return (jint)SPI_result;
 }
 
 /*
- * Class:     org_postgresql_pljava_SPI
+ * Class:     org_postgresql_pljava_internal_SPI
  * Method:    getTupTable
- * Signature: ()Lorg/postgresql/pljava/TupleTable;
+ * Signature: ()Lorg/postgresql/pljava/internal/SPITupleTable;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_SPI_getTupTable(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI_getTupTable(JNIEnv* env, jclass cls)
 {
 	return SPITupleTable_create(env, SPI_tuptable);
 }

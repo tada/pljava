@@ -8,6 +8,7 @@
  */
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/NativeStruct.h"
+#include "pljava/type/NativeStruct_JNI.h"
 #include "pljava/Iterator.h"
 #include "pljava/Exception.h"
 
@@ -95,6 +96,26 @@ void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct)
 	return ptr;
 }
 
+void* NativeStruct_releasePointer(JNIEnv* env, jobject _this)
+{
+	Ptr2Long p2l;
+	p2l.longVal = (*env)->GetLongField(env, _this, s_NativeStruct_m_native);
+	void* ptr = p2l.ptrVal;
+	if(ptr != 0)
+	{
+		/* Clear the field.
+		 */
+		(*env)->SetLongField(env, _this, s_NativeStruct_m_native, 0L);
+	
+		/* Remove this object from the cache
+		 */
+		jobject weak = HashMap_removeByOpaque(s_weakCache, ptr);
+		if(weak != 0)
+			(*env)->DeleteWeakGlobalRef(env, weak);
+	}
+	return ptr;
+}
+
 static Datum _NativeStruct_coerceObject(Type self, JNIEnv* env, jobject nStruct)
 {
 	return PointerGetDatum(NativeStruct_getStruct(env, nStruct));
@@ -124,4 +145,15 @@ Datum NativeStruct_initialize(PG_FUNCTION_ARGS)
 	s_weakCache = 0;
 
 	PG_RETURN_VOID();
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_NativeStruct
+ * Method:    releasePointer
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_NativeStruct_releasePointer(JNIEnv* env, jobject _this)
+{
+	NativeStruct_releasePointer(env, _this);
 }

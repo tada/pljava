@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
 
@@ -20,9 +20,17 @@ public class Portal extends NativeStruct
 {
 	/**
 	 * Performs an <code>SPI_cursor_close</code>.
+	 */
+	public void close()
+	{
+		this.invalidate();
+	}
+
+	/**
+	 * Returns the name of this Portal.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public native void close()
+	public native String getName()
 	throws SQLException;
 
 	/**
@@ -30,6 +38,14 @@ public class Portal extends NativeStruct
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
 	public native int getPortalPos()
+	throws SQLException;
+
+	/**
+	 * Returns the TupleDesc that describes the row Tuples for this
+	 * Portal.
+	 * @throws SQLException if the handle to the native structur is stale.
+	 */
+	public native TupleDesc getTupleDesc()
 	throws SQLException;
 
 	/**
@@ -41,6 +57,12 @@ public class Portal extends NativeStruct
 	 */
 	public native int fetch(boolean forward, int count)
 	throws SQLException;
+
+	/**
+	 * Invalidates this structure and frees up memory using the
+	 * internal function <code>SPI_cursor_close</code>
+	 */
+	public native void invalidate();
 
 	/**
 	 * Returns the value of the <code>atEnd</code> attribute.

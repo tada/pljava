@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 /**
  * The <code>NativeStruct</code> maintains a pointer to a piece of memory
@@ -27,4 +27,26 @@ public abstract class NativeStruct
 	 * be serialized.
 	 */
 	private transient long m_native;
+
+	/**
+	 * Returns <code>true</code> if native structure pointer is still valid.
+	 */
+	public boolean isValid()
+	{
+		return m_native != 0;
+	}
+
+	/**
+	 * Invalidates this structure and frees up memory allocated for this
+	 * structure (if any).
+	 */
+	public void invalidate()
+	{
+		this.releasePointer();
+	}
+
+	/**
+	 * Invalidates this structure without freeing up memory.
+	 */
+	protected native void releasePointer();
 }

@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 /**
  * The <code>SPI</code> class provides access to some global
@@ -62,5 +62,82 @@ public class SPI extends NativeStruct
 	/**
 	 * Returns the value of the global variable <code>SPI_tuptable</code>.
 	 */
-	public native static TupleTable getTupTable();
+	public native static SPITupleTable getTupTable();
+	
+	/**
+	 * Returns a textual representatio of a result code
+	 */
+	public static String getResultText(int resultCode)
+	{
+		String s;
+		switch(resultCode)
+		{
+			case ERROR_CONNECT:
+				s = "ERROR_CONNECT";
+				break;
+			case ERROR_COPY:
+				s = "ERROR_COPY";
+				break;
+			case ERROR_OPUNKNOWN:
+				s = "ERROR_OPUNKNOWN";
+				break;
+			case ERROR_UNCONNECTED:
+				s = "ERROR_UNCONNECTED";
+				break;
+			case ERROR_CURSOR:
+				s = "ERROR_CURSOR";
+				break;
+			case ERROR_ARGUMENT:
+				s = "ERROR_ARGUMENT";
+				break;
+			case ERROR_PARAM:
+				s = "ERROR_PARAM";
+				break;
+			case ERROR_TRANSACTION:
+				s = "ERROR_TRANSACTION";
+				break;
+			case ERROR_NOATTRIBUTE:
+				s = "ERROR_NOATTRIBUTE";
+				break;
+			case ERROR_NOOUTFUNC:
+				s = "ERROR_NOOUTFUNC";
+				break;
+			case ERROR_TYPUNKNOWN:
+				s = "ERROR_TYPUNKNOWN";
+				break;
+			case OK_CONNECT:
+				s = "OK_CONNECT";
+				break;
+			case OK_FINISH:
+				s = "OK_FINISH";
+				break;
+			case OK_FETCH:
+				s = "OK_FETCH";
+				break;
+			case OK_UTILITY:
+				s = "OK_UTILITY";
+				break;
+			case OK_SELECT:
+				s = "OK_SELECT";
+				break;
+			case OK_SELINTO:
+				s = "OK_SELINTO";
+				break;
+			case OK_INSERT:
+				s = "OK_INSERT";
+				break;
+			case OK_DELETE:
+				s = "OK_DELETE";
+				break;
+			case OK_UPDATE:
+				s = "OK_UPDATE";
+				break;
+			case OK_CURSOR:
+				s = "OK_CURSOR";
+				break;
+			default:
+				s = "Unkown result code: " + resultCode;
+		}
+	return s;
+	}
 }

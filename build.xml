@@ -77,57 +77,62 @@
 
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.SPI"
+			class="org.postgresql.pljava.internal.SPI"
 			outputfile="src/C/include/pljava/SPI_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.AclId"
+			class="org.postgresql.pljava.internal.AclId"
 			outputfile="src/C/include/pljava/type/AclId_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.ExecutionPlan"
+			class="org.postgresql.pljava.internal.NativeStruct"
+			outputfile="src/C/include/pljava/type/NativeStruct_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.internal.ExecutionPlan"
 			outputfile="src/C/include/pljava/type/ExecutionPlan_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.Portal"
+			class="org.postgresql.pljava.internal.Portal"
 			outputfile="src/C/include/pljava/type/Portal_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.Relation"
+			class="org.postgresql.pljava.internal.Relation"
 			outputfile="src/C/include/pljava/type/Relation_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.SPITupleTable"
+			class="org.postgresql.pljava.internal.SPITupleTable"
 			outputfile="src/C/include/pljava/type/SPITupleTable_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.TriggerData"
+			class="org.postgresql.pljava.internal.TriggerData"
 			outputfile="src/C/include/pljava/type/TriggerData_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.Tuple"
+			class="org.postgresql.pljava.internal.Tuple"
 			outputfile="src/C/include/pljava/type/Tuple_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.TupleDesc"
+			class="org.postgresql.pljava.internal.TupleDesc"
 			outputfile="src/C/include/pljava/type/TupleDesc_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.TupleTable"
+			class="org.postgresql.pljava.internal.TupleTable"
 			outputfile="src/C/include/pljava/type/TupleTable_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.TupleTableSlot"
+			class="org.postgresql.pljava.internal.TupleTableSlot"
 			outputfile="src/C/include/pljava/type/TupleTableSlot_JNI.h"
 			/>
 	</target>

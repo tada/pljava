@@ -155,12 +155,12 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
  * JNI methods
  ****************************************/
 /*
- * Class:     org_postgresql_pljava_ExecutionPlan
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    cursorOpen
- * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/Portal;
+ * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
+Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
@@ -187,12 +187,12 @@ Java_org_postgresql_pljava_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, 
 }
 
 /*
- * Class:     org_postgresql_pljava_ExecutionPlan
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    execp
  * Signature: ([Ljava/lang/Object;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
@@ -213,12 +213,12 @@ Java_org_postgresql_pljava_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobje
 }
 
 /*
- * Class:     org_postgresql_pljava_ExecutionPlan
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    prepare
- * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/Oid;)Lorg/postgresql/pljava/ExecutionPlan;
+ * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)Lorg/postgresql/pljava/internal/ExecutionPlan;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
+Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
  	int paramCount = 0;
 	Oid* paramOids = 0;
@@ -242,4 +242,17 @@ Java_org_postgresql_pljava_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstrin
 	void* ePlan = SPI_prepare(cmd, paramCount, paramOids);
 	pfree(cmd);
 	return ExecutionPlan_create(env, ePlan);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    invalidate
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobject _this)
+{
+	void* ePlan = NativeStruct_releasePointer(env, _this);
+	if(ePlan != 0)
+		SPI_freeplan(ePlan);
 }

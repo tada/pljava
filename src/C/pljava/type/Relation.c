@@ -76,12 +76,12 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 }
 
 /*
- * Class:     org_postgresql_pljava_Relation
+ * Class:     org_postgresql_pljava_internal_Relation
  * Method:    getName
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_Relation_getName(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
 {
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
@@ -93,12 +93,12 @@ Java_org_postgresql_pljava_Relation_getName(JNIEnv* env, jobject _this)
 	return ret;
 }
 /*
- * Class:     org_postgresql_pljava_Relation
+ * Class:     org_postgresql_pljava_internal_Relation
  * Method:    getTupleDesc
- * Signature: ()Lorg/postgresql/pljava/TupleDesc;
+ * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_Relation_getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _this)
 {
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
@@ -108,12 +108,12 @@ Java_org_postgresql_pljava_Relation_getTupleDesc(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_Relation
+ * Class:     org_postgresql_pljava_internal_Relation
  * Method:    modifyTuple
- * Signature: (Lorg/postgresql/pljava/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/pljava/Tuple;
+ * Signature: (Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/internal/pljava/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_Relation_modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
+Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
 {
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)

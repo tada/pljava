@@ -78,12 +78,12 @@ Datum TupleTable_initialize(PG_FUNCTION_ARGS)
  * JNI methods
  ****************************************/
 /*
- * Class:     org_postgresql_pljava_TupleTable
+ * Class:     org_postgresql_pljava_internal_TupleTable
  * Method:    getCount
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_TupleTable_getCount(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TupleTable_getCount(JNIEnv* env, jobject _this)
 {
 	TupleTable tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
@@ -92,12 +92,12 @@ Java_org_postgresql_pljava_TupleTable_getCount(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_TupleTable
+ * Class:     org_postgresql_pljava_internal_TupleTable
  * Method:    getSlot
- * Signature: (I)Lorg/postgresql/pljava/TupleTableSlot;
+ * Signature: (I)Lorg/postgresql/pljava/internal/TupleTableSlot;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TupleTable_getSlot(JNIEnv* env, jobject _this, jint pos)
+Java_org_postgresql_pljava_internal_TupleTable_getSlot(JNIEnv* env, jobject _this, jint pos)
 {
 	TupleTable tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)

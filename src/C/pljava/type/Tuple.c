@@ -79,12 +79,12 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
  ****************************************/
  
 /*
- * Class:     org_postgresql_pljava_Tuple
+ * Class:     org_postgresql_pljava_internal_Tuple
  * Method:    getObject
- * Signature: (Lorg/postgresql/pljava/TupleDesc;I)Ljava/lang/Object;
+ * Signature: (Lorg/postgresql/pljava/internal/TupleDesc;I)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
+Java_org_postgresql_pljava_internal_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
 	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
 	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);

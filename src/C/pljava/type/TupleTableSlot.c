@@ -79,12 +79,12 @@ Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS)
  * JNI methods
  ****************************************/
 /*
- * Class:     org_postgresql_pljava_TupleTableSlot
+ * Class:     org_postgresql_pljava_internal_TupleTableSlot
  * Method:    getTuple
- * Signature: ()Lorg/postgresql/pljava/Tuple;
+ * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TupleTableSlot_getTuple(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TupleTableSlot_getTuple(JNIEnv* env, jobject _this)
 {
 	TupleTableSlot* slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)
@@ -93,12 +93,12 @@ Java_org_postgresql_pljava_TupleTableSlot_getTuple(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_TupleTableSlot
+ * Class:     org_postgresql_pljava_internal_TupleTableSlot
  * Method:    getTupleDesc
- * Signature: ()Lorg/postgresql/pljava/TupleDesc;
+ * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_TupleTableSlot_getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TupleTableSlot_getTupleDesc(JNIEnv* env, jobject _this)
 {
 	TupleTableSlot* slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)

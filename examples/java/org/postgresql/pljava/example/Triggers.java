@@ -11,12 +11,12 @@ package org.postgresql.pljava.example;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 
-import org.postgresql.pljava.AclId;
-import org.postgresql.pljava.Relation;
-import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.TriggerException;
-import org.postgresql.pljava.Tuple;
-import org.postgresql.pljava.TupleDesc;
+import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Relation;
+import org.postgresql.pljava.internal.TriggerData;
+import org.postgresql.pljava.internal.Tuple;
+import org.postgresql.pljava.internal.TupleDesc;
 
 /**
  * This class contains some triggers that I found written in C under the

@@ -10,6 +10,8 @@ package org.postgresql.pljava;
 
 import java.sql.SQLException;
 
+import org.postgresql.pljava.internal.TriggerData;
+
 /**
  * @author <a href="mailto:thomas.hallgren@ironjug.com">Thomas Hallgren</a>
  */

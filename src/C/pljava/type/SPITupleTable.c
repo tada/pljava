@@ -79,12 +79,12 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
  * JNI methods
  ****************************************/
 /*
- * Class:     org_postgresql_pljava_SPITupleTable
+ * Class:     org_postgresql_pljava_internal_SPITupleTable
  * Method:    getCount
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_SPITupleTable_getCount(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_SPITupleTable_getCount(JNIEnv* env, jobject _this)
 {
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
@@ -94,12 +94,12 @@ Java_org_postgresql_pljava_SPITupleTable_getCount(JNIEnv* env, jobject _this)
 }
 
 /*
- * Class:     org_postgresql_pljava_SPITupleTable
+ * Class:     org_postgresql_internal_pljava_SPITupleTable
  * Method:    getSlot
- * Signature: (I)Lorg/postgresql/pljava/Tuple;
+ * Signature: (I)Lorg/postgresql/pljava/internal/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_SPITupleTable_getSlot(JNIEnv* env, jobject _this, jint pos)
+Java_org_postgresql_pljava_internal_SPITupleTable_getSlot(JNIEnv* env, jobject _this, jint pos)
 {
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
@@ -112,16 +112,29 @@ Java_org_postgresql_pljava_SPITupleTable_getSlot(JNIEnv* env, jobject _this, jin
 }
 
 /*
- * Class:     org_postgresql_pljava_SPITupleTable
+ * Class:     org_postgresql_pljava_internal_SPITupleTable
  * Method:    getTupleDesc
- * Signature: ()Lorg/postgresql/pljava/TupleDesc;
+ * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_SPITupleTable_getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_SPITupleTable_getTupleDesc(JNIEnv* env, jobject _this)
 {
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 
 	return TupleDesc_create(env, tupleTable->tupdesc);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPITupleTable
+ * Method:    invalidate
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_SPITupleTable_invalidate(JNIEnv* env, jobject _this)
+{
+	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_releasePointer(env, _this);
+	if(tupleTable != 0)
+		SPI_freetuptable(tupleTable);
 }

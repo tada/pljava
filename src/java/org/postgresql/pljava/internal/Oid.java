@@ -6,7 +6,7 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 /**
  * The <code>Oid</code> correspons to the internal PostgreSQL <code>Oid</code>.

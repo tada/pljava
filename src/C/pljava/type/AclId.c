@@ -83,7 +83,7 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
  * Signature: ()Lorg/postgresql/pljava/AclId;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_AclId_getUser(JNIEnv* env, jclass clazz)
+Java_org_postgresql_pljava_internal_AclId_getUser(JNIEnv* env, jclass clazz)
 {
 	return AclId_create(env, GetUserId());
 }
@@ -94,7 +94,7 @@ Java_org_postgresql_pljava_AclId_getUser(JNIEnv* env, jclass clazz)
  * Signature: ()Lorg/postgresql/pljava/AclId;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_AclId_getSessionUser(JNIEnv* env, jclass clazz)
+Java_org_postgresql_pljava_internal_AclId_getSessionUser(JNIEnv* env, jclass clazz)
 {
 	return AclId_create(env, GetSessionUserId());
 }
@@ -105,7 +105,7 @@ Java_org_postgresql_pljava_AclId_getSessionUser(JNIEnv* env, jclass clazz)
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_AclId_getName(JNIEnv* env, jobject aclId)
+Java_org_postgresql_pljava_internal_AclId_getName(JNIEnv* env, jobject aclId)
 {
 	return String_createJavaStringFromNTS(env, GetUserNameFromId(AclId_getAclId(env, aclId)));
 }

@@ -74,11 +74,12 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 }
 
 /*
- * Class:     org_postgresql_pljava_TupleDesc
+ * Class:     org_postgresql_pljava_internal_TupleDesc
  * Method:    getColumnName
  * Signature: (I)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_TupleDesc_getColumnName(JNIEnv* env, jobject _this, jint index)
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_TupleDesc_getColumnName(JNIEnv* env, jobject _this, jint index)
 {
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
 
@@ -96,11 +97,12 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_TupleDesc_getColumnName(JNI
 }
 
 /*
- * Class:     org_postgresql_pljava_TupleDesc
+ * Class:     org_postgresql_pljava_internal_TupleDesc
  * Method:    getColumnIndex
  * Signature: (Ljava/lang/String;)I;
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_TupleDesc_getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_internal_TupleDesc_getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
 {
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	char* name = String_createNTS(env, colName);
