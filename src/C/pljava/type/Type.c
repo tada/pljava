@@ -111,6 +111,13 @@ Type Type_fromOid(Oid typeId)
 	return type;
 }
 
+Type Type_objectTypeFromOid(Oid typeId)
+{
+	Type type = Type_fromOid(typeId);
+	Type objectType = type->m_class->objectType;
+	return (objectType == 0) ? type : objectType;
+}
+
 bool _Type_canReplaceType(Type self, Type other)
 {
 	return self->m_class == other->m_class;

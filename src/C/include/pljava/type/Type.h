@@ -76,6 +76,12 @@ extern Type Type_fromPgType(Oid typeId, Form_pg_type pgType);
 extern Type Type_fromOid(Oid typeId);
 
 /*
+ * Return a Type based on a PostgreSQL Oid. If the found
+ * type is a primitive, return it's object corresponcance
+ */
+extern Type Type_objectTypeFromOid(Oid typeId);
+
+/*
  * Return a Type based on a default SQL type and a java type name.
  */
 extern Type Type_fromJavaType(Oid dfltType, const char* javaTypeName);

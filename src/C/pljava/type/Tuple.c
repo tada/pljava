@@ -85,6 +85,29 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+jobject
+Tuple_getObject(JNIEnv* env, TupleDesc tupleDesc, HeapTuple tuple, int index)
+{
+	jobject result = 0;
+	PG_TRY();
+	{
+		Type type = TupleDesc_getColumnType(env, tupleDesc, index);
+		if(type != 0)
+		{
+			bool wasNull = false;
+			Datum binVal = SPI_getbinval(tuple, tupleDesc, (int)index, &wasNull);
+			if(!wasNull)
+				result = Type_coerceDatum(type, env, binVal).l;
+		}
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(env, "SPI_getbinval");
+	}
+	PG_END_TRY();
+	return result;
+}
+
 /****************************************
  * JNI methods
  ****************************************/
@@ -109,36 +132,6 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 	tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
 	if(tupleDesc == 0)
 		return 0;
-
-	PG_TRY();
-	{
-		Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
-		if(!OidIsValid(typeId))
-		{
-			Exception_throw(env,
-				ERRCODE_INVALID_DESCRIPTOR_INDEX,
-				"Invalid attribute index \"%d\"", (int)index);
-		}
-		else
-		{
-			Datum binVal;
-			bool wasNull = false;
-			Type type = Type_fromOid(typeId);
-			if(Type_isPrimitive(type))
-				/*
-				 * This is a primitive type
-				 */
-				type = type->m_class->objectType;
-		
-			binVal = SPI_getbinval(self, tupleDesc, (int)index, &wasNull);
-			if(!wasNull)
-				result = Type_coerceDatum(type, env, binVal).l;
-		}
-	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_getbinval");
-	}
-	PG_END_TRY();
-	return result;
+	
+	return Tuple_getObject(env, tupleDesc, self, (int)index);
 }

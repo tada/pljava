@@ -60,9 +60,9 @@ Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS)
 {
 	JNINativeMethod methods[] = {
 		{
-		"_getTuple",
-	  	"()Lorg/postgresql/pljava/internal/Tuple;",
-	  	Java_org_postgresql_pljava_internal_TupleTableSlot__1getTuple
+		"_getValue",
+	  	"(I)Ljava/lang/Object;",
+	  	Java_org_postgresql_pljava_internal_TupleTableSlot__1getValue
 		},
 		{
 		"_getTupleDesc",
@@ -96,18 +96,40 @@ Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS)
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_TupleTableSlot
- * Method:    _getTuple
- * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
+ * Method:    _getValue
+ * Signature: (I)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_TupleTableSlot__1getTuple(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_TupleTableSlot__1getValue(JNIEnv* env, jobject _this, jint columnIndex)
 {
 	TupleTableSlot* slot;
+	jobject result = 0;
+
 	PLJAVA_ENTRY_FENCE(0)
 	slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)
 		return 0;
-	return Tuple_create(env, slot->val);
+#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1))
+	result = Tuple_getObject(env, slot->ttc_tupleDescriptor, slot->val, (int)columnIndex);
+#else
+	PG_TRY();
+	{
+		Type type = TupleDesc_getColumnType(env, slot->tts_tupleDescriptor, (int)columnIndex);
+		if(type != 0)
+		{
+			bool wasNull = false;
+			Datum binVal = slot_getattr(slot, (int)columnIndex, &wasNull);
+			if(!wasNull)
+				result = Type_coerceDatum(type, env, binVal).l;
+		}
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(env, "slot_getattr");
+	}
+	PG_END_TRY();
+#endif
+	return result;
 }
 
 /*
@@ -123,5 +145,9 @@ Java_org_postgresql_pljava_internal_TupleTableSlot__1getTupleDesc(JNIEnv* env, j
 	slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)
 		return 0;
+#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1))
 	return TupleDesc_create(env, slot->ttc_tupleDescriptor);
+#else
+	return TupleDesc_create(env, slot->tts_tupleDescriptor);
+#endif
 }

@@ -16,12 +16,12 @@ import java.sql.SQLException;
  */
 public class TupleTableSlot extends NativeStruct
 {
-	public Tuple getTuple()
+	public Object getValue(int columnIndex)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getTuple();
+			return this._getValue(columnIndex);
 		}
 	}
 
@@ -34,6 +34,6 @@ public class TupleTableSlot extends NativeStruct
 		}
 	}
 
-	private native Tuple _getTuple() throws SQLException;
+	private native Object _getValue(int columnIndex) throws SQLException;
 	private native TupleDesc _getTupleDesc() throws SQLException;
 }

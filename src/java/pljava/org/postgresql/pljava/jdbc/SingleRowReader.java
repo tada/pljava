@@ -9,7 +9,6 @@ package org.postgresql.pljava.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
 import org.postgresql.pljava.internal.TupleTableSlot;
 
@@ -21,20 +20,18 @@ import org.postgresql.pljava.internal.TupleTableSlot;
  */
 public class SingleRowReader extends SingleRowResultSet
 {
-	private final TupleDesc m_tupleDesc;
-	private final Tuple m_tuple;
+	private final TupleTableSlot m_slot;
 
 	public SingleRowReader(TupleTableSlot tableSlot)
 	throws SQLException
 	{
-		m_tupleDesc = tableSlot.getTupleDesc();
-		m_tuple = tableSlot.getTuple();
+		m_slot = tableSlot;
 	}
 
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
-		return m_tuple.getObject(this.getTupleDesc(), columnIndex);
+		return m_slot.getValue(columnIndex);
 	}
 
 	/**
@@ -125,8 +122,9 @@ public class SingleRowReader extends SingleRowResultSet
 	}
 
 	protected final TupleDesc getTupleDesc()
+	throws SQLException
 	{
-		return m_tupleDesc;
+		return m_slot.getTupleDesc();
 	}
 
 	private static SQLException readOnlyException()

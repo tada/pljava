@@ -54,7 +54,23 @@ TupleDesc TupleDesc_forOid(Oid oid)
 	}
 	return tupleDesc;
 }
-	
+
+Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index)
+{
+	Type type;
+	Oid typeId = SPI_gettypeid(tupleDesc, index);
+	if(!OidIsValid(typeId))
+	{
+		Exception_throw(env,
+			ERRCODE_INVALID_DESCRIPTOR_INDEX,
+			"Invalid attribute index \"%d\"", (int)index);
+		type = 0;
+	}
+	else
+		type = Type_objectTypeFromOid(typeId);
+	return type;
+}
+
 static jvalue _TupleDesc_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;

@@ -28,6 +28,11 @@ extern "C" {
  */
 extern jobject Tuple_create(JNIEnv* env, HeapTuple tuple);
 
+/*
+ * Return a java object at given index from a HeapTuple
+ */
+extern jobject Tuple_getObject(JNIEnv* env, TupleDesc tupleDesc, HeapTuple tuple, int index);
+
 #ifdef __cplusplus
 }
 #endif

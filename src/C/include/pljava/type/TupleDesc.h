@@ -22,6 +22,13 @@ extern "C" {
  * 
  * @author Thomas Hallgren
  ********************************************************************/
+ 
+/*
+ * Returns the Type of the column at index. If the returned Type
+ * is NULL a Java exception has been initiated and the caller
+ * should return to Java ASAP.
+ */
+extern Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index);
 
 /*
  * Create the org.postgresql.pljava.TupleDesc instance
