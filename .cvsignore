@@ -1,3 +1,4 @@
 bin
 distrib
 *.gz
+build
