@@ -4,7 +4,6 @@
 #
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
-top_builddir := $(PGSQLDIR)
 include $(PROJDIR)/src/C/Makefile.global
 
 ifdef USE_GCJ
