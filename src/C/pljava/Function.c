@@ -19,6 +19,7 @@
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
 #include <ctype.h>
+#include <funcapi.h>
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
@@ -586,12 +587,20 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		jvalue* args;
 		Type*   types = self->paramTypes;
 
-
 		/* a class loader or other mechanism might have connected already. This
 		 * connection must be dropped since its parent context is wrong.
 		 */
-		if(self->isMultiCall)
+		if(self->isMultiCall && SRF_IS_FIRSTCALL())
+		{
+			FuncCallContext* context;
+
 			Backend_assertDisconnect();
+
+			/* create a function context for cross-call persistence
+			 */
+			context = SRF_FIRSTCALL_INIT();
+			MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		}
 
 		args  = (jvalue*)palloc(top * sizeof(jvalue));
 		if(self->returnComplex)

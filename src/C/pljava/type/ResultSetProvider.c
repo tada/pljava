@@ -21,7 +21,6 @@
 #include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"
 
-
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
@@ -35,6 +34,9 @@ static TypeClass s_ResultSetHandleClass;
 static Type s_ResultSetHandle;
 static HashMap s_cache;
 
+/* Structure used in multi function calls (calls returning
+ * SETOF
+ */
 typedef struct
 {
 	JNIEnv*       jniEnv;
@@ -57,7 +59,6 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
-	Backend_assertDisconnect();
 	pfree(ctxData);
 }
 
@@ -94,16 +95,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ReturnSetInfo* rsInfo;
 		TupleDesc tupleDesc;
 
-		/* create a function context for cross-call persistence
-		 */
-		context = SRF_FIRSTCALL_INIT();
-		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
-
-		/* Create the context used by Pl/Java
-		 */
-		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
-		context->user_fctx = ctxData;
-
 		/* Call the declared Java function. It returns a ResultSetProvider
 		 * or a ResultSet. A ResultSet must be wrapped in a ResultSetPicker
 		 * (implements ResultSetProvider).
@@ -113,17 +104,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		isCallingJava = saveicj;
 		Exception_checkException(env);
 
+		context = (FuncCallContext*)fcinfo->flinfo->fn_extra;
 		if(tmp == 0)
 		{
-			if(currentCallContext->hasConnected)
-			{
-				/* Disconnect first, then restore the context.
-				 */
-				SPI_finish();
-				currentCallContext->hasConnected = false;
-				MemoryContextSwitchTo(currCtx);
-				MemoryContextDelete(GetMemoryChunkContext(ctxData));
-			}	
 			fcinfo->isnull = true;
 			SRF_RETURN_DONE(context);
 		}
@@ -156,6 +139,11 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 */
 		context->slot = TupleDescGetSlot(tupleDesc);
 #endif
+
+		/* Create the context used by Pl/Java
+		 */
+		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
+		context->user_fctx = ctxData;
 
 		ctxData->jniEnv            = env;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
