@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cdtproject id="org.eclipse.cdt.make.core.make">
+    <extension id="org.eclipse.cdt.make.core.MakeScannerProvider" point="org.eclipse.cdt.core.ScannerInfoProvider"/>
+    <extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser">
+        <attribute key="addr2line" value="addr2line"/>
+        <attribute key="c++filt" value="c++filt"/>
+    </extension>
+    <data>
+        <item id="org.eclipse.cdt.make.core.makeScannerInfo">
+            <includePath path="../postgresql-7.4/src/include"/>
+            <includePath path="/usr/java/j2sdk1.4.2_02/include"/>
+            <includePath path="/usr/java/j2sdk1.4.2_02/include/linux"/>
+        </item>
+    </data>
+</cdtproject>

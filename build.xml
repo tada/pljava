@@ -1,0 +1,102 @@
+<project default="all">
+	<target
+		name="all"
+		depends="generate_headers,example_jar,test"
+		description="builds all targets except clean"/>
+	
+	<target
+		name="clean"
+		description="Removes all artifacts from previous builds">
+
+		<delete dir="bin" failonerror="false" quiet="true"/>
+		<delete dir="generated" failonerror="false" quiet="true"/>
+	</target>
+
+	<target
+		name="backend_jar"
+		description="The Java code that must be included in order to run the Pl/Java stuff in the backend">
+
+		<mkdir dir="bin/tmp"/>
+		<mkdir dir="bin/backend/classes"/>
+		<depend
+			srcdir="src/java"
+			destdir="bin/backend/classes"
+			closure="yes"
+			cache="bin/tmp"
+		/>
+		<javac
+			srcdir="src/java"
+			destdir="bin/backend/classes"
+			target="1.4"
+			/>
+
+		<jar basedir="bin/backend/classes"
+			compress="true"
+			destfile="bin/pljava.jar"
+			/>
+	</target>
+
+	<target
+		name="example_jar"
+		depends="backend_jar"
+		description="Sample backend Java code">
+
+		<mkdir dir="bin/examples/classes"/>
+		<javac
+			srcdir="examples/java"
+			destdir="bin/examples/classes"
+			classpath="bin/pljava.jar"
+			target="1.4"
+			/>
+
+		<jar basedir="bin/examples/classes"
+			compress="true"
+			destfile="bin/examples.jar"
+		/>
+	</target>
+
+	<target
+		name="test"
+		description="Test target. Must never be made dependent on the other targets">
+
+		<mkdir dir="bin/test/classes"/>
+		<javac
+			srcdir="test"
+			destdir="bin/test/classes"
+			target="1.4"
+			/>
+	</target>
+
+	<target
+		name="generate_headers"
+		depends="backend_jar"
+		description="Generates C/C++ header files for all native calls made from Java">
+
+		<mkdir dir="generated"/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.AclId"
+			outputfile="src/C/include/pljava/type/AclId_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.Relation"
+			outputfile="src/C/include/pljava/type/Relation_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.TriggerData"
+			outputfile="src/C/include/pljava/type/TriggerData_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.TupleDesc"
+			outputfile="src/C/include/pljava/type/TupleDesc_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.Tuple"
+			outputfile="src/C/include/pljava/type/Tuple_JNI.h"
+			/>
+	</target>
+</project>

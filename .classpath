@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry output="bin/backend/classes" kind="src" path="src/java"/>
+	<classpathentry output="bin/test/classes" kind="src" path="test"/>
+	<classpathentry output="bin/examples/classes" kind="src" path="examples/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="/usr/share/pgsql/devpgjdbc3.jar"/>
+	<classpathentry kind="output" path="bin/classes"/>
+</classpath>
