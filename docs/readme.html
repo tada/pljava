@@ -108,12 +108,12 @@ on a Cygwin based platform.</p>
 <h2>Run the example tests</h2>
 <p>The tests are divided into two jar files. One is the client part found in the <code>test.jar</code>. It contains some methods that executes
 SQL statements and prints the output (all contained there can of course also be
-executed from psql or any other client). The other is the <code>example.jar</code>
+executed from psql or any other client). The other is the <code>examples.jar</code>
 which contains the sample code that runs in the backend. The latter must be installed
 in the database in order to function. An easy way to do this is to use psql and
 issue the command:</p>
-<pre>SELECT sqlj.install_jar(&#39;file:///some/directory/example.jar&#39;, &#39;samples&#39;,  true);</pre>
-<p>Please note that the deployment descriptor stored in example.jar will attempt 
+<pre>SELECT sqlj.install_jar(&#39;file:///some/directory/examples.jar&#39;, &#39;samples&#39;,  true);</pre>
+<p>Please note that the deployment descriptor stored in examples.jar will attempt 
 to create the schema <code>javatest</code> so the user that executes the <code>sqlj.install_jar</code> 
 must have permission to do that. If this command succeeds, everything is working correctly. You may get a couple
 of errors here though.</p>
