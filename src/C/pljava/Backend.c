@@ -583,6 +583,11 @@ static void addUserJVMOptions(JVMOptList* optList)
  */
 static void setJavaSecurity(JNIEnv* env, bool trusted)
 {
+/* GCJ goes into an endless loop when we manipulate the SecurityManager
+ * this is said to be fixed in 4.0 but in time of writing, that's still
+ * very early alpha
+ */
+#ifndef GCJ
 	bool saveICJ = isCallingJava;
 	isCallingJava = true;
 	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
@@ -596,6 +601,7 @@ static void setJavaSecurity(JNIEnv* env, bool trusted)
 			errcode(ERRCODE_INTERNAL_ERROR),
 			errmsg("Unable to initialize java security")));
 	}
+#endif
 }
 
 /**
