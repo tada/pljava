@@ -11,6 +11,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 
 import org.postgresql.pljava.internal.TypeMap;
 
@@ -23,20 +24,51 @@ import org.postgresql.pljava.internal.TypeMap;
  */
 public class SyntheticResultSet extends ResultSetBase
 {
-	private final ResultSetField[] m_fields;
-	private final ArrayList        m_tuples;
-    private final HashMap          m_fieldIndexes;
+	private final Constructor[] m_fieldCreators;
+	private final ArrayList     m_tuples;
+    private final HashMap       m_fieldIndexes;
 
 	SyntheticResultSet(ResultSetField[] fields, ArrayList tuples)
 	throws SQLException
 	{
 		super(tuples.size());
-		m_fields = fields;
+        int i = fields.length;
+		m_fieldCreators = new Constructor[i];
 		m_tuples = tuples;
         m_fieldIndexes = new HashMap();
-        int i = m_fields.length;
-        while(--i >= 0)
-            m_fieldIndexes.put(m_fields[i].getColumnLabel(), new Integer(i+1));
+        String className = null;
+
+        Class[] prototype = {String.class};
+        try
+        {
+	        while(--i >= 0)
+	        {
+	        	ResultSetField field = fields[i];
+	        	className = TypeMap.getClassNameFromPgOid(field.getOID());
+	        	m_fieldIndexes.put(field.getColumnLabel(), new Integer(i+1));
+	        	if(className.equals("java.lang.String"))
+	        		m_fieldCreators[i] = null;
+	        	else
+	        	{
+	        		Class cls = Class.forName(className);
+	        		m_fieldCreators[i] = cls.getConstructor(prototype);
+	        	}
+	        }
+		}
+		catch(ClassNotFoundException e)
+		{
+			throw new SQLException("Unable to load field class: " + e.getMessage());
+		}
+		catch(SecurityException e)
+		{
+			throw new SQLException("Constructor in field class " +
+				className + " is not public");
+		}
+		catch(NoSuchMethodException e)
+		{
+			throw new SQLException("Unable to find constructor " +
+				className + "(String)");
+		}
 	}
 
     public Statement getStatement()
@@ -75,38 +107,58 @@ public class SyntheticResultSet extends ResultSetBase
 	{
         return
             convertToJavaObject(
-                ((byte[][]) getCurrentRow())[columnIndex-1],
-                TypeMap.getClassNameFromPgOid(
-                    m_fields[columnIndex-1].getOID()));
+                ((byte[][]) getCurrentRow())[columnIndex-1], columnIndex);
 	}
 
     /**
      * Converts a string (stored in a byte array) to a java object.
-     * If the class of the name className does not exist or does not contain
-     * a constructor <classname>(java.lang.String), an exception is thrown.
      */
-    protected Object convertToJavaObject(byte[] byteArray, String className)
+    protected Object convertToJavaObject(byte[] byteArray, int columnIndex)
     throws SQLException
     {
         if (byteArray == null)
-        {
             return null;
-        }
+
+    	String str = new String(byteArray);
+    	Constructor ctor = m_fieldCreators[columnIndex-1];
+    	if(ctor == null)
+    		//
+    		// Should remain a String
+    		//
+    		return str;
 
         try
         {
-            Class cls = Class.forName(className);
-            Class[] prototype = {String.class};
-            Object[] args = {new String(byteArray)};
-            Constructor c = cls.getConstructor(prototype);
-
-            return c.newInstance(args);
+            return ctor.newInstance(new Object[] { str });
         }
-        catch (Exception e) {
+        catch (RuntimeException e) {
             throw new SQLException(
-                "Unable to convert java.lang.String to " + className + ": " +
+                "Unable to convert java.lang.String to " + 
+                ctor.getDeclaringClass() + ": " +
                 e.getMessage());
         }
+		catch(InstantiationException e)
+		{
+			throw new SQLException("Class " +
+				ctor.getDeclaringClass() +
+				" is abstract");
+		}
+		catch(IllegalAccessException e)
+		{
+			throw new SQLException("Class " +
+				ctor.getDeclaringClass() +
+				" is not public");
+		}
+		catch(InvocationTargetException e)
+		{
+			Throwable t = e.getTargetException();
+			if(t instanceof SQLException)
+				throw (SQLException)t;
+			throw new SQLException(
+				"Unable to convert java.lang.String to " +
+				ctor.getDeclaringClass() +
+				": " + t.getMessage());
+		}
     }
 
     protected final Object getCurrentRow()
