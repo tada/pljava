@@ -31,14 +31,17 @@ static jvalue _Date_coerceDatum(Type self, JNIEnv* env, Datum arg)
 	jlong date = (jlong)(DatumGetDateADT(arg) + EPOCH_DIFF);
 
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Date_class, s_Date_init, date * 86400000L);
+	date *= 86400L;	// Convert to seconds
+	date += Timestamp_getCurrentTimeZone();	// Add local timezone
+	result.l = PgObject_newJavaObject(env, s_Date_class, s_Date_init, date * 1000);
 	return result;
 }
 
 static Datum _Date_coerceObject(Type self, JNIEnv* env, jobject date)
 {
-	jlong secs = (*env)->CallLongMethod(env, date, s_Date_getTime);
-	return DateADTGetDatum(((DateADT)(secs / 86400000)) - EPOCH_DIFF);
+	jlong secs = (*env)->CallLongMethod(env, date, s_Date_getTime) / 1000;
+	secs -= Timestamp_getCurrentTimeZone(); // UTC
+	return DateADTGetDatum(((DateADT)(secs / 86400)) - EPOCH_DIFF);
 }
 
 static Type Date_obtain(Oid typeId)

@@ -164,6 +164,30 @@ public class SPIActions
 		}
 	}
 
+	public static String getDateAsString()
+	throws SQLException
+	{
+		ResultSet rs = null;
+		Statement stmt = null;
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			stmt = conn.createStatement();
+			rs = stmt.executeQuery("SELECT CURRENT_DATE");
+			if(rs.next())
+				return rs.getDate(1).toString();
+			return "Date could not be retrieved";
+		}
+		finally
+		{
+			if(rs != null)
+				rs.close();
+			if(stmt != null)
+				stmt.close();
+			conn.close();
+		}
+	}
+
 	public static String getTimeAsString()
 	throws SQLException
 	{

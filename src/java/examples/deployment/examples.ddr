@@ -189,6 +189,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.SPIActions.testSavepointSanity'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.getDateAsString()
+			RETURNS varchar
+			AS 'org.postgresql.pljava.example.SPIActions.getDateAsString'
+			STABLE LANGUAGE java;
+
 		CREATE FUNCTION javatest.getTimeAsString()
 			RETURNS varchar
 			AS 'org.postgresql.pljava.example.SPIActions.getTimeAsString'
