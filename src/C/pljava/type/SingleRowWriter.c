@@ -55,7 +55,7 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToUpperContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
 #if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 	    result = TupleGetDatum(TupleDescGetSlot(tupleDesc), tuple);

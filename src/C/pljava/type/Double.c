@@ -33,7 +33,7 @@ static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	currCtx = MemoryContext_switchToReturnValueContext();
+	currCtx = MemoryContext_switchToUpperContext();
 	ret = Float8GetDatum(dv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;

@@ -605,7 +605,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		/* A new Tuple may or may not be created here. If it is, ensure that
 		 * it is created in the upper SPI context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToUpperContext();
 		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when

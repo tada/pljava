@@ -72,11 +72,11 @@ extern void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
  * a call to MemoryContextSwitchTo(oldContext) must follow where oldContext
  * is the context returned from this call.
  */
-extern MemoryContext MemoryContext_switchToReturnValueContext(void);
+extern MemoryContext MemoryContext_switchToUpperContext(void);
 
 /*
  * Returns the nativeCache that's currently in effect, i.e. the nativeCache
- * of the returnValueContext.
+ * of the upperContext.
  */
 extern HashMap MemoryContext_getCurrentNativeCache(void);
 

@@ -129,7 +129,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToUpperContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 
 #if (PGSQL_MAJOR_VER >= 8)

@@ -49,7 +49,7 @@ void Exception_checkException(JNIEnv* env)
 	isCallingJava = saveicj;
 
 #if(PGSQL_MAJOR_VER < 8)
-	if(currentCallContext->elogErrorOccured)
+	if(currentCallContext->errorOccured)
 		/*
 		 * Oops, just re-throw this one.
 		 */
@@ -196,7 +196,7 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 	jobject ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
 	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
-	currentCallContext->elogErrorOccured = true;
+	currentCallContext->errorOccured = true;
 	(*env)->DeleteLocalRef(env, ed);
 	(*env)->Throw(env, ex);
 }

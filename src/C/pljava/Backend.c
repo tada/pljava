@@ -153,12 +153,13 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	bool saveIsCallingJava = isCallingJava;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 
-	ctx.invocation         = 0;
-	ctx.function           = 0;
-	ctx.returnValueContext = upper;
-	ctx.elogErrorOccured   = false;
-	ctx.previous           = currentCallContext;
-	currentCallContext     = &ctx;
+	ctx.invocation   = 0;
+	ctx.function     = 0;
+	ctx.upperContext = upper;
+	ctx.errorOccured = false;
+	ctx.previous     = currentCallContext;
+
+	currentCallContext = &ctx;
 
 	if(!MemoryContext_hasCallbackCapability(upper))
 	{
@@ -217,7 +218,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 
 bool pljavaEntryFence(JNIEnv* env)
 {
-	if(currentCallContext->elogErrorOccured)
+	if(currentCallContext->errorOccured)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the
@@ -464,12 +465,12 @@ static void _destroyJavaVM(int status, Datum dummy)
 	{
 		CallContext ctx;
 	
-		ctx.invocation         = 0;
-		ctx.function           = 0;
-		ctx.returnValueContext = CurrentMemoryContext;
-		ctx.elogErrorOccured   = false;
-		ctx.previous           = 0;
-		currentCallContext     = &ctx;
+		ctx.invocation   = 0;
+		ctx.function     = 0;
+		ctx.upperContext = CurrentMemoryContext;
+		ctx.errorOccured = false;
+		ctx.previous     = 0;
+		currentCallContext = &ctx;
 
 #if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
@@ -639,13 +640,6 @@ static void initializeJavaVM(void)
 {
 	CallContext ctx;
 
-	ctx.invocation         = 0;
-	ctx.function           = 0;
-	ctx.returnValueContext = CurrentMemoryContext;
-	ctx.elogErrorOccured   = false;
-	ctx.previous           = 0;
-	currentCallContext     = &ctx;
-
 #if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
 	pqsigfunc saveSigTerm;
@@ -658,6 +652,13 @@ static void initializeJavaVM(void)
 	jmethodID init;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
+
+	ctx.invocation   = 0;
+	ctx.function     = 0;
+	ctx.upperContext = CurrentMemoryContext;
+	ctx.errorOccured = false;
+	ctx.previous     = 0;
+	currentCallContext = &ctx;
 
 	JVMOptList_init(&optList);
 
@@ -990,7 +991,7 @@ Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel(JNIEnv* env, jclass
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jclass cls)
 {
-	currentCallContext->elogErrorOccured = false;
+	currentCallContext->errorOccured = false;
 }
 
 /*

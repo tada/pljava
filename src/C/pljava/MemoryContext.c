@@ -177,9 +177,9 @@ void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
 	exm->nativeCache = nativeCache;
 }
 
-MemoryContext MemoryContext_switchToReturnValueContext(void)
+MemoryContext MemoryContext_switchToUpperContext(void)
 {
-	return MemoryContextSwitchTo(currentCallContext->returnValueContext);
+	return MemoryContextSwitchTo(currentCallContext->upperContext);
 }
 
 HashMap MemoryContext_getCurrentNativeCache(void)
@@ -187,7 +187,7 @@ HashMap MemoryContext_getCurrentNativeCache(void)
 	HashMap ret = 0;
 	if(currentCallContext != 0)
 	{
-		MemoryContext ctx = currentCallContext->returnValueContext;
+		MemoryContext ctx = currentCallContext->upperContext;
 		if(ctx != 0)
 			ret = MemoryContext_getNativeCache(ctx);
 	}

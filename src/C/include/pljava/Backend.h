@@ -22,11 +22,36 @@ typedef struct CallContext_ CallContext;
 
 struct CallContext_
 {
-	jobject invocation;
-	MemoryContext returnValueContext;
-	Function function;
-	bool elogErrorOccured;
-	CallContext* previous;
+	/**
+	 * A Java object representing the current invocation. This
+	 * field will be NULL if no such object has been requested.
+	 */
+	jobject       invocation;
+	
+	/**
+	 * The context to use when allocating values that are to be
+	 * returned from the call.
+	 */
+	MemoryContext upperContext;
+	
+	/**
+	 * The currently executing Function.
+	 */
+	Function      function;
+	
+	/**
+	 * Set to true if an elog with a severity >= ERROR
+	 * has occured. All calls from Java to the backend will
+	 * be prevented until this flag is reset (by a rollback
+	 * of a savepoint or function exit).
+	 */
+	bool          errorOccured;
+	
+	/**
+	 * The previous call context when nested function calls
+	 * are made or 0 if this call is at the top level.
+	 */
+	CallContext*  previous;
 };
 
 extern CallContext* currentCallContext;
