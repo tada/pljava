@@ -224,35 +224,44 @@ public class SPIConnection implements Connection
 		throw new UnsupportedFeatureException("Connection.rollback(Savepoint)");
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#createStatement()
+	/**
+	 * Creates a new instance of <code>SPIStatement</code>.
 	 */
-	public Statement createStatement() throws SQLException
+	public Statement createStatement()
+	throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		return new SPIStatement(this);
 	}
 
-	/*
-	 * (non-Javadoc)
+	/**
+	 * Creates a new instance of <code>SPIStatement</code>.
 	 * 
-	 * @see java.sql.Connection#createStatement(int, int)
+	 * @throws SQLException
+	 *             if the <code>resultSetType</code> differs from {@link
+	 *             ResultSet#TYPE_FORWARD_ONLY} or if the <code>resultSetConcurrencty</code>
+	 *             differs from {@link ResultSet#CONCUR_READ_ONLY}.
 	 */
 	public Statement createStatement(
 		int resultSetType,
 		int resultSetConcurrency)
 		throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		if(resultSetType != ResultSet.TYPE_FORWARD_ONLY)
+			throw new UnsupportedOperationException("TYPE_FORWARD_ONLY supported ResultSet type");
+
+		if(resultSetConcurrency != ResultSet.CONCUR_READ_ONLY)
+			throw new UnsupportedOperationException("CONCUR_READ_ONLY is the supported ResultSet concurrency");
+		return new SPIStatement(this);
 	}
 
-	/*
-	 * (non-Javadoc)
+	/**
+	 * Creates a new instance of <code>SPIStatement</code>.
 	 * 
-	 * @see java.sql.Connection#createStatement(int, int, int)
+	 * @throws SQLException
+	 *             if the <code>resultSetType</code> differs from {@link
+	 *             ResultSet#TYPE_FORWARD_ONLY}, if the <code>resultSetConcurrencty</code>
+	 *             differs from {@link ResultSet#CONCUR_READ_ONLY}, or if the
+	 *             resultSetHoldability differs from {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}.
 	 */
 	public Statement createStatement(
 		int resultSetType,
@@ -260,58 +269,53 @@ public class SPIConnection implements Connection
 		int resultSetHoldability)
 		throws SQLException
 	{
-		// TODO Auto-generated method stub
+		if(resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT)
+			throw new UnsupportedOperationException(
+					"CLOSE_CURSORS_AT_COMMIT is the only supported ResultSet holdability");
+		return this.createStatement(resultSetType, resultSetConcurrency);
+	}
+
+	/**
+	 * Returns <code>null</code>. Type map is not yet imlemented.
+	 */
+	public Map getTypeMap()
+	throws SQLException
+	{
 		return null;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#getTypeMap()
+	/**
+	 * Type map is not yet implemented.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
-	public Map getTypeMap() throws SQLException
+	public void setTypeMap(Map map)
+	throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Type map is not yet implemented");
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#setTypeMap(java.util.Map)
+	/**
+	 * Parse the JDBC SQL into PostgreSQL.
 	 */
-	public void setTypeMap(Map map) throws SQLException
+	public String nativeSQL(String sql)
+	throws SQLException
 	{
-		// TODO Auto-generated method stub
-
+		// TODO Parse ? int $n
+		return sql;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#nativeSQL(java.lang.String)
-	 */
-	public String nativeSQL(String sql) throws SQLException
-	{
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#prepareCall(java.lang.String)
+	/**
+	 * Procedure calls are not yet implemented.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
 	public CallableStatement prepareCall(String sql) throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Procedure calls are not yet implemented");
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#prepareCall(java.lang.String, int, int)
+	/**
+	 * Procedure calls are not yet implemented.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
 	public CallableStatement prepareCall(
 		String sql,
@@ -319,14 +323,12 @@ public class SPIConnection implements Connection
 		int resultSetConcurrency)
 		throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Procedure calls are not yet implemented");
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see java.sql.Connection#prepareCall(java.lang.String, int, int, int)
+	/**
+	 * Procedure calls are not yet implemented.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
 	public CallableStatement prepareCall(
 		String sql,
@@ -335,8 +337,7 @@ public class SPIConnection implements Connection
 		int resultSetHoldability)
 		throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedOperationException("Procedure calls are not yet implemented");
 	}
 
 	/*
