@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 
+import org.postgresql.pljava.Server;
 import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.SPI;
@@ -263,7 +264,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		Arrays.fill(types, Types.VARCHAR);	// Default.
 		for(int idx = 0; idx < top; ++idx)
 		{
-			ParamEntry pe = (ParamEntry)m_paramList.get(top);
+			ParamEntry pe = (ParamEntry)m_paramList.get(idx);
 			types[pe.getIndex()] = pe.getSqlType();
 		}
 
@@ -291,7 +292,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			Arrays.fill(values, s_undef);
 			for(int idx = 0; idx < top; ++idx)
 			{
-				ParamEntry pe = (ParamEntry)params.get(top);
+				ParamEntry pe = (ParamEntry)params.get(idx);
 				int pIdx = pe.getIndex();
 				if(values[pIdx] != s_undef)
 					throw new SQLException("Parameter with index " + (idx + 1) + " was set more than once");
@@ -307,7 +308,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 				Oid[] typeIds = new Oid[top];
 				for(int idx = 0; idx < top; ++idx)
 				{
-					ParamEntry pe = (ParamEntry)params.get(top);
+					ParamEntry pe = (ParamEntry)params.get(idx);
 					int pIdx = pe.getIndex();
 					types[pIdx] = pe.getSqlType();
 					typeIds[pIdx] = pe.getTypeId();
@@ -316,9 +317,14 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 				m_typeIds  = typeIds;
 			}
 			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
+			Server.log("Prepare of '" + m_statement + "' done");
 			if(m_plan == null)
+			{
+				Server.log("m_plan is null");
 				throw new SPIException(SPI.getResult());
+			}
 			m_plan.makeDurable();
+			Server.log("m_plan is now durable");
 		}
 
 		boolean result = this.executePlan(m_plan, values);

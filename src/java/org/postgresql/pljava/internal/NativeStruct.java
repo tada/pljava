@@ -45,6 +45,11 @@ public abstract class NativeStruct
 		this.releasePointer();
 	}
 
+	protected final long getNative()
+	{
+		return m_native;
+	}
+
 	/**
 	 * Invalidates this structure without freeing up memory.
 	 */

@@ -10,9 +10,9 @@ package org.postgresql.pljava.jdbc;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.postgresql.pljava.Server;
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
-import org.postgresql.pljava.internal.SPIException;
 import org.postgresql.pljava.internal.SPITupleTable;
 import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
@@ -262,10 +262,9 @@ public class SPIResultSet extends ReadOnlyResultSet
 				mx = m_fetchSize;
 
 			int result = portal.fetch(true, mx);
-			if(result != SPI.OK_FETCH)
-				throw new SPIException(result);
-
-			m_table = SPI.getTupTable();
+			Server.log("SPIResultSet fetch table with " + result + " rows");
+			if(result > 0)
+				m_table = SPI.getTupTable();
 			m_tableRow = -1;
 		}
 		return m_table;
@@ -289,6 +288,8 @@ public class SPIResultSet extends ReadOnlyResultSet
 		if(table == null)
 			return null;
 
+		Server.log("ResulSet table count = " + table.getCount());
+		Server.log("tableRow = " + m_tableRow);
 		if(m_tableRow >= table.getCount() - 1)
 		{
 			// Current table is exhaused, get the next

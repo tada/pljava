@@ -8,7 +8,6 @@
  */
 #include <postgres.h>
 #include <executor/spi.h>
-#include <executor/tuptable.h>
 
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
@@ -65,7 +64,7 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 	s_SPITupleTable_init = PgObject_getJavaMethod(
 				env, s_SPITupleTable_class, "<init>", "()V");
 
-	s_SPITupleTableClass = NativeStructClass_alloc("type.Tuple");
+	s_SPITupleTableClass = NativeStructClass_alloc("type.SPITupleTable");
 	s_SPITupleTableClass->JNISignature   = "Lorg/postgresql/pljava/internal/SPITupleTable;";
 	s_SPITupleTableClass->javaTypeName   = "org.postgresql.pljava.internal.SPITupleTable";
 	s_SPITupleTableClass->coerceDatum    = _SPITupleTable_coerceDatum;
@@ -91,7 +90,7 @@ Java_org_postgresql_pljava_internal_SPITupleTable_getCount(JNIEnv* env, jobject 
 	if(tupleTable == 0)
 		return 0;
 	
-	return (jint)tupleTable->alloced;
+	return (jint)(tupleTable->alloced - tupleTable->free);
 }
 
 /*

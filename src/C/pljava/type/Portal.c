@@ -107,7 +107,7 @@ Java_org_postgresql_pljava_internal_Portal_fetch(JNIEnv* env, jobject _this, jbo
 	if(portal == 0)
 		return 0;
 	SPI_cursor_fetch(portal, forward == JNI_TRUE, (int)count);
-	return (jint)SPI_result;
+	return (jint)SPI_processed;
 }
 
 /*

@@ -94,14 +94,9 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_LONGVARCHAR:
 		case java_sql_Types_CLOB:
 		case java_sql_Types_DATALINK:
-			typeId = CSTRINGOID;
+			typeId = TEXTOID;
 			break;
-/*		case java_sql_Types_CHAR:
-		case java_sql_Types_VARCHAR:
-		case java_sql_Types_LONGVARCHAR:
-		case java_sql_Types_CLOB:
-		case java_sql_Types_DATALINK:
-		case java_sql_Types_NULL:
+/*		case java_sql_Types_NULL:
 		case java_sql_Types_OTHER:
 		case java_sql_Types_JAVA_OBJECT:
 		case java_sql_Types_DISTINCT:

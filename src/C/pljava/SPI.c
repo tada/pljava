@@ -62,3 +62,14 @@ Java_org_postgresql_pljava_internal_SPI_getTupTable(JNIEnv* env, jclass cls)
 	THREAD_FENCE(0)
 	return SPITupleTable_create(env, SPI_tuptable);
 }
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPI
+ * Method:    isPostgresThread
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_SPI_isPostgresThread(JNIEnv* env, jclass cls)
+{
+	return IS_MAIN_THREAD ? JNI_TRUE : JNI_FALSE;
+}

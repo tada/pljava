@@ -85,13 +85,13 @@ public class Tester
 		stmt.execute(
 				"CREATE TABLE employees1 (" +
 				" id		int PRIMARY KEY," +
-				" name		text," +	
+				" name		varchar(200)," +	
 				" salary	int)");
 
 		stmt.execute(
 				"CREATE TABLE employees2 (" +
 				" id		int PRIMARY KEY," +
-				" name		text," +	
+				" name		varchar(200)," +	
 				" salary	int)");
 
 		stmt.execute("INSERT INTO employees1 VALUES(" +

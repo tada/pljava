@@ -20,6 +20,8 @@
 
 #include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
 
+static bool s_deathRowFlag;
+
 /*
  * Returns the Oid of the type for argument at argIndex. First
  * parameter is at index zero.
@@ -74,6 +76,7 @@ static Type      s_ExecutionPlan;
 static TypeClass s_ExecutionPlanClass;
 static jclass    s_ExecutionPlan_class;
 static jmethodID s_ExecutionPlan_init;
+static jmethodID S_ExecutionPlan_getDeathRow;
 
 /*
  * org.postgresql.pljava.type.Tuple type.
@@ -104,6 +107,24 @@ static Type ExecutionPlan_obtain(Oid typeId)
 	return s_ExecutionPlan;
 }
 
+static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
+{
+	jobject longArr = (*env)->CallStaticObjectMethod(env, s_ExecutionPlan_class, S_ExecutionPlan_getDeathRow);
+	if(longArr == 0)
+		return;
+	int sz = (int)(*env)->GetArrayLength(env, longArr);
+	jlong* deathRow = (*env)->GetLongArrayElements(env, longArr, NULL);
+	Ptr2Long p2r;
+	int idx;
+	for(idx = 0; idx < sz; ++idx)
+	{
+		p2r.longVal = deathRow[idx];
+		elog(LOG, "Freeing plan previously finalized in other thread");
+		SPI_freeplan(p2r.ptrVal);
+	}
+	(*env)->ReleaseLongArrayElements(env, longArr, deathRow, JNI_ABORT);
+}
+	
 /* Make this datatype available to the postgres system.
  */
 extern Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS);
@@ -118,7 +139,10 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 	s_ExecutionPlan_init = PgObject_getJavaMethod(
 				env, s_ExecutionPlan_class, "<init>", "()V");
 
-	s_ExecutionPlanClass = NativeStructClass_alloc("type.Tuple");
+	S_ExecutionPlan_getDeathRow = PgObject_getStaticJavaMethod(
+				env, s_ExecutionPlan_class, "getDeathRow", "()[J");
+
+	s_ExecutionPlanClass = NativeStructClass_alloc("type.ExecutionPlan");
 	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/internal/ExecutionPlan;";
 	s_ExecutionPlanClass->javaTypeName   = "org.postgresql.pljava.internal.ExecutionPlan";
 	s_ExecutionPlanClass->coerceDatum    = _ExecutionPlan_coerceDatum;
@@ -262,6 +286,10 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
 	THREAD_FENCE(0)
+	
+	if(s_deathRowFlag)
+		ExecutionPlan_freeDeathRowCandidates(env);
+
 	int paramCount = 0;
 	Oid* paramOids = 0;
 
@@ -281,8 +309,13 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 		}
 	}
 	char* cmd = String_createNTS(env, jcmd);
+	elog(LOG, "Doing prepare of '%s' with %d parameters", cmd, paramCount);
+	int pc;
+	for(pc = 0; pc < paramCount; ++pc)
+		elog(LOG, "Param OID = %d", paramOids[pc]);
 	void* ePlan = SPI_prepare(cmd, paramCount, paramOids);
 	pfree(cmd);
+	elog(LOG, "Prepare was ok, returned pointer 0x%lx", (long)ePlan);
 	return ExecutionPlan_create(env, ePlan);
 }
 
@@ -316,3 +349,14 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobjec
 	if(ePlan != 0)
 		SPI_freeplan(ePlan);
 }
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    setDeathRowFlag
+ * Signature: (Z)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan_setDeathRowFlag(JNIEnv* env, jclass cls, jboolean flag)
+{
+	s_deathRowFlag = (flag == JNI_TRUE);
+}
+

@@ -52,7 +52,7 @@ public class Portal extends NativeStruct
 	 * Performs an <code>SPI_cursor_fetch</code>.
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
-	 * @return The value of the global variable <code>SPI_result</code>.
+	 * @return The actual number of fetched rows.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
 	public native int fetch(boolean forward, int count)

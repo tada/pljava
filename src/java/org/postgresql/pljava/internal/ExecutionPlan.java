@@ -9,6 +9,7 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 
 /**
  * The <code>ExecutionPlan</code> correspons to the execution plan obtained
@@ -18,6 +19,8 @@ import java.sql.SQLException;
  */
 public class ExecutionPlan extends NativeStruct
 {
+	private static final ArrayList s_deathRow = new ArrayList();
+
 	private boolean m_isDurable = false;
 
 	/**
@@ -86,13 +89,27 @@ public class ExecutionPlan extends NativeStruct
 	}
 
 	/**
-	 * Free up memory if this plan is durable.
-	 * TODO Find out if the pfree is thread safe. If not, this may not work.
+	 * Finalizers might run by a thread other then the main thread. If
+	 * that is the case, the pointer will be stored on a &quot;death
+	 * row&quot; that will be investegated by the main thread later
+	 * on.
 	 */
 	public void finalize()
 	{
 		if(m_isDurable && this.isValid())
-			this.invalidate();
+		{
+			long nativePtr = this.getNative();
+			if(SPI.isPostgresThread())
+				this.invalidate();
+			else
+			{	
+				synchronized(s_deathRow)
+				{
+					s_deathRow.add(new Long(nativePtr));
+					setDeathRowFlag(true);
+				}
+			}
+		}
 	}
 
 	/**
@@ -102,4 +119,31 @@ public class ExecutionPlan extends NativeStruct
 	 */
 	private native void savePlan()
 	throws SQLException;
+	
+	/**
+	 * Returns an array of native pointers that originates from instances
+	 * finalized by another thread than the main thread. This method is
+	 * called by the main thread when it sees the hasDeathRowFlag. The
+	 * death row is cleared by this call.
+	 */
+	static long[] getDeathRowCandidates()
+	{
+		synchronized(s_deathRow)
+		{
+			int top = s_deathRow.size();
+			long[] dr = new long[top];
+			while(--top >= 0)
+				dr[top] = ((Long)s_deathRow.get(top)).longValue();
+			s_deathRow.clear();
+			setDeathRowFlag(false);
+			return dr;
+		}
+	}
+	
+	/**
+	 * Sets or clears the flag that tells the main thread that there
+	 * are candidates waiting on the death row.
+	 * @param flag
+	 */
+	private native static void setDeathRowFlag(boolean flag);
 }

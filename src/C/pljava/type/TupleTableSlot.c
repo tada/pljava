@@ -65,7 +65,7 @@ Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS)
 	s_TupleTableSlot_init = PgObject_getJavaMethod(
 				env, s_TupleTableSlot_class, "<init>", "()V");
 
-	s_TupleTableSlotClass = NativeStructClass_alloc("type.Tuple");
+	s_TupleTableSlotClass = NativeStructClass_alloc("type.TupleTableSlot");
 	s_TupleTableSlotClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleTableSlot;";
 	s_TupleTableSlotClass->javaTypeName   = "org.postgresql.pljava.internal.TupleTableSlot";
 	s_TupleTableSlotClass->coerceDatum    = _TupleTableSlot_coerceDatum;

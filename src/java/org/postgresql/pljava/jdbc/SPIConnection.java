@@ -351,7 +351,7 @@ public class SPIConnection implements Connection
 		int len = sql.length();
 		char inQuote = 0;
 		int paramIndex = 1;
-		for(int idx = 0; idx < len; ++len)
+		for(int idx = 0; idx < len; ++idx)
 		{
 			char c = sql.charAt(idx);
 			switch(c)
@@ -400,6 +400,8 @@ public class SPIConnection implements Connection
 			}
 			buf.append(c);
 		}
+		if(paramCountRet != null)
+			paramCountRet[0] = paramIndex - 1;
 		return buf.toString();
 	}
 

@@ -44,7 +44,7 @@ public class SPIActions
 			log(stmt);
 			select = conn.prepareStatement(stmt);
 
-			stmt = "INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?";
+			stmt = "INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?)";
 			log(stmt);
 			insert = conn.prepareStatement(stmt);
 
@@ -57,6 +57,7 @@ public class SPIActions
 			log("Executing query");
 			rs = select.executeQuery();
 			int rowNo = 0;
+			log("Doing next");
 			while(rs.next())
 			{
 				log("Processing row " + ++rowNo);
@@ -73,6 +74,7 @@ public class SPIActions
 				delete.setInt(1, id);
 				nRows = delete.executeUpdate();
 				log("Delete processed " + nRows + " rows");
+				log("Doing next");
 			}
 			if(rowNo == 0)
 				log("No row found");
