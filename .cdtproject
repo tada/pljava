@@ -10,10 +10,10 @@
         
     
 <item id="org.eclipse.cdt.core.pathentry">
-<pathentry kind="mac" name="PGSQL_MAJOR_VERSION" path="" value="8"/>
-<pathentry kind="mac" name="PGSQL_MINOR_VERSION" path="" value="0"/>
 <pathentry kind="src" path=""/>
 <pathentry kind="out" path=""/>
+<pathentry kind="mac" name="PGSQL_MAJOR_VERSION" path="" value="8"/>
+<pathentry kind="mac" name="PGSQL_MINOR_VERSION" path="" value="0"/>
 </item>
 <item id="cdt_indexer">
 <indexEnabled indexValue="false"/>
