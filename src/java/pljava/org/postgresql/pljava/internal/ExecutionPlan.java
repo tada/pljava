@@ -107,7 +107,14 @@ public class ExecutionPlan extends NativeStruct
 	 */
 	public void close()
 	{
-		s_planCache.put(m_key, this);
+		ExecutionPlan old = (ExecutionPlan)s_planCache.put(m_key, this);
+		if(old != null)
+		{
+			synchronized(Backend.THREADLOCK)
+			{
+				old._invalidate();
+			}
+		}
 	}
 
 	/**
