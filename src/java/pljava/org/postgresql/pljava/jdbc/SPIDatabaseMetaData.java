@@ -1330,7 +1330,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
         //schema is null => search in current_schemas(true)
         if (schema == null)
         {
-			//This means that only "visible" schemas are seached.
+			//This means that only "visible" schemas are searched.
 			//It was approved to change to *all* schemas.
             //return expr + " " + operator + " ANY (current_schemas(true))";
 			return "1=1";
