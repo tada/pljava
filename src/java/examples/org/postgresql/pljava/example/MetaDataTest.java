@@ -22,7 +22,6 @@ public class MetaDataTest
 		return new MetaDataTest(methodCall).iterator();
 	}
 
-	private ResultSet m_rs;
 	private String m_methodName;
 	private Object[] m_methodArgs;
 	private Class[] m_methodArgTypes;
@@ -33,6 +32,7 @@ public class MetaDataTest
 		Connection conn = DriverManager
 			.getConnection("jdbc:default:connection");
 		DatabaseMetaData md = conn.getMetaData();
+        ResultSet rs;
 		m_results = new ArrayList();
 		StringBuffer result;
 
@@ -47,8 +47,8 @@ public class MetaDataTest
 				throw new NoSuchMethodException("Unexpected return type");
 			}
 
-			m_rs = (ResultSet)m.invoke(md, m_methodArgs);
-			ResultSetMetaData rsmd = m_rs.getMetaData();
+			rs = (ResultSet)m.invoke(md, m_methodArgs);
+			ResultSetMetaData rsmd = rs.getMetaData();
 
 			int cnt = rsmd.getColumnCount();
 			result = new StringBuffer();
@@ -62,40 +62,24 @@ public class MetaDataTest
 			}
 			m_results.add(result.toString());
 
-			while (m_rs.next())
+			while (rs.next())
 			{
 				result = new StringBuffer();
 				Object rsObject = null;
-				int i=1;
-				while(true)
+				for(int i=1; i <= cnt; i++)
 				{
-					try
-					{
-						rsObject = m_rs.getObject(i++);
-						if (rsObject == null)
-						{
-							rsObject = "<NULL>";
-						}
-					}
-					//index out of bounds or SQL exception =>
-					//we have no other chance to find out
-					//number of columns until ResulSetMetaData
-					//is implemented
-					//So - let's break the loop!
-					catch (ArrayIndexOutOfBoundsException ae)
-					{
-						break;
-					}
-					catch (SQLException se)
-					{
-						break;
-					}
-					result.append(rsObject.toString()
+                    rsObject = rs.getObject(i);
+                    if (rsObject == null)
+                    {
+                        rsObject = "<NULL>";
+                    }
+
+                    result.append(rsObject.toString()
 						.replaceAll("(\\\\|;)","\\$1") + ";");
 				}
 				m_results.add(result.toString());
 			}
-			m_rs.close();
+			rs.close();
 		}
 		catch (NoSuchMethodException nme)
 		{
