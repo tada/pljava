@@ -29,7 +29,8 @@ public class Deployer
 	private static final int CMD_PASSWORD  = 4;
 	private static final int CMD_DATABASE  = 5;
 	private static final int CMD_HOSTNAME  = 6;
-
+	private static final int CMD_WINDOWS   = 7;
+	
 	private final Connection m_connection;
 
 	private static final ArrayList s_commands = new ArrayList();
@@ -43,6 +44,7 @@ public class Deployer
 		s_commands.add(CMD_PASSWORD,  "password");
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
+		s_commands.add(CMD_WINDOWS,   "windows");
 	}
 
 	private static final int getCommand(String arg)
@@ -69,6 +71,7 @@ public class Deployer
 		out.println("    [ -database <database> ]    # default is postgres");
 		out.println("    [ -user <userName>     ]    # default is postgres");
 		out.println("    [ -password <password> ]    # default is no password");
+		out.println("    [ -windows ]                # If the server is on a Windows machine");
 	}
 
 	public static void main(String[] argv)
@@ -79,6 +82,7 @@ public class Deployer
 		String userName    = "postgres";
 		String subsystem   = "postgresql";
 		String password    = null;
+		boolean unix       = true;
 		int cmd = CMD_UNKNOWN;
 
 		int top = argv.length;
@@ -151,6 +155,10 @@ public class Deployer
 					printUsage();
 					return;
 
+				case CMD_WINDOWS:
+					unix = false;
+					break;
+
 				default:
 					printUsage();
 					return;
@@ -181,7 +189,7 @@ public class Deployer
 			if(cmd == CMD_INSTALL || cmd == CMD_REINSTALL)
 			{
 				deployer.createSQLJSchema();
-				deployer.initJavaHandler();
+				deployer.initJavaHandler(unix);
 				deployer.initializeSQLJSchema();
 			}
 			c.close();
@@ -202,6 +210,15 @@ public class Deployer
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute("DROP SCHEMA sqlj CASCADE");
+
+		try
+		{
+			stmt.execute("DROP LANGUAGE java CASCADE");
+		}
+		catch(SQLException e)
+		{
+			/* ignore */
+		}
 		stmt.close();
 	}
 
@@ -278,14 +295,14 @@ public class Deployer
 		stmt.close();
 	}
 
-	public void initJavaHandler()
+	public void initJavaHandler(boolean unix)
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute(
 			"CREATE FUNCTION sqlj.java_call_handler()" +
 			" RETURNS language_handler" +
-			" AS 'pljava'" +
+			" AS '" + (unix ? "lib" : "") + "pljava'" +
 			" LANGUAGE C");
 
 		stmt.execute("CREATE LANGUAGE java HANDLER sqlj.java_call_handler");

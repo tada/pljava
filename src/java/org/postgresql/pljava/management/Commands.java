@@ -138,7 +138,7 @@ public class Commands
 	 * @param undeploy Ignored at present
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
-	public static void removeJar(String jarName, String url, boolean undeploy)
+	public static void removeJar(String jarName, boolean undeploy)
 	throws SQLException
 	{
 		assertJarName(jarName);
@@ -222,7 +222,7 @@ public class Commands
 						else
 							jarName = path;
 	
-						int jarId = getJarId(conn, stmt, jarName);
+						int jarId = getJarId(stmt, jarName);
 						if(jarId < 0)
 							throw new SQLException("No such jar: " + jarName);
 		
@@ -443,7 +443,7 @@ public class Commands
 		"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?");
 		try
 		{
-			return getJarId(conn, stmt, jarName);
+			return getJarId(stmt, jarName);
 		}
 		finally
 		{
@@ -451,7 +451,7 @@ public class Commands
 		}
 	}
 
-	protected static int getJarId(Connection conn, PreparedStatement stmt, String jarName)
+	protected static int getJarId(PreparedStatement stmt, String jarName)
 	throws SQLException
 	{
 		stmt.setString(1, jarName);

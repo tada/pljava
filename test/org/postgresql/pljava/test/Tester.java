@@ -31,7 +31,7 @@ public class Tester
 			Class.forName("org.postgresql.Driver");
 			Connection c = DriverManager.getConnection(
 					"jdbc:postgresql://localhost/postgres",
-					"thhal",
+					"postgres",
 					null);
 			Tester t = new Tester(c);
 			t.initialize();
