@@ -57,7 +57,7 @@ static int statementCacheSize;
 static bool  pljavaDebug;
 static jmethodID s_Invocation_onExit;
 
-static void initJavaVM(JNIEnv* env)
+static void initPLJavaClasses(JNIEnv* env)
 {
 	jclass cls;
 	Datum envDatum = PointerGetDatum(env);
@@ -132,6 +132,16 @@ static unsigned int s_callLevel = 0;
 
 CallContext* currentCallContext;
 
+static void initCallContext(CallContext* ctx)
+{
+	ctx->invocation    = 0;
+	ctx->function      = 0;
+	ctx->upperContext  = CurrentMemoryContext;
+	ctx->errorOccured  = false;
+	ctx->previous      = currentCallContext;
+	currentCallContext = ctx;
+}
+
 static void onEndOfScope(MemoryContext ctx, bool isDelete)
 {
 	JNIEnv* env = Backend_getMainEnv();
@@ -144,76 +154,6 @@ static void onEndOfScope(MemoryContext ctx, bool isDelete)
 		MemoryContext_popJavaFrame(env);
 	}
 	NativeStruct_releaseCache(env, ctx, isDelete);
-}
-
-static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
-{
-	CallContext ctx;
-	Datum retval = 0;
-	bool saveIsCallingJava = isCallingJava;
-	Oid funcOid = fcinfo->flinfo->fn_oid;
-
-	ctx.invocation   = 0;
-	ctx.function     = 0;
-	ctx.upperContext = upper;
-	ctx.errorOccured = false;
-	ctx.previous     = currentCallContext;
-
-	currentCallContext = &ctx;
-
-	if(!MemoryContext_hasCallbackCapability(upper))
-	{
-		NativeStruct_addCacheManager(upper);
-		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
-	}
-
-	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
-	{
-		MemoryContext_pushJavaFrame(s_mainEnv);
-		s_topLocalFrameInstalled = true;
-	}
-
-	++s_callLevel;
-	PG_TRY();
-	{
-		if(CALLED_AS_TRIGGER(fcinfo))
-		{
-			/* Called as a trigger procedure
-			 */
-			Function function = Function_getFunction(s_mainEnv, funcOid, true);
-			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
-		}
-		else
-		{
-			/* Called as a function
-			 */
-			Function function = Function_getFunction(s_mainEnv, funcOid, false);
-			retval = Function_invoke(function, s_mainEnv, fcinfo);
-		}
-		Exception_checkException(s_mainEnv);
-
-		if(ctx.invocation != 0)
-		{
-			(*s_mainEnv)->CallVoidMethod(s_mainEnv, ctx.invocation, s_Invocation_onExit);
-			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
-		}
-
-		--s_callLevel;
-		isCallingJava      = saveIsCallingJava;
-		currentCallContext = ctx.previous;
-	}
-	PG_CATCH();
-	{
-		--s_callLevel;
-		isCallingJava      = saveIsCallingJava;
-		currentCallContext = ctx.previous;
-		if(ctx.invocation != 0)
-			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
-
-	return retval;
 }
 
 bool pljavaEntryFence(JNIEnv* env)
@@ -464,13 +404,6 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		CallContext ctx;
-	
-		ctx.invocation   = 0;
-		ctx.function     = 0;
-		ctx.upperContext = CurrentMemoryContext;
-		ctx.errorOccured = false;
-		ctx.previous     = 0;
-		currentCallContext = &ctx;
 
 #if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
@@ -489,6 +422,8 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 #endif
 
+		initCallContext(&ctx);
+
 		elog(DEBUG1, "Destroying JavaVM...");
 
 		isCallingJava = true;
@@ -505,7 +440,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
 		s_mainEnv = 0;
-		currentCallContext = 0;
+		currentCallContext = ctx.previous;
 	}
 }
 
@@ -636,10 +571,26 @@ static void addUserJVMOptions(JVMOptList* optList)
 }
 #endif
 
+
+/**
+ *  Initialize the logger
+ */
+static void initJavaLogger(JNIEnv* env)
+{
+	jclass logHandlerClass;
+	jmethodID init;
+	bool saveICJ = isCallingJava;
+
+	isCallingJava = true;
+	logHandlerClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ELogHandler");
+	init = PgObject_getStaticJavaMethod(env, logHandlerClass, "init", "()V");
+	(*env)->CallStaticVoidMethod(env, logHandlerClass, init);
+	isCallingJava = saveICJ;
+	(*env)->DeleteLocalRef(env, logHandlerClass);
+}
+
 static void initializeJavaVM(void)
 {
-	CallContext ctx;
-
 #if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
 	pqsigfunc saveSigTerm;
@@ -648,17 +599,8 @@ static void initializeJavaVM(void)
 #endif
 	const char* tmp;
 	jboolean jstat;
-	jclass logHandlerClass;
-	jmethodID init;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
-
-	ctx.invocation   = 0;
-	ctx.function     = 0;
-	ctx.upperContext = CurrentMemoryContext;
-	ctx.errorOccured = false;
-	ctx.previous     = 0;
-	currentCallContext = &ctx;
 
 	JVMOptList_init(&optList);
 
@@ -770,7 +712,6 @@ static void initializeJavaVM(void)
 
 	elog(DEBUG1, "Creating JavaVM");
 
-
 	isCallingJava = true;
 	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
 
@@ -801,17 +742,8 @@ static void initializeJavaVM(void)
 	/* Register an on_proc_exit handler that destroys the VM
 	 */
 	on_proc_exit(_destroyJavaVM, 0);
-	initJavaVM(s_mainEnv);
-
-	/* Initialize the logger
-	 */
-	isCallingJava = true;
-	logHandlerClass = PgObject_getJavaClass(s_mainEnv, "org/postgresql/pljava/internal/ELogHandler");
-	init = PgObject_getStaticJavaMethod(s_mainEnv, logHandlerClass, "init", "()V");
-	(*s_mainEnv)->CallStaticVoidMethod(s_mainEnv, logHandlerClass, init);
-	isCallingJava = false;
-	(*s_mainEnv)->DeleteLocalRef(s_mainEnv, logHandlerClass);
-	currentCallContext = 0;
+	initPLJavaClasses(s_mainEnv);
+	initJavaLogger(s_mainEnv);
 }
 
 JNIEnv* Backend_getMainEnv(void)
@@ -829,15 +761,73 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	Datum ret;
-	MemoryContext upper = CurrentMemoryContext;
+	CallContext ctx;
+	Datum retval = 0;
+	bool saveIsCallingJava = isCallingJava;
+	Oid funcOid = fcinfo->flinfo->fn_oid;
+
+	initCallContext(&ctx);
+
 	if(s_javaVM == 0)
 		initializeJavaVM();
 
+	if(!MemoryContext_hasCallbackCapability(CurrentMemoryContext))
+	{
+		NativeStruct_addCacheManager(CurrentMemoryContext);
+		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, onEndOfScope);
+	}
+
+	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
+	{
+		MemoryContext_pushJavaFrame(s_mainEnv);
+		s_topLocalFrameInstalled = true;
+	}
+
 	SPI_connect();
-	ret = callFunction(upper, fcinfo);
-	SPI_finish();
-	return ret;
+
+	++s_callLevel;
+	PG_TRY();
+	{
+		if(CALLED_AS_TRIGGER(fcinfo))
+		{
+			/* Called as a trigger procedure
+			 */
+			Function function = Function_getFunction(s_mainEnv, funcOid, true);
+			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
+		}
+		else
+		{
+			/* Called as a function
+			 */
+			Function function = Function_getFunction(s_mainEnv, funcOid, false);
+			retval = Function_invoke(function, s_mainEnv, fcinfo);
+		}
+		Exception_checkException(s_mainEnv);
+
+		if(ctx.invocation != 0)
+		{
+			(*s_mainEnv)->CallVoidMethod(s_mainEnv, ctx.invocation, s_Invocation_onExit);
+			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
+		}
+
+		--s_callLevel;
+		isCallingJava      = saveIsCallingJava;
+		currentCallContext = ctx.previous;
+		SPI_finish();
+	}
+	PG_CATCH();
+	{
+		--s_callLevel;
+		isCallingJava      = saveIsCallingJava;
+		currentCallContext = ctx.previous;
+		if(ctx.invocation != 0)
+			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
+		SPI_finish();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	return retval;
 }
 
 /****************************************
