@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.regex.PatternSyntaxException;
 
+import org.postgresql.pljava.internal.Oid;
+
 /**
  * @author Thomas Hallgren
  */
@@ -645,12 +647,12 @@ public class SPIConnection implements Connection
      * @return the java.sql.Types type
      * @exception SQLException if a database access error occurs
      */
-    public int getSQLType(int oid) throws SQLException
+    public int getSQLType(Oid oid) throws SQLException
     {
         return getSQLType(getPGType(oid));
     }
  
-    public String getPGType(int oid) throws SQLException
+    public String getPGType(Oid oid) throws SQLException
     {
         String typeName = null;
         PreparedStatement query = null;
@@ -659,7 +661,7 @@ public class SPIConnection implements Connection
         try
         {
             query = prepareStatement("SELECT typname FROM pg_catalog.pg_type WHERE oid=?");
-            query.setInt(1, oid);
+            query.setObject(1, oid);
             rs = query.executeQuery();
 
             if (rs.next())

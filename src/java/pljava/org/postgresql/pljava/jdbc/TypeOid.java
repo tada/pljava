@@ -6,26 +6,28 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import org.postgresql.pljava.internal.Oid;
+
 /**
  * Provides constants for well-known backend OIDs for the types we commonly
  * use.
  */
 public class TypeOid {
-    public static final int INVALID = 0;
-    public static final int INT2 = 21;
-    public static final int INT4 = 23;
-    public static final int INT8 = 20;
-    public static final int TEXT = 25;
-    public static final int NUMERIC = 1700;
-    public static final int FLOAT4 = 700;
-    public static final int FLOAT8 = 701;
-    public static final int BOOL = 16;
-    public static final int DATE = 1082;
-    public static final int TIME = 1083;
-    public static final int TIMESTAMP = 1114;
-    public static final int TIMESTAMPTZ = 1184;
-    public static final int BYTEA = 17;
-    public static final int VARCHAR = 1043;
-    public static final int OID = 26;
-    public static final int BPCHAR = 1042;
+    public static final Oid INVALID = new Oid(0);
+    public static final Oid INT2 = new Oid(21);
+    public static final Oid INT4 = new Oid(23);
+    public static final Oid INT8 = new Oid(20);
+    public static final Oid TEXT = new Oid(25);
+    public static final Oid NUMERIC = new Oid(1700);
+    public static final Oid FLOAT4 = new Oid(700);
+    public static final Oid FLOAT8 = new Oid(701);
+    public static final Oid BOOL = new Oid(16);
+    public static final Oid DATE = new Oid(1082);
+    public static final Oid TIME = new Oid(1083);
+    public static final Oid TIMESTAMP = new Oid(1114);
+    public static final Oid TIMESTAMPTZ = new Oid(1184);
+    public static final Oid BYTEA = new Oid(17);
+    public static final Oid VARCHAR = new Oid(1043);
+    public static final Oid OID = new Oid(26);
+    public static final Oid BPCHAR = new Oid(1042);
 }

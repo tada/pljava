@@ -7,7 +7,8 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
-import org.postgresql.pljava.internal.TypeMap;
+
+import org.postgresql.pljava.internal.Oid;
 
 /**
  *
@@ -17,10 +18,9 @@ import org.postgresql.pljava.internal.TypeMap;
 public class ResultSetField
 {
     private final String m_name;
-    private final int m_oid;
+    private final Oid m_oid;
     private final int m_len;
     private final int m_mod;
-	private final Class m_class;
 
     /*
      * Construct a field based on the information fed to it.
@@ -29,20 +29,13 @@ public class ResultSetField
      * @param oid the OID of the field
      * @param len the length of the field
      */
-    public ResultSetField(String name, int oid, int len, int mod)
+    public ResultSetField(String name, Oid oid, int len, int mod)
 	throws SQLException
     {
         m_name = name.toUpperCase();
         m_oid = oid;
         m_len = len;
         m_mod = mod;
-		try {
-			m_class = Class.forName(TypeMap.getClassNameFromPgOid(oid));
-		}
-		catch (ClassNotFoundException e)
-		{
-			throw new SQLException(e.getMessage());
-		}
     }
 
     /*
@@ -52,7 +45,7 @@ public class ResultSetField
      * @param oid the OID of the field
      * @param len the length of the field
      */
-    public ResultSetField(String name, int oid, int len)
+    public ResultSetField(String name, Oid oid, int len)
 	throws SQLException
     {
         this(name, oid, len, 0);
@@ -61,7 +54,7 @@ public class ResultSetField
     /*
      * @return the oid of this Field's data type
      */
-    public final int getOID()
+    public final Oid getOID()
     {
         return m_oid;
     }
@@ -70,16 +63,18 @@ public class ResultSetField
      * @return the Java class for oid of this Field's data type
      */
     public final Class getJavaClass()
+	throws SQLException
     {
-        return m_class;
+        return m_oid.getJavaClass();
     }
 
     /*
      * @return true if the field can contain a value of specified class
      */
     public final boolean canContain(Class cls)
+	throws SQLException
     {
-        return m_class.isAssignableFrom(cls);
+        return this.getJavaClass().isAssignableFrom(cls);
     }
 
     /*

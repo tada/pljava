@@ -9,6 +9,8 @@ package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
 
+import org.postgresql.pljava.internal.Oid;
+
 /**
  * Implementation of ResultSetMetaData for SyntheticResultSet
  *
@@ -112,7 +114,7 @@ public class SyntheticResultSetMetaData extends AbstractResultSetMetaData
 	 * @return column OID
 	 * @throws SQLException if an error occurs
 	 */
-	protected final int getOid(int column) throws SQLException
+	protected final Oid getOid(int column) throws SQLException
 	{
 		return m_fields[column-1].getOID();
 	}

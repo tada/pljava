@@ -17,6 +17,7 @@
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
+#include "pljava/type/Oid.h"
 
 static Type      s_TupleDesc;
 static TypeClass s_TupleDescClass;
@@ -112,7 +113,7 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 		},
 		{
 		"_getOid",
-		"(I)I",
+		"(I)Lorg/postgresql/pljava/internal/Oid;",
 		Java_org_postgresql_pljava_internal_TupleDesc__1getOid
 		},
 		{ 0, 0, 0 }};
@@ -289,37 +290,37 @@ Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jobject _this)
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
  * Method:    _getOid
- * Signature: (I)I
+ * Signature: (I)Lorg/postgresql/pljava/internal/Oid;
  */
-JNIEXPORT jint JNICALL
+JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jobject _this, jint index)
 {
 	TupleDesc self;
-	jint result = 0;
+	jobject result = 0;
 	PLJAVA_ENTRY_FENCE(0)
+
 	self = (TupleDesc)NativeStruct_getStruct(env, _this);
-	if(self == 0)
-		return 0;
-
-	PG_TRY();
+	if(self != 0)
 	{
-		Oid typeId = SPI_gettypeid(self, (int)index);
-		if(!OidIsValid(typeId))
+		PG_TRY();
 		{
-			Exception_throw(env,
-				ERRCODE_INVALID_DESCRIPTOR_INDEX,
-				"Invalid attribute index \"%d\"", (int)index);
+			Oid typeId = SPI_gettypeid(self, (int)index);
+			if(!OidIsValid(typeId))
+			{
+				Exception_throw(env,
+					ERRCODE_INVALID_DESCRIPTOR_INDEX,
+					"Invalid attribute index \"%d\"", (int)index);
+			}
+			else
+			{
+				result = Oid_create(env, typeId);
+			}
 		}
-		else
+		PG_CATCH();
 		{
-			result = (jint)typeId;
+			Exception_throw_ERROR(env, "SPI_gettypeid");
 		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_gettypeid");
-	}
-	PG_END_TRY();
-
-	return (jint)result;
+	return result;
 }

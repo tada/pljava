@@ -16,6 +16,8 @@ import java.sql.SQLException;
  */
 public class TupleDesc extends NativeStruct
 {
+	private Class[] m_columnClasses;
+
 	/**
 	 * Returns the name of the column at <code>index</code>.
 	 * @param index The one based index of the column.
@@ -78,9 +80,28 @@ public class TupleDesc extends NativeStruct
 	}
 
 	/**
+	 * Returns the Java class of the column at index
+	 */
+	public Class getColumnClass(int index)
+	throws SQLException
+	{
+		if(m_columnClasses == null)
+		{
+			synchronized(Backend.THREADLOCK)
+			{				
+				int top = this._size();
+				m_columnClasses = new Class[top];
+				for(int idx = 0; idx < top; ++idx)
+					m_columnClasses[idx] = this._getOid(idx+1).getJavaClass();
+			}
+		}
+		return m_columnClasses[index-1];
+	}
+
+	/**
 	 * Returns OID of the column type.
 	 */
-	public int getOid(int index)
+	public Oid getOid(int index)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
@@ -93,5 +114,5 @@ public class TupleDesc extends NativeStruct
 	private native int _getColumnIndex(String colName) throws SQLException;
 	private native Tuple _formTuple(Object[] values) throws SQLException;
 	private native int _size();
-	private native int _getOid(int index) throws SQLException;
+	private native Oid _getOid(int index) throws SQLException;
 }

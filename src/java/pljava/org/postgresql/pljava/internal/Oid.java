@@ -6,6 +6,7 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.sql.SQLException;
 import java.util.HashMap;
 
 /**
@@ -33,6 +34,7 @@ public class Oid
 	}
 
 	private static final HashMap s_class2typeId = new HashMap();
+	private static final HashMap s_typeId2class = new HashMap();
 
 	/*
 	 * The native Oid represented as a 32 bit quantity.
@@ -57,6 +59,28 @@ public class Oid
 		return (o == this) || ((o instanceof Oid) && ((Oid)o).m_native == m_native);
 	}
 
+	public Class getJavaClass()
+	throws SQLException
+	{
+		Class c = (Class)s_typeId2class.get(this);
+		if(c == null)
+		{
+			synchronized(Backend.THREADLOCK)
+			{
+				try
+				{
+					c = Class.forName(this._getJavaClassName());
+				}
+				catch(ClassNotFoundException e)
+				{
+					throw new SQLException(e.getMessage());
+				}
+				s_typeId2class.put(this, c);
+			}
+		}
+		return c;
+	}
+
 	/**
 	 * The native value is used as the hash code.
 	 * @return The hashCode for this <code>Oid</code>.
@@ -76,6 +100,8 @@ public class Oid
 	public static void registerType(Class clazz, Oid typeId)
 	{
 		s_class2typeId.put(clazz, typeId);
+		if(!s_typeId2class.containsKey(typeId))
+			s_typeId2class.put(typeId, clazz);
 	}
 
 	/**
@@ -122,4 +148,7 @@ public class Oid
 
 	private native static Oid _forSqlType(int sqlType);
 	private native static Oid _getTypeId();
+
+	private native String _getJavaClassName()
+	throws SQLException;
 }

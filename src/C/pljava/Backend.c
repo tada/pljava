@@ -40,7 +40,6 @@
 #include "pljava/MemoryContext.h"
 #include "pljava/Session.h"
 #include "pljava/SPI.h"
-#include "pljava/TypeMap.h"
 #include "pljava/type/NativeStruct.h"
 #include "pljava/type/String.h"
 /* Example format: "/usr/local/pgsql/lib" */
@@ -150,7 +149,6 @@ static void initPLJavaClasses(JNIEnv* env)
 	DirectFunctionCall1(Exception_initialize, envDatum);
 	DirectFunctionCall1(SPI_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
-	DirectFunctionCall1(TypeMap_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
 	DirectFunctionCall1(Session_initialize, envDatum);
 }

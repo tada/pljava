@@ -12,6 +12,8 @@ import java.sql.SQLException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
+import org.postgresql.pljava.internal.Oid;
+
 /**
  * Implementation of ResultSetMetaData for SyntheticResultSet
  *
@@ -58,14 +60,11 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
     public final boolean isCaseSensitive(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		switch (getOid(column))
-		{
-			case TypeOid.TEXT:
-			case TypeOid.BYTEA:
-			case TypeOid.VARCHAR:
-			case TypeOid.BPCHAR:		return true;
-			default:					return false;
-		}
+		Oid oid = this.getOid(column);
+		return  (  oid.equals(TypeOid.TEXT)
+				|| oid.equals(TypeOid.BYTEA)
+				|| oid.equals(TypeOid.VARCHAR)
+				|| oid.equals(TypeOid.BPCHAR));
 	}
 
     /**
@@ -120,15 +119,12 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
     public final boolean isSigned(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		switch (getOid(column))
-		{
-			case TypeOid.INT2:
-			case TypeOid.INT4:
-			case TypeOid.INT8:
-			case TypeOid.FLOAT4:
-			case TypeOid.FLOAT8:		return true;
-			default:					return false;
-		}
+		Oid oid = this.getOid(column);
+		return  (  oid.equals(TypeOid.INT2)
+				|| oid.equals(TypeOid.INT4)
+				|| oid.equals(TypeOid.INT8)
+				|| oid.equals(TypeOid.FLOAT4)
+				|| oid.equals(TypeOid.FLOAT8));
 	}
 
     /**
@@ -142,26 +138,35 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
     public final int getColumnDisplaySize(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		switch (getOid(column))
-		{
-			case TypeOid.INT2:			return 6;
-			case TypeOid.INT4:			return 11; 
-			case TypeOid.INT8:			return 20;
-			case TypeOid.TEXT:			return getFieldLength(column);
-			case TypeOid.NUMERIC:		return 20;
-			case TypeOid.FLOAT4:		return 11;
-			case TypeOid.FLOAT8:		return 20;
-			case TypeOid.BOOL:			return 3;
-			case TypeOid.DATE:			return 13;
-			case TypeOid.TIME:			return 10;
-			case TypeOid.TIMESTAMP:		return 25;
-			case TypeOid.TIMESTAMPTZ:	return 25;
-			case TypeOid.BYTEA:			return getFieldLength(column);
-			case TypeOid.VARCHAR:		return getFieldLength(column);
-			case TypeOid.OID:			return 20;
-			case TypeOid.BPCHAR:		return getFieldLength(column);
-			default:					return getFieldLength(column);
-		}
+		Oid oid = this.getOid(column);
+
+		if(oid.equals(TypeOid.INT2))
+			return 6;
+
+		if(oid.equals(TypeOid.INT4)
+		|| oid.equals(TypeOid.FLOAT4))
+			return 11;
+
+		if(oid.equals(TypeOid.INT8)
+		|| oid.equals(TypeOid.NUMERIC)
+		|| oid.equals(TypeOid.FLOAT8)
+		|| oid.equals(TypeOid.OID))
+			return 20;
+
+		if(oid.equals(TypeOid.BOOL))
+			return 3;
+
+		if(oid.equals(TypeOid.DATE))
+			return 13;
+
+		if(oid.equals(TypeOid.TIME))
+			return 10;
+
+		if(oid.equals(TypeOid.TIMESTAMP)
+		|| oid.equals(TypeOid.TIMESTAMPTZ))
+			return 25;
+
+		return getFieldLength(column);
 	}
 
     /**
@@ -210,18 +215,31 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
     public final int getPrecision(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		switch (getOid(column))
-		{
-			case TypeOid.INT2:			return 5;
-			case TypeOid.INT4:			return 10; 
-			case TypeOid.INT8:			return 20;
-			case TypeOid.FLOAT4:		return 8;
-			case TypeOid.FLOAT8:		return 16;
-			case TypeOid.BOOL:			return 1;
-			case TypeOid.OID:			return 20;
-			case TypeOid.NUMERIC:		return -1; //unknown
-			default:					return 0;
-		}
+		Oid oid = this.getOid(column);
+
+		if(oid.equals(TypeOid.INT2))
+			return 5;
+
+		if(oid.equals(TypeOid.INT4))
+			return 10;
+
+		if(oid.equals(TypeOid.INT8)
+		|| oid.equals(TypeOid.OID))
+			return 20;
+
+		if(oid.equals(TypeOid.FLOAT4))
+			return 8;
+
+		if(oid.equals(TypeOid.FLOAT8))
+			return 16;
+
+		if(oid.equals(TypeOid.BOOL))
+			return 1;
+
+		if(oid.equals(TypeOid.NUMERIC))
+			return -1;
+
+		return 0;
 	}
 
 	/**
@@ -234,18 +252,18 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
     public final int getScale(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		switch (getOid(column))
-		{
-			case TypeOid.INT2:
-			case TypeOid.INT4:
-			case TypeOid.INT8:
-			case TypeOid.BOOL:
-			case TypeOid.OID:			return 0;
-			case TypeOid.FLOAT4:		return 8;
-			case TypeOid.FLOAT8:		return 16;
-			case TypeOid.NUMERIC:		return -1; //unknown
-			default:					return 0;
-		}
+		Oid oid = this.getOid(column);
+
+		if(oid.equals(TypeOid.FLOAT4))
+			return 8;
+		
+		if(oid.equals(TypeOid.FLOAT8))
+			return 16;
+		
+		if(oid.equals(TypeOid.NUMERIC))
+			return -1;
+
+		return 0;
 	}
 
     /**
@@ -375,7 +393,7 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
 	 * @return column OID
 	 * @throws SQLException if an error occurs
 	 */
-	protected abstract int getOid(int column) throws SQLException;
+	protected abstract Oid getOid(int column) throws SQLException;
 
 	/**
 	 * Gets column length

@@ -5,6 +5,7 @@ package org.postgresql.pljava.jdbc;
  */
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.StringTokenizer;
 
 import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Oid;
 
 public class SPIDatabaseMetaData implements DatabaseMetaData
 {
@@ -1477,7 +1479,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[12] = new ResultSetField("REMARKS", TypeOid.VARCHAR,
 			getMaxNameLength());
 
-		String sql = "SELECT n.nspname,p.proname,p.prorettype::int4,p.proargtypes, t.typtype::varchar,t.typrelid::int4 "
+		String sql = "SELECT n.nspname,p.proname,p.prorettype,p.proargtypes, t.typtype::varchar,t.typrelid "
 				+ " FROM pg_catalog.pg_proc p,pg_catalog.pg_namespace n, pg_catalog.pg_type t "
 				+ " WHERE p.pronamespace=n.oid AND p.prorettype=t.oid "
                 + " AND " + resolveSchemaPatternCondition(
@@ -1492,9 +1494,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		String schema = null;
 		String procedureName = null;
-		Integer returnType = null;
+		Oid returnType = null;
 		String returnTypeType = null;
-		Integer returnTypeRelid = null;
+		Oid returnTypeRelid = null;
 
 		String strArgTypes = null;
 		StringTokenizer st = null;
@@ -1504,9 +1506,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		{
 			schema = rs.getString("nspname");
 			procedureName = rs.getString("proname");
-			returnType = (Integer)(rs.getObject("prorettype"));
+			returnType = (Oid)rs.getObject("prorettype");
 			returnTypeType = rs.getString("typtype");
-			returnTypeRelid = (Integer)(rs.getObject("typrelid"));
+			returnTypeRelid = (Oid)rs.getObject("typrelid");
 			strArgTypes = rs.getString("proargtypes");
 			//argTypesArr = rs.getArray("proargtypes");
 			//ResultSet argrs = argTypesArr.getResultSet();
@@ -1515,7 +1517,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			argTypes = new ArrayList();
 			while(st.hasMoreTokens())
 			{
-				argTypes.add(new Integer(st.nextToken()));
+				argTypes.add(new Oid(Integer.parseInt(st.nextToken())));
 			}
 
 			// decide if we are returning a single column result.
@@ -1527,8 +1529,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				tuple[2] = procedureName;
 				tuple[3] = "returnValue";
 				tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnReturn);
-				tuple[5] = new Short((short)m_connection.getSQLType(returnType.intValue()));
-				tuple[6] = m_connection.getPGType(returnType.intValue());
+				tuple[5] = new Short((short)m_connection.getSQLType(returnType));
+				tuple[6] = m_connection.getPGType(returnType);
 				tuple[7] = null;
 				tuple[8] = null;
 				tuple[9] = null;
@@ -1541,7 +1543,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// Add a row for each argument.
 			for(int i = 0; i < argTypes.size(); i++)
 			{
-				int argOid = ((Integer)argTypes.get(i)).intValue();
+				Oid argOid = (Oid)argTypes.get(i);
 				Object[] tuple = new Object[13];
 				tuple[0] = null;
 				tuple[1] = schema;
@@ -1562,13 +1564,14 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// if we are returning a multi-column result.
 			if(returnTypeType.equals("c"))
 			{
-				String columnsql = "SELECT a.attname,a.atttypid::int4 FROM pg_catalog.pg_attribute a WHERE a.attrelid = "
-					+ returnTypeRelid + " ORDER BY a.attnum ";
-				ResultSet columnrs = m_connection.createStatement().executeQuery(
-					columnsql);
+				String columnsql = "SELECT a.attname,a.atttypid FROM pg_catalog.pg_attribute a WHERE a.attrelid = ? ORDER BY a.attnum ";
+				PreparedStatement stmt = m_connection.prepareStatement(columnsql);
+				stmt.setObject(1, returnTypeRelid);
+				ResultSet columnrs = stmt.executeQuery(columnsql);
+
 				while(columnrs.next())
 				{
-					int columnTypeOid = columnrs.getInt("atttypid");
+					Oid columnTypeOid = (Oid)columnrs.getObject("atttypid");
 					Object[] tuple = new Object[13];
 					tuple[0] = null;
 					tuple[1] = schema;
@@ -1585,6 +1588,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 					tuple[12] = null;
 					v.add(tuple);
 				}
+				columnrs.close();
+				stmt.close();
 			}
 		}
 		rs.close();
@@ -1871,7 +1876,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			getMaxNameLength());
 
 		String sql = "SELECT n.nspname,c.relname,a.attname,"
-				+ " a.atttypid::int4 as atttypid,a.attnotnull,a.atttypmod,"
+				+ " a.atttypid as atttypid,a.attnotnull,a.atttypmod,"
 				+ " a.attlen::int4 as attlen,a.attnum,def.adsrc,dsc.description "
 				+ " FROM pg_catalog.pg_namespace n "
 				+ " JOIN pg_catalog.pg_class c ON (c.relnamespace = n.oid) "
@@ -1900,7 +1905,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		while(rs.next())
 		{
 			Object[] tuple = new Object[18];
-			int typeOid = rs.getInt("atttypid");
+			Oid typeOid = (Oid)rs.getObject("atttypid");
 
 			tuple[0] = null; // Catalog name, not supported
 			tuple[1] = rs.getString("nspname"); // Schema
@@ -2382,7 +2387,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			where = " AND ct.relnamespace = n.oid "
                   + " AND " + resolveSchemaCondition(
                                   "n.nspname", schema);
-		String sql = "SELECT a.attname, a.atttypid::int4 as atttypid " + from
+		String sql = "SELECT a.attname, a.atttypid as atttypid " + from
 			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
 			+ " AND a.attrelid=ci.oid AND i.indisprimary "
 			+ " AND ct.relname = '" + escapeQuotes(table) + "' " + where
@@ -2392,7 +2397,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		while(rs.next())
 		{
 			Object[] tuple = new Object[8];
-			int columnTypeOid = rs.getInt("atttypid");
+			Oid columnTypeOid = (Oid)rs.getObject("atttypid");
 			tuple[0] = new Short((short)scope);
 			tuple[1] = rs.getString("attname");
 			tuple[2] = new Short((short)m_connection.getSQLType(columnTypeOid));

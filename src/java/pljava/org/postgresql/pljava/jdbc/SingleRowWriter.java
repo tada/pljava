@@ -54,7 +54,11 @@ public class SingleRowWriter extends SingleRowResultSet
 	public void updateObject(int columnIndex, Object x)
 	throws SQLException
 	{
-		m_values[columnIndex-1] = x;
+		if(x == null)
+			m_values[columnIndex-1] = x;
+		Class c = m_tupleDesc.getColumnClass(columnIndex);
+		if(c.isInstance(x))
+			m_values[columnIndex-1] = x;
 	}
 
 	public void cancelRowUpdates()

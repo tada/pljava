@@ -122,7 +122,6 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 {
 	HeapTuple self;
 	TupleDesc tupleDesc;
-	jobject result = 0;
 
 	PLJAVA_ENTRY_FENCE(0)
 	self = (HeapTuple)NativeStruct_getStruct(env, _this);

@@ -10,6 +10,7 @@
 #include "java_sql_Types.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
+#include "pljava/type/String.h"
 #include "pljava/Exception.h"
 
 static Type      s_Oid;
@@ -144,6 +145,11 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 		"()Lorg/postgresql/pljava/internal/Oid;",
 		Java_org_postgresql_pljava_internal_Oid__1getTypeId
 		},
+		{
+		"_getJavaClassName",
+		"()Ljava/lang/String;",
+	  	Java_org_postgresql_pljava_internal_Oid__1getJavaClassName
+		},
 		{ 0, 0, 0 }};
 
 	jobject tmp;
@@ -201,4 +207,31 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid__1getTypeId(JNIEnv* env, jclass cls)
 {
 	return s_OidOid;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    _getJavaClassName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jobject _this)
+{
+	Oid oid;
+	jstring result = 0;
+	PLJAVA_ENTRY_FENCE(0)
+
+	oid = Oid_getOid(env, _this);
+	if(!OidIsValid(oid))
+	{
+		Exception_throw(env,
+			ERRCODE_DATA_EXCEPTION,
+			"Invalid OID \"%d\"", (int)oid);
+	}
+	else
+	{
+		Type type = Type_objectTypeFromOid(oid);
+		result = String_createJavaStringFromNTS(env, Type_getJavaTypeName(type));
+	}
+	return result;
 }

@@ -8,8 +8,9 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
+
+import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.TupleDesc;
-import org.postgresql.pljava.internal.TypeMap;
 
 /**
  * Implementation of ResultSetMetaData for SPIResultSet
@@ -91,7 +92,7 @@ public class SPIResultSetMetaData extends AbstractResultSetMetaData
     public final String getColumnClassName(int column) throws SQLException
 	{
 		checkColumnIndex(column);
-		return TypeMap.getClassNameFromPgOid(getOid(column));
+		return this.getOid(column).getJavaClass().getName();
 	}
 
     /**
@@ -114,7 +115,7 @@ public class SPIResultSetMetaData extends AbstractResultSetMetaData
 	 * @return column OID
 	 * @throws SQLException if an error occurs
 	 */
-	protected final int getOid(int column) throws SQLException
+	protected final Oid getOid(int column) throws SQLException
 	{
 		return m_tupleDesc.getOid(column);
 	}
