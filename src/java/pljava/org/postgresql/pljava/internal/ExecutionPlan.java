@@ -118,25 +118,20 @@ public class ExecutionPlan extends NativeStruct
 	}
 
 	/**
-	 * Finalizers might run by a thread other then the main thread. If
-	 * that is the case, the pointer will be stored on a &quot;death
-	 * row&quot; that will be investegated by the main thread later
-	 * on.
+	 * Finalizers might run by a thread other then the main thread so
+	 * instead of calling invalidate here we store the pointer on a
+	 * &quot;death row&quot; that will be investegated by the main
+	 * thread later on.
 	 */
 	public void finalize()
 	{
-		if(m_isDurable && this.isValid())
+		long nativePtr = this.getNative();
+		if(nativePtr != 0 && m_isDurable)
 		{
-			long nativePtr = this.getNative();
-			if(Backend.isCallingJava())
-				this.invalidate();
-			else
+			synchronized(s_deathRow)
 			{
-				synchronized(s_deathRow)
-				{
-					s_deathRow.add(new Long(nativePtr));
-					setDeathRowFlag(true);
-				}
+				s_deathRow.add(new Long(nativePtr));
+				setDeathRowFlag(true);
 			}
 		}
 	}

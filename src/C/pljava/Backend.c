@@ -24,7 +24,7 @@
 
 #include "org_postgresql_pljava_internal_Backend.h"
 #include "pljava/Function.h"
-#include "pljava/type/Type.h"
+#include "pljava/type/ExecutionPlan.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
 #include "pljava/EOXactListener.h"
@@ -169,6 +169,8 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 			retval = Function_invoke(function, s_mainEnv, fcinfo);
 		}
 		Exception_checkException(s_mainEnv);
+		
+		ExecutionPlan_executeAllOnDeathRow(s_mainEnv);
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
@@ -178,6 +180,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	}
 	PG_CATCH();
 	{
+		ExecutionPlan_executeAllOnDeathRow(s_mainEnv);
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;

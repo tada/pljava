@@ -57,8 +57,11 @@ static Type ExecutionPlan_obtain(Oid typeId)
 	return s_ExecutionPlan;
 }
 
-static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
+void ExecutionPlan_executeAllOnDeathRow(JNIEnv* env)
 {
+	if(!s_deathRowFlag)
+		return;
+
 	jobject longArr;
 	int sz;
 	jlong* deathRow;
@@ -72,6 +75,7 @@ static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
 
 	if(longArr == 0)
 		return;
+
 	sz = (int)(*env)->GetArrayLength(env, longArr);
 	deathRow = (*env)->GetLongArrayElements(env, longArr, NULL);
 	for(idx = 0; idx < sz; ++idx)
@@ -332,9 +336,6 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 		int paramCount = 0;
 		Oid* paramOids = 0;
 
-		if(s_deathRowFlag)
-			ExecutionPlan_freeDeathRowCandidates(env);
-	
 		if(paramTypes != 0)
 		{
 			paramCount = (*env)->GetArrayLength(env, paramTypes);

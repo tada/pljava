@@ -73,7 +73,11 @@ ifdef DLL_BUILD
 	JVM_LIB  := $(JDK_HOME)/jre/bin/client
 else
 	JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
-	JVM_LIB := $(shell /bin/ls -d $(JRE_LIB)/client $(JRE_LIB)/server $(JRE_LIB)/jrockit 2> /dev/null)
+	JVM_LIB := $(firstword $(shell /bin/ls -d \
+		$(JRE_LIB)/client \
+		$(JRE_LIB)/server \
+		$(JRE_LIB)/jrockit \
+		2> /dev/null))
 endif
 
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
