@@ -344,9 +344,6 @@ public class JarX {
    */
   public void extract( ZipEntry ze, InputStream is, Dictionary mf)
   throws IOException {
-    if ( ze.isDirectory() )
-      return;
-      
     String s = ze.getName();
     System.err.print( s + " ");
     JarX[] type = (JarX[])mf.get( s);
@@ -356,6 +353,14 @@ public class JarX {
     
     File f = new File( s);
     
+    if ( ze.isDirectory() ) {
+      if ( f.isDirectory()  ||  f.mkdirs() )
+      	System.err.println();
+      else
+      	System.err.println( "FAILED!");
+      return;
+    }
+      
     OutputStream os;
     
     try {
@@ -934,13 +939,22 @@ public class JarX {
 	f = new File( File.separatorChar == '/' ? n[i] :
 	              n[i].replace( '/', File.separatorChar));
 	ze.setTime( f.lastModified());
-	is = new FileInputStream( f);
 	zos.putNextEntry( ze);
-	if ( t[i] == null  ||  t[i] == NOTTEXT )
-	  this.shovelBytes( is, zos);
-	else
-	  this.shovelText( is, zos, t[i]);
-	is.close();
+	if ( ze.isDirectory() ) {
+	  System.err.println();
+	}
+	else if ( f.isDirectory() ) {
+	  System.err.println( "DIRECTORY! add / in manifest.");
+	  System.exit( 1);
+	}
+	else {
+	  is = new FileInputStream( f);
+	  if ( t[i] == null  ||  t[i] == NOTTEXT )
+	    this.shovelBytes( is, zos);
+	  else
+	    this.shovelText( is, zos, t[i]);
+	  is.close();
+	}
 	zos.closeEntry();
       }
       
