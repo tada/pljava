@@ -272,7 +272,7 @@ public class Deployer
 			if(cmd == CMD_INSTALL || cmd == CMD_REINSTALL)
 			{
 				deployer.createSQLJSchema();
-				deployer.initJavaHandler(cygwin);
+				deployer.initJavaHandlers(cygwin);
 				deployer.initializeSQLJSchema();
 			}
 			c.close();
@@ -317,6 +317,7 @@ public class Deployer
 		try
 		{
 			stmt.execute("DROP LANGUAGE java CASCADE");
+			stmt.execute("DROP LANGUAGE javaU CASCADE");
 		}
 		catch(SQLException e)
 		{
@@ -410,7 +411,7 @@ public class Deployer
 		stmt.close();
 	}
 
-	public void initJavaHandler(boolean cygwin)
+	public void initJavaHandlers(boolean cygwin)
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
@@ -421,6 +422,14 @@ public class Deployer
 			" LANGUAGE C");
 
 		stmt.execute("CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
+
+		stmt.execute(
+			"CREATE FUNCTION sqlj.javau_call_handler()" +
+			" RETURNS language_handler" +
+			" AS '" + (cygwin ? "" : "lib") + "pljava'" +
+			" LANGUAGE C");
+
+		stmt.execute("CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler");
 		stmt.close();
 	}
 }

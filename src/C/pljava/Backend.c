@@ -784,13 +784,13 @@ JNIEnv* Backend_getMainEnv(void)
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
-extern Datum untrusted_java_call_handler(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(untrusted_java_call_handler);
+extern Datum javau_call_handler(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(javau_call_handler);
 
 /*
- * This is the entry point for all trusted calls.
+ * This is the entry point for all untrusted calls.
  */
-Datum untrusted_java_call_handler(PG_FUNCTION_ARGS)
+Datum javau_call_handler(PG_FUNCTION_ARGS)
 {
 	return internalCallHandler(false, fcinfo);
 }

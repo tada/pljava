@@ -43,7 +43,10 @@ SQLActions[ ] = {
 			AS 'java.lang.System.getProperty'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.create_temp_file()
+		/* This function should fail since file system access is
+		 * prohibited when the language is trusted.
+		 */
+		CREATE FUNCTION javatest.create_temp_file_trusted()
 			RETURNS varchar
 			AS 'org.postgresql.pljava.example.Security.createTempFile'
 			LANGUAGE java;

@@ -514,23 +514,78 @@ public class Tester
 	{
 		System.out.println("*** testTrustedSecurity()");
 		Statement stmt = m_connection.createStatement();
+		ResultSet rs = null;
 		
+		tryCreateTempFile(true);
+
+		boolean funcCreated = false;
 		try
 		{
-			ResultSet rs = stmt.executeQuery("SELECT create_temp_file()");
+			rs = stmt.executeQuery("SHOW IS_SUPERUSER");
+			if(!(rs.next() && rs.getString(1).equals("on")))
+			{
+				System.out.println("Tester is not superuser so tests on untrusted language cannot be performed");
+				return;
+			}
+
+			// Try the same java method again, this time using language javaU
+			//
+			stmt.execute(
+				"CREATE OR REPLACE FUNCTION javatest.create_temp_file_untrusted()" +
+				"  RETURNS varchar" +
+				"  AS 'org.postgresql.pljava.example.Security.createTempFile'" +
+				"  LANGUAGE javaU");
+			
+			tryCreateTempFile(false);
+		}
+		finally
+		{
+			if(rs != null)
+			{
+				try { rs.close(); } catch(SQLException e) {}
+				rs = null;
+			}
+			if(funcCreated)
+				stmt.execute("DROP FUNCTION javatest.create_temp_file_untrusted()");
+			stmt.close();
+		}
+	}
 	
+	private void tryCreateTempFile(boolean trusted)
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = null;
+
+		try
+		{
+			if(trusted)
+				rs = stmt.executeQuery("SELECT create_temp_file_trusted()");
+			else
+				rs = stmt.executeQuery("SELECT create_temp_file_untrusted()");
+
 			if(!rs.next())
 				System.out.println("Unable to position ResultSet");
 			else
 				System.out.println("Name of created temp file = " + rs.getString(1));
-			rs.close();
-			stmt.close();
 
-			throw new RuntimeException("ERROR: Tempfile creation succeded although language is trusted!");
+			if(trusted)
+				throw new RuntimeException("ERROR: Tempfile creation succeded although language is trusted!");
 		}
 		catch(SQLException e)
 		{
+			if(!trusted)
+				throw e;
 			System.out.println("OK, creation of temp file was *unsuccessful* as it should be");
+		}
+		finally
+		{
+			if(rs != null)
+			{
+				try { rs.close(); } catch(SQLException e) {}
+				rs = null;
+			}
+			stmt.close();
 		}
 	}
 }

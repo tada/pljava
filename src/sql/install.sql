@@ -7,6 +7,12 @@ CREATE FUNCTION sqlj.java_call_handler()
 
 CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler;
 
+CREATE FUNCTION sqlj.javau_call_handler()
+  RETURNS language_handler AS 'libpljava'
+  LANGUAGE C;
+
+CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler;
+
 CREATE TABLE sqlj.jar_repository(
 	jarId		SERIAL PRIMARY KEY,
 	jarName		VARCHAR(100) UNIQUE NOT NULL,
