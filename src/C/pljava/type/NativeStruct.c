@@ -107,6 +107,7 @@ void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 
 void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct)
 {
+	Ptr2Long p2l;
 	if(nativeStruct == 0)
 	{
 		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
@@ -114,7 +115,6 @@ void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct)
 		return 0;
 	}
 
-	Ptr2Long p2l;
 	p2l.longVal = (*env)->GetLongField(env, nativeStruct, s_NativeStruct_m_native);
 	if(p2l.ptrVal == 0)
 	{

@@ -115,6 +115,8 @@ void Exception_checkException(JNIEnv* env)
 
 extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion)
 {
+	jstring jmsg;
+	jobject ex;
 	StringInfoData buf;
 	initStringInfo(&buf);
 	appendStringInfoString(&buf, "Feature: ");
@@ -125,10 +127,10 @@ extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeat
 	appendStringInfoString(&buf, introVersion);
 
 	ereport(DEBUG3, (errmsg(buf.data)));
-	jstring jmsg = String_createJavaStringFromNTS(env, buf.data);
+	jmsg = String_createJavaStringFromNTS(env, buf.data);
 	pfree(buf.data);
 
-	jobject ex = PgObject_newJavaObject(
+	ex = PgObject_newJavaObject(
 		env, s_UnsupportedOperationException_class, s_UnsupportedOperationException_init, jmsg);
 	(*env)->DeleteLocalRef(env, jmsg);
 	(*env)->Throw(env, ex);
@@ -189,10 +191,10 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
 	errData->message = buf.data;
 #endif
-	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
 	jobject ed = ErrorData_create(env, errData);
 	jobject ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
+	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
 	(*env)->DeleteLocalRef(env, ed);
 	(*env)->Throw(env, ex);
 }

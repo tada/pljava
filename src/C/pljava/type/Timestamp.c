@@ -140,7 +140,7 @@ int Timestamp_getTimeZone(Timestamp ts)
 	return tz;
 }
 
-int Timestamp_getCurrentTimeZone()
+int Timestamp_getCurrentTimeZone(void)
 {
 	int usec = 0;
 	AbsoluteTime sec = GetCurrentAbsoluteTimeUsec(&usec);

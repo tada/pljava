@@ -104,12 +104,12 @@ public class ExecutionPlan extends NativeStruct
 	 * @return The <code>Portal</code> that represents the opened cursor.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public Portal cursorOpen(String cursorName, Object[] parameters)
+	public Portal cursorOpen(String cursorName, Object[] parameters, boolean readOnly)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._cursorOpen(cursorName, parameters);
+			return this._cursorOpen(cursorName, parameters, readOnly);
 		}
 	}
 	
@@ -183,7 +183,7 @@ public class ExecutionPlan extends NativeStruct
 	private native void _savePlan()
 	throws SQLException;
 
-	private native Portal _cursorOpen(String cursorName, Object[] parameters)
+	private native Portal _cursorOpen(String cursorName, Object[] parameters, boolean readOnly)
 	throws SQLException;
 
 	private native boolean _isCursorPlan()

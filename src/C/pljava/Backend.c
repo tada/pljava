@@ -609,7 +609,7 @@ static void addUserJVMOptions(JVMOptList* optList)
 }
 #endif
 
-static void initializeJavaVM()
+static void initializeJavaVM(void)
 {
 #if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
@@ -726,7 +726,7 @@ static void initializeJavaVM()
 	{
 		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
 		while(pljavaDebug)
-			sleep(1);
+			pg_usleep(1000000L);
 	}
 
 	vm_args.nOptions = optList.size;
@@ -770,7 +770,7 @@ static void initializeJavaVM()
 	initJavaVM(s_mainEnv);
 }
 
-JNIEnv* Backend_getMainEnv()
+JNIEnv* Backend_getMainEnv(void)
 {
 	return s_mainEnv;
 }

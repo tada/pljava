@@ -169,7 +169,7 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
  * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues, jboolean readOnly)
 {
 	void* ePlan;
 	jobject jportal = 0;
@@ -190,7 +190,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 			if(cursorName != 0)
 				name = String_createNTS(env, cursorName);
 		
-			portal = SPI_cursor_open(name, ePlan, values, nulls);
+			portal = SPI_cursor_open(name, ePlan, values, nulls, readOnly == JNI_TRUE);
 			if(name != 0)
 				pfree(name);
 			if(values != 0)

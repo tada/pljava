@@ -469,8 +469,8 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	if(self->method == 0)
 	{
-		elog(DEBUG1, "Method %s.%s %s not found", className, methodName, sign.data);
 		char* origSign = sign.data;
+		elog(DEBUG1, "Method %s.%s %s not found", className, methodName, origSign);
 		if(Type_isPrimitive(self->returnType))
 		{
 			/*

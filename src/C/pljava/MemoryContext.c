@@ -178,12 +178,12 @@ void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
 	exm->nativeCache = nativeCache;
 }
 
-MemoryContext MemoryContext_switchToReturnValueContext()
+MemoryContext MemoryContext_switchToReturnValueContext(void)
 {
 	return MemoryContextSwitchTo(returnValueContext);
 }
 
-HashMap MemoryContext_getCurrentNativeCache()
+HashMap MemoryContext_getCurrentNativeCache(void)
 {
 	return (returnValueContext == 0)
 		? 0

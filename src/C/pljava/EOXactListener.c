@@ -34,7 +34,7 @@ static void onEOXact(bool isCommit, void *arg)
 	}
 }
 #else
-static void onEOXact(XactEvent event, TransactionId parentXid, void *arg)
+static void onEOXact(XactEvent event, void *arg)
 {
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
