@@ -181,7 +181,6 @@ public class Tester
 					password);
 			
 			Tester t = new Tester(c);
-			t.initialize();
 			t.testParameters();
 			t.testInsertUsernameTrigger();
 			t.testModdatetimeTrigger();
@@ -218,17 +217,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-				"CREATE TABLE javatest.employees1 (" +
-				" id		int PRIMARY KEY," +
-				" name		varchar(200)," +	
-				" salary	int)");
-
-		stmt.execute(
-				"CREATE TABLE javatest.employees2 (" +
-				" id		int PRIMARY KEY," +
-				" name		varchar(200)," +	
-				" salary	int)");
 
 		stmt.execute("INSERT INTO employees1 VALUES(" +
 			"1, 'Calvin Forrester', 10000)");
@@ -238,12 +226,6 @@ public class Tester
 			"3, 'Rebecka Shawn', 30000)");
 		stmt.execute("INSERT INTO employees1 VALUES(" +
 			"4, 'Priscilla Johnson', 25000)");
-
-		stmt.execute(
-				"CREATE FUNCTION javatest.transferPeople(int)" +
-				" RETURNS int" +
-				" AS 'org.postgresql.pljava.example.SPIActions.transferPeopleWithSalary'" +
-				" LANGUAGE java");
 
 		stmt.execute("SELECT transferPeople(20000)");
 
@@ -265,21 +247,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-		"CREATE TYPE javatest._testSetReturn AS (base integer, incbase integer, ctime timestamptz)");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.complexReturnExample(int, int)" +
-			" RETURNS _testSetReturn" +
-			" AS 'org.postgresql.pljava.example.ComplexReturn.complexReturn'" +
-			" IMMUTABLE LANGUAGE java");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.complexReturnToString(_testSetReturn)" +
-			" RETURNS VARCHAR" +
-			" AS 'org.postgresql.pljava.example.ComplexReturn.makeString'" +
-			" IMMUTABLE LANGUAGE java");
-
 		ResultSet rs = stmt.executeQuery("SELECT complexReturnToString(complexReturnExample(1, 5))");
 		while(rs.next())
 		{
@@ -292,12 +259,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-			"CREATE FUNCTION javatest.setReturnExample(int, int)" +
-			" RETURNS SETOF javatest._testSetReturn" +
-			" AS 'org.postgresql.pljava.example.ComplexReturn.setReturn'" +
-			" IMMUTABLE LANGUAGE java");
-
 		ResultSet rs = stmt.executeQuery("SELECT base, incbase, ctime FROM setReturnExample(1, 5)");
 		while(rs.next())
 		{
@@ -315,24 +276,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-			"CREATE TABLE javatest.mdt (" +
-			" id		int4," +
-			" idesc		text," +	
-			" moddate	timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.moddatetime()" +
-			" RETURNS trigger" +
-			" AS 'org.postgresql.pljava.example.Triggers.moddatetime'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE TRIGGER mdt_moddatetime" +
-			" BEFORE UPDATE ON mdt" +
-			" FOR EACH ROW" +
-			" EXECUTE PROCEDURE moddatetime (moddate)");
-
 		stmt.execute("INSERT INTO mdt VALUES (1, 'first')");
 		stmt.execute("INSERT INTO mdt VALUES (2, 'second')");
 		stmt.execute("INSERT INTO mdt VALUES (3, 'third')");
@@ -373,23 +316,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-			"CREATE TABLE javatest.username_test (" +
-			" name		text," +	
-			" username	text not null)");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.insert_username()" +
-			" RETURNS trigger" +
-			" AS 'org.postgresql.pljava.example.Triggers.insertUsername'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE TRIGGER insert_usernames" +
-			" BEFORE INSERT OR UPDATE ON username_test" +
-			" FOR EACH ROW" +
-			" EXECUTE PROCEDURE insert_username (username)");
-
 		stmt.execute("INSERT INTO username_test VALUES ('nothing', 'thomas')");
 		stmt.execute("INSERT INTO username_test VALUES ('null', null)");
 		stmt.execute("INSERT INTO username_test VALUES ('empty string', '')");
@@ -412,36 +338,6 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_getTimestamp()" +
-			" RETURNS timestamp" +
-			" AS 'org.postgresql.pljava.example.Parameters.getTimestamp'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_getTimestamptz()" +
-			" RETURNS timestamptz" +
-			" AS 'org.postgresql.pljava.example.Parameters.getTimestamp'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_print(date)" +
-			" RETURNS void" +
-			" AS 'org.postgresql.pljava.example.Parameters.print'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_print(timetz)" +
-			" RETURNS void" +
-			" AS 'org.postgresql.pljava.example.Parameters.print'" +
-			" LANGUAGE java");
-
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_print(timestamptz)" +
-			" RETURNS void" +
-			" AS 'org.postgresql.pljava.example.Parameters.print'" +
-			" LANGUAGE java");
-
 		ResultSet rs = stmt.executeQuery(
 				"SELECT java_getTimestamp(), java_getTimestamptz()");
 		
@@ -465,32 +361,17 @@ public class Tester
 	public void testInt()
 	throws SQLException
 	{
-		Statement stmt = m_connection.createStatement();
-		
 		/*
 		 * Test parameter override from int primitive to java.lang.Integer
-		 */
-		stmt.execute(
-			"CREATE FUNCTION javatest.java_addOne(int)" +
-			" RETURNS int" +
-			" AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'" +
-			" LANGUAGE java");
-
-		/*
+		 *
 		 * Test return value override (stipulated by the Java method rather than
 		 * in the function declaration. Seems to be that way according to the
 		 * SQL-2003 spec).
-		 */
-		stmt.execute(
-			"CREATE FUNCTION javatest.nullOnEven(int)" +
-			" RETURNS int" +
-			" AS 'org.postgresql.pljava.example.Parameters.nullOnEven'" +
-			" LANGUAGE java");
-
-		/*
+		 *
 		 * Test function call within function call and function that returns an object
 		 * rather than a primitive to reflect null values.
 		 */
+		Statement stmt = m_connection.createStatement();		
 		ResultSet rs = stmt.executeQuery("SELECT java_addOne(java_addOne(54)), nullOnEven(1), nullOnEven(2)");
 		if(!rs.next())
 			System.out.println("Unable to position ResultSet");
@@ -504,20 +385,5 @@ public class Tester
 		}
 		rs.close();
 		stmt.close();
-	}
-
-	public void initialize()
-	throws SQLException
-	{
-		Statement stmt = m_connection.createStatement();
-		try
-		{
-			stmt.execute("DROP SCHEMA javatest CASCADE");
-		}
-		catch(SQLException e)
-		{
-		}
-		stmt.execute("CREATE SCHEMA javatest");
-		stmt.execute("SET search_path TO javatest,public");
 	}
 }

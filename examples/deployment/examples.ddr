@@ -1,0 +1,117 @@
+SQLActions[ ] = {
+	"BEGIN INSTALL
+		CREATE SCHEMA javatest;
+		BEGIN PostgreSQL SET search_path TO javatest,public ENd postgreSQL;
+
+		CREATE FUNCTION javatest.java_getTimestamp()
+			RETURNS timestamp
+			AS 'org.postgresql.pljava.example.Parameters.getTimestamp'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_getTimestamptz()
+			RETURNS timestamptz
+			AS 'org.postgresql.pljava.example.Parameters.getTimestamp'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_print(date)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_print(timetz)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_print(timestamptz)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_addOne(int)
+			RETURNS int
+			AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.nullOnEven(int)
+			RETURNS int
+			AS 'org.postgresql.pljava.example.Parameters.nullOnEven'
+			LANGUAGE java;
+
+		CREATE TABLE javatest.username_test
+			(
+			name		text,
+			username	text not null
+			);
+
+		CREATE FUNCTION javatest.insert_username()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.insertUsername'
+			LANGUAGE java;
+
+		CREATE TRIGGER insert_usernames
+			BEFORE INSERT OR UPDATE ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE insert_username (username);
+
+		CREATE TABLE javatest.mdt
+			(
+			id		int4,
+			idesc	text,
+			moddate	timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+			);
+
+		CREATE FUNCTION javatest.moddatetime()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.moddatetime'
+			LANGUAGE java;
+
+		CREATE TRIGGER mdt_moddatetime
+			BEFORE UPDATE ON mdt
+			FOR EACH ROW
+			EXECUTE PROCEDURE moddatetime (moddate);
+
+		CREATE TABLE javatest.employees1
+			(
+			id		int PRIMARY KEY,
+			name	varchar(200),	
+			salary	int
+			);
+
+		CREATE TABLE javatest.employees2
+			(
+			id		int PRIMARY KEY,
+			name	varchar(200),
+			salary	int
+			);
+
+		CREATE FUNCTION javatest.transferPeople(int)
+			RETURNS int
+			AS 'org.postgresql.pljava.example.SPIActions.transferPeopleWithSalary'
+			LANGUAGE java;
+
+		CREATE TYPE javatest._testSetReturn
+			AS (base integer, incbase integer, ctime timestamptz);
+
+		CREATE FUNCTION javatest.complexReturnExample(int, int)
+			RETURNS _testSetReturn
+			AS 'org.postgresql.pljava.example.ComplexReturn.complexReturn'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.complexReturnToString(_testSetReturn)
+			RETURNS VARCHAR
+			AS 'org.postgresql.pljava.example.ComplexReturn.makeString'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.setReturnExample(int, int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.ComplexReturn.setReturn'
+			IMMUTABLE LANGUAGE java;
+	END INSTALL",
+	
+	"BEGIN REMOVE
+		DROP SCHEMA javatest CASCADE;
+	END REMOVE"
+	}
+
+			

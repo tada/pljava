@@ -11,13 +11,16 @@ package org.postgresql.pljava.management;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -39,7 +42,7 @@ public class Commands
 	 * @param urlString
 	 *            The location of the jar that will be installed.
 	 * @param deploy
-	 *            Ignored at present
+	 *            If set, execute install commands found in the deployment descriptor.
 	 * @throws SQLException
 	 *             if the <code>jarName</code> contains characters that are
 	 *             invalid or if the named jar already exists in the system.
@@ -55,7 +58,7 @@ public class Commands
 		{
 			if(getJarId(conn, jarName) >= 0)
 				throw new SQLException("A jar named '" + jarName + "' already exists");
-			
+
 			PreparedStatement stmt = conn.prepareStatement(
 				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin) VALUES(?, ?)");
 			try
@@ -69,7 +72,14 @@ public class Commands
 			{
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
-			addClassImages(conn, jarName, urlString);
+
+			int jarId = getJarId(conn, jarName);
+			if(jarId < 0)
+				throw new SQLException("Unable to obtain id of '" + jarName + "'");
+
+			addClassImages(conn, jarId, urlString);
+			if(deploy)
+				deployInstall(conn, jarId);
 		}
 		finally
 		{
@@ -83,7 +93,9 @@ public class Commands
 	 * sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
 	 * @param jarName The name by which the system referes this jar.
 	 * @param urlString The location of the jar that will be installed.
-	 * @param redeploy Ignored at present
+	 * @param redeploy If set, execute remove commands found in the deployment
+	 * descriptor of the old jar and install commands found in the deployment
+	 * descriptor of the new jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
 	public static void replaceJar(String jarName, String urlString, boolean redeploy)
@@ -95,9 +107,12 @@ public class Commands
 			int jarId = getJarId(conn, jarName);
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
-	
+
+			if(redeploy)
+				deployRemove(conn, jarId);
+		
 			PreparedStatement stmt = conn.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarOrigin = ? WHERE jarId = ?");
+				"UPDATE sqlj.jar_repository SET jarOrigin = ?, deploymentDesc = NULL WHERE jarId = ?");
 			try
 			{
 				stmt.setString(1, urlString);
@@ -121,6 +136,8 @@ public class Commands
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
 			addClassImages(conn, jarId, urlString);
+			if(redeploy)
+				deployInstall(conn, jarId);
 		}
 		finally
 		{
@@ -134,7 +151,8 @@ public class Commands
 	 * removed (just the entry, not the whole path). This method is exposed in
 	 * SQL as <code>sqlj.remove_jar(VARCHAR, BOOLEAN)</code>.
 	 * @param jarName The name by which the system referes this jar.
-	 * @param undeploy Ignored at present
+	 * @param undeploy If set, execute remove commands found in the deployment
+	 * descriptor of the jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
 	public static void removeJar(String jarName, boolean undeploy)
@@ -149,6 +167,9 @@ public class Commands
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
 			
+			if(undeploy)
+				deployRemove(conn, jarId);
+
 			PreparedStatement stmt = conn.prepareStatement(
 				"DELETE FROM sqlj.jar_repository WHERE jarId = ?");
 			try
@@ -339,24 +360,17 @@ public class Commands
 		}
 	}
 
-	/**
-	 */
-	protected static void addClassImages(Connection conn, String jarName, String urlString)
-	throws SQLException
-	{
-		int jarId = getJarId(conn, jarName);
-		if(jarId < 0)
-			throw new SQLException("No Jar named '" + jarName + "' is known to the system");
-		addClassImages(conn, jarId, urlString);
-	}
-
 	protected static void addClassImages(Connection conn, int jarId, String urlString)
 	throws SQLException
 	{
 		InputStream urlStream = null;
 		PreparedStatement stmt = null;
+		PreparedStatement descIdStmt = null;
+		ResultSet rs = null;
+
 		try
 		{
+			int deployImageId = -1;
 			URL url = new URL(urlString);
 			urlStream = url.openStream();
 
@@ -375,17 +389,54 @@ public class Commands
 				if(je.isDirectory())
 					continue;
 
+				String entryName = je.getName();
+				Attributes attrs = je.getAttributes();
+				
+				boolean isDepDescr = false;
+				if(attrs != null)
+				{	
+					isDepDescr = "true".equalsIgnoreCase(
+								attrs.getValue("SQLJDeploymentDescriptor"));
+
+					if(isDepDescr && deployImageId >= 0)
+						throw new SQLException("Only one SQLJDeploymentDescriptor allowed");
+				}
+
 				int nBytes;
 				img.reset();
 				while((nBytes = jis.read(buf)) > 0)
 					img.write(buf, 0, nBytes);
 				jis.closeEntry();
 
-				stmt.setString(1, je.getName());
+				stmt.setString(1, entryName);
 				stmt.setInt(2, jarId);
 				stmt.setBytes(3, img.toByteArray());
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar entry insert did not insert 1 row");
+				
+				if(isDepDescr)
+				{
+					descIdStmt = conn.prepareStatement(
+							"SELECT entryId FROM sqlj.jar_entry" +
+							" WHERE jarId = ? AND entryName = ?");
+					descIdStmt.setInt(1, jarId);
+					descIdStmt.setString(2, entryName);
+					rs = descIdStmt.executeQuery();
+					if(!rs.next())
+						throw new SQLException("Failed to refecth row in sqlj.jar_entry");
+					
+					deployImageId = rs.getInt(1);
+				}
+			}
+			if(deployImageId >= 0)
+			{
+				stmt.close();
+				stmt = conn.prepareStatement(
+					"UPDATE sqlj.jar_repository SET deploymentDesc = ? WHERE jarId = ?");
+				stmt.setInt(1, deployImageId);
+				stmt.setInt(2, jarId);
+				if(stmt.executeUpdate() != 1)
+					throw new SQLException("Jar repository update did not insert 1 row");
 			}
 		}
 		catch(IOException e)
@@ -396,9 +447,29 @@ public class Commands
 		{
 			if(urlStream != null)
 				try { urlStream.close(); } catch(IOException e) { /* ignore */ }
+			if(rs != null)
+				try { rs.close(); } catch(SQLException e) { /* ignore */ }
+			if(descIdStmt != null)
+				try { descIdStmt.close(); } catch(SQLException e) { /* ignore */ }
 			if(stmt != null)
 				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
 		}
+	}
+
+	protected static void deployInstall(Connection conn, int jarId)
+	throws SQLException
+	{
+		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(conn, jarId);
+		if(depDesc != null)
+			depDesc.install(conn);
+	}
+
+	protected static void deployRemove(Connection conn, int jarId)
+	throws SQLException
+	{
+		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(conn, jarId);
+		if(depDesc != null)
+			depDesc.remove(conn);
 	}
 
 	/**
@@ -439,7 +510,7 @@ public class Commands
 	throws SQLException
 	{
 		PreparedStatement stmt = conn.prepareStatement(
-		"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?");
+			"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?");
 		try
 		{
 			return getJarId(stmt, jarName);
@@ -464,6 +535,53 @@ public class Commands
 		finally
 		{
 			try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
+		}
+	}
+
+	protected static SQLDeploymentDescriptor getDeploymentDescriptor(Connection conn, int jarId)
+	throws SQLException
+	{
+		PreparedStatement stmt = conn.prepareStatement(
+			"SELECT e.entryImage" +
+			" FROM sqlj.jar_repository r INNER JOIN sqlj.jar_entry e" +
+			"   ON r.deploymentDesc = e.entryId" +
+			" WHERE r.jarId = ?");
+		try
+		{
+			stmt.setInt(1, jarId);
+			ResultSet rs = stmt.executeQuery();
+			try
+			{
+				if(!rs.next())
+					return null;
+
+				byte[] bytes = rs.getBytes(1);
+				if(bytes.length == 0)
+					return null;
+				
+				// Accodring to the SQLJ standard, this entry must be
+				// UTF8 encoded.
+				//
+				return  new SQLDeploymentDescriptor(new String(bytes, "UTF8"), "postgresql");
+			}
+			catch (UnsupportedEncodingException e)
+			{
+				// Excuse me? No UTF8 encoding?
+				//
+				throw new SQLException("JVM does not support UTF8!!");
+			}
+			catch(ParseException e)
+			{
+				throw new SQLException(e.getMessage() + " at " + e.getErrorOffset());
+			}
+			finally
+			{
+				try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
+			}
+		}
+		finally
+		{
+			try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 		}
 	}
 

@@ -353,6 +353,7 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
+#if !defined(WIN32) && !defined(CYGWIN)
 static pqsigfunc s_jvmSigQuit;
 static sigjmp_buf recoverBuf;
 
@@ -369,6 +370,7 @@ static void alarmHandler(int signum)
 	 */
 	siglongjmp(recoverBuf, 1);
 }
+#endif
 
 /*
  * proc_exit callback to tear down the JVM
@@ -377,9 +379,9 @@ static void _destroyJavaVM(int status, Datum dummy)
 {
 	if(s_javaVM != 0)
 	{
+#if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
 		pqsigfunc saveSigAlrm;
-		elog(LOG, "Destroying JavaVM...");
 
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
@@ -392,15 +394,20 @@ static void _destroyJavaVM(int status, Datum dummy)
 		saveSigAlrm = pqsignal(SIGALRM, alarmHandler);
 
 		enable_sig_alarm(5000, false);
+#endif
+
+		elog(LOG, "Destroying JavaVM...");
 
 		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
 		isCallingJava = false;
 
+#if !defined(WIN32) && !defined(CYGWIN)
 		disable_sig_alarm(false);
 
 		pqsignal(SIGQUIT, saveSigQuit);
 		pqsignal(SIGALRM, saveSigAlrm);
+#endif
 
 		elog(LOG, "JavaVM destroyed");
 		s_javaVM = 0;
@@ -409,10 +416,12 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 static void initializeJavaVM()
 {
+#if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
 	pqsigfunc saveSigTerm;
 	pqsigfunc saveSigHup;
 	pqsigfunc saveSigQuit;
+#endif
 
 	char* classPath;
 	char* dynLibPath;
@@ -464,13 +473,7 @@ static void initializeJavaVM()
 	options[nOptions].extraInfo = (void*)my_vfprintf;
 	nOptions++;
 
-	vm_args.nOptions = nOptions;
-	vm_args.options  = options;
-	vm_args.version  = JNI_VERSION_1_4;
-	vm_args.ignoreUnrecognized = JNI_TRUE;
-
-	elog(LOG, "Creating JavaVM");
-
+#if !defined(WIN32) && !defined(CYGWIN)
 	/* Save current state of some signal handlers. The JVM will
 	 * redefine them. This redefinition can be avoided by passing
 	 * -Xrs to the JVM but we don't want that since it would make
@@ -480,6 +483,24 @@ static void initializeJavaVM()
 	saveSigTerm = pqsignal(SIGTERM, SIG_DFL);
 	saveSigHup  = pqsignal(SIGHUP,  SIG_DFL);
 	saveSigQuit = pqsignal(SIGQUIT, SIG_DFL);
+#else
+	/* We implement this when PostgreSQL have a native port for
+	 * win32. Sure, cygwin has signals but that don't help much
+	 * since the JVM dll is unaware of cygwin and uses Win32
+	 * constructs.
+	 */
+	options[nOptions].optionString = "-Xrs";
+	options[nOptions].extraInfo = 0;
+	nOptions++;
+#endif
+
+	vm_args.nOptions = nOptions;
+	vm_args.options  = options;
+	vm_args.version  = JNI_VERSION_1_4;
+	vm_args.ignoreUnrecognized = JNI_TRUE;
+
+	elog(LOG, "Creating JavaVM");
+
 
 	isCallingJava = true;
 	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
@@ -488,6 +509,7 @@ static void initializeJavaVM()
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
 
+#if !defined(WIN32) && !defined(CYGWIN)
 	/* Restore the PostgreSQL signal handlers and retrieve the
 	 * ones installed by the JVM. We'll use them when the JVM
 	 * is destroyed.
@@ -496,6 +518,7 @@ static void initializeJavaVM()
 	pqsignal(SIGTERM, saveSigTerm);
 	pqsignal(SIGHUP,  saveSigHup);
 	s_jvmSigQuit = pqsignal(SIGQUIT, saveSigQuit);
+#endif
 
 	if(dynLibPath != 0)
 		pfree(dynLibPath);

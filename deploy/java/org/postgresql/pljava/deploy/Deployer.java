@@ -267,16 +267,22 @@ public class Deployer
 			"CREATE TABLE sqlj.jar_repository(" +
 			"	jarId		SERIAL PRIMARY KEY," +
 			"	jarName		VARCHAR(100) UNIQUE NOT NULL," +
-			"   jarOrigin   VARCHAR(500) NOT NULL" +
-			")");
+			"   jarOrigin   VARCHAR(500) NOT NULL," +
+			"   deploymentDesc INT" +
+		")");
 
 		stmt.execute(
 			"CREATE TABLE sqlj.jar_entry(" +
 			"   entryId     SERIAL PRIMARY KEY," +
 			"	entryName	VARCHAR(200) NOT NULL," +
 			"	jarId		INT NOT NULL REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
-			"   entryImage  BYTEA NOT NULL" +
+			"   entryImage  BYTEA NOT NULL," +
+			"   UNIQUE(jarId, entryName)" +
 			")");
+
+		stmt.execute(
+			"ALTER TABLE sqlj.jar_repository" +
+			"   ADD FOREIGN KEY (deploymentDesc) REFERENCES sqlj.jar_entry ON DELETE SET NULL");
 
 		// Create the table maintaining the class path.
 		//

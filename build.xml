@@ -77,7 +77,7 @@
 		depends="backend_jar"
 		description="Sample backend Java code">
 
-		<mkdir dir="bin/examples/classes"/>
+		<mkdir dir="bin/examples/classes/deployment"/>
 		<javac
 			srcdir="examples/java"
 			destdir="bin/examples/classes"
@@ -85,9 +85,14 @@
 			target="1.4"
 			/>
 
+		<copy todir="bin/examples/classes/deployment">
+			<fileset dir="examples/deployment" excludes="*.manifest"/>
+		</copy>
+
 		<jar basedir="bin/examples/classes"
 			compress="true"
 			destfile="bin/examples.jar"
+			manifest="examples/deployment/examples.manifest"
 		/>
 	</target>
 
