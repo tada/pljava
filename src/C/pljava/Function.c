@@ -493,13 +493,13 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 							env, self->clazz, methodName, sign.data);
 	
 			if(self->method == 0)
-				PgObject_throwMemberError(methodName, origSign, true, true);
+				PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
 	
 			pfree(origSign);
 			self->returnType = objType;
 		}
 		else
-			PgObject_throwMemberError(methodName, origSign, true, true);
+			PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
 	}
 	pfree(sign.data);
 }

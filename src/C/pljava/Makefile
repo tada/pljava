@@ -22,10 +22,23 @@ ifeq ($(PORTNAME), cygwin)
 #
 all: subsys $(bin_dir)/pljava.dll
 
+ifneq ($(JAVA_HOME),)
 $(bin_dir)/pljava.dll: $(OBJS) type/SUBSYS.o
 	dlltool --input-def ../../jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 	dlltool --export-all --add-stdcall-alias --output-def pljava.def $(OBJS) type/SUBSYS.o
-	dllwrap -o $(bin_dir)/pljava.dll --def pljava.def $(OBJS) type/SUBSYS.o $(top_builddir)/src/utils/dllinit.o -lpostgres -L. -ljvm
+	dllwrap -o $(bin_dir)/pljava.dll --def pljava.def $(OBJS) \
+		type/SUBSYS.o \
+		$(top_builddir)/src/utils/dllinit.o \
+		-lpostgres -L. -ljvm
+else
+$(bin_dir)/pljava.dll: $(OBJS) type/SUBSYS.o
+	dlltool --export-all --add-stdcall-alias --output-def pljava.def $(OBJS) type/SUBSYS.o
+	dllwrap -o $(bin_dir)/pljava.dll --def pljava.def $(OBJS) \
+		type/SUBSYS.o \
+		$(top_builddir)/src/utils/dllinit.o \
+		-lpostgres -lgcj -liconv -lz
+	dlltool --input-def pljava.def --kill-at --dllname pljava.dll --output-lib $(bin_dir)/libpljava.dll.a
+endif
 
 clean:
 	$(MAKE) -C type $@
