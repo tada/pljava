@@ -10,6 +10,7 @@
 
 #include "org_postgresql_pljava_internal_Savepoint.h"
 #include "pljava/Exception.h"
+
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/NativeStruct.h"
 #include "pljava/type/String.h"
@@ -20,8 +21,9 @@ static TypeClass s_SavepointClass;
 static jclass    s_Savepoint_class;
 static jmethodID s_Savepoint_init;
 
+#if (PGSQL_MAJOR_VER >= 8)
 /*
- * org.postgresql.pljava.type.Tuple type.
+ * org.postgresql.pljava.internal.Savepoint type.
  */
 static jobject Savepoint_create(JNIEnv* env, Savepoint* sp)
 {
@@ -44,6 +46,7 @@ static jvalue _Savepoint_coerceDatum(Type self, JNIEnv* env, Datum arg)
 	result.l = Savepoint_create(env, (Savepoint*)DatumGetPointer(arg));
 	return result;
 }
+#endif
 
 static Type Savepoint_obtain(Oid typeId)
 {
@@ -92,7 +95,9 @@ Datum Savepoint_initialize(PG_FUNCTION_ARGS)
 	s_SavepointClass = NativeStructClass_alloc("type.Savepoint");
 	s_SavepointClass->JNISignature   = "Lorg/postgresql/pljava/internal/Savepoint;";
 	s_SavepointClass->javaTypeName   = "org.postgresql.pljava.internal.Savepoint";
+#if (PGSQL_MAJOR_VER >= 8)
 	s_SavepointClass->coerceDatum    = _Savepoint_coerceDatum;
+#endif
 	s_Savepoint = TypeClass_allocInstance(s_SavepointClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Savepoint", Savepoint_obtain);
@@ -110,6 +115,7 @@ Datum Savepoint_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1set(JNIEnv* env, jclass cls, jstring jname)
 {
+#if (PGSQL_MAJOR_VER >= 8)
 	jobject jsp = 0;
 	PLJAVA_ENTRY_FENCE(0)
 	PG_TRY();
@@ -124,6 +130,10 @@ Java_org_postgresql_pljava_internal_Savepoint__1set(JNIEnv* env, jclass cls, jst
 	}
 	PG_END_TRY();
 	return jsp;
+#else
+	Exception_featureNotSupported(env, "Savepoint.set()", "8.0");
+	return 0;
+#endif
 }
 
 /*
@@ -134,12 +144,17 @@ Java_org_postgresql_pljava_internal_Savepoint__1set(JNIEnv* env, jclass cls, jst
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1getName(JNIEnv* env, jobject _this)
 {
+#if (PGSQL_MAJOR_VER >= 8)
 	Savepoint* self;
 	PLJAVA_ENTRY_FENCE(0)
 	self = (Savepoint*)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 	return String_createJavaStringFromNTS(env, self->name);
+#else
+	Exception_featureNotSupported(env, "Savepoint.getName()", "8.0");
+	return 0;
+#endif
 }
 
 /*
@@ -150,6 +165,7 @@ Java_org_postgresql_pljava_internal_Savepoint__1getName(JNIEnv* env, jobject _th
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1release(JNIEnv* env, jobject _this)
 {
+#if (PGSQL_MAJOR_VER >= 8)
 	Savepoint* self;
 	PLJAVA_ENTRY_FENCE_VOID
 	self = (Savepoint*)NativeStruct_releasePointer(env, _this);
@@ -165,6 +181,9 @@ Java_org_postgresql_pljava_internal_Savepoint__1release(JNIEnv* env, jobject _th
 		Exception_throw_ERROR(env, "SPI_releaseSavepoint");
 	}
 	PG_END_TRY();
+#else
+	Exception_featureNotSupported(env, "Savepoint.release()", "8.0");
+#endif
 }
 
 /*
@@ -175,6 +194,7 @@ Java_org_postgresql_pljava_internal_Savepoint__1release(JNIEnv* env, jobject _th
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1rollback(JNIEnv* env, jobject _this)
 {
+#if (PGSQL_MAJOR_VER >= 8)
 	Savepoint* self;
 	PLJAVA_ENTRY_FENCE_VOID
 	self = (Savepoint*)NativeStruct_releasePointer(env, _this);
@@ -190,4 +210,7 @@ Java_org_postgresql_pljava_internal_Savepoint__1rollback(JNIEnv* env, jobject _t
 		Exception_throw_ERROR(env, "SPI_rollbackSavepoint");
 	}
 	PG_END_TRY();
+#else
+	Exception_featureNotSupported(env, "Savepoint.rollback()", "8.0");
+#endif
 }

@@ -41,6 +41,8 @@ extern bool SPI_is_cursor_plan(void* plan);
 
 extern Datum SPI_initialize(PG_FUNCTION_ARGS);
 
+#if (PGSQL_MAJOR_VER >= 8)
+
 typedef struct
 {
 	SubTransactionId xid;
@@ -53,6 +55,8 @@ extern Savepoint* SPI_setSavepoint(const char* name);
 extern void SPI_releaseSavepoint(Savepoint* sp);
 
 extern void SPI_rollbackSavepoint(Savepoint* sp);
+
+#endif
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

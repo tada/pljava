@@ -114,7 +114,8 @@ void Exception_checkException(JNIEnv* env)
 	ereport(ERROR, (errcode(sqlState), errmsg(buf.data)));
 }	
 
-extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion)
+void
+Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion)
 {
 	jstring jmsg;
 	jobject ex;

@@ -161,6 +161,7 @@ bool SPI_is_cursor_plan(void* plan)
 }
 #endif
 
+#if (PGSQL_MAJOR_VER >= 8)
 static void assertXid(SubTransactionId xid)
 {
 	if(xid != GetCurrentSubTransactionId())
@@ -212,3 +213,4 @@ void SPI_rollbackSavepoint(Savepoint* sp)
 	}
 	pfree(sp);
 }
+#endif
