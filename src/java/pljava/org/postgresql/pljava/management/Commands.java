@@ -6,11 +6,11 @@
  */
 package org.postgresql.pljava.management;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -29,13 +29,14 @@ import org.postgresql.pljava.sqlj.Loader;
 
 /**
  * This methods of this class are implementations of SQLJ commands.
- * <h1>SQJL functions</h1>
+ * <h1>SQLJ functions</h1>
  * <h2>install_jar</h2>
- * The install_jar command loads a jarfile from a location appointed by an URL
- * into the SQLJ jar repository. It is an error if a jar with the given name
+ * The install_jar command loads a jar file from a location appointed by an URL
+ * or a binary image that constitutes the contents of a jar file into the SQLJ
+ * jar repository. It is an error if a jar with the given name
  * already exists in the repository.
- * <h3>Usage</h3>
- * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, ;&lt;deploy&gt;);</code>
+ * <h3>Usage 1</h3>
+ * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
  * <blockquote><table>
@@ -56,17 +57,61 @@ import org.postgresql.pljava.sqlj.Loader;
  * false otherwise</td>
  * </tr>
  * </table></blockquote>
+ * <h3>Usage 2</h3>
+ * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td valign="top"><b>jar_image</b></td>
+ * <td>The byte array that constitutes the contents of the jar that should be loaded
+ * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>This is the name by which this jar can be referenced once it has been
+ * loaded</td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>deploy</b></td>
+ * <td>True if the jar should be deployed according to a {@link
+ * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment descriptor},
+ * false otherwise</td>
+ * </tr>
+ * </table></blockquote>
  * <h2>replace_jar</h2>
  * The replace_jar will replace a loaded jar with another jar. Use this command
  * to update already loaded files. It's an error if the jar is not found.
- * <h3>Usage</h3>
- * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, ;&lt;redeploy&gt;);</code>
+ * <h3>Usage 1</h3>
+ * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
  * <blockquote><table>
  * <tr>
  * <td valign="top"><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded
+ * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>The name of the jar to be replaced</td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>redeploy</b></td>
+ * <td>True if the old and new jar should be undeployed and deployed according
+ * to their respective {@link
+ * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment descriptors},
+ * false otherwise</td>
+ * </tr>
+ * </table></blockquote>
+ * <h3>Usage 2</h3>
+ * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td valign="top"><b>jar_image</b></td>
+ * <td>The byte array that constitutes the contents of the jar that should be loaded
  * </td>
  * </tr>
  * <tr>
@@ -140,62 +185,45 @@ import org.postgresql.pljava.sqlj.Loader;
 public class Commands
 {
 	/**
-	 * Installs a new Jar in the database jar repository under name <code>jarName</code>.
-	 * Once installed classpaths can be defined that refrences this jar. This
-	 * method is exposed in SQL as
+	 * Installs a new Jar in the database jar repository under name
+	 * <code>jarName</code>. Once installed classpaths can be defined that
+	 * refrences this jar. This method is exposed in SQL as
 	 * <code>sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
 	 * 
-	 * @param urlString
-	 *            The location of the jar that will be installed.
-	 * @param jarName
-	 *            The name by which the system will refer to this jar.
-	 * @param deploy
-	 *            If set, execute install commands found in the deployment descriptor.
-	 * @throws SQLException
-	 *             if the <code>jarName</code> contains characters that are
-	 *             invalid or if the named jar already exists in the system.
+	 * @param urlString The location of the jar that will be installed.
+	 * @param jarName The name by which the system will refer to this jar.
+	 * @param deploy If set, execute install commands found in the deployment
+	 *            descriptor.
+	 * @throws SQLException if the <code>jarName</code> contains characters
+	 *             that are invalid or if the named jar already exists in the
+	 *             system.
 	 * @see #setClassPath
 	 */
 	public static void installJar(String urlString, String jarName, boolean deploy)
 	throws SQLException
 	{
-		assertJarName(jarName);
+		installJar(urlString, jarName, deploy, null);
+	}
 
-		Connection conn = DriverManager.getConnection("jdbc:default:connection");
-		try
-		{
-			if(getJarId(conn, jarName, null) >= 0)
-				throw new SQLException("A jar named '" + jarName + "' already exists");
-
-			PreparedStatement stmt = conn.prepareStatement(
-				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner) VALUES(?, ?, ?)");
-			try
-			{
-				stmt.setString(1, jarName);
-				stmt.setString(2, urlString);
-				stmt.setInt(3, AclId.getSessionUser().intValue());
-				if(stmt.executeUpdate() != 1)
-					throw new SQLException("Jar repository insert did not insert 1 row");
-			}
-			finally
-			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
-
-			AclId[] ownerRet = new AclId[1];
-			int jarId = getJarId(conn, jarName, ownerRet);
-			if(jarId < 0)
-				throw new SQLException("Unable to obtain id of '" + jarName + "'");
-
-			Backend.addClassImages(conn, jarId, urlString);
-			Loader.clearSchemaLoaders();
-			if(deploy)
-				deployInstall(conn, jarId);
-		}
-		finally
-		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
-		}
+	/**
+	 * Installs a new Jar in the database jar repository under name
+	 * <code>jarName</code>. Once installed classpaths can be defined that
+	 * refrences this jar. This method is exposed in SQL as
+	 * <code>sqlj.install_jar(BYTEA, VARCHAR, BOOLEAN)</code>.
+	 * 
+	 * @param jarImage The byte array that constitutes the jar content.
+	 * @param jarName The name by which the system will refer to this jar.
+	 * @param deploy If set, execute install commands found in the deployment
+	 *            descriptor.
+	 * @throws SQLException if the <code>jarName</code> contains characters
+	 *             that are invalid or if the named jar already exists in the
+	 *             system.
+	 * @see #setClassPath
+	 */
+	public static void installJar(byte[] image, String jarName, boolean deploy)
+	throws SQLException
+	{
+		installJar("streamed byte image", jarName, deploy, image);
 	}
 
 	/**
@@ -212,55 +240,24 @@ public class Commands
 	public static void replaceJar(String urlString, String jarName, boolean redeploy)
 	throws SQLException
 	{
-		Connection conn = DriverManager.getConnection("jdbc:default:connection");
-		try
-		{
-			AclId[] ownerRet = new AclId[1];
-			int jarId = getJarId(conn, jarName, ownerRet);
-			if(jarId < 0)
-				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
+		replaceJar(urlString, jarName, redeploy, null);
+	}
 
-			AclId user = AclId.getSessionUser();
-			if(!(user.isSuperuser() || user.equals(ownerRet[0])))
-				throw new SecurityException("Only super user or owner can replace a jar");
-
-			if(redeploy)
-				deployRemove(conn, jarId);
-		
-			PreparedStatement stmt = conn.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, deploymentDesc = NULL WHERE jarId = ?");
-			try
-			{
-				stmt.setString(1, urlString);
-				stmt.setInt(2, user.intValue());
-				stmt.setInt(3, jarId);
-				if(stmt.executeUpdate() != 1)
-					throw new SQLException("Jar repository update did not update 1 row");
-			}
-			finally
-			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
-
-			stmt = conn.prepareStatement("DELETE FROM sqlj.jar_entry WHERE jarId = ?");
-			try
-			{
-				stmt.setInt(1, jarId);
-				stmt.executeUpdate();
-			}
-			finally
-			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
-			Backend.addClassImages(conn, jarId, urlString);
-			Loader.clearSchemaLoaders();
-			if(redeploy)
-				deployInstall(conn, jarId);
-		}
-		finally
-		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
-		}
+	/**
+	 * Replaces the image of jar named <code>jarName</code> in the database jar
+	 * repository. This method is exposed in SQL as <code>
+	 * sqlj.replace_jar(BYTEA, VARCHAR, BOOLEAN)</code>.
+	 * @param jarImage The byte array that constitutes the jar content.
+	 * @param jarName The name by which the system referes this jar.
+	 * @param redeploy If set, execute remove commands found in the deployment
+	 * descriptor of the old jar and install commands found in the deployment
+	 * descriptor of the new jar.
+	 * @throws SQLException if the named jar cannot be found in the repository.
+	 */
+	public static void replaceJar(byte[] jarImage, String jarName, boolean redeploy)
+	throws SQLException
+	{
+		replaceJar("streamed byte image", jarName, redeploy, jarImage);
 	}
 
 	/**
@@ -495,23 +492,126 @@ public class Commands
 		}
 	}
 
+	private static void installJar(String urlString, String jarName, boolean deploy, byte[] image)
+	throws SQLException
+	{
+		assertJarName(jarName);
+
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			if(getJarId(conn, jarName, null) >= 0)
+				throw new SQLException("A jar named '" + jarName + "' already exists");
+
+			PreparedStatement stmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner) VALUES(?, ?, ?)");
+			try
+			{
+				stmt.setString(1, jarName);
+				stmt.setString(2, urlString);
+				stmt.setInt(3, AclId.getSessionUser().intValue());
+				if(stmt.executeUpdate() != 1)
+					throw new SQLException("Jar repository insert did not insert 1 row");
+			}
+			finally
+			{
+				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			}
+
+			AclId[] ownerRet = new AclId[1];
+			int jarId = getJarId(conn, jarName, ownerRet);
+			if(jarId < 0)
+				throw new SQLException("Unable to obtain id of '" + jarName + "'");
+
+			if(image == null)
+				Backend.addClassImages(conn, jarId, urlString);
+			else
+			{
+				InputStream imageStream = new ByteArrayInputStream(image);
+				addClassImages(conn, jarId, imageStream);
+			}
+			Loader.clearSchemaLoaders();
+			if(deploy)
+				deployInstall(conn, jarId);
+		}
+		finally
+		{
+			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+		}
+	}
+
+	private static void replaceJar(String urlString, String jarName, boolean redeploy, byte[] image)
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			AclId[] ownerRet = new AclId[1];
+			int jarId = getJarId(conn, jarName, ownerRet);
+			if(jarId < 0)
+				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
+
+			AclId user = AclId.getSessionUser();
+			if(!(user.isSuperuser() || user.equals(ownerRet[0])))
+				throw new SecurityException("Only super user or owner can replace a jar");
+
+			if(redeploy)
+				deployRemove(conn, jarId);
+		
+			PreparedStatement stmt = conn.prepareStatement(
+				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, deploymentDesc = NULL WHERE jarId = ?");
+			try
+			{
+				stmt.setString(1, urlString);
+				stmt.setInt(2, user.intValue());
+				stmt.setInt(3, jarId);
+				if(stmt.executeUpdate() != 1)
+					throw new SQLException("Jar repository update did not update 1 row");
+			}
+			finally
+			{
+				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			}
+
+			stmt = conn.prepareStatement("DELETE FROM sqlj.jar_entry WHERE jarId = ?");
+			try
+			{
+				stmt.setInt(1, jarId);
+				stmt.executeUpdate();
+			}
+			finally
+			{
+				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			}
+			if(image == null)
+				Backend.addClassImages(conn, jarId, urlString);
+			else
+			{
+				InputStream imageStream = new ByteArrayInputStream(image);
+				addClassImages(conn, jarId, imageStream);
+			}
+			Loader.clearSchemaLoaders();
+			if(redeploy)
+				deployInstall(conn, jarId);
+		}
+		finally
+		{
+			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+		}
+	}
+
 	/**
 	 * Reads the jar found at the specified URL and stores the entries
-	 * in the jar_entry table. This method must not be called directly.
-	 * It must be dispatched through the {@link
-	 * org.postgresql.pljava.internal.Backend#addClassImages(java.sql.Connection,int,java.lang.String)
-	 * Backend.addClassImages()} method in order to get the needed read
-	 * permission.
+	 * in the jar_entry table.
 	 * @param conn The connection to use
 	 * @param jarId The id used for the foreign key to the
 	 * jar_repository table
 	 * @param urlString The URL
 	 * @throws SQLException
 	 */
-	public static void addClassImages(Connection conn, int jarId, String urlString)
+	public static void addClassImages(Connection conn, int jarId, InputStream urlStream)
 	throws SQLException
 	{
-		InputStream urlStream = null;
 		PreparedStatement stmt = null;
 		PreparedStatement descIdStmt = null;
 		ResultSet rs = null;
@@ -519,9 +619,6 @@ public class Commands
 		try
 		{
 			int deployImageId = -1;
-			URL url = new URL(urlString);
-			urlStream = url.openStream();
-
 			byte[] buf = new byte[1024];
 			ByteArrayOutputStream img = new ByteArrayOutputStream();
 			stmt = conn.prepareStatement(
@@ -593,8 +690,6 @@ public class Commands
 		}
 		finally
 		{
-			if(urlStream != null)
-				try { urlStream.close(); } catch(IOException e) { /* ignore */ }
 			if(rs != null)
 				try { rs.close(); } catch(SQLException e) { /* ignore */ }
 			if(descIdStmt != null)
@@ -604,7 +699,7 @@ public class Commands
 		}
 	}
 
-	protected static void deployInstall(Connection conn, int jarId)
+	private static void deployInstall(Connection conn, int jarId)
 	throws SQLException
 	{
 		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(conn, jarId);
@@ -612,7 +707,7 @@ public class Commands
 			depDesc.install(conn);
 	}
 
-	protected static void deployRemove(Connection conn, int jarId)
+	private static void deployRemove(Connection conn, int jarId)
 	throws SQLException
 	{
 		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(conn, jarId);
@@ -626,7 +721,7 @@ public class Commands
 	 * @param jarName The naem to check. 
 	 * @throws IOException
 	 */
-	protected static void assertJarName(String jarName)
+	private static void assertJarName(String jarName)
 	throws SQLException
 	{
 		if(jarName != null)
@@ -654,7 +749,7 @@ public class Commands
 	 * such jar is found.
 	 * @throws SQLException
 	 */
-	protected static int getJarId(Connection conn, String jarName, AclId[] ownerRet)
+	private static int getJarId(Connection conn, String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
 		PreparedStatement stmt = conn.prepareStatement(
@@ -669,7 +764,7 @@ public class Commands
 		}
 	}
 
-	static int getJarId(PreparedStatement stmt, String jarName, AclId[] ownerRet)
+	private static int getJarId(PreparedStatement stmt, String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
 		stmt.setString(1, jarName);
@@ -689,7 +784,7 @@ public class Commands
 		}
 	}
 
-	protected static SQLDeploymentDescriptor getDeploymentDescriptor(Connection conn, int jarId)
+	private static SQLDeploymentDescriptor getDeploymentDescriptor(Connection conn, int jarId)
 	throws SQLException
 	{
 		PreparedStatement stmt = conn.prepareStatement(
@@ -744,7 +839,7 @@ public class Commands
 	 * schema is found.
 	 * @throws SQLException
 	 */
-	protected static Oid getSchemaId(Connection conn, String schemaName)
+	private static Oid getSchemaId(Connection conn, String schemaName)
 	throws SQLException
 	{
 		PreparedStatement stmt = conn.prepareStatement(

@@ -46,7 +46,15 @@ CREATE FUNCTION sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void
 	AS 'org.postgresql.pljava.management.Commands.installJar'
 	LANGUAGE java SECURITY DEFINER;
 
+CREATE FUNCTION sqlj.install_jar(BYTEA, VARCHAR, BOOLEAN) RETURNS void
+	AS 'org.postgresql.pljava.management.Commands.installJar'
+	LANGUAGE java SECURITY DEFINER;
+
 CREATE FUNCTION sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void
+	AS 'org.postgresql.pljava.management.Commands.replaceJar'
+	LANGUAGE java SECURITY DEFINER;
+
+CREATE FUNCTION sqlj.replace_jar(BYTEA, VARCHAR, BOOLEAN) RETURNS void
 	AS 'org.postgresql.pljava.management.Commands.replaceJar'
 	LANGUAGE java SECURITY DEFINER;
 

@@ -8,6 +8,9 @@ package org.postgresql.pljava.internal;
 
 import java.io.File;
 import java.io.FilePermission;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.security.Permission;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -190,20 +193,29 @@ public class Backend
 	public static void addClassImages(Connection conn, int jarId, String urlString)
 	throws SQLException
 	{
-		if(System.getSecurityManager() == s_trustedSecurityManager)
+		InputStream urlStream = null;
+		boolean wasTrusted = (System.getSecurityManager() == s_trustedSecurityManager);
+
+		if(wasTrusted)
+			setTrusted(false);
+
+		try
 		{
-			try
-			{
-				setTrusted(false);
-				Commands.addClassImages(conn, jarId, urlString);
-			}
-			finally
-			{
-				setTrusted(true);
-			}
+			URL url = new URL(urlString);
+			urlStream = url.openStream();
+			Commands.addClassImages(conn, jarId, urlStream);
 		}
-		else
-			Commands.addClassImages(conn, jarId, urlString);
+		catch(IOException e)
+		{
+			throw new SQLException("I/O exception reading jar file: " + e.getMessage());
+		}
+		finally
+		{
+			if(urlStream != null)
+				try { urlStream.close(); } catch(IOException e) {}
+			if(wasTrusted)
+				setTrusted(true);
+		}
 	}
 
 	/**
