@@ -70,6 +70,52 @@ public class SPIActions
 		throw new SQLException("SAVEPOINT through SQL succeeded. That's bad news!");
 	}
 
+	public static int testTransactionRecovery()
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+
+		// Create an anonymous savepoint.
+		//
+		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions prior to 8.0");
+		try
+		{
+    		Statement stmt = conn.createStatement();
+			Savepoint sp = conn.setSavepoint();
+
+            try
+			{
+				log("Attempting to execute a statement with a syntax error");
+				stmt.execute("THIS MUST BE A SYNTAX ERROR");
+			}
+			catch(SQLException e)
+			{
+				log("It failed. Let's try to recover " +
+                    "by rolling back to anonymous savepoint");
+				conn.rollback(sp);
+				log("Rolled back.");
+				log("Now let's try to execute a correct statement.");
+                ResultSet rs = stmt.executeQuery("SELECT 'OK'");
+                while (rs.next())
+                {
+                    log("Expected: OK; Retrived: " + rs.getString(1));
+                }
+                rs.close();
+                stmt.close();
+                
+				return 1;
+			}
+		}
+		catch(UnsupportedOperationException e)
+		{
+			log(e.getMessage());
+			return 0;
+		}
+		
+        //Should never get here
+        return -1;
+	}
+
 	public static int transferPeopleWithSalary(int salary)
 	throws SQLException
 	{

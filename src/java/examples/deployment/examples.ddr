@@ -191,6 +191,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.SPIActions.testSavepointSanity'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.testTransactionRecovery()
+			RETURNS int
+			AS 'org.postgresql.pljava.example.SPIActions.testTransactionRecovery'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE FUNCTION javatest.getDateAsString()
 			RETURNS varchar
 			AS 'org.postgresql.pljava.example.SPIActions.getDateAsString'
