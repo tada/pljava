@@ -64,8 +64,7 @@ public class Tester
 	public static void printUsage()
 	{
 		PrintStream out = System.err;
-		out.println("usage: java -jar deploy.jar");
-		out.println("    {-install | -uninstall | -reinstall}");
+		out.println("usage: java org.postgresql.pljava.test.Tester");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
 		out.println("    [ -port <portNubmer>   ]    # default is blank");
 		out.println("    [ -database <database> ]    # default is name of current user");
