@@ -10,6 +10,11 @@
 #include <executor/spi.h>
 
 #include "pljava/PgObject_priv.h"
+#include "pljava/type/String.h"
+
+static bool      s_loopLock = false;
+static jclass    s_Class_class = 0;
+static jmethodID s_Class_getName = 0;
 
 void PgObject_free(PgObject object)
 {
@@ -48,15 +53,45 @@ void _PgObject_pureVirtualCalled(PgObject object)
 	ereport(ERROR, (errmsg("Pure virtual method called")));
 }
 
-void PgObject_throwMemberError(const char* memberName, const char* signature, bool isMethod, bool isStatic)
+static char* PgObject_getClassName(JNIEnv* env, jclass cls)
 {
+	jstring jstr;
+	char* tmp;
+	bool saveicj = isCallingJava;
+
+	if(s_Class_getName == 0)
+	{
+		if(s_loopLock)
+			return "<exception while obtaining Class.getName()>";
+		s_loopLock = true;
+		s_Class_class = (jclass)(*env)->NewGlobalRef(
+			env, PgObject_getJavaClass(env, "java/lang/Class"));
+
+		s_Class_getName = PgObject_getJavaMethod(env,
+					s_Class_class, "getName", "()Ljava/lang/String;");
+		s_loopLock = false;
+	}
+
+	isCallingJava = true;
+	jstr = (jstring)(*env)->CallObjectMethod(env, cls, s_Class_getName);
+	isCallingJava = saveicj;
+	
+	tmp = String_createNTS(env, jstr);
+	(*env)->DeleteLocalRef(env, jstr);
+	return tmp;
+}
+
+void PgObject_throwMemberError(JNIEnv* env, jclass cls, const char* memberName, const char* signature, bool isMethod, bool isStatic)
+{
+	(*env)->ExceptionDescribe(env);
 	ereport(ERROR, (
-		errmsg("Unable to find%s %s %s with signature %s",
+		errmsg("Unable to find%s %s %s.%s with signature %s",
 			(isStatic ? " static" : ""),
 			(isMethod ? "method" : "field"),
+			PgObject_getClassName(env, cls),
 			memberName,
 			signature)));
-}	
+}
 
 jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 {
@@ -86,10 +121,10 @@ jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName
 	isCallingJava = saveIcj;
 
 	if(m == 0)
-		PgObject_throwMemberError(methodName, signature, true, false);
+		PgObject_throwMemberError(env, cls, methodName, signature, true, false);
 	return m;
 }
-	
+
 jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
 	jmethodID m;
@@ -100,7 +135,7 @@ jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* meth
 	isCallingJava = saveIcj;
 
 	if(m == 0)
-		PgObject_throwMemberError(methodName, signature, true, true);
+		PgObject_throwMemberError(env, cls, methodName, signature, true, true);
 	return m;
 }
 	
@@ -113,7 +148,7 @@ jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, c
 	isCallingJava = saveIcj;
 
 	if(m == 0)
-		PgObject_throwMemberError(fieldName, signature, false, false);
+		PgObject_throwMemberError(env, cls, fieldName, signature, false, false);
 	return m;
 }
 
@@ -126,7 +161,7 @@ jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldN
 	isCallingJava = saveIcj;
 
 	if(m == 0)
-		PgObject_throwMemberError(fieldName, signature, false, true);
+		PgObject_throwMemberError(env, cls, fieldName, signature, false, true);
 	return m;
 }
 

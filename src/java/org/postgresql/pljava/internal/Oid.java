@@ -21,7 +21,9 @@ public class Oid
 {
 	static
 	{
-		System.loadLibrary("pljava");
+		if(System.getProperty("gnu.gcj.progname") == null)
+			System.loadLibrary("pljava");
+
 		try
 		{
 			// Ensure that the SPI JDBC driver is loaded and registered
