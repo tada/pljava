@@ -12,6 +12,7 @@
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
+#include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/TupleDesc_JNI.h"
 
@@ -67,7 +68,7 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 	s_TupleDescClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleDesc;";
 	s_TupleDescClass->javaTypeName   = "org.postgresql.pljava.internal.TupleDesc";
 	s_TupleDescClass->coerceDatum    = _TupleDesc_coerceDatum;
-	s_TupleDesc = TypeClass_allocInstance(s_TupleDescClass);
+	s_TupleDesc = TypeClass_allocInstance(s_TupleDescClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.TupleDesc", TupleDesc_obtain);
 	PG_RETURN_VOID();
@@ -151,3 +152,64 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobj
 	return index;
 }
 
+/*
+ * Class:     org_postgresql_pljava_internal_TupleDesc
+ * Method:    _formTuple
+ * Signature: ([Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _this, jobjectArray jvalues)
+{
+	PLJAVA_ENTRY_FENCE(0)
+	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	if(self == 0)
+		return 0;
+
+	jobject result = 0;
+
+	PLJAVA_TRY
+	{
+		int    count   = self->natts;
+		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
+		char*  nulls   = palloc(count);
+	
+		memset(values, 0,  count * sizeof(Datum));
+		memset(nulls, 'n', count);	/* all values null initially */
+	
+		jint idx;
+		for(idx = 0; idx < count; ++idx)
+		{
+			jobject value = (*env)->GetObjectArrayElement(env, jvalues, idx);
+			if(value != 0)
+			{
+				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1));
+				values[idx] = Type_coerceObject(type, env, value);
+				nulls[idx] = ' ';
+			}
+		}
+		result = Tuple_create(env, heap_formtuple(self, values, nulls));
+		pfree(values);
+		pfree(nulls);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "heap_formtuple");
+	}
+	PLJAVA_TCEND
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_TupleDesc
+ * Method:    _size
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jobject _this)
+{
+	PLJAVA_ENTRY_FENCE(0)
+	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	if(self == 0)
+		return 0;
+	return (jint)self->natts;
+}

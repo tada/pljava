@@ -69,7 +69,7 @@ Datum Portal_initialize(PG_FUNCTION_ARGS)
 	s_PortalClass->JNISignature   = "Lorg/postgresql/pljava/internal/Portal;";
 	s_PortalClass->javaTypeName   = "org.postgresql.pljava.internal.Portal";
 	s_PortalClass->coerceDatum    = _Portal_coerceDatum;
-	s_Portal = TypeClass_allocInstance(s_PortalClass);
+	s_Portal = TypeClass_allocInstance(s_PortalClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Portal", Portal_obtain);
 	PG_RETURN_VOID();

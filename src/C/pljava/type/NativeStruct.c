@@ -9,20 +9,37 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/NativeStruct.h"
 #include "pljava/type/NativeStruct_JNI.h"
-#include "pljava/Iterator.h"
 #include "pljava/Exception.h"
+#include "pljava/Iterator.h"
 
 static jclass    s_NativeStruct_class;
 static jfieldID  s_NativeStruct_m_native;
 
 static HashMap s_weakCache;
 
-void NativeStruct_expireAll(JNIEnv* env)
+HashMap NativeStruct_switchTopCache(HashMap newTop)
 {
-	if(s_weakCache == 0)
+	HashMap current = s_weakCache;
+	s_weakCache = newTop;
+	return current;
+}
+
+HashMap NativeStruct_pushCache()
+{
+	HashMap current = s_weakCache;
+	s_weakCache = 0;
+	return current;
+}
+
+void NativeStruct_popCache(JNIEnv* env, HashMap previousCache)
+{
+	HashMap current = s_weakCache;
+	s_weakCache = previousCache;
+
+	if(current == 0)
 		return;
 
-	Iterator itor = HashMap_entries(s_weakCache);
+	Iterator itor = HashMap_entries(current);
 	while(Iterator_hasNext(itor))
 	{
 		Entry e = Iterator_next(itor);
@@ -38,8 +55,7 @@ void NativeStruct_expireAll(JNIEnv* env)
 			(*env)->DeleteWeakGlobalRef(env, weak);
 		}
 	}
-	PgObject_free((PgObject)s_weakCache);
-	s_weakCache = 0;
+	PgObject_free((PgObject)current);
 }
 
 jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)

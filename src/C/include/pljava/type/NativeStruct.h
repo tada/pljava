@@ -10,6 +10,7 @@
 #define __pljava_NativeStruct_h
 
 #include "pljava/type/Type.h"
+#include "pljava/HashMap.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,10 +27,21 @@ extern "C" {
  *************************************************************************/
 
 /*
- * Reset the pointer of all objects in the weak cache and clear the
- * cache.
+ * Return the current cache (now the old) and initialize a new cache.
  */
-extern void NativeStruct_expireAll(JNIEnv* env);
+extern HashMap NativeStruct_pushCache(void);
+
+/*
+ * Reset the pointer of all objects in the current weak cache, destroy it
+ * and assign the old cache.
+ */
+extern void NativeStruct_popCache(JNIEnv* env, HashMap oldCache);
+
+/*
+ * Exchange the top cache. A new cache is assigned and the old one is
+ * returned.
+ */
+extern HashMap NativeStruct_switchTopCache(HashMap newTop);
 
 /*
  * Obtain a locally bound object form the weak cache. This method

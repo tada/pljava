@@ -123,14 +123,14 @@ Datum Time_initialize(PG_FUNCTION_ARGS)
 	s_TimeClass->javaTypeName = "java.sql.Time";
 	s_TimeClass->coerceDatum  = _Time_coerceDatum;
 	s_TimeClass->coerceObject = _Time_coerceObject;
-	s_Time = TypeClass_allocInstance(s_TimeClass);
+	s_Time = TypeClass_allocInstance(s_TimeClass, TIMEOID);
 
 	s_TimetzClass = TypeClass_alloc("type.Timetz");
 	s_TimetzClass->JNISignature = "Ljava/sql/Time;";
 	s_TimetzClass->javaTypeName = "java.sql.Time";
 	s_TimetzClass->coerceDatum  = _Timetz_coerceDatum;
 	s_TimetzClass->coerceObject = _Timetz_coerceObject;
-	s_Timetz = TypeClass_allocInstance(s_TimetzClass);
+	s_Timetz = TypeClass_allocInstance(s_TimetzClass, TIMETZOID);
 
 	Type_registerPgType(TIMEOID,   Time_obtain);
 	Type_registerPgType(TIMETZOID, Timetz_obtain);

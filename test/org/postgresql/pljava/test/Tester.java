@@ -14,6 +14,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.io.PrintStream;
 
 /**
  * Some fairly crude tests. All tests are confided to the schema &quot;javatest&quot;
@@ -22,23 +24,143 @@ import java.sql.SQLException;
  */
 public class Tester
 {
+	private static final int CMD_AMBIGUOUS = -2;
+	private static final int CMD_UNKNOWN   = -1;
+	private static final int CMD_USER      = 0;
+	private static final int CMD_PASSWORD  = 1;
+	private static final int CMD_DATABASE  = 2;
+	private static final int CMD_HOSTNAME  = 3;
+
 	private final Connection m_connection;
+
+	private static final ArrayList s_commands = new ArrayList();
+
+	static
+	{
+		s_commands.add(CMD_USER,      "user");
+		s_commands.add(CMD_PASSWORD,  "password");
+		s_commands.add(CMD_DATABASE,  "database");
+		s_commands.add(CMD_HOSTNAME,  "host");
+	}
+
+	private static final int getCommand(String arg)
+	{
+		int top = s_commands.size();
+		int candidateCmd = CMD_UNKNOWN;
+		for(int idx = 0; idx < top; ++idx)
+		{
+			if(((String)s_commands.get(idx)).startsWith(arg))
+			{
+				if(candidateCmd != CMD_UNKNOWN)
+					return CMD_AMBIGUOUS;
+				candidateCmd = idx;
+			}
+		}
+		return candidateCmd;
+	}
+
+	public static void printUsage()
+	{
+		PrintStream out = System.err;
+		out.println("usage: java -jar deploy.jar");
+		out.println("    {-install | -uninstall | -reinstall}");
+		out.println("    [ -host <hostName>     ]    # default is localhost");
+		out.println("    [ -database <database> ]    # default is postgres");
+		out.println("    [ -user <userName>     ]    # default is postgres");
+		out.println("    [ -password <password> ]    # default is no password");
+		out.println("    [ -windows ]                # If the server is on a Windows machine");
+	}
 
 	public static void main(String[] argv)
 	{
+		String driverClass = "org.postgresql.Driver";
+		String hostName    = "localhost";
+		String database    = "postgres";
+		String userName    = "postgres";
+		String subsystem   = "postgresql";
+		String password    = null;
+
+		int top = argv.length;
+		for(int idx = 0; idx < top; ++idx)
+		{
+			String arg = argv[idx];
+			if(arg.length() < 2)
+			{	
+				printUsage();
+				return;
+			}
+
+			if(arg.charAt(0) == '-')
+			{
+				int optCmd = getCommand(arg.substring(1));
+				switch(optCmd)
+				{
+				case CMD_USER:
+					if(++idx < top)
+					{
+						userName = argv[idx];
+						if(userName.length() > 0
+								&& userName.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+
+				case CMD_PASSWORD:
+					if(++idx < top)
+					{
+						password = argv[idx];
+						if(password.length() > 0
+								&& password.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+
+				case CMD_DATABASE:
+					if(++idx < top)
+					{
+						database = argv[idx];
+						if(database.length() > 0
+								&& database.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+
+				case CMD_HOSTNAME:
+					if(++idx < top)
+					{
+						hostName = argv[idx];
+						if(hostName.length() > 0
+								&& hostName.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+
+				default:
+					printUsage();
+					return;
+				}
+			}
+		}
 		try
 		{
-			Class.forName("org.postgresql.Driver");
+			Class.forName(driverClass);
 			Connection c = DriverManager.getConnection(
-					"jdbc:postgresql://localhost/postgres",
-					"postgres",
-					null);
+					"jdbc:" + subsystem + "://" + hostName + '/' + database,
+					userName,
+					password);
+
 			Tester t = new Tester(c);
 			t.initialize();
 			t.testParameters();
 			t.testInsertUsernameTrigger();
 			t.testModdatetimeTrigger();
 			t.testSPIActions();
+			t.testComplexReturn();
+			t.testSetReturn();
 			t.close();
 		}
 		catch(Exception e)
@@ -111,6 +233,60 @@ public class Tester
 		}
 		rs.close();
 	}
+
+	public void testComplexReturn()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		stmt.execute(
+		"CREATE TABLE javatest._testSetReturn(base integer, incbase integer, ctime timestamptz)");
+
+		stmt.execute(
+			"CREATE FUNCTION javatest.complexReturnExample(int, int)" +
+			" RETURNS _testSetReturn" +
+			" AS 'org.postgresql.pljava.example.ComplexReturn.complexReturn'" +
+			" IMMUTABLE LANGUAGE java");
+
+		stmt.execute(
+			"CREATE FUNCTION javatest.complexReturnToString(_testSetReturn)" +
+			" RETURNS VARCHAR" +
+			" AS 'org.postgresql.pljava.example.ComplexReturn.makeString'" +
+			" IMMUTABLE LANGUAGE java");
+
+		stmt.execute(
+			"INSERT INTO _testSetReturn VALUES(1, 5, now())");
+	
+		ResultSet rs = stmt.executeQuery("SELECT complexReturnToString(x) FROM _testSetReturn x");
+		while(rs.next())
+		{
+			String str = rs.getString(1);
+			System.out.println(str);
+		}
+	}
+
+	public void testSetReturn()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		stmt.execute(
+			"CREATE FUNCTION javatest.setReturnExample(int, int)" +
+			" RETURNS SETOF javatest._testSetReturn" +
+			" AS 'org.postgresql.pljava.example.ComplexReturn.setReturn'" +
+			" IMMUTABLE LANGUAGE java");
+
+		ResultSet rs = stmt.executeQuery("SELECT base, incbase, ctime FROM setReturnExample(1, 5)");
+		while(rs.next())
+		{
+			int base = rs.getInt(1);
+			int incbase = rs.getInt(2);
+			Timestamp ctime = rs.getTimestamp(3);
+			System.out.println(
+					"Base = \"" + base +
+					"\", incbase = \"" + incbase +
+					"\", ctime = \"" + ctime + "\"");
+		}
+	}
+
 	public void testModdatetimeTrigger()
 	throws SQLException
 	{

@@ -1,0 +1,630 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=windows-1252">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 10">
+<meta name=Originator content="Microsoft Word 10">
+<link rel=File-List href="solutions_files/filelist.xml">
+<title>First release of the PL/Java</title>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+  <o:Author>Thomas Hallgren</o:Author>
+  <o:LastAuthor>Thomas Hallgren</o:LastAuthor>
+  <o:Revision>8</o:Revision>
+  <o:TotalTime>2556</o:TotalTime>
+  <o:LastPrinted>2004-01-22T14:03:00Z</o:LastPrinted>
+  <o:Created>2004-01-22T22:24:00Z</o:Created>
+  <o:LastSaved>2004-01-23T06:58:00Z</o:LastSaved>
+  <o:Pages>1</o:Pages>
+  <o:Words>865</o:Words>
+  <o:Characters>4934</o:Characters>
+  <o:Lines>41</o:Lines>
+  <o:Paragraphs>11</o:Paragraphs>
+  <o:CharactersWithSpaces>5788</o:CharactersWithSpaces>
+  <o:Version>10.3501</o:Version>
+ </o:DocumentProperties>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:Zoom>125</w:Zoom>
+  <w:SpellingState>Clean</w:SpellingState>
+  <w:GrammarState>Clean</w:GrammarState>
+  <w:DrawingGridHorizontalSpacing>0 pt</w:DrawingGridHorizontalSpacing>
+  <w:DrawingGridVerticalSpacing>0 pt</w:DrawingGridVerticalSpacing>
+  <w:DisplayHorizontalDrawingGridEvery>0</w:DisplayHorizontalDrawingGridEvery>
+  <w:DisplayVerticalDrawingGridEvery>0</w:DisplayVerticalDrawingGridEvery>
+  <w:UseMarginsForDrawingGridOrigin/>
+  <w:DrawingGridHorizontalOrigin>0 pt</w:DrawingGridHorizontalOrigin>
+  <w:DrawingGridVerticalOrigin>0 pt</w:DrawingGridVerticalOrigin>
+  <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+ </w:WordDocument>
+</xml><![endif]-->
+<style>
+<!--
+ /* Font Definitions */
+ @font-face
+	{font-family:Courier;
+	panose-1:2 7 4 9 2 2 5 2 4 4;
+	mso-font-alt:"Courier New";
+	mso-font-charset:0;
+	mso-generic-font-family:modern;
+	mso-font-format:other;
+	mso-font-pitch:fixed;
+	mso-font-signature:3 0 0 0 1 0;}
+@font-face
+	{font-family:Wingdings;
+	panose-1:5 0 0 0 0 0 0 0 0 0;
+	mso-font-charset:2;
+	mso-generic-font-family:auto;
+	mso-font-pitch:variable;
+	mso-font-signature:0 268435456 0 0 -2147483648 0;}
+@font-face
+	{font-family:"Luxi Sans";
+	mso-font-alt:Arial;
+	mso-font-charset:0;
+	mso-generic-font-family:swiss;
+	mso-font-pitch:variable;
+	mso-font-signature:0 0 0 0 0 0;}
+@font-face
+	{font-family:"HG Mincho Light J";
+	mso-font-charset:0;
+	mso-generic-font-family:auto;
+	mso-font-pitch:variable;
+	mso-font-signature:0 0 0 0 0 0;}
+ /* Style Definitions */
+ p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{mso-style-parent:"";
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+h1
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:1;
+	mso-hyphenate:none;
+	font-size:16.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	mso-font-kerning:16.0pt;
+	font-weight:bold;}
+h2
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:2;
+	mso-hyphenate:none;
+	font-size:14.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	font-weight:bold;
+	font-style:italic;}
+h3
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:3;
+	mso-hyphenate:none;
+	font-size:13.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	font-weight:bold;}
+p.MsoList, li.MsoList, div.MsoList
+	{mso-style-parent:"Body Text";
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.MsoBodyText, li.MsoBodyText, div.MsoBodyText
+	{margin-top:0in;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+a:link, span.MsoHyperlink
+	{mso-style-parent:"";
+	color:navy;
+	text-decoration:underline;
+	text-underline:single;}
+a:visited, span.MsoHyperlinkFollowed
+	{color:purple;
+	text-decoration:underline;
+	text-underline:single;}
+p
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;}
+code
+	{font-family:"Courier New";
+	mso-ascii-font-family:"Courier New";
+	mso-fareast-font-family:"Times New Roman";
+	mso-hansi-font-family:"Courier New";
+	mso-bidi-font-family:"Courier New";}
+p.Heading, li.Heading, div.Heading
+	{mso-style-name:Heading;
+	mso-style-next:"Body Text";
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-hyphenate:none;
+	font-size:14.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:"Luxi Sans";
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.Caption1, li.Caption1, div.Caption1
+	{mso-style-name:Caption1;
+	margin-top:6.0pt;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:no-line-numbers;
+	mso-hyphenate:none;
+	font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;
+	font-style:italic;
+	mso-bidi-font-style:normal;}
+p.Index, li.Index, div.Index
+	{mso-style-name:Index;
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:no-line-numbers;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+span.NumberingSymbols
+	{mso-style-name:"Numbering Symbols";
+	mso-style-parent:"";}
+span.SpellE
+	{mso-style-name:"";
+	mso-spl-e:yes;}
+span.GramE
+	{mso-style-name:"";
+	mso-gram-e:yes;}
+ /* Page Definitions */
+ @page
+	{mso-footnote-position:beneath-text;}
+@page Section1
+	{size:8.5in 11.0in;
+	margin:1.0in 1.25in 1.0in 1.25in;
+	mso-header-margin:.5in;
+	mso-footer-margin:.5in;
+	mso-paper-source:0;}
+div.Section1
+	{page:Section1;
+	mso-footnote-position:beneath-text;}
+ /* List Definitions */
+ @list l0
+	{mso-list-id:155848022;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-2085966524 67698711 -1171861176 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l0:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l0:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l1
+	{mso-list-id:686104911;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-485453258 67698711 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l1:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2
+	{mso-list-id:1101729514;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1083038260 418303372 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l2:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:"Times New Roman";}
+@list l2:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level3
+	{mso-level-tab-stop:1.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level4
+	{mso-level-tab-stop:2.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level5
+	{mso-level-tab-stop:2.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level6
+	{mso-level-tab-stop:3.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level7
+	{mso-level-tab-stop:3.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level8
+	{mso-level-tab-stop:4.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l2:level9
+	{mso-level-tab-stop:4.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l3
+	{mso-list-id:1250850542;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1194047308 67698711 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l3:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l4
+	{mso-list-id:1256590557;
+	mso-list-type:hybrid;
+	mso-list-template-ids:1383615288 418303372 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l4:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:"Times New Roman";}
+@list l5
+	{mso-list-id:1389961090;
+	mso-list-type:hybrid;
+	mso-list-template-ids:132000402 67698711 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l5:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l6
+	{mso-list-id:1616909211;
+	mso-list-type:hybrid;
+	mso-list-template-ids:282477320 67698711 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l6:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7
+	{mso-list-id:1868446687;
+	mso-list-type:hybrid;
+	mso-list-template-ids:1079180390 67698703 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l7:level1
+	{mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level3
+	{mso-level-tab-stop:1.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level4
+	{mso-level-tab-stop:2.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level5
+	{mso-level-tab-stop:2.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level6
+	{mso-level-tab-stop:3.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level7
+	{mso-level-tab-stop:3.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level8
+	{mso-level-tab-stop:4.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l7:level9
+	{mso-level-tab-stop:4.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l8
+	{mso-list-id:1991907378;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1005190506 418303372 -1171861176 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l8:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:"Times New Roman";}
+@list l8:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+ol
+	{margin-bottom:0in;}
+ul
+	{margin-bottom:0in;}
+-->
+</style>
+<!--[if gte mso 10]>
+<style>
+ /* Style Definitions */
+ table.MsoNormalTable
+	{mso-style-name:"Table Normal";
+	mso-tstyle-rowband-size:0;
+	mso-tstyle-colband-size:0;
+	mso-style-noshow:yes;
+	mso-style-parent:"";
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;
+	mso-para-margin:0in;
+	mso-para-margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";}
+</style>
+<![endif]-->
+</head>
+
+<body lang=EN-US link=navy vlink=purple style='tab-interval:62.5pt;line-break:
+strict'>
+
+<div class=Section1>
+
+<h1><span class=GramE>Some problems and their solution.</span></h1>
+
+<p>When writing the Pl/Java, mapping the JVM into the same process-space as the
+<span class=SpellE>PostgreSQL</span> backend code, some concerns have been
+raised regarding multiple threads, exception handling, and memory management.
+Here is a brief text explaining how those issues where resolved.<o:p></o:p></p>
+
+<h1><span class=GramE>Multi threading.</span></h1>
+
+<h3>Problem</h3>
+
+<p>Java is inherently multi threaded. The <span class=SpellE>PostgreSQL</span>
+backend is not. There’s nothing stopping a developer from utilizing multiple
+Threads class in the code. <span class=SpellE>Finalizers</span> that call out
+to the backend might have been spawned from a background Garbage Collection thread.
+Several Java-packages that are likely to be used make use of multiple threads. How
+can this model coexist with the <span class=SpellE>PostgreSQL</span> backend in
+the same process without creating havoc?</p>
+
+<h3>Solution</h3>
+
+<p>The solution consists of two mechanisms which together form a waterproof protection
+against multiple threads in the backend code.</p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l0 level1 lfo5;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
+"Times New Roman"'><span style='mso-list:Ignore'>a)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span></span></span><![endif]>All calls from Java and out to the backend
+functions are synchronized on one and the same object. All native calls are
+private to ensure that the synchronization cannot be bypassed. The result is
+that only one thread at a time can make a call from the JVM and out to the backend
+functions.</p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l0 level1 lfo5;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
+"Times New Roman"'><span style='mso-list:Ignore'>b)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span></span></span><![endif]>A control flag, managed outside of the JVM, keeps
+track of when the call handler waits for the return of a call into the JVM. If
+this flag is set, the JVM is allowed to make synchronized calls to the backend.
+If not set, the JVM will be denied all access. Any attempt to call the backend
+will result in an exception. This prevents a stray thread from the JVM to enter
+the backend at a time when it’s not expecting it.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The analogy would be to see the JVM as a monster with multiple swords. The
+backend can cope as long as the monster swings one sword at a time. The
+synchronization mechanism ensures this. The backend needs to turn its back to the
+monster and do other things every now and then. The control flag ensures that
+the monster doesn’t stab the backend from behind. </p>
+
+<h1>Exception handling</h1>
+
+<h3>Problem</h3>
+
+<p>Java makes frequent use of <code><span style='font-size:10.0pt;mso-fareast-font-family:
+"HG Mincho Light J"'>try/catch/finally</span></code> blocks. <span
+class=SpellE>PostgreSQL</span> sometimes use an exception mechanism that calls <span
+class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>longjmp</span></code></span>
+to transfer control to a known state. This jump effectively bypasses the whole
+JVM and is impossible to catch. No finally block will of course be executed
+either.</p>
+
+<h3>Solution</h3>
+
+<p>The current state of the jump buffer (<span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Warn_restart</span></code></span>
+for hackers) is saved by the call handler prior to all calls into the JVM. All
+calls from the JVM into the backend that might result in a <span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>longjmp</span></code></span>,
+will setup its own local jump buffer. If a <span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>longjmp</span></code></span>
+occurs, the jump is caught, remembered by raising a flag, and replaced with a
+Java exception that is thrown. From that point on, and until the JVM returns,
+the JVM is blocked all access to the <span class=SpellE>PostgreSQL</span>
+backend code. Once the JVM returns (typically immediately due to the
+exception), the flag state is examined and the jump “continues” to its intended
+destination (the original state of the <span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Warn_restart</span></code></span>
+buffer).</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>This allows the JVM to trap all exceptions and to do normal catch/finally
+processing. The database can of course not be accessed but other housekeeping
+can be made.</p>
+
+<h1>Java Garbage Collector versus <span class=SpellE><span class=GramE>palloc</span></span><span
+class=GramE>()</span><o:p></o:p></h1>
+
+<h3>Problem</h3>
+
+<p>Primitive types will be passed by value always. This includes the String
+type (this is a must since Java uses double byte characters). Complex types are
+however often wrapped in Java objects and passed by reference. <span
+class=SpellE>I.e</span>, a Java object will contain a pointer to a <span
+class=SpellE>palloc’ed</span> memory and use native JNI calls to extract and
+manipulate data. Such data will become “stale” once a call has ended. Further
+attempts to access such data will at best give very unpredictable results but
+more likely cause a memory fault and a crash.</p>
+
+<h3>Solution</h3>
+
+<p>The Pl/Java contains code that ensures that stale pointers are cleared when
+the pointer is freed or when <span class=SpellE>MemoryContext</span> that they
+where allocated in goes out of scope. The Java wrapper objects might live on
+but any attempt to use them will result in a “closed native handle” exception.</p>
+
+<h1>Loader semantics<o:p></o:p></h1>
+
+<h3>Problem</h3>
+
+<p>Java and JNI will use the following naming scheme when finding the shared
+library on a <span class=GramE>Unix</span> box:</p>
+
+<p><span class=SpellE>Prepend</span> the name with “lib” and then append “.so”.
+Find the resulting file using the <code><span style='font-size:10.0pt;
+mso-fareast-font-family:"HG Mincho Light J"'>LD_LIBRARY_PATH</span></code>.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>On a Windows box it does like this:</p>
+
+<p>Append “.<span class=SpellE>dll</span>” (nothing is <span class=SpellE>prepended</span>)
+and then use <code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>PATH</span></code>
+to find the resulting file.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Postgres have a scheme of its own. Apparently it doesn’t <span class=SpellE>prepend</span>
+the “lib” on a <span class=GramE>Unix</span> box and it uses the <span
+class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Dynamic_library_path</span></code></span>
+instead of the <code><span style='font-size:10.0pt;mso-fareast-font-family:
+"HG Mincho Light J"'>LD_LIBRARY_PATH/PATH</span></code> to find the
+module.<span style='mso-spacerun:yes'>  </span>Unfortunately, the <span
+class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Dynamic_library_path</span></code></span>
+is not seen by the loader so if a module needs to load other dynamic libraries
+it will fail unless <code><span style='font-size:10.0pt;mso-fareast-font-family:
+"HG Mincho Light J"'>LD_LIBRARY_PATH/PATH</span></code> is set correctly.</p>
+
+<h3>Solution</h3>
+
+<p>The Pl/Java runtime will merge the <span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Dynamic_library_path</span></code></span>
+with the <code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>LD_LIBRARY_PATH</span></code>
+or <code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>PATH</span></code>
+and use the result in the JVM. That seems to work fine (the JVM will attempt to
+load the shared library too and unless it finds the already loaded one, it will
+fail). In addition, the deploy program that initializes the Java language in
+the database, has an option –windows, that allows different SQL-syntax to be used
+on different platforms. On <span class=GramE>Unix</span>, the module name used
+will be “<span class=SpellE>libpljava</span>”, on Windows, just “<span
+class=SpellE>pljava</span>”.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><span class=SpellE>PostgreSQL</span> could be improved so that:</p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l6 level1 lfo11;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
+"Times New Roman"'><span style='mso-list:Ignore'>a)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span></span></span><![endif]>It would merge the <span class=SpellE><code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>Dynamic_library_path</span></code></span>
+with the current <code><span style='font-size:10.0pt;mso-fareast-font-family:
+"HG Mincho Light J"'>LD_LIBRARY_PATH</span></code> or <code><span
+style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>PATH</span></code>
+and change the environment used by the forked backend processes. That way, the
+system loader would function correctly and <span class=SpellE>PostgreSQL</span>
+would not need any specific code that <span class=SpellE>prepends</span> paths
+to module names etc. The system loader needs to be functional anyway when a
+module is dependent on other dynamic libraries.</p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l6 level1 lfo11;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
+"Times New Roman"'><span style='mso-list:Ignore'>b)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span></span></span><![endif]>On <span class=GramE>Unix</span> systems, the “lib”
+prefix should be used by default. Backward compatibility can be obtained by
+testing without “lib” if no dynamic library is found.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+</div>
+
+</body>
+
+</html>

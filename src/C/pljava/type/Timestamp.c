@@ -170,7 +170,7 @@ Datum Timestamp_initialize(PG_FUNCTION_ARGS)
 	s_TimestampClass->canReplaceType = _Timestamp_canReplaceType;
 	s_TimestampClass->coerceDatum    = _Timestamp_coerceDatum;
 	s_TimestampClass->coerceObject   = _Timestamp_coerceObject;
-	s_Timestamp = TypeClass_allocInstance(s_TimestampClass);
+	s_Timestamp = TypeClass_allocInstance(s_TimestampClass, TIMESTAMPOID);
 
 	s_TimestamptzClass = TypeClass_alloc("type.Timestamptz");
 	s_TimestamptzClass->JNISignature   = "Ljava/sql/Timestamp;";
@@ -178,7 +178,7 @@ Datum Timestamp_initialize(PG_FUNCTION_ARGS)
 	s_TimestamptzClass->canReplaceType = _Timestamp_canReplaceType;
 	s_TimestamptzClass->coerceDatum    = _Timestamptz_coerceDatum;
 	s_TimestamptzClass->coerceObject   = _Timestamptz_coerceObject;
-	s_Timestamptz = TypeClass_allocInstance(s_TimestamptzClass);
+	s_Timestamptz = TypeClass_allocInstance(s_TimestamptzClass, TIMESTAMPTZOID);
 
 	Type_registerPgType(TIMESTAMPOID, Timestamp_obtain);
 	Type_registerPgType(TIMESTAMPTZOID, Timestamptz_obtain);

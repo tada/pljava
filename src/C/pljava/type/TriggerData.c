@@ -93,7 +93,7 @@ Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 	s_TriggerDataClass->JNISignature   = "Lorg/postgresql/pljava/TriggerData;";
 	s_TriggerDataClass->javaTypeName   = "org.postgresql.pljava.TriggerData";
 	s_TriggerDataClass->coerceDatum    = _TriggerData_coerceDatum;
-	s_TriggerData = TypeClass_allocInstance(s_TriggerDataClass);
+	s_TriggerData = TypeClass_allocInstance(s_TriggerDataClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.TriggerData", TriggerData_obtain);
 	PG_RETURN_VOID();

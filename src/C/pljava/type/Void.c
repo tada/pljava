@@ -18,13 +18,13 @@
 static TypeClass s_voidClass;
 static Type s_void;
 
-static Datum _void_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _void_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
 	(*env)->CallStaticVoidMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	*wasNull = true;
+	fcinfo->isnull = true;
 	return 0;
 }
 
@@ -57,7 +57,7 @@ Datum Void_initialize(PG_FUNCTION_ARGS)
 	s_voidClass->invoke       = _void_invoke;
 	s_voidClass->coerceDatum  = _void_coerceDatum;
 	s_voidClass->coerceObject = _void_coerceObject;
-	s_void = TypeClass_allocInstance(s_voidClass);
+	s_void = TypeClass_allocInstance(s_voidClass, VOIDOID);
 
 	Type_registerPgType(VOIDOID, void_obtain);
 	Type_registerJavaType("void", void_obtain);

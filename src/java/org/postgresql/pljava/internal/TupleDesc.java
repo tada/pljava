@@ -51,6 +51,23 @@ public class TupleDesc extends NativeStruct
 	}
 
 	/**
+	 * Creates a <code>Tuple</code> that is described by this descriptor and
+	 * initialized with the supplied <code>values</code>.
+	 * @return The created <code>Tuple</code>.
+	 * @throws SQLException If the length of the values array does not
+	 * match the size of the descriptor or if the handle of this descriptor
+	 * has gone stale.
+	 */
+	public Tuple formTuple(Object[] values)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._formTuple(values);
+		}
+	}
+
+	/**
 	 * Returns the number of columns in this tuple descriptor.
 	 */
 	public int size()
@@ -64,5 +81,6 @@ public class TupleDesc extends NativeStruct
 
 	private native String _getColumnName(int index) throws SQLException;
 	private native int _getColumnIndex(String colName) throws SQLException;
+	private native Tuple _formTuple(Object[] values) throws SQLException;
 	private native int _size();
 }

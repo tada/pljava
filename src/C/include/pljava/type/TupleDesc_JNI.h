@@ -25,6 +25,14 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleDesc__1getColumn
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
+ * Method:    _formTuple
+ * Signature: ([Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;
+ */
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleDesc__1formTuple
+  (JNIEnv *, jobject, jobjectArray);
+
+/*
+ * Class:     org_postgresql_pljava_internal_TupleDesc
  * Method:    _size
  * Signature: ()I
  */

@@ -149,7 +149,7 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_OidClass->javaTypeName   = "org.postgresql.pljava.internal.Oid";
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
-	s_Oid = TypeClass_allocInstance(s_OidClass);
+	s_Oid = TypeClass_allocInstance(s_OidClass, OIDOID);
 	jobject tmp = Oid_create(env, OIDOID);
 	s_OidOid = (*env)->NewGlobalRef(env, tmp);
 	(*env)->DeleteLocalRef(env, tmp);

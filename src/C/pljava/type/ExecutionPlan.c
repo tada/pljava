@@ -152,7 +152,7 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/internal/ExecutionPlan;";
 	s_ExecutionPlanClass->javaTypeName   = "org.postgresql.pljava.internal.ExecutionPlan";
 	s_ExecutionPlanClass->coerceDatum    = _ExecutionPlan_coerceDatum;
-	s_ExecutionPlan = TypeClass_allocInstance(s_ExecutionPlanClass);
+	s_ExecutionPlan = TypeClass_allocInstance(s_ExecutionPlanClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.ExecutionPlan", ExecutionPlan_obtain);
 	PG_RETURN_VOID();
@@ -191,7 +191,7 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 				if(nulls == 0)
 				{
 					nulls = (char*)palloc(count+1);
-					memset(nulls, count, ' ');	/* all values non-null initially */
+					memset(nulls, ' ', count);	/* all values non-null initially */
 					nulls[count] = 0;
 					*nullsPtr = nulls;
 				}

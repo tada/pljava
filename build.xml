@@ -1,7 +1,7 @@
 <project default="all">
 	<target
 		name="all"
-		depends="generate_headers,example_jar,test"
+		depends="generate_headers,example_jar,test_jar,deploy_jar"
 		description="builds all targets except clean"/>
 	
 	<target
@@ -13,6 +13,9 @@
 		<delete dir="generated" failonerror="false" quiet="true"/>
 		<delete quiet="true">
 			<fileset dir="src/C/include/pljava" includes="**/*_JNI.h"/>
+		</delete>
+		<delete quiet="true">
+			<fileset dir="src/C/pljava" includes="**/*.o,*.a,*.def"/>
 		</delete>
 	</target>
 
@@ -59,6 +62,17 @@
 	</target>
 
 	<target
+		name="test_jar"
+		depends="test"
+		description="Test code for the examples">
+
+		<jar basedir="bin/test/classes"
+			compress="true"
+			destfile="bin/test.jar"
+		/>
+	</target>
+
+	<target
 		name="example_jar"
 		depends="backend_jar"
 		description="Sample backend Java code">
@@ -87,6 +101,28 @@
 			destdir="bin/test/classes"
 			target="1.4"
 			/>
+	</target>
+
+	<target
+		name="snapshot_jar"
+		depends="clean"
+		description="Collects all source into snapshot.jar">
+
+		<jar basedir="."
+			compress="true"
+			destfile="snapshot.jar"
+			excludes="snapshot.jar,**/CVS/**,**/.cvsignore"/>
+	</target>
+
+	<target
+		name="apidoc_jar"
+		depends="javadoc"
+		description="Collects all source into apidoc.jar">
+
+		<jar basedir="doc"
+			compress="true"
+			destfile="apidoc.jar"
+			includes="api/**"/>
 	</target>
 
 	<target

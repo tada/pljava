@@ -43,9 +43,14 @@ Type Type_getObjectType(Type self)
 	return self->m_class->objectType;
 }
 
-Datum Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+Oid Type_getOid(Type self)
 {
-	return self->m_class->invoke(self, env, cls, method, args, wasNull);
+	return self->m_oid;
+}
+
+Datum Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+{
+	return self->m_class->invoke(self, env, cls, method, args, fcinfo);
 }
 
 bool Type_isPrimitive(Type self)
@@ -64,6 +69,24 @@ Type Type_fromJavaType(Oid dfltTypeId, const char* javaTypeName)
 	return to(dfltTypeId);
 }
 
+Type Type_fromPgType(Oid typeId, Form_pg_type typeStruct)
+{
+	Type type = (Type)HashMap_getByOid(s_typeByOid, typeId);
+	if(type == 0)
+	{
+		TypeObtainer to = (TypeObtainer)HashMap_getByOid(s_obtainerByOid, typeId);
+		if(to == 0)
+			/*
+			 * Default to String and standard textin/textout coersion.
+			 */
+			type = String_fromPgType(typeId, typeStruct);
+		else
+			type = to(typeId);
+		HashMap_putByOid(s_typeByOid, typeId, type);
+	}
+	return type;
+}
+
 Type Type_fromOid(Oid typeId)
 {
 	Type type = (Type)HashMap_getByOid(s_typeByOid, typeId);
@@ -72,16 +95,11 @@ Type Type_fromOid(Oid typeId)
 		TypeObtainer to = (TypeObtainer)HashMap_getByOid(s_obtainerByOid, typeId);
 		if(to == 0)
 		{
+			/* Default to String and standard textin/textout coersion.
+			 */
 			HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "Type");
 			Form_pg_type typeStruct = (Form_pg_type)GETSTRUCT(typeTup);
-			if(OidIsValid(typeStruct->typrelid))
-			{
-				type = Type_fromJavaType(typeId, "org.postgresql.pljava.internal.TupleTable");
-			}
-			else
-			{
-				type = String_fromPgType(typeId, typeStruct);
-			}
+			type = String_fromPgType(typeId, typeStruct);
 			ReleaseSysCache(typeTup);
 		}
 		else
@@ -96,7 +114,7 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->m_class == other->m_class;
 }
 
-Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -104,7 +122,7 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 	isCallingJava = saveicj;
 	if(value == 0)
 	{
-		*wasNull = true;
+		fcinfo->isnull = true;
 		return 0;
 	}
 	Datum ret = self->m_class->coerceObject(self, env, value);
@@ -145,6 +163,10 @@ extern Datum Tuple_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleDesc_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS);
+
+extern Datum SingleRowReader_initialize(PG_FUNCTION_ARGS);
+extern Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS);
+extern Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS);
 
 /* Make this datatype available to the postgres system.
  */
@@ -188,6 +210,11 @@ Datum Type_initialize(PG_FUNCTION_ARGS)
 	Tuple_initialize(fcinfo);
 	TupleTable_initialize(fcinfo);
 	TupleTableSlot_initialize(fcinfo);
+
+	SingleRowReader_initialize(fcinfo);
+	SingleRowWriter_initialize(fcinfo);
+	ResultSetProvider_initialize(fcinfo);
+
 	PG_RETURN_VOID();
 }
 
@@ -205,11 +232,22 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	PgObjectClass_init((PgObjectClass)self, typeName, instanceSize, 0);
 	self->JNISignature   = "";
 	self->javaTypeName   = "";
+	self->objectType     = 0;
 	self->canReplaceType = _Type_canReplaceType;
-	self->invoke         = _Type_invoke;
 	self->coerceDatum    = (jvalue (*)(Type, JNIEnv*, Datum))_PgObject_pureVirtualCalled;
 	self->coerceObject   = (Datum (*)(Type, JNIEnv*, jobject))_PgObject_pureVirtualCalled;
+	self->invoke         = _Type_invoke;
 	return self;
+}
+
+/*
+ * Types are always allocated in global context.
+ */
+Type TypeClass_allocInstance(TypeClass cls, Oid oid)
+{
+	Type t = (Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
+	t->m_oid = oid;
+	return t;
 }
 
 /*

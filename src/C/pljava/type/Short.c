@@ -20,7 +20,7 @@ static jmethodID s_Short_shortValue;
 /*
  * short primitive type.
  */
-static Datum _short_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _short_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Short_initialize(PG_FUNCTION_ARGS)
 	s_ShortClass->javaTypeName   = "java.lang.Short";
 	s_ShortClass->coerceDatum    = _Short_coerceDatum;
 	s_ShortClass->coerceObject   = _Short_coerceObject;
-	s_Short = TypeClass_allocInstance(s_ShortClass);
+	s_Short = TypeClass_allocInstance(s_ShortClass, INT2OID);
 
 	s_shortClass = TypeClass_alloc("type.short");
 	s_shortClass->JNISignature   = "S";
@@ -98,7 +98,7 @@ Datum Short_initialize(PG_FUNCTION_ARGS)
 	s_shortClass->invoke         = _short_invoke;
 	s_shortClass->coerceDatum    = _short_coerceDatum;
 	s_shortClass->coerceObject   = _Short_coerceObject;
-	s_short = TypeClass_allocInstance(s_shortClass);
+	s_short = TypeClass_allocInstance(s_shortClass, INT2OID);
 
 	Type_registerPgType(INT2OID, short_obtain);
 	Type_registerJavaType("short", short_obtain);

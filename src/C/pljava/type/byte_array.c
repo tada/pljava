@@ -52,7 +52,7 @@ Datum byte_array_initialize(PG_FUNCTION_ARGS)
 	s_byte_arrayClass->javaTypeName = "byte[]";
 	s_byte_arrayClass->coerceDatum  = _byte_array_coerceDatum;
 	s_byte_arrayClass->coerceObject = _byte_array_coerceObject;
-	s_byte_array = TypeClass_allocInstance(s_byte_arrayClass);
+	s_byte_array = TypeClass_allocInstance(s_byte_arrayClass, BYTEAOID);
 
 	Type_registerPgType(BYTEAOID, byte_array_obtain);
 	Type_registerJavaType("byte[]", byte_array_obtain);

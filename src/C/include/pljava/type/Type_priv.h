@@ -73,12 +73,14 @@ struct TypeClass_
 	 * the wasNull parameter is set to false by the caller prior to the
 	 * call.
 	 */
-	Datum (*invoke)(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, bool* wasNull);
+	Datum (*invoke)(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 };
 
 struct Type_
 {
 	TypeClass m_class;
+	
+	Oid m_oid;
 };
 
 /*
@@ -91,7 +93,7 @@ extern bool _Type_canReplaceType(Type self, Type other);
  * Default version of invoke. Will make a JNI CallObjectMethod call and then
  * a call to self->coerceObject to create the Datum.
  */
-extern Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull);
+extern Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
 /*
  * Create a TypeClass with default sizes for TypeClass and Type.
@@ -106,7 +108,7 @@ extern TypeClass TypeClass_alloc2(const char* className, Size classSize, Size in
 /*
  * Types are always allocated in global context.
  */
-#define TypeClass_allocInstance(cls) ((Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext))
+extern Type TypeClass_allocInstance(TypeClass cls, Oid typeId);
 
 #ifdef __cplusplus
 }

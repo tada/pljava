@@ -40,6 +40,7 @@ bool isCallingJava;
 
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
+static int callLevel = 0;
 
 static void initJavaVM(JNIEnv* env)
 {
@@ -51,44 +52,52 @@ static void initJavaVM(JNIEnv* env)
 
 static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 {
-	sigjmp_buf saveRestart;
-
-	Datum retval;
-
-	/* Since the call does not originate from the JavaVM, we must
-	 * push a local frame that ensures garbage collection of
-	 * new objecs once popped (somewhat similar to palloc, but for
-	 * Java objects).
-	 */
-	if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+	if(callLevel == 0)
 	{
-		/* Out of memory
+		/* Since the call does not originate from the JavaVM, we must
+		 * push a local frame that ensures garbage collection of
+		 * new objecs once popped (somewhat similar to palloc, but for
+		 * Java objects).
 		 */
-		(*env)->ExceptionClear(env);
-		ereport(ERROR, (
-			errcode(ERRCODE_OUT_OF_MEMORY),
-			errmsg("Unable to create java frame for local references")));
+		if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+		{
+			/* Out of memory
+			 */
+			(*env)->ExceptionClear(env);
+			ereport(ERROR, (
+				errcode(ERRCODE_OUT_OF_MEMORY),
+				errmsg("Unable to create java frame for local references")));
+		}
 	}
 
-	/* Push a new "try/catch" block.
+	/* Save some static stuff on the stack that we want to preserve in
+	 * case this function is reentered. This may happend if Java calls
+	 * out to SQL which in turn invokes a new Java function.
 	 */
 	bool saveErrorOccured = elogErrorOccured;
 	bool saveIsCallingJava = isCallingJava;
-	elogErrorOccured = false;
+	HashMap saveNativeStructCache = NativeStruct_pushCache();
+	sigjmp_buf saveRestart;
 	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
+	elogErrorOccured = false;
+
+	++callLevel;
 	if(sigsetjmp(Warn_restart, 1) != 0)
 	{
 		/* Catch block.
 		 */
+		--callLevel;
 		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
 		elogErrorOccured = saveErrorOccured;
 		isCallingJava = saveIsCallingJava;
-		NativeStruct_expireAll(env);
-		(*env)->PopLocalFrame(env, 0);
+		NativeStruct_popCache(env, saveNativeStructCache);
+		if(callLevel == 0)
+			(*env)->PopLocalFrame(env, 0);
 		siglongjmp(Warn_restart, 1);
 	}
 
 	Oid funcOid = fcinfo->flinfo->fn_oid;
+	Datum retval;
 	if(CALLED_AS_TRIGGER(fcinfo))
 	{
 		/* Called as a trigger procedure
@@ -109,11 +118,13 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 
 	/* Pop of the "try/catch" block.
 	 */
+	--callLevel;
 	memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
 	elogErrorOccured = saveErrorOccured;
 	isCallingJava = saveIsCallingJava;
-	NativeStruct_expireAll(env);
-	(*env)->PopLocalFrame(env, 0);
+	NativeStruct_popCache(env, saveNativeStructCache);
+	if(callLevel == 0)
+		(*env)->PopLocalFrame(env, 0);
 	return retval;
 }
 
@@ -200,7 +211,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 #ifdef CYGWIN
 		/**
 		 * Translate "/cygdrive/<driverLetter>/" into "<driveLetter>:/" since
-		 * the JVM dynamic loader will not recognize the former.
+		 * the JVM dynamic loader will fail to recognize the former.
 		 * 
 		 * This is somewhat ugly and will be removed as soon as the native port
 		 * of postgresql is released.
@@ -317,14 +328,17 @@ static char* getLibraryPath(const char* prefix)
  */
 static char* getClassPath(const char* prefix)
 {
-	const char* p = getenv("CLASSPATH");
-	if(p == 0 || strlen(p) == 0)
-		return 0;
-
+	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendStringInfo(&buf, prefix);
-	appendStringInfo(&buf, p);
+	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
+	PgObject_free((PgObject)unique);
+	char* path = buf.data;
+	if(strlen(path) == 0)
+	{
+		pfree(path);
+		path = 0;
+	}
 	return buf.data;
 }
 
@@ -356,6 +370,7 @@ static void initializeJavaVM()
 	char* classPath = getClassPath("-Djava.class.path=");
 	if(classPath != 0)
 	{
+		elog(INFO, "Using %s", classPath+2);
 		options[nOptions].optionString = classPath;
 		options[nOptions].extraInfo = 0;
 		nOptions++;
@@ -368,6 +383,7 @@ static void initializeJavaVM()
 	char* dynLibPath = getLibraryPath("-Djava.library.path=");
 	if(dynLibPath != 0)
 	{
+		elog(INFO, "Using %s", dynLibPath+2);
 		options[nOptions].optionString = dynLibPath;
 		options[nOptions].extraInfo = 0;
 		nOptions++;

@@ -20,7 +20,7 @@ static jmethodID s_Float_floatValue;
 /*
  * float primitive type.
  */
-static Datum _float_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _float_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Float_initialize(PG_FUNCTION_ARGS)
 	s_FloatClass->javaTypeName   = "java.lang.Float";
 	s_FloatClass->coerceDatum    = _Float_coerceDatum;
 	s_FloatClass->coerceObject   = _Float_coerceObject;
-	s_Float = TypeClass_allocInstance(s_FloatClass);
+	s_Float = TypeClass_allocInstance(s_FloatClass, FLOAT4OID);
 
 	s_floatClass = TypeClass_alloc("type.float");
 	s_floatClass->JNISignature   = "F";
@@ -98,7 +98,7 @@ Datum Float_initialize(PG_FUNCTION_ARGS)
 	s_floatClass->invoke         = _float_invoke;
 	s_floatClass->coerceDatum    = _float_coerceDatum;
 	s_floatClass->coerceObject   = _Float_coerceObject;
-	s_float = TypeClass_allocInstance(s_floatClass);
+	s_float = TypeClass_allocInstance(s_floatClass, FLOAT4OID);
 
 	Type_registerPgType(FLOAT4OID, float_obtain);
 	Type_registerJavaType("float", float_obtain);

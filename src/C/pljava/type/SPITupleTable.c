@@ -68,7 +68,7 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 	s_SPITupleTableClass->JNISignature   = "Lorg/postgresql/pljava/internal/SPITupleTable;";
 	s_SPITupleTableClass->javaTypeName   = "org.postgresql.pljava.internal.SPITupleTable";
 	s_SPITupleTableClass->coerceDatum    = _SPITupleTable_coerceDatum;
-	s_SPITupleTable = TypeClass_allocInstance(s_SPITupleTableClass);
+	s_SPITupleTable = TypeClass_allocInstance(s_SPITupleTableClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.SPITupleTable", SPITupleTable_obtain);
 	PG_RETURN_VOID();

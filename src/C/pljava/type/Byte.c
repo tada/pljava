@@ -25,7 +25,7 @@ static jmethodID s_Byte_byteValue;
 /*
  * byte primitive type.
  */
-static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -94,7 +94,7 @@ Datum Byte_initialize(PG_FUNCTION_ARGS)
 	s_ByteClass->javaTypeName   = "java.lang.Byte";
 	s_ByteClass->coerceDatum    = _Byte_coerceDatum;
 	s_ByteClass->coerceObject   = _Byte_coerceObject;
-	s_Byte = TypeClass_allocInstance(s_ByteClass);
+	s_Byte = TypeClass_allocInstance(s_ByteClass, CHAROID);
 
 	s_byteClass = TypeClass_alloc("type.byte");
 	s_byteClass->JNISignature   = "B";
@@ -103,7 +103,7 @@ Datum Byte_initialize(PG_FUNCTION_ARGS)
 	s_byteClass->invoke         = _byte_invoke;
 	s_byteClass->coerceDatum    = _byte_coerceDatum;
 	s_byteClass->coerceObject   = _Byte_coerceObject;
-	s_byte = TypeClass_allocInstance(s_byteClass);
+	s_byte = TypeClass_allocInstance(s_byteClass, CHAROID);
 
 	Type_registerPgType(CHAROID, byte_obtain);
 	Type_registerJavaType("byte", byte_obtain);

@@ -68,6 +68,11 @@ extern Datum Type_coerceObject(Type self, JNIEnv* env, jobject object);
 /*
  * Return a Type based on a Postgres Oid.
  */
+extern Type Type_fromPgType(Oid typeId, Form_pg_type pgType);
+
+/*
+ * Return a Type based on a Postgres Oid.
+ */
 extern Type Type_fromOid(Oid typeId);
 
 /*
@@ -91,6 +96,11 @@ extern const char* Type_getJNISignature(Type self);
 extern Type Type_getObjectType(Type self);
 
 /*
+ * Returns the Oid associated with this type.
+ */
+extern Oid Type_getOid(Type self);
+
+/*
  * Calls a java method using one of the Call<type>MethodA routines where
  * <type> corresponds to the type represented by this instance and
  * coerces the returned value into a Datum.
@@ -100,7 +110,7 @@ extern Type Type_getObjectType(Type self);
  * the wasNull parameter is set to false by the caller prior to the
  * call.
  */
-extern Datum Type_invoke(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, bool* wasNull);
+extern Datum Type_invoke(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
 /*
  * Function used when obtaining a type based on an Oid

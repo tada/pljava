@@ -20,7 +20,7 @@ static jmethodID s_Integer_intValue;
 /*
  * int primitive type.
  */
-static Datum _int_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _int_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Integer_initialize(PG_FUNCTION_ARGS)
 	s_IntegerClass->javaTypeName   = "java.lang.Integer";
 	s_IntegerClass->coerceDatum    = _Integer_coerceDatum;
 	s_IntegerClass->coerceObject   = _Integer_coerceObject;
-	s_Integer = TypeClass_allocInstance(s_IntegerClass);
+	s_Integer = TypeClass_allocInstance(s_IntegerClass, INT4OID);
 
 	s_intClass = TypeClass_alloc("type.int");
 	s_intClass->JNISignature       = "I";
@@ -98,7 +98,7 @@ Datum Integer_initialize(PG_FUNCTION_ARGS)
 	s_intClass->invoke             = _int_invoke;
 	s_intClass->coerceDatum        = _int_coerceDatum;
 	s_intClass->coerceObject       = _Integer_coerceObject;
-	s_int = TypeClass_allocInstance(s_intClass);
+	s_int = TypeClass_allocInstance(s_intClass, INT4OID);
 
 	Type_registerPgType(INT4OID, int_obtain);
 	Type_registerJavaType("int", int_obtain);

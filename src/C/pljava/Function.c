@@ -28,6 +28,11 @@ struct Function_
 	struct PgObject_ PgObject_extension;
 
 	/*
+	 * True if the function returns a complex type.
+	 */
+	bool      returnComplex;
+
+	/*
 	 * The number of parameters
 	 */
 	int32     numParams;
@@ -140,7 +145,17 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 			const char* jtName = Type_getJavaTypeName(deflt);
 			if(strcmp(jtName, sign.data) != 0)
 			{
-				Type repl = Type_fromJavaType(dfltIds[idx], sign.data);
+				Oid did;
+				if(self->returnComplex && idx == self->numParams - 1)
+					/*
+					 * Last parameter is the OUT parameter. It has no corresponding
+					 * entry in the dfltIds array.
+					 */
+					did = InvalidOid;
+				else
+					did = dfltIds[idx];
+
+				Type repl = Type_fromJavaType(did, sign.data);
 				if(!Type_canReplaceType(repl, deflt))
 					ereport(ERROR, (
 						errcode(ERRCODE_SYNTAX_ERROR),
@@ -318,6 +333,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errmsg("Failed to load class %s", className)));
 	}
 
+	self->returnComplex = false;
 	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);
 	(*env)->DeleteLocalRef(env, loaded);
 
@@ -360,23 +376,79 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	}
 	else
 	{
-		int top = (int32)procStruct->pronargs;
-		self->numParams = top;
+		self->numParams = (int32)procStruct->pronargs;
+		Oid retTypeId = procStruct->prorettype;
+		Type complex = 0;
+
+		if(procStruct->proretset)
+		{
+			/* The function returns a set. Obtain the ResultSetProvider type
+			 * for the set type.
+			 */
+			self->returnType = Type_fromJavaType(
+				retTypeId,
+				"org.postgresql.pljava.ResultSetProvider");
+		}
+		else
+		{
+			/*
+			 * Retreive standard string conversion from the postgres
+			 * type catalog.
+			 */
+			HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
+			Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
+			if(OidIsValid(pgType->typrelid))
+			{
+				/* Complex functions uses an updateable ResultSet
+				 * as the last argument and returns boolean to indicate
+				 * whether or not this set has been filled in.
+				 */
+				complex = Type_fromJavaType(
+					pgType->typrelid,
+					"org.postgresql.pljava.jdbc.SingleRowWriter");
+				self->returnType = Type_fromOid(BOOLOID);
+				self->numParams++;
+				self->returnComplex = true;
+			}
+			else
+				self->returnType = Type_fromPgType(retTypeId, pgType);
+			ReleaseSysCache(typeTup);
+		}
+
+		int top = self->numParams;
 		if(top > 0)
 		{
 			int idx;
 			Oid* typeIds = procStruct->proargtypes;
 			self->paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
+
+			if(complex != 0)
+				--top; /* Last argument is not present in typeIds */
+
 			for(idx = 0; idx < top; ++idx)
-				self->paramTypes[idx] = Type_fromOid(typeIds[idx]);
+			{
+				Oid typeId = typeIds[idx];
+				HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
+				Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
+				if(OidIsValid(pgType->typrelid))
+				{
+					self->paramTypes[idx] = Type_fromJavaType(
+						pgType->typrelid,
+						"org.postgresql.pljava.jdbc.SingleRowReader");
+				}
+				else
+					self->paramTypes[idx] = Type_fromPgType(typeId, pgType);
+				ReleaseSysCache(typeTup);
+			}
+
+			if(complex != 0)
+				self->paramTypes[idx] = complex;
 
 			if(paramDecl != 0)
 				Function_parseParameters(self, typeIds, paramDecl);
 		}
 		else
 			self->paramTypes = 0;
-
-		self->returnType = Type_fromOid(procStruct->prorettype);
 	}
 
 	Function_buildSignature(self, &sign, self->returnType);
@@ -402,7 +474,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			 * corresponds to that primitive.
 			 */
 			Type objType = Type_getObjectType(self->returnType);
-	
+
 			(*env)->ExceptionClear(env);
 			Function_buildSignature(self, &sign, objType);
 	
@@ -451,9 +523,11 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
 	Type*   types   = self->paramTypes;
 	int32   top     = self->numParams;
-	int32   argSz   = top * sizeof(jvalue);
-	jvalue* args    = (jvalue*)alloca(argSz);
+	jvalue* args    = (jvalue*)alloca(top * sizeof(jvalue));
 	int32   idx;
+
+	if(self->returnComplex)
+		--top; /* Last argument is not present in fcinfo */
 
 	for(idx = 0; idx < top; ++idx)
 	{
@@ -468,8 +542,9 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	}
 
 	fcinfo->isnull = false;
-	return Type_invoke(self->returnType,
-		env, self->clazz, self->method, args, &fcinfo->isnull);
+	Type invokerType = (self->returnComplex ? types[top] : self->returnType);
+	return Type_invoke(invokerType,
+		env, self->clazz, self->method, args, fcinfo);
 }
 
 Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
@@ -481,8 +556,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	if(arg.l == 0)
 		return 0;
 
-	bool dummy;
-	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, &dummy);
+	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
 	if((*env)->ExceptionCheck(env))

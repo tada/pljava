@@ -20,7 +20,7 @@ static jmethodID s_Boolean_booleanValue;
 /*
  * boolean primitive type.
  */
-static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Boolean_initialize(PG_FUNCTION_ARGS)
 	s_BooleanClass->javaTypeName   = "java.lang.Boolean";
 	s_BooleanClass->coerceDatum    = _Boolean_coerceDatum;
 	s_BooleanClass->coerceObject   = _Boolean_coerceObject;
-	s_Boolean = TypeClass_allocInstance(s_BooleanClass);
+	s_Boolean = TypeClass_allocInstance(s_BooleanClass, BOOLOID);
 
 	s_booleanClass = TypeClass_alloc("type.boolean");
 	s_booleanClass->JNISignature   = "Z";
@@ -98,7 +98,7 @@ Datum Boolean_initialize(PG_FUNCTION_ARGS)
 	s_booleanClass->invoke         = _boolean_invoke;
 	s_booleanClass->coerceDatum    = _boolean_coerceDatum;
 	s_booleanClass->coerceObject   = _Boolean_coerceObject;
-	s_boolean = TypeClass_allocInstance(s_booleanClass);
+	s_boolean = TypeClass_allocInstance(s_booleanClass, BOOLOID);
 
 	Type_registerPgType(BOOLOID, boolean_obtain);
 	Type_registerJavaType("boolean", boolean_obtain);

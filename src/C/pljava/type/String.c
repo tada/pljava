@@ -63,9 +63,9 @@ Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
 	return ret;
 }
 
-static String String_create(TypeClass cls, Form_pg_type pgType)
+static String String_create(TypeClass cls, Oid typeId, Form_pg_type pgType)
 {
-	String self = (String)TypeClass_allocInstance(cls);
+	String self = (String)TypeClass_allocInstance(cls, typeId);
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	fmgr_info_cxt(pgType->typoutput, &self->textOutput, ctx);
 	fmgr_info_cxt(pgType->typinput,  &self->textInput,  ctx);
@@ -81,7 +81,7 @@ Type String_fromPgType(Oid typeId, Form_pg_type pgType)
 		/*
 		 * Create the new type
 		 */
-		self = String_create(s_StringClass, pgType);
+		self = String_create(s_StringClass, typeId, pgType);
 		HashMap_putByOid(s_cache, typeId, self);
 	}
 	return (Type)self;
@@ -105,7 +105,7 @@ String StringClass_obtain(TypeClass self, Oid typeId)
 		 * type catalog.
 		 */
 		HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
-		infant = String_create(self, (Form_pg_type)GETSTRUCT(typeTup));
+		infant = String_create(self, typeId, (Form_pg_type)GETSTRUCT(typeTup));
 		ReleaseSysCache(typeTup);
 		HashMap_putByOid(s_cache, typeId, infant);
 	}

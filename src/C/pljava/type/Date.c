@@ -67,7 +67,7 @@ Datum Date_initialize(PG_FUNCTION_ARGS)
 	s_DateClass->javaTypeName = "java.sql.Date";
 	s_DateClass->coerceDatum  = _Date_coerceDatum;
 	s_DateClass->coerceObject = _Date_coerceObject;
-	s_Date = TypeClass_allocInstance(s_DateClass);
+	s_Date = TypeClass_allocInstance(s_DateClass, DATEOID);
 
 	Type_registerPgType(DATEOID,   Date_obtain);
 	Type_registerJavaType("java.sql.Date", Date_obtain);

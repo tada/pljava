@@ -69,7 +69,7 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/internal/Relation;";
 	s_RelationClass->javaTypeName   = "org.postgresql.pljava.internal.Relation";
 	s_RelationClass->coerceDatum    = _Relation_coerceDatum;
-	s_Relation = TypeClass_allocInstance(s_RelationClass);
+	s_Relation = TypeClass_allocInstance(s_RelationClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Relation", Relation_obtain);
 	PG_RETURN_VOID();
@@ -185,7 +185,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 				if(nulls == 0)
 				{
 					nulls = (char*)palloc(count+1);
-					memset(nulls, count, ' ');	/* all values non-null initially */
+					memset(nulls, ' ', count);	/* all values non-null initially */
 					nulls[count] = 0;
 				}
 				nulls[idx] = 'n';

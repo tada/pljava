@@ -20,7 +20,7 @@ static jmethodID s_Double_doubleValue;
 /*
  * double primitive type.
  */
-static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Double_initialize(PG_FUNCTION_ARGS)
 	s_DoubleClass->javaTypeName   = "java.lang.Double";
 	s_DoubleClass->coerceDatum    = _Double_coerceDatum;
 	s_DoubleClass->coerceObject   = _Double_coerceObject;
-	s_Double = TypeClass_allocInstance(s_DoubleClass);
+	s_Double = TypeClass_allocInstance(s_DoubleClass, FLOAT8OID);
 
 	s_doubleClass = TypeClass_alloc("type.double");
 	s_doubleClass->JNISignature   = "D";
@@ -98,7 +98,7 @@ Datum Double_initialize(PG_FUNCTION_ARGS)
 	s_doubleClass->invoke         = _double_invoke;
 	s_doubleClass->coerceDatum    = _double_coerceDatum;
 	s_doubleClass->coerceObject   = _Double_coerceObject;
-	s_double = TypeClass_allocInstance(s_doubleClass);
+	s_double = TypeClass_allocInstance(s_doubleClass, FLOAT8OID);
 
 	Type_registerPgType(FLOAT8OID, double_obtain);
 	Type_registerJavaType("double", double_obtain);

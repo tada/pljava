@@ -72,7 +72,7 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 	s_AclIdClass->javaTypeName   = "org.postgresql.pljava.internal.AclId";
 	s_AclIdClass->coerceDatum    = _AclId_coerceDatum;
 	s_AclIdClass->coerceObject   = _AclId_coerceObject;
-	s_AclId = TypeClass_allocInstance(s_AclIdClass);
+	s_AclId = TypeClass_allocInstance(s_AclIdClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.AclId", AclId_obtain);
 	PG_RETURN_VOID();

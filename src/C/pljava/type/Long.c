@@ -20,7 +20,7 @@ static jmethodID s_Long_longValue;
 /*
  * long primitive type.
  */
-static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
+static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
@@ -89,7 +89,7 @@ Datum Long_initialize(PG_FUNCTION_ARGS)
 	s_LongClass->javaTypeName   = "java.lang.Long";
 	s_LongClass->coerceObject   = _Long_coerceObject;
 	s_LongClass->coerceDatum    = _Long_coerceDatum;
-	s_Long = TypeClass_allocInstance(s_LongClass);
+	s_Long = TypeClass_allocInstance(s_LongClass, INT8OID);
 
 	s_longClass = TypeClass_alloc("type.long");
 	s_longClass->JNISignature   = "J";
@@ -98,7 +98,7 @@ Datum Long_initialize(PG_FUNCTION_ARGS)
 	s_longClass->invoke         = _long_invoke;
 	s_longClass->coerceDatum    = _long_coerceDatum;
 	s_longClass->coerceObject   = _Long_coerceObject;
-	s_long = TypeClass_allocInstance(s_longClass);
+	s_long = TypeClass_allocInstance(s_longClass, INT8OID);
 
 	Type_registerPgType(INT8OID, long_obtain);
 	Type_registerJavaType("long", long_obtain);

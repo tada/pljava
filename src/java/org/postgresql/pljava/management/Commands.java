@@ -113,8 +113,7 @@ public class Commands
 			stmt = conn.prepareStatement("DELETE FROM sqlj.jar_entry WHERE jarId = ?");
 			try
 			{
-				stmt.setString(1, urlString);
-				stmt.setInt(2, jarId);
+				stmt.setInt(1, jarId);
 				stmt.executeUpdate();
 			}
 			finally

@@ -68,7 +68,7 @@ Datum TupleTable_initialize(PG_FUNCTION_ARGS)
 	s_TupleTableClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleTable;";
 	s_TupleTableClass->javaTypeName   = "org.postgresql.pljava.internal.TupleTable";
 	s_TupleTableClass->coerceDatum    = _TupleTable_coerceDatum;
-	s_TupleTable = TypeClass_allocInstance(s_TupleTableClass);
+	s_TupleTable = TypeClass_allocInstance(s_TupleTableClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.TupleTable", TupleTable_obtain);
 	PG_RETURN_VOID();
