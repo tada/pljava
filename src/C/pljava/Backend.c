@@ -948,7 +948,7 @@ Java_org_postgresql_pljava_internal_Backend_isCallingJava(JNIEnv* env, jclass cl
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv* env, jclass cls)
 {
-	return isReleaseLingeringSavepoints ? JNI_TRUE : JNI_FALSE;
+	return pljavaReleaseLingeringSavepoints ? JNI_TRUE : JNI_FALSE;
 }
 
 /*
