@@ -92,6 +92,10 @@ public class MetaDataBooleans implements ResultSetProvider
 		return false;
 	}
 
+	public void close()
+	{
+	}
+
 	public static ResultSetProvider getDatabaseMetaDataBooleans()
 	throws SQLException
 	{

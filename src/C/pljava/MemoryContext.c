@@ -182,7 +182,6 @@ static void MemoryContext_releaseCache(MemoryContext ctx, bool isDelete)
 {
 	HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
 	NativeStruct_releaseCache(cache);
-
 	if(isDelete)
 	{
 		PgObject_free((PgObject)cache);
@@ -205,6 +204,22 @@ MemoryContext_getCurrentNativeCache(void)
 	return exm->nativeCache;
 }
 
+static jobject
+lookupNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
+{
+	if(ctx->methods->reset == mctxReset)
+	{
+		HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
+		if(cache != 0)
+		{
+			jobject weak = HashMap_getByOpaque(cache, nativePointer);
+			if(weak != 0)
+				return (*env)->NewLocalRef(env, weak);
+		}
+	}
+	return 0;
+}
+
 jobject
 MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
 {
@@ -212,23 +227,30 @@ MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
 	MemoryContext ctx = CurrentMemoryContext;
 	while(ctx != 0)
 	{
-		if(ctx->methods->reset == mctxReset)
-		{
-			HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
-			if(cache != 0)
-			{
-				jobject weak = HashMap_getByOpaque(cache, nativePointer);
-				if(weak != 0)
-				{
-					found = (*env)->NewLocalRef(env, weak);
-					if(found != 0)
-						break;
-				}
-			}
-		}
+		found = lookupNativeHere(env, ctx, nativePointer);
+		if(found != 0)
+			return found;
 		ctx = ctx->parent;
 	}
-	return found;
+	return 0;
+}
+
+static bool dropNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
+{
+	if(ctx->methods->reset == mctxReset)
+	{
+		HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
+		if(cache != 0)
+		{
+			jobject weak = HashMap_removeByOpaque(cache, nativePointer);
+			if(weak != 0)
+			{
+				(*env)->DeleteWeakGlobalRef(env, weak);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void
@@ -237,19 +259,8 @@ MemoryContext_dropNative(JNIEnv* env, void* nativePointer)
 	MemoryContext ctx = CurrentMemoryContext;
 	while(ctx != 0)
 	{
-		if(ctx->methods->reset == mctxReset)
-		{
-			HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
-			if(cache != 0)
-			{
-				jobject weak = HashMap_removeByOpaque(cache, nativePointer);
-				if(weak != 0)
-				{
-					(*env)->DeleteWeakGlobalRef(env, weak);
-					break;
-				}
-			}
-		}
+		if(dropNativeHere(env, ctx, nativePointer))
+			break;
 		ctx = ctx->parent;
 	}
 }

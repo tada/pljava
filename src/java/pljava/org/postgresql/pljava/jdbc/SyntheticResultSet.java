@@ -7,13 +7,8 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-
-import org.postgresql.pljava.internal.TypeMap;
 
 /**
  * A Synthetic ResultSet that provides direct access to data stored
@@ -59,24 +54,11 @@ public class SyntheticResultSet extends ResultSetBase
 		}
 	}
 
-    public Statement getStatement()
-    throws SQLException
-    {
-        return null;
-    }
-
     public void close()
 	throws SQLException
 	{
     	m_tuples.clear();
 		super.close();
-	}
-
-	public String getCursorName()
-	throws SQLException
-	{
-		throw new SQLException(
-            "A synthetic ResultSet is not associated with a cursor");
 	}
 
 	public int findColumn(String columnName)

@@ -37,7 +37,13 @@ struct CallContext_
 	 * returned from the call.
 	 */
 	MemoryContext upperContext;
-	
+
+	/**
+	 * Set when an SPI_connect is issued. Ensures that SPI_finish
+	 * is called when the function exits.
+	 */
+	bool          hasConnected;
+
 	/**
 	 * The currently executing Function.
 	 */
@@ -59,6 +65,8 @@ struct CallContext_
 };
 
 extern CallContext* currentCallContext;
+
+extern void Backend_assertConnect(void);
 
 extern JNIEnv* Backend_getMainEnv(void);
 

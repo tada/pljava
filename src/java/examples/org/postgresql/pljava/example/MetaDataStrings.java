@@ -92,6 +92,10 @@ public class MetaDataStrings implements ResultSetProvider
 		return false;
 	}
 
+	public void close()
+	{
+	}
+
 	public static ResultSetProvider getDatabaseMetaDataStrings()
 	throws SQLException
 	{

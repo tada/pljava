@@ -20,7 +20,11 @@ public interface ResultSetProvider
 {
 	/**
 	 * This method is called once for each row that should be returned from
-	 * a procedure that returns a set of rows.
+	 * a procedure that returns a set of rows. The receiver
+	 * is a {@link org.postgresql.pljava.jdbc.SingleRowWriter SingleRowWriter}
+	 * writer instance that is used for capturing the data for the row. The
+	 * same receiver instance will be used for all calls that occurs
+	 * between {@link #activate} and {@link #passivate}.
 	 * @param receiver Receiver of values for the given row.
 	 * @param currentRow Row number. First call will have row number 0.
 	 * @return <code>true</code> if a new row was provided, <code>false</code>
@@ -28,5 +32,12 @@ public interface ResultSetProvider
 	 * @throws SQLException
 	 */
 	boolean assignRowValues(ResultSet receiver, int currentRow)
+	throws SQLException;
+	
+	/**
+	 * Called after the last row has returned or when the query evaluator decides
+	 * that it does not need any more rows.
+	 */
+	void close()
 	throws SQLException;
 }

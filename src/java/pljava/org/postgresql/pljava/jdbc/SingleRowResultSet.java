@@ -7,7 +7,6 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
-import java.sql.Statement;
 
 import org.postgresql.pljava.internal.TupleDesc;
 
@@ -196,25 +195,6 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 	throws SQLException
 	{
 		throw new UnsupportedFeatureException("Cursor positioning");
-	}
-
-	/**
-	 * Returns <code>null</code>.
-	 */
-	public String getCursorName()
-	throws SQLException
-	{
-		return null;
-	}
-
-	/**
-	 * The TriggerResultSet has no associated statement.
-	 * @return <code>null</code>
-	 */
-	public Statement getStatement()
-	throws SQLException
-	{
-		return null;
 	}
 
 	/**

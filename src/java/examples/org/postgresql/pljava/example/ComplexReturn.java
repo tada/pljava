@@ -40,6 +40,10 @@ public class ComplexReturn implements ResultSetProvider
 		return true;
 	}
 
+	public void close()
+	{
+	}
+
 	public static ResultSetProvider setReturn(int base, int increment)
 	throws SQLException
 	{

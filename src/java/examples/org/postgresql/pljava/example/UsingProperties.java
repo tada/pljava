@@ -10,39 +10,63 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.ObjectPool;
+import org.postgresql.pljava.PooledObject;
 import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.SessionManager;
 
 /**
  * @author Thomas Hallgren
  */
-public class UsingProperties implements ResultSetProvider
+public class UsingProperties implements ResultSetProvider, PooledObject
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
-	private final Iterator m_propertyIterator;
-	
-	public UsingProperties()
+	private final Properties m_properties;
+	private final ObjectPool m_pool;
+
+	private Iterator m_propertyIterator;
+
+	public UsingProperties(ObjectPool pool)
 	throws IOException
 	{
-		Properties v = new Properties();
+		m_pool = pool;
+		m_properties = new Properties();
+
+		s_logger.info("** UsingProperties()");
 		InputStream propStream = this.getClass().getResourceAsStream("example.properties");
 		if(propStream == null)
 		{
-			s_logger.fine("example.properties was null");
-			m_propertyIterator = Collections.EMPTY_SET.iterator();
+			s_logger.info("example.properties was null");
 		}
 		else
 		{
-			v.load(propStream);
+			m_properties.load(propStream);
 			propStream.close();
-			s_logger.fine("example.properties has " + v.size() + " entries");
-			m_propertyIterator = v.entrySet().iterator();
+			s_logger.info("example.properties has " + m_properties.size() + " entries");
 		}
+	}
+
+	public void activate()
+	{
+		s_logger.info("** UsingProperties.activate()");
+		m_propertyIterator = m_properties.entrySet().iterator();
+	}
+
+	public void remove()
+	{
+		s_logger.info("** UsingProperties.remove()");
+		m_properties.clear();
+	}
+
+	public void passivate()
+	{
+		s_logger.info("** UsingProperties.passivate()");
+		m_propertyIterator = null;
 	}
 
 	public boolean assignRowValues(ResultSet receiver, int currentRow)
@@ -60,16 +84,16 @@ public class UsingProperties implements ResultSetProvider
 		return true;
 	}
 
+	public void close()
+	throws SQLException
+	{
+		m_pool.passivateInstance(this);
+	}
+
 	public static ResultSetProvider getProperties()
 	throws SQLException
 	{
-		try
-		{
-			return new UsingProperties();
-		}
-		catch(IOException e)
-		{
-			throw new SQLException("Error reading properties", e.getMessage());
-		}
+		ObjectPool pool = SessionManager.current().getObjectPool(UsingProperties.class);
+		return (ResultSetProvider)pool.activateInstance();
 	}
 }

@@ -155,6 +155,7 @@ static void initCallContext(CallContext* ctx)
 {
 	ctx->invocation    = 0;
 	ctx->function      = 0;
+	ctx->hasConnected  = false;
 	ctx->upperContext  = CurrentMemoryContext;
 	ctx->errorOccured  = false;
 	ctx->previous      = currentCallContext;
@@ -779,6 +780,15 @@ static void initializeJavaVM(void)
 	initJavaLogger(s_mainEnv);
 }
 
+void
+Backend_assertConnect(void)
+{
+	if(currentCallContext->hasConnected)
+		return;
+	SPI_connect();
+	currentCallContext->hasConnected = true;
+}
+
 JNIEnv* Backend_getMainEnv(void)
 {
 	return s_mainEnv;
@@ -811,6 +821,7 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	CallContext ctx;
+	Function function;
 	Datum retval = 0;
 	bool saveIsCallingJava = isCallingJava;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
@@ -839,8 +850,6 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, popJavaFrameCB);
 	}
 
-	SPI_connect();
-
 	++s_callLevel;
 	PG_TRY();
 	{
@@ -848,7 +857,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		{
 			/* Called as a trigger procedure
 			 */
-			Function function = Function_getFunction(s_mainEnv, funcOid, true);
+			function = Function_getFunction(s_mainEnv, funcOid, true);
 			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
 		}
 		else
@@ -868,17 +877,19 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
+		if(currentCallContext->hasConnected)
+			SPI_finish();
 		currentCallContext = ctx.previous;
-		SPI_finish();
 	}
 	PG_CATCH();
 	{
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
-		currentCallContext = ctx.previous;
 		if(ctx.invocation != 0)
 			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
-		SPI_finish();
+		if(currentCallContext->hasConnected)
+			SPI_finish();
+		currentCallContext = ctx.previous;
 		PG_RE_THROW();
 	}
 	PG_END_TRY();

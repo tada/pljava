@@ -68,6 +68,7 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 	Backend_pushJavaFrame(env);
 	PG_TRY();
 	{
+		Backend_assertConnect();
 		result = (jint)SPI_exec(command, (int)count);
 		if(result < 0)
 			Exception_throwSPI(env, "exec", result);
@@ -183,6 +184,7 @@ Savepoint* SPI_setSavepoint(const char* name)
 	 * or rolled back even if the creator forgets about it.
 	 */
 	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
+	Backend_assertConnect();
 	BeginInternalSubTransaction((char*)name);
 	sp->nestingLevel = GetCurrentTransactionNestLevel();
 	sp->xid = GetCurrentSubTransactionId();

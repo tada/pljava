@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create an instance of org.postgresql.pljava.jdbc.RowProviderSet
  */
-extern jobject SingleRowWriter_create(JNIEnv* env, TupleDesc tupleDesc);
+extern jobject SingleRowWriter_create(JNIEnv* env, jobject tupleDesc);
 
 /*
  * Returns the Tuple for the SingleRowWriter and clears it.

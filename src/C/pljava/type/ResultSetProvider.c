@@ -15,30 +15,42 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
+#include "pljava/Backend.h"
 #include "pljava/HashMap.h"
+#include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"
 
 
 #ifndef GCJ /* Bug libgcj/15001 */
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
+static jmethodID s_ResultSetProvider_close;
 #endif
 
+static jclass s_ResultSet_class;
+static jclass s_ResultSetPicker_class;
+static jmethodID s_ResultSetPicker_init;
+
 static TypeClass s_ResultSetProviderClass;
+static TypeClass s_ResultSetClass;
+static Type s_ResultSet;
 static HashMap s_cache;
 
 typedef struct
 {
 	jobject singleRowWriter;
 	jobject resultSetProvider;
+	bool    hasConnected;
 #ifdef GCJ /* Bug libgcj/15001 */
 	jmethodID assignRowValues;
+	jmethodID close;
 #endif
 } CallContextData;
 
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
+	MemoryContext currCtx;
 	CallContextData* ctxData;
 	FuncCallContext* context;
 	bool saveicj = isCallingJava;
@@ -50,35 +62,53 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #ifdef GCJ /* Bug libgcj/15001 */
 		jclass rsClass;
 #endif
-		MemoryContext currCtx;
 		jobject tmp;
+		jobject tmp2;
 		TupleDesc tupleDesc;
-
-		/* Call the declared Java function. It returns the ResultSetProvider
-		 * that later is used once for each row that should be obtained.
-		 */
-		isCallingJava = true;
-		tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
-		isCallingJava = saveicj;
 
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
 
+		/* switch to memory context appropriate for multiple function calls
+		 */
+		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+
+		/* Call the declared Java function. It returns a ResultSetProvider
+		 * or a ResultSet. A ResultSet must be wrapped in a ResultSetPicker
+		 * (implements ResultSetProvider).
+		 */
+		isCallingJava = true;
+		tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
+		isCallingJava = saveicj;
+		Exception_checkException(env);
+
 		if(tmp == 0)
 		{
 			fcinfo->isnull = true;
+			MemoryContextSwitchTo(currCtx);
 			SRF_RETURN_DONE(context);
 		}
+
+		if((*env)->IsInstanceOf(env, tmp, s_ResultSet_class))
+		{
+			jobject wrapper;
+			isCallingJava = true;
+			wrapper = PgObject_newJavaObject(env, s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
+			isCallingJava = saveicj;
+			Exception_checkException(env);
+
+			(*env)->DeleteLocalRef(env, tmp);
+			tmp = wrapper;
+		}
+		isCallingJava = saveicj;
 
 		/* Build a tuple description for the tuples (will be cached
 		 * in TopMemoryContext)
 		 */
 		tupleDesc = TupleDesc_forOid(Type_getOid(self));
-
-		/* switch to memory context appropriate for multiple function calls
-		 */
-		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		if(tupleDesc == 0)
+			ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
 #if (PGSQL_MAJOR_VER < 8)
 		/* allocate a slot for a tuple with this tupdesc and assign it to
@@ -92,17 +122,23 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
 
 		context->user_fctx = ctxData;
+		ctxData->hasConnected = false;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
 #ifdef GCJ /* Bug libgcj/15001 */
 		rsClass = (*env)->GetObjectClass(env, tmp);
 		ctxData->assignRowValues = PgObject_getJavaMethod(
 				env, rsClass, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
+		ctxData->close = PgObject_getJavaMethod(
+				env, rsClass, "close", "()V");
 		(*env)->DeleteLocalRef(env, rsClass);
 #endif
 		(*env)->DeleteLocalRef(env, tmp);
-		tmp = SingleRowWriter_create(env, tupleDesc);		
-		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp);
-		(*env)->DeleteLocalRef(env, tmp);
+		tmp = TupleDesc_create(env, tupleDesc);
+		tmp2 = SingleRowWriter_create(env, tmp);
+		(*env)->DeleteLocalRef(env, tmp);		
+		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp2);
+		(*env)->DeleteLocalRef(env, tmp2);
+
 		MemoryContextSwitchTo(currCtx);
 	}
 
@@ -112,6 +148,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
+	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 	isCallingJava = true;
 	hasRow = ((*env)->CallBooleanMethod(
 			env, ctxData->resultSetProvider,
@@ -122,15 +159,18 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #endif
 			ctxData->singleRowWriter, (jint)context->call_cntr) == JNI_TRUE);
 	isCallingJava = saveicj;
+	MemoryContextSwitchTo(currCtx);
+	Exception_checkException(env);
 
 	if(hasRow)
 	{
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
+		HeapTuple tuple;
 		Datum result = 0;
-		MemoryContext currCtx = MemoryContext_switchToUpperContext();
-		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
+		currCtx = MemoryContext_switchToUpperContext();
+		tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 		if(tuple != 0)
 		{
 #if (PGSQL_MAJOR_VER >= 8)
@@ -140,13 +180,33 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #endif
 		}
 		MemoryContextSwitchTo(currCtx);
+
+		/* Neat trick that prevents SPI_finish
+		 */
+		if(currentCallContext->hasConnected)
+		{
+			ctxData->hasConnected = true;
+			currentCallContext->hasConnected = false;
+		}
 		SRF_RETURN_NEXT(context, result);
 	}
 
 	/* This is the end of the set.
 	 */
+	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+	isCallingJava = true;
+#ifdef GCJ /* Bug libgcj/15001 */
+	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, ctxData->close);
+#else
+	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
+#endif
+	isCallingJava = saveicj;
+	MemoryContextSwitchTo(currCtx);
+
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
+	if(ctxData->hasConnected)
+		currentCallContext->hasConnected = true;
 	pfree(ctxData);
 	SRF_RETURN_DONE(context);
 }
@@ -161,6 +221,11 @@ static jvalue _ResultSetProvider_coerceDatum(Type self, JNIEnv* env, Datum nothi
 static Datum _ResultSetProvider_coerceObject(Type self, JNIEnv* env, jobject nothing)
 {
 	return 0;
+}
+
+static Type ResultSet_obtain(Oid typeId)
+{
+	return s_ResultSet;
 }
 
 static Type ResultSetProvider_obtain(Oid typeId)
@@ -190,7 +255,15 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 
 	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(
 				env, s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
+	s_ResultSetProvider_close = PgObject_getJavaMethod(
+				env, s_ResultSetProvider_class, "close", "()V");
 #endif
+	s_ResultSet_class = (*env)->NewGlobalRef(
+				env, PgObject_getJavaClass(env, "java/sql/ResultSet"));
+	s_ResultSetPicker_class = (*env)->NewGlobalRef(
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ResultSetPicker"));
+	s_ResultSetPicker_init = PgObject_getJavaMethod(
+				env, s_ResultSetPicker_class, "<init>", "(Ljava/sql/ResultSet;)V");
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
@@ -200,7 +273,12 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetProviderClass->invoke	   = _ResultSetProvider_invoke;
 	s_ResultSetProviderClass->coerceDatum  = _ResultSetProvider_coerceDatum;
 	s_ResultSetProviderClass->coerceObject = _ResultSetProvider_coerceObject;
-
 	Type_registerJavaType("org.postgresql.pljava.ResultSetProvider", ResultSetProvider_obtain);
+
+	s_ResultSetClass = TypeClass_alloc("type.ResultSet");
+	s_ResultSetClass->JNISignature = "Ljava/sql/ResultSet;";
+	s_ResultSetClass->javaTypeName = "java.lang.ResultSet";
+	s_ResultSet = TypeClass_allocInstance(s_ResultSetClass, InvalidOid);
+	Type_registerJavaType("java.sql.ResultSet", ResultSet_obtain);
 	PG_RETURN_VOID();
 }

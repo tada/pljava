@@ -164,6 +164,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.UsingProperties.getProperties'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.resultSetPropertyExample()
+			RETURNS SETOF javatest._properties
+			AS 'org.postgresql.pljava.example.UsingPropertiesAsResultSet.getProperties'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE FUNCTION javatest.scalarPropertyExample()
 			RETURNS SETOF varchar
 			AS 'org.postgresql.pljava.example.UsingPropertiesAsScalarSet.getProperties'

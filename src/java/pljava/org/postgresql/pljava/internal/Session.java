@@ -12,6 +12,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import org.postgresql.pljava.ObjectPool;
+
 
 /**
  * An instance of this interface reflects the current session. The attribute
@@ -46,6 +48,11 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 	{
 		return (TransactionListener[])m_xactListeners.toArray(
 				new TransactionListener[m_xactListeners.size()]);
+	}
+
+	public ObjectPool getObjectPool(Class cls)
+	{
+		return ObjectPoolImpl.getObjectPool(cls);
 	}
 
 	/**

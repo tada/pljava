@@ -30,6 +30,14 @@ public interface Session
 	Object getAttribute(String attributeName);
 
 	/**
+	 * Return an object pool for the given class. The class must implement
+	 * the interface {@link PooledObject}.
+	 * @param cls
+	 * @return An object pool that pools object of the given class.
+	 */
+	ObjectPool getObjectPool(Class cls);
+
+	/**
 	 * Return the name of the effective user. If the currently
 	 * executing funciton is declared with <code>SECURITY DEFINER</code>,
 	 * then this method returns the name of the user that defined

@@ -91,7 +91,7 @@ public class MetaDataTest
 				{
 					sb.append(",");
 				}
-				sb.append(((Class)m_methodArgTypes[i]).getName());
+				sb.append(m_methodArgTypes[i].getName());
 			}
 			throw new SQLException("No such method or non-resultset return type: " +
 									m_methodName +
@@ -110,6 +110,10 @@ public class MetaDataTest
 	private Iterator iterator()
 	{
 		return m_results.iterator();
+	}
+
+	public void close()
+	{
 	}
 
 	/**
@@ -197,7 +201,7 @@ public class MetaDataTest
 							strList.add(marr.group(1));
 							auxParamArr = marr.group(2).trim();
 						}
-						objects.add((String[])strList.toArray(new String[0]));
+						objects.add(strList.toArray(new String[0]));
 						types.add(String[].class);
 					}
 					else if (param.equals("TRUE") || param.equals("FALSE")) //it is a boolean
@@ -260,7 +264,7 @@ public class MetaDataTest
 							intList.add(new Integer(marr.group(1)));
 							auxParamArr = marr.group(2).trim();
 						}
-						objects.add((Integer[])intList.toArray(new Integer[0]));
+						objects.add(intList.toArray(new Integer[0]));
 						types.add(int[].class);
 					}
 					else //it is an int
@@ -277,7 +281,7 @@ public class MetaDataTest
 				throw new SQLException("Syntax error");
 			}
 
-			m_methodArgs = (Object[])objects.toArray(new Object[0]);
+			m_methodArgs = objects.toArray(new Object[0]);
 			m_methodArgTypes = (Class[])types.toArray(new Class[0]);
 		}
 		catch (Exception e)

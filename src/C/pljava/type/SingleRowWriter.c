@@ -40,8 +40,10 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
-	jobject singleRowWriter = SingleRowWriter_create(env, tupleDesc);
+	jobject jtd = TupleDesc_create(env, tupleDesc);
+	jobject singleRowWriter = SingleRowWriter_create(env, jtd);
 	int numArgs = fcinfo->nargs;
+	(*env)->DeleteLocalRef(env, jtd);
 
 	/* It's guaranteed that the args array has room for one more
 	 * argument.
@@ -73,16 +75,13 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	return result;
 }
 
-jobject SingleRowWriter_create(JNIEnv* env, TupleDesc tupleDesc)
+jobject SingleRowWriter_create(JNIEnv* env, jobject tupleDesc)
 {
-	jobject jtd;
 	jobject result;
 	if(tupleDesc == 0)
 		return 0;
 
-	jtd = TupleDesc_create(env, tupleDesc);
-	result = PgObject_newJavaObject(env, s_SingleRowWriter_class, s_SingleRowWriter_init, jtd);
-	(*env)->DeleteLocalRef(env, jtd);
+	result = PgObject_newJavaObject(env, s_SingleRowWriter_class, s_SingleRowWriter_init, tupleDesc);
 	return result;
 }
 

@@ -225,6 +225,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	const char* ep;
 	const char* nameEp;
 	int32 len;
+	bool isResultSetProvider = false;
 
 	/* Obtain the tuple that corresponds to the function
 	 */
@@ -394,7 +395,9 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			/* The function returns a set. Check if the element type is a
 			 * complex or a scalar type.
 			 */
-			const char* javaName = (pgType->typtype == 'c')
+			const char* javaName;
+			isResultSetProvider = (pgType->typtype == 'c');
+			javaName = isResultSetProvider
 				? "org.postgresql.pljava.ResultSetProvider"
 				: "java.util.Iterator";
 
@@ -484,19 +487,37 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	if(self->method == 0)
 	{
 		char* origSign = sign.data;
+		Type altType = 0;
+		Type realRetType = self->returnType;
+
 		elog(DEBUG1, "Method %s.%s %s not found", className, methodName, origSign);
+
 		if(Type_isPrimitive(self->returnType))
 		{
 			/*
-			 * There's one valid reason for not finding the method, namely
-			 * if the return type used in the signature is a primitive and
+			 * One valid reason for not finding the method is when
+			 * the return type used in the signature is a primitive and
 			 * the true return type of the method is the object class that
 			 * corresponds to that primitive.
 			 */
-			Type objType = Type_getObjectType(self->returnType);
+			altType = Type_getObjectType(self->returnType);
+			realRetType = altType;
+		}
+		else if(isResultSetProvider)
+		{
+			/*
+			 * Another reason might be that we expected a ResultSetProvider
+			 * but the implementation returns a ResultSet that needs to be
+			 * wrapped. The wrapping is internal so we retain the original
+			 * return type anyway.
+			 */
+			altType = Type_fromJavaType(InvalidOid, "java.sql.ResultSet");
+		}
 
+		if(altType != 0)
+		{
 			(*env)->ExceptionClear(env);
-			Function_buildSignature(self, &sign, objType);
+			Function_buildSignature(self, &sign, altType);
 	
 			elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
 			isCallingJava = true;
@@ -504,14 +525,14 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 							env, self->clazz, methodName, sign.data);
 			isCallingJava = saveIcj;
 	
-			if(self->method == 0)
-				PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
-	
-			pfree(origSign);
-			self->returnType = objType;
+			if(self->method != 0)
+				self->returnType = realRetType;
 		}
-		else
+		if(self->method == 0)
 			PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
+
+		if(sign.data != origSign)
+			pfree(origSign);
 	}
 	pfree(sign.data);
 	pfree(className);

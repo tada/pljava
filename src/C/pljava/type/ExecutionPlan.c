@@ -158,7 +158,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 			char* name = 0;
 			if(cursorName != 0)
 				name = String_createNTS(env, cursorName);
-		
+
+			Backend_assertConnect();
 #if (PGSQL_MAJOR_VER >= 8)
 			portal = SPI_cursor_open(
 				name, ePlan, values, nulls, Function_isCurrentReadOnly());
@@ -201,6 +202,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 
 	PG_TRY();
 	{
+		Backend_assertConnect();
 		result = SPI_is_cursor_plan(ePlan);
 	}
 	PG_CATCH();
@@ -234,6 +236,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 		char*  nulls  = 0;
 		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
 		{
+			Backend_assertConnect();
 #if (PGSQL_MAJOR_VER >= 8)
 			result = (jint)SPI_execute_plan(
 				ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
@@ -293,6 +296,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jobject
 		}
 
 		cmd   = String_createNTS(env, jcmd);
+		Backend_assertConnect();
 		ePlan = SPI_prepare(cmd, paramCount, paramOids);
 		pfree(cmd);
 

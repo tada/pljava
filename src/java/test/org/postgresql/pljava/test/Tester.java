@@ -204,6 +204,7 @@ public class Tester
 				t.testCurrentDir();
 				t.testUsingProperties();
 				t.testUsingScalarProperties();
+				t.testUsingResultSetProperties();
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
 				t.testDatabaseMetaData();
@@ -310,6 +311,21 @@ public class Tester
 		System.out.println("*** testUsingProperties()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT name, value FROM propertyExample()");
+		while(rs.next())
+		{
+			String name = rs.getString(1);
+			String value = rs.getString(2);
+			System.out.println("Name = \"" + name + "\", value = \"" + value + "\"");
+		}
+		rs.close();
+	}
+
+	public void testUsingResultSetProperties()
+	throws SQLException
+	{
+		System.out.println("*** testUsingResultSetProperties()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT name, value FROM resultSetPropertyExample()");
 		while(rs.next())
 		{
 			String name = rs.getString(1);
@@ -530,6 +546,7 @@ public class Tester
 
 			// Try the same java method again, this time using language javaU
 			//
+			System.out.println("*** testUntrustedSecurity()");
 			stmt.execute(
 				"CREATE OR REPLACE FUNCTION javatest.create_temp_file_untrusted()" +
 				"  RETURNS varchar" +

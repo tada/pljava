@@ -99,6 +99,10 @@ public class MetaDataInts implements ResultSetProvider
 		return false;
 	}
 
+	public void close()
+	{
+	}
+
 	public static ResultSetProvider getDatabaseMetaDataInts()
 	throws SQLException
 	{

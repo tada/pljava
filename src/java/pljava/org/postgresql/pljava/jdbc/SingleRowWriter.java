@@ -6,6 +6,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -33,7 +34,7 @@ public class SingleRowWriter extends SingleRowResultSet
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
-		return m_values[columnIndex + 1];
+		return m_values[columnIndex - 1];
 	}
 
 	/**
@@ -60,6 +61,14 @@ public class SingleRowWriter extends SingleRowResultSet
 	throws SQLException
 	{
 		Arrays.fill(m_values, null);
+	}
+
+	public void copyRowFrom(ResultSet rs)
+	throws SQLException
+	{
+		int top = m_values.length;
+		for(int idx = 0; idx < top; ++idx)
+			m_values[idx] = rs.getObject(idx+1);
 	}
 
 	/**
