@@ -27,6 +27,113 @@ import java.util.jar.JarInputStream;
 import org.postgresql.pljava.internal.Oid;
 
 /**
+ * This methods of this class are implementations of SQLJ commands.
+ * <h1>SQJL functions</h1>
+ * <h2>install_jar</h2>
+ * The install_jar command loads a jarfile from a location appointed by an URL
+ * into the SQLJ jar repository. It is an error if a jar with the given name
+ * already exists in the repository.
+ * <h3>Usage</h3>
+ * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_name&gt;, &lt;jar_url&gt;, ;&lt;deploy&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>This is the name by which this jar can be referenced once it has been
+ * loaded</td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_url</b></td>
+ * <td>The URL that denotes the location of the jar that should be loaded
+ * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>deploy</b></td>
+ * <td>True if the jar should be deployed according to a {@link
+ * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment descriptor},
+ * false otherwise</td>
+ * </tr>
+ * </table></blockquote>
+ * <h2>replace_jar</h2>
+ * The replace_jar will replace a loaded jar with another jar. Use this command
+ * to update already loaded files. It's an error if the jar is not found.
+ * <h3>Usage</h3>
+ * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_name&gt;, &lt;jar_url&gt;, &#160;&lt;redeploy&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>The name of the jar to be replaced</td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_url</b></td>
+ * <td>The URL that denotes the location of the jar that should be loaded
+ * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>redeploy</b></td>
+ * <td>True if the old and new jar should be undeployed and deployed according
+ * to their respective {@link
+ * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment descriptors},
+ * false otherwise</td>
+ * </tr>
+ * </table></blockquote>
+ * <h2>remove_jar</h2>
+ * The remove_jar will drop the jar from the jar repository. Any classpath that
+ * references this jar will be updated accordingly. It's an error if the jar is
+ * not found.
+ * <h3>Usage</h3>
+ * <blockquote><code>SELECT sqlj.remove_jar(&lt;jar_name&gt;, &lt;undeploy&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>The name of the jar to be removed</td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>undeploy</b></td>
+ * <td>True if the jar should be undeployed according to its {@link
+ * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment descriptor},
+ * false otherwise</td>
+ * </tr>
+ * </table></blockquote>
+ * <h2>get_classpath</h2>
+ * The get_classpath will return the classpath that has been defined for the
+ * given schema or NULL if the schema has no classpath. It's an error if the
+ * given schema does not exist.
+ * <h3>Usage</h3>
+ * <blockquote><code>SELECT sqlj.get_classpath(&lt;schema&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td><b>schema</b></td>
+ * <td>The name of the schema</td>
+ * </tr>
+ * </table></blockquote>
+ * <h2>set_classpath</h2>
+ * The set_classpath will define a classpath for the given schema. A classpath
+ * consists of a colon separated list of jar names. It's an error if the given
+ * schema does not exist or if one or more jar names references non existent
+ * jars.
+ * <h3>Usage</h3>
+ * <blockquote><code>SELECT sqlj.set_classpath(&lt;schema&gt;, &lt;classpath&gt;);</code>
+ * </blockquote>
+ * <h3>Parameters</h3>
+ * <blockquote><table>
+ * <tr>
+ * <td><b>schema</b></td>
+ * <td>The name of the schema</td>
+ * </tr>
+ * <tr>
+ * <td><b>classpath</b></td>
+ * <td>The colon separated list of jar names</td>
+ * </tr>
+ * </table></blockquote>
+ *
  * @author Thomas Hallgren
  */
 public class Commands

@@ -82,7 +82,7 @@ public class BlobValue extends InputStream implements Blob
 	}
 
 	/**
-	 * In Frameworx this method is not supported.
+	 * Not supported.
 	 */
 	public long position(byte[] pattern, long start)
 	{
@@ -90,7 +90,7 @@ public class BlobValue extends InputStream implements Blob
 	}
 
 	/**
-	 * In Frameworx this method is not supported.
+	 * Not supported.
 	 */
 	public long position(Blob pattern, long start)
 	{

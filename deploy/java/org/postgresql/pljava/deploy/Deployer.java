@@ -16,6 +16,61 @@ import java.sql.Statement;
 import java.util.ArrayList;
 
 /**
+ * When running the deployer, you must use a classpath that can see the
+ * deploy.jar found in the Pl/Java distribution and the postgresql.jar from the
+ * PostgreSQL distribution. The former contains the code for the deployer
+ * command and the second includes the PostgreSQL JDBC driver. You then run the
+ * deployer with the command:
+ * </p>
+ * <blockquote><code>
+ * java -cp &lt;your classpath&gt; org.postgresql.pljava.deploy.Deployer [ options ]
+ * </code></blockquote>
+ * <p>
+ * It's recommended that create a shell script or a .bat script that does this
+ * for you so that you don't have to do this over and over again.
+ * </p>
+ * <h3>Deployer options</h3>
+ * <blockquote><table>
+ * <th>Option</th>
+ * <th>Description</th>
+ * <tr>
+ * <td valign="top">-install</td>
+ * <td>Installs the Java language along with the sqlj procedures. The deployer
+ * will fail if the language is installed already.</td>
+ * </tr>
+ * <tr>
+ * <td valign="top">-reinstall</td>
+ * <td>Reinstalls the Java language and the sqlj procedures. This will
+ * effectively drop all jar files that have been loaded.</td>
+ * </tr>
+ * <tr>
+ * <td valign="top">-remove</td>
+ * <td>Drops the Java language and the sqjl procedures and loaded jars</td>
+ * </tr>
+ * <tr>
+ * <td nowrap="true" valign="top">-user &lt;user name&gt;</td>
+ * <td>Name of user that connects to the database. Default is "postgres"</td>
+ * </tr>
+ * <tr>
+ * <td nowrap="true" valign="top">-password &lt;password&gt;</td>
+ * <td>Password of user that connects to the database. Default is no password
+ * </td>
+ * </tr>
+ * <tr>
+ * <td nowrap="true" valign="top">-database &lt;database&gt;</td>
+ * <td>The name of the database to connect to. Default is "postgres"</td>
+ * </tr>
+ * <tr>
+ * <td nowrap="true" valign="top">-host &lt;hostname&gt;</td>
+ * <td>Name of the host. Default is "localhost"</td>
+ * </tr>
+ * <tr>
+ * <td valign="top">-windows</td>
+ * <td>Use this option if the host runs on a windows platform. Affects the
+ * name used for the Pl/Java dynamic library</td>
+ * </tr>
+ * </table></blockquote>
+ * 
  * @author Thomas Hallgren
  */
 public class Deployer

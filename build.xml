@@ -2,14 +2,14 @@
 	<target
 		name="all"
 		depends="generate_headers,example_jar,test_jar,deploy_jar"
-		description="builds all targets except clean"/>
+		description="builds all targets except javadoc, clean, and distrib"/>
 	
 	<target
 		name="clean"
 		description="Removes all artifacts from previous builds">
 
 		<delete dir="bin" failonerror="false" quiet="true"/>
-		<delete dir="doc" failonerror="false" quiet="true"/>
+		<delete dir="docs/api" failonerror="false" quiet="true"/>
 		<delete dir="generated" failonerror="false" quiet="true"/>
 		<delete quiet="true">
 			<fileset dir="src/C/include/pljava" includes="**/*_JNI.h"/>
@@ -120,24 +120,13 @@
 	</target>
 
 	<target
-		name="apidoc_jar"
-		depends="javadoc"
-		description="Collects all source into apidoc.jar">
-
-		<jar basedir="doc"
-			compress="true"
-			destfile="apidoc.jar"
-			includes="api/**"/>
-	</target>
-
-	<target
 		name="javadoc"
 		description="Generates Java API documentation">
 		
-		<mkdir dir="doc/api"/>
+		<mkdir dir="docs/api"/>
 
         <javadoc
-        	destdir="doc/api"
+        	destdir="docs/api"
         	access="package"
         	use="true"
         	notree="false"
@@ -156,10 +145,33 @@
 			<sourcepath>
 				<path location="src/java"/>
 				<path location="deploy/java"/>
-				<path location="examples/java"/>
-				<path location="test"/>
 			</sourcepath>
 		</javadoc>
+	</target>
+
+	<target
+		name="distrib"
+		depends="all,javadoc"
+		description="Builds the distribution">
+
+		<mkdir dir="distrib/src/examples"/>
+		<mkdir dir="distrib/src/test"/>
+
+		<copy todir="distrib">
+			<fileset dir="bin" includes="*.jar,*.dll,*.so"/>
+		</copy>
+
+		<copy todir="distrib/src/examples">
+			<fileset dir="examples"/>
+		</copy>
+
+		<copy todir="distrib/src/test">
+			<fileset dir="test"/>
+		</copy>
+
+		<jar basedir="docs"
+			compress="true"
+			destfile="distrib/docs.jar"/>
 	</target>
 
 	<target

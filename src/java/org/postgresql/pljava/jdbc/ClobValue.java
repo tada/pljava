@@ -111,7 +111,7 @@ public class ClobValue extends Reader implements Clob
 	}
 
 	/**
-	 * In Frameworx this method is not supported.
+	 * Not supported.
 	 */
 	public long position(Clob pattern, long start)
 	{
