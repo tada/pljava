@@ -4,10 +4,10 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_Oid.h"
+#include "java_sql_Types.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
-#include "pljava/type/Oid_JNI.h"
-#include "pljava/type/Types_JNI.h"
 #include "pljava/Exception.h"
 
 static Type      s_Oid;

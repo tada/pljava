@@ -4,9 +4,9 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_NativeStruct.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/NativeStruct.h"
-#include "pljava/type/NativeStruct_JNI.h"
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"

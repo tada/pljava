@@ -7,6 +7,7 @@
 #include <postgres.h>
 #include <executor/tuptable.h>
 
+#include "org_postgresql_pljava_internal_ExecutionPlan.h"
 #include "pljava/Exception.h"
 #include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
@@ -14,7 +15,6 @@
 #include "pljava/type/Portal.h"
 #include "pljava/type/String.h"
 #include "pljava/type/ExecutionPlan.h"
-#include "pljava/type/ExecutionPlan_JNI.h"
 
 #include <utils/guc.h>
 

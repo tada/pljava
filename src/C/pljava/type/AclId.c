@@ -9,7 +9,7 @@
 
 #include "pljava/type/String.h"
 #include "pljava/type/Type_priv.h"
-#include "pljava/type/AclId_JNI.h"
+#include "org_postgresql_pljava_internal_AclId.h"
 #include "pljava/Exception.h"
 
 static Type      s_AclId;

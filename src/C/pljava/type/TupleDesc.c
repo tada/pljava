@@ -8,13 +8,13 @@
 #include <executor/spi.h>
 #include <funcapi.h>
 
+#include "org_postgresql_pljava_internal_TupleDesc.h"
 #include "pljava/Exception.h"
 #include "pljava/HashMap.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/type/TupleDesc_JNI.h"
 
 static Type      s_TupleDesc;
 static TypeClass s_TupleDescClass;

@@ -10,14 +10,14 @@ include $(PGSQLDIR)/src/Makefile.global
 SS_VERSION := $(subst ., ,$(subst devel,.devel,$(VERSION)))
 
 SRCDIR	:= $(MODULEROOT)/$(NAME)
-INCLDIR	:= $(MODULEROOT)/include
+INCLDIR	:= -I$(MODULEROOT)/include -I$(JNIDIR)
 
 mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
 SRCS	:= $(shell find $(SRCDIR) -type f -name \*.c)
 OBJS	:= $(call mkobjs,$(SRCS))
 
 override CPPFLAGS := \
-	-DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) \
+	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
 	-DPGSQL_MAJOR_VER=$(word 1,$(SS_VERSION)) \
 	-DPGSQL_MINOR_VER=$(word 2,$(SS_VERSION)) \
 	$(CPPFLAGS)

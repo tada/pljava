@@ -7,12 +7,12 @@
 #include <postgres.h>
 #include <executor/spi.h>
 
+#include "org_postgresql_pljava_internal_SPITupleTable.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SPITupleTable.h"
-#include "pljava/type/SPITupleTable_JNI.h"
 
 static Type      s_SPITupleTable;
 static TypeClass s_SPITupleTableClass;

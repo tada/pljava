@@ -4,10 +4,10 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_TriggerData.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
-#include "pljava/type/TriggerData_JNI.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Relation.h"

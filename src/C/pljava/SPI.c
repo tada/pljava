@@ -4,8 +4,8 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_SPI.h"
 #include "pljava/SPI.h"
-#include "pljava/SPI_JNI.h"
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"

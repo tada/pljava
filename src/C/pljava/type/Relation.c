@@ -7,13 +7,13 @@
 #include <postgres.h>
 #include <executor/spi.h>
 
+#include "org_postgresql_pljava_internal_Relation.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/Relation.h"
-#include "pljava/type/Relation_JNI.h"
 
 static Type      s_Relation;
 static TypeClass s_RelationClass;

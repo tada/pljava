@@ -4,10 +4,11 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_HeapTupleHeader.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/HeapTupleHeader.h"
 
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+#if (PGSQL_MAJOR_VER < 8)
 jobject HeapTupleHeader_create(JNIEnv* env, HeapTupleHeader ht)
 {
 	return 0;
@@ -25,7 +26,6 @@ Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS)
 
 #include "pljava/Exception.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/type/HeapTupleHeader_JNI.h"
 
 static Type      s_HeapTupleHeader;
 static TypeClass s_HeapTupleHeaderClass;

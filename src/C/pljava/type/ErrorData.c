@@ -4,10 +4,10 @@
  * 
  * @author Thomas Hallgren
  */
+#include "org_postgresql_pljava_internal_ErrorData.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ErrorData.h"
-#include "pljava/type/ErrorData_JNI.h"
 #include "pljava/type/String.h"
 
 static TypeClass s_ErrorDataClass;

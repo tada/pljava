@@ -8,11 +8,11 @@
 #include <executor/spi.h>
 #include <executor/tuptable.h>
 
+#include "org_postgresql_pljava_internal_TupleTable.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleTable.h"
 #include "pljava/type/TupleTableSlot.h"
-#include "pljava/type/TupleTable_JNI.h"
 
 static Type      s_TupleTable;
 static TypeClass s_TupleTableClass;

@@ -8,11 +8,11 @@
 #include <executor/spi.h>
 #include <executor/tuptable.h>
 
+#include "org_postgresql_pljava_internal_Portal.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
-#include "pljava/type/Portal_JNI.h"
 #include "pljava/type/String.h"
 
 static Type      s_Portal;

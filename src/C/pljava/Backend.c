@@ -22,12 +22,12 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#include "org_postgresql_pljava_internal_Backend.h"
 #include "pljava/Function.h"
 #include "pljava/type/Type.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
 #include "pljava/EOXactListener.h"
-#include "pljava/Backend_JNI.h"
 #include "pljava/Backend.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/SPI.h"
