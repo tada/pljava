@@ -50,7 +50,7 @@ static jvalue Timestamp_coerceDatumTZ(Type self, JNIEnv* env, Datum arg, bool tz
 	mSecs = ts / 1000;			/* Convert to millisecs */
 	uSecs = (jint)(ts % 1000);	/* preserve remaining microsecs */
 	if(tzAdjust)
-		mSecs += getTimeZone(ts) * 1000;/* Adjust from local time to UTC */
+		mSecs += Timestamp_getTimeZone(ts) * 1000;/* Adjust from local time to UTC */
 	mSecs += EPOCH_DIFF * 1000;			/* Adjust for diff between Postgres and Java (Unix) */
 #else
 	/* Expect <seconds since Jan 01 2000>.<fractions of seconds>
@@ -81,7 +81,7 @@ static Datum Timestamp_coerceObjectTZ(Type self, JNIEnv* env, jobject jts, bool 
 	if(nSecs != 0)
 		ts += nSecs / 1000;	/* Convert nanosecs  to microsecs */
 	if(tzAdjust)
-		ts -= ((jlong)getTimeZone(ts)) * 1000000L; /* Adjust from UTC to local time */
+		ts -= ((jlong)Timestamp_getTimeZone(ts)) * 1000000L; /* Adjust from UTC to local time */
 #else
 	ts = ((double)mSecs) / 1000.0; /* Convert to seconds */
 	ts -= EPOCH_DIFF;

@@ -28,12 +28,14 @@ release:
 	(cd $(RELNAME); $(TAR) zcf ../distrib/$(RELNAME).tar.gz .)
 
 source_tarball:
+	@mkdir -p distrib
 	@(cd ..; find . \( \
 		   -name CVS \
+		-o -name bin \
 		-o -name build \
 		-o -name .cvsignore \
-		\) -prune -o \( -type f -print \) > build/sourcelist.txt)
-	$(TAR) zcf distrib/pljava-src-$(PLJAVA_VERSION).tar.gz -T sourcelist.txt)
+		\) -prune -o \( -type f -print \) > build/sourcelist.txt; \
+	$(TAR) zcf build/distrib/pljava-src-$(PLJAVA_VERSION).tar.gz -T build/sourcelist.txt)
 	@-rm -f sourcelist.txt
 
 JAR				:= jar

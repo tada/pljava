@@ -338,7 +338,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			else
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name '%*s' in dynamic library path", len, path)));
+					errmsg("invalid macro name '%*s' in dynamic library path", (int)len, path)));
 		}
 
 		if(len > 0)

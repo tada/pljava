@@ -127,20 +127,15 @@ static void StringKey_init(StringKey self, const char* keyVal)
  */
 static uint32 _OpaqueKey_hashCode(HashKey self)
 {
-	uint32 key;
+	Ptr2Long p2l;
+	p2l.ptrVal = ((OpaqueKey)self)->key;
 	
 	/* Compiler will see that this if statement is a constant and
 	 * select the appropriate code
 	 */
-	if(sizeof(void*) == sizeof(uint32))
-		key = (uint32)((OpaqueKey)self)->key;
-	else
-	{
-		Ptr2Long p2l;
-		p2l.ptrVal = ((OpaqueKey)self)->key;
-		key = p2l.x64.intVal_1 ^ p2l.x64.intVal_2;
-	}
-	return key;
+	return (sizeof(void*) == sizeof(uint32))
+		? (uint32)p2l.longVal
+		: (p2l.x64.intVal_1 ^ p2l.x64.intVal_2);
 }
 
 /*

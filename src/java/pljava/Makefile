@@ -39,22 +39,43 @@ ifdef USE_GCJ
 # pljava doesn't need the latter. Most java compilers will need it
 # in order to compile triggers and functions later.
 #
+mkhdsrc = $(subst ^,.,$(subst .,_,$(1:%=$(JNIDIR)/%^h)))
+mkcname = $(subst _,.,$(1:$(JNIDIR)/%.h=%))
+JNIHDRS := $(call mkhdsrc,$(JNI_CLASSES))
+
 all: $(OBJDIR)/$(NAME)_jar.o $(JARFILE) $(JNIDIR)/.timestamp
 
 $(OBJDIR)/$(NAME)_jar.o: .timestamp
 	@-mkdir -p $(@D)
 	@echo $(GCJ) -g -c -fjni -o $@ '<java sources>'
 	@$(GCJ) -g -c -fjni -o $@ $(SRCS)
+
+# gcjh fails to clear its function name cache between files (see
+# gcc bugzilla #17575) so we must do each file separately to
+# avoid name ambiguities that causes names to be generated with
+# parameter type info.
+#
+$(JNIHDRS): $(JNISRCS)
+	@-mkdir -p $(@D)
+	@gcjh -jni --classpath=. -d $(@D) $(call mkcname,$@)
+
+# gcjh generated headers don't define final constants (see gcc
+# bugzilla #16843) so we must copy our own version of java.sql.Types. 
+#
+$(JNIDIR)/.timestamp: $(JNIHDRS)
+	@-mkdir -p $(@D)
+	@cp $(PROJDIR)/fixes/gcj/java_sql_Types.h $(@D)
+	@touch $@
 else
 all: $(JARFILE) $(JNIDIR)/.timestamp
+
+$(JNIDIR)/.timestamp: $(JNISRCS)
+	@-mkdir -p $(@D)
+	@echo javah -classpath . -d $(@D) '<jni classes>'
+	@javah -classpath . -d $(@D) $(JNI_CLASSES) java.sql.Types
+	@touch $@
 
 endif
 
 $(JARFILE): .timestamp
 	$(JAR) cf $@ .
-
-$(JNIDIR)/.timestamp: $(JNISRCS)
-	@-mkdir -p $(@D)
-	@echo $(JAVAH) -classpath . -d $(@D) '<jni classes>'
-	@$(JAVAH) -classpath . -d $(@D) $(JNI_CLASSES) java.sql.Types
-	@touch $@
