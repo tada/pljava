@@ -21,6 +21,9 @@ static jmethodID s_Class_getName;
 static jclass    s_Throwable_class;
 static jmethodID s_Throwable_getMessage;
 
+static jclass    s_IllegalArgumentException_class;
+static jmethodID s_IllegalArgumentException_init;
+
 static jclass    s_SQLException_class;
 static jmethodID s_SQLException_init;
 static jmethodID s_SQLException_getSQLState;
@@ -177,6 +180,28 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	va_end(args);
 }
 
+void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
+{
+    char buf[1024];
+	va_list args;
+	jstring message;
+	jobject ex;
+	int idx;
+
+	va_start(args, errMessage);
+	vsnprintf(buf, sizeof(buf), errMessage, args);
+	ereport(DEBUG3, (errmsg(buf)));
+
+	message = String_createJavaStringFromNTS(env, buf);
+
+	ex = PgObject_newJavaObject(
+		env, s_IllegalArgumentException_class, s_IllegalArgumentException_init, message);
+
+	(*env)->DeleteLocalRef(env, message);
+	(*env)->Throw(env, ex);
+	va_end(args);
+}
+
 void Exception_throwSPI(JNIEnv* env, const char* function, int errCode)
 {
 #if (PGSQL_MAJOR_VER >= 8)
@@ -230,6 +255,12 @@ Datum Exception_initialize(PG_FUNCTION_ARGS)
 
 	s_Throwable_getMessage = PgObject_getJavaMethod(env, s_Throwable_class,
 			"getMessage", "()Ljava/lang/String;");
+
+	s_IllegalArgumentException_class = (jclass)(*env)->NewGlobalRef(
+		env, PgObject_getJavaClass(env, "java/lang/IllegalArgumentException"));
+
+	s_IllegalArgumentException_init = PgObject_getJavaMethod(env, s_IllegalArgumentException_class,
+			"<init>", "(Ljava/lang/String;)V");
 
 	s_SQLException_class = (jclass)(*env)->NewGlobalRef(
 		env, PgObject_getJavaClass(env, "java/sql/SQLException"));

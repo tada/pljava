@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.sql.Blob;
 import java.sql.SQLException;
 
@@ -169,6 +170,23 @@ public class BlobValue extends InputStream implements Blob
 		int rs = m_stream.read(b);
 		m_streamPos += rs;
 		return rs;
+	}
+
+	/**
+	 * Called from within...
+	 * @param buf a buffer that reflects the internally allocated bytea buffer.
+	 * This size of this buffer will be exactly the size returned by a call to
+	 * {@link #length()}.
+	 * @throws IOException
+	 */
+	public void getContents(ByteBuffer buf)
+	throws IOException
+	{
+		byte[] bytes = buf.array();
+		int rs = m_stream.read(bytes);
+		if(rs != bytes.length)
+			throw new IOException("Not all bytes could be read");
+		m_streamPos += rs;
 	}
 
 	public synchronized int read(byte[] b, int off,  int len)

@@ -41,6 +41,17 @@ extern void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ..
 __attribute__((format(printf, 3, 4)));
 
 /*
+ * Like ereport(ERROR, ...) but this method will raise a Java IllegalArgumentException and
+ * return. It will NOT do a longjmp. Suitable in native code that is called
+ * from Java (such code must return to Java in order to have the real exception
+ * thrown).
+ */
+extern void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
+/* This extension allows gcc to check the format string for consistency with
+   the supplied arguments. */
+__attribute__((format(printf, 2, 3)));
+
+/*
  * Like ereport(ERROR, ...) but this method will raise a Java SQLException and
  * return. It will NOT do a longjmp.
  */
