@@ -6,6 +6,8 @@ package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * The <code>ExecutionPlan</code> correspons to the execution plan obtained
@@ -15,9 +17,84 @@ import java.util.ArrayList;
  */
 public class ExecutionPlan extends NativeStruct
 {
-	private static final ArrayList s_deathRow = new ArrayList();
+    static final int DEFAULT_INITIAL_CAPACITY = 16;
+    static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
-	private boolean m_isDurable = false;
+    /**
+     * MRU cache for prepared plans.
+     */
+    static final class PlanCache extends LinkedHashMap
+	{
+    	private final int m_cacheSize;
+
+		public PlanCache(int cacheSize)
+		{
+			super(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR, true);
+			m_cacheSize = cacheSize;
+		}
+
+		protected boolean removeEldestEntry(Map.Entry eldest)
+		{
+	        if(this.size() > m_cacheSize)
+	        {
+	        	((ExecutionPlan)eldest.getValue()).invalidate();
+	        	return true;
+	        }
+	        return false;
+	    }
+	};
+
+	static final class PlanKey
+	{
+		private final int    m_hashCode;
+		private final String m_stmt;
+		private final Oid[]  m_argTypes;
+
+		PlanKey(String stmt, Oid[] argTypes)
+		{
+			m_stmt     = stmt;
+			m_hashCode = stmt.hashCode() + 1;
+			m_argTypes = argTypes;
+		}
+
+		public boolean equals(Object o)
+		{
+			if(!(o instanceof PlanKey))
+				return false;
+
+			PlanKey pk = (PlanKey)o;
+			if(!pk.m_stmt.equals(m_stmt))
+				return false;
+
+			Oid[] pat = pk.m_argTypes;
+			Oid[] mat = m_argTypes;
+			int idx = pat.length;
+			if(mat.length != idx)
+				return false;
+
+			while(--idx >= 0)
+				if(!pat[idx].equals(mat[idx]))
+					return false;
+
+			return true;
+		}
+		
+		public int hashCode()
+		{
+			return m_hashCode;
+		}
+	}
+
+	private static final ArrayList s_deathRow = new ArrayList();
+	private static final PlanCache s_planCache;
+	
+	static
+	{
+		int cacheSize = _getCacheSize();
+		s_planCache = (cacheSize > 0)
+			? new PlanCache(cacheSize)
+			: null;
+	}
 
 	/**
 	 * Set up a cursor that will execute the plan using the internal
@@ -82,6 +159,23 @@ public class ExecutionPlan extends NativeStruct
 	public static ExecutionPlan prepare(String statement, Oid[] argTypes)
 	throws SQLException
 	{
+		if(s_planCache != null)
+		{
+			Object key = (argTypes == null)
+				? (Object)statement
+				: (Object)new PlanKey(statement, argTypes);
+
+			ExecutionPlan plan = (ExecutionPlan)s_planCache.get(key);
+			if(plan == null)
+			{
+				synchronized(Backend.THREADLOCK)
+				{
+					plan = _prepare(statement, argTypes);
+				}
+				s_planCache.put(key, plan);
+			}
+			return plan;
+		}
 		synchronized(Backend.THREADLOCK)
 		{
 			return _prepare(statement, argTypes);
@@ -92,28 +186,11 @@ public class ExecutionPlan extends NativeStruct
 	 * Invalidates this structure and frees up memory using the
 	 * internal function <code>SPI_freeplan</code>
 	 */
-	public void invalidate()
+	public final void invalidate()
 	{
 		synchronized(Backend.THREADLOCK)
 		{
 			this._invalidate();
-		}
-	}
-
-	/**
-	 * Make this plan durable. This means that the plan will survive until
-	 * it is explicitly invalidated.
-	 * @throws SQLException If the underlying native structure has gone stale.
-	 */
-	public void makeDurable()
-	throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			if(m_isDurable)
-				return;
-			this._savePlan();
-			m_isDurable = true;
 		}
 	}
 
@@ -126,7 +203,7 @@ public class ExecutionPlan extends NativeStruct
 	public void finalize()
 	{
 		long nativePtr = this.getNative();
-		if(nativePtr != 0 && m_isDurable)
+		if(nativePtr != 0)
 		{
 			synchronized(s_deathRow)
 			{
@@ -179,6 +256,8 @@ public class ExecutionPlan extends NativeStruct
 
 	private native int _execp(Object[] parameters, int rowCount)
 	throws SQLException;
+
+	private native static int _getCacheSize();
 
 	private native static ExecutionPlan _prepare(String statement, Oid[] argTypes)
 	throws SQLException;
