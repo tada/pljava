@@ -22,13 +22,20 @@ import org.postgresql.pljava.internal.TupleDesc;
  */
 public class SingleRowWriter extends SingleRowResultSet
 {
+	private final TupleDesc m_tupleDesc;
 	private final Object[] m_values;
 
 	public SingleRowWriter(TupleDesc tupleDesc)
 	throws SQLException
 	{
-		super(tupleDesc);
+		m_tupleDesc = tupleDesc;
 		m_values = new Object[tupleDesc.size()];
+	}
+
+	public int findColumn(String columnName)
+	throws SQLException
+	{
+		return m_tupleDesc.getColumnIndex(columnName);
 	}
 
 	protected Object getObjectValue(int columnIndex)
@@ -75,5 +82,10 @@ public class SingleRowWriter extends SingleRowResultSet
 		Tuple tuple = this.getTupleDesc().formTuple(m_values);
 		Arrays.fill(m_values, null);
 		return tuple;
+	}
+
+	protected final TupleDesc getTupleDesc()
+	{
+		return m_tupleDesc;
 	}
 }

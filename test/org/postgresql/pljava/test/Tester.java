@@ -31,6 +31,7 @@ public class Tester
 	private static final int CMD_DATABASE  = 2;
 	private static final int CMD_HOSTNAME  = 3;
 	private static final int CMD_PORT      = 4;
+	private static final int CMD_DEBUG     = 5;
 	
 	private final Connection m_connection;
 
@@ -43,6 +44,7 @@ public class Tester
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
 		s_commands.add(CMD_PORT,      "port");
+		s_commands.add(CMD_DEBUG,     "debug");
 	}
 
 	private static final int getCommand(String arg)
@@ -71,6 +73,7 @@ public class Tester
 		out.println("    [ -database <database> ]    # default is postgres");
 		out.println("    [ -user <userName>     ]    # default is postgres");
 		out.println("    [ -password <password> ]    # default is no password");
+		out.println("    [ -debug ]    # wait for debugger to attach to backend");
 	}
 
 	public static void main(String[] argv)
@@ -82,6 +85,7 @@ public class Tester
 		String userName    = "postgres";
 		String subsystem   = "postgresql";
 		String password    = null;
+		boolean debug      = false;
 
 		int top = argv.length;
 		for(int idx = 0; idx < top; ++idx)
@@ -98,6 +102,10 @@ public class Tester
 				int optCmd = getCommand(arg.substring(1));
 				switch(optCmd)
 				{
+				case CMD_DEBUG:
+					debug = true;
+					break;
+
 				case CMD_USER:
 					if(++idx < top)
 					{
@@ -181,6 +189,12 @@ public class Tester
 					password);
 			
 			Tester t = new Tester(c);
+			if(debug)
+			{
+				System.out.println("Attach debugger to backend");
+				Thread.sleep(30000);
+				System.out.println("continuing");
+			}
 			t.testParameters();
 			t.testInsertUsernameTrigger();
 			t.testModdatetimeTrigger();

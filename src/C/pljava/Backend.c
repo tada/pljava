@@ -47,6 +47,10 @@ static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 static int callLevel = 0;
 
+#if !(PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+# define PGSQL_CUSTOM_VARIABLES 1
+#endif
+
 #ifdef PGSQL_CUSTOM_VARIABLES
 static char* vmoptions;
 static char* classpath;
@@ -671,6 +675,13 @@ static void initializeJavaVM()
 
 	isCallingJava = true;
 	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
+
+	if(jstat == JNI_OK && (*s_mainEnv)->ExceptionCheck(s_mainEnv))
+	{
+		(*s_mainEnv)->ExceptionDescribe(s_mainEnv);
+		(*s_mainEnv)->ExceptionClear(s_mainEnv);
+		jstat = JNI_ERR;
+	}
 	isCallingJava = false;
 
 	JVMOptList_delete(&optList);

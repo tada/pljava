@@ -215,6 +215,11 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.internal.HeapTupleHeader"
+			outputfile="src/C/include/pljava/type/HeapTupleHeader_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.internal.Portal"
 			outputfile="src/C/include/pljava/type/Portal_JNI.h"
 			/>
@@ -259,7 +264,7 @@
 			/>
 	</target>
 
-	<target name="initdb" depends="test">
+	<target name="initdb" depends="test_jar">
 		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failonerror="false">
 			<arg value="-D"/>
 			<arg value="${basedir}/bin/test/db"/>
@@ -279,7 +284,7 @@
 			<arg value="${basedir}/bin/test/postmaster.log"/>
 			<arg value="-w"/>
 			<arg value="-o"/>
-			<arg value="-c dynamic_library_path=${basedir}/bin/build/pljava"/>
+			<arg value="-c dynamic_library_path=${basedir}/bin/build/pljava -c log_min_messages=debug1 -c client_min_messages=debug1"/>
 			<env key="CLASSPATH" path="${basedir}/bin/pljava.jar"/>
 		</exec>
 		<sleep
@@ -303,7 +308,7 @@
 			<arg value="-database"/>
 			<arg value="testdb"/>
 		</java>
-		<!--sql
+		<sql
 			description="Loads the java samples into the database and establishes a class path"
 			driver="org.postgresql.Driver"
 			url="jdbc:postgresql://localhost/testdb"
@@ -321,7 +326,8 @@
 			<arg value="${user.name}"/>
 			<arg value="-database"/>
 			<arg value="testdb"/>
-		</java-->
+			<arg value="-debug"/>
+		</java>
 	</target>
 
 </project>

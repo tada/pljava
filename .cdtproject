@@ -27,7 +27,7 @@
 </target>
 <target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
-<buildTarget>all</buildTarget>
+<buildTarget>CFLAGS=-g all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>

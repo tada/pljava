@@ -20,20 +20,6 @@ import org.postgresql.pljava.internal.TupleDesc;
  */
 public abstract class SingleRowResultSet extends ObjectResultSet
 {
-	private final TupleDesc m_tupleDesc;
-
-	public SingleRowResultSet(TupleDesc tupleDesc)
-	throws SQLException
-	{
-		m_tupleDesc = tupleDesc;
-	}
-
-	public int findColumn(String columnName)
-	throws SQLException
-	{
-		return m_tupleDesc.getColumnIndex(columnName);
-	}
-
 	public int getConcurrency()
 	throws SQLException
 	{
@@ -302,10 +288,5 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 		// Simply drop the scale.
 		//
 		this.updateObject(columnIndex, x);
-	}
-
-	protected final TupleDesc getTupleDesc()
-	{
-		return m_tupleDesc;
 	}
 }

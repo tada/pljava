@@ -203,6 +203,8 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	const char* methodName;
 	char* cp;
 	char* className;
+	bool  saveIcj = isCallingJava;
+	bool  isNull = false;
 	HeapTuple nspTup;
 	Form_pg_namespace nspStruct;
 	jobject loader;
@@ -210,6 +212,10 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	jstring schemaName;
 	jobject loaded;
 	MemoryContext ctx;
+	const char* bp;
+	const char* ep;
+	const char* nameEp;
+	int32 len;
 
 	/* Obtain the tuple that corresponds to the function
 	 */
@@ -221,13 +227,16 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	 * signature.
 	 */
 	StringInfoData sign;
-	text* procSource = &procStruct->prosrc;
-	int32 len = VARSIZE(procSource) - VARHDRSZ;	/* Length of string */
-	const char* bp = VARDATA(procSource);		/* Points to start */
-	const char* ep = bp + len;					/* Points just after end */
-	const char* nameEp = ep;
+	Datum tmp = SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_prosrc, &isNull);
+	if(isNull)
+		ereport(ERROR, (
+			errcode(ERRCODE_SYNTAX_ERROR),
+			errmsg("'AS' clause of Java function cannot be NULL")));
 
-	bool saveIcj = isCallingJava;
+	bp     = DatumGetCString(DirectFunctionCall1(textout, tmp));
+	len    = strlen(bp);
+	ep     = bp + len;					/* Points just after end */
+	nameEp = ep;
 
 	/* Trim off leading and trailing whitespace.
 	 */
@@ -294,8 +303,11 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");
 	nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
-	schemaName = String_createJavaStringFromNTS(env, NameStr(nspStruct->nspname));
 
+	ip = NameStr(nspStruct->nspname);
+	schemaName = String_createJavaStringFromNTS(env, ip);
+
+	elog(DEBUG1, "Obtaining classloader for schema %s", ip);
 	isCallingJava = true;
 	loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
 	isCallingJava = saveIcj;
@@ -316,6 +328,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	jname  = String_createJavaStringFromNTS(env, className);
 
+	elog(DEBUG1, "Loading class %s", className);
 	isCallingJava = true;
 	loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
 	isCallingJava = saveIcj;
@@ -465,6 +478,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	 */
 	ReleaseSysCache(procTup);
 
+	elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
 	isCallingJava = true;
 	self->method = (*env)->GetStaticMethodID(
 						env, self->clazz, methodName, sign.data);
@@ -472,6 +486,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	if(self->method == 0)
 	{
+		elog(DEBUG1, "Method %s.%s %s not found", className, methodName, sign.data);
 		char* origSign = sign.data;
 		if(Type_isPrimitive(self->returnType))
 		{
@@ -486,6 +501,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			(*env)->ExceptionClear(env);
 			Function_buildSignature(self, &sign, objType);
 	
+			elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
 			isCallingJava = true;
 			self->method = (*env)->GetStaticMethodID(
 							env, self->clazz, methodName, sign.data);

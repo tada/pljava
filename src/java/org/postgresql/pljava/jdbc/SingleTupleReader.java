@@ -11,38 +11,35 @@ package org.postgresql.pljava.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.postgresql.pljava.internal.Tuple;
-import org.postgresql.pljava.internal.TupleDesc;
-import org.postgresql.pljava.internal.TupleTableSlot;
+import org.postgresql.pljava.internal.HeapTupleHeader;
 
 /**
  * A single row, read-only ResultSet, specially made for functions and
- * procedures that takes complex types as arguments.
+ * procedures that takes complex types as arguments (PostgreSQL 7.5
+ * and later).
  *
  * @author Thomas Hallgren
  */
-public class SingleRowReader extends SingleRowResultSet
+public class SingleTupleReader extends SingleRowResultSet
 {
-	private final TupleDesc m_tupleDesc;
-	private final Tuple m_tuple;
+	private final HeapTupleHeader m_tupleHeader;
 
-	public SingleRowReader(TupleTableSlot tableSlot)
+	public SingleTupleReader(HeapTupleHeader tupleHeader)
 	throws SQLException
 	{
-		m_tupleDesc = tableSlot.getTupleDesc();
-		m_tuple = tableSlot.getTuple();
+		m_tupleHeader = tupleHeader;
 	}
 
 	public int findColumn(String columnName)
 	throws SQLException
 	{
-		return m_tupleDesc.getColumnIndex(columnName);
+		return m_tupleHeader.getAttributeIndex(columnName);
 	}
 
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
-		return m_tuple.getObject(this.getTupleDesc(), columnIndex);
+		return m_tupleHeader.getObject(columnIndex);
 	}
 
 	/**
@@ -130,11 +127,6 @@ public class SingleRowReader extends SingleRowResultSet
 	throws SQLException
 	{
 		throw readOnlyException();
-	}
-
-	protected final TupleDesc getTupleDesc()
-	{
-		return m_tupleDesc;
 	}
 
 	private static SQLException readOnlyException()
