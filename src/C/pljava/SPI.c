@@ -215,6 +215,7 @@ void SPI_rollbackSavepoint(Savepoint* sp)
 		assertXid(sp->xid);
 		RollbackAndReleaseCurrentSubTransaction();
 	}
+	SPI_restore_connection();
 	pfree(sp);
 }
 #endif

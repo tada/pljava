@@ -11,6 +11,7 @@
 
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
 #include "pljava/type/ErrorData.h"
 
@@ -190,19 +191,24 @@ void Exception_throwSPI(JNIEnv* env, const char* function, int errCode)
 
 void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 {
+	jobject ed;
+	jobject ex;
+	ErrorData* errData;
 #if (PGSQL_MAJOR_VER >= 8)
-	ErrorData* errData = CopyErrorData();
+	MemoryContext_switchToUpperContext();
+	errData = CopyErrorData();
 #else
 	StringInfoData buf;
-	ErrorData* errData = (ErrorData*)palloc(sizeof(ErrorData));
+	MemoryContext_switchToUpperContext();
+	errData = (ErrorData*)palloc(sizeof(ErrorData));
 	initStringInfo(&buf);
 	appendStringInfoString(&buf, "Error when calling: ");
 	appendStringInfoString(&buf, funcName);
 	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
 	errData->message = buf.data;
 #endif
-	jobject ed = ErrorData_create(env, errData);
-	jobject ex = PgObject_newJavaObject(
+	ed = ErrorData_create(env, errData);
+	ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
 	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
 	currentCallContext->errorOccured = true;
