@@ -101,7 +101,7 @@ import java.util.zip.ZipOutputStream;
  * Finally, the <CODE>charset</CODE> parameter of the <CODE>text</CODE> type
  * allows explicit specification of the character encoding used in a jar entry,
  * and the extracting program can automatically convert into the encoding used
- * on the local system.
+ * on the local system. (But see <STRONG>Call to action</CODE> below.)
  *<H3>What JarX Does</H3>
  * <CODE>Content-Type</CODE> entries in a Manifest were introduced in Java 1.3
  * but are compatible with earlier jar specifications; a jar file containing
@@ -158,6 +158,16 @@ import java.util.zip.ZipOutputStream;
  * the slightly longer command<BR>
  * <CODE>java -classpath foo.jar org.gjt.cuspy.JarX foo.jar</CODE><BR>
  * is required.
+ *<H3>Call to action</H3>
+ * At the moment, Sun's Jar File Specification contains a mistake in the
+ * description of a content type that could lead to implementations
+ * that reject valid content types.  Squash this bug before it bites:
+ * log on to the
+ *<A HREF="http://developer.java.sun.com/developer/">Java Developer
+ * Connection</A> (it's free) and cast one, two, or all three of your Bug Votes
+ * for
+ *<A HREF="http://developer.java.sun.com/developer/bugParade/bugs/4310708.html">
+ *Bug #4310708</A>.
  *<H3>Miscellany</H3>
  * This class is a little sloppy and relatively slow, especially the Build side
  * when converting plain text files.  The idea for JarX is a natural outgrowth
