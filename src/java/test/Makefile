@@ -1,7 +1,10 @@
 #-------------------------------------------------------------------------
+# Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT
+# found in the root folder of this project or at
+# http://eng.tada.se/osprojects/COPYRIGHT.html
 #
-# Makefile for the tests of PL/Java
-#
+# @author Thomas Hallgren
 #-------------------------------------------------------------------------
 NAME 			:= test
 JAVADOCTITLE	:= 'PL/Java test API Specification'

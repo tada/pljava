@@ -1,6 +1,8 @@
 /*
- * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT.
+ * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT
+ * found in the root folder of this project or at
+ * http://eng.tada.se/osprojects/COPYRIGHT.html
  */
 package org.postgresql.pljava;
 
@@ -8,6 +10,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
+ * The SQL 2003 spec. does not stipulate a standard way of mapping
+ * triggers to functions. The PLJava mapping use this interface. All
+ * functions that are intended to be triggers must be public, static,
+ * return void, and take a <code>TriggerData</code> as their argument.
+ * 
  * @author Thomas Hallgren
  */
 public interface TriggerData

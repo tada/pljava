@@ -1,6 +1,8 @@
 /*
- * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT.
+ * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT
+ * found in the root folder of this project or at
+ * http://eng.tada.se/osprojects/COPYRIGHT.html
  */
 package org.postgresql.pljava;
 
@@ -9,7 +11,9 @@ import java.sql.SQLException;
 
 /**
  * An implementation of this interface is returned from functions and procedures
- * that are declared to return <code>SET OF</code> a type.
+ * that are declared to return <code>SET OF</code> a complex type. Functions that
+ * return <code>SET OF</code> a simple type should simply return an
+ * {@link java.util.Iterator Iterator}.
  * @author Thomas Hallgren
  */
 public interface ResultSetProvider

@@ -1,6 +1,8 @@
 #-------------------------------------------------------------------------
-# Copyright (c) 2003, 2004 TADA AB - Taby Sweden
-# Distributed under the terms shown in the file COPYRIGHT.
+# Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT
+# found in the root folder of this project or at
+# http://eng.tada.se/osprojects/COPYRIGHT.html
 #
 # @author Thomas Hallgren
 #
@@ -43,7 +45,7 @@ export JNIDIR			:= $(TARGETDIR)/jni
 export CLASSDIR			:= $(TARGETDIR)/classes
 export PLJAVA_MAJOR_VER	:= 1
 export PLJAVA_MINOR_VER	:= 0
-export PLJAVA_PATCH_VER	:= 0b6
+export PLJAVA_PATCH_VER	:= 0
 export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER).$(PLJAVA_PATCH_VER)
 export TAR				:= /bin/tar
 

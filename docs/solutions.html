@@ -49,17 +49,18 @@ protection against multiple threads in the backend code.</p>
   exception. This prevents a stray thread from the JVM to enter the backend at a
   time when it&#8217;s not expecting it.</li>
 </ol>
-<p>The analogy would be to see the JVM as a monster with multiple swords. The
+<p>The analogy would be to see the JVM as a monster swinging multiple swords at 
+the backend. The
 backend can cope as long as the monster swings one sword at a time. The
 synchronization mechanism ensures this. The backend needs to turn its back to
-the monster and do other things every now and then such as attending to client
-requests. The control flag ensures that the monster doesn&#8217;t stab the backend
+the monster and do other things such as attending to client
+requests every now and then. The control flag ensures that the monster doesn&#8217;t stab the backend
 from behind.</p>
 <h2>Exception handling</h2>
 <h3>Problem</h3>
 <p>Java makes frequent use of try/catch/finally blocks. PostgreSQL sometimes use
 an exception mechanism that calls longjmp to transfer control to a known state.
-Such a jump will effectively bypass the JVM. Prior to PostgreSQL version 8.0,
+Such a jump would normally effectively bypass the JVM. Prior to PostgreSQL version 8.0,
 the error was propagated before the actual jump and then discarded, thus there
 was no way to catch and handle the error.</p>
 <h3>Solution</h3>
@@ -81,13 +82,14 @@ examined using the <font face="Courier New" size="2">ErrorData</font> structure.
 PLJava implements a <font face="Courier New" size="2">java.sql.SQLException</font>
 subclass called <font face="Courier New" size="2">
 org.postgresql.pljava.ServerException</font>. The ErrorData can be retrieved and
-examined from that exception.</p>
-<h2>Java Garbage Collector versus palloc()</h2>
+examined from that exception. A catch handler is allowed to issue a rollback to 
+a savepoint. After a succesful rollback, execution can continue.</p>
+<h2>Java Garbage Collector versus palloc() and stack allocation.</h2>
 <h3>Problem</h3>
 <p>Primitive types will be passed by value always. This includes the String type
 (this is a must since Java uses double byte characters). Complex types are
 however often wrapped in Java objects and passed by reference. I.e, a Java
-object will contain a pointer to a palloc&#8217;ed memory and use native JNI calls to
+object will contain a pointer to a palloc&#8217;ed or stack allocated memory and use native JNI calls to
 extract and manipulate data. Such data will become &#8220;stale&#8221; once a call has
 ended. Further attempts to access such data will at best give very unpredictable
 results but more likely cause a memory fault and a crash.</p>
