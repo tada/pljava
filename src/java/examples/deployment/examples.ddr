@@ -175,7 +175,7 @@ SQLActions[ ] = {
 			IMMUTABLE LANGUAGE java;
 
 		CREATE FUNCTION javatest.listSupers()
-			RETURNS SETOF varcha
+			RETURNS SETOF varchar
 			AS 'org.postgresql.pljava.example.Users.listSupers'
 			LANGUAGE java;
 
