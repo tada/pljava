@@ -140,7 +140,7 @@ static uint32 _OpaqueKey_hashCode(HashKey self)
 	{
 		Ptr2Long p2l;
 		p2l.ptrVal = ((OpaqueKey)self)->key;
-		key = p2l.intVal_1 ^ p2l.intVal_2;
+		key = p2l.x64.intVal_1 ^ p2l.x64.intVal_2;
 	}
 	return key;
 }

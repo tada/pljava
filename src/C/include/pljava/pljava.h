@@ -82,7 +82,7 @@ typedef union
 		 */
 		uint32 intVal_1;
 		uint32 intVal_2;
-	};
+	} x64;
 } Ptr2Long;
 
 #ifdef __cplusplus
