@@ -96,14 +96,38 @@ public class Backend
 
 	private static class PLJavaSecurityManager extends SecurityManager
 	{
+		private boolean m_recursion = false;
+
 		public void checkPermission(Permission perm)
 		{
-			this.assertPermission(perm);
+			this.nonRecursiveCheck(perm);
 		}
 
 		public void checkPermission(Permission perm, Object context)
 		{
-			this.assertPermission(perm);
+			this.nonRecursiveCheck(perm);
+		}
+
+		private synchronized void nonRecursiveCheck(Permission perm)
+		{
+			if(m_recursion)
+				//
+				// Something, probably a ClassLoader loading one of
+				// the referenced classes, caused a recursion. Well
+				// everything done within this method is permitted
+				// so we just return here.
+				//
+				return;
+
+			m_recursion = true;
+			try
+			{
+				this.assertPermission(perm);
+			}
+			finally
+			{
+				m_recursion = false;
+			}
 		}
 
 		void assertPermission(Permission perm)
