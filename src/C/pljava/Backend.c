@@ -16,6 +16,10 @@
 #include <fmgr.h>
 #include <access/heapam.h>
 #include <utils/syscache.h>
+#include <catalog/catalog.h>
+#if (PGSQL_MAJOR_VER < 8)
+#	include <catalog/pg_control.h>
+#endif
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
 #include <storage/ipc.h>
@@ -38,7 +42,6 @@
 #include "pljava/TypeMap.h"
 #include "pljava/type/NativeStruct.h"
 #include "pljava/type/String.h"
-
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR
 #error "PKGLIBDIR needs to be defined to compile this file."
@@ -187,6 +190,7 @@ static void setJavaSecurity(JNIEnv* env, bool trusted)
 #endif
 }
 
+bool integerDateTimes = false;
 CallContext* currentCallContext;
 
 void Backend_pushCallContext(CallContext* ctx, bool trusted)
@@ -651,6 +655,43 @@ static void initJavaSession(JNIEnv* env)
 	}
 }
 
+static void checkIntTimeType(void)
+{
+#if (PGSQL_MAJOR_VER >= 8)
+	const char* idt = GetConfigOption("integer_datetimes");
+	integerDateTimes = (strcmp(idt, "on") == 0);
+#else	
+	ControlFileData data;
+	int   fd;
+	char  controlFilePath[MAXPGPATH];
+	char* globalTableSpace = GetDatabasePath((Oid)0);
+
+	snprintf(controlFilePath, MAXPGPATH, "%s/pg_control", globalTableSpace);
+	pfree(globalTableSpace);
+
+	if((fd = open(controlFilePath, O_RDONLY)) == -1)
+	{
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("could not open file \"%s\" for reading: %s\n",
+				controlFilePath, strerror(errno))));
+	}
+
+	if(read(fd, &data, sizeof(ControlFileData)) != sizeof(ControlFileData))
+	{
+		int errCode = errno;
+		close(fd);
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("could not read file \"%s\": %s\n",
+				controlFilePath, strerror(errCode))));
+	}
+	close(fd);
+	integerDateTimes = data.enableIntTimes;
+#endif
+	elog(DEBUG1, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
+}
+
 static void initializeJavaVM(void)
 {
 #if !defined(WIN32) && !defined(CYGWIN)
@@ -665,6 +706,7 @@ static void initializeJavaVM(void)
 
 	JVMOptList_init(&optList);
 
+	checkIntTimeType();
 	DirectFunctionCall1(HashMap_initialize, 0);
 
 #ifdef PGSQL_CUSTOM_VARIABLES
