@@ -10,7 +10,9 @@
 #include <utils/date.h>
 #include <utils/datetime.h>
 
+#include "pljava/Backend.h"
 #include "pljava/type/Type_priv.h"
+#include "pljava/type/Time.h"
 #include "pljava/type/Timestamp.h"
 
 /*
@@ -27,46 +29,61 @@ static TypeClass s_TimeClass;
 static Type s_Timetz;
 static TypeClass s_TimetzClass;
 
-static jvalue Time_coerceDatumTZ(Type self, JNIEnv* env, TimeADT t, bool tzAdjust)
+static jvalue Time_coerceDatumTZ_dd(Type self, JNIEnv* env, double t, bool tzAdjust)
 {
 	jlong mSecs;
 	jvalue result;
-#ifdef HAVE_INT64_TIMESTAMP
-	mSecs = t / 1000;			/* Convert to millisecs */
-	if(tzAdjust)
-		mSecs += Timestamp_getCurrentTimeZone() * 1000;/* Adjust from local time to UTC */
-#else
 	if(tzAdjust)
 		t += Timestamp_getCurrentTimeZone();/* Adjust from local time to UTC */
 	t *= 1000.0;						/* Convert to millisecs */
 	mSecs = (jlong)floor(t);
-#endif
 	result.l = PgObject_newJavaObject(env, s_Time_class, s_Time_init, mSecs);
 	return result;
 }
 
-static TimeADT Time_coerceObjectTZ(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
+static jvalue Time_coerceDatumTZ_id(Type self, JNIEnv* env, int64 t, bool tzAdjust)
+{
+	jvalue result;
+	jlong mSecs = t / 1000;			/* Convert to millisecs */
+	if(tzAdjust)
+		mSecs += Timestamp_getCurrentTimeZone() * 1000;/* Adjust from local time to UTC */
+	result.l = PgObject_newJavaObject(env, s_Time_class, s_Time_init, mSecs);
+	return result;
+}
+
+static jlong Time_getMillisecsToday(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
 {
 	jlong mSecs = (*env)->CallLongMethod(env, jt, s_Time_getTime);
 	if(tzAdjust)
 		mSecs -= ((jlong)Timestamp_getCurrentTimeZone()) * 1000L; /* Adjust from UTC to local time */
 	mSecs %= 86400000; /* Strip everything above 24 hours */
+	return mSecs;
+}
 
-#ifdef HAVE_INT64_TIMESTAMP
-	return mSecs * 1000L; /* Convert millisecs to microsecs */
-#else
+static TimeADT Time_coerceObjectTZ_dd(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
+{
+	jlong mSecs = Time_getMillisecsToday(self, env, jt, tzAdjust);
 	return ((double)mSecs) / 1000.0; /* Convert to seconds */
-#endif
+}
+
+static TimeADT Time_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
+{
+	jlong mSecs = Time_getMillisecsToday(self, env, jt, tzAdjust);
+	return mSecs * 1000L; /* Convert millisecs to microsecs */
 }
 
 static jvalue _Time_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
-	return Time_coerceDatumTZ(self, env, DatumGetTimeADT(arg), true);
+	return integerDateTimes
+		? Time_coerceDatumTZ_id(self, env, DatumGetInt64(arg), true)
+		: Time_coerceDatumTZ_dd(self, env, DatumGetFloat8(arg), true);
 }
 
 static Datum _Time_coerceObject(Type self, JNIEnv* env, jobject time)
 {
-	return TimeADTGetDatum(Time_coerceObjectTZ(self, env, time, true));
+	return integerDateTimes
+		? Int64GetDatum(Time_coerceObjectTZ_id(self, env, time, true))
+		: Float8GetDatum(Time_coerceObjectTZ_dd(self, env, time, true));
 }
 
 static Type Time_obtain(Oid typeId)
@@ -81,18 +98,42 @@ static Type Time_obtain(Oid typeId)
  */
 static jvalue _Timetz_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
-	TimeTzADT* tza = DatumGetTimeTzADTP(arg);
-	TimeADT t = tza->time + tza->zone; /* Convert to UTC */
-	return Time_coerceDatumTZ(self, env, t, false);
+	jvalue val;
+	if(integerDateTimes)
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)DatumGetPointer(arg);
+		int64 t = tza->time + (int64)tza->zone * 1000000; /* Convert to UTC */
+		val = Time_coerceDatumTZ_id(self, env, t, false);
+	}
+	else
+	{
+		TimeTzADT_dd* tza = (TimeTzADT_dd*)DatumGetPointer(arg);
+		double t = tza->time + tza->zone; /* Convert to UTC */
+		val = Time_coerceDatumTZ_dd(self, env, t, false);
+	}
+	return val;
 }
 
 static Datum _Timetz_coerceObject(Type self, JNIEnv* env, jobject time)
 {
-	TimeTzADT* tza = (TimeTzADT*)palloc(sizeof(TimeTzADT));
-	tza->time = Time_coerceObjectTZ(self, env, time, false);
-	tza->zone = Timestamp_getCurrentTimeZone();
-	tza->time -= tza->zone; /* Convert UTC to local time */
-	return TimeTzADTPGetDatum(tza);
+	Datum datum;
+	if(integerDateTimes)
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)palloc(sizeof(TimeTzADT_id));
+		tza->time = Time_coerceObjectTZ_id(self, env, time, false);
+		tza->zone = Timestamp_getCurrentTimeZone();
+		tza->time -= (int64)tza->zone * 1000000; /* Convert UTC to local time */
+		datum = PointerGetDatum(tza);
+	}
+	else
+	{
+		TimeTzADT_dd* tza = (TimeTzADT_dd*)palloc(sizeof(TimeTzADT_dd));
+		tza->time = Time_coerceObjectTZ_dd(self, env, time, false);
+		tza->zone = Timestamp_getCurrentTimeZone();
+		tza->time -= tza->zone; /* Convert UTC to local time */
+		datum = PointerGetDatum(tza);
+	}
+	return datum;
 }
 
 static Type Timetz_obtain(Oid typeId)
