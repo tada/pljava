@@ -31,7 +31,7 @@ static jvalue Time_coerceDatumTZ(Type self, JNIEnv* env, TimeADT t, bool tzAdjus
 {
 	jlong mSecs;
 	jvalue result;
-#ifdef HAVE_INT64_Time
+#ifdef HAVE_INT64_TIMESTAMP
 	mSecs = t / 1000;			/* Convert to millisecs */
 	if(tzAdjust)
 		mSecs += Timestamp_getCurrentTimeZone() * 1000;/* Adjust from local time to UTC */
@@ -52,7 +52,7 @@ static TimeADT Time_coerceObjectTZ(Type self, JNIEnv* env, jobject jt, bool tzAd
 		mSecs -= ((jlong)Timestamp_getCurrentTimeZone()) * 1000L; /* Adjust from UTC to local time */
 	mSecs %= 86400000; /* Strip everything above 24 hours */
 
-#ifdef HAVE_INT64_Time
+#ifdef HAVE_INT64_TIMESTAMP
 	return mSecs * 1000L; /* Convert millisecs to microsecs */
 #else
 	return ((double)mSecs) / 1000.0; /* Convert to seconds */
