@@ -19,11 +19,7 @@ ifeq ($(PORTNAME), cygwin)
 # Portname will not suffice. The Win32 JDK have no knowledge of cygwin
 # GNU compiler doesn't know __int64, instead it uses long long.
 #
-ifeq ($(JAVA_HOME),)
-	override CPPFLAGS := -DGCJ $(CPPFLAGS)
-else
-	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32 $(CPPFLAGS)
-endif
+override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32 $(CPPFLAGS)
 override CPPFLAGS := -DCYGWIN -D__int64='long long' $(CPPFLAGS)
 
 else
@@ -40,7 +36,11 @@ endif
 
 ifneq ($(JAVA_HOME),)
 	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
+	override LDFLAGS := -L$(JAVA_HOME)/jre/lib/$(jre_cpu)/client -ljvm $(LDFLAGS)
+else
+	override CPPFLAGS := -DGCJ=1 $(CPPFLAGS)
+	override LDFLAGS := -g -lgcj -lz $(LDFLAGS)
 endif
-override LDFLAGS := -shared -L$(JAVA_HOME)/jre/lib/$(jre_cpu)/client -ljvm $(LDFLAGS)
-override CFLAGS := -fpic $(CFLAGS)
+override LDFLAGS := -shared $(LDFLAGS)
+override CFLAGS := -g -fpic $(CFLAGS)
 endif

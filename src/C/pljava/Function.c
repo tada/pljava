@@ -286,16 +286,11 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	 */
 	className = (char*)alloca(len + 1); /* One of the null terminators will replace a dot. */
 
-	/* Copy class name. Replace '.' with '/'.
+	/* Copy class name
 	 */
 	cp = className;
 	while(bp < ip)
-	{
-		char c = *bp++;
-		if(c == '.')
-			c = '/';
-		*cp++ = c;
-	}
+		*cp++ = *bp++;
 	*cp++ = 0;
 
 	nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");

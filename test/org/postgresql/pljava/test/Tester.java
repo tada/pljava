@@ -196,7 +196,11 @@ public class Tester
 	}
 
 	public Tester(Connection conn)
+	throws SQLException
 	{
+		Statement stmt = conn.createStatement();
+		stmt.execute("SET search_path TO javatest,public");
+		stmt.close();
 		m_connection = conn;
 	}
 
