@@ -35,12 +35,12 @@
 					<value>all</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
-					<value>false</value>
-				</dictionary>
-				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildLocation</key>
 					<value></value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
+					<value>false</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableFullBuild</key>

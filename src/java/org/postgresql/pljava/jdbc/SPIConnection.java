@@ -370,7 +370,8 @@ public class SPIConnection implements Connection
 				if(inQuote == 0)
 				{
 					buf.append('$');
-					c = (char)('0' + paramIndex++);
+					buf.append(paramIndex++);
+					continue;
 				}
 				break;
 			
