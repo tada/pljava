@@ -107,6 +107,7 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 	if(cls == 0)
 	{
 		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
 		ereport(ERROR, (
 			errmsg("Unable to load class %s using CLASSPATH '%s'",
 				className, effectiveClassPath)));
@@ -135,6 +136,7 @@ void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods
 	if((*env)->RegisterNatives(env, cls, methods, nMethods) != 0)
 	{
 		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
 		ereport(ERROR, (
 			errmsg("Unable to register native methods")));
 	}
