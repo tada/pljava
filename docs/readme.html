@@ -14,7 +14,7 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PLJava, 1.0.0</h1>
+<h1>PLJava, 1.0.1</h1>
 <p>A source tarball and a variety of binaries can be found in the download area.
 Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for older
 PostgreSQL versions). On Linux PLJava also comes in a GNU Java (GCJ) flavor where
@@ -89,7 +89,12 @@ JRE and relink your PostgreSQL executables with that version.</li>
 <h2>Deploying the PLJava</h2>
 <p>PLJava adds a schema named SQLJ to the database (the naming is from the proposed
 SQL standard for Java backend mapping) and adds a couple of tables and functions
-to that schema. A deploy program exists that should be used for this purpose. In
+to that schema. The deployment can be done in one of two ways. The simplest way 
+is probably to just execute the file <code>install.sql</code> as a super user (the 
+<code>uninstall.sql</code> will remove the pljava installation). PLJava also comes with 
+deploy program that lets you install, reinstall, or uninstall PLJava. This 
+program will assert that you indeed are a super user and then execute the 
+correct commands using jdbc. In
 order to run this program, you must see to that the PostgreSQL jdbc driver package
 <code>postgresql.jar</code> and the <code>deploy.jar</code> file is in your
 <code>CLASSPATH</code>, then run:</p>
@@ -97,9 +102,9 @@ order to run this program, you must see to that the PostgreSQL jdbc driver packa
 This will result in a list of options. Typically you would use something like:
 <pre>java org.postgresql.pljava.deploy.Deployer -install</pre>
 <p>That&#39;s all there&#39;s to it. You are now ready to start using the PLJava system.
-If the server runs on a Cygwin system you will need to add the option <code>-windows</code>.
+If the server runs on a Cygwin system you will need to add the option <code>-cygwin</code>.
 The reason for this is that PostgreSQL and Java dynamic loading uses different naming
-on Windows.</p>
+on a Cygwin based platform.</p>
 <h2>Run the example tests</h2>
 <p>The tests are divided into two jar files. One is the client part found in the <code>test.jar</code>. It contains some methods that executes
 SQL statements and prints the output (all contained there can of course also be
@@ -108,7 +113,9 @@ which contains the sample code that runs in the backend. The latter must be inst
 in the database in order to function. An easy way to do this is to use psql and
 issue the command:</p>
 <pre>SELECT sqlj.install_jar(&#39;file:///some/directory/example.jar&#39;, &#39;samples&#39;,  true);</pre>
-<p>If this command succeeds, everything is working correctly. You may get a couple
+<p>Please note that the deployment descriptor stored in example.jar will attempt 
+to create the schema <code>javatest</code> so the user that executes the <code>sqlj.install_jar</code> 
+must have permission to do that. If this command succeeds, everything is working correctly. You may get a couple
 of errors here though.</p>
 <ul>
   <li>A complaint that the class <code>org.postgresql.pljava.</code>&lt;something&gt;
@@ -128,7 +135,8 @@ psql and issue the command:</p>
 <p>The first argument is the name of the schema, the second is a colon separated
 list of jar names. The names must reflect jars that are installed in the system.</p>
 <p>NOTE: If you don't use schemas, you must still issue the set_classpath
-command to assign a correct classpath to the 'public' schema.</p>
+command to assign a correct classpath to the 'public' schema. This can only be 
+done by a super user.</p>
 <p>&nbsp;</p>
 <p>Now, you should be able to run the tests:</p>
 <pre>java org.postgresql.pljava.test.Tester</pre>

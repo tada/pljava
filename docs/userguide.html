@@ -82,7 +82,7 @@ you so that you don&#39;t have to do this over and over again.</p>
     <td>Port number. Default is blank.</td>
   </tr>
   <tr>
-    <td width="160">-windows</td>
+    <td width="160">-cygwin</td>
     <td>Use this option if the host runs on a Cygwin based windows platform. 
     Affects the name used for the PLJava dynamic library.<p>NOTE This option should 
     not be used when running native the Win32 port.</p>
@@ -562,15 +562,13 @@ arbitrary users to add new Java functionality to the database.</p>
 <h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the 
 deployment descriptor</a></i></h3>
 <p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, optionally executes commands 
-found in a SQL deployment descriptor. These commands are executed with the 
-permissions of the caller rather than the permission of the creator of those functions.</p>
+found in a SQL deployment descriptor. Such commands are executed with the 
+permissions of the caller. In other words, although the utility function is 
+declared with <code>SECURITY DEFINER</code>, it switches back to the session user during 
+execution of the deployment descriptor commands.</p>
 <h3><i><a name="Classpath_manipulation">Classpath manipulation</a></i></h3>
 <p>The function <code>set_classpath</code> requires the caller of the function has been 
-granted CREATE permission on the affected schema.</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-
+granted <code>CREATE</code> permission on the affected schema.</p>
 </body>
 
 </html>
