@@ -65,18 +65,21 @@ public class Oid
 		Class c = (Class)s_typeId2class.get(this);
 		if(c == null)
 		{
+			String className;
 			synchronized(Backend.THREADLOCK)
 			{
-				try
-				{
-					c = Class.forName(this._getJavaClassName());
-				}
-				catch(ClassNotFoundException e)
-				{
-					throw new SQLException(e.getMessage());
-				}
-				s_typeId2class.put(this, c);
+				className = this._getJavaClassName();
 			}
+			try
+			{
+				c = Class.forName(className);
+			}
+			catch(ClassNotFoundException e)
+			{
+				throw new SQLException(e.getMessage());
+			}
+			s_typeId2class.put(this, c);
+			s_class2typeId.put(c, this);
 		}
 		return c;
 	}
