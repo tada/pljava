@@ -34,7 +34,8 @@ MACHINE := $(shell uname -m)
 	c_all c_install c_uninstall c_depend \
 	pljava_all pljava_javadoc \
 	deploy_all deploy_javadoc \
-	examples_all examples_javadoc
+	examples_all examples_javadoc \
+	test_all test_javadoc
 
 all: pljava_all deploy_all c_all examples_all
 
@@ -70,6 +71,11 @@ deploy_all deploy_javadoc: deploy_%:
 examples_all: examples_%: pljava_all
 	@-mkdir -p $(CLASSDIR)/examples
 	@$(MAKE) -r -C $(CLASSDIR)/examples -f $(PROJDIR)/src/java/examples/Makefile \
+	MODULEROOT=$(PROJDIR)/src/java $*
+
+test_all: test_%:
+	@-mkdir -p $(CLASSDIR)/test
+	@$(MAKE) -r -C $(CLASSDIR)/test -f $(PROJDIR)/src/java/test/Makefile \
 	MODULEROOT=$(PROJDIR)/src/java $*
 
 c_all c_install c_uninstall c_depend: c_%:
