@@ -3,7 +3,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
 <title>PLJava User Guide</title>
-    <style>
+<style>
 <!--
 h2           { font-size: 18pt }
 h3           { font-size: 14pt; margin-top: 12; margin-bottom: 3 }
@@ -18,22 +18,25 @@ pre          { margin-top: 6; margin-left: 15 }
 
 <h1>PLJava 1.0 User Guide</h1>
 <h2>Table of contents</h2>
-<p><a href="#Utilities">Utilities</a><br>&nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>&nbsp;<a href="#SQLJ_functions_">SQLJ functions</a><br>&nbsp;&nbsp;&nbsp; 
-<a href="#install_jar_">install_jar</a><br/>&nbsp;&nbsp;&nbsp; 
-<a href="#replace_jar_">replace_jar</a><br/>&nbsp;&nbsp;&nbsp; 
-<a href="#remove_jar_">remove_jar</a><br/>&nbsp;&nbsp;&nbsp; 
-<a href="#get_classpath_">get_classpath</a><br/>&nbsp;&nbsp;&nbsp; 
-<a href="#set_classpath_">set_classpath</a><br>
-<a href="#Writing_Java_functions_">Writing Java functions</a><br>&nbsp;&nbsp;&nbsp; 
-<a href="#Type_mapping_">Type mapping</a><br>&nbsp;&nbsp;&nbsp; 
-<a href="#Returning_complex_types_">Returning complex types</a><br>&nbsp;&nbsp;&nbsp; 
-<a href="#Functions_returning_sets_">Functions returning sets</a><br>&nbsp;&nbsp;&nbsp; 
-<a href="#Using_JDBC_">Using JDBC</a><br>&nbsp;&nbsp;&nbsp; <a href="#Logging_">Logging</a><br>
+<p><a href="#Utilities">Utilities</a><br>
+&nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>
+&nbsp;<a href="#SQLJ_functions_">SQLJ functions</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#install_jar_">install_jar</a><br />
+&nbsp;&nbsp;&nbsp; <a href="#replace_jar_">replace_jar</a><br />
+&nbsp;&nbsp;&nbsp; <a href="#remove_jar_">remove_jar</a><br />
+&nbsp;&nbsp;&nbsp; <a href="#get_classpath_">get_classpath</a><br />
+&nbsp;&nbsp;&nbsp; <a href="#set_classpath_">set_classpath</a><br>
+<a href="#Writing_Java_functions_">Writing Java functions</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Type_mapping_">Type mapping</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Returning_complex_types_">Returning complex types</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Functions_returning_sets_">Functions returning sets</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Using_JDBC_">Using JDBC</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Logging_">Logging</a><br>
 <a href="#Security">Security</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Installation">Installation</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Execution_of_the_deployment_descriptor">
-Execution_of_the_deployment_descriptor</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Classpath_manipulation">Classpath_manipulation</a></p>
+&nbsp;&nbsp;&nbsp; <a href="#Trusted_language">Trusted language</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Execution_of_the_deployment_descriptor">Execution of the deployment descriptor</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Classpath_manipulation">Classpath manipulation</a></p>
 <h2><a name="Utilities">Utilities</a></h2>
 <h3><i><a name="Deployer">Deployer</a></i></h3>
 <p>When running the <code>deployer</code>, you must use a classpath that can see 
@@ -48,13 +51,13 @@ you so that you don&#39;t have to do this over and over again.</p>
 <table border="0" id="table1" style="margin-left: 8">
   <tr>
     <td width="160">-install</td>
-    <td>Installs the Java language along with the sqlj procedures. The 
-    deployer will fail if the language is installed already.</td>
+    <td>Installs the Java language along with the sqlj procedures. The deployer 
+    will fail if the language is installed already.</td>
   </tr>
   <tr>
     <td width="160">-reinstall</td>
-    <td>Reinstalls the Java language and the sqlj procedures. This will 
-    effectively drop all jar files that have been loaded.</td>
+    <td>Reinstalls the Java language and the sqlj procedures. This will effectively 
+    drop all jar files that have been loaded.</td>
   </tr>
   <tr>
     <td width="160">-remove</td>
@@ -66,8 +69,7 @@ you so that you don&#39;t have to do this over and over again.</p>
   </tr>
   <tr>
     <td width="160">-password &lt;password&gt;</td>
-    <td>Password of user that connects to the database. Default is no 
-    password.</td>
+    <td>Password of user that connects to the database. Default is no password.</td>
   </tr>
   <tr>
     <td width="160">-database &lt;database&gt;</td>
@@ -83,17 +85,17 @@ you so that you don&#39;t have to do this over and over again.</p>
   </tr>
   <tr>
     <td width="160">-cygwin</td>
-    <td>Use this option if the host runs on a Cygwin based windows platform. 
-    Affects the name used for the PLJava dynamic library.<p>NOTE This option should 
-    not be used when running native the Win32 port.</p>
+    <td>Use this option if the host runs on a Cygwin based windows platform. Affects 
+    the name used for the PLJava dynamic library.<p>NOTE This option should not 
+    be used when running native the Win32 port.</p>
     </td>
   </tr>
 </table>
 <h2><a name="SQLJ_functions_">SQLJ functions</a></h2>
 <h3><i><a name="Deployment_descriptor_">Deployment descriptor</a></i></h3>
-<p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>
-can act on a deployment descriptor allowing SQL commands to be executed after 
-the jar has been installed or prior to removal. The format of the deployment descriptor 
+<p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code> 
+can act on a deployment descriptor allowing SQL commands to be executed after the 
+jar has been installed or prior to removal. The format of the deployment descriptor 
 is stipulated by ISO/IEC 9075-13:2003.</p>
 <p>The descriptor is added as a normal text file to your jar file. In the Manifest 
 of the jar there must be an entry that appoints the file as the SQLJ deployment 
@@ -401,10 +403,10 @@ row at a time. Incidentally, that&#39;s exactly what the PostgreSQL backend expe
 a function with SETOF return to do. You can return a SETOF a scalar type such as 
 an int, float or varchar, or you can return a SETOF a complex type.</p>
 <p>&nbsp;</p>
-<h5>Returning a SETOF &lt;scalar type&gt;</h5>
+<h4>Returning a SETOF &lt;scalar type&gt;</h4>
 <p>In order to return a set of a scalar type, you need create a Java method that 
 returns something that implements the <code>java.util.Iterator</code> interface. 
-Here's an example of a method that returns a SETOF varchar:</p>
+Here&#39;s an example of a method that returns a SETOF varchar:</p>
 <pre>CREATE FUNCTION javatest.getSystemProperties()
   RETURNS SETOF varchar
   AS &#39;foo.fee.Bar.getNames&#39;
@@ -425,22 +427,25 @@ public class Bar
         return names.iterator();
     }
 }</pre>
-<h5>Returning a SETOF &lt;complex type&gt;</h5>
-<p>A method returning a SETOF &lt;complex type&gt; must use the interface <code>org.postgresql.pljava.ResultSetProvider</code>. It contains one method that takes a <code>java.sql.ResultSet</code> 
-and an <code>int </code>as its parameters. The ResultSet works the same way as for function returning 
-complex types, the int reflects the row count.</p>
-<p>You can use this interface the following way (here I let the Fum class itself 
-implement the interface, it could be another class of course).</p>
+<h4>Returning a SETOF &lt;complex type&gt;</h4>
+<p>A method returning a SETOF &lt;complex type&gt; must use either the interface <code>org.postgresql.pljava.ResultSetProvider 
+or org.postgresql.pljava.ResultSetHandle</code>. 
+The reason for having two interfaces is that they cater for optimal 
+handling of two distinct use cases. The former is great when you want to 
+dynamically create each row that is to be returned from the SETOF function. The 
+latter makes sense when you want to return the result of an executed query.</p>
+<h4>Using the ResultSetProvider interface</h4>
+<p>This interface has two methods. The <code>boolean assignRowValues(java.sql.ResultSet tupleBuilder, int rowNumber)</code>
+and the <code>void close()</code> method. The PostgreSQL query evaluator will call the <code>assignRowValues</code> repeatedly
+until it returns <code>false</code> or until the evaluator decides that it does not need any more rows. It will then call
+<code>close</code>.</p>
+<p>You can use this interface the following way:</p>
 <pre>CREATE FUNCTION javatest.listComplexTests(int, int)
   RETURNS SETOF complexTest
   AS &#39;foo.fee.Fum.listComplexTest&#39;
   IMMUTABLE LANGUAGE java;</pre>
-<p>Now we need a static java method that returns an instance that implements the 
-ResultSetProvider interface.</p>
-<pre>package foo.fee;
-import org.postgresql.pljava.ResultSetProvider;
-
-public class Fum implements ResultSetProvider
+<p>The function maps to a static java method that returns an instance that implements the ResultSetProvider interface.</p>
+<pre>public class Fum implements ResultSetProvider
 {
   private final int m_base;
   private final int m_increment;
@@ -461,16 +466,76 @@ public class Fum implements ResultSetProvider
     receiver.updateTimestamp(3, new Timestamp(System.currentTimeMillis()));
     return true;
   }
+  public void close()
+  {
+  	// Nothing needed in this example
+  }
   public static ResultSetProvider listComplexTests(int base, int increment)
   throws SQLException
   {
     return new Fum(base, increment);
   }
 }</pre>
-<p>The listComplextTests method is called once. It may return <code>null</code> 
-if no results are available or an instance of the ResultSetProvider. Here the Fum 
-implements this interface so it returns an instance of itself. The method assignRowValues 
-will then be called repeatedly until it returns false.</p>
+<p>The <code>listComplextTests</code> method is called once. It may return <code>null</code> 
+if no results are available or an instance of the <code>ResultSetProvider</code>. Here the <code>Fum</code> 
+implements this interface so it returns an instance of itself. The method <code>assignRowValues</code> 
+will then be called repeatedly until it returns false. At that time, <code>close</code> will be called</p>
+<h4>Using the ResultSetHandle interface</h4>
+<p>This interface is similar to the <code>ResultSetProvider</code> interface in that it has a 
+<code>close()</code> method that will be called at the end. But instead of having the 
+evaluator call a method that builds one row at a time, this method has a method 
+that returns a <code>ResultSet</code>. The query evaluator will iterate over this set 
+and deliver it's contents, one tuple at a time, to the caller until a call to 
+<code>next()</code> returns <code>false</code> or the evaluator decides that no more
+rows are needed.</p>
+<p>Here is an example that executes a query using a statement that it obtained using the 
+default connection. The SQL suitable for the deployment descriptor looks like this:</p>
+<pre>CREATE FUNCTION javatest.listSupers()
+  RETURNS SETOF pg_user
+  AS 'org.postgresql.pljava.example.Users.listSupers'
+  LANGUAGE java;
+
+CREATE FUNCTION javatest.listNonSupers()
+  RETURNS SETOF pg_user
+  AS 'org.postgresql.pljava.example.Users.listNonSupers'
+  LANGUAGE java;
+</pre>
+And in the Java package org.postgresql.pljava.example a class Users is added:
+<pre>public class Users implements ResultSetHandle
+{
+  private final String m_filter;
+  private Statement m_statement;
+
+  public Users(String filter)
+  {
+    m_filter = filter;
+  }
+
+  public ResultSet getResultSet()
+  throws SQLException
+  {
+    m_statement = DriverManager.getConnection("jdbc:default:connection").createStatement();
+    return m_statement.executeQuery("SELECT * FROM pg_user WHERE " + m_filter);
+  }
+
+  public void close()
+  throws SQLException
+  {
+    m_statement.close();
+  }
+
+  public static ResultSetHandle listSupers()
+  {
+    return new Users("usesuper = true");
+  }
+
+  public static ResultSetHandle listNonSupers()
+  {
+    return new Users("usesuper = false");
+  }
+}
+</pre>
+
 <h3><i><a name="Triggers_">Triggers</a></i></h3>
 <p>The method signature of a trigger is predefined. A trigger method must always 
 return void and have a <code>org.postgresql.pljava.TriggerData</code> parameter. 
@@ -535,16 +600,15 @@ JDBC connection. There are a couple of limitations though:</p>
     <li>setTransactionIsolation()</li>
   </ul>
   </li>
-  <li>Savepoints are available but only if you use PostgreSQL 8.0 or later and 
-  with some restrictions. A savepoint cannot outlive the function in which it 
-  was set and it must also be rolled back or released by that same function.</li>
+  <li>Savepoints are available but only if you use PostgreSQL 8.0 or later and with 
+  some restrictions. A savepoint cannot outlive the function in which it was set 
+  and it must also be rolled back or released by that same function.</li>
   <li>ResultSet&#39;s returned from executeQuery() are always FETCH_FORWARD and CONCUR_READ_ONLY.</li>
-  <li>Meta-data is currently not implemented. Support is planned but no timeframe 
-  has been set yet. This concerns ResultSetMetaData, ParameterMetaData, and DatabaseMetaData.</li>
+  <li>Meta-data is only available in PLJava 1.1 or higher.</li>
   <li>CallableStatement (for stored procedures) is not yet implemented.</li>
-  <li>Clob/Blob types need more work. byte[] and String works fine for 
-  bytea/text respectively. A more efficient mapping is planned where the actual 
-  array is not copied.</li>
+  <li>Clob/Blob types need more work. byte[] and String works fine for bytea/text 
+  respectively. A more efficient mapping is planned where the actual array is not 
+  copied.</li>
 </ul>
 <h3><i><a name="Logging_">Logging</a></i></h3>
 <p>PLJava uses the standard Java 1.4 Logger. Hence, you can write things like:</p>
@@ -552,23 +616,28 @@ JDBC connection. There are a couple of limitations though:</p>
 <p>At present, the logger is hardwired to a handler that maps the current state 
 of the PostgreSQL configuration setting log_min_messages to a valid Logger level 
 and that outputs all messages using the backend function elog().</p>
-
 <h2><a name="Security">Security</a></h2>
 <h3><i><a name="Installation">Installation</a></i></h3>
 <p>Only a PostgreSQL super user can install PLJava. The PLJava utility functions 
-are installed using <code>SECURITY DEFINER</code> so that they execute with the access 
-permissions that where granted to the creator of the functions. This allows 
-arbitrary users to add new Java functionality to the database.</p>
-<h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the 
-deployment descriptor</a></i></h3>
-<p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, optionally executes commands 
-found in a SQL deployment descriptor. Such commands are executed with the 
-permissions of the caller. In other words, although the utility function is 
-declared with <code>SECURITY DEFINER</code>, it switches back to the session user during 
-execution of the deployment descriptor commands.</p>
+are installed using <code>SECURITY DEFINER</code> so that they execute with the 
+access permissions that where granted to the creator of the functions.</p>
+<h3><i><a name="Trusted_language">Trusted language</a></i></h3>
+<p>PLJava is now a TRUSTED language. PostgreSQL stipulates that a language marked 
+as trusted has no access to the filesystem and PLJava enforces this. Any user can 
+create and access functions or triggers in a trusted language. PLJava also installs 
+a language handler for the language &quot;javaU&quot;. This version is not trusted and only 
+a superuser can create new functions that use it. Any user can still call the functions.</p>
+<h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the deployment 
+descriptor</a></i></h3>
+<p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, 
+optionally executes commands found in a SQL deployment descriptor. Such commands 
+are executed with the permissions of the caller. In other words, although the utility 
+function is declared with <code>SECURITY DEFINER</code>, it switches back to the 
+session user during execution of the deployment descriptor commands.</p>
 <h3><i><a name="Classpath_manipulation">Classpath manipulation</a></i></h3>
-<p>The function <code>set_classpath</code> requires the caller of the function has been 
-granted <code>CREATE</code> permission on the affected schema.</p>
+<p>The function <code>set_classpath</code> requires the caller of the function has 
+been granted <code>CREATE</code> permission on the affected schema.</p>
+
 </body>
 
 </html>
