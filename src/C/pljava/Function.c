@@ -17,7 +17,6 @@
 #include <catalog/pg_proc.h>
 #include <catalog/pg_namespace.h>
 #include <ctype.h>
-#include <alloca.h>
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
@@ -284,7 +283,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	/* Allocate a buffer large enough to hold both the class and method
 	 * name and their respective null terminations.
 	 */
-	className = (char*)alloca(len + 1); /* One of the null terminators will replace a dot. */
+	className = (char*)palloc(len + 1); /* One of the null terminators will replace a dot. */
 
 	/* Copy class name
 	 */
@@ -337,6 +336,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errcode(ERRCODE_INTERNAL_ERROR),
 			errmsg("Failed to load class %s", className)));
 	}
+	pfree(className);
 
 	self->returnComplex = false;
 	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);

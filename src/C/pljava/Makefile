@@ -5,54 +5,74 @@
 #
 #-------------------------------------------------------------------------
 
-incldir = ../include
-subdir = ../org.postgresql.pljava/src/C/pljava
-top_builddir = ../../../../postgresql-7.4
-bin_dir = ../../../bin
-include ../Makefile.global
+MODULE=pljava
+include $(MODULEROOT)/Makefile.global
 
-OBJS = Backend.o PgObject.o Exception.o HashMap.o Iterator.o Function.o SPI.o
+ifndef USE_GCJ
+	ifeq ($JAVA_HOME),)
+		USE_GCJ := 1
+	endif
+endif
 
-subsys:
-	$(MAKE) -C type all
-
-ifeq ($(PORTNAME), cygwin)
+ifdef USE_DLL
 #
-# Cygwin style, builds a pljava.dll
+# Cygwin/MinGW style, builds a pljava.dll
 #
-all: subsys $(bin_dir)/pljava.dll
+ifdef USE_GCJ
+	override CPPFLAGS := -DGCJ $(CPPFLAGS)
+else
+	#
+	# GNU compiler doesn't know __int64, instead it uses long long.
+	#
+	override CPPFLAGS := -D__int64='long long' $(CPPFLAGS)
+	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32 $(CPPFLAGS)
+endif
 
-$(bin_dir)/pljava.dll: $(OBJS) type/SUBSYS.o
-	dlltool --export-all --add-stdcall-alias --output-def pljava.def $(OBJS) type/SUBSYS.o
-	dllwrap -o $(bin_dir)/pljava.dll --def pljava.def $(OBJS) \
-		type/SUBSYS.o \
-		$(top_builddir)/src/utils/dllinit.o \
-		-lpostgres -lgcj -liconv -lz
-	dlltool --input-def pljava.def --kill-at --dllname pljava.dll --output-lib $(bin_dir)/libpljava.dll.a
+pljava: $(OBJS) pljava.dll
+
+ifndef USE_GCJ
+pljava.dll: $(OBJS)
+	dlltool --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
+	dlltool --export-all --add-stdcall-alias --output-def pljava.def $(OBJS)
+	dllwrap -o pljava.dll --def pljava.def $(OBJS) \
+		$(PGSQLDIR)/src/utils/dllinit.o \
+		-L$(PGSQLDIR)/src/backend -L$(PGSQLDIR)/src/port -lpostgres -L. -ljvm $(LIBS)
+else
+pljava.dll: $(OBJS)
+	dlltool --export-all --add-stdcall-alias --output-def pljava.def $(OBJS)
+	dllwrap -o pljava.dll --def pljava.def $(OBJS) \
+		$(PGSQLDIR)/src/utils/dllinit.o \
+		-L$(PGSQLDIR)/src/backend -L$(PGSQLDIR)/src/port -lpostgres -lgcj -liconv $(LIBS)
+	dlltool --input-def pljava.def --kill-at --dllname pljava.dll --output-lib libpljava.dll.a
+endif
 
 clean:
-	$(MAKE) -C type $@
-	rm -f $(bin_dir)/pljava.dll pljava.def libjvm.dll.a $(OBJS)
+	rm -f pljava.dll pljava.def libjvm.dll.a $(OBJS)
 
 else
 #
 # Unix style, builds a libpljava.so
 #
-all: subsys $(bin_dir)/libpljava.so
+ifeq ($(host_cpu), i686)
+	jre_cpu = i386
+else
+	jre_cpu = $(host_cpu)
+endif
 
-$(bin_dir)/libpljava.so: $(OBJS) type/SUBSYS.o
-	$(CC) $(LDFLAGS) -o $(bin_dir)/libpljava.so $(OBJS) type/SUBSYS.o
+ifndef USE_GCJ
+	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
+else
+	override CFLAGS  := -fpic $(CFLAGS)
+	override LDFLAGS := -L$(JAVA_HOME)/jre/lib/$(JRE_CPU)/client $(LDFLAGS)
+endif
+
+pljava: libpljava.so
+
+libpljava.so: $(OBJS)
+	$(CC) $(LDFLAGS) -L$(PGSQLDIR)/src/backend -L$(PGSQLDIR)/src/port $(LIBS) -o libpljava.so $(OBJS)
 
 clean:
 	$(MAKE) -C type $@
-	rm -f $(bin_dir)/libpljava.so $(OBJS)
+	rm -f libpljava.so $(OBJS)
 
-endif
-
-depend dep:
-	$(MAKE) -C type $@
-	$(CC) -MM $(CFLAGS) *.c >depend
-
-ifeq (depend,$(wildcard depend))
-include depend
 endif

@@ -4,43 +4,40 @@
 #    Makefile for pljava
 #
 #-------------------------------------------------------------------------
+top_builddir := $(PGSQLDIR)
+include $(PGSQLDIR)/src/Makefile.global
 
-include $(top_builddir)/src/Makefile.global
+ifeq ($(PORTNAME), win32)
+	USE_DLL := 1
+else
+ifeq ($(PORTNAME), cygwin)
+	USE_DLL := 1
+else
+	USE_DLL :=
+endif
+endif
 
-override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) $(CPPFLAGS)
+SRCDIR  := $(MODULEROOT)/$(MODULE)
+INCLDIR := $(MODULEROOT)/include
+
+mkobjs  = $(subst $(SRCDIR)/,,$(1:%.c=%.o))
+SRCS	  := $(shell find $(SRCDIR) -type f -name \*.c)
+OBJS    := $(call mkobjs,$(SRCS))
+
+override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) $(CPPFLAGS)
 
 # Don't use higher standard then c89 since this rules out older compilers. We
 # must use 'long long' however, since JNI defines it.
 #
-override CFLAGS := -pedantic -std=c89 -Wno-long-long $(CFLAGS)
+override CFLAGS := -pedantic -Wno-long-long $(CFLAGS)
 
-ifeq ($(PORTNAME), cygwin)
-#
-# Portname will not suffice. The Win32 JDK have no knowledge of cygwin
-# GNU compiler doesn't know __int64, instead it uses long long.
-#
-override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32 $(CPPFLAGS)
-override CPPFLAGS := -DCYGWIN -D__int64='long long' $(CPPFLAGS)
+$(OBJS): %.o : $(SRCDIR)/%.c
+			@-mkdir -p $(@D)
+			$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 
-else
-#
-# Don't know how to make the configure package recognize the
-# jre/lib/<xxx> directory where <xxx> is the architecture.
-# This is a cludge that should be moved elsewhere.
-#
-ifeq ($(host_cpu), i686)
-	jre_cpu = i386
-else
-	jre_cpu = $(host_cpu)
-endif
+depend:
+	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(SRCS) >depend
 
-ifneq ($(JAVA_HOME),)
-	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
-	override LDFLAGS := -L$(JAVA_HOME)/jre/lib/$(jre_cpu)/client -ljvm $(LDFLAGS)
-else
-	override CPPFLAGS := -DGCJ=1 $(CPPFLAGS)
-	override LDFLAGS := -g -lgcj -lz $(LDFLAGS)
-endif
-override LDFLAGS := -shared $(LDFLAGS)
-override CFLAGS := -g -fpic $(CFLAGS)
+ifeq (depend,$(wildcard depend))
+include depend
 endif

@@ -414,6 +414,121 @@ static void _destroyJavaVM(int status, Datum dummy)
 	}
 }
 
+typedef struct {
+	JavaVMOption* options;
+	unsigned int  size;
+	unsigned int  capacity;
+} JVMOptList;
+
+static void JVMOptList_init(JVMOptList* jol)
+{
+	jol->options  = (JavaVMOption*)palloc(10 * sizeof(JavaVMOption));
+	jol->size     = 0;
+	jol->capacity = 10;
+}
+
+static void JVMOptList_delete(JVMOptList* jol)
+{
+	JavaVMOption* opt = jol->options;
+	JavaVMOption* top = opt + jol->size;
+	while(opt < top)
+	{
+		pfree(opt->optionString);
+		opt++;
+	}
+	pfree(jol->options);
+}
+
+static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraInfo, bool mustCopy)
+{
+	JavaVMOption* added;
+
+	int newPos = jol->size;
+	if(newPos >= jol->capacity)
+	{
+		int newCap = jol->capacity * 2;
+		JavaVMOption* newOpts = (JavaVMOption*)palloc(newCap * sizeof(JavaVMOption));
+		memcpy(newOpts, jol->options, newPos * sizeof(JavaVMOption));
+		pfree(jol->options);
+		jol->options = newOpts;
+		jol->capacity = newCap;
+	}
+	added = jol->options + newPos;
+	if(mustCopy)
+		optString = pstrdup(optString);
+		
+	elog(INFO, "Adding JVM option %s", optString);
+	added->optionString = (char*)optString;
+	added->extraInfo    = extraInfo;
+	jol->size++;
+}
+
+#ifdef PGSQL_CUSTOM_VARIABLES
+static char* vmoptions;
+
+/* Split JVM options. The string is split on whitespace unless the
+ * whitespace is found within a string or is escaped by backslash. A
+ * backslash escaped quote is not considered a string delimiter.
+ */
+static void addUserJVMOptions(JVMOptList* optList)
+{
+	const char* cp = vmoptions;
+	
+	if(cp != NULL)
+	{
+		StringInfoData buf;
+		char quote = 0;
+		char c;
+
+		initStringInfo(&buf);
+		for(;;)
+		{
+			c = *cp++;
+			switch(c)
+			{
+				case 0:
+					break;
+
+				case '"':
+				case '\'':
+					if(quote == c)
+						quote = 0;
+					else
+						quote = c;
+					appendStringInfoChar(&buf, c);
+					continue;
+
+				case '\\':
+					appendStringInfoChar(&buf, '\\');
+					c = *cp++;	/* Interpret next character verbatim */
+					if(c == 0)
+						break;
+					appendStringInfoChar(&buf, c);
+					continue;
+
+				default:
+					if(quote == 0 && isspace((int)c))
+					{
+						if(buf.len > 0)
+						{
+							JVMOptList_add(optList, buf.data, 0, true);
+							buf.len = 0;
+							buf.data[0] = 0;
+						}
+					}
+					else
+						appendStringInfoChar(&buf, c);
+					continue;
+			}
+			break;
+		}
+		if(buf.len > 0)
+			JVMOptList_add(optList, buf.data, 0, true);
+		pfree(buf.data);
+	}
+}
+#endif
+
 static void initializeJavaVM()
 {
 #if !defined(WIN32) && !defined(CYGWIN)
@@ -422,24 +537,34 @@ static void initializeJavaVM()
 	pqsigfunc saveSigHup;
 	pqsigfunc saveSigQuit;
 #endif
-
 	char* classPath;
 	char* dynLibPath;
 	jboolean jstat;
-
-	int nOptions = 0;
-	JavaVMOption options[10]; /* increase if more options are needed! */
+ 
 	JavaVMInitArgs vm_args;
+	JVMOptList optList;
+	
+	JVMOptList_init(&optList);
 
 	DirectFunctionCall1(HashMap_initialize, 0);
+
+#ifdef PGSQL_CUSTOM_VARIABLES
+	DefineCustomStringVariable(
+		"pljava.vmoptions",
+		"Options sent to the JVM when it is created",
+		NULL,
+		&vmoptions,
+		PGC_USERSET,
+		NULL, NULL);
+
+	EmittWarningsOnPlaceholders("pljava");
+	addUserJVMOptions(&optList);
+#endif
 
 	classPath = getClassPath("-Djava.class.path=");
 	if(classPath != 0)
 	{
-		elog(INFO, "Using %s", classPath+2);
-		options[nOptions].optionString = classPath;
-		options[nOptions].extraInfo = 0;
-		nOptions++;
+		JVMOptList_add(&optList, classPath, 0, false);
 	}
 
 	/**
@@ -449,29 +574,24 @@ static void initializeJavaVM()
 	dynLibPath = getLibraryPath("-Djava.library.path=");
 	if(dynLibPath != 0)
 	{
-		elog(INFO, "Using %s", dynLibPath+2);
-		options[nOptions].optionString = dynLibPath;
-		options[nOptions].extraInfo = 0;
-		nOptions++;
+		JVMOptList_add(&optList, dynLibPath, 0, false);
 	}
 
 	/**
 	 * Default LoggingManager initializer.
 	 */
-	options[nOptions].optionString = "-Djava.util.logging.config.class=org.postgresql.pljava.internal.LoggerConfigurator";
-	options[nOptions].extraInfo = 0;
-	nOptions++;
+	JVMOptList_add(&optList,
+		"-Djava.util.logging.config.class=org.postgresql.pljava.internal.LoggerConfigurator",
+		0, true);
 
 	/**
 	 * As stipulated by JRT-2003
 	 */
-	options[nOptions].optionString = "-Dsqlj.defaultconnection=jdbc:default:connection";
-	options[nOptions].extraInfo = 0;
-	nOptions++;
+	JVMOptList_add(&optList, 
+		"-Dsqlj.defaultconnection=jdbc:default:connection",
+		0, true);
 
-	options[nOptions].optionString = "vfprintf";
-	options[nOptions].extraInfo = (void*)my_vfprintf;
-	nOptions++;
+	JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 
 #if !defined(WIN32) && !defined(CYGWIN)
 	/* Save current state of some signal handlers. The JVM will
@@ -489,13 +609,11 @@ static void initializeJavaVM()
 	 * since the JVM dll is unaware of cygwin and uses Win32
 	 * constructs.
 	 */
-	options[nOptions].optionString = "-Xrs";
-	options[nOptions].extraInfo = 0;
-	nOptions++;
+	JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
 
-	vm_args.nOptions = nOptions;
-	vm_args.options  = options;
+	vm_args.nOptions = optList.size;
+	vm_args.options  = optList.options;
 	vm_args.version  = JNI_VERSION_1_4;
 	vm_args.ignoreUnrecognized = JNI_TRUE;
 
@@ -505,6 +623,8 @@ static void initializeJavaVM()
 	isCallingJava = true;
 	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
 	isCallingJava = false;
+
+	JVMOptList_delete(&optList);
 
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
@@ -519,11 +639,6 @@ static void initializeJavaVM()
 	pqsignal(SIGHUP,  saveSigHup);
 	s_jvmSigQuit = pqsignal(SIGQUIT, saveSigQuit);
 #endif
-
-	if(dynLibPath != 0)
-		pfree(dynLibPath);
-	if(classPath != 0)
-		pfree(classPath);
 
 	/* Register an on_proc_exit handler that destroys the VM
 	 */
