@@ -310,10 +310,7 @@ PG_FUNCTION_INFO_V1(java_call_handler);
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
 	if(s_javaVM == 0)
-	{
-		INIT_MUTEX(jvmInitMutex)
 		initializeJavaVM();
-	}
 
 #ifdef USE_THREADS
 	if(!pthread_equal(pthread_self(), pljava_mainThread))
