@@ -37,11 +37,17 @@ jobject TriggerData_create(JNIEnv* env, TriggerData* td)
 	return jtd;
 }
 
-Datum TriggerData_getTriggerReturnTuple(JNIEnv* env, jobject jtd)
+Datum TriggerData_getTriggerReturnTuple(JNIEnv* env, jobject jtd, bool* wasNull)
 {
+	Datum ret = 0;
 	jobject jtuple = (*env)->CallObjectMethod(env, jtd, s_TriggerData_getTriggerReturnTuple);
-	Datum ret = PointerGetDatum(NativeStruct_getStruct(env, jtuple));
-	(*env)->DeleteLocalRef(env, jtuple);
+	if(jtuple != 0)
+	{
+		ret = PointerGetDatum(NativeStruct_getStruct(env, jtuple));
+		(*env)->DeleteLocalRef(env, jtuple);
+	}
+	else
+		*wasNull = true;
 	return ret;
 }
 

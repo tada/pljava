@@ -55,6 +55,9 @@ jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
 
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 {
+	if(nativeStruct == 0)
+		return;
+
 	if(s_weakCache == 0)
 		s_weakCache = HashMap_create(13, 0);
 

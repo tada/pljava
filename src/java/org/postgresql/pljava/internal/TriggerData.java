@@ -19,14 +19,9 @@ import org.postgresql.pljava.jdbc.TriggerResultSet;
  */
 public class TriggerData extends NativeStruct implements org.postgresql.pljava.TriggerData
 {
-	private final Relation m_relation;
+	private Relation m_relation;
 	private TriggerResultSet m_old = null;
 	private TriggerResultSet m_new = null;
-
-	public TriggerData()
-	{
-		m_relation = this.getRelation();
-	}
 
 	/**
 	 * Returns the ResultSet that represents the new row. This ResultSet will
@@ -53,7 +48,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 			this.isFiredByInsert()
 				? this.getTriggerTuple()
 				: this.getNewTuple();
-		m_new = new TriggerResultSet(m_relation.getTupleDesc(), tuple, false);
+		m_new = new TriggerResultSet(this.relation().getTupleDesc(), tuple, false);
 		return m_new;
 	}
 
@@ -75,7 +70,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 
 		if (this.isFiredByInsert() || this.isFiredForStatement())
 			return null;
-		m_old = new TriggerResultSet(m_relation.getTupleDesc(), this.getTriggerTuple(), true);
+		m_old = new TriggerResultSet(this.relation().getTupleDesc(), this.getTriggerTuple(), true);
 		return m_old;
 	}
 
@@ -91,10 +86,10 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	public Tuple getTriggerReturnTuple() throws SQLException
 	{
 		if(this.isFiredForStatement() || this.isFiredAfter())
-			/*
-			 * Only triggers fired before each row can have a return
-			 * value.
-			 */
+			//
+			// Only triggers fired before each row can have a return
+			// value.
+			//
 			return null;
 
 		if (m_new != null)
@@ -105,7 +100,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 				Tuple original = (Tuple)changes[0];
 				int[] indexes = (int[])changes[1];
 				Object[] values = (Object[])changes[2];
-				return m_relation.modifyTuple(original, indexes, values);
+				return this.relation().modifyTuple(original, indexes, values);
 			}
 		}
 
@@ -119,7 +114,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	public String getTableName()
 	throws SQLException
 	{
-		return m_relation.getName();
+		return this.relation().getName();
 	}
 
 	/**
@@ -236,4 +231,11 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 *             if the contained native buffer has gone stale.
 	 */
 	public native boolean isFiredByUpdate() throws SQLException;
+
+	private final Relation relation()
+	{
+		if(m_relation == null)
+			m_relation = this.getRelation();
+		return m_relation;
+	}	
 }

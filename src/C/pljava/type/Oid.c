@@ -62,7 +62,7 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Oid_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/Oid"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Oid"));
 
 	s_Oid_init = PgObject_getJavaMethod(
 				env, s_Oid_class, "<init>", "(I)V");
@@ -71,16 +71,16 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 				env, s_Oid_class, "m_native", "I");
 
 	s_Oid_s_invalidOid = PgObject_getStaticJavaField(
-				env, s_Oid_class, "s_invalidOid", "Lorg/postgresql/pljava/Oid;");
+				env, s_Oid_class, "s_invalidOid", "Lorg/postgresql/pljava/internal/Oid;");
 
 	s_OidClass = TypeClass_alloc("type.Oid");
-	s_OidClass->JNISignature   = "Lorg/postgresql/pljava/Oid;";
-	s_OidClass->javaTypeName   = "org.postgresql.pljava.Oid";
+	s_OidClass->JNISignature   = "Lorg/postgresql/pljava/internal/Oid;";
+	s_OidClass->javaTypeName   = "org.postgresql.pljava.internal.Oid";
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
 	s_Oid = TypeClass_allocInstance(s_OidClass);
 
 	Type_registerPgType(OIDOID, Oid_obtain);
-	Type_registerJavaType("org.postgresql.pljava.Oid", Oid_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
 	PG_RETURN_VOID();
 }

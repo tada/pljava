@@ -371,15 +371,14 @@ public class TriggerResultSet extends ObjectResultSet
 		if(m_tupleChanges == null)
 			return null;
 
-		int top = m_tupleChanges.size();
-		int[] indexes = new int[top / 2];
-		Object[] values = new Object[top / 2];
-		for(int idx = 0; idx < top;)
+		int top = m_tupleChanges.size() / 2;
+		int[] indexes = new int[top];
+		Object[] values = new Object[top];
+		int vIdx = 0;
+		for(int idx = 0; idx < top; ++idx)
 		{	
-			indexes[idx] = ((Integer)m_tupleChanges.get(idx)).intValue();
-			++idx;
-			values[idx] = m_tupleChanges.get(idx);
-			++idx;
+			indexes[idx] = ((Integer)m_tupleChanges.get(vIdx++)).intValue();
+			values[idx] = m_tupleChanges.get(vIdx++);
 		}
 		return new Object[] { m_tuple, indexes, values };
 	}

@@ -319,28 +319,33 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	self->method = (*env)->GetStaticMethodID(
 						env, self->clazz, methodName, sign.data);
 
-	if(self->method == 0 && Type_isPrimitive(self->returnType))
+	if(self->method == 0)
 	{
-		/*
-		 * There's one valid reason for not finding the method, namely
-		 * if the return type used in the signature is a primitive and
-		 * the true return type of the method is the object class that
-		 * corresponds to that primitive.
-		 */
 		char* origSign = sign.data;
-		Type objType = Type_getObjectType(self->returnType);
-
-		(*env)->ExceptionClear(env);
-		Function_buildSignature(self, &sign, objType);
-
-		self->method = (*env)->GetStaticMethodID(
-						env, self->clazz, methodName, sign.data);
-
-		if(self->method == 0)
+		if(Type_isPrimitive(self->returnType))
+		{
+			/*
+			 * There's one valid reason for not finding the method, namely
+			 * if the return type used in the signature is a primitive and
+			 * the true return type of the method is the object class that
+			 * corresponds to that primitive.
+			 */
+			Type objType = Type_getObjectType(self->returnType);
+	
+			(*env)->ExceptionClear(env);
+			Function_buildSignature(self, &sign, objType);
+	
+			self->method = (*env)->GetStaticMethodID(
+							env, self->clazz, methodName, sign.data);
+	
+			if(self->method == 0)
+				PgObject_throwMemberError(methodName, origSign, true, true);
+	
+			pfree(origSign);
+			self->returnType = objType;
+		}
+		else
 			PgObject_throwMemberError(methodName, origSign, true, true);
-
-		pfree(origSign);
-		self->returnType = objType;
 	}
 	pfree(sign.data);
 }
@@ -374,7 +379,6 @@ Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger)
 Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
 	Type*   types   = self->paramTypes;
-	Type    retType = self->returnType;
 	int32   top     = self->numParams;
 	int32   argSz   = top * sizeof(jvalue);
 	jvalue* args    = (jvalue*)alloca(argSz);
@@ -393,7 +397,7 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	}
 
 	fcinfo->isnull = false;
-	return Type_invoke(retType,
+	return Type_invoke(self->returnType,
 		env, self->clazz, self->method, args, &fcinfo->isnull);
 }
 
@@ -401,15 +405,19 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
 	jvalue arg;
 	Datum  ret;
-	Type   retType = self->returnType;
+	
 	arg.l = TriggerData_create(env, (TriggerData*)fcinfo->context);
+	if(arg.l == 0)
+		return 0;
+
+	bool dummy;
+	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, &dummy);
 
 	fcinfo->isnull = false;
-	Type_invoke(retType, env, self->clazz, self->method, &arg, &fcinfo->isnull);
 	if((*env)->ExceptionCheck(env))
 		ret = 0;
 	else
-		ret = TriggerData_getTriggerReturnTuple(env, arg.l);
+		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
 
 	(*env)->DeleteLocalRef(env, arg.l);
 	return ret;
