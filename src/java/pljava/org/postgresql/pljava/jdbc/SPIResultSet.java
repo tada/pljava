@@ -25,7 +25,7 @@ import org.postgresql.pljava.internal.TupleDesc;
  */
 public class SPIResultSet extends ResultSetBase
 {
-	private final Statement m_statement;
+	private final SPIStatement m_statement;
 	private final Portal    m_portal;
 	private final TupleDesc m_tupleDesc;
 	private final int       m_maxRows;
@@ -36,7 +36,7 @@ public class SPIResultSet extends ResultSetBase
 	private SPITupleTable m_table;
 	private int m_tableRow;
 
-	SPIResultSet(Statement statement, Portal portal, int maxRows)
+	SPIResultSet(SPIStatement statement, Portal portal, int maxRows)
 	throws SQLException
 	{
 		super(statement.getFetchSize());
@@ -59,6 +59,7 @@ public class SPIResultSet extends ResultSetBase
 		if(m_portal.isValid())
 		{
 			m_portal.close();
+			m_statement.resultSetClosed(this);
 			m_table      = null;
 			m_tableRow   = -1;
 			m_currentRow = null;

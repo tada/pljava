@@ -27,13 +27,13 @@ static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
 #endif
 
-static jclass s_ResultSet_class;
+static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
 static jmethodID s_ResultSetPicker_init;
 
 static TypeClass s_ResultSetProviderClass;
-static TypeClass s_ResultSetClass;
-static Type s_ResultSet;
+static TypeClass s_ResultSetHandleClass;
+static Type s_ResultSetHandle;
 static HashMap s_cache;
 
 typedef struct
@@ -90,7 +90,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 			SRF_RETURN_DONE(context);
 		}
 
-		if((*env)->IsInstanceOf(env, tmp, s_ResultSet_class))
+		if((*env)->IsInstanceOf(env, tmp, s_ResultSetHandle_class))
 		{
 			jobject wrapper;
 			isCallingJava = true;
@@ -223,9 +223,9 @@ static Datum _ResultSetProvider_coerceObject(Type self, JNIEnv* env, jobject not
 	return 0;
 }
 
-static Type ResultSet_obtain(Oid typeId)
+static Type ResultSetHandle_obtain(Oid typeId)
 {
-	return s_ResultSet;
+	return s_ResultSetHandle;
 }
 
 static Type ResultSetProvider_obtain(Oid typeId)
@@ -258,12 +258,12 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetProvider_close = PgObject_getJavaMethod(
 				env, s_ResultSetProvider_class, "close", "()V");
 #endif
-	s_ResultSet_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/sql/ResultSet"));
+	s_ResultSetHandle_class = (*env)->NewGlobalRef(
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetHandle"));
 	s_ResultSetPicker_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ResultSetPicker"));
 	s_ResultSetPicker_init = PgObject_getJavaMethod(
-				env, s_ResultSetPicker_class, "<init>", "(Ljava/sql/ResultSet;)V");
+				env, s_ResultSetPicker_class, "<init>", "(Lorg/postgresql/pljava/ResultSetHandle;)V");
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
@@ -275,10 +275,10 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetProviderClass->coerceObject = _ResultSetProvider_coerceObject;
 	Type_registerJavaType("org.postgresql.pljava.ResultSetProvider", ResultSetProvider_obtain);
 
-	s_ResultSetClass = TypeClass_alloc("type.ResultSet");
-	s_ResultSetClass->JNISignature = "Ljava/sql/ResultSet;";
-	s_ResultSetClass->javaTypeName = "java.lang.ResultSet";
-	s_ResultSet = TypeClass_allocInstance(s_ResultSetClass, InvalidOid);
-	Type_registerJavaType("java.sql.ResultSet", ResultSet_obtain);
+	s_ResultSetHandleClass = TypeClass_alloc("type.ResultSetHandle");
+	s_ResultSetHandleClass->JNISignature = "Lorg/postgresql/pljava/ResultSetHandle;";
+	s_ResultSetHandleClass->javaTypeName = "org.postgresql.pljava.ResultSetHandle";
+	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
+	Type_registerJavaType("org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
 	PG_RETURN_VOID();
 }

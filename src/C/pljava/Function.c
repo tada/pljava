@@ -507,11 +507,11 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 		{
 			/*
 			 * Another reason might be that we expected a ResultSetProvider
-			 * but the implementation returns a ResultSet that needs to be
+			 * but the implementation returns a ResultSetHandle that needs to be
 			 * wrapped. The wrapping is internal so we retain the original
 			 * return type anyway.
 			 */
-			altType = Type_fromJavaType(InvalidOid, "java.sql.ResultSet");
+			altType = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.ResultSetHandle");
 		}
 
 		if(altType != 0)

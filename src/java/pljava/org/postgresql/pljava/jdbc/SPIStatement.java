@@ -69,10 +69,12 @@ public class SPIStatement implements Statement
 	throws SQLException
 	{
 		if(m_resultSet != null)
-		{	
+			//
+			// The close will call back to the resultSetClosed method
+			// and set the m_resultSet to null.
+			//
 			m_resultSet.close();
-			m_resultSet = null;
-		}
+
 		m_updateCount = -1;
 		m_cursorName = null;
 		m_batch = null;
@@ -364,5 +366,11 @@ public class SPIStatement implements Statement
 		else if(m_updateCount >= 0)
 			ret = m_updateCount;
 		return ret;
+	}
+
+	void resultSetClosed(ResultSet rs)
+	{
+		if(rs == m_resultSet)
+			m_resultSet = null;
 	}
 }

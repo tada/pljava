@@ -9,16 +9,20 @@ package org.postgresql.pljava.internal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.jdbc.SingleRowWriter;
 
 public class ResultSetPicker implements ResultSetProvider
 {
+	private final ResultSetHandle m_resultSetHandle;
 	private final ResultSet m_resultSet;
 
-	public ResultSetPicker(ResultSet resultSet)
+	public ResultSetPicker(ResultSetHandle resultSetHandle)
+	throws SQLException
 	{
-		m_resultSet = resultSet;
+		m_resultSetHandle = resultSetHandle;
+		m_resultSet = resultSetHandle.getResultSet();
 	}
 
 	public boolean assignRowValues(ResultSet receiver, int currentRow)
@@ -35,5 +39,6 @@ public class ResultSetPicker implements ResultSetProvider
 	throws SQLException
 	{
 		m_resultSet.close();
+		m_resultSetHandle.close();
 	}
 }

@@ -10,21 +10,34 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.postgresql.pljava.ResultSetHandle;
 
 /**
  * This implementation uses another function that returns a set of a complex
- * type, concatenates the name and value of that type and returns this as
- * a set of a scalar type. Somewhat cumbersome way to display properties
- * but it's a good test.
+ * type and returns the ResultSet produced by a query.
  *
  * @author Thomas Hallgren
  */
-public class UsingPropertiesAsResultSet
+public class UsingPropertiesAsResultSet implements ResultSetHandle
 {
-	public static ResultSet getProperties()
+	private Statement m_statement;
+
+	public ResultSet getResultSet() throws SQLException
+	{
+		m_statement = DriverManager.getConnection("jdbc:default:connection").createStatement();
+		return m_statement.executeQuery("SELECT * FROM propertyExample()");
+	}
+
+	public void close()
 	throws SQLException
 	{
-		Statement  stmt = DriverManager.getConnection("jdbc:default:connection").createStatement();
-		return stmt.executeQuery("SELECT * FROM propertyExample()");
+		m_statement.close();
+		m_statement = null;
+	}
+
+	public static ResultSetHandle getProperties()
+	throws SQLException
+	{
+		return new UsingPropertiesAsResultSet();
 	}
 }
