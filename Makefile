@@ -3,20 +3,16 @@
 # Top level Makefile for pljava
 #
 # The following options are recognized (aside from normal options like
-# CFLAGS etc.
+# CFLAGS etc.)
 #
-#   PGVER=7.4    Will cause compilation of a 7.4 compliant target
-#   USE_GCJ=1    Builds a shared object file containing both C and Java
-#                code. Requires GCJ 3.4 or later.
+#   PGSQLDIR=<pgsql source>  Override the default $(PROJDIR)/../pgsql
+#   USE_GCJ=1                Builds a shared object file containing both
+#                            C and Java code. Requires GCJ 3.4 or later.
 #
 #-------------------------------------------------------------------------
 export PROJDIR   := $(shell pwd -P)
 export TARGETDIR := $(PROJDIR)/bin/build
-ifeq ($(PGVER), 7.4)
-	export PGSQLDIR  := $(PROJDIR)/../pgsql74
-else
-	export PGSQLDIR  := $(PROJDIR)/../pgsql
-endif
+export PGSQLDIR  := $(PROJDIR)/../pgsql
 
 .PHONY: all clean install uninstall depend
 
