@@ -34,6 +34,7 @@ public class SPIStatement implements Statement
 	private ResultSet m_resultSet      = null;
 	private int       m_updateCount    = 0;
 	private ArrayList m_batch          = null;
+    private boolean   m_closed         = false;
 
 	public SPIStatement(SPIConnection conn)
 	{
@@ -78,6 +79,7 @@ public class SPIStatement implements Statement
 		m_updateCount = -1;
 		m_cursorName = null;
 		m_batch = null;
+        m_closed = true;
 	}
 
 	public boolean execute(String statement)
@@ -297,6 +299,10 @@ public class SPIStatement implements Statement
 	public SQLWarning getWarnings()
 	throws SQLException
 	{
+        if (m_closed) {
+            throw new SQLException("getWarnings: Statement is closed");
+        }
+
 		return null;
 	}
 
