@@ -26,10 +26,10 @@ endif
 
 ifdef USE_GCJ
 	override CPPFLAGS := -DGCJ $(CPPFLAGS)
-	SHLIB_LINK = -lgcj
+	SHLIB_LINK = $(BE_DLLLIBS) -lgcj -lwsock32
 else
-	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
-	SHLIB_LINK = -L$(JAVA_HOME)/jre/lib/$(JRE_CPU)/client -ljvm
+	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
+	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/bin/client -ljvm
 endif
 
 SO_MAJOR_VERSION := 1
@@ -37,9 +37,9 @@ SO_MINOR_VERSION := 0
 
 .PHONY: extralibs
 
-ifeq ($(PORTNAME), cygwin)
+ifeq ($(JRE_INCL), win32)
 #
-# Cygwin is a bit special in that we use a "normal" windows
+# Cygwin/Mingw is a bit special in that we use a "normal" windows
 # port of the Java Runtime Environment (unless we use gcj
 # of course). The headers etc. for the JRE is windows style
 # and contains __int64. GNU compiler doesn't know __int64,
@@ -61,7 +61,7 @@ endif
 
 endif
 
-pljava: extralibs all-lib
+all: extralibs all-lib
 
 clean: clean-lib
 	rm -f $(OBJS) $(EXTRAS)

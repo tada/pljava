@@ -22,7 +22,19 @@ public class Oid
 	static
 	{
 		if(System.getProperty("gnu.gcj.progname") == null)
-			System.loadLibrary("pljava");
+		{
+			// Major cludge to overcome the fact that PostgreSQL
+			// doesn't follow naming conventions on Windows
+			//
+			try
+			{
+				System.loadLibrary("pljava");
+			}
+			catch(UnsatisfiedLinkError e)
+			{
+				System.loadLibrary("libpljava");
+			}
+		}
 
 		try
 		{

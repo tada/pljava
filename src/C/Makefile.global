@@ -19,7 +19,7 @@ override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) $(CPPFLAGS)
 # Don't use higher standard then c89 since this rules out older compilers. We
 # must use 'long long' however, since JNI defines it.
 #
-override CFLAGS := -pedantic -Wno-long-long $(CFLAGS)
+override CFLAGS := -Wno-long-long $(CFLAGS)
 
 $(OBJS): %.o : $(SRCDIR)/%.c
 	@-mkdir -p $(@D)

@@ -14,12 +14,13 @@
 <target name="pljava for gcj" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
 <buildArguments>USE_GCJ=1</buildArguments>
-<buildTarget>all</buildTarget>
+<buildTarget>USE_GCJ=1 all</buildTarget>
 <stopOnError>false</stopOnError>
-<useDefaultCommand>false</useDefaultCommand>
+<useDefaultCommand>true</useDefaultCommand>
 </target>
 <target name="clean" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
+<buildArguments>PWD=</buildArguments>
 <buildTarget>clean</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>

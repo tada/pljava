@@ -1,4 +1,4 @@
-export PROJDIR   := $(shell pwd)
+export PROJDIR   := $(shell pwd -P)
 export TARGETDIR := $(PROJDIR)/bin/build
 export PGSQLDIR  := $(PROJDIR)/../pgsql
 

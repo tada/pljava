@@ -528,31 +528,49 @@ Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger)
 
 Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
-	Type invokerType;
-	Type*   types   = self->paramTypes;
-	int32   top     = self->numParams;
-	jvalue* args    = (jvalue*)alloca(top * sizeof(jvalue));
-	int32   idx;
-
-	if(self->returnComplex)
-		--top; /* Last argument is not present in fcinfo */
-
-	for(idx = 0; idx < top; ++idx)
-	{
-		Type type = types[idx];
-		if(PG_ARGISNULL(idx))
-			/*
-			 * Set this argument to zero (or null in case of object)
-			 */
-			args[idx].j = 0L;
-		else
-			args[idx] = Type_coerceDatum(type, env, PG_GETARG_DATUM(idx));
-	}
+	Datum retVal;
+	int32 top = self->numParams;
 
 	fcinfo->isnull = false;
-	invokerType = (self->returnComplex ? types[top] : self->returnType);
-	return Type_invoke(invokerType,
-		env, self->clazz, self->method, args, fcinfo);
+	if(top > 0)
+	{
+		int32   idx;
+		Type    invokerType;
+		jvalue* args  = (jvalue*)palloc(top * sizeof(jvalue));
+		Type*   types = self->paramTypes;
+
+		if(self->returnComplex)
+		{
+			--top; /* Last argument is not present in fcinfo */
+			invokerType = types[top];
+		}
+		else
+			invokerType = self->returnType;
+
+		for(idx = 0; idx < top; ++idx)
+		{
+			if(PG_ARGISNULL(idx))
+				/*
+				 * Set this argument to zero (or null in case of object)
+				 */
+				args[idx].j = 0L;
+			else
+				args[idx] = Type_coerceDatum(
+								types[idx], env, PG_GETARG_DATUM(idx));
+		}
+
+		retVal = Type_invoke(invokerType,
+			env, self->clazz, self->method, args, fcinfo);
+	
+		pfree(args);
+	}
+	else
+	{
+		retVal = Type_invoke(self->returnType,
+			env, self->clazz, self->method, NULL, fcinfo);
+	}
+
+	return retVal;
 }
 
 Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
