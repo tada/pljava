@@ -19,13 +19,10 @@
 
 #include <utils/guc.h>
 
-static bool s_deathRowFlag;
-
 static Type      s_ExecutionPlan;
 static TypeClass s_ExecutionPlanClass;
 static jclass    s_ExecutionPlan_class;
 static jmethodID s_ExecutionPlan_init;
-static jmethodID S_ExecutionPlan_getDeathRow;
 
 /*
  * org.postgresql.pljava.type.Tuple type.
@@ -57,37 +54,6 @@ static Type ExecutionPlan_obtain(Oid typeId)
 	return s_ExecutionPlan;
 }
 
-void ExecutionPlan_executeAllOnDeathRow(JNIEnv* env)
-{
-	if(!s_deathRowFlag)
-		return;
-
-	jobject longArr;
-	int sz;
-	jlong* deathRow;
-	Ptr2Long p2r;
-	int idx;
-
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	longArr = (*env)->CallStaticObjectMethod(env, s_ExecutionPlan_class, S_ExecutionPlan_getDeathRow);
-	isCallingJava = saveicj;
-
-	if(longArr == 0)
-		return;
-
-	sz = (int)(*env)->GetArrayLength(env, longArr);
-	deathRow = (*env)->GetLongArrayElements(env, longArr, NULL);
-	for(idx = 0; idx < sz; ++idx)
-	{
-		p2r.longVal = deathRow[idx];
-		elog(WARNING,
-			"Freeing plan using finalizer. Someone forgot to close a PreparedStatement");
-		SPI_freeplan(p2r.ptrVal);
-	}
-	(*env)->ReleaseLongArrayElements(env, longArr, deathRow, JNI_ABORT);
-}
-	
 /* Make this datatype available to the postgres system.
  */
 extern Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS);
@@ -99,11 +65,6 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 		"_savePlan",
 	  	"()V",
 	  	Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan
-		},
-		{
-		"setDeathRowFlag",
-		"(Z)V",
-		Java_org_postgresql_pljava_internal_ExecutionPlan_setDeathRowFlag
 		},
 		{
 		"_cursorOpen",
@@ -141,9 +102,6 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 
 	s_ExecutionPlan_init = PgObject_getJavaMethod(
 				env, s_ExecutionPlan_class, "<init>", "()V");
-
-	S_ExecutionPlan_getDeathRow = PgObject_getStaticJavaMethod(
-				env, s_ExecutionPlan_class, "getDeathRow", "()[J");
 
 	s_ExecutionPlanClass = NativeStructClass_alloc("type.ExecutionPlan");
 	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/internal/ExecutionPlan;";
@@ -419,16 +377,5 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobj
 		Exception_throw_ERROR(env, "SPI_freeplan");
 	}
 	PG_END_TRY();
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    setDeathRowFlag
- * Signature: (Z)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_setDeathRowFlag(JNIEnv* env, jclass cls, jboolean flag)
-{
-	s_deathRowFlag = (flag == JNI_TRUE);
 }
 

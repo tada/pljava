@@ -55,6 +55,20 @@ public class Backend
 	}
 
 	/**
+	 * Returns the configuration option as read from the Global
+	 * Unified Config package (GUC).
+	 * @param key The name of the option.
+	 * @return The value of the option.
+	 */
+	public static int getStatementCacheSize()
+	{
+		synchronized(THREADLOCK)
+		{
+			return _getStatementCacheSize();
+		}
+	}
+
+	/**
 	 * Log a message using the internal elog command.
 	 * @param logLevel The log level.
 	 * @param str The message
@@ -76,6 +90,8 @@ public class Backend
 	public native static boolean isCallingJava();
 
 	private native static String _getConfigOption(String key);
+
+	private native static int  _getStatementCacheSize();
 	private native static void _log(int logLevel, String str);
 
 	private native static void _addEOXactListener(EOXactListener listener);

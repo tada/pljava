@@ -5,7 +5,6 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
@@ -37,7 +36,10 @@ public class ExecutionPlan extends NativeStruct
 		{
 	        if(this.size() > m_cacheSize)
 	        {
-	        	((ExecutionPlan)eldest.getValue()).invalidate();
+	    		synchronized(Backend.THREADLOCK)
+				{
+	    			((ExecutionPlan)eldest.getValue())._invalidate();
+				}
 	        	return true;
 	        }
 	        return false;
@@ -85,15 +87,12 @@ public class ExecutionPlan extends NativeStruct
 		}
 	}
 
-	private static final ArrayList s_deathRow = new ArrayList();
 	private static final PlanCache s_planCache;
 	
 	static
 	{
-		int cacheSize = _getCacheSize();
-		s_planCache = (cacheSize > 0)
-			? new PlanCache(cacheSize)
-			: null;
+		int cacheSize = Backend.getStatementCacheSize();
+		s_planCache = new PlanCache(cacheSize < 4 ? 4 : cacheSize);
 	}
 
 	/**
@@ -159,58 +158,21 @@ public class ExecutionPlan extends NativeStruct
 	public static ExecutionPlan prepare(String statement, Oid[] argTypes)
 	throws SQLException
 	{
-		if(s_planCache != null)
-		{
-			Object key = (argTypes == null)
-				? (Object)statement
-				: (Object)new PlanKey(statement, argTypes);
+		Object key = (argTypes == null)
+			? (Object)statement
+			: (Object)new PlanKey(statement, argTypes);
 
-			ExecutionPlan plan = (ExecutionPlan)s_planCache.get(key);
-			if(plan == null)
+		ExecutionPlan plan = (ExecutionPlan)s_planCache.get(key);
+		if(plan == null)
+		{
+			synchronized(Backend.THREADLOCK)
 			{
-				synchronized(Backend.THREADLOCK)
-				{
-					plan = _prepare(statement, argTypes);
-				}
-				s_planCache.put(key, plan);
+				plan = _prepare(statement, argTypes);
+				plan._savePlan();
 			}
-			return plan;
+			s_planCache.put(key, plan);
 		}
-		synchronized(Backend.THREADLOCK)
-		{
-			return _prepare(statement, argTypes);
-		}
-	}
-
-	/**
-	 * Invalidates this structure and frees up memory using the
-	 * internal function <code>SPI_freeplan</code>
-	 */
-	public final void invalidate()
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			this._invalidate();
-		}
-	}
-
-	/**
-	 * Finalizers might run by a thread other then the main thread so
-	 * instead of calling invalidate here we store the pointer on a
-	 * &quot;death row&quot; that will be investegated by the main
-	 * thread later on.
-	 */
-	public void finalize()
-	{
-		long nativePtr = this.getNative();
-		if(nativePtr != 0)
-		{
-			synchronized(s_deathRow)
-			{
-				s_deathRow.add(new Long(nativePtr));
-				setDeathRowFlag(true);
-			}
-		}
+		return plan;
 	}
 
 	/**
@@ -220,33 +182,6 @@ public class ExecutionPlan extends NativeStruct
 	 */
 	private native void _savePlan()
 	throws SQLException;
-	
-	/**
-	 * Returns an array of native pointers that originates from instances
-	 * finalized by another thread than the main thread. This method is
-	 * called by the main thread when it sees the hasDeathRowFlag. The
-	 * death row is cleared by this call.
-	 */
-	static long[] getDeathRow()
-	{
-		synchronized(s_deathRow)
-		{
-			int top = s_deathRow.size();
-			long[] dr = new long[top];
-			while(--top >= 0)
-				dr[top] = ((Long)s_deathRow.get(top)).longValue();
-			s_deathRow.clear();
-			setDeathRowFlag(false);
-			return dr;
-		}
-	}
-	
-	/**
-	 * Sets or clears the flag that tells the main thread that there
-	 * are candidates waiting on the death row.
-	 * @param flag
-	 */
-	private native static void setDeathRowFlag(boolean flag);
 
 	private native Portal _cursorOpen(String cursorName, Object[] parameters)
 	throws SQLException;
@@ -256,8 +191,6 @@ public class ExecutionPlan extends NativeStruct
 
 	private native int _execp(Object[] parameters, int rowCount)
 	throws SQLException;
-
-	private native static int _getCacheSize();
 
 	private native static ExecutionPlan _prepare(String statement, Oid[] argTypes)
 	throws SQLException;

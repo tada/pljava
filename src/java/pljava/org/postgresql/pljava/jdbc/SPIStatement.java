@@ -86,9 +86,7 @@ public class SPIStatement implements Statement
 		if(plan == null)
 			throw new SPIException(result);
 		
-		boolean isResultSet = this.executePlan(plan, null);
-		plan.invalidate();
-		return isResultSet;
+		return this.executePlan(plan, null);
 	}
 
 	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues)

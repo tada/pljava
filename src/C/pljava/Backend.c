@@ -53,6 +53,7 @@ bool elogErrorOccured;
 #ifdef PGSQL_CUSTOM_VARIABLES
 static char* vmoptions;
 static char* classpath;
+static int statementCacheSize;
 #endif
 static bool  pljavaDebug;
 
@@ -70,6 +71,11 @@ static void initJavaVM(JNIEnv* env)
 		"_getConfigOption",
 		"(Ljava/lang/String;)Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Backend__1getConfigOption
+		},
+		{
+		"_getStatementCacheSize",
+		"()I",
+		Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize
 		},
 		{
 		"_log",
@@ -170,7 +176,6 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 		}
 		Exception_checkException(s_mainEnv);
 		
-		ExecutionPlan_executeAllOnDeathRow(s_mainEnv);
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
@@ -180,7 +185,6 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	}
 	PG_CATCH();
 	{
-		ExecutionPlan_executeAllOnDeathRow(s_mainEnv);
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
@@ -648,6 +652,14 @@ static void initializeJavaVM()
 		PGC_USERSET,
 		NULL, NULL);
 
+	DefineCustomIntVariable(
+		"pljava.statement_cache_size",
+		"Size of the prepared statement MRU cache",
+		NULL,
+		&statementCacheSize,
+		PGC_USERSET,
+		NULL, NULL);
+
 	EmitWarningsOnPlaceholders("pljava");
 
 	addUserJVMOptions(&optList);
@@ -824,6 +836,21 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 	return result;
 }
 
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _getStatementCacheSize
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize(JNIEnv* env, jclass cls)
+{
+#ifdef PGSQL_CUSTOM_VARIABLES
+	return statementCacheSize;
+#else
+	return 10;
+#endif
+}
 /*
  * Class:     org_postgresql_pljava_internal_Backend
  * Method:    _log

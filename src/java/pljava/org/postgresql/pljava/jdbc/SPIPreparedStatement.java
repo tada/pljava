@@ -23,7 +23,6 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 
@@ -36,72 +35,28 @@ import org.postgresql.pljava.internal.Oid;
  */
 public class SPIPreparedStatement extends SPIStatement implements PreparedStatement
 {
-	private static final Object s_undef = new Object();
-
-	public static class ParamEntry
-	{
-		private final int    m_columnIndex;
-		private final int    m_sqlType;
-		private final Object m_value;
-
-		ParamEntry(int columnIndex, int sqlType, Object value)
-		{
-			m_columnIndex = columnIndex;
-			m_sqlType = sqlType;
-			m_value = value;
-		}
-
-		int getIndex()
-		{
-			return m_columnIndex;
-		}
-
-		int getSqlType()
-		{
-			return m_sqlType;
-		}
-
-		Oid getTypeId()
-		{
-			Oid id = (m_sqlType == Types.OTHER)
-				? Oid.forJavaClass(m_value.getClass())
-				: Oid.forSqlType(m_sqlType);
-	
-			// Default to String.
-			//
-			if(id == null)
-				id = Oid.forSqlType(Types.VARCHAR);
-			return id;
-		}
-
-		Object getValue()
-		{
-			return m_value;
-		}
-	}
-
-	private final String m_statement;
-	private final int    m_paramCount;
-	private final ArrayList m_paramList;
-	private ExecutionPlan m_plan;
-	private int[] m_sqlTypes;
-	private Oid[] m_typeIds;
+	private final Oid[]    m_typeIds;
+	private final Object[] m_values;
+	private final int[]    m_sqlTypes;
+	private final String   m_statement;
+	private ExecutionPlan  m_plan;
 
 	public SPIPreparedStatement(SPIConnection conn, String statement, int paramCount)
 	{
 		super(conn);
-		m_statement  = statement;
-		m_paramCount = paramCount;
-		m_paramList  = new ArrayList(m_paramCount);
+		m_statement = statement;
+		m_typeIds   = new Oid[paramCount];
+		m_values    = new Object[paramCount];
+		m_sqlTypes  = new int[paramCount];
+		Arrays.fill(m_sqlTypes, Types.NULL);
 	}
 
 	public void close()
+	throws SQLException
 	{
-		if(m_plan != null)
-		{
-			m_plan.invalidate();
-			m_plan = null;
-		}
+		m_plan = null;
+		this.clearParameters();
+		super.close();
 	}
 
 	public ResultSet executeQuery()
@@ -193,8 +148,9 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	{
 		try
 		{
-			m_paramList.add(new ParamEntry(columnIndex, Types.CLOB,
-					new ClobValue(new InputStreamReader(value, "US-ASCII"), length)));
+			this.setObject(columnIndex,
+				new ClobValue(new InputStreamReader(value, "US-ASCII"), length),
+				Types.CLOB);
 		}
 		catch(UnsupportedEncodingException e)
 		{
@@ -215,9 +171,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		this.setObject(columnIndex, new BlobValue(value, length), Types.BLOB);
 	}
 
-	public void clearParameters() throws SQLException
+	public void clearParameters()
+	throws SQLException
 	{
-		m_paramList.clear();
+		Arrays.fill(m_values,   null);
+		Arrays.fill(m_sqlTypes, Types.NULL);
 	}
 
 	public void setObject(int columnIndex, Object value, int sqlType, int scale)
@@ -229,10 +187,28 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setObject(int columnIndex, Object value, int sqlType)
 	throws SQLException
 	{
-		if(columnIndex < 1 || columnIndex > m_paramCount)
+		if(columnIndex < 1 || columnIndex > m_sqlTypes.length)
 			throw new SQLException("Illegal parameter index");
 
-		m_paramList.add(new ParamEntry(columnIndex - 1, sqlType, value));
+		Oid id = (sqlType == Types.OTHER)
+			? Oid.forJavaClass(value.getClass())
+			: Oid.forSqlType(sqlType);
+
+		// Default to String.
+		//
+		if(id == null)
+			id = Oid.forSqlType(Types.VARCHAR);
+
+		Oid op = m_typeIds[--columnIndex];
+		if(op == null)
+			m_typeIds[columnIndex] = id;
+		else if(!op.equals(id))
+		{
+			m_typeIds[columnIndex] = id;
+			m_plan = null;
+		}
+		m_sqlTypes[columnIndex] = sqlType;
+		m_values[columnIndex] = value;
 	}
 
 	public void setObject(int columnIndex, Object value)
@@ -250,72 +226,30 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	 */
 	private int[] getSqlTypes()
 	{
-		if(m_sqlTypes != null)
-			return m_sqlTypes;
-
-		int top = m_paramList.size();
-		int[] types   = new int[m_paramCount];
-		Arrays.fill(types, Types.VARCHAR);	// Default.
-		for(int idx = 0; idx < top; ++idx)
+		int   idx   = m_sqlTypes.length;
+		int[] types = (int[])m_sqlTypes.clone();
+		while(--idx >= 0)
 		{
-			ParamEntry pe = (ParamEntry)m_paramList.get(idx);
-			types[pe.getIndex()] = pe.getSqlType();
+			if(types[idx] == Types.NULL)
+				types[idx] = Types.VARCHAR;	// Default.
 		}
-
-		m_sqlTypes = types;
 		return types;
 	}
 
 	public boolean execute()
 	throws SQLException
 	{
-		Object[] values = null;
-		ArrayList params = m_paramList;
-		int top = params.size();
-		if(top < m_paramCount)
-			throw new SQLException("Not all parameters have been set");
-
-		if(top > 0)
-		{
-			// Instead of checking that top does not exceed paramCount, we
-			// verify no value is set more than once. Since the size of the
-			// paramList is equal or greater, this will ensure that all values
-			// have been set and that no more values exist.
-			//
-			values = new Object[m_paramCount];
-			Arrays.fill(values, s_undef);
-			for(int idx = 0; idx < top; ++idx)
-			{
-				ParamEntry pe = (ParamEntry)params.get(idx);
-				int pIdx = pe.getIndex();
-				if(values[pIdx] != s_undef)
-					throw new SQLException("Parameter with index " + (idx + 1) + " was set more than once");
-				values[pIdx] = pe.getValue();
-			}
-		}
+		int[] sqlTypes = m_sqlTypes;
+		int idx = sqlTypes.length;
+		while(--idx >= 0)
+			if(sqlTypes[idx] == Types.NULL)
+				throw new SQLException("Not all parameters have been set");
 
 		if(m_plan == null)
-		{	
-			if(m_typeIds == null && top > 0)
-			{	
-				int[] types   = new int[top];
-				Oid[] typeIds = new Oid[top];
-				for(int idx = 0; idx < top; ++idx)
-				{
-					ParamEntry pe = (ParamEntry)params.get(idx);
-					int pIdx = pe.getIndex();
-					types[pIdx] = pe.getSqlType();
-					typeIds[pIdx] = pe.getTypeId();
-				}
-				m_sqlTypes = types;
-				m_typeIds  = typeIds;
-			}
 			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
-			m_plan.makeDurable();
-		}
 
-		boolean result = this.executePlan(m_plan, values);
-		params.clear(); // Parameters are cleared upon successful completion.
+		boolean result = this.executePlan(m_plan, m_values);
+		this.clearParameters(); // Parameters are cleared upon successful completion.
 		return result;
 	}
 
@@ -332,8 +266,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void addBatch()
 	throws SQLException
 	{
-		this.internalAddBatch(m_paramList.clone());
-		m_paramList.clear();
+		this.internalAddBatch(m_values.clone());
+		this.clearParameters(); // Parameters are cleared upon successful completion.
 	}
 
 	/**
@@ -436,8 +370,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	throws SQLException
 	{
 		int ret = SUCCESS_NO_INFO;
-		m_paramList.clear();
-		m_paramList.addAll((ArrayList)batchEntry);
+		System.arraycopy(batchEntry, 0, m_values, 0, m_values.length);
 		if(this.execute())
 			this.getResultSet().close();
 		else

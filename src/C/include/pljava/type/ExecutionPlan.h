@@ -29,16 +29,6 @@ extern bool SPI_is_cursor_plan(void* plan);
  */
 extern jobject ExecutionPlan_create(JNIEnv* env, void* plan);
 
-/*
- * When a statement is forgotten, i.e. not closed, its finalizer
- * will eventually make an attempt to free up the allocated
- * memory. The finalizer does this by adding an entry to a
- * "death row" to be executed when PL/Java regard it safe to do
- * so. Typically, this happens at the end of a function or
- * trigger call.
- */
-extern void ExecutionPlan_executeAllOnDeathRow(JNIEnv* env);
-
 #ifdef __cplusplus
 }
 #endif
