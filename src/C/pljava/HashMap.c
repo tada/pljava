@@ -128,8 +128,9 @@ static void StringKey_init(StringKey self, const char* keyVal)
 static uint32 _OpaqueKey_hashCode(HashKey self)
 {
 	Ptr2Long p2l;
+	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = ((OpaqueKey)self)->key;
-	
+
 	/* Compiler will see that this if statement is a constant and
 	 * select the appropriate code
 	 */
