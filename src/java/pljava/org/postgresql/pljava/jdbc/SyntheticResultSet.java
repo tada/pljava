@@ -24,50 +24,38 @@ import org.postgresql.pljava.internal.TypeMap;
  */
 public class SyntheticResultSet extends ResultSetBase
 {
-	private final Constructor[] m_fieldCreators;
-	private final ArrayList     m_tuples;
-    private final HashMap       m_fieldIndexes;
+	private final ResultSetField[] m_fields;
+	private final ArrayList        m_tuples;
+    private final HashMap          m_fieldIndexes;
 
 	SyntheticResultSet(ResultSetField[] fields, ArrayList tuples)
 	throws SQLException
 	{
 		super(tuples.size());
-        int i = fields.length;
-		m_fieldCreators = new Constructor[i];
+		m_fields = fields;
 		m_tuples = tuples;
         m_fieldIndexes = new HashMap();
-        String className = null;
+        int i = m_fields.length;
+        while(--i >= 0)
+            m_fieldIndexes.put(m_fields[i].getColumnLabel(), new Integer(i+1));
 
-        Class[] prototype = {String.class};
-        try
-        {
-	        while(--i >= 0)
-	        {
-	        	ResultSetField field = fields[i];
-	        	className = TypeMap.getClassNameFromPgOid(field.getOID());
-	        	m_fieldIndexes.put(field.getColumnLabel(), new Integer(i+1));
-	        	if(className.equals("java.lang.String"))
-	        		m_fieldCreators[i] = null;
-	        	else
-	        	{
-	        		Class cls = Class.forName(className);
-	        		m_fieldCreators[i] = cls.getConstructor(prototype);
-	        	}
-	        }
-		}
-		catch(ClassNotFoundException e)
+		Object[][] tupleTest = (Object[][]) m_tuples.toArray(new Object[0][]);
+		Object value;
+		for (i=0; i < tupleTest.length; i++)
 		{
-			throw new SQLException("Unable to load field class: " + e.getMessage());
-		}
-		catch(SecurityException e)
-		{
-			throw new SQLException("Constructor in field class " +
-				className + " is not public");
-		}
-		catch(NoSuchMethodException e)
-		{
-			throw new SQLException("Unable to find constructor " +
-				className + "(String)");
+			int j = m_fields.length;
+			while(--j >= 0)
+			{
+				value = tupleTest[i][j];
+				if (value != null && !m_fields[j].canContain(value.getClass()))
+				{
+					throw new SQLException(
+						"Unable to store class " + value.getClass() +
+						" in ResultSetField '" + m_fields[j].getColumnLabel() + "'" +
+						" with OID " + m_fields[j].getOID() +
+						" (expected class: " + m_fields[j].getJavaClass() + ")");
+				}
+			}
 		}
 	}
 
@@ -105,69 +93,16 @@ public class SyntheticResultSet extends ResultSetBase
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
-        return
-            convertToJavaObject(
-                ((byte[][]) getCurrentRow())[columnIndex-1], columnIndex);
+        return getCurrentRow()[columnIndex-1];
 	}
 
-    /**
-     * Converts a string (stored in a byte array) to a java object.
-     */
-    protected Object convertToJavaObject(byte[] byteArray, int columnIndex)
-    throws SQLException
-    {
-        if (byteArray == null)
-            return null;
-
-    	String str = new String(byteArray);
-    	Constructor ctor = m_fieldCreators[columnIndex-1];
-    	if(ctor == null)
-    		//
-    		// Should remain a String
-    		//
-    		return str;
-
-        try
-        {
-            return ctor.newInstance(new Object[] { str });
-        }
-        catch (RuntimeException e) {
-            throw new SQLException(
-                "Unable to convert java.lang.String to " + 
-                ctor.getDeclaringClass() + ": " +
-                e.getMessage());
-        }
-		catch(InstantiationException e)
-		{
-			throw new SQLException("Class " +
-				ctor.getDeclaringClass() +
-				" is abstract");
-		}
-		catch(IllegalAccessException e)
-		{
-			throw new SQLException("Class " +
-				ctor.getDeclaringClass() +
-				" is not public");
-		}
-		catch(InvocationTargetException e)
-		{
-			Throwable t = e.getTargetException();
-			if(t instanceof SQLException)
-				throw (SQLException)t;
-			throw new SQLException(
-				"Unable to convert java.lang.String to " +
-				ctor.getDeclaringClass() +
-				": " + t.getMessage());
-		}
-    }
-
-    protected final Object getCurrentRow()
+    protected final Object[] getCurrentRow()
 	throws SQLException
 	{
     	int row = this.getRow();
 		if(row < 1 || row > m_tuples.size())
 			throw new SQLException("ResultSet is not positioned on a valid row");
-		return m_tuples.get(row-1);
+		return (Object[])m_tuples.get(row-1);
 	}
 
 	public boolean isLast() throws SQLException
