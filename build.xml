@@ -14,9 +14,6 @@
 		<delete quiet="true">
 			<fileset dir="src/C/include/pljava" includes="**/*_JNI.h"/>
 		</delete>
-		<delete quiet="true">
-			<fileset dir="src/C/pljava" includes="**/*.o,*.a,*.def"/>
-		</delete>
 	</target>
 
 	<target

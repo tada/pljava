@@ -9,12 +9,11 @@ NAME	:= pljava
 include $(MODULEROOT)/Makefile.global
 
 ifeq ($(PORTNAME), win32)
-	JRE_INCL := win32
-	JRE_LIB  := bin/client
+	DLL_BUILD := 1
 else
 ifeq ($(PORTNAME), cygwin)
-	JRE_INCL := win32
-	JRE_LIB  := bin/client
+	DLL_BUILD := 1
+	override CPPFLAGS := -DCYGWIN $(CPPFLAGS)
 else
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
@@ -23,6 +22,17 @@ else
 		JRE_LIB := lib/$(host_cpu)/client
 	endif
 endif
+endif
+
+ifdef DLL_BUILD
+	JRE_INCL := win32
+	JRE_LIB  := bin/client
+
+	# This works but is not very nice since it affects all
+	# DLLTOOL invocations in Makefile.shlib. A custom flag
+	# is requested from postgres.
+	#
+	override DLLTOOL := $(DLLTOOL) --add-stdcall-alias
 endif
 
 ifdef USE_GCJ
@@ -52,11 +62,11 @@ override CPPFLAGS := -D__int64='long long' $(CPPFLAGS)
 
 # We need to be able to link with the JRE jvm.dll
 #
-EXTRAS := libjvm.dll
+EXTRAS := libjvm.dll.a
 
-extralibs: libjvm.dll
+extralibs: libjvm.dll.a
 
-libjvm.dll: $(OBJS)
+libjvm.dll.a: $(OBJS)
 	dlltool --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 endif
 
