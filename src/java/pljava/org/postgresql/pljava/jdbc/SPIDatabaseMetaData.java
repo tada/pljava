@@ -1292,6 +1292,11 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	private static String escapeQuotes(String s)
 	{
+        if (s == null)
+        {
+            return null;
+        }
+
 		StringBuffer sb = new StringBuffer();
 		int length = s.length();
 		char prevChar = ' ';
@@ -1311,7 +1316,60 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		return sb.toString();
 	}
 
-	/*
+	/**
+	 * Creates a condition with the specified operator
+     * based on schema specification:<BR>
+     * <UL>
+     * <LI>schema is specified => search in this schema only
+     * <LI>schema is equal to "" => search in the 'public' schema
+     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+	 */
+	private static String resolveSchemaConditionWithOperator(
+        String expr, String schema, String operator)
+	{
+        //schema is null => search in current_schemas(true)
+        if (schema == null)
+        {
+            return expr + " " + operator + " ANY (current_schemas(true))";
+        }
+        //schema is specified => search in this schema
+		else if(!"".equals(schema))
+		{
+			return expr + " " + operator + " '" + escapeQuotes(schema) + "' ";
+		}
+        //schema is "" => search in the 'public' schema
+        else
+        {
+            return expr + " " + operator + " 'public' ";
+        }
+    }
+
+	/**
+	 * Creates an equality condition based on schema specification:<BR>
+     * <UL>
+     * <LI>schema is specified => search in this schema only
+     * <LI>schema is equal to "" => search in the 'public' schema
+     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+	 */
+	private static String resolveSchemaCondition(String expr, String schema)
+	{
+        return resolveSchemaConditionWithOperator(expr, schema, "=");
+    }
+
+	/**
+	 * Creates a pattern condition based on schema specification:<BR>
+     * <UL>
+     * <LI>schema is specified => search in this schema only
+     * <LI>schema is equal to "" => search in the 'public' schema
+     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+	 */
+	private static String resolveSchemaPatternCondition(
+        String expr, String schema)
+	{
+        return resolveSchemaConditionWithOperator(expr, schema, "LIKE");
+    }
+
+    /*
 	 * Get a description of stored procedures available in a catalog <p>Only
 	 * procedure descriptions matching the schema and procedure name criteria
 	 * are returned. They are ordered by PROCEDURE_SCHEM and PROCEDURE_NAME <p>Each
@@ -1341,12 +1399,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				+ " LEFT JOIN pg_catalog.pg_description d ON (p.oid=d.objoid) "
 				+ " LEFT JOIN pg_catalog.pg_class c ON (d.classoid=c.oid AND c.relname='pg_proc') "
 				+ " LEFT JOIN pg_catalog.pg_namespace pn ON (c.relnamespace=pn.oid AND pn.nspname='pg_catalog') "
-				+ " WHERE p.pronamespace=n.oid ";
-		if(schemaPattern != null && !"".equals(schemaPattern))
-		{
-			sql += " AND n.nspname LIKE '" + escapeQuotes(schemaPattern)
-				+ "' ";
-		}
+				+ " WHERE p.pronamespace=n.oid "
+                + " AND " + resolveSchemaPatternCondition(
+                                "n.nspname", schemaPattern);
 		if(procedureNamePattern != null)
 		{
 			sql += " AND p.proname LIKE '"
@@ -1418,12 +1473,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String sql = "SELECT n.nspname,p.proname,p.prorettype::int4,p.proargtypes, t.typtype::varchar,t.typrelid::int4 "
 				+ " FROM pg_catalog.pg_proc p,pg_catalog.pg_namespace n, pg_catalog.pg_type t "
-				+ " WHERE p.pronamespace=n.oid AND p.prorettype=t.oid ";
-		if(schemaPattern != null && !"".equals(schemaPattern))
-		{
-			sql += " AND n.nspname LIKE '" + escapeQuotes(schemaPattern)
-				+ "' ";
-		}
+				+ " WHERE p.pronamespace=n.oid AND p.prorettype=t.oid "
+                + " AND " + resolveSchemaPatternCondition(
+                                "n.nspname", schemaPattern);
 		if(procedureNamePattern != null)
 		{
 			sql += " AND p.proname LIKE '"
@@ -1592,12 +1644,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				+ " LEFT JOIN pg_catalog.pg_description d ON (c.oid = d.objoid AND d.objsubid = 0) "
 				+ " LEFT JOIN pg_catalog.pg_class dc ON (d.classoid=dc.oid AND dc.relname='pg_class') "
 				+ " LEFT JOIN pg_catalog.pg_namespace dn ON (dn.oid=dc.relnamespace AND dn.nspname='pg_catalog') "
-				+ " WHERE c.relnamespace = n.oid ";
-			if(schemaPattern != null && !"".equals(schemaPattern))
-			{
-				select += " AND n.nspname LIKE '" + escapeQuotes(schemaPattern)
-					+ "' ";
-			}
+				+ " WHERE c.relnamespace = n.oid "
+                + " AND " + resolveSchemaPatternCondition(
+                                "n.nspname", schemaPattern);
 		String orderby = " ORDER BY TABLE_TYPE,TABLE_SCHEM,TABLE_NAME ";
 
 		if(types == null)
@@ -1825,12 +1874,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				+ " LEFT JOIN pg_catalog.pg_description dsc ON (c.oid=dsc.objoid AND a.attnum = dsc.objsubid) "
 				+ " LEFT JOIN pg_catalog.pg_class dc ON (dc.oid=dsc.classoid AND dc.relname='pg_class') "
 				+ " LEFT JOIN pg_catalog.pg_namespace dn ON (dc.relnamespace=dn.oid AND dn.nspname='pg_catalog') "
-				+ " WHERE a.attnum > 0 AND NOT a.attisdropped ";
-		if(schemaPattern != null && !"".equals(schemaPattern))
-		{
-			sql += " AND n.nspname LIKE '" + escapeQuotes(schemaPattern)
-				+ "' ";
-		}
+				+ " WHERE a.attnum > 0 AND NOT a.attisdropped "
+                + " AND " + resolveSchemaPatternCondition(
+                                "n.nspname", schemaPattern);
 
 		if(tableNamePattern != null && !"".equals(tableNamePattern))
 		{
@@ -1980,11 +2026,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				+ " WHERE c.relnamespace = n.oid "
 				+ " AND u.usesysid = c.relowner " + " AND c.oid = a.attrelid "
 				+ " AND c.relkind = 'r' "
-				+ " AND a.attnum > 0 AND NOT a.attisdropped ";
-		if(schema != null && !"".equals(schema))
-		{
-			sql += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
-		}
+				+ " AND a.attnum > 0 AND NOT a.attisdropped "
+                + " AND " + resolveSchemaCondition(
+                                "n.nspname", schema);
 
 		sql += " AND c.relname = '" + escapeQuotes(table) + "' ";
 		if(columnNamePattern != null && !"".equals(columnNamePattern))
@@ -2081,12 +2125,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String sql = "SELECT n.nspname,c.relname,u.usename,c.relacl "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class c, pg_catalog.pg_user u "
 				+ " WHERE c.relnamespace = n.oid "
-				+ " AND u.usesysid = c.relowner " + " AND c.relkind = 'r' ";
-		if(schemaPattern != null && !"".equals(schemaPattern))
-		{
-			sql += " AND n.nspname LIKE '" + escapeQuotes(schemaPattern)
-				+ "' ";
-		}
+				+ " AND u.usesysid = c.relowner " + " AND c.relkind = 'r' "
+                + " AND " + resolveSchemaPatternCondition(
+                                "n.nspname", schemaPattern);
 
 		if(tableNamePattern != null && !"".equals(tableNamePattern))
 		{
@@ -2332,12 +2373,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String where = "";
 		String from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_attribute a, pg_catalog.pg_index i ";
-			where = " AND ct.relnamespace = n.oid ";
-		if(!"".equals(schema))
-		{
-			where += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
-		}
-
+			where = " AND ct.relnamespace = n.oid "
+                  + " AND " + resolveSchemaCondition(
+                                  "n.nspname", schema);
 		String sql = "SELECT a.attname, a.atttypid::int4 as atttypid " + from
 			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
 			+ " AND a.attrelid=ci.oid AND i.indisprimary "
@@ -2444,11 +2482,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String where = "";
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, ";
 			from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_attribute a, pg_catalog.pg_index i ";
-			where = " AND ct.relnamespace = n.oid ";
-		if(!"".equals(schema))
-		{
-			where += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
-		}
+			where = " AND ct.relnamespace = n.oid AND " +
+                resolveSchemaCondition("n.nspname", schema);
+
 		String sql = select + " ct.relname AS TABLE_NAME, "
 			+ " a.attname AS COLUMN_NAME, " + " a.attnum::int2 AS KEY_SEQ, "
 			+ " ci.relname AS PK_NAME " + from
@@ -2459,7 +2495,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			sql += " AND ct.relname = '" + escapeQuotes(table) + "' ";
 		}
 		sql += where + " ORDER BY table_name, pk_name, key_seq";
-		return createMetaDataStatement().executeQuery(sql);
+
+        return createMetaDataStatement().executeQuery(sql);
 	}
 
 	/**
@@ -2554,18 +2591,11 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ " pg_catalog.pg_depend dep, pg_catalog.pg_class pkic "
 			+ " WHERE pkn.oid = pkc.relnamespace AND pkc.oid = pka.attrelid AND pka.attnum = con.confkey[pos.n] AND con.confrelid = pkc.oid "
 			+ " AND fkn.oid = fkc.relnamespace AND fkc.oid = fka.attrelid AND fka.attnum = con.conkey[pos.n] AND con.conrelid = fkc.oid "
-			+ " AND con.contype = 'f' AND con.oid = dep.objid AND pkic.oid = dep.refobjid AND pkic.relkind = 'i' AND dep.classid = 'pg_constraint'::regclass::oid AND dep.refclassid = 'pg_class'::regclass::oid ";
-		if(primarySchema != null && !"".equals(primarySchema))
-		{
-			sql += " AND pkn.nspname = '" + escapeQuotes(primarySchema)
-				+ "' ";
-		}
-		if(foreignSchema != null && !"".equals(foreignSchema))
-		{
-			sql += " AND fkn.nspname = '" + escapeQuotes(foreignSchema)
-				+ "' ";
-		}
-		if(primaryTable != null && !"".equals(primaryTable))
+			+ " AND con.contype = 'f' AND con.oid = dep.objid AND pkic.oid = dep.refobjid AND pkic.relkind = 'i' AND dep.classid = 'pg_constraint'::regclass::oid AND dep.refclassid = 'pg_class'::regclass::oid " +
+             " AND " + resolveSchemaCondition("pkn.nspname", primarySchema) +
+             " AND " + resolveSchemaCondition("fkn.nspname", foreignSchema);
+
+        if(primaryTable != null && !"".equals(primaryTable))
 		{
 			sql += " AND pkc.relname = '" + escapeQuotes(primaryTable)
 				+ "' ";
@@ -2864,11 +2894,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	{
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, ";
 		String from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_index i, pg_catalog.pg_attribute a, pg_catalog.pg_am am ";
-		String where = " AND n.oid = ct.relnamespace ";
-		if(schema != null && !"".equals(schema))
-		{
-			where += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
-		}
+		String where =
+            " AND n.oid = ct.relnamespace " +
+            " AND " + resolveSchemaCondition("n.nspname", schema);
 
 		String sql = select
 			+ " ct.relname AS TABLE_NAME, NOT i.indisunique AS NON_UNIQUE, NULL AS INDEX_QUALIFIER, ci.relname AS INDEX_NAME, "
