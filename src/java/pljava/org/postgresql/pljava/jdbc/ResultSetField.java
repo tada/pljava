@@ -32,7 +32,7 @@ public class ResultSetField
     public ResultSetField(String name, int oid, int len, int mod)
 	throws SQLException
     {
-        m_name = name;
+        m_name = name.toUpperCase();
         m_oid = oid;
         m_len = len;
         m_mod = mod;

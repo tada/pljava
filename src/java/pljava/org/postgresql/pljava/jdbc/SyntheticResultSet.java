@@ -65,7 +65,7 @@ public class SyntheticResultSet extends ResultSetBase
 	public int findColumn(String columnName)
 	throws SQLException
 	{
-        Integer idx = (Integer)m_fieldIndexes.get(columnName);
+        Integer idx = (Integer)m_fieldIndexes.get(columnName.toUpperCase());
         if(idx != null)
         {
             return idx.intValue();
