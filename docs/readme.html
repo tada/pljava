@@ -45,26 +45,50 @@ the postgresql.conf file) as directory separators.</p>
 <p>In order to see the logging from the tests add the following:</p>
 <pre><code>log_min_messages</code> = <code>info</code></pre>
 <p>PostgreSQL 8.0 adds the ability do define custom variable classes to the
-<code>postgresql.conf</code> file. Add the following entrires:</p>
-<pre>custom_variable_classes = &#39;pljava&#39;
-pljava.classpath = &lt;pljava installation&gt;/pljava.jar</pre>
-<p>The pljava.classpath is not needed when you run GCJ since the pljava.jar is compiled
-into the shared object.<br>
-&nbsp;</p>
+<code>postgresql.conf</code> file. Add the following entry:</p>
+<pre>custom_variable_classes = &#39;pljava&#39;</pre>
+<h4>System classpath</h4>
+Normally, all Java code is loaded into the database using the install_jar/replace_jar
+SQL functions. Most of PL/Java (those functions included) is however implemented in Java.
+Unless you use GCJ, where this Java code is compiled and linked with the pljava shared
+object module, this hen and egg problem needs to be resolved using the system classpath.
+If you have PostgreSQL 8.0 or later, you add the following entry to the <code>
+postgresql.conf</code> file:</p>
+<pre>pljava.classpath = &lt;pljava installation&gt;/pljava.jar</pre>
 <p>Using PostgreSQL 7.4, the <code>postgresql.conf</code> have no entry to configure
-Java specific environment variables yet so you will need use an external environment
+Java specific environment variables so you will need use an external environment
 setting:</p>
 <pre>export <code>CLASSPATH</code>=&lt;pljava installation&gt;/<code>pljava.jar</code>.</pre>
-<p>Finally, unless you use GCJ, the postmaster must be made aware of the location
-of the Java runtime shared objects. This accomplished by setting the <code>LD_LIBRARY_PATH</code>
-(Unix) or <code>PATH</code> (Windows). A standard install on an Intel Linux box
-will need:</p>
+<h4>Shared object issues</h4>
+<p>Unless you use GCJ, the postmaster must be made aware of the location
+of the shared objects used by the Java Runtime Environment (JRE). This accomplished by
+setting the <code>LD_LIBRARY_PATH</code> (Unix) or <code>PATH</code> (Windows). A
+standard install on an Intel Linux box will need:</p>
 <pre><code>export LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/i386:$JAVA_HOME/jre/lib/i386/client</code>.</pre>
 <p>Note: Some discussions took place on the postgres hackers list wether or not
 the LD_LIBRARY_PATH could be set using the dynamic_library_path but it was concluded
 that it would be too difficult. In essence, the postmaster would need to restart
 itself in order for the setting to become effective since the loader is initialized
 when the process is created.</p>
+<h4>zlib conflict</h4>
+<p>On some platforms there will be a conflict between the libzip.so included in the
+JRE and the libz.so used by PostgreSQL (the JRE libzip.so includes a libz.so).
+The symptom is an InternalError in the java.util.zip.Inflater.init when an attempt
+is made to load the first class. You can verify the version of libzip.so
+using the following command:</p>
+<pre><code>strings libzip.so | fgrep Copyright</code></pre>
+<p>The problem can be resolved in one of the following ways depending on your needs
+and ability to recompile:<ul>
+<li>Check if you can use a newer version of your JRE where the versions match. If so,
+that's probably the best solution.</li>
+<li>Set the environment LD_PRELOAD in effect for the postmaster process to point to
+the libzip.so present in the JRE. That will force the JRE version to be used. This
+might break postgres own use of compression for the affected processes.</li>
+<li>Reconfigure PostgreSQL with <code>--without-zlib</code>, recompile and reinstall.
+This will effetively disable all compression support in PostgreSQL.</li>
+<li>Obtain a zlib version from somewhere that corresponds to the version used by the
+JRE and relink your PostgreSQL executables with that version.</li>
+</ul>
 <p>You are now ready to start the postmaster.</p>
 <h2>Deploying the Pl/Java</h2>
 <p>Pl/Java adds a schema named SQLJ to the database (the naming is from the proposed
