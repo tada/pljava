@@ -7,12 +7,14 @@
 package org.postgresql.pljava.example;
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
+import java.sql.Time;
 import java.util.logging.Logger;
 
 /**
@@ -84,7 +86,7 @@ public class SPIActions
 			log(stmt);
 			select = conn.prepareStatement(stmt);
 
-			stmt = "INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?)";
+			stmt = "INSERT INTO employees2(id, name, salary, transferDay, transferTime) VALUES (?, ?, ?, ?, ?)";
 			log(stmt);
 			insert = conn.prepareStatement(stmt);
 
@@ -108,9 +110,12 @@ public class SPIActions
 				insert.setInt(1, id);
 				insert.setString(2, name);
 				insert.setInt(3, empSal);
+				long now = System.currentTimeMillis();
+				insert.setDate(4, new Date(now));
+				insert.setTime(5, new Time(now));
 				int nRows = insert.executeUpdate();
 				log("Insert processed " + nRows + " rows");
-				
+
 				delete.setInt(1, id);
 				nRows = delete.executeUpdate();
 				log("Delete processed " + nRows + " rows");

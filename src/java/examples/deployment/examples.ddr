@@ -125,7 +125,9 @@ SQLActions[ ] = {
 			(
 			id		int PRIMARY KEY,
 			name	varchar(200),
-			salary	int
+			salary	int,
+			transferDay date,
+			transferTime time
 			);
 
 		CREATE FUNCTION javatest.transferPeople(int)

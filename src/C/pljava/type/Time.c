@@ -60,13 +60,13 @@ static jlong Time_getMillisecsToday(Type self, JNIEnv* env, jobject jt, bool tzA
 	return mSecs;
 }
 
-static TimeADT Time_coerceObjectTZ_dd(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
+static double Time_coerceObjectTZ_dd(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
 {
 	jlong mSecs = Time_getMillisecsToday(self, env, jt, tzAdjust);
 	return ((double)mSecs) / 1000.0; /* Convert to seconds */
 }
 
-static TimeADT Time_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
+static int64 Time_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jt, bool tzAdjust)
 {
 	jlong mSecs = Time_getMillisecsToday(self, env, jt, tzAdjust);
 	return mSecs * 1000L; /* Convert millisecs to microsecs */
@@ -81,9 +81,19 @@ static jvalue _Time_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Time_coerceObject(Type self, JNIEnv* env, jobject time)
 {
+#if ((PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0) || PGSQL_MAJOR_VERSION < 8)
+	/*
+	 * PostgreSQL 8.0 and earlier has a major bug in how int64 times are
+	 * stored. They are actually first casted to a double
+	 */
+	return integerDateTimes
+		? Float8GetDatum(Time_coerceObjectTZ_id(self, env, time, true))
+		: Float8GetDatum(Time_coerceObjectTZ_dd(self, env, time, true));
+#else
 	return integerDateTimes
 		? Int64GetDatum(Time_coerceObjectTZ_id(self, env, time, true))
 		: Float8GetDatum(Time_coerceObjectTZ_dd(self, env, time, true));
+#endif
 }
 
 static Type Time_obtain(Oid typeId)
