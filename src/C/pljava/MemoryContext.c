@@ -231,11 +231,10 @@ MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
 	}
 	return found;
 }
-	
+
 void
 MemoryContext_dropNative(JNIEnv* env, void* nativePointer)
 {
-	jobject found = 0;
 	MemoryContext ctx = CurrentMemoryContext;
 	while(ctx != 0)
 	{

@@ -17,11 +17,12 @@ static jfieldID  s_NativeStruct_m_native;
 
 void NativeStruct_releaseCache(HashMap cache)
 {
+	Iterator itor;
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
 		return;
 
-	Iterator itor = HashMap_entries(cache);
+	itor = HashMap_entries(cache);
 	while(Iterator_hasNext(itor))
 	{
 		Entry e = Iterator_next(itor);

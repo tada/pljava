@@ -107,6 +107,7 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 
 	if(hasRow)
 	{
+		MemoryContext currCtx;
 		Datum result;
 		jobject tmp;
 		
@@ -114,7 +115,11 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 		tmp = (*env)->CallObjectMethod(env, ctxData->iterator, s_Iterator_next);
 		isCallingJava = saveicj;
 
+		/* The element must be coerced using the return value context
+		 */
+		currCtx = MemoryContext_switchToUpperContext();
 		result = Type_coerceObject(ctxData->elementType, env, tmp);
+		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
 
