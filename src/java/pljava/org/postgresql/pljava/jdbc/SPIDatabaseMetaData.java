@@ -1322,7 +1322,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
      * <UL>
      * <LI>schema is specified => search in this schema only
      * <LI>schema is equal to "" => search in the 'public' schema
-     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+     * <LI>schema is null =>  search in all schemas
 	 */
 	private static String resolveSchemaConditionWithOperator(
         String expr, String schema, String operator)
@@ -1330,7 +1330,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
         //schema is null => search in current_schemas(true)
         if (schema == null)
         {
-            return expr + " " + operator + " ANY (current_schemas(true))";
+			//This means that only "visible" schemas are seached.
+			//It was approved to change to *all* schemas.
+            //return expr + " " + operator + " ANY (current_schemas(true))";
+			return "1=1";
         }
         //schema is specified => search in this schema
 		else if(!"".equals(schema))
