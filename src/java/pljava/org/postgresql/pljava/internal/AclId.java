@@ -11,7 +11,7 @@ package org.postgresql.pljava.internal;
  *
  * @author Thomas Hallgren
  */
-public class AclId
+public final class AclId
 {
 	private final int m_native;
 
@@ -29,6 +29,14 @@ public class AclId
 	public boolean equals(Object other)
 	{
 		return this == other || ((other instanceof AclId) && ((AclId)other).m_native == m_native);
+	}
+
+	/**
+	 * Returns the integer value of this id.
+	 */
+	public int intValue()
+	{
+		return m_native;
 	}
 
 	/**

@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" path="src/java5/pljava"/>
-	<classpathentry kind="src" path="src/java5/examples"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/pljava"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/deploy"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/examples"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/test"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/j2sdk1.4.2_07"/>
-	<classpathentry kind="var" path="THIRDPARTY/asm-2.0_alpha.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

@@ -8,8 +8,6 @@ package org.postgresql.pljava.internal;
 
 import java.io.File;
 import java.io.FilePermission;
-import java.net.SocketPermission;
-import java.security.BasicPermission;
 import java.security.Permission;
 import java.sql.Connection;
 import java.sql.SQLException;

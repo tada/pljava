@@ -164,15 +164,16 @@ public class Commands
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		try
 		{
-			if(getJarId(conn, jarName) >= 0)
+			if(getJarId(conn, jarName, null) >= 0)
 				throw new SQLException("A jar named '" + jarName + "' already exists");
 
 			PreparedStatement stmt = conn.prepareStatement(
-				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin) VALUES(?, ?)");
+				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner) VALUES(?, ?, ?)");
 			try
 			{
 				stmt.setString(1, jarName);
 				stmt.setString(2, urlString);
+				stmt.setInt(3, AclId.getSessionUser().intValue());
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository insert did not insert 1 row");
 			}
@@ -181,7 +182,8 @@ public class Commands
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
 
-			int jarId = getJarId(conn, jarName);
+			AclId[] ownerRet = new AclId[1];
+			int jarId = getJarId(conn, jarName, ownerRet);
 			if(jarId < 0)
 				throw new SQLException("Unable to obtain id of '" + jarName + "'");
 
@@ -213,19 +215,25 @@ public class Commands
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		try
 		{
-			int jarId = getJarId(conn, jarName);
+			AclId[] ownerRet = new AclId[1];
+			int jarId = getJarId(conn, jarName, ownerRet);
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
+
+			AclId user = AclId.getSessionUser();
+			if(!(user.isSuperuser() || user.equals(ownerRet[0])))
+				throw new SecurityException("Only super user or owner can replace a jar");
 
 			if(redeploy)
 				deployRemove(conn, jarId);
 		
 			PreparedStatement stmt = conn.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarOrigin = ?, deploymentDesc = NULL WHERE jarId = ?");
+				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, deploymentDesc = NULL WHERE jarId = ?");
 			try
 			{
 				stmt.setString(1, urlString);
-				stmt.setInt(2, jarId);
+				stmt.setInt(2, user.intValue());
+				stmt.setInt(3, jarId);
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository update did not update 1 row");
 			}
@@ -273,10 +281,15 @@ public class Commands
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		try
 		{
-			int jarId = getJarId(conn, jarName);
+			AclId[] ownerRet = new AclId[1];
+			int jarId = getJarId(conn, jarName, ownerRet);
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
-			
+	
+			AclId user = AclId.getSessionUser();
+			if(!(user.isSuperuser() || user.equals(ownerRet[0])))
+				throw new SecurityException("Only super user or owner can remove a jar");
+
 			if(undeploy)
 				deployRemove(conn, jarId);
 
@@ -363,7 +376,7 @@ public class Commands
 						else
 							jarName = path;
 	
-						int jarId = getJarId(stmt, jarName);
+						int jarId = getJarId(stmt, jarName, null);
 						if(jarId < 0)
 							throw new SQLException("No such jar: " + jarName);
 		
@@ -641,14 +654,14 @@ public class Commands
 	 * such jar is found.
 	 * @throws SQLException
 	 */
-	protected static int getJarId(Connection conn, String jarName)
+	protected static int getJarId(Connection conn, String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
 		PreparedStatement stmt = conn.prepareStatement(
-			"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?");
+			"SELECT jarId, jarOwner FROM sqlj.jar_repository WHERE jarName = ?");
 		try
 		{
-			return getJarId(stmt, jarName);
+			return getJarId(stmt, jarName, ownerRet);
 		}
 		finally
 		{
@@ -656,7 +669,7 @@ public class Commands
 		}
 	}
 
-	protected static int getJarId(PreparedStatement stmt, String jarName)
+	static int getJarId(PreparedStatement stmt, String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
 		stmt.setString(1, jarName);
@@ -665,7 +678,10 @@ public class Commands
 		{
 			if(!rs.next())
 				return -1;
-			return rs.getInt(1);
+			int id = rs.getInt(1);
+			if(ownerRet != null)
+				ownerRet[0] = new AclId(rs.getInt(2));
+			return id;
 		}
 		finally
 		{

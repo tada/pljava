@@ -50,9 +50,9 @@ class EntryStreamHandler extends URLStreamHandler
 		private String m_entryName;
 		private byte[] m_image;
 
-		protected EntryConnection(URL url)
+		protected EntryConnection(URL entryURL)
 		{
-			super(url);
+			super(entryURL);
 			m_entryId = Integer.parseInt(url.getPath().substring(1));
 		}
 

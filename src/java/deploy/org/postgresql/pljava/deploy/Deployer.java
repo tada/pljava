@@ -345,7 +345,8 @@ public class Deployer
 			"CREATE TABLE sqlj.jar_repository(" +
 			"	jarId		SERIAL PRIMARY KEY," +
 			"	jarName		VARCHAR(100) UNIQUE NOT NULL," +
-			"   jarOrigin   VARCHAR(500) NOT NULL," +
+			"	jarOrigin   VARCHAR(500) NOT NULL," +
+			"	jarOwner	INT NOT NULL," +
 			"   deploymentDesc INT" +
 		")");
 		stmt.execute("GRANT SELECT ON sqlj.jar_repository TO public");

@@ -196,4 +196,14 @@ public class TestPLJava
 	{
 		
 	}
+	public final int getMajorVer()
+	{
+		return m_majorVer;
+	}
+	
+	public final int getMinorVer()
+	{
+		return m_minorVer;
+	}
+	
 }
