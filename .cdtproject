@@ -2,6 +2,7 @@
 <?eclipse-cdt version="2.0"?>
 
 <cdtproject id="org.eclipse.cdt.make.core.make">
+<extension point="org.eclipse.cdt.core.ScannerInfoProvider" id="org.eclipse.cdt.make.core.MakeScannerProvider"/>
 <extension point="org.eclipse.cdt.core.BinaryParser" id="org.eclipse.cdt.core.GNU_ELF">
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
@@ -26,7 +27,7 @@
 </target>
 <target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
-<buildTarget>CFLAGS=-g JDK_HOME=/c/j2sdk1.4.2_04 all</buildTarget>
+<buildTarget>CFLAGS=-g all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
@@ -39,18 +40,6 @@
 <target name="all with guc extension" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
 <buildTarget>CFLAGS=-g CPPFLAGS=-DCUSTOM_GUC_VARIABLES all</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="all-pljavalib" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildTarget>all-pljavalib</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="clean-pljavalib" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildTarget>clean-pljavalib</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>

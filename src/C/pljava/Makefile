@@ -47,7 +47,10 @@ endif
 ifdef USE_GCJ
 	GCJ := gcj
 	override CPPFLAGS := -DGCJ $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -lgcj -lws2_32
+	SHLIB_LINK = $(BE_DLLLIBS) -lgcj
+ifdef DLL_BUILD
+	SHLIB_LINK += -lws2_32
+endif
 	JAVA_SRCS	:= $(shell find $(MODULEROOT)/../java -type f -name \*.java)
 	OBJS += pljava_jar.o
 

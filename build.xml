@@ -1,6 +1,11 @@
 <project default="all">
-	<property name="pgsql.install.dir" value="/msys/local/pgsql"/>
-	<property name="pgsql.jdbc.jar" value="/msys/mingw/share/java/pg74.213.jdbc3.jar"/>
+	<!-- The pgsql.xxx properties must be set in order to run the tests. They
+	     are not used for anything else.
+	  -->
+	<property name="pgsql.install.dir" value="/usr/local/pgsql"/>
+	<property name="pgsql.jdbc.jar" value="/usr/share/java/pg74.1jdbc3.jar"/>
+	<path id="basedir" path="${basedir}"/>
+	<pathconvert property="fws.basedir" dirsep="/" refid="basedir"/>
 
 	<target
 		name="all"
@@ -8,16 +13,19 @@
 		description="builds all targets except javadoc, clean, and distrib"/>
 
 	<target
-		name="clean"
-		description="Removes all artifacts from previous builds">
-
-		<!-- Kill testdb postmaster if it's active -->
-		<echo message="Killing testdb postmaster if present"/>
+		name="stop_test"
+		description="Kills the testdb postmaster if present">
 		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failifexecutionfails="false" failonerror="false" >
 			<arg value="-D"/>
-			<arg value="${basedir}/bin/test/db"/>
+			<arg value="${fws.basedir}/bin/test/db"/>
 			<arg value="stop"/>
 		</exec>
+	</target>
+		
+	<target
+		name="clean"
+		depends="stop_test"
+		description="Removes all artifacts from previous builds">
 
 		<delete dir="bin" failonerror="false" quiet="true"/>
 		<delete dir="docs/api" failonerror="false" quiet="true"/>
@@ -274,40 +282,56 @@
 
 	<target 
 		name="run_tests"
-		depends="test_jar"
+		depends="test_jar,stop_test"
 		description="Initializes a test database, installs and runs the samples">
 
-		<path id="basedir" path="${basedir}"/>
-		<pathconvert property="fws.basedir" dirsep="/" refid="basedir"/>
-
-		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failonerror="false">
-			<arg value="-D"/>
-			<arg value="${fws.basedir}/bin/test/db"/>
-			<arg value="stop"/>
-		</exec>
-
+		<!-- Recreate the test directory if present -->
 		<delete dir="bin/test" failonerror="false"/>
 		<mkdir dir="bin/test"/>
-		<exec executable="${pgsql.install.dir}/bin/initdb" failonerror="true">
+
+		<exec
+			description="Initializes a new test database"
+			executable="${pgsql.install.dir}/bin/initdb"
+			failonerror="true">
 			<arg value="-D"/>
 			<arg value="${fws.basedir}/bin/test/db"/>
 		</exec>
+
 		<parallel failonany="true">
-			<exec executable="${pgsql.install.dir}/bin/postmaster">
+			<exec
+				description="Starts a new postmaster on the test database"
+				executable="${pgsql.install.dir}/bin/postmaster">
 				<arg value="-D"/>
 				<arg path="${fws.basedir}/bin/test/db"/>
-				<arg value="-p"/>
-				<arg value="5432"/>
+				
+				<!-- Enable more logging than default -->
 				<arg value="-c"/>
 				<arg value="log_min_messages=debug1"/>
+
+				<!-- Enable this if running 7.4
+				<arg value="-c"/>
+				<arg value="tcpip_socket=true"/>
+				-->
+
 				<arg value="-c"/>
 				<arg value="dynamic_library_path=${fws.basedir}/bin/build/pljava"/>
-				<!-- env key="CLASSPATH" path="C:\msys\mingw\share\java\libgcj-3.4.0.jar;${fws.basedir}/bin/pljava.jar"/ -->
+
+				<!-- Add this if running 7.5 and need debugging, i.e. the
+				     ability to execute SET pljava.debug = 'true'
+				-->
+				<arg value="-c"/>
+				<arg value="custom_variable_classes=pljava"/>
+
+				<!-- A classpath that finds the pljava.jar is needed unless gcj
+				     is used (in which case the pljava java classes are linked with
+				     the executable)
+				<env key="CLASSPATH" path="${fws.basedir}/bin/pljava.jar"/>
+				 -->
 			</exec>
 			<sequential>
 				<sleep
 					description="Sleep to ensure that postmaster is running"
-					seconds="10"/>
+					seconds="5"/>
 				<exec
 					description="Creates the testdb database"
 					executable="${pgsql.install.dir}/bin/createdb"
@@ -346,12 +370,6 @@
 				</java>
 			</sequential>
 		</parallel>
-		<!-- Kill testdb postmaster if it's active -->
-		<echo message="Killing testdb postmaster if present"/>
-		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failifexecutionfails="false" failonerror="false" >
-			<arg value="-D"/>
-			<arg value="${fws.basedir}/bin/test/db"/>
-			<arg value="stop"/>
-		</exec>
+		<antcall target="stop_test"/>
 	</target>
 </project>

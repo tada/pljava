@@ -54,6 +54,7 @@ static int callLevel = 0;
 #ifdef PGSQL_CUSTOM_VARIABLES
 static char* vmoptions;
 static char* classpath;
+static bool  pljavaDebug;
 #endif
 
 static void initJavaVM(JNIEnv* env)
@@ -609,9 +610,24 @@ static void initializeJavaVM()
 		PGC_USERSET,
 		NULL, NULL);
 
+	DefineCustomBoolVariable(
+		"pljava.debug",
+		"Stop the backend to attach a debugger",
+		NULL,
+		&pljavaDebug,
+		PGC_USERSET,
+		NULL, NULL);
+
 	EmittWarningsOnPlaceholders("pljava");
 
 	addUserJVMOptions(&optList);
+	
+	if(pljavaDebug)
+	{
+		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
+		while(pljavaDebug)
+			sleep(1);
+	}
 #endif
 
 	tmp = getClassPath("-Djava.class.path=");

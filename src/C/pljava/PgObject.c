@@ -121,11 +121,7 @@ void PgObject_registerNatives(JNIEnv* env, const char* className, JNINativeMetho
 
 void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods)
 {
-#ifdef GCJ
-	jint idx;
-	JNINativeMethod* cm;
-#endif
-
+#ifndef GCJ
 	jint nMethods = 0;
 	JNINativeMethod* m = methods;
 	while(m->name != 0)
@@ -133,43 +129,14 @@ void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods
 		m++;
 		nMethods++;
 	}
-#ifdef GCJ
-	/* GCJ has a glitch here. They use '.' instead of '/' in signatures
-	 */
-	m  = methods;
-	cm = (JNINativeMethod*)palloc(nMethods * sizeof(JNINativeMethod));
-	methods = cm;
-	for(idx = 0; idx < nMethods; ++idx, ++m, ++cm)
-	{
-		char* sgn = m->signature;
-		if(strchr(sgn, '/') != 0)
-		{
-			char  c;
-			int   len = strlen(sgn) + 1;
-			char* tmp = (char*)palloc(len);
-			char* cp  = tmp;
-			while((c = *sgn++) != 0)
-			{
-				if(c == '/')
-					c = '.';
-				*cp++ = c;
-			}
-			*cp = 0;
-			sgn = tmp;
-		}	
 
-		cm->name = m->name;
-		cm->fnPtr = m->fnPtr;
-		cm->signature = sgn;
-	}
-#endif
-	
 	if((*env)->RegisterNatives(env, cls, methods, nMethods) != 0)
 	{
 		(*env)->ExceptionDescribe(env);
 		ereport(ERROR, (
 			errmsg("Unable to register native methods")));
 	}
+#endif
 }
 
 jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
