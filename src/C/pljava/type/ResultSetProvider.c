@@ -95,6 +95,11 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ReturnSetInfo* rsInfo;
 		TupleDesc tupleDesc;
 
+		/* create a function context for cross-call persistence
+		 */
+		context = SRF_FIRSTCALL_INIT();
+		MemoryContextSwitchTo(context->multi_call_memory_ctx);
+
 		/* Call the declared Java function. It returns a ResultSetProvider
 		 * or a ResultSet. A ResultSet must be wrapped in a ResultSetPicker
 		 * (implements ResultSetProvider).
@@ -104,7 +109,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		isCallingJava = saveicj;
 		Exception_checkException(env);
 
-		context = (FuncCallContext*)fcinfo->flinfo->fn_extra;
 		if(tmp == 0)
 		{
 			fcinfo->isnull = true;
