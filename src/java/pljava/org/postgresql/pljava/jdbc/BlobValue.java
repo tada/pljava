@@ -182,9 +182,23 @@ public class BlobValue extends InputStream implements Blob
 	public void getContents(ByteBuffer buf)
 	throws IOException
 	{
-		byte[] bytes = buf.array();
-		int rs = m_stream.read(bytes);
-		if(rs != bytes.length)
+		int rs = 0;
+		if(buf.hasArray())
+		{
+			byte[] bytes = buf.array();
+			rs = m_stream.read(bytes);
+		}
+		else
+		{
+			byte[] trBuf = new byte[1024];
+			int br;
+			while((br = m_stream.read(trBuf)) > 0)
+			{
+				buf.put(trBuf, 0, br);
+				rs += br;
+			}
+		}
+		if(rs != m_nBytes)
 			throw new IOException("Not all bytes could be read");
 		m_streamPos += rs;
 	}
