@@ -96,7 +96,7 @@ Datum byte_array_initialize(PG_FUNCTION_ARGS)
 	s_BlobValue_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/BlobValue"));
 
-	s_BlobValue_length = PgObject_getJavaMethod(env, s_BlobValue_class, "length", "()Z");
+	s_BlobValue_length = PgObject_getJavaMethod(env, s_BlobValue_class, "length", "()J");
 	s_BlobValue_getContent = PgObject_getJavaMethod(env, s_BlobValue_class, "getContent", "([java/nio/ByteBuffer;)V");
 
 	s_byte_arrayClass = TypeClass_alloc("type.byte[]");
