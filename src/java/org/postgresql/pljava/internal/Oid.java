@@ -19,8 +19,6 @@ import java.util.HashMap;
  */
 public class Oid
 {
-	private static final HashMap s_class2typeId = new HashMap();
-
 	static
 	{
 		System.loadLibrary("pljava");
@@ -36,6 +34,8 @@ public class Oid
 			throw new ExceptionInInitializerError(e);
 		}
 	}
+
+	private static final HashMap s_class2typeId = new HashMap();
 
 	/*
 	 * The native Oid represented as a 32 bit quantity.
