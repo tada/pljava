@@ -1,7 +1,8 @@
 #-------------------------------------------------------------------------
+# Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT.
 #
-# Makefile for the deploy utility of pljava
-#
+# @author Thomas Hallgren
 #-------------------------------------------------------------------------
 NAME 			:= examples
 JAVADOCTITLE	:= 'PL/Java examples API Specification'

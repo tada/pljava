@@ -1,25 +1,31 @@
 #-------------------------------------------------------------------------
+# Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT.
 #
-# Makefile--
-#    Makefile for pljava
-#
+# @author Thomas Hallgren
 #-------------------------------------------------------------------------
 top_builddir := $(PGSQLDIR)
+SO_MAJOR_VERSION := $(PLJAVA_MAJOR_VER)
+SO_MINOR_VERSION := $(PLJAVA_MINOR_VER)
+
 include $(PGSQLDIR)/src/Makefile.global
 
 SS_VERSION := $(subst ., ,$(subst devel,.devel,$(VERSION)))
+PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
+PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
 
+ifneq ($(NAME),)
 SRCDIR	:= $(MODULEROOT)/$(NAME)
 INCLDIR	:= -I$(MODULEROOT)/include -I$(JNIDIR)
 
 mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
-SRCS	:= $(shell find $(SRCDIR) -type f -name \*.c)
-OBJS	:= $(call mkobjs,$(SRCS))
+SRCS	= $(shell find $(SRCDIR) -type f -name \*.c)
+OBJS	= $(call mkobjs,$(SRCS))
 
 override CPPFLAGS := \
 	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
-	-DPGSQL_MAJOR_VER=$(word 1,$(SS_VERSION)) \
-	-DPGSQL_MINOR_VER=$(word 2,$(SS_VERSION)) \
+	-DPGSQL_MAJOR_VER=$(PGSQL_MAJOR_VER) \
+	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER) \
 	$(CPPFLAGS)
 
 # Don't use higher standard then c89 since this rules out older compilers. We
@@ -33,6 +39,7 @@ $(OBJS): %.o : $(SRCDIR)/%.c
 
 depend:
 	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(SRCS) >depend
+endif
 
 ifeq (depend,$(wildcard depend))
 include depend

@@ -1,8 +1,8 @@
 #-------------------------------------------------------------------------
+# Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT.
 #
-# Makefile--
-#    Makefile for pljava
-#
+# @author Thomas Hallgren
 #-------------------------------------------------------------------------
 NAME			:= pljava
 JAVADOCTITLE	:= 'PL/Java v1.0.0 API Specification'
@@ -35,7 +35,11 @@ JNI_CLASSES := \
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))
 
 ifdef USE_GCJ
-all: $(OBJDIR)/$(NAME)_jar.o $(JNIDIR)/.timestamp
+# We include both the pljava_jar.o and the pjlava.jar here although
+# pljava doesn't need the latter. Most java compilers will need it
+# in order to compile triggers and functions later.
+#
+all: $(OBJDIR)/$(NAME)_jar.o $(JARFILE) $(JNIDIR)/.timestamp
 
 $(OBJDIR)/$(NAME)_jar.o: .timestamp
 	@-mkdir -p $(@D)
@@ -43,9 +47,10 @@ $(OBJDIR)/$(NAME)_jar.o: .timestamp
 else
 all: $(JARFILE) $(JNIDIR)/.timestamp
 
+endif
+
 $(JARFILE): .timestamp
 	$(JAR) cf $@ $(CLASSES)
-endif
 
 $(JNIDIR)/.timestamp: $(JNISRCS)
 	@-mkdir -p $(@D)

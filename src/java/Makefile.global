@@ -1,8 +1,8 @@
 #-------------------------------------------------------------------------
+# Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+# Distributed under the terms shown in the file COPYRIGHT.
 #
-# Makefile--
-#    Makefile for pljava
-#
+# @author Thomas Hallgren
 #-------------------------------------------------------------------------
 SRCDIR		:= $(MODULEROOT)/$(NAME)
 mkclasses	= $(subst $(SRCDIR)/,,$(1:%.java=%.class))
@@ -26,7 +26,13 @@ JARFILE	:= $(TARGETDIR)/$(NAME).jar
 
 .PHONY: javadoc
 
-javadoc:
+$(TARGETDIR)/docs/COPYRIGHT.txt: $(PROJDIR)/COPYRIGHT
+	@-mkdir -p $(@D)
+	@cp $(PROJDIR)/COPYRIGHT $(TARGETDIR)/docs/COPYRIGHT.txt
+
+javadoc: $(TARGETDIR)/docs/$(NAME)/.timestamp
+
+$(TARGETDIR)/docs/$(NAME)/.timestamp: $(SRCS)
 	$(JAVADOC) -d $(TARGETDIR)/docs/$(NAME)	\
 		-sourcepath $(SRCDIR)				\
 		-subpackages org.postgresql.pljava	\
@@ -34,4 +40,5 @@ javadoc:
 		-doctitle $(JAVADOCTITLE) 			\
 		-protected 							\
 		-bottom 'Copyright (c) 2003, 2004 TADA AB - Taby Sweden. \
-			Distributed under the terms shown in <a href="docs/COPYRIGHT">COPYRIGHT</a>'
+			Distributed under the terms shown in <a href="../COPYRIGHT.txt">COPYRIGHT</a>'
+	@touch $(TARGETDIR)/docs/$(NAME)/.timestamp
