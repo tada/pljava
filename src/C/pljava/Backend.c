@@ -505,19 +505,32 @@ static void addUserJVMOptions(JVMOptList* optList)
 						break;
 					appendStringInfoChar(&buf, c);
 					continue;
-
+					
 				default:
 					if(quote == 0 && isspace((int)c))
 					{
-						if(buf.len > 0)
+						while((c = *cp++) != 0)
 						{
+							if(!isspace((int)c))
+								break;
+						}
+
+						if(c == 0)
+							break;
+
+						if(c != '-')
+							appendStringInfoChar(&buf, ' ');
+						else if(buf.len > 0)
+						{
+							/* Whitespace followed by '-' triggers new
+							 * option declaration.
+							 */
 							JVMOptList_add(optList, buf.data, 0, true);
 							buf.len = 0;
 							buf.data[0] = 0;
 						}
 					}
-					else
-						appendStringInfoChar(&buf, c);
+					appendStringInfoChar(&buf, c);
 					continue;
 			}
 			break;
@@ -549,6 +562,7 @@ static void initializeJavaVM()
 	DirectFunctionCall1(HashMap_initialize, 0);
 
 #ifdef PGSQL_CUSTOM_VARIABLES
+	elog(INFO, "Defining pljava.vmoptions");
 	DefineCustomStringVariable(
 		"pljava.vmoptions",
 		"Options sent to the JVM when it is created",
@@ -558,6 +572,7 @@ static void initializeJavaVM()
 		NULL, NULL);
 
 	EmittWarningsOnPlaceholders("pljava");
+	elog(INFO, "option defined. Value was %s\n", (vmoptions == NULL) ? "NULL" : vmoptions);
 	addUserJVMOptions(&optList);
 #endif
 
