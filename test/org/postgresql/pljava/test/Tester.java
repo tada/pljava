@@ -30,7 +30,8 @@ public class Tester
 	private static final int CMD_PASSWORD  = 1;
 	private static final int CMD_DATABASE  = 2;
 	private static final int CMD_HOSTNAME  = 3;
-
+	private static final int CMD_PORT      = 4;
+	
 	private final Connection m_connection;
 
 	private static final ArrayList s_commands = new ArrayList();
@@ -41,6 +42,7 @@ public class Tester
 		s_commands.add(CMD_PASSWORD,  "password");
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
+		s_commands.add(CMD_PORT,      "port");
 	}
 
 	private static final int getCommand(String arg)
@@ -65,16 +67,17 @@ public class Tester
 		out.println("usage: java -jar deploy.jar");
 		out.println("    {-install | -uninstall | -reinstall}");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
+		out.println("    [ -port <portNubmer>   ]    # default is blank");
 		out.println("    [ -database <database> ]    # default is postgres");
 		out.println("    [ -user <userName>     ]    # default is postgres");
 		out.println("    [ -password <password> ]    # default is no password");
-		out.println("    [ -windows ]                # If the server is on a Windows machine");
 	}
 
 	public static void main(String[] argv)
 	{
 		String driverClass = "org.postgresql.Driver";
 		String hostName    = "localhost";
+		String portNumber  = null;
 		String database    = "postgres";
 		String userName    = "postgres";
 		String subsystem   = "postgresql";
@@ -139,6 +142,17 @@ public class Tester
 					printUsage();
 					return;
 
+				case CMD_PORT:
+					if(++idx < top)
+					{
+						portNumber = argv[idx];
+						if(portNumber.length() > 0
+								&& portNumber.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+					
 				default:
 					printUsage();
 					return;
@@ -148,11 +162,24 @@ public class Tester
 		try
 		{
 			Class.forName(driverClass);
+
+			StringBuffer cc = new StringBuffer();
+			cc.append("jdbc:");
+			cc.append(subsystem);
+			cc.append("://");
+			cc.append(hostName);
+			if(portNumber != null)
+			{	
+				cc.append(':');
+				cc.append(portNumber);
+			}
+			cc.append('/');
+			cc.append(database);
 			Connection c = DriverManager.getConnection(
-					"jdbc:" + subsystem + "://" + hostName + '/' + database,
+					cc.toString(),
 					userName,
 					password);
-
+			
 			Tester t = new Tester(c);
 			t.initialize();
 			t.testParameters();

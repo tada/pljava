@@ -29,7 +29,8 @@ public class Deployer
 	private static final int CMD_PASSWORD  = 4;
 	private static final int CMD_DATABASE  = 5;
 	private static final int CMD_HOSTNAME  = 6;
-	private static final int CMD_WINDOWS   = 7;
+	private static final int CMD_PORT      = 7;
+	private static final int CMD_WINDOWS   = 8;
 	
 	private final Connection m_connection;
 
@@ -44,6 +45,7 @@ public class Deployer
 		s_commands.add(CMD_PASSWORD,  "password");
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
+		s_commands.add(CMD_PORT,      "port");
 		s_commands.add(CMD_WINDOWS,   "windows");
 	}
 
@@ -68,6 +70,7 @@ public class Deployer
 		out.println("usage: java -jar deploy.jar");
 		out.println("    {-install | -uninstall | -reinstall}");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
+		out.println("    [ -port <portNumber>   ]    # default is blank");
 		out.println("    [ -database <database> ]    # default is postgres");
 		out.println("    [ -user <userName>     ]    # default is postgres");
 		out.println("    [ -password <password> ]    # default is no password");
@@ -82,6 +85,7 @@ public class Deployer
 		String userName    = "postgres";
 		String subsystem   = "postgresql";
 		String password    = null;
+		String portNumber  = null;
 		boolean unix       = true;
 		int cmd = CMD_UNKNOWN;
 
@@ -155,6 +159,17 @@ public class Deployer
 					printUsage();
 					return;
 
+				case CMD_PORT:
+					if(++idx < top)
+					{
+						portNumber = argv[idx];
+						if(portNumber.length() > 0
+						&& portNumber.charAt(0) != '-')
+							break;
+					}
+					printUsage();
+					return;
+
 				case CMD_WINDOWS:
 					unix = false;
 					break;
@@ -174,8 +189,21 @@ public class Deployer
 		try
 		{
 			Class.forName(driverClass);
+			
+			StringBuffer cc = new StringBuffer();
+			cc.append("jdbc:");
+			cc.append(subsystem);
+			cc.append("://");
+			cc.append(hostName);
+			if(portNumber != null)
+			{	
+				cc.append(':');
+				cc.append(portNumber);
+			}
+			cc.append('/');
+			cc.append(database);
 			Connection c = DriverManager.getConnection(
-					"jdbc:" + subsystem + "://" + hostName + '/' + database,
+					cc.toString(),
 					userName,
 					password);
 
