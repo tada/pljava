@@ -175,12 +175,12 @@ SQLActions[ ] = {
 			IMMUTABLE LANGUAGE java;
 
 		CREATE FUNCTION javatest.listSupers()
-			RETURNS SETOF varchar
+			RETURNS SETOF pg_user
 			AS 'org.postgresql.pljava.example.Users.listSupers'
 			LANGUAGE java;
 
 		CREATE FUNCTION javatest.listNonSupers()
-			RETURNS SETOF pg_users
+			RETURNS SETOF pg_user
 			AS 'org.postgresql.pljava.example.Users.listNonSupers'
 			LANGUAGE java;
 
