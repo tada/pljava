@@ -2,9 +2,10 @@
  * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT.
  */
-package org.postgresql.pljava;
+package org.postgresql.pljava.internal;
 
 import java.util.EventListener;
+
 
 /**
  * @author Thomas Hallgren

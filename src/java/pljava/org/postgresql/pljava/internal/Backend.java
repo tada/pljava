@@ -4,7 +4,6 @@
  */
 package org.postgresql.pljava.internal;
 
-import org.postgresql.pljava.Session;
 
 /**
  * Provides access to some useful routines in the PostgreSQL server.

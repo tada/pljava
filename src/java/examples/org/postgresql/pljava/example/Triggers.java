@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.Session;
+import org.postgresql.pljava.SessionManager;
 
 /**
  * This class contains some triggers that I found written in C under the
@@ -48,7 +49,7 @@ public class Triggers
 			throw new TriggerException(td, "one argument was expected");
 
 		if(_new.getString(args[0]) == null)
-			_new.updateString(args[0], Session.current().getUserName());
+			_new.updateString(args[0], SessionManager.current().getUserName());
 	}
 
 	static void afterUsernameUpdate(TriggerData td)
