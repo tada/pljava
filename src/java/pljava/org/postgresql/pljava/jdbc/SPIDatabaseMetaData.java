@@ -1320,9 +1320,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * Creates a condition with the specified operator
      * based on schema specification:<BR>
      * <UL>
-     * <LI>schema is specified => search in this schema only
-     * <LI>schema is equal to "" => search in the 'public' schema
-     * <LI>schema is null =>  search in all schemas
+     * <LI>schema is specified => search in this schema only</LI>
+     * <LI>schema is equal to "" => search in the 'public' schema</LI>
+     * <LI>schema is null =>  search in all schemas</LI>
+	 * </UL>
 	 */
 	private static String resolveSchemaConditionWithOperator(
         String expr, String schema, String operator)
@@ -1350,9 +1351,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	/**
 	 * Creates an equality condition based on schema specification:<BR>
      * <UL>
-     * <LI>schema is specified => search in this schema only
-     * <LI>schema is equal to "" => search in the 'public' schema
-     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+     * <LI>schema is specified => search in this schema only</LI>
+     * <LI>schema is equal to "" => search in the 'public' schema</LI>
+     * <LI>schema is null =>  search in all schemas</LI>
+	 * </UL>
 	 */
 	private static String resolveSchemaCondition(String expr, String schema)
 	{
@@ -1362,9 +1364,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	/**
 	 * Creates a pattern condition based on schema specification:<BR>
      * <UL>
-     * <LI>schema is specified => search in this schema only
-     * <LI>schema is equal to "" => search in the 'public' schema
-     * <LI>schema is null =>  search in all schemas in search_path including implicit schemas
+     * <LI>schema is specified => search in this schema only</LI>
+     * <LI>schema is equal to "" => search in the 'public' schema</LI>
+     * <LI>schema is null =>  search in all schemas</LI>
+	 * </UL>
 	 */
 	private static String resolveSchemaPatternCondition(
         String expr, String schema)
