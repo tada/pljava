@@ -588,7 +588,7 @@ static void initializeJavaVM()
 #endif
 
 	tmp = getClassPath("-Djava.class.path=");
-	if(classPathDef != 0)
+	if(tmp != 0)
 	{
 		JVMOptList_add(&optList, tmp, 0, false);
 	}

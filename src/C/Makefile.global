@@ -7,22 +7,12 @@
 top_builddir := $(PGSQLDIR)
 include $(PGSQLDIR)/src/Makefile.global
 
-ifeq ($(PORTNAME), win32)
-	USE_DLL := 1
-else
-ifeq ($(PORTNAME), cygwin)
-	USE_DLL := 1
-else
-	USE_DLL :=
-endif
-endif
+SRCDIR	:= $(MODULEROOT)/$(NAME)
+INCLDIR	:= $(MODULEROOT)/include
 
-SRCDIR  := $(MODULEROOT)/$(MODULE)
-INCLDIR := $(MODULEROOT)/include
-
-mkobjs  = $(subst $(SRCDIR)/,,$(1:%.c=%.o))
-SRCS	  := $(shell find $(SRCDIR) -type f -name \*.c)
-OBJS    := $(call mkobjs,$(SRCS))
+mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
+SRCS	:= $(shell find $(SRCDIR) -type f -name \*.c)
+OBJS	:= $(call mkobjs,$(SRCS))
 
 override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) $(CPPFLAGS)
 
@@ -32,8 +22,8 @@ override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) $(CPPFLAGS)
 override CFLAGS := -pedantic -Wno-long-long $(CFLAGS)
 
 $(OBJS): %.o : $(SRCDIR)/%.c
-			@-mkdir -p $(@D)
-			$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+	@-mkdir -p $(@D)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 
 depend:
 	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(SRCS) >depend

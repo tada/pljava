@@ -8,19 +8,33 @@
 <attribute key="c++filt" value="c++filt"/>
 </extension>
 <data>
-        <item id="org.eclipse.cdt.make.core.makeScannerInfo">
-<includePath path="../postgresql-7.4/src/include"/>
-<includePath path="/usr/java/j2sdk1.4.2_02/include"/>
-<includePath path="/usr/java/j2sdk1.4.2_02/include/linux"/>
-</item>
+        
     <item id="org.eclipse.cdt.make.core.buildtargets">
 <buildTargets>
-<target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>sh</buildCommand>
-<buildArguments>-c "export PWD= &amp;&amp; make"</buildArguments>
+<target name="pljava for gcj" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildArguments>USE_GCJ=1</buildArguments>
 <buildTarget>all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>false</useDefaultCommand>
+</target>
+<target name="clean" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildTarget>clean</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
+<target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildTarget>all</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
+<target name="depend" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildTarget>depend</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
 </target>
 </buildTargets>
 </item>

@@ -34,19 +34,19 @@ import org.postgresql.pljava.internal.Oid;
  * into the SQLJ jar repository. It is an error if a jar with the given name
  * already exists in the repository.
  * <h3>Usage</h3>
- * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_name&gt;, &lt;jar_url&gt;, ;&lt;deploy&gt;);</code>
+ * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, ;&lt;deploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
  * <blockquote><table>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
- * <td>This is the name by which this jar can be referenced once it has been
- * loaded</td>
- * </tr>
- * <tr>
  * <td valign="top"><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded
  * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>This is the name by which this jar can be referenced once it has been
+ * loaded</td>
  * </tr>
  * <tr>
  * <td valign="top"><b>deploy</b></td>
@@ -59,18 +59,18 @@ import org.postgresql.pljava.internal.Oid;
  * The replace_jar will replace a loaded jar with another jar. Use this command
  * to update already loaded files. It's an error if the jar is not found.
  * <h3>Usage</h3>
- * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_name&gt;, &lt;jar_url&gt;, &#160;&lt;redeploy&gt;);</code>
+ * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, ;&lt;redeploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
  * <blockquote><table>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
- * <td>The name of the jar to be replaced</td>
- * </tr>
- * <tr>
  * <td valign="top"><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded
  * </td>
+ * </tr>
+ * <tr>
+ * <td valign="top"><b>jar_name</b></td>
+ * <td>The name of the jar to be replaced</td>
  * </tr>
  * <tr>
  * <td valign="top"><b>redeploy</b></td>
@@ -144,10 +144,10 @@ public class Commands
 	 * method is exposed in SQL as
 	 * <code>sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
 	 * 
-	 * @param jarName
-	 *            The name by which the system will refer to this jar.
 	 * @param urlString
 	 *            The location of the jar that will be installed.
+	 * @param jarName
+	 *            The name by which the system will refer to this jar.
 	 * @param deploy
 	 *            If set, execute install commands found in the deployment descriptor.
 	 * @throws SQLException
@@ -155,7 +155,7 @@ public class Commands
 	 *             invalid or if the named jar already exists in the system.
 	 * @see #setClassPath
 	 */
-	public static void installJar(String jarName, String urlString, boolean deploy)
+	public static void installJar(String urlString, String jarName, boolean deploy)
 	throws SQLException
 	{
 		assertJarName(jarName);
@@ -198,14 +198,14 @@ public class Commands
 	 * Replaces the image of jar named <code>jarName</code> in the database jar
 	 * repository. This method is exposed in SQL as <code>
 	 * sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
-	 * @param jarName The name by which the system referes this jar.
 	 * @param urlString The location of the jar that will be installed.
+	 * @param jarName The name by which the system referes this jar.
 	 * @param redeploy If set, execute remove commands found in the deployment
 	 * descriptor of the old jar and install commands found in the deployment
 	 * descriptor of the new jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
-	public static void replaceJar(String jarName, String urlString, boolean redeploy)
+	public static void replaceJar(String urlString, String jarName, boolean redeploy)
 	throws SQLException
 	{
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");

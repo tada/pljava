@@ -1,14 +1,11 @@
 export PROJDIR   := $(shell pwd)
 export TARGETDIR := $(PROJDIR)/bin/build
 export PGSQLDIR  := $(PROJDIR)/../pgsql
-export SETTINGS  := $(shell set)
 
-.PHONY: all
+.PHONY: all clean install uninstall depend
 
-all: pljava
-
-%:
-		@mkdir -p $(TARGETDIR)/pljava
-		@$(MAKE) -r -C $(TARGETDIR)/pljava \
-		-f $(PROJDIR)/src/C/pljava/Makefile \
-		MODULEROOT=$(PROJDIR)/src/C $@
+all clean install uninstall depend:
+	@mkdir -p $(TARGETDIR)/pljava
+	@$(MAKE) -r -C $(TARGETDIR)/pljava \
+	-f $(PROJDIR)/src/C/pljava/Makefile \
+	MODULEROOT=$(PROJDIR)/src/C $@
