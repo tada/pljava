@@ -174,84 +174,33 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.SPIActions.testSavepointSanity'
 			IMMUTABLE LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_get_database_product_name()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.MetaDataTest.getDatabaseProductName'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_get_database_product_version()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.MetaDataTest.getDatabaseProductVersion'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_supports_savepoints()
-			RETURNS boolean
-			AS 'org.postgresql.pljava.example.MetaDataTest.supportsSavepoints'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_get_schemas()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.MetaDataTest.getSchemas'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_get_table_types()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.MetaDataTest.getTableTypes'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_get_database_meta_data()
-			RETURNS void
-			AS 'org.postgresql.pljava.example.MetaDataTest.getDatabaseMetaData'
-			LANGUAGE java;
-
-		CREATE TYPE javatest.java_meta_data_booleans
+		CREATE TYPE javatest.MetaDataBooleans
 			AS (method_name varchar(200), result boolean);
 
-		CREATE FUNCTION javatest.java_get_database_meta_data_booleans()
-			RETURNS SETOF javatest.java_meta_data_booleans
+		CREATE FUNCTION javatest.getMetaDataBooleans()
+			RETURNS SETOF javatest.MetaDataBooleans
 			AS 'org.postgresql.pljava.example.MetaDataBooleans.getDatabaseMetaDataBooleans'
 			LANGUAGE java;
 
-		CREATE TYPE javatest.java_meta_data_strings
+		CREATE TYPE javatest.MetaDataStrings
 			AS (method_name varchar(200), result varchar);
 
-		CREATE FUNCTION javatest.java_get_database_meta_data_strings()
-			RETURNS SETOF javatest.java_meta_data_strings
+		CREATE FUNCTION javatest.getMetaDataStrings()
+			RETURNS SETOF javatest.MetaDataStrings
 			AS 'org.postgresql.pljava.example.MetaDataStrings.getDatabaseMetaDataStrings'
 			LANGUAGE java;
 
-		CREATE TYPE javatest.java_meta_data_ints
+		CREATE TYPE javatest.MetaDataInts
 			AS (method_name varchar(200), result int);
 
-		CREATE FUNCTION javatest.java_get_database_meta_data_ints()
-			RETURNS SETOF javatest.java_meta_data_ints
+		CREATE FUNCTION javatest.getMetaDataInts()
+			RETURNS SETOF javatest.MetaDataInts
 			AS 'org.postgresql.pljava.example.MetaDataInts.getDatabaseMetaDataInts'
 			LANGUAGE java;
 
-		CREATE TYPE javatest.java_type_info
-			AS (
-				type_name varchar,
-				data_type int,
-				precision int,
-				literal_prefix varchar,
-				literal_suffix varchar,
-				create_params varchar,
-				nullable smallint,
-				case_sensitive boolean,
-				searchable smallint,
-				unsigned_attribute boolean,
-				fixed_prec_scale boolean,
-				auto_increment boolean,
-				local_type_name varchar,
-				minimum_scale smallint,
-				maximum_scale smallint,
-				sql_data_type int,
-				sql_datetime_sub int,
-				num_prec_radix int);
-
-		CREATE FUNCTION javatest.java_get_type_info()
-			RETURNS SETOF javatest.java_type_info
-			AS 'org.postgresql.pljava.example.MetaDataTest.getTypeInfo'
+		CREATE FUNCTION javatest.callMetaDataMethod(varchar)
+			RETURNS SETOF varchar
+			AS 'org.postgresql.pljava.example.MetaDataTest.callMetaDataMethod'
 			LANGUAGE java;
 	END INSTALL",
 	
