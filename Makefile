@@ -24,13 +24,13 @@ export CLASSDIR			:= $(TARGETDIR)/classes
 export PLJAVA_MAJOR_VER	:= 1
 export PLJAVA_MINOR_VER	:= 0
 export PLJAVA_PATCH_VER	:= 0b4
-export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER)_$(PLJAVA_MINOR_VER)_$(PLJAVA_PATCH_VER)
+export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER).$(PLJAVA_PATCH_VER)
 export TAR				:= /bin/tar
 
 OS := $(shell uname -s)
 MACHINE := $(shell uname -m)
 
-.PHONY: all clean docs javadoc source_tarball install uninstall depend release \
+.PHONY: all clean docs javadoc source_tarball maven_bundle install uninstall depend release \
 	c_all c_install c_uninstall c_depend \
 	pljava_all pljava_javadoc \
 	deploy_all deploy_javadoc \
@@ -85,8 +85,14 @@ c_all c_install c_uninstall c_depend: c_%:
 
 source_tarball:
 	@-mkdir -p $(TARGETDIR)/distrib
-	@$(MAKE) -r -f $(PROJDIR)/packaging/Makefile $@
+	@$(MAKE) -r -C $(TARGETDIR) -f $(PROJDIR)/packaging/Makefile $@
 
 release: all docs javadoc
 	@-mkdir -p $(TARGETDIR)/distrib
-	@$(MAKE) -r -f $(PROJDIR)/packaging/Makefile $@
+	@$(MAKE) -r -C $(TARGETDIR) -f $(PROJDIR)/packaging/Makefile $@
+
+maven_bundle: pljava_all
+	@-mkdir -p $(TARGETDIR)/distrib
+	@$(MAKE) -r -C $(TARGETDIR) -f $(PROJDIR)/packaging/Makefile $@
+
+	
