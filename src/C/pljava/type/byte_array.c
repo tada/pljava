@@ -12,7 +12,7 @@
 static jclass s_byteArray_class;
 static jclass s_BlobValue_class;
 static jmethodID s_BlobValue_length;
-static jmethodID s_BlobValue_getContent;
+static jmethodID s_BlobValue_getContents;
 
 /*
  * byte[] type. Copies data to/from a bytea struct.
@@ -31,6 +31,9 @@ static jvalue _byte_array_coerceDatum(Type self, JNIEnv* env, Datum arg)
 static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
 {
 	bytea* bytes = 0;
+	if(byteArray == 0)
+		return 0;
+
 	if((*env)->IsInstanceOf(env, byteArray, s_byteArray_class))
 	{
 		jsize  length    = (*env)->GetArrayLength(env, (jbyteArray)byteArray);
@@ -46,7 +49,7 @@ static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
 		jlong length;
 		int32 byteaSize;
 		bool saveicj = isCallingJava;
-		
+
 		isCallingJava = true;
 		length = (*env)->CallLongMethod(env, byteArray, s_BlobValue_length);
 		isCallingJava = saveicj;
@@ -58,7 +61,7 @@ static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
 		isCallingJava = true;
 		byteBuffer = (*env)->NewDirectByteBuffer(env, (void*)VARDATA(bytes), length);
 		if(byteBuffer != 0)
-			(*env)->CallVoidMethod(env, byteArray, s_BlobValue_getContent, byteBuffer);
+			(*env)->CallVoidMethod(env, byteArray, s_BlobValue_getContents, byteBuffer);
 		isCallingJava = saveicj;
 
 		if((*env)->ExceptionCheck(env))
@@ -97,7 +100,7 @@ Datum byte_array_initialize(PG_FUNCTION_ARGS)
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/BlobValue"));
 
 	s_BlobValue_length = PgObject_getJavaMethod(env, s_BlobValue_class, "length", "()J");
-	s_BlobValue_getContent = PgObject_getJavaMethod(env, s_BlobValue_class, "getContent", "(Ljava/nio/ByteBuffer;)V");
+	s_BlobValue_getContents = PgObject_getJavaMethod(env, s_BlobValue_class, "getContents", "(Ljava/nio/ByteBuffer;)V");
 
 	s_byte_arrayClass = TypeClass_alloc("type.byte[]");
 	s_byte_arrayClass->JNISignature = "[B";

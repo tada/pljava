@@ -211,6 +211,14 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.LoggerTest.logMessage'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE TYPE javatest.BinaryColumnPair
+			AS (col1 bytea, col2 bytea);
+
+		CREATE FUNCTION javatest.binaryColumnTest()
+			RETURNS SETOF javatest.BinaryColumnPair
+			AS 'org.postgresql.pljava.example.BinaryColumnTest.getBinaryPairs'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE TYPE javatest.MetaDataBooleans
 			AS (method_name varchar(200), result boolean);
 
