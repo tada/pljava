@@ -18,6 +18,7 @@
 #include <utils/syscache.h>
 #include <catalog/catalog.h>
 #if (PGSQL_MAJOR_VER < 8)
+#	include <fcntl.h>
 #	include <catalog/pg_control.h>
 #endif
 #include <catalog/pg_proc.h>
