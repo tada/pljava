@@ -37,6 +37,12 @@ struct Function_
 	bool      readOnly;
 
 	/*
+	 * True if the function is a multi-call function and hence, will
+	 * allocate a memory context of its own.
+	 */
+	bool      isMultiCall;
+
+	/*
 	 * True if the function returns a complex type.
 	 */
 	bool      returnComplex;
@@ -389,8 +395,9 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 		Type complex = 0;
 
 		self->numParams = (int32)procStruct->pronargs;
+		self->isMultiCall = procStruct->proretset;
 
-		if(procStruct->proretset)
+		if(self->isMultiCall)
 		{
 			/* The function returns a set. Check if the element type is a
 			 * complex or a scalar type.
@@ -576,9 +583,17 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	{
 		int32   idx;
 		Type    invokerType;
-		jvalue* args  = (jvalue*)palloc(top * sizeof(jvalue));
+		jvalue* args;
 		Type*   types = self->paramTypes;
 
+
+		/* a class loader or other mechanism might have connected already. This
+		 * connection must be dropped since its parent context is wrong.
+		 */
+		if(self->isMultiCall)
+			Backend_assertDisconnect();
+
+		args  = (jvalue*)palloc(top * sizeof(jvalue));
 		if(self->returnComplex)
 		{
 			--top; /* Last argument is not present in fcinfo */

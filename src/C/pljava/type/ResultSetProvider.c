@@ -85,11 +85,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	FuncCallContext* context;
 	bool saveicj = isCallingJava;
 
-	/* a class loader or other mechanism might have connected already. This
-	 * connection must be dropped since its parent context is wrong.
-	 */
-	Backend_assertDisconnect();
-
 	/* stuff done only on the first call of the function
 	 */
 	if(SRF_IS_FIRSTCALL())
