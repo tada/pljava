@@ -186,7 +186,6 @@ void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
 	va_list args;
 	jstring message;
 	jobject ex;
-	int idx;
 
 	va_start(args, errMessage);
 	vsnprintf(buf, sizeof(buf), errMessage, args);
