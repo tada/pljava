@@ -1,4 +1,4 @@
-CREATE SCHEMA sqlj AUTHORIZATION postgres;
+CREATE SCHEMA sqlj;
 GRANT USAGE ON SCHEMA sqlj TO public;
 
 CREATE FUNCTION sqlj.java_call_handler()
@@ -13,7 +13,6 @@ CREATE TABLE sqlj.jar_repository(
 	jarOrigin   VARCHAR(500) NOT NULL,
 	deploymentDesc INT
 );
-ALTER TABLE sqlj.jar_repository OWNER TO postgres;
 GRANT SELECT ON sqlj.jar_repository TO public;
 
 CREATE TABLE sqlj.jar_entry(
@@ -23,7 +22,6 @@ CREATE TABLE sqlj.jar_entry(
 	entryImage  BYTEA NOT NULL,
 	UNIQUE(jarId, entryName)
 );
-ALTER TABLE sqlj.jar_entry OWNER TO postgres;
 GRANT SELECT ON sqlj.jar_entry TO public;
 
 ALTER TABLE sqlj.jar_repository
@@ -35,7 +33,6 @@ CREATE TABLE sqlj.classpath_entry(
 	jarId		INT NOT NULL REFERENCES sqlj.jar_repository ON DELETE CASCADE,
 	PRIMARY KEY(schemaName, ordinal)
 );
-ALTER TABLE sqlj.classpath_entry OWNER TO postgres;
 GRANT SELECT ON sqlj.classpath_entry TO public;
 
 CREATE FUNCTION sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void

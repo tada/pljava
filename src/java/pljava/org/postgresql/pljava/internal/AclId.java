@@ -73,6 +73,29 @@ public class AclId
 	}
 
 	/**
+	 * Return true if this AclId has the right to create new objects
+	 * in the given schema.
+	 */
+	public boolean hasSchemaCreatePermission(Oid oid)
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._hasSchemaCreatePermission(oid);
+		}
+	}
+
+	/**
+	 * Returns true if this AclId represents a super user.
+	 */
+	public boolean isSuperuser()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isSuperuser();
+		}
+	}
+
+	/**
 	 * Returns the result of calling #getName().
 	 */
 	public String toString()
@@ -83,4 +106,6 @@ public class AclId
 	private static native AclId _getUser();
 	private static native AclId _getSessionUser();
 	private native String _getName();
+	private native boolean _hasSchemaCreatePermission(Oid oid);
+	private native boolean _isSuperuser();
 }

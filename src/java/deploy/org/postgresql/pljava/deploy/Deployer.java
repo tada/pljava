@@ -84,7 +84,7 @@ public class Deployer
 	private static final int CMD_DATABASE  = 5;
 	private static final int CMD_HOSTNAME  = 6;
 	private static final int CMD_PORT      = 7;
-	private static final int CMD_WINDOWS   = 8;
+	private static final int CMD_CYGWIN    = 8;
 	
 	private final Connection m_connection;
 
@@ -100,7 +100,7 @@ public class Deployer
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
 		s_commands.add(CMD_PORT,      "port");
-		s_commands.add(CMD_WINDOWS,   "windows");
+		s_commands.add(CMD_CYGWIN,    "cygwin");
 	}
 
 	private static final int getCommand(String arg)
@@ -128,7 +128,7 @@ public class Deployer
 		out.println("    [ -database <database> ]    # default is name of current user");
 		out.println("    [ -user <userName>     ]    # default is name of current user");
 		out.println("    [ -password <password> ]    # default is no password");
-		out.println("    [ -windows ]                # If the server is on a Windows machine");
+		out.println("    [ -cygwin ]                 # If the server is on a Cygwin based Windows machine");
 	}
 
 	public static void main(String[] argv)
@@ -140,7 +140,7 @@ public class Deployer
 		String subsystem   = "postgresql";
 		String password    = null;
 		String portNumber  = null;
-		boolean unix       = true;
+		boolean cygwin     = false;
 		int cmd = CMD_UNKNOWN;
 
 		int top = argv.length;
@@ -224,8 +224,8 @@ public class Deployer
 					printUsage();
 					return;
 
-				case CMD_WINDOWS:
-					unix = false;
+				case CMD_CYGWIN:
+					cygwin = true;
 					break;
 
 				default:
@@ -272,7 +272,7 @@ public class Deployer
 			if(cmd == CMD_INSTALL || cmd == CMD_REINSTALL)
 			{
 				deployer.createSQLJSchema();
-				deployer.initJavaHandler(unix);
+				deployer.initJavaHandler(cygwin);
 				deployer.initializeSQLJSchema();
 			}
 			c.close();
@@ -330,7 +330,7 @@ public class Deployer
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute("CREATE SCHEMA sqlj AUTHORIZATION postgres");
+		stmt.execute("CREATE SCHEMA sqlj");
 		stmt.execute("GRANT USAGE ON SCHEMA sqlj TO public");
 		stmt.close();
 	}
@@ -347,8 +347,6 @@ public class Deployer
 			"   jarOrigin   VARCHAR(500) NOT NULL," +
 			"   deploymentDesc INT" +
 		")");
-
-		stmt.execute("ALTER TABLE sqlj.jar_repository OWNER TO postgres");
 		stmt.execute("GRANT SELECT ON sqlj.jar_repository TO public");
 
 		stmt.execute(
@@ -360,7 +358,6 @@ public class Deployer
 			"   UNIQUE(jarId, entryName)" +
 			")");
 
-		stmt.execute("ALTER TABLE sqlj.jar_entry OWNER TO postgres");
 		stmt.execute("GRANT SELECT ON sqlj.jar_entry TO public");
 
 		stmt.execute(
@@ -376,8 +373,6 @@ public class Deployer
 			"	jarId		INT NOT NULL REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 			"	PRIMARY KEY(schemaName, ordinal)" +
 			")");
-
-		stmt.execute("ALTER TABLE sqlj.classpath_entry OWNER TO postgres");
 		stmt.execute("GRANT SELECT ON sqlj.classpath_entry TO public");
 
 		// These are the proposed SQL standard methods.
@@ -415,14 +410,14 @@ public class Deployer
 		stmt.close();
 	}
 
-	public void initJavaHandler(boolean unix)
+	public void initJavaHandler(boolean cygwin)
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute(
 			"CREATE FUNCTION sqlj.java_call_handler()" +
 			" RETURNS language_handler" +
-			" AS '" + (unix ? "lib" : "") + "pljava'" +
+			" AS '" + (cygwin ? "" : "lib") + "pljava'" +
 			" LANGUAGE C");
 
 		stmt.execute("CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");

@@ -22,6 +22,7 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
+import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Oid;
 
 /**
@@ -317,11 +318,21 @@ public class Commands
 		{
 			if(schemaName == null || schemaName.length() == 0)
 				schemaName = "public";
+			
+			if("public".equals(schemaName))
+			{
+				if(!AclId.getSessionUser().isSuperuser())
+					throw new SQLException("Permission denied. Only a super user can set the classpath of the public schema");
+			}
 			else
+			{
 				schemaName = schemaName.toLowerCase();
-
-			if(getSchemaId(conn, schemaName) == null)
-				throw new SQLException("No such schema: " + schemaName);
+				Oid schemaId = getSchemaId(conn, schemaName);
+				if(schemaId == null)
+					throw new SQLException("No such schema: " + schemaName);
+				if(!AclId.getSessionUser().hasSchemaCreatePermission(schemaId))
+					throw new SQLException("Permission denied. User must have create permission on the target schema in order to set the classpath");
+			}
 
 			PreparedStatement stmt;
 			ArrayList entries = null;
