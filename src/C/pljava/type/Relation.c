@@ -112,17 +112,17 @@ Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _thi
 	if(self == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		char* relName = SPI_getrelname(self);
 		ret = String_createJavaStringFromNTS(env, relName);
 		pfree(relName);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_getrelname");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return ret;
 }
 
@@ -162,7 +162,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 	if(tuple == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		jint idx;
 		TupleDesc tupleDesc = self->rd_att;
@@ -233,12 +233,12 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 		if(nulls != 0)
 			pfree(nulls);	
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
 		tuple = 0;
-		Exception_throw_ERROR(env, "SPI_modifytuple");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 
 	return (tuple == 0) ? 0 : Tuple_create(env, tuple);
 }

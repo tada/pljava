@@ -121,7 +121,7 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, job
 	if(self == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		TupleDesc tupleDesc = lookup_rowtype_tupdesc(
 					HeapTupleHeaderGetTypeId(self),
@@ -150,11 +150,11 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, job
 				result = Type_coerceDatum(type, env, binVal).l;
 		}
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_gettypeid or GetAttributeByNum");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 

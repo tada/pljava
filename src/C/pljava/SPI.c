@@ -61,16 +61,16 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 		return 0;
 
 	result = 0;
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		result = (jint)SPI_exec(command, (int)count);
 		pfree(command);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_exec");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 

@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
+ */
+#ifndef __pljava_ErrorData_h
+#define __pljava_ErrorData_h
+
+#include "pljava/type/NativeStruct.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*****************************************************************
+ * The ErrorData java class represents the native ErrorData.
+ * 
+ * @author Thomas Hallgren
+ *****************************************************************/
+
+/*
+ * Create the org.postgresql.pljava.internal.ErrorData instance
+ */
+extern jobject ErrorData_create(JNIEnv* env, ErrorData* errorData);
+
+/*
+ * Extract the native ErrorData from a Java ErrorData.
+ */
+extern ErrorData* ErrorData_getErrorData(JNIEnv* env, jobject jerrorData);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

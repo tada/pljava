@@ -313,17 +313,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	(*env)->DeleteLocalRef(env, schemaName);
 	ReleaseSysCache(nspTup);
-
-	if((*env)->ExceptionCheck(env))
-	{
-		(*env)->ExceptionDescribe(env);
-		if(elogErrorOccured)
-			longjmp(Warn_restart, 1);
-
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Failed to obtain class loader")));
-	}
+	Exception_checkException(env);
 
 	jname  = String_createJavaStringFromNTS(env, className);
 
@@ -335,20 +325,8 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	(*env)->DeleteLocalRef(env, jname);
 	(*env)->DeleteLocalRef(env, loader);
 
-	if((*env)->ExceptionCheck(env))
-	{
-		isCallingJava = true;
-		(*env)->ExceptionDescribe(env);
-		isCallingJava = saveIcj;
-
-		if(elogErrorOccured)
-			longjmp(Warn_restart, 1);
-
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Failed to load class %s", className)));
-	}
 	pfree(className);
+	Exception_checkException(env);
 
 	self->returnComplex = false;
 	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);

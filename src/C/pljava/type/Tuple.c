@@ -108,7 +108,7 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 	if(tupleDesc == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
 		if(!OidIsValid(typeId))
@@ -133,10 +133,10 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 				result = Type_coerceDatum(type, env, binVal).l;
 		}
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_gettypeid or SPI_getbinval");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }

@@ -36,16 +36,18 @@ __attribute__((format(printf, 3, 4)));
 extern void Exception_throwSPI(JNIEnv* env, const char* function);
 
 /*
- * Like ereport(ERROR, ...) but this method will raise a Java SQLException and
- * return. It will NOT do a longjmp. It's intended use is in PLJAVA_CATCH
- * clauses.
+ * This method will raise a Java ServerException based on an ErrorData obtained
+ * by a call to CopyErrorData. It will NOT do a longjmp. It's intended use is
+ * in PG_CATCH clauses.
  */
-extern void Exception_throw_ERROR(JNIEnv* env, const char* function);
+extern void Exception_throw_ERROR(JNIEnv* env);
 
 /*
- * Checks if a Java exception has been thrown. If so, ereport(ERROR, ...) is
- * called. There's no return from this method if that happens. This method
- * is called at the completion of each call to a function or trigger.
+ * Checks if a Java exception has been thrown. If so, a check is made if the
+ * exception was a ServerException. If it was, it's contained ErrorData is
+ * re-thrown, otherwise, the function ereport(ERROR, ...) is called. There's
+ * no return from this method if that happens. This method is called at the
+ * completion of each call to a function or trigger.
  */
 extern void Exception_checkException(JNIEnv* env);
 

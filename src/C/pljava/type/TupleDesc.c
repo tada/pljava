@@ -136,7 +136,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobje
 	if(self == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		char* name = SPI_fname(self, (int)index);
 		if(name == 0)
@@ -151,11 +151,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobje
 			pfree(name);
 		}
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_fname");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -180,7 +180,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobj
 	if(name == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		index = SPI_fnumber(self, name);
 		if(index < 0)
@@ -191,11 +191,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobj
 		}
 		pfree(name);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_fnumber");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return index;
 }
 
@@ -215,7 +215,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _
 	if(self == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		jint   idx;
 		int    count   = self->natts;
@@ -239,11 +239,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _
 		pfree(values);
 		pfree(nulls);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "heap_formtuple");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 

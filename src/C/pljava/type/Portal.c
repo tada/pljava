@@ -158,15 +158,15 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jobject _this, j
 	if(portal == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		SPI_cursor_fetch(portal, forward == JNI_TRUE, (int)count);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_cursor_fetch");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return (jint)SPI_processed;
 }
 
@@ -286,14 +286,14 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jobject _this, jb
 	if(portal == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		SPI_cursor_move(portal, forward == JNI_TRUE, (int)count);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_cursor_move");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return (jint)SPI_processed;
 }

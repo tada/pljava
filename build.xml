@@ -216,6 +216,11 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.internal.ErrorData"
+			outputfile="src/C/include/pljava/type/ErrorData_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.internal.Oid"
 			outputfile="src/C/include/pljava/type/Oid_JNI.h"
 			/>

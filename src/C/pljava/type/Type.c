@@ -159,6 +159,7 @@ extern Datum Timestamp_initialize(PG_FUNCTION_ARGS);
 
 extern Datum Oid_initialize(PG_FUNCTION_ARGS);
 extern Datum AclId_initialize(PG_FUNCTION_ARGS);
+extern Datum ErrorData_initialize(PG_FUNCTION_ARGS);
 
 extern Datum String_initialize(PG_FUNCTION_ARGS);
 extern Datum byte_array_initialize(PG_FUNCTION_ARGS);
@@ -209,6 +210,7 @@ Datum Type_initialize(PG_FUNCTION_ARGS)
 
 	Oid_initialize(fcinfo);
 	AclId_initialize(fcinfo);
+	ErrorData_initialize(fcinfo);
 
 	byte_array_initialize(fcinfo);
 

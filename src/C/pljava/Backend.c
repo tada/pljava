@@ -38,7 +38,6 @@
 #error "PKGLIBDIR needs to be defined to compile this file."
 #endif
 
-bool elogErrorOccured;
 bool isCallingJava;
 
 #define LOCAL_REFERENCE_COUNT 32
@@ -137,9 +136,7 @@ static void onEndOfScope(MemoryContext ctx, bool isDelete)
 
 static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 {
-	Datum retval;
-	sigjmp_buf saveRestart;
-	bool saveErrorOccured = elogErrorOccured;
+	Datum retval = 0;
 	bool saveIsCallingJava = isCallingJava;
 	MemoryContext saveReturnValueContext = returnValueContext;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
@@ -148,9 +145,6 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	 * case this function is reentered. This may happend if Java calls
 	 * out to SQL which in turn invokes a new Java function.
 	 */
-	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
-	elogErrorOccured = false;
-
 	returnValueContext = upper;
 	if(!MemoryContext_hasCallbackCapability(upper))
 	{
@@ -171,56 +165,39 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
 	}
 
-	if(sigsetjmp(Warn_restart, 1) != 0)
+	PG_TRY();
 	{
-		/* Catch block.
-		 */
-		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
-		elogErrorOccured   = saveErrorOccured;
+		if(CALLED_AS_TRIGGER(fcinfo))
+		{
+			/* Called as a trigger procedure
+			 */
+			Function function = Function_getFunction(s_mainEnv, funcOid, true);
+			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
+		}
+		else
+		{
+			/* Called as a function
+			 */
+			Function function = Function_getFunction(s_mainEnv, funcOid, false);
+			retval = Function_invoke(function, s_mainEnv, fcinfo);
+		}
+		Exception_checkException(s_mainEnv);
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
-		siglongjmp(Warn_restart, 1);
 	}
-
-	if(CALLED_AS_TRIGGER(fcinfo))
+	PG_CATCH();
 	{
-		/* Called as a trigger procedure
-		 */
-		Function function = Function_getFunction(s_mainEnv, funcOid, true);
-		retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
+		isCallingJava      = saveIsCallingJava;
+		returnValueContext = saveReturnValueContext;
+		PG_RETHROW();
 	}
-	else
-	{
-		/* Called as a function
-		 */
-		Function function = Function_getFunction(s_mainEnv, funcOid, false);
-		retval = Function_invoke(function, s_mainEnv, fcinfo);
-	}
-	Exception_checkException(s_mainEnv);
-	if(elogErrorOccured)
-		longjmp(Warn_restart, 1);
+	PG_END_TRY();
 
-	/* Pop of the "try/catch" block.
-	 */
-	memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
-	elogErrorOccured   = saveErrorOccured;
-	isCallingJava      = saveIsCallingJava;
-	returnValueContext = saveReturnValueContext;
 	return retval;
 }
 
 bool pljavaEntryFence(JNIEnv* env)
 {
-	if(elogErrorOccured)
-	{
-		/* An elog with level higher than ERROR was issued. The transaction
-		 * state is unknown. There's no way the JVM is allowed to enter the
-		 * backend at this point.
-		 */
-		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
-		return true;
-	}
 	if(!isCallingJava)
 	{
 		/* The backend is *not* awaiting the return of a call to the JVM
@@ -816,18 +793,18 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 		return 0;
 
 	result = 0;
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		const char* value = GetConfigOption(key);
 		pfree(key);
 		if(value != 0)
 			result = String_createJavaStringFromNTS(env, value);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetConfigOption");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -845,16 +822,16 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cl
 	if(str == 0)
 		return;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		elog(logLevel, str);
 		pfree(str);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "elog");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 }
 
 /*
@@ -877,15 +854,15 @@ JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jclass cls, jobject listener)
 {
 	PLJAVA_ENTRY_FENCE_VOID
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		EOXactListener_register(env, listener);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "RegisterEOXactCallback");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 }
 
 /*
@@ -897,13 +874,13 @@ JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, jclass cls, jobject listener)
 {
 	PLJAVA_ENTRY_FENCE_VOID
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		EOXactListener_unregister(env);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "UnregisterEOXactCallback");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 }

@@ -15,6 +15,6 @@ public class StatementClosedException extends SQLException
 
 	public StatementClosedException()
 	{
-		super("Statemen is closed", INVALID_SQL_STATEMENT_NAME);
+		super("Statement is closed", INVALID_SQL_STATEMENT_NAME);
 	}
 }

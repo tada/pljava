@@ -109,15 +109,15 @@ Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 {
 	jobject result = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		result = AclId_create(env, GetUserId());
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetUserId");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -131,15 +131,15 @@ Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass c
 {
 	jobject result = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		result = AclId_create(env, GetSessionUserId());
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetSessionUserId");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -153,15 +153,15 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 {
 	jstring result = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		result = String_createJavaStringFromNTS(env,
 			GetUserNameFromId(AclId_getAclId(env, aclId)));
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetUserNameFromId");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }

@@ -38,33 +38,20 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  * that initially called Java finally returns, the intended longjmp (the one
  * to the original value of Warn_restart) must be made.
  */
-extern bool elogErrorOccured;
 extern bool isCallingJava;
 extern bool pljavaEntryFence(JNIEnv* env);
- 
+
 /* NOTE!
- * When using the PLJAVA_TRY, PLJAVA_CATCH, PLJAVA_END_CATCH family of macros,
- * it is an ABSOLUTE NECESSITY to use the PLJAVA_TRY_RETURN, PLJAVA_TRY_BREAK
- * and PLJAVA_TRY_CONTINUE in place of any return, break, or continue. Failure
- * to comply with this rule is that the Warn_restart buffer is not restored!
+ * When using the PG_TRY, PG_CATCH, PG_TRY_END family of macros,
+ * it is an ABSOLUTE NECESSITY to use the PG_TRY_RETURN or
+ * PG_TRY_RETURN_VOID in place of any return.
  */
-#define PLJAVA_TRY { \
-	sigjmp_buf saveRestart; \
-	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart)); \
-	if(sigsetjmp(Warn_restart, 1) == 0) {
+#define PG_TRY_POP \
+	PG_exception_stack = save_exception_stack; \
+	error_context_stack = save_context_stack
 
-#define PLJAVA_CATCH \
-		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); \
-	} else { \
-		elogErrorOccured = true; \
-		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
-
-#define PLJAVA_TCEND }}
-
-#define PLJAVA_TRY_RETURN(retVal) { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); return retVal; }
-#define PLJAVA_TRY_RETURN_VOID { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); return; }
-#define PLJAVA_TRY_BREAK { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); break; }
-#define PLJAVA_TRY_CONTINUE { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); continue; }
+#define PG_TRY_RETURN(retVal) { PG_TRY_POP; return retVal; }
+#define PG_TRY_RETURN_VOID { PG_TRY_POP; return; }
 
 #define PLJAVA_ENTRY_FENCE(retVal) if(pljavaEntryFence(env)) return retVal;
 #define PLJAVA_ENTRY_FENCE_VOID if(pljavaEntryFence(env)) return;

@@ -216,7 +216,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 	if(ePlan == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		Datum*  values  = 0;
 		char*   nulls   = 0;
@@ -238,11 +238,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 			jportal = Portal_create(env, portal);
 		}
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_cursor_open");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return jportal;
 }
 
@@ -262,15 +262,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 	if(ePlan == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		result = SPI_is_cursor_plan(ePlan);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_is_cursor_plan");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -290,7 +290,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 	if(ePlan == 0)
 		return 0;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		Datum* values = 0;
 		char*  nulls  = 0;
@@ -303,11 +303,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 				pfree(nulls);
 		}
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_execp");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 	return result;
 }
 
@@ -321,7 +321,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 {
 	jobject jePlan = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		char* cmd;
 		void* ePlan;
@@ -356,11 +356,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 		else
 			jePlan = ExecutionPlan_create(env, ePlan);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_prepare");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 
 	return jePlan;
 }
@@ -379,16 +379,16 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan(JNIEnv* env, jobjec
 	if(ePlan == 0)
 		return;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
 		SPI_freeplan(ePlan);	/* Get rid of the original, nobody can see it anymore */
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_saveplan");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 }
 
 /*
@@ -405,15 +405,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobj
 	if(ePlan == 0)
 		return;
 
-	PLJAVA_TRY
+	PG_TRY();
 	{
 		SPI_freeplan(ePlan);
 	}
-	PLJAVA_CATCH
+	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_freeplan");
+		Exception_throw_ERROR(env);
 	}
-	PLJAVA_TCEND
+	PG_END_TRY();
 }
 
 /*

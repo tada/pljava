@@ -9,6 +9,7 @@
 
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
+#include "pljava/type/ErrorData.h"
 
 static jclass s_Class_class;
 static jmethodID s_Class_getName;
@@ -19,6 +20,10 @@ static jmethodID s_Throwable_getMessage;
 static jclass    s_SQLException_class;
 static jmethodID s_SQLException_init;
 static jmethodID s_SQLException_getSQLState;
+
+static jclass    s_ServerException_class;
+static jmethodID s_ServerException_init;
+static jmethodID s_ServerException_getErrorData;
 
 void Exception_checkException(JNIEnv* env)
 {
@@ -39,11 +44,22 @@ void Exception_checkException(JNIEnv* env)
 	(*env)->ExceptionClear(env);
 	isCallingJava = saveicj;
 
-	if(elogErrorOccured)
-		/*
-		 * Don't throw any exception. The ERROR takes precedence.
+	if((*env)->IsInstanceOf(env, exh, s_ServerException_class))
+	{
+		/* Rethrow the server error.
 		 */
-		return;
+		jobject jed;
+		isCallingJava = true;
+		jed = (*env)->CallObjectMethod(env, exh, s_ServerException_getErrorData);
+		isCallingJava = saveicj;
+
+		if(jed != 0)
+		{
+			ErrorData* ed = ErrorData_getErrorData(env, jtmp);
+			(*env)->DeleteLocalRef(env, jed);
+			ReThrowError(ed);
+		}
+	}
 
 	sqlState = ERRCODE_INTERNAL_ERROR;
 
@@ -127,10 +143,13 @@ void Exception_throwSPI(JNIEnv* env, const char* function)
 		"SPI function SPI_%s failed with error code %d", function, SPI_result);
 }
 
-void Exception_throw_ERROR(JNIEnv* env, const char* function)
+void Exception_throw_ERROR(JNIEnv* env)
 {
-	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"SPI function %s failed with elog( level >= ERROR )", function);
+	jobject ed = ErrorData_create(env, CopyErrorData());
+	jobject ex = PgObject_newJavaObject(
+		env, s_ServerException_class, s_ServerException_init, ed);
+	(*env)->DeleteLocalRef(env, ed);
+	(*env)->Throw(env, ex);
 }
 
 PG_FUNCTION_INFO_V1(Exception_initialize);
@@ -145,20 +164,29 @@ Datum Exception_initialize(PG_FUNCTION_ARGS)
 	s_Throwable_class = (jclass)(*env)->NewGlobalRef(
 		env, PgObject_getJavaClass(env, "java/lang/Throwable"));
 
+	s_Throwable_getMessage = PgObject_getJavaMethod(env, s_Throwable_class,
+			"getMessage", "()Ljava/lang/String;");
+
 	s_SQLException_class = (jclass)(*env)->NewGlobalRef(
 		env, PgObject_getJavaClass(env, "java/sql/SQLException"));
 
-	s_Class_getName = PgObject_getJavaMethod(env, s_Class_class,
-			"getName", "()Ljava/lang/String;");
+	s_ServerException_class = (jclass)(*env)->NewGlobalRef(
+		env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ServerException"));
 
 	s_SQLException_init = PgObject_getJavaMethod(env, s_SQLException_class,
 			"<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
 
-	s_Throwable_getMessage = PgObject_getJavaMethod(env, s_Throwable_class,
-			"getMessage", "()Ljava/lang/String;");
-
 	s_SQLException_getSQLState = PgObject_getJavaMethod(env, s_SQLException_class,
 			"getSQLState", "()Ljava/lang/String;");
+
+	s_ServerException_init = PgObject_getJavaMethod(env, s_ServerException_class,
+			"<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
+
+	s_ServerException_getErrorData = PgObject_getJavaMethod(env, s_ServerException_class,
+			"<init>", "()Lorg/postgresql/pljava/internal/ErrorData;");
+
+	s_Class_getName = PgObject_getJavaMethod(env, s_Class_class,
+			"getName", "()Ljava/lang/String;");
 
 	PG_RETURN_VOID();
 }
