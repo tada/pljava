@@ -35,7 +35,6 @@ import java.util.Map;
  */
 public class SPIConnection implements Connection
 {
-	
 	private static final HashMap s_sqlType2Class = new HashMap(30);
 
 	static
@@ -70,6 +69,16 @@ public class SPIConnection implements Connection
 	SPIConnection()
 	{
 		m_valid = true;
+	}
+
+	/**
+	 * Returns a default connection instance. It is the callers responsability
+	 * to close this instance.
+	 */
+	public static Connection getDefault()
+	throws SQLException
+	{
+		return new SPIConnection();
 	}
 
 	/**

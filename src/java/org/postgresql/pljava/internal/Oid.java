@@ -25,6 +25,17 @@ public class Oid
 	{
 		System.loadLibrary("pljava");
 		registerType(Oid.class, Oid.getTypeId());
+		try
+		{
+			// Ensure that the SPI JDBC driver is loaded and registered
+			// with the java.sql.DriverManager.
+			//
+			Class.forName("org.postgresql.pljava.jdbc.SPIDriver");
+		}
+		catch(ClassNotFoundException e)
+		{
+			throw new ExceptionInInitializerError(e);
+		}
 	}
 
 	/*
