@@ -1,89 +1,116 @@
 <html>
-  <head>
-    <title>First release of the PL/Java</title>
-    <style>
+
+<head>
+<title>PL/Java readme</title>
+<style>
 <!--
 h1           { font-size: 18pt }
 h2           { font-size: 14pt; margin-top: 12; margin-bottom: 3 }
 p            { margin-top: 0; margin-bottom: 6 }
 -->
     </style>
-  </head>
-  <body>
-    <div class="Section1">
-      <h1>PL/Java, 1.0.0 beta.</h1>
-      <p>With this release, the Pl/Java project has reached its second major milestone. It is now possible to write triggers and functions without any knowledge about the PostgreSQL backend internals. Instead of using Tuple, TupleDesc, and SPI functions, you use well known JDBC interfaces like Connection, PreparedStatement, and ResultSet. Jar files are stored in the database and can be loaded, changed, or removed using SQL standard procedure calls.</p>
-      <p>Two binary releases can be found in the download area. One for Windows (cygwin required until the Win32 native port of PostgreSQL is released), and one for Linux on Intel-platform. The reason for the limited set of binaries is that I have a limited set of machines. All code is plain C and Java and should be very portable.</p>
-      <h2>Prerequisites</h2>
-      <p>See to that you have a Java 1.4 and PostgreSQL 7.4 including its JDBC drivers installed on your machine. A JRE (runtime environment) will suffice if you use the binary distribution. You don't need the JDK unless you plan to compile. 
-      Get the binary distribution of Pl/Java for your platform. Unzip it into a 
-      directory of your own choice.</p>
-      <h2>Postmaster configuration</h2>
-      <p>Get the PostgreSQL environment up and running. You will need to modify the 
-      <code>postgresql.conf</code> file so that:</p>
-      <ul>
-        <li>The postmaster accepts TCP/IP connections (needed for the JDBC driver). Simply uncomment the line that says:
-        <br />
-        <code># tcpip_socket = false</code>
-        <br />and then change the 
-        <code>false</code> to a 
-        <code>true</code>.</li>
-        <li>Further down, you'll find the entry for 
-        <code>dynamic_library_path</code>. Uncomment this entry too and change it so that the postmaster will find the shared library, i.e. the path must include the directory that contains the 
-        <code>libpljava.so</code> or 
-        <code>pljava.dll</code> (which one is depending on your OS).</li>
-        <li>In order to see the logging from the tests, also change the 
-        <code>log_min_messages</code> to 
-        <code>info.</code>
-        </li>
-      </ul>
-      <p>The 
-      <code>postgresql.conf</code> have no entry to configure Java specific environment variables yet so you will need to make two external environment settings available to the postmaster process:</p>
-      <ul>
-        <li>The 
-        <code>CLASSPATH</code> must include the full path to 
-        <code>pljava.jar</code>.</li>
-        <li>The 
-        <code>LD_LIBRARY_PATH</code> (Unix) or 
-        <code>PATH</code> (Windows) must be set so that the loader finds the shared libraries used by the JVM. A standard install on an Intel Linux box will need: 
-        <code>LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/i386:$JAVA_HOME/jre/lib/i386/client</code>.</li>
-      </ul>
-      <p>With that in place, you are ready to start the postmaster.</p>
-      <h2>Deploying the Pl/Java</h2>
-      <p>Pl/Java adds a schema named SQLJ to the database (the naming is from the proposed SQL standard for Java backend mapping) and adds a couple of tables and functions to that schema. A deploy program exists that should be used for this purpose. In order to run this program, you must see to that the PostgreSQL jdbc driver package 
-      <code>postgresql.jar</code> and the 
-      <code>deploy.jar</code> file is in your 
-      <code>CLASSPATH</code>, then run:</p>
-      <p>
-      <code>java org.postgresql.pljava.deploy.Deployer</code>
-      <br />
-      <br />This will result in a list of options. Typically you would use something like:</p>
-      <p>
-        <code>java org.postgresql.pljava.deploy.Deployer -install -user &lt;your name&gt;</code>
-        <br/>
-      </p>
-      <p>That's all there's to it. You are now ready to start using the Pl/Java system. If the server runs on a windows system you will need to add the option 
-      <code>-windows</code>. The reason for this is that PostgreSQL and Java dynamic loading uses different naming on Unix.</p>
-      <h2>Run the example tests</h2>
-      <p>The tests are divided into two jar files. One is the client part, the org.postgresql.pljava.test.Tester class found in the 
-      <code>test.jar</code>. It contains some methods that executes SQL statements and prints the output (all contained there can of course also be executed from psql or any other client). The other is the 
-      <code>example.jar</code> which contains the sample code that runs in the backend. The latter must be installed in the database in order to function. An easy way to do this is to use psql and issue the command:</p>
-      <p>SELECT sqlj.install_jar('samples', 'file:///some/directory/example.jar', true);</p>
-      <p>If this command succeeds, everything is working correctly. You may get a couple of errors here though.</p>
-      <ul>
-        <li>A complaint that the class 
-        <code>org.postgresql.pljava.internal.Oid</code> cannot be found.
-        <br />The probable cause of this is that the 
-        <code>CLASSPATH</code> seen by the postmaster is incorrect so that the pljava.jar is not found.</li>
-        <li>A complaint that the libpljava.so or pljava.dll cannot be found. Probable cause is that the 
-        <code>Dynamic_library_path</code> in the 
-        <code>postgresql.conf</code> file is incorrect.</li>
-      </ul>
-      <p>Once loaded, you must also set the classpath used by the Pl/Java runtime. This classpath is set per schema (namespace). A schema that lacks a classpath will default to the classpath that has been set for the public schema. The tests will use the schema 
-      <code>javatest</code>. To define the classpath for this schema, simply use psql and issue the command:</p>
-      <p>SELECT sqlj.set_classpath('javatest', 'samples');</p>
-      <p>The first argument is the name of the schema, the second is a colon separated list of jar names. The names must reflect jars that are installed in the system.</p>
-      <p>Now, you should be able to run the tests.</p>
-    </div>
-  </body>
+</head>
+
+<body>
+
+<h1>PL/Java, 1.0.0 beta 4</h1>
+<p>With this release, the Pl/Java project has reached its fourth major milestone</p>
+<p>A source tarball and a variety of binaries can be found in the download area.
+Two for Windows. one win32 native for PostgreSQL 8.0 and one cygwin based for older
+PostgreSQL versions. On Linux PL/Java also comes in a GNU Java (GCJ) flavor where
+the actual pljava.jar is compiled into the pljava shared object.</p>
+<h2>Prerequisites</h2>
+<ul>
+  <li>PostgreSQL &gt;= 7.4.2</li>
+  <li>PostgreSQL JDBC drivers (needed by the client Deployer program).</li>
+  <li>A Java runtime &gt;= Java 1.4 or GCJ &gt;= 3.4.1 (Linux only).</li>
+</ul>
+<p>Get the binary distribution of Pl/Java for your platform. Unzip it into a directory
+of your own choice.</p>
+<h2>Postmaster configuration</h2>
+<p>Get the PostgreSQL environment up and running. You will need to modify the
+<code>postgresql.conf</code> file.</p>
+<p>&nbsp;</p>
+<p>With PostgreSQL 7.4.x you must make the postmaster accept TCP/IP connections
+(needed by the client JDBC driver). So ensure that you have:</p>
+<pre>tcpip_socket = true</pre>
+<p>In order to find the PL/Java shared object, you can do one of two things. Either
+you install the shared object in a directory already searched by the postmaster
+(such as the data directory) or you tell the postmaster where to find it using the
+<code>dynamic_library_path</code>. I.e. you have a setting similar to this:</p>
+<pre>dynamic_library_path = &#39;$libdir:&lt;pljava installation&gt;/pljava.jar&#39;</pre>
+<p>Note that on the win32 platform (not cygwin) you need to use a semicolon as a
+path separator and double backslashes (since backslash is the escape character in
+the postgresql.conf file) as directory separators.</p>
+<p>In order to see the logging from the tests add the following:</p>
+<pre><code>log_min_messages</code> = <code>info</code></pre>
+<p>PostgreSQL 8.0 adds the ability do define custom variable classes to the
+<code>postgresql.conf</code> file. Add the following entrires:</p>
+<pre>custom_variable_classes = &#39;pljava&#39;
+pljava.classpath = &lt;pljava installation&gt;/pljava.jar</pre>
+<p>The pljava.classpath is not needed when you run GCJ since the pljava.jar is compiled
+into the shared object.<br>
+&nbsp;</p>
+<p>Using PostgreSQL 7.4, the <code>postgresql.conf</code> have no entry to configure
+Java specific environment variables yet so you will need use an external environment
+setting:</p>
+<pre>export <code>CLASSPATH</code>=&lt;pljava installation&gt;/<code>pljava.jar</code>.</pre>
+<p>Finally, unless you use GCJ, the postmaster must be made aware of the location
+of the Java runtime shared objects. This accomplished by setting the <code>LD_LIBRARY_PATH</code>
+(Unix) or <code>PATH</code> (Windows). A standard install on an Intel Linux box
+will need:</p>
+<pre><code>export LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/i386:$JAVA_HOME/jre/lib/i386/client</code>.</pre>
+<p>Note: Some discussions took place on the postgres hackers list wether or not
+the LD_LIBRARY_PATH could be set using the dynamic_library_path but it was concluded
+that it would be too difficult. In essence, the postmaster would need to restart
+itself in order for the setting to become effective since the loader is initialized
+when the process is created.</p>
+<p>You are now ready to start the postmaster.</p>
+<h2>Deploying the Pl/Java</h2>
+<p>Pl/Java adds a schema named SQLJ to the database (the naming is from the proposed
+SQL standard for Java backend mapping) and adds a couple of tables and functions
+to that schema. A deploy program exists that should be used for this purpose. In
+order to run this program, you must see to that the PostgreSQL jdbc driver package
+<code>postgresql.jar</code> and the <code>deploy.jar</code> file is in your
+<code>CLASSPATH</code>, then run:</p>
+<pre>java org.postgresql.pljava.deploy.Deployer</pre>
+This will result in a list of options. Typically you would use something like:
+<pre>java org.postgresql.pljava.deploy.Deployer -install -user &lt;your name&gt;</pre>
+<p>That&#39;s all there&#39;s to it. You are now ready to start using the Pl/Java system.
+If the server runs on a Cygwin system you will need to add the option <code>-windows</code>.
+The reason for this is that PostgreSQL and Java dynamic loading uses different naming
+on Windows.</p>
+<h2>Run the example tests</h2>
+<p>The tests are divided into two jar files. One is the client part found in the <code>test.jar</code>. It contains some methods that executes
+SQL statements and prints the output (all contained there can of course also be
+executed from psql or any other client). The other is the <code>example.jar</code>
+which contains the sample code that runs in the backend. The latter must be installed
+in the database in order to function. An easy way to do this is to use psql and
+issue the command:</p>
+<pre>SELECT sqlj.install_jar(&#39;file:///some/directory/example.jar&#39;, &#39;samples&#39;,  true);</pre>
+<p>If this command succeeds, everything is working correctly. You may get a couple
+of errors here though.</p>
+<ul>
+  <li>A complaint that the class <code>org.postgresql.pljava.</code>&lt;something&gt;
+  cannot be found. <br />
+  The probable cause of this is that the <code>CLASSPATH</code> seen by the <u>postmaster</u>
+  is incorrect so that the pljava.jar is not found.</li>
+  <li>A complaint that the libpljava.so or pljava.dll cannot be found. Probable
+  cause is that the <code>dynamic_library_path</code> in the <code>postgresql.conf</code>
+  file is incorrect.</li>
+</ul>
+<p>Once loaded, you must also set the classpath used by the Pl/Java runtime. This
+classpath is set per schema (namespace). A schema that lacks a classpath will default
+to the classpath that has been set for the public schema. The tests will use the
+schema <code>javatest</code>. To define the classpath for this schema, simply use
+psql and issue the command:</p>
+<pre>SELECT sqlj.set_classpath(&#39;javatest&#39;, &#39;samples&#39;);</pre>
+<p>The first argument is the name of the schema, the second is a colon separated
+list of jar names. The names must reflect jars that are installed in the system.</p>
+<p>Now, you should be able to run the tests:</p>
+<pre>java org.postgresql.pljava.test.Tester</pre>
+</code>
+
+</body>
+
 </html>
