@@ -33,10 +33,11 @@ static jmethodID S_ExecutionPlan_getDeathRow;
  */
 jobject ExecutionPlan_create(JNIEnv* env, void* ep)
 {
+	jobject jep;
 	if(ep == 0)
 		return 0;
 
-	jobject jep = NativeStruct_obtain(env, ep);
+	jep = NativeStruct_obtain(env, ep);
 	if(jep == 0)
 	{
 		jep = PgObject_newJavaObject(env, s_ExecutionPlan_class, s_ExecutionPlan_init);
@@ -59,17 +60,21 @@ static Type ExecutionPlan_obtain(Oid typeId)
 
 static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
 {
+	jobject longArr;
+	int sz;
+	jlong* deathRow;
+	Ptr2Long p2r;
+	int idx;
+
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jobject longArr = (*env)->CallStaticObjectMethod(env, s_ExecutionPlan_class, S_ExecutionPlan_getDeathRow);
+	longArr = (*env)->CallStaticObjectMethod(env, s_ExecutionPlan_class, S_ExecutionPlan_getDeathRow);
 	isCallingJava = saveicj;
 
 	if(longArr == 0)
 		return;
-	int sz = (int)(*env)->GetArrayLength(env, longArr);
-	jlong* deathRow = (*env)->GetLongArrayElements(env, longArr, NULL);
-	Ptr2Long p2r;
-	int idx;
+	sz = (int)(*env)->GetArrayLength(env, longArr);
+	deathRow = (*env)->GetLongArrayElements(env, longArr, NULL);
 	for(idx = 0; idx < sz; ++idx)
 	{
 		p2r.longVal = deathRow[idx];
@@ -109,6 +114,9 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 
 static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
 {
+	char*  nulls = 0;
+	Datum* values = 0;
+
 	int count = SPI_getargcount(ePlan);
 	if((jvalues == 0 && count != 0)
 	|| (jvalues != 0 && count != (*env)->GetArrayLength(env, jvalues)))
@@ -118,12 +126,10 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 		return false;
 		}
 
-	char*  nulls = 0;
-	Datum* values = 0;
 	if(count > 0)
 	{
-		values = (Datum*)palloc(count * sizeof(Datum));
 		int idx;
+		values = (Datum*)palloc(count * sizeof(Datum));
 		for(idx = 0; idx < count; ++idx)
 		{
 			Oid typeId = SPI_getargtypeid(ePlan, idx);
@@ -164,23 +170,26 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
+	void* ePlan;
+	jobject jportal = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	void* ePlan = NativeStruct_getStruct(env, _this);
+
+	ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	jobject jportal = 0;
 	PLJAVA_TRY
 	{
 		Datum*  values  = 0;
 		char*   nulls   = 0;
 		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
 		{
+			Portal portal;
 			char* name = 0;
 			if(cursorName != 0)
 				name = String_createNTS(env, cursorName);
 		
-			Portal portal = SPI_cursor_open(name, ePlan, values, nulls);
+			portal = SPI_cursor_open(name, ePlan, values, nulls);
 			if(name != 0)
 				pfree(name);
 			if(values != 0)
@@ -207,12 +216,14 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jobject _this)
 {
+	void* ePlan;
+	bool result = false;
 	PLJAVA_ENTRY_FENCE(false)
-	void* ePlan = NativeStruct_getStruct(env, _this);
+
+	ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	bool result = false;
 	PLJAVA_TRY
 	{
 		result = SPI_is_cursor_plan(ePlan);
@@ -233,12 +244,14 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
+	void* ePlan;
+	jint result = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	void* ePlan = NativeStruct_getStruct(env, _this);
+	
+	ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	jint result = 0;
 	PLJAVA_TRY
 	{
 		Datum* values = 0;
@@ -268,24 +281,25 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
-	PLJAVA_ENTRY_FENCE(0)
-
 	jobject jePlan = 0;
+	PLJAVA_ENTRY_FENCE(0)
 	PLJAVA_TRY
 	{
-		if(s_deathRowFlag)
-			ExecutionPlan_freeDeathRowCandidates(env);
-	
+		char* cmd;
+		void* ePlan;
 		int paramCount = 0;
 		Oid* paramOids = 0;
 
+		if(s_deathRowFlag)
+			ExecutionPlan_freeDeathRowCandidates(env);
+	
 		if(paramTypes != 0)
 		{
 			paramCount = (*env)->GetArrayLength(env, paramTypes);
 			if(paramCount > 0)
 			{
-				paramOids = (Oid*)palloc(paramCount * sizeof(Oid));
 				int idx;
+				paramOids = (Oid*)palloc(paramCount * sizeof(Oid));
 				for(idx = 0; idx < paramCount; ++idx)
 				{
 					jobject joid = (*env)->GetObjectArrayElement(env, paramTypes, idx);
@@ -295,8 +309,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 			}
 		}
 
-		char* cmd   = String_createNTS(env, jcmd);
-		void* ePlan = SPI_prepare(cmd, paramCount, paramOids);
+		cmd   = String_createNTS(env, jcmd);
+		ePlan = SPI_prepare(cmd, paramCount, paramOids);
 		pfree(cmd);
 
 		if(ePlan == 0)
@@ -321,15 +335,16 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan(JNIEnv* env, jobject _this)
 {
+	void* ePlan;
 	PLJAVA_ENTRY_FENCE_VOID
-	void* ePlan = NativeStruct_releasePointer(env, _this);
+	ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan == 0)
 		return;
 
 	PLJAVA_TRY
 	{
 		NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
-		SPI_freeplan(ePlan);	// Get rid of the original, nobody can see it anymore.
+		SPI_freeplan(ePlan);	/* Get rid of the original, nobody can see it anymore */
 	}
 	PLJAVA_CATCH
 	{
@@ -346,8 +361,9 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan(JNIEnv* env, jobjec
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobject _this)
 {
+	void* ePlan;
 	PLJAVA_ENTRY_FENCE_VOID
-	void* ePlan = NativeStruct_releasePointer(env, _this);
+	ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan == 0)
 		return;
 

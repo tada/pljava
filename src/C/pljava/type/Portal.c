@@ -27,10 +27,11 @@ static jmethodID s_Portal_init;
  */
 jobject Portal_create(JNIEnv* env, Portal tts)
 {
+	jobject jtts;
 	if(tts == 0)
 		return 0;
 
-	jobject jtts = NativeStruct_obtain(env, tts);
+	jtts = NativeStruct_obtain(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_Portal_class, s_Portal_init);
@@ -87,8 +88,9 @@ Datum Portal_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(0)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return 0;
 	return (jint)portal->portalPos;
@@ -102,8 +104,9 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jobject _
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jobject _this, jboolean forward, jint count)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(0)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return 0;
 
@@ -127,11 +130,13 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jobject _this, j
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jobject _this)
 {
+	Portal portal;
+	const char* name;
 	PLJAVA_ENTRY_FENCE(0)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return 0;
-	const char* name = portal->name;
+	name = portal->name;
 	if(name == 0)
 		return 0;
 	return String_createJavaStringFromNTS(env, name);
@@ -145,8 +150,9 @@ Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jobject _this)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(0)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return 0;
 	return TupleDesc_create(env, portal->tupDesc);
@@ -160,8 +166,9 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jobject _
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE_VOID
-	Portal portal = (Portal)NativeStruct_releasePointer(env, _this);
+	portal = (Portal)NativeStruct_releasePointer(env, _this);
 	if(portal != 0)
 		SPI_cursor_close(portal);
 }
@@ -174,8 +181,9 @@ Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jobject _th
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Portal__1isAtStart(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(false)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return false;
 	
@@ -190,8 +198,9 @@ Java_org_postgresql_pljava_internal_Portal__1isAtStart(JNIEnv* env, jobject _thi
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(false)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return false;
 	
@@ -206,8 +215,9 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jobject _this)
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jobject _this)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(false)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return false;
 	
@@ -222,8 +232,9 @@ Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jobject 
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jobject _this, jboolean forward, jint count)
 {
+	Portal portal;
 	PLJAVA_ENTRY_FENCE(0)
-	Portal portal = (Portal)NativeStruct_getStruct(env, _this);
+	portal = (Portal)NativeStruct_getStruct(env, _this);
 	if(portal == 0)
 		return 0;
 

@@ -105,15 +105,15 @@ int SPI_getargcount(void* plan)
 
 bool SPI_is_cursor_plan(void* plan)
 {
-	if (plan == NULL)
+	List* qtlist;
+	_SPI_plan* spiplan = (_SPI_plan*)plan;
+	if (spiplan == NULL)
 	{
 		SPI_result = SPI_ERROR_ARGUMENT;
 		return false;
 	}
 
-	_SPI_plan* spiplan = (_SPI_plan*)plan;
-	List* qtlist = spiplan->qtlist;
-
+	qtlist = spiplan->qtlist;
 	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
 	{
 		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
@@ -134,12 +134,15 @@ bool SPI_is_cursor_plan(void* plan)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
+	char* command;
+	jint result;
 	PLJAVA_ENTRY_FENCE(0)
-	char* command = String_createNTS(env, cmd);
+
+	command = String_createNTS(env, cmd);
 	if(command == 0)
 		return 0;
 
-	jint result = 0;
+	result = 0;
 	PLJAVA_TRY
 	{
 		result = (jint)SPI_exec(command, (int)count);

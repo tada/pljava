@@ -33,12 +33,14 @@ static jvalue _BigDecimal_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _BigDecimal_coerceObject(Type self, JNIEnv* env, jobject value)
 {
+	jstring jstr;
+	Datum ret;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jstring jstr = (*env)->CallObjectMethod(env, value, s_BigDecimal_toString);
+	jstr = (*env)->CallObjectMethod(env, value, s_BigDecimal_toString);
 	isCallingJava = saveicj;
 
-	Datum ret = _String_coerceObject(self, env, jstr);
+	ret = _String_coerceObject(self, env, jstr);
 	(*env)->DeleteLocalRef(env, jstr);
 	return ret;
 }

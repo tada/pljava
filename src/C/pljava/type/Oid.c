@@ -104,7 +104,7 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_ARRAY:
 		case java_sql_Types_REF: */
 		default:
-			typeId = InvalidOid;	// Not yet mapped.
+			typeId = InvalidOid;	/* Not yet mapped */
 			break;
 	}
 	return typeId;
@@ -133,6 +133,7 @@ extern Datum Oid_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Oid_initialize);
 Datum Oid_initialize(PG_FUNCTION_ARGS)
 {
+	jobject tmp;
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Oid_class = (*env)->NewGlobalRef(
@@ -150,7 +151,7 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
 	s_Oid = TypeClass_allocInstance(s_OidClass, OIDOID);
-	jobject tmp = Oid_create(env, OIDOID);
+	tmp = Oid_create(env, OIDOID);
 	s_OidOid = (*env)->NewGlobalRef(env, tmp);
 	(*env)->DeleteLocalRef(env, tmp);
 

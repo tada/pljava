@@ -23,17 +23,21 @@ static jmethodID s_Long_longValue;
  */
 static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jlong lv;
+	MemoryContext currCtx;
+	Datum ret;
 	bool saveicj = isCallingJava;
+	
 	isCallingJava = true;
-	jlong lv = (*env)->CallStaticLongMethodA(env, cls, method, args);
+	lv = (*env)->CallStaticLongMethodA(env, cls, method, args);
 	isCallingJava = saveicj;	
 
 	/* Since we don't know if 64 bit quantities are passed by reference or
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	MemoryContext currCtx = SPI_switchToReturnValueContext();
-	Datum ret = Int64GetDatum(lv);
+	currCtx = SPI_switchToReturnValueContext();
+	ret = Int64GetDatum(lv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
@@ -67,9 +71,10 @@ static jvalue _Long_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Long_coerceObject(Type self, JNIEnv* env, jobject longObj)
 {
+	jlong lv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jlong lv = (*env)->CallLongMethod(env, longObj, s_Long_longValue);
+	lv = (*env)->CallLongMethod(env, longObj, s_Long_longValue);
 	isCallingJava = saveicj;	
 	return Int64GetDatum(lv);
 }

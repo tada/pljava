@@ -23,17 +23,20 @@ static jmethodID s_Double_doubleValue;
  */
 static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jdouble dv;
+	MemoryContext currCtx;
+	Datum ret;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jdouble dv = (*env)->CallStaticDoubleMethodA(env, cls, method, args);
+	dv = (*env)->CallStaticDoubleMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
 	
 	/* Since we don't know if 64 bit quantities are passed by reference or
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	MemoryContext currCtx = SPI_switchToReturnValueContext();
-	Datum ret = Float8GetDatum(dv);
+	currCtx = SPI_switchToReturnValueContext();
+	ret = Float8GetDatum(dv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
@@ -67,9 +70,10 @@ static jvalue _Double_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Double_coerceObject(Type self, JNIEnv* env, jobject doubleObj)
 {
+	jdouble dv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jdouble dv = (*env)->CallDoubleMethod(env, doubleObj, s_Double_doubleValue);
+	dv = (*env)->CallDoubleMethod(env, doubleObj, s_Double_doubleValue);
 	isCallingJava = saveicj;
 	return Float8GetDatum(dv);
 }

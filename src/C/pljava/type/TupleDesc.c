@@ -29,10 +29,11 @@ static HashMap   s_nativeCache;
  */
 jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
 {
+	jobject jtd;
 	if(td == 0)
 		return 0;
 
-	jobject jtd = NativeStruct_obtain(env, td);
+	jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
 		jtd = PgObject_newJavaObject(env, s_TupleDesc_class, s_TupleDesc_init);
@@ -104,12 +105,14 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobject _this, jint index)
 {
+	TupleDesc self;
+	jstring result = 0;
+
 	PLJAVA_ENTRY_FENCE(0)
-	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
-	jstring result = 0;
 	PLJAVA_TRY
 	{
 		char* name = SPI_fname(self, (int)index);
@@ -141,16 +144,19 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobje
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
 {
+	TupleDesc self;
+	char* name;
+	jint index = 0;
+
 	PLJAVA_ENTRY_FENCE(0)
-	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 	
-	char* name = String_createNTS(env, colName);
+	name = String_createNTS(env, colName);
 	if(name == 0)
 		return 0;
 
-	jint index = 0;
 	PLJAVA_TRY
 	{
 		index = SPI_fnumber(self, name);
@@ -178,23 +184,24 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobj
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _this, jobjectArray jvalues)
 {
+	TupleDesc self;
+	jobject result = 0;
+
 	PLJAVA_ENTRY_FENCE(0)
-	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
-	jobject result = 0;
-
 	PLJAVA_TRY
 	{
+		jint   idx;
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		char*  nulls   = palloc(count);
-	
+
 		memset(values, 0,  count * sizeof(Datum));
 		memset(nulls, 'n', count);	/* all values null initially */
 	
-		jint idx;
 		for(idx = 0; idx < count; ++idx)
 		{
 			jobject value = (*env)->GetObjectArrayElement(env, jvalues, idx);
@@ -225,8 +232,9 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jobject _this)
 {
+	TupleDesc self;
 	PLJAVA_ENTRY_FENCE(0)
-	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 	return (jint)self->natts;

@@ -117,20 +117,25 @@ bool _Type_canReplaceType(Type self, Type other)
 
 Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jobject value;
+	MemoryContext currCtx;
+	Datum ret;
 	bool saveicj = isCallingJava;
+	
 	isCallingJava = true;
-	jobject value = (*env)->CallStaticObjectMethodA(env, cls, method, args);
+	value = (*env)->CallStaticObjectMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
 	if(value == 0)
 	{
 		fcinfo->isnull = true;
 		return 0;
 	}
+	
 	/* The return value cannot be created in the current context since it
 	 * goes out of scope when SPI_finish is called.
 	 */
-	MemoryContext currCtx = SPI_switchToReturnValueContext();
-	Datum ret = self->m_class->coerceObject(self, env, value);
+	currCtx = SPI_switchToReturnValueContext();
+	ret = self->m_class->coerceObject(self, env, value);
 	MemoryContextSwitchTo(currCtx);
 	(*env)->DeleteLocalRef(env, value);
 	return ret;
@@ -261,7 +266,7 @@ Type TypeClass_allocInstance(TypeClass cls, Oid oid)
  */
 void Type_registerPgType(Oid typeOid, TypeObtainer obtainer)
 {
-	HashMap_putByOid(s_obtainerByOid, typeOid, obtainer);
+	HashMap_putByOid(s_obtainerByOid, typeOid, (void*)obtainer);
 }	
 
 /*
@@ -269,6 +274,6 @@ void Type_registerPgType(Oid typeOid, TypeObtainer obtainer)
  */
 void Type_registerJavaType(const char* javaTypeName, TypeObtainer obtainer)
 {
-	HashMap_putByString(s_obtainerByJavaName, javaTypeName, obtainer);
+	HashMap_putByString(s_obtainerByJavaName, javaTypeName, (void*)obtainer);
 }
 

@@ -26,10 +26,11 @@ static jmethodID s_Tuple_init;
  */
 jobject Tuple_create(JNIEnv* env, HeapTuple ht)
 {
+	jobject jht;
 	if(ht == 0)
 		return 0;
 
-	jobject jht = NativeStruct_obtain(env, ht);
+	jht = NativeStruct_obtain(env, ht);
 	if(jht == 0)
 	{
 		jht = PgObject_newJavaObject(env, s_Tuple_class, s_Tuple_init);
@@ -86,16 +87,19 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
+	HeapTuple self;
+	TupleDesc tupleDesc;
+	jobject result = 0;
+
 	PLJAVA_ENTRY_FENCE(0)
-	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
+	self = (HeapTuple)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
-	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
+	tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
 	if(tupleDesc == 0)
 		return 0;
 
-	jobject result = 0;
 	PLJAVA_TRY
 	{
 		Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
@@ -107,6 +111,8 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 		}
 		else
 		{
+			Datum binVal;
+			bool wasNull = false;
 			Type type = Type_fromOid(typeId);
 			if(Type_isPrimitive(type))
 				/*
@@ -114,8 +120,7 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 				 */
 				type = type->m_class->objectType;
 		
-			bool wasNull = false;
-			Datum binVal = SPI_getbinval(self, tupleDesc, (int)index, &wasNull);
+			binVal = SPI_getbinval(self, tupleDesc, (int)index, &wasNull);
 			if(!wasNull)
 				result = Type_coerceDatum(type, env, binVal).l;
 		}

@@ -26,10 +26,11 @@ static jmethodID s_SPITupleTable_init;
  */
 jobject SPITupleTable_create(JNIEnv* env, SPITupleTable* tts)
 {
+	jobject jtts;
 	if(tts == 0)
 		return 0;
 
-	jobject jtts = NativeStruct_obtain(env, tts);
+	jtts = NativeStruct_obtain(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_SPITupleTable_class, s_SPITupleTable_init);
@@ -85,8 +86,9 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable__1getCount(JNIEnv* env, jobject _this)
 {
+	SPITupleTable* tupleTable;
 	PLJAVA_ENTRY_FENCE(0)
-	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
+	tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 	
@@ -101,8 +103,9 @@ Java_org_postgresql_pljava_internal_SPITupleTable__1getCount(JNIEnv* env, jobjec
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable__1getSlot(JNIEnv* env, jobject _this, jint pos)
 {
+	SPITupleTable* tupleTable;
 	PLJAVA_ENTRY_FENCE(0)
-	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
+	tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 
@@ -120,8 +123,9 @@ Java_org_postgresql_pljava_internal_SPITupleTable__1getSlot(JNIEnv* env, jobject
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable__1getTupleDesc(JNIEnv* env, jobject _this)
 {
+	SPITupleTable* tupleTable;
 	PLJAVA_ENTRY_FENCE(0)
-	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
+	tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 
@@ -136,8 +140,9 @@ Java_org_postgresql_pljava_internal_SPITupleTable__1getTupleDesc(JNIEnv* env, jo
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable__1invalidate(JNIEnv* env, jobject _this)
 {
+	SPITupleTable* tupleTable;
 	PLJAVA_ENTRY_FENCE_VOID
-	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_releasePointer(env, _this);
+	tupleTable = (SPITupleTable*)NativeStruct_releasePointer(env, _this);
 	if(tupleTable != 0)
 		SPI_freetuptable(tupleTable);
 }

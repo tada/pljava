@@ -147,6 +147,7 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 			if(strcmp(jtName, sign.data) != 0)
 			{
 				Oid did;
+				Type repl;
 				if(self->returnComplex && idx == self->numParams - 1)
 					/*
 					 * Last parameter is the OUT parameter. It has no corresponding
@@ -156,7 +157,7 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 				else
 					did = dfltIds[idx];
 
-				Type repl = Type_fromJavaType(did, sign.data);
+				repl = Type_fromJavaType(did, sign.data);
 				if(!Type_canReplaceType(repl, deflt))
 					ereport(ERROR, (
 						errcode(ERRCODE_SYNTAX_ERROR),
@@ -198,6 +199,19 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 
 static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTrigger)
 {
+	const char* ip;
+	const char* paramDecl = 0;
+	const char* methodName;
+	char* cp;
+	char* className;
+	HeapTuple nspTup;
+	Form_pg_namespace nspStruct;
+	jobject loader;
+	jstring jname;
+	jstring schemaName;
+	jobject loaded;
+	MemoryContext ctx;
+
 	/* Obtain the tuple that corresponds to the function
 	 */
 	HeapTuple procTup = PgObject_getValidTuple(PROCOID, functionId, "function");
@@ -214,11 +228,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	const char* ep = bp + len;					/* Points just after end */
 	const char* nameEp = ep;
 
-	const char* ip;
-	const char* paramDecl = 0;
-	const char* methodName;
-	char* cp;
-	char* className;
+	bool saveIcj = isCallingJava;
 
 	/* Trim off leading and trailing whitespace.
 	 */
@@ -288,14 +298,13 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	}
 	*cp++ = 0;
 
-	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");
-	Form_pg_namespace nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
-	jstring schemaName = String_createJavaStringFromNTS(env, NameStr(nspStruct->nspname));
+	nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");
+	nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
+	schemaName = String_createJavaStringFromNTS(env, NameStr(nspStruct->nspname));
 
-	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jobject loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
-	isCallingJava = saveicj;
+	loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	isCallingJava = saveIcj;
 
 	(*env)->DeleteLocalRef(env, schemaName);
 	ReleaseSysCache(nspTup);
@@ -311,11 +320,11 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errmsg("Failed to obtain class loader")));
 	}
 
-	jstring jname  = String_createJavaStringFromNTS(env, className);
+	jname  = String_createJavaStringFromNTS(env, className);
 
 	isCallingJava = true;
-	jobject loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
-	isCallingJava = saveicj;
+	loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
+	isCallingJava = saveIcj;
 
 	(*env)->DeleteLocalRef(env, jname);
 	(*env)->DeleteLocalRef(env, loader);
@@ -324,7 +333,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	{
 		isCallingJava = true;
 		(*env)->ExceptionDescribe(env);
-		isCallingJava = saveicj;
+		isCallingJava = saveIcj;
 
 		if(elogErrorOccured)
 			longjmp(Warn_restart, 1);
@@ -358,7 +367,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errcode(ERRCODE_SYNTAX_ERROR),
 			errmsg("Extranious characters at end of method name '%s'", methodName)));
 
-	MemoryContext ctx = GetMemoryChunkContext(self);
+	ctx = GetMemoryChunkContext(self);
 	if(isTrigger)
 	{
 		if(paramDecl != 0)
@@ -377,9 +386,10 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	}
 	else
 	{
-		self->numParams = (int32)procStruct->pronargs;
+		int top;
 		Oid retTypeId = procStruct->prorettype;
 		Type complex = 0;
+		self->numParams = (int32)procStruct->pronargs;
 
 		if(procStruct->proretset)
 		{
@@ -416,7 +426,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			ReleaseSysCache(typeTup);
 		}
 
-		int top = self->numParams;
+		top = self->numParams;
 		if(top > 0)
 		{
 			int idx;
@@ -506,8 +516,9 @@ Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger)
 	Function func = (Function)HashMap_getByOid(s_funcMap, functionId);
 	if(func == 0)
 	{
+		PgObject old;
 		func = Function_create(env, functionId, isTrigger);
-		PgObject old = HashMap_putByOid(s_funcMap, functionId, func);
+		old = HashMap_putByOid(s_funcMap, functionId, func);
 		if(old != 0)
 		{
 			/* Can happen in a multithreaded environment. Extremely
@@ -522,6 +533,7 @@ Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger)
 
 Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
+	Type invokerType;
 	Type*   types   = self->paramTypes;
 	int32   top     = self->numParams;
 	jvalue* args    = (jvalue*)alloca(top * sizeof(jvalue));
@@ -543,7 +555,7 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	}
 
 	fcinfo->isnull = false;
-	Type invokerType = (self->returnComplex ? types[top] : self->returnType);
+	invokerType = (self->returnComplex ? types[top] : self->returnType);
 	return Type_invoke(invokerType,
 		env, self->clazz, self->method, args, fcinfo);
 }

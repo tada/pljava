@@ -40,10 +40,12 @@ jvalue _String_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
 {
+	char* tmp;
+	Datum ret;
+	bool saveicj = isCallingJava;
 	if(jstr == 0)
 		return 0;
 
-	bool saveicj = isCallingJava;
 	isCallingJava = true;
 	jstr = (*env)->CallObjectMethod(env, jstr, s_Object_toString);
 	isCallingJava = saveicj;
@@ -51,10 +53,10 @@ Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
 	if((*env)->ExceptionCheck(env))
 		return 0;
 
-	char* tmp = String_createNTS(env, jstr);
+	tmp = String_createNTS(env, jstr);
 	(*env)->DeleteLocalRef(env, jstr);
 
-	Datum ret = FunctionCall3(
+	ret = FunctionCall3(
 					&((String)self)->textInput,
 					CStringGetDatum(tmp),
 					ObjectIdGetDatum(((String)self)->elementType),

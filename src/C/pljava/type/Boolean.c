@@ -22,9 +22,10 @@ static jmethodID s_Boolean_booleanValue;
  */
 static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jboolean zv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jboolean zv = (*env)->CallStaticBooleanMethodA(env, cls, method, args);
+	zv = (*env)->CallStaticBooleanMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
 	return BoolGetDatum(zv == JNI_TRUE);
 }

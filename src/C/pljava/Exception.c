@@ -24,6 +24,11 @@ static jmethodID s_SQLException_getSQLState;
 
 void Exception_checkException(JNIEnv* env)
 {
+	int sqlState;
+	StringInfoData buf;
+	jclass exhClass;
+	jstring jtmp;
+	bool saveicj = isCallingJava;
 	jthrowable exh = (*env)->ExceptionOccurred(env);
 	if(exh == 0)
 		/*
@@ -31,7 +36,6 @@ void Exception_checkException(JNIEnv* env)
 		 */
 		return;
 
-	bool saveicj = isCallingJava;
 	isCallingJava = true;
 	(*env)->ExceptionDescribe(env);
 	(*env)->ExceptionClear(env);
@@ -43,14 +47,13 @@ void Exception_checkException(JNIEnv* env)
 		 */
 		return;
 
-	int sqlState = ERRCODE_INTERNAL_ERROR;
+	sqlState = ERRCODE_INTERNAL_ERROR;
 
-	StringInfoData buf;
 	initStringInfo(&buf);
 
 	isCallingJava = true;
-	jclass exhClass = (*env)->GetObjectClass(env, exh);
-	jstring jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, s_Class_getName);
+	exhClass = (*env)->GetObjectClass(env, exh);
+	jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, s_Class_getName);
 	String_appendJavaString(env, &buf, jtmp);
 	(*env)->DeleteLocalRef(env, exhClass);
 	(*env)->DeleteLocalRef(env, jtmp);
@@ -88,16 +91,19 @@ void Exception_checkException(JNIEnv* env)
 
 void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 {
-	va_list args;
-	va_start(args, errMessage);
     char buf[1024];
+	va_list args;
+	jstring message;
+	jstring sqlState;
+	jobject ex;
+	int idx;
 
+	va_start(args, errMessage);
     vsnprintf(buf, sizeof(buf), errMessage, args);
-	jstring message = String_createJavaStringFromNTS(env, buf);
+	message = String_createJavaStringFromNTS(env, buf);
 
 	/* unpack MAKE_SQLSTATE code
 	 */
-	int idx;
 	for (idx = 0; idx < 5; ++idx)
 	{
 		buf[idx] = PGUNSIXBIT(errCode);
@@ -105,9 +111,9 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	}
 	buf[idx] = 0;
 
-	jstring sqlState = String_createJavaStringFromNTS(env, buf);
+	sqlState = String_createJavaStringFromNTS(env, buf);
 
-	jobject ex = PgObject_newJavaObject(
+	ex = PgObject_newJavaObject(
 		env, s_SQLException_class, s_SQLException_init,
 		message, sqlState);
 

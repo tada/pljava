@@ -13,11 +13,11 @@
  */
 static jvalue _byte_array_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
+	jvalue result;
 	bytea* bytes  = DatumGetByteaP(arg);
 	jsize  length = VARSIZE(bytes) - VARHDRSZ;
 	jbyteArray ba = (*env)->NewByteArray(env, length);
-	(*env)->SetByteArrayRegion(env, ba, 0, length, VARDATA(bytes)); 
-	jvalue result;
+	(*env)->SetByteArrayRegion(env, ba, 0, length, (jbyte*)VARDATA(bytes)); 
 	result.l = ba;
 	return result;
 }
@@ -29,7 +29,7 @@ static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
 	bytea* bytes     = (bytea*)palloc(byteaSize);
 
 	VARATT_SIZEP(bytes) = byteaSize;
-	(*env)->GetByteArrayRegion(env, (jbyteArray)byteArray, 0, length, VARDATA(bytes));
+	(*env)->GetByteArrayRegion(env, (jbyteArray)byteArray, 0, length, (jbyte*)VARDATA(bytes));
 	PG_RETURN_BYTEA_P(bytes);
 }
 

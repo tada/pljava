@@ -60,9 +60,10 @@ void PgObject_throwMemberError(const char* memberName, const char* signature, bo
 
 jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 {
+	jclass cls;
 	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	jclass cls = (*env)->FindClass(env, className);
+	cls = (*env)->FindClass(env, className);
 	isCallingJava = saveIcj;
 
 	if(cls == 0)
@@ -78,9 +79,10 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 
 jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
+	jmethodID m;
 	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	jmethodID m = (*env)->GetMethodID(env, cls, methodName, signature);
+	m = (*env)->GetMethodID(env, cls, methodName, signature);
 	isCallingJava = saveIcj;
 
 	if(m == 0)
@@ -90,9 +92,11 @@ jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName
 	
 jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
+	jmethodID m;
 	bool saveIcj = isCallingJava;
+	
 	isCallingJava = true;
-	jmethodID m = (*env)->GetStaticMethodID(env, cls, methodName, signature);
+	m = (*env)->GetStaticMethodID(env, cls, methodName, signature);
 	isCallingJava = saveIcj;
 
 	if(m == 0)
@@ -102,9 +106,10 @@ jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* meth
 	
 jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature)
 {
+	jfieldID m;
 	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	jfieldID m = (*env)->GetFieldID(env, cls, fieldName, signature);
+	m = (*env)->GetFieldID(env, cls, fieldName, signature);
 	isCallingJava = saveIcj;
 
 	if(m == 0)
@@ -114,9 +119,10 @@ jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, c
 
 jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature)
 {
+	jfieldID m;
 	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	jfieldID m = (*env)->GetStaticFieldID(env, cls, fieldName, signature);
+	m = (*env)->GetStaticFieldID(env, cls, fieldName, signature);
 	isCallingJava = saveIcj;
 
 	if(m == 0)
@@ -126,13 +132,16 @@ jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldN
 
 jobject PgObject_newJavaObject(JNIEnv* env, jclass cls, jmethodID ctor, ...)
 {
+	jobject obj;
 	va_list args;
-	va_start(args, ctor);
 	bool saveIcj = isCallingJava;
+
+	va_start(args, ctor);
 	isCallingJava = true;
-	jobject obj = (*env)->NewObjectV(env, cls, ctor, args);
+	obj = (*env)->NewObjectV(env, cls, ctor, args);
 	isCallingJava = saveIcj;
 	va_end(args);
+
 	return obj;
 }
 

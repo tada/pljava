@@ -22,9 +22,10 @@ static jmethodID s_Float_floatValue;
  */
 static Datum _float_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jfloat fv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jfloat fv = (*env)->CallStaticFloatMethodA(env, cls, method, args);
+	fv = (*env)->CallStaticFloatMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
 	return Float4GetDatum(fv);
 }
@@ -58,9 +59,10 @@ static jvalue _Float_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Float_coerceObject(Type self, JNIEnv* env, jobject floatObj)
 {
+	jfloat fv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jfloat fv = (*env)->CallFloatMethod(env, floatObj, s_Float_floatValue);
+	fv = (*env)->CallFloatMethod(env, floatObj, s_Float_floatValue);
 	isCallingJava = saveicj;
 	return Float4GetDatum(fv);
 }

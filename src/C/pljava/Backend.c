@@ -53,6 +53,13 @@ static void initJavaVM(JNIEnv* env)
 
 static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 {
+	Datum retval;
+	HashMap saveNativeStructCache;
+	sigjmp_buf saveRestart;
+	bool saveErrorOccured = elogErrorOccured;
+	bool saveIsCallingJava = isCallingJava;
+	Oid funcOid = fcinfo->flinfo->fn_oid;
+
 	if(callLevel == 0)
 	{
 		/* Since the call does not originate from the JavaVM, we must
@@ -75,10 +82,7 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 	 * case this function is reentered. This may happend if Java calls
 	 * out to SQL which in turn invokes a new Java function.
 	 */
-	bool saveErrorOccured = elogErrorOccured;
-	bool saveIsCallingJava = isCallingJava;
-	HashMap saveNativeStructCache = NativeStruct_pushCache();
-	sigjmp_buf saveRestart;
+	saveNativeStructCache = NativeStruct_pushCache();
 	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
 	elogErrorOccured = false;
 
@@ -97,8 +101,6 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 		siglongjmp(Warn_restart, 1);
 	}
 
-	Oid funcOid = fcinfo->flinfo->fn_oid;
-	Datum retval;
 	if(CALLED_AS_TRIGGER(fcinfo))
 	{
 		/* Called as a trigger procedure
@@ -133,20 +135,20 @@ bool pljavaEntryFence(JNIEnv* env)
 {
 	if(elogErrorOccured)
 	{
-		// An elog with level higher than ERROR was issued. The transaction
-		// state is unknown. There's no way the JVM is allowed to enter the
-		// backend at this point.
-		//
+		/* An elog with level higher than ERROR was issued. The transaction
+		 * state is unknown. There's no way the JVM is allowed to enter the
+		 * backend at this point.
+		 */
 		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
 			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
 		return true;
 	}
 	if(!isCallingJava)
 	{
-		// The backend is *not* awaiting the return of a call to the JVM
-		// so there's no way the JVM can be allowed to call out at this
-		// point.
-		//
+		/* The backend is *not* awaiting the return of a call to the JVM
+		 * so there's no way the JVM can be allowed to call out at this
+		 * point.
+		 */
 		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
 			"An attempt was made to call a PostgreSQL backend function while main thread was not in the JVM");
 		return true;
@@ -159,13 +161,15 @@ bool pljavaEntryFence(JNIEnv* env)
  */
 static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 {
-    char buf[1024];
+	char buf[1024];
+	char* ep;
+	char* bp = buf;
+
     vsnprintf(buf, sizeof(buf), format, args);
 
     /* Trim off trailing newline and other whitespace.
      */
-    char* bp = buf;
-    char* ep = bp + strlen(bp) - 1;
+	ep = bp + strlen(bp) - 1;
     while(ep >= bp && isspace(*ep))
  		--ep;
  	++ep;
@@ -182,16 +186,18 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
  */
 static void appendPathParts(const char* path, StringInfoData* bld, HashMap unique, const char* prefix)
 {
+	StringInfoData buf;
 	if(path == 0 || strlen(path) == 0)
 		return;
 
-	StringInfoData buf;
 	for (;;)
 	{
+		char* pathPart;
+		size_t len;
 		if(*path == 0)
 			break;
 
-		size_t len = strcspn(path, ";:");
+		len = strcspn(path, ";:");
 
 		if(len == 1 && *(path+1) == ':' && isalnum(*path))
 			/*
@@ -224,12 +230,10 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			const char* cp = path + 9;
 			if(*cp == '/' || *cp == '\\')
 			{
-				++cp;
-				char driveLetter = *cp;
+				char driveLetter = *(++cp);
 				if(isalnum(driveLetter))
 				{
-					++cp;
-					char sep = *cp;
+					char sep = *(++cp);
 					if(sep == '/' || sep == '\\' || sep == ':' || sep == ';' || sep == 0)
 					{
 						/* Path starts with /cygdrive/<driveLetter>. Replace
@@ -267,8 +271,8 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			path += len;
 		}
 
-		char* part = buf.data;
-		if(HashMap_getByString(unique, part) == 0)
+		pathPart = buf.data;
+		if(HashMap_getByString(unique, pathPart) == 0)
 		{
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, prefix);
@@ -278,10 +282,10 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 #else
 				appendStringInfoChar(bld, ':');
 #endif
-			appendStringInfo(bld, part);
-			HashMap_putByString(unique, part, (void*)1);
+			appendStringInfo(bld, pathPart);
+			HashMap_putByString(unique, pathPart, (void*)1);
 		}
-		pfree(part);
+		pfree(pathPart);
 		if(*path == 0)
 			break;
 		++path; /* Skip ':' */
@@ -300,11 +304,12 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
  */
 static char* getLibraryPath(const char* prefix)
 {
+	char* path;
 	StringInfoData buf;
-	initStringInfo(&buf);
-
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	const char* dynPath = GetConfigOption("dynamic_library_path");
+
+	initStringInfo(&buf);
 	if(dynPath != 0)
 		appendPathParts(dynPath, &buf, unique, prefix);
 
@@ -315,7 +320,7 @@ static char* getLibraryPath(const char* prefix)
 #endif
 
 	PgObject_free((PgObject)unique);
-	char* path = buf.data;
+	path = buf.data;
 	if(strlen(path) == 0)
 	{
 		pfree(path);
@@ -329,18 +334,19 @@ static char* getLibraryPath(const char* prefix)
  */
 static char* getClassPath(const char* prefix)
 {
+	char* path;
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
 	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
 	PgObject_free((PgObject)unique);
-	char* path = buf.data;
+	path = buf.data;
 	if(strlen(path) == 0)
 	{
 		pfree(path);
 		path = 0;
 	}
-	return buf.data;
+	return path;
 }
 
 /*
@@ -360,15 +366,17 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 static void initializeJavaVM()
 {
-	if(s_javaVM != 0)
-		return;
+	char* classPath;
+	char* dynLibPath;
+	jboolean jstat;
 
 	int nOptions = 0;
 	JavaVMOption options[10]; /* increase if more options are needed! */
-	
+	JavaVMInitArgs vm_args;
+
 	DirectFunctionCall1(HashMap_initialize, 0);
 
-	char* classPath = getClassPath("-Djava.class.path=");
+	classPath = getClassPath("-Djava.class.path=");
 	if(classPath != 0)
 	{
 		elog(INFO, "Using %s", classPath+2);
@@ -381,7 +389,7 @@ static void initializeJavaVM()
 	 * The JVM needs the java.library.path to find its way back to
 	 * the loaded module.
 	 */
-	char* dynLibPath = getLibraryPath("-Djava.library.path=");
+	dynLibPath = getLibraryPath("-Djava.library.path=");
 	if(dynLibPath != 0)
 	{
 		elog(INFO, "Using %s", dynLibPath+2);
@@ -408,7 +416,6 @@ static void initializeJavaVM()
 	options[nOptions].extraInfo = (void*)my_vfprintf;
 	nOptions++;
 
-	JavaVMInitArgs vm_args;
 	vm_args.nOptions = nOptions;
 	vm_args.options  = options;
 	vm_args.version  = JNI_VERSION_1_4;
@@ -417,7 +424,7 @@ static void initializeJavaVM()
 	elog(LOG, "Creating JavaVM");
 	
 	isCallingJava = true;
-	jboolean jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
+	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
 	isCallingJava = false;
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
@@ -443,11 +450,12 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
+	Datum ret;
 	if(s_javaVM == 0)
 		initializeJavaVM();
 
 	SPI_connect();
-	Datum ret = callFunction(s_mainEnv, fcinfo);
+	ret = callFunction(s_mainEnv, fcinfo);
 	SPI_finish();
 	return ret;
 }
@@ -468,12 +476,15 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 JNIEXPORT jstring JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* env, jclass cls, jstring jkey)
 {
+	char* key;
+	jstring result;
+
 	PLJAVA_ENTRY_FENCE(0)
-	char* key = String_createNTS(env, jkey);
+	key = String_createNTS(env, jkey);
 	if(key == 0)
 		return 0;
 
-	jstring result = 0;
+	result = 0;
 	PLJAVA_TRY
 	{
 		const char* value = GetConfigOption(key);
@@ -497,8 +508,9 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 JNIEXPORT void JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
+	char* str;
 	PLJAVA_ENTRY_FENCE_VOID
-	char* str = String_createNTS(env, jstr);
+	str = String_createNTS(env, jstr);
 	if(str == 0)
 		return;
 

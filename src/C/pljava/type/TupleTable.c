@@ -26,10 +26,11 @@ static jmethodID s_TupleTable_init;
  */
 jobject TupleTable_create(JNIEnv* env, TupleTable tts)
 {
+	jobject jtts;
 	if(tts == 0)
 		return 0;
 
-	jobject jtts = NativeStruct_obtain(env, tts);
+	jtts = NativeStruct_obtain(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init);
@@ -85,8 +86,9 @@ Datum TupleTable_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleTable__1getCount(JNIEnv* env, jobject _this)
 {
+	TupleTable tupleTable;
 	PLJAVA_ENTRY_FENCE(0)
-	TupleTable tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
+	tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 	return tupleTable->next;
@@ -100,8 +102,9 @@ Java_org_postgresql_pljava_internal_TupleTable__1getCount(JNIEnv* env, jobject _
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleTable__1getSlot(JNIEnv* env, jobject _this, jint pos)
 {
+	TupleTable tupleTable;
 	PLJAVA_ENTRY_FENCE(0)
-	TupleTable tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
+	tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
 		

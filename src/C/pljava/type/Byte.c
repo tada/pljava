@@ -27,9 +27,10 @@ static jmethodID s_Byte_byteValue;
  */
 static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	jbyte bv;
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	jbyte bv = (*env)->CallStaticByteMethodA(env, cls, method, args);
+	bv = (*env)->CallStaticByteMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
 	return CharGetDatum(bv);
 }

@@ -30,6 +30,7 @@ static TypeClass s_TimetzClass;
 static jvalue Time_coerceDatumTZ(Type self, JNIEnv* env, TimeADT t, bool tzAdjust)
 {
 	jlong mSecs;
+	jvalue result;
 #ifdef HAVE_INT64_Time
 	mSecs = t / 1000;			/* Convert to millisecs */
 	if(tzAdjust)
@@ -40,7 +41,6 @@ static jvalue Time_coerceDatumTZ(Type self, JNIEnv* env, TimeADT t, bool tzAdjus
 	t *= 1000.0;						/* Convert to millisecs */
 	mSecs = (jlong)floor(t);
 #endif
-	jvalue result;
 	result.l = PgObject_newJavaObject(env, s_Time_class, s_Time_init, mSecs);
 	return result;
 }

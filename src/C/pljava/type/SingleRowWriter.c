@@ -36,6 +36,9 @@ static HashMap s_cache;
  */
 static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	bool saveIcj = isCallingJava;
+	bool hasRow;
+	Datum result = 0;
 	TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
 	jobject singleRowWriter = SingleRowWriter_create(env, tupleDesc);
 	int numArgs = fcinfo->nargs;
@@ -45,12 +48,10 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	 */
 	args[numArgs].l = singleRowWriter;
 
-	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	bool hasRow = ((*env)->CallStaticBooleanMethodA(env, cls, method, args) == JNI_TRUE);
+	hasRow = ((*env)->CallStaticBooleanMethodA(env, cls, method, args) == JNI_TRUE);
 	isCallingJava = saveIcj;
 
-	Datum result = 0;
 	if(hasRow)
 	{
 		/* Obtain tuple and return it as a Datum. Must be done using a more
@@ -71,28 +72,33 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 
 jobject SingleRowWriter_create(JNIEnv* env, TupleDesc tupleDesc)
 {
+	jobject jtd;
+	jobject result;
 	if(tupleDesc == 0)
 		return 0;
 
-	jobject jtd = TupleDesc_create(env, tupleDesc);
-	jobject result = PgObject_newJavaObject(env, s_SingleRowWriter_class, s_SingleRowWriter_init, jtd);
+	jtd = TupleDesc_create(env, tupleDesc);
+	result = PgObject_newJavaObject(env, s_SingleRowWriter_class, s_SingleRowWriter_init, jtd);
 	(*env)->DeleteLocalRef(env, jtd);
 	return result;
 }
 
 HeapTuple SingleRowWriter_getTupleAndClear(JNIEnv* env, jobject jrps)
 {
+	jobject tuple;
+	HeapTuple result;
+	bool saveIcj = isCallingJava;
+
 	if(jrps == 0)
 		return 0;
 
-	bool saveIcj = isCallingJava;
 	isCallingJava = true;
-	jobject tuple = (*env)->CallObjectMethod(env, jrps, s_SingleRowWriter_getTupleAndClear);
+	tuple = (*env)->CallObjectMethod(env, jrps, s_SingleRowWriter_getTupleAndClear);
 	isCallingJava = saveIcj;
 	if(tuple == 0)
 		return 0;
 
-	HeapTuple result = (HeapTuple)NativeStruct_getStruct(env, tuple);
+	result = (HeapTuple)NativeStruct_getStruct(env, tuple);
 	(*env)->DeleteLocalRef(env, tuple);
 	return result;
 }

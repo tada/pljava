@@ -27,10 +27,11 @@ static jmethodID s_Relation_init;
  */
 jobject Relation_create(JNIEnv* env, Relation td)
 {
+	jobject jtd;
 	if(td == 0)
 		return 0;
 
-	jobject jtd = NativeStruct_obtain(env, td);
+	jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
 		jtd = PgObject_newJavaObject(env, s_Relation_class, s_Relation_init);
@@ -86,12 +87,13 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _this)
 {
+	Relation self;
+	jstring ret = 0;
 	PLJAVA_ENTRY_FENCE(0)
-	Relation self = (Relation)NativeStruct_getStruct(env, _this);
+	self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
-	jstring ret = 0;
 	PLJAVA_TRY
 	{
 		char* relName = SPI_getrelname(self);
@@ -114,8 +116,9 @@ Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _thi
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jobject _this)
 {
+	Relation self;
 	PLJAVA_ENTRY_FENCE(0)
-	Relation self = (Relation)NativeStruct_getStruct(env, _this);
+	self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
@@ -130,17 +133,20 @@ Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jobject
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
 {
+	Relation self;
+	HeapTuple tuple;
 	PLJAVA_ENTRY_FENCE(0)
-	Relation self = (Relation)NativeStruct_getStruct(env, _this);
+	self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
 
-	HeapTuple tuple = (HeapTuple)NativeStruct_getStruct(env, _tuple);
+	tuple = (HeapTuple)NativeStruct_getStruct(env, _tuple);
 	if(tuple == 0)
 		return 0;
 
 	PLJAVA_TRY
 	{
+		jint idx;
 		TupleDesc tupleDesc = self->rd_att;
 	
 		jint   count  = (*env)->GetArrayLength(env, _indexes);
@@ -155,10 +161,13 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 		else
 			indexes = (int*)palloc(count * sizeof(int));
 	
-		jint idx;
 		for(idx = 0; idx < count; ++idx)
 		{
 			int attIndex;
+			Oid typeId;
+			Type type;
+			jobject value;
+
 			if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
 				attIndex = indexes[idx];
 			else
@@ -167,7 +176,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 				indexes[idx] = attIndex;
 			}
 	
-			Oid typeId = SPI_gettypeid(tupleDesc, attIndex);
+			typeId = SPI_gettypeid(tupleDesc, attIndex);
 			if(!OidIsValid(typeId))
 			{
 				Exception_throw(env,
@@ -176,8 +185,8 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 				return 0L;	/* Exception */
 			}
 	
-			Type type = Type_fromOid(typeId);
-			jobject value = (*env)->GetObjectArrayElement(env, _values, idx);
+			type = Type_fromOid(typeId);
+			value = (*env)->GetObjectArrayElement(env, _values, idx);
 			if(value != 0)
 				values[idx] = Type_coerceObject(type, env, value);
 			else

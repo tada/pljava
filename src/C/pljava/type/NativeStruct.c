@@ -33,13 +33,14 @@ HashMap NativeStruct_pushCache()
 
 void NativeStruct_popCache(JNIEnv* env, HashMap previousCache)
 {
+	Iterator itor;
 	HashMap current = s_weakCache;
 	s_weakCache = previousCache;
 
 	if(current == 0)
 		return;
 
-	Iterator itor = HashMap_entries(current);
+	itor = HashMap_entries(current);
 	while(Iterator_hasNext(itor))
 	{
 		Entry e = Iterator_next(itor);
@@ -60,10 +61,11 @@ void NativeStruct_popCache(JNIEnv* env, HashMap previousCache)
 
 jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
 {
+	jobject weak;
 	if(s_weakCache == 0)
 		return 0;
 
-	jobject weak = HashMap_getByOpaque(s_weakCache, nativePointer);
+	weak = HashMap_getByOpaque(s_weakCache, nativePointer);
 	if(weak != 0)
 		weak = (*env)->NewLocalRef(env, weak);
 	return weak;
@@ -82,6 +84,7 @@ void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePoin
 
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 {
+	jobject oldRef;
 	if(nativeStruct == 0)
 		return;
 
@@ -95,7 +98,7 @@ void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 	/* Store a weak reference to this java object in the s_weakCache using
 	 * the nativePointer as the key.
 	 */
-	jobject oldRef = (jobject)HashMap_putByOpaque(s_weakCache,
+	oldRef = (jobject)HashMap_putByOpaque(s_weakCache,
 				nativePointer, (*env)->NewWeakGlobalRef(env, nativeStruct));
 
 	if(oldRef != 0)
@@ -111,8 +114,7 @@ void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct)
 {
 	Ptr2Long p2l;
 	p2l.longVal = (*env)->GetLongField(env, nativeStruct, s_NativeStruct_m_native);
-	void* ptr = p2l.ptrVal;
-	if(ptr == 0)
+	if(p2l.ptrVal == 0)
 	{
 		/* Stale handle.
 		 */
@@ -120,27 +122,26 @@ void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct)
 			"Stale Handle to native structure");
 		return 0;
 	}
-	return ptr;
+	return p2l.ptrVal;
 }
 
 void* NativeStruct_releasePointer(JNIEnv* env, jobject _this)
 {
 	Ptr2Long p2l;
 	p2l.longVal = (*env)->GetLongField(env, _this, s_NativeStruct_m_native);
-	void* ptr = p2l.ptrVal;
-	if(ptr != 0)
+	if(p2l.ptrVal != 0)
 	{
-		/* Clear the field.
-		 */
-		(*env)->SetLongField(env, _this, s_NativeStruct_m_native, 0L);
-	
 		/* Remove this object from the cache
 		 */
-		jobject weak = HashMap_removeByOpaque(s_weakCache, ptr);
+		jobject weak = HashMap_removeByOpaque(s_weakCache, p2l.ptrVal);
 		if(weak != 0)
 			(*env)->DeleteWeakGlobalRef(env, weak);
+
+		/* Clear the field.
+		 */
+		(*env)->SetLongField(env, _this, s_NativeStruct_m_native, 0L);	
 	}
-	return ptr;
+	return p2l.ptrVal;
 }
 
 static Datum _NativeStruct_coerceObject(Type self, JNIEnv* env, jobject nStruct)

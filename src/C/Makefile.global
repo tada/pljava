@@ -9,6 +9,11 @@ include $(top_builddir)/src/Makefile.global
 
 override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/include $(CPPFLAGS)
 
+# Don't use higher standard then c89 since this rules out older compilers. We
+# must use 'long long' however, since JNI defines it.
+#
+override CFLAGS := -pedantic -std=c89 -Wno-long-long $(CFLAGS)
+
 ifeq ($(PORTNAME), cygwin)
 #
 # Portname will not suffice. The Win32 JDK have no knowledge of cygwin

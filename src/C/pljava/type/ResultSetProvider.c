@@ -38,6 +38,7 @@ typedef struct _CallContextData* CallContextData;
 
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	bool hasRow;
 	HashMap currentCache;
 	CallContextData  ctxData;
     FuncCallContext* context;
@@ -47,13 +48,17 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	 */
 	if(SRF_IS_FIRSTCALL())
 	{
+		jobject tmp;
+		MemoryContext oldContext;
+		TupleDesc tupleDesc;
+
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
 		
 		/* switch to memory context appropriate for multiple function calls
 		 */
-		MemoryContext oldContext = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		oldContext = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
 		/* Push a new NativeStruct cache so that NativeStructs created during
 		 * the initial call will survive until SRF_RETURN_DONE.
@@ -64,7 +69,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 * that later is used once for each row that should be obtained.
 		 */
 		isCallingJava = true;
-		jobject tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
+		tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
 		isCallingJava = saveicj;
 
 		if(tmp == 0)
@@ -77,7 +82,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* allocate a slot for a tuple with this tupdesc and assign it to
 		 * the function context
 		 */
-		TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
+		tupleDesc = TupleDesc_forOid(Type_getOid(self));
 		context->slot = TupleDescGetSlot(tupleDesc);
 
 		/* Create the context used by Pl/Java
@@ -109,7 +114,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	 * ResultSetProvider.assignRowValues method.
 	 */
 	isCallingJava = true;
-	bool hasRow = ((*env)->CallBooleanMethod(
+	hasRow = ((*env)->CallBooleanMethod(
 			env, ctxData->resultSetProvider, s_ResultSetProvider_assignRowValues,
 			ctxData->singleRowWriter, (jint)context->call_cntr) == JNI_TRUE);
 	isCallingJava = saveicj;

@@ -246,10 +246,11 @@ static void _HashMap_finalize(PgObject self)
 
 HashMap HashMap_create(uint32 initialCapacity, MemoryContext ctx)
 {
+	HashMap self;
 	if(ctx == 0)
 		ctx = CurrentMemoryContext;
 
-	HashMap self = (HashMap)PgObjectClass_allocInstance(s_HashMapClass, ctx);
+	self = (HashMap)PgObjectClass_allocInstance(s_HashMapClass, ctx);
 
 	if(initialCapacity < 32)
 		initialCapacity = 32;
@@ -294,6 +295,7 @@ void* HashMap_put(HashMap self, HashKey key, void* value)
 	if(slot == 0)
 	{
 		uint32 currSz = self->size;
+		MemoryContext ctx = GetMemoryChunkContext(self);
 		if((currSz + currSz / 2) > self->tableSize)
 			{
 			/* Always double the size. It gives predictable repositioning
@@ -303,7 +305,6 @@ void* HashMap_put(HashMap self, HashKey key, void* value)
 			HashMap_rehash(self, self->tableSize * 2);
 			slotNo = HASHSLOT(self, key);
 			}
-		MemoryContext ctx = GetMemoryChunkContext(self);
 		slot = Entry_create(ctx);
 		slot->key   = HashKey_clone(key, ctx);	/* Create a private copy of the key */
 		slot->value = value;
