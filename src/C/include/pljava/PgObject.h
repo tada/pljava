@@ -27,6 +27,11 @@ struct PgObjectClass_;
 typedef struct PgObjectClass_* PgObjectClass;
 
 /*
+ * The effectiveClassPath is set at initialization time (in Backend.c)
+ */
+extern const char* effectiveClassPath;
+
+/*
  * Calles the virtual finalizer and deallocates memory occupided by the
  * PgObject structure.
  */

@@ -14,6 +14,10 @@ static bool      s_loopLock = false;
 static jclass    s_Class_class = 0;
 static jmethodID s_Class_getName = 0;
 
+/* effectiveClassPath is set at initialization time (in Backend.c)
+ */
+const char* effectiveClassPath;
+
 void PgObject_free(PgObject object)
 {
 	Finalizer finalizer = object->m_class->finalize;
@@ -104,8 +108,7 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 		(*env)->ExceptionDescribe(env);
 		ereport(ERROR, (
 			errmsg("Unable to load class %s using CLASSPATH '%s'",
-				className,
-				getenv("CLASSPATH"))));
+				className, effectiveClassPath)));
 	}
 	return cls;
 }

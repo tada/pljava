@@ -670,10 +670,10 @@ static void initializeJavaVM()
 	pljavaDebug = 1;
 #endif
 
-	tmp = getClassPath("-Djava.class.path=");
-	if(tmp != 0)
+	effectiveClassPath = getClassPath("-Djava.class.path=");
+	if(effectiveClassPath != 0)
 	{
-		JVMOptList_add(&optList, tmp, 0, false);
+		JVMOptList_add(&optList, effectiveClassPath, 0, true);
 	}
 
 	/**

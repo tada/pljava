@@ -17,7 +17,7 @@ extern "C" {
  * 
  * @author Thomas Hallgren
  *****************************************************************/
- 
+
 extern JNIEnv* Backend_getMainEnv(void);
 
 #ifdef __cplusplus
