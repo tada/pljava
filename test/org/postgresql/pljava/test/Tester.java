@@ -65,6 +65,64 @@ public class Tester
 		this.testInt();
 	}
 
+	public void testSPIActions()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		try
+		{
+			stmt.execute("DROP TABLE employees1");
+			stmt.execute("DROP TABLE employees2");
+		}
+		catch(SQLException e)
+		{
+			// No problem really. Just means that it didn't exist.
+			//
+			System.out.println(e.getMessage());
+		}
+
+		stmt.execute(
+				"CREATE TABLE employees1 (" +
+				" id		int PRIMARY KEY," +
+				" name		text," +	
+				" salary	int)");
+
+		stmt.execute(
+				"CREATE TABLE employees2 (" +
+				" id		int PRIMARY KEY," +
+				" name		text," +	
+				" salary	int)");
+
+		stmt.execute("INSERT INTO employees1 VALUES(" +
+			"1, 'Calvin Forrester', 10000)");
+		stmt.execute("INSERT INTO employees1 VALUES(" +
+			"2, 'Edwin Archer', 20000)");
+		stmt.execute("INSERT INTO employees1 VALUES(" +
+			"3, 'Rebecka Shawn', 30000)");
+		stmt.execute("INSERT INTO employees1 VALUES(" +
+			"4, 'Priscilla Johnson', 25000)");
+
+		stmt.execute(
+				"CREATE FUNCTION transferPeople(int)" +
+				" RETURNS int" +
+				" AS 'org.postgresql.pljava.example.SPIActions.transferPeopleWithSalary'" +
+				" LANGUAGE java");
+
+		stmt.execute("SELECT transferPeople(20000)");
+
+		ResultSet rs = stmt.executeQuery("SELECT * FROM employees2");
+		while(rs.next())
+		{
+			int id = rs.getInt(1);
+			String name = rs.getString(2);
+			int salary = rs.getInt(3);
+			System.out.println(
+					"Id = \"" + id +
+					"\", name = \"" + name +
+					"\", salary = \"" + salary + "\"");
+		}
+		rs.close();
+	}
 	public void testModdatetimeTrigger()
 	throws SQLException
 	{

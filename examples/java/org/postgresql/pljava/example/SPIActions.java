@@ -21,6 +21,12 @@ import java.sql.SQLException;
  */
 public class SPIActions
 {
+	public static void log(String str)
+	{
+		System.out.println(str);
+		System.out.flush();
+	}
+
 	public static void transferPeopleWithSalary(int salary)
 	throws SQLException
 	{
@@ -33,21 +39,20 @@ public class SPIActions
 		try
 		{
 			select = conn.prepareStatement(
-				"SELECT id, name, salary FROM employees WHERE salary > ?");
-			
+				"SELECT id, name, salary FROM employees1 WHERE salary > ?");
+
 			insert = conn.prepareStatement(
-				"INSERT INTO costlyEmployees(id, name, salary) VALUES (?, ?, ?");
-			
+				"INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?");
+
 			delete = conn.prepareStatement(
-				"DELETE FROM employees WHERE id = ?");
+				"DELETE FROM employees1 WHERE id = ?");
 
 			select.setInt(1, salary);
 			rs = select.executeQuery();
 			int rowNo = 0;
 			while(rs.next())
 			{
-				System.out.println("Processing row " + ++rowNo);
-				System.out.flush();
+				log("Processing row " + ++rowNo);
 				int id = rs.getInt(1);
 				String name = rs.getString(2);
 				int empSal = rs.getInt(3);
@@ -56,17 +61,14 @@ public class SPIActions
 				insert.setString(2, name);
 				insert.setInt(3, empSal);
 				int nRows = insert.executeUpdate();
-				System.out.println("Insert processed " + nRows + " rows");
-				System.out.flush();
+				log("Insert processed " + nRows + " rows");
 				
 				delete.setInt(1, id);
 				nRows = delete.executeUpdate();
-				System.out.println("Delete processed " + nRows + " rows");
-				System.out.flush();
+				log("Delete processed " + nRows + " rows");
 			}
 			if(rowNo == 0)
-				System.out.println("No row found");
-			System.out.flush();
+				log("No row found");
 		}
 		finally
 		{

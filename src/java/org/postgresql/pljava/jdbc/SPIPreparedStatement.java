@@ -321,7 +321,9 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			m_plan.makeDurable();
 		}
 
-		return this.executePlan(m_plan, values);
+		boolean result = this.executePlan(m_plan, values);
+		params.clear(); // Parameters are cleared upon successful completion.
+		return result;
 	}
 
 	/**
@@ -441,12 +443,12 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	throws SQLException
 	{
 		int ret = SUCCESS_NO_INFO;
-		this.clearParameters();
+		m_paramList.clear();
 		m_paramList.addAll((ArrayList)batchEntry);
 		if(this.execute())
 			this.getResultSet().close();
 		else
-		{	
+		{
 			int updCount = this.getUpdateCount();
 			if(updCount >= 0)
 				ret = updCount;
