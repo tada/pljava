@@ -23,11 +23,9 @@ public class SPIActions
 {
 	public static void log(String str)
 	{
-		System.out.println(str);
-		System.out.flush();
 	}
 
-	public static void transferPeopleWithSalary(int salary)
+	public static int transferPeopleWithSalary(int salary)
 	throws SQLException
 	{
 		Connection conn = DriverManager.getConnection("jdbc:postgresql:pljava");
@@ -69,6 +67,7 @@ public class SPIActions
 			}
 			if(rowNo == 0)
 				log("No row found");
+			return rowNo;
 		}
 		finally
 		{

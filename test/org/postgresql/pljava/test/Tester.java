@@ -39,6 +39,7 @@ public class Tester
 			t.testParameters();
 			t.testInsertUsernameTrigger();
 			t.testModdatetimeTrigger();
+			t.testSPIActions();
 			t.close();
 		}
 		catch(Exception e)

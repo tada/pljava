@@ -14,7 +14,7 @@ override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/in
 override CFLAGS := -g -fpic $(CFLAGS)
 override LDFLAGS := -g -shared -L$(JAVA_HOME)/jre/lib/i386/client -ljvm $(LDFLAGS)
 
-OBJS = pljava.o PgObject.o Exception.o HashMap.o Iterator.o Function.o SPI.o
+OBJS = Server.o PgObject.o Exception.o HashMap.o Iterator.o Function.o SPI.o
 
 all: subsys libpljava.so
 

@@ -24,6 +24,7 @@
 #include "pljava/type/NativeStruct.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
+#include "pljava/Server_JNI.h"
 
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR
@@ -349,3 +350,18 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
 	return JNI_VERSION_1_4;
 }
+
+/*
+ * Class:     org_postgresql_pljava_Server
+ * Method:    log
+ * Signature: (ILjava/lang/String;)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_Server_log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
+{
+	char* str = String_createNTS(env, jstr);
+	if(str == 0)
+		return;
+	elog(logLevel, str);
+	pfree(str);
+}	

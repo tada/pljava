@@ -15,7 +15,9 @@ static Type      s_Oid;
 static TypeClass s_OidClass;
 static jclass    s_Oid_class;
 static jmethodID s_Oid_init;
+static jmethodID s_Oid_registerType;
 static jfieldID  s_Oid_m_native;
+static jobject   s_OidOid;
 
 /*
  * org.postgresql.pljava.type.Oid type.
@@ -152,9 +154,18 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
 	s_Oid = TypeClass_allocInstance(s_OidClass);
+	jobject oidOid = Oid_create(env, OIDOID);
+	s_OidOid = (*env)->NewGlobalRef(env, oidOid);
+	(*env)->DeleteLocalRef(env, oidOid);
 
 	Type_registerPgType(OIDOID, Oid_obtain);
 	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
+	
+	s_Oid_registerType = PgObject_getStaticJavaMethod(
+				env, s_Oid_class, "registerType",
+				"(Ljava/lang/Class;Lorg/postgresql/pljava/internal/Oid;)V");
+
+	(*env)->CallStaticVoidMethod(env, s_Oid_class, s_Oid_registerType, s_Oid_class, s_OidOid);
 	PG_RETURN_VOID();
 }
 
@@ -177,6 +188,6 @@ Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid_getTypeId(JNIEnv* env, jclass cls)
 {
-	return Oid_create(env, OIDOID);
+	return s_OidOid;
 }
 

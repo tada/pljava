@@ -77,6 +77,11 @@
 
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.Server"
+			outputfile="src/C/include/pljava/Server_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.internal.SPI"
 			outputfile="src/C/include/pljava/SPI_JNI.h"
 			/>

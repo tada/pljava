@@ -24,7 +24,6 @@ public class Oid
 	static
 	{
 		System.loadLibrary("pljava");
-		registerType(Oid.class, Oid.getTypeId());
 		try
 		{
 			// Ensure that the SPI JDBC driver is loaded and registered
