@@ -7,6 +7,7 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
+import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -101,5 +102,11 @@ public class SyntheticResultSet extends ResultSetBase
 			return true;
 		}
 		return false;
+	}
+
+	public ResultSetMetaData getMetaData()
+	throws SQLException
+	{
+		return new SyntheticResultSetMetaData(m_fields);
 	}
 }
