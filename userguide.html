@@ -1,0 +1,2416 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=windows-1252">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 10">
+<meta name=Originator content="Microsoft Word 10">
+<link rel=File-List href="userguide_files/filelist.xml">
+<title>First release of the PL/Java</title>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+  <o:Author>Thomas Hallgren</o:Author>
+  <o:LastAuthor>Thomas Hallgren</o:LastAuthor>
+  <o:Revision>18</o:Revision>
+  <o:TotalTime>2302</o:TotalTime>
+  <o:LastPrinted>2004-01-22T14:03:00Z</o:LastPrinted>
+  <o:Created>2004-01-27T13:55:00Z</o:Created>
+  <o:LastSaved>2004-01-27T17:05:00Z</o:LastSaved>
+  <o:Pages>1</o:Pages>
+  <o:Words>2169</o:Words>
+  <o:Characters>12368</o:Characters>
+  <o:Lines>103</o:Lines>
+  <o:Paragraphs>29</o:Paragraphs>
+  <o:CharactersWithSpaces>14508</o:CharactersWithSpaces>
+  <o:Version>10.3501</o:Version>
+ </o:DocumentProperties>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:Zoom>135</w:Zoom>
+  <w:SpellingState>Clean</w:SpellingState>
+  <w:GrammarState>Clean</w:GrammarState>
+  <w:DrawingGridHorizontalSpacing>0 pt</w:DrawingGridHorizontalSpacing>
+  <w:DrawingGridVerticalSpacing>0 pt</w:DrawingGridVerticalSpacing>
+  <w:DisplayHorizontalDrawingGridEvery>0</w:DisplayHorizontalDrawingGridEvery>
+  <w:DisplayVerticalDrawingGridEvery>0</w:DisplayVerticalDrawingGridEvery>
+  <w:UseMarginsForDrawingGridOrigin/>
+  <w:DrawingGridHorizontalOrigin>0 pt</w:DrawingGridHorizontalOrigin>
+  <w:DrawingGridVerticalOrigin>0 pt</w:DrawingGridVerticalOrigin>
+  <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+ </w:WordDocument>
+</xml><![endif]-->
+<style>
+<!--
+ /* Font Definitions */
+ @font-face
+	{font-family:Courier;
+	panose-1:2 7 4 9 2 2 5 2 4 4;
+	mso-font-alt:"Courier New";
+	mso-font-charset:0;
+	mso-generic-font-family:modern;
+	mso-font-format:other;
+	mso-font-pitch:fixed;
+	mso-font-signature:3 0 0 0 1 0;}
+@font-face
+	{font-family:"Luxi Sans";
+	mso-font-alt:Arial;
+	mso-font-charset:0;
+	mso-generic-font-family:swiss;
+	mso-font-pitch:variable;
+	mso-font-signature:0 0 0 0 0 0;}
+@font-face
+	{font-family:"HG Mincho Light J";
+	mso-font-charset:0;
+	mso-generic-font-family:auto;
+	mso-font-pitch:variable;
+	mso-font-signature:0 0 0 0 0 0;}
+ /* Style Definitions */
+ p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{mso-style-parent:"";
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+h1
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:1;
+	mso-hyphenate:none;
+	font-size:16.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	mso-font-kerning:16.0pt;
+	font-weight:bold;}
+h2
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:2;
+	mso-hyphenate:none;
+	font-size:14.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	font-weight:bold;
+	font-style:italic;}
+h3
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-outline-level:3;
+	mso-hyphenate:none;
+	font-size:13.0pt;
+	font-family:Arial;
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;
+	font-weight:bold;}
+p.MsoToc1, li.MsoToc1, div.MsoToc1
+	{mso-style-update:auto;
+	mso-style-noshow:yes;
+	mso-style-next:Normal;
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.MsoToc2, li.MsoToc2, div.MsoToc2
+	{mso-style-update:auto;
+	mso-style-noshow:yes;
+	mso-style-next:Normal;
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:12.0pt;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.MsoToc3, li.MsoToc3, div.MsoToc3
+	{mso-style-update:auto;
+	mso-style-noshow:yes;
+	mso-style-next:Normal;
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:24.0pt;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.MsoList, li.MsoList, div.MsoList
+	{mso-style-parent:"Body Text";
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.MsoBodyText, li.MsoBodyText, div.MsoBodyText
+	{margin-top:0in;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+a:link, span.MsoHyperlink
+	{mso-style-parent:"";
+	color:navy;
+	text-decoration:underline;
+	text-underline:single;}
+a:visited, span.MsoHyperlinkFollowed
+	{color:purple;
+	text-decoration:underline;
+	text-underline:single;}
+p
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"HG Mincho Light J";
+	color:black;}
+code
+	{mso-ansi-font-size:8.0pt;
+	font-family:"Courier New";
+	mso-ascii-font-family:"Courier New";
+	mso-fareast-font-family:"Times New Roman";
+	mso-hansi-font-family:"Courier New";
+	mso-bidi-font-family:"Courier New";
+	mso-ansi-language:EN-US;}
+p.Heading, li.Heading, div.Heading
+	{mso-style-name:Heading;
+	mso-style-next:"Body Text";
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:none;
+	page-break-after:avoid;
+	mso-hyphenate:none;
+	font-size:14.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:"Luxi Sans";
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+p.Caption1, li.Caption1, div.Caption1
+	{mso-style-name:Caption1;
+	margin-top:6.0pt;
+	margin-right:0in;
+	margin-bottom:6.0pt;
+	margin-left:0in;
+	mso-pagination:no-line-numbers;
+	mso-hyphenate:none;
+	font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;
+	font-style:italic;
+	mso-bidi-font-style:normal;}
+p.Index, li.Index, div.Index
+	{mso-style-name:Index;
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:no-line-numbers;
+	mso-hyphenate:none;
+	font-size:12.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:Courier;
+	mso-fareast-font-family:"HG Mincho Light J";
+	mso-bidi-font-family:"Times New Roman";
+	color:black;}
+span.NumberingSymbols
+	{mso-style-name:"Numbering Symbols";
+	mso-style-parent:"";}
+span.SpellE
+	{mso-style-name:"";
+	mso-spl-e:yes;}
+span.GramE
+	{mso-style-name:"";
+	mso-gram-e:yes;}
+ /* Page Definitions */
+ @page
+	{mso-footnote-position:beneath-text;}
+@page Section1
+	{size:8.5in 11.0in;
+	margin:1.0in 1.25in 1.0in 1.25in;
+	mso-header-margin:.5in;
+	mso-footer-margin:.5in;
+	mso-paper-source:0;}
+div.Section1
+	{page:Section1;
+	mso-footnote-position:beneath-text;}
+ /* List Definitions */
+ @list l0
+	{mso-list-id:-132;
+	mso-list-type:simple;
+	mso-list-template-ids:-995566558;}
+@list l0:level1
+	{mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;}
+@list l1
+	{mso-list-id:-131;
+	mso-list-type:simple;
+	mso-list-template-ids:-1936715886;}
+@list l1:level1
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	margin-left:1.0in;
+	text-indent:-.25in;}
+@list l2
+	{mso-list-id:-130;
+	mso-list-type:simple;
+	mso-list-template-ids:-936978616;}
+@list l2:level1
+	{mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;}
+@list l3
+	{mso-list-id:-129;
+	mso-list-type:simple;
+	mso-list-template-ids:-1250554526;}
+@list l3:level1
+	{mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l4
+	{mso-list-id:-128;
+	mso-list-type:simple;
+	mso-list-template-ids:-894641688;}
+@list l4:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\F0B7;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l5
+	{mso-list-id:-127;
+	mso-list-type:simple;
+	mso-list-template-ids:-1715407028;}
+@list l5:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\F0B7;
+	mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	margin-left:1.0in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l6
+	{mso-list-id:-126;
+	mso-list-type:simple;
+	mso-list-template-ids:-1520132750;}
+@list l6:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\F0B7;
+	mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l7
+	{mso-list-id:-125;
+	mso-list-type:simple;
+	mso-list-template-ids:1007190160;}
+@list l7:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\F0B7;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l8
+	{mso-list-id:-120;
+	mso-list-type:simple;
+	mso-list-template-ids:1519290434;}
+@list l8:level1
+	{mso-level-tab-stop:.25in;
+	mso-level-number-position:left;
+	margin-left:.25in;
+	text-indent:-.25in;}
+@list l9
+	{mso-list-id:-119;
+	mso-list-type:simple;
+	mso-list-template-ids:-598161414;}
+@list l9:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\F0B7;
+	mso-level-tab-stop:.25in;
+	mso-level-number-position:left;
+	margin-left:.25in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l10
+	{mso-list-id:155848022;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-2085966524 67698711 -1171861176 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l10:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level3
+	{mso-level-tab-stop:1.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level4
+	{mso-level-tab-stop:2.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level5
+	{mso-level-tab-stop:2.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level6
+	{mso-level-tab-stop:3.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level7
+	{mso-level-tab-stop:3.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level8
+	{mso-level-tab-stop:4.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l10:level9
+	{mso-level-tab-stop:4.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11
+	{mso-list-id:686104911;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-485453258 67698711 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l11:level1
+	{mso-level-number-format:alpha-lower;
+	mso-level-text:"%1\)";
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level3
+	{mso-level-tab-stop:1.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level4
+	{mso-level-tab-stop:2.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level5
+	{mso-level-tab-stop:2.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level6
+	{mso-level-tab-stop:3.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level7
+	{mso-level-tab-stop:3.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level8
+	{mso-level-tab-stop:4.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11:level9
+	{mso-level-tab-stop:4.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12
+	{mso-list-id:1256590557;
+	mso-list-type:hybrid;
+	mso-list-template-ids:1383615288 418303372 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l12:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:"Times New Roman";}
+@list l12:level2
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level3
+	{mso-level-tab-stop:1.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level4
+	{mso-level-tab-stop:2.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level5
+	{mso-level-tab-stop:2.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level6
+	{mso-level-tab-stop:3.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level7
+	{mso-level-tab-stop:3.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level8
+	{mso-level-tab-stop:4.0in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l12:level9
+	{mso-level-tab-stop:4.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+ol
+	{margin-bottom:0in;}
+ul
+	{margin-bottom:0in;}
+-->
+</style>
+<!--[if gte mso 10]>
+<style>
+ /* Style Definitions */
+ table.MsoNormalTable
+	{mso-style-name:"Table Normal";
+	mso-tstyle-rowband-size:0;
+	mso-tstyle-colband-size:0;
+	mso-style-noshow:yes;
+	mso-style-parent:"";
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;
+	mso-para-margin:0in;
+	mso-para-margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";}
+table.MsoTableWeb3
+	{mso-style-name:"Table Web 3";
+	mso-tstyle-rowband-size:0;
+	mso-tstyle-colband-size:0;
+	mso-cellspacing:2.0pt;
+	border:outset 3.0pt;
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;
+	mso-border-insideh:.75pt outset windowtext;
+	mso-border-insidev:.75pt outset windowtext;
+	mso-para-margin:0in;
+	mso-para-margin-bottom:.0001pt;
+	mso-pagination:none;
+	mso-hyphenate:none;
+	font-size:10.0pt;
+	font-family:"Times New Roman";}
+table.MsoTableWeb3FirstRow
+	{mso-style-name:"Table Web 3";
+	mso-table-condition:first-row;
+	mso-tstyle-diagonal-down:0in none windowtext;
+	mso-tstyle-diagonal-up:0in none windowtext;
+	color:windowtext;}
+</style>
+<![endif]-->
+</head>
+
+<body lang=EN-US link=navy vlink=purple style='tab-interval:17.3pt;line-break:
+strict'>
+
+<div class=Section1>
+
+<h1><a name="_Toc62990034">Pl/Java </a><span class=SpellE><span
+style='mso-bookmark:_Toc62990034'>Userguide</span></span><span
+style='mso-bookmark:_Toc62990034'></span><o:p></o:p></h1>
+
+<h2><a name="_Toc62990035">Table of contents</a></h2>
+
+<p class=MsoNormal><o:p>&nbsp;</o:p></p>
+
+<p class=MsoToc1 style='tab-stops:right dotted 431.5pt'><!--[if supportFields]><span
+style='mso-element:field-begin'></span><span style='mso-spacerun:yes'> </span>TOC
+\o &quot;1-3&quot; \h \z \u <span style='mso-element:field-separator'></span><![endif]--><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990034">Pl/Java
+Userguide<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990034 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>1</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330034000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990035">Table
+of contents<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990035 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>1</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330035000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc1 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990036">Utilities<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990036 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>1</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330036000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990037">Deployer<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990037 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>1</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330037000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990038">Deployer
+options<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990038 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>2</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330038000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc1 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990039">SQJL
+functions<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990039 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>2</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000330039000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990040">install_jar<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990040 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>2</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340030000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990041">Usage<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990041 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>2</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340031000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990042">Parameters<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990042 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>2</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340032000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990043">replace_jar<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990043 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340033000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990044">Usage<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990044 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340034000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990045">Parameters<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990045 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340035000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990046">remove_jar<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990046 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340036000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990047">Usage<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990047 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340037000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990048">Parameters<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990048 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340038000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990049">get_classpath<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990049 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000340039000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990050">Usage<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990050 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350030000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990051">Parameters<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990051 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350031000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990052">set_classpath<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990052 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>3</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350032000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990053">Usage<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990053 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>4</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350033000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990054">Parameters<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990054 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>4</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350034000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc1 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990055">Writing
+Java functions<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990055 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>4</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350035000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990056">SQL
+declaration<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990056 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>4</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350036000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990057">Type
+mapping<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990057 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>4</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350037000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990058">NULL
+handling<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990058 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>5</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350038000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc3 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990059">Complex
+types<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990059 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>5</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000350039000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990060">Returning
+complex types<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990060 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>6</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000360030000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990061">Functions
+returning sets<span style='color:black;display:none;mso-hide:screen;text-decoration:
+none;text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990061 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>6</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000360031000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990062">Triggers<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990062 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>7</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000360032000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<p class=MsoToc2 style='tab-stops:right dotted 431.5pt'><span
+class=MsoHyperlink><span style='mso-no-proof:yes'><a href="#_Toc62990063">Logging<span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-tab-count:1 dotted'> </span></span><!--[if supportFields]><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'><span style='mso-element:field-begin'></span></span><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'> PAGEREF _Toc62990063 \h </span><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-separator'></span></span><![endif]--><span
+style='color:black;display:none;mso-hide:screen;text-decoration:none;
+text-underline:none'>8</span><span style='color:black;display:none;mso-hide:
+screen;text-decoration:none;text-underline:none'><!--[if gte mso 9]><xml>
+ <w:data>08D0C9EA79F9BACE118C8200AA004BA90B02000000080000000D0000005F0054006F006300360032003900390030003000360033000000</w:data>
+</xml><![endif]--></span><!--[if supportFields]><span style='color:black;
+display:none;mso-hide:screen;text-decoration:none;text-underline:none'><span
+style='mso-element:field-end'></span></span><![endif]--></a></span></span><span
+style='mso-bidi-font-size:12.0pt;font-family:"Times New Roman";mso-fareast-font-family:
+"Times New Roman";color:windowtext;mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h1><!--[if supportFields]><span style='mso-element:field-end'></span><![endif]--><a
+name="_Toc62990036">Utilities</a><o:p></o:p></h1>
+
+<h2><a name="_Toc62990037"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990037'>Deployer</span></span><span style='mso-bookmark:_Toc62990037'></span><o:p></o:p></h2>
+
+<p>When running the <span class=SpellE>deployer</span>, you must use a
+classpath that can see the <span class=SpellE>deploy.jar</span> found in the
+Pl/Java distribution and the <span class=SpellE>postgresql.jar</span> from the <span
+class=SpellE>PostgreSQL</span> distribution. The former contains the code for
+the <span class=SpellE>deployer</span> command and the second includes the <span
+class=SpellE>PostgreSQL</span> JDBC driver. You then run the <span
+class=SpellE>deployer</span> with the command:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>java –cp &lt;your
+classpath&gt; org.postgresql.pljava.deploy.Deployer [ options ]<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>It’s recommended that create a shell script or a .bat script that does this
+for you so that you don’t have to do this over and over again.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<h3><a name="_Toc62990038"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990038'>Deployer</span></span><span style='mso-bookmark:_Toc62990038'>
+options</span><o:p></o:p></h3>
+
+<table class=MsoTableWeb3 border=0 cellspacing=3 cellpadding=0
+ style='mso-cellspacing:2.0pt;mso-yfti-tbllook:480;mso-padding-alt:0in 5.4pt 0in 5.4pt'>
+ <tr style='mso-yfti-irow:-1'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p style='mso-yfti-cnfc:1'>-install<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p style='mso-yfti-cnfc:1'>Installs the Java language along with the <span
+  class=SpellE>sqlj</span> procedures. The <span class=SpellE>deployer</span>
+  will fail if the language is installed already.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:0'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-reinstall<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Reinstalls the Java language and the <span class=SpellE>sqlj</span>
+  procedures. This will effectively drop all jar files that have been loaded.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:1'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-remove<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Drops the Java language and the <span class=SpellE>sqjl</span> procedures
+  and loaded jars.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:2'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-user &lt;user name&gt;<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Name of user that connects to the database. Default is ”postgres”<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:3'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-password &lt;password&gt;<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Password of user that connects to the database. Default is no password.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:4'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-database &lt;database&gt;<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>The name of the database to connect to. Default <span class=GramE>is ”</span>postgres”.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:5'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-host &lt;hostname&gt;<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Name of the host. Default <span class=GramE>is ”</span><span class=SpellE>localhost</span>”.<o:p></o:p></p>
+  </td>
+ </tr>
+ <tr style='mso-yfti-irow:6;mso-yfti-lastrow:yes'>
+  <td width=186 valign=top style='width:139.2pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>-windows<o:p></o:p></p>
+  </td>
+  <td width=315 valign=top style='width:236.4pt;padding:0in 5.4pt 0in 5.4pt'>
+  <p>Use this option if the host runs on a windows platform. Affects the name
+  used for the Pl/Java dynamic library.<o:p></o:p></p>
+  </td>
+ </tr>
+</table>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<h1><a name="_Toc62990039">SQJL functions</a><o:p></o:p></h1>
+
+<h2><a name="_Toc62990040"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990040'>install_jar</span></span><span style='mso-bookmark:_Toc62990040'></span><o:p></o:p></h2>
+
+<p>The <span class=SpellE>install_jar</span> command loads a <span
+class=SpellE>jarfile</span> from a location appointed by an URL into the SQLJ
+jar repository. It is an error if a jar with the given name already exists in
+the repository.<o:p></o:p></p>
+
+<h3><a name="_Toc62990041">Usage</a><o:p></o:p></h3>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>SELECT
+sqlj.install_jar(&lt;jar_name&gt;, &lt;jar_url&gt;, <span
+style='mso-spacerun:yes'> </span>&lt;deploy&gt;);<o:p></o:p></span></code></p>
+
+<h3><a name="_Toc62990042">Parameters</a><o:p></o:p></h3>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>jar_name</b></span></span><span
+style='mso-tab-count:1'>         </span>This is the name by which this jar can
+be referenced once it has been loaded.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>jar_url</b></span></span><span
+style='mso-tab-count:1'>             </span>The URL that denotes the location
+of the jar that should be loaded.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=GramE><b
+style='mso-bidi-font-weight:normal'>deploy</b></span><span style='mso-tab-count:
+1'>             </span>True if the jar should be deployed according to a
+deployment descriptor, false otherwise. This option is currently ignored.<o:p></o:p></p>
+
+<h2><o:p>&nbsp;</o:p></h2>
+
+<h2><a name="_Toc62990043"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990043'>replace_jar</span></span><span style='mso-bookmark:_Toc62990043'></span><o:p></o:p></h2>
+
+<p>The <span class=SpellE>replace_jar</span> will replace a loaded jar with
+another jar. Use this command to update already loaded files. It’s an error if
+the jar is not found.<o:p></o:p></p>
+
+<h3><a name="_Toc62990044">Usage</a><o:p></o:p></h3>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>SELECT sqlj.replace_jar(&lt;jar_name&gt;,
+&lt;jar_url&gt;, <span style='mso-spacerun:yes'> </span>&lt;redeploy&gt;);<o:p></o:p></span></code></p>
+
+<h3><a name="_Toc62990045">Parameters</a><o:p></o:p></h3>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>jar_name</b></span></span><span
+style='mso-tab-count:1'>         </span>The name of the jar to be replaced.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>jar_url</b></span></span><span
+style='mso-tab-count:1'>             </span>The URL that denotes the location
+of the jar that should be loaded.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=GramE><b
+style='mso-bidi-font-weight:normal'>redeploy</b></span><span style='mso-tab-count:
+1'>          </span>True if the jar should be <span class=SpellE>undeployed</span>
+and deployed according to a deployment descriptor, false otherwise. This option
+is currently ignored.<o:p></o:p></p>
+
+<h2><o:p>&nbsp;</o:p></h2>
+
+<h2><a name="_Toc62990046"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990046'>remove_jar</span></span><span style='mso-bookmark:_Toc62990046'></span><o:p></o:p></h2>
+
+<p>The <span class=SpellE>remove_jar</span> will drop the jar from the jar
+repository. Any classpath that references this jar will be updated accordingly.
+It’s an error if the jar is not found.<o:p></o:p></p>
+
+<h3><a name="_Toc62990047">Usage</a><o:p></o:p></h3>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>SELECT sqlj.remove_jar(&lt;jar_name&gt;,
+&lt;undeploy&gt;);</span></code><span style='font-size:9.0pt;font-family:"Courier New";
+mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h3><a name="_Toc62990048">Parameters</a><o:p></o:p></h3>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>jar_name</b></span></span><span
+style='mso-tab-count:1'>         </span>The name of the jar to be removed.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=SpellE><span
+class=GramE><b style='mso-bidi-font-weight:normal'>undeploy</b></span></span><span
+style='mso-tab-count:1'>         </span>True if the jar should be <span
+class=SpellE>undeployed</span> according to a deployment descriptor, false
+otherwise. This option is currently ignored.<o:p></o:p></p>
+
+<h2><o:p>&nbsp;</o:p></h2>
+
+<h2><a name="_Toc62990049"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990049'>get_classpath</span></span><span style='mso-bookmark:_Toc62990049'></span><o:p></o:p></h2>
+
+<p>The <span class=SpellE>get_classpath</span> will return the classpath that
+has been defined for the given schema or NULL if the schema has no classpath.
+It’s an error if the given schema does not exist.<o:p></o:p></p>
+
+<h3><a name="_Toc62990050">Usage</a><o:p></o:p></h3>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>SELECT sqlj.get_classpath(&lt;schema&gt;);</span></code><span
+style='font-size:9.0pt;font-family:"Courier New";mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h3><a name="_Toc62990051">Parameters</a><o:p></o:p></h3>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=GramE><b
+style='mso-bidi-font-weight:normal'>schema</b></span><span style='mso-tab-count:
+1'>            </span>The name of the schema.<o:p></o:p></p>
+
+<h2><o:p>&nbsp;</o:p></h2>
+
+<h2><a name="_Toc62990052"></a><span class=SpellE><span style='mso-bookmark:
+_Toc62990052'>set_classpath</span></span><span style='mso-bookmark:_Toc62990052'></span><o:p></o:p></h2>
+
+<p>The <span class=SpellE>set_classpath</span> will define a classpath for the
+given schema. A classpath consists of a colon separated list of jar names. It’s
+an error if the given schema does not exist or if one or more jar names
+references non existent jars.<o:p></o:p></p>
+
+<h3><a name="_Toc62990053">Usage</a><o:p></o:p></h3>
+
+<p><code><span style='font-size:9.0pt;mso-no-proof:yes'>SELECT sqlj.set_classpath(&lt;schema&gt;,
+&lt;classpath&gt;);</span></code><span style='font-size:9.0pt;font-family:"Courier New";
+mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h3><a name="_Toc62990054">Parameters</a><o:p></o:p></h3>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=GramE><b
+style='mso-bidi-font-weight:normal'>schema</b></span><span style='mso-tab-count:
+1'>            </span>The name of the schema.<o:p></o:p></p>
+
+<p style='margin-left:1.0in;text-indent:-1.0in'><span class=GramE><b
+style='mso-bidi-font-weight:normal'>classpath</b></span><b style='mso-bidi-font-weight:
+normal'><span style='mso-tab-count:1'>         </span>The </b>colon separated
+list of jar names.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<h1><a name="_Toc62990055">Writing Java functions</a><o:p></o:p></h1>
+
+<h2><a name="_Toc62990056">SQL declaration</a><o:p></o:p></h2>
+
+<p>A Java function is declared with the name of a class and a static method on
+that class. The class will be resolved using the classpath that has been
+defined for the schema where the function is declared. If no classpath has been
+defined for that schema, <span class=GramE>the ”</span>public” schema is used.
+If no classpath is found there either, the class is resolved using the system <span
+class=SpellE>classloader</span>.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The following function can be declared to access the static method <span
+class=SpellE>getProperty</span> on <span class=SpellE>java.lang.System</span>
+class:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>CREATE FUNCTION getsysprop(VARCHAR)<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>RETURNS VARCHAR<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>AS ’java.lang.System.getProperty’<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>LANGUAGE java;<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>SELECT getsysprop(’user.home’);</span></code><span style='font-size:10.0pt;
+font-family:"Courier New"'><o:p></o:p></span></p>
+
+<h2><a name="_Toc62990057">Type mapping</a><o:p></o:p></h2>
+
+<p>Scalar types are mapped in a straight forward way. Here’s a table of the
+current mappings (will be updated as more mappings are implemented).<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p style='tab-stops:1.0in'><span class=SpellE>PostgreSQL</span><span
+style='mso-tab-count:1'>     </span>Java<o:p></o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>bool<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>boolean<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>’char’<span style='mso-tab-count:1'> </span><span style='mso-tab-count:
+2'>       </span>byte<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>int2<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>short<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>int4<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>int<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>int8<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>long<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>float4<span style='mso-tab-count:1'> </span><span style='mso-tab-count:
+2'>       </span>float<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>float8<span style='mso-tab-count:1'> </span><span style='mso-tab-count:
+2'>       </span>double<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>varchar<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>java.lang.String<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>text<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>java.lang.String<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>bytea<span style='mso-tab-count:1'>  </span><span style='mso-tab-count:
+2'>       </span>byte[]<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>date<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>java.sql.Date<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>time<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>java.sql.Time </span></code><span style='font-size:10.0pt'>(stored
+value treated as local time)</span><code><span style='font-size:8.0pt;
+mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>timetz<span style='mso-tab-count:1'> </span><span style='mso-tab-count:
+2'>       </span>java.sql.Time<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>timestamp<span style='mso-tab-count:1'> </span><span style='mso-tab-count:
+1'>   </span>java.sql.Timestamp </span></code><span style='font-size:10.0pt'>(stored
+value treated as local time)</span><code><span style='font-size:10.0pt;
+mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>timestamptz<span style='mso-tab-count:1'>  </span><span style='mso-tab-count:
+1'>   </span>java.sql.Timestamp<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>complex<span style='mso-tab-count:1'>   </span><span style='mso-tab-count:
+2'>       </span>java.sql.ResultSet<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>setof complex<span style='mso-tab-count:1'>   </span>java.sql.ResultSet<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>All other types are currently mapped to <code><span style='font-size:9.0pt;
+mso-no-proof:yes'>java.lang.String</span></code> and will utilize the standard <span
+class=SpellE>textin/textout</span> routines registered for respective type.<o:p></o:p></p>
+
+<h3><a name="_Toc62990058">NULL handling</a><o:p></o:p></h3>
+
+<p>The scalar types that map to Java primitives can not be passed as NULL
+values. To enable this, those types can have an alternative mapping. You enable
+this mapping by explicitly denoting it in the method reference.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>CREATE FUNCTION trueIfEvenOrNull(integer)<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>RETURNS bool<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>AS ’foo.fee.Fum.trueIfEvenOrNull(java.lang.Integer)’<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-spacerun:yes'>  </span>LANGUAGE java;<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>In java, you would have something like:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>package foo.fee;<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>public class Fum<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>{<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:1'>   </span>static boolean trueIfEvenOrNull(Integer
+value)<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:1'>   </span>{<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:1'>   </span><span style='mso-tab-count:1'>   </span>return
+(value == null)<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:1'>   </span><span style='mso-tab-count:1'>   </span><span
+style='mso-tab-count:1'>   </span>? true<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:2'>       </span><span style='mso-tab-count:
+1'>   </span>: (value.intValue() % 1) == 0;<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><span style='mso-tab-count:1'>   </span>}<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>}<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The following two statements should both yield true:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>SELECT trueIfEvenOrNull(NULL);<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>SELECT trueIfEvenOrNull(4);<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>In order to return NULL values from a Java method, you simply use the object
+type that corresponds to the primitive (i.e. you return <span class=SpellE>java.lang.Integer</span>
+instead of <span class=SpellE>int</span>). The Pl/Java resolve mechanism will
+find the method regardless. Since Java cannot have different return types for
+methods with the same name, this does not introduce any ambiguity.<o:p></o:p></p>
+
+<h3><a name="_Toc62990059">Complex types</a><o:p></o:p></h3>
+
+<p>A complex type will always be passed as a read-only <span class=SpellE>java.sql.ResultSet</span>
+with <span class=SpellE>exaclty</span> one row. The <span class=SpellE>ResultSet</span>
+will be positioned on its row so no call to next should be made. The values of
+the complex type are retrieved using the standard getter methods of the <span
+class=SpellE>ResultSet</span>.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Example:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE TYPE complexTest<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>AS(base integer,
+incbase integer, ctime timestamptz)</span></code><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'>;<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE FUNCTION useComplexTest(complexTest)<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>RETURNS VARCHAR<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>AS 'foo.fee.Fum.useComplexTest'<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>IMMUTABLE LANGUAGE java;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>In class <span class=SpellE>Fum</span> we add the static following static
+method:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>public static String useComplexTest(ResultSet
+complexTest)</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>throws SQLException</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>int base = complexTest.getInt(1);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>int incbase = complexTest.getInt(2);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>Timestamp ctime =
+complexTest.getTimestamp(3);</span></code><code><span style='font-size:8.0pt;
+mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>return &quot;Base
+= \&quot;&quot; + base +</span></code><code><span style='font-size:8.0pt;
+mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>&quot;\&quot;,
+incbase = \&quot;&quot; + incbase +</span></code><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>&quot;\&quot;,
+ctime = \&quot;&quot; + ctime + &quot;\&quot;&quot;;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><span
+style='font-size:10.0pt;font-family:"Courier New";mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h2><a name="_Toc62990060">Returning complex types</a><o:p></o:p></h2>
+
+<p>Java does not stipulate any way to create a <span class=SpellE>ResultSet</span>
+from scratch. Hence, returning a <span class=SpellE>ResultSet</span> is not an
+option. The SQL-2003 <span class=GramE>draft suggest</span> that a complex
+return value instead is handled as an IN/OUT parameter and Pl/Java implements
+it that way. If you declare a function that returns a complex type, you will
+need to use a Java method with <span class=SpellE><span class=GramE>boolean</span></span>
+return type and <span class=SpellE>whos</span> last parameter is a <span
+class=SpellE>java.sql.ResultSet</span>. The parameter will be initialized to an
+empty updateable <span class=SpellE>ResultSet</span> that contains exactly one row.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Assume that we still have the <span class=SpellE>complexTest</span> type
+created above.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE FUNCTION createComplexTest(int, int)</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>RETURNS </span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'>complexTest<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>AS 'foo.fee.Fum.createComplexTest'<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>IMMUTABLE LANGUAGE java;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The Pl/Java method resolve will now find the following method in the <span
+class=SpellE>Fum</span> class:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>public static boolean<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>complexReturn(int
+base, int increment, ResultSet receiver)</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>throws SQLException</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateInt(1,
+base);</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;
+mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateInt(2,
+base + increment);</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateTimestamp(3,<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>new
+Timestamp(System.currentTimeMillis()));</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>return true;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The return value denotes if the receiver should be considered as a valid <span
+class=SpellE>tuple</span> (true) or NULL (false).<o:p></o:p></p>
+
+<h2><a name="_Toc62990061">Functions returning sets</a><o:p></o:p></h2>
+
+<p>Returning sets are tricky. You don’t want to first build a set and then
+return it since large sets would eat too much resources. <span class=GramE>Its</span>
+far better to produce one row at a time. Incidentally, that’s exactly what the <span
+class=SpellE>PostgreSQL</span> backend expects a function with SETOF return to
+do. To accomplish this, a new interface <span class=SpellE>org.postgresql.ResultSetProvider</span>
+was invented. It contains one method that takes a <span class=SpellE>java.sql.ResultSet</span>
+and an <span class=SpellE>int</span> as its parameters. The <span class=SpellE>ResultSet</span>
+works the same way as for function returning complex types, the <span
+class=SpellE>int</span> reflects the row count.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>You can use this interface the following way (here I let the <span
+class=SpellE>Fum</span> class itself implement the <span class=GramE>interface,</span>
+it could be another class of course).<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE FUNCTION javatest.listComplexTests(int, int)</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>RETURNS </span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'>SETOF complexTest<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>AS 'foo.fee.Fum.listComplexTest'<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>IMMUTABLE LANGUAGE java;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Now we need a static java method that returns an instance that implements
+the <span class=SpellE>ResultSetProvider</span> interface.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>package foo.fee;<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>import org.postgresql.pljava.ResultSetProvider;<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>public class Fum implements ResultSetProvider<o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>{<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>private final int
+m_base;</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>private final int
+m_increment;</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span></span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>public </span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'>Fum<span
+style='background:white;mso-highlight:white'>(int base, int increment)</span><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>m_base = base;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>m_increment = increment;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>public boolean
+assignRowValues(ResultSet receiver, int currentRow)</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>throws SQLException</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>// Stop when we
+reach 12 rows.</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>//</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>if(currentRow
+&gt;= 12)</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>return false;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateInt(1,
+m_base);</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateInt(2,
+m_base + m_increment * currentRow);</span></code><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>receiver.updateTimestamp(3,
+new Timestamp(System.currentTimeMillis()));</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>return true;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>public static
+ResultSetProvider listComplexTests(int base, int increment)</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>throws SQLException</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>return new Fum(base,
+increment);</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:
+yes'>}<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The <code><span style='font-size:10.0pt;mso-no-proof:yes'>listComplextTests</span></code>
+method is called once. It may return <code><span style='font-size:10.0pt;
+mso-no-proof:yes'>NULL</span></code> if no results are available or an instance
+of the <code><span style='font-size:10.0pt;mso-no-proof:yes'>ResultSetProvider</span></code>.
+Here the <code><span style='font-size:10.0pt;mso-no-proof:yes'>Fum</span></code>
+implements this interface so it returns an instance of itself. The method <code><span
+style='font-size:10.0pt;mso-no-proof:yes'>assignRowValues</span></code> will
+then be called repeatedly until it returns false.<o:p></o:p></p>
+
+<h2><a name="_Toc62990062">Triggers</a><o:p></o:p></h2>
+
+<p>The method signature of a trigger is predefined. A trigger method must
+always return <code><span style='font-size:10.0pt;mso-no-proof:yes'>void</span></code>
+and have <span class=GramE>a</span> <code><span style='font-size:10.0pt;
+mso-no-proof:yes'>org.postgresql.pljava.TriggerData </span></code>parameter. No
+more, no less. The <code><span style='font-size:10.0pt;mso-no-proof:yes'>TriggerData</span></code>
+interface provides access to two <code><span style='font-size:10.0pt;
+mso-no-proof:yes'>ResultSet</span></code> instances; one representing the old
+row and one representing the new. The old row is read-only, the new row is
+updateable.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>The sets are only available for triggers that are fired <code><span
+style='font-size:10.0pt;mso-no-proof:yes'>ON EACH ROW</span></code>. Delete
+triggers have no new row, and insert triggers have no old row. Only update
+triggers have both.<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>In addition to the sets, several <span class=SpellE><span class=GramE>boolean</span></span>
+methods exists to gain more information about the trigger. Here’s an example
+trigger:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE TABLE mdt (<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>id<span
+style='mso-tab-count:2'>      </span>int4,<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>idesc<span
+style='mso-tab-count:2'>      </span>text,<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'> </span><span
+style='mso-spacerun:yes'> </span>moddate<span style='mso-tab-count:1'> </span>timestamp
+DEFAULT CURRENT_TIMESTAMP NOT NULL);</span></code><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE FUNCTION moddatetime()<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'> </span><span
+style='mso-spacerun:yes'> </span>RETURNS trigger</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>AS
+'org.postgresql.pljava.example.Triggers.moddatetime'<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'>  </span>LANGUAGE java&quot;;</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'>CREATE TRIGGER mdt_moddatetime<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'> </span><span
+style='mso-spacerun:yes'> </span>BEFORE UPDATE ON mdt<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'> </span><span
+style='mso-spacerun:yes'> </span>FOR EACH ROW<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-spacerun:yes'> </span><span
+style='mso-spacerun:yes'> </span>EXECUTE PROCEDURE moddatetime (moddate);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p><code><span style='mso-ansi-font-size:12.0pt;font-family:"Times New Roman";
+background:white;mso-highlight:white'>The Java method in class </span></code><code><span
+style='font-size:10.0pt;background:white;mso-highlight:white;mso-no-proof:yes'>org.postgresql.pljava.example.Triggers</span></code><code><span
+style='mso-ansi-font-size:12.0pt;font-family:"Times New Roman";background:white;
+mso-highlight:white'> looks like this:<o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>/**</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span><span
+style='mso-spacerun:yes'> </span>* Update a modification time when the row is updated.</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span><span
+style='mso-spacerun:yes'> </span>*/</span></code><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>static void
+moddatetime(TriggerData td)</span></code><code><span style='font-size:8.0pt;
+mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>throws SQLException</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>{</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>if(td.isFiredForStatement())</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>throw new
+TriggerException(td, &quot;can't process STATEMENT events&quot;);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>if(td.isFiredAfter())</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>throw new
+TriggerException(td, &quot;must be fired before event&quot;);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>if(!td.isFiredByUpdate())</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>throw new
+TriggerException(td, &quot;can only process UPDATE events&quot;);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p>&nbsp;</o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>ResultSet _new =
+td.getNew();</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>String[] args =
+td.getArguments();</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>if(args.length !=
+1)</span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;
+mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:3'>          </span>throw new
+TriggerException(td, &quot;one argument was expected&quot;);</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:2'>       </span>_new.updateTimestamp(args[0],
+new Timestamp(System.currentTimeMillis()));</span></code><code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;mso-no-proof:yes'><o:p></o:p></span></code></p>
+
+<p class=MsoNormal style='mso-pagination:widow-orphan;mso-hyphenate:auto;
+mso-layout-grid-align:none;text-autospace:none'><code><span style='font-size:
+8.0pt;mso-bidi-font-size:10.0pt;background:white;mso-highlight:white;
+mso-no-proof:yes'><span style='mso-tab-count:1'>   </span>}</span></code><span
+style='font-size:8.0pt;mso-bidi-font-size:10.0pt;font-family:"Courier New";
+mso-no-proof:yes'><o:p></o:p></span></p>
+
+<h2><a name="_Toc62990063">Logging</a><o:p></o:p></h2>
+
+<p>Pl/Java uses the standard Java 1.4 Logger. Hence, you can write things like:<o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p><code><span style='font-size:8.0pt;mso-bidi-font-size:10.0pt;background:
+white;mso-highlight:white;mso-no-proof:yes'>Logger.getAnonymousLogger().info(<o:p></o:p></span></code></p>
+
+<p style='text-indent:17.3pt'><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;background:white;mso-highlight:white;mso-no-proof:yes'>&quot;Time is
+&quot; + </span></code><code><span style='font-size:8.0pt;mso-bidi-font-size:
+10.0pt;mso-no-proof:yes'>new Date(System.currentTimeMillis()));<o:p></o:p></span></code></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>At present, the logger is hardwired to a handler that maps the current state
+of the <span class=SpellE>PostgreSQL</span> configuration setting <span
+class=SpellE><code><span style='font-size:10.0pt;background:white;mso-highlight:
+white'>log_min_messages</span></code></span> to a valid Logger level and that
+outputs all messages using the backend function <span class=SpellE><code><span
+style='font-size:10.0pt'>elog</span></code></span><code><span style='font-size:
+10.0pt'>().</span></code><o:p></o:p></p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+</div>
+
+</body>
+
+</html>

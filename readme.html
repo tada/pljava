@@ -11,26 +11,26 @@ xmlns="http://www.w3.org/TR/REC-html40">
 <link rel=File-List href="readme_files/filelist.xml">
 <title>First release of the PL/Java</title>
 <o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="place"/>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
  name="PlaceName"/>
 <o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
  name="PlaceType"/>
-<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
- name="place"/>
 <!--[if gte mso 9]><xml>
  <o:DocumentProperties>
   <o:Author>Thomas Hallgren</o:Author>
   <o:LastAuthor>Thomas Hallgren</o:LastAuthor>
-  <o:Revision>3</o:Revision>
-  <o:TotalTime>2104</o:TotalTime>
+  <o:Revision>4</o:Revision>
+  <o:TotalTime>2112</o:TotalTime>
   <o:LastPrinted>2004-01-22T14:03:00Z</o:LastPrinted>
   <o:Created>2004-01-24T11:01:00Z</o:Created>
-  <o:LastSaved>2004-01-24T11:01:00Z</o:LastSaved>
+  <o:LastSaved>2004-01-27T13:55:00Z</o:LastSaved>
   <o:Pages>1</o:Pages>
-  <o:Words>716</o:Words>
-  <o:Characters>4087</o:Characters>
-  <o:Lines>34</o:Lines>
+  <o:Words>715</o:Words>
+  <o:Characters>4076</o:Characters>
+  <o:Lines>33</o:Lines>
   <o:Paragraphs>9</o:Paragraphs>
-  <o:CharactersWithSpaces>4794</o:CharactersWithSpaces>
+  <o:CharactersWithSpaces>4782</o:CharactersWithSpaces>
   <o:Version>10.3501</o:Version>
  </o:DocumentProperties>
 </xml><![endif]--><!--[if gte mso 9]><xml>
@@ -59,7 +59,6 @@ st1\:*{behavior:url(#ieooui) }
  @font-face
 	{font-family:Courier;
 	panose-1:2 7 4 9 2 2 5 2 4 4;
-	mso-font-alt:"Courier New";
 	mso-font-charset:0;
 	mso-generic-font-family:modern;
 	mso-font-format:other;
@@ -413,14 +412,14 @@ strict'>
 
 <h1><span class=GramE>PL/Java, 1.0.0 beta.</span></h1>
 
-<p>With this release, the <span class=SpellE>pljava</span> project has reached
-its second major milestone. It is now possible to write triggers and functions
-without any knowledge about the <span class=SpellE>PostgreSQL</span> backend
-internals. Instead of using <span class=SpellE>Tuple</span>, <span
-class=SpellE>TupleDesc</span>, and SPI functions, well known JDBC interfaces
-like Connection, <span class=SpellE>PreparedStatement</span>, and <span
-class=SpellE>ResultSet</span> can be utilized. Jar files can be loaded,
-changed, or removed using SQL standard procedure calls.</p>
+<p>With this release, the Pl/Java project has reached its second major
+milestone. It is now possible to write triggers and functions without any
+knowledge about the <span class=SpellE>PostgreSQL</span> backend internals.
+Instead of using <span class=SpellE>Tuple</span>, <span class=SpellE>TupleDesc</span>,
+and SPI functions, you use well known JDBC interfaces like Connection, <span
+class=SpellE>PreparedStatement</span>, and <span class=SpellE>ResultSet</span>.
+Jar files are stored in the database and can be loaded, changed, or removed using
+SQL standard procedure calls.</p>
 
 <p><o:p>&nbsp;</o:p></p>
 
@@ -461,8 +460,8 @@ tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
 "Times New Roman"'><span style='mso-list:Ignore'>b)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 </span></span></span><![endif]>Further down, you’ll find the entry for <span
 class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>dynamic_library_path</span></code></span>.
-Uncomment this entry too and change it so that the postmaster will find the shared
-library, i.e. the path must include the directory that contains the <span
+Uncomment this entry too and change it so that the postmaster will find the
+shared library, i.e. the path must include the directory that contains the <span
 class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>libpljava.so</span></code></span>
 or <code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>pljava.dll</span></code>
 (which one is depending on your OS).</p>
@@ -514,10 +513,10 @@ the Pl/Java<o:p></o:p></span></code></p>
 
 <p>Pl/Java adds a schema named SQLJ to the database (the naming is from the
 proposed SQL standard for Java backend mapping) and adds a couple of tables and
-functions to that schema. A deploy program exists that should be used for this purpose.
-In order to run this program, you must see to that the <span class=SpellE>PostgreSQL</span>
-<span class=SpellE>jdbc</span> driver package <span class=SpellE><code><span
-style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>postgresql.jar</span></code></span>
+functions to that schema. A deploy program exists that should be used for this
+purpose. In order to run this program, you must see to that the <span
+class=SpellE>PostgreSQL</span> <span class=SpellE>jdbc</span> driver package <span
+class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>postgresql.jar</span></code></span>
 and the <span class=SpellE><code><span style='font-size:10.0pt;mso-fareast-font-family:
 "HG Mincho Light J"'>deploy.jar</span></code></span> file is in your <code><span
 style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>CLASSPATH</span></code>,
@@ -543,9 +542,8 @@ style='mso-special-character:line-break'>
 <p>That’s all there’s to it. You are now ready to start using the Pl/Java
 system. If the server runs on a windows system you will need to add the option <code><span
 style='font-size:10.0pt;mso-fareast-font-family:"HG Mincho Light J"'>–windows</span></code>.
-The reason for this is that <span class=SpellE>PostgreSQL</span> and Java
-dynamic loading uses different naming on Unix. Read more under Known Issues
-below.</p>
+The reason for this is that <span class=SpellE>PostgreSQL</span> and Java dynamic
+loading uses different naming on <span class=GramE>Unix</span>.</p>
 
 <h1>Run the example tests.</h1>
 
@@ -567,8 +565,8 @@ use <span class=SpellE>psql</span> and issue the command:</p>
 
 <p><o:p>&nbsp;</o:p></p>
 
-<p>If this command succeeds, everything is working correctly. You may get a
-couple of errors here though.</p>
+<p>If this command succeeds, everything is working correctly. You may get a couple
+of errors here though.</p>
 
 <p style='margin-left:.5in;text-indent:-.25in;mso-list:l2 level1 lfo6;
 tab-stops:list .5in'><![if !supportLists]><span style='mso-fareast-font-family:
