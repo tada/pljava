@@ -86,4 +86,36 @@ public class SPIActions
 			conn.close();
 		}
 	}
+
+	public static int maxFromSetReturnExample(int base, int increment)
+	throws SQLException
+	{
+		int max = Integer.MIN_VALUE;
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement stmt = null;
+		ResultSet rs = null;
+
+		try
+		{
+			stmt = conn.prepareStatement("SELECT base FROM setReturnExample(?, ?)");
+			stmt.setInt(1, base);
+			stmt.setInt(2, increment);
+			rs = stmt.executeQuery();
+			while(rs.next())
+			{
+				base = rs.getInt(1);
+				if(base > max)
+					max = base;
+			}
+			return base;
+		}
+		finally
+		{
+			if(rs != null)
+				rs.close();
+			if(stmt != null)
+				stmt.close();
+			conn.close();
+		}
+	}
 }

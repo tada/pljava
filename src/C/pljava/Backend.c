@@ -112,7 +112,7 @@ static void initJavaVM(JNIEnv* env)
 #endif
 }
 
-static void onEndOfScope(void* clientData, bool isDelete)
+static void onEndOfScope(MemoryContext ctx, bool isDelete)
 {
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
@@ -164,8 +164,8 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 				errcode(ERRCODE_OUT_OF_MEMORY),
 				errmsg("Unable to create java frame for local references")));
 		}
-		MemoryContext_addEndOfScopeCB(upper, onEndOfScope, 0);
-		NativeStruct_associateCache(upper);
+		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
+		NativeStruct_addCacheManager(upper);
 	}
 
 	PG_TRY();

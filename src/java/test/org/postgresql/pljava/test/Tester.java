@@ -197,6 +197,7 @@ public class Tester
 			t.testSPIActions();
 			t.testComplexReturn();
 			t.testSetReturn();
+			t.testCallInCall();
 			t.close();
 		}
 		catch(Exception e)
@@ -288,6 +289,18 @@ public class Tester
 		}
 	}
 
+	public void testCallInCall()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT maxFromSetReturnExample(10, 8)");
+		while(rs.next())
+		{
+			int max = rs.getInt(1);
+			System.out.println("Max = \"" + max + "\"");
+		}
+	}
+
 	public void testModdatetimeTrigger()
 	throws SQLException
 	{
@@ -350,9 +363,17 @@ public class Tester
 		}
 		rs.close();
 
-		// Test the update trigger as well
+		// Test the update trigger as well as leaking statements
 		//
-		stmt.execute("UPDATE username_test SET username = 'Kalle Kula' WHERE username = 'name'");
+		System.out.println("Doing 800 updates with double triggers that leak statements");
+		System.out.println("(but not leak memory). One trigger executes SQL that reenters PL/Java");
+		for(int idx = 0; idx < 200; ++idx)
+		{
+			stmt.execute("UPDATE username_test SET username = 'Kalle Kula' WHERE username = 'name'");
+			stmt.execute("UPDATE username_test SET username = 'Pelle Kanin' WHERE username = 'thomas'");
+			stmt.execute("UPDATE username_test SET username = 'thomas' WHERE username = 'Kalle Kula'");
+			stmt.execute("UPDATE username_test SET username = 'name' WHERE username = 'Pelle Kanin'");
+		}
 		stmt.close();
 	}
 

@@ -8,6 +8,9 @@
  */
 package org.postgresql.pljava.example;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -30,7 +33,7 @@ public class Triggers
 	/**
 	 * insert user name in response to a trigger.
 	 */
-	static void insertUsername(TriggerData td)
+	public static void insertUsername(TriggerData td)
 	throws SQLException
 	{
 		if(td.isFiredForStatement())
@@ -51,7 +54,55 @@ public class Triggers
 			_new.updateString(args[0], SessionManager.current().getUserName());
 	}
 
-	static void afterUsernameUpdate(TriggerData td)
+	public static void leakStatements(TriggerData td)
+	throws SQLException
+	{
+		Logger log = Logger.getAnonymousLogger();
+		StringBuffer buf = new StringBuffer();
+		
+		buf.append("Trigger ");
+		buf.append(td.getName());
+		buf.append(" declared on table ");
+		buf.append(td.getTableName());
+		buf.append(" was fired ");
+		if(td.isFiredAfter())
+			buf.append("after");
+		else
+			buf.append("before");
+		
+		buf.append(' ');
+		if(td.isFiredByDelete())
+			buf.append("delete");
+		else if(td.isFiredByInsert())
+			buf.append("insert");
+		else
+			buf.append("update");
+		
+		if(td.isFiredForEachRow())
+			buf.append(" on each row");
+		
+		// DON'T DO LIKE THIS!!! Connection, PreparedStatement, and ResultSet instances
+		// should always be closed.
+		//
+		int max = Integer.MIN_VALUE;
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement stmt = conn.prepareStatement("SELECT base FROM setReturnExample(?, ?)");
+		stmt.setInt(1, 5);
+		stmt.setInt(2, 8);
+		ResultSet rs = stmt.executeQuery();
+		while(rs.next())
+		{
+			int base = rs.getInt(1);
+			if(base > max)
+				max = base;
+		}
+		buf.append(" reports max = " + max);
+		stmt = conn.prepareStatement("INSERT INTO javatest.mdt (idesc) VALUES (?)");
+		stmt.setString(1, buf.toString());
+		stmt.executeUpdate();
+	}
+
+	public static void afterUsernameUpdate(TriggerData td)
 	throws SQLException
 	{
 		Logger log = Logger.getAnonymousLogger();
@@ -78,7 +129,7 @@ public class Triggers
 	/**
 	 * Update a modification time when the row is updated.
 	 */
-	static void moddatetime(TriggerData td)
+	public static void moddatetime(TriggerData td)
 	throws SQLException
 	{
 		if(td.isFiredForStatement())

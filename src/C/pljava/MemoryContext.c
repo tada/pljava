@@ -4,6 +4,7 @@
  * 
  * @author Thomas Hallgren
  */
+#include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 
 /* Single linked list of callback definitions. Each containing
@@ -16,7 +17,6 @@ struct _MctxCBLink
 {
 	MctxCBLink*  next;
 	EndOfScopeCB callback;
-	void*        clientData;
 };
 
 /* Extended version of the MemoryContextMethods structure that holds on
@@ -26,12 +26,13 @@ typedef struct {
 	MemoryContextMethods  methods;
 	MemoryContextMethods* prev;
 	MctxCBLink*           cbChain;
+	HashMap               nativeCache;
 } ExtendedCtxMethods;
 
 MemoryContext returnValueContext;
 
 /**
- * Calls all user defined callbacks with their associated clientData as the
+ * Calls all user defined callbacks with the MemoryContext as the
  * first argument and true as the second. Restores the original methods and finally
  * calls the original delete function for the MemoryContext.
  */
@@ -42,7 +43,7 @@ static void mctxDelete(MemoryContext ctx)
 	while(cbs != 0)
 	{
 		MctxCBLink* nxt = cbs->next;
-		(*cbs->callback)(cbs->clientData, true);
+		(*cbs->callback)(ctx, true);
 		pfree(cbs);
 		cbs = nxt;
 	}
@@ -52,7 +53,7 @@ static void mctxDelete(MemoryContext ctx)
 }
 
 /**
- * Calls all user defined callbacks with their associated clientData as the
+ * Calls all user defined callbacks with the MemoryContext as the
  * first argument and false as the second. Finally calls the original reset
  * function for the MemoryContext.
  */
@@ -62,7 +63,7 @@ static void mctxReset(MemoryContext ctx)
 	MctxCBLink* cbs = exm->cbChain;
 	while(cbs != 0)
 	{
-		(*cbs->callback)(cbs->clientData, false);
+		(*cbs->callback)(ctx, false);
 		cbs = cbs->next;
 	}
 	(*exm->prev->reset)(ctx);
@@ -93,6 +94,7 @@ static ExtendedCtxMethods* MemoryContext_ensureCallbackCapability(MemoryContext 
 		memcpy(exm, methods, sizeof(MemoryContextMethods));
 		exm->prev = methods;
 		exm->cbChain = 0;
+		exm->nativeCache = 0;
 		exm->methods.delete = mctxDelete;
 		exm->methods.reset  = mctxReset;
 		ctx->methods = (MemoryContextMethods*)exm;
@@ -116,31 +118,26 @@ bool MemoryContext_hasCallbackCapability(MemoryContext ctx)
  * @param func
  *      The callback function that will be called when the context is
  *      either reset or deleted.
- * @param clientData
- *      Data to be passed to the callback function
  */     
-void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData)
+void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 {
 	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
 	MctxCBLink* link = (MctxCBLink*)parentContextAlloc(ctx, sizeof(MctxCBLink));
 	link->callback = func;
-	link->clientData = clientData;
 	link->next = exm->cbChain;
 	exm->cbChain = link;
 }
 
 /**
  * Removes an end-of-scope callback from a MemoryContext. The callback is
- * identified using the function and the clientData.
+ * identified using the function pointer.
  *
  * @param ctx
  * 		The context where the callback is registered.
  * @param func
  *      The callback function.
- * @param clientData
- *      Data to registered with the callback function
  */
-void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData)
+void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 {
 	MemoryContextMethods* methods = ctx->methods;
 
@@ -151,7 +148,7 @@ void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void
 		MctxCBLink* curr = exm->cbChain;
 		while(curr != 0)
 		{
-			if(curr->callback == func && curr->clientData == clientData)
+			if(curr->callback == func)
 			{
 				if(prev == 0)
 					exm->cbChain = curr->next;
@@ -166,7 +163,25 @@ void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void
 	}
 }
 
+HashMap MemoryContext_getNativeCache(MemoryContext ctx)
+{
+	MemoryContextMethods* methods = ctx->methods;
+	return (methods->reset == mctxReset)
+		? ((ExtendedCtxMethods*)methods)->nativeCache : 0;
+}
+
+void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
+{
+	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
+	exm->nativeCache = nativeCache;
+}
+
 MemoryContext MemoryContext_switchToReturnValueContext()
 {
 	return MemoryContextSwitchTo(returnValueContext);
+}
+
+HashMap MemoryContext_getCurrentNativeCache()
+{
+	return MemoryContext_getNativeCache(returnValueContext);
 }

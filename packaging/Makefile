@@ -23,7 +23,7 @@ release:
 		-o -name '*.so'		\
 		-o -name '*.a'		\
 		-o -name '*.dll'	\
-		\) -a -not -path $(RELNAME)'/*' -exec cp {} $(RELNAME) \;
+		\) -a -not -path ./$(RELNAME)'/*' -exec cp {} $(RELNAME) \;
 	@$(TAR) cf $(RELNAME)/docs.tar docs
 	(cd $(RELNAME); $(TAR) zcf ../distrib/$(RELNAME).tar.gz .)
 

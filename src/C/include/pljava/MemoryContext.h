@@ -7,6 +7,7 @@
 
 #include <postgres.h>
 #include <utils/memutils.h>
+#include "pljava/HashMap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +27,7 @@ extern MemoryContext returnValueContext;
  * The callback function. The second argument is set to false when
  * the MemoryContext is reset and to true when it is deleted.
  */
-typedef void (*EndOfScopeCB)(void* clientData, bool isDelete);
+typedef void (*EndOfScopeCB)(MemoryContext ctx, bool isDelete);
 
 /**
  * Adds an end-of-scope callback from a MemoryContext.
@@ -36,10 +37,13 @@ typedef void (*EndOfScopeCB)(void* clientData, bool isDelete);
  * @param func
  *      The callback function that will be called when the context is
  *      either reset or deleted.
- * @param clientData
- *      Data pass as an argument to the callback function
  */
-extern void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData);
+extern void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
+
+/**
+ * Obtains the native cache associated with this MemoryContex.
+ */
+extern HashMap MemoryContext_getNativeCache(MemoryContext ctx);
 
 /**
  * Returns true if the MemoryContext has callback capabilities installed.
@@ -48,16 +52,19 @@ extern bool MemoryContext_hasCallbackCapability(MemoryContext ctx);
 
 /**
  * Removes an end-of-scope callback from a MemoryContext. The callback is
- * identified using the function and the clientData.
+ * identified using the function pointer.
  *
  * @param ctx
  * 		The context where the callback is registered.
  * @param func
  *      The callback function.
- * @param clientData
- *      Data registered with the callback function
  */
-extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData);
+extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
+
+/**
+ * Associates a native cache with this MemoryContex.
+ */
+extern void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache);
 
 /*
  * Switch memory context to a context that is durable between calls to
@@ -68,6 +75,12 @@ extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB fun
  * is the context returned from this call.
  */
 extern MemoryContext MemoryContext_switchToReturnValueContext(void);
+
+/*
+ * Returns the nativeCache that's currently in effect, i.e. the nativeCache
+ * of the returnValueContext.
+ */
+extern HashMap MemoryContext_getCurrentNativeCache(void);
 
 #ifdef __cplusplus
 }

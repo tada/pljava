@@ -14,18 +14,18 @@
 
 static jclass    s_NativeStruct_class;
 static jfieldID  s_NativeStruct_m_native;
-static HashMap   s_nativeCache;
 
 /**
  * Callback that will be called when a context that is associated with
  * NativeStruct objects is deleted.
  */
-static void dropCache(void* oldCache, bool isDelete)
+static void dropCache(MemoryContext ctx, bool isDelete)
 {
 	JNIEnv* env   = Backend_getMainEnv();
+	HashMap cache = MemoryContext_getNativeCache(ctx);
 	if(env != 0)
 	{
-		Iterator itor = HashMap_entries(s_nativeCache);
+		Iterator itor = HashMap_entries(cache);
 		while(Iterator_hasNext(itor))
 		{
 			Entry e = Iterator_next(itor);
@@ -46,24 +46,24 @@ static void dropCache(void* oldCache, bool isDelete)
 
 	if(isDelete)
 	{
-		PgObject_free((PgObject)s_nativeCache);
-		elog(DEBUG1, "NativeStruct cache deleted due to deletion of context");
-		s_nativeCache = (HashMap)oldCache;
+		elog(DEBUG1, "NativeStruct cache %p deleted due to deletion of context", cache);
+		PgObject_free((PgObject)cache);
 	}
 	else
 	{
-		HashMap_clear(s_nativeCache);
-		elog(DEBUG1, "NativeStruct cache cleared due to context reset");
+		elog(DEBUG1, "NativeStruct cache %p cleared due to context reset", cache);
+		HashMap_clear(cache);
 	}
 }
 
 jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
 {
 	jobject weak;
-	if(s_nativeCache == 0)
+	HashMap cache = MemoryContext_getCurrentNativeCache();
+	if(cache == 0)
 		return 0;
 
-	weak = HashMap_getByOpaque(s_nativeCache, nativePointer);
+	weak = HashMap_getByOpaque(cache, nativePointer);
 	if(weak != 0)
 		weak = (*env)->NewLocalRef(env, weak);
 	return weak;
@@ -80,11 +80,12 @@ void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePoin
 	}
 }
 
-void NativeStruct_associateCache(MemoryContext ctx)
+void NativeStruct_addCacheManager(MemoryContext ctx)
 {
-	HashMap oldCache = s_nativeCache;
-	s_nativeCache = HashMap_create(13, ctx->parent);
-	MemoryContext_addEndOfScopeCB(ctx, dropCache, oldCache);
+	HashMap cache = HashMap_create(13, ctx->parent);
+	elog(DEBUG1, "NativeStruct cache %p created", cache);
+	MemoryContext_setNativeCache(ctx, cache);
+	MemoryContext_addEndOfScopeCB(ctx, dropCache);
 }
 
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
@@ -101,7 +102,7 @@ void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 	/* Store a weak reference to this java object in the s_weakCache using
 	 * the nativePointer as the key.
 	 */
-	oldRef = (jobject)HashMap_putByOpaque(s_nativeCache,
+	oldRef = (jobject)HashMap_putByOpaque(MemoryContext_getCurrentNativeCache(),
 				nativePointer, (*env)->NewWeakGlobalRef(env, nativeStruct));
 
 	if(oldRef != 0)
@@ -143,9 +144,10 @@ void* NativeStruct_releasePointer(JNIEnv* env, jobject _this)
 	{
 		/* Remove this object from the cache
 		 */
-		if(s_nativeCache != 0)
+		HashMap cache = MemoryContext_getCurrentNativeCache();
+		if(cache != 0)
 		{
-			jobject weak = HashMap_removeByOpaque(s_nativeCache, p2l.ptrVal);
+			jobject weak = HashMap_removeByOpaque(cache, p2l.ptrVal);
 			if(weak != 0)
 				(*env)->DeleteWeakGlobalRef(env, weak);
 		}

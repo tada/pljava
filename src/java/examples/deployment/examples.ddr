@@ -54,6 +54,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Triggers.afterUsernameUpdate'
 			LANGUAGE java;
 
+		CREATE FUNCTION javatest.leak_statements()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.leakStatements'
+			LANGUAGE java;
+
 		CREATE TRIGGER insert_usernames
 			BEFORE INSERT OR UPDATE ON username_test
 			FOR EACH ROW
@@ -63,6 +68,11 @@ SQLActions[ ] = {
 			AFTER UPDATE ON username_test
 			FOR EACH ROW
 			EXECUTE PROCEDURE after_username_update (username);
+
+		CREATE TRIGGER username_leak
+			BEFORE UPDATE ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE leak_statements();
 
 		CREATE TABLE javatest.mdt
 			(
@@ -117,11 +127,15 @@ SQLActions[ ] = {
 			RETURNS SETOF javatest._testSetReturn
 			AS 'org.postgresql.pljava.example.ComplexReturn.setReturn'
 			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.maxFromSetReturnExample(int, int)
+			RETURNS int
+			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'
+			IMMUTABLE LANGUAGE java;
+
 	END INSTALL",
 	
 	"BEGIN REMOVE
 		DROP SCHEMA javatest CASCADE;
 	END REMOVE"
 	}
-
-			

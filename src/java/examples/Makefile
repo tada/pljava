@@ -12,6 +12,6 @@ include $(MODULEROOT)/Makefile.global
 
 all: $(JARFILE)
 
-$(JARFILE): .timestamp
+$(JARFILE): .timestamp $(SRCDIR)/deployment/examples.manifest $(SRCDIR)/deployment/examples.ddr
 	$(JAR) cmf $(SRCDIR)/deployment/examples.manifest $@ . \
 	-C $(SRCDIR) deployment/examples.ddr
