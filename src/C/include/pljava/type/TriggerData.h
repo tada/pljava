@@ -29,6 +29,11 @@ extern "C" {
  */
 extern jobject TriggerData_create(JNIEnv* env, TriggerData* triggerData);
 
+/*
+ * Obtains the returned Tuple after trigger has been processed.
+ */
+extern Datum TriggerData_getTriggerReturnTuple(JNIEnv* env, jobject jtd);
+
 #ifdef __cplusplus
 }
 #endif

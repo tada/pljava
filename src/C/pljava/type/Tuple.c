@@ -59,18 +59,18 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Tuple_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/Tuple"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Tuple"));
 
 	s_Tuple_init = PgObject_getJavaMethod(
 				env, s_Tuple_class, "<init>", "()V");
 
 	s_TupleClass = NativeStructClass_alloc("type.Tuple");
-	s_TupleClass->JNISignature   = "Lorg/postgresql/pljava/Tuple;";
-	s_TupleClass->javaTypeName   = "org.postgresql.pljava.Tuple";
+	s_TupleClass->JNISignature   = "Lorg/postgresql/pljava/internal/Tuple;";
+	s_TupleClass->javaTypeName   = "org.postgresql.pljava.internal.Tuple";
 	s_TupleClass->coerceDatum    = _Tuple_coerceDatum;
 	s_Tuple = TypeClass_allocInstance(s_TupleClass);
 
-	Type_registerJavaType("org.postgresql.pljava.Tuple", Tuple_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.Tuple", Tuple_obtain);
 	PG_RETURN_VOID();
 }
 

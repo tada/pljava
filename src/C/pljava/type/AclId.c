@@ -58,7 +58,7 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_AclId_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/AclId"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/AclId"));
 
 	s_AclId_init = PgObject_getJavaMethod(
 				env, s_AclId_class, "<init>", "(I)V");
@@ -67,13 +67,13 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 				env, s_AclId_class, "m_native", "I");
 
 	s_AclIdClass = TypeClass_alloc("type.AclId");
-	s_AclIdClass->JNISignature   = "Lorg/postgresql/pljava/AclId;";
-	s_AclIdClass->javaTypeName   = "org.postgresql.pljava.AclId";
+	s_AclIdClass->JNISignature   = "Lorg/postgresql/pljava/internal/AclId;";
+	s_AclIdClass->javaTypeName   = "org.postgresql.pljava.internal.AclId";
 	s_AclIdClass->coerceDatum    = _AclId_coerceDatum;
 	s_AclIdClass->coerceObject   = _AclId_coerceObject;
 	s_AclId = TypeClass_allocInstance(s_AclIdClass);
 
-	Type_registerJavaType("org.postgresql.pljava.AclId", AclId_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.AclId", AclId_obtain);
 	PG_RETURN_VOID();
 }
 

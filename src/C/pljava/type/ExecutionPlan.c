@@ -90,18 +90,18 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_ExecutionPlan_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ExecutionPlan"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ExecutionPlan"));
 
 	s_ExecutionPlan_init = PgObject_getJavaMethod(
 				env, s_ExecutionPlan_class, "<init>", "()V");
 
 	s_ExecutionPlanClass = NativeStructClass_alloc("type.Tuple");
-	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/ExecutionPlan;";
-	s_ExecutionPlanClass->javaTypeName   = "org.postgresql.pljava.ExecutionPlan";
+	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/internal/ExecutionPlan;";
+	s_ExecutionPlanClass->javaTypeName   = "org.postgresql.pljava.internal.ExecutionPlan";
 	s_ExecutionPlanClass->coerceDatum    = _ExecutionPlan_coerceDatum;
 	s_ExecutionPlan = TypeClass_allocInstance(s_ExecutionPlanClass);
 
-	Type_registerJavaType("org.postgresql.pljava.ExecutionPlan", ExecutionPlan_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.ExecutionPlan", ExecutionPlan_obtain);
 	PG_RETURN_VOID();
 }
 

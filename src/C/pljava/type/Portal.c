@@ -60,18 +60,18 @@ Datum Portal_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Portal_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/Portal"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Portal"));
 
 	s_Portal_init = PgObject_getJavaMethod(
 				env, s_Portal_class, "<init>", "()V");
 
 	s_PortalClass = NativeStructClass_alloc("type.Tuple");
-	s_PortalClass->JNISignature   = "Lorg/postgresql/pljava/Portal;";
-	s_PortalClass->javaTypeName   = "org.postgresql.pljava.Portal";
+	s_PortalClass->JNISignature   = "Lorg/postgresql/pljava/internal/Portal;";
+	s_PortalClass->javaTypeName   = "org.postgresql.pljava.internal.Portal";
 	s_PortalClass->coerceDatum    = _Portal_coerceDatum;
 	s_Portal = TypeClass_allocInstance(s_PortalClass);
 
-	Type_registerJavaType("org.postgresql.pljava.Portal", Portal_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.Portal", Portal_obtain);
 	PG_RETURN_VOID();
 }
 

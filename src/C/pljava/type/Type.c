@@ -76,7 +76,7 @@ Type Type_fromOid(Oid typeId)
 			Form_pg_type typeStruct = (Form_pg_type)GETSTRUCT(typeTup);
 			if(OidIsValid(typeStruct->typrelid))
 			{
-				type = Type_fromJavaType(typeId, "org.postgresql.pljava.TupleTable");
+				type = Type_fromJavaType(typeId, "org.postgresql.pljava.internal.TupleTable");
 			}
 			else
 			{

@@ -278,8 +278,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 				errcode(ERRCODE_SYNTAX_ERROR),
 				errmsg("Triggers can not have a java parameter declaration")));
 
-		self->returnType = Type_fromJavaType(
-				InvalidOid, "org.postgresql.pljava.Tuple");
+		self->returnType = Type_fromJavaType(InvalidOid, "void");
 
 		/* Parameters are not used when calling triggers.
 		 */
@@ -406,8 +405,11 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	arg.l = TriggerData_create(env, (TriggerData*)fcinfo->context);
 
 	fcinfo->isnull = false;
-	ret = Type_invoke(retType,
-		env, self->clazz, self->method, &arg, &fcinfo->isnull);
+	Type_invoke(retType, env, self->clazz, self->method, &arg, &fcinfo->isnull);
+	if((*env)->ExceptionCheck(env))
+		ret = 0;
+	else
+		ret = TriggerData_getTriggerReturnTuple(env, arg.l);
 
 	(*env)->DeleteLocalRef(env, arg.l);
 	return ret;

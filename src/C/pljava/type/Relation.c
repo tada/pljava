@@ -60,18 +60,18 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Relation_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/Relation"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Relation"));
 
 	s_Relation_init = PgObject_getJavaMethod(
 				env, s_Relation_class, "<init>", "()V");
 
 	s_RelationClass = NativeStructClass_alloc("type.Relation");
-	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/Relation;";
-	s_RelationClass->javaTypeName   = "org.postgresql.pljava.Relation";
+	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/internal/Relation;";
+	s_RelationClass->javaTypeName   = "org.postgresql.pljava.internal.Relation";
 	s_RelationClass->coerceDatum    = _Relation_coerceDatum;
 	s_Relation = TypeClass_allocInstance(s_RelationClass);
 
-	Type_registerJavaType("org.postgresql.pljava.Relation", Relation_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.Relation", Relation_obtain);
 	PG_RETURN_VOID();
 }
 

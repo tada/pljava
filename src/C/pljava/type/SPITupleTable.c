@@ -60,18 +60,18 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_SPITupleTable_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/SPITupleTable"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/SPITupleTable"));
 
 	s_SPITupleTable_init = PgObject_getJavaMethod(
 				env, s_SPITupleTable_class, "<init>", "()V");
 
 	s_SPITupleTableClass = NativeStructClass_alloc("type.Tuple");
-	s_SPITupleTableClass->JNISignature   = "Lorg/postgresql/pljava/SPITupleTable;";
-	s_SPITupleTableClass->javaTypeName   = "org.postgresql.pljava.SPITupleTable";
+	s_SPITupleTableClass->JNISignature   = "Lorg/postgresql/pljava/internal/SPITupleTable;";
+	s_SPITupleTableClass->javaTypeName   = "org.postgresql.pljava.internal.SPITupleTable";
 	s_SPITupleTableClass->coerceDatum    = _SPITupleTable_coerceDatum;
 	s_SPITupleTable = TypeClass_allocInstance(s_SPITupleTableClass);
 
-	Type_registerJavaType("org.postgresql.pljava.SPITupleTable", SPITupleTable_obtain);
+	Type_registerJavaType("org.postgresql.pljava.internal.SPITupleTable", SPITupleTable_obtain);
 	PG_RETURN_VOID();
 }
 

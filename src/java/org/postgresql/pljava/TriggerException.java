@@ -10,10 +10,8 @@ package org.postgresql.pljava;
 
 import java.sql.SQLException;
 
-import org.postgresql.pljava.internal.TriggerData;
-
 /**
- * @author <a href="mailto:thomas.hallgren@ironjug.com">Thomas Hallgren</a>
+ * @author Thomas Hallgren
  */
 public class TriggerException extends SQLException
 {
@@ -32,7 +30,7 @@ public class TriggerException extends SQLException
 			{
 				bld.append(td.getName());
 				bld.append(" on relation ");
-				bld.append(td.getRelation().getName());
+				bld.append(td.getTableName());
 			}
 			catch(SQLException e)
 			{

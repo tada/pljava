@@ -5,7 +5,9 @@ import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
 import java.sql.Ref;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.math.BigDecimal;
@@ -25,6 +27,15 @@ import java.io.UnsupportedEncodingException;
 public abstract class ObjectResultSet extends AbstractResultSet
 {
 	private boolean m_wasNull = false;
+
+
+	/**
+	 * This is a noop since warnings are not supported.
+	 */
+	public void clearWarnings()
+	throws SQLException
+	{
+	}
 
 	public Array getArray(int columnIndex)
 	throws SQLException
@@ -61,10 +72,12 @@ public abstract class ObjectResultSet extends AbstractResultSet
 		return (b == null) ? null : b.getBinaryStream();
 	}
 
+
 	public Blob getBlob(int columnIndex)
 	throws SQLException
 	{
-		return (Blob)this.getValue(columnIndex, Blob.class);
+		byte[] bytes = this.getBytes(columnIndex);
+		return (bytes == null) ? null :  new BlobValue(bytes);
 	}
 
 	public boolean getBoolean(int columnIndex)
@@ -97,9 +110,10 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Clob getClob(int columnIndex)
 	throws SQLException
 	{
-		return (Clob)this.getValue(columnIndex, Clob.class);
+		String str = this.getString(columnIndex);
+		return (str == null) ? null :  new ClobValue(str);
 	}
-
+	
 	public Date getDate(int columnIndex)
 	throws SQLException
 	{
@@ -138,6 +152,12 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	{
 		Number l = this.getNumber(columnIndex);
 		return (l == null) ? 0 : l.longValue();
+	}
+
+	public ResultSetMetaData getMetaData()
+	throws SQLException
+	{
+		return null;
 	}
 
 	public final Object getObject(int columnIndex)
@@ -213,9 +233,22 @@ public abstract class ObjectResultSet extends AbstractResultSet
 		return (URL)this.getValue(columnIndex, URL.class);
 	}
 
-	/* (non-Javadoc)
-	 * @see java.sql.ResultSet#updateArray(int, java.sql.Array)
+	public SQLWarning getWarnings()
+	throws SQLException
+	{
+		return null;
+	}
+
+	/**
+	 * Refresh row is not yet implemented.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	public void refreshRow()
+	throws SQLException
+	{
+		throw new UnsupportedFeatureException("Refresh row");
+	}
+
 	public void updateArray(int columnIndex, Array x) throws SQLException
 	{
 		this.updateObject(columnIndex, x);
@@ -375,12 +408,22 @@ public abstract class ObjectResultSet extends AbstractResultSet
 				cls.getName() + " from an object of class " + value.getClass().getName());
 	}
 
-	protected abstract Object getValue(int columnIndex, Class cls, Calendar cal)
-	throws SQLException;
+	protected Object getValue(int columnIndex, Class cls, Calendar cal)
+	throws SQLException
+	{
+		if(cal == null || cal == Calendar.getInstance())
+			return getValue(columnIndex, cls);
+		throw new UnsupportedFeatureException("Obtaining date, time, or timestamp using explicit Calendar");
+	}
+
+	protected Object getObjectValue(int columnIndex, Map typeMap)
+	throws SQLException
+	{
+		if(typeMap == null)
+			return this.getObjectValue(columnIndex);
+		throw new UnsupportedFeatureException("Obtaining values using explicit Map");
+	}
 
 	protected abstract Object getObjectValue(int columnIndex)
-	throws SQLException;
-
-	protected abstract Object getObjectValue(int columnIndex, Map typeMap)
 	throws SQLException;
 }

@@ -18,6 +18,7 @@ static Type      s_TriggerData;
 static TypeClass s_TriggerDataClass;
 static jclass    s_TriggerData_class;
 static jmethodID s_TriggerData_init;
+static jmethodID s_TriggerData_getTriggerReturnTuple;
 
 /*
  * org.postgresql.pljava.TriggerData type.
@@ -34,6 +35,14 @@ jobject TriggerData_create(JNIEnv* env, TriggerData* td)
 		NativeStruct_init(env, jtd, td);
 	}
 	return jtd;
+}
+
+Datum TriggerData_getTriggerReturnTuple(JNIEnv* env, jobject jtd)
+{
+	jobject jtuple = (*env)->CallObjectMethod(env, jtd, s_TriggerData_getTriggerReturnTuple);
+	Datum ret = PointerGetDatum(NativeStruct_getStruct(env, jtuple));
+	(*env)->DeleteLocalRef(env, jtuple);
+	return ret;
 }
 
 static jvalue _TriggerData_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -57,12 +66,18 @@ Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_TriggerData_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/TriggerData"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TriggerData"));
 
 	s_TriggerData_init = PgObject_getJavaMethod(
 				env, s_TriggerData_class, "<init>", "()V");
 
+	s_TriggerData_getTriggerReturnTuple = PgObject_getJavaMethod(
+				env, s_TriggerData_class, "getTriggerReturnTuple", "()Lorg/postgresql/pljava/internal/Tuple;");
+
 	s_TriggerDataClass = NativeStructClass_alloc("type.TriggerData");
+	
+	// Use interface name for signatures.
+	//
 	s_TriggerDataClass->JNISignature   = "Lorg/postgresql/pljava/TriggerData;";
 	s_TriggerDataClass->javaTypeName   = "org.postgresql.pljava.TriggerData";
 	s_TriggerDataClass->coerceDatum    = _TriggerData_coerceDatum;

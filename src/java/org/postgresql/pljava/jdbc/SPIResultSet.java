@@ -7,13 +7,8 @@
  */
 package org.postgresql.pljava.jdbc;
 
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.Calendar;
-import java.util.Map;
 
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
@@ -24,7 +19,9 @@ import org.postgresql.pljava.internal.TupleDesc;
 
 /**
  * A Read-only ResultSet that provides direct access to a {@link
- * org.postgresql.pljava.internal.Portal Portal}.
+ * org.postgresql.pljava.internal.Portal Portal}. At present, only
+ * forward positioning is implemented. Attempts to use reverse or
+ * absolute positioning will fail.
  *
  * @author Thomas Hallgren
  */
@@ -60,7 +57,7 @@ public class SPIResultSet extends ReadOnlyResultSet
 	public int getFetchDirection()
 	throws SQLException
 	{
-		return ResultSet.FETCH_FORWARD;
+		return FETCH_FORWARD;
 	}
 
 	public int getFetchSize()
@@ -78,7 +75,7 @@ public class SPIResultSet extends ReadOnlyResultSet
 	public int getType()
 	throws SQLException
 	{
-		return ResultSet.TYPE_FORWARD_ONLY;
+		return TYPE_FORWARD_ONLY;
 	}
 
 	/**
@@ -101,14 +98,6 @@ public class SPIResultSet extends ReadOnlyResultSet
 		throw new UnsupportedFeatureException("Cursor positioning");
 	}
 
-	/**
-	 * This is a noop since warnings are not supported.
-	 */
-	public void clearWarnings()
-	throws SQLException
-	{
-	}
-
 	public void close()
 	throws SQLException
 	{
@@ -121,16 +110,6 @@ public class SPIResultSet extends ReadOnlyResultSet
 			m_currentRow = null;
 			m_nextRow    = null;
 		}
-	}
-
-	/**
-	 * Refresh row is not yet implemented.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
-	public void refreshRow()
-	throws SQLException
-	{
-		throw new UnsupportedFeatureException("Refresh row");
 	}
 
 	/**
@@ -203,7 +182,7 @@ public class SPIResultSet extends ReadOnlyResultSet
 	public void setFetchDirection(int direction)
 	throws SQLException
 	{
-		if(direction != ResultSet.FETCH_FORWARD)
+		if(direction != FETCH_FORWARD)
 			throw new UnsupportedFeatureException("Non forward fetch direction");
 	}
 
@@ -244,19 +223,7 @@ public class SPIResultSet extends ReadOnlyResultSet
 	public int findColumn(String columnName)
 	throws SQLException
 	{
-		return 0;
-	}
-
-	public ResultSetMetaData getMetaData()
-	throws SQLException
-	{
-		return null;
-	}
-
-	public SQLWarning getWarnings()
-	throws SQLException
-	{
-		return null;
+		return m_tupleDesc.getColumnIndex(columnName);
 	}
 
 	public Statement getStatement()
@@ -337,25 +304,9 @@ public class SPIResultSet extends ReadOnlyResultSet
 		return m_nextRow;
 	}
 
-	protected Object getValue(int columnIndex, Class cls, Calendar cal)
-	throws SQLException
-	{
-		if(cal == null || cal == Calendar.getInstance())
-			return getValue(columnIndex, cls);
-		throw new UnsupportedFeatureException("Obtaining date, time, or timestamp using explicit Calendar");
-	}
-
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
 		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex);
-	}
-
-	protected Object getObjectValue(int columnIndex, Map typeMap)
-	throws SQLException
-	{
-		if(typeMap == null)
-			return this.getObjectValue(columnIndex);
-		throw new UnsupportedFeatureException("Obtaining values using explicit Map");
 	}
 }
