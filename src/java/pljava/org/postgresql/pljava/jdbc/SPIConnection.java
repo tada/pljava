@@ -27,7 +27,9 @@ import java.sql.Types;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
-
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * @author Thomas Hallgren
@@ -35,6 +37,7 @@ import java.util.Map;
 public class SPIConnection implements Connection
 {
 	private static final HashMap s_sqlType2Class = new HashMap(30);
+    private int[] VERSION_NUMBER = null; //version number
 
 	static
 	{
@@ -225,7 +228,7 @@ public class SPIConnection implements Connection
 	public DatabaseMetaData getMetaData()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Connection.getMetaData");
+		return new SPIDatabaseMetaData(this);
 	}
 
 	/**
@@ -575,4 +578,168 @@ public class SPIConnection implements Connection
 		if(invocation.getSavepoint() == sp)
 			invocation.setSavepoint(null);
 	}
-}
+
+    public int[] getVersionNumber() throws SQLException
+    {
+        if (VERSION_NUMBER != null)
+        	return VERSION_NUMBER;
+
+        ResultSet rs = createStatement().executeQuery(
+            "SELECT version()");
+
+        try
+        {
+            if (!rs.next())
+                throw new SQLException(
+                "Cannot retrieve product version number");
+
+            String ver = rs.getString(1);
+            Pattern p = Pattern.compile(
+                "^PostgreSQL\\s+(\\d+)\\.(\\d+)\\.(\\d+)\\s+.*");
+            Matcher m = p.matcher(ver);
+            if (m.matches() && m.groupCount() == 3)
+            {
+            	VERSION_NUMBER = new int[3];
+                VERSION_NUMBER[0] = Integer.parseInt(m.group(1));
+                VERSION_NUMBER[1] = Integer.parseInt(m.group(2));
+                VERSION_NUMBER[2] = Integer.parseInt(m.group(3));
+                return VERSION_NUMBER;
+            }
+            throw new SQLException(
+                "Unexpected product version string format: " +
+                ver);
+        }
+        catch (PatternSyntaxException e)
+        {
+            throw new SQLException(
+                "Error in product version string parsing: " +
+                e.getMessage());
+        }
+        finally
+        {
+            rs.close();
+        }
+    }
+
+    /*
+     * This implemetation uses the jdbc3Types array to support the jdbc3
+     * datatypes.  Basically jdbc2 and jdbc3 are the same, except that
+     * jdbc3 adds some
+     */
+    public int getSQLType(String pgTypeName)
+    {
+        if (pgTypeName == null)
+            return Types.OTHER;
+
+        for (int i = 0;i < JDBC3_TYPE_NAMES.length;i++)
+            if (pgTypeName.equals(JDBC3_TYPE_NAMES[i]))
+                return JDBC_TYPE_NUMBERS[i];
+
+        return Types.OTHER;
+    }
+
+    /*
+     * This returns the java.sql.Types type for a PG type oid
+     *
+     * @param oid PostgreSQL type oid
+     * @return the java.sql.Types type
+     * @exception SQLException if a database access error occurs
+     */
+    public int getSQLType(int oid) throws SQLException
+    {
+        return getSQLType(getPGType(oid));
+    }
+ 
+    public String getPGType(int oid) throws SQLException
+    {
+        String typeName = null;
+        PreparedStatement query = null;
+        ResultSet rs = null;
+
+        try
+        {
+            query = prepareStatement("SELECT typname FROM pg_catalog.pg_type WHERE oid=?");
+            query.setInt(1, oid);
+            rs = query.executeQuery();
+
+            if (rs.next())
+            {
+                typeName = rs.getString(1);
+            }
+            else
+            {
+                throw new SQLException("Cannot find PG type with oid=" + oid);
+            }
+        }
+        finally
+        {
+            if (query != null)
+            {
+                query.close();
+            }
+        }
+
+        return typeName;
+    }
+
+    /*
+     * This table holds the org.postgresql names for the types supported.
+     * Any types that map to Types.OTHER (eg POINT) don't go into this table.
+     * They default automatically to Types.OTHER
+     *
+     * Note: This must be in the same order as below.
+     *
+     * Tip: keep these grouped together by the Types. value
+     */
+    public static final String JDBC3_TYPE_NAMES[] = {
+                "int2",
+                "int4", "oid",
+                "int8",
+                "cash", "money",
+                "numeric",
+                "float4",
+                "float8",
+                "bpchar", "char", "char2", "char4", "char8", "char16",
+                "varchar", "text", "name", "filename",
+                "bytea",
+                "bool",
+                "bit",
+                "date",
+                "time", "timetz",
+                "abstime", "timestamp", "timestamptz",
+                "_bool", "_char", "_int2", "_int4", "_text",
+                "_oid", "_varchar", "_int8", "_float4", "_float8",
+                "_abstime", "_date", "_time", "_timestamp", "_numeric",
+                "_bytea"
+            };
+
+    /*
+     * This table holds the JDBC type for each entry above.
+     *
+     * Note: This must be in the same order as above
+     *
+     * Tip: keep these grouped together by the Types. value
+     */
+    public static final int JDBC_TYPE_NUMBERS[] =
+    		{
+                Types.SMALLINT,
+                Types.INTEGER, Types.INTEGER,
+                Types.BIGINT,
+                Types.DOUBLE, Types.DOUBLE,
+                Types.NUMERIC,
+                Types.REAL,
+                Types.DOUBLE,
+                Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR,
+                Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
+                Types.BINARY,
+                Types.BIT,
+                Types.BIT,
+                Types.DATE,
+                Types.TIME, Types.TIME,
+                Types.TIMESTAMP, Types.TIMESTAMP, Types.TIMESTAMP,
+                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+                Types.ARRAY
+            };
+ }

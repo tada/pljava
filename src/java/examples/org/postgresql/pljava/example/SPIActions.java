@@ -42,7 +42,7 @@ public class SPIActions
 
 		// Create an anonymous savepoint.
 		//
-		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions priort to 8.0");
+		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions prior to 8.0");
 		try
 		{
 			Savepoint sp = conn.setSavepoint();
