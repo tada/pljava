@@ -243,13 +243,23 @@ public class JarX {
       e.extract();
   }
   
-  /**Extract all entries (except JarX.class itself) from a given ZipFile.
+  /**Extract all entries (except JarX.class itself) from a given zip file.
+   * The archive is opened twice: first as a {@link ZipFile} (random
+   * access) to read the manifest, then closed and reopened as a
+   * {@link ZipInputStream} to get the entries sequentially.  I hate doing
+   * this as it introduces more assumptions that the file is a regular file,
+   * still there the second time we try to open it, etc.  But the other
+   * way, using {@link ZipFile#entries()}, extracted files in an
+   * unintuitive, hashed order, and, because of the associated seeking,
+   * scaled poorly to larger jars.
    *@param zipFile the archive
    *@throws Exception if anything doesn't work, punt
    */
   public void extract( String zipFile) throws Exception {
     ZipFile zf = new ZipFile( zipFile);
     ZipEntry ze;
+    FileInputStream fis;
+    ZipInputStream zis;
     InputStream is;
     Dictionary mf = new Hashtable();
     
@@ -260,15 +270,20 @@ public class JarX {
       is.close();
     }
     
-    for ( Enumeration e = zf.entries(); e.hasMoreElements(); ) {
-      ze = (ZipEntry)(e.nextElement());
-      if ( ! ze.getName().equals( me) ) {
-      	is = zf.getInputStream( ze);
-	extract( ze, is, mf);
-	is.close();
-      }
-    }
     zf.close();
+    fis = new FileInputStream( zipFile);
+    zis = new ZipInputStream( fis);
+    
+    for ( ;; ) {
+      ze = zis.getNextEntry();
+      if ( ze == null )
+      	break;
+      if ( ! ze.getName().equals( me) )
+      	extract( ze, zis, mf);
+      zis.closeEntry();
+    }
+    
+    zis.close();
   }
 
   /**Find the jar I was loaded from and extract all entries except my own
