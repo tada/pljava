@@ -66,8 +66,8 @@ public class Tester
 		out.println("    {-install | -uninstall | -reinstall}");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
 		out.println("    [ -port <portNubmer>   ]    # default is blank");
-		out.println("    [ -database <database> ]    # default is postgres");
-		out.println("    [ -user <userName>     ]    # default is postgres");
+		out.println("    [ -database <database> ]    # default is name of current user");
+		out.println("    [ -user <userName>     ]    # default is name of current user");
 		out.println("    [ -password <password> ]    # default is no password");
 		out.println("    [ -debug ]    # wait for debugger to attach to backend");
 	}
@@ -77,8 +77,8 @@ public class Tester
 		String driverClass = "org.postgresql.Driver";
 		String hostName    = "localhost";
 		String portNumber  = null;
-		String database    = "postgres";
-		String userName    = "postgres";
+		String userName    = System.getProperty("user.name", "postgres");
+		String database    = userName;
 		String subsystem   = "postgresql";
 		String password    = null;
 		boolean debug      = false;

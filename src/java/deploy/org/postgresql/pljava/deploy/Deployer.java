@@ -45,7 +45,7 @@ import java.util.ArrayList;
  * </tr>
  * <tr>
  * <td nowrap="true" valign="top">-user &lt;user name&gt;</td>
- * <td>Name of user that connects to the database. Default is "postgres"</td>
+ * <td>Name of user that connects to the database. Default is current user</td>
  * </tr>
  * <tr>
  * <td nowrap="true" valign="top">-password &lt;password&gt;</td>
@@ -54,7 +54,7 @@ import java.util.ArrayList;
  * </tr>
  * <tr>
  * <td nowrap="true" valign="top">-database &lt;database&gt;</td>
- * <td>The name of the database to connect to. Default is "postgres"</td>
+ * <td>The name of the database to connect to. Default is current user</td>
  * </tr>
  * <tr>
  * <td nowrap="true" valign="top">-host &lt;hostname&gt;</td>
@@ -122,8 +122,8 @@ public class Deployer
 		out.println("    {-install | -uninstall | -reinstall}");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
 		out.println("    [ -port <portNumber>   ]    # default is blank");
-		out.println("    [ -database <database> ]    # default is postgres");
-		out.println("    [ -user <userName>     ]    # default is postgres");
+		out.println("    [ -database <database> ]    # default is name of current user");
+		out.println("    [ -user <userName>     ]    # default is name of current user");
 		out.println("    [ -password <password> ]    # default is no password");
 		out.println("    [ -windows ]                # If the server is on a Windows machine");
 	}
@@ -132,8 +132,8 @@ public class Deployer
 	{
 		String driverClass = "org.postgresql.Driver";
 		String hostName    = "localhost";
-		String database    = "postgres";
-		String userName    = "postgres";
+		String userName    = System.getProperty("user.name", "postgres");
+		String database    = userName;
 		String subsystem   = "postgresql";
 		String password    = null;
 		String portNumber  = null;
