@@ -47,15 +47,16 @@ PUBLIC_SRCS		:= $(wildcard $(PUBLIC_SRC_ROOT)/org/postgresql/pljava/*.*)
 PUBLIC_REL_SRCS = $(foreach var,$(PUBLIC_SRCS),$(subst $(PUBLIC_SRC_ROOT)/,,$(var)))
 
 PUBLIC_NAME		:= pljava-public-$(PLJAVA_VERSION)
-PUBLIC_BUNDLE	:= distrib/$(PUBLIC_NAME)-bundle.zip
+PUBLIC_BUNDLE	:= distrib/$(PUBLIC_NAME)-bundle.jar
 JIRA_DESC		:= distrib/jira-desc.txt
 BUNDLEDIR		:= maven_bundle
 PUBLIC_JARFILE	:= $(PUBLIC_NAME).jar
+PUBLIC_SRC_JARFILE	:= $(PUBLIC_NAME)-src.jar
 
 maven_bundle: $(PUBLIC_BUNDLE) $(JIRA_DESC)
 
-$(PUBLIC_BUNDLE): $(BUNDLEDIR)/LICENSE.txt $(BUNDLEDIR)/project.xml $(BUNDLEDIR)/$(PUBLIC_JARFILE)
-	@(cd $(BUNDLEDIR); $(JAR) cMf ../$@ *)
+$(PUBLIC_BUNDLE): $(BUNDLEDIR)/LICENSE.txt $(BUNDLEDIR)/project.xml $(BUNDLEDIR)/$(PUBLIC_JARFILE) $(BUNDLEDIR)/$(PUBLIC_SRC_JARFILE)
+	@(cd $(BUNDLEDIR); $(JAR) cf ../$@ *)
 
 $(BUNDLEDIR)/LICENSE.txt: $(PROJDIR)/COPYRIGHT
 	@-mkdir -p $(BUNDLEDIR)
@@ -67,8 +68,11 @@ $(BUNDLEDIR)/project.xml: $(PROJDIR)/packaging/project.xml
 
 $(BUNDLEDIR)/$(PUBLIC_JARFILE): $(PUBLIC_CLASSES)
 	@-mkdir -p $(BUNDLEDIR)
-	@(cd $(PUBLIC_SRC_ROOT); $(JAR) cMf ../../../build/$(PUBLIC_ROOT)/src.zip $(PUBLIC_REL_SRCS)) 
-	@(cd $(PUBLIC_ROOT); $(JAR) cf ../../$@ src.zip $(PUBLIC_REL_CLASSES))
+	@(cd $(PUBLIC_ROOT); $(JAR) cf ../../$@ $(PUBLIC_REL_CLASSES))
+
+$(BUNDLEDIR)/$(PUBLIC_SRC_JARFILE): $(PUBLIC_SRCS)
+	@-mkdir -p $(BUNDLEDIR)
+	@(cd $(PUBLIC_SRC_ROOT); $(JAR) cf ../../../build/$@ $(PUBLIC_REL_SRCS)) 
 
 $(JIRA_DESC): $(PROJDIR)/packaging/jira-desc.txt
 	@sed -e 's/@PLJAVA_VERSION@/'$(PLJAVA_VERSION)'/' $< > $@
