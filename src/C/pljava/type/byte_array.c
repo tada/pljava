@@ -64,13 +64,8 @@ static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
 			(*env)->CallVoidMethod(env, byteArray, s_BlobValue_getContents, byteBuffer);
 		isCallingJava = saveicj;
 
-		if((*env)->ExceptionCheck(env))
-		{
-			pfree(bytes);
-			bytes = 0;
-		}
-		if(byteBuffer != 0)
-			(*env)->DeleteLocalRef(env, byteBuffer);
+		Exception_checkException(env);
+		(*env)->DeleteLocalRef(env, byteBuffer);
 	}
 	else
 	{
