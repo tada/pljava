@@ -13,6 +13,7 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Relation.h"
+#include "pljava/Exception.h"
 
 static Type      s_TriggerData;
 static TypeClass s_TriggerDataClass;

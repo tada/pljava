@@ -7,6 +7,7 @@
  * All Rights Reserved
  */
 #include "pljava/SPI_JNI.h"
+#include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
 

@@ -33,6 +33,7 @@
 #endif
 
 DECLARE_MUTEX(jvmInitMutex)
+pthread_t pljava_mainThread;
 
 #define LOCAL_REFERENCE_COUNT 32
 
