@@ -13,7 +13,9 @@ else
 	GCJEXTRA=-
 endif
 
-RELNAME = pljava-$(host_tuple)$(GCJEXTRA)pg$(PGSQL_MAJOR_VER).$(PGSQL_MINOR_VER)-$(PLJAVA_VERSION)
+RELNAME := pljava-$(host_tuple)$(GCJEXTRA)pg$(PGSQL_MAJOR_VER).$(PGSQL_MINOR_VER)-$(PLJAVA_VERSION)
+SRCNAME := pljava-src-$(PLJAVA_VERSION)
+PKGNAME := pljava-$(PLJAVA_VERSION)
 
 release:
 	@-mkdir -p $(RELNAME)
@@ -28,15 +30,16 @@ release:
 	(cd $(RELNAME); $(TAR) zcf ../distrib/$(RELNAME).tar.gz .)
 
 source_tarball:
-	@mkdir -p distrib
+	@-mkdir -p distrib
+	@-mkdir -p $(PKGNAME)
+	@-rm -rf $(PKGNAME)/*
 	@(cd ..; find . \( \
 		   -name CVS \
 		-o -name bin \
 		-o -name build \
 		-o -name .cvsignore \
-		\) -prune -o \( -type f -print \) > build/sourcelist.txt; \
-	$(TAR) zcf build/distrib/pljava-src-$(PLJAVA_VERSION).tar.gz -T build/sourcelist.txt)
-	@-rm -f sourcelist.txt
+		\) -prune -o \( -type f -exec cp --parent {} build/$(PKGNAME) \; \) )
+	@$(TAR) zcf distrib/$(SRCNAME).tar.gz $(PKGNAME)
 
 JAR				:= jar
 
@@ -78,3 +81,4 @@ $(BUNDLEDIR)/$(PUBLIC_SRC_JARFILE): $(PUBLIC_SRCS)
 
 $(JIRA_DESC): $(PROJDIR)/packaging/jira-desc.txt
 	@sed -e 's/@PLJAVA_VERSION@/'$(PLJAVA_VERSION)'/' $< > $@
+
