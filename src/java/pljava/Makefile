@@ -39,9 +39,8 @@ ifdef USE_GCJ
 # pljava doesn't need the latter. Most java compilers will need it
 # in order to compile triggers and functions later.
 #
-mkhdsrc = $(subst ^,.,$(subst .,_,$(1:%=$(JNIDIR)/%^h)))
+JNIHDRS = $(patsubst %,$(JNIDIR)/%.h,$(subst .,_,$(JNI_CLASSES)))
 mkcname = $(subst _,.,$(1:$(JNIDIR)/%.h=%))
-JNIHDRS := $(call mkhdsrc,$(JNI_CLASSES))
 
 all: $(OBJDIR)/$(NAME)_jar.o $(JARFILE) $(JNIDIR)/.timestamp
 

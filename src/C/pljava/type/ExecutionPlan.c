@@ -9,6 +9,7 @@
 
 #include "org_postgresql_pljava_internal_ExecutionPlan.h"
 #include "pljava/Exception.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"

@@ -14,11 +14,11 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PL/Java, 1.0.0 beta 4</h1>
+<h1>PL/Java, 1.0.0 beta 5</h1>
 <p>With this release, the Pl/Java project has reached its fourth major milestone</p>
 <p>A source tarball and a variety of binaries can be found in the download area.
-Two for Windows. one win32 native for PostgreSQL 8.0 and one cygwin based for older
-PostgreSQL versions. On Linux PL/Java also comes in a GNU Java (GCJ) flavor where
+Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for older
+PostgreSQL versions). On Linux PL/Java also comes in a GNU Java (GCJ) flavor where
 the actual pljava.jar is compiled into the pljava shared object.</p>
 <h2>Prerequisites</h2>
 <ul>
@@ -100,7 +100,7 @@ order to run this program, you must see to that the PostgreSQL jdbc driver packa
 <code>CLASSPATH</code>, then run:</p>
 <pre>java org.postgresql.pljava.deploy.Deployer</pre>
 This will result in a list of options. Typically you would use something like:
-<pre>java org.postgresql.pljava.deploy.Deployer -install -user &lt;your name&gt;</pre>
+<pre>java org.postgresql.pljava.deploy.Deployer -install</pre>
 <p>That&#39;s all there&#39;s to it. You are now ready to start using the Pl/Java system.
 If the server runs on a Cygwin system you will need to add the option <code>-windows</code>.
 The reason for this is that PostgreSQL and Java dynamic loading uses different naming
