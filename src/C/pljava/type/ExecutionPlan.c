@@ -47,6 +47,29 @@ int SPI_getargcount(void* plan)
 	return ((_SPI_plan*)plan)->nargs;
 }
 
+/*
+ *	Return true if the plan is valid for a SPI_open_cursor call.
+ */
+bool SPI_is_cursor_plan(void* plan)
+{
+	if (plan == NULL)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return false;
+	}
+
+	_SPI_plan* spiplan = (_SPI_plan*)plan;
+	List* qtlist = spiplan->qtlist;
+
+	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
+	{
+		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
+		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
+			return true;
+	}
+	return false;
+}
+
 static Type      s_ExecutionPlan;
 static TypeClass s_ExecutionPlanClass;
 static jclass    s_ExecutionPlan_class;
@@ -255,4 +278,19 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobjec
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan != 0)
 		SPI_freeplan(ePlan);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    isCursorPlan
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
+{
+	void* ePlan = NativeStruct_getStruct(env, _this);
+	if(ePlan == 0)
+		return 0;
+
+	return SPI_is_cursor_plan(ePlan);
 }

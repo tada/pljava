@@ -77,4 +77,6 @@ public class Oid
 	{
 		return m_native == s_invalidOid.m_native;
 	}
+	
+	public native static Oid forSqlType(int sqlType);
 }

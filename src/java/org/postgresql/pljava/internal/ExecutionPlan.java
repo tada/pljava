@@ -31,6 +31,15 @@ public class ExecutionPlan extends NativeStruct
 	throws SQLException;
 
 	/**
+	 * Returns <code>true</code> if this <code>ExecutionPlan</code> can create
+	 * a <code>Portal</code> using {@link #cursorOpen}. This is true if the
+	 * plan contains only one regular <code>SELECT</code> query.
+	 * @throws SQLException If the underlying native structure has gone stale.
+	 */
+	public native boolean isCursorPlan()
+	throws SQLException;
+
+	/**
 	 * Execute the plan using the internal <code>SPI_execp</code> function.
 	 * @param parameters Values for the parameters.
 	 * @param rowCount The maximum number of tuples to create. A value

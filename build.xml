@@ -87,6 +87,11 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.internal.Oid"
+			outputfile="src/C/include/pljava/type/Oid_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.internal.NativeStruct"
 			outputfile="src/C/include/pljava/type/NativeStruct_JNI.h"
 			/>
@@ -134,6 +139,10 @@
 			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.internal.TupleTableSlot"
 			outputfile="src/C/include/pljava/type/TupleTableSlot_JNI.h"
+			/>
+		<javah
+			class="java.sql.Types"
+			outputfile="src/C/include/pljava/type/Types_JNI.h"
 			/>
 	</target>
 </project>

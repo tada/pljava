@@ -84,3 +84,91 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
 	PG_RETURN_VOID();
 }
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    forSqlType
+ * Signature: (I)Lorg/postgresql/pljava/internal/Oid;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint sqlType)
+{
+	Oid typeId = TEXTOID;	/* default */
+	switch(sqlType)
+	{
+		case java_sql_Types_BIT -7:
+			typeId = BITOID;
+			break;
+		case java_sql_Types_TINYINT -6:
+			typeId = CHAROID;
+			break;
+		case java_sql_Types_SMALLINT:
+			typeId = INT2OID;
+			break;
+		case java_sql_Types_INTEGER:
+			typeId = INT4OID;
+			break;
+		case java_sql_Types_BIGINT -5:
+			typeId = INT8OID;
+			break;
+		case java_sql_Types_FLOAT:
+		case java_sql_Types_REAL:
+			typeId = FLOAT4OID;
+			break;
+		case java_sql_Types_DOUBLE:
+			typeId = FLOAT8OID;
+			break;
+		case java_sql_Types_NUMERIC:
+		case java_sql_Types_DECIMAL:
+			typeId = NUMERICOID;
+			break;
+		case java_sql_Types_CHAR:
+		case java_sql_Types_VARCHAR:
+		case java_sql_Types_LONGVARCHAR -1:
+			typeId = CSTRINGOID;
+			break;
+		case java_sql_Types_DATE:
+			typeId = DATEOID;
+			break;
+		case java_sql_Types_TIME:
+			typeId = TIMEOID;
+			break;
+		case java_sql_Types_TIMESTAMP:
+			typeId = TIMESTAMPOID;
+			break;
+		case java_sql_Types_BINARY -2:
+			typeId = BYTEAOID;
+			break;
+		case java_sql_Types_VARBINARY -3:
+			typeId = BYTEAOID;
+			break;
+		case java_sql_Types_LONGVARBINARY -4:
+			typeId = BYTEAOID;
+			break;
+		case java_sql_Types_NULL:
+			break;
+		case java_sql_Types_OTHER:
+			break;
+		case java_sql_Types_JAVA_OBJECT:
+			break;
+		case java_sql_Types_DISTINCT:
+			break;
+		case java_sql_Types_STRUCT:
+			break;
+		case java_sql_Types_ARRAY:
+			break;
+		case java_sql_Types_BLOB:
+			typeId = BYTEAOID;
+			break;
+		case java_sql_Types_CLOB:
+			typeId = CSTRINGOID;
+			break;
+		case java_sql_Types_REF:
+			break;
+		case java_sql_Types_DATALINK:
+			break;
+		case java_sql_Types_BOOLEAN:
+			typeId = BOOLEANOID;
+	}
+}
+

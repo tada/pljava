@@ -19,6 +19,7 @@ extern "C" {
 
 extern Oid SPI_getargtypeid(void* plan, int argIndex);
 extern int SPI_getargcount(void* plan);
+extern bool SPI_is_cursor_plan(void* plan);
 
 /*****************************************************************
  * The ExecutionPlan java class extends the NativeStruct and provides JNI
