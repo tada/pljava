@@ -9,26 +9,26 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_Relation_getName
+JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_Relation__1getName
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    getTupleDesc
+ * Method:    _getTupleDesc
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Relation_getTupleDesc
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Relation__1getTupleDesc
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    modifyTuple
+ * Method:    _modifyTuple
  * Signature: (Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Relation_modifyTuple
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Relation__1modifyTuple
   (JNIEnv *, jobject, jobject, jintArray, jobjectArray);
 
 #ifdef __cplusplus

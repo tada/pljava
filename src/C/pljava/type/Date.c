@@ -31,7 +31,7 @@ static jvalue _Date_coerceDatum(Type self, JNIEnv* env, Datum arg)
 	jlong date = (jlong)(DatumGetDateADT(arg) + EPOCH_DIFF);
 
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Date_class, s_Date_init, date * 86400000L);
+	result.l = PgObject_newJavaObject(env, s_Date_class, s_Date_init, date * 86400000L);
 	return result;
 }
 

@@ -32,18 +32,30 @@ public class ExecutionPlan extends NativeStruct
 	 * @return The <code>Portal</code> that represents the opened cursor.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public native Portal cursorOpen(String cursorName, Object[] parameters)
-	throws SQLException;
-
+	public Portal cursorOpen(String cursorName, Object[] parameters)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._cursorOpen(cursorName, parameters);
+		}
+	}
+	
 	/**
 	 * Returns <code>true</code> if this <code>ExecutionPlan</code> can create
 	 * a <code>Portal</code> using {@link #cursorOpen}. This is true if the
 	 * plan contains only one regular <code>SELECT</code> query.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public native boolean isCursorPlan()
-	throws SQLException;
-
+	public boolean isCursorPlan()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isCursorPlan();
+		}
+	}
+	
 	/**
 	 * Execute the plan using the internal <code>SPI_execp</code> function.
 	 * @param parameters Values for the parameters.
@@ -53,8 +65,14 @@ public class ExecutionPlan extends NativeStruct
 	 * @return One of the status codes declared in class {@link SPI}.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public native int execp(Object[] parameters, int rowCount)
-	throws SQLException;
+	public int execp(Object[] parameters, int rowCount)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._execp(parameters, rowCount);
+		}
+	}
 
 	/**
 	 * Create an execution plan for a statement to be executed later using
@@ -65,14 +83,26 @@ public class ExecutionPlan extends NativeStruct
 	 * @throws SQLException
 	 * @see java.sql.Types
 	 */
-	public native static ExecutionPlan prepare(String statement, Oid[] argTypes)
-	throws SQLException;
+	public static ExecutionPlan prepare(String statement, Oid[] argTypes)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _prepare(statement, argTypes);
+		}
+	}
 
 	/**
 	 * Invalidates this structure and frees up memory using the
 	 * internal function <code>SPI_freeplan</code>
 	 */
-	public native void invalidate();
+	public void invalidate()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			this._invalidate();
+		}
+	}
 
 	/**
 	 * Make this plan durable. This means that the plan will survive until
@@ -82,10 +112,13 @@ public class ExecutionPlan extends NativeStruct
 	public void makeDurable()
 	throws SQLException
 	{
-		if(m_isDurable)
-			return;
-		this.savePlan();
-		m_isDurable = true;
+		synchronized(Backend.THREADLOCK)
+		{
+			if(m_isDurable)
+				return;
+			this._savePlan();
+			m_isDurable = true;
+		}
 	}
 
 	/**
@@ -99,10 +132,10 @@ public class ExecutionPlan extends NativeStruct
 		if(m_isDurable && this.isValid())
 		{
 			long nativePtr = this.getNative();
-			if(Backend.isBackendThread())
+			if(Backend.isCallingJava())
 				this.invalidate();
 			else
-			{	
+			{
 				synchronized(s_deathRow)
 				{
 					s_deathRow.add(new Long(nativePtr));
@@ -117,7 +150,7 @@ public class ExecutionPlan extends NativeStruct
 	 * will result in resource leaks.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	private native void savePlan()
+	private native void _savePlan()
 	throws SQLException;
 	
 	/**
@@ -146,4 +179,18 @@ public class ExecutionPlan extends NativeStruct
 	 * @param flag
 	 */
 	private native static void setDeathRowFlag(boolean flag);
+
+	private native Portal _cursorOpen(String cursorName, Object[] parameters)
+	throws SQLException;
+
+	private native boolean _isCursorPlan()
+	throws SQLException;
+
+	private native int _execp(Object[] parameters, int rowCount)
+	throws SQLException;
+
+	private native static ExecutionPlan _prepare(String statement, Oid[] argTypes)
+	throws SQLException;
+
+	private native void _invalidate();
 }

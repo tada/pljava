@@ -22,7 +22,11 @@ static jmethodID s_Integer_intValue;
  */
 static Datum _int_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return Int32GetDatum((*env)->CallStaticIntMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = Int32GetDatum((*env)->CallStaticIntMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _int_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -48,7 +52,7 @@ static bool _Integer_canReplace(Type self, Type other)
 static jvalue _Integer_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Integer_class, s_Integer_init, DatumGetInt32(arg));
+	result.l = PgObject_newJavaObject(env, s_Integer_class, s_Integer_init, DatumGetInt32(arg));
 	return result;
 }
 

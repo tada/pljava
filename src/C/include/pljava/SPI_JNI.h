@@ -51,34 +51,34 @@ extern "C" {
 #define org_postgresql_pljava_internal_SPI_OK_CURSOR 10L
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    exec
+ * Method:    _exec
  * Signature: (Ljava/lang/String;I)I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI_exec
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI__1exec
   (JNIEnv *, jclass, jstring, jint);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getProcessed
+ * Method:    _getProcessed
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI_getProcessed
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI__1getProcessed
   (JNIEnv *, jclass);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getResult
+ * Method:    _getResult
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI_getResult
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI__1getResult
   (JNIEnv *, jclass);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getTupTable
+ * Method:    _getTupTable
  * Signature: ()Lorg/postgresql/pljava/internal/SPITupleTable;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPI_getTupTable
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPI__1getTupTable
   (JNIEnv *, jclass);
 
 #ifdef __cplusplus

@@ -26,14 +26,18 @@ static jvalue _BigDecimal_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result = _String_coerceDatum(self, env, arg);
 	if(result.l != 0)
-		result.l = (*env)->NewObject(env, s_BigDecimal_class,
+		result.l = PgObject_newJavaObject(env, s_BigDecimal_class,
 						s_BigDecimal_init, result.l);
 	return result;
 }
 
 static Datum _BigDecimal_coerceObject(Type self, JNIEnv* env, jobject value)
 {
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	jstring jstr = (*env)->CallObjectMethod(env, value, s_BigDecimal_toString);
+	isCallingJava = saveicj;
+
 	Datum ret = _String_coerceObject(self, env, jstr);
 	(*env)->DeleteLocalRef(env, jstr);
 	return ret;

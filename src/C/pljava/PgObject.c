@@ -60,7 +60,11 @@ void PgObject_throwMemberError(const char* memberName, const char* signature, bo
 
 jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 {
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
 	jclass cls = (*env)->FindClass(env, className);
+	isCallingJava = saveIcj;
+
 	if(cls == 0)
 	{
 		(*env)->ExceptionDescribe(env);
@@ -74,7 +78,11 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 
 jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
 	jmethodID m = (*env)->GetMethodID(env, cls, methodName, signature);
+	isCallingJava = saveIcj;
+
 	if(m == 0)
 		PgObject_throwMemberError(methodName, signature, true, false);
 	return m;
@@ -82,7 +90,11 @@ jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName
 	
 jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
 	jmethodID m = (*env)->GetStaticMethodID(env, cls, methodName, signature);
+	isCallingJava = saveIcj;
+
 	if(m == 0)
 		PgObject_throwMemberError(methodName, signature, true, true);
 	return m;
@@ -90,7 +102,11 @@ jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* meth
 	
 jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature)
 {
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
 	jfieldID m = (*env)->GetFieldID(env, cls, fieldName, signature);
+	isCallingJava = saveIcj;
+
 	if(m == 0)
 		PgObject_throwMemberError(fieldName, signature, false, false);
 	return m;
@@ -98,10 +114,26 @@ jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, c
 
 jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature)
 {
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
 	jfieldID m = (*env)->GetStaticFieldID(env, cls, fieldName, signature);
+	isCallingJava = saveIcj;
+
 	if(m == 0)
 		PgObject_throwMemberError(fieldName, signature, false, true);
 	return m;
+}
+
+jobject PgObject_newJavaObject(JNIEnv* env, jclass cls, jmethodID ctor, ...)
+{
+	va_list args;
+	va_start(args, ctor);
+	bool saveIcj = isCallingJava;
+	isCallingJava = true;
+	jobject obj = (*env)->NewObjectV(env, cls, ctor, args);
+	isCallingJava = saveIcj;
+	va_end(args);
+	return obj;
 }
 
 HeapTuple PgObject_getValidTuple(int cacheId, Oid tupleId, const char* tupleType)

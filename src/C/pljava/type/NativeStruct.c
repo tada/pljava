@@ -160,12 +160,12 @@ Datum NativeStruct_initialize(PG_FUNCTION_ARGS)
 
 /*
  * Class:     org_postgresql_pljava_internal_NativeStruct
- * Method:    releasePointer
+ * Method:    _releasePointer
  * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_NativeStruct_releasePointer(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_NativeStruct__1releasePointer(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE_VOID
+	PLJAVA_ENTRY_FENCE_VOID
 	NativeStruct_releasePointer(env, _this);
 }

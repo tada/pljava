@@ -9,98 +9,98 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    getRelation
+ * Method:    _getRelation
  * Signature: ()Lorg/postgresql/pljava/internal/Relation;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData_getRelation
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData__1getRelation
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    getTriggerTuple
+ * Method:    _getTriggerTuple
  * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData_getTriggerTuple
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData__1getTriggerTuple
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    getNewTuple
+ * Method:    _getNewTuple
  * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData_getNewTuple
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TriggerData__1getNewTuple
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    getArguments
+ * Method:    _getArguments
  * Signature: ()[Ljava/lang/String;
  */
-JNIEXPORT jobjectArray JNICALL Java_org_postgresql_pljava_internal_TriggerData_getArguments
+JNIEXPORT jobjectArray JNICALL Java_org_postgresql_pljava_internal_TriggerData__1getArguments
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_TriggerData_getName
+JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_TriggerData__1getName
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredAfter
+ * Method:    _isFiredAfter
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredAfter
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredAfter
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredBefore
+ * Method:    _isFiredBefore
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredBefore
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredBefore
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredForEachRow
+ * Method:    _isFiredForEachRow
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredForEachRow
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredForEachRow
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredForStatement
+ * Method:    _isFiredForStatement
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredForStatement
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredForStatement
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredByDelete
+ * Method:    _isFiredByDelete
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredByDelete
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredByDelete
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredByInsert
+ * Method:    _isFiredByInsert
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredByInsert
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredByInsert
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TriggerData
- * Method:    isFiredByUpdate
+ * Method:    _isFiredByUpdate
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData_isFiredByUpdate
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_TriggerData__1isFiredByUpdate
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

@@ -31,8 +31,12 @@ void Exception_checkException(JNIEnv* env)
 		 */
 		return;
 
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	(*env)->ExceptionDescribe(env);
 	(*env)->ExceptionClear(env);
+	isCallingJava = saveicj;
+
 	if(elogErrorOccured)
 		/*
 		 * Don't throw any exception. The ERROR takes precedence.
@@ -44,13 +48,15 @@ void Exception_checkException(JNIEnv* env)
 	StringInfoData buf;
 	initStringInfo(&buf);
 
+	isCallingJava = true;
 	jclass exhClass = (*env)->GetObjectClass(env, exh);
 	jstring jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, s_Class_getName);
 	String_appendJavaString(env, &buf, jtmp);
 	(*env)->DeleteLocalRef(env, exhClass);
 	(*env)->DeleteLocalRef(env, jtmp);
-
 	jtmp = (jstring)(*env)->CallObjectMethod(env, exh, s_Throwable_getMessage);
+	isCallingJava = saveicj;
+
 	if(jtmp != 0)
 	{
 		appendStringInfoString(&buf, ": ");
@@ -60,7 +66,10 @@ void Exception_checkException(JNIEnv* env)
 
 	if((*env)->IsInstanceOf(env, exh, s_SQLException_class))
 	{
+		isCallingJava = true;
 		jtmp = (*env)->CallObjectMethod(env, exh, s_SQLException_getSQLState);
+		isCallingJava = saveicj;
+
 		if(jtmp != 0)
 		{
 			char* s = String_createNTS(env, jtmp);
@@ -98,13 +107,14 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 
 	jstring sqlState = String_createJavaStringFromNTS(env, buf);
 
-	jobject ex = (*env)->NewObject(
+	jobject ex = PgObject_newJavaObject(
 		env, s_SQLException_class, s_SQLException_init,
 		message, sqlState);
 
 	(*env)->DeleteLocalRef(env, message);
 	(*env)->DeleteLocalRef(env, sqlState);
 	(*env)->Throw(env, ex);
+	va_end(args);
 }
 
 void Exception_throwSPI(JNIEnv* env, const char* function)
@@ -113,22 +123,10 @@ void Exception_throwSPI(JNIEnv* env, const char* function)
 		"SPI function SPI_%s failed with error code %d", function, SPI_result);
 }
 
-void Exception_throwSPI_ERROR(JNIEnv* env, const char* function)
+void Exception_throw_ERROR(JNIEnv* env, const char* function)
 {
 	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"SPI function SPI_%s failed with elog( level >= ERROR )", function);
-}
-
-void Exception_threadException(JNIEnv* env)
-{
-	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"A thread other than main attempted entry to the PostgreSQL backend code");
-}
-
-void Exception_elogErrorException(JNIEnv* env)
-{
-	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"An attempt was made to enter the PostgreSQL backend code after an elog(ERROR) had been issued");
+		"SPI function %s failed with elog( level >= ERROR )", function);
 }
 
 PG_FUNCTION_INFO_V1(Exception_initialize);

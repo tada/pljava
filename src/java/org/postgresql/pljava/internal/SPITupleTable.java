@@ -21,26 +21,61 @@ public class SPITupleTable extends NativeStruct
 	/**
 	 * Returns the number of <code>Tuple</code> instances contained in this table.
 	 */
-	public native int getCount()
-	throws SQLException;
-
+	public int getCount()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getCount();
+		}
+	}
+	
 	/**
 	 * Returns the <code>Tuple</code> at the given index.
 	 * @param position Index of desired slot. First slot has index zero. 
 	 */
-	public native Tuple getSlot(int position)
-	throws SQLException;
+	public Tuple getSlot(int position)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getSlot(position);
+		}
+	}
 
 	/**
 	 * Returns the <code>TupleDesc</code> for the <code>Tuple</code> instances of
 	 * this table. 
 	 */
-	public native TupleDesc getTupleDesc()
-	throws SQLException;
+	public TupleDesc getTupleDesc()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getTupleDesc();
+		}
+	}
 
 	/**
 	 * Invalidates this structure and call the internal function <code>
 	 * SPI_freetuptable</code> to free up memory.
 	 */
-	public native void invalidate();
+	public void invalidate()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			this._invalidate();
+		}
+	}
+
+	private native int _getCount()
+	throws SQLException;
+	
+	private native Tuple _getSlot(int position)
+	throws SQLException;
+
+	private native TupleDesc _getTupleDesc()
+	throws SQLException;
+
+	private native void _invalidate();
 }

@@ -37,20 +37,7 @@ extern void Exception_throwSPI(JNIEnv* env, const char* function);
  * return. It will NOT do a longjmp. It's intended use is in PLJAVA_CATCH
  * clauses.
  */
-extern void Exception_throwSPI_ERROR(JNIEnv* env, const char* function);
-
-/*
- * This method is part of the thread fence mechanism. It will be called when
- * a thread other than main is attempting to enter the PostgreSQL backend code.
- */
-extern void Exception_threadException(JNIEnv* env);
-
-/*
- * This method is part of the elog ERROR trap/fence mechanism. It will be called
- * when an attempt is made to enter the PostgreSQL code after an elog(ERROR) has
- * been issued and caught.
- */
-extern void Exception_elogErrorException(JNIEnv* env);
+extern void Exception_throw_ERROR(JNIEnv* env, const char* function);
 
 /*
  * Checks if a Java exception has been thrown. If so, ereport(ERROR, ...) is

@@ -9,34 +9,34 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_SPITupleTable
- * Method:    getCount
+ * Method:    _getCount
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPITupleTable_getCount
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPITupleTable__1getCount
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPITupleTable
- * Method:    getSlot
+ * Method:    _getSlot
  * Signature: (I)Lorg/postgresql/pljava/internal/Tuple;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPITupleTable_getSlot
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPITupleTable__1getSlot
   (JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPITupleTable
- * Method:    getTupleDesc
+ * Method:    _getTupleDesc
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPITupleTable_getTupleDesc
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPITupleTable__1getTupleDesc
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_SPITupleTable
- * Method:    invalidate
+ * Method:    _invalidate
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_org_postgresql_pljava_internal_SPITupleTable_invalidate
+JNIEXPORT void JNICALL Java_org_postgresql_pljava_internal_SPITupleTable__1invalidate
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

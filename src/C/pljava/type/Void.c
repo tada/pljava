@@ -20,7 +20,10 @@ static Type s_void;
 
 static Datum _void_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	(*env)->CallStaticVoidMethodA(env, cls, method, args);
+	isCallingJava = saveicj;
 	*wasNull = true;
 	return 0;
 }

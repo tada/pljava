@@ -9,74 +9,74 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_Portal_getName
+JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_Portal__1getName
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    getPortalPos
+ * Method:    _getPortalPos
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal_getPortalPos
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal__1getPortalPos
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    getTupleDesc
+ * Method:    _getTupleDesc
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Portal_getTupleDesc
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Portal__1getTupleDesc
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    fetch
+ * Method:    _fetch
  * Signature: (ZI)I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal_fetch
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal__1fetch
   (JNIEnv *, jobject, jboolean, jint);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    invalidate
+ * Method:    _invalidate
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_org_postgresql_pljava_internal_Portal_invalidate
+JNIEXPORT void JNICALL Java_org_postgresql_pljava_internal_Portal__1invalidate
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    isAtEnd
+ * Method:    _isAtEnd
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal_isAtEnd
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal__1isAtEnd
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    isAtStart
+ * Method:    _isAtStart
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal_isAtStart
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal__1isAtStart
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    isPosOverflow
+ * Method:    _isPosOverflow
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal_isPosOverflow
+JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_Portal__1isPosOverflow
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    move
+ * Method:    _move
  * Signature: (ZI)I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal_move
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_Portal__1move
   (JNIEnv *, jobject, jboolean, jint);
 
 #ifdef __cplusplus

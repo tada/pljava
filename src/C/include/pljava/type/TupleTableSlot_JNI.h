@@ -9,18 +9,18 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_TupleTableSlot
- * Method:    getTuple
+ * Method:    _getTuple
  * Signature: ()Lorg/postgresql/pljava/internal/Tuple;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTableSlot_getTuple
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTableSlot__1getTuple
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleTableSlot
- * Method:    getTupleDesc
+ * Method:    _getTupleDesc
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTableSlot_getTupleDesc
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTableSlot__1getTupleDesc
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

@@ -28,7 +28,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public ResultSet getNew() throws SQLException;
+	ResultSet getNew() throws SQLException;
 
 	/**
 	 * Returns the ResultSet that represents the old row. This ResultSet will
@@ -41,7 +41,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public ResultSet getOld() throws SQLException;
+	ResultSet getOld() throws SQLException;
 
 
 	/**
@@ -52,7 +52,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public String[] getArguments() throws SQLException;
+	String[] getArguments() throws SQLException;
 
 	/**
 	 * Returns the name of the trigger (as declared in the <code>CREATE TRIGGER</code>
@@ -61,7 +61,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public String getName() throws SQLException;
+	String getName() throws SQLException;
 
 	/**
 	 * Returns the name of the table for which this trigger was created (as
@@ -70,7 +70,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public String getTableName() throws SQLException;
+	String getTableName() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if the trigger was fired after the statement
@@ -79,7 +79,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredAfter() throws SQLException;
+	boolean isFiredAfter() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if the trigger was fired before the
@@ -88,7 +88,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredBefore() throws SQLException;
+	boolean isFiredBefore() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if this trigger is fired once for each row
@@ -97,7 +97,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredForEachRow() throws SQLException;
+	boolean isFiredForEachRow() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if this trigger is fired once for the entire
@@ -106,7 +106,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredForStatement() throws SQLException;
+	boolean isFiredForStatement() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by a <code>DELETE</code>.
@@ -114,7 +114,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredByDelete() throws SQLException;
+	boolean isFiredByDelete() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by an <code>INSERT</code>.
@@ -122,7 +122,7 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredByInsert() throws SQLException;
+	boolean isFiredByInsert() throws SQLException;
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by an <code>UPDATE</code>.
@@ -130,5 +130,5 @@ public interface TriggerData
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public boolean isFiredByUpdate() throws SQLException;
+	boolean isFiredByUpdate() throws SQLException;
 }

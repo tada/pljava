@@ -123,7 +123,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native Relation getRelation();
+	public Relation getRelation()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getRelation();
+		}
+	}
 
 	/**
 	 * Returns a <code>Tuple</code> reflecting the row for which the trigger
@@ -138,7 +145,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native Tuple getTriggerTuple();
+	public Tuple getTriggerTuple()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getTriggerTuple();
+		}
+	}
 
 	/**
 	 * Returns a <code>Tuple</code> reflecting the new version of the row, if
@@ -151,7 +165,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native Tuple getNewTuple();
+	public Tuple getNewTuple()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getNewTuple();
+		}
+	}
 
 	/**
 	 * Returns the arguments for this trigger (as declared in the <code>CREATE TRIGGER</code>
@@ -161,7 +182,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native String[] getArguments() throws SQLException;
+	public String[] getArguments()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getArguments();
+		}
+	}
 
 	/**
 	 * Returns the name of the trigger (as declared in the <code>CREATE TRIGGER</code>
@@ -170,7 +198,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native String getName() throws SQLException;
+	public String getName()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getName();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if the trigger was fired after the statement
@@ -179,7 +214,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredAfter() throws SQLException;
+	public boolean isFiredAfter()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredAfter();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if the trigger was fired before the
@@ -188,7 +230,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredBefore() throws SQLException;
+	public boolean isFiredBefore()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredBefore();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if this trigger is fired once for each row
@@ -197,7 +246,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredForEachRow() throws SQLException;
+	public boolean isFiredForEachRow()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredForEachRow();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if this trigger is fired once for the entire
@@ -206,7 +262,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredForStatement() throws SQLException;
+	public boolean isFiredForStatement()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredForStatement();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by a <code>DELETE</code>.
@@ -214,7 +277,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredByDelete() throws SQLException;
+	public boolean isFiredByDelete()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredByDelete();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by an <code>INSERT</code>.
@@ -222,7 +292,14 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredByInsert() throws SQLException;
+	public boolean isFiredByInsert()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredByInsert();
+		}
+	}
 
 	/**
 	 * Returns <code>true</code> if this trigger was fired by an <code>UPDATE</code>.
@@ -230,12 +307,33 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
 	 */
-	public native boolean isFiredByUpdate() throws SQLException;
+	public boolean isFiredByUpdate()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._isFiredByUpdate();
+		}
+	}
 
 	private final Relation relation()
+	throws SQLException
 	{
 		if(m_relation == null)
 			m_relation = this.getRelation();
 		return m_relation;
-	}	
+	}
+
+	private native Relation _getRelation() throws SQLException;
+	private native Tuple _getTriggerTuple() throws SQLException;
+	private native Tuple _getNewTuple() throws SQLException;
+	private native String[] _getArguments() throws SQLException;
+	private native String _getName() throws SQLException;
+	private native boolean _isFiredAfter() throws SQLException;
+	private native boolean _isFiredBefore() throws SQLException;
+	private native boolean _isFiredForEachRow() throws SQLException;
+	private native boolean _isFiredForStatement() throws SQLException;
+	private native boolean _isFiredByDelete() throws SQLException;
+	private native boolean _isFiredByInsert() throws SQLException;
+	private native boolean _isFiredByUpdate() throws SQLException;
 }

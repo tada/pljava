@@ -47,23 +47,47 @@ public class SPI extends NativeStruct
 	 * run to completion.
 	 * @return One of the declared status codes.
 	 */
-	public native static int exec(String command, int rowCount);
+	public static int exec(String command, int rowCount)
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _exec(command, rowCount);
+		}
+	}
 
 	/**
 	 * Returns the value of the global variable <code>SPI_processed</code>.
 	 */
-	public native static int getProcessed();
+	public static int getProcessed()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getProcessed();
+		}
+	}
 
 	/**
 	 * Returns the value of the global variable <code>SPI_result</code>.
 	 */
-	public native static int getResult();
-	
+	public static int getResult()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getResult();
+		}
+	}
+
 	/**
 	 * Returns the value of the global variable <code>SPI_tuptable</code>.
 	 */
-	public native static SPITupleTable getTupTable();
-	
+	public static SPITupleTable getTupTable()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getTupTable();
+		}
+	}
+
 	/**
 	 * Returns a textual representatio of a result code
 	 */
@@ -140,4 +164,9 @@ public class SPI extends NativeStruct
 		}
 	return s;
 	}
+
+	private native static int _exec(String command, int rowCount);
+	private native static int _getProcessed();
+	private native static int _getResult();
+	private native static SPITupleTable _getTupTable();
 }

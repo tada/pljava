@@ -32,8 +32,9 @@ extern "C" {
  * to the original value of Warn_restart) must be made.
  */
 extern bool elogErrorOccured;
+extern bool isCallingJava;
 extern bool pljavaEntryFence(JNIEnv* env);
-
+ 
 /* NOTE!
  * When using the PLJAVA_TRY, PLJAVA_CATCH, PLJAVA_END_CATCH family of macros,
  * it is an ABSOLUTE NECESSITY to use the PLJAVA_TRY_RETURN, PLJAVA_TRY_BREAK
@@ -57,28 +58,6 @@ extern bool pljavaEntryFence(JNIEnv* env);
 #define PLJAVA_TRY_RETURN_VOID { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); return; }
 #define PLJAVA_TRY_BREAK { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); break; }
 #define PLJAVA_TRY_CONTINUE { memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart)); continue; }
-
-#ifdef USE_THREADS
-/* Mutex declarations for critical sections
- */
-#include <pthread.h>
-extern pthread_t pljava_mainThread;
-
-#define IS_MAIN_THREAD pthread_equal(pthread_self(), pljava_mainThread)
-#define THREAD_FENCE(retVal) if(!IS_MAIN_THREAD) { Exception_threadException(env);  return retVal; }
-#define THREAD_FENCE_VOID if(!IS_MAIN_THREAD) { Exception_threadException(env); return; }
-#define DECLARE_MUTEX(mutexName) static pthread_mutex_t mutexName = PTHREAD_MUTEX_INITIALIZER;
-#define BEGIN_CRITICAL(mutexName) pthread_mutex_lock(&mutexName);
-#define END_CRITICAL(mutexName) pthread_mutex_unlock(&mutexName);
-#else
-#define IS_MAIN_THREAD true
-#define THREAD_FENCE(retVal)
-#define THREAD_FENCE_VOID
-#define DECLARE_MUTEX(mutexName)
-#define BEGIN_CRITICAL(mutexName)
-#define END_CRITICAL(mutexName)
-
-#endif
 
 #define PLJAVA_ENTRY_FENCE(retVal) if(pljavaEntryFence(env)) return retVal;
 #define PLJAVA_ENTRY_FENCE_VOID if(pljavaEntryFence(env)) return;

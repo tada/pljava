@@ -66,6 +66,8 @@ extern HeapTuple PgObject_getValidTuple(int cacheId, Oid tupleId, const char* tu
  */
 extern jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature);
 
+extern jobject PgObject_newJavaObject(JNIEnv* env, jclass cls, jmethodID ctor, ...);
+
 /*
  * Obtains a static java field. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.

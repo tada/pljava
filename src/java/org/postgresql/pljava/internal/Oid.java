@@ -96,12 +96,24 @@ public class Oid
 	 * @param sqlType The XOPEN type code.
 	 * @return The well known Oid or null if no such Oid could be found.
 	 */
-	public native static Oid forSqlType(int sqlType);
-	
+	public static Oid forSqlType(int sqlType)
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _forSqlType(sqlType);
+		}
+	}
+
 	/**
 	 * Returns the PostgreSQL type id for the Oid type.
 	 */
-	public native static Oid getTypeId();
+	public static Oid getTypeId()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getTypeId();
+		}
+	}
 
 	/**
 	 * Returns a string representation of this OID.
@@ -110,4 +122,7 @@ public class Oid
 	{
 		return "OID(" + m_native + ')';
 	}
+
+	private native static Oid _forSqlType(int sqlType);
+	private native static Oid _getTypeId();
 }

@@ -27,7 +27,11 @@ static jmethodID s_Byte_byteValue;
  */
 static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return CharGetDatum((*env)->CallStaticByteMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = CharGetDatum((*env)->CallStaticByteMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _byte_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -53,7 +57,7 @@ static bool _Byte_canReplace(Type self, Type other)
 static jvalue _Byte_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Byte_class, s_Byte_init, DatumGetChar(arg));
+	result.l = PgObject_newJavaObject(env, s_Byte_class, s_Byte_init, DatumGetChar(arg));
 	return result;
 }
 

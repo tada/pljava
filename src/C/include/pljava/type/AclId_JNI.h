@@ -9,26 +9,26 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_AclId
- * Method:    getUser
+ * Method:    _getUser
  * Signature: ()Lorg/postgresql/pljava/internal/AclId;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_AclId_getUser
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_AclId__1getUser
   (JNIEnv *, jclass);
 
 /*
  * Class:     org_postgresql_pljava_internal_AclId
- * Method:    getSessionUser
+ * Method:    _getSessionUser
  * Signature: ()Lorg/postgresql/pljava/internal/AclId;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_AclId_getSessionUser
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_AclId__1getSessionUser
   (JNIEnv *, jclass);
 
 /*
  * Class:     org_postgresql_pljava_internal_AclId
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_AclId_getName
+JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_AclId__1getName
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

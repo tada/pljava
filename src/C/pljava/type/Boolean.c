@@ -22,7 +22,11 @@ static jmethodID s_Boolean_booleanValue;
  */
 static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return BoolGetDatum((*env)->CallStaticBooleanMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = BoolGetDatum((*env)->CallStaticBooleanMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _boolean_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -48,7 +52,7 @@ static bool _Boolean_canReplace(Type self, Type other)
 static jvalue _Boolean_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Boolean_class, s_Boolean_init, DatumGetBool(arg));
+	result.l = PgObject_newJavaObject(env, s_Boolean_class, s_Boolean_init, DatumGetBool(arg));
 	return result;
 }
 

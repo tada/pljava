@@ -9,26 +9,26 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    getColumnName
+ * Method:    _getColumnName
  * Signature: (I)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_TupleDesc_getColumnName
+JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName
   (JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    getColumnIndex
+ * Method:    _getColumnIndex
  * Signature: (Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleDesc_getColumnIndex
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex
   (JNIEnv *, jobject, jstring);
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    size
+ * Method:    _size
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleDesc_size
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleDesc__1size
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

@@ -33,9 +33,8 @@
 #error "PKGLIBDIR needs to be defined to compile this file."
 #endif
 
-DECLARE_MUTEX(jvmInitMutex)
-pthread_t pljava_mainThread;
 bool elogErrorOccured;
+bool isCallingJava;
 
 #define LOCAL_REFERENCE_COUNT 32
 
@@ -74,6 +73,7 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 	/* Push a new "try/catch" block.
 	 */
 	bool saveErrorOccured = elogErrorOccured;
+	bool saveIsCallingJava = isCallingJava;
 	elogErrorOccured = false;
 	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
 	if(sigsetjmp(Warn_restart, 1) != 0)
@@ -82,6 +82,7 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 		 */
 		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
 		elogErrorOccured = saveErrorOccured;
+		isCallingJava = saveIsCallingJava;
 		NativeStruct_expireAll(env);
 		(*env)->PopLocalFrame(env, 0);
 		siglongjmp(Warn_restart, 1);
@@ -110,6 +111,7 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 	 */
 	memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
 	elogErrorOccured = saveErrorOccured;
+	isCallingJava = saveIsCallingJava;
 	NativeStruct_expireAll(env);
 	(*env)->PopLocalFrame(env, 0);
 	return retval;
@@ -119,10 +121,24 @@ bool pljavaEntryFence(JNIEnv* env)
 {
 	if(elogErrorOccured)
 	{
-		Exception_elogErrorException(env);
+		// An elog with level higher than ERROR was issued. The transaction
+		// state is unknown. There's no way the JVM is allowed to enter the
+		// backend at this point.
+		//
+		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
 		return true;
 	}
-	THREAD_FENCE(true)
+	if(!isCallingJava)
+	{
+		// The backend is *not* awaiting the return of a call to the JVM
+		// so there's no way the JVM can be allowed to call out at this
+		// point.
+		//
+		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+			"An attempt was made to call a PostgreSQL backend function while main thread was not in the JVM");
+		return true;
+	}
 	return false;
 }
 
@@ -320,19 +336,17 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		elog(LOG, "Destroying JavaVM");
+		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
+		isCallingJava = false;
 		s_javaVM = 0;
 	}
 }
 
 static void initializeJavaVM()
 {
-	BEGIN_CRITICAL(jvmInitMutex)
 	if(s_javaVM != 0)
-	{
-		END_CRITICAL(jvmInitMutex)
 		return;
-	}
 
 	int nOptions = 0;
 	JavaVMOption options[10]; /* increase if more options are needed! */
@@ -384,7 +398,11 @@ static void initializeJavaVM()
 	vm_args.ignoreUnrecognized = JNI_TRUE;
 
 	elog(LOG, "Creating JavaVM");
-	if(JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args) != JNI_OK)
+	
+	isCallingJava = true;
+	jboolean jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
+	isCallingJava = false;
+	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
 
 	if(dynLibPath != 0)
@@ -395,12 +413,7 @@ static void initializeJavaVM()
 	/* Register an on_proc_exit handler that destroys the VM
 	 */
 	on_proc_exit(_destroyJavaVM, 0);
-
-#ifdef USE_THREADS
-	pljava_mainThread = pthread_self();
-#endif
 	initJavaVM(s_mainEnv);
-	END_CRITICAL(jvmInitMutex)
 }
 
 extern Datum java_call_handler(PG_FUNCTION_ARGS);
@@ -415,11 +428,6 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 {
 	if(s_javaVM == 0)
 		initializeJavaVM();
-
-#ifdef USE_THREADS
-	if(!pthread_equal(pthread_self(), pljava_mainThread))
-		ereport(ERROR, (errmsg("Multiple threads call in to java_call_handler")));
-#endif
 
 	SPI_connect();
 	Datum retval = callFunction(s_mainEnv, fcinfo);
@@ -437,45 +445,65 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 
 /*
  * Class:     org_postgresql_pljava_internal_Backend
- * Method:    getConfigOption
+ * Method:    _getConfigOption
  * Signature: (Ljava/lang/String;)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_Backend_getConfigOption(JNIEnv* env, jclass cls, jstring jkey)
+JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* env, jclass cls, jstring jkey)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	char* key = String_createNTS(env, jkey);
 	if(key == 0)
 		return 0;
 
-	const char* value = GetConfigOption(key);
-	pfree(key);
-	return (value == 0) ? 0 : String_createJavaStringFromNTS(env, value);
+	jstring result = 0;
+	PLJAVA_TRY
+	{
+		const char* value = GetConfigOption(key);
+		pfree(key);
+		if(value != 0)
+			result = String_createJavaStringFromNTS(env, value);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "GetConfigOption");
+	}
+	PLJAVA_TCEND
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_Backend
- * Method:    log
+ * Method:    _log
  * Signature: (ILjava/lang/String;)V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_Backend_log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
+JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
-	THREAD_FENCE_VOID
+	PLJAVA_ENTRY_FENCE_VOID
 	char* str = String_createNTS(env, jstr);
 	if(str == 0)
 		return;
-	elog(logLevel, str);
-	pfree(str);
-}	
+
+	PLJAVA_TRY
+	{
+		elog(logLevel, str);
+		pfree(str);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "elog");
+	}
+	PLJAVA_TCEND
+}
 
 /*
  * Class:     org_postgresql_pljava_internal_Backend
- * Method:    isBackendThread
+ * Method:    isCallingJava
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_Backend_isBackendThread(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_Backend_isCallingJava(JNIEnv* env, jclass cls)
 {
-	return IS_MAIN_THREAD ? JNI_TRUE : JNI_FALSE;
+	return isCallingJava ? JNI_TRUE : JNI_FALSE;
 }

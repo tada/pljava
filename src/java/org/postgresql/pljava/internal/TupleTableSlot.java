@@ -18,9 +18,24 @@ import java.sql.SQLException;
  */
 public class TupleTableSlot extends NativeStruct
 {
-	public native Tuple getTuple()
-	throws SQLException;
+	public Tuple getTuple()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getTuple();
+		}
+	}
 
-	public native TupleDesc getTupleDesc()
-	throws SQLException;
+	public TupleDesc getTupleDesc()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getTupleDesc();
+		}
+	}
+
+	private native Tuple _getTuple() throws SQLException;
+	private native TupleDesc _getTupleDesc() throws SQLException;
 }

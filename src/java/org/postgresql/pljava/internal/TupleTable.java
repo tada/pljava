@@ -22,13 +22,28 @@ public class TupleTable extends NativeStruct
 	 * Returns the number of TupleTableSlots contained in
 	 * this TupleTable.
 	 */
-	public native int getCount()
-	throws SQLException;
-	
+	public int getCount()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getCount();
+		}
+	}
+
 	/**
 	 * Returns the TupleTableSlot at the given index.
 	 * @param position Index of desired slot. First slot has index zero. 
 	 */
-	public native TupleTableSlot getSlot(int position)
-	throws SQLException;
+	public TupleTableSlot getSlot(int position)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getSlot(position);
+		}
+	}
+
+	private native int _getCount() throws SQLException;
+	private native TupleTableSlot _getSlot(int position) throws SQLException;
 }

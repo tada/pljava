@@ -22,7 +22,11 @@ static jmethodID s_Short_shortValue;
  */
 static Datum _short_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return Int16GetDatum((*env)->CallStaticShortMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = Int16GetDatum((*env)->CallStaticShortMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _short_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -48,7 +52,7 @@ static bool _Short_canReplace(Type self, Type other)
 static jvalue _Short_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Short_class, s_Short_init, DatumGetInt16(arg));
+	result.l = PgObject_newJavaObject(env, s_Short_class, s_Short_init, DatumGetInt16(arg));
 	return result;
 }
 

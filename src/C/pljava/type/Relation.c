@@ -33,7 +33,7 @@ jobject Relation_create(JNIEnv* env, Relation td)
 	jobject jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
-		jtd = (*env)->NewObject(env, s_Relation_class, s_Relation_init);
+		jtd = PgObject_newJavaObject(env, s_Relation_class, s_Relation_init);
 		NativeStruct_init(env, jtd, td);
 	}
 	return jtd;
@@ -80,29 +80,39 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _this)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
-	
-	char* relName = SPI_getrelname(self);
-	jstring ret = String_createJavaStringFromNTS(env, relName);
-	pfree(relName);
+
+	jstring ret = 0;
+	PLJAVA_TRY
+	{
+		char* relName = SPI_getrelname(self);
+		ret = String_createJavaStringFromNTS(env, relName);
+		pfree(relName);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_getrelname");
+	}
+	PLJAVA_TCEND
 	return ret;
 }
+
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    getTupleDesc
+ * Method:    _getTupleDesc
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jobject _this)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
@@ -114,11 +124,11 @@ Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _
 
 /*
  * Class:     org_postgresql_pljava_internal_Relation
- * Method:    modifyTuple
+ * Method:    _modifyTuple
  * Signature: (Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/internal/pljava/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
+Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
@@ -129,79 +139,79 @@ Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _t
 	if(tuple == 0)
 		return 0;
 
-	TupleDesc tupleDesc = self->rd_att;
-
-	jint   count  = (*env)->GetArrayLength(env, _indexes);
-	Datum* values = (Datum*)palloc(count * sizeof(Datum));
-	char*  nulls  = 0;
-
-	jint* javaIdxs = (*env)->GetIntArrayElements(env, _indexes, 0);
-
-	int* indexes;
-	if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
-		indexes = (int*)javaIdxs;
-	else
-		indexes = (int*)palloc(count * sizeof(int));
-
-	jint idx;
-	for(idx = 0; idx < count; ++idx)
-	{
-		int attIndex;
-		if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
-			attIndex = indexes[idx];
-		else
-		{
-			attIndex = (int)javaIdxs[idx];
-			indexes[idx] = attIndex;
-		}
-
-		Oid typeId = SPI_gettypeid(tupleDesc, attIndex);
-		if(!OidIsValid(typeId))
-		{
-			Exception_throw(env,
-				ERRCODE_INVALID_DESCRIPTOR_INDEX,
-				"Invalid attribute index \"%d\"", attIndex);
-			return 0L;	/* Exception */
-		}
-
-		Type type = Type_fromOid(typeId);
-		jobject value = (*env)->GetObjectArrayElement(env, _values, idx);
-		if(value != 0)
-			values[idx] = Type_coerceObject(type, env, value);
-		else
-		{
-			if(nulls == 0)
-			{
-				nulls = (char*)palloc(count+1);
-				memset(nulls, count, ' ');	/* all values non-null initially */
-				nulls[count] = 0;
-			}
-			nulls[idx] = 'n';
-			values[idx] = 0;
-		}
-	}
-
 	PLJAVA_TRY
 	{
+		TupleDesc tupleDesc = self->rd_att;
+	
+		jint   count  = (*env)->GetArrayLength(env, _indexes);
+		Datum* values = (Datum*)palloc(count * sizeof(Datum));
+		char*  nulls  = 0;
+	
+		jint* javaIdxs = (*env)->GetIntArrayElements(env, _indexes, 0);
+	
+		int* indexes;
+		if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
+			indexes = (int*)javaIdxs;
+		else
+			indexes = (int*)palloc(count * sizeof(int));
+	
+		jint idx;
+		for(idx = 0; idx < count; ++idx)
+		{
+			int attIndex;
+			if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
+				attIndex = indexes[idx];
+			else
+			{
+				attIndex = (int)javaIdxs[idx];
+				indexes[idx] = attIndex;
+			}
+	
+			Oid typeId = SPI_gettypeid(tupleDesc, attIndex);
+			if(!OidIsValid(typeId))
+			{
+				Exception_throw(env,
+					ERRCODE_INVALID_DESCRIPTOR_INDEX,
+					"Invalid attribute index \"%d\"", attIndex);
+				return 0L;	/* Exception */
+			}
+	
+			Type type = Type_fromOid(typeId);
+			jobject value = (*env)->GetObjectArrayElement(env, _values, idx);
+			if(value != 0)
+				values[idx] = Type_coerceObject(type, env, value);
+			else
+			{
+				if(nulls == 0)
+				{
+					nulls = (char*)palloc(count+1);
+					memset(nulls, count, ' ');	/* all values non-null initially */
+					nulls[count] = 0;
+				}
+				nulls[idx] = 'n';
+				values[idx] = 0;
+			}
+		}
+
 		tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
 		if(tuple == 0)
 			Exception_throwSPI(env, "modifytuple");
+
+		(*env)->ReleaseIntArrayElements(env, _indexes, javaIdxs, JNI_ABORT);
+	
+		if(sizeof(int) != sizeof(jint))	/* compiler will optimize this */
+			pfree(indexes);
+	
+		pfree(values);
+		if(nulls != 0)
+			pfree(nulls);	
 	}
 	PLJAVA_CATCH
 	{
 		tuple = 0;
-		Exception_throwSPI_ERROR(env, "modifytuple");
+		Exception_throw_ERROR(env, "SPI_modifytuple");
 	}
 	PLJAVA_TCEND
-
-	(*env)->ReleaseIntArrayElements(env, _indexes, javaIdxs, JNI_ABORT);
-
-	if(sizeof(int) != sizeof(jint))	/* compiler will optimize this */
-		pfree(indexes);
-
-	pfree(values);
-	if(nulls != 0)
-		pfree(nulls);
 
 	return (tuple == 0) ? 0 : Tuple_create(env, tuple);
 }

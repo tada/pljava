@@ -66,7 +66,7 @@ static jvalue Timestamp_coerceDatumTZ(Type self, JNIEnv* env, Datum arg, bool tz
 	uSecs = ((ts - tmp) * 1000.0);		/* Preserve remaining microsecs */
 #endif
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Timestamp_class, s_Timestamp_init, mSecs);
+	result.l = PgObject_newJavaObject(env, s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
 		(*env)->CallIntMethod(env, result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;

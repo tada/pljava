@@ -22,7 +22,11 @@ static jmethodID s_Long_longValue;
  */
 static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return Int64GetDatum((*env)->CallStaticLongMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = Int64GetDatum((*env)->CallStaticLongMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _long_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -48,7 +52,7 @@ static bool _Long_canReplace(Type self, Type other)
 static jvalue _Long_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Long_class, s_Long_init, DatumGetInt64(arg));
+	result.l = PgObject_newJavaObject(env, s_Long_class, s_Long_init, DatumGetInt64(arg));
 	return result;
 }
 

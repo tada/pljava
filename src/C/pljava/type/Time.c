@@ -41,7 +41,7 @@ static jvalue Time_coerceDatumTZ(Type self, JNIEnv* env, TimeADT t, bool tzAdjus
 	mSecs = (jlong)floor(t);
 #endif
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Time_class, s_Time_init, mSecs);
+	result.l = PgObject_newJavaObject(env, s_Time_class, s_Time_init, mSecs);
 	return result;
 }
 

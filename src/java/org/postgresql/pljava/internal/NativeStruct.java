@@ -53,5 +53,13 @@ public abstract class NativeStruct
 	/**
 	 * Invalidates this structure without freeing up memory.
 	 */
-	protected native void releasePointer();
+	protected void releasePointer()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			this._releasePointer();
+		}
+	}
+
+	private native void _releasePointer();
 }

@@ -90,7 +90,7 @@ jobject ExecutionPlan_create(JNIEnv* env, void* ep)
 	jobject jep = NativeStruct_obtain(env, ep);
 	if(jep == 0)
 	{
-		jep = (*env)->NewObject(env, s_ExecutionPlan_class, s_ExecutionPlan_init);
+		jep = PgObject_newJavaObject(env, s_ExecutionPlan_class, s_ExecutionPlan_init);
 		NativeStruct_init(env, jep, ep);
 	}
 	return jep;
@@ -110,7 +110,11 @@ static Type ExecutionPlan_obtain(Oid typeId)
 
 static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
 {
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	jobject longArr = (*env)->CallStaticObjectMethod(env, s_ExecutionPlan_class, S_ExecutionPlan_getDeathRow);
+	isCallingJava = saveicj;
+
 	if(longArr == 0)
 		return;
 	int sz = (int)(*env)->GetArrayLength(env, longArr);
@@ -205,11 +209,11 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    cursorOpen
+ * Method:    _cursorOpen
  * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
@@ -240,7 +244,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobjec
 	}
 	PLJAVA_CATCH
 	{
-		Exception_throwSPI_ERROR(env, "cursor_open");
+		Exception_throw_ERROR(env, "SPI_cursor_open");
 	}
 	PLJAVA_TCEND
 	return jportal;
@@ -248,27 +252,37 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobjec
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    isCursorPlan
+ * Method:    _isCursorPlan
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jobject _this)
 {
 	PLJAVA_ENTRY_FENCE(false)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	return SPI_is_cursor_plan(ePlan);
+	bool result = false;
+	PLJAVA_TRY
+	{
+		result = SPI_is_cursor_plan(ePlan);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_is_cursor_plan");
+	}
+	PLJAVA_TCEND
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    execp
+ * Method:    _execp
  * Signature: ([Ljava/lang/Object;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
@@ -291,7 +305,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _th
 	}
 	PLJAVA_CATCH
 	{
-		Exception_throwSPI_ERROR(env, "execp");
+		Exception_throw_ERROR(env, "SPI_execp");
 	}
 	PLJAVA_TCEND
 	return result;
@@ -299,11 +313,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _th
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    prepare
+ * Method:    _prepare
  * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)Lorg/postgresql/pljava/internal/ExecutionPlan;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
 	PLJAVA_ENTRY_FENCE(0)
 
@@ -343,7 +357,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 	}
 	PLJAVA_CATCH
 	{
-		Exception_throwSPI_ERROR(env, "prepare");
+		Exception_throw_ERROR(env, "SPI_prepare");
 	}
 	PLJAVA_TCEND
 
@@ -352,34 +366,53 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    savePlan
+ * Method:    _savePlan
  * Signature: ()V;
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan(JNIEnv* env, jobject _this)
 {
 	PLJAVA_ENTRY_FENCE_VOID
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan == 0)
 		return;
 
-	NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
-	SPI_freeplan(ePlan);	// Get rid of the original, nobody can see it anymore.
+	PLJAVA_TRY
+	{
+		NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
+		SPI_freeplan(ePlan);	// Get rid of the original, nobody can see it anymore.
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_saveplan");
+	}
+	PLJAVA_TCEND
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    invalidate
+ * Method:    _invalidate
  * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE_VOID /* No error fence here. We allow the invalidation of saved plans. */
+	PLJAVA_ENTRY_FENCE_VOID
 	void* ePlan = NativeStruct_releasePointer(env, _this);
-	if(ePlan != 0)
+	if(ePlan == 0)
+		return;
+
+	PLJAVA_TRY
+	{
 		SPI_freeplan(ePlan);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_freeplan");
+	}
+	PLJAVA_TCEND
 }
+
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    setDeathRowFlag

@@ -275,7 +275,12 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");
 	Form_pg_namespace nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
 	jstring schemaName = String_createJavaStringFromNTS(env, NameStr(nspStruct->nspname));
+
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	jobject loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	isCallingJava = saveicj;
+
 	(*env)->DeleteLocalRef(env, schemaName);
 	ReleaseSysCache(nspTup);
 
@@ -291,13 +296,20 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	}
 
 	jstring jname  = String_createJavaStringFromNTS(env, className);
+
+	isCallingJava = true;
 	jobject loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
+	isCallingJava = saveicj;
+
 	(*env)->DeleteLocalRef(env, jname);
 	(*env)->DeleteLocalRef(env, loader);
 
 	if((*env)->ExceptionCheck(env))
 	{
+		isCallingJava = true;
 		(*env)->ExceptionDescribe(env);
+		isCallingJava = saveicj;
+
 		if(elogErrorOccured)
 			longjmp(Warn_restart, 1);
 

@@ -31,7 +31,7 @@ jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
 	jobject jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
-		jtd = (*env)->NewObject(env, s_TupleDesc_class, s_TupleDesc_init);
+		jtd = PgObject_newJavaObject(env, s_TupleDesc_class, s_TupleDesc_init);
 		NativeStruct_init(env, jtd, td);
 	}
 	return jtd;
@@ -79,48 +79,75 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    getColumnName
+ * Method:    _getColumnName
  * Signature: (I)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_TupleDesc_getColumnName(JNIEnv* env, jobject _this, jint index)
+Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobject _this, jint index)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
-
-	char* name = SPI_fname(self, (int)index);
-	if(name == 0)
-	{
-		Exception_throw(env,
-			ERRCODE_INVALID_DESCRIPTOR_INDEX,
-			"Invalid attribute index \"%d\"", (int)index);
+	if(self == 0)
 		return 0;
+
+	jstring result = 0;
+	PLJAVA_TRY
+	{
+		char* name = SPI_fname(self, (int)index);
+		if(name == 0)
+		{
+			Exception_throw(env,
+				ERRCODE_INVALID_DESCRIPTOR_INDEX,
+				"Invalid attribute index \"%d\"", (int)index);
+		}
+		else
+		{
+			result = String_createJavaStringFromNTS(env, name);
+			pfree(name);
+		}
 	}
-	jstring ret = String_createJavaStringFromNTS(env, name);
-	pfree(name);
-	return ret;
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_fname");
+	}
+	PLJAVA_TCEND
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    getColumnIndex
+ * Method:    _getColumnIndex
  * Signature: (Ljava/lang/String;)I;
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_TupleDesc_getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
+Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
-	char* name = String_createNTS(env, colName);
-	jint index = SPI_fnumber(self, name);
-	if(index < 0)
-	{
-		Exception_throw(env,
-			ERRCODE_UNDEFINED_COLUMN,
-			"Tuple has no attribute \"%s\"", name);
+	if(self == 0)
 		return 0;
+	
+	char* name = String_createNTS(env, colName);
+	if(name == 0)
+		return 0;
+
+	jint index = 0;
+	PLJAVA_TRY
+	{
+		index = SPI_fnumber(self, name);
+		if(index < 0)
+		{
+			Exception_throw(env,
+				ERRCODE_UNDEFINED_COLUMN,
+				"Tuple has no attribute \"%s\"", name);
+		}
+		pfree(name);
 	}
-	pfree(name);
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_fnumber");
+	}
+	PLJAVA_TCEND
 	return index;
 }
 

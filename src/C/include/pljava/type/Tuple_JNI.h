@@ -9,10 +9,10 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_Tuple
- * Method:    getObject
+ * Method:    _getObject
  * Signature: (Lorg/postgresql/pljava/internal/TupleDesc;I)Ljava/lang/Object;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Tuple_getObject
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_Tuple__1getObject
   (JNIEnv *, jobject, jobject, jint);
 
 #ifdef __cplusplus

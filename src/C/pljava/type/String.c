@@ -43,7 +43,11 @@ Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
 	if(jstr == 0)
 		return 0;
 
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	jstr = (*env)->CallObjectMethod(env, jstr, s_Object_toString);
+	isCallingJava = saveicj;
+
 	if((*env)->ExceptionCheck(env))
 		return 0;
 

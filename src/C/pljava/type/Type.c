@@ -98,7 +98,10 @@ bool _Type_canReplaceType(Type self, Type other)
 
 Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
 	jobject value = (*env)->CallStaticObjectMethodA(env, cls, method, args);
+	isCallingJava = saveicj;
 	if(value == 0)
 	{
 		*wasNull = true;

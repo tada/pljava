@@ -32,7 +32,7 @@ jobject Tuple_create(JNIEnv* env, HeapTuple ht)
 	jobject jht = NativeStruct_obtain(env, ht);
 	if(jht == 0)
 	{
-		jht = (*env)->NewObject(env, s_Tuple_class, s_Tuple_init);
+		jht = PgObject_newJavaObject(env, s_Tuple_class, s_Tuple_init);
 		NativeStruct_init(env, jht, ht);
 	}
 	return jht;
@@ -80,35 +80,50 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
  
 /*
  * Class:     org_postgresql_pljava_internal_Tuple
- * Method:    getObject
+ * Method:    _getObject
  * Signature: (Lorg/postgresql/pljava/internal/TupleDesc;I)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
+Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
 	PLJAVA_ENTRY_FENCE(0)
 	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
+	if(self == 0)
+		return 0;
+
 	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
-	Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
-	if(!OidIsValid(typeId))
+	if(tupleDesc == 0)
+		return 0;
+
+	jobject result = 0;
+	PLJAVA_TRY
 	{
-		Exception_throw(env,
-			ERRCODE_INVALID_DESCRIPTOR_INDEX,
-			"Invalid attribute index \"%d\"", (int)index);
-		return 0;
+		Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
+		if(!OidIsValid(typeId))
+		{
+			Exception_throw(env,
+				ERRCODE_INVALID_DESCRIPTOR_INDEX,
+				"Invalid attribute index \"%d\"", (int)index);
+		}
+		else
+		{
+			Type type = Type_fromOid(typeId);
+			if(Type_isPrimitive(type))
+				/*
+				 * This is a primitive type
+				 */
+				type = type->m_class->objectType;
+		
+			bool wasNull = false;
+			Datum binVal = SPI_getbinval(self, tupleDesc, (int)index, &wasNull);
+			if(!wasNull)
+				result = Type_coerceDatum(type, env, binVal).l;
+		}
 	}
-
-	Type type = Type_fromOid(typeId);
-	if(Type_isPrimitive(type))
-		/*
-		 * This is a primitive type
-		 */
-		type = type->m_class->objectType;
-
-	bool wasNull = false;
-	Datum binVal = SPI_getbinval(self, tupleDesc, (int)index, &wasNull);
-	if(wasNull)
-		return 0;
-
-	return Type_coerceDatum(type, env, binVal).l;
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_gettypeid or SPI_getbinval");
+	}
+	PLJAVA_TCEND
+	return result;
 }

@@ -25,7 +25,7 @@ static jfieldID  s_AclId_m_native;
  */
 static jobject AclId_create(JNIEnv* env, AclId aclId)
 {
-	return (*env)->NewObject(env, s_AclId_class, s_AclId_init, (jint)aclId);
+	return PgObject_newJavaObject(env, s_AclId_class, s_AclId_init, (jint)aclId);
 }
 
 static AclId AclId_getAclId(JNIEnv* env, jobject aclId)
@@ -83,37 +83,69 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_AclId
- * Method:    getUser
+ * Method:    _getUser
  * Signature: ()Lorg/postgresql/pljava/AclId;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_AclId_getUser(JNIEnv* env, jclass clazz)
+Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 {
 	PLJAVA_ENTRY_FENCE(0)
-	return AclId_create(env, GetUserId());
+	
+	jobject result = 0;
+	PLJAVA_TRY
+	{
+		result = AclId_create(env, GetUserId());
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "GetUserId");
+	}
+	PLJAVA_TCEND
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_AclId
- * Method:    getSessionUser
+ * Method:    _getSessionUser
  * Signature: ()Lorg/postgresql/pljava/AclId;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_AclId_getSessionUser(JNIEnv* env, jclass clazz)
+Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass clazz)
 {
 	PLJAVA_ENTRY_FENCE(0)
-	return AclId_create(env, GetSessionUserId());
+	
+	jobject result = 0;
+	PLJAVA_TRY
+	{
+		result = AclId_create(env, GetSessionUserId());
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "GetSessionUserId");
+	}
+	PLJAVA_TCEND
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_AclId
- * Method:    getName
+ * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_AclId_getName(JNIEnv* env, jobject aclId)
+Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 {
 	PLJAVA_ENTRY_FENCE(0)
-	return String_createJavaStringFromNTS(env, GetUserNameFromId(AclId_getAclId(env, aclId)));
+	jstring result = 0;
+	PLJAVA_TRY
+	{
+		result = String_createJavaStringFromNTS(env,
+			GetUserNameFromId(AclId_getAclId(env, aclId)));
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "GetUserNameFromId");
+	}
+	PLJAVA_TCEND
+	return result;
 }
-

@@ -44,17 +44,35 @@ public class AclId
 	/**
 	 * Return the id of the current database user.
 	 */
-	public static native AclId getUser();
+	public static AclId getUser()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getUser();
+		}
+	}
 
 	/**
 	 * Return the id of the session user.
 	 */
-	public static native AclId getSessionUser();
+	public static AclId getSessionUser()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getSessionUser();
+		}
+	}
 
 	/**
 	 * Return the name that corresponds to this id.
 	 */
-	public native String getName();
+	public String getName()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getName();
+		}
+	}
 
 	/**
 	 * Returns the result of calling #getName().
@@ -63,4 +81,8 @@ public class AclId
 	{
 		return this.getName();
 	}
+
+	private static native AclId _getUser();
+	private static native AclId _getSessionUser();
+	private native String _getName();
 }

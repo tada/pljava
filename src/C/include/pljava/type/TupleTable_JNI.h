@@ -9,18 +9,18 @@ extern "C" {
 #endif
 /*
  * Class:     org_postgresql_pljava_internal_TupleTable
- * Method:    getCount
+ * Method:    _getCount
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleTable_getCount
+JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_TupleTable__1getCount
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_postgresql_pljava_internal_TupleTable
- * Method:    getSlot
+ * Method:    _getSlot
  * Signature: (I)Lorg/postgresql/pljava/internal/TupleTableSlot;
  */
-JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTable_getSlot
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_TupleTable__1getSlot
   (JNIEnv *, jobject, jint);
 
 #ifdef __cplusplus

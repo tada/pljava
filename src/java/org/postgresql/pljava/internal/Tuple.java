@@ -26,6 +26,15 @@ public class Tuple extends NativeStruct
 	 * @return The value or <code>null</code>.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public native Object getObject(TupleDesc tupleDesc, int index)
+	public Object getObject(TupleDesc tupleDesc, int index)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getObject(tupleDesc, index);
+		}
+	}
+
+	private native Object _getObject(TupleDesc tupleDesc, int index)
 	throws SQLException;
 }

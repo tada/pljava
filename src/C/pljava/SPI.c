@@ -16,49 +16,61 @@
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    exec
+ * Method:    _exec
  * Signature: (Ljava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI_exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
+Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	char* command = String_createNTS(env, cmd);
-	jint result = (jint)SPI_exec(command, (int)count);
-	pfree(command);
+	if(command == 0)
+		return 0;
+
+	jint result = 0;
+	PLJAVA_TRY
+	{
+		result = (jint)SPI_exec(command, (int)count);
+		pfree(command);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "SPI_exec");
+	}
+	PLJAVA_TCEND
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getProcessed
+ * Method:    _getProcessed
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI_getProcessed(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI__1getProcessed(JNIEnv* env, jclass cls)
 {
 	return (jint)SPI_processed;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getResult
+ * Method:    _getResult
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI_getResult(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI__1getResult(JNIEnv* env, jclass cls)
 {
 	return (jint)SPI_result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_SPI
- * Method:    getTupTable
+ * Method:    _getTupTable
  * Signature: ()Lorg/postgresql/pljava/internal/SPITupleTable;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_SPI_getTupTable(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	return SPITupleTable_create(env, SPI_tuptable);
 }

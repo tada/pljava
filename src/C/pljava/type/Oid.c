@@ -27,7 +27,7 @@ jobject Oid_create(JNIEnv* env, Oid oid)
 {
 	jobject joid;
 	if(OidIsValid(oid))
-		joid = (*env)->NewObject(env, s_Oid_class, s_Oid_init, oid);
+		joid = PgObject_newJavaObject(env, s_Oid_class, s_Oid_init, oid);
 	else
 		joid = 0;
 	return joid;
@@ -167,23 +167,22 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 
 /*
  * Class:     org_postgresql_pljava_internal_Oid
- * Method:    forSqlType
+ * Method:    _forSqlType
  * Signature: (I)Lorg/postgresql/pljava/internal/Oid;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint sqlType)
+Java_org_postgresql_pljava_internal_Oid__1forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
-	PLJAVA_ENTRY_FENCE(0)
 	return Oid_create(env, Oid_forSqlType(sqlType));
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_Oid
- * Method:    getTypeId
+ * Method:    _getTypeId
  * Signature: ()Lorg/postgresql/pljava/internal/Oid;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Oid_getTypeId(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_Oid__1getTypeId(JNIEnv* env, jclass cls)
 {
 	return s_OidOid;
 }

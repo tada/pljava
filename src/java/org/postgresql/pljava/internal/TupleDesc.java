@@ -25,8 +25,14 @@ public class TupleDesc extends NativeStruct
 	 * @throws SQLException If the index is out of range for this
 	 * tuple descriptor.
 	 */
-	public native String getColumnName(int index)
-	throws SQLException;
+	public String getColumnName(int index)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getColumnName(index);
+		}
+	}
 
 	/**
 	 * Returns the index of the column named <code>colName</code>.
@@ -35,11 +41,28 @@ public class TupleDesc extends NativeStruct
 	 * @throws SQLException If no column with the given name can
 	 * be found in this tuple descriptor.
 	 */
-	public native int getColumnIndex(String colName)
-	throws SQLException;
+	public int getColumnIndex(String colName)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getColumnIndex(colName);
+		}
+	}
 
 	/**
 	 * Returns the number of columns in this tuple descriptor.
 	 */
-	public native int size();
+	public int size()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._size();
+		}
+	}
+
+	private native String _getColumnName(int index) throws SQLException;
+	private native int _getColumnIndex(String colName) throws SQLException;
+	private native int _size();
 }

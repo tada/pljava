@@ -22,7 +22,11 @@ static jmethodID s_Double_doubleValue;
  */
 static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, bool* wasNull)
 {
-	return Float8GetDatum((*env)->CallStaticDoubleMethodA(env, cls, method, args));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	Datum ret = Float8GetDatum((*env)->CallStaticDoubleMethodA(env, cls, method, args));
+	isCallingJava = saveicj;
+	return ret;
 }
 
 static jvalue _double_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -48,7 +52,7 @@ static bool _Double_canReplace(Type self, Type other)
 static jvalue _Double_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	result.l = (*env)->NewObject(env, s_Double_class, s_Double_init, DatumGetFloat8(arg));
+	result.l = PgObject_newJavaObject(env, s_Double_class, s_Double_init, DatumGetFloat8(arg));
 	return result;
 }
 
