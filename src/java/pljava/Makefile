@@ -7,7 +7,7 @@
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
 NAME			:= pljava
-JAVADOCTITLE	:= 'PL/Java v1.0.0 API Specification'
+JAVADOCTITLE	:= 'PL/Java v$(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER) API Specification'
 
 include $(MODULEROOT)/Makefile.global
 
