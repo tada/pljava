@@ -206,6 +206,7 @@ public class Tester
 				t.testUsingScalarProperties();
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
+				t.testDatabaseMetaData();
 			}
 			t.close();
 		}
@@ -585,6 +586,133 @@ public class Tester
 				rs = null;
 			}
 			stmt.close();
+		}
+	}
+
+	public void testDatabaseMetaData()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = null;
+
+		try
+		{
+			System.out.println("*** DatabaseMetaData 'String' functions:");
+			rs = stmt.executeQuery("SELECT * FROM javatest.getMetaDataStrings()");
+			while(rs.next())
+			{
+				String methodName = rs.getString(1);
+				String methodResult = rs.getString(2);
+				System.out.println(
+						"Method = \"" + methodName +
+						"\", result = \"" + methodResult + "\"");
+			}
+			rs.close();
+
+			System.out.println("*** DatabaseMetaData 'boolean' functions:");
+			rs = stmt.executeQuery("SELECT * FROM javatest.getMetaDataBooleans()");
+			while(rs.next())
+			{
+				String methodName = rs.getString(1);
+				boolean methodResult = rs.getBoolean(2);
+				System.out.println(
+						"Method = \"" + methodName +
+						"\", result = \"" + methodResult + "\"");
+			}
+			rs.close();
+
+			System.out.println("*** DatabaseMetaData 'int' functions:");
+			rs = stmt.executeQuery("SELECT * FROM javatest.getMetaDataInts()");
+			while(rs.next())
+			{
+				String methodName = rs.getString(1);
+				int methodResult = rs.getInt(2);
+				System.out.println(
+						"Method = \"" + methodName +
+						"\", result = \"" + methodResult + "\"");
+			}
+			rs.close();
+
+			executeMetaDataFunction(stmt,
+				"getAttributes((String)null,\"javatest\",\"%\",\"%\")");
+			executeMetaDataFunction(stmt,
+				"getBestRowIdentifier((String)null,\"sqlj\",\"jar_repository\",0,FALSE)");
+			executeMetaDataFunction(stmt,
+				"getCatalogs()");
+			executeMetaDataFunction(stmt,
+				"getColumnPrivileges((String)null,\"sqlj\",\"jar_repository\",\"jarid\")");
+			executeMetaDataFunction(stmt,
+				"getColumns((String)null,\"sqlj\",\"jar_repository\",\"%\")");
+			executeMetaDataFunction(stmt,
+				"getCrossReference((String)null,\"sqlj\",\"jar_repository\",(String)null,\"sqlj\",\"jar_entry\")");
+			executeMetaDataFunction(stmt,
+				"getExportedKeys((String)null,\"sqlj\",\"jar_repository\")");
+			executeMetaDataFunction(stmt,
+				"getImportedKeys((String)null,\"sqlj\",\"jar_repository\")");
+			executeMetaDataFunction(stmt,
+				"getIndexInfo((String)null,\"sqlj\",\"jar_repository\",TRUE,FALSE)");
+			executeMetaDataFunction(stmt,
+				"getPrimaryKeys((String)null,\"sqlj\",\"jar_repository\")");
+			executeMetaDataFunction(stmt,
+				"getProcedureColumns((String)null,\"sqlj\",\"install_jar\",(String)null)");
+			executeMetaDataFunction(stmt,
+				"getProcedures((String)null,\"sqlj\",\"%\")");
+			executeMetaDataFunction(stmt,
+				"getSchemas()");
+			executeMetaDataFunction(stmt,
+				"getSuperTables((String)null,\"sqlj\",\"jar_repository\")");
+			executeMetaDataFunction(stmt,
+				"getSuperTypes((String)null,\"sqlj\",\"%\")");
+			executeMetaDataFunction(stmt,
+				"getTablePrivileges((String)null,\"sqlj\",\"jar_repository\")");
+			executeMetaDataFunction(stmt,
+				"getTables((String)null,\"sqlj\",\"jar%\",{\"TABLE\"})");
+			executeMetaDataFunction(stmt,
+				"getTableTypes()");
+			executeMetaDataFunction(stmt,
+				"getTypeInfo()");
+			executeMetaDataFunction(stmt,
+				"getUDTs((String)null,\"sqlj\",\"%\",(int[])null)");
+			executeMetaDataFunction(stmt,
+				"getVersionColumns((String)null,\"sqlj\",\"jar_repository\")");
+		}
+		finally
+		{
+			if(rs != null)
+			{
+				try { rs.close(); } catch(SQLException e) {}
+				rs = null;
+			}
+		}
+	}
+
+	private void executeMetaDataFunction(Statement stmt, String functionCall)
+	throws SQLException
+	{
+		ResultSet rs = null;
+		try
+		{
+			System.out.println("*** " + functionCall + ":");
+			rs = stmt.executeQuery("SELECT * FROM javatest.callMetaDataMethod('" +
+								   functionCall + "')");
+			while(rs.next())
+			{
+				System.out.println(rs.getString(1));
+			}
+			rs.close();
+
+		}
+		catch (Exception e)
+		{
+			System.out.println("  Failed: " + e.getMessage());
+		}
+		finally
+		{
+			if(rs != null)
+			{
+				try { rs.close(); } catch(SQLException e) {}
+				rs = null;
+			}
 		}
 	}
 }
