@@ -23,6 +23,7 @@ JNI_CLASSES := \
 	$(INTPKG).NativeStruct \
 	$(INTPKG).ExecutionPlan \
 	$(INTPKG).HeapTupleHeader \
+	$(INTPKG).LargeObject \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \
 	$(INTPKG).SPITupleTable \
