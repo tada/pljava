@@ -7,9 +7,9 @@
 package org.postgresql.pljava.example;
 
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import org.postgresql.pljava.ResultSetHandle;
 
 /**
@@ -20,12 +20,12 @@ import org.postgresql.pljava.ResultSetHandle;
  */
 public class UsingPropertiesAsResultSet implements ResultSetHandle
 {
-	private Statement m_statement;
+	private PreparedStatement m_statement;
 
 	public ResultSet getResultSet() throws SQLException
 	{
-		m_statement = DriverManager.getConnection("jdbc:default:connection").createStatement();
-		return m_statement.executeQuery("SELECT * FROM propertyExample()");
+		m_statement = DriverManager.getConnection("jdbc:default:connection").prepareStatement("SELECT * FROM propertyExample()");
+		return m_statement.executeQuery();
 	}
 
 	public void close()

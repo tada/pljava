@@ -128,14 +128,20 @@ public class Invocation
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			Invocation curr;
+			Invocation curr = _getCurrent();
+			if(curr != null)
+				return curr;
+
 			int level = _getNestingLevel();
 			int top = s_levels.length;
 			if(level <= top)
 			{
 				curr = s_levels[level];
 				if(curr != null)
+				{
+					curr._register();
 					return curr;
+				}
 			}
 			else
 			{
@@ -165,6 +171,12 @@ public class Invocation
 	 */
 	private native void  _register();
 	
+	/**
+	 * Returns the current invocation or null if no invocation has been
+	 * registered yet.
+	 */
+	private native static Invocation  _getCurrent();
+
 	/**
 	 * Returns the current nesting level
 	 */

@@ -117,6 +117,11 @@ static void initPLJavaClasses(JNIEnv* env)
 
 	JNINativeMethod invocationMethods[] = {
 		{
+		"_getCurrent",
+		"()Lorg/postgresql/pljava/jdbc/Invocation;",
+		Java_org_postgresql_pljava_jdbc_Invocation__1getCurrent
+		},
+		{
 		"_getNestingLevel",
 		"()I",
 		Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel
@@ -1122,6 +1127,17 @@ JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel(JNIEnv* env, jclass cls)
 {
 	return s_callLevel;
+}
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_Invocation
+ * Method:    _getCurrent
+ * Signature: ()Lorg/postgresql/pljava/jdbc/Invocation;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_jdbc_Invocation__1getCurrent(JNIEnv* env, jclass cls)
+{
+	return currentCallContext->invocation;
 }
 
 /*

@@ -12,7 +12,7 @@
     		password=""
     		file="../../../build/examples.jar"
     		schema="public"
-    		reload="false"/>
+    		reload="true"/>
     </target>
 
 </project>

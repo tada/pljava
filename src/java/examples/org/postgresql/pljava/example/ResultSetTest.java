@@ -6,11 +6,14 @@
  */
 package org.postgresql.pljava.example;
 
-import java.sql.*;
-import java.lang.reflect.*;
-import java.util.regex.*;
-import java.util.Iterator;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * @author Filip Hrbek

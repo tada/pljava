@@ -42,6 +42,7 @@ typedef struct
 	JNIEnv*       jniEnv;
 	jobject       singleRowWriter;
 	jobject       resultSetProvider;
+	jobject       invocation;
 	bool          hasConnected;
 	bool          trusted;
 	MemoryContext memoryContext;
@@ -53,6 +54,8 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 	bool saveicj = isCallingJava;
 
 	currentCallContext->hasConnected = ctxData->hasConnected;
+	currentCallContext->invocation   = ctxData->invocation;
+
 	isCallingJava = true;
 	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
 	isCallingJava = saveicj;
@@ -159,8 +162,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		(*env)->DeleteLocalRef(env, tmp2);
 
 		ctxData->memoryContext = CurrentMemoryContext;
-		ctxData->hasConnected  = currentCallContext->hasConnected;
 		ctxData->trusted       = currentCallContext->trusted;
+		ctxData->hasConnected  = currentCallContext->hasConnected;
+		ctxData->invocation    = currentCallContext->invocation;
 
 		/* Register callback to be called when the function ends
 		 */
@@ -172,6 +176,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ctxData = (CallContextData*)context->user_fctx;
 		MemoryContextSwitchTo(ctxData->memoryContext); /* May be an SPI context */
 		currentCallContext->hasConnected = ctxData->hasConnected;
+		currentCallContext->invocation   = ctxData->invocation;
 	}
 
 	/* Obtain next row using the RowProvider as a parameter to the
@@ -185,7 +190,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 			(jint)context->call_cntr) == JNI_TRUE);
 	isCallingJava = saveicj;
 	ctxData->hasConnected = currentCallContext->hasConnected;
+	ctxData->invocation   = currentCallContext->invocation;
 	currentCallContext->hasConnected = false;
+	currentCallContext->invocation   = 0;
 	Exception_checkException(env);
 
 	if(hasRow)
