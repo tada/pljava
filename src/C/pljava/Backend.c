@@ -55,9 +55,8 @@ bool elogErrorOccured;
 #ifdef PGSQL_CUSTOM_VARIABLES
 static char* vmoptions;
 static char* classpath;
-static bool  pljavaDebug;
 #endif
-
+static bool  pljavaDebug;
 
 static void initJavaVM(JNIEnv* env)
 {
@@ -663,13 +662,12 @@ static void initializeJavaVM()
 	EmitWarningsOnPlaceholders("pljava");
 
 	addUserJVMOptions(&optList);
-	
-	if(pljavaDebug)
-	{
-		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
-		while(pljavaDebug)
-			sleep(1);
-	}
+#endif
+
+#ifdef PLJAVA_DEBUG
+	/* Hard setting for debug. Don't forget to recompile...
+	 */
+	pljavaDebug = 1;
 #endif
 
 	tmp = getClassPath("-Djava.class.path=");
@@ -722,6 +720,13 @@ static void initializeJavaVM()
 	 */
 	JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
+
+	if(pljavaDebug)
+	{
+		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
+		while(pljavaDebug)
+			sleep(1);
+	}
 
 	vm_args.nOptions = optList.size;
 	vm_args.options  = optList.options;
@@ -839,7 +844,6 @@ JNIEXPORT void JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
 	char* str;
-	PLJAVA_ENTRY_FENCE_VOID
 	str = String_createNTS(env, jstr);
 	if(str == 0)
 		return;

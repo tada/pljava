@@ -93,7 +93,7 @@ Datum ErrorData_initialize(PG_FUNCTION_ARGS)
 	  	Java_org_postgresql_pljava_internal_ErrorData_getFuncname
 		},
 		{
-		"getSqlErrCode",
+		"getSqlState",
 	  	"()Ljava/lang/String;",
 	  	Java_org_postgresql_pljava_internal_ErrorData_getSqlState
 		},
@@ -172,9 +172,7 @@ Datum ErrorData_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ErrorData_getErrorLevel(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : (jint)ed->elevel;
 }
 
@@ -185,9 +183,7 @@ Java_org_postgresql_pljava_internal_ErrorData_getErrorLevel(JNIEnv* env, jobject
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getMessage(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->message);
 }
 
@@ -201,9 +197,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getSqlSt
 	char buf[6];
 	int errCode;
 	int idx;
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	if(ed == 0)
 		return 0;
 
@@ -228,9 +222,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getSqlSt
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isOutputToServer(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? JNI_FALSE : (jboolean)ed->output_to_server;
 }
 
@@ -241,9 +233,7 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isOutpu
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isOutputToClient(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? JNI_FALSE : (jboolean)ed->output_to_client;
 }
 
@@ -254,9 +244,7 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isOutpu
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isShowFuncname(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? JNI_FALSE : (jboolean)ed->show_funcname;
 }
 
@@ -267,9 +255,7 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData_isShowF
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getFilename(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->filename);
 }
 
@@ -280,9 +266,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getFilen
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getLineno(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : (jint)ed->lineno;
 }
 
@@ -293,9 +277,7 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getLineno(J
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getFuncname(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->funcname);
 }
 
@@ -306,9 +288,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getFuncn
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getDetail(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->detail);
 }
 
@@ -319,9 +299,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getDetai
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getHint(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->hint);
 }
 
@@ -332,9 +310,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getHint(
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getContextMessage(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->context);
 }
 
@@ -345,9 +321,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getConte
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getCursorPos(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : (jint)ed->cursorpos;
 }
 
@@ -358,9 +332,7 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getCursorPo
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getInternalPos(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : (jint)ed->internalpos;
 }
 
@@ -371,9 +343,7 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getInternal
  */
 JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getInternalQuery(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : String_createJavaStringFromNTS(env, ed->internalquery);
 }
 
@@ -384,9 +354,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData_getInter
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData_getSavedErrno(JNIEnv* env, jobject _this)
 {
-	ErrorData* ed;
-	PLJAVA_ENTRY_FENCE(0)
-	ed = (ErrorData*)NativeStruct_getStruct(env, _this);
+	ErrorData* ed = (ErrorData*)NativeStruct_getStruct(env, _this);
 	return (ed == 0) ? 0 : (jint)ed->saved_errno;
 }
 

@@ -50,9 +50,9 @@ void Exception_checkException(JNIEnv* env)
 #if(PGSQL_MAJOR_VER < 8)
 	if(elogErrorOccured)
 		/*
-		 * Don't throw any exception. The ERROR takes precedence.
+		 * Oops, just re-throw this one.
 		 */
-		return;
+		PG_RE_THROW();
 #else
 	if((*env)->IsInstanceOf(env, exh, s_ServerException_class))
 	{
@@ -124,6 +124,7 @@ extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeat
 	appendStringInfoString(&buf, ". It was introduced in version ");
 	appendStringInfoString(&buf, introVersion);
 
+	ereport(DEBUG3, (errmsg(buf.data)));
 	jstring jmsg = String_createJavaStringFromNTS(env, buf.data);
 	pfree(buf.data);
 
@@ -144,6 +145,8 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 
 	va_start(args, errMessage);
 	vsnprintf(buf, sizeof(buf), errMessage, args);
+	ereport(DEBUG3, (errcode(errCode), errmsg(buf)));
+
 	message = String_createJavaStringFromNTS(env, buf);
 
 	/* unpack MAKE_SQLSTATE code
@@ -186,6 +189,7 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
 	errData->message = buf.data;
 #endif
+	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(buf.data)));
 	jobject ed = ErrorData_create(env, errData);
 	jobject ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
