@@ -2,7 +2,6 @@
 <?eclipse-cdt version="2.0"?>
 
 <cdtproject id="org.eclipse.cdt.make.core.make">
-<extension point="org.eclipse.cdt.core.ScannerInfoProvider" id="org.eclipse.cdt.make.core.MakeScannerProvider"/>
 <extension point="org.eclipse.cdt.core.BinaryParser" id="org.eclipse.cdt.core.GNU_ELF">
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
@@ -14,7 +13,7 @@
 <target name="pljava for gcj" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
 <buildArguments>USE_GCJ=1</buildArguments>
-<buildTarget>USE_GCJ=1 all</buildTarget>
+<buildTarget>CFLAGS=-g USE_GCJ=1 all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
@@ -27,7 +26,7 @@
 </target>
 <target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
 <buildCommand>make</buildCommand>
-<buildTarget>CFLAGS=-g all</buildTarget>
+<buildTarget>CFLAGS=-g JDK_HOME=/c/j2sdk1.4.2_04 all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
@@ -43,7 +42,27 @@
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
+<target name="all-pljavalib" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildTarget>all-pljavalib</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
+<target name="clean-pljavalib" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildTarget>clean-pljavalib</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
 </buildTargets>
+</item>
+<item id="org.eclipse.cdt.core.pathentry">
+<pathentry kind="src" path=""/>
+<pathentry kind="out" path=""/>
+</item>
+<item id="cdt_indexer">
+<indexEnabled indexValue="true"/>
+<indexerProblemsEnabled indexProblemsValue="false"/>
 </item>
 </data>
 </cdtproject>

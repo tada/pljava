@@ -9,3 +9,9 @@ all clean install uninstall depend:
 	@$(MAKE) -r -C $(TARGETDIR)/pljava \
 	-f $(PROJDIR)/src/C/pljava/Makefile \
 	MODULEROOT=$(PROJDIR)/src/C $@
+
+all-pljavalib clean-pljavalib install-pljavalib:
+	@mkdir -p $(TARGETDIR)/pljava
+	@$(MAKE) -r -C $(TARGETDIR)/pljava \
+	-f $(PROJDIR)/src/java/Makefile \
+	MODULEROOT=$(PROJDIR)/src/java $@

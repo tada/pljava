@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * @author Thomas Hallgren
@@ -37,6 +38,8 @@ public class Loader extends ClassLoader
 	public static ClassLoader getSchemaLoader(String schemaName)
 	throws SQLException
 	{
+		Logger log = Logger.getAnonymousLogger();
+		log.info("Hey, I got this far");
 		if(schemaName == null || schemaName.length() == 0)
 			schemaName = PUBLIC_SCHEMA;
 		else

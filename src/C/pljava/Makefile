@@ -15,12 +15,21 @@ ifeq ($(PORTNAME), cygwin)
 	DLL_BUILD := 1
 	override CPPFLAGS := -DCYGWIN $(CPPFLAGS)
 else
+ifeq ($(PORTNAME), darwin)
+	#
+	# override with JAVAVM_FWX_ROOT=/... on command line
+	# if something else is needed
+	#
+	JAVAVM_FWX_ROOT := /System/Library/Frameworks
+	override CPPFLAGS := -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/ $(CPPFLAGS)
+else
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
 		JRE_LIB := lib/i386/client
 	else
 		JRE_LIB := lib/$(host_cpu)/client
 	endif
+endif
 endif
 endif
 
@@ -36,11 +45,23 @@ ifdef DLL_BUILD
 endif
 
 ifdef USE_GCJ
+	GCJ := gcj
 	override CPPFLAGS := -DGCJ $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -lgcj -lwsock32
+	SHLIB_LINK = $(BE_DLLLIBS) -lgcj -lws2_32
+	JAVA_SRCS	:= $(shell find $(MODULEROOT)/../java -type f -name \*.java)
+	OBJS += pljava_jar.o
+
+pljava_jar.o: $(JAVA_SRCS)
+	@-mkdir -p $(@D)
+	$(GCJ) -g -c -fjni -o $@ $(JAVA_SRCS)
+
+else
+ifeq ($(PORTNAME), darwin)
+	SHLIB_LINK = $(BE_DLLLIBS) -L. -framework JavaVM
 else
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
 	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/$(JRE_LIB) -ljvm
+endif
 endif
 
 SO_MAJOR_VERSION := 1

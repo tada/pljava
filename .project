@@ -15,9 +15,7 @@
 			<arguments>
 				<dictionary>
 					<key>LaunchConfigHandle</key>
-					<value>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
-&lt;launchConfiguration local=&quot;false&quot; path=&quot;/org.postgresql.pljava/.externalToolBuilders/Header generator.launch&quot;/&gt;
-</value>
+					<value>Header generator.launch</value>
 				</dictionary>
 			</arguments>
 		</buildCommand>
@@ -73,12 +71,12 @@
 					<value>c:/msys/1.0/bin/make</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.stopOnError</key>
-					<value>false</value>
-				</dictionary>
-				<dictionary>
 					<key>org.eclipse.cdt.make.core.autoBuildTarget</key>
 					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.stopOnError</key>
+					<value>false</value>
 				</dictionary>
 			</arguments>
 		</buildCommand>
