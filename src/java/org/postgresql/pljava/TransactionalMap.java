@@ -271,6 +271,11 @@ public class TransactionalMap extends HashMap
 		return m_valueColl;
 	}
 
+	private Set superKeySet()
+	{
+		return super.keySet();
+	}
+
 	protected Iterator getEntryIterator()
 	{
 		return new EntryIterator();
@@ -315,7 +320,7 @@ public class TransactionalMap extends HashMap
 	{
 		private boolean m_phaseA = true;
 
-		private Iterator m_currentItor = TransactionalMap.super.keySet().iterator();
+		private Iterator m_currentItor = TransactionalMap.this.superKeySet().iterator();
 
 		private Object m_currentKey = null;
 
