@@ -1416,7 +1416,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[12] = new ResultSetField("REMARKS", TypeOid.VARCHAR,
 			getMaxNameLength());
 
-		String sql = "SELECT n.nspname,p.proname,p.prorettype,p.proargtypes, t.typtype,t.typrelid "
+		String sql = "SELECT n.nspname,p.proname,p.prorettype::int4,p.proargtypes, t.typtype::varchar,t.typrelid::int4 "
 				+ " FROM pg_catalog.pg_proc p,pg_catalog.pg_namespace n, pg_catalog.pg_type t "
 				+ " WHERE p.pronamespace=n.oid AND p.prorettype=t.oid ";
 		if(schemaPattern != null && !"".equals(schemaPattern))
@@ -1432,16 +1432,29 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sql += " ORDER BY n.nspname, p.proname ";
 
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
+		String schema = null;
+		String procedureName = null;
+		Integer returnType = null;
+		String returnTypeType = null;
+		Integer returnTypeRelid = null;
+
+		String strArgTypes = null;
+		StringTokenizer st = null;
+		ArrayList argTypes = null;
+
 		while(rs.next())
 		{
-			byte schema[] = rs.getBytes("nspname");
-			byte procedureName[] = rs.getBytes("proname");
-			int returnType = rs.getInt("prorettype");
-			String returnTypeType = rs.getString("typtype");
-			int returnTypeRelid = rs.getInt("typrelid");
-			String strArgTypes = rs.getString("proargtypes");
-			StringTokenizer st = new StringTokenizer(strArgTypes);
-			ArrayList argTypes = new ArrayList();
+			schema = rs.getString("nspname");
+			procedureName = rs.getString("proname");
+			returnType = (Integer)(rs.getObject("prorettype"));
+			returnTypeType = rs.getString("typtype");
+			returnTypeRelid = (Integer)(rs.getObject("typrelid"));
+			strArgTypes = rs.getString("proargtypes");
+			//argTypesArr = rs.getArray("proargtypes");
+			//ResultSet argrs = argTypesArr.getResultSet();
+
+			st = new StringTokenizer(strArgTypes);
+			argTypes = new ArrayList();
 			while(st.hasMoreTokens())
 			{
 				argTypes.add(new Integer(st.nextToken()));
@@ -1450,22 +1463,19 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// decide if we are returning a single column result.
 			if(!returnTypeType.equals("c"))
 			{
-				byte[][] tuple = new byte[13][];
+				Object[] tuple = new Object[13];
 				tuple[0] = null;
 				tuple[1] = schema;
 				tuple[2] = procedureName;
-				tuple[3] = encodeString("returnValue");
-				tuple[4] = encodeString(Integer
-					.toString(java.sql.DatabaseMetaData.procedureColumnReturn));
-				tuple[5] = encodeString(Integer.toString(m_connection
-					.getSQLType(returnType)));
-				tuple[6] = encodeString(m_connection.getPGType(returnType));
+				tuple[3] = "returnValue";
+				tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnReturn);
+				tuple[5] = new Short((short)m_connection.getSQLType(returnType.intValue()));
+				tuple[6] = m_connection.getPGType(returnType.intValue());
 				tuple[7] = null;
 				tuple[8] = null;
 				tuple[9] = null;
 				tuple[10] = null;
-				tuple[11] = encodeString(Integer
-					.toString(java.sql.DatabaseMetaData.procedureNullableUnknown));
+				tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
 				tuple[12] = null;
 				v.add(tuple);
 			}
@@ -1474,22 +1484,19 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			for(int i = 0; i < argTypes.size(); i++)
 			{
 				int argOid = ((Integer)argTypes.get(i)).intValue();
-				byte[][] tuple = new byte[13][];
+				Object[] tuple = new Object[13];
 				tuple[0] = null;
 				tuple[1] = schema;
 				tuple[2] = procedureName;
-				tuple[3] = encodeString("$" + (i + 1));
-				tuple[4] = encodeString(Integer
-					.toString(java.sql.DatabaseMetaData.procedureColumnIn));
-				tuple[5] = encodeString(Integer.toString(m_connection
-					.getSQLType(argOid)));
-				tuple[6] = encodeString(m_connection.getPGType(argOid));
+				tuple[3] = "$" + (i + 1);
+				tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnIn);
+				tuple[5] = new Short((short)m_connection.getSQLType(argOid));
+				tuple[6] = m_connection.getPGType(argOid);
 				tuple[7] = null;
 				tuple[8] = null;
 				tuple[9] = null;
 				tuple[10] = null;
-				tuple[11] = encodeString(Integer
-					.toString(java.sql.DatabaseMetaData.procedureNullableUnknown));
+				tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
 				tuple[12] = null;
 				v.add(tuple);
 			}
@@ -1497,29 +1504,26 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// if we are returning a multi-column result.
 			if(returnTypeType.equals("c"))
 			{
-				String columnsql = "SELECT a.attname,a.atttypid FROM pg_catalog.pg_attribute a WHERE a.attrelid = "
+				String columnsql = "SELECT a.attname,a.atttypid::int4 FROM pg_catalog.pg_attribute a WHERE a.attrelid = "
 					+ returnTypeRelid + " ORDER BY a.attnum ";
 				ResultSet columnrs = m_connection.createStatement().executeQuery(
 					columnsql);
 				while(columnrs.next())
 				{
 					int columnTypeOid = columnrs.getInt("atttypid");
-					byte[][] tuple = new byte[13][];
+					Object[] tuple = new Object[13];
 					tuple[0] = null;
 					tuple[1] = schema;
 					tuple[2] = procedureName;
-					tuple[3] = columnrs.getBytes("attname");
-					tuple[4] = encodeString(Integer
-						.toString(java.sql.DatabaseMetaData.procedureColumnResult));
-					tuple[5] = encodeString(Integer.toString(m_connection
-						.getSQLType(columnTypeOid)));
-					tuple[6] = encodeString(m_connection.getPGType(columnTypeOid));
+					tuple[3] = columnrs.getString("attname");
+					tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnResult);
+					tuple[5] = new Short((short)m_connection.getSQLType(columnTypeOid));
+					tuple[6] = m_connection.getPGType(columnTypeOid);
 					tuple[7] = null;
 					tuple[8] = null;
 					tuple[9] = null;
 					tuple[10] = null;
-					tuple[11] = encodeString(Integer
-						.toString(java.sql.DatabaseMetaData.procedureNullableUnknown));
+					tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
 					tuple[12] = null;
 					v.add(tuple);
 				}
@@ -1736,8 +1740,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			getMaxNameLength());
 		for(int i = 0; i < types.length; i++)
 		{
-			byte[][] tuple = new byte[1][];
-			tuple[0] = encodeString(types[i]);
+			Object[] tuple = new Object[1];
+			tuple[0] = types[i];
 			v.add(tuple);
 		}
 
@@ -1806,13 +1810,14 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			getMaxNameLength());
 		f[13] = new ResultSetField("SQL_DATA_TYPE", TypeOid.INT4, 4);
 		f[14] = new ResultSetField("SQL_DATETIME_SUB", TypeOid.INT4, 4);
-		f[15] = new ResultSetField("CHAR_OCTET_LENGTH", TypeOid.VARCHAR,
-			getMaxNameLength());
+		f[15] = new ResultSetField("CHAR_OCTET_LENGTH", TypeOid.INT4, 4);
 		f[16] = new ResultSetField("ORDINAL_POSITION", TypeOid.INT4, 4);
 		f[17] = new ResultSetField("IS_NULLABLE", TypeOid.VARCHAR,
 			getMaxNameLength());
 
-		String sql = "SELECT n.nspname,c.relname,a.attname,a.atttypid,a.attnotnull,a.atttypmod,a.attlen,a.attnum,def.adsrc,dsc.description "
+		String sql = "SELECT n.nspname,c.relname,a.attname,"
+				+ " a.atttypid::int4 as atttypid,a.attnotnull,a.atttypmod,"
+				+ " a.attlen::int4 as attlen,a.attnum,def.adsrc,dsc.description "
 				+ " FROM pg_catalog.pg_namespace n "
 				+ " JOIN pg_catalog.pg_class c ON (c.relnamespace = n.oid) "
 				+ " JOIN pg_catalog.pg_attribute a ON (a.attrelid=c.oid) "
@@ -1842,17 +1847,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		while(rs.next())
 		{
-			byte[][] tuple = new byte[18][];
+			Object[] tuple = new Object[18];
 			int typeOid = rs.getInt("atttypid");
 
 			tuple[0] = null; // Catalog name, not supported
-			tuple[1] = rs.getBytes("nspname"); // Schema
-			tuple[2] = rs.getBytes("relname"); // Table name
-			tuple[3] = rs.getBytes("attname"); // Column name
-			tuple[4] = encodeString(Integer.toString(m_connection
-				.getSQLType(typeOid)));
+			tuple[1] = rs.getString("nspname"); // Schema
+			tuple[2] = rs.getString("relname"); // Table name
+			tuple[3] = rs.getString("attname"); // Column name
+			tuple[4] = new Short((short)m_connection.getSQLType(typeOid));
 			String pgType = m_connection.getPGType(typeOid);
-			tuple[5] = encodeString(pgType); // Type name
+			tuple[5] = m_connection.getPGType(typeOid); // Type name
 
 			String defval = rs.getString("adsrc");
 
@@ -1861,63 +1865,61 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				if(pgType.equals("int4"))
 				{
 					if(defval.indexOf("nextval(") != -1)
-						tuple[5] = encodeString("serial"); // Type name ==
-															// serial
+						tuple[5] = "serial"; // Type name ==
+											 // serial
 				}
 				else if(pgType.equals("int8"))
 				{
 					if(defval.indexOf("nextval(") != -1)
-						tuple[5] = encodeString("bigserial"); // Type name ==
-																// bigserial
+						tuple[5] = "bigserial"; // Type name ==
+												// bigserial
 				}
 			}
 
 			// by default no decimal_digits
 			// if the type is numeric or decimal we will
 			// overwrite later.
-			tuple[8] = encodeString("0");
+			tuple[8] = new Integer(0);
 
 			if(pgType.equals("bpchar") || pgType.equals("varchar"))
 			{
 				int atttypmod = rs.getInt("atttypmod");
-				tuple[6] = encodeString(Integer.toString(atttypmod != -1
-					? atttypmod - VARHDRSZ
-					: 0));
+				tuple[6] = new Integer(atttypmod != -1
+										? atttypmod - VARHDRSZ
+										: 0);
 			}
 			else if(pgType.equals("numeric") || pgType.equals("decimal"))
 			{
 				int attypmod = rs.getInt("atttypmod") - VARHDRSZ;
-				tuple[6] = encodeString(Integer
-					.toString((attypmod >> 16) & 0xffff));
-				tuple[8] = encodeString(Integer.toString(attypmod & 0xffff));
-				tuple[9] = encodeString("10");
+				tuple[6] = new Integer ((attypmod >> 16) & 0xffff);
+				tuple[8] = new Integer (attypmod & 0xffff);
+				tuple[9] = new Integer(10);
 			}
 			else if(pgType.equals("bit") || pgType.equals("varbit"))
 			{
-				tuple[6] = rs.getBytes("atttypmod");
-				tuple[9] = encodeString("2");
+				tuple[6] = (Integer)rs.getObject("atttypmod");
+				tuple[9] = new Integer(2);
 			}
 			else
 			{
-				tuple[6] = rs.getBytes("attlen");
-				tuple[9] = encodeString("10");
+				tuple[6] = (Integer)rs.getObject("attlen");
+				tuple[9] = new Integer(10);
 			}
 
 			tuple[7] = null; // Buffer length
 
-			tuple[10] = encodeString(Integer.toString(rs
-				.getBoolean("attnotnull")
-				? java.sql.DatabaseMetaData.columnNoNulls
-				: java.sql.DatabaseMetaData.columnNullable)); // Nullable
-			tuple[11] = rs.getBytes("description"); // Description (if any)
-			tuple[12] = rs.getBytes("adsrc"); // Column default
+			tuple[10] = new Integer(rs
+							.getBoolean("attnotnull")
+							? java.sql.DatabaseMetaData.columnNoNulls
+							: java.sql.DatabaseMetaData.columnNullable); // Nullable
+			tuple[11] = rs.getString("description"); // Description (if any)
+			tuple[12] = rs.getString("adsrc"); // Column default
 			tuple[13] = null; // sql data type (unused)
 			tuple[14] = null; // sql datetime sub (unused)
 			tuple[15] = tuple[6]; // char octet length
-			tuple[16] = rs.getBytes("attnum"); // ordinal position
-			tuple[17] = encodeString(rs.getBoolean("attnotnull") ? "NO" : "YES"); // Is
-																					// nullable
-
+			tuple[16] = new Integer(rs.getInt("attnum")); // ordinal position
+			tuple[17] = rs.getBoolean("attnotnull") ? "NO" : "YES"; // Is
+																	// nullable
 			v.add(tuple);
 		}
 		rs.close();
@@ -1993,33 +1995,40 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sql += " ORDER BY attname ";
 
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
+		String schemaName = null;
+		String tableName = null;
+		String column = null;
+		String owner = null;
+		String acl = null;
+		HashMap permissions = null;
+		String permNames[] = null;
+
 		while(rs.next())
 		{
-			byte schemaName[] = rs.getBytes("nspname");
-			byte tableName[] = rs.getBytes("relname");
-			byte column[] = rs.getBytes("attname");
-			String owner = rs.getString("usename");
-			String acl = rs.getString("relacl");
-			HashMap permissions = parseACL(acl, owner);
-			String permNames[] = (String[])permissions.keySet().toArray(new String[permissions.size()]);
+			schemaName = rs.getString("nspname");
+			tableName = rs.getString("relname");
+			column = rs.getString("attname");
+			owner = rs.getString("usename");
+			acl = rs.getString("relacl");
+			permissions = parseACL(acl, owner);
+			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
 			sortStringArray(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
-				byte[] privilege = encodeString(permNames[i]);
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
 				for(int j = 0; j < grantees.size(); j++)
 				{
 					String grantee = (String)grantees.get(j);
 					String grantable = owner.equals(grantee) ? "YES" : "NO";
-					byte[][] tuple = new byte[8][];
+					Object[] tuple = new Object[8];
 					tuple[0] = null;
 					tuple[1] = schemaName;
 					tuple[2] = tableName;
 					tuple[3] = column;
-					tuple[4] = encodeString(owner);
-					tuple[5] = encodeString(grantee);
-					tuple[6] = privilege;
-					tuple[7] = encodeString(grantable);
+					tuple[4] = owner;
+					tuple[5] = grantee;
+					tuple[6] = permNames[i];
+					tuple[7] = grantable;
 					v.add(tuple);
 				}
 			}
@@ -2087,31 +2096,37 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sql += " ORDER BY nspname, relname ";
 
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
+		String schema = null;
+		String table = null;
+		String owner = null;
+		String acl = null;
+		HashMap permissions = null;
+		String permNames[] = null;
+
 		while(rs.next())
 		{
-			byte schema[] = rs.getBytes("nspname");
-			byte table[] = rs.getBytes("relname");
-			String owner = rs.getString("usename");
-			String acl = rs.getString("relacl");
-			HashMap permissions = parseACL(acl, owner);
-			String permNames[] = (String[])permissions.keySet().toArray(new String[permissions.size()]);
+			schema = rs.getString("nspname");
+			table = rs.getString("relname");
+			owner = rs.getString("usename");
+			acl = rs.getString("relacl");
+			permissions = parseACL(acl, owner);
+			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
 			sortStringArray(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
-				byte[] privilege = encodeString(permNames[i]);
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
 				for(int j = 0; j < grantees.size(); j++)
 				{
 					String grantee = (String)grantees.get(j);
 					String grantable = owner.equals(grantee) ? "YES" : "NO";
-					byte[][] tuple = new byte[7][];
+					Object[] tuple = new Object[7];
 					tuple[0] = null;
 					tuple[1] = schema;
 					tuple[2] = table;
-					tuple[3] = encodeString(owner);
-					tuple[4] = encodeString(grantee);
-					tuple[5] = privilege;
-					tuple[6] = encodeString(grantable);
+					tuple[3] = owner;
+					tuple[4] = grantee;
+					tuple[5] = permNames[i];
+					tuple[6] = grantable;
 					v.add(tuple);
 				}
 			}
@@ -2323,7 +2338,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			where += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
 		}
 
-		String sql = "SELECT a.attname, a.atttypid " + from
+		String sql = "SELECT a.attname, a.atttypid::int4 as atttypid " + from
 			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
 			+ " AND a.attrelid=ci.oid AND i.indisprimary "
 			+ " AND ct.relname = '" + escapeQuotes(table) + "' " + where
@@ -2332,18 +2347,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		while(rs.next())
 		{
-			byte tuple[][] = new byte[8][];
+			Object[] tuple = new Object[8];
 			int columnTypeOid = rs.getInt("atttypid");
-			tuple[0] = encodeString(Integer.toString(scope));
-			tuple[1] = rs.getBytes("attname");
-			tuple[2] = encodeString(Integer.toString(m_connection
-				.getSQLType(columnTypeOid)));
-			tuple[3] = encodeString(m_connection.getPGType(columnTypeOid));
+			tuple[0] = new Short((short)scope);
+			tuple[1] = rs.getString("attname");
+			tuple[2] = new Short((short)m_connection.getSQLType(columnTypeOid));
+			tuple[3] = m_connection.getPGType(columnTypeOid);
 			tuple[4] = null;
 			tuple[5] = null;
 			tuple[6] = null;
-			tuple[7] = encodeString(Integer
-				.toString(java.sql.DatabaseMetaData.bestRowNotPseudo));
+			tuple[7] = new Short((short)java.sql.DatabaseMetaData.bestRowNotPseudo);
 			v.add(tuple);
 		}
 
@@ -2383,7 +2396,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[6] = new ResultSetField("DECIMAL_DIGITS", TypeOid.INT2, 2);
 		f[7] = new ResultSetField("PSEUDO_COLUMN", TypeOid.INT2, 2);
 
-		byte tuple[][] = new byte[8][];
+		Object[] tuple = new Object[8];
 
 		/*
 		 * Postgresql does not have any column types that are automatically
@@ -2396,14 +2409,13 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		 */
 
 		tuple[0] = null;
-		tuple[1] = encodeString("ctid");
-		tuple[2] = encodeString(Integer.toString(m_connection.getSQLType("tid")));
-		tuple[3] = encodeString("tid");
+		tuple[1] = "ctid";
+		tuple[2] = new Short((short)m_connection.getSQLType("tid"));
+		tuple[3] = "tid";
 		tuple[4] = null;
 		tuple[5] = null;
 		tuple[6] = null;
-		tuple[7] = encodeString(Integer
-			.toString(java.sql.DatabaseMetaData.versionColumnPseudo));
+		tuple[7] = new Short((short)java.sql.DatabaseMetaData.versionColumnPseudo);
 		v.add(tuple);
 
 		/*
@@ -2438,7 +2450,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			where += " AND n.nspname = '" + escapeQuotes(schema) + "' ";
 		}
 		String sql = select + " ct.relname AS TABLE_NAME, "
-			+ " a.attname AS COLUMN_NAME, " + " a.attnum AS KEY_SEQ, "
+			+ " a.attname AS COLUMN_NAME, " + " a.attnum::int2 AS KEY_SEQ, "
 			+ " ci.relname AS PK_NAME " + from
 			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
 			+ " AND a.attrelid=ci.oid AND i.indisprimary ";
@@ -2501,7 +2513,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		 */
 		String sql = "SELECT NULL::text AS PKTABLE_CAT, pkn.nspname AS PKTABLE_SCHEM, pkc.relname AS PKTABLE_NAME, pka.attname AS PKCOLUMN_NAME, "
 			+ "NULL::text AS FKTABLE_CAT, fkn.nspname AS FKTABLE_SCHEM, fkc.relname AS FKTABLE_NAME, fka.attname AS FKCOLUMN_NAME, "
-			+ "pos.n AS KEY_SEQ, "
+			+ "pos.n::int2 AS KEY_SEQ, "
 			+ "CASE con.confupdtype "
 			+ " WHEN 'c' THEN "
 			+ DatabaseMetaData.importedKeyCascade
@@ -2513,7 +2525,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ DatabaseMetaData.importedKeyRestrict
 			+ " WHEN 'a' THEN "
 			+ DatabaseMetaData.importedKeyNoAction
-			+ " ELSE NULL END AS UPDATE_RULE, "
+			+ " ELSE NULL END::int2 AS UPDATE_RULE, "
 			+ "CASE con.confdeltype "
 			+ " WHEN 'c' THEN "
 			+ DatabaseMetaData.importedKeyCascade
@@ -2525,7 +2537,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ DatabaseMetaData.importedKeyRestrict
 			+ " WHEN 'a' THEN "
 			+ DatabaseMetaData.importedKeyNoAction
-			+ " ELSE NULL END AS DELETE_RULE, "
+			+ " ELSE NULL END::int2 AS DELETE_RULE, "
 			+ "con.conname AS FK_NAME, pkic.relname AS PK_NAME, "
 			+ "CASE "
 			+ " WHEN con.condeferrable AND con.condeferred THEN "
@@ -2534,7 +2546,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ DatabaseMetaData.importedKeyInitiallyImmediate
 			+ " ELSE "
 			+ DatabaseMetaData.importedKeyNotDeferrable
-			+ " END AS DEFERRABILITY "
+			+ " END::int2 AS DEFERRABILITY "
 			+ " FROM "
 			+ " pg_catalog.pg_namespace pkn, pg_catalog.pg_class pkc, pg_catalog.pg_attribute pka, "
 			+ " pg_catalog.pg_namespace fkn, pg_catalog.pg_class fkc, pg_catalog.pg_attribute fka, "
@@ -2760,51 +2772,48 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		// cache some results, this will keep memory useage down, and speed
 		// things up a little.
-		byte b9[] = encodeString("9");
-		byte b10[] = encodeString("10");
-		byte bf[] = encodeString("f");
-		byte bt[] = encodeString("t");
-		byte bnn[] = encodeString(Integer
-			.toString(java.sql.DatabaseMetaData.typeNoNulls));
-		byte bts[] = encodeString(Integer
-			.toString(java.sql.DatabaseMetaData.typeSearchable));
+		Integer i9 = new Integer(9);
+		Integer i10 = new Integer(10);
+		Short nn = new Short((short)java.sql.DatabaseMetaData.typeNoNulls);
+		Short ts = new Short((short)java.sql.DatabaseMetaData.typeSearchable);
+
+		String typname = null;
 
 		while(rs.next())
 		{
-			byte[][] tuple = new byte[18][];
-			String typname = rs.getString(1);
-			tuple[0] = encodeString(typname);
-			tuple[1] = encodeString(Integer.toString(m_connection
-				.getSQLType(typname)));
-			tuple[2] = b9; // for now
-			tuple[6] = bnn; // for now
-			tuple[7] = bf; // false for now - not case sensitive
-			tuple[8] = bts;
-			tuple[9] = bf; // false for now - it's signed
-			tuple[10] = bf; // false for now - must handle money
-			tuple[11] = bf; // false - it isn't autoincrement
+			Object[] tuple = new Object[18];
+			typname = rs.getString(1);
+			tuple[0] = typname;
+			tuple[1] = new Short((short)m_connection.getSQLType(typname));
+			tuple[2] = i9; // for now
+			tuple[6] = nn; // for now
+			tuple[7] = Boolean.FALSE; // false for now - not case sensitive
+			tuple[8] = ts;
+			tuple[9] = Boolean.FALSE; // false for now - it's signed
+			tuple[10] = Boolean.FALSE; // false for now - must handle money
+			tuple[11] = Boolean.FALSE; // false - it isn't autoincrement
 
 			// 12 - LOCAL_TYPE_NAME is null
 			// 13 & 14 ?
 			// 15 & 16 are unused so we return null
-			tuple[17] = b10; // everything is base 10
+			tuple[17] = i10; // everything is base 10
 			v.add(tuple);
 
 			// add pseudo-type serial, bigserial
 			if(typname.equals("int4"))
 			{
-				byte[][] tuple1 = (byte[][])tuple.clone();
+				Object[] tuple1 = (Object[])tuple.clone();
 
-				tuple1[0] = encodeString("serial");
-				tuple1[11] = bt;
+				tuple1[0] = "serial";
+				tuple1[11] = Boolean.TRUE;
 				v.add(tuple1);
 			}
 			else if(typname.equals("int8"))
 			{
-				byte[][] tuple1 = (byte[][])tuple.clone();
+				Object[] tuple1 = (Object[])tuple.clone();
 
-				tuple1[0] = encodeString("bigserial");
-				tuple1[11] = bt;
+				tuple1[0] = "bigserial";
+				tuple1[11] = Boolean.TRUE;
 				v.add(tuple1);
 			}
 
@@ -2872,8 +2881,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ " ELSE "
 			+ java.sql.DatabaseMetaData.tableIndexOther
 			+ " END "
-			+ " END AS TYPE, "
-			+ " a.attnum AS ORDINAL_POSITION, "
+			+ " END::int2 AS TYPE, "
+			+ " a.attnum::int2 AS ORDINAL_POSITION, "
 			+ " a.attname AS COLUMN_NAME, "
 			+ " NULL AS ASC_OR_DESC, "
 			+ " ci.reltuples AS CARDINALITY, "
@@ -3458,15 +3467,6 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public boolean supportsStatementPooling() throws SQLException
 	{
 		return false;
-	}
-
-	/**
-	 * This should sufficient since we are going to restore bytearray to
-	 * later...
-	 */
-	private byte[] encodeString(String str)
-	{
-		return str.getBytes();
 	}
 
 	/**
