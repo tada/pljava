@@ -25,6 +25,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.BitSet;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -683,6 +684,124 @@ public class SPIConnection implements Connection
 
         return typeName;
     }
+
+	static Object basicCoersion(Class cls, Object value)
+	throws SQLException
+	{
+		if(value == null || cls.isInstance(value))
+			return value;
+
+		if(cls == String.class)
+		{
+			if(value instanceof Number
+			|| value instanceof Boolean
+			|| value instanceof Timestamp
+			|| value instanceof Date
+			|| value instanceof Time)
+				return value.toString();
+		}
+		throw new SQLException("Cannot derive a value of class " +
+				cls.getName() + " from an object of class " + value.getClass().getName());
+	}
+
+	static Number basicNumericCoersion(Class cls, Object value)
+	throws SQLException
+	{
+		if(value == null || value instanceof Number)
+			return (Number)value;
+
+		if(cls == int.class  || cls == long.class || cls == short.class || cls == byte.class)
+		{
+			if(value instanceof String)
+				return Long.valueOf((String)value);
+
+			if(value instanceof Boolean)
+				return new Long(((Boolean)value).booleanValue() ? 1 : 0);
+		}
+		else if(cls == BigDecimal.class)
+		{
+			if(value instanceof String)
+				return new BigDecimal((String)value);
+
+			if(value instanceof Boolean)
+				return new BigDecimal(((Boolean)value).booleanValue() ? 1 : 0);
+		}
+		if(cls == double.class  || cls == float.class)
+		{
+			if(value instanceof String)
+				return Double.valueOf((String)value);
+
+			if(value instanceof Boolean)
+				return new Double(((Boolean)value).booleanValue() ? 1 : 0);
+		}
+		throw new SQLException("Cannot derive a Number from an object of class " + value.getClass().getName());
+	}
+
+	static Object basicCalendricalCoersion(Class cls, Object value, Calendar cal)
+	throws SQLException
+	{
+		if(value == null)
+			return value;
+
+		if(cls.isInstance(value))
+			return value;
+
+		if(cls == Timestamp.class)
+		{
+			if(value instanceof Date)
+			{
+				cal.setTime((Date)value);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				return new Timestamp(cal.getTimeInMillis());
+			}
+			else if(value instanceof Time)
+			{
+				cal.setTime((Date)value);
+				cal.set(1970, 0, 1);
+				return new Timestamp(cal.getTimeInMillis());
+			}
+			else if(value instanceof String)
+			{
+				return Timestamp.valueOf((String)value);
+			}
+		}
+		else if(cls == Date.class)
+		{
+			if(value instanceof Timestamp)
+			{
+				Timestamp ts = (Timestamp)value;
+				cal.setTime(ts);
+				cal.set(Calendar.HOUR_OF_DAY, 0);
+				cal.set(Calendar.MINUTE, 0);
+				cal.set(Calendar.SECOND, 0);
+				cal.set(Calendar.MILLISECOND, 0);
+				return new Date(cal.getTimeInMillis());
+			}
+			else if(value instanceof String)
+			{
+				return Date.valueOf((String)value);
+			}
+		}
+		else if(cls == Time.class)
+		{
+			if(value instanceof Timestamp)
+			{
+				Timestamp ts = (Timestamp)value;
+				cal.setTime(ts);
+				cal.set(1970, 0, 1);
+				return new Time(cal.getTimeInMillis());
+			}
+			else if(value instanceof String)
+			{
+				return Time.valueOf((String)value);
+			}
+		}
+		throw new SQLException("Cannot derive a value of class " +
+			cls.getName() + " from an object of class " + value.getClass().getName());
+	}
 
     /*
      * This table holds the org.postgresql names for the types supported.

@@ -6,9 +6,13 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Calendar;
 
 import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
@@ -56,9 +60,21 @@ public class SingleRowWriter extends SingleRowResultSet
 	{
 		if(x == null)
 			m_values[columnIndex-1] = x;
+
 		Class c = m_tupleDesc.getColumnClass(columnIndex);
-		if(c.isInstance(x))
-			m_values[columnIndex-1] = x;
+		if(!c.isInstance(x))
+		{
+			if(Number.class.isAssignableFrom(c))
+				x = SPIConnection.basicNumericCoersion(c, x);
+			else
+			if(Time.class.isAssignableFrom(c)
+			|| Date.class.isAssignableFrom(c)
+			|| Timestamp.class.isAssignableFrom(c))
+				x = SPIConnection.basicCalendricalCoersion(c, x, Calendar.getInstance());
+			else
+				x = SPIConnection.basicCoersion(c, x);
+		}
+		m_values[columnIndex-1] = x;
 	}
 
 	public void cancelRowUpdates()

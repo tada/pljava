@@ -402,121 +402,19 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	{
 		Object value = this.getObjectValue(columnIndex);
 		m_wasNull = (value == null);
-		if(m_wasNull || value instanceof Number)
-			return (Number)value;
-
-		if(cls == int.class  || cls == long.class || cls == short.class || cls == byte.class)
-		{
-			if(value instanceof String)
-				return Long.valueOf((String)value);
-
-			if(value instanceof Boolean)
-				return new Long(((Boolean)value).booleanValue() ? 1 : 0);
-		}
-		else if(cls == BigDecimal.class)
-		{
-			if(value instanceof String)
-				return new BigDecimal((String)value);
-
-			if(value instanceof Boolean)
-				return new BigDecimal(((Boolean)value).booleanValue() ? 1 : 0);
-		}
-		if(cls == double.class  || cls == float.class)
-		{
-			if(value instanceof String)
-				return Double.valueOf((String)value);
-
-			if(value instanceof Boolean)
-				return new Double(((Boolean)value).booleanValue() ? 1 : 0);
-		}
-		throw new SQLException("Cannot derive a Number from an object of class " + value.getClass().getName());
+		return SPIConnection.basicNumericCoersion(cls, value);
 	}
 
 	protected final Object getValue(int columnIndex, Class cls)
 	throws SQLException
 	{
-		Object value = this.getObject(columnIndex);
-		if(value == null || cls.isInstance(value))
-			return value;
-
-		if(cls == String.class)
-		{
-			if(value instanceof Number
-			|| value instanceof Boolean
-			|| value instanceof Timestamp
-			|| value instanceof Date
-			|| value instanceof Time)
-				return value.toString();
-		}
-		throw new SQLException("Cannot derive a value of class " +
-				cls.getName() + " from an object of class " + value.getClass().getName());
+		return SPIConnection.basicCoersion(cls, this.getObject(columnIndex));
 	}
 
 	protected Object getValue(int columnIndex, Class cls, Calendar cal)
 	throws SQLException
 	{
-		Object value = this.getObject(columnIndex);
-		if(value == null)
-			return value;
-
-		if(cls.isInstance(value))
-			return value;
-
-		if(cls == Timestamp.class)
-		{
-			if(value instanceof Date)
-			{
-				cal.setTime((Date)value);
-				cal.set(Calendar.HOUR_OF_DAY, 0);
-				cal.set(Calendar.MINUTE, 0);
-				cal.set(Calendar.SECOND, 0);
-				cal.set(Calendar.MILLISECOND, 0);
-				return new Timestamp(cal.getTimeInMillis());
-			}
-			else if(value instanceof Time)
-			{
-				cal.setTime((Date)value);
-				cal.set(1970, 0, 1);
-				return new Timestamp(cal.getTimeInMillis());
-			}
-			else if(value instanceof String)
-			{
-				return Timestamp.valueOf((String)value);
-			}
-		}
-		else if(cls == Date.class)
-		{
-			if(value instanceof Timestamp)
-			{
-				Timestamp ts = (Timestamp)value;
-				cal.setTime(ts);
-				cal.set(Calendar.HOUR_OF_DAY, 0);
-				cal.set(Calendar.MINUTE, 0);
-				cal.set(Calendar.SECOND, 0);
-				cal.set(Calendar.MILLISECOND, 0);
-				return new Date(cal.getTimeInMillis());
-			}
-			else if(value instanceof String)
-			{
-				return Date.valueOf((String)value);
-			}
-		}
-		else if(cls == Time.class)
-		{
-			if(value instanceof Timestamp)
-			{
-				Timestamp ts = (Timestamp)value;
-				cal.setTime(ts);
-				cal.set(1970, 0, 1);
-				return new Time(cal.getTimeInMillis());
-			}
-			else if(value instanceof String)
-			{
-				return Time.valueOf((String)value);
-			}
-		}
-		throw new SQLException("Cannot derive a value of class " +
-			cls.getName() + " from an object of class " + value.getClass().getName());
+		return SPIConnection.basicCalendricalCoersion(cls, this.getObject(columnIndex), cal);
 	}
 
 	protected Object getObjectValue(int columnIndex, Map typeMap)
