@@ -31,12 +31,12 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.java_addOne(int)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'
-			LANGUAGE java;
+			IMMUTABLE LANGUAGE java;
 
 		CREATE FUNCTION javatest.nullOnEven(int)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.Parameters.nullOnEven'
-			LANGUAGE java;
+			IMMUTABLE LANGUAGE java;
 
 		CREATE TABLE javatest.username_test
 			(

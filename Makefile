@@ -9,13 +9,22 @@
 # The following options are recognized (aside from normal options like
 # CFLAGS etc.)
 #
-#   PGSQLDIR=<pgsql source>  Override the default $(PROJDIR)/../pgsql
-#   USE_GCJ=1                Builds a shared object file containing both
-#                            C and Java code. Requires GCJ 3.4 or later.
+#   PGSQLDIR=<pgsql root>  For old style (not pgxs based) compilation
+#   USE_GCJ=1              Builds a shared object file containing both
+#                          C and Java code. Requires GCJ 3.4 or later.
 #
 #-------------------------------------------------------------------------
-export PROJDIR			:= $(shell pwd -P)
-export PGSQLDIR			:= $(PROJDIR)/../pgsql
+export PROJDIR := $(shell pwd -P)
+
+ifdef PGSQLDIR
+	export NO_PGXS	:= 1
+	export PGSQLSRC	:= $(PGSQLDIR)/src
+	export top_builddir := $(PGSQLDIR)
+else
+	export PGXS := $(dir $(shell pg_config --pgxs))
+	export PGSQLSRC := $(PGXS)..
+	export top_builddir := $(PGSQLSRC)/..
+endif
 
 export TARGETDIR		:= $(PROJDIR)/build
 export OBJDIR			:= $(TARGETDIR)/objs

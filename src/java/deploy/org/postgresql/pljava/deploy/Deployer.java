@@ -375,7 +375,7 @@ public class Deployer
 		stmt.execute(
 			"CREATE FUNCTION sqlj.get_classpath(VARCHAR) RETURNS VARCHAR" +
 			"	AS 'org.postgresql.pljava.management.Commands.getClassPath'" +
-			"	LANGUAGE java");
+			"	LANGUAGE java STABLE");
 
 		stmt.close();
 	}

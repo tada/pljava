@@ -4,11 +4,10 @@
 #
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
-top_builddir := $(PGSQLDIR)
 SO_MAJOR_VERSION := $(PLJAVA_MAJOR_VER)
 SO_MINOR_VERSION := $(PLJAVA_MINOR_VER)
 
-include $(PGSQLDIR)/src/Makefile.global
+include $(PGSQLSRC)/Makefile.global
 
 SS_VERSION := $(subst ., ,$(subst devel,.devel,$(VERSION)))
 PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))

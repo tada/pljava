@@ -117,4 +117,4 @@ install: install-lib
 
 uninstall: uninstall-lib
 
-include $(PGSQLDIR)/src/Makefile.shlib
+include $(PGSQLSRC)/Makefile.shlib
