@@ -453,7 +453,12 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 				{
 					self->paramTypes[idx] = Type_fromJavaType(
 						InvalidOid,
-						"org.postgresql.pljava.jdbc.SingleRowReader");
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+						"org.postgresql.pljava.jdbc.SingleRowReader"
+#else
+						"org.postgresql.pljava.jdbc.SingleTupleReader"
+#endif
+						);
 				}
 				else
 					self->paramTypes[idx] = Type_fromPgType(typeId, pgType);
