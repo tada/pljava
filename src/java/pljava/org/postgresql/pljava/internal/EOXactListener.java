@@ -15,7 +15,7 @@ public interface EOXactListener
 {
 	/**
 	 * Callback received from the backend when a transaction has ended.
-	 * @param wasCommit Set to <code>true</code> if the commit was a success
+	 * @param isCommit Set to <code>true</code> if the commit was a success
 	 * and <code>false</code> if the transaction aborted.
 	 */
 	public void onEOXact(boolean isCommit);

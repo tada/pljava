@@ -3,8 +3,9 @@
 # Makefile for the deploy utility of pljava
 #
 #-------------------------------------------------------------------------
-NAME := examples
-JAVAFLAGS := -classpath $(TARGETDIR)/classes/pljava
+NAME 			:= examples
+JAVADOCTITLE	:= 'PL/Java examples API Specification'
+JAVAFLAGS		:= -classpath $(TARGETDIR)/classes/pljava
 
 include $(MODULEROOT)/Makefile.global
 

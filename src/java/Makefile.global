@@ -9,6 +9,7 @@ mkclasses	= $(subst $(SRCDIR)/,,$(1:%.java=%.class))
 SRCS		:= $(shell find $(SRCDIR) -type f -name \*.java)
 CLASSES		:= $(call mkclasses,$(SRCS))
 JAR			:= jar
+JAVADOC		:= javadoc
 
 ifdef USE_GCJ
 	GCJ		:= gcj
@@ -22,3 +23,15 @@ JARFILE	:= $(TARGETDIR)/$(NAME).jar
 .timestamp: $(SRCS)
 	$(JAVAC) -d . $(JAVAFLAGS) $(SRCS)
 	touch $@
+
+.PHONY: javadoc
+
+javadoc:
+	$(JAVADOC) -d $(TARGETDIR)/docs/$(NAME)	\
+		-sourcepath $(SRCDIR)				\
+		-subpackages org.postgresql.pljava	\
+		-breakiterator						\
+		-doctitle $(JAVADOCTITLE) 			\
+		-protected 							\
+		-bottom 'Copyright (c) 2003, 2004 TADA AB - Taby Sweden. \
+			Distributed under the terms shown in <a href="docs/COPYRIGHT">COPYRIGHT</a>'

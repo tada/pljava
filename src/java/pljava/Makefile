@@ -4,7 +4,8 @@
 #    Makefile for pljava
 #
 #-------------------------------------------------------------------------
-NAME		:= pljava
+NAME			:= pljava
+JAVADOCTITLE	:= 'PL/Java v1.0.0 API Specification'
 
 include $(MODULEROOT)/Makefile.global
 

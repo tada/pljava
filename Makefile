@@ -18,11 +18,11 @@ export OBJDIR		:= $(TARGETDIR)/objs
 export JNIDIR		:= $(TARGETDIR)/jni
 export CLASSDIR		:= $(TARGETDIR)/classes
 
-.PHONY: all clean install uninstall depend \
+.PHONY: all clean javadoc install uninstall depend \
 	c_all c_install c_uninstall c_depend \
-	pljava_all \
-	deploy_all \
-	examples_all
+	pljava_all pljava_javadoc \
+	deploy_all deploy_javadoc \
+	examples_all examples_javadoc
 
 all: pljava_all deploy_all c_all examples_all
 
@@ -32,15 +32,17 @@ uninstall: c_uninstall
 
 depend: c_depend
 
+javadoc: pljava_javadoc deploy_javadoc examples_javadoc
+
 clean:
 	@-rm -rf $(TARGETDIR)
 
-pljava_all: pljava_%:
+pljava_all pljava_javadoc: pljava_%:
 	@-mkdir -p $(CLASSDIR)/pljava
 	@$(MAKE) -r -C $(CLASSDIR)/pljava -f $(PROJDIR)/src/java/pljava/Makefile \
 	MODULEROOT=$(PROJDIR)/src/java $*
 
-deploy_all: deploy_%:
+deploy_all deploy_javadoc: deploy_%:
 	@-mkdir -p $(CLASSDIR)/deploy
 	@$(MAKE) -r -C $(CLASSDIR)/deploy -f $(PROJDIR)/src/java/deploy/Makefile \
 	MODULEROOT=$(PROJDIR)/src/java $*

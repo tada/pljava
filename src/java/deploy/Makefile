@@ -3,7 +3,8 @@
 # Makefile for the deploy utility of pljava
 #
 #-------------------------------------------------------------------------
-NAME := deploy
+NAME			:= deploy
+JAVADOCTITLE	:= 'PL/Java deployer API Specification'
 
 include $(MODULEROOT)/Makefile.global
 
