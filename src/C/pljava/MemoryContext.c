@@ -6,6 +6,7 @@
  */
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
+#include "pljava/Backend.h"
 
 #define LOCAL_REFERENCE_COUNT 128
 
@@ -30,8 +31,6 @@ typedef struct {
 	MctxCBLink*           cbChain;
 	HashMap               nativeCache;
 } ExtendedCtxMethods;
-
-MemoryContext returnValueContext;
 
 /**
  * Calls all user defined callbacks with the MemoryContext as the
@@ -180,14 +179,19 @@ void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
 
 MemoryContext MemoryContext_switchToReturnValueContext(void)
 {
-	return MemoryContextSwitchTo(returnValueContext);
+	return MemoryContextSwitchTo(currentCallContext->returnValueContext);
 }
 
 HashMap MemoryContext_getCurrentNativeCache(void)
 {
-	return (returnValueContext == 0)
-		? 0
-		: MemoryContext_getNativeCache(returnValueContext);
+	HashMap ret = 0;
+	if(currentCallContext != 0)
+	{
+		MemoryContext ctx = currentCallContext->returnValueContext;
+		if(ctx != 0)
+			ret = MemoryContext_getNativeCache(ctx);
+	}
+	return ret;
 }
 
 void MemoryContext_pushJavaFrame(JNIEnv* env)

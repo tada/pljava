@@ -6,7 +6,7 @@
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
-#include "pljava/Function.h"
+#include "pljava/Backend.h"
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Oid.h"
@@ -65,7 +65,6 @@ struct Function_
 	jmethodID method;
 };
 
-static Function s_current;
 static HashMap s_funcMap = 0;
 static PgObjectClass s_FunctionClass;
 
@@ -544,7 +543,7 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	int32 top = self->numParams;
 
 	fcinfo->isnull = false;
-	s_current = self;
+	currentCallContext->function = self;
 	if(top > 0)
 	{
 		int32   idx;
@@ -595,7 +594,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	if(arg.l == 0)
 		return 0;
 
-	s_current = self;
+	currentCallContext->function = self;
 	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
@@ -623,19 +622,11 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 
 bool Function_isCurrentReadOnly(void)
 {
-	/* s_current will be 0 during resolve of class and java function. At
+	/* function will be 0 during resolve of class and java function. At
 	 * that time, no updates are allowed (or needed).
 	 */
-	return (s_current == 0) ? true : s_current->readOnly;
-}
-
-Function Function_getCurrent(void)
-{
-	return s_current;
-}
-
-void Function_setCurrent(Function function)
-{
-	s_current = function;
+	return (currentCallContext->function == 0)
+		? true
+		: currentCallContext->function->readOnly;
 }
 

@@ -77,4 +77,9 @@ public class SPIDriver implements Driver
 	{
 		return false;	// Not all functionality is supported at present.
 	}
+	
+	static Connection getDefault()
+	{
+		return s_defaultConn;
+	}
 }

@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "org_postgresql_pljava_internal_Backend.h"
+#include "org_postgresql_pljava_jdbc_Invocation.h"
 #include "pljava/Function.h"
 #include "pljava/type/ExecutionPlan.h"
 #include "pljava/HashMap.h"
@@ -46,8 +47,6 @@ static JavaVM* s_javaVM = 0;
 
 #if (PGSQL_MAJOR_VER >= 8)
 # define PGSQL_CUSTOM_VARIABLES 1
-#else
-bool elogErrorOccured;
 #endif
 
 #ifdef PGSQL_CUSTOM_VARIABLES
@@ -56,12 +55,14 @@ static char* classpath;
 static int statementCacheSize;
 #endif
 static bool  pljavaDebug;
+static jmethodID s_Invocation_onExit;
 
 static void initJavaVM(JNIEnv* env)
 {
+	jclass cls;
 	Datum envDatum = PointerGetDatum(env);
 
-	JNINativeMethod methods[] = {
+	JNINativeMethod backendMethods[] = {
 		{
 		"isCallingJava",
 	  	"()Z",
@@ -94,7 +95,31 @@ static void initJavaVM(JNIEnv* env)
 		},
 		{ 0, 0, 0 }};
 
-	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", methods);
+
+	JNINativeMethod invocationMethods[] = {
+		{
+		"_getNestingLevel",
+		"()I",
+		Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel
+		},
+		{
+		"_clearErrorCondition",
+		"()I",
+		Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition
+		},
+		{
+		"_register",
+		"()V",
+		Java_org_postgresql_pljava_jdbc_Invocation__1register
+		},
+		{ 0, 0, 0 }};
+
+	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", backendMethods);
+
+	cls = PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/Invocation");
+	PgObject_registerNatives2(env, cls, invocationMethods);
+	s_Invocation_onExit = PgObject_getJavaMethod(env, cls, "onExit", "()V");
+	(*env)->DeleteLocalRef(env, cls);
 
 	DirectFunctionCall1(Exception_initialize, envDatum);
 	DirectFunctionCall1(SPI_initialize, envDatum);
@@ -104,6 +129,8 @@ static void initJavaVM(JNIEnv* env)
 
 static bool s_topLocalFrameInstalled = false;
 static unsigned int s_callLevel = 0;
+
+CallContext* currentCallContext;
 
 static void onEndOfScope(MemoryContext ctx, bool isDelete)
 {
@@ -121,17 +148,18 @@ static void onEndOfScope(MemoryContext ctx, bool isDelete)
 
 static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 {
+	CallContext ctx;
 	Datum retval = 0;
 	bool saveIsCallingJava = isCallingJava;
-	Function saveFunction = Function_getCurrent();
-	MemoryContext saveReturnValueContext = returnValueContext;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
-#if (PGSQL_MAJOR_VER < 8)
-	bool saveErrorOccured = elogErrorOccured;
-	elogErrorOccured = false;
-#endif
 
-	returnValueContext = upper;
+	ctx.invocation         = 0;
+	ctx.function           = 0;
+	ctx.returnValueContext = upper;
+	ctx.elogErrorOccured   = false;
+	ctx.previous           = currentCallContext;
+	currentCallContext     = &ctx;
+
 	if(!MemoryContext_hasCallbackCapability(upper))
 	{
 		NativeStruct_addCacheManager(upper);
@@ -163,23 +191,23 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 		}
 		Exception_checkException(s_mainEnv);
 
+		if(ctx.invocation != 0)
+		{
+			(*s_mainEnv)->CallVoidMethod(s_mainEnv, ctx.invocation, s_Invocation_onExit);
+			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
+		}
+
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
-		returnValueContext = saveReturnValueContext;
-		Function_setCurrent(saveFunction);
-#if (PGSQL_MAJOR_VER < 8)
-		elogErrorOccured = saveErrorOccured;
-#endif
+		currentCallContext = ctx.previous;
 	}
 	PG_CATCH();
 	{
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
-		returnValueContext = saveReturnValueContext;
-		Function_setCurrent(saveFunction);
-#if (PGSQL_MAJOR_VER < 8)
-		elogErrorOccured = saveErrorOccured;
-#endif
+		currentCallContext = ctx.previous;
+		if(ctx.invocation != 0)
+			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
@@ -189,8 +217,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 
 bool pljavaEntryFence(JNIEnv* env)
 {
-#if (PGSQL_MAJOR_VER < 8)
-	if(elogErrorOccured)
+	if(currentCallContext->elogErrorOccured)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the
@@ -200,7 +227,7 @@ bool pljavaEntryFence(JNIEnv* env)
 			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
 		return true;
 	}
-#endif
+
 	if(!isCallingJava)
 	{
 		/* The backend is *not* awaiting the return of a call to the JVM
@@ -847,6 +874,7 @@ Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize(JNIEnv* env,
 	return 10;
 #endif
 }
+
 /*
  * Class:     org_postgresql_pljava_internal_Backend
  * Method:    _log
@@ -921,4 +949,37 @@ Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, 
 		Exception_throw_ERROR(env, "UnregisterEOXactCallback");
 	}
 	PG_END_TRY();
+}
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_Invocation
+ * Method:    _getNestingLevel
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel(JNIEnv* env, jclass cls)
+{
+	return s_callLevel;
+}
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_Invocation
+ * Method:    _clearErrorCondition
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jclass cls)
+{
+	currentCallContext->elogErrorOccured = false;
+}
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_Invocation
+ * Method:    _register
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this)
+{
+	currentCallContext->invocation = (*env)->NewGlobalRef(env, _this);
 }

@@ -114,9 +114,10 @@ public class ExecutionPlan extends NativeStruct
 	}
 	
 	/**
-	 * Returns <code>true</code> if this <code>ExecutionPlan</code> can create
-	 * a <code>Portal</code> using {@link #cursorOpen}. This is true if the
+	 * Checks if this <code>ExecutionPlan</code> can create a <code>Portal
+	 * </code> using {@link #cursorOpen}. This is true if the
 	 * plan contains only one regular <code>SELECT</code> query.
+	 * @return <code>true</code> if the plan can create a <code>Portal</code> 
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
 	public boolean isCursorPlan()
@@ -127,7 +128,23 @@ public class ExecutionPlan extends NativeStruct
 			return this._isCursorPlan();
 		}
 	}
-	
+
+	/**
+	 * Checks if this <code>ExecutionPlan</code> contains a command that deals
+	 * with savepoints.
+	 * @return <code>true</code> if a command related to savepoints is
+	 * encountered
+	 * @throws SQLException If the underlying native structure has gone stale.
+	 */
+	public boolean hasTransactionCommand()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._hasTransactionCommand();
+		}
+	}
+
 	/**
 	 * Execute the plan using the internal <code>SPI_execp</code> function.
 	 * @param parameters Values for the parameters.
@@ -187,6 +204,9 @@ public class ExecutionPlan extends NativeStruct
 	throws SQLException;
 
 	private native boolean _isCursorPlan()
+	throws SQLException;
+
+	private native boolean _hasTransactionCommand()
 	throws SQLException;
 
 	private native int _execp(Object[] parameters, int rowCount)

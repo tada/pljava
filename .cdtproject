@@ -2,64 +2,33 @@
 <?eclipse-cdt version="2.0"?>
 
 <cdtproject id="org.eclipse.cdt.make.core.make">
-<extension point="org.eclipse.cdt.core.BinaryParser" id="org.eclipse.cdt.core.GNU_ELF">
+<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser">
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
 </extension>
 <data>
         
-    <item id="org.eclipse.cdt.make.core.buildtargets">
-<buildTargets>
-<target name="pljava for gcj" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildArguments>USE_GCJ=1</buildArguments>
-<buildTarget>CFLAGS=-g USE_GCJ=1 all</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="clean" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildArguments>PWD=</buildArguments>
-<buildTarget>clean</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="all" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildTarget>CFLAGS=-g all</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="depend" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildTarget>depend</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="all with guc extension" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildTarget>CFLAGS=-g CPPFLAGS=-DCUSTOM_GUC_VARIABLES all</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>true</useDefaultCommand>
-</target>
-<target name="all74" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
-<buildCommand>make</buildCommand>
-<buildArguments>PGVER=7.4 CFLAGS='-Wall -g'</buildArguments>
-<buildTarget>all</buildTarget>
-<stopOnError>false</stopOnError>
-<useDefaultCommand>false</useDefaultCommand>
-</target>
-</buildTargets>
-</item>
+    
 <item id="org.eclipse.cdt.core.pathentry">
-<pathentry kind="mac" path="" name="PGSQL_MAJOR_VERSION" value="8"/>
-<pathentry kind="mac" path="" name="PGSQL_MINOR_VERSION" value="0"/>
+<pathentry kind="mac" name="PGSQL_MAJOR_VERSION" path="" value="8"/>
+<pathentry kind="mac" name="PGSQL_MINOR_VERSION" path="" value="0"/>
 <pathentry kind="src" path=""/>
 <pathentry kind="out" path=""/>
 </item>
 <item id="cdt_indexer">
 <indexEnabled indexValue="false"/>
 <indexerProblemsEnabled indexProblemsValue="0"/>
+</item>
+
+<item id="org.eclipse.cdt.make.core.buildtargets">
+<buildTargets>
+<target name="all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+<buildCommand>make</buildCommand>
+<buildTarget>all</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
+</buildTargets>
 </item>
 </data>
 </cdtproject>

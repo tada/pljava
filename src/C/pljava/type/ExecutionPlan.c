@@ -78,6 +78,11 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan
 		},
 		{
+		"_hasTransactionCommand",
+		"()Z",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1hasTransactionCommand
+		},
+		{
 		"_execp",
 		"([Ljava/lang/Object;I)I",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1execp
@@ -122,11 +127,11 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 	int count = SPI_getargcount(ePlan);
 	if((jvalues == 0 && count != 0)
 	|| (jvalues != 0 && count != (*env)->GetArrayLength(env, jvalues)))
-		{
+	{
 		Exception_throw(env, ERRCODE_PARAMETER_COUNT_MISMATCH,
 			"Number of values does not match number of arguments for prepared plan");
 		return false;
-		}
+	}
 
 	if(count > 0)
 	{
@@ -160,6 +165,14 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 	*nullsPtr = nulls;
 	return true;
 }
+
+#if (PGSQL_MAJOR_VER >= 8)
+static bool rejectTransactionCommand(Query* query, void* clientData)
+{
+	return !(query->commandType == CMD_UTILITY &&
+			IsA(query->utilityStmt, TransactionStmt));
+}
+#endif
 
 /****************************************
  * JNI methods
@@ -245,6 +258,44 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    _hasTransactionCommand
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan__1hasTransactionCommand(JNIEnv* env, jobject _this)
+{
+#if (PGSQL_MAJOR_VER >= 8)
+	void* ePlan;
+	bool result = false;
+	PLJAVA_ENTRY_FENCE(false)
+
+	ePlan = NativeStruct_getStruct(env, _this);
+	if(ePlan == 0)
+		return 0;
+
+	PG_TRY();
+	{
+		/* SPI_traverse_query_roots will return false when
+		 * a transaction command is encountered.
+		 */
+		result = !SPI_traverse_query_roots(ePlan, rejectTransactionCommand, NULL);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(env, "SPI_traverse_query_roots");
+	}
+	PG_END_TRY();
+	return result;
+#else
+	/* BEGIN, COMMIT, and ROLLBACK will be rejected by the SPI and
+	 * savepoints are not implemented in 7.4.x
+	 */
+	return false;
+#endif
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _execp
  * Signature: ([Ljava/lang/Object;I)I
  */
@@ -282,7 +333,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 	PG_CATCH();
 	{
 		MemoryContext_popJavaFrame(env);
-		Exception_throw_ERROR(env, "SPI_execp");
+		Exception_throw_ERROR(env, "SPI_execute_plan");
 	}
 	PG_END_TRY();
 	return result;

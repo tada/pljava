@@ -43,8 +43,6 @@ extern bool pljavaEntryFence(JNIEnv* env);
 
 #if (PGSQL_MAJOR_VER < 8)
 
-extern bool elogErrorOccured;
-
 #define PG_TRY_POP memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart))
 
 #define PG_TRY() do { \
@@ -55,7 +53,6 @@ extern bool elogErrorOccured;
 #define PG_CATCH() \
 		PG_TRY_POP; \
 	} else { \
-		elogErrorOccured = true; \
 		PG_TRY_POP;
 
 #define PG_END_TRY() }} while(0)

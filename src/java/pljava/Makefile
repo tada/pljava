@@ -30,7 +30,8 @@ JNI_CLASSES := \
 	$(INTPKG).Tuple \
 	$(INTPKG).TupleDesc \
 	$(INTPKG).TupleTable \
-	$(INTPKG).TupleTableSlot
+	$(INTPKG).TupleTableSlot \
+	org.postgresql.pljava.jdbc.Invocation
 
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))
 

@@ -128,9 +128,11 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
+		HeapTuple tuple;
+		Datum result;
 		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
-		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
-		Datum result = TupleGetDatum(context->slot, tuple);
+		tuple   = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
+		result  = TupleGetDatum(context->slot, tuple);
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}

@@ -21,8 +21,6 @@ extern "C" {
  * @author Thomas Hallgren
  ***********************************************************************/
 
-extern MemoryContext returnValueContext;
-
 /*
  * The callback function. The second argument is set to false when
  * the MemoryContext is reset and to true when it is deleted.

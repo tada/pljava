@@ -38,6 +38,11 @@ extern int SPI_getargcount(void* plan);
 extern bool SPI_is_cursor_plan(void* plan);
 #endif
 
+typedef bool (*QueryVisitor)(Query* query, void *clientData);
+
+extern bool
+SPI_traverse_query_roots(void *plan, QueryVisitor queryVisitor, void* clientData);
+
 extern Datum SPI_initialize(PG_FUNCTION_ARGS);
 
 #ifdef __cplusplus

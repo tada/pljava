@@ -5,7 +5,7 @@
 #ifndef __pljava_Backend_h
 #define __pljava_Backend_h
 
-#include "pljava/pljava.h"
+#include "pljava/Function.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +17,19 @@ extern "C" {
  * 
  * @author Thomas Hallgren
  *****************************************************************/
+struct CallContext_;
+typedef struct CallContext_ CallContext;
+
+struct CallContext_
+{
+	jobject invocation;
+	MemoryContext returnValueContext;
+	Function function;
+	bool elogErrorOccured;
+	CallContext* previous;
+};
+
+extern CallContext* currentCallContext;
 
 extern JNIEnv* Backend_getMainEnv(void);
 

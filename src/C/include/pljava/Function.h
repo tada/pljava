@@ -60,16 +60,6 @@ extern Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS
 extern bool Function_isCurrentReadOnly(void);
 
 /*
- * Returns the currently executing function.
- */
-extern Function Function_getCurrent(void);
-
-/*
- * Sets the currently executing function.
- */
-extern void Function_setCurrent(Function function);
-
-/*
  * Initialize the Function class.
  */
 extern Datum Function_initialize(PG_FUNCTION_ARGS);

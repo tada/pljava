@@ -26,6 +26,10 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.postgresql.pljava.internal.ExecutionPlan;
+import org.postgresql.pljava.internal.SPI;
+import org.postgresql.pljava.internal.SPIException;
+
 
 /**
  * @author Thomas Hallgren
@@ -61,6 +65,7 @@ public class SPIConnection implements Connection
 	{
 		s_sqlType2Class.put(clazz, new Integer(sqlType));
 	}
+
 	/**
 	 * Returns a default connection instance. It is the callers responsability
 	 * to close this instance.
@@ -235,22 +240,17 @@ public class SPIConnection implements Connection
 		throw new UnsupportedFeatureException("Connection.getWarnings");
 	}
 
-	/**
-	 * Savepoints are not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
 	public void releaseSavepoint(Savepoint savepoint) throws SQLException
 	{
-		throw new UnsupportedFeatureException("Savepoints");
+		this.executeUtilityCommand("RELEASE SAVEPOINT " + ((SPISavepoint)savepoint).getSPIName());
+		forgetSavepoint(savepoint);
 	}
 
-	/**
-	 * Savepoints are not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
 	public void rollback(Savepoint savepoint) throws SQLException
 	{
-		throw new UnsupportedFeatureException("Savepoints");
+		Invocation.clearErrorCondition();
+		this.executeUtilityCommand("ROLLBACK TO SAVEPOINT " + ((SPISavepoint)savepoint).getSPIName());
+		forgetSavepoint(savepoint);
 	}
 
 	/**
@@ -519,23 +519,16 @@ public class SPIConnection implements Connection
 		throw new UnsupportedFeatureException("Auto generated key support not yet implemented");
 	}
 
-	/**
-	 * Savepoints are not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
 	public Savepoint setSavepoint()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Savepoints");
+		return this.setSavepoint(new SPIAnonymousSavepoint());
 	}
 
-	/**
-	 * Savepoints are not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
-	public Savepoint setSavepoint(String name) throws SQLException
+	public Savepoint setSavepoint(String name)
+	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Savepoints");
+		return this.setSavepoint(new SPINamedSavepoint(name));
 	}
 
 	static int getTypeForClass(Class c)
@@ -551,5 +544,40 @@ public class SPIConnection implements Connection
 		 * This is not a well known JDBC type.
 		 */
 		return Types.OTHER;
+	}
+
+	private Savepoint setSavepoint(SPISavepoint sp)
+	throws SQLException
+	{
+		this.executeUtilityCommand("SAVEPOINT " + sp.getSPIName());
+
+		// Remember the first savepoint for each call-level so
+		// that it can be released when the function call ends. Releasing
+		// the first savepoint will release all subsequent savepoints.
+		//
+		Invocation invocation = Invocation.current();
+		Savepoint old = invocation.getSavepoint();
+		if(old == null)
+			invocation.setSavepoint(sp);
+		return sp;
+	}
+
+	private static void forgetSavepoint(Savepoint sp)
+	throws SQLException
+	{
+		Invocation invocation = Invocation.current();
+		if(invocation.getSavepoint() == sp)
+			invocation.setSavepoint(null);
+	}
+
+	private void executeUtilityCommand(String command)
+	throws SQLException
+	{
+		ExecutionPlan plan = ExecutionPlan.prepare(this.nativeSQL(command), null);
+
+		int result = SPI.getResult();
+		if(plan == null)
+			throw new SPIException(result);
+		plan.execp(null, 0);
 	}
 }

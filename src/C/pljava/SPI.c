@@ -112,9 +112,9 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 	return SPITupleTable_create(env, SPI_tuptable);
 }
 
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-
 #include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 
 Oid SPI_getargtypeid(void* plan, int argIndex)
 {
@@ -156,3 +156,23 @@ bool SPI_is_cursor_plan(void* plan)
 	return false;
 }
 #endif
+
+bool
+SPI_traverse_query_roots(void *plan, QueryVisitor queryVisitor, void* clientData)
+{
+	List	 *query_list_list = ((_SPI_plan*)plan)->qtlist;
+	ListCell *query_list_list_item;
+
+	foreach(query_list_list_item, query_list_list)
+	{
+		List	 *query_list = lfirst(query_list_list_item);
+		ListCell *query_list_item;
+
+		foreach(query_list_item, query_list)
+		{
+			if(!queryVisitor((Query *)lfirst(query_list_item), clientData))
+				return false;
+		}
+	}
+	return true;
+}
