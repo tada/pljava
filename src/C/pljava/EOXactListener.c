@@ -19,7 +19,7 @@ static void onEOXact(bool isCommit, void *arg)
 	{
 		/* JVM is no longer active. Unregister the callback.
 		 */
-		UnregisterXactCallback(onEOXact, s_listener);
+		UnregisterEOXactCallback(onEOXact, s_listener);
 		s_listener = 0;
 	}
 	else
