@@ -382,17 +382,24 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	{
 		int top;
 		Oid retTypeId = procStruct->prorettype;
+		HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
+		Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
 		Type complex = 0;
+
 		self->numParams = (int32)procStruct->pronargs;
 
 		if(procStruct->proretset)
 		{
-			/* The function returns a set. Obtain the ResultSetProvider type
-			 * for the set type.
+			/* The function returns a set. Check if the element type is a
+			 * complex or a scalar type.
 			 */
-			self->returnType = Type_fromJavaType(
-				retTypeId,
-				"org.postgresql.pljava.ResultSetProvider");
+			const char* javaName = (pgType->typtype == 'c')
+				? "org.postgresql.pljava.ResultSetProvider"
+				: "java.util.Iterator";
+
+			/* Obtain the provider type for the set type.
+			 */
+			self->returnType = Type_fromJavaType(retTypeId, javaName);
 		}
 		else
 		{
@@ -400,8 +407,6 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			 * Retreive standard string conversion from the postgres
 			 * type catalog.
 			 */
-			HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
-			Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
 			if(pgType->typtype == 'c')
 			{
 				/* Complex functions uses an updateable ResultSet
@@ -417,8 +422,8 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			}
 			else
 				self->returnType = Type_fromPgType(retTypeId, pgType);
-			ReleaseSysCache(typeTup);
 		}
+		ReleaseSysCache(typeTup);
 
 		top = self->numParams;
 		if(top > 0)
@@ -439,7 +444,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 				{
 					self->paramTypes[idx] = Type_fromJavaType(
 						InvalidOid,
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+#if (PGSQL_MAJOR_VER < 8)
 						"org.postgresql.pljava.jdbc.SingleRowReader"
 #else
 						"org.postgresql.pljava.jdbc.SingleTupleReader"

@@ -146,6 +146,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.UsingProperties.getProperties'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.scalarPropertyExample()
+			RETURNS SETOF varchar
+			AS 'org.postgresql.pljava.example.UsingPropertiesAsScalarSet.getProperties'
+			IMMUTABLE LANGUAGE java;
+
 	END INSTALL",
 	
 	"BEGIN REMOVE

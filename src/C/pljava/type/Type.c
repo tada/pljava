@@ -179,6 +179,7 @@ extern Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS);
 extern Datum SingleRowReader_initialize(PG_FUNCTION_ARGS);
 extern Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS);
 extern Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS);
+extern Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS);
 extern Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS);
 
 /* Make this datatype available to the postgres system.
@@ -229,6 +230,7 @@ Datum Type_initialize(PG_FUNCTION_ARGS)
 	SingleRowReader_initialize(fcinfo);
 	SingleTupleReader_initialize(fcinfo);
 	SingleRowWriter_initialize(fcinfo);
+	ValueSetProvider_initialize(fcinfo);
 	ResultSetProvider_initialize(fcinfo);
 
 	PG_RETURN_VOID();

@@ -16,12 +16,9 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 
-/*
- * void primitive type.
- */
-static jclass s_ResultSetProvider_class;
 
 #ifndef GCJ /* Bug libgcj/15001 */
+static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 #endif
 
@@ -183,10 +180,10 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 {
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
+#ifndef GCJ /* Bug libgcj/15001 */
 	s_ResultSetProvider_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetProvider"));
 
-#ifndef GCJ /* Bug libgcj/15001 */
 	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(
 				env, s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
 #endif

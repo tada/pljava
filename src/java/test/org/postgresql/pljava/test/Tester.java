@@ -202,6 +202,7 @@ public class Tester
 				t.testCallInCall();
 				t.testCurrentDir();
 				t.testUsingProperties();
+				// t.testUsingScalarProperties();
 			}
 			t.close();
 		}
@@ -311,6 +312,17 @@ public class Tester
 			String value = rs.getString(2);
 			System.out.println("Name = \"" + name + "\", value = \"" + value + "\"");
 		}
+		rs.close();
+	}
+
+	public void testUsingScalarProperties()
+	throws SQLException
+	{
+		System.out.println("*** testUsingScalarProperties()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT scalarPropertyExample()");
+		while(rs.next())
+			System.out.println(rs.getString(1));
 		rs.close();
 	}
 
