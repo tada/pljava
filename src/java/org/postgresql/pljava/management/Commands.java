@@ -18,49 +18,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import org.postgresql.pljava.internal.Oid;
-import org.postgresql.pljava.sqlj.Loader;
 
 /**
  * @author Thomas Hallgren
  */
 public class Commands
 {
-	/**
-	 * Returns the <code>byte[]</code> image representing the contents read using the
-	 * opened input stream of the given <code>URL</code>.
-	 * @param urlString The string representation of a valid {@link java.net.URL}.
-	 * @return The bytes read from the location that the <code>URL</code> points to.
-	 * @throws IOException
-	 */
-	public static byte[] getURLImage(String urlString)
-	throws SQLException
-	{
-		try
-		{
-			URL url = new URL(urlString);
-			InputStream jarInput = url.openStream();
-			try
-			{
-				ByteArrayOutputStream imageBuffer = new ByteArrayOutputStream();
-				byte[] transferBuffer = new byte[4096];
-				int rdLen;
-				while((rdLen = jarInput.read(transferBuffer)) > 0)
-					imageBuffer.write(transferBuffer, 0, rdLen);
-				return imageBuffer.toByteArray();
-			}
-			finally
-			{
-				try { jarInput.close(); } catch(IOException e) { /* ignore close errors */ }
-			}
-		}
-		catch(IOException e)
-		{
-			throw new SQLException("I/O exception: " + e.getMessage());
-		}
-	}
-
 	/**
 	 * Installs a new Jar in the database jar repository under name <code>jarName</code>.
 	 * Once installed classpaths can be defined that refrences this jar. This
@@ -88,14 +55,13 @@ public class Commands
 		{
 			if(getJarId(conn, jarName) >= 0)
 				throw new SQLException("A jar named '" + jarName + "' already exists");
-			byte[] bytes = getURLImage(urlString);
 			
 			PreparedStatement stmt = conn.prepareStatement(
-				"INSERT INTO sqlj.jar_repository(jarName, jarImage) VALUES(?, ?)");
+				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin) VALUES(?, ?)");
 			try
 			{
 				stmt.setString(1, jarName);
-				stmt.setBytes(2, bytes);
+				stmt.setString(2, urlString);
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository insert did not insert 1 row");
 			}
@@ -103,6 +69,7 @@ public class Commands
 			{
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
+			addClassImages(conn, jarName, urlString);
 		}
 		finally
 		{
@@ -129,22 +96,32 @@ public class Commands
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
 	
-			byte[] bytes = getURLImage(urlString);
-			
 			PreparedStatement stmt = conn.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarImage = ? WHERE jarId = ?");
+				"UPDATE sqlj.jar_repository SET jarOrigin = ? WHERE jarId = ?");
 			try
 			{
-				stmt.setBytes(1, bytes);
+				stmt.setString(1, urlString);
 				stmt.setInt(2, jarId);
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository update did not update 1 row");
-				invalidateJarLoaders(conn, jarId);
 			}
 			finally
 			{
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
+
+			stmt = conn.prepareStatement("DELETE FROM sqlj.jar_entry WHERE jarId = ?");
+			try
+			{
+				stmt.setString(1, urlString);
+				stmt.setInt(2, jarId);
+				stmt.executeUpdate();
+			}
+			finally
+			{
+				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			}
+			addClassImages(conn, jarId, urlString);
 		}
 		finally
 		{
@@ -173,11 +150,6 @@ public class Commands
 			if(jarId < 0)
 				throw new SQLException("No Jar named '" + jarName + "' is known to the system");
 			
-			// Must invalidate the loaders first. The classpaths will be removed
-			// by a cascading delete.
-			//
-			invalidateJarLoaders(conn, jarId);
-
 			PreparedStatement stmt = conn.prepareStatement(
 				"DELETE FROM sqlj.jar_repository WHERE jarId = ?");
 			try
@@ -294,7 +266,7 @@ public class Commands
 						stmt.setString(1, schemaName);
 						stmt.setInt(2, idx + 1);
 						stmt.setInt(3, jarId);
-						stmt.executeQuery();
+						stmt.executeUpdate();
 					}
 				}
 				finally
@@ -306,6 +278,127 @@ public class Commands
 		finally
 		{
 			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+		}
+	}
+
+	/**
+	 * Return the classpath that has been defined for the schema named <code>schemaName</code>
+	 *
+	 * This method is exposed in SQL as <code>sqlj.get_classpath(VARCHAR)</code>.
+	 * 
+	 * @param schemaName
+	 *            Name of the schema for which this path is valid.
+	 * @return The defined classpath or <code>null</code> if this schema has no classpath.
+	 * @throws SQLException
+	 */
+	public static String getClassPath(String schemaName)
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			if(schemaName == null || schemaName.length() == 0)
+				schemaName = "public";
+			else
+				schemaName = schemaName.toLowerCase();
+
+			PreparedStatement stmt = conn.prepareStatement(
+				"SELECT r.jarName" +
+				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c ON r.jarId = c.jarId" +
+				" WHERE c.schemaName = ? ORDER BY c.ordinal");
+			
+			try
+			{
+				stmt.setString(1, schemaName);
+				ResultSet rs = stmt.executeQuery();
+				try
+				{
+					StringBuffer buf = null;
+					while(rs.next())
+					{
+						if(buf == null)
+							buf = new StringBuffer();
+						else
+							buf.append(':');
+						buf.append(rs.getString(1));
+					}
+					return (buf == null) ? null : buf.toString();
+				}
+				finally
+				{
+					try { rs.close(); } catch(SQLException e) { /* ignore */ }
+				}
+			}
+			finally
+			{
+				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
+			}
+		}
+		finally
+		{
+			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+		}
+	}
+
+	/**
+	 */
+	protected static void addClassImages(Connection conn, String jarName, String urlString)
+	throws SQLException
+	{
+		int jarId = getJarId(conn, jarName);
+		if(jarId < 0)
+			throw new SQLException("No Jar named '" + jarName + "' is known to the system");
+		addClassImages(conn, jarId, urlString);
+	}
+
+	protected static void addClassImages(Connection conn, int jarId, String urlString)
+	throws SQLException
+	{
+		InputStream urlStream = null;
+		PreparedStatement stmt = null;
+		try
+		{
+			URL url = new URL(urlString);
+			urlStream = url.openStream();
+
+			byte[] buf = new byte[1024];
+			ByteArrayOutputStream img = new ByteArrayOutputStream();
+			stmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) VALUES(?, ?, ?)");
+
+			JarInputStream jis = new JarInputStream(urlStream);
+			for(;;)
+			{
+				JarEntry je = jis.getNextJarEntry();
+				if(je == null)
+					break;
+
+				if(je.isDirectory())
+					continue;
+
+				int nBytes;
+				img.reset();
+				while((nBytes = jis.read(buf)) > 0)
+					img.write(buf, 0, nBytes);
+				jis.closeEntry();
+
+				stmt.setString(1, je.getName());
+				stmt.setInt(2, jarId);
+				stmt.setBytes(3, img.toByteArray());
+				if(stmt.executeUpdate() != 1)
+					throw new SQLException("Jar entry insert did not insert 1 row");
+			}
+		}
+		catch(IOException e)
+		{
+			throw new SQLException("I/O exception reading jar file: " + e.getMessage());
+		}
+		finally
+		{
+			if(urlStream != null)
+				try { urlStream.close(); } catch(IOException e) { /* ignore */ }
+			if(stmt != null)
+				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
 		}
 	}
 
@@ -397,38 +490,6 @@ public class Commands
 				if(!rs.next())
 					return null;
 				return (Oid)rs.getObject(1);
-			}
-			finally
-			{
-				try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
-		}
-		finally
-		{
-			try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
-		}
-	}
-
-	/**
-	 * Invalidates all {@link java.lang.ClassLoader ClassLoaders} that &quot;see&quot;
-	 * the jar who&squot;s primary key is jarId
-	 * @param conn The database connection to use for the query.
-	 * @param jarId The primary key of the jar.
-	 * @throws SQLException
-	 */
-	protected static void invalidateJarLoaders(Connection conn, int jarId)
-	throws SQLException
-	{
-		PreparedStatement stmt = conn.prepareStatement(
-		"SELECT DISTINCT schemaName FROM sqlj.classpath_entry WHERE jarId = ?");
-		try
-		{
-			stmt.setInt(1, jarId);
-			ResultSet rs = stmt.executeQuery();
-			try
-			{
-				while(rs.next())
-					Loader.invalidateSchemaLoader(rs.getString(1));
 			}
 			finally
 			{

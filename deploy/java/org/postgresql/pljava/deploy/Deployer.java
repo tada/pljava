@@ -9,7 +9,10 @@
 package org.postgresql.pljava.deploy;
 
 import java.io.PrintStream;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 
 /**
@@ -26,7 +29,6 @@ public class Deployer
 	private static final int CMD_PASSWORD  = 4;
 	private static final int CMD_DATABASE  = 5;
 	private static final int CMD_HOSTNAME  = 6;
-	private static final int CMD_INITPGSQL = 7;
 
 	private final Connection m_connection;
 
@@ -41,7 +43,6 @@ public class Deployer
 		s_commands.add(CMD_PASSWORD,  "password");
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
-		s_commands.add(CMD_INITPGSQL, "initpgsql");
 	}
 
 	private static final int getCommand(String arg)
@@ -64,7 +65,6 @@ public class Deployer
 		PrintStream out = System.err;
 		out.println("usage: java -jar deploy.jar");
 		out.println("    {-install | -uninstall | -reinstall}");
-		out.println("    [ -initpgsql ]");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
 		out.println("    [ -database <database> ]    # default is postgres");
 		out.println("    [ -user <userName>     ]    # default is postgres");
@@ -73,7 +73,6 @@ public class Deployer
 
 	public static void main(String[] argv)
 	{
-		boolean initPgSQL  = false;
 		String driverClass = "org.postgresql.Driver";
 		String hostName    = "localhost";
 		String database    = "postgres";
@@ -106,10 +105,6 @@ public class Deployer
 						return;
 					}
 					cmd = optCmd;
-					break;
-
-				case CMD_INITPGSQL:
-					initPgSQL = true;
 					break;
 
 				case CMD_USER:
@@ -185,8 +180,6 @@ public class Deployer
 
 			if(cmd == CMD_INSTALL || cmd == CMD_REINSTALL)
 			{
-				if(initPgSQL)
-					deployer.initPgSQLHandler();
 				deployer.createSQLJSchema();
 				deployer.initJavaHandler();
 				deployer.initializeSQLJSchema();
@@ -227,34 +220,18 @@ public class Deployer
 
 		stmt.execute(
 			"CREATE TABLE sqlj.jar_repository(" +
-			"	jarId		INT PRIMARY KEY," +
+			"	jarId		SERIAL PRIMARY KEY," +
 			"	jarName		VARCHAR(100) UNIQUE NOT NULL," +
-			"	jarImage	BYTEA NOT NULL" +
+			"   jarOrigin   VARCHAR(500) NOT NULL" +
 			")");
 
-		// Sequence producing values for the primary key.
-		//
-		stmt.execute("CREATE SEQUENCE sqlj.jar_pkseq");
-
-		// Function that ensures that the primary key receives its value
-		// when called from below trigger.
-		//
 		stmt.execute(
-			"CREATE FUNCTION sqlj.jar_pkfunc() RETURNS trigger AS '" +
-			"	BEGIN" +
-			"		IF NEW.jarId IS NULL THEN" +
-			"			NEW.jarId := NEXTVAL(''sqlj.jar_pkseq'');" +
-			"		END IF;" +
-			"		RETURN NEW;" +
-			"	END;'" +
-			"	LANGUAGE plpgsql");
-
-		// Trigger that ensures that the primary key receives its value.
-		//
-		stmt.execute(
-			"CREATE TRIGGER jar_pktrigger" +
-			"	BEFORE INSERT ON sqlj.jar_repository" +
-			"	FOR EACH ROW EXECUTE PROCEDURE sqlj.jar_pkfunc()");
+			"CREATE TABLE sqlj.jar_entry(" +
+			"   entryId     SERIAL PRIMARY KEY," +
+			"	entryName	VARCHAR(200) NOT NULL," +
+			"	jarId		INT NOT NULL REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
+			"   entryImage  BYTEA NOT NULL" +
+			")");
 
 		// Create the table maintaining the class path.
 		//
@@ -293,6 +270,11 @@ public class Deployer
 			"	AS 'org.postgresql.pljava.management.Commands.setClassPath'" +
 			"	LANGUAGE java");
 
+		stmt.execute(
+			"CREATE FUNCTION sqlj.get_classpath(VARCHAR) RETURNS VARCHAR" +
+			"	AS 'org.postgresql.pljava.management.Commands.getClassPath'" +
+			"	LANGUAGE java");
+
 		stmt.close();
 	}
 
@@ -307,20 +289,6 @@ public class Deployer
 			" LANGUAGE C");
 
 		stmt.execute("CREATE LANGUAGE java HANDLER sqlj.java_call_handler");
-		stmt.close();
-	}
-
-	public void initPgSQLHandler()
-	throws SQLException
-	{
-		Statement stmt = m_connection.createStatement();
-		stmt.execute(
-			"CREATE FUNCTION plpgsql_call_handler()" +
-			" RETURNS language_handler" +
-			" AS '$libdir/plpgsql'" +
-			" LANGUAGE C");
-
-		stmt.execute("CREATE TRUSTED LANGUAGE plpgsql HANDLER plpgsql_call_handler");
 		stmt.close();
 	}
 }

@@ -31,6 +31,7 @@ void Exception_checkException(JNIEnv* env)
 		 */
 		return;
 
+	(*env)->ExceptionDescribe(env);
 	(*env)->ExceptionClear(env);
 	if(elogErrorOccured)
 		/*

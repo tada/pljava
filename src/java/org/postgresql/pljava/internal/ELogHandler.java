@@ -8,8 +8,11 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.util.logging.Filter;
+import java.util.logging.Formatter;
 import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogManager;
 import java.util.logging.LogRecord;
 
 /**
@@ -76,7 +79,9 @@ public class ELogHandler extends Handler
 	{
 		Level level = record.getLevel();
 		int pgLevel;
-		if(level.equals(Level.SEVERE))
+		if(level == null)
+			pgLevel = LOG_LOG;
+		else if(level.equals(Level.SEVERE))
 			pgLevel = LOG_ERROR;
 		else if(level.equals(Level.WARNING))
 			pgLevel = LOG_WARNING;
@@ -93,6 +98,11 @@ public class ELogHandler extends Handler
 		Backend.log(pgLevel, this.getFormatter().format(record));
 	}
 
+	public ELogHandler()
+	{
+		this.configure();
+	}
+
 	/**
 	 * This is a no-op.
 	 */
@@ -106,4 +116,81 @@ public class ELogHandler extends Handler
 	public void close() throws SecurityException
 	{
 	}
+
+	// Private method to configure an ELogHandler
+	//
+	private void configure()
+	{
+		LogManager mgr = LogManager.getLogManager();
+		String cname = ELogHandler.class.getName();
+		
+		String pgLevel = Backend.getConfigOption("log_min_messages");
+		Level level = Level.ALL;
+		if(pgLevel != null)
+		{	
+			pgLevel = pgLevel.toLowerCase().trim();
+			if(pgLevel.equals("panic") || pgLevel.equals("fatal"))
+				level = Level.OFF;
+			else if(pgLevel.equals("error"))
+				level = Level.SEVERE;
+			else if(pgLevel.equals("warning"))
+				level = Level.WARNING;
+			else if(pgLevel.equals("notice"))
+				level = Level.CONFIG;
+			else if(pgLevel.equals("info"))
+				level = Level.INFO;
+			else if(pgLevel.equals("debug1"))
+				level = Level.FINE;
+			else if(pgLevel.equals("debug2"))
+				level = Level.FINER;
+			else if(pgLevel.equals("debug3") || pgLevel.equals("debug4") || pgLevel.equals("debug5"))
+				level = Level.FINEST;
+		}
+		this.setLevel(level);
+
+		String val = mgr.getProperty(cname + ".filter");
+		if(val != null)
+		{	
+			try
+			{	
+				this.setFilter((Filter)Class.forName(val.trim()).newInstance());
+			}
+			catch (Exception e)
+			{
+				val = null;
+			}
+		}
+		if(val == null)
+			this.setFilter(null);
+
+		val = mgr.getProperty(cname + ".formatter");
+		if(val != null)
+		{	
+			try
+			{
+				this.setFormatter((Formatter)Class.forName(val.trim()).newInstance());
+			}
+			catch (Exception e)
+			{
+				val = null;
+			}
+		}
+		if(val == null)
+			this.setFormatter(new ELogFormatter());
+
+		val = mgr.getProperty(cname + ".encoding");
+		if(val != null)
+		{
+			try
+			{
+				setEncoding(val.trim());
+			}
+			catch(Exception e)
+			{
+				val = null;
+			}
+		}
+		if(val == null)
+			try { setEncoding(null); } catch (Exception e) { /* ignore */ }
+	}	
 }

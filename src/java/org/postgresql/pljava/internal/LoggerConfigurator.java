@@ -24,18 +24,17 @@ public class LoggerConfigurator
 	public LoggerConfigurator()
 	{
 		Properties props = new Properties();
-		props.setProperty("handlers", "org.postgresql.pljava.internal.ELogHandler");
-		props.setProperty("org.postgresql.pljava.internal.ELogHandler.level", "INFO");
-		props.setProperty("org.postgresql.pljava.internal.ELogHandler.formatter", "java.util.logging.SimpleFormatter");
+		props.setProperty("handlers", ELogHandler.class.getName());
+		props.setProperty(".level", "INFO");
 		ByteArrayOutputStream po = new ByteArrayOutputStream();
 		try
 		{
 			props.store(po, null);
-			LogManager.getLogManager().readConfiguration(new ByteArrayInputStream(po.toByteArray()));
+			LogManager.getLogManager().readConfiguration(
+				new ByteArrayInputStream(po.toByteArray()));
 		}
 		catch(IOException e)
 		{
-			Backend.log(ELogHandler.LOG_ERROR, "Unable to read logger configuration");
 		}
 	}
 }

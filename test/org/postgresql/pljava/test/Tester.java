@@ -224,8 +224,27 @@ public class Tester
 			" AS 'org.postgresql.pljava.example.Parameters.getTimestamp'" +
 			" LANGUAGE java");
 
+		stmt.execute(
+			"CREATE FUNCTION javatest.java_print(date)" +
+			" RETURNS void" +
+			" AS 'org.postgresql.pljava.example.Parameters.print'" +
+			" LANGUAGE java");
+
+		stmt.execute(
+			"CREATE FUNCTION javatest.java_print(timetz)" +
+			" RETURNS void" +
+			" AS 'org.postgresql.pljava.example.Parameters.print'" +
+			" LANGUAGE java");
+
+		stmt.execute(
+			"CREATE FUNCTION javatest.java_print(timestamptz)" +
+			" RETURNS void" +
+			" AS 'org.postgresql.pljava.example.Parameters.print'" +
+			" LANGUAGE java");
+
 		ResultSet rs = stmt.executeQuery(
 				"SELECT java_getTimestamp(), java_getTimestamptz()");
+		
 		if(!rs.next())
 			System.out.println("Unable to position ResultSet");
 		else
@@ -233,6 +252,13 @@ public class Tester
 				"Timestamp = " + rs.getTimestamp(1) +
 				", Timestamptz = " + rs.getTimestamp(2));
 		rs.close();
+
+		// Test parameter overloading. Set log_min_messages (in posgresql.conf)
+		// to INFO or higher and watch the result.
+		//
+		stmt.execute("SELECT java_print(current_date)");
+		stmt.execute("SELECT java_print(current_time)");
+		stmt.execute("SELECT java_print(current_timestamp)");
 		stmt.close();
 	}
 

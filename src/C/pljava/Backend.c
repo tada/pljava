@@ -437,6 +437,24 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 
 /*
  * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    getConfigOption
+ * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Backend_getConfigOption(JNIEnv* env, jclass cls, jstring jkey)
+{
+	THREAD_FENCE(0)
+	char* key = String_createNTS(env, jkey);
+	if(key == 0)
+		return 0;
+
+	const char* value = GetConfigOption(key);
+	pfree(key);
+	return (value == 0) ? 0 : String_createJavaStringFromNTS(env, value);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
  * Method:    log
  * Signature: (ILjava/lang/String;)V
  */

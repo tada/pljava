@@ -20,6 +20,7 @@ import java.util.Properties;
  */
 public class SPIDriver implements Driver
 {
+	private static final Connection s_defaultConn = new SPIConnection();
 	private static final DriverPropertyInfo[] s_noInfo = new DriverPropertyInfo[0];
 
 	static
@@ -38,7 +39,7 @@ public class SPIDriver implements Driver
 	throws SQLException
 	{
 		return this.acceptsURL(url)
-			? new SPIConnection()
+			? s_defaultConn
 			: null;
 	}
 

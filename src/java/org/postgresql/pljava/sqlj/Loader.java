@@ -7,9 +7,6 @@
  */
 package org.postgresql.pljava.sqlj;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -17,70 +14,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
 
 /**
  * @author Thomas Hallgren
  */
 public class Loader extends ClassLoader
 {
+	private static final String PUBLIC_SCHEMA = "public";
 	private static final Map s_schemaLoaders = new HashMap();
 
 	private final Map m_entries;
-
-	/**
-	 * This implementation reads everything into memory. It needs to be improved
-	 * so that it utilizes an index and the fact that we actually have a database
-	 * that is far better suited to handle the images.
-	 * @param map Map that maps name of jar file entry to its binary image.
-	 * @param jarImage The image of the complete jar file.
-	 * @throws SQLException
-	 */
-	public static void addClassImages(Map map, byte[] jarImage)
-	throws SQLException
-	{
-		ByteArrayOutputStream img = new ByteArrayOutputStream();
-		byte[] buf = new byte[1024];
-		try
-		{
-			JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jarImage));
-			for(;;)
-			{
-				JarEntry je = jis.getNextJarEntry();
-				if(je == null)
-					break;
-
-				if(je.isDirectory())
-					continue;
-
-				int nBytes;
-				img.reset();
-				while((nBytes = jis.read(buf)) > 0)
-					img.write(buf, 0, nBytes);
-				jis.closeEntry();
-				map.put(je.getName(), img.toByteArray());
-			}
-		}
-		catch(IOException e)
-		{
-			throw new SQLException("I/O exception reading jar file: " + e.getMessage());
-		}
-	}
-
-	/**
-	 * Invalidates the loader for the given schema. This method is called from
-	 * the {@link org.postgresql.pljava.management.Commands Commands} class when
-	 * things are changed that might have an effect on the loader.
-	 * @param schemaName The name of the schema
-	 */
-	public static void invalidateSchemaLoader(String schemaName)
-	{
-		// Simply drop the loader. A new one will be created the next time
-		// a loader is wanted for the given schema.
-		//
-		s_schemaLoaders.remove(schemaName);
-	}
+	private PreparedStatement m_getImageStmt = null;
 
 	/**
 	 * Obtain a loader that has been configured for the class path of the
@@ -93,7 +37,7 @@ public class Loader extends ClassLoader
 	throws SQLException
 	{
 		if(schemaName == null || schemaName.length() == 0)
-			schemaName = "public";
+			schemaName = PUBLIC_SCHEMA;
 		else
 			schemaName = schemaName.toLowerCase();
 
@@ -103,52 +47,74 @@ public class Loader extends ClassLoader
 
 		Map classImages = new HashMap();
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement outer = null;
+		PreparedStatement inner = null;
 		try
 		{
 			// Read the entries so that the one with highest prio is read last.
 			//
-			PreparedStatement stmt = conn.prepareStatement(
-				"SELECT r.jarImage" +
+			outer = conn.prepareStatement(
+				"SELECT r.jarId" +
 				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c ON r.jarId = c.jarId" +
 				" WHERE c.schemaName = ? ORDER BY c.ordinal DESC");
 
+			inner = conn.prepareStatement(
+				"SELECT entryId, entryName FROM sqlj.jar_entry WHERE jarId = ?");
+
+			outer.setString(1, schemaName);
+			ResultSet rs = outer.executeQuery();
 			try
 			{
-				stmt.setString(1, schemaName);
-				ResultSet rs = stmt.executeQuery();
-				try
+				while(rs.next())
 				{
-					while(rs.next())
-						addClassImages(classImages, rs.getBytes(1));
-				}
-				finally
-				{
-					try { rs.close(); } catch(SQLException e) { /* ignore */ }
+					inner.setInt(1, rs.getInt(1));
+					ResultSet rs2 = inner.executeQuery();
+					try
+					{
+						while(rs2.next())
+						{
+							Integer entryId  = new Integer(rs2.getInt(1));
+							String entryName = rs2.getString(2);
+							classImages.put(entryName, entryId);
+						}
+					}
+					finally
+					{
+						try { rs2.close(); } catch(SQLException e) { /* ignore */ }
+					}
 				}
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
+				try { rs.close(); } catch(SQLException e) { /* ignore */ }
 			}
 		}
 		finally
 		{
+			if(outer != null)
+				try { outer.close(); } catch(SQLException e) { /* ignore */ }
+			if(inner != null)
+				try { inner.close(); } catch(SQLException e) { /* ignore */ }
 			try { conn.close(); } catch(SQLException e) { /* ignore */ }
 		}
 
-		ClassLoader parent = schemaName.equals("public")
-			? ClassLoader.getSystemClassLoader()
-			: getSchemaLoader("public");
-
-		loader = (classImages.size() > 0)
-			? new Loader(classImages, parent)
-			: parent;
+		ClassLoader parent = ClassLoader.getSystemClassLoader();
+		if(classImages.size() == 0)
+			//
+			// No classpath defined for the schema. Default to
+			// classpath of public schema or to the system classloader if the
+			// request already is for the public schema.
+			//
+			loader = schemaName.equals(PUBLIC_SCHEMA) ? parent : getSchemaLoader(PUBLIC_SCHEMA);
+		else
+			loader = new Loader(classImages, parent);
 
 		s_schemaLoaders.put(schemaName, loader);
 		return loader;
 	}
 
 	/**
+	 * Create a new Loader.
 	 * @param entries
 	 * @param parent
 	 */
@@ -162,10 +128,40 @@ public class Loader extends ClassLoader
 	throws ClassNotFoundException
 	{
 		String path = name.replace('.', '/').concat(".class");
-		byte[] img = (byte[])m_entries.get(path);
-		if(img == null)
-			throw new ClassNotFoundException(name);
-		
-		return this.defineClass(name, img, 0, img.length);
+		Integer entryId = (Integer)m_entries.get(path);
+		if(entryId != null)
+		{	
+			try
+			{
+				// This code rely heavily on the fact that the connection
+				// is a singleton and that the prepared statement will live
+				// for the duration of the loader.
+				//
+				if(m_getImageStmt == null)
+				{
+					Connection conn = DriverManager.getConnection("jdbc:default:connection");
+					m_getImageStmt = conn.prepareStatement(
+						"SELECT entryImage FROM sqlj.jar_entry WHERE entryId = ?");
+				}
+				m_getImageStmt.setInt(1, entryId.intValue());
+				ResultSet rs = m_getImageStmt.executeQuery();
+				try
+				{
+					if(rs.next())
+					{
+						byte[] img = rs.getBytes(1);
+						return this.defineClass(name, img, 0, img.length);
+					}
+				}
+				finally
+				{
+					try { rs.close(); } catch(SQLException e) { /* ignore */ }
+				}
+			}
+			catch(SQLException e)
+			{
+			}
+		}
+	throw new ClassNotFoundException(name);
 	}
 }

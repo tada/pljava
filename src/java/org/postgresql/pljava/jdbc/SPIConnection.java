@@ -64,13 +64,6 @@ public class SPIConnection implements Connection
 	{
 		s_sqlType2Class.put(clazz, new Integer(sqlType));
 	}
-	private boolean m_valid;
-
-	SPIConnection()
-	{
-		m_valid = true;
-	}
-
 	/**
 	 * Returns a default connection instance. It is the callers responsability
 	 * to close this instance.
@@ -109,12 +102,11 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Close the connection and free up any resources attached to it.
+	 * This is a no-op. The default connection never closes.
 	 */
 	public void close()
 	throws SQLException
 	{
-		m_valid = false;
 	}
 
 	/**
@@ -148,12 +140,12 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Returns true if this conneciton has been closed.
+	 * Will always return false.
 	 */
 	public boolean isClosed()
 	throws SQLException
 	{
-		return !m_valid;
+		return false;
 	}
 
 	/**

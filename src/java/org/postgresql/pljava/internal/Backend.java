@@ -15,6 +15,14 @@ package org.postgresql.pljava.internal;
 public class Backend
 {
 	/**
+	 * Returns the configuration option as read from the Global
+	 * Unified Config package (GUC).
+	 * @param key The name of the option.
+	 * @return The value of the option.
+	 */
+	public native static String getConfigOption(String key);
+
+	/**
 	 * Log a message using the internal elog command.
 	 * @param logLevel The log level.
 	 * @param str The message
