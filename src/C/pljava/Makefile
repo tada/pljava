@@ -39,9 +39,6 @@ endif
 endif
 
 ifdef DLL_BUILD
-	JRE_INCL := win32
-	JRE_LIB  := bin/client
-
 	# This works but is not very nice since it affects all
 	# DLLTOOL invocations in Makefile.shlib. A custom flag
 	# is requested from postgres.
@@ -70,8 +67,15 @@ endif
 else
 $(error You must set JAVA_HOME)
 endif
+
+ifdef DLL_BUILD
+	JRE_INCL := win32
+	JVM_LIB  := $(JDK_HOME)/jre/bin/client
+else
 	JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
 	JVM_LIB := $(shell /bin/ls -d $(JRE_LIB)/client $(JRE_LIB)/server $(JRE_LIB)/jrockit 2> /dev/null)
+endif
+
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
 	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JVM_LIB) -ljvm
 endif

@@ -41,8 +41,6 @@
 
 bool isCallingJava;
 
-#define LOCAL_REFERENCE_COUNT 32
-
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 
@@ -112,28 +110,21 @@ static void initJavaVM(JNIEnv* env)
 #endif
 }
 
+static bool s_topLocalFrameInstalled = false;
+static unsigned int s_callLevel = 0;
+
 static void onEndOfScope(MemoryContext ctx, bool isDelete)
 {
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
 		return;
 
-	(*env)->PopLocalFrame(env, 0);
-
-	if(!isDelete)
+	if(s_callLevel == 0 && s_topLocalFrameInstalled)
 	{
-		/* This is a reset, establish a new local frame.
-		 */
-		if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
-		{
-			/* Out of memory
-			 */
-			(*env)->ExceptionClear(env);
-			ereport(ERROR, (
-				errcode(ERRCODE_OUT_OF_MEMORY),
-				errmsg("Unable to create java frame for local references")));
-		}
-	}	
+		s_topLocalFrameInstalled = false;
+		MemoryContext_popJavaFrame(env);
+	}
+	NativeStruct_releaseCache(env, ctx, isDelete);
 }
 
 static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
@@ -150,24 +141,17 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	returnValueContext = upper;
 	if(!MemoryContext_hasCallbackCapability(upper))
 	{
-		/* Since the call does not originate from the JavaVM, we must
-		 * push a local frame that ensures garbage collection of
-		 * new objecs once popped (somewhat similar to palloc, but for
-		 * Java objects).
-		 */
-		if((*s_mainEnv)->PushLocalFrame(s_mainEnv, LOCAL_REFERENCE_COUNT) < 0)
-		{
-			/* Out of memory
-			 */
-			(*s_mainEnv)->ExceptionClear(s_mainEnv);
-			ereport(ERROR, (
-				errcode(ERRCODE_OUT_OF_MEMORY),
-				errmsg("Unable to create java frame for local references")));
-		}
-		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
 		NativeStruct_addCacheManager(upper);
+		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
 	}
 
+	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
+	{
+		MemoryContext_pushJavaFrame(s_mainEnv);
+		s_topLocalFrameInstalled = true;
+	}
+
+	++s_callLevel;
 	PG_TRY();
 	{
 		if(CALLED_AS_TRIGGER(fcinfo))
@@ -185,6 +169,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 			retval = Function_invoke(function, s_mainEnv, fcinfo);
 		}
 		Exception_checkException(s_mainEnv);
+		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
 #if (PGSQL_MAJOR_VER < 8)
@@ -193,6 +178,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	}
 	PG_CATCH();
 	{
+		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
 #if (PGSQL_MAJOR_VER < 8)

@@ -15,32 +15,24 @@
 static jclass    s_NativeStruct_class;
 static jfieldID  s_NativeStruct_m_native;
 
-/**
- * Callback that will be called when a context that is associated with
- * NativeStruct objects is deleted.
- */
-static void dropCache(MemoryContext ctx, bool isDelete)
+void NativeStruct_releaseCache(JNIEnv* env, MemoryContext ctx, bool isDelete)
 {
-	JNIEnv* env   = Backend_getMainEnv();
 	HashMap cache = MemoryContext_getNativeCache(ctx);
-	if(env != 0)
+	Iterator itor = HashMap_entries(cache);
+	while(Iterator_hasNext(itor))
 	{
-		Iterator itor = HashMap_entries(cache);
-		while(Iterator_hasNext(itor))
+		Entry e = Iterator_next(itor);
+		jobject weak = Entry_getValue(e);
+		if(weak != 0)
 		{
-			Entry e = Iterator_next(itor);
-			jobject weak = Entry_getValue(e);
-			if(weak != 0)
+			jobject bound = (*env)->NewLocalRef(env, weak);
+			if(bound != 0)
 			{
-				jobject bound = (*env)->NewLocalRef(env, weak);
-				if(bound != 0)
-				{
-					elog(DEBUG1, "Marking object stale");
-					(*env)->SetLongField(env, bound, s_NativeStruct_m_native, 0L);
-					(*env)->DeleteLocalRef(env, bound);
-				}
-				(*env)->DeleteWeakGlobalRef(env, weak);
+				elog(DEBUG1, "Marking object stale");
+				(*env)->SetLongField(env, bound, s_NativeStruct_m_native, 0L);
+				(*env)->DeleteLocalRef(env, bound);
 			}
+			(*env)->DeleteWeakGlobalRef(env, weak);
 		}
 	}
 
@@ -85,7 +77,6 @@ void NativeStruct_addCacheManager(MemoryContext ctx)
 	HashMap cache = HashMap_create(13, ctx->parent);
 	elog(DEBUG1, "NativeStruct cache %p created", cache);
 	MemoryContext_setNativeCache(ctx, cache);
-	MemoryContext_addEndOfScopeCB(ctx, dropCache);
 }
 
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)

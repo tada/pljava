@@ -290,6 +290,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 	if(ePlan == 0)
 		return 0;
 
+	MemoryContext_pushJavaFrame(env);
 	PG_TRY();
 	{
 		Datum* values = 0;
@@ -302,9 +303,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 			if(nulls != 0)
 				pfree(nulls);
 		}
+		MemoryContext_popJavaFrame(env);
 	}
 	PG_CATCH();
 	{
+		MemoryContext_popJavaFrame(env);
 		Exception_throw_ERROR(env, "SPI_execp");
 	}
 	PG_END_TRY();

@@ -82,6 +82,18 @@ extern MemoryContext MemoryContext_switchToReturnValueContext(void);
  */
 extern HashMap MemoryContext_getCurrentNativeCache(void);
 
+/*
+ * Push a java frame that will ensure garbage collection of
+ * new java objecs when popped (somewhat similar to a MemoryContext,
+ * but for Java objects).
+ */
+extern void MemoryContext_pushJavaFrame(JNIEnv* env);
+
+/*
+ * Pop a previously pushed frame.
+ */
+extern void MemoryContext_popJavaFrame(JNIEnv* env);
+
 #ifdef __cplusplus
 }
 #endif

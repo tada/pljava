@@ -7,6 +7,8 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 
+#define LOCAL_REFERENCE_COUNT 128
+
 /* Single linked list of callback definitions. Each containing
  * a function and a client data pointer.
  */
@@ -183,5 +185,31 @@ MemoryContext MemoryContext_switchToReturnValueContext()
 
 HashMap MemoryContext_getCurrentNativeCache()
 {
-	return MemoryContext_getNativeCache(returnValueContext);
+	return (returnValueContext == 0)
+		? 0
+		: MemoryContext_getNativeCache(returnValueContext);
+}
+
+void MemoryContext_pushJavaFrame(JNIEnv* env)
+{
+	if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+	{
+		/* Out of memory
+		 */
+		(*env)->ExceptionClear(env);
+		ereport(ERROR, (
+			errcode(ERRCODE_OUT_OF_MEMORY),
+			errmsg("Unable to create java frame for local references")));
+	}
+}
+
+void MemoryContext_popJavaFrame(JNIEnv* env)
+{
+	bool saveIsCallingJava = isCallingJava;
+
+	/* Pop this frame. This might call finalizers.
+	 */
+	isCallingJava = true;
+	(*env)->PopLocalFrame(env, 0);
+	saveIsCallingJava = isCallingJava;
 }

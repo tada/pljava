@@ -30,6 +30,14 @@ extern "C" {
 extern void NativeStruct_addCacheManager(MemoryContext ctx);
 
 /*
+ * Releases the cache associated with the given MemoryContext and marks all
+ * Java objects that still refer to objects in the cache as stale. If the
+ * argument isDelete is set to true, the cache will be deleted otherwise it
+ * will just be cleared.
+ */
+extern void NativeStruct_releaseCache(JNIEnv* env, MemoryContext ctx, bool isDelete);
+
+/*
  * Obtain a locally bound object form the weak cache. This method
  * will return NULL if no such object is found.
  */
