@@ -787,6 +787,14 @@ static void initializeJavaVM(void)
 	on_proc_exit(_destroyJavaVM, 0);
 	initPLJavaClasses(s_mainEnv);
 	initJavaLogger(s_mainEnv);
+	if((*s_mainEnv)->ExceptionCheck(s_mainEnv))
+	{
+		(*s_mainEnv)->ExceptionDescribe(s_mainEnv);
+		(*s_mainEnv)->ExceptionClear(s_mainEnv);
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unable to initialize java logger")));
+	}
 }
 
 JNIEnv* Backend_getMainEnv(void)

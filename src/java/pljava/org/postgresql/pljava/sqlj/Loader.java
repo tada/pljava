@@ -24,8 +24,6 @@ import java.util.logging.Logger;
  */
 public class Loader extends ClassLoader
 {
-	private static Logger s_logger = Logger.getAnonymousLogger();
-	
 	private static final String PUBLIC_SCHEMA = "public";
 	private static final Map s_schemaLoaders = new HashMap();
 
@@ -195,7 +193,6 @@ public class Loader extends ClassLoader
 
 	private static URL entryURL(int entryId)
 	{
-		s_logger.info("entryURL(Entry id = " + entryId + ")");
 		try
 		{
 			return new URL(

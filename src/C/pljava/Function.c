@@ -241,9 +241,9 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errmsg("'AS' clause of Java function cannot be NULL")));
 
 	bp     = DatumGetCString(DirectFunctionCall1(textout, tmp));
+	elog(DEBUG1, "prosrc = \"%s\"", bp);
 	len    = strlen(bp);
 	ep     = bp + len;					/* Points just after end */
-	nameEp = ep;
 
 	/* Trim off leading and trailing whitespace.
 	 */
@@ -333,7 +333,6 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	(*env)->DeleteLocalRef(env, jname);
 	(*env)->DeleteLocalRef(env, loader);
 
-	pfree(className);
 	Exception_checkException(env);
 
 	self->returnComplex = false;
@@ -513,6 +512,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
 	}
 	pfree(sign.data);
+	pfree(className);
 }
 
 static Function Function_create(JNIEnv* env, Oid functionId, bool isTrigger)

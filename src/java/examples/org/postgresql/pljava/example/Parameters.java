@@ -20,6 +20,18 @@ import java.util.logging.Logger;
  */
 public class Parameters
 {
+	static void log(String msg)
+	{
+		// GCJ has a somewhat serious bug (reported)
+		//
+		if("GNU libgcj".equals(System.getProperty("java.vm.name")))
+		{
+			System.out.print("INFO: ");
+			System.out.println(msg);
+		}
+		else
+			Logger.getAnonymousLogger().info(msg);
+	}
 
 	public static int addOne(int value)
 	{
@@ -65,14 +77,14 @@ public class Parameters
 	{
 		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		Logger.getAnonymousLogger().info("Date is " + p.format(time));
+		log("Date is " + p.format(time));
 	}
 
 	public static void print(Time time)
 	{
 		DateFormat p = DateFormat.getTimeInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		Logger.getAnonymousLogger().info("Time is " + p.format(time));
+		log("Time is " + p.format(time));
 	}
 
 	public static void print(Timestamp time)
@@ -80,6 +92,6 @@ public class Parameters
 		DateFormat p = DateFormat.getDateTimeInstance(
 				DateFormat.FULL, DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		Logger.getAnonymousLogger().info("Timestamp is " + p.format(time));
+		log("Timestamp is " + p.format(time));
 	}
 }

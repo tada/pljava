@@ -86,6 +86,7 @@ static char* PgObject_getClassName(JNIEnv* env, jclass cls)
 void PgObject_throwMemberError(JNIEnv* env, jclass cls, const char* memberName, const char* signature, bool isMethod, bool isStatic)
 {
 	(*env)->ExceptionDescribe(env);
+	(*env)->ExceptionClear(env);
 	ereport(ERROR, (
 		errmsg("Unable to find%s %s %s.%s with signature %s",
 			(isStatic ? " static" : ""),

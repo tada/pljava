@@ -20,9 +20,17 @@ import java.util.logging.Logger;
  */
 public class SPIActions
 {
-	public static void log(String str)
+	static void log(String msg)
 	{
-		Logger.getAnonymousLogger().info(str);
+		// GCJ has a somewhat serious bug (reported)
+		//
+		if("GNU libgcj".equals(System.getProperty("java.vm.name")))
+		{
+			System.out.print("INFO: ");
+			System.out.println(msg);
+		}
+		else
+			Logger.getAnonymousLogger().info(msg);
 	}
 
 	public static int testSavepointSanity()
@@ -32,20 +40,28 @@ public class SPIActions
 
 		// Create an anonymous savepoint.
 		//
-		log("Attempting to set an anonymous savepoint");
-		Savepoint sp = conn.setSavepoint();
+		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions priort to 8.0");
 		try
 		{
-			Statement stmt = conn.createStatement();
-			log("Attempting to set a SAVEPOINT using SQL (should fail)");
-			stmt.execute("SAVEPOINT foo");
+			Savepoint sp = conn.setSavepoint();
+			try
+			{
+				Statement stmt = conn.createStatement();
+				log("Attempting to set a SAVEPOINT using SQL (should fail)");
+				stmt.execute("SAVEPOINT foo");
+			}
+			catch(SQLException e)
+			{
+				log("It failed allright. Everything OK then");
+				log("Rolling back to anonymous savepoint");
+				conn.rollback(sp);
+				return 1;
+			}
 		}
-		catch(SQLException e)
+		catch(UnsupportedOperationException e)
 		{
-			log("It failed allright. Everything OK then");
-			log("Rolling back to anonymous savepoint");
-			conn.rollback(sp);
-			return 1;
+			log(e.getMessage());
+			return 0;
 		}
 		throw new SQLException("SAVEPOINT through SQL succeeded. That's bad news!");
 	}
