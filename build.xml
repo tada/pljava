@@ -155,7 +155,11 @@
 		<mkdir dir="distrib/src/test"/>
 
 		<copy todir="distrib">
-			<fileset dir="bin" includes="*.jar,*.dll,*.so"/>
+			<fileset dir="bin" includes="*.jar"/>
+		</copy>
+
+		<copy todir="distrib">
+			<fileset dir="bin/build/pljava" includes="*.dll,*.so"/>
 		</copy>
 
 		<copy todir="distrib/src/examples">
