@@ -8,7 +8,7 @@
  */
 package org.postgresql.pljava;
 
-import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Backend;
 
 /**
  * Provides access to some useful routines in the PostgreSQL server.
@@ -16,19 +16,15 @@ import org.postgresql.pljava.internal.AclId;
  */
 public class Server
 {
-	/**
-	 * Return the current user.
-	 */
-	public static String getUserName()
-	{
-		return AclId.getUser().getName();
-	}
+	private static Session s_session;
 
-	/**
-	 * Return the session user.
-	 */
-	public static String getSessionUserName()
+	public static Session getSession()
 	{
-		return AclId.getSessionUser().getName();
+		if(s_session == null)
+		{
+			s_session = new Session();
+			Backend.addEOXactListener(s_session);
+		}
+		return s_session;
 	}
 }

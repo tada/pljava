@@ -20,6 +20,18 @@ public class Backend
 	public static final Object THREADLOCK = new Object();
 
 	/**
+	 * Adds the specified Session to the list of listeners that will
+	 * receive transactional events.
+	 */
+	public static void addEOXactListener(EOXactListener listener)
+	{
+		synchronized(THREADLOCK)
+		{
+			/* _addEOXactListener(listener); */
+		}
+	}
+
+	/**
 	 * Returns the configuration option as read from the Global
 	 * Unified Config package (GUC).
 	 * @param key The name of the option.
@@ -47,6 +59,18 @@ public class Backend
 	}
 
 	/**
+	 * Removes the specified listener from the list of listeners that will
+	 * receive transactional events.
+	 */
+	public static void removeEOXactListener(EOXactListener listener)
+	{
+		synchronized(THREADLOCK)
+		{
+			/* _removeEOXactListener(listener); */
+		}
+	}
+
+	/**
 	 * Returns <code>true</code> if the backend is awaiting a return from a
 	 * call into the JVM. This method will only return <code>false</code>
 	 * when called from a thread other then the main thread and the main
@@ -56,4 +80,9 @@ public class Backend
 
 	private native static String _getConfigOption(String key);
 	private native static void _log(int logLevel, String str);
+
+	/* To be added later.
+	private native static void _addEOXactListener(EOXactListener listener);
+	private native static void _removeEOXactListener(EOXactListener listener); 
+	 */
 }

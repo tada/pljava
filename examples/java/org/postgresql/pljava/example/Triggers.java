@@ -47,7 +47,7 @@ public class Triggers
 			throw new TriggerException(td, "one argument was expected");
 
 		if(_new.getString(args[0]) == null)
-			_new.updateString(args[0], Server.getUserName());
+			_new.updateString(args[0], Server.getSession().getUserName());
 	}
 
 	/**
