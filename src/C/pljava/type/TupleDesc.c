@@ -94,6 +94,11 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 		"()I",
 		Java_org_postgresql_pljava_internal_TupleDesc__1size
 		},
+		{
+		"_getOid",
+		"(I)I",
+		Java_org_postgresql_pljava_internal_TupleDesc__1getOid
+		},
 		{ 0, 0, 0 }};
 
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
@@ -263,4 +268,42 @@ Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jobject _this)
 	if(self == 0)
 		return 0;
 	return (jint)self->natts;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_TupleDesc
+ * Method:    _getOid
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jobject _this, jint index)
+{
+	TupleDesc self;
+	PLJAVA_ENTRY_FENCE(0)
+	self = (TupleDesc)NativeStruct_getStruct(env, _this);
+	jint result = 0;
+	if(self == 0)
+		return 0;
+
+	PG_TRY();
+	{
+		Oid typeId = SPI_gettypeid(self, (int)index);
+		if(!OidIsValid(typeId))
+		{
+			Exception_throw(env,
+				ERRCODE_INVALID_DESCRIPTOR_INDEX,
+				"Invalid attribute index \"%d\"", (int)index);
+		}
+		else
+		{
+			result = (jint)typeId;
+		}
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(env, "SPI_getbinval");
+	}
+	PG_END_TRY();
+
+	return (jint)result;
 }

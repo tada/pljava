@@ -77,8 +77,21 @@ public class TupleDesc extends NativeStruct
 		}
 	}
 
+	/**
+	 * Returns OID of the column type.
+	 */
+	public int getOid(int index)
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._getOid(index);
+		}
+	}
+
 	private native String _getColumnName(int index) throws SQLException;
 	private native int _getColumnIndex(String colName) throws SQLException;
 	private native Tuple _formTuple(Object[] values) throws SQLException;
 	private native int _size();
+	private native int _getOid(int index) throws SQLException;
 }
