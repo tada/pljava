@@ -25,10 +25,15 @@ ifeq ($(PORTNAME), darwin)
 else
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
-		JRE_LIB := lib/i386/client
+		JRE_CPU := i386
 	else
-		JRE_LIB := lib/$(host_cpu)/client
+	ifeq ($(host_cpu), x86_64)
+		JRE_CPU := amd64
+	else
+		JRE_CPU := $(host_cpu)
 	endif
+	endif
+
 endif
 endif
 endif
@@ -65,9 +70,10 @@ endif
 else
 $(error You must set JAVA_HOME)
 endif
-	
+	JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
+	JVM_LIB := $(shell /bin/ls -d $(JRE_LIB)/client $(JRE_LIB)/server $(JRE_LIB)/jrockit 2> /dev/null)
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/$(JRE_LIB) -ljvm
+	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JVM_LIB) -ljvm
 endif
 endif
 
