@@ -24,9 +24,9 @@ static Datum _short_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method,
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = Int16GetDatum((*env)->CallStaticShortMethodA(env, cls, method, args));
+	jshort sv = (*env)->CallStaticShortMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	return ret;
+	return Int16GetDatum(sv);
 }
 
 static jvalue _short_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -58,7 +58,11 @@ static jvalue _Short_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Short_coerceObject(Type self, JNIEnv* env, jobject shortObj)
 {
-	return Int16GetDatum((*env)->CallShortMethod(env, shortObj, s_Short_shortValue));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	jshort sv = (*env)->CallShortMethod(env, shortObj, s_Short_shortValue);
+	isCallingJava = saveicj;
+	return Int16GetDatum(sv);
 }
 
 static Type Short_obtain(Oid typeId)

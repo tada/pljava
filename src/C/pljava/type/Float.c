@@ -24,9 +24,9 @@ static Datum _float_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method,
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = Float4GetDatum((*env)->CallStaticFloatMethodA(env, cls, method, args));
+	jfloat fv = (*env)->CallStaticFloatMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	return ret;
+	return Float4GetDatum(fv);
 }
 
 static jvalue _float_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -58,7 +58,11 @@ static jvalue _Float_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Float_coerceObject(Type self, JNIEnv* env, jobject floatObj)
 {
-	return Float4GetDatum((*env)->CallFloatMethod(env, floatObj, s_Float_floatValue));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	jfloat fv = (*env)->CallFloatMethod(env, floatObj, s_Float_floatValue);
+	isCallingJava = saveicj;
+	return Float4GetDatum(fv);
 }
 
 static Type Float_obtain(Oid typeId)

@@ -24,9 +24,9 @@ static Datum _int_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, j
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = Int32GetDatum((*env)->CallStaticIntMethodA(env, cls, method, args));
+	jint iv = (*env)->CallStaticIntMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	return ret;
+	return Int32GetDatum(iv);
 }
 
 static jvalue _int_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -58,7 +58,11 @@ static jvalue _Integer_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Integer_coerceObject(Type self, JNIEnv* env, jobject intObj)
 {
-	return Int32GetDatum((*env)->CallIntMethod(env, intObj, s_Integer_intValue));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	jint iv = (*env)->CallIntMethod(env, intObj, s_Integer_intValue);
+	isCallingJava = saveicj;
+	return Int32GetDatum(iv);
 }
 
 static Type Integer_obtain(Oid typeId)

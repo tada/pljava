@@ -7,10 +7,10 @@
  * All Rights Reserved
  */
 #include <postgres.h>
-#include <executor/spi.h>
 #include <executor/tuptable.h>
 
 #include "pljava/Exception.h"
+#include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/Portal.h"
@@ -18,60 +18,9 @@
 #include "pljava/type/ExecutionPlan.h"
 #include "pljava/type/ExecutionPlan_JNI.h"
 
-#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
 #include <utils/guc.h>
 
 static bool s_deathRowFlag;
-
-/*
- * Returns the Oid of the type for argument at argIndex. First
- * parameter is at index zero.
- */
-Oid SPI_getargtypeid(void* plan, int argIndex)
-{
-	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return InvalidOid;
-	}
-	return ((_SPI_plan*)plan)->argtypes[argIndex];
-}
-
-/*
- * Returns the number of arguments for the prepared plan.
- */
-int SPI_getargcount(void* plan)
-{
-	if (plan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return -1;
-	}
-	return ((_SPI_plan*)plan)->nargs;
-}
-
-/*
- *	Return true if the plan is valid for a SPI_open_cursor call.
- */
-bool SPI_is_cursor_plan(void* plan)
-{
-	if (plan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return false;
-	}
-
-	_SPI_plan* spiplan = (_SPI_plan*)plan;
-	List* qtlist = spiplan->qtlist;
-
-	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
-	{
-		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
-		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
-			return true;
-	}
-	return false;
-}
 
 static Type      s_ExecutionPlan;
 static TypeClass s_ExecutionPlanClass;

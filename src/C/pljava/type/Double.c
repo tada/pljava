@@ -29,7 +29,7 @@ static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method
 	isCallingJava = saveicj;
 	
 	/* Since we don't know if 64 bit quantities are passed by reference or
-	 * by value, we have to make sure that the correct context is used if
+	 * by value, we have to make sure that the upper context is used if
 	 * it's the former.
 	 */
 	MemoryContext currCtx = SPI_switchToReturnValueContext();

@@ -116,7 +116,8 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 	if(hasRow)
 	{
-		/* Obtain tuple and return it as a Datum.
+		/* Obtain tuple and return it as a Datum. Must be done using a more
+		 * durable context.
 		 */
 		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);

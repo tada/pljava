@@ -53,8 +53,8 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	Datum result = 0;
 	if(hasRow)
 	{
-		/* Obtain tuple and return it as a Datum. Must be done using the
-		 * upper context.
+		/* Obtain tuple and return it as a Datum. Must be done using a more
+		 * durable context.
 		 */
 		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);

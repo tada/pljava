@@ -126,10 +126,13 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 		fcinfo->isnull = true;
 		return 0;
 	}
+	/* The return value cannot be created in the current context since it
+	 * goes out of scope when SPI_finish is called.
+	 */
 	MemoryContext currCtx = SPI_switchToReturnValueContext();
 	Datum ret = self->m_class->coerceObject(self, env, value);
-	(*env)->DeleteLocalRef(env, value);
 	MemoryContextSwitchTo(currCtx);
+	(*env)->DeleteLocalRef(env, value);
 	return ret;
 }
 
