@@ -52,6 +52,8 @@
 </buildTargets>
 </item>
 <item id="org.eclipse.cdt.core.pathentry">
+<pathentry kind="mac" path="" name="PGSQL_MAJOR_VERSION" value="8"/>
+<pathentry kind="mac" path="" name="PGSQL_MINOR_VERSION" value="0"/>
 <pathentry kind="src" path=""/>
 <pathentry kind="out" path=""/>
 </item>
