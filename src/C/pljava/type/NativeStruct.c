@@ -53,6 +53,17 @@ jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
 	return weak;
 }
 
+void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePointer)
+{
+	if(nativeStruct != 0)
+	{
+		Ptr2Long p2l;
+		p2l.longVal = 0L; /* ensure that the rest is zeroed out */
+		p2l.ptrVal = nativePointer;
+		(*env)->SetLongField(env, nativeStruct, s_NativeStruct_m_native, p2l.longVal);
+	}	
+}
+
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 {
 	if(nativeStruct == 0)
@@ -63,10 +74,7 @@ void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 
 	/* Assign the pointer to the 64 bit long attribute m_native.
 	 */
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = nativePointer;
-	(*env)->SetLongField(env, nativeStruct, s_NativeStruct_m_native, p2l.longVal);
+	NativeStruct_setPointer(env, nativeStruct, nativePointer);
 
 	/* Store a weak reference to this java object in the s_weakCache using
 	 * the nativePointer as the key.

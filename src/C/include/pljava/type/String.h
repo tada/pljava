@@ -26,6 +26,7 @@ extern "C" {
  *
  **************************************************************************/
 
+extern jclass s_Object_class;
 extern jclass s_String_class;
 struct String_;
 typedef struct String_* String;

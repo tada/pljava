@@ -12,6 +12,8 @@
 static TypeClass s_StringClass;
 static HashMap s_cache;
 jclass s_String_class;
+jclass s_Object_class;
+static jmethodID s_Object_toString;
 
 /*
  * Default type. Uses Posgres String conversion routines.
@@ -38,7 +40,16 @@ jvalue _String_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
 {
+	if(jstr == 0)
+		return 0;
+
+	jstr = (*env)->CallObjectMethod(env, jstr, s_Object_toString);
+	if((*env)->ExceptionCheck(env))
+		return 0;
+
 	char* tmp = String_createNTS(env, jstr);
+	(*env)->DeleteLocalRef(env, jstr);
+
 	Datum ret = FunctionCall3(
 					&((String)self)->textInput,
 					CStringGetDatum(tmp),
@@ -225,6 +236,11 @@ PG_FUNCTION_INFO_V1(String_initialize);
 Datum String_initialize(PG_FUNCTION_ARGS)
 {
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+
+	s_Object_class = (jclass)(*env)->NewGlobalRef(
+		env, PgObject_getJavaClass(env, "java/lang/Object"));
+
+	s_Object_toString = PgObject_getJavaMethod(env, s_Object_class, "toString", "()Ljava/lang/String;");
 
 	s_String_class = (jclass)(*env)->NewGlobalRef(
 		env, PgObject_getJavaClass(env, "java/lang/String"));

@@ -89,32 +89,26 @@ public class SPIStatement implements Statement
 		if(plan == null)
 			throw new SPIException(result);
 		
-		boolean isResultSet = this.executePlan(plan);
+		boolean isResultSet = this.executePlan(plan, null);
 		plan.invalidate();
 		return isResultSet;
 	}
 
-	protected Object[] getParameterValues()
-	{
-		return null;
-	}
-
-	protected boolean executePlan(ExecutionPlan plan)
+	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues)
 	throws SQLException
 	{
 		m_updateCount = -1;
 		m_resultSet   = null;
 
-		Object[] params = this.getParameterValues();
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
-			Portal portal = plan.cursorOpen(m_cursorName, params);
+			Portal portal = plan.cursorOpen(m_cursorName, paramValues);
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else
 		{	
-			plan.execp(params, m_maxRows);
+			plan.execp(paramValues, m_maxRows);
 			m_updateCount = SPI.getProcessed();
 		}
 		return isResultSet;
@@ -360,8 +354,11 @@ public class SPIStatement implements Statement
 	protected int executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		return (!this.execute(m_connection.nativeSQL((String)batchEntry)) && m_updateCount >= 0)
-			? m_updateCount
-			: SUCCESS_NO_INFO;
+		int ret = SUCCESS_NO_INFO;
+		if(this.execute(m_connection.nativeSQL((String)batchEntry)))
+			this.getResultSet().close();
+		else if(m_updateCount >= 0)
+			ret = m_updateCount;
+		return ret;
 	}
 }

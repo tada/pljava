@@ -8,25 +8,24 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.util.HashMap;
+
 /**
  * The <code>Oid</code> correspons to the internal PostgreSQL <code>Oid</code>.
  * Should the size of that change from 32 bit, this class must change too.
+ * In Java, the InvalidOid is represented as <code>null</code>.
  *
  * @author Thomas Hallgren
  */
 public class Oid
 {
+	private static final HashMap s_class2typeId = new HashMap();
+
 	static
 	{
 		System.loadLibrary("pljava");
+		registerType(Oid.class, Oid.getTypeId());
 	}
-
-	/**
-	 * The Oid representing the invalid Oid.
-	 * See definition in file &quot;include/postgres_ext.h&quot; of the
-	 * PostgreSQL distribution.
-	 */
-	private static final Oid s_invalidOid = new Oid(0);
 
 	/*
 	 * The native Oid represented as a 32 bit quantity.
@@ -38,15 +37,6 @@ public class Oid
 	public Oid(int value)
 	{
 		m_native = value;
-	}
-
-	/**
-	 * Returns the singleton that represents the invalid Oid.
-	 * @return The one and only invalid Oid.
-	 */
-	public static Oid invalidOid()
-	{
-		return s_invalidOid;
 	}
 
 	/**
@@ -70,13 +60,36 @@ public class Oid
 	}
 
 	/**
-	 * Checks to see if this <code>Oid</code> is valid.
-	 * @return <code>true</code> if this <code>Oid</code> is valid.
+	 * A Type well known to PostgreSQL but not known as a standard XOPEN
+	 * SQL type can be registered here. This includes types like the Oid
+	 * itself and all the geometry related types.
+	 * @param clazz The Java class that corresponds to the type id.
+	 * @param typeId The well known type id.
 	 */
-	public boolean isValid()
+	public static void registerType(Class clazz, Oid typeId)
 	{
-		return m_native == s_invalidOid.m_native;
+		s_class2typeId.put(clazz, typeId);
 	}
-	
+
+	/**
+	 * Finds the PostgreSQL well known Oid for the given class.
+	 * @param clazz The class.
+	 * @return The well known Oid or null if no such Oid could be found.
+	 */
+	public static Oid forJavaClass(Class clazz)
+	{
+		return (Oid)s_class2typeId.get(clazz);
+	}
+
+	/**
+	 * Finds the PostgreSQL well known Oid for the XOPEN Sql type.
+	 * @param sqlType The XOPEN type code.
+	 * @return The well known Oid or null if no such Oid could be found.
+	 */
 	public native static Oid forSqlType(int sqlType);
+	
+	/**
+	 * Returns the PostgreSQL type id for the Oid type.
+	 */
+	public native static Oid getTypeId();
 }

@@ -18,6 +18,8 @@ import java.sql.SQLException;
  */
 public class ExecutionPlan extends NativeStruct
 {
+	private boolean m_isDurable = false;
+
 	/**
 	 * Set up a cursor that will execute the plan using the internal
 	 * <code>SPI_cursor_open</code> function
@@ -55,9 +57,10 @@ public class ExecutionPlan extends NativeStruct
 	 * Create an execution plan for a statement to be executed later using
 	 * the internal <code>SPI_prepare</code> function.
 	 * @param statement The command string.
-	 * @param argTypes Oids of argument types.
+	 * @param argTypes SQL types of argument types.
 	 * @return An execution plan for the prepared statement.
 	 * @throws SQLException
+	 * @see java.sql.Types;
 	 */
 	public native static ExecutionPlan prepare(String statement, Oid[] argTypes)
 	throws SQLException;
@@ -67,4 +70,36 @@ public class ExecutionPlan extends NativeStruct
 	 * internal function <code>SPI_freeplan</code>
 	 */
 	public native void invalidate();
+
+	/**
+	 * Make this plan durable. This means that the plan will survive until
+	 * it is explicitly invalidated.
+	 * @throws SQLException If the underlying native structure has gone stale.
+	 */
+	public void makeDurable()
+	throws SQLException
+	{
+		if(m_isDurable)
+			return;
+		this.savePlan();
+		m_isDurable = true;
+	}
+
+	/**
+	 * Free up memory if this plan is durable.
+	 * TODO Find out if the pfree is thread safe. If not, this may not work.
+	 */
+	public void finalize()
+	{
+		if(m_isDurable && this.isValid())
+			this.invalidate();
+	}
+
+	/**
+	 * Makes this plan durable. Failure to invalidate the plan after this
+	 * will result in resource leaks.
+	 * @throws SQLException If the underlying native structure has gone stale.
+	 */
+	private native void savePlan()
+	throws SQLException;
 }

@@ -154,10 +154,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 		return (l == null) ? 0 : l.longValue();
 	}
 
+	/**
+	 * ResultSetMetaData is not yet supported.
+	 * @throws SQLException indicating that this feature is not supported.
+	 */
 	public ResultSetMetaData getMetaData()
 	throws SQLException
 	{
-		return null;
+		throw new UnsupportedFeatureException("ResultSet meta data is not yet implemented");
 	}
 
 	public final Object getObject(int columnIndex)

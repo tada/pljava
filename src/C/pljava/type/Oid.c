@@ -8,13 +8,14 @@
  */
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
+#include "pljava/type/Oid_JNI.h"
+#include "pljava/type/Types_JNI.h"
 
 static Type      s_Oid;
 static TypeClass s_OidClass;
 static jclass    s_Oid_class;
 static jmethodID s_Oid_init;
 static jfieldID  s_Oid_m_native;
-static jfieldID  s_Oid_s_invalidOid;
 
 /*
  * org.postgresql.pljava.type.Oid type.
@@ -25,7 +26,7 @@ jobject Oid_create(JNIEnv* env, Oid oid)
 	if(OidIsValid(oid))
 		joid = (*env)->NewObject(env, s_Oid_class, s_Oid_init, oid);
 	else
-		joid = (*env)->GetStaticObjectField(env, s_Oid_class, s_Oid_s_invalidOid);
+		joid = 0;
 	return joid;
 }
 
@@ -34,6 +35,81 @@ Oid Oid_getOid(JNIEnv* env, jobject joid)
 	if(joid == 0)
 		return InvalidOid;
 	return ObjectIdGetDatum((*env)->GetIntField(env, joid, s_Oid_m_native));
+}
+
+Oid Oid_forSqlType(int sqlType)
+{
+	Oid typeId;
+	switch(sqlType)
+	{
+		case java_sql_Types_BIT:
+			typeId = BITOID;
+			break;
+		case java_sql_Types_TINYINT:
+			typeId = CHAROID;
+			break;
+		case java_sql_Types_SMALLINT:
+			typeId = INT2OID;
+			break;
+		case java_sql_Types_INTEGER:
+			typeId = INT4OID;
+			break;
+		case java_sql_Types_BIGINT:
+			typeId = INT8OID;
+			break;
+		case java_sql_Types_FLOAT:
+		case java_sql_Types_REAL:
+			typeId = FLOAT4OID;
+			break;
+		case java_sql_Types_DOUBLE:
+			typeId = FLOAT8OID;
+			break;
+		case java_sql_Types_NUMERIC:
+		case java_sql_Types_DECIMAL:
+			typeId = NUMERICOID;
+			break;
+		case java_sql_Types_DATE:
+			typeId = DATEOID;
+			break;
+		case java_sql_Types_TIME:
+			typeId = TIMEOID;
+			break;
+		case java_sql_Types_TIMESTAMP:
+			typeId = TIMESTAMPOID;
+			break;
+		case java_sql_Types_BOOLEAN:
+			typeId = BOOLOID;
+			break;
+		case java_sql_Types_BINARY:
+		case java_sql_Types_VARBINARY:
+		case java_sql_Types_LONGVARBINARY:
+		case java_sql_Types_BLOB:
+			typeId = BYTEAOID;
+			break;
+		case java_sql_Types_CHAR:
+		case java_sql_Types_VARCHAR:
+		case java_sql_Types_LONGVARCHAR:
+		case java_sql_Types_CLOB:
+		case java_sql_Types_DATALINK:
+			typeId = CSTRINGOID;
+			break;
+/*		case java_sql_Types_CHAR:
+		case java_sql_Types_VARCHAR:
+		case java_sql_Types_LONGVARCHAR:
+		case java_sql_Types_CLOB:
+		case java_sql_Types_DATALINK:
+		case java_sql_Types_NULL:
+		case java_sql_Types_OTHER:
+		case java_sql_Types_JAVA_OBJECT:
+		case java_sql_Types_DISTINCT:
+		case java_sql_Types_STRUCT:
+		case java_sql_Types_ARRAY:
+		case java_sql_Types_REF: */
+		default:
+			typeId = InvalidOid;	// Not yet mapped.
+			break;
+	}
+	return typeId;
 }
 
 static jvalue _Oid_coerceDatum(Type self, JNIEnv* env, Datum arg)
@@ -70,9 +146,6 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_Oid_m_native = PgObject_getJavaField(
 				env, s_Oid_class, "m_native", "I");
 
-	s_Oid_s_invalidOid = PgObject_getStaticJavaField(
-				env, s_Oid_class, "s_invalidOid", "Lorg/postgresql/pljava/internal/Oid;");
-
 	s_OidClass = TypeClass_alloc("type.Oid");
 	s_OidClass->JNISignature   = "Lorg/postgresql/pljava/internal/Oid;";
 	s_OidClass->javaTypeName   = "org.postgresql.pljava.internal.Oid";
@@ -93,82 +166,17 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
-	Oid typeId = TEXTOID;	/* default */
-	switch(sqlType)
-	{
-		case java_sql_Types_BIT -7:
-			typeId = BITOID;
-			break;
-		case java_sql_Types_TINYINT -6:
-			typeId = CHAROID;
-			break;
-		case java_sql_Types_SMALLINT:
-			typeId = INT2OID;
-			break;
-		case java_sql_Types_INTEGER:
-			typeId = INT4OID;
-			break;
-		case java_sql_Types_BIGINT -5:
-			typeId = INT8OID;
-			break;
-		case java_sql_Types_FLOAT:
-		case java_sql_Types_REAL:
-			typeId = FLOAT4OID;
-			break;
-		case java_sql_Types_DOUBLE:
-			typeId = FLOAT8OID;
-			break;
-		case java_sql_Types_NUMERIC:
-		case java_sql_Types_DECIMAL:
-			typeId = NUMERICOID;
-			break;
-		case java_sql_Types_CHAR:
-		case java_sql_Types_VARCHAR:
-		case java_sql_Types_LONGVARCHAR -1:
-			typeId = CSTRINGOID;
-			break;
-		case java_sql_Types_DATE:
-			typeId = DATEOID;
-			break;
-		case java_sql_Types_TIME:
-			typeId = TIMEOID;
-			break;
-		case java_sql_Types_TIMESTAMP:
-			typeId = TIMESTAMPOID;
-			break;
-		case java_sql_Types_BINARY -2:
-			typeId = BYTEAOID;
-			break;
-		case java_sql_Types_VARBINARY -3:
-			typeId = BYTEAOID;
-			break;
-		case java_sql_Types_LONGVARBINARY -4:
-			typeId = BYTEAOID;
-			break;
-		case java_sql_Types_NULL:
-			break;
-		case java_sql_Types_OTHER:
-			break;
-		case java_sql_Types_JAVA_OBJECT:
-			break;
-		case java_sql_Types_DISTINCT:
-			break;
-		case java_sql_Types_STRUCT:
-			break;
-		case java_sql_Types_ARRAY:
-			break;
-		case java_sql_Types_BLOB:
-			typeId = BYTEAOID;
-			break;
-		case java_sql_Types_CLOB:
-			typeId = CSTRINGOID;
-			break;
-		case java_sql_Types_REF:
-			break;
-		case java_sql_Types_DATALINK:
-			break;
-		case java_sql_Types_BOOLEAN:
-			typeId = BOOLEANOID;
-	}
+	return Oid_create(env, Oid_forSqlType(sqlType));
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    getTypeId
+ * Signature: ()Lorg/postgresql/pljava/internal/Oid;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Oid_getTypeId(JNIEnv* env, jclass cls)
+{
+	return Oid_create(env, OIDOID);
 }
 

@@ -16,7 +16,6 @@ import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ParameterMetaData;
 import java.sql.Ref;
@@ -28,11 +27,11 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
-import java.util.List;
 
 import org.postgresql.pljava.internal.ExecutionPlan;
-import org.postgresql.pljava.internal.Portal;
+import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.SPI;
 import org.postgresql.pljava.internal.SPIException;
 
@@ -42,27 +41,72 @@ import org.postgresql.pljava.internal.SPIException;
  */
 public class SPIPreparedStatement extends SPIStatement implements PreparedStatement
 {
-	private static class ParamEntry
+	private static final Object s_undef = new Object();
+
+	public static class ParamEntry
 	{
-		final int    m_columnIndex;
-		final int    m_sqlType;
-		final Object m_value;
-		
+		private final int    m_columnIndex;
+		private final int    m_sqlType;
+		private final Object m_value;
+
 		ParamEntry(int columnIndex, int sqlType, Object value)
 		{
 			m_columnIndex = columnIndex;
 			m_sqlType = sqlType;
 			m_value = value;
 		}
+
+		int getIndex()
+		{
+			return m_columnIndex;
+		}
+
+		int getSqlType()
+		{
+			return m_sqlType;
+		}
+
+		Oid getTypeId()
+		{
+			Oid id = (m_sqlType == Types.OTHER)
+				? Oid.forJavaClass(m_value.getClass())
+				: Oid.forSqlType(m_sqlType);
+	
+			// Default to String.
+			//
+			if(id == null)
+				id = Oid.forSqlType(Types.VARCHAR);
+			return id;
+		}
+
+		Object getValue()
+		{
+			return m_value;
+		}
 	}
 
 	private final String m_statement;
-	private final ArrayList m_paramList = new ArrayList();
+	private final int    m_paramCount;
+	private final ArrayList m_paramList;
+	private ExecutionPlan m_plan;
+	private int[] m_sqlTypes;
+	private Oid[] m_typeIds;
 
-	public SPIPreparedStatement(SPIConnection conn, String statement)
+	public SPIPreparedStatement(SPIConnection conn, String statement, int paramCount)
 	{
 		super(conn);
-		m_statement = statement;
+		m_statement  = statement;
+		m_paramCount = paramCount;
+		m_paramList  = new ArrayList(m_paramCount);
+	}
+
+	public void close()
+	{
+		if(m_plan != null)
+		{
+			m_plan.invalidate();
+			m_plan = null;
+		}
 	}
 
 	public ResultSet executeQuery()
@@ -127,12 +171,12 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	public void setString(int columnIndex, String value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.CHAR);
+		this.setObject(columnIndex, value, Types.VARCHAR);
 	}
 
 	public void setBytes(int columnIndex, byte[] value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.BINARY);
+		this.setObject(columnIndex, value, Types.VARBINARY);
 	}
 
 	public void setDate(int columnIndex, Date value) throws SQLException
@@ -190,20 +234,94 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setObject(int columnIndex, Object value, int sqlType)
 	throws SQLException
 	{
-		m_paramList.add(new ParamEntry(columnIndex, sqlType, value));
+		if(columnIndex < 1 || columnIndex > m_paramCount)
+			throw new SQLException("Illegal parameter index");
+
+		m_paramList.add(new ParamEntry(columnIndex - 1, sqlType, value));
 	}
 
 	public void setObject(int columnIndex, Object value)
 	throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.JAVA_OBJECT);
+		if(value == null)
+			throw new SQLException("Can't assign null unless the SQL type is known");
+
+		this.setObject(columnIndex, value, SPIConnection.getTypeForClass(value.getClass()));
+	}
+
+	/**
+	 * Obtains the XOPEN SQL types for the parameters. 
+	 * @return The array of types.
+	 */
+	private int[] getSqlTypes()
+	{
+		if(m_sqlTypes != null)
+			return m_sqlTypes;
+
+		int top = m_paramList.size();
+		int[] types   = new int[m_paramCount];
+		Arrays.fill(types, Types.VARCHAR);	// Default.
+		for(int idx = 0; idx < top; ++idx)
+		{
+			ParamEntry pe = (ParamEntry)m_paramList.get(top);
+			types[pe.getIndex()] = pe.getSqlType();
+		}
+
+		m_sqlTypes = types;
+		return types;
 	}
 
 	public boolean execute()
 	throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return false;
+		Object[] values = null;
+		ArrayList params = m_paramList;
+		int top = params.size();
+		if(top < m_paramCount)
+			throw new SQLException("Not all parameters have been set");
+
+		if(top > 0)
+		{
+			// Instead of checking that top does not exceed paramCount, we
+			// verify no value is set more than once. Since the size of the
+			// paramList is equal or greater, this will ensure that all values
+			// have been set and that no more values exist.
+			//
+			values = new Object[m_paramCount];
+			Arrays.fill(values, s_undef);
+			for(int idx = 0; idx < top; ++idx)
+			{
+				ParamEntry pe = (ParamEntry)params.get(top);
+				int pIdx = pe.getIndex();
+				if(values[pIdx] != s_undef)
+					throw new SQLException("Parameter with index " + (idx + 1) + " was set more than once");
+				values[pIdx] = pe.getValue();
+			}
+		}
+
+		if(m_plan == null)
+		{	
+			if(m_typeIds == null && top > 0)
+			{	
+				int[] types   = new int[top];
+				Oid[] typeIds = new Oid[top];
+				for(int idx = 0; idx < top; ++idx)
+				{
+					ParamEntry pe = (ParamEntry)params.get(top);
+					int pIdx = pe.getIndex();
+					types[pIdx] = pe.getSqlType();
+					typeIds[pIdx] = pe.getTypeId();
+				}
+				m_sqlTypes = types;
+				m_typeIds  = typeIds;
+			}
+			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
+			if(m_plan == null)
+				throw new SPIException(SPI.getResult());
+			m_plan.makeDurable();
+		}
+
+		return this.executePlan(m_plan, values);
 	}
 
 	/**
@@ -239,9 +357,6 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		this.setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
 	}
 
-	/* (non-Javadoc)
-	 * @see java.sql.PreparedStatement#setRef(int, java.sql.Ref)
-	 */
 	public void setRef(int columnIndex, Ref value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.REF);
@@ -262,13 +377,14 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		this.setObject(columnIndex, value, Types.ARRAY);
 	}
 
-	/* (non-Javadoc)
-	 * @see java.sql.PreparedStatement#getMetaData()
+	/**
+	 * ResultSetMetaData is not yet supported.
+	 * @throws SQLException indicating that this feature is not supported.
 	 */
-	public ResultSetMetaData getMetaData() throws SQLException
+	public ResultSetMetaData getMetaData()
+	throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		throw new UnsupportedFeatureException("ResultSet meta data is not yet implemented");
 	}
 
 	public void setDate(int columnIndex, Date value, Calendar cal)
@@ -306,23 +422,35 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		this.setObject(columnIndex, value, Types.DATALINK);
 	}
 
-	public ParameterMetaData getParameterMetaData() throws SQLException
+	/**
+	 * Due to the design of the <code>SPI_prepare</code>, it is currently impossible to
+	 * obtain the correct parameter meta data before all the parameters have been
+	 * set, hence a ParameterMetaData obtained prior to setting the paramteres
+	 * will have all parameters set to the default type {@link Types#VARCHAR}.
+	 * Once the parameters have been set, a fair attempt is made to generate this
+	 * object based on the supplied values.
+	 * @return The meta data for parameter values.
+	 */
+	public ParameterMetaData getParameterMetaData()
+	throws SQLException
 	{
-		// TODO Auto-generated method stub
-		return null;
+		return new SPIParameterMetaData(this.getSqlTypes());
 	}
 
 	protected int executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
+		int ret = SUCCESS_NO_INFO;
 		this.clearParameters();
 		m_paramList.addAll((ArrayList)batchEntry);
-		if(!this.execute())
-		{
+		if(this.execute())
+			this.getResultSet().close();
+		else
+		{	
 			int updCount = this.getUpdateCount();
 			if(updCount >= 0)
-				return updCount;
+				ret = updCount;
 		}
-		return SUCCESS_NO_INFO;
+		return ret;
 	}
 }

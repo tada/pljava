@@ -7,15 +7,26 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.URL;
+import java.sql.Blob;
 import java.sql.CallableStatement;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Savepoint;
 import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.BitSet;
+import java.util.HashMap;
 import java.util.Map;
 
 
@@ -24,6 +35,36 @@ import java.util.Map;
  */
 public class SPIConnection implements Connection
 {
+	
+	private static final HashMap s_sqlType2Class = new HashMap(30);
+
+	static
+	{
+		addType(String.class, Types.VARCHAR);
+		addType(Byte.class, Types.TINYINT);
+		addType(Short.class, Types.SMALLINT);
+		addType(Integer.class, Types.INTEGER);
+		addType(Long.class, Types.BIGINT);
+		addType(Float.class, Types.FLOAT);
+		addType(Double.class, Types.DOUBLE);
+		addType(BigDecimal.class, Types.DECIMAL);
+		addType(BigInteger.class, Types.NUMERIC);
+		addType(Boolean.class, Types.BOOLEAN);
+		addType(Blob.class, Types.BLOB);
+		addType(Clob.class, Types.CLOB);
+		addType(Date.class, Types.DATE);
+		addType(Time.class, Types.TIME);
+		addType(Timestamp.class, Types.TIMESTAMP);
+		addType(java.util.Date.class, Types.TIMESTAMP);
+		addType(byte[].class, Types.VARBINARY);
+		addType(BitSet.class, Types.BIT);
+		addType(URL.class, Types.DATALINK);
+	}
+
+	private static final void addType(Class clazz, int sqlType)
+	{
+		s_sqlType2Class.put(clazz, new Integer(sqlType));
+	}
 	private boolean m_valid;
 
 	SPIConnection()
@@ -292,6 +333,11 @@ public class SPIConnection implements Connection
 	public String nativeSQL(String sql)
 	throws SQLException
 	{
+		return this.nativeSQL(sql, null);
+	}
+	
+	public String nativeSQL(String sql, int[] paramCountRet)
+	{
 		StringBuffer buf = new StringBuffer();
 		int len = sql.length();
 		char inQuote = 0;
@@ -392,7 +438,10 @@ public class SPIConnection implements Connection
 	{
 		if(this.isClosed())
 			throw new SQLException("Connection is closed");
-		return new SPIPreparedStatement(this, this.nativeSQL(sql));
+
+		int[] pcount = new int[] { 0 };
+		sql = this.nativeSQL(sql, pcount);
+		return new SPIPreparedStatement(this, sql, pcount[0]);
 	}
 
 	/**
@@ -486,5 +535,20 @@ public class SPIConnection implements Connection
 	public Savepoint setSavepoint(String name) throws SQLException
 	{
 		throw new UnsupportedFeatureException("Savepoints");
+	}
+
+	static int getTypeForClass(Class c)
+	{
+		if(c.isArray() && !c.equals(byte[].class))
+			return Types.ARRAY;
+
+		Integer sqt = (Integer)s_sqlType2Class.get(c);
+		if(sqt != null)
+			return sqt.intValue();
+
+		/*
+		 * This is not a well known JDBC type.
+		 */
+		return Types.OTHER;
 	}
 }

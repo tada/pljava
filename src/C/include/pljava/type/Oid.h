@@ -30,6 +30,11 @@ extern jobject Oid_create(JNIEnv* env, Oid oid);
  */
 extern Oid Oid_getOid(JNIEnv* env, jobject joid);
 
+/*
+ * Map a java.sql.Types SQL type to an Oid.
+ */
+extern Oid Oid_forSqlType(int sqlType);
+
 #ifdef __cplusplus
 }
 #endif

@@ -49,6 +49,11 @@ extern jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer);
 extern void NativeStruct_init(JNIEnv* env, jobject self, void* nativePointer);
 
 /*
+ * Assing the pointer to the java object without adding it to the HashMap.
+ */
+extern void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePointer);
+
+/*
  * Return the pointer value stored in a Java NativeStruct.
  */
 extern void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct);

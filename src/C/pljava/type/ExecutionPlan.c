@@ -211,6 +211,21 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobjec
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    isCursorPlan
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
+{
+	void* ePlan = NativeStruct_getStruct(env, _this);
+	if(ePlan == 0)
+		return 0;
+
+	return SPI_is_cursor_plan(ePlan);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    execp
  * Signature: ([Ljava/lang/Object;I)I
  */
@@ -269,6 +284,22 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
+ * Method:    savePlan
+ * Signature: ()V;
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject _this)
+{
+	void* ePlan = NativeStruct_releasePointer(env, _this);
+	if(ePlan == 0)
+		return;
+
+	NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
+	SPI_freeplan(ePlan);	// Get rid of the original, nobody can see it anymore.
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    invalidate
  * Signature: ()V
  */
@@ -278,19 +309,4 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobjec
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan != 0)
 		SPI_freeplan(ePlan);
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    isCursorPlan
- * Signature: ()Z
- */
-JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
-{
-	void* ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return 0;
-
-	return SPI_is_cursor_plan(ePlan);
 }
