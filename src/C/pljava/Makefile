@@ -37,7 +37,7 @@ else
 #
 all: subsys $(bin_dir)/libpljava.so
 
-libpljava.so: $(OBJS) type/SUBSYS.o
+$(bin_dir)/libpljava.so: $(OBJS) type/SUBSYS.o
 	$(CC) $(LDFLAGS) -o $(bin_dir)/libpljava.so $(OBJS) type/SUBSYS.o
 
 clean:
