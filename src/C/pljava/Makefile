@@ -67,7 +67,7 @@ else
 				JDK_HOME := $(JAVA_HOME)
 			endif
 		else
-			$(error You must set JAVA_HOME)
+			JAVA_HOME_TEST_RESULT := $(error You must set JAVA_HOME)
 		endif
 
 		ifdef DLL_BUILD
@@ -87,7 +87,7 @@ else
 	endif
 endif
 
-.PHONY: extralibs
+.PHONY: checkjavahome extralibs
 
 ifeq ($(JRE_INCL), win32)
 #
@@ -105,6 +105,9 @@ override CPPFLAGS := -D__int64='long long' $(CPPFLAGS)
 #
 EXTRAS := libjvm.dll.a
 
+checkjavahome:
+	$(JAVA_HOME_TEST_RESULT)
+
 extralibs: libjvm.dll.a
 
 libjvm.dll.a: $(OBJS)
@@ -115,7 +118,7 @@ endif
 
 include $(PGSQLSRC)/Makefile.shlib
 
-all: extralibs $(shlib)
+all: checkjavahome extralibs $(shlib)
 
 install: install-lib
 
