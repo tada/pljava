@@ -6,6 +6,17 @@
 #
 # Top level Makefile for PL/Java
 #
+# To compile a PL/Java for PostgreSQL 8.0 the makefile system will utilize
+# the PostgreSQL pgxs system. The only prerequisite for such a compile is
+# that a PostgreSQL 8.0 is installed on the system and that the PATH is set
+# so that the binaries of this installed can be executed.
+#
+# In order to compile with a PostgreSQL 7.4, a full source distribution
+# of PostgreSQL is needed. The configure script must have been run in that
+# distribution and the PL/Java make must be started as:
+#
+# make PGSQLDIR=<absolute path to PostgreSQL source>
+#
 # The following options are recognized (aside from normal options like
 # CFLAGS etc.)
 #

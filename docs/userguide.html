@@ -60,7 +60,7 @@ you so that you don&#39;t have to do this over and over again.</p>
   </tr>
   <tr>
     <td width="160">-user &lt;user name&gt;</td>
-    <td>Name of user that connects to the database. Default is &quot;postgres&quot;.</td>
+    <td>Name of user that connects to the database. Default is the current user.</td>
   </tr>
   <tr>
     <td width="160">-password &lt;password&gt;</td>
@@ -69,7 +69,7 @@ you so that you don&#39;t have to do this over and over again.</p>
   </tr>
   <tr>
     <td width="160">-database &lt;database&gt;</td>
-    <td>The name of the database to connect to. Default is &quot;postgres&quot;.</td>
+    <td>The name of the database to connect to. Default is to use the user name.</td>
   </tr>
   <tr>
     <td width="160">-host &lt;host name&gt;</td>
@@ -396,9 +396,36 @@ throws SQLException
 <p>Returning sets is tricky. You don&#39;t want to first build a set and then return 
 it since large sets would eat too much resources. Its far better to produce one 
 row at a time. Incidentally, that&#39;s exactly what the PostgreSQL backend expects 
-a function with SETOF return to do. To accomplish this, a new interface <code>org.postgresql.pljava.ResultSetProvider</code> 
-was invented. It contains one method that takes a <code>java.sql.ResultSet</code> 
-and an int as its parameters. The ResultSet works the same way as for function returning 
+a function with SETOF return to do. You can return a SETOF a scalar type such as 
+an int, float or varchar, or you can return a SETOF a complex type.</p>
+<p>&nbsp;</p>
+<h5>Returning a SETOF &lt;scalar type&gt;</h5>
+<p>In order to return a set of a scalar type, you need create a Java method that 
+returns something that implements the <code>java.util.Iterator</code> interface. 
+Here's an example of a method that returns a SETOF varchar:</p>
+<pre>CREATE FUNCTION javatest.getSystemProperties()
+  RETURNS SETOF varchar
+  AS &#39;foo.fee.Bar.getNames&#39;
+  IMMUTABLE LANGUAGE java;</pre>
+<p>The very rudimentary java method that returns an interator:</p>
+<pre>package foo.fee;
+import java.util.Iterator;
+
+public class Bar
+{
+    public static Iterator getNames()
+    {
+        ArrayList names = new ArrayList();
+        names.add(&quot;Lisa&quot;);
+        names.add(&quot;Bob&quot;);
+        names.add(&quot;Bill&quot;);
+        names.add(&quot;Sally&quot;);
+        return names.iterator();
+    }
+}</pre>
+<h5>Returning a SETOF &lt;complex type&gt;</h5>
+<p>A method returning a SETOF &lt;complex type&gt; must use the interface <code>org.postgresql.pljava.ResultSetProvider</code>. It contains one method that takes a <code>java.sql.ResultSet</code> 
+and an <code>int </code>as its parameters. The ResultSet works the same way as for function returning 
 complex types, the int reflects the row count.</p>
 <p>You can use this interface the following way (here I let the Fum class itself 
 implement the interface, it could be another class of course).</p>
@@ -506,16 +533,16 @@ JDBC connection. There are a couple of limitations though:</p>
     <li>setTransactionIsolation()</li>
   </ul>
   </li>
-  <li>Savepoints are currently not implemented in SPI, consequently not in this 
-  driver either. So calls to setSavepoint() are not supported (this will be implemented 
-  as nested transactions in a future version).</li>
+  <li>Savepoints are available but only if you use PostgreSQL 8.0 or later and 
+  with some restrictions. A savepoint cannot outlive the function in which it 
+  was set and it must also be rolled back or released by that same function.</li>
   <li>ResultSet&#39;s returned from executeQuery() are always FETCH_FORWARD and CONCUR_READ_ONLY.</li>
   <li>Meta-data is currently not implemented. Support is planned but no timeframe 
   has been set yet. This concerns ResultSetMetaData, ParameterMetaData, and DatabaseMetaData.</li>
   <li>CallableStatement (for stored procedures) is not yet implemented.</li>
-  <li>Clob/Blob types need more work. byte[] and String works fine for bytea/text 
-  respectively. A more efficient mapping is planned where the actual array is not 
-  copied. Instead the data is wrapped in a stream.</li>
+  <li>Clob/Blob types need more work. byte[] and String works fine for 
+  bytea/text respectively. A more efficient mapping is planned where the actual 
+  array is not copied.</li>
 </ul>
 <h3><i><a name="Logging_">Logging</a></i></h3>
 <p>Pl/Java uses the standard Java 1.4 Logger. Hence, you can write things like:</p>

@@ -14,8 +14,7 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PL/Java, 1.0.0 beta 5</h1>
-<p>With this release, the Pl/Java project has reached its fourth major milestone</p>
+<h1>PL/Java, 1.0.0 beta 6</h1>
 <p>A source tarball and a variety of binaries can be found in the download area.
 Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for older
 PostgreSQL versions). On Linux PL/Java also comes in a GNU Java (GCJ) flavor where
@@ -66,11 +65,7 @@ of the shared objects used by the Java Runtime Environment (JRE). This accomplis
 setting the <code>LD_LIBRARY_PATH</code> (Unix) or <code>PATH</code> (Windows). A
 standard install on an Intel Linux box will need:</p>
 <pre><code>export LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/i386:$JAVA_HOME/jre/lib/i386/client</code>.</pre>
-<p>Note: Some discussions took place on the postgres hackers list wether or not
-the LD_LIBRARY_PATH could be set using the dynamic_library_path but it was concluded
-that it would be too difficult. In essence, the postmaster would need to restart
-itself in order for the setting to become effective since the loader is initialized
-when the process is created.</p>
+<p>Apparently, on some Linux platforms you will also need to include <code>$JAVA_HOME/jre/lib/i386/native_threads.</code></p>
 <h4>zlib conflict</h4>
 <p>On some platforms there will be a conflict between the libzip.so included in the
 JRE and the libz.so used by PostgreSQL (the JRE libzip.so includes a libz.so).
@@ -132,9 +127,26 @@ psql and issue the command:</p>
 <pre>SELECT sqlj.set_classpath(&#39;javatest&#39;, &#39;samples&#39;);</pre>
 <p>The first argument is the name of the schema, the second is a colon separated
 list of jar names. The names must reflect jars that are installed in the system.</p>
+<p>NOTE: If you don't use schemas, you must still issue the set_classpath 
+command to assign a correct classpath to the 'public' schema.</p>
+<p>&nbsp;</p>
 <p>Now, you should be able to run the tests:</p>
 <pre>java org.postgresql.pljava.test.Tester</pre>
 </code>
+
+<h2>Building</h2>
+<p>Building should be very stright forward:</p>
+<ul>
+  <li>If you are using PostgreSQL 8.0 or later, no PosgreSQL source is needed. 
+  Your path must be set to find the pg_ctl binary. The new 'pgxs' concept in 
+  PostgreSQL will take care of the rest.</li>
+  <li>In order to build for versions prior to 8.0, you will need the complete 
+  source. You must then issue the make command like this:<br>
+  make PGSQLDIR=&lt;full path to PostgreSQL 7.4.x source&gt;</li>
+  <li>If you are using GCJ, you must supply USE_GCJ=1 to the make command.</li>
+  <li>If you are using a normal Java VM, be sure to set the JAVA_HOME 
+  environment variable.</li>
+</ul>
 
 </body>
 
