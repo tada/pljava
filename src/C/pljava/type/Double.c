@@ -7,6 +7,7 @@
  * All Rights Reserved
  */
 #include "pljava/type/Type_priv.h"
+#include "pljava/SPI.h"
 
 static Type s_double;	/* Primitive (scalar) type */
 static TypeClass s_doubleClass;
@@ -24,8 +25,16 @@ static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = Float8GetDatum((*env)->CallStaticDoubleMethodA(env, cls, method, args));
+	jdouble dv = (*env)->CallStaticDoubleMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
+	
+	/* Since we don't know if 64 bit quantities are passed by reference or
+	 * by value, we have to make sure that the correct context is used if
+	 * it's the former.
+	 */
+	MemoryContext currCtx = SPI_switchToReturnValueContext();
+	Datum ret = Float8GetDatum(dv);
+	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
 
@@ -58,7 +67,11 @@ static jvalue _Double_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Double_coerceObject(Type self, JNIEnv* env, jobject doubleObj)
 {
-	return Float8GetDatum((*env)->CallDoubleMethod(env, doubleObj, s_Double_doubleValue));
+	bool saveicj = isCallingJava;
+	isCallingJava = true;
+	jdouble dv = (*env)->CallDoubleMethod(env, doubleObj, s_Double_doubleValue);
+	isCallingJava = saveicj;
+	return Float8GetDatum(dv);
 }
 
 static Type Double_obtain(Oid typeId)

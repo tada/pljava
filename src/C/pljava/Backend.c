@@ -26,6 +26,7 @@
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
 #include "pljava/Backend_JNI.h"
+#include "pljava/SPI.h"
 #include "pljava/type/String.h"
 
 /* Example format: "/usr/local/pgsql/lib" */
@@ -446,9 +447,9 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 		initializeJavaVM();
 
 	SPI_connect();
-	Datum retval = callFunction(s_mainEnv, fcinfo);
+	Datum ret = callFunction(s_mainEnv, fcinfo);
 	SPI_finish();
-	return retval;
+	return ret;
 }
 
 /****************************************

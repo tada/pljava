@@ -29,9 +29,9 @@ static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, 
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = CharGetDatum((*env)->CallStaticByteMethodA(env, cls, method, args));
+	jbyte bv = (*env)->CallStaticByteMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	return ret;
+	return CharGetDatum(bv);
 }
 
 static jvalue _byte_coerceDatum(Type self, JNIEnv* env, Datum arg)

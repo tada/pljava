@@ -6,10 +6,104 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
+#include "pljava/SPI.h"
 #include "pljava/SPI_JNI.h"
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
+
+#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+
+static MemoryContext upperContext = 0;
+
+void SPI_clearUpperContextInfo()
+{
+	upperContext = 0;
+}
+
+/* Dirty patch that shows when the upper context is deleted or reset
+static MemoryContextMethods* originalMethods;
+
+static void myDelete(MemoryContext ctx)
+{
+	elog(LOG, "Deleting context 0x%lx", (long)((void*)ctx));
+	originalMethods->delete(ctx);
+}
+	
+static void myReset(MemoryContext ctx)
+{
+	elog(LOG, "Doing reset on context 0x%lx", (long)((void*)ctx));
+	originalMethods->reset(ctx);
+}
+
+static MemoryContext _SPI_getUpperContext()
+{
+	if(upperContext == 0)
+	{
+		void* tmp = SPI_palloc(16);
+		upperContext = QueryContext;
+		if(originalMethods == 0 || originalMethods == upperContext->methods)
+		{
+			originalMethods = upperContext->methods;
+			MemoryContextMethods* repl = (MemoryContextMethods*)malloc(sizeof(MemoryContextMethods));
+			memcpy(repl, originalMethods, sizeof(MemoryContextMethods));
+			upperContext->methods = repl;
+			repl->delete = myDelete;
+			repl->reset = myReset;
+		}
+		SPI_pfree(tmp);
+	}
+	return upperContext;
+}
+*/
+
+MemoryContext SPI_switchToReturnValueContext()
+{
+	/* Tried the upper context here but it's destroyed between calls
+	 * to the call manager.
+	 */
+	return MemoryContextSwitchTo(QueryContext);
+}
+
+Oid SPI_getargtypeid(void* plan, int argIndex)
+{
+	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return InvalidOid;
+	}
+	return ((_SPI_plan*)plan)->argtypes[argIndex];
+}
+
+int SPI_getargcount(void* plan)
+{
+	if (plan == NULL)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return -1;
+	}
+	return ((_SPI_plan*)plan)->nargs;
+}
+
+bool SPI_is_cursor_plan(void* plan)
+{
+	if (plan == NULL)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return false;
+	}
+
+	_SPI_plan* spiplan = (_SPI_plan*)plan;
+	List* qtlist = spiplan->qtlist;
+
+	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
+	{
+		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
+		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
+			return true;
+	}
+	return false;
+}
 
 /****************************************
  * JNI methods

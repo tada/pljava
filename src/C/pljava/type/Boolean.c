@@ -24,9 +24,9 @@ static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID metho
 {
 	bool saveicj = isCallingJava;
 	isCallingJava = true;
-	Datum ret = BoolGetDatum((*env)->CallStaticBooleanMethodA(env, cls, method, args));
+	jboolean zv = (*env)->CallStaticBooleanMethodA(env, cls, method, args);
 	isCallingJava = saveicj;
-	return ret;
+	return BoolGetDatum(zv == JNI_TRUE);
 }
 
 static jvalue _boolean_coerceDatum(Type self, JNIEnv* env, Datum arg)

@@ -9,6 +9,7 @@
 #include "pljava/PgObject_priv.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
+#include "pljava/SPI.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
@@ -562,7 +563,14 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	if((*env)->ExceptionCheck(env))
 		ret = 0;
 	else
+	{
+		/* A new Tuple may or may not be created here. If it is, ensure that
+		 * it is created in the upper SPI context.
+		 */
+		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
+		MemoryContextSwitchTo(currCtx);
+	}
 
 	(*env)->DeleteLocalRef(env, arg.l);
 	return ret;
