@@ -13,8 +13,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-
-import org.postgresql.pljava.Logger;
+import java.util.logging.Logger;
 
 /**
  * Some methods used for testing the SPI JDBC driver.
@@ -25,7 +24,7 @@ public class SPIActions
 {
 	public static void log(String str)
 	{
-		Logger.log(str);
+		Logger.getAnonymousLogger().info(str);
 	}
 
 	public static int transferPeopleWithSalary(int salary)

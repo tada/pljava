@@ -14,6 +14,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.util.TimeZone;
+import java.util.logging.Logger;
 
 /**
  * Some methods used for testing parameter and return value coersion and resolution
@@ -68,14 +69,14 @@ public class Parameters
 	{
 		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		System.out.println(p.format(time));
+		Logger.getAnonymousLogger().info("Date is " + p.format(time));
 	}
 
 	public static void print(Time time)
 	{
 		DateFormat p = DateFormat.getTimeInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		System.out.println(p.format(time));
+		Logger.getAnonymousLogger().info("Time is " + p.format(time));
 	}
 
 	public static void print(Timestamp time)
@@ -83,6 +84,6 @@ public class Parameters
 		DateFormat p = DateFormat.getDateTimeInstance(
 				DateFormat.FULL, DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		System.out.println(p.format(time));
+		Logger.getAnonymousLogger().info("Timestamp is " + p.format(time));
 	}
 }

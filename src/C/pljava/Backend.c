@@ -16,6 +16,7 @@
 #include <utils/syscache.h>
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
+#include <storage/ipc.h>
 #include <stdio.h>
 #include <ctype.h>
 
@@ -311,6 +312,19 @@ static char* getClassPath(const char* prefix)
 	return buf.data;
 }
 
+/*
+ * proc_exit callback to tear down the JVM
+ */
+static void _destroyJavaVM(int status, Datum dummy)
+{
+	if(s_javaVM != 0)
+	{
+		elog(LOG, "Destroying JavaVM");
+		(*s_javaVM)->DestroyJavaVM(s_javaVM);
+		s_javaVM = 0;
+	}
+}
+
 static void initializeJavaVM()
 {
 	BEGIN_CRITICAL(jvmInitMutex)
@@ -346,6 +360,13 @@ static void initializeJavaVM()
 	}
 
 	/**
+	 * Default LoggingManager initializer.
+	 */
+	options[nOptions].optionString = "-Djava.util.logging.config.class=org.postgresql.pljava.internal.LoggerConfigurator";
+	options[nOptions].extraInfo = 0;
+	nOptions++;
+
+	/**
 	 * As stipulated by JRT-2003
 	 */
 	options[nOptions].optionString = "-Dsqlj.defaultconnection=jdbc:default:connection";
@@ -362,6 +383,7 @@ static void initializeJavaVM()
 	vm_args.version  = JNI_VERSION_1_4;
 	vm_args.ignoreUnrecognized = JNI_TRUE;
 
+	elog(LOG, "Creating JavaVM");
 	if(JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args) != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
 
@@ -369,6 +391,10 @@ static void initializeJavaVM()
 		pfree(dynLibPath);
 	if(classPath != 0)
 		pfree(classPath);
+
+	/* Register an on_proc_exit handler that destroys the VM
+	 */
+	on_proc_exit(_destroyJavaVM, 0);
 
 #ifdef USE_THREADS
 	pljava_mainThread = pthread_self();
