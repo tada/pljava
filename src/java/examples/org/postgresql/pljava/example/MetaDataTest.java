@@ -34,6 +34,8 @@ public class MetaDataTest
 			.getConnection("jdbc:default:connection");
 		DatabaseMetaData md = conn.getMetaData();
 		m_results = new ArrayList();
+		StringBuffer result;
+
 		parseMethodCall(methodCall);
 
 		try
@@ -46,10 +48,23 @@ public class MetaDataTest
 			}
 
 			m_rs = (ResultSet)m.invoke(md, m_methodArgs);
+			ResultSetMetaData rsmd = m_rs.getMetaData();
+
+			int cnt = rsmd.getColumnCount();
+			result = new StringBuffer();
+			for (int i=1; i <= cnt; i++)
+			{
+				result.append(
+					(rsmd.getColumnName(i) +
+					"(" + rsmd.getColumnClassName(i) + ")"
+					)
+					.replaceAll("(\\\\|;)","\\$1") + ";");
+			}
+			m_results.add(result.toString());
 
 			while (m_rs.next())
 			{
-				StringBuffer result = new StringBuffer();
+				result = new StringBuffer();
 				Object rsObject = null;
 				int i=1;
 				while(true)
