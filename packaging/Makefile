@@ -25,6 +25,7 @@ release:
 		-o -name '*.a'		\
 		-o -name '*.dll'	\
 		\) -a -not -path ./$(RELNAME)'/*' -exec cp {} $(RELNAME) \;
+	@cp ../src/sql/*.sql $(RELNAME)
 	@$(TAR) cf $(RELNAME)/docs.tar docs
 	(cd $(RELNAME); $(TAR) zcf ../distrib/$(RELNAME).tar.gz .)
 
