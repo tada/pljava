@@ -26,14 +26,7 @@ extern MemoryContext returnValueContext;
  * The callback function. The second argument is set to false when
  * the MemoryContext is reset and to true when it is deleted.
  */
-typedef void (*EndOfScopeCB)(MemoryContext origin, bool isDelete);
-
-/*
- * Callback function to be used when an allocated element is released
- * using pfree. The callback is called just prior to the real free so
- * deadElement is still valid here.
- */
-typedef void (*FreeCB)(MemoryContext origin, void* deadElement);
+typedef void (*EndOfScopeCB)(void* clientData, bool isDelete);
 
 /**
  * Adds an end-of-scope callback from a MemoryContext.
@@ -43,27 +36,10 @@ typedef void (*FreeCB)(MemoryContext origin, void* deadElement);
  * @param func
  *      The callback function that will be called when the context is
  *      either reset or deleted.
+ * @param clientData
+ *      Data pass as an argument to the callback function
  */
-extern void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
-
-/**
- * Returns the current clientData value.
- */
-extern void* MemoryContext_getClientData(MemoryContext ctx);
-
-/**
- * Assings a clientData value to be passed to the end-of-scope callbacks
- * for this context.
- */
-extern void MemoryContext_setClientData(MemoryContext ctx, void* clientData);
-
-
-/**
- * Installs a callback that is called everytime a free is issued on the
- * given context. The old callback is returned. It is valid to pass NULL
- * as a callback.
- */
-extern FreeCB MemoryContext_setFreeCB(MemoryContext ctx, FreeCB func);
+extern void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData);
 
 /**
  * Returns true if the MemoryContext has callback capabilities installed.
@@ -78,8 +54,10 @@ extern bool MemoryContext_hasCallbackCapability(MemoryContext ctx);
  * 		The context where the callback is registered.
  * @param func
  *      The callback function.
+ * @param clientData
+ *      Data registered with the callback function
  */
-extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
+extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData);
 
 /*
  * Switch memory context to a context that is durable between calls to

@@ -31,6 +31,7 @@
 #include "pljava/Backend.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/SPI.h"
+#include "pljava/type/NativeStruct.h"
 #include "pljava/type/String.h"
 
 /* Example format: "/usr/local/pgsql/lib" */
@@ -110,7 +111,7 @@ static void initJavaVM(JNIEnv* env)
 #endif
 }
 
-static void onEndOfScope(MemoryContext ctx, bool isDelete)
+static void onEndOfScope(void* clientData, bool isDelete)
 {
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
@@ -141,10 +142,6 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	MemoryContext saveReturnValueContext = returnValueContext;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 
-	/* Save some static stuff on the stack that we want to preserve in
-	 * case this function is reentered. This may happend if Java calls
-	 * out to SQL which in turn invokes a new Java function.
-	 */
 	returnValueContext = upper;
 	if(!MemoryContext_hasCallbackCapability(upper))
 	{
@@ -162,7 +159,8 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 				errcode(ERRCODE_OUT_OF_MEMORY),
 				errmsg("Unable to create java frame for local references")));
 		}
-		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
+		MemoryContext_addEndOfScopeCB(upper, onEndOfScope, 0);
+		NativeStruct_associateCache(upper);
 	}
 
 	PG_TRY();

@@ -14,18 +14,18 @@
 
 static jclass    s_NativeStruct_class;
 static jfieldID  s_NativeStruct_m_native;
+static HashMap   s_nativeCache;
 
 /**
  * Callback that will be called when a context that is associated with
  * NativeStruct objects is deleted.
  */
-static void dropCache(MemoryContext ctx, bool isDelete)
+static void dropCache(void* oldCache, bool isDelete)
 {
 	JNIEnv* env   = Backend_getMainEnv();
-	HashMap cache = (HashMap)MemoryContext_getClientData(ctx);
 	if(env != 0)
 	{
-		Iterator itor = HashMap_entries(cache);
+		Iterator itor = HashMap_entries(s_nativeCache);
 		while(Iterator_hasNext(itor))
 		{
 			Entry e = Iterator_next(itor);
@@ -46,61 +46,24 @@ static void dropCache(MemoryContext ctx, bool isDelete)
 
 	if(isDelete)
 	{
-		PgObject_free((PgObject)cache);
+		PgObject_free((PgObject)s_nativeCache);
 		elog(DEBUG1, "NativeStruct cache deleted due to deletion of context");
+		s_nativeCache = (HashMap)oldCache;
 	}
 	else
 	{
-		HashMap_clear(cache);
-		elog(DEBUG1, "NativeStruct cache cleared due to context reset, removing free callback");
-		MemoryContext_setFreeCB(ctx, 0);
-	}
-}
-
-/**
- * Callback that will be called for each and every pfree that occurs on
- * a context that is associated with NativeStruct objects.
- */
-static void dropElement(MemoryContext ctx, void* deadElement)
-{
-	HashMap cache = (HashMap)MemoryContext_getClientData(ctx);
-	jobject weak = HashMap_removeByOpaque(cache, deadElement);
-	if(weak != 0)
-	{
-		JNIEnv* env = Backend_getMainEnv();
-		if(env != 0)
-		{
-			jobject bound = (*env)->NewLocalRef(env, weak);
-			if(bound != 0)
-			{
-				elog(DEBUG1, "Marking object stale due to explicit free in context");
-				(*env)->SetLongField(env, bound, s_NativeStruct_m_native, 0L);
-				(*env)->DeleteLocalRef(env, bound);
-			}
-			(*env)->DeleteWeakGlobalRef(env, weak);
-		}
-
-		if(HashMap_size(cache) == 0)
-		{
-			/** Remove callbacks, client data etc. No longer needed.
-			 */
-			elog(DEBUG1, "NativeStruct cache now zero in size, removing free callback");
-			MemoryContext_setFreeCB(ctx, 0);
-		}
+		HashMap_clear(s_nativeCache);
+		elog(DEBUG1, "NativeStruct cache cleared due to context reset");
 	}
 }
 
 jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
 {
 	jobject weak;
-
-	MemoryContext ctx = returnValueContext;
-	HashMap cache = (HashMap)MemoryContext_getClientData(ctx);
-
-	if(cache == 0)
+	if(s_nativeCache == 0)
 		return 0;
 
-	weak = HashMap_getByOpaque(cache, nativePointer);
+	weak = HashMap_getByOpaque(s_nativeCache, nativePointer);
 	if(weak != 0)
 		weak = (*env)->NewLocalRef(env, weak);
 	return weak;
@@ -117,23 +80,19 @@ void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePoin
 	}
 }
 
+void NativeStruct_associateCache(MemoryContext ctx)
+{
+	HashMap oldCache = s_nativeCache;
+	s_nativeCache = HashMap_create(13, ctx->parent);
+	MemoryContext_addEndOfScopeCB(ctx, dropCache, oldCache);
+}
+
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 {
-	HashMap cache;
-	MemoryContext ctx = returnValueContext;
 	jobject oldRef;
 
 	if(nativeStruct == 0)
 		return;
-
-	cache = (HashMap)MemoryContext_getClientData(ctx);
-	if(cache == 0)
-	{
-		cache = HashMap_create(13, ctx->parent);
-		MemoryContext_setClientData(ctx, cache);
-		MemoryContext_addEndOfScopeCB(ctx, dropCache);
-		MemoryContext_setFreeCB(ctx, dropElement);
-	}
 
 	/* Assign the pointer to the 64 bit long attribute m_native.
 	 */
@@ -142,7 +101,7 @@ void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
 	/* Store a weak reference to this java object in the s_weakCache using
 	 * the nativePointer as the key.
 	 */
-	oldRef = (jobject)HashMap_putByOpaque(cache,
+	oldRef = (jobject)HashMap_putByOpaque(s_nativeCache,
 				nativePointer, (*env)->NewWeakGlobalRef(env, nativeStruct));
 
 	if(oldRef != 0)
@@ -184,11 +143,9 @@ void* NativeStruct_releasePointer(JNIEnv* env, jobject _this)
 	{
 		/* Remove this object from the cache
 		 */
-		MemoryContext ctx = returnValueContext;
-		HashMap cache = (HashMap)MemoryContext_getClientData(ctx);
-		if(cache != 0)
+		if(s_nativeCache != 0)
 		{
-			jobject weak = HashMap_removeByOpaque(cache, p2l.ptrVal);
+			jobject weak = HashMap_removeByOpaque(s_nativeCache, p2l.ptrVal);
 			if(weak != 0)
 				(*env)->DeleteWeakGlobalRef(env, weak);
 		}

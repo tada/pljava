@@ -14,8 +14,9 @@ typedef struct _MctxCBLink MctxCBLink;
 
 struct _MctxCBLink
 {
-	MctxCBLink*   next;
-	EndOfScopeCB  callback;
+	MctxCBLink*  next;
+	EndOfScopeCB callback;
+	void*        clientData;
 };
 
 /* Extended version of the MemoryContextMethods structure that holds on
@@ -24,9 +25,7 @@ struct _MctxCBLink
 typedef struct {
 	MemoryContextMethods  methods;
 	MemoryContextMethods* prev;
-	void*                 clientData;
 	MctxCBLink*           cbChain;
-	FreeCB                freeCB;
 } ExtendedCtxMethods;
 
 MemoryContext returnValueContext;
@@ -43,7 +42,7 @@ static void mctxDelete(MemoryContext ctx)
 	while(cbs != 0)
 	{
 		MctxCBLink* nxt = cbs->next;
-		(*cbs->callback)(ctx, true);
+		(*cbs->callback)(cbs->clientData, true);
 		pfree(cbs);
 		cbs = nxt;
 	}
@@ -63,17 +62,10 @@ static void mctxReset(MemoryContext ctx)
 	MctxCBLink* cbs = exm->cbChain;
 	while(cbs != 0)
 	{
-		(*cbs->callback)(ctx, false);
+		(*cbs->callback)(cbs->clientData, false);
 		cbs = cbs->next;
 	}
 	(*exm->prev->reset)(ctx);
-}
-
-static void mctxFree(MemoryContext ctx, void* deadData)
-{
-	ExtendedCtxMethods* exm = (ExtendedCtxMethods*)ctx->methods;
-	(*exm->freeCB)(ctx, deadData);
-	(*exm->prev->free_p)(ctx, deadData);
 }
 
 static void* parentContextAlloc(MemoryContext ctx, size_t size)
@@ -101,8 +93,6 @@ static ExtendedCtxMethods* MemoryContext_ensureCallbackCapability(MemoryContext 
 		memcpy(exm, methods, sizeof(MemoryContextMethods));
 		exm->prev = methods;
 		exm->cbChain = 0;
-		exm->clientData = 0;
-		exm->freeCB = 0;
 		exm->methods.delete = mctxDelete;
 		exm->methods.reset  = mctxReset;
 		ctx->methods = (MemoryContextMethods*)exm;
@@ -126,25 +116,17 @@ bool MemoryContext_hasCallbackCapability(MemoryContext ctx)
  * @param func
  *      The callback function that will be called when the context is
  *      either reset or deleted.
+ * @param clientData
+ *      Data to be passed to the callback function
  */     
-void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
+void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData)
 {
 	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
 	MctxCBLink* link = (MctxCBLink*)parentContextAlloc(ctx, sizeof(MctxCBLink));
 	link->callback = func;
+	link->clientData = clientData;
 	link->next = exm->cbChain;
 	exm->cbChain = link;
-}
-
-/**
- * Returns the current clientData value.
- */
-void* MemoryContext_getClientData(MemoryContext ctx)
-{
-	MemoryContextMethods* methods = ctx->methods;
-	return (methods->reset == mctxReset)
-		? ((ExtendedCtxMethods*)methods)->clientData
-		: 0;
 }
 
 /**
@@ -155,8 +137,10 @@ void* MemoryContext_getClientData(MemoryContext ctx)
  * 		The context where the callback is registered.
  * @param func
  *      The callback function.
+ * @param clientData
+ *      Data to registered with the callback function
  */
-void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
+void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func, void* clientData)
 {
 	MemoryContextMethods* methods = ctx->methods;
 
@@ -167,7 +151,7 @@ void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 		MctxCBLink* curr = exm->cbChain;
 		while(curr != 0)
 		{
-			if(curr->callback == func)
+			if(curr->callback == func && curr->clientData == clientData)
 			{
 				if(prev == 0)
 					exm->cbChain = curr->next;
@@ -180,49 +164,6 @@ void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 			curr = curr->next;
 		}
 	}
-}
-
-/**
- * Assings a clientData value to be passed to the end-of-scope callbacks
- * for this context.
- */
-void MemoryContext_setClientData(MemoryContext ctx, void* clientData)
-{
-	MemoryContext_ensureCallbackCapability(ctx)->clientData = clientData;
-}
-
-/**
- * Installs a callback that is called everytime a free is issued on the
- * given context. The old callback is returned. It is valid to pass NULL
- * as a callback.
- */
-FreeCB MemoryContext_setFreeCB(MemoryContext ctx, FreeCB func)
-{
-	FreeCB old = 0;
-	if(func == 0)
-	{
-		MemoryContextMethods* methods = ctx->methods;
-		if(methods->free_p == mctxFree)
-		{
-			ExtendedCtxMethods* exm = (ExtendedCtxMethods*)methods;
-			old = exm->freeCB;
-
-			/* Disconnect callback caller
-			 */
-			exm->methods.free_p = exm->prev->free_p;
-		}
-	}
-	else
-	{
-		ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
-		old = exm->freeCB;
-		exm->freeCB = func;
-
-		/* Install callback caller
-		 */
-		exm->methods.free_p = mctxFree;
-	}
-	return old;
 }
 
 MemoryContext MemoryContext_switchToReturnValueContext()

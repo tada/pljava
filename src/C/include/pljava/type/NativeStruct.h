@@ -23,6 +23,13 @@ extern "C" {
  *************************************************************************/
 
 /*
+ * Associates a HashMap cache with the givem memory context so that the
+ * cache is cleared if the context is reset and the cache is deleted
+ * any previous cache is restored when the context is deleted.
+ */ 
+extern void NativeStruct_associateCache(MemoryContext ctx);
+
+/*
  * Obtain a locally bound object form the weak cache. This method
  * will return NULL if no such object is found.
  */
