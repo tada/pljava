@@ -24,13 +24,14 @@ import org.postgresql.pljava.internal.TupleDesc;
 public class TriggerResultSet extends SingleRowResultSet
 {
 	private ArrayList m_tupleChanges;
+	private final TupleDesc m_tupleDesc;
 	private final Tuple     m_tuple;
 	private final boolean   m_readOnly;
 
 	public TriggerResultSet(TupleDesc tupleDesc, Tuple tuple, boolean readOnly)
 	throws SQLException
 	{
-		super(tupleDesc);
+		m_tupleDesc = tupleDesc;
 		m_tuple = tuple;
 		m_readOnly = readOnly;
 	}
@@ -123,5 +124,10 @@ public class TriggerResultSet extends SingleRowResultSet
 					return changes.get(idx + 1);
 		}
 		return m_tuple.getObject(this.getTupleDesc(), columnIndex);
+	}
+
+	protected final TupleDesc getTupleDesc()
+	{
+		return m_tupleDesc;
 	}
 }

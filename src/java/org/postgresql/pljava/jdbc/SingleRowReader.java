@@ -33,12 +33,6 @@ public class SingleRowReader extends SingleRowResultSet
 		m_tuple = tableSlot.getTuple();
 	}
 
-	public int findColumn(String columnName)
-	throws SQLException
-	{
-		return m_tupleDesc.getColumnIndex(columnName);
-	}
-
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{

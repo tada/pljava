@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.postgresql.pljava.internal.HeapTupleHeader;
+import org.postgresql.pljava.internal.TupleDesc;
 
 /**
  * A single row, read-only ResultSet, specially made for functions and
@@ -22,18 +23,13 @@ import org.postgresql.pljava.internal.HeapTupleHeader;
  */
 public class SingleTupleReader extends SingleRowResultSet
 {
+	private TupleDesc m_tupleDesc;
 	private final HeapTupleHeader m_tupleHeader;
 
 	public SingleTupleReader(HeapTupleHeader tupleHeader)
 	throws SQLException
 	{
 		m_tupleHeader = tupleHeader;
-	}
-
-	public int findColumn(String columnName)
-	throws SQLException
-	{
-		return m_tupleHeader.getAttributeIndex(columnName);
 	}
 
 	protected Object getObjectValue(int columnIndex)
@@ -132,5 +128,13 @@ public class SingleTupleReader extends SingleRowResultSet
 	private static SQLException readOnlyException()
 	{
 		return new UnsupportedFeatureException("ResultSet is read-only");
+	}
+
+	protected final TupleDesc getTupleDesc()
+	throws SQLException
+	{
+		if(m_tupleDesc == null)
+			m_tupleDesc = m_tupleHeader.getTupleDesc();
+		return m_tupleDesc;
 	}
 }

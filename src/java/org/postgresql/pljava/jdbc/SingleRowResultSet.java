@@ -26,6 +26,12 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 		return CONCUR_UPDATABLE;
 	}
 
+	public int findColumn(String columnName)
+	throws SQLException
+	{
+		return this.getTupleDesc().getColumnIndex(columnName);
+	}
+
 	public int getFetchDirection()
 	throws SQLException
 	{
@@ -289,4 +295,7 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 		//
 		this.updateObject(columnIndex, x);
 	}
+
+	protected abstract TupleDesc getTupleDesc()
+	throws SQLException;
 }

@@ -35,44 +35,23 @@ public class HeapTupleHeader extends NativeStruct
 	}
 
 	/**
-	 * Obtains a value from the underlying native <code>HeapTupleHeader</code>
-	 * structure.
-	 * @param name Name of the attribute.
-	 * @return The value or <code>null</code>.
-	 * @throws SQLException If the underlying native structure has gone stale
-	 * or if the name denotes a non existant attribute.
-	 */
-	public Object getObject(String name)
-	throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._getObject(name);
-		}
-	}
-
-	/**
-	 * Obtains the numeric index of attribute <code>name</code> from the
-	 * underlying native <code>HeapTupleHeader</code> structure.
-	 * @param name Name of the attribute.
-	 * @return The index of the attribute or -1 if no such attribute exists.
+	 * Obtains the TupleDesc from the underlying native <code>HeapTupleHeader
+	 * </code> structure.
+	 * @return The TupleDesc that describes this tuple.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public int getAttributeIndex(String name)
+	public TupleDesc getTupleDesc()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getAttributeIndex(name);
+			return this._getTupleDesc();
 		}
 	}
 
-	private native int _getAttributeIndex(String name)
+	private native TupleDesc _getTupleDesc()
 	throws SQLException;
 
 	private native Object _getObject(int index)
-	throws SQLException;
-
-	private native Object _getObject(String name)
 	throws SQLException;
 }

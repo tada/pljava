@@ -32,12 +32,6 @@ public class SingleRowWriter extends SingleRowResultSet
 		m_values = new Object[tupleDesc.size()];
 	}
 
-	public int findColumn(String columnName)
-	throws SQLException
-	{
-		return m_tupleDesc.getColumnIndex(columnName);
-	}
-
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
