@@ -15,7 +15,6 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.TriggerData;
-import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 
 /**

@@ -11,6 +11,8 @@ import java.sql.SQLException;
  */
 public class UnsupportedFeatureException extends SQLException
 {
+	private static final long serialVersionUID = 7956037664745636982L;
+
 	public static final String FEATURE_NOT_SUPPORTED_EXCEPTION = "0A000";
 
 	public UnsupportedFeatureException(String feature)

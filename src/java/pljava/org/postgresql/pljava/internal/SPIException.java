@@ -12,6 +12,8 @@ import java.sql.SQLException;
  */
 public class SPIException extends SQLException
 {
+	private static final long serialVersionUID = -834098440757881189L;
+
 	public SPIException(int resultCode)
 	{
 		super("SPI exception. Result = " + SPI.getResultText(resultCode));

@@ -25,6 +25,8 @@ import java.util.NoSuchElementException;
  */
 public class TransactionalMap extends HashMap
 {
+	private static final long serialVersionUID = 5337569423915578121L;
+
 	// The object representing no object (i.e. a shadowed entry)
 	//
 	private static final Object s_noObject = new Object();

@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 /**
  * This class deals with parsing and executing the deployment descriptor as
@@ -52,6 +53,7 @@ public class SQLDeploymentDescriptor
 	private final StringBuffer m_buffer = new StringBuffer();
 	private final char[] m_image;
 	private final String m_implementorName;
+	private final Logger m_logger;
 
 	private int m_position = 0;
 
@@ -69,6 +71,7 @@ public class SQLDeploymentDescriptor
 	{
 		m_image = descImage.toCharArray();
 		m_implementorName = implementorName;
+		m_logger = Logger.getAnonymousLogger();
 		this.readDescriptor();
 	}
 
@@ -105,14 +108,17 @@ public class SQLDeploymentDescriptor
 	private void executeArray(ArrayList array, Connection conn)
 	throws SQLException
 	{
+		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
 		Statement stmt = conn.createStatement();
 		int top = array.size();
 		for(int idx = 0; idx < top; ++idx)
 		{
 			String cmd = (String)array.get(idx);
+			m_logger.finer(cmd);
 			stmt.execute(cmd);
 		}
 		stmt.close();
+		m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
 	}
 
 	private ParseException parseError(String msg)
@@ -123,6 +129,7 @@ public class SQLDeploymentDescriptor
 	private void readDescriptor()
 	throws ParseException
 	{
+		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readDescriptor");
 		if(!"SQLACTIONS".equals(this.readIdentifier()))
 			throw this.parseError("Excpected keyword 'SQLActions'");
 
@@ -141,6 +148,7 @@ public class SQLDeploymentDescriptor
 				if(c >= 0)
 					throw this.parseError(
 						"Extraneous characters at end of descriptor");
+				m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readDescriptor");
 				return;
 			}
 		}
@@ -149,6 +157,7 @@ public class SQLDeploymentDescriptor
 	private void readActionGroup()
 	throws ParseException
 	{
+		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readActionGroup");
 		this.readToken('"');
 		if(!"BEGIN".equals(this.readIdentifier()))
 			throw this.parseError("Excpected keyword 'BEGIN'");
@@ -229,11 +238,13 @@ public class SQLDeploymentDescriptor
 			}
 		}
 		this.readToken('"');
+		m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readActionGroup");
 	}
 
 	private String readCommand()
 	throws ParseException
 	{
+		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readCommand");
 		int startQuotePos = -1;
 		int inQuote = 0;
 		int c = this.skipWhite();
@@ -277,7 +288,11 @@ public class SQLDeploymentDescriptor
 
 			case ';':
 				if(inQuote == 0)
-					return m_buffer.toString();
+				{
+					String cmd = m_buffer.toString();
+					m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readCommand", cmd);
+					return cmd;
+				}
 
 				m_buffer.append((char)c);
 				c = this.read();

@@ -11,6 +11,8 @@ import java.sql.SQLException;
  */
 public class TriggerException extends SQLException
 {
+	private static final long serialVersionUID = 5543711707414329116L;
+
 	private static boolean s_recursionLock = false;
 
 	public static final String TRIGGER_ACTION_EXCEPTION = "09000";

@@ -11,6 +11,8 @@ import java.sql.SQLException;
  */
 public class ServerException extends SQLException
 {
+	private static final long serialVersionUID = 8812755938793744633L;
+
 	private transient final ErrorData m_errorData;
 
 	public ServerException(ErrorData errorData)

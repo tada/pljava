@@ -11,6 +11,8 @@ import java.sql.SQLException;
  */
 public class StatementClosedException extends SQLException
 {
+	private static final long serialVersionUID = 9108917755099200271L;
+
 	public static final String INVALID_SQL_STATEMENT_NAME = "26000";
 
 	public StatementClosedException()
