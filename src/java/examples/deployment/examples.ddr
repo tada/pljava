@@ -222,6 +222,11 @@ SQLActions[ ] = {
 			RETURNS SETOF varchar
 			AS 'org.postgresql.pljava.example.MetaDataTest.callMetaDataMethod'
 			LANGUAGE java;
+
+		CREATE FUNCTION javatest.executeSelect(varchar)
+			RETURNS SETOF varchar
+			AS 'org.postgresql.pljava.example.ResultSetTest.executeSelect'
+			LANGUAGE java;
 	END INSTALL",
 	
 	"BEGIN REMOVE
