@@ -3,13 +3,14 @@
 <head>
 <meta http-equiv="Content-Language" content="en-us">
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-<title>PLJava and PosgreSQL 8</title>
+<title>PL/Java and PosgreSQL 8</title>
 </head>
 
 <body>
 
-<h1>PLJava and PostgreSQL 8.0</h1>
-<p>PostgreSQL introduces a couple of new features that PLJava make use of.</p>
+<h1>PL/Java and PostgreSQL 8.0</h1>
+<p><font size="2">Java&#8482; is a registered trademark of Sun Microsystems, Inc. in the United States and other countries.</font></p><br/>
+<p>PostgreSQL introduces a couple of new features that PL/Java make use of.</p>
 <h2>Exception handling</h2>
 <p>It is now possible to catch and handle an exception in the Postgres backend. 
 While it was possible to catch an exception in earlier Postgres versions as 
@@ -17,7 +18,7 @@ well, there was no way to prevent the generated message from being printed, nor
 to find out what the error was. The nested transaction concept introduced with 
 8.0 forced this to change and Postgres introduced a try/catch system and a 
 structure called <code>ErrorData</code> that can be used when investigating the 
-cause of an exception. PLJava fully exploits this. The <code>ErrorData</code> is 
+cause of an exception. PL/Java fully exploits this. The <code>ErrorData</code> is 
 exposed as a property in a class called <code>
 org.postgresql.pljava.ServerException</code> (derived from
 <code>java.sql.SQLException</code>) and the Java try/catch mechanism is 
@@ -31,14 +32,14 @@ set.</li>
 </ul>
 <h2>Module configuration.</h2>
 <p>Postgres 8.0 introduces the concept of <i>custom variable classes</i> in the
-<code>postgresql.conf</code> configuration file to enable modules like PLJava to 
+<code>postgresql.conf</code> configuration file to enable modules like PL/Java to 
 add their own configuration parameters. Normally, any variable name that the 
 postmaster cannot recognize will generate an error. Now, with a custom variable 
 class, a module can add a class of variables that the postmaster will accept. 
 It's then up to the module to verify their correctness.</p>
 <p>Please note that custom variables can be set using the SQL SET command also, 
 just like most other variables.</p>
-<p>PLJava introduces a custom variable class named &quot;pljava&quot; and some variables. 
+<p>PL/Java introduces a custom variable class named &quot;pljava&quot; and some variables. 
 Here's a sample postgresql.conf entry using all (3) of the variables currently 
 introduced:</p>
 <pre># define &quot;pljava&quot; as a custom variable class. This is a comma separated
@@ -66,7 +67,7 @@ pljava.vmoptions = '-Xmx64M -Dbackchannel.port=48'
 
 # Setting debug to true will cause the postgres process to go
 # into a sleep(1) loop on its first call to java. This is
-# only useful if you want to debug the PLJava internal C code.
+# only useful if you want to debug the PL/Java internal C code.
 #
 pljava.debug = false</pre>
 

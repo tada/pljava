@@ -1,7 +1,7 @@
 <html>
 
 <head>
-<title>PLJava readme</title>
+<title>PL/Java readme</title>
 <style>
 <!--
 h1           { font-size: 18pt }
@@ -14,17 +14,18 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PLJava, 1.1.x</h1>
+<h1>PL/Java, 1.1.x</h1>
+<p><font size="2">Java&#8482; is a registered trademark of Sun Microsystems, Inc. in the United States and other countries.</font></p>
 <p>A source tarball and a variety of binaries can be found in the download area.
 Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for 
 older PostgreSQL versions) and two for i386 based Linux. Although all 
-pre-compiled binaries must run using a standard JVM, the PLJava can also be 
-compiled and linked using GNU GCJ. PLJava has no pre-compiled binaries for GCJ 
+pre-compiled binaries must run using a standard JVM, the PL/Java can also be 
+compiled and linked using GNU GCJ. PL/Java has no pre-compiled binaries for GCJ 
 since the needed 4.0 version has not yet been released but the make system 
 contain what's needed to make the build easy.</p>
 <p>Please note that all use of GCJ should be regarded as experimental. The lack 
 of a proper 4.0.0 release is not the only problem. Due to limitations in the GCJ 
-implementation of java.security, the PLJava trusted language implementation is 
+implementation of java.security, the PL/Java trusted language implementation is 
 not really trusted when using GCJ.</p>
 <h2>Prerequisites</h2>
 <ul>
@@ -32,7 +33,7 @@ not really trusted when using GCJ.</p>
   <li>PostgreSQL JDBC drivers (needed by the client Deployer program).</li>
   <li>A Java runtime &gt;= Java 1.4 or GCJ &gt;= 4.0.x (Linux only).</li>
 </ul>
-<p>Get the binary distribution of PLJava for your platform. Unzip it into a directory
+<p>Get the binary distribution of PL/Java for your platform. Unzip it into a directory
 of your own choice.</p>
 <h2>Postmaster configuration</h2>
 <p>Get the PostgreSQL environment up and running. You will need to modify the
@@ -41,7 +42,7 @@ of your own choice.</p>
 <p>With PostgreSQL 7.4.x you must make the postmaster accept TCP/IP connections
 (needed by the client JDBC driver). So ensure that you have:</p>
 <pre>tcpip_socket = true</pre>
-<p>In order to find the PLJava shared object, you can do one of two things. Either
+<p>In order to find the PL/Java shared object, you can do one of two things. Either
 you install the shared object in a directory already searched by the postmaster
 (such as the data directory) or you tell the postmaster where to find it using the
 <code>dynamic_library_path</code>. I.e. you have a setting similar to this:</p>
@@ -56,7 +57,7 @@ the postgresql.conf file) as directory separators.</p>
 <pre>custom_variable_classes = &#39;pljava&#39;</pre>
 <h4>System classpath</h4>
 Normally, all Java code is loaded into the database using the install_jar/replace_jar
-SQL functions. Most of PLJava (those functions included) is however implemented in Java.
+SQL functions. Most of PL/Java (those functions included) is however implemented in Java.
 Unless you use GCJ, where this Java code is compiled and linked with the pljava shared
 object module, this hen and egg problem needs to be resolved using the system classpath.
 If you have PostgreSQL 8.0 or later, you add the following entry to the <code>
@@ -93,13 +94,13 @@ This will effetively disable all compression support in PostgreSQL.</li>
 JRE and relink your PostgreSQL executables with that version.</li>
 </ul>
 <p>You are now ready to start the postmaster.</p>
-<h2>Deploying the PLJava</h2>
-<p>PLJava adds a schema named SQLJ to the database (the naming is from the proposed
+<h2>Deploying the PL/Java</h2>
+<p>PL/Java adds a schema named SQLJ to the database (the naming is from the proposed
 SQL standard for Java backend mapping) and adds a couple of tables and functions
 to that schema. The deployment can be done in one of two ways. The simplest way 
 is probably to just execute the file <code>install.sql</code> as a super user (the 
-<code>uninstall.sql</code> will remove the pljava installation). PLJava also comes with 
-deploy program that lets you install, reinstall, or uninstall PLJava. This 
+<code>uninstall.sql</code> will remove the PL/Java installation). PL/Java also comes with 
+deploy program that lets you install, reinstall, or uninstall PL/Java. This 
 program will assert that you indeed are a super user and then execute the 
 correct commands using jdbc. In
 order to run this program, you must see to that the PostgreSQL jdbc driver package
@@ -108,7 +109,7 @@ order to run this program, you must see to that the PostgreSQL jdbc driver packa
 <pre>java org.postgresql.pljava.deploy.Deployer</pre>
 This will result in a list of options. Typically you would use something like:
 <pre>java org.postgresql.pljava.deploy.Deployer -install</pre>
-<p>That&#39;s all there&#39;s to it. You are now ready to start using the PLJava system.
+<p>That&#39;s all there&#39;s to it. You are now ready to start using the PL/Java system.
 If the server runs on a Cygwin system you will need to add the option <code>-cygwin</code>.
 The reason for this is that PostgreSQL and Java dynamic loading uses different naming
 on a Cygwin based platform.</p>
@@ -133,7 +134,7 @@ of errors here though.</p>
   cause is that the <code>dynamic_library_path</code> in the <code>postgresql.conf</code>
   file is incorrect.</li>
 </ul>
-<p>Once loaded, you must also set the classpath used by the PLJava runtime. This
+<p>Once loaded, you must also set the classpath used by the PL/Java runtime. This
 classpath is set per schema (namespace). A schema that lacks a classpath will default
 to the classpath that has been set for the public schema. The tests will use the
 schema <code>javatest</code>. To define the classpath for this schema, simply use

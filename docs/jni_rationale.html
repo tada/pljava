@@ -13,8 +13,8 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 <h1>Rationale behind using JNI as opposed to threads in a remote JVM process.</h1>
-
-<h2>Reasons to use a high level language like Java in the backend</h2>
+<p><font size="2">Java&#8482; is a registered trademark of Sun Microsystems, Inc. in the United States and other countries.</font></p>
+<h2>Reasons to use a high level language like Java&#8482; in the backend</h2>
 
 <p>A large part of the reason why JNI was chosen in favor of an RPC based,
 single JVM solution was due to the expected use-cases. Enterprise systems today are almost always
@@ -103,7 +103,7 @@ couple of facts that must be remembered: </p>
      href="http://java.sun.com/j2se/1.5.0/docs/relnotes/features.html#vm">here</a>),
      technologies that will minimize the startup time and make the JVM adopt
      its resource consumption in a much improved way.</li>
- <li>PLJava can make use of the <a
+ <li>PL/Java can make use of the <a
      href="http://gcc.gnu.org/java">GCJ</a>. Using this technology, all core
      classes will be compiled into binaries and optionally pre-loaded by the
      postmaster. It also means that all modules that are loaded using the
@@ -148,7 +148,7 @@ a JDBC driver is written so that it calls back to the SPI functions in the
 invoking process. Both choices results in an increased number of RPC calls and
 a negative performance impact. </p>
 
-<p>The PLJava approach is to use the underlying SPI interfaces directly
+<p>The PL/Java approach is to use the underlying SPI interfaces directly
 through JNI by providing a &quot;pseudo connection&quot; that implements the
 JDBC interfaces. The mapping is thus very direct. Data need never be serialized
 nor duplicated. </p>

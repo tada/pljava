@@ -1,4 +1,7 @@
-PLJava, a backend Java integration for PostgreSQL
+PL/Java, a backend Java integration for PostgreSQL
+
+Java™ is a registered trademark of Sun Microsystems, Inc. in the United
+States and other countries.
 
 Copyright (c) 2003, 2004, 2005 Tada AB - Taby Sweden
 All rights reserved.

@@ -22,7 +22,8 @@ h3  {margin-top:12.0pt;
 <body>
 
 <h1>Some problems and their solution.</h1>
-<p>When writing the PlJava, mapping the JVM into the same process-space as the
+<p><font size="2">Java&#8482; is a registered trademark of Sun Microsystems, Inc. in the United States and other countries.</font></p>
+<p>When writing the PL/Java, mapping the JVM into the same process-space as the
 PostgreSQL backend code, some concerns have been raised regarding multiple
 threads, exception handling, and memory management. Here is a brief text
 explaining how these issues where resolved.</p>
@@ -79,7 +80,7 @@ can of course not be accessed but other housekeeping can be made.</p>
 to be cougth using the macros <font face="Courier New" size="2">
 PG_TRY/PG_CATCH/PG_END_TRY</font> and in the catch block, the error can be
 examined using the <font face="Courier New" size="2">ErrorData</font> structure.
-PLJava implements a <font face="Courier New" size="2">java.sql.SQLException</font>
+PL/Java implements a <font face="Courier New" size="2">java.sql.SQLException</font>
 subclass called <font face="Courier New" size="2">
 org.postgresql.pljava.ServerException</font>. The ErrorData can be retrieved and
 examined from that exception. A catch handler is allowed to issue a rollback to 
@@ -94,7 +95,7 @@ extract and manipulate data. Such data will become &#8220;stale&#8221; once a ca
 ended. Further attempts to access such data will at best give very unpredictable
 results but more likely cause a memory fault and a crash.</p>
 <h3>Solution</h3>
-<p>The PLJava contains code that ensures that stale pointers are cleared when
+<p>The PL/Java contains code that ensures that stale pointers are cleared when
 the MemoryContext or stack where they where allocated goes out of scope. The
 Java wrapper objects might live on but any attempt to use them will result in a
 &#8220;stale native handle&#8221; exception.</p>
