@@ -222,6 +222,7 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 #if (PGSQL_MAJOR_VER >= 8)
 	MemoryContext_switchToUpperContext();
 	errData = CopyErrorData();
+	FlushErrorState();
 #else
 	StringInfoData buf;
 	MemoryContext_switchToUpperContext();
