@@ -183,7 +183,7 @@ Datum Exception_initialize(PG_FUNCTION_ARGS)
 			"<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
 
 	s_ServerException_getErrorData = PgObject_getJavaMethod(env, s_ServerException_class,
-			"<init>", "()Lorg/postgresql/pljava/internal/ErrorData;");
+			"getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
 
 	s_Class_getName = PgObject_getJavaMethod(env, s_Class_class,
 			"getName", "()Ljava/lang/String;");

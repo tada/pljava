@@ -11,22 +11,24 @@
 static jmethodID s_EOXactListener_onEOXact;
 static jobject s_listener;
 
-static void onEOXact(bool isCommit, void* arg)
+static void onEOXact(XactEvent event, TransactionId parentXid, void *arg)
 {
 	JNIEnv* env = Backend_getMainEnv();
 	if(env == 0)
 	{
 		/* JVM is no longer active. Unregister the callback.
 		 */
-		UnregisterEOXactCallback(onEOXact, s_listener);
+		UnregisterXactCallback(onEOXact, s_listener);
 		s_listener = 0;
 	}
-	else
+	else if(event == XACT_EVENT_ABORT || event == XACT_EVENT_COMMIT)
 	{
+		/* TODO: Improve to handle nested transaction events
+		 */
 		bool saveICJ = isCallingJava;
 		isCallingJava = true;
 		(*env)->CallVoidMethod(env, s_listener, s_EOXactListener_onEOXact,
-			isCommit ? JNI_TRUE : JNI_FALSE);
+			(event == XACT_EVENT_COMMIT) ? JNI_TRUE : JNI_FALSE);
 		isCallingJava = saveICJ;
 	}
 }
@@ -46,7 +48,7 @@ void EOXactListener_register(JNIEnv* env, jobject listener)
 		(*env)->DeleteLocalRef(env, cls);
 
 		s_listener = (*env)->NewGlobalRef(env, listener);
-		RegisterEOXactCallback(onEOXact, s_listener);
+		RegisterXactCallback(onEOXact, s_listener);
 	}
 }
 
@@ -54,7 +56,7 @@ void EOXactListener_unregister(JNIEnv* env)
 {
 	if(s_listener != 0)
 	{
-		UnregisterEOXactCallback(onEOXact, s_listener);
+		UnregisterXactCallback(onEOXact, s_listener);
 		(*env)->DeleteGlobalRef(env, s_listener);
 		s_listener = 0;
 	}

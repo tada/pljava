@@ -189,7 +189,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	{
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
-		PG_RETHROW();
+		PG_RE_THROW();
 	}
 	PG_END_TRY();
 

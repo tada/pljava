@@ -33,6 +33,11 @@ jobject ErrorData_create(JNIEnv* env, ErrorData* ed)
 	return jed;
 }
 
+ErrorData* ErrorData_getErrorData(JNIEnv* env, jobject jed)
+{
+	return (ErrorData*)NativeStruct_getStruct(env, jed);
+}
+	
 static jvalue _ErrorData_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
