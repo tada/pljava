@@ -88,7 +88,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Create the context used by Pl/Java
 		 */
 		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
-		MemoryContextSwitchTo(currCtx);
 
 		context->user_fctx = ctxData;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
@@ -102,6 +101,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		tmp = SingleRowWriter_create(env, tupleDesc);		
 		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp);
 		(*env)->DeleteLocalRef(env, tmp);
+		MemoryContextSwitchTo(currCtx);
 	}
 
 	context = SRF_PERCALL_SETUP();
