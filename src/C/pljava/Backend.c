@@ -149,30 +149,32 @@ static void initPLJavaClasses(JNIEnv* env)
 static bool s_topLocalFrameInstalled = false;
 static unsigned int s_callLevel = 0;
 
-CallContext* currentCallContext;
-
-static void initCallContext(CallContext* ctx)
-{
-	ctx->invocation    = 0;
-	ctx->function      = 0;
-	ctx->hasConnected  = false;
-	ctx->upperContext  = CurrentMemoryContext;
-	ctx->errorOccured  = false;
-	ctx->previous      = currentCallContext;
-	currentCallContext = ctx;
-}
-
 static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
 {
 	if(s_callLevel == 0 && s_topLocalFrameInstalled)
 	{
 		/* Pop this frame. This might call finalizers.
 		 */
-		JNIEnv* env = Backend_getMainEnv();
+		JNIEnv* env = Backend_getJNIEnv();
 		if(env != 0)
 			Backend_popJavaFrame(env);
 		s_topLocalFrameInstalled = false;
 	}
+}
+
+CallContext* currentCallContext;
+
+void Backend_initCallContext(CallContext* ctx)
+{
+	ctx->jniEnv          = s_mainEnv;	/* The one and only at the moment */
+	ctx->invocation      = 0;
+	ctx->function        = 0;
+	ctx->hasConnected    = false;
+	ctx->upperContext    = CurrentMemoryContext;
+	ctx->errorOccured    = false;
+	ctx->inExprContextCB = false;
+	ctx->previous        = currentCallContext;
+	currentCallContext   = ctx;
 }
 
 void Backend_pushJavaFrame(JNIEnv* env)
@@ -201,7 +203,7 @@ void Backend_popJavaFrame(JNIEnv* env)
 
 bool pljavaEntryFence(JNIEnv* env)
 {
-	if(currentCallContext->errorOccured)
+	if(currentCallContext != 0 && currentCallContext->errorOccured)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the
@@ -783,15 +785,28 @@ static void initializeJavaVM(void)
 void
 Backend_assertConnect(void)
 {
-	if(currentCallContext->hasConnected)
-		return;
-	SPI_connect();
-	currentCallContext->hasConnected = true;
+	if(currentCallContext != 0 && !currentCallContext->hasConnected)
+	{
+		SPI_connect();
+		currentCallContext->hasConnected = true;
+	}
 }
 
-JNIEnv* Backend_getMainEnv(void)
+void
+Backend_assertDisconnect(void)
 {
-	return s_mainEnv;
+	if(currentCallContext != 0 && currentCallContext->hasConnected)
+	{
+		SPI_finish();
+		currentCallContext->hasConnected = false;
+	}
+}
+
+JNIEnv* Backend_getJNIEnv(void)
+{
+	return (currentCallContext == 0)
+		? s_mainEnv
+		: currentCallContext->jniEnv;
 }
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
@@ -826,7 +841,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	bool saveIsCallingJava = isCallingJava;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 
-	initCallContext(&ctx);
+	Backend_initCallContext(&ctx);
 
 	if(s_javaVM == 0)
 	{
@@ -877,8 +892,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
-		if(currentCallContext->hasConnected)
-			SPI_finish();
+		Backend_assertDisconnect();
 		currentCallContext = ctx.previous;
 	}
 	PG_CATCH();
@@ -887,8 +901,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		isCallingJava      = saveIsCallingJava;
 		if(ctx.invocation != 0)
 			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
-		if(currentCallContext->hasConnected)
-			SPI_finish();
+		Backend_assertDisconnect();
 		currentCallContext = ctx.previous;
 		PG_RE_THROW();
 	}

@@ -27,6 +27,11 @@ typedef struct CallContext_ CallContext;
 struct CallContext_
 {
 	/**
+	 * Current JNI environment
+	 */
+	JNIEnv*       jniEnv;
+
+	/**
 	 * A Java object representing the current invocation. This
 	 * field will be NULL if no such object has been requested.
 	 */
@@ -43,6 +48,12 @@ struct CallContext_
 	 * is called when the function exits.
 	 */
 	bool          hasConnected;
+
+	/**
+	 * Set to true if the call originates from an ExprContextCallback. When
+	 * it does, we should not close any cursors.
+	 */
+	bool          inExprContextCB;
 
 	/**
 	 * The currently executing Function.
@@ -68,7 +79,11 @@ extern CallContext* currentCallContext;
 
 extern void Backend_assertConnect(void);
 
-extern JNIEnv* Backend_getMainEnv(void);
+extern void Backend_assertDisconnect(void);
+
+extern void Backend_initCallContext(CallContext* ctx);
+
+extern JNIEnv* Backend_getJNIEnv(void);
 
 extern void Backend_pushJavaFrame(JNIEnv* env);
 

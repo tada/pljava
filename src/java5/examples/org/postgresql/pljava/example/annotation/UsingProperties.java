@@ -75,4 +75,8 @@ public class UsingProperties implements ResultSetProvider
 			throw new SQLException("Error reading properties", e.getMessage());
 		}
 	}
+
+	public void close()
+	{
+	}
 }

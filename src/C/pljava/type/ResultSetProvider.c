@@ -11,6 +11,7 @@
 #include <utils/numeric.h>
 #include <nodes/execnodes.h>
 #include <funcapi.h>
+#include <executor/spi.h>
 
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
@@ -38,14 +39,52 @@ static HashMap s_cache;
 
 typedef struct
 {
-	jobject singleRowWriter;
-	jobject resultSetProvider;
-	bool    hasConnected;
+	JNIEnv*       jniEnv;
+	jobject       singleRowWriter;
+	jobject       resultSetProvider;
+	bool          hasConnected;
+	MemoryContext memoryContext;
+
 #ifdef GCJ /* Bug libgcj/15001 */
-	jmethodID assignRowValues;
-	jmethodID close;
+	jmethodID     assignRowValues;
+	jmethodID     close;
 #endif
 } CallContextData;
+
+static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
+{
+	JNIEnv* env = ctxData->jniEnv;
+	bool saveicj = isCallingJava;
+
+	currentCallContext->hasConnected = ctxData->hasConnected;
+	isCallingJava = true;
+#ifdef GCJ /* Bug libgcj/15001 */
+	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, ctxData->close);
+#else
+	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
+#endif
+	isCallingJava = saveicj;
+
+	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
+	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
+	Backend_assertDisconnect();
+}
+
+static void _ResultSetProvider_endOfSetCB(Datum arg)
+{
+	CallContext topCall;
+	bool saveInExprCtxCB;
+	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
+	MemoryContext currCtx = MemoryContextSwitchTo(ctxData->memoryContext);
+	if(currentCallContext == 0)
+		Backend_initCallContext(&topCall);
+
+	saveInExprCtxCB = currentCallContext->inExprContextCB;
+	currentCallContext->inExprContextCB = true;
+	_ResultSetProvider_closeIteration(ctxData);
+	currentCallContext->inExprContextCB = saveInExprCtxCB;
+	MemoryContextSwitchTo(currCtx);
+}
 
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
@@ -54,6 +93,11 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	CallContextData* ctxData;
 	FuncCallContext* context;
 	bool saveicj = isCallingJava;
+
+	/* a class loader or other mechanism might have connected already. This
+	 * connection must be dropped since its parent context is wrong.
+	 */
+	Backend_assertDisconnect();
 
 	/* stuff done only on the first call of the function
 	 */
@@ -64,15 +108,25 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #endif
 		jobject tmp;
 		jobject tmp2;
+		ReturnSetInfo* rsInfo;
 		TupleDesc tupleDesc;
 
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
 
-		/* switch to memory context appropriate for multiple function calls
-		 */
 		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		
+		/* AllocSetContextCreate(TopMemoryContext,
+									"PLJava Multi row context",
+									ALLOCSET_SMALL_MINSIZE,
+									ALLOCSET_SMALL_INITSIZE,
+									ALLOCSET_SMALL_MAXSIZE)); */
+
+		/* Create the context used by Pl/Java
+		 */
+		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
+		context->user_fctx = ctxData;
 
 		/* Call the declared Java function. It returns a ResultSetProvider
 		 * or a ResultSet. A ResultSet must be wrapped in a ResultSetPicker
@@ -85,8 +139,16 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 		if(tmp == 0)
 		{
+			if(currentCallContext->hasConnected)
+			{
+				/* Disconnect first, then restore the context.
+				 */
+				SPI_finish();
+				currentCallContext->hasConnected = false;
+				MemoryContextSwitchTo(currCtx);
+				MemoryContextDelete(GetMemoryChunkContext(ctxData));
+			}	
 			fcinfo->isnull = true;
-			MemoryContextSwitchTo(currCtx);
 			SRF_RETURN_DONE(context);
 		}
 
@@ -106,6 +168,8 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Build a tuple description for the tuples (will be cached
 		 * in TopMemoryContext)
 		 */
+		rsInfo = (ReturnSetInfo*)fcinfo->resultinfo;
+
 		tupleDesc = TupleDesc_forOid(Type_getOid(self));
 		if(tupleDesc == 0)
 			ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
@@ -117,12 +181,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		context->slot = TupleDescGetSlot(tupleDesc);
 #endif
 
-		/* Create the context used by Pl/Java
-		 */
-		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
-
-		context->user_fctx = ctxData;
-		ctxData->hasConnected = false;
+		ctxData->jniEnv            = env;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
 #ifdef GCJ /* Bug libgcj/15001 */
 		rsClass = (*env)->GetObjectClass(env, tmp);
@@ -139,27 +198,41 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp2);
 		(*env)->DeleteLocalRef(env, tmp2);
 
-		MemoryContextSwitchTo(currCtx);
-	}
+		ctxData->memoryContext = CurrentMemoryContext;
+		ctxData->hasConnected  = currentCallContext->hasConnected;
 
-	context = SRF_PERCALL_SETUP();
-	ctxData = (CallContextData*)context->user_fctx;
+		/* Register callback to be called when the function ends
+		 */
+		RegisterExprContextCallback(rsInfo->econtext, _ResultSetProvider_endOfSetCB, PointerGetDatum(ctxData));
+	}
+	else
+	{
+		context = SRF_PERCALL_SETUP();
+		ctxData = (CallContextData*)context->user_fctx;
+		MemoryContextSwitchTo(ctxData->memoryContext); /* May be an SPI context */
+		currentCallContext->hasConnected = ctxData->hasConnected;
+	}
 
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
-	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 	isCallingJava = true;
+#ifdef GCJ /* Bug libgcj/15001 */
 	hasRow = ((*env)->CallBooleanMethod(
 			env, ctxData->resultSetProvider,
-#ifdef GCJ /* Bug libgcj/15001 */
 			ctxData->assignRowValues,
+			ctxData->singleRowWriter,
+			(jint)context->call_cntr) == JNI_TRUE);
 #else
+	hasRow = ((*env)->CallBooleanMethod(
+			env, ctxData->resultSetProvider,
 			s_ResultSetProvider_assignRowValues,
+			ctxData->singleRowWriter,
+			(jint)context->call_cntr) == JNI_TRUE);
 #endif
-			ctxData->singleRowWriter, (jint)context->call_cntr) == JNI_TRUE);
 	isCallingJava = saveicj;
-	MemoryContextSwitchTo(currCtx);
+	ctxData->hasConnected = currentCallContext->hasConnected;
+	currentCallContext->hasConnected = false;
 	Exception_checkException(env);
 
 	if(hasRow)
@@ -167,8 +240,8 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		HeapTuple tuple;
 		Datum result = 0;
+		HeapTuple tuple;
 		currCtx = MemoryContext_switchToUpperContext();
 		tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 		if(tuple != 0)
@@ -180,34 +253,24 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #endif
 		}
 		MemoryContextSwitchTo(currCtx);
-
-		/* Neat trick that prevents SPI_finish
-		 */
-		if(currentCallContext->hasConnected)
-		{
-			ctxData->hasConnected = true;
-			currentCallContext->hasConnected = false;
-		}
 		SRF_RETURN_NEXT(context, result);
 	}
 
+	/* Unregister this callback and call it manually. We do this because
+	 * otherwise it will be called when the backend is in progress of
+	 * cleaning up Portals. If we close cursors (i.e. drop portals) in
+	 * the close, then that mechanism fails since attempts are made to
+	 * delete portals more then once.
+	 */
+	UnregisterExprContextCallback(
+		((ReturnSetInfo*)fcinfo->resultinfo)->econtext,
+		_ResultSetProvider_endOfSetCB,
+		PointerGetDatum(ctxData));
+	
+	_ResultSetProvider_closeIteration(ctxData);
+
 	/* This is the end of the set.
 	 */
-	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
-	isCallingJava = true;
-#ifdef GCJ /* Bug libgcj/15001 */
-	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, ctxData->close);
-#else
-	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
-#endif
-	isCallingJava = saveicj;
-	MemoryContextSwitchTo(currCtx);
-
-	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
-	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
-	if(ctxData->hasConnected)
-		currentCallContext->hasConnected = true;
-	pfree(ctxData);
 	SRF_RETURN_DONE(context);
 }
 

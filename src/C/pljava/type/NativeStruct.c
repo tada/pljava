@@ -20,7 +20,7 @@ static jfieldID  s_NativeStruct_m_native;
 void NativeStruct_releaseCache(HashMap cache)
 {
 	Iterator itor;
-	JNIEnv* env = Backend_getMainEnv();
+	JNIEnv* env = Backend_getJNIEnv();
 	if(env == 0)
 		return;
 

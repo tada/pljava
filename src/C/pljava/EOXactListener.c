@@ -16,7 +16,7 @@ static jobject s_listener;
 #if (PGSQL_MAJOR_VER < 8)
 static void onEOXact(bool isCommit, void *arg)
 {
-	JNIEnv* env = Backend_getMainEnv();
+	JNIEnv* env = Backend_getJNIEnv();
 	if(env == 0)
 	{
 		/* JVM is no longer active. Unregister the callback.
@@ -38,7 +38,7 @@ static void onEOXact(bool isCommit, void *arg)
 #else
 static void onEOXact(XactEvent event, void *arg)
 {
-	JNIEnv* env = Backend_getMainEnv();
+	JNIEnv* env = Backend_getJNIEnv();
 	if(env == 0)
 	{
 		/* JVM is no longer active. Unregister the callback.
