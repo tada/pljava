@@ -56,13 +56,20 @@ else
 ifeq ($(PORTNAME), darwin)
 	SHLIB_LINK = $(BE_DLLLIBS) -L. -framework JavaVM
 else
+ifdef JAVA_HOME
+ifeq ($(PORTNAME), win32)
+	JDK_HOME := $(subst \,/,$(JAVA_HOME))
+else
+	JDK_HOME := $(JAVA_HOME)
+endif
+else
+$(error You must set JAVA_HOME)
+endif
+	
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
 	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/$(JRE_LIB) -ljvm
 endif
 endif
-
-SO_MAJOR_VERSION := 1
-SO_MINOR_VERSION := 0
 
 .PHONY: extralibs
 

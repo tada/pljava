@@ -49,8 +49,8 @@ docs:
 	@find docs \( \
 		   -name CVS \
 		-o -name .cvsignore \
-		\) -prune -o \( -type f -print \) | cpio -pmdu $(TARGETDIR)
-	@cp COPYRIGHT $(TARGETDIR)/docs
+		\) -prune -o \( -type f -exec cp --parents {} $(TARGETDIR) \; \)
+	@cp COPYRIGHT $(TARGETDIR)/docs/COPYRIGHT.txt
 
 javadoc: pljava_javadoc deploy_javadoc examples_javadoc
 
