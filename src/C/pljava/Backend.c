@@ -219,7 +219,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 
 		initStringInfo(&buf);
 
-#ifdef CYGWIN
+#if defined(CYGWIN) && !defined(GCJ)
 		/**
 		 * Translate "/cygdrive/<driverLetter>/" into "<driveLetter>:/" since
 		 * the JVM dynamic loader will fail to recognize the former.
@@ -281,7 +281,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, prefix);
 			else
-#if WIN32 || CYGWIN
+#if defined(WIN32) || (defined(CYGWIN) && !defined(GCJ))
 				appendStringInfoChar(bld, ';');
 #else
 				appendStringInfoChar(bld, ':');

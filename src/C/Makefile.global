@@ -7,7 +7,7 @@
 
 include $(top_builddir)/src/Makefile.global
 
-override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/include $(CPPFLAGS)
+override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) $(CPPFLAGS)
 
 # Don't use higher standard then c89 since this rules out older compilers. We
 # must use 'long long' however, since JNI defines it.
@@ -19,7 +19,12 @@ ifeq ($(PORTNAME), cygwin)
 # Portname will not suffice. The Win32 JDK have no knowledge of cygwin
 # GNU compiler doesn't know __int64, instead it uses long long.
 #
-override CPPFLAGS := -I$(JAVA_HOME)/include/win32 -DCYGWIN -D__int64='long long' $(CPPFLAGS)
+ifeq ($(JAVA_HOME),)
+	override CPPFLAGS := -DGCJ $(CPPFLAGS)
+else
+	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32 $(CPPFLAGS)
+endif
+override CPPFLAGS := -DCYGWIN -D__int64='long long' $(CPPFLAGS)
 
 else
 #
@@ -33,7 +38,9 @@ else
 	jre_cpu = $(host_cpu)
 endif
 
-override CPPFLAGS := $(CPPFLAGS) -I$(JAVA_HOME)/include/$(PORTNAME)
+ifneq ($(JAVA_HOME),)
+	override CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
+endif
 override LDFLAGS := -shared -L$(JAVA_HOME)/jre/lib/$(jre_cpu)/client -ljvm $(LDFLAGS)
 override CFLAGS := -fpic $(CFLAGS)
 endif

@@ -58,7 +58,7 @@ extern void _PgObject_pureVirtualCalled(PgObject self);
  * Throw an exception indicating that wanted member could not be
  * found.
  */
-extern void PgObject_throwMemberError(const char* memberName, const char* signature, bool isMethod, bool isStatic);
+extern void PgObject_throwMemberError(JNIEnv* env, jclass cls, const char* memberName, const char* signature, bool isMethod, bool isStatic);
 
 /*
  * Allocate an instance in the given MemoryContext.
