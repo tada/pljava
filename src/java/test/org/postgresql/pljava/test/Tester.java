@@ -198,6 +198,7 @@ public class Tester
 			t.testComplexReturn();
 			t.testSetReturn();
 			t.testCallInCall();
+			t.testCurrentDir();
 			t.close();
 		}
 		catch(Exception e)
@@ -426,6 +427,22 @@ public class Tester
 			n = rs.getInt(3);
 			System.out.println("nullOnEven(2) = " + (rs.wasNull() ? "null" : Integer.toString(n)));
 		}
+		rs.close();
+		stmt.close();
+	}
+
+	public void testCurrentDir()
+	throws SQLException
+	{
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery(
+				"SELECT java_getSystemProperty('user.dir')");
+
+		if(!rs.next())
+			System.out.println("Unable to position ResultSet");
+		else
+			System.out.println(
+				"Server directory = " + rs.getString(1));
 		rs.close();
 		stmt.close();
 	}

@@ -49,40 +49,40 @@ endif
 ifdef USE_GCJ
 	override CPPFLAGS := -DGCJ $(CPPFLAGS)
 	SHLIB_LINK = $(BE_DLLLIBS) -lgcj
-ifdef DLL_BUILD
-	SHLIB_LINK += -lws2_32
-endif
+	ifdef DLL_BUILD
+		SHLIB_LINK += -lws2_32
+	endif
 	OBJS += pljava_jar.o
 
 else
-ifeq ($(PORTNAME), darwin)
-	SHLIB_LINK = $(BE_DLLLIBS) -L. -framework JavaVM
-else
-ifdef JAVA_HOME
-ifeq ($(PORTNAME), win32)
-	JDK_HOME := $(subst \,/,$(JAVA_HOME))
-else
-	JDK_HOME := $(JAVA_HOME)
-endif
-else
-$(error You must set JAVA_HOME)
-endif
+	ifeq ($(PORTNAME), darwin)
+		SHLIB_LINK = $(BE_DLLLIBS) -L. -framework JavaVM
+	else
+		ifdef JAVA_HOME
+			ifeq ($(PORTNAME), win32)
+				JDK_HOME := $(subst \,/,$(JAVA_HOME))
+			else
+				JDK_HOME := $(JAVA_HOME)
+			endif
+		else
+			$(error You must set JAVA_HOME)
+		endif
 
-ifdef DLL_BUILD
-	JRE_INCL := win32
-	JVM_LIB  := $(JDK_HOME)/jre/bin/client
-else
-	JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
-	JVM_LIB := $(firstword $(shell /bin/ls -d \
-		$(JRE_LIB)/client \
-		$(JRE_LIB)/server \
-		$(JRE_LIB)/jrockit \
-		2> /dev/null))
-endif
+		ifdef DLL_BUILD
+			JRE_INCL := win32
+			JVM_LIB  := $(JDK_HOME)/jre/bin/client
+		else
+			JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
+			JVM_LIB := $(firstword $(shell /bin/ls -d \
+				$(JRE_LIB)/client \
+				$(JRE_LIB)/server \
+				$(JRE_LIB)/jrockit \
+				2> /dev/null))
+		endif
 
-	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JVM_LIB) -ljvm
-endif
+		override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
+		SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JVM_LIB) -ljvm
+	endif
 endif
 
 .PHONY: extralibs
@@ -111,10 +111,10 @@ endif
 
 endif
 
-all: extralibs all-lib
+include $(PGSQLSRC)/Makefile.shlib
+
+all: extralibs $(shlib)
 
 install: install-lib
 
 uninstall: uninstall-lib
-
-include $(PGSQLSRC)/Makefile.shlib

@@ -623,7 +623,10 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 
 bool Function_isCurrentReadOnly(void)
 {
-	return s_current->readOnly;
+	/* s_current will be 0 during resolve of class and java function. At
+	 * that time, no updates are allowed (or needed).
+	 */
+	return (s_current == 0) ? true : s_current->readOnly;
 }
 
 Function Function_getCurrent(void)

@@ -38,6 +38,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.nullOnEven'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.java_getSystemProperty(varchar)
+			RETURNS varchar
+			AS 'java.lang.System.getProperty'
+			LANGUAGE java;
+
 		CREATE TABLE javatest.username_test
 			(
 			name		text,
