@@ -9,6 +9,7 @@
 
 #include "org_postgresql_pljava_internal_ExecutionPlan.h"
 #include "pljava/Exception.h"
+#include "pljava/Function.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
@@ -169,7 +170,7 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
  * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues, jboolean readOnly)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
 	void* ePlan;
 	jobject jportal = 0;
@@ -190,7 +191,12 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 			if(cursorName != 0)
 				name = String_createNTS(env, cursorName);
 		
-			portal = SPI_cursor_open(name, ePlan, values, nulls, readOnly == JNI_TRUE);
+#if (PGSQL_MAJOR_VER >= 8)
+			portal = SPI_cursor_open(
+				name, ePlan, values, nulls, Function_isCurrentReadOnly());
+#else
+			portal = SPI_cursor_open(name, ePlan, values, nulls);
+#endif
 			if(name != 0)
 				pfree(name);
 			if(values != 0)
@@ -260,7 +266,12 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 		char*  nulls  = 0;
 		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
 		{
+#if (PGSQL_MAJOR_VER >= 8)
+			result = (jint)SPI_execute_plan(
+				ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
+#else
 			result = (jint)SPI_execp(ePlan, values, nulls, (int)count);
+#endif
 			if(values != 0)
 				pfree(values);
 			if(nulls != 0)

@@ -137,6 +137,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 {
 	Datum retval = 0;
 	bool saveIsCallingJava = isCallingJava;
+	Function saveFunction = Function_getCurrent();
 	MemoryContext saveReturnValueContext = returnValueContext;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 #if (PGSQL_MAJOR_VER < 8)
@@ -175,10 +176,11 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 			retval = Function_invoke(function, s_mainEnv, fcinfo);
 		}
 		Exception_checkException(s_mainEnv);
-		
+
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
+		Function_setCurrent(saveFunction);
 #if (PGSQL_MAJOR_VER < 8)
 		elogErrorOccured = saveErrorOccured;
 #endif
@@ -188,6 +190,7 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 		--s_callLevel;
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
+		Function_setCurrent(saveFunction);
 #if (PGSQL_MAJOR_VER < 8)
 		elogErrorOccured = saveErrorOccured;
 #endif
@@ -726,7 +729,11 @@ static void initializeJavaVM(void)
 	{
 		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
 		while(pljavaDebug)
+#if (PGSQL_MAJOR_VER >= 8)
 			pg_usleep(1000000L);
+#else
+			sleep(1);
+#endif
 	}
 
 	vm_args.nOptions = optList.size;

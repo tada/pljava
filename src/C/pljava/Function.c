@@ -28,6 +28,13 @@ struct Function_
 	struct PgObject_ PgObject_extension;
 
 	/*
+	 * True if the function is not a volatile function (i.e. STABLE or
+	 * IMMUTABLE). This means that the function is not allowed to have
+	 * side effects.
+	 */
+	bool      readOnly;
+
+	/*
 	 * True if the function returns a complex type.
 	 */
 	bool      returnComplex;
@@ -58,6 +65,7 @@ struct Function_
 	jmethodID method;
 };
 
+static Function s_current;
 static HashMap s_funcMap = 0;
 static PgObjectClass s_FunctionClass;
 
@@ -330,6 +338,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	Exception_checkException(env);
 
 	self->returnComplex = false;
+	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
 	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);
 	(*env)->DeleteLocalRef(env, loaded);
 
@@ -535,6 +544,7 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	int32 top = self->numParams;
 
 	fcinfo->isnull = false;
+	s_current = self;
 	if(top > 0)
 	{
 		int32   idx;
@@ -585,6 +595,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	if(arg.l == 0)
 		return 0;
 
+	s_current = self;
 	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
@@ -609,3 +620,19 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	(*env)->DeleteLocalRef(env, arg.l);
 	return ret;
 }
+
+bool Function_isCurrentReadOnly(void)
+{
+	return s_current->readOnly;
+}
+
+Function Function_getCurrent(void)
+{
+	return s_current;
+}
+
+void Function_setCurrent(Function function)
+{
+	s_current = function;
+}
+

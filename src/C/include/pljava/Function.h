@@ -54,6 +54,22 @@ extern Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS);
 extern Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS);
 
 /*
+ * Returns true if the currently executing function is non volatile, i.e. stable
+ * or immutable. Such functions are not allowed to have side effects.
+ */
+extern bool Function_isCurrentReadOnly(void);
+
+/*
+ * Returns the currently executing function.
+ */
+extern Function Function_getCurrent(void);
+
+/*
+ * Sets the currently executing function.
+ */
+extern void Function_setCurrent(Function function);
+
+/*
  * Initialize the Function class.
  */
 extern Datum Function_initialize(PG_FUNCTION_ARGS);

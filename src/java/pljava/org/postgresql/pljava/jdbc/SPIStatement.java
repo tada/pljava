@@ -86,10 +86,10 @@ public class SPIStatement implements Statement
 		if(plan == null)
 			throw new SPIException(result);
 		
-		return this.executePlan(plan, null, false);
+		return this.executePlan(plan, null);
 	}
 
-	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues, boolean readOnly)
+	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues)
 	throws SQLException
 	{
 		m_updateCount = -1;
@@ -98,7 +98,7 @@ public class SPIStatement implements Statement
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
-			Portal portal = plan.cursorOpen(m_cursorName, paramValues, readOnly);
+			Portal portal = plan.cursorOpen(m_cursorName, paramValues);
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else

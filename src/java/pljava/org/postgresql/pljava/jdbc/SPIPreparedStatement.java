@@ -248,7 +248,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		if(m_plan == null)
 			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
 
-		boolean result = this.executePlan(m_plan, m_values, false);
+		boolean result = this.executePlan(m_plan, m_values);
 		this.clearParameters(); // Parameters are cleared upon successful completion.
 		return result;
 	}
