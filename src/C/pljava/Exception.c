@@ -189,7 +189,7 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
 	errData->message = buf.data;
 #endif
-	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(buf.data)));
+	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
 	jobject ed = ErrorData_create(env, errData);
 	jobject ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
