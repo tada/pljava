@@ -98,7 +98,7 @@ public class SPIActions
                 ResultSet rs = stmt.executeQuery("SELECT 'OK'");
                 while (rs.next())
                 {
-                    log("Expected: OK; Retrived: " + rs.getString(1));
+                    log("Expected: OK; Retrieved: " + rs.getString(1));
                 }
                 rs.close();
                 stmt.close();
