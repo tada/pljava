@@ -13,10 +13,10 @@ import java.util.HashMap;
 
 /**
  * A Synthetic ResultSet that provides direct access to data stored
- * in a {@link java.util.Vector}. This kind of ResultSet is nothing
+ * in a {@link java.util.ArrayList}. This kind of ResultSet has nothing
  * common with any statement.
  *
- * @author Thomas Hallgren
+ * @author Filip Hrbek
  */
 public class SyntheticResultSet extends ResultSetBase
 {

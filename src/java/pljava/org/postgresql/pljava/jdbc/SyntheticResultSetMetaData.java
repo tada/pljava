@@ -7,22 +7,18 @@
 
 package org.postgresql.pljava.jdbc;
 
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Connection;
-import java.sql.DriverManager;
 
 /**
  * Implementation of ResultSetMetaData for SyntheticResultSet
  *
- * @author Thomas Hallgren
+ * @author Filip Hrbek
  */
 
-public class SyntheticResultSetMetaData implements ResultSetMetaData
+public class SyntheticResultSetMetaData extends AbstractResultSetMetaData
 {
 
 	private final ResultSetField[] m_fields;
-	private Connection m_conn;
 
 	/**
 	 * Constructor.
@@ -30,8 +26,8 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
 	 */
 	public SyntheticResultSetMetaData(ResultSetField[] fields)
 	{
+		super();
 		m_fields = fields;
-		m_conn = null;
 	}
 
     /**
@@ -40,7 +36,7 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
      * @return the number of columns
      * @exception SQLException if a database access error occurs
      */
-    public int getColumnCount() throws SQLException
+    public final int getColumnCount() throws SQLException
 	{
 		return m_fields.length;
 	}
@@ -52,127 +48,11 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
      * @return <code>true</code> if so; <code>false</code> otherwise
      * @exception SQLException if a database access error occurs
      */
-    public boolean isAutoIncrement(int column) throws SQLException
+    public final boolean isAutoIncrement(int column) throws SQLException
 	{
 		checkColumnIndex(column);
 		//SyntheticResultSet has no autoincrement columns
 		return false;
-	}
-
-    /**
-     * Indicates whether a column's case matters.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isCaseSensitive(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		switch (m_fields[column-1].getOID())
-		{
-			case TypeOid.TEXT:
-			case TypeOid.BYTEA:
-			case TypeOid.VARCHAR:
-			case TypeOid.BPCHAR:		return true;
-			default:					return false;
-		}
-	}
-
-    /**
-     * Indicates whether the designated column can be used in a where clause.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isSearchable(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return true;
-	}
-
-    /**
-     * Indicates whether the designated column is a cash value.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isCurrency(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		//For now it false; it can be changed when TypeOid.java
-		//contains currency data types.
-		return false;
-	}
- 
-    /**
-     * Indicates the nullability of values in the designated column.		
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return the nullability status of the given column; one of <code>columnNoNulls</code>,
-     *          <code>columnNullable</code> or <code>columnNullableUnknown</code>
-     * @exception SQLException if a database access error occurs
-     */
-    public int isNullable(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return columnNullableUnknown;
-	}
-
-    /**
-     * Indicates whether values in the designated column are signed numbers.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isSigned(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		switch (m_fields[column-1].getOID())
-		{
-			case TypeOid.INT2:
-			case TypeOid.INT4:
-			case TypeOid.INT8:
-			case TypeOid.FLOAT4:
-			case TypeOid.FLOAT8:		return true;
-			default:					return false;
-		}
-	}
-
-    /**
-     * Indicates the designated column's normal maximum width in characters.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return the normal maximum number of characters allowed as the width
-     *          of the designated column
-     * @exception SQLException if a database access error occurs
-     */
-    public int getColumnDisplaySize(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		switch (m_fields[column-1].getOID())
-		{
-			case TypeOid.INT2:			return 6;
-			case TypeOid.INT4:			return 11; 
-			case TypeOid.INT8:			return 20;
-			case TypeOid.TEXT:			return m_fields[column-1].getLength();
-			case TypeOid.NUMERIC:		return 20;
-			case TypeOid.FLOAT4:		return 11;
-			case TypeOid.FLOAT8:		return 20;
-			case TypeOid.BOOL:			return 3;
-			case TypeOid.DATE:			return 13;
-			case TypeOid.TIME:			return 10;
-			case TypeOid.TIMESTAMP:		return 25;
-			case TypeOid.TIMESTAMPTZ:	return 25;
-			case TypeOid.BYTEA:			return m_fields[column-1].getLength();
-			case TypeOid.VARCHAR:		return m_fields[column-1].getLength();
-			case TypeOid.OID:			return 20;
-			case TypeOid.BPCHAR:		return m_fields[column-1].getLength();
-			default:					return m_fields[column-1].getLength();
-		}
 	}
 
     /**
@@ -183,178 +63,10 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
      * @return the suggested column title
      * @exception SQLException if a database access error occurs
      */
-    public String getColumnLabel(int column) throws SQLException
+    public final String getColumnLabel(int column) throws SQLException
 	{
 		checkColumnIndex(column);
 		return m_fields[column-1].getColumnLabel();
-	}
-
-    /**
-     * Get the designated column's name.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return column name
-     * @exception SQLException if a database access error occurs
-     */
-    public String getColumnName(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return getColumnLabel(column);
-	}
-
-    /**
-     * Get the designated column's table's schema.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return schema name or "" if not applicable
-     * @exception SQLException if a database access error occurs
-     */
-    public String getSchemaName(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return "";
-	}
-
-    /**
-     * Get the designated column's number of decimal digits.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return precision
-     * @exception SQLException if a database access error occurs
-     */
-    public int getPrecision(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		switch (m_fields[column-1].getOID())
-		{
-			case TypeOid.INT2:			return 5;
-			case TypeOid.INT4:			return 10; 
-			case TypeOid.INT8:			return 20;
-			case TypeOid.FLOAT4:		return 8;
-			case TypeOid.FLOAT8:		return 16;
-			case TypeOid.BOOL:			return 1;
-			case TypeOid.OID:			return 20;
-			case TypeOid.NUMERIC:		return -1; //unknown
-			default:					return 0;
-		}
-	}
-
-	/**
-     * Gets the designated column's number of digits to right of the decimal point.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return scale
-     * @exception SQLException if a database access error occurs
-     */
-    public int getScale(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		switch (m_fields[column-1].getOID())
-		{
-			case TypeOid.INT2:
-			case TypeOid.INT4:
-			case TypeOid.INT8:
-			case TypeOid.BOOL:
-			case TypeOid.OID:			return 0;
-			case TypeOid.FLOAT4:		return 8;
-			case TypeOid.FLOAT8:		return 16;
-			case TypeOid.NUMERIC:		return -1; //unknown
-			default:					return 0;
-		}
-	}
-
-    /**
-     * Gets the designated column's table name. 
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return table name or "" if not applicable
-     * @exception SQLException if a database access error occurs
-     */
-    public String getTableName(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return "";
-	}
-
-    /**
-     * Gets the designated column's table's catalog name.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return the name of the catalog for the table in which the given column
-     *          appears or "" if not applicable
-     * @exception SQLException if a database access error occurs
-     */
-    public String getCatalogName(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return "";
-	}
-
-    /**
-     * Retrieves the designated column's SQL type.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return SQL type from java.sql.Types
-     * @exception SQLException if a database access error occurs
-     * @see Types
-     */
-    public int getColumnType(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return ((SPIConnection)getDefaultConnection()).getSQLType(m_fields[column-1].getOID());
-	}
-
-    /**
-     * Retrieves the designated column's database-specific type name.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return type name used by the database. If the column type is
-     * a user-defined type, then a fully-qualified type name is returned.
-     * @exception SQLException if a database access error occurs
-     */
-    public String getColumnTypeName(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return ((SPIConnection)getDefaultConnection()).getPGType(column);
-	}
-
-    /**
-     * Indicates whether the designated column is definitely not writable.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isReadOnly(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return true;
-	}
-
-    /**
-     * Indicates whether it is possible for a write on the designated column to succeed.
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isWritable(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return false;
-	}
-
-    /**
-     * Indicates whether a write on the designated column will definitely succeed.	
-     *
-     * @param column the first column is 1, the second is 2, ...
-     * @return <code>true</code> if so; <code>false</code> otherwise
-     * @exception SQLException if a database access error occurs
-     */
-    public boolean isDefinitelyWritable(int column) throws SQLException
-	{
-		checkColumnIndex(column);
-		return false;
 	}
 
     //--------------------------JDBC 2.0-----------------------------------
@@ -374,7 +86,7 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
      * @exception SQLException if a database access error occurs
      * @since 1.2
      */
-    public String getColumnClassName(int column) throws SQLException
+    public final String getColumnClassName(int column) throws SQLException
 	{
 		checkColumnIndex(column);
 		return m_fields[column-1].getJavaClass().getName();
@@ -386,7 +98,7 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
      * @param column the first column is 1, the second is 2, ...
      * @exception SQLException if the column is out of index bounds
      */
-    private void checkColumnIndex(int column) throws SQLException
+    protected final void checkColumnIndex(int column) throws SQLException
 	{
 		if (column < 1 || column > m_fields.length)
 		{
@@ -395,16 +107,24 @@ public class SyntheticResultSetMetaData implements ResultSetMetaData
 	}
 
 	/**
-	 * Obtains connection to the database if needed.
-	 * Once called, it stores the connection reference to a private variable.
+	 * Gets column OID
+	 * @param column Column index
+	 * @return column OID
+	 * @throws SQLException if an error occurs
 	 */
-	private Connection getDefaultConnection() throws SQLException
+	protected final int getOid(int column) throws SQLException
 	{
-		if (m_conn == null)
-		{
-			m_conn = DriverManager.getConnection("jdbc:default:connection");
-		}
+		return m_fields[column-1].getOID();
+	}
 
-		return m_conn;
+	/**
+	 * Gets column length
+	 * @param column Column index
+	 * @return column length
+	 * @throws SQLException if an error occurs
+	 */
+	protected final int getFieldLength(int column) throws SQLException
+	{
+		return m_fields[column-1].getLength();
 	}
 }
