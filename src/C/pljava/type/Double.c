@@ -1,8 +1,8 @@
 /*
- * This file contains software that has been made available under
- * The Mozilla Public License 1.1. Use and distribution hereof are
- * subject to the restrictions set forth therein.
- *
+ * This file contains software that has been made available under The BSD
+ * license. Use and distribution hereof are subject to the restrictions set
+ * forth therein.
+ * 
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
@@ -29,7 +29,7 @@ static Datum _double_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method
 	isCallingJava = saveicj;
 	
 	/* Since we don't know if 64 bit quantities are passed by reference or
-	 * by value, we have to make sure that the upper context is used if
+	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
 	MemoryContext currCtx = SPI_switchToReturnValueContext();

@@ -1,0 +1,369 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=windows-1252">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 10">
+<meta name=Originator content="Microsoft Word 10">
+<link rel=File-List href="Rationale%20behind%20using%20JNI_files/filelist.xml">
+<title>Rationale behind using JNI as opposed to threads in a remote JVM process</title>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+  <o:Author>Thomas Hallgren</o:Author>
+  <o:LastAuthor>Thomas Hallgren</o:LastAuthor>
+  <o:Revision>3</o:Revision>
+  <o:TotalTime>29</o:TotalTime>
+  <o:Created>2004-01-09T15:43:00Z</o:Created>
+  <o:LastSaved>2004-01-09T15:44:00Z</o:LastSaved>
+  <o:Pages>1</o:Pages>
+  <o:Words>520</o:Words>
+  <o:Characters>2968</o:Characters>
+  <o:Lines>24</o:Lines>
+  <o:Paragraphs>6</o:Paragraphs>
+  <o:CharactersWithSpaces>3482</o:CharactersWithSpaces>
+  <o:Version>10.3501</o:Version>
+ </o:DocumentProperties>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:Zoom>125</w:Zoom>
+  <w:SpellingState>Clean</w:SpellingState>
+  <w:GrammarState>Clean</w:GrammarState>
+  <w:Compatibility>
+   <w:BreakWrappedTables/>
+   <w:SnapToGridInCell/>
+   <w:WrapTextWithPunct/>
+   <w:UseAsianBreakRules/>
+  </w:Compatibility>
+  <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+ </w:WordDocument>
+</xml><![endif]-->
+<style>
+<!--
+ /* Style Definitions */
+ p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{mso-style-parent:"";
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+h1
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:1;
+	font-size:16.0pt;
+	font-family:Arial;
+	mso-font-kerning:16.0pt;
+	font-weight:bold;}
+h2
+	{mso-style-next:Normal;
+	margin-top:12.0pt;
+	margin-right:0in;
+	margin-bottom:3.0pt;
+	margin-left:0in;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:2;
+	font-size:14.0pt;
+	font-family:Arial;
+	font-weight:bold;
+	font-style:italic;}
+p.MsoPlainText, li.MsoPlainText, div.MsoPlainText
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Courier New";
+	mso-fareast-font-family:"Times New Roman";}
+p
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+p.Code, li.Code, div.Code
+	{mso-style-name:Code;
+	margin-top:0in;
+	margin-right:-45.35pt;
+	margin-bottom:0in;
+	margin-left:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	mso-hyphenate:none;
+	tab-stops:.25in .5in .75in 1.0in 1.25in;
+	mso-layout-grid-align:none;
+	text-autospace:none;
+	font-size:8.0pt;
+	mso-bidi-font-size:10.0pt;
+	font-family:"Courier New";
+	mso-fareast-font-family:"Times New Roman";
+	color:#3F5FBF;
+	mso-no-proof:yes;}
+span.SpellE
+	{mso-style-name:"";
+	mso-spl-e:yes;}
+@page Section1
+	{size:8.5in 11.0in;
+	margin:1.0in 1.25in 1.0in 1.25in;
+	mso-header-margin:.5in;
+	mso-footer-margin:.5in;
+	mso-paper-source:0;}
+div.Section1
+	{page:Section1;}
+ /* List Definitions */
+ @list l0
+	{mso-list-id:-132;
+	mso-list-type:simple;
+	mso-list-template-ids:2107789940;}
+@list l0:level1
+	{mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;}
+@list l1
+	{mso-list-id:-131;
+	mso-list-type:simple;
+	mso-list-template-ids:532465800;}
+@list l1:level1
+	{mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	margin-left:1.0in;
+	text-indent:-.25in;}
+@list l2
+	{mso-list-id:-130;
+	mso-list-type:simple;
+	mso-list-template-ids:-1258799674;}
+@list l2:level1
+	{mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;}
+@list l3
+	{mso-list-id:-129;
+	mso-list-type:simple;
+	mso-list-template-ids:-1602563346;}
+@list l4
+	{mso-list-id:-128;
+	mso-list-type:simple;
+	mso-list-template-ids:-1040954808;}
+@list l4:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\\\\F0B7;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l5
+	{mso-list-id:-127;
+	mso-list-type:simple;
+	mso-list-template-ids:-1758196968;}
+@list l5:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\\\\F0B7;
+	mso-level-tab-stop:1.0in;
+	mso-level-number-position:left;
+	margin-left:1.0in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l6
+	{mso-list-id:-126;
+	mso-list-type:simple;
+	mso-list-template-ids:584348936;}
+@list l6:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\\\\F0B7;
+	mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l7
+	{mso-list-id:-125;
+	mso-list-type:simple;
+	mso-list-template-ids:894567358;}
+@list l7:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\\\\F0B7;
+	mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l8
+	{mso-list-id:-120;
+	mso-list-type:simple;
+	mso-list-template-ids:-1768662596;}
+@list l8:level1
+	{mso-level-tab-stop:.25in;
+	mso-level-number-position:left;
+	margin-left:.25in;
+	text-indent:-.25in;}
+@list l9
+	{mso-list-id:-119;
+	mso-list-type:simple;
+	mso-list-template-ids:-1207537154;}
+@list l9:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:\\\\F0B7;
+	mso-level-tab-stop:.25in;
+	mso-level-number-position:left;
+	margin-left:.25in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l10
+	{mso-list-id:1243757853;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1965403038 67698703 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l10:level1
+	{mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+@list l11
+	{mso-list-id:1750812067;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1782402280 67698703 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l11:level1
+	{mso-level-tab-stop:.5in;
+	mso-level-number-position:left;
+	text-indent:-.25in;}
+ol
+	{margin-bottom:0in;}
+ul
+	{margin-bottom:0in;}
+-->
+</style>
+<!--[if gte mso 10]>
+<style>
+ /* Style Definitions */
+ table.MsoNormalTable
+	{mso-style-name:"Table Normal";
+	mso-tstyle-rowband-size:0;
+	mso-tstyle-colband-size:0;
+	mso-style-noshow:yes;
+	mso-style-parent:"";
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;
+	mso-para-margin:0in;
+	mso-para-margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";}
+</style>
+<![endif]-->
+</head>
+
+<body lang=EN-US style='tab-interval:.5in'>
+
+<div class=Section1>
+
+<h1><span lang=SV style='mso-ansi-language:SV'>Rationale behind using JNI as
+opposed to threads in a remote JVM process.<o:p></o:p></span></h1>
+
+<p class=MsoNormal style='mso-layout-grid-align:none;text-autospace:none'><span
+style='font-size:10.0pt;font-family:"Courier New"'><o:p>&nbsp;</o:p></span></p>
+
+<h2>Resource consumption</h2>
+
+<p>There is a fear that having several <span class=SpellE>JVMs</span> running
+instead of several threads in one and the same JVM will consume a vast amount
+of resources. This consumption can be divided in two major parts.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l10 level1 lfo12;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-list:Ignore'>1.<span
+style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </span></span><![endif]>Having
+a vast amount of processes is in itself fairly resource consuming since each
+process needs its own process context. This overhead is already present due to
+the fact that each connection has its own process. </p>
+
+<p style='margin-left:.5in;text-indent:-.25in;mso-list:l10 level1 lfo12;
+tab-stops:list .5in'><![if !supportLists]><span style='mso-list:Ignore'>2.<span
+style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </span></span><![endif]>The
+overhead of the interpreter itself and the classes that it loads. Mixing
+connections as threads in one JVM implies that you either let those connections
+share the same <span class=SpellE>ClassLoader</span> chain, or you let each
+connection have its own set of <span class=SpellE>ClassLoaders</span>. The
+first approach results in a very weak isolation between the connections and
+difficulties maintaining security. The second approach will be almost as
+resource consuming as running the threads in separate <span class=SpellE>JVMs</span>.</p>
+
+<h2>Connection pooling</h2>
+
+<p>In the Java community you are very likely to use a connection pool. The pool
+will ensure that the number of connections stays as low as possible and that
+connections are reused (instead of closed and reestablished). New <span
+class=SpellE>JVMs</span> are started rarely.</p>
+
+<h2>Connection isolation</h2>
+
+<p>Separate <span class=SpellE>JVMs</span> gives you a much higher degree of
+isolation. There's no problem attaching a debugger to one connection (one JVM)
+while the others run unaffected. There's no chance that one connection manages
+to accidentally transfer dirty data to another connection. The <span
+class=SpellE>JVMs</span> can be brought down and restarted individually.
+Security policies are much easier to enforce.</p>
+
+<h2>RPC performance</h2>
+
+<p>Remote procedure calls is extremely expensive compared to in-process calls
+using JNI. In order for an update trigger to function, you can choose one of two
+approaches. Either you limit the number of RPC calls and send two full <span
+class=SpellE>Tuples</span> (old and new) and a <span class=SpellE>Tuple</span>
+Descriptor to the remote JVM, and then pass a third <span class=SpellE>Tuple</span>
+(the modified new) back to the original, or you pass those structures by
+reference (as CORBA remote objects) and perform one RPC call each time you
+access them.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Another example is if you use one or several Java functions in the
+projection of a SELECT statement on a Relation with several thousand rows. Each
+row will cause at least one call to the remote JVM. One of the reasons for
+using Java in the backend in the first place, is to keep the number of RPC
+calls as low as possible.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>Using JNI to directly access structures like <span class=SpellE>TriggerData</span>,
+Relation, <span class=SpellE>TupleDesc</span>, and <span class=SpellE>HeapTuple</span>
+minimizes the amount of data that needs to be copied. Parameters or return
+values that are primitives need not even become Java objects. A 32-bit int4
+Datum can be directly passed as a Java <span class=SpellE>int</span> (<span
+class=SpellE>jint</span> in JNI). </p>
+
+<h2>Transaction visibility</h2>
+
+<p>In order to maintain the correct visibility, you must either propagate the
+transaction to the remote process and be able to reestablish a JDBC connection
+that is attached to this transaction, or you must establish some kind of JDBC
+connection that calls back to the invoking process. Both choices results in an
+increased number of RPC calls.</p>
+
+<p><o:p>&nbsp;</o:p></p>
+
+<p>My approach is to use the underlying SPI interfaces directly through JNI. I
+will provide a &quot;pseudo connection&quot; that implements the JDBC
+connection interface. From that, you will be able to work with the database
+using standard JDBC in your current transaction.</p>
+
+<h2>Simplicity</h2>
+
+<p>I've have some experience of work involving CORBA and other RPCs. They add a fair amount of
+complexity to the process.</p>
+
+<p><span lang=SV style='mso-ansi-language:SV'><o:p>&nbsp;</o:p></span></p>
+
+</div>
+
+</body>
+
+</html>

@@ -1,8 +1,8 @@
 /*
- * This file contains software that has been made available under
- * The Mozilla Public License 1.1. Use and distribution hereof are
- * subject to the restrictions set forth therein.
- *
+ * This file contains software that has been made available under The BSD
+ * license. Use and distribution hereof are subject to the restrictions set
+ * forth therein.
+ * 
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
