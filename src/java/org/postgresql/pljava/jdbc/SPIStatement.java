@@ -44,9 +44,7 @@ public class SPIStatement implements Statement
 	public void addBatch(String statement)
 	throws SQLException
 	{
-		if(m_batch == null)
-			m_batch = new ArrayList();
-		m_batch.add(statement);
+		this.internalAddBatch(statement);
 	}
 
 	public void cancel()
@@ -148,7 +146,11 @@ public class SPIStatement implements Statement
 	public int[] executeBatch()
 	throws SQLException
 	{
-		return null;
+		int numBatches = (m_batch == null) ? 0 : m_batch.size();
+		int[] result = new int[numBatches];
+		for(int idx = 0; idx < numBatches; ++idx)
+			result[idx] = this.executeBatchEntry(m_batch.get(idx));
+		return result;
 	}
 
 	public ResultSet executeQuery(String statement)
@@ -338,5 +340,22 @@ public class SPIStatement implements Statement
 	throws SQLException
 	{
 		throw new UnsupportedFeatureException("Statement.setQueryTimeout");
+	}
+
+
+	protected void internalAddBatch(Object batch)
+	throws SQLException
+	{
+		if(m_batch == null)
+			m_batch = new ArrayList();
+		m_batch.add(batch);
+	}
+
+	protected int executeBatchEntry(Object batchEntry)
+	throws SQLException
+	{
+		return (!this.execute((String)batchEntry) && m_updateCount >= 0)
+			? m_updateCount
+			: SUCCESS_NO_INFO;
 	}
 }
