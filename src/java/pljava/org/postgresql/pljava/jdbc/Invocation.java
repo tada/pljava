@@ -134,7 +134,7 @@ public class Invocation
 
 			int level = _getNestingLevel();
 			int top = s_levels.length;
-			if(level <= top)
+			if(level < top)
 			{
 				curr = s_levels[level];
 				if(curr != null)
