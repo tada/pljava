@@ -34,6 +34,26 @@ public class LargeObject extends NativeStruct
 	 */
 	public static final int IFS_WRLOCK = (1 << 1);
 
+	/**
+	 * Flag to be passed to {@link #seek} denoting that the
+	 * offset parameter should be treated as an absolute address.
+	 */
+	public static final int SEEK_SET = 0;
+
+	/**
+	 * Flag to be passed to {@link #seek} denoting that the
+	 * offset parameter should be treated relative to the current
+	 * address.
+	 */
+	public static final int SEEK_CUR = 1;
+
+	/**
+	 * Flag to be passed to {@link #seek} denoting that the
+	 * offset parameter should be treated relative to the end
+	 * of the data.
+	 */
+	public static final int SEEK_END = 2;
+
 	public static LargeObject create(int flags)
 	throws SQLException
 	{
@@ -78,8 +98,17 @@ public class LargeObject extends NativeStruct
 			return this._getId();
 		}
 	}
+	
+	public long length()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return this._length();
+		}
+	}
 
-	public int seek(int offset, int whence)
+	public long seek(long offset, int whence)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
@@ -88,7 +117,7 @@ public class LargeObject extends NativeStruct
 		}
 	}
 	
-	public int tell()
+	public long tell()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
@@ -130,10 +159,13 @@ public class LargeObject extends NativeStruct
 	private native Oid _getId()
 	throws SQLException;
 
-	private native int _seek(int offset, int whence)
+	private native long _length()
 	throws SQLException;
 
-	private native int _tell()
+	private native long _seek(long offset, int whence)
+	throws SQLException;
+
+	private native long _tell()
 	throws SQLException;
 
 	private native int _read(byte[] buf)

@@ -80,13 +80,18 @@ Datum LargeObject_initialize(PG_FUNCTION_ARGS)
 	  	Java_org_postgresql_pljava_internal_LargeObject__1getId
 		},
 		{
+		"_length",
+	  	"()J",
+	  	Java_org_postgresql_pljava_internal_LargeObject__1length
+		},
+		{
 		"_seek",
-	  	"(II)I",
+	  	"(JI)J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1seek
 		},
 		{
 		"_tell",
-	  	"()I",
+	  	"()J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1tell
 		},
 		{
@@ -240,13 +245,13 @@ Java_org_postgresql_pljava_internal_LargeObject__1getId(JNIEnv* env, jobject _th
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
- * Method:    _seek
- * Signature: (II)I
+ * Method:    _length
+ * Signature: ()J
  */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _this, jint pos, jint whence)
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_LargeObject__1length(JNIEnv* env, jobject _this)
 {
-	jint result = 0;
+	jlong result = 0;
 	LargeObjectDesc* self;
 
 	PLJAVA_ENTRY_FENCE(0)
@@ -256,7 +261,40 @@ Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _thi
 
 	PG_TRY();
 	{
-		result = (jint)inv_seek(self, (int)pos, (int)whence);
+		/* There's no inv_length call so we use inv_seek on
+		 * a temporary LargeObjectDesc.
+		 */
+		LargeObjectDesc lod;
+		memcpy(&lod, self, sizeof(LargeObjectDesc));
+		result = (jlong)inv_seek(&lod, 0, SEEK_END);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(env, "inv_seek");
+	}
+	PG_END_TRY();
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_LargeObject
+ * Method:    _seek
+ * Signature: (JI)J
+ */
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _this, jlong pos, jint whence)
+{
+	jlong result = 0;
+	LargeObjectDesc* self;
+
+	PLJAVA_ENTRY_FENCE(0)
+	self = (LargeObjectDesc*)NativeStruct_getStruct(env, _this);
+	if(self == 0)
+		return 0;
+
+	PG_TRY();
+	{
+		result = (jlong)inv_seek(self, (int)pos, (int)whence);
 	}
 	PG_CATCH();
 	{
@@ -269,12 +307,12 @@ Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _thi
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _tell
- * Signature: ()I
+ * Signature: ()J
  */
-JNIEXPORT jint JNICALL
+JNIEXPORT jlong JNICALL
 Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jobject _this)
 {
-	jint result = 0;
+	jlong result = 0;
 	LargeObjectDesc* self;
 
 	PLJAVA_ENTRY_FENCE(0)
@@ -284,7 +322,7 @@ Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jobject _thi
 
 	PG_TRY();
 	{
-		result = (jint)inv_tell(self);
+		result = (jlong)inv_tell(self);
 	}
 	PG_CATCH();
 	{
