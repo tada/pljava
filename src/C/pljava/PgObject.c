@@ -112,6 +112,30 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 	return cls;
 }
 
+void PgObject_registerNatives(JNIEnv* env, const char* className, JNINativeMethod* methods)
+{
+	jclass cls = PgObject_getJavaClass(env, className);
+	PgObject_registerNatives2(env, cls, methods);
+	(*env)->DeleteLocalRef(env, cls);
+}
+
+void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods)
+{
+	jint nMethods = 0;
+	JNINativeMethod* m = methods;
+	while(m->name != 0)
+	{
+		m++;
+		nMethods++;
+	}
+	if((*env)->RegisterNatives(env, cls, methods, nMethods) != 0)
+	{
+		(*env)->ExceptionDescribe(env);
+		ereport(ERROR, (
+			errmsg("Unable to register native methods")));
+	}
+}
+
 jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature)
 {
 	jmethodID m;

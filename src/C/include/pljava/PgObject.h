@@ -74,6 +74,14 @@ extern jobject PgObject_newJavaObject(JNIEnv* env, jclass cls, jmethodID ctor, .
  */
 extern jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature);
 
+/*
+ * Register native methods with a class. Last entry in the methods array must
+ * have all values set to NULL.
+ */
+extern void PgObject_registerNatives(JNIEnv* env, const char* className, JNINativeMethod* methods);
+
+extern void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods);
+
 #ifdef __cplusplus
 }
 #endif

@@ -99,7 +99,7 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	int idx;
 
 	va_start(args, errMessage);
-    vsnprintf(buf, sizeof(buf), errMessage, args);
+	vsnprintf(buf, sizeof(buf), errMessage, args);
 	message = String_createJavaStringFromNTS(env, buf);
 
 	/* unpack MAKE_SQLSTATE code

@@ -55,6 +55,29 @@ static char* classpath;
 static void initJavaVM(JNIEnv* env)
 {
 	Datum envDatum = PointerGetDatum(env);
+
+#ifdef ENABLE_STATIC_LINKAGE
+	JNINativeMethod methods[] = {
+		{
+		"isCallingJava",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_Backend_isCallingJava
+		},
+		{
+		"_getConfigOption",
+		"(Ljava/lang/String;)Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Backend__1getConfigOption
+		},
+		{
+		"_log",
+		"(ILjava/lang/String;)V",
+		Java_org_postgresql_pljava_internal_Backend__1log
+		},
+		{ 0, 0, 0 }};
+
+	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", methods);
+#endif
+
 	DirectFunctionCall1(Exception_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
