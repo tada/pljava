@@ -279,9 +279,9 @@ JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jobject _this, jint index)
 {
 	TupleDesc self;
+	jint result = 0;
 	PLJAVA_ENTRY_FENCE(0)
 	self = (TupleDesc)NativeStruct_getStruct(env, _this);
-	jint result = 0;
 	if(self == 0)
 		return 0;
 
@@ -301,7 +301,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jobject _thi
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_getbinval");
+		Exception_throw_ERROR(env, "SPI_gettypeid");
 	}
 	PG_END_TRY();
 
