@@ -49,6 +49,9 @@ bool isCallingJava;
 
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
+static jclass  s_Backend_class;
+static jmethodID s_setTrusted;
+static bool    s_currentTrust = false;
 
 #if (PGSQL_MAJOR_VER >= 8)
 # define PGSQL_CUSTOM_VARIABLES 1
@@ -125,7 +128,9 @@ static void initPLJavaClasses(JNIEnv* env)
 		},
 		{ 0, 0, 0 }};
 
-	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", backendMethods);
+	s_Backend_class = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Backend");
+	PgObject_registerNatives2(env, s_Backend_class, backendMethods);
+	s_setTrusted = PgObject_getStaticJavaMethod(env, s_Backend_class, "setTrusted", "(Z)V");
 
 	cls = PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/Invocation");
 	PgObject_registerNatives2(env, cls, invocationMethods);
@@ -421,8 +426,6 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 #endif
 
-		initCallContext(&ctx);
-
 		elog(DEBUG1, "Destroying JavaVM...");
 
 		isCallingJava = true;
@@ -570,6 +573,25 @@ static void addUserJVMOptions(JVMOptList* optList)
 }
 #endif
 
+/**
+ *  Initialize security
+ */
+static void setJavaSecurity(JNIEnv* env, bool trusted)
+{
+	bool saveICJ = isCallingJava;
+	isCallingJava = true;
+	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
+	isCallingJava = saveICJ;
+
+	if((*env)->ExceptionCheck(env))
+	{
+		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unable to initialize java security")));
+	}
+}
 
 /**
  *  Initialize the logger
@@ -586,6 +608,15 @@ static void initJavaLogger(JNIEnv* env)
 	(*env)->CallStaticVoidMethod(env, logHandlerClass, init);
 	isCallingJava = saveICJ;
 	(*env)->DeleteLocalRef(env, logHandlerClass);
+
+	if((*env)->ExceptionCheck(env))
+	{
+		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unable to initialize java logger")));
+	}
 }
 
 static void initializeJavaVM(void)
@@ -744,14 +775,6 @@ static void initializeJavaVM(void)
 	on_proc_exit(_destroyJavaVM, 0);
 	initPLJavaClasses(s_mainEnv);
 	initJavaLogger(s_mainEnv);
-	if((*s_mainEnv)->ExceptionCheck(s_mainEnv))
-	{
-		(*s_mainEnv)->ExceptionDescribe(s_mainEnv);
-		(*s_mainEnv)->ExceptionClear(s_mainEnv);
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Unable to initialize java logger")));
-	}
 }
 
 JNIEnv* Backend_getMainEnv(void)
@@ -759,15 +782,31 @@ JNIEnv* Backend_getMainEnv(void)
 	return s_mainEnv;
 }
 
+static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
+
+extern Datum untrusted_java_call_handler(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(untrusted_java_call_handler);
+
+/*
+ * This is the entry point for all trusted calls.
+ */
+Datum untrusted_java_call_handler(PG_FUNCTION_ARGS)
+{
+	return internalCallHandler(false, fcinfo);
+}
+
 extern Datum java_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(java_call_handler);
 
 /*
- * This is the entry point for all calls. The java_call_handler must be
- * defined in plsql like this:
- *
+ * This is the entry point for all trusted calls.
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
+{
+	return internalCallHandler(true, fcinfo);
+}
+
+static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	CallContext ctx;
 	Datum retval = 0;
@@ -777,7 +816,19 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 	initCallContext(&ctx);
 
 	if(s_javaVM == 0)
+	{
 		initializeJavaVM();
+		
+		// Force initial setting
+		//
+		s_currentTrust = !trusted;
+	}
+
+	if(trusted != s_currentTrust)
+	{
+		setJavaSecurity(s_mainEnv, trusted);
+		s_currentTrust = trusted;
+	}
 
 	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
 	{
@@ -964,16 +1015,7 @@ Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jcl
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, jclass cls, jobject listener)
 {
-	PLJAVA_ENTRY_FENCE_VOID
-	PG_TRY();
-	{
-		EOXactListener_unregister(env);
-	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "UnregisterEOXactCallback");
-	}
-	PG_END_TRY();
+	EOXactListener_unregister(env);
 }
 
 /*

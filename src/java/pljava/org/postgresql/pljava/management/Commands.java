@@ -23,6 +23,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
 
 /**
@@ -183,7 +184,7 @@ public class Commands
 			if(jarId < 0)
 				throw new SQLException("Unable to obtain id of '" + jarName + "'");
 
-			addClassImages(conn, jarId, urlString);
+			Backend.addClassImages(conn, jarId, urlString);
 			if(deploy)
 				deployInstall(conn, jarId);
 		}
@@ -241,7 +242,7 @@ public class Commands
 			{
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
-			addClassImages(conn, jarId, urlString);
+			Backend.addClassImages(conn, jarId, urlString);
 			if(redeploy)
 				deployInstall(conn, jarId);
 		}
@@ -476,7 +477,7 @@ public class Commands
 		}
 	}
 
-	protected static void addClassImages(Connection conn, int jarId, String urlString)
+	public static void addClassImages(Connection conn, int jarId, String urlString)
 	throws SQLException
 	{
 		InputStream urlStream = null;

@@ -43,6 +43,11 @@ SQLActions[ ] = {
 			AS 'java.lang.System.getProperty'
 			LANGUAGE java;
 
+		CREATE FUNCTION javatest.create_temp_file()
+			RETURNS varchar
+			AS 'org.postgresql.pljava.example.Security.createTempFile'
+			LANGUAGE java;
+
 		CREATE TABLE javatest.username_test
 			(
 			name		text,

@@ -206,6 +206,7 @@ public class Tester
 				t.testUsingProperties();
 				t.testUsingScalarProperties();
 				t.testSavepointSanity();
+				t.testTrustedSecurity();
 			}
 			t.close();
 		}
@@ -506,5 +507,30 @@ public class Tester
 				"Savepoint sanity = " + rs.getInt(1));
 		rs.close();
 		stmt.close();
+	}
+
+	public void testTrustedSecurity()
+	throws SQLException
+	{
+		System.out.println("*** testTrustedSecurity()");
+		Statement stmt = m_connection.createStatement();
+		
+		try
+		{
+			ResultSet rs = stmt.executeQuery("SELECT create_temp_file()");
+	
+			if(!rs.next())
+				System.out.println("Unable to position ResultSet");
+			else
+				System.out.println("Name of created temp file = " + rs.getString(1));
+			rs.close();
+			stmt.close();
+
+			throw new RuntimeException("ERROR: Tempfile creation succeded although language is trusted!");
+		}
+		catch(SQLException e)
+		{
+			System.out.println("OK, creation of temp file was *unsuccessful* as it should be");
+		}
 	}
 }
