@@ -7,6 +7,8 @@
  * All Rights Reserved
  */
 #include <postgres.h>
+#include <miscadmin.h>
+#include <libpq/pqsignal.h>
 #include <executor/spi.h>
 #include <commands/trigger.h>
 #include <utils/elog.h>
@@ -17,8 +19,10 @@
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
 #include <storage/ipc.h>
+#include <storage/proc.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #include "pljava/Function.h"
 #include "pljava/type/Type.h"
@@ -175,7 +179,7 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
  	++ep;
  	*ep = 0;
 
-    elog(INFO, buf);
+    elog(LOG, buf);
     return 0;
 }
 
@@ -349,6 +353,23 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
+static pqsigfunc s_jvmSigQuit;
+static sigjmp_buf recoverBuf;
+
+static void alarmHandler(int signum)
+{
+	kill(MyProcPid, SIGQUIT);
+	
+	/* Some sleep to get the SIGQUIT a chance to generate
+	 * the needed output.
+	 */
+	sleep(1);
+
+	/* JavaVM did not die within the alloted time
+	 */
+	siglongjmp(recoverBuf, 1);
+}
+
 /*
  * proc_exit callback to tear down the JVM
  */
@@ -356,10 +377,31 @@ static void _destroyJavaVM(int status, Datum dummy)
 {
 	if(s_javaVM != 0)
 	{
+		pqsigfunc saveSigQuit;
+		pqsigfunc saveSigAlrm;
 		elog(LOG, "Destroying JavaVM...");
+
+		if(sigsetjmp(recoverBuf, 1) != 0)
+		{
+			elog(LOG, "JavaVM destroyed with force");
+			s_javaVM = 0;
+			return;
+		}
+
+		saveSigQuit = pqsignal(SIGQUIT, s_jvmSigQuit);
+		saveSigAlrm = pqsignal(SIGALRM, alarmHandler);
+
+		enable_sig_alarm(5000, false);
+
 		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
 		isCallingJava = false;
+
+		disable_sig_alarm(false);
+
+		pqsignal(SIGQUIT, saveSigQuit);
+		pqsignal(SIGALRM, saveSigAlrm);
+
 		elog(LOG, "JavaVM destroyed");
 		s_javaVM = 0;
 	}
@@ -367,6 +409,11 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 static void initializeJavaVM()
 {
+	pqsigfunc saveSigInt;
+	pqsigfunc saveSigTerm;
+	pqsigfunc saveSigHup;
+	pqsigfunc saveSigQuit;
+
 	char* classPath;
 	char* dynLibPath;
 	jboolean jstat;
@@ -423,12 +470,32 @@ static void initializeJavaVM()
 	vm_args.ignoreUnrecognized = JNI_TRUE;
 
 	elog(LOG, "Creating JavaVM");
-	
+
+	/* Save current state of some signal handlers. The JVM will
+	 * redefine them. This redefinition can be avoided by passing
+	 * -Xrs to the JVM but we don't want that since it would make
+	 * it impossible to get a thread dump.
+	 */
+	saveSigInt  = pqsignal(SIGINT,  SIG_DFL);
+	saveSigTerm = pqsignal(SIGTERM, SIG_DFL);
+	saveSigHup  = pqsignal(SIGHUP,  SIG_DFL);
+	saveSigQuit = pqsignal(SIGQUIT, SIG_DFL);
+
 	isCallingJava = true;
 	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
 	isCallingJava = false;
+
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
+
+	/* Restore the PostgreSQL signal handlers and retrieve the
+	 * ones installed by the JVM. We'll use them when the JVM
+	 * is destroyed.
+	 */
+	pqsignal(SIGINT,  saveSigInt);
+	pqsignal(SIGTERM, saveSigTerm);
+	pqsignal(SIGHUP,  saveSigHup);
+	s_jvmSigQuit = pqsignal(SIGQUIT, saveSigQuit);
 
 	if(dynLibPath != 0)
 		pfree(dynLibPath);
