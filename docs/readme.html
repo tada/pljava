@@ -39,7 +39,7 @@ of your own choice.</p>
 you install the shared object in a directory already searched by the postmaster
 (such as the data directory) or you tell the postmaster where to find it using the
 <code>dynamic_library_path</code>. I.e. you have a setting similar to this:</p>
-<pre>dynamic_library_path = &#39;$libdir:&lt;pljava installation&gt;/pljava.jar&#39;</pre>
+<pre>dynamic_library_path = &#39;$libdir:&lt;pljava installation&gt;&#39;</pre>
 <p>Note that on the win32 platform (not cygwin) you need to use a semicolon as a
 path separator and double backslashes (since backslash is the escape character in
 the postgresql.conf file) as directory separators.</p>
