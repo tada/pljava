@@ -7,6 +7,7 @@
  * All Rights Reserved
  */
 #include "pljava/type/Type_priv.h"
+#include "pljava/type/Oid.h"
 
 static Type      s_Oid;
 static TypeClass s_OidClass;
@@ -18,20 +19,33 @@ static jfieldID  s_Oid_s_invalidOid;
 /*
  * org.postgresql.pljava.type.Oid type.
  */
+jobject Oid_create(JNIEnv* env, Oid oid)
+{
+	jobject joid;
+	if(OidIsValid(oid))
+		joid = (*env)->NewObject(env, s_Oid_class, s_Oid_init, oid);
+	else
+		joid = (*env)->GetStaticObjectField(env, s_Oid_class, s_Oid_s_invalidOid);
+	return joid;
+}
+
+Oid Oid_getOid(JNIEnv* env, jobject joid)
+{
+	if(joid == 0)
+		return InvalidOid;
+	return ObjectIdGetDatum((*env)->GetIntField(env, joid, s_Oid_m_native));
+}
+
 static jvalue _Oid_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
-	Oid oid = DatumGetObjectId(arg);
-	if(OidIsValid(oid))
-		result.l = (*env)->NewObject(env, s_Oid_class, s_Oid_init, DatumGetObjectId(arg));
-	else
-		result.l = (*env)->GetStaticObjectField(env, s_Oid_class, s_Oid_s_invalidOid);
+	result.l = Oid_create(env, DatumGetObjectId(arg));
 	return result;
 }
 
 static Datum _Oid_coerceObject(Type self, JNIEnv* env, jobject oidObj)
 {
-	return ObjectIdGetDatum((*env)->GetIntField(env, oidObj, s_Oid_m_native));
+	return Oid_getOid(env, oidObj);
 }
 
 static Type Oid_obtain(Oid typeId)

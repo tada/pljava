@@ -161,7 +161,7 @@ Java_org_postgresql_pljava_Relation_modifyTuple(JNIEnv* env, jobject _this, jobj
 		Type type = Type_fromOid(typeId);
 		jobject value = (*env)->GetObjectArrayElement(env, _values, idx);
 		if(value != 0)
-			values[idx] = type->m_class->coerceObject(type, env, value);
+			values[idx] = Type_coerceObject(type, env, value);
 		else
 		{
 			if(nulls == 0)

@@ -24,13 +24,10 @@ public class ExecutionPlan extends NativeStruct
 	 * @param cursorName Name of the cursor or <code>null</code> for a
 	 * system generated name.
 	 * @param parameters Values for the parameters.
-	 * @param rowCount The maximum number of tuples to create. A value
-	 * of <code>rowCount</code> of zero is interpreted as no limit, i.e.,
-	 * run to completion.
 	 * @return The <code>Portal</code> that represents the opened cursor.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public native Portal cursorOpen(String cursorName, Object[] parameters, int rowCount)
+	public native Portal cursorOpen(String cursorName, Object[] parameters)
 	throws SQLException;
 
 	/**

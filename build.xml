@@ -87,6 +87,11 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.ExecutionPlan"
+			outputfile="src/C/include/pljava/type/ExecutionPlan_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.Portal"
 			outputfile="src/C/include/pljava/type/Portal_JNI.h"
 			/>

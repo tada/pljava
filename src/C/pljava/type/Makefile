@@ -31,6 +31,7 @@ OBJS = Type.o \
 	AclId.o \
 	byte_array.o \
 	NativeStruct.o \
+	ExecutionPlan.o \
 	Portal.o \
 	Relation.o \
 	SPITupleTable.o \
