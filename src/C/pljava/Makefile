@@ -92,9 +92,6 @@ endif
 
 all: extralibs all-lib
 
-clean: clean-lib
-	rm -f $(OBJS) $(EXTRAS)
-
 install: install-lib
 
 uninstall: uninstall-lib

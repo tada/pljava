@@ -10,14 +10,47 @@
 #                            C and Java code. Requires GCJ 3.4 or later.
 #
 #-------------------------------------------------------------------------
-export PROJDIR   := $(shell pwd -P)
-export TARGETDIR := $(PROJDIR)/bin/build
-export PGSQLDIR  := $(PROJDIR)/../pgsql
+export PROJDIR		:= $(shell pwd -P)
+export PGSQLDIR		:= $(PROJDIR)/../pgsql
 
-.PHONY: all clean install uninstall depend
+export TARGETDIR	:= $(PROJDIR)/build
+export OBJDIR		:= $(TARGETDIR)/objs
+export JNIDIR		:= $(TARGETDIR)/jni
+export CLASSDIR		:= $(TARGETDIR)/classes
 
-all clean install uninstall depend:
-	@mkdir -p $(TARGETDIR)/pljava
-	@$(MAKE) -r -C $(TARGETDIR)/pljava \
-	-f $(PROJDIR)/src/C/pljava/Makefile \
-	MODULEROOT=$(PROJDIR)/src/C $@
+.PHONY: all clean install uninstall depend \
+	c_all c_install c_uninstall c_depend \
+	pljava_all \
+	deploy_all \
+	examples_all
+
+all: pljava_all deploy_all c_all examples_all
+
+install: c_install
+
+uninstall: c_uninstall
+
+depend: c_depend
+
+clean:
+	@-rm -rf $(TARGETDIR)
+
+pljava_all: pljava_%:
+	@-mkdir -p $(CLASSDIR)/pljava
+	@$(MAKE) -r -C $(CLASSDIR)/pljava -f $(PROJDIR)/src/java/pljava/Makefile \
+	MODULEROOT=$(PROJDIR)/src/java $*
+
+deploy_all: deploy_%:
+	@-mkdir -p $(CLASSDIR)/deploy
+	@$(MAKE) -r -C $(CLASSDIR)/deploy -f $(PROJDIR)/src/java/deploy/Makefile \
+	MODULEROOT=$(PROJDIR)/src/java $*
+
+examples_all: examples_%: pljava_all
+	@-mkdir -p $(CLASSDIR)/examples
+	@$(MAKE) -r -C $(CLASSDIR)/examples -f $(PROJDIR)/src/java/examples/Makefile \
+	MODULEROOT=$(PROJDIR)/src/java $*
+
+c_all c_install c_uninstall c_depend: c_%:
+	@-mkdir -p $(OBJDIR)
+	@$(MAKE) -r -C $(OBJDIR) -f $(PROJDIR)/src/C/pljava/Makefile \
+	MODULEROOT=$(PROJDIR)/src/C $*

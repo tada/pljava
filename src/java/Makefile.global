@@ -1,0 +1,24 @@
+#-------------------------------------------------------------------------
+#
+# Makefile--
+#    Makefile for pljava
+#
+#-------------------------------------------------------------------------
+SRCDIR		:= $(MODULEROOT)/$(NAME)
+mkclasses	= $(subst $(SRCDIR)/,,$(1:%.java=%.class))
+SRCS		:= $(shell find $(SRCDIR) -type f -name \*.java)
+CLASSES		:= $(call mkclasses,$(SRCS))
+JAR			:= jar
+
+ifdef USE_GCJ
+	GCJ		:= gcj
+	JAVAC	:= $(GCJ) -C
+else
+	JAVAC	:= javac -source 1.4
+endif
+
+JARFILE	:= $(TARGETDIR)/$(NAME).jar
+
+.timestamp: $(SRCS)
+	$(JAVAC) -d . $(JAVAFLAGS) $(SRCS)
+	touch $@
