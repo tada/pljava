@@ -59,13 +59,16 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		 */
 		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
-		TupleTableSlot* slot = TupleDescGetSlot(tupleDesc);
-	    result = TupleGetDatum(slot, tuple);
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+	    result = TupleGetDatum(TupleDescGetSlot(tupleDesc), tuple);
+#else
+	    result = HeapTupleGetDatum(tuple);
+#endif
 		MemoryContextSwitchTo(currCtx);
 	}
 	else
 		fcinfo->isnull = true;
-	
+
 	(*env)->DeleteLocalRef(env, singleRowWriter);
 	return result;
 }

@@ -12,8 +12,6 @@
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
 
-#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
-
 static MemoryContext upperContext = 0;
 
 void SPI_clearUpperContextInfo()
@@ -83,6 +81,10 @@ MemoryContext SPI_switchToReturnValueContext()
 	return MemoryContextSwitchTo(QueryContext);
 }
 
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+
+#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+
 Oid SPI_getargtypeid(void* plan, int argIndex)
 {
 	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
@@ -122,6 +124,7 @@ bool SPI_is_cursor_plan(void* plan)
 	}
 	return false;
 }
+#endif
 
 /****************************************
  * JNI methods

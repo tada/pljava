@@ -7,6 +7,8 @@
 top_builddir := $(PGSQLDIR)
 include $(PGSQLDIR)/src/Makefile.global
 
+SS_VERSION := $(subst ., ,$(subst devel,.devel,$(VERSION)))
+
 SRCDIR	:= $(MODULEROOT)/$(NAME)
 INCLDIR	:= $(MODULEROOT)/include
 
@@ -14,7 +16,12 @@ mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
 SRCS	:= $(shell find $(SRCDIR) -type f -name \*.c)
 OBJS	:= $(call mkobjs,$(SRCS))
 
-override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) $(CPPFLAGS)
+override CPPFLAGS := \
+	-DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) \
+	-DPGSQL_MAJOR_VER=$(word 1,$(SS_VERSION)) \
+	-DPGSQL_MINOR_VER=$(word 2,$(SS_VERSION)) \
+	-DPGSQL_PATCH_VER=$(word 3,$(SS_VERSION)) \
+	$(CPPFLAGS)
 
 # Don't use higher standard then c89 since this rules out older compilers. We
 # must use 'long long' however, since JNI defines it.
