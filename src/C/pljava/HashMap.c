@@ -130,13 +130,7 @@ static uint32 _OpaqueKey_hashCode(HashKey self)
 	Ptr2Long p2l;
 	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = ((OpaqueKey)self)->key;
-
-	/* Compiler will see that this if statement is a constant and
-	 * select the appropriate code
-	 */
-	return (sizeof(void*) == sizeof(uint32))
-		? (uint32)p2l.longVal
-		: (p2l.x64.intVal_1 ^ p2l.x64.intVal_2);
+	return (uint32)(p2l.longVal >> 3);
 }
 
 /*
@@ -246,9 +240,8 @@ HashMap HashMap_create(uint32 initialCapacity, MemoryContext ctx)
 
 	self = (HashMap)PgObjectClass_allocInstance(s_HashMapClass, ctx);
 
-	if(initialCapacity < 32)
-		initialCapacity = 32;
-	initialCapacity += initialCapacity / 2;
+	if(initialCapacity < 13)
+		initialCapacity = 13;
 
 	self->table = (Entry*)MemoryContextAlloc(ctx, initialCapacity * sizeof(Entry));
 	memset(self->table, 0, initialCapacity * sizeof(Entry));

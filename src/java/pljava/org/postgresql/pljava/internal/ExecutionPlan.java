@@ -16,7 +16,7 @@ import java.util.LinkedHashMap;
  */
 public class ExecutionPlan extends NativeStruct
 {
-    static final int DEFAULT_INITIAL_CAPACITY = 16;
+    static final int DEFAULT_INITIAL_CAPACITY = 29;
     static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     /**
@@ -88,11 +88,26 @@ public class ExecutionPlan extends NativeStruct
 	}
 
 	private static final PlanCache s_planCache;
-	
+
+	private final Object m_key;
+
 	static
 	{
 		int cacheSize = Backend.getStatementCacheSize();
-		s_planCache = new PlanCache(cacheSize < 4 ? 4 : cacheSize);
+		s_planCache = new PlanCache(cacheSize < 11 ? 11 : cacheSize);
+	}
+
+	private ExecutionPlan(Object key)
+	{
+		m_key = key;
+	}
+
+	/**
+	 * Close the plan.
+	 */
+	public void close()
+	{
+		s_planCache.put(m_key, this);
 	}
 
 	/**
@@ -163,26 +178,17 @@ public class ExecutionPlan extends NativeStruct
 			? (Object)statement
 			: (Object)new PlanKey(statement, argTypes);
 
-		ExecutionPlan plan = (ExecutionPlan)s_planCache.get(key);
+		ExecutionPlan plan = (ExecutionPlan)s_planCache.remove(key);
 		if(plan == null)
 		{
+			plan = new ExecutionPlan(key);
 			synchronized(Backend.THREADLOCK)
 			{
-				plan = _prepare(statement, argTypes);
-				plan._savePlan();
+				plan._prepare(statement, argTypes);
 			}
-			s_planCache.put(key, plan);
 		}
 		return plan;
 	}
-
-	/**
-	 * Makes this plan durable. Failure to invalidate the plan after this
-	 * will result in resource leaks.
-	 * @throws SQLException If the underlying native structure has gone stale.
-	 */
-	private native void _savePlan()
-	throws SQLException;
 
 	private native Portal _cursorOpen(String cursorName, Object[] parameters)
 	throws SQLException;
@@ -193,7 +199,7 @@ public class ExecutionPlan extends NativeStruct
 	private native int _execute(Object[] parameters, int rowCount)
 	throws SQLException;
 
-	private native static ExecutionPlan _prepare(String statement, Oid[] argTypes)
+	private native void _prepare(String statement, Oid[] argTypes)
 	throws SQLException;
 
 	private native void _invalidate();

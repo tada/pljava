@@ -90,7 +90,7 @@ Datum Function_initialize(PG_FUNCTION_ARGS)
 {
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
-	s_funcMap = HashMap_create(57, TopMemoryContext);
+	s_funcMap = HashMap_create(59, TopMemoryContext);
 	s_FunctionClass = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 	
 	s_Loader_class = (*env)->NewGlobalRef(

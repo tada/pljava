@@ -26,6 +26,7 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 
+
 /**
  * @author Thomas Hallgren
  */
@@ -445,7 +446,9 @@ public class SPIConnection implements Connection
 
 		int[] pcount = new int[] { 0 };
 		sql = this.nativeSQL(sql, pcount);
-		return new SPIPreparedStatement(this, sql, pcount[0]);
+		PreparedStatement stmt = new SPIPreparedStatement(this, sql, pcount[0]);
+		Invocation.current().manageStatement(stmt);
+		return stmt;
 	}
 
 	/**

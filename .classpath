@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/pljava"/>
+	<classpathentry kind="src" path="src/java5"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/deploy"/>
 	<classpathentry excluding="Makefile" kind="src" path="src/java/examples"/>

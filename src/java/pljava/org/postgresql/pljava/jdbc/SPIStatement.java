@@ -85,8 +85,15 @@ public class SPIStatement implements Statement
 		int result = SPI.getResult();
 		if(plan == null)
 			throw new SPIException(result);
-		
-		return this.executePlan(plan, null);
+
+		try
+		{
+			return this.executePlan(plan, null);
+		}
+		finally
+		{
+			plan.close();
+		}
 	}
 
 	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues)

@@ -4,7 +4,10 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
 
@@ -49,6 +52,29 @@ public class Invocation
 		return m_savepoint;
 	}
 
+	private ArrayList m_preparedStatements;
+
+	final void manageStatement(PreparedStatement statement)
+	{
+		if(m_preparedStatements == null)
+			m_preparedStatements = new ArrayList();
+		m_preparedStatements.add(statement);
+	}
+
+	final void forgetStatement(PreparedStatement statement)
+	{
+		if(m_preparedStatements == null)
+			return;
+
+		int idx = m_preparedStatements.size();
+		while(--idx >= 0)
+			if(m_preparedStatements.get(idx) == statement)
+			{
+				m_preparedStatements.remove(idx);
+				return;
+			}
+	}
+
 	/**
 	 * @param savepoint The savepoint to set.
 	 */
@@ -68,6 +94,18 @@ public class Invocation
 		{
 			if(m_savepoint != null)
 				m_savepoint.onInvocationExit();
+
+			if(m_preparedStatements != null)
+			{
+				int idx = m_preparedStatements.size();
+				if(idx > 0)
+				{
+					Logger.getAnonymousLogger().warning(
+						"Closing " + idx + " \"forgotten\" statements");
+					while(--idx >= 0)
+						((PreparedStatement)m_preparedStatements.get(idx)).close();
+				}
+			}
 		}
 		finally
 		{
@@ -85,7 +123,7 @@ public class Invocation
 			Invocation curr;
 			int level = _getNestingLevel();
 			int top = s_levels.length;
-			if(top > level)
+			if(level <= top)
 			{
 				curr = s_levels[level];
 				if(curr != null)

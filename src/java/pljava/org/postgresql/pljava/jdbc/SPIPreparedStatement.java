@@ -54,9 +54,14 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void close()
 	throws SQLException
 	{
-		m_plan = null;
-		this.clearParameters();
-		super.close();
+		if(m_plan != null)
+		{
+			m_plan.close();
+			m_plan = null;
+			this.clearParameters();
+			super.close();
+			Invocation.current().forgetStatement(this);
+		}
 	}
 
 	public ResultSet executeQuery()
@@ -205,6 +210,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		else if(!op.equals(id))
 		{
 			m_typeIds[columnIndex] = id;
+			
+			// We must re-prepare
+			//
+			if(m_plan != null)
+				m_plan.close();
 			m_plan = null;
 		}
 		m_sqlTypes[columnIndex] = sqlType;

@@ -189,9 +189,9 @@ PG_FUNCTION_INFO_V1(Type_initialize);
 
 Datum Type_initialize(PG_FUNCTION_ARGS)
 {
-	s_typeByOid          = HashMap_create(57, TopMemoryContext);
-	s_obtainerByOid      = HashMap_create(57, TopMemoryContext);
-	s_obtainerByJavaName = HashMap_create(57, TopMemoryContext);
+	s_typeByOid          = HashMap_create(59, TopMemoryContext);
+	s_obtainerByOid      = HashMap_create(59, TopMemoryContext);
+	s_obtainerByJavaName = HashMap_create(59, TopMemoryContext);
 
 	String_initialize(fcinfo);
 	
