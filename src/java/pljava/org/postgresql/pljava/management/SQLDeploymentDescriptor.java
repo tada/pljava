@@ -8,10 +8,12 @@ package org.postgresql.pljava.management;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.logging.Logger;
+
+import org.postgresql.pljava.Session;
+import org.postgresql.pljava.SessionManager;
 
 /**
  * This class deals with parsing and executing the deployment descriptor as
@@ -111,15 +113,14 @@ public class SQLDeploymentDescriptor
 	throws SQLException
 	{
 		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
-		Statement stmt = conn.createStatement();
+		Session session = SessionManager.current();
 		int top = array.size();
 		for(int idx = 0; idx < top; ++idx)
 		{
 			String cmd = (String)array.get(idx);
 			m_logger.finer(cmd);
-			stmt.execute(cmd);
+			session.executeAsSessionUser(conn, cmd);
 		}
-		stmt.close();
 		m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
 	}
 

@@ -6,6 +6,9 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -61,6 +64,7 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 		return AclId.getSessionUser().getName();
 	}
 
+	
 	public void onEOXact(boolean isCommit)
 	{
 		if(isCommit)
@@ -107,4 +111,29 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 	{
 		m_xactListeners.remove(listener);
 	}
+
+	public boolean executeAsSessionUser(Connection conn, String statement)
+	throws SQLException
+	{
+		Statement stmt = conn.createStatement();
+		synchronized(Backend.THREADLOCK)
+		{
+			AclId sessionUser = AclId.getSessionUser();
+			AclId effectiveUser = AclId.getUser();
+			if(sessionUser.equals(effectiveUser))
+				return stmt.execute(statement);
+
+			try
+			{
+				_setUser(sessionUser);
+				return stmt.execute(statement);
+			}
+			finally
+			{
+				_setUser(effectiveUser);
+			}
+		}
+	}
+
+	private static native void _setUser(AclId userId);
 }

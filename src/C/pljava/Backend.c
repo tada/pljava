@@ -33,6 +33,7 @@
 #include "pljava/EOXactListener.h"
 #include "pljava/Backend.h"
 #include "pljava/MemoryContext.h"
+#include "pljava/Session.h"
 #include "pljava/SPI.h"
 #include "pljava/type/NativeStruct.h"
 #include "pljava/type/String.h"
@@ -135,6 +136,7 @@ static void initPLJavaClasses(JNIEnv* env)
 	DirectFunctionCall1(SPI_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
+	DirectFunctionCall1(Session_initialize, envDatum);
 }
 
 static bool s_topLocalFrameInstalled = false;

@@ -23,12 +23,12 @@ static jfieldID  s_AclId_m_native;
 /*
  * org.postgresql.pljava.type.AclId type.
  */
-static jobject AclId_create(JNIEnv* env, AclId aclId)
+jobject AclId_create(JNIEnv* env, AclId aclId)
 {
 	return PgObject_newJavaObject(env, s_AclId_class, s_AclId_init, (jint)aclId);
 }
 
-static AclId AclId_getAclId(JNIEnv* env, jobject aclId)
+AclId AclId_getAclId(JNIEnv* env, jobject aclId)
 {
 	return (AclId)(*env)->GetIntField(env, aclId, s_AclId_m_native);
 }

@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 
 /**
@@ -260,6 +261,7 @@ public class Deployer
 					userName,
 					password);
 
+			checkIfConnectedAsSuperuser(c);
 			Deployer deployer = new Deployer(c);
 
 			if(cmd == CMD_UNINSTALL || cmd == CMD_REINSTALL)
@@ -286,11 +288,31 @@ public class Deployer
 		m_connection = c;
 	}
 
+	public static void checkIfConnectedAsSuperuser(Connection conn)
+	throws SQLException
+	{
+		Statement stmt = conn.createStatement();
+		ResultSet rs = stmt.executeQuery("SHOW IS_SUPERUSER");
+
+		try
+		{
+			if(rs.next() && rs.getString(1).equals("on"))
+				return;
+		}
+		finally
+		{
+			rs.close();
+			stmt.close();
+		}
+
+		throw new SQLException(
+			"You must be a superuser to deploy/undeploy pl/Java.");
+	}
+
 	public void dropSQLJSchema()
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute("DROP SCHEMA sqlj CASCADE");
 
 		try
 		{
@@ -300,6 +322,7 @@ public class Deployer
 		{
 			/* ignore */
 		}
+		stmt.execute("DROP SCHEMA sqlj CASCADE");
 		stmt.close();
 	}
 
@@ -307,7 +330,8 @@ public class Deployer
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		stmt.execute("CREATE SCHEMA sqlj");
+		stmt.execute("CREATE SCHEMA sqlj AUTHORIZATION postgres");
+		stmt.execute("GRANT USAGE ON SCHEMA sqlj TO public");
 		stmt.close();
 	}
 
@@ -324,6 +348,9 @@ public class Deployer
 			"   deploymentDesc INT" +
 		")");
 
+		stmt.execute("ALTER TABLE sqlj.jar_repository OWNER TO postgres");
+		stmt.execute("GRANT SELECT ON sqlj.jar_repository TO public");
+
 		stmt.execute(
 			"CREATE TABLE sqlj.jar_entry(" +
 			"   entryId     SERIAL PRIMARY KEY," +
@@ -332,6 +359,9 @@ public class Deployer
 			"   entryImage  BYTEA NOT NULL," +
 			"   UNIQUE(jarId, entryName)" +
 			")");
+
+		stmt.execute("ALTER TABLE sqlj.jar_entry OWNER TO postgres");
+		stmt.execute("GRANT SELECT ON sqlj.jar_entry TO public");
 
 		stmt.execute(
 			"ALTER TABLE sqlj.jar_repository" +
@@ -347,22 +377,25 @@ public class Deployer
 			"	PRIMARY KEY(schemaName, ordinal)" +
 			")");
 
+		stmt.execute("ALTER TABLE sqlj.classpath_entry OWNER TO postgres");
+		stmt.execute("GRANT SELECT ON sqlj.classpath_entry TO public");
+
 		// These are the proposed SQL standard methods.
 		//
 		stmt.execute(
 			"CREATE FUNCTION sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void" +
 			"	AS 'org.postgresql.pljava.management.Commands.installJar'" +
-			"	LANGUAGE java");
+			"	LANGUAGE java SECURITY DEFINER");
 
 		stmt.execute(
 			"CREATE FUNCTION sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void" +
 			"	AS 'org.postgresql.pljava.management.Commands.replaceJar'" +
-			"	LANGUAGE java");
+			"	LANGUAGE java SECURITY DEFINER");
 
 		stmt.execute(
 			"CREATE FUNCTION sqlj.remove_jar(VARCHAR, BOOLEAN) RETURNS void" +
 			"	AS 'org.postgresql.pljava.management.Commands.removeJar'" +
-			"	LANGUAGE java");
+			"	LANGUAGE java SECURITY DEFINER");
 
 		// This function is not as proposed. It's more Java'ish. The proposal
 		// using sqlj.alter_jar_path is in my opinion bloated and will not be
@@ -372,12 +405,12 @@ public class Deployer
 		stmt.execute(
 			"CREATE FUNCTION sqlj.set_classpath(VARCHAR, VARCHAR) RETURNS void" +
 			"	AS 'org.postgresql.pljava.management.Commands.setClassPath'" +
-			"	LANGUAGE java");
+			"	LANGUAGE java SECURITY DEFINER");
 
 		stmt.execute(
 			"CREATE FUNCTION sqlj.get_classpath(VARCHAR) RETURNS VARCHAR" +
 			"	AS 'org.postgresql.pljava.management.Commands.getClassPath'" +
-			"	LANGUAGE java STABLE");
+			"	LANGUAGE java STABLE SECURITY DEFINER");
 
 		stmt.close();
 	}
@@ -392,7 +425,7 @@ public class Deployer
 			" AS '" + (unix ? "lib" : "") + "pljava'" +
 			" LANGUAGE C");
 
-		stmt.execute("CREATE LANGUAGE java HANDLER sqlj.java_call_handler");
+		stmt.execute("CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
 		stmt.close();
 	}
 }

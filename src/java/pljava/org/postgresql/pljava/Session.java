@@ -6,6 +6,9 @@
  */
 package org.postgresql.pljava;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+
 /**
  * A Session maintains transaction coordinated in-memory data. The data
  * added since the last commit will be lost on a transaction rollback, i.e.
@@ -19,29 +22,52 @@ package org.postgresql.pljava;
  */
 public interface Session
 {
-	public Object getAttribute(String attributeName);
+	/**
+	 * Obtain an attribute from the current session.
+	 * @param attributeName The name of the attribute
+	 * @return The value of the attribute
+	 */
+	Object getAttribute(String attributeName);
 
 	/**
-	 * Return the current user.
+	 * Return the name of the effective user. If the currently
+	 * executing funciton is declared with <code>SECURITY DEFINER</code>,
+	 * then this method returns the name of the user that defined
+	 * the function, otherwise, this method will return the same
+	 * as {@link #getSessionUserName()}.
 	 */
-	public String getUserName();
+	String getUserName();
 
 	/**
-	 * Return the session user.
+	 * Return the name of the user that owns the current session.
 	 */
-	public String getSessionUserName();
+	String getSessionUserName();
+
+	/**
+	 * Execute a statement as a session user rather then the effective
+	 * user. This is useful when functions declared using
+	 * <code>SECURITY DEFINER</code> wants to give up the definer
+	 * rights.
+	 * @param conn The connection used for the execution
+	 * @param statement The statement to execute
+	 * @return The result of the execution.
+	 * @throws SQLException if something goes wrong when executing.
+	 * @see java.sql.Statement#execute(java.lang.String)
+	 */
+	boolean executeAsSessionUser(Connection conn, String statement)
+	throws SQLException;
 
 	/**
 	 * Remove an attribute previously stored in the session. If
 	 * no attribute is found, nothing happens.
 	 * @param attributeName The name of the attribute.
 	 */
-	public void removeAttribute(String attributeName);
+	void removeAttribute(String attributeName);
 
 	/**
 	 * Set an attribute to a value in the current session.
 	 * @param attributeName
 	 * @param value
 	 */
-	public void setAttribute(String attributeName, Object value);
+	void setAttribute(String attributeName, Object value);
 }
