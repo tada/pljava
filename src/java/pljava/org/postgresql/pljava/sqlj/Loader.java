@@ -32,6 +32,15 @@ public class Loader extends ClassLoader
 	private final Map m_entries;
 
 	/**
+	 * Removes all cached schema loaders.
+	 * @param schemaName
+	 */
+	public static void clearSchemaLoaders()
+	{
+		s_schemaLoaders.clear();
+	}
+
+	/**
 	 * Obtain a loader that has been configured for the class path of the
 	 * schema named <code>schemaName</code>. Class paths are defined using the
 	 * SQL procedure <code>sqlj.set_classpath</code>.

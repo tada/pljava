@@ -25,6 +25,7 @@ import java.util.jar.JarInputStream;
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
+import org.postgresql.pljava.sqlj.Loader;
 
 /**
  * This methods of this class are implementations of SQLJ commands.
@@ -185,6 +186,7 @@ public class Commands
 				throw new SQLException("Unable to obtain id of '" + jarName + "'");
 
 			Backend.addClassImages(conn, jarId, urlString);
+			Loader.clearSchemaLoaders();
 			if(deploy)
 				deployInstall(conn, jarId);
 		}
@@ -243,6 +245,7 @@ public class Commands
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
 			Backend.addClassImages(conn, jarId, urlString);
+			Loader.clearSchemaLoaders();
 			if(redeploy)
 				deployInstall(conn, jarId);
 		}
@@ -289,6 +292,7 @@ public class Commands
 			{
 				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 			}
+			Loader.clearSchemaLoaders();
 		}
 		finally
 		{
@@ -411,6 +415,7 @@ public class Commands
 					try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
 				}
 			}
+		Loader.clearSchemaLoaders();
 		}
 		finally
 		{
@@ -477,6 +482,19 @@ public class Commands
 		}
 	}
 
+	/**
+	 * Reads the jar found at the specified URL and stores the entries
+	 * in the jar_entry table. This method must not be called directly.
+	 * It must be dispatched through the {@link
+	 * org.postgresql.pljava.internal.Backend#addClassImages(java.sql.Connection,int,java.lang.String)
+	 * Backend.addClassImages()} method in order to get the needed read
+	 * permission.
+	 * @param conn The connection to use
+	 * @param jarId The id used for the foreign key to the
+	 * jar_repository table
+	 * @param urlString The URL
+	 * @throws SQLException
+	 */
 	public static void addClassImages(Connection conn, int jarId, String urlString)
 	throws SQLException
 	{
