@@ -20,7 +20,6 @@ override CPPFLAGS := \
 	-DPKGLIBDIR=\"$(pkglibdir)\" -I$(INCLDIR) \
 	-DPGSQL_MAJOR_VER=$(word 1,$(SS_VERSION)) \
 	-DPGSQL_MINOR_VER=$(word 2,$(SS_VERSION)) \
-	-DPGSQL_PATCH_VER=$(word 3,$(SS_VERSION)) \
 	$(CPPFLAGS)
 
 # Don't use higher standard then c89 since this rules out older compilers. We

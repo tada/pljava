@@ -1,15 +1,23 @@
 <project default="all">
 	<property name="pgsql.install.dir" value="/usr/local/pgsql"/>
-	<property name="pgsql.jdbc.jar" value="${pgsql.install.dir}/share/java/pgdev.301.jdbc3.jar"/>
+	<property name="pgsql.jdbc.jar" value="/usr/share/java/pg74.1jdbc3.jar"/>
 	
 	<target
 		name="all"
 		depends="generate_headers,example_jar,test_jar,deploy_jar"
 		description="builds all targets except javadoc, clean, and distrib"/>
-	
+
 	<target
 		name="clean"
 		description="Removes all artifacts from previous builds">
+
+		<!-- Kill testdb postmaster if it's active -->
+		<echo message="Killing testdb postmaster if present"/>
+		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failonerror="false" >
+			<arg value="-D"/>
+			<arg value="${basedir}/bin/test/db"/>
+			<arg value="stop"/>
+		</exec>
 
 		<delete dir="bin" failonerror="false" quiet="true"/>
 		<delete dir="docs/api" failonerror="false" quiet="true"/>
@@ -264,12 +272,17 @@
 			/>
 	</target>
 
-	<target name="initdb" depends="test_jar">
+	<target
+		name="run_tests"
+		depends="test_jar"
+		description="Initializes a test database, installs and runs the samples">
+
 		<exec executable="${pgsql.install.dir}/bin/pg_ctl" failonerror="false">
 			<arg value="-D"/>
 			<arg value="${basedir}/bin/test/db"/>
 			<arg value="stop"/>
 		</exec>
+
 		<delete dir="bin/test" failonerror="false"/>
 		<mkdir dir="bin/test"/>
 		<exec executable="${pgsql.install.dir}/bin/initdb" failonerror="true">
@@ -284,7 +297,7 @@
 			<arg value="${basedir}/bin/test/postmaster.log"/>
 			<arg value="-w"/>
 			<arg value="-o"/>
-			<arg value="-c dynamic_library_path=${basedir}/bin/build/pljava -c log_min_messages=debug1 -c client_min_messages=debug1"/>
+			<arg value="-c tcpip_socket=true -c dynamic_library_path=${basedir}/bin/build/pljava -c log_min_messages=debug1"/>
 			<env key="CLASSPATH" path="${basedir}/bin/pljava.jar"/>
 		</exec>
 		<sleep
@@ -296,7 +309,6 @@
 			failonerror="true">
 			<arg value="testdb"/>
 		</exec>
-		<echo>${pgsql.jdbc.jar}</echo>
 		<java
 			description="Creates the Java language in the PostgreSQL database"
 			fork="true"
@@ -326,7 +338,6 @@
 			<arg value="${user.name}"/>
 			<arg value="-database"/>
 			<arg value="testdb"/>
-			<arg value="-debug"/>
 		</java>
 	</target>
 
