@@ -59,6 +59,49 @@ public class Oid
 		return (o == this) || ((o instanceof Oid) && ((Oid)o).m_native == m_native);
 	}
 
+	private static String getCanonicalClassName(String name, int nDims)
+	{
+		if(name.endsWith("[]"))
+			return getCanonicalClassName(name.substring(0, name.length() - 2), nDims + 1);
+
+		boolean primitive = true;
+		if(name.equals("boolean"))
+			name = "Z";
+		else if(name.equals("byte"))
+			name = "B";
+		else if(name.equals("char"))
+			name = "C";
+		else if(name.equals("double"))
+			name = "D";
+		else if(name.equals("float"))
+			name = "F";
+		else if(name.equals("int"))
+			name = "I";
+		else if(name.equals("long"))
+			name = "J";
+		else if(name.equals("short"))
+			name = "S";
+		else
+			primitive = false;
+		
+		if(nDims > 0)
+		{
+			StringBuffer bld = new StringBuffer();
+			while(--nDims >= 0)
+				bld.append('[');
+			if(primitive)
+				bld.append(name);
+			else
+			{
+				bld.append('L');
+				bld.append(name);
+				bld.append(';');
+			}
+			name = bld.toString();
+		}
+		return name;
+	}
+
 	public Class getJavaClass()
 	throws SQLException
 	{
@@ -72,7 +115,7 @@ public class Oid
 			}
 			try
 			{
-				c = Class.forName(className);
+				c = Class.forName(getCanonicalClassName(className, 0));
 			}
 			catch(ClassNotFoundException e)
 			{

@@ -62,7 +62,8 @@ public class SingleRowWriter extends SingleRowResultSet
 			m_values[columnIndex-1] = x;
 
 		Class c = m_tupleDesc.getColumnClass(columnIndex);
-		if(!c.isInstance(x))
+		if(!c.isInstance(x)
+		&& !(c == byte[].class && (x instanceof BlobValue)))
 		{
 			if(Number.class.isAssignableFrom(c))
 				x = SPIConnection.basicNumericCoersion(c, x);

@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.io.PrintStream;
 
 /**
@@ -207,6 +208,7 @@ public class Tester
 				t.testUsingResultSetProperties();
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
+				t.testBinaryColumns();
 				t.testDatabaseMetaData();
 				t.testResultSet();
 			}
@@ -344,6 +346,26 @@ public class Tester
 		ResultSet rs = stmt.executeQuery("SELECT scalarPropertyExample()");
 		while(rs.next())
 			System.out.println(rs.getString(1));
+		rs.close();
+	}
+
+	public void testBinaryColumns()
+	throws SQLException
+	{
+		System.out.println("*** testBinaryColumns()");
+		System.out.println(byte.class.getName());
+		System.out.println(byte[].class.getName());
+		System.out.println(Integer.class.getName());
+		System.out.println(Integer[].class.getName());
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT * FROM binaryColumnTest()");
+		while(rs.next())
+		{
+			byte[] b1 = rs.getBytes(1);
+			byte[] b2 = rs.getBytes(2);
+			if(!Arrays.equals(b1, b2))
+				throw new SQLException("binary columns differ");
+		}
 		rs.close();
 	}
 
