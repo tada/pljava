@@ -26,11 +26,6 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.postgresql.pljava.internal.ExecutionPlan;
-import org.postgresql.pljava.internal.SPI;
-import org.postgresql.pljava.internal.SPIException;
-
-
 /**
  * @author Thomas Hallgren
  */
@@ -246,8 +241,7 @@ public class SPIConnection implements Connection
 			throw new IllegalArgumentException("Not an SPISavepoint");
 
 		SPISavepoint sp = (SPISavepoint)savepoint;
-		if(sp.isActive())
-			this.executeUtilityCommand("RELEASE SAVEPOINT " + sp.getSPIName());
+		sp.release();
 		forgetSavepoint(sp);
 	}
 
@@ -258,8 +252,7 @@ public class SPIConnection implements Connection
 
 		SPISavepoint sp = (SPISavepoint)savepoint;
 		Invocation.clearErrorCondition();
-		if(sp.isActive())
-			this.executeUtilityCommand("ROLLBACK TO SAVEPOINT " + sp.getSPIName());
+		sp.rollback();
 		forgetSavepoint(sp);
 	}
 
@@ -532,13 +525,13 @@ public class SPIConnection implements Connection
 	public Savepoint setSavepoint()
 	throws SQLException
 	{
-		return this.setSavepoint(new SPIAnonymousSavepoint());
+		return this.rememberSavepoint(new SPIAnonymousSavepoint());
 	}
 
 	public Savepoint setSavepoint(String name)
 	throws SQLException
 	{
-		return this.setSavepoint(new SPINamedSavepoint(name));
+		return this.rememberSavepoint(new SPINamedSavepoint(name));
 	}
 
 	static int getTypeForClass(Class c)
@@ -556,12 +549,9 @@ public class SPIConnection implements Connection
 		return Types.OTHER;
 	}
 
-	private Savepoint setSavepoint(SPISavepoint sp)
+	private Savepoint rememberSavepoint(SPISavepoint sp)
 	throws SQLException
 	{
-		this.executeUtilityCommand("SAVEPOINT " + sp.getSPIName());
-		sp.setActive(true);
-
 		// Remember the first savepoint for each call-level so
 		// that it can be released when the function call ends. Releasing
 		// the first savepoint will release all subsequent savepoints.
@@ -579,17 +569,5 @@ public class SPIConnection implements Connection
 		Invocation invocation = Invocation.current();
 		if(invocation.getSavepoint() == sp)
 			invocation.setSavepoint(null);
-		sp.setActive(false);
-	}
-
-	private void executeUtilityCommand(String command)
-	throws SQLException
-	{
-		ExecutionPlan plan = ExecutionPlan.prepare(this.nativeSQL(command), null);
-
-		int result = SPI.getResult();
-		if(plan == null)
-			throw new SPIException(result);
-		plan.execp(null, 0);
 	}
 }

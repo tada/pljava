@@ -20,7 +20,6 @@ import java.util.regex.Pattern;
 public class Environment
 {
 	private static final Pattern s_envPattern = Pattern.compile("^(\\w+)=(.*)$");
-	private static final Pattern s_osPattern  = Pattern.compile("^windows\\W", Pattern.CASE_INSENSITIVE);
 	private static final boolean s_isWindows;
 
 	private final TreeMap m_env;
@@ -45,7 +44,7 @@ public class Environment
 	throws IOException
 	{
 		String  line;
-		TreeMap env     = new TreeMap();
+		TreeMap env = new TreeMap();
 
 		m_env = env;
 

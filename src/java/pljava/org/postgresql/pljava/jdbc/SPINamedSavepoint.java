@@ -16,14 +16,13 @@ import java.sql.SQLException;
 
 public class SPINamedSavepoint extends SPISavepoint
 {
-	private final String m_name;
-
 	/**
 	 * Creates an named savepoint
 	 */
 	public SPINamedSavepoint(String name)
+	throws SQLException
 	{
-		m_name = name;
+		super(name);
 	}
 
 	public int getSavepointId()
@@ -34,11 +33,6 @@ public class SPINamedSavepoint extends SPISavepoint
 
 	public String getSavepointName()
 	{
-		return m_name;
-	}
-
-	String getSPIName()
-	{
-		return m_name;
+		return this.getSPIName();
 	}
 }

@@ -222,7 +222,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 
 		tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
 		if(tuple == 0)
-			Exception_throwSPI(env, "modifytuple");
+			Exception_throwSPI(env, "modifytuple", SPI_result);
 
 		(*env)->ReleaseIntArrayElements(env, _indexes, javaIdxs, JNI_ABORT);
 	

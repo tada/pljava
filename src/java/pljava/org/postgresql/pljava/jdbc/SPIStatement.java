@@ -95,9 +95,6 @@ public class SPIStatement implements Statement
 		m_updateCount = -1;
 		m_resultSet   = null;
 
-		if(plan.hasTransactionCommand())
-			throw new SQLException("savepoint related commands cannot be executed");
-
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
@@ -106,7 +103,7 @@ public class SPIStatement implements Statement
 		}
 		else
 		{	
-			plan.execp(paramValues, m_maxRows);
+			plan.execute(paramValues, m_maxRows);
 			m_updateCount = SPI.getProcessed();
 		}
 		return isResultSet;

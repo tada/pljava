@@ -10,7 +10,7 @@ package org.postgresql.pljava.jdbc;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Savepoint;
+import org.postgresql.pljava.internal.Savepoint;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
@@ -18,22 +18,26 @@ import org.postgresql.pljava.internal.Backend;
 /**
  * @author Thomas Hallgren
  */
-public abstract class SPISavepoint implements Savepoint
+public abstract class SPISavepoint implements java.sql.Savepoint
 {
-	private boolean m_active = false;
+	private Savepoint m_internalSavepoint;
 
 	private static final Logger s_log = Logger.getAnonymousLogger();
 
-	abstract String getSPIName();
+	SPISavepoint(String name)
+	throws SQLException
+	{
+		m_internalSavepoint = Savepoint.set(name);
+	}
 
 	public void onInvocationExit()
 	throws SQLException
 	{
-		if(!this.isActive())
+		if(m_internalSavepoint == null)
 			return;
 
 		Connection conn = SPIDriver.getDefault();
-		String spiName = this.getSPIName();
+		String spiName = m_internalSavepoint.getName();
 		if(Backend.isReleaseLingeringSavepoints())
 		{
 			s_log.warning("Releasing savepoint '" + spiName +
@@ -48,18 +52,38 @@ public abstract class SPISavepoint implements Savepoint
 		}
 	}
 
+	final void release()
+	throws SQLException
+	{
+		if(m_internalSavepoint != null)
+		{
+			m_internalSavepoint.release();
+			m_internalSavepoint = null;
+		}
+	}
+
+	final void rollback()
+	throws SQLException
+	{
+		if(m_internalSavepoint != null)
+		{
+			m_internalSavepoint.rollback();
+			m_internalSavepoint = null;
+		}
+	}
+
 	/**
 	 * @return Returns the active.
 	 */
 	final boolean isActive()
 	{
-		return m_active;
+		return m_internalSavepoint != null;
 	}
-	/**
-	 * @param active The active to set.
-	 */
-	final void setActive(boolean active)
+
+	final String getSPIName()
 	{
-		m_active = active;
+		return (m_internalSavepoint == null)
+			? "inactive savepoint"
+			: m_internalSavepoint.getName(); 
 	}
 }

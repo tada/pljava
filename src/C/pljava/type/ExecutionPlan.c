@@ -79,14 +79,9 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan
 		},
 		{
-		"_hasTransactionCommand",
-		"()Z",
-		Java_org_postgresql_pljava_internal_ExecutionPlan__1hasTransactionCommand
-		},
-		{
-		"_execp",
+		"_execute",
 		"([Ljava/lang/Object;I)I",
-		Java_org_postgresql_pljava_internal_ExecutionPlan__1execp
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1execute
 		},
 		{
 		"_prepare",
@@ -166,14 +161,6 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 	*nullsPtr = nulls;
 	return true;
 }
-
-#if (PGSQL_MAJOR_VER >= 8)
-static bool rejectTransactionCommand(Query* query, void* clientData)
-{
-	return !(query->commandType == CMD_UTILITY &&
-			IsA(query->utilityStmt, TransactionStmt));
-}
-#endif
 
 /****************************************
  * JNI methods
@@ -259,49 +246,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    _hasTransactionCommand
- * Signature: ()Z
- */
-JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1hasTransactionCommand(JNIEnv* env, jobject _this)
-{
-#if (PGSQL_MAJOR_VER >= 8)
-	void* ePlan;
-	bool result = false;
-	PLJAVA_ENTRY_FENCE(false)
-
-	ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return 0;
-
-	PG_TRY();
-	{
-		/* SPI_traverse_query_roots will return false when
-		 * a transaction command is encountered.
-		 */
-		result = !SPI_traverse_query_roots(ePlan, rejectTransactionCommand, NULL);
-	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_traverse_query_roots");
-	}
-	PG_END_TRY();
-	return result;
-#else
-	/* BEGIN, COMMIT, and ROLLBACK will be rejected by the SPI and
-	 * savepoints are not implemented in 7.4.x
-	 */
-	return false;
-#endif
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    _execp
- * Signature: ([Ljava/lang/Object;I)I
+ * Method:    _execute
+ * Signature: ([Ljava/lang/Object;I)V
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
 	void* ePlan;
 	jint result = 0;
@@ -324,6 +273,9 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 #else
 			result = (jint)SPI_execp(ePlan, values, nulls, (int)count);
 #endif
+			if(result < 0)
+				Exception_throwSPI(env, "execute_plan", result);
+
 			if(values != 0)
 				pfree(values);
 			if(nulls != 0)
@@ -337,6 +289,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 		Exception_throw_ERROR(env, "SPI_execute_plan");
 	}
 	PG_END_TRY();
+
 	return result;
 }
 
@@ -378,7 +331,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 		pfree(cmd);
 
 		if(ePlan == 0)
-			Exception_throwSPI(env, "prepare");
+			Exception_throwSPI(env, "prepare", SPI_result);
 		else
 			jePlan = ExecutionPlan_create(env, ePlan);
 	}

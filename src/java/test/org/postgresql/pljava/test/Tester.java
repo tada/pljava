@@ -203,6 +203,7 @@ public class Tester
 				t.testCurrentDir();
 				t.testUsingProperties();
 				t.testUsingScalarProperties();
+				t.testSavepointSanity();
 			}
 			t.close();
 		}
@@ -485,6 +486,22 @@ public class Tester
 		else
 			System.out.println(
 				"Server directory = " + rs.getString(1));
+		rs.close();
+		stmt.close();
+	}
+
+	public void testSavepointSanity()
+	throws SQLException
+	{
+		System.out.println("*** testSavepointSanity()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT testSavepointSanity()");
+
+		if(!rs.next())
+			System.out.println("Unable to position ResultSet");
+		else
+			System.out.println(
+				"Savepoint sanity = " + rs.getInt(1));
 		rs.close();
 		stmt.close();
 	}

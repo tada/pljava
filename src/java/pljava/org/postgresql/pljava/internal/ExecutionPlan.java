@@ -130,22 +130,6 @@ public class ExecutionPlan extends NativeStruct
 	}
 
 	/**
-	 * Checks if this <code>ExecutionPlan</code> contains a command that deals
-	 * with savepoints.
-	 * @return <code>true</code> if a command related to savepoints is
-	 * encountered
-	 * @throws SQLException If the underlying native structure has gone stale.
-	 */
-	public boolean hasTransactionCommand()
-	throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._hasTransactionCommand();
-		}
-	}
-
-	/**
 	 * Execute the plan using the internal <code>SPI_execp</code> function.
 	 * @param parameters Values for the parameters.
 	 * @param rowCount The maximum number of tuples to create. A value
@@ -154,12 +138,12 @@ public class ExecutionPlan extends NativeStruct
 	 * @return One of the status codes declared in class {@link SPI}.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public int execp(Object[] parameters, int rowCount)
+	public int execute(Object[] parameters, int rowCount)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._execp(parameters, rowCount);
+			return this._execute(parameters, rowCount);
 		}
 	}
 
@@ -206,10 +190,7 @@ public class ExecutionPlan extends NativeStruct
 	private native boolean _isCursorPlan()
 	throws SQLException;
 
-	private native boolean _hasTransactionCommand()
-	throws SQLException;
-
-	private native int _execp(Object[] parameters, int rowCount)
+	private native int _execute(Object[] parameters, int rowCount)
 	throws SQLException;
 
 	private native static ExecutionPlan _prepare(String statement, Oid[] argTypes)

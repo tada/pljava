@@ -40,7 +40,7 @@ __attribute__((format(printf, 3, 4)));
  * Like ereport(ERROR, ...) but this method will raise a Java SQLException and
  * return. It will NOT do a longjmp.
  */
-extern void Exception_throwSPI(JNIEnv* env, const char* function);
+extern void Exception_throwSPI(JNIEnv* env, const char* function, int errCode);
 
 /*
  * This method will raise a Java ServerException based on an ErrorData obtained

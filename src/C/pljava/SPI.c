@@ -67,6 +67,9 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 	PG_TRY();
 	{
 		result = (jint)SPI_exec(command, (int)count);
+		if(result < 0)
+			Exception_throwSPI(env, "exec", result);
+
 		Backend_popJavaFrame(env);
 		pfree(command);
 	}
@@ -158,22 +161,54 @@ bool SPI_is_cursor_plan(void* plan)
 }
 #endif
 
-bool
-SPI_traverse_query_roots(void *plan, QueryVisitor queryVisitor, void* clientData)
+static void assertXid(SubTransactionId xid)
 {
-	List	 *query_list_list = ((_SPI_plan*)plan)->qtlist;
-	ListCell *query_list_list_item;
-
-	foreach(query_list_list_item, query_list_list)
+	if(xid != GetCurrentSubTransactionId())
 	{
-		List	 *query_list = lfirst(query_list_list_item);
-		ListCell *query_list_item;
-
-		foreach(query_list_item, query_list)
-		{
-			if(!queryVisitor((Query *)lfirst(query_list_item), clientData))
-				return false;
-		}
+		/* Oops. Rollback to top level transaction.
+		 */
+		ereport(ERROR, (
+			errcode(ERRCODE_INVALID_TRANSACTION_TERMINATION),
+			errmsg("Subtransaction mismatch at txlevel %d",
+				GetCurrentTransactionNestLevel())));
 	}
-	return true;
+}
+
+Savepoint* SPI_setSavepoint(const char* name)
+{
+	/* We let the savepoint live in the current MemoryContext. It will be released
+	 * or rolled back even if the creator forgets about it.
+	 */
+	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
+	BeginInternalSubTransaction((char*)name);
+	sp->nestingLevel = GetCurrentTransactionNestLevel();
+	sp->xid = GetCurrentSubTransactionId();
+	strcpy(sp->name, name);
+	return sp;
+}
+
+void SPI_releaseSavepoint(Savepoint* sp)
+{
+	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
+		ReleaseCurrentSubTransaction();
+
+	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
+	{
+		assertXid(sp->xid);
+		ReleaseCurrentSubTransaction();
+	}
+	pfree(sp);
+}
+
+void SPI_rollbackSavepoint(Savepoint* sp)
+{
+	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
+		RollbackAndReleaseCurrentSubTransaction();
+
+	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
+	{
+		assertXid(sp->xid);
+		RollbackAndReleaseCurrentSubTransaction();
+	}
+	pfree(sp);
 }

@@ -20,7 +20,7 @@ extern "C" {
  *
  ***********************************************************************/
 
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+#if (PGSQL_MAJOR_VER < 8)
 /*
  * Returns the Oid of the type for argument at argIndex. First
  * parameter is at index zero.
@@ -36,14 +36,23 @@ extern int SPI_getargcount(void* plan);
  *	Return true if the plan is valid for a SPI_open_cursor call.
  */
 extern bool SPI_is_cursor_plan(void* plan);
+
 #endif
 
-typedef bool (*QueryVisitor)(Query* query, void *clientData);
-
-extern bool
-SPI_traverse_query_roots(void *plan, QueryVisitor queryVisitor, void* clientData);
-
 extern Datum SPI_initialize(PG_FUNCTION_ARGS);
+
+typedef struct
+{
+	SubTransactionId xid;
+	int  nestingLevel;
+	char name[1];
+} Savepoint;
+
+extern Savepoint* SPI_setSavepoint(const char* name);
+
+extern void SPI_releaseSavepoint(Savepoint* sp);
+
+extern void SPI_rollbackSavepoint(Savepoint* sp);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

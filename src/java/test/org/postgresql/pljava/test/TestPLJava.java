@@ -25,7 +25,6 @@ public class TestPLJava
 	private static final int CMD_PGSQLHOME = 0;
 	private static final int CMD_TESTDIR   = 1;
 	private static final int CMD_PORT      = 2;
-	private static final int CMD_WINDOWS   = 3;
 
 	private static final ArrayList s_commands = new ArrayList();
 

@@ -9,6 +9,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
+import java.sql.Statement;
 import java.util.logging.Logger;
 
 /**
@@ -21,6 +23,31 @@ public class SPIActions
 	public static void log(String str)
 	{
 		Logger.getAnonymousLogger().info(str);
+	}
+
+	public static int testSavepointSanity()
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+
+		// Create an anonymous savepoint.
+		//
+		log("Attempting to set an anonymous savepoint");
+		Savepoint sp = conn.setSavepoint();
+		try
+		{
+			Statement stmt = conn.createStatement();
+			log("Attempting to set a SAVEPOINT using SQL (should fail)");
+			stmt.execute("SAVEPOINT foo");
+		}
+		catch(SQLException e)
+		{
+			log("It failed allright. Everything OK then");
+			log("Rolling back to anonymous savepoint");
+			conn.rollback(sp);
+			return 1;
+		}
+		throw new SQLException("SAVEPOINT through SQL succeeded. That's bad news!");
 	}
 
 	public static int transferPeopleWithSalary(int salary)

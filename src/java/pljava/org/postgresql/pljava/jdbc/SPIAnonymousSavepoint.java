@@ -16,18 +16,18 @@ import java.sql.SQLException;
 
 public class SPIAnonymousSavepoint extends SPISavepoint
 {
-	private static int s_savePointId = 0;
+	private static int s_savePointId = 1;
 
 	private final int    m_identity;
-	private final String m_spiName;
 
 	/**
 	 * Creates an unnamed savepoint
 	 */
 	public SPIAnonymousSavepoint()
+	throws SQLException
 	{
-		m_identity = ++s_savePointId;
-		m_spiName  = "auto_sp_" + m_identity;
+		super("auto_sp_" + s_savePointId);
+		m_identity = s_savePointId++;
 	}
 
 	public int getSavepointId()
@@ -38,10 +38,5 @@ public class SPIAnonymousSavepoint extends SPISavepoint
 	public String getSavepointName() throws SQLException
 	{
 		throw new SQLException("not a named savepoint");
-	}
-
-	String getSPIName()
-	{
-		return m_spiName;
 	}
 }

@@ -151,6 +151,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.UsingPropertiesAsScalarSet.getProperties'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.testSavepointSanity()
+			RETURNS int
+			AS 'org.postgresql.pljava.example.SPIActions.testSavepointSanity'
+			IMMUTABLE LANGUAGE java;
+
 	END INSTALL",
 	
 	"BEGIN REMOVE

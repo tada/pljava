@@ -173,10 +173,16 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	va_end(args);
 }
 
-void Exception_throwSPI(JNIEnv* env, const char* function)
+void Exception_throwSPI(JNIEnv* env, const char* function, int errCode)
 {
+#if (PGSQL_MAJOR_VER >= 8)
 	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"SPI function SPI_%s failed with error code %d", function, SPI_result);
+		"SPI function SPI_%s failed with error %s", function,
+			SPI_result_code_string(errCode));
+#else
+	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+		"SPI function SPI_%s failed with error code %d", function, errCode);
+#endif
 }
 
 void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
