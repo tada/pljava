@@ -22,7 +22,8 @@ void SPI_clearUpperContextInfo()
 }
 
 /* Dirty patch that shows when the upper context is deleted or reset
-static MemoryContextMethods* originalMethods;
+
+static MemoryContextMethods* originalMethods = 0;
 
 static void myDelete(MemoryContext ctx)
 {
@@ -36,6 +37,24 @@ static void myReset(MemoryContext ctx)
 	originalMethods->reset(ctx);
 }
 
+static void installSPIContextLogPatch()
+{
+	void* tmp = SPI_palloc(4);
+	MemoryContext upperContext = GetMemoryChunkContext(tmp);
+
+	if(originalMethods == 0 || originalMethods == upperContext->methods)
+	{
+		originalMethods = upperContext->methods;
+		MemoryContextMethods* repl = (MemoryContextMethods*)malloc(sizeof(MemoryContextMethods));
+		memcpy(repl, originalMethods, sizeof(MemoryContextMethods));
+		upperContext->methods = repl;
+		repl->delete = myDelete;
+		repl->reset = myReset;
+	}
+	SPI_pfree(tmp);
+}
+ */
+/*
 static MemoryContext _SPI_getUpperContext()
 {
 	if(upperContext == 0)
@@ -56,7 +75,6 @@ static MemoryContext _SPI_getUpperContext()
 	return upperContext;
 }
 */
-
 MemoryContext SPI_switchToReturnValueContext()
 {
 	/* Tried the upper context here but it's destroyed between calls
