@@ -29,7 +29,7 @@ jobject Portal_create(JNIEnv* env, Portal tts)
 	if(tts == 0)
 		return 0;
 
-	jtts = NativeStruct_obtain(env, tts);
+	jtts = MemoryContext_lookupNative(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_Portal_class, s_Portal_init);

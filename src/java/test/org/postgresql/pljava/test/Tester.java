@@ -202,7 +202,7 @@ public class Tester
 				t.testCallInCall();
 				t.testCurrentDir();
 				t.testUsingProperties();
-				// t.testUsingScalarProperties();
+				t.testUsingScalarProperties();
 			}
 			t.close();
 		}

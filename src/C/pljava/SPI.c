@@ -6,6 +6,7 @@
  */
 #include "org_postgresql_pljava_internal_SPI.h"
 #include "pljava/SPI.h"
+#include "pljava/Backend.h"
 #include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
@@ -62,16 +63,16 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 		return 0;
 
 	result = 0;
-	MemoryContext_pushJavaFrame(env);
+	Backend_pushJavaFrame(env);
 	PG_TRY();
 	{
 		result = (jint)SPI_exec(command, (int)count);
-		MemoryContext_popJavaFrame(env);
+		Backend_popJavaFrame(env);
 		pfree(command);
 	}
 	PG_CATCH();
 	{
-		MemoryContext_popJavaFrame(env);
+		Backend_popJavaFrame(env);
 		Exception_throw_ERROR(env, "SPI_exec");
 	}
 	PG_END_TRY();

@@ -15,9 +15,12 @@
 static jclass    s_NativeStruct_class;
 static jfieldID  s_NativeStruct_m_native;
 
-void NativeStruct_releaseCache(JNIEnv* env, MemoryContext ctx, bool isDelete)
+void NativeStruct_releaseCache(HashMap cache)
 {
-	HashMap cache = MemoryContext_getNativeCache(ctx);
+	JNIEnv* env = Backend_getMainEnv();
+	if(env == 0)
+		return;
+
 	Iterator itor = HashMap_entries(cache);
 	while(Iterator_hasNext(itor))
 	{
@@ -28,37 +31,13 @@ void NativeStruct_releaseCache(JNIEnv* env, MemoryContext ctx, bool isDelete)
 			jobject bound = (*env)->NewLocalRef(env, weak);
 			if(bound != 0)
 			{
-				elog(DEBUG1, "Marking object stale");
+				elog(DEBUG1, "Marking object associated with native pointer %p stale", Entry_getKey(e));
 				(*env)->SetLongField(env, bound, s_NativeStruct_m_native, 0L);
 				(*env)->DeleteLocalRef(env, bound);
 			}
 			(*env)->DeleteWeakGlobalRef(env, weak);
 		}
 	}
-
-	if(isDelete)
-	{
-		elog(DEBUG1, "NativeStruct cache %p deleted due to deletion of context", cache);
-		PgObject_free((PgObject)cache);
-	}
-	else
-	{
-		elog(DEBUG1, "NativeStruct cache %p cleared due to context reset", cache);
-		HashMap_clear(cache);
-	}
-}
-
-jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer)
-{
-	jobject weak;
-	HashMap cache = MemoryContext_getCurrentNativeCache();
-	if(cache == 0)
-		return 0;
-
-	weak = HashMap_getByOpaque(cache, nativePointer);
-	if(weak != 0)
-		weak = (*env)->NewLocalRef(env, weak);
-	return weak;
 }
 
 void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePointer)
@@ -70,13 +49,6 @@ void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePoin
 		p2l.ptrVal = nativePointer;
 		(*env)->SetLongField(env, nativeStruct, s_NativeStruct_m_native, p2l.longVal);
 	}
-}
-
-void NativeStruct_addCacheManager(MemoryContext ctx)
-{
-	HashMap cache = HashMap_create(13, ctx->parent);
-	elog(DEBUG1, "NativeStruct cache %p created", cache);
-	MemoryContext_setNativeCache(ctx, cache);
 }
 
 void NativeStruct_init(JNIEnv* env, jobject nativeStruct, void* nativePointer)
@@ -135,13 +107,8 @@ void* NativeStruct_releasePointer(JNIEnv* env, jobject _this)
 	{
 		/* Remove this object from the cache
 		 */
-		HashMap cache = MemoryContext_getCurrentNativeCache();
-		if(cache != 0)
-		{
-			jobject weak = HashMap_removeByOpaque(cache, p2l.ptrVal);
-			if(weak != 0)
-				(*env)->DeleteWeakGlobalRef(env, weak);
-		}
+		MemoryContext_dropNative(env, p2l.ptrVal);
+
 		/* Clear the field.
 		 */
 		(*env)->SetLongField(env, _this, s_NativeStruct_m_native, 0L);	

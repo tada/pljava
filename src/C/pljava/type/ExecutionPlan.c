@@ -8,6 +8,7 @@
 #include <executor/tuptable.h>
 
 #include "org_postgresql_pljava_internal_ExecutionPlan.h"
+#include "pljava/Backend.h"
 #include "pljava/Exception.h"
 #include "pljava/Function.h"
 #include "pljava/MemoryContext.h"
@@ -34,7 +35,7 @@ jobject ExecutionPlan_create(JNIEnv* env, void* ep)
 	if(ep == 0)
 		return 0;
 
-	jep = NativeStruct_obtain(env, ep);
+	jep = MemoryContext_lookupNative(env, ep);
 	if(jep == 0)
 	{
 		jep = PgObject_newJavaObject(env, s_ExecutionPlan_class, s_ExecutionPlan_init);
@@ -310,7 +311,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 	if(ePlan == 0)
 		return 0;
 
-	MemoryContext_pushJavaFrame(env);
+	Backend_pushJavaFrame(env);
 	PG_TRY();
 	{
 		Datum* values = 0;
@@ -328,11 +329,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 			if(nulls != 0)
 				pfree(nulls);
 		}
-		MemoryContext_popJavaFrame(env);
+		Backend_popJavaFrame(env);
 	}
 	PG_CATCH();
 	{
-		MemoryContext_popJavaFrame(env);
+		Backend_popJavaFrame(env);
 		Exception_throw_ERROR(env, "SPI_execute_plan");
 	}
 	PG_END_TRY();

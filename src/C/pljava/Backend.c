@@ -40,6 +40,8 @@
 #error "PKGLIBDIR needs to be defined to compile this file."
 #endif
 
+#define LOCAL_REFERENCE_COUNT 128
+
 bool isCallingJava;
 
 static JNIEnv* s_mainEnv = 0;
@@ -148,18 +150,41 @@ static void initCallContext(CallContext* ctx)
 	currentCallContext = ctx;
 }
 
-static void onEndOfScope(MemoryContext ctx, bool isDelete)
+static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
 {
-	JNIEnv* env = Backend_getMainEnv();
-	if(env == 0)
-		return;
-
 	if(s_callLevel == 0 && s_topLocalFrameInstalled)
 	{
+		/* Pop this frame. This might call finalizers.
+		 */
+		JNIEnv* env = Backend_getMainEnv();
+		if(env != 0)
+			Backend_popJavaFrame(env);
 		s_topLocalFrameInstalled = false;
-		MemoryContext_popJavaFrame(env);
 	}
-	NativeStruct_releaseCache(env, ctx, isDelete);
+}
+
+void Backend_pushJavaFrame(JNIEnv* env)
+{
+	if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+	{
+		/* Out of memory
+		 */
+		(*env)->ExceptionClear(env);
+		ereport(ERROR, (
+			errcode(ERRCODE_OUT_OF_MEMORY),
+			errmsg("Unable to create java frame for local references")));
+	}
+}
+
+void Backend_popJavaFrame(JNIEnv* env)
+{
+	bool saveIsCallingJava = isCallingJava;
+
+	/* Pop this frame. This might call finalizers.
+	 */
+	isCallingJava = true;
+	(*env)->PopLocalFrame(env, 0);
+	saveIsCallingJava = isCallingJava;
 }
 
 bool pljavaEntryFence(JNIEnv* env)
@@ -789,16 +814,11 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 	if(s_javaVM == 0)
 		initializeJavaVM();
 
-	if(!MemoryContext_hasCallbackCapability(CurrentMemoryContext))
-	{
-		NativeStruct_addCacheManager(CurrentMemoryContext);
-		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, onEndOfScope);
-	}
-
 	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
 	{
-		MemoryContext_pushJavaFrame(s_mainEnv);
+		Backend_pushJavaFrame(s_mainEnv);
 		s_topLocalFrameInstalled = true;
+		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, popJavaFrameCB);
 	}
 
 	SPI_connect();

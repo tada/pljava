@@ -26,7 +26,7 @@ jobject LargeObject_create(JNIEnv* env, LargeObjectDesc* lo)
 	if(lo == 0)
 		return 0;
 
-	jlo = NativeStruct_obtain(env, lo);
+	jlo = MemoryContext_lookupNative(env, lo);
 	if(jlo == 0)
 	{
 		jlo = PgObject_newJavaObject(env, s_LargeObject_class, s_LargeObject_init);

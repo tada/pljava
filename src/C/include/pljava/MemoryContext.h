@@ -39,11 +39,6 @@ typedef void (*EndOfScopeCB)(MemoryContext ctx, bool isDelete);
 extern void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
 
 /**
- * Obtains the native cache associated with this MemoryContex.
- */
-extern HashMap MemoryContext_getNativeCache(MemoryContext ctx);
-
-/**
  * Returns true if the MemoryContext has callback capabilities installed.
  */
 extern bool MemoryContext_hasCallbackCapability(MemoryContext ctx);
@@ -59,11 +54,6 @@ extern bool MemoryContext_hasCallbackCapability(MemoryContext ctx);
  */
 extern void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func);
 
-/**
- * Associates a native cache with this MemoryContex.
- */
-extern void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache);
-
 /*
  * Switch memory context to a context that is durable between calls to
  * the call manager but not durable between queries. The old context is
@@ -75,22 +65,20 @@ extern void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
 extern MemoryContext MemoryContext_switchToUpperContext(void);
 
 /*
- * Returns the nativeCache that's currently in effect, i.e. the nativeCache
- * of the upperContext.
+ * Returns the nativeCache that's currently in effect.
  */
 extern HashMap MemoryContext_getCurrentNativeCache(void);
 
 /*
- * Push a java frame that will ensure garbage collection of
- * new java objecs when popped (somewhat similar to a MemoryContext,
- * but for Java objects).
+ * Obtain a locally bound object form the weak cache. This method
+ * will return NULL if no such object is found.
  */
-extern void MemoryContext_pushJavaFrame(JNIEnv* env);
+extern jobject MemoryContext_lookupNative(JNIEnv* env, void* nativePointer);
 
 /*
- * Pop a previously pushed frame.
+ * Remove the native pointer from the cache if present.
  */
-extern void MemoryContext_popJavaFrame(JNIEnv* env);
+extern void MemoryContext_dropNative(JNIEnv* env, void* nativePointer);
 
 #ifdef __cplusplus
 }

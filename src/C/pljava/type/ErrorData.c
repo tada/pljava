@@ -24,7 +24,7 @@ jobject ErrorData_create(JNIEnv* env, ErrorData* ed)
 	if(ed == 0)
 		return 0;
 
-	jed = NativeStruct_obtain(env, ed);
+	jed = MemoryContext_lookupNative(env, ed);
 	if(jed == 0)
 	{
 		jed = PgObject_newJavaObject(env, s_ErrorData_class, s_ErrorData_init);

@@ -7,8 +7,7 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/Backend.h"
-
-#define LOCAL_REFERENCE_COUNT 128
+#include "pljava/type/NativeStruct.h"
 
 /* Single linked list of callback definitions. Each containing
  * a function and a client data pointer.
@@ -37,7 +36,8 @@ typedef struct {
  * first argument and true as the second. Restores the original methods and finally
  * calls the original delete function for the MemoryContext.
  */
-static void mctxDelete(MemoryContext ctx)
+static void
+mctxDelete(MemoryContext ctx)
 {
 	ExtendedCtxMethods* exm = (ExtendedCtxMethods*)ctx->methods;
 	MctxCBLink* cbs = exm->cbChain;
@@ -58,7 +58,8 @@ static void mctxDelete(MemoryContext ctx)
  * first argument and false as the second. Finally calls the original reset
  * function for the MemoryContext.
  */
-static void mctxReset(MemoryContext ctx)
+static void
+mctxReset(MemoryContext ctx)
 {
 	ExtendedCtxMethods* exm = (ExtendedCtxMethods*)ctx->methods;
 	MctxCBLink* cbs = exm->cbChain;
@@ -70,7 +71,8 @@ static void mctxReset(MemoryContext ctx)
 	(*exm->prev->reset)(ctx);
 }
 
-static void* parentContextAlloc(MemoryContext ctx, size_t size)
+static void*
+parentContextAlloc(MemoryContext ctx, size_t size)
 {
 	MemoryContext pctx = ctx->parent;
 	if(pctx == 0)
@@ -82,7 +84,8 @@ static void* parentContextAlloc(MemoryContext ctx, size_t size)
  * Ensures that the given context has an extended MemoryContextMethods struct
  * capable of holding on to user defined callbacks.
  */
-static ExtendedCtxMethods* MemoryContext_ensureCallbackCapability(MemoryContext ctx)
+static ExtendedCtxMethods*
+MemoryContext_ensureCallbackCapability(MemoryContext ctx)
 {
 	ExtendedCtxMethods* exm;
 	MemoryContextMethods* methods = ctx->methods;
@@ -106,7 +109,8 @@ static ExtendedCtxMethods* MemoryContext_ensureCallbackCapability(MemoryContext 
 /**
  * Returns true if the MemoryContext has callback capabilities installed.
  */
-bool MemoryContext_hasCallbackCapability(MemoryContext ctx)
+bool
+MemoryContext_hasCallbackCapability(MemoryContext ctx)
 {
 	return ctx->methods->reset == mctxReset;
 }
@@ -120,7 +124,8 @@ bool MemoryContext_hasCallbackCapability(MemoryContext ctx)
  *      The callback function that will be called when the context is
  *      either reset or deleted.
  */     
-void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
+void
+MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 {
 	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
 	MctxCBLink* link = (MctxCBLink*)parentContextAlloc(ctx, sizeof(MctxCBLink));
@@ -138,7 +143,8 @@ void MemoryContext_addEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
  * @param func
  *      The callback function.
  */
-void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
+void
+MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 {
 	MemoryContextMethods* methods = ctx->methods;
 
@@ -164,56 +170,88 @@ void MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 	}
 }
 
-HashMap MemoryContext_getNativeCache(MemoryContext ctx)
-{
-	MemoryContextMethods* methods = ctx->methods;
-	return (methods->reset == mctxReset)
-		? ((ExtendedCtxMethods*)methods)->nativeCache : 0;
-}
-
-void MemoryContext_setNativeCache(MemoryContext ctx, HashMap nativeCache)
-{
-	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(ctx);
-	exm->nativeCache = nativeCache;
-}
-
-MemoryContext MemoryContext_switchToUpperContext(void)
+MemoryContext
+MemoryContext_switchToUpperContext(void)
 {
 	return MemoryContextSwitchTo(currentCallContext->upperContext);
 }
 
-HashMap MemoryContext_getCurrentNativeCache(void)
+static void MemoryContext_releaseCache(MemoryContext ctx, bool isDelete)
 {
-	HashMap ret = 0;
-	if(currentCallContext != 0)
-	{
-		MemoryContext ctx = currentCallContext->upperContext;
-		if(ctx != 0)
-			ret = MemoryContext_getNativeCache(ctx);
-	}
-	return ret;
-}
+	HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
+	NativeStruct_releaseCache(cache);
 
-void MemoryContext_pushJavaFrame(JNIEnv* env)
-{
-	if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+	if(isDelete)
 	{
-		/* Out of memory
-		 */
-		(*env)->ExceptionClear(env);
-		ereport(ERROR, (
-			errcode(ERRCODE_OUT_OF_MEMORY),
-			errmsg("Unable to create java frame for local references")));
+		elog(DEBUG1, "NativeStruct cache %p deleted due to deletion of context %p", cache, ctx);
+		PgObject_free((PgObject)cache);
+	}
+	else
+	{
+		elog(DEBUG1, "NativeStruct cache %p cleared due to reset of context %p", cache, ctx);
+		HashMap_clear(cache);
 	}
 }
 
-void MemoryContext_popJavaFrame(JNIEnv* env)
+HashMap
+MemoryContext_getCurrentNativeCache(void)
 {
-	bool saveIsCallingJava = isCallingJava;
+	ExtendedCtxMethods* exm = MemoryContext_ensureCallbackCapability(CurrentMemoryContext);
+	if(exm->nativeCache == 0)
+	{
+		exm->nativeCache = HashMap_create(13, CurrentMemoryContext->parent);
+		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, MemoryContext_releaseCache);
+		elog(DEBUG1, "NativeStruct cache %p created", exm->nativeCache);
+	}
+	return exm->nativeCache;
+}
 
-	/* Pop this frame. This might call finalizers.
-	 */
-	isCallingJava = true;
-	(*env)->PopLocalFrame(env, 0);
-	saveIsCallingJava = isCallingJava;
+jobject
+MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
+{
+	jobject found = 0;
+	MemoryContext ctx = CurrentMemoryContext;
+	while(ctx != 0)
+	{
+		if(ctx->methods->reset == mctxReset)
+		{
+			HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
+			if(cache != 0)
+			{
+				jobject weak = HashMap_getByOpaque(cache, nativePointer);
+				if(weak != 0)
+				{
+					found = (*env)->NewLocalRef(env, weak);
+					if(found != 0)
+						break;
+				}
+			}
+		}
+		ctx = ctx->parent;
+	}
+	return found;
+}
+	
+void
+MemoryContext_dropNative(JNIEnv* env, void* nativePointer)
+{
+	jobject found = 0;
+	MemoryContext ctx = CurrentMemoryContext;
+	while(ctx != 0)
+	{
+		if(ctx->methods->reset == mctxReset)
+		{
+			HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
+			if(cache != 0)
+			{
+				jobject weak = HashMap_removeByOpaque(cache, nativePointer);
+				if(weak != 0)
+				{
+					(*env)->DeleteWeakGlobalRef(env, weak);
+					break;
+				}
+			}
+		}
+		ctx = ctx->parent;
+	}
 }

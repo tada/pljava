@@ -7,6 +7,7 @@
 
 #include "pljava/type/Type.h"
 #include "pljava/HashMap.h"
+#include "pljava/MemoryContext.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,25 +24,11 @@ extern "C" {
  *************************************************************************/
 
 /*
- * Associates a HashMap cache with the given memory context so that the
- * cache is cleared if the context is reset and the cache is deleted
- * any previous cache is restored when the context is deleted.
- */ 
-extern void NativeStruct_addCacheManager(MemoryContext ctx);
-
-/*
- * Releases the cache associated with the given MemoryContext and marks all
- * Java objects that still refer to objects in the cache as stale. If the
- * argument isDelete is set to true, the cache will be deleted otherwise it
- * will just be cleared.
+ * Callback that is called from a MemoryContext when it is deleted or
+ * reset. Marks all java objects that still refer to objects in the cache as
+ * stale.
  */
-extern void NativeStruct_releaseCache(JNIEnv* env, MemoryContext ctx, bool isDelete);
-
-/*
- * Obtain a locally bound object form the weak cache. This method
- * will return NULL if no such object is found.
- */
-extern jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer);
+extern void NativeStruct_releaseCache(HashMap cache);
 
 /*
  * The NativeStruct_init method will assing the pointer value to a Java
@@ -55,7 +42,8 @@ extern jobject NativeStruct_obtain(JNIEnv* env, void* nativePointer);
 extern void NativeStruct_init(JNIEnv* env, jobject self, void* nativePointer);
 
 /*
- * Assing the pointer to the java object without adding it to the HashMap.
+ * Assing the pointer to the java object without adding it to the native
+ * cache.
  */
 extern void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePointer);
 

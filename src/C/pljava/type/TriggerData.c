@@ -28,7 +28,7 @@ jobject TriggerData_create(JNIEnv* env, TriggerData* td)
 	if(td == 0)
 		return 0;
 
-	jtd = NativeStruct_obtain(env, td);
+	jtd = MemoryContext_lookupNative(env, td);
 	if(jtd == 0)
 	{
 		jtd = PgObject_newJavaObject(env, s_TriggerData_class, s_TriggerData_init);

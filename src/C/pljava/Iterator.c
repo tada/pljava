@@ -31,7 +31,7 @@ Iterator Iterator_create(HashMap source)
 static Entry Iterator_peekNext(Iterator self)
 {
 	uint32 tableSize = self->source->tableSize;
-	if(tableSize == self->sourceTableSize)
+	if(tableSize != self->sourceTableSize)
 	{
 		/* Rehash during Iteration. We can't continue.
 		 */

@@ -58,6 +58,10 @@ extern CallContext* currentCallContext;
 
 extern JNIEnv* Backend_getMainEnv(void);
 
+extern void Backend_pushJavaFrame(JNIEnv* env);
+
+extern void Backend_popJavaFrame(JNIEnv* env);
+
 #ifdef __cplusplus
 }
 #endif

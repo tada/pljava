@@ -31,7 +31,7 @@ jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
 	if(td == 0)
 		return 0;
 
-	jtd = NativeStruct_obtain(env, td);
+	jtd = MemoryContext_lookupNative(env, td);
 	if(jtd == 0)
 	{
 		jtd = PgObject_newJavaObject(env, s_TupleDesc_class, s_TupleDesc_init);

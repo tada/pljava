@@ -28,7 +28,7 @@ jobject TupleTable_create(JNIEnv* env, TupleTable tts)
 	if(tts == 0)
 		return 0;
 
-	jtts = NativeStruct_obtain(env, tts);
+	jtts = MemoryContext_lookupNative(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init);

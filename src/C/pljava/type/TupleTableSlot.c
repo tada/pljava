@@ -29,7 +29,7 @@ jobject TupleTableSlot_create(JNIEnv* env, TupleTableSlot* tts)
 	if(tts == 0)
 		return 0;
 
-	jtts = NativeStruct_obtain(env, tts);
+	jtts = MemoryContext_lookupNative(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_TupleTableSlot_class, s_TupleTableSlot_init);

@@ -28,7 +28,7 @@ jobject Tuple_create(JNIEnv* env, HeapTuple ht)
 	if(ht == 0)
 		return 0;
 
-	jht = NativeStruct_obtain(env, ht);
+	jht = MemoryContext_lookupNative(env, ht);
 	if(jht == 0)
 	{
 		jht = PgObject_newJavaObject(env, s_Tuple_class, s_Tuple_init);

@@ -28,7 +28,8 @@ jobject SPITupleTable_create(JNIEnv* env, SPITupleTable* tts)
 	if(tts == 0)
 		return 0;
 
-	jtts = NativeStruct_obtain(env, tts);
+	elog(DEBUG1, "SPITupleTable %p created using MemoryContext %p", tts, CurrentMemoryContext);
+	jtts = MemoryContext_lookupNative(env, tts);
 	if(jtts == 0)
 	{
 		jtts = PgObject_newJavaObject(env, s_SPITupleTable_class, s_SPITupleTable_init);
@@ -167,5 +168,8 @@ Java_org_postgresql_pljava_internal_SPITupleTable__1invalidate(JNIEnv* env, jobj
 	PLJAVA_ENTRY_FENCE_VOID
 	tupleTable = (SPITupleTable*)NativeStruct_releasePointer(env, _this);
 	if(tupleTable != 0)
+	{
+		elog(DEBUG1, "Free of SPITupleTable %p", tupleTable);
 		SPI_freetuptable(tupleTable);
+	}
 }
