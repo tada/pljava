@@ -18,8 +18,8 @@ import java.util.LinkedHashMap;
  */
 public class ExecutionPlan extends NativeStruct
 {
-    static final int DEFAULT_INITIAL_CAPACITY = 29;
-    static final float DEFAULT_LOAD_FACTOR = 0.75f;
+    static final int INITIAL_CACHE_CAPACITY = 29;
+    static final float CACHE_LOAD_FACTOR = 0.75f;
 
     /**
      * MRU cache for prepared plans.
@@ -30,7 +30,7 @@ public class ExecutionPlan extends NativeStruct
 
 		public PlanCache(int cacheSize)
 		{
-			super(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR, true);
+			super(INITIAL_CACHE_CAPACITY, CACHE_LOAD_FACTOR, true);
 			m_cacheSize = cacheSize;
 		}
 
