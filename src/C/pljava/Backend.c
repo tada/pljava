@@ -356,10 +356,11 @@ static void _destroyJavaVM(int status, Datum dummy)
 {
 	if(s_javaVM != 0)
 	{
-		elog(LOG, "Destroying JavaVM");
+		elog(LOG, "Destroying JavaVM...");
 		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
 		isCallingJava = false;
+		elog(LOG, "JavaVM destroyed");
 		s_javaVM = 0;
 	}
 }
