@@ -765,7 +765,7 @@ static void initializeJavaVM(void)
 	vm_args.nOptions = optList.size;
 	vm_args.options  = optList.options;
 	vm_args.version  = JNI_VERSION_1_4;
-	vm_args.ignoreUnrecognized = JNI_TRUE;
+	vm_args.ignoreUnrecognized = JNI_FALSE;
 
 	elog(DEBUG1, "Creating JavaVM");
 
