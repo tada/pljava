@@ -27,6 +27,9 @@ static jmethodID s_Relation_init;
  */
 jobject Relation_create(JNIEnv* env, Relation td)
 {
+	if(td == 0)
+		return 0;
+
 	jobject jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
@@ -188,8 +191,5 @@ Java_org_postgresql_pljava_Relation_modifyTuple(JNIEnv* env, jobject _this, jobj
 		return 0L;	/* Exception */
 	}
 
-	jobject tdsc = TupleDesc_create(env, tupleDesc);
-	jobject ret  = Tuple_create(env, tuple, tdsc);
-	(*env)->DeleteLocalRef(env, tdsc);
-	return ret;
+	return Tuple_create(env, tuple);
 }

@@ -10,11 +10,11 @@ subdir = ../org.postgresql.pljava/src/C/pljava
 top_builddir = ../../../../postgresql-7.4
 include $(top_builddir)/src/Makefile.global
 
-override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux $(CPPFLAGS)
+override CPPFLAGS := -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
 override CFLAGS := -g -fpic $(CFLAGS)
 override LDFLAGS := -g -shared -L$(JAVA_HOME)/jre/lib/i386/client -ljvm $(LDFLAGS)
 
-OBJS = pljava.o PgObject.o Exception.o HashMap.o Iterator.o Function.o
+OBJS = pljava.o PgObject.o Exception.o HashMap.o Iterator.o Function.o SPI.o
 
 all: subsys libpljava.so
 

@@ -31,10 +31,14 @@ OBJS = Type.o \
 	AclId.o \
 	byte_array.o \
 	NativeStruct.o \
+	Portal.o \
 	Relation.o \
+	SPITupleTable.o \
 	TriggerData.o \
 	TupleDesc.o \
-	Tuple.o
+	Tuple.o \
+	TupleTable.o \
+	TupleTableSlot.o
 
 all: SUBSYS.o
 

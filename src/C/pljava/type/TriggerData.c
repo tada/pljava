@@ -24,6 +24,9 @@ static jmethodID s_TriggerData_init;
  */
 jobject TriggerData_create(JNIEnv* env, TriggerData* td)
 {
+	if(td == 0)
+		return 0;
+
 	jobject jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
@@ -94,10 +97,7 @@ Java_org_postgresql_pljava_TriggerData_getTriggerTuple(JNIEnv* env, jobject _thi
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0L;
-	jobject tdsc = TupleDesc_create(env, td->tg_relation->rd_att);
-	jobject tpl  = Tuple_create(env, td->tg_trigtuple, tdsc);
-	(*env)->DeleteLocalRef(env, tdsc);
-	return tpl;
+	return Tuple_create(env, td->tg_trigtuple);
 }
 
 /*
@@ -111,10 +111,7 @@ Java_org_postgresql_pljava_TriggerData_getNewTuple(JNIEnv* env, jobject _this)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0L;
-	jobject tdsc = TupleDesc_create(env, td->tg_relation->rd_att);
-	jobject tpl  = Tuple_create(env, td->tg_newtuple, tdsc);
-	(*env)->DeleteLocalRef(env, tdsc);
-	return tpl;
+	return Tuple_create(env, td->tg_newtuple);
 }
 
 /*

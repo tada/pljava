@@ -25,6 +25,9 @@ static jmethodID s_TupleDesc_init;
  */
 jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
 {
+	if(td == 0)
+		return 0;
+
 	jobject jtd = NativeStruct_obtain(env, td);
 	if(jtd == 0)
 	{
@@ -84,7 +87,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_TupleDesc_getColumnName(JNI
 	{
 		Exception_throw(env,
 			ERRCODE_INVALID_DESCRIPTOR_INDEX,
-			"Invalid attribute index \"%d\"", index);
+			"Invalid attribute index \"%d\"", (int)index);
 		return 0;
 	}
 	jstring ret = String_createJavaStringFromNTS(env, name);

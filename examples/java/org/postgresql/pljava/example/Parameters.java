@@ -12,7 +12,6 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
 import java.text.DateFormat;
 import java.util.TimeZone;
 
@@ -47,7 +46,7 @@ public class Parameters
 
 	public static double addNumbers(short a, int b, long c, BigDecimal d, BigDecimal e, float f, double g)
 	{
-		return d.doubleValue() + e.doubleValue() + (double)a + (double)b + (double)c + (double)f + g;
+		return d.doubleValue() + e.doubleValue() + a + b + c + f + g;
 	}
 
 	public static Date getDate()
@@ -67,25 +66,22 @@ public class Parameters
 	
 	public static void print(Date time)
 	{
-		DateFormat p = SimpleDateFormat.getDateInstance(
-				SimpleDateFormat.FULL);
+		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
 		System.out.println(p.format(time));
 	}
 
 	public static void print(Time time)
 	{
-		DateFormat p = SimpleDateFormat.getTimeInstance(
-				SimpleDateFormat.FULL);
+		DateFormat p = DateFormat.getTimeInstance(DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
 		System.out.println(p.format(time));
 	}
 
 	public static void print(Timestamp time)
 	{
-		String x;
-		DateFormat p = SimpleDateFormat.getDateTimeInstance(
-				SimpleDateFormat.FULL, SimpleDateFormat.FULL);
+		DateFormat p = DateFormat.getDateTimeInstance(
+				DateFormat.FULL, DateFormat.FULL);
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
 		System.out.println(p.format(time));
 	}

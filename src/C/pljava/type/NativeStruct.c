@@ -116,7 +116,7 @@ Datum NativeStruct_initialize(PG_FUNCTION_ARGS)
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_NativeStruct_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/TupleDesc"));
+				env, PgObject_getJavaClass(env, "org/postgresql/pljava/NativeStruct"));
 
 	s_NativeStruct_m_native = PgObject_getJavaField(
 				env, s_NativeStruct_class, "m_native", "J");

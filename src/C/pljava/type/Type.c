@@ -76,7 +76,7 @@ Type Type_fromOid(Oid typeId)
 			Form_pg_type typeStruct = (Form_pg_type)GETSTRUCT(typeTup);
 			if(OidIsValid(typeStruct->typrelid))
 			{
-				type = Type_fromJavaType(typeId, "org.postgresql.pljava.Tuple");
+				type = Type_fromJavaType(typeId, "org.postgresql.pljava.TupleTable");
 			}
 			else
 			{
@@ -133,10 +133,13 @@ extern Datum String_initialize(PG_FUNCTION_ARGS);
 extern Datum byte_array_initialize(PG_FUNCTION_ARGS);
 
 extern Datum NativeStruct_initialize(PG_FUNCTION_ARGS);
+extern Datum Portal_initialize(PG_FUNCTION_ARGS);
 extern Datum Relation_initialize(PG_FUNCTION_ARGS);
 extern Datum TriggerData_initialize(PG_FUNCTION_ARGS);
 extern Datum Tuple_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleDesc_initialize(PG_FUNCTION_ARGS);
+extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
+extern Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS);
 
 /* Make this datatype available to the postgres system.
  */
@@ -171,10 +174,13 @@ Datum Type_initialize(PG_FUNCTION_ARGS)
 	byte_array_initialize(fcinfo);
 
 	NativeStruct_initialize(fcinfo);
+	Portal_initialize(fcinfo);
 	TriggerData_initialize(fcinfo);
 	Relation_initialize(fcinfo);
 	TupleDesc_initialize(fcinfo);
 	Tuple_initialize(fcinfo);
+	TupleTable_initialize(fcinfo);
+	TupleTableSlot_initialize(fcinfo);
 	PG_RETURN_VOID();
 }
 

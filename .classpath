@@ -4,6 +4,7 @@
 	<classpathentry output="bin/test/classes" kind="src" path="test"/>
 	<classpathentry output="bin/examples/classes" kind="src" path="examples/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="/usr/share/pgsql/devpgjdbc3.jar"/>
+	<classpathentry kind="var" path="THIRD_PARTY_TOOLS"/>
+	<classpathentry kind="lib" path="org.postgresql.jdbc"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

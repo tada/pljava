@@ -345,8 +345,7 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 	return retval;
 }
 
-extern jint JNI_OnLoad(JavaVM* vm, void* reserved);
-jint JNI_OnLoad(JavaVM* vm, void* reserved)
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
 	return JNI_VERSION_1_4;
 }

@@ -16,6 +16,7 @@ import org.postgresql.pljava.Relation;
 import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.Tuple;
+import org.postgresql.pljava.TupleDesc;
 
 /**
  * This class contains some triggers that I found written in C under the
@@ -52,8 +53,9 @@ public class Triggers
 			throw new TriggerException(td, "one argument was expected");
 
 		Relation rel = td.getRelation();
-		int attnum = rel.getTupleDesc().getColumnIndex(args[0]);
-		if(tuple.getObject(attnum) == null)
+		TupleDesc desc = rel.getTupleDesc();
+		int attnum = desc.getColumnIndex(args[0]);
+		if(tuple.getObject(desc, attnum) == null)
 		{	
 			String userName = AclId.getUser().getName();
 			tuple = rel.modifyTuple(tuple, new int[] { attnum }, new Object[] { userName });

@@ -24,12 +24,15 @@ static jmethodID s_Tuple_init;
 /*
  * org.postgresql.pljava.type.Tuple type.
  */
-jobject Tuple_create(JNIEnv* env, HeapTuple ht, jobject tupleDesc)
+jobject Tuple_create(JNIEnv* env, HeapTuple ht)
 {
+	if(ht == 0)
+		return 0;
+
 	jobject jht = NativeStruct_obtain(env, ht);
 	if(jht == 0)
 	{
-		jht = (*env)->NewObject(env, s_Tuple_class, s_Tuple_init, tupleDesc);
+		jht = (*env)->NewObject(env, s_Tuple_class, s_Tuple_init);
 		NativeStruct_init(env, jht, ht);
 	}
 	return jht;
@@ -37,11 +40,8 @@ jobject Tuple_create(JNIEnv* env, HeapTuple ht, jobject tupleDesc)
 
 static jvalue _Tuple_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
-	TupleTableSlot* slot = (TupleTableSlot*)DatumGetPointer(arg);
-	jobject desc = TupleDesc_create(env, slot->ttc_tupleDescriptor);
 	jvalue result;
-	result.l = Tuple_create(env, slot->val, desc);
-	(*env)->DeleteLocalRef(env, desc);
+	result.l = Tuple_create(env, (HeapTuple)DatumGetPointer(arg));
 	return result;
 }
 
@@ -62,7 +62,7 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/Tuple"));
 
 	s_Tuple_init = PgObject_getJavaMethod(
-				env, s_Tuple_class, "<init>", "(Lorg/postgresql/pljava/TupleDesc;)V");
+				env, s_Tuple_class, "<init>", "()V");
 
 	s_TupleClass = NativeStructClass_alloc("type.Tuple");
 	s_TupleClass->JNISignature   = "Lorg/postgresql/pljava/Tuple;";
@@ -80,11 +80,11 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
  
 /*
  * Class:     org_postgresql_pljava_Tuple
- * Method:    _getObject
+ * Method:    getObject
  * Signature: (Lorg/postgresql/pljava/TupleDesc;I)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_Tuple__1getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
+Java_org_postgresql_pljava_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
 	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
 	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);

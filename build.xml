@@ -10,6 +10,9 @@
 
 		<delete dir="bin" failonerror="false" quiet="true"/>
 		<delete dir="generated" failonerror="false" quiet="true"/>
+		<delete quiet="true">
+			<fileset dir="src/C/include/pljava" includes="**/*_JNI.h"/>
+		</delete>
 	</target>
 
 	<target
@@ -72,11 +75,20 @@
 		depends="backend_jar"
 		description="Generates C/C++ header files for all native calls made from Java">
 
-		<mkdir dir="generated"/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.SPI"
+			outputfile="src/C/include/pljava/SPI_JNI.h"
+			/>
 		<javah
 			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.AclId"
 			outputfile="src/C/include/pljava/type/AclId_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.Portal"
+			outputfile="src/C/include/pljava/type/Portal_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
@@ -85,8 +97,18 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.SPITupleTable"
+			outputfile="src/C/include/pljava/type/SPITupleTable_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
 			class="org.postgresql.pljava.TriggerData"
 			outputfile="src/C/include/pljava/type/TriggerData_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.Tuple"
+			outputfile="src/C/include/pljava/type/Tuple_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"
@@ -95,8 +117,13 @@
 			/>
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.Tuple"
-			outputfile="src/C/include/pljava/type/Tuple_JNI.h"
+			class="org.postgresql.pljava.TupleTable"
+			outputfile="src/C/include/pljava/type/TupleTable_JNI.h"
+			/>
+		<javah
+			classpath="bin/pljava.jar"
+			class="org.postgresql.pljava.TupleTableSlot"
+			outputfile="src/C/include/pljava/type/TupleTableSlot_JNI.h"
 			/>
 	</target>
 </project>
