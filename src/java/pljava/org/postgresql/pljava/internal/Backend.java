@@ -183,7 +183,9 @@ public class Backend
 	}
 
 	/**
-	 * Called when the JVM is first booted.
+	 * Called when the JVM is first booted and then everytime a switch
+	 * is made between calling a trusted function versus an untrusted
+	 * function.
 	 */
 	private static void setTrusted(boolean trusted)
 	{

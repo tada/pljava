@@ -5,8 +5,8 @@
 <mapEntry key="org.eclipse.cdt.core.errorOutputParser" value="org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.VCErrorParser;"/>
 <mapEntry key="org.eclipse.cdt.make.core.fullBuildTarget" value="clean all"/>
 <mapEntry key="org.eclipse.cdt.make.core.incrementalBuildTarget" value="all"/>
-<mapEntry key="org.eclipse.cdt.make.core.buildLocation" value=""/>
 <mapEntry key="org.eclipse.cdt.make.core.enableAutoBuild" value="false"/>
+<mapEntry key="org.eclipse.cdt.make.core.buildLocation" value=""/>
 <mapEntry key="org.eclipse.cdt.make.core.enableFullBuild" value="true"/>
 <mapEntry key="org.eclipse.cdt.make.core.enabledIncrementalBuild" value="true"/>
 <mapEntry key="org.eclipse.cdt.make.core.enableCleanBuild" value="true"/>
@@ -14,8 +14,9 @@
 <mapEntry key="org.eclipse.cdt.make.core.useDefaultBuildCmd" value="true"/>
 <mapEntry key="org.eclipse.cdt.make.core.buildArguments" value=""/>
 <mapEntry key="org.eclipse.cdt.make.core.buildCommand" value="c:/msys/1.0/bin/make"/>
-<mapEntry key="org.eclipse.cdt.make.core.autoBuildTarget" value="all"/>
 <mapEntry key="org.eclipse.cdt.make.core.stopOnError" value="false"/>
+<mapEntry key="org.eclipse.cdt.make.core.autoBuildTarget" value="all"/>
 </mapAttribute>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_DISABLED_BUILDER" value="org.eclipse.cdt.make.core.makeBuilder"/>
+<booleanAttribute key="org.eclipse.ui.externaltools.ATTR_TRIGGERS_CONFIGURED" value="true"/>
 </launchConfiguration>

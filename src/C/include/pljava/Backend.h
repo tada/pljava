@@ -56,6 +56,11 @@ struct CallContext_
 	bool          inExprContextCB;
 
 	/**
+	 * Set to true if the executing function is trusted
+	 */
+	bool          trusted;
+
+	/**
 	 * The currently executing Function.
 	 */
 	Function      function;
@@ -81,7 +86,9 @@ extern void Backend_assertConnect(void);
 
 extern void Backend_assertDisconnect(void);
 
-extern void Backend_initCallContext(CallContext* ctx);
+extern void Backend_pushCallContext(CallContext* ctx, bool trusted);
+
+extern void Backend_popCallContext(void);
 
 extern JNIEnv* Backend_getJNIEnv(void);
 

@@ -22,11 +22,9 @@
 #include "pljava/MemoryContext.h"
 
 
-#ifndef GCJ /* Bug libgcj/15001 */
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
-#endif
 
 static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
@@ -43,12 +41,8 @@ typedef struct
 	jobject       singleRowWriter;
 	jobject       resultSetProvider;
 	bool          hasConnected;
+	bool          trusted;
 	MemoryContext memoryContext;
-
-#ifdef GCJ /* Bug libgcj/15001 */
-	jmethodID     assignRowValues;
-	jmethodID     close;
-#endif
 } CallContextData;
 
 static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
@@ -58,16 +52,13 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 
 	currentCallContext->hasConnected = ctxData->hasConnected;
 	isCallingJava = true;
-#ifdef GCJ /* Bug libgcj/15001 */
-	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, ctxData->close);
-#else
 	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
-#endif
 	isCallingJava = saveicj;
 
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
 	Backend_assertDisconnect();
+	pfree(ctxData);
 }
 
 static void _ResultSetProvider_endOfSetCB(Datum arg)
@@ -77,7 +68,7 @@ static void _ResultSetProvider_endOfSetCB(Datum arg)
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
 	MemoryContext currCtx = MemoryContextSwitchTo(ctxData->memoryContext);
 	if(currentCallContext == 0)
-		Backend_initCallContext(&topCall);
+		Backend_pushCallContext(&topCall, ctxData->trusted);
 
 	saveInExprCtxCB = currentCallContext->inExprContextCB;
 	currentCallContext->inExprContextCB = true;
@@ -103,9 +94,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	 */
 	if(SRF_IS_FIRSTCALL())
 	{
-#ifdef GCJ /* Bug libgcj/15001 */
-		jclass rsClass;
-#endif
 		jobject tmp;
 		jobject tmp2;
 		ReturnSetInfo* rsInfo;
@@ -114,14 +102,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
-
 		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
-		
-		/* AllocSetContextCreate(TopMemoryContext,
-									"PLJava Multi row context",
-									ALLOCSET_SMALL_MINSIZE,
-									ALLOCSET_SMALL_INITSIZE,
-									ALLOCSET_SMALL_MAXSIZE)); */
 
 		/* Create the context used by Pl/Java
 		 */
@@ -183,14 +164,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 		ctxData->jniEnv            = env;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
-#ifdef GCJ /* Bug libgcj/15001 */
-		rsClass = (*env)->GetObjectClass(env, tmp);
-		ctxData->assignRowValues = PgObject_getJavaMethod(
-				env, rsClass, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
-		ctxData->close = PgObject_getJavaMethod(
-				env, rsClass, "close", "()V");
-		(*env)->DeleteLocalRef(env, rsClass);
-#endif
 		(*env)->DeleteLocalRef(env, tmp);
 		tmp = TupleDesc_create(env, tupleDesc);
 		tmp2 = SingleRowWriter_create(env, tmp);
@@ -200,6 +173,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 		ctxData->memoryContext = CurrentMemoryContext;
 		ctxData->hasConnected  = currentCallContext->hasConnected;
+		ctxData->trusted       = currentCallContext->trusted;
 
 		/* Register callback to be called when the function ends
 		 */
@@ -217,19 +191,11 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	 * ResultSetProvider.assignRowValues method.
 	 */
 	isCallingJava = true;
-#ifdef GCJ /* Bug libgcj/15001 */
-	hasRow = ((*env)->CallBooleanMethod(
-			env, ctxData->resultSetProvider,
-			ctxData->assignRowValues,
-			ctxData->singleRowWriter,
-			(jint)context->call_cntr) == JNI_TRUE);
-#else
 	hasRow = ((*env)->CallBooleanMethod(
 			env, ctxData->resultSetProvider,
 			s_ResultSetProvider_assignRowValues,
 			ctxData->singleRowWriter,
 			(jint)context->call_cntr) == JNI_TRUE);
-#endif
 	isCallingJava = saveicj;
 	ctxData->hasConnected = currentCallContext->hasConnected;
 	currentCallContext->hasConnected = false;
@@ -312,7 +278,6 @@ PG_FUNCTION_INFO_V1(ResultSetProvider_initialize);
 Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 {
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-#ifndef GCJ /* Bug libgcj/15001 */
 	s_ResultSetProvider_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetProvider"));
 
@@ -320,7 +285,6 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 				env, s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
 	s_ResultSetProvider_close = PgObject_getJavaMethod(
 				env, s_ResultSetProvider_class, "close", "()V");
-#endif
 	s_ResultSetHandle_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetHandle"));
 	s_ResultSetPicker_class = (*env)->NewGlobalRef(

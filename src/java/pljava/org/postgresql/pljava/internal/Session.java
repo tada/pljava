@@ -142,5 +142,14 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 		}
 	}
 
+	/**
+	 * Called from native code when the JVM is instantiated.
+	 */
+	static void init()
+	throws SQLException
+	{
+		ELogHandler.init();
+	}
+
 	private static native void _setUser(AclId userId);
 }

@@ -162,19 +162,61 @@ static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
 	}
 }
 
+/**
+ *  Initialize security
+ */
+static void setJavaSecurity(JNIEnv* env, bool trusted)
+{
+	bool saveICJ = isCallingJava;
+	isCallingJava = true;
+	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
+	isCallingJava = saveICJ;
+
+	if((*env)->ExceptionCheck(env))
+	{
+		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unable to initialize java security")));
+	}
+}
+
 CallContext* currentCallContext;
 
-void Backend_initCallContext(CallContext* ctx)
+void Backend_pushCallContext(CallContext* ctx, bool trusted)
 {
 	ctx->jniEnv          = s_mainEnv;	/* The one and only at the moment */
 	ctx->invocation      = 0;
 	ctx->function        = 0;
+	ctx->trusted         = trusted;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccured    = false;
 	ctx->inExprContextCB = false;
 	ctx->previous        = currentCallContext;
 	currentCallContext   = ctx;
+
+	if(trusted != s_currentTrust)
+	{
+		setJavaSecurity(ctx->jniEnv, trusted);
+		s_currentTrust = trusted;
+	}
+}
+
+void Backend_popCallContext(void)
+{
+	CallContext* ctx = currentCallContext->previous;
+	if(ctx != 0)
+	{
+		if(ctx->trusted != s_currentTrust)
+		{
+			setJavaSecurity(ctx->jniEnv, ctx->trusted);
+			s_currentTrust = ctx->trusted;
+		}
+		MemoryContextSwitchTo(ctx->upperContext);
+	}
+	currentCallContext = ctx;
 }
 
 void Backend_pushJavaFrame(JNIEnv* env)
@@ -579,46 +621,20 @@ static void addUserJVMOptions(JVMOptList* optList)
 #endif
 
 /**
- *  Initialize security
+ *  Initialize the session
  */
-static void setJavaSecurity(JNIEnv* env, bool trusted)
+static void initJavaSession(JNIEnv* env)
 {
-/* GCJ goes into an endless loop when we manipulate the SecurityManager
- * this is said to be fixed in 4.0 but in time of writing, that's still
- * very early alpha
- */
-#ifndef GCJ
-	bool saveICJ = isCallingJava;
-	isCallingJava = true;
-	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
-	isCallingJava = saveICJ;
-
-	if((*env)->ExceptionCheck(env))
-	{
-		(*env)->ExceptionDescribe(env);
-		(*env)->ExceptionClear(env);
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Unable to initialize java security")));
-	}
-#endif
-}
-
-/**
- *  Initialize the logger
- */
-static void initJavaLogger(JNIEnv* env)
-{
-	jclass logHandlerClass;
+	jclass sessionClass;
 	jmethodID init;
 	bool saveICJ = isCallingJava;
 
 	isCallingJava = true;
-	logHandlerClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ELogHandler");
-	init = PgObject_getStaticJavaMethod(env, logHandlerClass, "init", "()V");
-	(*env)->CallStaticVoidMethod(env, logHandlerClass, init);
+	sessionClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Session");
+	init = PgObject_getStaticJavaMethod(env, sessionClass, "init", "()V");
+	(*env)->CallStaticVoidMethod(env, sessionClass, init);
 	isCallingJava = saveICJ;
-	(*env)->DeleteLocalRef(env, logHandlerClass);
+	(*env)->DeleteLocalRef(env, sessionClass);
 
 	if((*env)->ExceptionCheck(env))
 	{
@@ -626,7 +642,7 @@ static void initJavaLogger(JNIEnv* env)
 		(*env)->ExceptionClear(env);
 		ereport(ERROR, (
 			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Unable to initialize java logger")));
+			errmsg("Unable to initialize java session")));
 	}
 }
 
@@ -785,7 +801,7 @@ static void initializeJavaVM(void)
 	 */
 	on_proc_exit(_destroyJavaVM, 0);
 	initPLJavaClasses(s_mainEnv);
-	initJavaLogger(s_mainEnv);
+	initJavaSession(s_mainEnv);
 }
 
 void
@@ -847,23 +863,22 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	bool saveIsCallingJava = isCallingJava;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 
-	Backend_initCallContext(&ctx);
-
 	if(s_javaVM == 0)
 	{
+		/* Initialize the VM, we pass the s_currentTrust here
+		 * to ensure that the pushCallContext doesn't call on
+		 * Java until the JVM is initialized.
+		 */
+		Backend_pushCallContext(&ctx, s_currentTrust);
 		initializeJavaVM();
-		
-		// Force initial setting
-		//
+		Backend_popCallContext();
+
+		/* Force initial setting
+		 */
 		s_currentTrust = !trusted;
 	}
 
-	if(trusted != s_currentTrust)
-	{
-		setJavaSecurity(s_mainEnv, trusted);
-		s_currentTrust = trusted;
-	}
-
+	Backend_pushCallContext(&ctx, trusted);
 	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
 	{
 		Backend_pushJavaFrame(s_mainEnv);
@@ -897,18 +912,18 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		}
 
 		--s_callLevel;
-		isCallingJava      = saveIsCallingJava;
+		isCallingJava = saveIsCallingJava;
 		Backend_assertDisconnect();
-		currentCallContext = ctx.previous;
+		Backend_popCallContext();
 	}
 	PG_CATCH();
 	{
 		--s_callLevel;
-		isCallingJava      = saveIsCallingJava;
+		isCallingJava = saveIsCallingJava;
 		if(ctx.invocation != 0)
 			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
 		Backend_assertDisconnect();
-		currentCallContext = ctx.previous;
+		Backend_popCallContext();
 		PG_RE_THROW();
 	}
 	PG_END_TRY();

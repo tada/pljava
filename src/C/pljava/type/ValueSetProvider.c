@@ -14,11 +14,9 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 
-#ifndef GCJ /* Bug libgcj/15001 */
 static jclass s_Iterator_class;
 static jmethodID s_Iterator_hasNext;
 static jmethodID s_Iterator_next;
-#endif
 
 static TypeClass s_ValueSetProviderClass;
 static HashMap s_cache;	/* Cached by element type */
@@ -27,10 +25,6 @@ typedef struct
 {
 	jobject iterator;
 	Type    elementType;
-#ifdef GCJ /* Bug libgcj/15001 */
-	jmethodID next;
-	jmethodID hasNext;
-#endif
 } CallContextData;
 
 static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
@@ -44,9 +38,6 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 	 */
 	if(SRF_IS_FIRSTCALL())
 	{
-#ifdef GCJ /* Bug libgcj/15001 */
-		jclass rsClass;
-#endif
 		MemoryContext currCtx;
 		jobject tmp;
 
@@ -79,14 +70,6 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 		context->user_fctx = ctxData;
 		ctxData->iterator = (*env)->NewGlobalRef(env, tmp);
 		ctxData->elementType = Type_fromOid(Type_getOid(self));
-#ifdef GCJ /* Bug libgcj/15001 */
-		rsClass = (*env)->GetObjectClass(env, tmp);
-		ctxData->hasNext = PgObject_getJavaMethod(
-				env, rsClass, "hasNext", "()Z");
-		ctxData->next = PgObject_getJavaMethod(
-				env, rsClass, "next", "()Ljava/lang/Object;");
-		(*env)->DeleteLocalRef(env, rsClass);
-#endif
 		(*env)->DeleteLocalRef(env, tmp);
 	}
 
@@ -98,13 +81,7 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 	 */
 	isCallingJava = true;
 	hasRow = ((*env)->CallBooleanMethod(
-			env, ctxData->iterator,
-#ifdef GCJ /* Bug libgcj/15001 */
-			ctxData->hasNext
-#else
-			s_Iterator_hasNext
-#endif
-			) == JNI_TRUE);
+					env, ctxData->iterator, s_Iterator_hasNext) == JNI_TRUE);
 	isCallingJava = saveicj;
 
 	if(hasRow)
@@ -114,11 +91,7 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 		jobject tmp;
 		
 		isCallingJava = true;
-#ifdef GCJ /* Bug libgcj/15001 */
-		tmp = (*env)->CallObjectMethod(env, ctxData->iterator, ctxData->next);
-#else
 		tmp = (*env)->CallObjectMethod(env, ctxData->iterator, s_Iterator_next);
-#endif
 		isCallingJava = saveicj;
 
 		/* The element must be coerced using the return value context
@@ -168,7 +141,6 @@ extern Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ValueSetProvider_initialize);
 Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS)
 {
-#ifndef GCJ /* Bug libgcj/15001 */
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 	s_Iterator_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "java/util/Iterator"));
@@ -176,7 +148,6 @@ Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS)
 				env, s_Iterator_class, "hasNext", "()Z");
 	s_Iterator_next = PgObject_getJavaMethod(
 				env, s_Iterator_class, "next", "()Ljava/lang/Object;");
-#endif
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
