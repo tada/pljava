@@ -206,6 +206,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.SPIActions.getTimeAsString'
 			STABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.logMessage(varchar, varchar)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.LoggerTest.logMessage'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE TYPE javatest.MetaDataBooleans
 			AS (method_name varchar(200), result boolean);
 

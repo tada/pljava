@@ -1048,10 +1048,40 @@ Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize(JNIEnv* env,
 JNIEXPORT void JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
-	char* str;
-	str = String_createNTS(env, jstr);
+	int percentCount = 0;
+	const char* cp;
+	char c;
+	char* str = String_createNTS(env, jstr);
 	if(str == 0)
 		return;
+
+	/* elog uses printf formatting but the logger does not so we must escape all
+	 * '%' in the string.
+	 */
+	for(cp = str; (c = *cp) != 0; ++cp)
+	{
+		if(c == '%')
+			++percentCount;
+	}
+
+	if(percentCount > 0)
+	{
+		/* Make room to expand all "%" to "%%"
+		 */
+		char* str2 = palloc((cp - str) + percentCount + 1);
+		char* cp2 = str2;
+
+		/* Expand... */
+		for(cp = str; (c = *cp) != 0; ++cp)
+		{
+			if(c == '%')
+				*cp2++ = c;
+			*cp2++ = c;
+		}
+		*cp2 = 0;
+		pfree(str);
+		str = str2;
+	}
 
 	PG_TRY();
 	{
