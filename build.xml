@@ -9,6 +9,7 @@
 		description="Removes all artifacts from previous builds">
 
 		<delete dir="bin" failonerror="false" quiet="true"/>
+		<delete dir="doc" failonerror="false" quiet="true"/>
 		<delete dir="generated" failonerror="false" quiet="true"/>
 		<delete quiet="true">
 			<fileset dir="src/C/include/pljava" includes="**/*_JNI.h"/>
@@ -37,6 +38,24 @@
 			compress="true"
 			destfile="bin/pljava.jar"
 			/>
+	</target>
+
+	<target
+		name="deploy_jar"
+		description="Code needed to deploy the system">
+
+		<mkdir dir="bin/deploy/classes"/>
+		<javac
+			srcdir="deploy/java"
+			destdir="bin/deploy/classes"
+			target="1.4"
+			/>
+
+		<jar basedir="bin/deploy/classes"
+			compress="true"
+			destfile="bin/deploy.jar"
+			manifest="deploy/META-INF/manifest.txt"
+		/>
 	</target>
 
 	<target
@@ -71,14 +90,46 @@
 	</target>
 
 	<target
+		name="javadoc"
+		description="Generates Java API documentation">
+		
+		<mkdir dir="doc/api"/>
+
+        <javadoc
+        	destdir="doc/api"
+        	access="package"
+        	use="true"
+        	notree="false"
+        	nonavbar="false"
+        	noindex="false"
+        	splitindex="true"
+        	author="true"
+        	version="true"
+        	nodeprecatedlist="false"
+        	nodeprecated="false"
+        	packagenames="org.postgresql.pljava.*"
+			doctitle="PostgreSQL backend Java API documentation"
+			windowtitle="PostgreSQL backend Java API documentation"
+			header="pljava 1.0.0"
+			failonerror="yes">
+			<sourcepath>
+				<path location="src/java"/>
+				<path location="deploy/java"/>
+				<path location="examples/java"/>
+				<path location="test"/>
+			</sourcepath>
+		</javadoc>
+	</target>
+
+	<target
 		name="generate_headers"
 		depends="backend_jar"
 		description="Generates C/C++ header files for all native calls made from Java">
 
 		<javah
 			classpath="bin/pljava.jar"
-			class="org.postgresql.pljava.Server"
-			outputfile="src/C/include/pljava/Server_JNI.h"
+			class="org.postgresql.pljava.internal.Backend"
+			outputfile="src/C/include/pljava/Backend_JNI.h"
 			/>
 		<javah
 			classpath="bin/pljava.jar"

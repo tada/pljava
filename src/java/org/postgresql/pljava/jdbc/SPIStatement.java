@@ -14,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
 
-import org.postgresql.pljava.Server;
 import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
@@ -104,13 +103,11 @@ public class SPIStatement implements Statement
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
-			Server.log("plan will produce cursor");
 			Portal portal = plan.cursorOpen(m_cursorName, paramValues);
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else
 		{	
-			Server.log("plan is not a cursor");
 			plan.execp(paramValues, m_maxRows);
 			m_updateCount = SPI.getProcessed();
 		}
@@ -311,7 +308,7 @@ public class SPIStatement implements Statement
 
 
 	/**
-	 * Only {@link ResultSet#FETCH_FORWARD is supported.
+	 * Only {@link ResultSet#FETCH_FORWARD} is supported.
 	 * @throws SQLException indicating that this feature is not supported
 	 * for other values on <code>direction</code>.
 	 */

@@ -24,7 +24,7 @@
 #include "pljava/type/NativeStruct.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
-#include "pljava/Server_JNI.h"
+#include "pljava/Backend_JNI.h"
 #include "pljava/type/String.h"
 
 /* Example format: "/usr/local/pgsql/lib" */
@@ -34,6 +34,7 @@
 
 DECLARE_MUTEX(jvmInitMutex)
 pthread_t pljava_mainThread;
+bool elogErrorOccured;
 
 #define LOCAL_REFERENCE_COUNT 32
 
@@ -71,12 +72,15 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 
 	/* Push a new "try/catch" block.
 	 */
+	bool saveErrorOccured = elogErrorOccured;
+	elogErrorOccured = false;
 	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
 	if(sigsetjmp(Warn_restart, 1) != 0)
 	{
 		/* Catch block.
 		 */
 		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
+		elogErrorOccured = saveErrorOccured;
 		NativeStruct_expireAll(env);
 		(*env)->PopLocalFrame(env, 0);
 		siglongjmp(Warn_restart, 1);
@@ -98,13 +102,27 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 		retval = Function_invoke(function, env, fcinfo);
 	}
 	Exception_checkException(env);
+	if(elogErrorOccured)
+		longjmp(Warn_restart, 1);
 
 	/* Pop of the "try/catch" block.
 	 */
 	memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
+	elogErrorOccured = saveErrorOccured;
 	NativeStruct_expireAll(env);
 	(*env)->PopLocalFrame(env, 0);
 	return retval;
+}
+
+bool pljavaEntryFence(JNIEnv* env)
+{
+	if(elogErrorOccured)
+	{
+		Exception_elogErrorException(env);
+		return true;
+	}
+	THREAD_FENCE(true)
+	return false;
 }
 
 /**
@@ -124,7 +142,7 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
  	++ep;
  	*ep = 0;
 
-    elog(LOG, buf);
+    elog(INFO, buf);
     return 0;
 }
 
@@ -144,7 +162,14 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 		if(*path == 0)
 			break;
 
-		size_t len = strcspn(path, ":");
+		size_t len = strcspn(path, ";:");
+
+		if(len == 1 && *(path+1) == ':' && isalnum(*path))
+			/*
+			 * Windows drive designator, leave it "as is".
+			 */
+			len = strcspn(path+2, ";:") + 2;
+		else
 		if(len == 0)
 			{
 			/* Ignore zero length components.
@@ -154,9 +179,48 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			}
 
 		initStringInfo(&buf);
+
+#ifdef CYGWIN
+		/**
+		 * Translate "/cygdrive/<driverLetter>/" into "<driveLetter>:/" since
+		 * the JVM dynamic loader will not recognize the former.
+		 * 
+		 * This is somewhat ugly and will be removed as soon as the native port
+		 * of postgresql is released.
+		 */
+		if(len >= 11
+		&& (*path == '/' || *path == '\\')
+		&& strncmp(path + 1, "cygdrive", 8) == 0)
+		{
+			const char* cp = path + 9;
+			if(*cp == '/' || *cp == '\\')
+			{
+				++cp;
+				char driveLetter = *cp;
+				if(isalnum(driveLetter))
+				{
+					++cp;
+					char sep = *cp;
+					if(sep == '/' || sep == '\\' || sep == ':' || sep == ';' || sep == 0)
+					{
+						/* Path starts with /cygdrive/<driveLetter>. Replace
+						 * this with <driverLetter>:\
+						 */
+						appendStringInfoChar(&buf, driveLetter);
+						appendStringInfo(&buf, ":\\");
+						if(sep == '\\' || sep == '/')
+							++cp;
+						len -= (cp - path);
+						path = cp;
+					}
+				}
+			}
+		}				
+#endif
+
 		if(*path == '$')
 		{
-			if((len == 7 || strcspn(path, "/\\") == 7) && strncmp(path, "$libdir", 7) == 0)
+			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
 			{
 				len -= 7;
 				path += 7;
@@ -165,7 +229,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			else
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name in dynamic library path")));
+					errmsg("invalid macro name '%*s' in dynamic library path", len, path)));
 		}
 
 		if(len > 0)
@@ -180,7 +244,11 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, prefix);
 			else
+#if WIN32 || CYGWIN
+				appendStringInfoChar(bld, ';');
+#else
 				appendStringInfoChar(bld, ':');
+#endif
 			appendStringInfo(bld, part);
 			HashMap_putByString(unique, part, (void*)1);
 		}
@@ -207,9 +275,11 @@ static char* getLibraryPath(const char* prefix)
 	initStringInfo(&buf);
 
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
-	appendPathParts(Dynamic_library_path, &buf, unique, prefix);
+	const char* dynPath = GetConfigOption("dynamic_library_path");
+	if(dynPath != 0)
+		appendPathParts(dynPath, &buf, unique, prefix);
 
-#ifdef WIN32
+#if WIN32 || CYGWIN
 	appendPathParts(getenv("PATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
 #else
 	appendPathParts(getenv("LD_LIBRARY_PATH"), &buf, unique, prefix);
@@ -275,6 +345,13 @@ static void initializeJavaVM()
 		nOptions++;
 	}
 
+	/**
+	 * As stipulated by JRT-2003
+	 */
+	options[nOptions].optionString = "-Dsqlj.defaultconnection=jdbc:default:connection";
+	options[nOptions].extraInfo = 0;
+	nOptions++;
+
 	options[nOptions].optionString = "vfprintf";
 	options[nOptions].extraInfo = (void*)my_vfprintf;
 	nOptions++;
@@ -333,12 +410,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 }
 
 /*
- * Class:     org_postgresql_pljava_Server
+ * Class:     org_postgresql_pljava_internal_Backend
  * Method:    log
  * Signature: (ILjava/lang/String;)V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_Server_log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
+Java_org_postgresql_pljava_internal_Backend_log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
 	THREAD_FENCE_VOID
 	char* str = String_createNTS(env, jstr);
@@ -347,3 +424,14 @@ Java_org_postgresql_pljava_Server_log(JNIEnv* env, jclass cls, jint logLevel, js
 	elog(logLevel, str);
 	pfree(str);
 }	
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    isBackendThread
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend_isBackendThread(JNIEnv* env, jclass cls)
+{
+	return IS_MAIN_THREAD ? JNI_TRUE : JNI_FALSE;
+}

@@ -45,7 +45,7 @@ public class SPIDriver implements Driver
 	public boolean acceptsURL(String url)
 	throws SQLException
 	{
-		return "jdbc:postgresql:pljava".equals(url);
+		return "jdbc:default:connection".equals(url);
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)

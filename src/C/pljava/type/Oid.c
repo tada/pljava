@@ -150,9 +150,9 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
 	s_Oid = TypeClass_allocInstance(s_OidClass);
-	jobject oidOid = Oid_create(env, OIDOID);
-	s_OidOid = (*env)->NewGlobalRef(env, oidOid);
-	(*env)->DeleteLocalRef(env, oidOid);
+	jobject tmp = Oid_create(env, OIDOID);
+	s_OidOid = (*env)->NewGlobalRef(env, tmp);
+	(*env)->DeleteLocalRef(env, tmp);
 
 	Type_registerPgType(OIDOID, Oid_obtain);
 	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
@@ -173,7 +173,7 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	return Oid_create(env, Oid_forSqlType(sqlType));
 }
 
@@ -187,4 +187,3 @@ Java_org_postgresql_pljava_internal_Oid_getTypeId(JNIEnv* env, jclass cls)
 {
 	return s_OidOid;
 }
-

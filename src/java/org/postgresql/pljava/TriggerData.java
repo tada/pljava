@@ -19,8 +19,10 @@ public interface TriggerData
 	 * Returns the ResultSet that represents the new row. This ResultSet will
 	 * be null for delete triggers and for triggers that was fired for
 	 * statement. <br/>The returned set will be updateable and positioned on a
-	 * valid row.
-	 * 
+	 * valid row. When the trigger call returns, the trigger manager will see
+	 * the changes that has been made to this row and construct a new tuple
+	 * which will become the new or updated row.
+	 *
 	 * @return An updateable <code>ResultSet</code> containing one row or
 	 *         <code>null</code>.
 	 * @throws SQLException

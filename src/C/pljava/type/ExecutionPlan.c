@@ -19,6 +19,7 @@
 #include "pljava/type/ExecutionPlan_JNI.h"
 
 #include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+#include <utils/guc.h> /* Needed to get to the argtypes of the plan */
 
 static bool s_deathRowFlag;
 
@@ -119,7 +120,8 @@ static void ExecutionPlan_freeDeathRowCandidates(JNIEnv* env)
 	for(idx = 0; idx < sz; ++idx)
 	{
 		p2r.longVal = deathRow[idx];
-		elog(LOG, "Freeing plan previously finalized in other thread");
+		elog(WARNING,
+			"Freeing plan using finalizer. Someone forgot to close a PreparedStatement");
 		SPI_freeplan(p2r.ptrVal);
 	}
 	(*env)->ReleaseLongArrayElements(env, longArr, deathRow, JNI_ABORT);
@@ -193,11 +195,11 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 			}
 		}
 	}
-
 	*valuesPtr = values;
 	*nullsPtr = nulls;
 	return true;
 }
+
 /****************************************
  * JNI methods
  ****************************************/
@@ -209,29 +211,39 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	Datum* values = 0;
-	char*  nulls  = 0;
-	if(!coerceObjects(env, ePlan, jvalues, &values, &nulls))
-		return 0;
-
-	char* name = 0;
-	if(cursorName != 0)
-		name = String_createNTS(env, cursorName);
-
-	Portal portal = SPI_cursor_open(name, ePlan, values, nulls);
-	if(name != 0)
-		pfree(name);
-	if(values != 0)
-		pfree(values);
-	if(nulls != 0)
-		pfree(nulls);
-
-	return Portal_create(env, portal);
+	jobject jportal = 0;
+	PLJAVA_TRY
+	{
+		Datum*  values  = 0;
+		char*   nulls   = 0;
+		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
+		{
+			char* name = 0;
+			if(cursorName != 0)
+				name = String_createNTS(env, cursorName);
+		
+			Portal portal = SPI_cursor_open(name, ePlan, values, nulls);
+			if(name != 0)
+				pfree(name);
+			if(values != 0)
+				pfree(values);
+			if(nulls != 0)
+				pfree(nulls);
+		
+			jportal = Portal_create(env, portal);
+		}
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throwSPI_ERROR(env, "cursor_open");
+	}
+	PLJAVA_TCEND
+	return jportal;
 }
 
 /*
@@ -242,7 +254,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobjec
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE(false)
+	PLJAVA_ENTRY_FENCE(false)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
@@ -258,22 +270,30 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobj
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
 
-	Datum* values = 0;
-	char*  nulls  = 0;
-	if(!coerceObjects(env, ePlan, jvalues, &values, &nulls))
-		return 0;
-
-	jint result = (jint)SPI_execp(ePlan, values, nulls, (int)count);
-	if(values != 0)
-		pfree(values);
-	if(nulls != 0)
-		pfree(nulls);
-
+	jint result = 0;
+	PLJAVA_TRY
+	{
+		Datum* values = 0;
+		char*  nulls  = 0;
+		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
+		{
+			result = (jint)SPI_execp(ePlan, values, nulls, (int)count);
+			if(values != 0)
+				pfree(values);
+			if(nulls != 0)
+				pfree(nulls);
+		}
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throwSPI_ERROR(env, "execp");
+	}
+	PLJAVA_TCEND
 	return result;
 }
 
@@ -285,38 +305,49 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _th
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
-	THREAD_FENCE(0)
-	
-	if(s_deathRowFlag)
-		ExecutionPlan_freeDeathRowCandidates(env);
+	PLJAVA_ENTRY_FENCE(0)
 
-	int paramCount = 0;
-	Oid* paramOids = 0;
-
-	if(paramTypes != 0)
+	jobject jePlan = 0;
+	PLJAVA_TRY
 	{
-		paramCount = (*env)->GetArrayLength(env, paramTypes);
-		if(paramCount > 0)
+		if(s_deathRowFlag)
+			ExecutionPlan_freeDeathRowCandidates(env);
+	
+		int paramCount = 0;
+		Oid* paramOids = 0;
+
+		if(paramTypes != 0)
 		{
-			paramOids = (Oid*)palloc(paramCount * sizeof(Oid));
-			int idx;
-			for(idx = 0; idx < paramCount; ++idx)
+			paramCount = (*env)->GetArrayLength(env, paramTypes);
+			if(paramCount > 0)
 			{
-				jobject joid = (*env)->GetObjectArrayElement(env, paramTypes, idx);
-				paramOids[idx] = Oid_getOid(env, joid);
-				(*env)->DeleteLocalRef(env, joid);
+				paramOids = (Oid*)palloc(paramCount * sizeof(Oid));
+				int idx;
+				for(idx = 0; idx < paramCount; ++idx)
+				{
+					jobject joid = (*env)->GetObjectArrayElement(env, paramTypes, idx);
+					paramOids[idx] = Oid_getOid(env, joid);
+					(*env)->DeleteLocalRef(env, joid);
+				}
 			}
 		}
+
+		char* cmd   = String_createNTS(env, jcmd);
+		void* ePlan = SPI_prepare(cmd, paramCount, paramOids);
+		pfree(cmd);
+
+		if(ePlan == 0)
+			Exception_throwSPI(env, "prepare");
+		else
+			jePlan = ExecutionPlan_create(env, ePlan);
 	}
-	char* cmd = String_createNTS(env, jcmd);
-	elog(LOG, "Doing prepare of '%s' with %d parameters", cmd, paramCount);
-	int pc;
-	for(pc = 0; pc < paramCount; ++pc)
-		elog(LOG, "Param OID = %d", paramOids[pc]);
-	void* ePlan = SPI_prepare(cmd, paramCount, paramOids);
-	pfree(cmd);
-	elog(LOG, "Prepare was ok, returned pointer 0x%lx", (long)ePlan);
-	return ExecutionPlan_create(env, ePlan);
+	PLJAVA_CATCH
+	{
+		Exception_throwSPI_ERROR(env, "prepare");
+	}
+	PLJAVA_TCEND
+
+	return jePlan;
 }
 
 /*
@@ -327,7 +358,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE_VOID
+	PLJAVA_ENTRY_FENCE_VOID
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan == 0)
 		return;
@@ -344,7 +375,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject 
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE_VOID
+	THREAD_FENCE_VOID /* No error fence here. We allow the invalidation of saved plans. */
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan != 0)
 		SPI_freeplan(ePlan);

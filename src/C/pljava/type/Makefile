@@ -10,8 +10,24 @@ subdir = ../org.postgresql.pljava/src/C/pljava/type
 top_builddir = ../../../../../postgresql-7.4
 include $(top_builddir)/src/Makefile.global
 
-override CPPFLAGS := -DUSE_THREADS -I$(incldir) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(PORTNAME) $(CPPFLAGS)
+override CPPFLAGS := -DUSE_THREADS -DPKGLIBDIR=\"$(pkglibdir)\" -I$(incldir) -I$(JAVA_HOME)/include $(CPPFLAGS)
+ifeq ($(PORTNAME), cygwin)
+#
+# Portname will not suffice. The Win32 JDK have no knowledge of cygwin
+# GNU compiler doesn't know __int64, instead it uses long long.
+#
+override CPPFLAGS := -I$(JAVA_HOME)/include/win32 -DCYGWIN -D__int64='long long' $(CPPFLAGS)
+#
+# No use using -fpic. All code is position independent anyway.
+#
+override CFLAGS := -g $(CFLAGS)
+else
+#
+# This works for Linux 9 on an 32-bit intel platform.
+#
+override CPPFLAGS := $(CPPFLAGS) -I$(JAVA_HOME)/include/$(PORTNAME)
 override CFLAGS := -g -fpic $(CFLAGS)
+endif
 
 OBJS = Type.o \
 	Void.o \

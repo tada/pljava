@@ -60,18 +60,12 @@ static Entry Iterator_peekNext(Iterator self)
 
 bool Iterator_hasNext(Iterator self)
 {
-	bool result;
-	BEGIN_CRITICAL(mapMutex)
-	result = Iterator_peekNext(self) != 0;
-	END_CRITICAL(mapMutex)
-	return result;
+	return Iterator_peekNext(self) != 0;
 }
 
 Entry Iterator_next(Iterator self)
 {
-	Entry nxt;
-	BEGIN_CRITICAL(mapMutex)
-	nxt = Iterator_peekNext(self);
+	Entry nxt = Iterator_peekNext(self);
 	if(nxt != 0)
 	{
 		Entry nxtNxt = nxt->next;
@@ -82,7 +76,6 @@ Entry Iterator_next(Iterator self)
 			self->currentBucket++;
 		self->nextEntry = nxtNxt;
 	}
-	END_CRITICAL(mapMutex)
 	return nxt;
 }
 

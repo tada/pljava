@@ -32,6 +32,12 @@ void Exception_checkException(JNIEnv* env)
 		return;
 
 	(*env)->ExceptionClear(env);
+	if(elogErrorOccured)
+		/*
+		 * Don't throw any exception. The ERROR takes precedence.
+		 */
+		return;
+
 	int sqlState = ERRCODE_INTERNAL_ERROR;
 
 	StringInfoData buf;
@@ -106,10 +112,22 @@ void Exception_throwSPI(JNIEnv* env, const char* function)
 		"SPI function SPI_%s failed with error code %d", function, SPI_result);
 }
 
+void Exception_throwSPI_ERROR(JNIEnv* env, const char* function)
+{
+	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+		"SPI function SPI_%s failed with elog( level >= ERROR )", function);
+}
+
 void Exception_threadException(JNIEnv* env)
 {
 	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
 		"A thread other than main attempted entry to the PostgreSQL backend code");
+}
+
+void Exception_elogErrorException(JNIEnv* env)
+{
+	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+		"An attempt was made to enter the PostgreSQL backend code after an elog(ERROR) had been issued");
 }
 
 PG_FUNCTION_INFO_V1(Exception_initialize);

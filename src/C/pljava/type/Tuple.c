@@ -86,7 +86,7 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
 	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
 	Oid typeId = SPI_gettypeid(tupleDesc, (int)index);
@@ -110,5 +110,5 @@ Java_org_postgresql_pljava_internal_Tuple_getObject(JNIEnv* env, jobject _this, 
 	if(wasNull)
 		return 0;
 
-	return type->m_class->coerceDatum(type, env, binVal).l;
+	return Type_coerceDatum(type, env, binVal).l;
 }

@@ -86,7 +86,7 @@ Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleTableSlot_getTuple(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	TupleTableSlot* slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)
 		return 0;
@@ -101,7 +101,7 @@ Java_org_postgresql_pljava_internal_TupleTableSlot_getTuple(JNIEnv* env, jobject
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleTableSlot_getTupleDesc(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	TupleTableSlot* slot = (TupleTableSlot*)NativeStruct_getStruct(env, _this);
 	if(slot == 0)
 		return 0;

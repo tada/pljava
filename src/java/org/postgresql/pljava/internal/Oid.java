@@ -102,4 +102,12 @@ public class Oid
 	 * Returns the PostgreSQL type id for the Oid type.
 	 */
 	public native static Oid getTypeId();
+
+	/**
+	 * Returns a string representation of this OID.
+	 */
+	public String toString()
+	{
+		return "OID(" + m_native + ')';
+	}
 }

@@ -140,6 +140,4 @@ public class SPI extends NativeStruct
 		}
 	return s;
 	}
-
-	public static native boolean isPostgresThread();
 }

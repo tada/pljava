@@ -63,7 +63,7 @@ public class ExecutionPlan extends NativeStruct
 	 * @param argTypes SQL types of argument types.
 	 * @return An execution plan for the prepared statement.
 	 * @throws SQLException
-	 * @see java.sql.Types;
+	 * @see java.sql.Types
 	 */
 	public native static ExecutionPlan prepare(String statement, Oid[] argTypes)
 	throws SQLException;
@@ -99,7 +99,7 @@ public class ExecutionPlan extends NativeStruct
 		if(m_isDurable && this.isValid())
 		{
 			long nativePtr = this.getNative();
-			if(SPI.isPostgresThread())
+			if(Backend.isBackendThread())
 				this.invalidate();
 			else
 			{	
@@ -126,7 +126,7 @@ public class ExecutionPlan extends NativeStruct
 	 * called by the main thread when it sees the hasDeathRowFlag. The
 	 * death row is cleared by this call.
 	 */
-	static long[] getDeathRowCandidates()
+	static long[] getDeathRow()
 	{
 		synchronized(s_deathRow)
 		{

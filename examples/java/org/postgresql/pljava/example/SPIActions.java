@@ -14,7 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.postgresql.pljava.Server;
+import org.postgresql.pljava.Logger;
 
 /**
  * Some methods used for testing the SPI JDBC driver.
@@ -25,13 +25,13 @@ public class SPIActions
 {
 	public static void log(String str)
 	{
-		Server.log(str);
+		Logger.log(str);
 	}
 
 	public static int transferPeopleWithSalary(int salary)
 	throws SQLException
 	{
-		Connection conn = DriverManager.getConnection("jdbc:postgresql:pljava");
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		PreparedStatement select = null;
 		PreparedStatement insert = null;
 		PreparedStatement delete = null;

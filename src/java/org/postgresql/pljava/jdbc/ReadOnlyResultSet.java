@@ -20,7 +20,7 @@ import java.sql.SQLException;
 public abstract class ReadOnlyResultSet extends ObjectResultSet
 {
 	/**
-	 * Returns {@link ResultSet.CONCUR_READ_ONLY}.
+	 * Returns {@link ResultSet#CONCUR_READ_ONLY}.
 	 */
 	public int getConcurrency()
 	throws SQLException

@@ -18,9 +18,9 @@ import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
 import java.sql.ParameterMetaData;
+import java.sql.PreparedStatement;
 import java.sql.Ref;
 import java.sql.ResultSet;
-import java.sql.PreparedStatement;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Time;
@@ -30,11 +30,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 
-import org.postgresql.pljava.Server;
 import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Oid;
-import org.postgresql.pljava.internal.SPI;
-import org.postgresql.pljava.internal.SPIException;
 
 /**
  *
@@ -317,14 +314,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 				m_typeIds  = typeIds;
 			}
 			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
-			Server.log("Prepare of '" + m_statement + "' done");
-			if(m_plan == null)
-			{
-				Server.log("m_plan is null");
-				throw new SPIException(SPI.getResult());
-			}
 			m_plan.makeDurable();
-			Server.log("m_plan is now durable");
 		}
 
 		boolean result = this.executePlan(m_plan, values);

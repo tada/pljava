@@ -17,8 +17,6 @@ static jvalue _byte_array_coerceDatum(Type self, JNIEnv* env, Datum arg)
 	jsize  length = VARSIZE(bytes) - VARHDRSZ;
 	jbyteArray ba = (*env)->NewByteArray(env, length);
 	(*env)->SetByteArrayRegion(env, ba, 0, length, VARDATA(bytes)); 
-	pfree(bytes);
-
 	jvalue result;
 	result.l = ba;
 	return result;

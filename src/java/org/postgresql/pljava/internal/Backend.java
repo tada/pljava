@@ -6,29 +6,24 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-package org.postgresql.pljava;
-
-import org.postgresql.pljava.internal.AclId;
+package org.postgresql.pljava.internal;
 
 /**
  * Provides access to some useful routines in the PostgreSQL server.
  * @author Thomas Hallgren
  */
-public class Server
+public class Backend
 {
 	/**
-	 * Return the current user.
+	 * Log a message using the internal elog command.
+	 * @param logLevel The log level.
+	 * @param str The message
 	 */
-	public static String getUserName()
-	{
-		return AclId.getUser().getName();
-	}
+	public native static void log(int logLevel, String str);
 
 	/**
-	 * Return the session user.
+	 * Returns <code>true</code> if the current thread is the main thread
+	 * that can be used in the backend.
 	 */
-	public static String getSessionUserName()
-	{
-		return AclId.getSessionUser().getName();
-	}
+	public static native boolean isBackendThread();
 }

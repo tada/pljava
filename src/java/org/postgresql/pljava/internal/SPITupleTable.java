@@ -26,7 +26,7 @@ public class SPITupleTable extends NativeStruct
 
 	/**
 	 * Returns the <code>Tuple</code> at the given index.
-	 * @param index Index of desired slot. First slot has index zero. 
+	 * @param position Index of desired slot. First slot has index zero. 
 	 */
 	public native Tuple getSlot(int position)
 	throws SQLException;

@@ -10,7 +10,6 @@ package org.postgresql.pljava.jdbc;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import org.postgresql.pljava.Server;
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
 import org.postgresql.pljava.internal.SPITupleTable;
@@ -175,7 +174,7 @@ public class SPIResultSet extends ReadOnlyResultSet
 	}
 
 	/**
-	 * Only {@link ResultSet#FETCH_FORWARD is supported.
+	 * Only {@link java.sql.ResultSet#FETCH_FORWARD} is supported.
 	 * @throws SQLException indicating that this feature is not supported
 	 * for other values on <code>direction</code>.
 	 */
@@ -262,7 +261,6 @@ public class SPIResultSet extends ReadOnlyResultSet
 				mx = m_fetchSize;
 
 			int result = portal.fetch(true, mx);
-			Server.log("SPIResultSet fetch table with " + result + " rows");
 			if(result > 0)
 				m_table = SPI.getTupTable();
 			m_tableRow = -1;
@@ -288,8 +286,6 @@ public class SPIResultSet extends ReadOnlyResultSet
 		if(table == null)
 			return null;
 
-		Server.log("ResulSet table count = " + table.getCount());
-		Server.log("tableRow = " + m_tableRow);
 		if(m_tableRow >= table.getCount() - 1)
 		{
 			// Current table is exhaused, get the next

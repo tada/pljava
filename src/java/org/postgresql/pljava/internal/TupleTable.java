@@ -27,7 +27,7 @@ public class TupleTable extends NativeStruct
 	
 	/**
 	 * Returns the TupleTableSlot at the given index.
-	 * @param index Index of desired slot. First slot has index zero. 
+	 * @param position Index of desired slot. First slot has index zero. 
 	 */
 	public native TupleTableSlot getSlot(int position)
 	throws SQLException;

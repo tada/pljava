@@ -86,7 +86,7 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
@@ -104,7 +104,7 @@ Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _this)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
@@ -120,7 +120,7 @@ Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
 {
-	THREAD_FENCE(0)
+	PLJAVA_ENTRY_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
@@ -181,7 +181,19 @@ Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _t
 		}
 	}
 
-	tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
+	PLJAVA_TRY
+	{
+		tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
+		if(tuple == 0)
+			Exception_throwSPI(env, "modifytuple");
+	}
+	PLJAVA_CATCH
+	{
+		tuple = 0;
+		Exception_throwSPI_ERROR(env, "modifytuple");
+	}
+	PLJAVA_TCEND
+
 	(*env)->ReleaseIntArrayElements(env, _indexes, javaIdxs, JNI_ABORT);
 
 	if(sizeof(int) != sizeof(jint))	/* compiler will optimize this */
@@ -191,11 +203,5 @@ Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _t
 	if(nulls != 0)
 		pfree(nulls);
 
-	if(tuple == 0)
-	{
-		Exception_throwSPI(env, "modifytuple");
-		return 0L;	/* Exception */
-	}
-
-	return Tuple_create(env, tuple);
+	return (tuple == 0) ? 0 : Tuple_create(env, tuple);
 }

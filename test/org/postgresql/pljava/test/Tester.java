@@ -16,7 +16,7 @@ import java.sql.Statement;
 import java.sql.SQLException;
 
 /**
- * Some fairly crude tests.
+ * Some fairly crude tests. All tests are confided to the schema &quot;javatest&quot;
  *
  * @author Thomas Hallgren
  */
@@ -31,11 +31,10 @@ public class Tester
 			Class.forName("org.postgresql.Driver");
 			Connection c = DriverManager.getConnection(
 					"jdbc:postgresql://localhost/postgres",
-					"postgres",
+					"thhal",
 					null);
 			Tester t = new Tester(c);
-			
-			t.initializeLanguage();
+			t.initialize();
 			t.testParameters();
 			t.testInsertUsernameTrigger();
 			t.testModdatetimeTrigger();
@@ -70,26 +69,14 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		try
-		{
-			stmt.execute("DROP TABLE employees1");
-			stmt.execute("DROP TABLE employees2");
-		}
-		catch(SQLException e)
-		{
-			// No problem really. Just means that it didn't exist.
-			//
-			System.out.println(e.getMessage());
-		}
-
 		stmt.execute(
-				"CREATE TABLE employees1 (" +
+				"CREATE TABLE javatest.employees1 (" +
 				" id		int PRIMARY KEY," +
 				" name		varchar(200)," +	
 				" salary	int)");
 
 		stmt.execute(
-				"CREATE TABLE employees2 (" +
+				"CREATE TABLE javatest.employees2 (" +
 				" id		int PRIMARY KEY," +
 				" name		varchar(200)," +	
 				" salary	int)");
@@ -104,7 +91,7 @@ public class Tester
 			"4, 'Priscilla Johnson', 25000)");
 
 		stmt.execute(
-				"CREATE FUNCTION transferPeople(int)" +
+				"CREATE FUNCTION javatest.transferPeople(int)" +
 				" RETURNS int" +
 				" AS 'org.postgresql.pljava.example.SPIActions.transferPeopleWithSalary'" +
 				" LANGUAGE java");
@@ -128,25 +115,14 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		try
-		{
-			stmt.execute("DROP TABLE mdt");
-		}
-		catch(SQLException e)
-		{
-			// No problem really. Just means that it didn't exist.
-			//
-			System.out.println(e.getMessage());
-		}
-
 		stmt.execute(
-			"CREATE TABLE mdt (" +
+			"CREATE TABLE javatest.mdt (" +
 			" id		int4," +
 			" idesc		text," +	
 			" moddate	timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)");
 
 		stmt.execute(
-			"CREATE FUNCTION moddatetime()" +
+			"CREATE FUNCTION javatest.moddatetime()" +
 			" RETURNS trigger" +
 			" AS 'org.postgresql.pljava.example.Triggers.moddatetime'" +
 			" LANGUAGE java");
@@ -197,33 +173,22 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
-		try
-		{
-			stmt.execute("DROP TABLE username_test");
-		}
-		catch(SQLException e)
-		{
-			// No problem really. Just means that it didn't exist.
-			//
-			System.out.println(e.getMessage());
-		}
+		stmt.execute(
+			"CREATE TABLE javatest.username_test (" +
+			" name		text," +	
+			" username	text not null)");
 
 		stmt.execute(
-				"CREATE TABLE username_test (" +
-				" name		text," +	
-		" username	text not null)");
+			"CREATE FUNCTION javatest.insert_username()" +
+			" RETURNS trigger" +
+			" AS 'org.postgresql.pljava.example.Triggers.insertUsername'" +
+			" LANGUAGE java");
 
 		stmt.execute(
-				"CREATE FUNCTION insert_username()" +
-				" RETURNS trigger" +
-				" AS 'org.postgresql.pljava.example.Triggers.insertUsername'" +
-		" LANGUAGE java");
-
-		stmt.execute(
-				"CREATE TRIGGER insert_usernames" +
-				" BEFORE INSERT OR UPDATE ON username_test" +
-				" FOR EACH ROW" +
-		" EXECUTE PROCEDURE insert_username (username)");
+			"CREATE TRIGGER insert_usernames" +
+			" BEFORE INSERT OR UPDATE ON username_test" +
+			" FOR EACH ROW" +
+			" EXECUTE PROCEDURE insert_username (username)");
 
 		stmt.execute("INSERT INTO username_test VALUES ('nothing', 'thomas')");
 		stmt.execute("INSERT INTO username_test VALUES ('null', null)");
@@ -248,13 +213,13 @@ public class Tester
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute(
-			"CREATE FUNCTION java_getTimestamp()" +
+			"CREATE FUNCTION javatest.java_getTimestamp()" +
 			" RETURNS timestamp" +
 			" AS 'org.postgresql.pljava.example.Parameters.getTimestamp'" +
 			" LANGUAGE java");
 
 		stmt.execute(
-			"CREATE FUNCTION java_getTimestamptz()" +
+			"CREATE FUNCTION javatest.java_getTimestamptz()" +
 			" RETURNS timestamptz" +
 			" AS 'org.postgresql.pljava.example.Parameters.getTimestamp'" +
 			" LANGUAGE java");
@@ -280,7 +245,7 @@ public class Tester
 		 * Test parameter override from int primitive to java.lang.Integer
 		 */
 		stmt.execute(
-			"CREATE FUNCTION java_addOne(int)" +
+			"CREATE FUNCTION javatest.java_addOne(int)" +
 			" RETURNS int" +
 			" AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'" +
 			" LANGUAGE java");
@@ -291,7 +256,7 @@ public class Tester
 		 * SQL-2003 spec).
 		 */
 		stmt.execute(
-			"CREATE FUNCTION nullOnEven(int)" +
+			"CREATE FUNCTION javatest.nullOnEven(int)" +
 			" RETURNS int" +
 			" AS 'org.postgresql.pljava.example.Parameters.nullOnEven'" +
 			" LANGUAGE java");
@@ -314,27 +279,19 @@ public class Tester
 		rs.close();
 		stmt.close();
 	}
-	
-	public void initializeLanguage()
+
+	public void initialize()
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
 		try
 		{
-			stmt.execute("DROP FUNCTION java_call_handler() CASCADE");
+			stmt.execute("DROP SCHEMA javatest CASCADE");
 		}
 		catch(SQLException e)
 		{
-			System.out.println("No java_call_handler seems to be present");
 		}
-
-		stmt.execute(
-			"CREATE FUNCTION java_call_handler()" +
-			" RETURNS language_handler" +
-			" AS 'libpljava.so'" +
-			" LANGUAGE C");
-
-		stmt.execute(
-			"CREATE LANGUAGE java HANDLER java_call_handler");
+		stmt.execute("CREATE SCHEMA javatest");
+		stmt.execute("SET search_path TO javatest,public");
 	}
 }

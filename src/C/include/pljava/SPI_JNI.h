@@ -81,14 +81,6 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_SPI_getResult
 JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_internal_SPI_getTupTable
   (JNIEnv *, jclass);
 
-/*
- * Class:     org_postgresql_pljava_internal_SPI
- * Method:    isPostgresThread
- * Signature: ()Z
- */
-JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_SPI_isPostgresThread
-  (JNIEnv *, jclass);
-
 #ifdef __cplusplus
 }
 #endif

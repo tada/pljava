@@ -9,11 +9,19 @@
 #include "pljava/PgObject_priv.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
+#include "pljava/type/Oid.h"
+#include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 
 #include <catalog/pg_proc.h>
+#include <catalog/pg_namespace.h>
 #include <ctype.h>
 #include <alloca.h>
+
+static jclass s_Loader_class;
+static jclass s_ClassLoader_class;
+static jmethodID s_Loader_getSchemaLoader;
+static jmethodID s_ClassLoader_loadClass;
 
 struct Function_
 {
@@ -63,10 +71,25 @@ static void _Function_finalize(PgObject self)
 
 PG_FUNCTION_INFO_V1(Function_initialize);
 
+static jclass s_Loader_class;
+static jmethodID s_Loader_getSchemaLoader;
+
 Datum Function_initialize(PG_FUNCTION_ARGS)
 {
+	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+
 	s_funcMap = HashMap_create(57, TopMemoryContext);
 	s_FunctionClass = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
+	
+	s_Loader_class = (*env)->NewGlobalRef(
+						env, PgObject_getJavaClass(env, "org/postgresql/pljava/sqlj/Loader"));
+	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(
+						env, s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
+
+	s_ClassLoader_class = (*env)->NewGlobalRef(
+						env, PgObject_getJavaClass(env, "java/lang/ClassLoader"));
+	s_ClassLoader_loadClass = PgObject_getJavaMethod(
+						env, s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 	PG_RETURN_VOID();
 }
 
@@ -248,8 +271,44 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 		*cp++ = c;
 	}
 	*cp++ = 0;
-	self->clazz = (jclass)(*env)->NewGlobalRef(env, PgObject_getJavaClass(env, className));
-	
+
+	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, procStruct->pronamespace, "namespace");
+	Form_pg_namespace nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
+	jstring schemaName = String_createJavaStringFromNTS(env, NameStr(nspStruct->nspname));
+	jobject loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	(*env)->DeleteLocalRef(env, schemaName);
+	ReleaseSysCache(nspTup);
+
+	if((*env)->ExceptionCheck(env))
+	{
+		(*env)->ExceptionDescribe(env);
+		if(elogErrorOccured)
+			longjmp(Warn_restart, 1);
+
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Failed to obtain class loader")));
+	}
+
+	jstring jname  = String_createJavaStringFromNTS(env, className);
+	jobject loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
+	(*env)->DeleteLocalRef(env, jname);
+	(*env)->DeleteLocalRef(env, loader);
+
+	if((*env)->ExceptionCheck(env))
+	{
+		(*env)->ExceptionDescribe(env);
+		if(elogErrorOccured)
+			longjmp(Warn_restart, 1);
+
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Failed to load class %s", className)));
+	}
+
+	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);
+	(*env)->DeleteLocalRef(env, loaded);
+
 	methodName = cp;
 
 	++bp;	/* Skip last '.' so that bp now points to the method name. */

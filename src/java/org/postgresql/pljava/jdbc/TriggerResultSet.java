@@ -40,7 +40,7 @@ public class TriggerResultSet extends ObjectResultSet
 
 	/**
 	 * Returns the concurrency for this ResultSet.
-	 * @see ResultSet#getConcurrency.
+	 * @see java.sql.ResultSet#getConcurrency
 	 */
 	public int getConcurrency() throws SQLException
 	{
@@ -188,7 +188,7 @@ public class TriggerResultSet extends ObjectResultSet
 	}
 
 	/**
-	 * Only {@link ResultSet#FETCH_FORWARD is supported.
+	 * Only {@link java.sql.ResultSet#FETCH_FORWARD} is supported.
 	 * @throws SQLException indicating that this feature is not supported
 	 * for other values on <code>direction</code>.
 	 */
