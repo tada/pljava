@@ -112,11 +112,12 @@ import java.util.zip.ZipOutputStream;
  * widely-available jar tools, JarX is available now.
  *<P>
  * JarX.Build produces a jar, working from a manifest file prepared by the
- * developer.  Entries with any <CODE>text</CODE> will be translated from the
- * local encoding into the specified <CODE>charset</CODE> if given, and entries
- * with the specific type <CODE>text/plain</CODE> will have their line endings
- * converted to the CRLF canonical form.  Line endings are left alone for all
- * other subtypes of <CODE>text</CODE>, but this decision is open to comment.
+ * developer.  Entries with any <CODE>text</CODE> type will be translated from
+ * the local encoding into the specified <CODE>charset</CODE> if given, and
+ * entries with the specific type <CODE>text/plain</CODE> will have their line
+ * endings converted to the CRLF canonical form.  Line endings are left alone
+ * for all other subtypes of <CODE>text</CODE>, but this decision is open to
+ * comment.
  *<P>
  * The file produced by JarX.Build is a fully compliant jar and can be unpacked
  * by any jar or unzip tool, but current tools will not automatically convert
@@ -191,7 +192,7 @@ public class JarX {
   public String value;
   
   /**Token types from the structured field body lexer defined in
-   *<A HREF="ftp://ftp.isi.edu/in-notes/rfc0822.txt">RFC822</A>
+   *<A HREF="ftp://ftp.isi.edu/in-notes/rfc822.txt">RFC822</A>
    * as modified in
    *<A HREF="ftp://ftp.isi.edu/in-notes/rfc2045.txt">RFC2045</A>.
    * Also state numbers for the automaton in
@@ -738,7 +739,7 @@ public class JarX {
   protected JarX( short t, String v) { type = t; value = v; }
   
   /**Lexical analyzer for structured field bodies as described in
-   *<A HREF="ftp://ftp.isi.edu/in-notes/rfc0822.txt">RFC822</A>
+   *<A HREF="ftp://ftp.isi.edu/in-notes/rfc822.txt">RFC822</A>
    * and modified in
    *<A HREF="ftp://ftp.isi.edu/in-notes/rfc2045.txt">RFC2045</A>.
    * Comments are processed and stored in tokens that are, at the last
