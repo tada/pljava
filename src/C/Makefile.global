@@ -20,7 +20,7 @@ SRCDIR	:= $(MODULEROOT)/$(NAME)
 INCLDIR	:= -I$(MODULEROOT)/include -I$(JNIDIR)
 
 mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
-SRCS	= $(shell find $(SRCDIR) -type f -name \*.c)
+SRCS	= $(shell find $(SRCDIR) -name CVS -prune -o -type f -name \*.c -print)
 OBJS	= $(call mkobjs,$(SRCS))
 
 override CPPFLAGS := \

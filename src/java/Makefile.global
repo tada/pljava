@@ -5,7 +5,7 @@
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
 SRCDIR		:= $(MODULEROOT)/$(NAME)
-SRCS		:= $(shell find $(SRCDIR) -type f -name \*.java)
+SRCS		:= $(shell find $(SRCDIR) -name CVS -prune -o -type f -name \*.java -print)
 CLASSES		:= $(shell find . -type f -name \*.class)
 JAR			:= jar
 JAVADOC		:= javadoc

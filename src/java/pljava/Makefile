@@ -29,6 +29,7 @@ JNI_CLASSES := \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \
 	$(INTPKG).Savepoint \
+	$(INTPKG).Session \
 	$(INTPKG).SPITupleTable \
 	$(INTPKG).TriggerData \
 	$(INTPKG).Tuple \
