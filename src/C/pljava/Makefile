@@ -8,20 +8,21 @@ NAME	:= pljava
 
 include $(MODULEROOT)/Makefile.global
 
-ifeq ($(PORTNAME), linux)
-	JRE_INCL := linux
+ifeq ($(PORTNAME), win32)
+	JRE_INCL := win32
+	JRE_LIB  := bin/client
 else
 ifeq ($(PORTNAME), cygwin)
 	JRE_INCL := win32
+	JRE_LIB  := bin/client
 else
 	JRE_INCL := $(PORTNAME)
+	ifeq ($(host_cpu), i686)
+		JRE_LIB := lib/i386/client
+	else
+		JRE_LIB := lib/$(host_cpu)/client
+	endif
 endif
-endif
-
-ifeq ($(host_cpu), i686)
-	JRE_CPU := i386
-else
-	JRE_CPU := $(host_cpu)
 endif
 
 ifdef USE_GCJ
@@ -29,7 +30,7 @@ ifdef USE_GCJ
 	SHLIB_LINK = $(BE_DLLLIBS) -lgcj -lwsock32
 else
 	override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/bin/client -ljvm
+	SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JDK_HOME)/jre/$(JRE_LIB) -ljvm
 endif
 
 SO_MAJOR_VERSION := 1

@@ -46,7 +46,7 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getColumnIndex(colName);
+			return this._getColumnIndex(colName.toLowerCase());
 		}
 	}
 

@@ -151,12 +151,19 @@ public class Loader extends ClassLoader
 					if(rs.next())
 					{
 						byte[] img = rs.getBytes(1);
+						rs.close();
+						rs = null;
 						return this.defineClass(name, img, 0, img.length);
 					}
 				}
 				finally
 				{
-					try { rs.close(); } catch(SQLException e) { /* ignore */ }
+					try
+					{
+						if(rs != null)
+							rs.close();
+					}
+					catch(SQLException e) { /* ignore */ }
 				}
 			}
 			catch(SQLException e)

@@ -464,7 +464,6 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	if(mustCopy)
 		optString = pstrdup(optString);
 		
-	elog(INFO, "Adding JVM option %s", optString);
 	added->optionString = (char*)optString;
 	added->extraInfo    = extraInfo;
 	jol->size++;

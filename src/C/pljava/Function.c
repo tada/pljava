@@ -465,8 +465,10 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	 */
 	ReleaseSysCache(procTup);
 
+	isCallingJava = true;
 	self->method = (*env)->GetStaticMethodID(
 						env, self->clazz, methodName, sign.data);
+	isCallingJava = saveIcj;
 
 	if(self->method == 0)
 	{
@@ -484,8 +486,10 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			(*env)->ExceptionClear(env);
 			Function_buildSignature(self, &sign, objType);
 	
+			isCallingJava = true;
 			self->method = (*env)->GetStaticMethodID(
 							env, self->clazz, methodName, sign.data);
+			isCallingJava = saveIcj;
 	
 			if(self->method == 0)
 				PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
