@@ -13,8 +13,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 /**
  * This implementation uses another function that returns a set of a complex
@@ -24,71 +24,38 @@ import java.util.NoSuchElementException;
  *
  * @author Thomas Hallgren
  */
-public class UsingPropertiesAsScalarSet implements Iterator
+public class UsingPropertiesAsScalarSet
 {
-	private Statement m_statement;
-	private ResultSet m_resultSet;
-	private String m_nextRow;
-
-	public UsingPropertiesAsScalarSet()
-	throws SQLException
-	{
-		Connection conn = DriverManager.getConnection("jdbc:default:connection");
-		m_statement = conn.createStatement();
-		m_resultSet = m_statement.executeQuery("SELECT name, value FROM propertyExample()");
-		m_nextRow   = null;
-	}
-
-	public boolean hasNext()
-	{
-		if(m_nextRow == null)
-		{
-			try
-			{
-				if(m_resultSet == null)
-					return false;
-
-				if(m_resultSet.next())
-				{
-					String key = m_resultSet.getString(1);
-					String val = m_resultSet.getString(2);
-					m_nextRow = key + " = " + val;
-					return true;
-				}
-				
-				try { m_resultSet.close(); } catch(SQLException e) {}
-				try { m_statement.close(); } catch(SQLException e) {}
-				m_resultSet = null;
-				m_statement = null;
-			}
-			catch(SQLException e)
-			{
-				throw new RuntimeException(e);
-			}
-			return false;
-		}
-		return true;
-	}
-
-	public Object next()
-	{
-		if(!this.hasNext())
-			throw new NoSuchElementException();
-
-		String v = m_nextRow;
-		m_nextRow = null;
-		return v;
-	}
-	
-	public void remove()
-	{
-		throw new UnsupportedOperationException();
-	}
-
 	public static Iterator getProperties()
 	throws SQLException
 	{
-		return new UsingPropertiesAsScalarSet();
+		StringBuffer bld = new StringBuffer();
+		ArrayList list = new ArrayList();
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		Statement  stmt = conn.createStatement();
+		try
+		{
+			ResultSet rs = stmt.executeQuery("SELECT name, value FROM propertyExample()");
+			try
+			{
+				while(rs.next())
+				{
+					bld.setLength(0);
+					bld.append(rs.getString(1));
+					bld.append(" = ");
+					bld.append(rs.getString(2));
+					list.add(bld.toString());
+				}
+				return list.iterator();
+			}
+			finally
+			{
+				try { rs.close(); } catch(SQLException e) {}
+			}
+		}
+		finally
+		{
+			try { stmt.close(); } catch(SQLException e) {}
+		}
 	}
-
 }

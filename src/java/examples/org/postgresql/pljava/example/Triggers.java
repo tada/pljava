@@ -57,7 +57,6 @@ public class Triggers
 	public static void leakStatements(TriggerData td)
 	throws SQLException
 	{
-		Logger log = Logger.getAnonymousLogger();
 		StringBuffer buf = new StringBuffer();
 		
 		buf.append("Trigger ");
