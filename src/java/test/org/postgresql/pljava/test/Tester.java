@@ -208,6 +208,7 @@ public class Tester
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
 				t.testDatabaseMetaData();
+				t.testResultSet();
 			}
 			t.close();
 		}
@@ -722,6 +723,42 @@ public class Tester
 		catch (Exception e)
 		{
 			System.out.println("  Failed: " + e.getMessage());
+		}
+		finally
+		{
+			if(rs != null)
+			{
+				try { rs.close(); } catch(SQLException e) {}
+				rs = null;
+			}
+		}
+	}
+
+	public void testResultSet()
+	throws SQLException
+	{
+        String sql;
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = null;
+
+		try
+		{
+			System.out.println("*** ResultSet test:");
+            sql =
+                "SELECT * FROM javatest.executeSelect(" +
+                "'select ''Foo'' as t_varchar, 1::integer as t_integer, " +
+                "1.5::float as t_float, 23.67::decimal(8,2) as t_decimal, " +
+                "''2005-06-01''::date as t_date, ''20:56''::time as t_time, " +
+                "''2006-02-04 23:55:10''::timestamp as t_timestamp')";
+
+			rs = stmt.executeQuery(sql);
+			System.out.println("SQL = " + sql);
+			System.out.println("results:");
+			while(rs.next())
+			{
+				System.out.println(rs.getString(1));
+			}
+			rs.close();
 		}
 		finally
 		{
