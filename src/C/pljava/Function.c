@@ -397,14 +397,14 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			 */
 			HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
 			Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
-			if(OidIsValid(pgType->typrelid))
+			if(pgType->typtype == 'c')
 			{
 				/* Complex functions uses an updateable ResultSet
 				 * as the last argument and returns boolean to indicate
 				 * whether or not this set has been filled in.
 				 */
 				complex = Type_fromJavaType(
-					pgType->typrelid,
+					retTypeId,
 					"org.postgresql.pljava.jdbc.SingleRowWriter");
 				self->returnType = Type_fromOid(BOOLOID);
 				self->numParams++;
@@ -430,10 +430,10 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 				Oid typeId = typeIds[idx];
 				HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
 				Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
-				if(OidIsValid(pgType->typrelid))
+				if(pgType->typtype == 'c')
 				{
 					self->paramTypes[idx] = Type_fromJavaType(
-						pgType->typrelid,
+						InvalidOid,
 						"org.postgresql.pljava.jdbc.SingleRowReader");
 				}
 				else

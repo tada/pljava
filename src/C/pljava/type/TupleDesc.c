@@ -8,8 +8,10 @@
  */
 #include <postgres.h>
 #include <executor/spi.h>
+#include <funcapi.h>
 
 #include "pljava/Exception.h"
+#include "pljava/HashMap.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
@@ -20,6 +22,7 @@ static Type      s_TupleDesc;
 static TypeClass s_TupleDescClass;
 static jclass    s_TupleDesc_class;
 static jmethodID s_TupleDesc_init;
+static HashMap   s_nativeCache;
 
 /*
  * org.postgresql.pljava.TupleDesc type.
@@ -38,6 +41,19 @@ jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
 	return jtd;
 }
 
+TupleDesc TupleDesc_forOid(Oid oid)
+{
+	TupleDesc tupleDesc = (TupleDesc)HashMap_getByOid(s_nativeCache, oid);
+	if(tupleDesc == 0)
+	{
+		MemoryContext oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+		tupleDesc = TypeGetTupleDesc(oid, NIL);
+		MemoryContextSwitchTo(oldcxt);
+		HashMap_putByOid(s_nativeCache, oid, tupleDesc);
+	}
+	return tupleDesc;
+}
+	
 static jvalue _TupleDesc_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
 	jvalue result;
@@ -63,6 +79,8 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 
 	s_TupleDesc_init = PgObject_getJavaMethod(
 				env, s_TupleDesc_class, "<init>", "()V");
+
+	s_nativeCache = HashMap_create(13, TopMemoryContext);
 
 	s_TupleDescClass = NativeStructClass_alloc("type.TupleDesc");
 	s_TupleDescClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleDesc;";

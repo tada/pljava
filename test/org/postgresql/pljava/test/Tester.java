@@ -239,7 +239,7 @@ public class Tester
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute(
-		"CREATE TABLE javatest._testSetReturn(base integer, incbase integer, ctime timestamptz)");
+		"CREATE TYPE javatest._testSetReturn AS (base integer, incbase integer, ctime timestamptz)");
 
 		stmt.execute(
 			"CREATE FUNCTION javatest.complexReturnExample(int, int)" +
@@ -253,10 +253,7 @@ public class Tester
 			" AS 'org.postgresql.pljava.example.ComplexReturn.makeString'" +
 			" IMMUTABLE LANGUAGE java");
 
-		stmt.execute(
-			"INSERT INTO _testSetReturn VALUES(1, 5, now())");
-	
-		ResultSet rs = stmt.executeQuery("SELECT complexReturnToString(x) FROM _testSetReturn x");
+		ResultSet rs = stmt.executeQuery("SELECT complexReturnToString(complexReturnExample(1, 5))");
 		while(rs.next())
 		{
 			String str = rs.getString(1);

@@ -37,7 +37,7 @@ static HashMap s_cache;
  */
 static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	TupleDesc tupleDesc = TypeGetTupleDesc(Type_getOid(self), NIL);
+	TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
 	jobject singleRowWriter = SingleRowWriter_create(env, tupleDesc);
 	int numArgs = fcinfo->nargs;
 
@@ -57,7 +57,8 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		/* Obtain tuple and return it as a Datum.
 		 */
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
-	    result = TupleGetDatum(TupleDescGetSlot(tupleDesc), tuple);
+		TupleTableSlot* slot = TupleDescGetSlot(tupleDesc);
+	    result = TupleGetDatum(slot, tuple);
 	}
 	else
 		fcinfo->isnull = true;

@@ -76,7 +76,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* allocate a slot for a tuple with this tupdesc and assign it to
 		 * the function context
 		 */
-		TupleDesc tupleDesc = TypeGetTupleDesc(Type_getOid(self), NIL);
+		TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
 		context->slot = TupleDescGetSlot(tupleDesc);
 
 		/* Create the context used by Pl/Java

@@ -28,6 +28,13 @@ extern "C" {
  */
 extern jobject TupleDesc_create(JNIEnv* env, TupleDesc tDesc);
 
+/*
+ * Obtain a TupleDesc for a specific Oid from the TupleDesc cache. If no
+ * TupleDesc is found, one is created in the TopMemoryContext and added
+ * to the cache.
+ */
+extern TupleDesc TupleDesc_forOid(Oid oid);
+
 #ifdef __cplusplus
 }
 #endif
