@@ -28,23 +28,19 @@ static jmethodID s_ResultSetProvider_assignRowValues;
 static TypeClass s_ResultSetProviderClass;
 static HashMap s_cache;
 
-struct _CallContextData
+typedef struct
 {
 	jobject singleRowWriter;
 	jobject resultSetProvider;
 #ifdef GCJ /* Bug libgcj/15001 */
 	jmethodID assignRowValues;
 #endif
-};
-
-typedef struct _CallContextData* CallContextData;
+} CallContextData;
 
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	static bool firstCall = false;
 	bool hasRow;
-	MemoryContext currCtx;
-	CallContextData  ctxData;
+	CallContextData* ctxData;
 	FuncCallContext* context;
 	bool saveicj = isCallingJava;
 
@@ -55,18 +51,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 #ifdef GCJ /* Bug libgcj/15001 */
 		jclass rsClass;
 #endif
+		MemoryContext currCtx;
 		jobject tmp;
 		TupleDesc tupleDesc;
-
-		firstCall = true;
-		
-		/* create a function context for cross-call persistence
-		 */
-		context = SRF_FIRSTCALL_INIT();
-
-		/* switch to memory context appropriate for multiple function calls
-		 */
-		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
 		/* Call the declared Java function. It returns the ResultSetProvider
 		 * that later is used once for each row that should be obtained.
@@ -75,28 +62,38 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
 		isCallingJava = saveicj;
 
+		/* create a function context for cross-call persistence
+		 */
+		context = SRF_FIRSTCALL_INIT();
+
 		if(tmp == 0)
 		{
 			fcinfo->isnull = true;
 			SRF_RETURN_DONE(context);
 		}
 
-		/* allocate a slot for a tuple with this tupdesc and assign it to
-		 * the function context
+		/* Build a tuple description for the tuples (will be cached
+		 * in TopMemoryContext)
 		 */
 		tupleDesc = TupleDesc_forOid(Type_getOid(self));
 
+		/* switch to memory context appropriate for multiple function calls
+		 */
+		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+
 #if (PGSQL_MAJOR_VER < 8)
+		/* allocate a slot for a tuple with this tupdesc and assign it to
+		 * the function context
+		 */
 		context->slot = TupleDescGetSlot(tupleDesc);
 #endif
 
 		/* Create the context used by Pl/Java
 		 */
-		ctxData = (CallContextData)palloc(sizeof(struct _CallContextData));
-		context->user_fctx = ctxData;
+		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
+		MemoryContextSwitchTo(currCtx);
 
-		/* Build a tuple description for the tuples
-		 */
+		context->user_fctx = ctxData;
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
 #ifdef GCJ /* Bug libgcj/15001 */
 		rsClass = (*env)->GetObjectClass(env, tmp);
@@ -108,15 +105,10 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		tmp = SingleRowWriter_create(env, tupleDesc);		
 		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp);
 		(*env)->DeleteLocalRef(env, tmp);
-
-		MemoryContextSwitchTo(currCtx);
 	}
 
-	if(!firstCall)
-		elog(ERROR, "SRF percall before SRF firstcall");
-
 	context = SRF_PERCALL_SETUP();
-	ctxData = (CallContextData)context->user_fctx;
+	ctxData = (CallContextData*)context->user_fctx;
 
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
@@ -137,30 +129,23 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		HeapTuple tuple;
-		Datum result;
-		currCtx = MemoryContext_switchToReturnValueContext();
-		tuple   = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
+		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
+		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 
 #if (PGSQL_MAJOR_VER >= 8)
-		result  = HeapTupleGetDatum(tuple);
+		Datum result = HeapTupleGetDatum(tuple);
 #else
-		result  = TupleGetDatum(context->slot, tuple);
+		Datum result = TupleGetDatum(context->slot, tuple);
 #endif
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
 
-	/*
-	 * This is the end of the set.
+	/* This is the end of the set.
 	 */
-	currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
-
 	pfree(ctxData);
-	MemoryContextSwitchTo(currCtx);
-	firstCall = false;
 	SRF_RETURN_DONE(context);
 }
 
