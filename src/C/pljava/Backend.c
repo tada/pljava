@@ -167,6 +167,10 @@ static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
  */
 static void setJavaSecurity(JNIEnv* env, bool trusted)
 {
+/* GCJ has major issues here. Real work on SecurityManager and
+ * related classes has just started in version 4.0.0.
+ */
+#ifndef GCJ
 	bool saveICJ = isCallingJava;
 	isCallingJava = true;
 	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
@@ -180,6 +184,7 @@ static void setJavaSecurity(JNIEnv* env, bool trusted)
 			errcode(ERRCODE_INTERNAL_ERROR),
 			errmsg("Unable to initialize java security")));
 	}
+#endif
 }
 
 CallContext* currentCallContext;
