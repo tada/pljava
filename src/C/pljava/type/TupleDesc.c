@@ -153,7 +153,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jobje
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_fname");
 	}
 	PG_END_TRY();
 	return result;
@@ -193,7 +193,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jobj
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_fnumber");
 	}
 	PG_END_TRY();
 	return index;
@@ -241,7 +241,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jobject _
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "heap_formtuple");
 	}
 	PG_END_TRY();
 	return result;

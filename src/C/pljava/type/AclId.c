@@ -115,7 +115,7 @@ Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "GetUserId");
 	}
 	PG_END_TRY();
 	return result;
@@ -137,7 +137,7 @@ Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass c
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "GetSessionUserId");
 	}
 	PG_END_TRY();
 	return result;
@@ -160,7 +160,7 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "GetUserNameFromId");
 	}
 	PG_END_TRY();
 	return result;

@@ -240,7 +240,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_cursor_open");
 	}
 	PG_END_TRY();
 	return jportal;
@@ -268,7 +268,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_is_cursor_plan");
 	}
 	PG_END_TRY();
 	return result;
@@ -305,7 +305,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execp(JNIEnv* env, jobject _
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_execp");
 	}
 	PG_END_TRY();
 	return result;
@@ -358,7 +358,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_prepare");
 	}
 	PG_END_TRY();
 
@@ -386,7 +386,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan(JNIEnv* env, jobjec
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_saveplan");
 	}
 	PG_END_TRY();
 }
@@ -411,7 +411,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobj
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_freeplan");
 	}
 	PG_END_TRY();
 }

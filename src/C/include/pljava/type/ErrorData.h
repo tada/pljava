@@ -16,6 +16,17 @@ extern "C" {
  * @author Thomas Hallgren
  *****************************************************************/
 
+#if (PGSQL_MAJOR_VER < 8)
+
+typedef struct ErrorData
+{
+	int   elevel;		/* error level */
+	int   sqlerrcode;	/* encoded ERRSTATE */
+	char* message;		/* primary error message */
+} ErrorData;
+
+#endif
+
 /*
  * Create the org.postgresql.pljava.internal.ErrorData instance
  */
@@ -25,6 +36,7 @@ extern jobject ErrorData_create(JNIEnv* env, ErrorData* errorData);
  * Extract the native ErrorData from a Java ErrorData.
  */
 extern ErrorData* ErrorData_getErrorData(JNIEnv* env, jobject jerrorData);
+
 
 #ifdef __cplusplus
 }

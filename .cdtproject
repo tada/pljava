@@ -42,6 +42,13 @@
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
+<target name="all74" targetID="org.eclipse.cdt.make.MakeTargetBuilder" path="">
+<buildCommand>make</buildCommand>
+<buildArguments>PGVER=7.4 CFLAGS='-Wall -g'</buildArguments>
+<buildTarget>all</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>false</useDefaultCommand>
+</target>
 </buildTargets>
 </item>
 <item id="org.eclipse.cdt.core.pathentry">
@@ -49,8 +56,8 @@
 <pathentry kind="out" path=""/>
 </item>
 <item id="cdt_indexer">
-<indexEnabled indexValue="true"/>
-<indexerProblemsEnabled indexProblemsValue="false"/>
+<indexEnabled indexValue="false"/>
+<indexerProblemsEnabled indexProblemsValue="0"/>
 </item>
 </data>
 </cdtproject>

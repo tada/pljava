@@ -152,7 +152,7 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, job
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "GetAttributeByNum");
 	}
 	PG_END_TRY();
 	return result;

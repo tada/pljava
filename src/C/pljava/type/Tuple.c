@@ -135,7 +135,7 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jobject _this
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_getbinval");
 	}
 	PG_END_TRY();
 	return result;

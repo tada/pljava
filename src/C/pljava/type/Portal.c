@@ -164,7 +164,7 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jobject _this, j
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_cursor_fetch");
 	}
 	PG_END_TRY();
 	return (jint)SPI_processed;
@@ -292,7 +292,7 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jobject _this, jb
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_cursor_move");
 	}
 	PG_END_TRY();
 	return (jint)SPI_processed;

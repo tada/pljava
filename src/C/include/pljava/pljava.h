@@ -41,6 +41,29 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 extern bool isCallingJava;
 extern bool pljavaEntryFence(JNIEnv* env);
 
+#if (PGSQL_MAJOR_VER < 8)
+
+extern bool elogErrorOccured;
+
+#define PG_TRY_POP memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart))
+
+#define PG_TRY() do { \
+	sigjmp_buf saveRestart; \
+	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart)); \
+	if(sigsetjmp(Warn_restart, 1) == 0) {
+
+#define PG_CATCH() \
+		PG_TRY_POP; \
+	} else { \
+		elogErrorOccured = true; \
+		PG_TRY_POP;
+
+#define PG_END_TRY() }} while(0)
+
+#define PG_RE_THROW() siglongjmp(Warn_restart, 1)
+
+#else
+
 /* NOTE!
  * When using the PG_TRY, PG_CATCH, PG_TRY_END family of macros,
  * it is an ABSOLUTE NECESSITY to use the PG_TRY_RETURN or
@@ -49,6 +72,8 @@ extern bool pljavaEntryFence(JNIEnv* env);
 #define PG_TRY_POP \
 	PG_exception_stack = save_exception_stack; \
 	error_context_stack = save_context_stack
+
+#endif
 
 #define PG_TRY_RETURN(retVal) { PG_TRY_POP; return retVal; }
 #define PG_TRY_RETURN_VOID { PG_TRY_POP; return; }

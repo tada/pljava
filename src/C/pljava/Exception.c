@@ -25,6 +25,9 @@ static jclass    s_ServerException_class;
 static jmethodID s_ServerException_init;
 static jmethodID s_ServerException_getErrorData;
 
+static jclass    s_UnsupportedOperationException_class;
+static jmethodID s_UnsupportedOperationException_init;
+
 void Exception_checkException(JNIEnv* env)
 {
 	int sqlState;
@@ -44,6 +47,13 @@ void Exception_checkException(JNIEnv* env)
 	(*env)->ExceptionClear(env);
 	isCallingJava = saveicj;
 
+#if(PGSQL_MAJOR_VER < 8)
+	if(elogErrorOccured)
+		/*
+		 * Don't throw any exception. The ERROR takes precedence.
+		 */
+		return;
+#else
 	if((*env)->IsInstanceOf(env, exh, s_ServerException_class))
 	{
 		/* Rethrow the server error.
@@ -55,12 +65,12 @@ void Exception_checkException(JNIEnv* env)
 
 		if(jed != 0)
 		{
-			ErrorData* ed = ErrorData_getErrorData(env, jtmp);
+			ErrorData* ed = ErrorData_getErrorData(env, jed);
 			(*env)->DeleteLocalRef(env, jed);
 			ReThrowError(ed);
 		}
 	}
-
+#endif
 	sqlState = ERRCODE_INTERNAL_ERROR;
 
 	initStringInfo(&buf);
@@ -103,6 +113,26 @@ void Exception_checkException(JNIEnv* env)
 	ereport(ERROR, (errcode(sqlState), errmsg(buf.data)));
 }	
 
+extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion)
+{
+	StringInfoData buf;
+	initStringInfo(&buf);
+	appendStringInfoString(&buf, "Feature: ");
+	appendStringInfoString(&buf, requestedFeature);
+	appendStringInfoString(&buf, " lacks support in PostgreSQL version ");
+	appendStringInfo(&buf, "%d.%d", PGSQL_MAJOR_VER, PGSQL_MINOR_VER);
+	appendStringInfoString(&buf, ". It was introduced in version ");
+	appendStringInfoString(&buf, introVersion);
+
+	jstring jmsg = String_createJavaStringFromNTS(env, buf.data);
+	pfree(buf.data);
+
+	jobject ex = PgObject_newJavaObject(
+		env, s_UnsupportedOperationException_class, s_UnsupportedOperationException_init, jmsg);
+	(*env)->DeleteLocalRef(env, jmsg);
+	(*env)->Throw(env, ex);
+}
+
 void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 {
     char buf[1024];
@@ -143,9 +173,20 @@ void Exception_throwSPI(JNIEnv* env, const char* function)
 		"SPI function SPI_%s failed with error code %d", function, SPI_result);
 }
 
-void Exception_throw_ERROR(JNIEnv* env)
+void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 {
-	jobject ed = ErrorData_create(env, CopyErrorData());
+#if (PGSQL_MAJOR_VER >= 8)
+	ErrorData* errData = CopyErrorData();
+#else
+	StringInfoData buf;
+	ErrorData* errData = (ErrorData*)palloc(sizeof(ErrorData));
+	initStringInfo(&buf);
+	appendStringInfoString(&buf, "Error when calling: ");
+	appendStringInfoString(&buf, funcName);
+	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
+	errData->message = buf.data;
+#endif
+	jobject ed = ErrorData_create(env, errData);
 	jobject ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
 	(*env)->DeleteLocalRef(env, ed);
@@ -170,20 +211,26 @@ Datum Exception_initialize(PG_FUNCTION_ARGS)
 	s_SQLException_class = (jclass)(*env)->NewGlobalRef(
 		env, PgObject_getJavaClass(env, "java/sql/SQLException"));
 
-	s_ServerException_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ServerException"));
-
 	s_SQLException_init = PgObject_getJavaMethod(env, s_SQLException_class,
 			"<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
 
 	s_SQLException_getSQLState = PgObject_getJavaMethod(env, s_SQLException_class,
 			"getSQLState", "()Ljava/lang/String;");
 
+	s_ServerException_class = (jclass)(*env)->NewGlobalRef(
+		env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ServerException"));
+
 	s_ServerException_init = PgObject_getJavaMethod(env, s_ServerException_class,
 			"<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
 
 	s_ServerException_getErrorData = PgObject_getJavaMethod(env, s_ServerException_class,
 			"getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
+
+	s_UnsupportedOperationException_class = (jclass)(*env)->NewGlobalRef(
+		env, PgObject_getJavaClass(env, "java/lang/UnsupportedOperationException"));
+
+	s_UnsupportedOperationException_init = PgObject_getJavaMethod(env, s_UnsupportedOperationException_class,
+			"<init>", "(Ljava/lang/String;)V");
 
 	s_Class_getName = PgObject_getJavaMethod(env, s_Class_class,
 			"getName", "()Ljava/lang/String;");

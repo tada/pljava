@@ -46,8 +46,10 @@ bool isCallingJava;
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 
-#if !(PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+#if (PGSQL_MAJOR_VER >= 8)
 # define PGSQL_CUSTOM_VARIABLES 1
+#else
+bool elogErrorOccured;
 #endif
 
 #ifdef PGSQL_CUSTOM_VARIABLES
@@ -141,6 +143,10 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 	bool saveIsCallingJava = isCallingJava;
 	MemoryContext saveReturnValueContext = returnValueContext;
 	Oid funcOid = fcinfo->flinfo->fn_oid;
+#if (PGSQL_MAJOR_VER < 8)
+	bool saveErrorOccured = elogErrorOccured;
+	elogErrorOccured = false;
+#endif
 
 	returnValueContext = upper;
 	if(!MemoryContext_hasCallbackCapability(upper))
@@ -182,11 +188,17 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 		Exception_checkException(s_mainEnv);
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
+#if (PGSQL_MAJOR_VER < 8)
+		elogErrorOccured = saveErrorOccured;
+#endif
 	}
 	PG_CATCH();
 	{
 		isCallingJava      = saveIsCallingJava;
 		returnValueContext = saveReturnValueContext;
+#if (PGSQL_MAJOR_VER < 8)
+		elogErrorOccured = saveErrorOccured;
+#endif
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
@@ -196,6 +208,18 @@ static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
 
 bool pljavaEntryFence(JNIEnv* env)
 {
+#if (PGSQL_MAJOR_VER < 8)
+	if(elogErrorOccured)
+	{
+		/* An elog with level higher than ERROR was issued. The transaction
+		 * state is unknown. There's no way the JVM is allowed to enter the
+		 * backend at this point.
+		 */
+		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
+		return true;
+	}
+#endif
 	if(!isCallingJava)
 	{
 		/* The backend is *not* awaiting the return of a call to the JVM
@@ -800,7 +824,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "GetConfigOption");
 	}
 	PG_END_TRY();
 	return result;
@@ -827,7 +851,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cl
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "ereport");
 	}
 	PG_END_TRY();
 }
@@ -858,7 +882,7 @@ Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jcl
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "RegisterEOXactCallback");
 	}
 	PG_END_TRY();
 }
@@ -878,7 +902,7 @@ Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, 
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "UnregisterEOXactCallback");
 	}
 	PG_END_TRY();
 }

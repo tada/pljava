@@ -19,6 +19,13 @@ extern "C" {
  *******************************************************************/
 
 /*
+ * Trows an UnsupportedOperationException informing the caller that the
+ * requested feature doesn't exist in the current version, it was introduced
+ * starting with the intro version.
+ */
+extern void	Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion);
+
+/*
  * Like ereport(ERROR, ...) but this method will raise a Java SQLException and
  * return. It will NOT do a longjmp. Suitable in native code that is called
  * from Java (such code must return to Java in order to have the real exception
@@ -40,7 +47,7 @@ extern void Exception_throwSPI(JNIEnv* env, const char* function);
  * by a call to CopyErrorData. It will NOT do a longjmp. It's intended use is
  * in PG_CATCH clauses.
  */
-extern void Exception_throw_ERROR(JNIEnv* env);
+extern void Exception_throw_ERROR(JNIEnv* env, const char* function);
 
 /*
  * Checks if a Java exception has been thrown. If so, a check is made if the

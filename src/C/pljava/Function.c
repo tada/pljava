@@ -5,6 +5,7 @@
  * @author Thomas Hallgren
  */
 #include "pljava/PgObject_priv.h"
+#include "pljava/Exception.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"

@@ -120,7 +120,7 @@ Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _thi
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_getrelname");
 	}
 	PG_END_TRY();
 	return ret;
@@ -236,7 +236,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject 
 	PG_CATCH();
 	{
 		tuple = 0;
-		Exception_throw_ERROR(env);
+		Exception_throw_ERROR(env, "SPI_gettypeid");
 	}
 	PG_END_TRY();
 
