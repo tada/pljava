@@ -41,6 +41,7 @@ typedef struct _CallContextData* CallContextData;
 
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
+	static bool firstCall = false;
 	bool hasRow;
 	MemoryContext currCtx;
 	CallContextData  ctxData;
@@ -57,6 +58,8 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		jobject tmp;
 		TupleDesc tupleDesc;
 
+		firstCall = true;
+		
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
@@ -82,7 +85,10 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 * the function context
 		 */
 		tupleDesc = TupleDesc_forOid(Type_getOid(self));
+
+#if (PGSQL_MAJOR_VER < 8)
 		context->slot = TupleDescGetSlot(tupleDesc);
+#endif
 
 		/* Create the context used by Pl/Java
 		 */
@@ -105,6 +111,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 		MemoryContextSwitchTo(currCtx);
 	}
+
+	if(!firstCall)
+		elog(ERROR, "SRF percall before SRF firstcall");
 
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData)context->user_fctx;
@@ -130,9 +139,14 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 */
 		HeapTuple tuple;
 		Datum result;
-		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+		currCtx = MemoryContext_switchToReturnValueContext();
 		tuple   = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
+
+#if (PGSQL_MAJOR_VER >= 8)
+		result  = HeapTupleGetDatum(tuple);
+#else
 		result  = TupleGetDatum(context->slot, tuple);
+#endif
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
@@ -146,6 +160,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 	pfree(ctxData);
 	MemoryContextSwitchTo(currCtx);
+	firstCall = false;
 	SRF_RETURN_DONE(context);
 }
 

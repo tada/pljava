@@ -45,7 +45,10 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 			this.isFiredByInsert()
 				? this.getTriggerTuple()
 				: this.getNewTuple();
-		m_new = new TriggerResultSet(this.relation().getTupleDesc(), tuple, false);
+				
+		// Triggers fired after will always have a read-only row
+		//
+		m_new = new TriggerResultSet(this.relation().getTupleDesc(), tuple, this.isFiredAfter());
 		return m_new;
 	}
 

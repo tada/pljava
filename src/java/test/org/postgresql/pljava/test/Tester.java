@@ -191,15 +191,18 @@ public class Tester
 				Thread.sleep(30000);
 				System.out.println("continuing");
 			}
-			t.testParameters();
-			t.testInsertUsernameTrigger();
-			t.testModdatetimeTrigger();
-			t.testSPIActions();
-			t.testComplexReturn();
-			t.testSetReturn();
-			t.testCallInCall();
-			t.testCurrentDir();
-			t.testUsingProperties();
+			for(int idx = 0; idx < 10; ++idx)
+			{
+				t.testParameters();
+				t.testInsertUsernameTrigger();
+				t.testModdatetimeTrigger();
+				t.testSPIActions();
+				t.testComplexReturn();
+				t.testSetReturn();
+				t.testCallInCall();
+				t.testCurrentDir();
+				t.testUsingProperties();
+			}
 			t.close();
 		}
 		catch(Exception e)
@@ -233,6 +236,7 @@ public class Tester
 	public void testSPIActions()
 	throws SQLException
 	{
+		System.out.println("*** testSPIActions()");
 		Statement stmt = m_connection.createStatement();
 
 		stmt.execute("DELETE FROM employees1");
@@ -265,6 +269,7 @@ public class Tester
 	public void testComplexReturn()
 	throws SQLException
 	{
+		System.out.println("*** testComplexReturn()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT complexReturnToString(complexReturnExample(1, 5))");
 		while(rs.next())
@@ -278,6 +283,7 @@ public class Tester
 	public void testSetReturn()
 	throws SQLException
 	{
+		System.out.println("*** testSetReturn()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT base, incbase, ctime FROM setReturnExample(1, 5)");
 		while(rs.next())
@@ -296,6 +302,7 @@ public class Tester
 	public void testUsingProperties()
 	throws SQLException
 	{
+		System.out.println("*** testUsingProperties()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT name, value FROM propertyExample()");
 		while(rs.next())
@@ -310,6 +317,7 @@ public class Tester
 	public void testCallInCall()
 	throws SQLException
 	{
+		System.out.println("*** testCallInCall()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT maxFromSetReturnExample(10, 8)");
 		while(rs.next())
@@ -322,6 +330,7 @@ public class Tester
 	public void testModdatetimeTrigger()
 	throws SQLException
 	{
+		System.out.println("*** testModdatetimeTrigger()");
 		Statement stmt = m_connection.createStatement();
 		stmt.execute("DELETE FROM mdt");
 		stmt.execute("INSERT INTO mdt VALUES (1, 'first')");
@@ -363,6 +372,7 @@ public class Tester
 	public void testInsertUsernameTrigger()
 	throws SQLException
 	{
+		System.out.println("*** testInsertUsernameTrigger()");
 		Statement stmt = m_connection.createStatement();
 		stmt.execute("DELETE FROM username_test");
 		stmt.execute("INSERT INTO username_test VALUES ('nothing', 'thomas')");
@@ -398,6 +408,7 @@ public class Tester
 	public void testTimestamp()
 	throws SQLException
 	{
+		System.out.println("*** testTimestamp()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery(
 				"SELECT java_getTimestamp(), java_getTimestamptz()");
@@ -422,6 +433,7 @@ public class Tester
 	public void testInt()
 	throws SQLException
 	{
+		System.out.println("*** testInt()");
 		/*
 		 * Test parameter override from int primitive to java.lang.Integer
 		 *
@@ -451,6 +463,7 @@ public class Tester
 	public void testCurrentDir()
 	throws SQLException
 	{
+		System.out.println("*** testCurrentDir()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery(
 				"SELECT java_getSystemProperty('user.dir')");

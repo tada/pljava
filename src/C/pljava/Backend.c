@@ -104,7 +104,7 @@ static void initJavaVM(JNIEnv* env)
 		},
 		{
 		"_clearErrorCondition",
-		"()I",
+		"()V",
 		Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition
 		},
 		{
@@ -462,6 +462,15 @@ static void _destroyJavaVM(int status, Datum dummy)
 {
 	if(s_javaVM != 0)
 	{
+		CallContext ctx;
+	
+		ctx.invocation         = 0;
+		ctx.function           = 0;
+		ctx.returnValueContext = CurrentMemoryContext;
+		ctx.elogErrorOccured   = false;
+		ctx.previous           = 0;
+		currentCallContext     = &ctx;
+
 #if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
 		pqsigfunc saveSigAlrm;
@@ -495,6 +504,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
 		s_mainEnv = 0;
+		currentCallContext = 0;
 	}
 }
 
@@ -627,6 +637,15 @@ static void addUserJVMOptions(JVMOptList* optList)
 
 static void initializeJavaVM(void)
 {
+	CallContext ctx;
+
+	ctx.invocation         = 0;
+	ctx.function           = 0;
+	ctx.returnValueContext = CurrentMemoryContext;
+	ctx.elogErrorOccured   = false;
+	ctx.previous           = 0;
+	currentCallContext     = &ctx;
+
 #if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
 	pqsigfunc saveSigTerm;
@@ -791,6 +810,7 @@ static void initializeJavaVM(void)
 	(*s_mainEnv)->CallStaticVoidMethod(s_mainEnv, logHandlerClass, init);
 	isCallingJava = false;
 	(*s_mainEnv)->DeleteLocalRef(s_mainEnv, logHandlerClass);
+	currentCallContext = 0;
 }
 
 JNIEnv* Backend_getMainEnv(void)
