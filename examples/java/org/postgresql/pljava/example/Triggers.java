@@ -11,6 +11,7 @@ package org.postgresql.pljava.example;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.logging.Logger;
 
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.TriggerData;
@@ -48,6 +49,30 @@ public class Triggers
 
 		if(_new.getString(args[0]) == null)
 			_new.updateString(args[0], Session.current().getUserName());
+	}
+
+	static void afterUsernameUpdate(TriggerData td)
+	throws SQLException
+	{
+		Logger log = Logger.getAnonymousLogger();
+		if(td.isFiredForStatement())
+			throw new TriggerException(td, "can't process STATEMENT events");
+
+		if(td.isFiredBefore())
+			throw new TriggerException(td, "must be fired after event");
+
+		if(!td.isFiredByUpdate())
+			throw new TriggerException(td, "can't process DELETE or INSERT events");
+
+		ResultSet _new = td.getNew();
+		String[] args = td.getArguments();
+		if(args.length != 1)
+			throw new TriggerException(td, "one argument was expected");
+		String colName = args[0];
+
+		ResultSet _old = td.getOld();
+		log.info("Old name is \"" + _old.getString(colName) + '"');
+		log.info("New name is \"" + _new.getString(colName) + '"');
 	}
 
 	/**

@@ -597,6 +597,12 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		 */
 		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
 		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
+
+		/* Triggers are not allowed to set the fcinfo->isnull, even when
+		 * they return null.
+		 */
+		fcinfo->isnull = false;
+
 		MemoryContextSwitchTo(currCtx);
 	}
 

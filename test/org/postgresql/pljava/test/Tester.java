@@ -349,6 +349,10 @@ public class Tester
 			System.out.println("Name = \"" + name + "\", username = \"" + username + "\"");
 		}
 		rs.close();
+
+		// Test the update trigger as well
+		//
+		stmt.execute("UPDATE username_test SET username = 'Kalle Kula' WHERE username = 'name'");
 		stmt.close();
 	}
 
