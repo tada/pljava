@@ -1,10 +1,8 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include <postgres.h>
 #include <miscadmin.h>
@@ -26,10 +24,12 @@
 
 #include "pljava/Function.h"
 #include "pljava/type/Type.h"
-#include "pljava/type/NativeStruct.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
+#include "pljava/EOXactListener.h"
 #include "pljava/Backend_JNI.h"
+#include "pljava/Backend.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/SPI.h"
 #include "pljava/type/String.h"
 
@@ -45,7 +45,6 @@ bool isCallingJava;
 
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
-static int callLevel = 0;
 
 #if !(PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 # define PGSQL_CUSTOM_VARIABLES 1
@@ -56,6 +55,7 @@ static char* vmoptions;
 static char* classpath;
 static bool  pljavaDebug;
 #endif
+
 
 static void initJavaVM(JNIEnv* env)
 {
@@ -77,6 +77,16 @@ static void initJavaVM(JNIEnv* env)
 		"(ILjava/lang/String;)V",
 		Java_org_postgresql_pljava_internal_Backend__1log
 		},
+		{
+		"_addEOXactListener",
+		"(Lorg/postgresql/pljava/internal/EOXactListener;)V",
+		Java_org_postgresql_pljava_internal_Backend__1addEOXactListener
+		},
+		{
+		"_removeEOXactListener",
+		"(Lorg/postgresql/pljava/internal/EOXactListener;)V",
+		Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener
+		},
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", methods);
@@ -85,23 +95,33 @@ static void initJavaVM(JNIEnv* env)
 	DirectFunctionCall1(SPI_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
+
+#ifdef GCJ
+	/* GCJ has a bug in that the Logger configurator is never instantiated
+	 */
+	{
+	isCallingJava = true;
+	jclass logConfigClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/LoggerConfigurator");
+	jmethodID init = PgObject_getJavaMethod(env, logConfigClass, "<init>", "()V");
+	jobject instance = (*env)->NewObject(env, logConfigClass, init);
+	isCallingJava = false;
+	(*env)->DeleteLocalRef(env, logConfigClass);
+	(*env)->DeleteLocalRef(env, instance);
+	}
+#endif
 }
 
-static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
+static void onEndOfScope(MemoryContext ctx, bool isDelete)
 {
-	Datum retval;
-	HashMap saveNativeStructCache;
-	sigjmp_buf saveRestart;
-	bool saveErrorOccured = elogErrorOccured;
-	bool saveIsCallingJava = isCallingJava;
-	Oid funcOid = fcinfo->flinfo->fn_oid;
+	JNIEnv* env = Backend_getMainEnv();
+	if(env == 0)
+		return;
 
-	if(callLevel == 0)
+	(*env)->PopLocalFrame(env, 0);
+
+	if(!isDelete)
 	{
-		/* Since the call does not originate from the JavaVM, we must
-		 * push a local frame that ensures garbage collection of
-		 * new objecs once popped (somewhat similar to palloc, but for
-		 * Java objects).
+		/* This is a reset, establish a new local frame.
 		 */
 		if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
 		{
@@ -112,28 +132,53 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 				errcode(ERRCODE_OUT_OF_MEMORY),
 				errmsg("Unable to create java frame for local references")));
 		}
-	}
+	}	
+}
+
+static Datum callFunction(MemoryContext upper, PG_FUNCTION_ARGS)
+{
+	Datum retval;
+	sigjmp_buf saveRestart;
+	bool saveErrorOccured = elogErrorOccured;
+	bool saveIsCallingJava = isCallingJava;
+	MemoryContext saveReturnValueContext = returnValueContext;
+	Oid funcOid = fcinfo->flinfo->fn_oid;
 
 	/* Save some static stuff on the stack that we want to preserve in
 	 * case this function is reentered. This may happend if Java calls
 	 * out to SQL which in turn invokes a new Java function.
 	 */
-	saveNativeStructCache = NativeStruct_pushCache();
 	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart));
 	elogErrorOccured = false;
 
-	++callLevel;
+	returnValueContext = upper;
+	if(!MemoryContext_hasCallbackCapability(upper))
+	{
+		/* Since the call does not originate from the JavaVM, we must
+		 * push a local frame that ensures garbage collection of
+		 * new objecs once popped (somewhat similar to palloc, but for
+		 * Java objects).
+		 */
+		if((*s_mainEnv)->PushLocalFrame(s_mainEnv, LOCAL_REFERENCE_COUNT) < 0)
+		{
+			/* Out of memory
+			 */
+			(*s_mainEnv)->ExceptionClear(s_mainEnv);
+			ereport(ERROR, (
+				errcode(ERRCODE_OUT_OF_MEMORY),
+				errmsg("Unable to create java frame for local references")));
+		}
+		MemoryContext_addEndOfScopeCB(upper, onEndOfScope);
+	}
+
 	if(sigsetjmp(Warn_restart, 1) != 0)
 	{
 		/* Catch block.
 		 */
-		--callLevel;
 		memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
-		elogErrorOccured = saveErrorOccured;
-		isCallingJava = saveIsCallingJava;
-		NativeStruct_popCache(env, saveNativeStructCache);
-		if(callLevel == 0)
-			(*env)->PopLocalFrame(env, 0);
+		elogErrorOccured   = saveErrorOccured;
+		isCallingJava      = saveIsCallingJava;
+		returnValueContext = saveReturnValueContext;
 		siglongjmp(Warn_restart, 1);
 	}
 
@@ -141,29 +186,26 @@ static Datum callFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 	{
 		/* Called as a trigger procedure
 		 */
-		Function function = Function_getFunction(env, funcOid, true);
-		retval = Function_invokeTrigger(function, env, fcinfo);
+		Function function = Function_getFunction(s_mainEnv, funcOid, true);
+		retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
 	}
 	else
 	{
 		/* Called as a function
 		 */
-		Function function = Function_getFunction(env, funcOid, false);
-		retval = Function_invoke(function, env, fcinfo);
+		Function function = Function_getFunction(s_mainEnv, funcOid, false);
+		retval = Function_invoke(function, s_mainEnv, fcinfo);
 	}
-	Exception_checkException(env);
+	Exception_checkException(s_mainEnv);
 	if(elogErrorOccured)
 		longjmp(Warn_restart, 1);
 
 	/* Pop of the "try/catch" block.
 	 */
-	--callLevel;
 	memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart));
-	elogErrorOccured = saveErrorOccured;
-	isCallingJava = saveIsCallingJava;
-	NativeStruct_popCache(env, saveNativeStructCache);
-	if(callLevel == 0)
-		(*env)->PopLocalFrame(env, 0);
+	elogErrorOccured   = saveErrorOccured;
+	isCallingJava      = saveIsCallingJava;
+	returnValueContext = saveReturnValueContext;
 	return retval;
 }
 
@@ -445,6 +487,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
+		s_mainEnv = 0;
 	}
 }
 
@@ -618,7 +661,7 @@ static void initializeJavaVM()
 		PGC_USERSET,
 		NULL, NULL);
 
-	EmittWarningsOnPlaceholders("pljava");
+	EmitWarningsOnPlaceholders("pljava");
 
 	addUserJVMOptions(&optList);
 	
@@ -722,6 +765,11 @@ static void initializeJavaVM()
 	initJavaVM(s_mainEnv);
 }
 
+JNIEnv* Backend_getMainEnv()
+{
+	return s_mainEnv;
+}
+
 extern Datum java_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(java_call_handler);
 
@@ -732,17 +780,13 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	void* oldUpper;
 	Datum ret;
+	MemoryContext upper = CurrentMemoryContext;
 	if(s_javaVM == 0)
 		initializeJavaVM();
 
 	SPI_connect();
-	oldUpper = SPI_clearUpperContextInfo();
-
-	ret = callFunction(s_mainEnv, fcinfo);
-
-	SPI_restoreUpperContextInfo(oldUpper);
+	ret = callFunction(upper, fcinfo);
 	SPI_finish();
 	return ret;
 }
@@ -822,4 +866,44 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isCallingJava(JNIEnv* env, jclass cls)
 {
 	return isCallingJava ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _addEOXactListener
+ * Signature: (Lorg/postgresql/pljava/internal/EOXactListener;)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jclass cls, jobject listener)
+{
+	PLJAVA_ENTRY_FENCE_VOID
+	PLJAVA_TRY
+	{
+		EOXactListener_register(env, listener);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "RegisterEOXactCallback");
+	}
+	PLJAVA_TCEND
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _removeEOXactListener
+ * Signature: (Lorg/postgresql/pljava/internal/EOXactListener;)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, jclass cls, jobject listener)
+{
+	PLJAVA_ENTRY_FENCE_VOID
+	PLJAVA_TRY
+	{
+		EOXactListener_unregister(env);
+	}
+	PLJAVA_CATCH
+	{
+		Exception_throw_ERROR(env, "UnregisterEOXactCallback");
+	}
+	PLJAVA_TCEND
 }

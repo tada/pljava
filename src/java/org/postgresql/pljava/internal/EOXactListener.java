@@ -1,23 +1,22 @@
-/**
- * An instance of this interface reflects the current transaction.
- *
- * @author Thomas Hallgren
+/*
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 package org.postgresql.pljava.internal;
 
 
 /**
- * An instance of this class corresponds to the PosgreSQL interal
- * structure EOXactCallback.
+ * Interface implemented by internal classes that wishes to listen to the
+ * PostgreSQL EOXact event.
  *
  * @author Thomas Hallgren
  */
-public abstract class EOXactListener extends NativeStruct
+public interface EOXactListener
 {
 	/**
 	 * Callback received from the backend when a transaction has ended.
 	 * @param wasCommit Set to <code>true</code> if the commit was a success
 	 * and <code>false</code> if the transaction aborted.
 	 */
-	public abstract void onEOXact(boolean isCommit);
+	public void onEOXact(boolean isCommit);
 }

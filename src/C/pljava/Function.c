@@ -1,21 +1,20 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
-#include "pljava/SPI.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 
 #include <catalog/pg_proc.h>
 #include <catalog/pg_namespace.h>
+#include <utils/builtins.h>
 #include <ctype.h>
 
 static jclass s_Loader_class;
@@ -617,7 +616,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		/* A new Tuple may or may not be created here. If it is, ensure that
 		 * it is created in the upper SPI context.
 		 */
-		MemoryContext currCtx = SPI_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
 		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
 		MemoryContextSwitchTo(currCtx);
 	}

@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_type_Type_h
 #define __pljava_type_Type_h
@@ -27,7 +23,7 @@ extern "C" {
  * Types that are not mapped will default to a java.lang.String mapping
  * and use the Form_pg_type text conversion routines.
  * 
- * Author: Thomas Hallgren
+ * @author Thomas Hallgren
  *
  *********************************************************************/
 struct Type_;

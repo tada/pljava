@@ -1,10 +1,8 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include <postgres.h>
 #include <utils/memutils.h>
@@ -16,22 +14,27 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
 #include "pljava/HashMap.h"
-#include "pljava/SPI.h"
+#include "pljava/MemoryContext.h"
 
 /*
  * void primitive type.
  */
 static jclass s_ResultSetProvider_class;
+
+#ifndef GCJ /* Bug libgcj/15001 */
 static jmethodID s_ResultSetProvider_assignRowValues;
+#endif
 
 static TypeClass s_ResultSetProviderClass;
 static HashMap s_cache;
 
 struct _CallContextData
 {
-	HashMap nativeCache;
 	jobject singleRowWriter;
 	jobject resultSetProvider;
+#ifdef GCJ /* Bug libgcj/15001 */
+	jmethodID assignRowValues;
+#endif
 };
 
 typedef struct _CallContextData* CallContextData;
@@ -39,15 +42,17 @@ typedef struct _CallContextData* CallContextData;
 static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
-	HashMap currentCache;
 	CallContextData  ctxData;
-    FuncCallContext* context;
+	FuncCallContext* context;
 	bool saveicj = isCallingJava;
 
 	/* stuff done only on the first call of the function
 	 */
 	if(SRF_IS_FIRSTCALL())
 	{
+#ifdef GCJ /* Bug libgcj/15001 */
+		jclass rsClass;
+#endif
 		jobject tmp;
 		MemoryContext oldContext;
 		TupleDesc tupleDesc;
@@ -60,11 +65,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 */
 		oldContext = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
-		/* Push a new NativeStruct cache so that NativeStructs created during
-		 * the initial call will survive until SRF_RETURN_DONE.
-		 */
-		currentCache = NativeStruct_pushCache();
-
 		/* Call the declared Java function. It returns the ResultSetProvider
 		 * that later is used once for each row that should be obtained.
 		 */
@@ -74,7 +74,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 
 		if(tmp == 0)
 		{
-			NativeStruct_popCache(env, currentCache);
 			fcinfo->isnull = true;
 			SRF_RETURN_DONE(context);
 		}
@@ -93,18 +92,18 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Build a tuple description for the tuples
 		 */
 		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
+#ifdef GCJ /* Bug libgcj/15001 */
+		rsClass = (*env)->GetObjectClass(env, tmp);
+		ctxData->assignRowValues = PgObject_getJavaMethod(
+				env, rsClass, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
+		(*env)->DeleteLocalRef(env, rsClass);
+#endif
 		(*env)->DeleteLocalRef(env, tmp);
-
 		tmp = SingleRowWriter_create(env, tupleDesc);		
 		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp);
 		(*env)->DeleteLocalRef(env, tmp);
 
 		MemoryContextSwitchTo(oldContext);
-		
-		/* Switch NativeStruct cache so that the one just pushed is
-		 * preserved.
-		 */
-		ctxData->nativeCache = NativeStruct_switchTopCache(currentCache);
 	}
 
 	context = SRF_PERCALL_SETUP();
@@ -115,7 +114,12 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	 */
 	isCallingJava = true;
 	hasRow = ((*env)->CallBooleanMethod(
-			env, ctxData->resultSetProvider, s_ResultSetProvider_assignRowValues,
+			env, ctxData->resultSetProvider,
+#ifdef GCJ /* Bug libgcj/15001 */
+			ctxData->assignRowValues,
+#else
+			s_ResultSetProvider_assignRowValues,
+#endif
 			ctxData->singleRowWriter, (jint)context->call_cntr) == JNI_TRUE);
 	isCallingJava = saveicj;
 
@@ -124,9 +128,9 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = SPI_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
-	    Datum result = TupleGetDatum(context->slot, tuple);
+		Datum result = TupleGetDatum(context->slot, tuple);
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
@@ -137,16 +141,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
 	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
 
-	/*
-	 * Restore the preserved NativeStruct cache so that it becomes the
-	 * one that is popped (and cleared) by next pop.
-	 */
-	currentCache = NativeStruct_switchTopCache(ctxData->nativeCache);
-
-	/* Pop the NativeStruct cache and reinstate the one that we just
-	 * switched out.
-	 */
-	NativeStruct_popCache(env, currentCache);
 	pfree(ctxData);
 	SRF_RETURN_DONE(context);
 }
@@ -188,15 +182,17 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetProvider_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetProvider"));
 
+#ifndef GCJ /* Bug libgcj/15001 */
 	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(
 				env, s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
+#endif
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
 	s_ResultSetProviderClass = TypeClass_alloc("type.ResultSetProvider");
 	s_ResultSetProviderClass->JNISignature = "Lorg/postgresql/pljava/ResultSetProvider;";
 	s_ResultSetProviderClass->javaTypeName = "org.postgresql.pljava.ResultSetProvider";
-	s_ResultSetProviderClass->invoke       = _ResultSetProvider_invoke;
+	s_ResultSetProviderClass->invoke	   = _ResultSetProvider_invoke;
 	s_ResultSetProviderClass->coerceDatum  = _ResultSetProvider_coerceDatum;
 	s_ResultSetProviderClass->coerceObject = _ResultSetProvider_coerceObject;
 

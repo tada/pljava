@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_NativeStruct_h
 #define __pljava_NativeStruct_h
@@ -23,25 +19,8 @@ extern "C" {
  * allocated using palloc(), some code must assert that pointers from Java
  * objects to such memory is cleared when the function manager call ends.
  * 
- * Author: Thomas Hallgren
+ * @author Thomas Hallgren
  *************************************************************************/
-
-/*
- * Return the current cache (now the old) and initialize a new cache.
- */
-extern HashMap NativeStruct_pushCache(void);
-
-/*
- * Reset the pointer of all objects in the current weak cache, destroy it
- * and assign the old cache.
- */
-extern void NativeStruct_popCache(JNIEnv* env, HashMap oldCache);
-
-/*
- * Exchange the top cache. A new cache is assigned and the old one is
- * returned.
- */
-extern HashMap NativeStruct_switchTopCache(HashMap newTop);
 
 /*
  * Obtain a locally bound object form the weak cache. This method

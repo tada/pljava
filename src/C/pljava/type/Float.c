@@ -1,10 +1,8 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include "pljava/type/Type_priv.h"
 

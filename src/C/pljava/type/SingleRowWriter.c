@@ -1,15 +1,13 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include <postgres.h>
 #include <funcapi.h>
 
-#include "pljava/SPI.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
@@ -57,7 +55,7 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = SPI_switchToReturnValueContext();
+		MemoryContext currCtx = MemoryContext_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
 #if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 	    result = TupleGetDatum(TupleDescGetSlot(tupleDesc), tuple);

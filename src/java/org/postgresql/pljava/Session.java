@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2004 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 package org.postgresql.pljava;
 
@@ -12,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.EOXactListener;
 
 /**
@@ -20,7 +17,7 @@ import org.postgresql.pljava.internal.EOXactListener;
  *
  * @author Thomas Hallgren
  */
-public class Session extends EOXactListener
+public class Session implements EOXactListener
 {
 	private final ArrayList m_xactListeners = new ArrayList();
 	private final TransactionalMap m_attributes = new TransactionalMap(new HashMap());
@@ -38,6 +35,14 @@ public class Session extends EOXactListener
 	public Object getAttribute(String attributeName)
 	{
 		return m_attributes.get(attributeName);
+	}
+
+	/**
+	 * Returns the current session.
+	 */
+	public static Session current()
+	{
+		return Backend.getSession();
 	}
 
 	/**

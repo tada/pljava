@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_SingleRowWriter_h
 #define __pljava_SingleRowWriter_h
@@ -20,7 +16,7 @@ extern "C" {
  * The SingleRowWriter is a single-row ResultSet used when providing
  * values for each row a set that is returned from a function.
  * 
- * Author: Thomas Hallgren
+ * @author Thomas Hallgren
  *******************************************************************/
 
 /*

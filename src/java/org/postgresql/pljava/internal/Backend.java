@@ -1,12 +1,10 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 package org.postgresql.pljava.internal;
+
+import org.postgresql.pljava.Session;
 
 /**
  * Provides access to some useful routines in the PostgreSQL server.
@@ -19,16 +17,28 @@ public class Backend
 	 */
 	public static final Object THREADLOCK = new Object();
 
-	/**
-	 * Adds the specified Session to the list of listeners that will
-	 * receive transactional events.
-	 */
-	public static void addEOXactListener(EOXactListener listener)
+	private static Session s_session;
+
+	public static synchronized Session getSession()
 	{
-		synchronized(THREADLOCK)
+		if(s_session == null)
 		{
-			/* _addEOXactListener(listener); */
+			s_session = new Session();
+			synchronized(THREADLOCK)
+			{
+				_addEOXactListener(s_session);
+			}
+			Runtime.getRuntime().addShutdownHook(new Thread()
+			{
+				public void run()
+				{
+					if(s_session != null)
+						_removeEOXactListener(s_session);
+					s_session = null;
+				}
+			});
 		}
+		return s_session;
 	}
 
 	/**
@@ -59,18 +69,6 @@ public class Backend
 	}
 
 	/**
-	 * Removes the specified listener from the list of listeners that will
-	 * receive transactional events.
-	 */
-	public static void removeEOXactListener(EOXactListener listener)
-	{
-		synchronized(THREADLOCK)
-		{
-			/* _removeEOXactListener(listener); */
-		}
-	}
-
-	/**
 	 * Returns <code>true</code> if the backend is awaiting a return from a
 	 * call into the JVM. This method will only return <code>false</code>
 	 * when called from a thread other then the main thread and the main
@@ -81,8 +79,6 @@ public class Backend
 	private native static String _getConfigOption(String key);
 	private native static void _log(int logLevel, String str);
 
-	/* To be added later.
 	private native static void _addEOXactListener(EOXactListener listener);
 	private native static void _removeEOXactListener(EOXactListener listener); 
-	 */
 }

@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 package org.postgresql.pljava.sqlj;
 
@@ -39,7 +35,6 @@ public class Loader extends ClassLoader
 	throws SQLException
 	{
 		Logger log = Logger.getAnonymousLogger();
-		log.info("Hey, I got this far");
 		if(schemaName == null || schemaName.length() == 0)
 			schemaName = PUBLIC_SCHEMA;
 		else

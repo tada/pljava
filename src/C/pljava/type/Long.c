@@ -1,13 +1,11 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include "pljava/type/Type_priv.h"
-#include "pljava/SPI.h"
+#include "pljava/MemoryContext.h"
 
 static Type s_long;	/* Primitive (scalar) type */
 static TypeClass s_longClass;
@@ -36,7 +34,7 @@ static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, 
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	currCtx = SPI_switchToReturnValueContext();
+	currCtx = MemoryContext_switchToReturnValueContext();
 	ret = Int64GetDatum(lv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;

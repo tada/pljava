@@ -1,18 +1,14 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include "pljava/SPI.h"
 #include "pljava/SPI_JNI.h"
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
-
-static void* allocatedInUpper = 0;
 
 Datum SPI_initialize(PG_FUNCTION_ARGS)
 {
@@ -43,28 +39,6 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 
 	PgObject_registerNatives(env, "org/postgresql/pljava/internal/SPI", methods);
 	PG_RETURN_VOID();
-}
-
-void* SPI_clearUpperContextInfo()
-{
-	void* old = allocatedInUpper;
-	allocatedInUpper = 0;
-	return old;
-}
-
-void SPI_restoreUpperContextInfo(void* value)
-{
-	if(allocatedInUpper != 0)
-		SPI_pfree(allocatedInUpper);
-	allocatedInUpper = value;
-}
-
-MemoryContext SPI_switchToReturnValueContext()
-{
-    if(allocatedInUpper == 0)
-    	allocatedInUpper = SPI_palloc(4);
-
-	return MemoryContextSwitchTo(GetMemoryChunkContext(allocatedInUpper));
 }
 
 /****************************************

@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_pljava_h
 #define __pljava_pljava_h
@@ -14,6 +10,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*****************************************************************
+ * Misc stuff to tie Java to PostgreSQL. TRY/CATCH macros, thread
+ * blocking, etc. resides here.
+ *
+ * @author Thomas Hallgren
+ *****************************************************************/
 
 #ifdef __STRICT_ANSI__
 extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);

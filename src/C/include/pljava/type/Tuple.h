@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_Tuple_h
 #define __pljava_Tuple_h
@@ -20,7 +16,7 @@ extern "C" {
  * The Tuple java class extends the NativeStruct and provides JNI
  * access to some of the attributes of the HeapTuple structure.
  * 
- * Author: Thomas Hallgren
+ * @author Thomas Hallgren
  *****************************************************************/
 
 /*

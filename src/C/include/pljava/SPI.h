@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 #ifndef __pljava_SPI_h
 #define __pljava_SPI_h
@@ -12,7 +8,6 @@
 #include "pljava/PgObject.h"
 
 #include <executor/spi.h>
-#include <utils/memutils.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,29 +16,9 @@ extern "C" {
 /***********************************************************************
  * Some needed additions to the SPI set of functions.
  * 
- * Author: Thomas Hallgren
+ * @author Thomas Hallgren
  *
  ***********************************************************************/
-
-/*
- * Clear the upper context pointer. Return old value.
- */
-void* SPI_clearUpperContextInfo(void);
-
-/*
- * Restore upper context pointer.
- */
-void SPI_restoreUpperContextInfo(void* value);
-
-/*
- * Switch memory context to a context that is durable between calls to
- * the call manager but not durable between queries. The old context is
- * returned. This method can be used when creating values that will be
- * returned from the Pl/Java routines. Once the values have been created
- * a call to MemoryContextSwitchTo(oldContext) must follow where oldContext
- * is the context returned from this call.
- */
-extern MemoryContext SPI_switchToReturnValueContext(void);
 
 #if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 /*

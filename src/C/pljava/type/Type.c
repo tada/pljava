@@ -1,12 +1,11 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * @author Thomas Hallgren
  */
 #include "pljava/type/String_priv.h"
+#include "pljava/MemoryContext.h"
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
@@ -134,7 +133,7 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 	/* The return value cannot be created in the current context since it
 	 * goes out of scope when SPI_finish is called.
 	 */
-	currCtx = SPI_switchToReturnValueContext();
+	currCtx = MemoryContext_switchToReturnValueContext();
 	ret = self->m_class->coerceObject(self, env, value);
 	MemoryContextSwitchTo(currCtx);
 	(*env)->DeleteLocalRef(env, value);

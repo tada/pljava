@@ -1,10 +1,6 @@
 /*
- * This file contains software that has been made available under The BSD
- * license. Use and distribution hereof are subject to the restrictions set
- * forth therein.
- * 
- * Copyright (c) 2003 TADA AB - Taby Sweden
- * All Rights Reserved
+ * Copyright (c) 2003, 2004 TADA AB - Taby Sweden
+ * Distributed under the terms shown in the file COPYRIGHT.
  */
 package org.postgresql.pljava.test;
 
@@ -236,6 +232,8 @@ public class Tester
 	{
 		Statement stmt = m_connection.createStatement();
 
+		stmt.execute("DELETE FROM employees1");
+		stmt.execute("DELETE FROM employees2");
 		stmt.execute("INSERT INTO employees1 VALUES(" +
 			"1, 'Calvin Forrester', 10000)");
 		stmt.execute("INSERT INTO employees1 VALUES(" +
@@ -294,6 +292,7 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
+		stmt.execute("DELETE FROM mdt");
 		stmt.execute("INSERT INTO mdt VALUES (1, 'first')");
 		stmt.execute("INSERT INTO mdt VALUES (2, 'second')");
 		stmt.execute("INSERT INTO mdt VALUES (3, 'third')");
@@ -334,6 +333,7 @@ public class Tester
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
+		stmt.execute("DELETE FROM username_test");
 		stmt.execute("INSERT INTO username_test VALUES ('nothing', 'thomas')");
 		stmt.execute("INSERT INTO username_test VALUES ('null', null)");
 		stmt.execute("INSERT INTO username_test VALUES ('empty string', '')");

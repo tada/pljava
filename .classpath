@@ -5,6 +5,5 @@
 	<classpathentry output="bin/examples/classes" kind="src" path="examples/java"/>
 	<classpathentry output="bin/deploy/classes" kind="src" path="deploy/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="org.postgresql.jdbc"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

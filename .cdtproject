@@ -2,7 +2,6 @@
 <?eclipse-cdt version="2.0"?>
 
 <cdtproject id="org.eclipse.cdt.make.core.make">
-<extension point="org.eclipse.cdt.core.ScannerInfoProvider" id="org.eclipse.cdt.make.core.MakeScannerProvider"/>
 <extension point="org.eclipse.cdt.core.BinaryParser" id="org.eclipse.cdt.core.GNU_ELF">
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
