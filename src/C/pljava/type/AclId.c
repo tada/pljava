@@ -8,7 +8,10 @@
  */
 #include <postgres.h>
 #include <miscadmin.h>
+#include <utils/acl.h>
 
+#include "pljava/type/AclId.h"
+#include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Type_priv.h"
 #include "org_postgresql_pljava_internal_AclId.h"
@@ -72,6 +75,16 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_AclId__1getName
 		},
+		{
+		"_hasSchemaCreatePermission",
+		"(Lorg/postgresql/pljava/internal/Oid;)Z",
+		Java_org_postgresql_pljava_internal_AclId__1hasSchemaCreatePermission
+		},
+		{
+		"_isSuperuser",
+		"()Z",
+		Java_org_postgresql_pljava_internal_AclId__1isSuperuser
+		},
 		{ 0, 0, 0 }};
 
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
@@ -102,9 +115,9 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
  * JNI methods
  ****************************************/
 /*
- * Class:     org_postgresql_pljava_AclId
+ * Class:     org_postgresql_pljava_internal_AclId
  * Method:    _getUser
- * Signature: ()Lorg/postgresql/pljava/AclId;
+ * Signature: ()Lorg/postgresql/pljava/internal/AclId;
  */
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
@@ -124,9 +137,9 @@ Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 }
 
 /*
- * Class:     org_postgresql_pljava_AclId
+ * Class:     org_postgresql_pljava_internal_AclId
  * Method:    _getSessionUser
- * Signature: ()Lorg/postgresql/pljava/AclId;
+ * Signature: ()Lorg/postgresql/pljava/internal/AclId;
  */
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass clazz)
@@ -146,7 +159,7 @@ Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass c
 }
 
 /*
- * Class:     org_postgresql_pljava_AclId
+ * Class:     org_postgresql_pljava_internal_AclId
  * Method:    _getName
  * Signature: ()Ljava/lang/String;
  */
@@ -166,4 +179,29 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 	}
 	PG_END_TRY();
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_AclId
+ * Method:    _hasSchemaCreatePermission
+ * Signature: (Lorg/postgresql/pljava/internal/Oid)Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_AclId__1hasSchemaCreatePermission(JNIEnv* env, jobject aclId, jobject oid)
+{
+	PLJAVA_ENTRY_FENCE(JNI_FALSE)
+	return (pg_namespace_aclcheck(Oid_getOid(env, oid), AclId_getAclId(env, aclId), ACL_CREATE) == ACLCHECK_OK)
+		? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_AclId
+ * Method:    _isSuperuser
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_AclId__1isSuperuser(JNIEnv* env, jobject aclId)
+{
+	PLJAVA_ENTRY_FENCE(JNI_FALSE)
+	return superuser_arg(AclId_getAclId(env, aclId)) ? JNI_TRUE : JNI_FALSE;
 }

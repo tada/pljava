@@ -18,20 +18,22 @@ pre          { margin-top: 6; margin-left: 15 }
 
 <h1>PLJava 1.0 User Guide</h1>
 <h2>Table of contents</h2>
-<p><a href="#Utilities">Utilities</a><br>
-&nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>
-&nbsp;<a href="#SQLJ_functions_">SQLJ functions</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#install_jar_">install_jar</a><br/>
-&nbsp;&nbsp;&nbsp; <a href="#replace_jar_">replace_jar</a><br/>
-&nbsp;&nbsp;&nbsp; <a href="#remove_jar_">remove_jar</a><br/>
-&nbsp;&nbsp;&nbsp; <a href="#get_classpath_">get_classpath</a><br/>
-&nbsp;&nbsp;&nbsp; <a href="#set_classpath_">set_classpath</a><br>
-<a href="#Writing_Java_functions_">Writing Java functions</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Type_mapping_">Type mapping</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Returning_complex_types_">Returning complex types</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Functions_returning_sets_">Functions returning sets</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Using_JDBC_">Using JDBC</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Logging_">Logging</a></p>
+<p><a href="#Utilities">Utilities</a><br>&nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>&nbsp;<a href="#SQLJ_functions_">SQLJ functions</a><br>&nbsp;&nbsp;&nbsp; 
+<a href="#install_jar_">install_jar</a><br/>&nbsp;&nbsp;&nbsp; 
+<a href="#replace_jar_">replace_jar</a><br/>&nbsp;&nbsp;&nbsp; 
+<a href="#remove_jar_">remove_jar</a><br/>&nbsp;&nbsp;&nbsp; 
+<a href="#get_classpath_">get_classpath</a><br/>&nbsp;&nbsp;&nbsp; 
+<a href="#set_classpath_">set_classpath</a><br>
+<a href="#Writing_Java_functions_">Writing Java functions</a><br>&nbsp;&nbsp;&nbsp; 
+<a href="#Type_mapping_">Type mapping</a><br>&nbsp;&nbsp;&nbsp; 
+<a href="#Returning_complex_types_">Returning complex types</a><br>&nbsp;&nbsp;&nbsp; 
+<a href="#Functions_returning_sets_">Functions returning sets</a><br>&nbsp;&nbsp;&nbsp; 
+<a href="#Using_JDBC_">Using JDBC</a><br>&nbsp;&nbsp;&nbsp; <a href="#Logging_">Logging</a><br>
+<a href="#Security">Security</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Installation">Installation</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Execution_of_the_deployment_descriptor">
+Execution_of_the_deployment_descriptor</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Classpath_manipulation">Classpath_manipulation</a></p>
 <h2><a name="Utilities">Utilities</a></h2>
 <h3><i><a name="Deployer">Deployer</a></i></h3>
 <p>When running the <code>deployer</code>, you must use a classpath that can see 
@@ -550,6 +552,24 @@ JDBC connection. There are a couple of limitations though:</p>
 <p>At present, the logger is hardwired to a handler that maps the current state 
 of the PostgreSQL configuration setting log_min_messages to a valid Logger level 
 and that outputs all messages using the backend function elog().</p>
+
+<h2><a name="Security">Security</a></h2>
+<h3><i><a name="Installation">Installation</a></i></h3>
+<p>Only a PostgreSQL super user can install PLJava. The PLJava utility functions 
+are installed using <code>SECURITY DEFINER</code> so that they execute with the access 
+permissions that where granted to the creator of the functions. This allows 
+arbitrary users to add new Java functionality to the database.</p>
+<h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the 
+deployment descriptor</a></i></h3>
+<p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, optionally executes commands 
+found in a SQL deployment descriptor. These commands are executed with the 
+permissions of the caller rather than the permission of the creator of those functions.</p>
+<h3><i><a name="Classpath_manipulation">Classpath manipulation</a></i></h3>
+<p>The function <code>set_classpath</code> requires the caller of the function has been 
+granted CREATE permission on the affected schema.</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
 
 </body>
 
