@@ -162,10 +162,20 @@ extern Datum NativeStruct_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(NativeStruct_initialize);
 Datum NativeStruct_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_releasePointer",
+	  	"()V",
+	  	Java_org_postgresql_pljava_internal_NativeStruct__1releasePointer
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_NativeStruct_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/NativeStruct"));
+
+	PgObject_registerNatives2(env, s_NativeStruct_class, methods);
 
 	s_NativeStruct_m_native = PgObject_getJavaField(
 				env, s_NativeStruct_class, "m_native", "J");

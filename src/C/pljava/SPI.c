@@ -14,65 +14,42 @@
 
 static MemoryContext upperContext = 0;
 
+Datum SPI_initialize(PG_FUNCTION_ARGS)
+{
+	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+
+	JNINativeMethod methods[] = {
+		{
+		"_exec",
+	  	"(Ljava/lang/String;I)I",
+	  	Java_org_postgresql_pljava_internal_SPI__1exec
+		},
+		{
+		"_getProcessed",
+		"()I",
+		Java_org_postgresql_pljava_internal_SPI__1getProcessed
+		},
+		{
+		"_getResult",
+		"()I",
+		Java_org_postgresql_pljava_internal_SPI__1getResult
+		},
+		{
+		"_getTupTable",
+		"()Lorg/postgresql/pljava/internal/SPITupleTable;",
+		Java_org_postgresql_pljava_internal_SPI__1getTupTable
+		},
+		{ 0, 0, 0 }};
+
+	PgObject_registerNatives(env, "org/postgresql/pljava/internal/SPI", methods);
+	PG_RETURN_VOID();
+}
+
 void SPI_clearUpperContextInfo()
 {
 	upperContext = 0;
 }
 
-/* Dirty patch that shows when the upper context is deleted or reset
-
-static MemoryContextMethods* originalMethods = 0;
-
-static void myDelete(MemoryContext ctx)
-{
-	elog(LOG, "Deleting context 0x%lx", (long)((void*)ctx));
-	originalMethods->delete(ctx);
-}
-	
-static void myReset(MemoryContext ctx)
-{
-	elog(LOG, "Doing reset on context 0x%lx", (long)((void*)ctx));
-	originalMethods->reset(ctx);
-}
-
-static void installSPIContextLogPatch()
-{
-	void* tmp = SPI_palloc(4);
-	MemoryContext upperContext = GetMemoryChunkContext(tmp);
-
-	if(originalMethods == 0 || originalMethods == upperContext->methods)
-	{
-		originalMethods = upperContext->methods;
-		MemoryContextMethods* repl = (MemoryContextMethods*)malloc(sizeof(MemoryContextMethods));
-		memcpy(repl, originalMethods, sizeof(MemoryContextMethods));
-		upperContext->methods = repl;
-		repl->delete = myDelete;
-		repl->reset = myReset;
-	}
-	SPI_pfree(tmp);
-}
- */
-/*
-static MemoryContext _SPI_getUpperContext()
-{
-	if(upperContext == 0)
-	{
-		void* tmp = SPI_palloc(16);
-		upperContext = QueryContext;
-		if(originalMethods == 0 || originalMethods == upperContext->methods)
-		{
-			originalMethods = upperContext->methods;
-			MemoryContextMethods* repl = (MemoryContextMethods*)malloc(sizeof(MemoryContextMethods));
-			memcpy(repl, originalMethods, sizeof(MemoryContextMethods));
-			upperContext->methods = repl;
-			repl->delete = myDelete;
-			repl->reset = myReset;
-		}
-		SPI_pfree(tmp);
-	}
-	return upperContext;
-}
-*/
 MemoryContext SPI_switchToReturnValueContext()
 {
 	/* Tried the upper context here but it's destroyed between calls
@@ -80,51 +57,6 @@ MemoryContext SPI_switchToReturnValueContext()
 	 */
 	return MemoryContextSwitchTo(QueryContext);
 }
-
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-
-#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
-
-Oid SPI_getargtypeid(void* plan, int argIndex)
-{
-	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return InvalidOid;
-	}
-	return ((_SPI_plan*)plan)->argtypes[argIndex];
-}
-
-int SPI_getargcount(void* plan)
-{
-	if (plan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return -1;
-	}
-	return ((_SPI_plan*)plan)->nargs;
-}
-
-bool SPI_is_cursor_plan(void* plan)
-{
-	List* qtlist;
-	_SPI_plan* spiplan = (_SPI_plan*)plan;
-	if (spiplan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return false;
-	}
-
-	qtlist = spiplan->qtlist;
-	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
-	{
-		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
-		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
-			return true;
-	}
-	return false;
-}
-#endif
 
 /****************************************
  * JNI methods
@@ -192,3 +124,48 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 	PLJAVA_ENTRY_FENCE(0)
 	return SPITupleTable_create(env, SPI_tuptable);
 }
+
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+
+#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+
+Oid SPI_getargtypeid(void* plan, int argIndex)
+{
+	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return InvalidOid;
+	}
+	return ((_SPI_plan*)plan)->argtypes[argIndex];
+}
+
+int SPI_getargcount(void* plan)
+{
+	if (plan == NULL)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return -1;
+	}
+	return ((_SPI_plan*)plan)->nargs;
+}
+
+bool SPI_is_cursor_plan(void* plan)
+{
+	List* qtlist;
+	_SPI_plan* spiplan = (_SPI_plan*)plan;
+	if (spiplan == NULL)
+	{
+		SPI_result = SPI_ERROR_ARGUMENT;
+		return false;
+	}
+
+	qtlist = spiplan->qtlist;
+	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
+	{
+		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
+		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
+			return true;
+	}
+	return false;
+}
+#endif

@@ -58,10 +58,60 @@ extern Datum Portal_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Portal_initialize);
 Datum Portal_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getName",
+		"()Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Portal__1getName
+		},
+		{
+		"_getPortalPos",
+	  	"()I",
+	  	Java_org_postgresql_pljava_internal_Portal__1getPortalPos
+		},
+		{
+		"_getTupleDesc",
+		"()Lorg/postgresql/pljava/internal/TupleDesc;",
+		Java_org_postgresql_pljava_internal_Portal__1getTupleDesc
+		},
+		{
+		"_fetch",
+	  	"(ZI)I",
+	  	Java_org_postgresql_pljava_internal_Portal__1fetch
+		},
+		{
+		"_invalidate",
+	  	"()V",
+	  	Java_org_postgresql_pljava_internal_Portal__1invalidate
+		},
+		{
+		"_isAtEnd",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_Portal__1isAtEnd
+		},
+		{
+		"_isAtStart",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_Portal__1isAtStart
+		},
+		{
+		"_isPosOverflow",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_Portal__1isPosOverflow
+		},
+		{
+		"_move",
+	  	"(ZI)I",
+	  	Java_org_postgresql_pljava_internal_Portal__1move
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Portal_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Portal"));
+
+	PgObject_registerNatives2(env, s_Portal_class, methods);
 
 	s_Portal_init = PgObject_getJavaMethod(
 				env, s_Portal_class, "<init>", "()V");

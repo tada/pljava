@@ -57,10 +57,35 @@ extern Datum SPITupleTable_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(SPITupleTable_initialize);
 Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getCount",
+	  	"()I",
+	  	Java_org_postgresql_pljava_internal_SPITupleTable__1getCount
+		},
+		{
+		"_getSlot",
+		"(I)Lorg/postgresql/pljava/internal/Tuple;",
+		Java_org_postgresql_pljava_internal_SPITupleTable__1getSlot
+		},
+		{
+		"_getTupleDesc",
+		"()Lorg/postgresql/pljava/internal/TupleDesc;",
+		Java_org_postgresql_pljava_internal_SPITupleTable__1getTupleDesc
+		},
+		{
+		"_invalidate",
+	  	"()V",
+	  	Java_org_postgresql_pljava_internal_SPITupleTable__1invalidate
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_SPITupleTable_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/SPITupleTable"));
+
+	PgObject_registerNatives2(env, s_SPITupleTable_class, methods);
 
 	s_SPITupleTable_init = PgObject_getJavaMethod(
 				env, s_SPITupleTable_class, "<init>", "()V");

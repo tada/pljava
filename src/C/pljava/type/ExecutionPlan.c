@@ -91,10 +91,50 @@ extern Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ExecutionPlan_initialize);
 Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_savePlan",
+	  	"()V",
+	  	Java_org_postgresql_pljava_internal_ExecutionPlan__1savePlan
+		},
+		{
+		"setDeathRowFlag",
+		"(Z)V",
+		Java_org_postgresql_pljava_internal_ExecutionPlan_setDeathRowFlag
+		},
+		{
+		"_cursorOpen",
+		"(Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen
+		},
+		{
+		"_isCursorPlan",
+		"()Z",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan
+		},
+		{
+		"_execp",
+		"([Ljava/lang/Object;I)I",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1execp
+		},
+		{
+		"_prepare",
+		"(Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)Lorg/postgresql/pljava/internal/ExecutionPlan;",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare
+		},
+		{
+		"_invalidate",
+		"()V",
+		Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_ExecutionPlan_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ExecutionPlan"));
+
+	PgObject_registerNatives2(env, s_ExecutionPlan_class, methods);
 
 	s_ExecutionPlan_init = PgObject_getJavaMethod(
 				env, s_ExecutionPlan_class, "<init>", "()V");

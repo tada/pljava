@@ -77,10 +77,75 @@ extern Datum TriggerData_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(TriggerData_initialize);
 Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getRelation",
+	  	"()Lorg/postgresql/pljava/internal/Relation;",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1getRelation
+		},
+		{
+		"_getTriggerTuple",
+		"()Lorg/postgresql/pljava/internal/Tuple;",
+		Java_org_postgresql_pljava_internal_TriggerData__1getTriggerTuple
+		},
+		{
+		"_getNewTuple",
+		"()Lorg/postgresql/pljava/internal/Tuple;",
+		Java_org_postgresql_pljava_internal_TriggerData__1getNewTuple
+		},
+		{
+		"_getArguments",
+	  	"()[Ljava/lang/String;",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1getArguments
+		},
+		{
+		"_getName",
+	  	"()Ljava/lang/String;",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1getName
+		},
+		{
+		"_isFiredAfter",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredAfter
+		},
+		{
+		"_isFiredBefore",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredBefore
+		},
+		{
+		"_isFiredForEachRow",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredForEachRow
+		},
+		{
+		"_isFiredForStatement",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredForStatement
+		},
+		{
+		"_isFiredByDelete",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredByDelete
+		},
+		{
+		"_isFiredByInsert",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredByInsert
+		},
+		{
+		"_isFiredByUpdate",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_TriggerData__1isFiredByUpdate
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_TriggerData_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TriggerData"));
+
+	PgObject_registerNatives2(env, s_TriggerData_class, methods);
 
 	s_TriggerData_init = PgObject_getJavaMethod(
 				env, s_TriggerData_class, "<init>", "()V");

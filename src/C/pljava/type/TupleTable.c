@@ -57,10 +57,25 @@ extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(TupleTable_initialize);
 Datum TupleTable_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getCount",
+	  	"()I",
+	  	Java_org_postgresql_pljava_internal_TupleTable__1getCount
+		},
+		{
+		"_getSlot",
+		"(I)Lorg/postgresql/pljava/internal/TupleTableSlot;",
+		Java_org_postgresql_pljava_internal_TupleTable__1getSlot
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_TupleTable_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TupleTable"));
+
+	PgObject_registerNatives2(env, s_TupleTable_class, methods);
 
 	s_TupleTable_init = PgObject_getJavaMethod(
 				env, s_TupleTable_class, "<init>", "()V");

@@ -56,10 +56,30 @@ extern Datum AclId_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(AclId_initialize);
 Datum AclId_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getUser",
+	  	"()Lorg/postgresql/pljava/internal/AclId;",
+	  	Java_org_postgresql_pljava_internal_AclId__1getUser
+		},
+		{
+		"_getSessionUser",
+		"()Lorg/postgresql/pljava/internal/AclId;",
+		Java_org_postgresql_pljava_internal_AclId__1getSessionUser
+		},
+		{
+		"_getName",
+		"()Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_AclId__1getName
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_AclId_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/AclId"));
+
+	PgObject_registerNatives2(env, s_AclId_class, methods);
 
 	s_AclId_init = PgObject_getJavaMethod(
 				env, s_AclId_class, "<init>", "(I)V");

@@ -58,10 +58,30 @@ extern Datum Relation_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Relation_initialize);
 Datum Relation_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getName",
+		"()Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Relation__1getName
+		},
+		{
+		"_getTupleDesc",
+	  	"()Lorg/postgresql/pljava/internal/TupleDesc;",
+	  	Java_org_postgresql_pljava_internal_Relation__1getTupleDesc
+		},
+		{
+		"_modifyTuple",
+		"(Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;",
+		Java_org_postgresql_pljava_internal_Relation__1modifyTuple
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Relation_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Relation"));
+
+	PgObject_registerNatives2(env, s_Relation_class, methods);
 
 	s_Relation_init = PgObject_getJavaMethod(
 				env, s_Relation_class, "<init>", "()V");

@@ -133,11 +133,26 @@ extern Datum Oid_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Oid_initialize);
 Datum Oid_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_forSqlType",
+	  	"(I)Lorg/postgresql/pljava/internal/Oid;",
+	  	Java_org_postgresql_pljava_internal_Oid__1forSqlType
+		},
+		{
+		"_getTypeId",
+		"()Lorg/postgresql/pljava/internal/Oid;",
+		Java_org_postgresql_pljava_internal_Oid__1getTypeId
+		},
+		{ 0, 0, 0 }};
+
 	jobject tmp;
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Oid_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Oid"));
+
+	PgObject_registerNatives2(env, s_Oid_class, methods);
 
 	s_Oid_init = PgObject_getJavaMethod(
 				env, s_Oid_class, "<init>", "(I)V");

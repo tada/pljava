@@ -73,10 +73,35 @@ extern Datum TupleDesc_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(TupleDesc_initialize);
 Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getColumnName",
+	  	"(I)Ljava/lang/String;",
+	  	Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName
+		},
+		{
+		"_getColumnIndex",
+		"(Ljava/lang/String;)I",
+		Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex
+		},
+		{
+		"_formTuple",
+		"([Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;",
+		Java_org_postgresql_pljava_internal_TupleDesc__1formTuple
+		},
+		{
+		"_size",
+		"()I",
+		Java_org_postgresql_pljava_internal_TupleDesc__1size
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_TupleDesc_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TupleDesc"));
+
+	PgObject_registerNatives2(env, s_TupleDesc_class, methods);
 
 	s_TupleDesc_init = PgObject_getJavaMethod(
 				env, s_TupleDesc_class, "<init>", "()V");

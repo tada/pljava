@@ -57,10 +57,20 @@ extern Datum Tuple_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tuple_initialize);
 Datum Tuple_initialize(PG_FUNCTION_ARGS)
 {
+	JNINativeMethod methods[] = {
+		{
+		"_getObject",
+	  	"(Lorg/postgresql/pljava/internal/TupleDesc;I)Ljava/lang/Object;",
+	  	Java_org_postgresql_pljava_internal_Tuple__1getObject
+		},
+		{ 0, 0, 0 }};
+
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_Tuple_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Tuple"));
+
+	PgObject_registerNatives2(env, s_Tuple_class, methods);
 
 	s_Tuple_init = PgObject_getJavaMethod(
 				env, s_Tuple_class, "<init>", "()V");

@@ -56,7 +56,6 @@ static void initJavaVM(JNIEnv* env)
 {
 	Datum envDatum = PointerGetDatum(env);
 
-#ifdef ENABLE_STATIC_LINKAGE
 	JNINativeMethod methods[] = {
 		{
 		"isCallingJava",
@@ -76,9 +75,9 @@ static void initJavaVM(JNIEnv* env)
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Backend", methods);
-#endif
 
 	DirectFunctionCall1(Exception_initialize, envDatum);
+	DirectFunctionCall1(SPI_initialize, envDatum);
 	DirectFunctionCall1(Type_initialize, envDatum);
 	DirectFunctionCall1(Function_initialize, envDatum);
 }
@@ -415,7 +414,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
-			elog(LOG, "JavaVM destroyed with force");
+			elog(DEBUG1, "JavaVM destroyed with force");
 			s_javaVM = 0;
 			return;
 		}
@@ -426,7 +425,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 #endif
 
-		elog(LOG, "Destroying JavaVM...");
+		elog(DEBUG1, "Destroying JavaVM...");
 
 		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
@@ -439,7 +438,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		pqsignal(SIGALRM, saveSigAlrm);
 #endif
 
-		elog(LOG, "JavaVM destroyed");
+		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
 	}
 }
@@ -486,10 +485,12 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	added = jol->options + newPos;
 	if(mustCopy)
 		optString = pstrdup(optString);
-		
+
 	added->optionString = (char*)optString;
 	added->extraInfo    = extraInfo;
 	jol->size++;
+
+	elog(DEBUG1, "Added JVM option string \"%s\"", optString);		
 }
 
 #ifdef PGSQL_CUSTOM_VARIABLES
@@ -665,7 +666,7 @@ static void initializeJavaVM()
 	vm_args.version  = JNI_VERSION_1_4;
 	vm_args.ignoreUnrecognized = JNI_TRUE;
 
-	elog(LOG, "Creating JavaVM");
+	elog(DEBUG1, "Creating JavaVM");
 
 
 	isCallingJava = true;

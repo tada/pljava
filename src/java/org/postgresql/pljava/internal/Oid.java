@@ -21,21 +21,6 @@ public class Oid
 {
 	static
 	{
-		if(System.getProperty("gnu.gcj.progname") == null)
-		{
-			// Major cludge to overcome the fact that PostgreSQL
-			// doesn't follow naming conventions on Windows
-			//
-			try
-			{
-				System.loadLibrary("pljava");
-			}
-			catch(UnsatisfiedLinkError e)
-			{
-				System.loadLibrary("libpljava");
-			}
-		}
-
 		try
 		{
 			// Ensure that the SPI JDBC driver is loaded and registered

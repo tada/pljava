@@ -131,7 +131,11 @@ static Type Timestamptz_obtain(Oid typeId)
 
 int Timestamp_getTimeZone(Timestamp ts)
 {
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 	struct tm tmp_tm;
+#else
+	struct pg_tm tmp_tm;
+#endif
 	fsec_t fsec;
 	int tz = 0;
 	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL);
