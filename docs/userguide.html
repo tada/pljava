@@ -16,7 +16,7 @@ pre          { margin-top: 6; margin-left: 15 }
 
 <body>
 
-<h1>PLJava 1.0 User Guide</h1>
+<h1>PLJava 1.1 User Guide</h1>
 <h2>Table of contents</h2>
 <p><a href="#Utilities">Utilities</a><br>
 &nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>
@@ -627,6 +627,11 @@ as trusted has no access to the filesystem and PLJava enforces this. Any user ca
 create and access functions or triggers in a trusted language. PLJava also installs 
 a language handler for the language &quot;javaU&quot;. This version is not trusted and only 
 a superuser can create new functions that use it. Any user can still call the functions.</p>
+<h4>Note on GCJ</h4>
+<p>Use of the GNU Java implementation should be regarded as experimental at this 
+point. Due to limitations in the current GCJ (CVS head as of Feb-23, 2005) 
+implementation of java.security, the PLJava trusted language implementation is 
+not really trusted when using GCJ.</p>
 <h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the deployment 
 descriptor</a></i></h3>
 <p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, 

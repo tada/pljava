@@ -8,7 +8,6 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
-import java.sql.ResultSetMetaData;
 import org.postgresql.pljava.internal.TupleDesc;
 import org.postgresql.pljava.internal.TypeMap;
 

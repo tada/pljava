@@ -14,16 +14,23 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PLJava, 1.0.1</h1>
+<h1>PLJava, 1.1.x</h1>
 <p>A source tarball and a variety of binaries can be found in the download area.
-Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for older
-PostgreSQL versions). On Linux PLJava also comes in a GNU Java (GCJ) flavor where
-the actual pljava.jar is compiled into the pljava shared object.</p>
+Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for 
+older PostgreSQL versions) and two for i386 based Linux. Although all 
+pre-compiled binaries must run using a standard JVM, the PLJava can also be 
+compiled and linked using GNU GCJ. PLJava has no pre-compiled binaries for GCJ 
+since the needed 4.0 version has not yet been released but the make system 
+contain what's needed to make the build easy.</p>
+<p>Please note that all use of GCJ should be regarded as experimental. The lack 
+of a proper 4.0.0 release is not the only problem. Due to limitations in the GCJ 
+implementation of java.security, the PLJava trusted language implementation is 
+not really trusted when using GCJ.</p>
 <h2>Prerequisites</h2>
 <ul>
   <li>PostgreSQL &gt;= 7.4.2</li>
   <li>PostgreSQL JDBC drivers (needed by the client Deployer program).</li>
-  <li>A Java runtime &gt;= Java 1.4 or GCJ &gt;= 3.4.1 (Linux only).</li>
+  <li>A Java runtime &gt;= Java 1.4 or GCJ &gt;= 4.0.x (Linux only).</li>
 </ul>
 <p>Get the binary distribution of PLJava for your platform. Unzip it into a directory
 of your own choice.</p>
