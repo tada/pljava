@@ -49,8 +49,8 @@ all: $(OBJDIR)/$(NAME)_jar.o $(JARFILE) $(JNIDIR)/.timestamp
 
 $(OBJDIR)/$(NAME)_jar.o: .timestamp
 	@-mkdir -p $(@D)
-	@echo $(GCJ) -g -c -fjni -o $@ '<java sources>'
-	@$(GCJ) -g -c -fjni -o $@ $(SRCS)
+	@echo $(GCJ) -g -c -fpic -fjni -o $@ '<java sources>'
+	@$(GCJ) -g -c -fpic -fjni -o $@ $(SRCS)
 
 # gcjh fails to clear its function name cache between files (see
 # gcc bugzilla #17575) so we must do each file separately to

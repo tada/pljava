@@ -181,9 +181,8 @@ extern Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ResultSetProvider_initialize);
 Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
 #ifndef GCJ /* Bug libgcj/15001 */
+	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 	s_ResultSetProvider_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetProvider"));
 

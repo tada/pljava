@@ -112,7 +112,11 @@ static Datum _ValueSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmetho
 		jobject tmp;
 		
 		isCallingJava = true;
+#ifdef GCJ /* Bug libgcj/15001 */
+		tmp = (*env)->CallObjectMethod(env, ctxData->iterator, ctxData->next);
+#else
 		tmp = (*env)->CallObjectMethod(env, ctxData->iterator, s_Iterator_next);
+#endif
 		isCallingJava = saveicj;
 
 		/* The element must be coerced using the return value context
@@ -162,9 +166,8 @@ extern Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ValueSetProvider_initialize);
 Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS)
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
 #ifndef GCJ /* Bug libgcj/15001 */
+	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 	s_Iterator_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "java/util/Iterator"));
 	s_Iterator_hasNext = PgObject_getJavaMethod(

@@ -11,7 +11,7 @@ JAR			:= jar
 JAVADOC		:= javadoc
 
 ifdef USE_GCJ
-	GCJ		:= gcj
+	GCJ	:= gcj
 	JAVAC	:= $(GCJ) -C
 else
 	JAVAC	:= javac -source 1.4
