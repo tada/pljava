@@ -75,6 +75,9 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+/****************************************
+ * JNI methods
+ ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    getName
@@ -83,6 +86,7 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
@@ -100,6 +104,7 @@ Java_org_postgresql_pljava_internal_Relation_getName(JNIEnv* env, jobject _this)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;
@@ -115,6 +120,7 @@ Java_org_postgresql_pljava_internal_Relation_getTupleDesc(JNIEnv* env, jobject _
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation_modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
 {
+	THREAD_FENCE(0)
 	Relation self = (Relation)NativeStruct_getStruct(env, _this);
 	if(self == 0)
 		return 0;

@@ -12,6 +12,7 @@
 #include "pljava/type/String.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/AclId_JNI.h"
+#include "pljava/Exception.h"
 
 static Type      s_AclId;
 static TypeClass s_AclIdClass;
@@ -77,6 +78,9 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+/****************************************
+ * JNI methods
+ ****************************************/
 /*
  * Class:     org_postgresql_pljava_AclId
  * Method:    getUser
@@ -85,6 +89,7 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId_getUser(JNIEnv* env, jclass clazz)
 {
+	THREAD_FENCE(0)
 	return AclId_create(env, GetUserId());
 }
 
@@ -96,6 +101,7 @@ Java_org_postgresql_pljava_internal_AclId_getUser(JNIEnv* env, jclass clazz)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId_getSessionUser(JNIEnv* env, jclass clazz)
 {
+	THREAD_FENCE(0)
 	return AclId_create(env, GetSessionUserId());
 }
 
@@ -107,6 +113,7 @@ Java_org_postgresql_pljava_internal_AclId_getSessionUser(JNIEnv* env, jclass cla
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_AclId_getName(JNIEnv* env, jobject aclId)
 {
+	THREAD_FENCE(0)
 	return String_createJavaStringFromNTS(env, GetUserNameFromId(AclId_getAclId(env, aclId)));
 }
 

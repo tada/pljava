@@ -10,6 +10,7 @@
 #include "pljava/type/Oid.h"
 #include "pljava/type/Oid_JNI.h"
 #include "pljava/type/Types_JNI.h"
+#include "pljava/Exception.h"
 
 static Type      s_Oid;
 static TypeClass s_OidClass;
@@ -177,6 +178,7 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid_forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
+	THREAD_FENCE(0)
 	return Oid_create(env, Oid_forSqlType(sqlType));
 }
 

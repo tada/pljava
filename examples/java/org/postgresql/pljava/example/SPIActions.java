@@ -14,6 +14,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import org.postgresql.pljava.Server;
+
 /**
  * Some methods used for testing the SPI JDBC driver.
  *
@@ -23,6 +25,7 @@ public class SPIActions
 {
 	public static void log(String str)
 	{
+		Server.log(str);
 	}
 
 	public static int transferPeopleWithSalary(int salary)
@@ -34,18 +37,24 @@ public class SPIActions
 		PreparedStatement delete = null;
 		ResultSet rs = null;
 
+		String stmt;
 		try
 		{
-			select = conn.prepareStatement(
-				"SELECT id, name, salary FROM employees1 WHERE salary > ?");
+			stmt = "SELECT id, name, salary FROM employees1 WHERE salary > ?";
+			log(stmt);
+			select = conn.prepareStatement(stmt);
 
-			insert = conn.prepareStatement(
-				"INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?");
+			stmt = "INSERT INTO employees2(id, name, salary) VALUES (?, ?, ?";
+			log(stmt);
+			insert = conn.prepareStatement(stmt);
 
-			delete = conn.prepareStatement(
-				"DELETE FROM employees1 WHERE id = ?");
+			stmt = "DELETE FROM employees1 WHERE id = ?";
+			log(stmt);
+			delete = conn.prepareStatement(stmt);
 
+			log("assigning parameter value " + salary);
 			select.setInt(1, salary);
+			log("Executing query");
 			rs = select.executeQuery();
 			int rowNo = 0;
 			while(rs.next())

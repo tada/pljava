@@ -166,5 +166,6 @@ Datum NativeStruct_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_NativeStruct_releasePointer(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	NativeStruct_releasePointer(env, _this);
 }

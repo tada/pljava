@@ -73,6 +73,10 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+/****************************************
+ * JNI methods
+ ****************************************/
+
 /*
  * Class:     org_postgresql_pljava_internal_TupleDesc
  * Method:    getColumnName
@@ -81,6 +85,7 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc_getColumnName(JNIEnv* env, jobject _this, jint index)
 {
+	THREAD_FENCE(0)
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
 
 	char* name = SPI_fname(self, (int)index);
@@ -104,6 +109,7 @@ Java_org_postgresql_pljava_internal_TupleDesc_getColumnName(JNIEnv* env, jobject
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc_getColumnIndex(JNIEnv* env, jobject _this, jstring colName)
 {
+	THREAD_FENCE(0)
 	TupleDesc self = (TupleDesc)NativeStruct_getStruct(env, _this);
 	char* name = String_createNTS(env, colName);
 	jint index = SPI_fnumber(self, name);

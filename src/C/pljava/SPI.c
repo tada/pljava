@@ -10,6 +10,9 @@
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
 
+/****************************************
+ * JNI methods
+ ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    exec
@@ -18,6 +21,7 @@
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_SPI_exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
+	THREAD_FENCE(0)
 	char* command = String_createNTS(env, cmd);
 	jint result = (jint)SPI_exec(command, (int)count);
 	pfree(command);
@@ -54,5 +58,6 @@ Java_org_postgresql_pljava_internal_SPI_getResult(JNIEnv* env, jclass cls)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPI_getTupTable(JNIEnv* env, jclass cls)
 {
+	THREAD_FENCE(0)
 	return SPITupleTable_create(env, SPI_tuptable);
 }

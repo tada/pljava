@@ -185,6 +185,7 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
 {
+	THREAD_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
@@ -217,6 +218,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_cursorOpen(JNIEnv* env, jobjec
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(false)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
@@ -232,6 +234,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_isCursorPlan(JNIEnv* env, jobj
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
 {
+	THREAD_FENCE(0)
 	void* ePlan = NativeStruct_getStruct(env, _this);
 	if(ePlan == 0)
 		return 0;
@@ -258,7 +261,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_execp(JNIEnv* env, jobject _th
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cls, jstring jcmd, jobjectArray paramTypes)
 {
- 	int paramCount = 0;
+	THREAD_FENCE(0)
+	int paramCount = 0;
 	Oid* paramOids = 0;
 
 	if(paramTypes != 0)
@@ -290,6 +294,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_prepare(JNIEnv* env, jclass cl
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE_VOID
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan == 0)
 		return;
@@ -306,6 +311,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan_savePlan(JNIEnv* env, jobject 
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan_invalidate(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE_VOID
 	void* ePlan = NativeStruct_releasePointer(env, _this);
 	if(ePlan != 0)
 		SPI_freeplan(ePlan);

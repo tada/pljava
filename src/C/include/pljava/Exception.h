@@ -33,11 +33,17 @@ __attribute__((format(printf, 3, 4)));
 extern void Exception_throwSPI(JNIEnv* env, const char* function);
 
 /*
+ * This method is part of the thread fence mechanism. It will be called when
+ * a thread other than main is attempting to enter the PostgreSQL backend code.
+ */
+extern void Exception_threadException(JNIEnv* env);
+
+/*
  * Checks if a Java exception has been thrown. If so, ereport(ERROR, ...) is
  * called. There's no return from this method if that happens. This method
  * is called at the completion of each call to a function or trigger.
  */
-void Exception_checkException(JNIEnv* env);
+extern void Exception_checkException(JNIEnv* env);
 
 /*
  * Throw an exception indicating that wanted member could not be

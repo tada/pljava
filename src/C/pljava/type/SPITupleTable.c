@@ -86,6 +86,7 @@ Datum SPITupleTable_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable_getCount(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
@@ -101,6 +102,7 @@ Java_org_postgresql_pljava_internal_SPITupleTable_getCount(JNIEnv* env, jobject 
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable_getSlot(JNIEnv* env, jobject _this, jint pos)
 {
+	THREAD_FENCE(0)
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
@@ -119,6 +121,7 @@ Java_org_postgresql_pljava_internal_SPITupleTable_getSlot(JNIEnv* env, jobject _
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable_getTupleDesc(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_getStruct(env, _this);
 	if(tupleTable == 0)
 		return 0;
@@ -134,6 +137,7 @@ Java_org_postgresql_pljava_internal_SPITupleTable_getTupleDesc(JNIEnv* env, jobj
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_SPITupleTable_invalidate(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE_VOID
 	SPITupleTable* tupleTable = (SPITupleTable*)NativeStruct_releasePointer(env, _this);
 	if(tupleTable != 0)
 		SPI_freetuptable(tupleTable);

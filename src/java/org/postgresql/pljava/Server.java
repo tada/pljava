@@ -8,6 +8,8 @@
  */
 package org.postgresql.pljava;
 
+import org.postgresql.pljava.internal.AclId;
+
 /**
  * Provides access to some useful routines in the PostgreSQL server.
  * @author Thomas Hallgren
@@ -47,6 +49,58 @@ public class Server
 	 * Warnings
 	 */
 	public static final int LOG_WARNING	= 19;
+
+	/**
+	 * Log a message using {@link #LOG_LOG] level.
+	 * @param str
+	 */
+	public static void log(String str)
+	{
+		log(LOG_LOG, str);
+	}
+
+	/**
+	 * Log a message using {@link #LOG_INFO] level.
+	 * @param str
+	 */
+	public static void info(String str)
+	{
+		log(LOG_INFO, str);
+	}
+
+	/**
+	 * Log a message using {@link #LOG_WARNING] level.
+	 * @param str
+	 */
+	public static void warn(String str)
+	{
+		log(LOG_INFO, str);
+	}
+
+	/**
+	 * Log a message using {@link #LOG_DEBUG1] level.
+	 * @param str
+	 */
+	public static void debug(String str)
+	{
+		log(LOG_DEBUG1, str);
+	}
+
+	/**
+	 * Return the current user.
+	 */
+	public static String getUserName()
+	{
+		return AclId.getUser().getName();
+	}
+
+	/**
+	 * Return the session user.
+	 */
+	public static String getSessionUserName()
+	{
+		return AclId.getSessionUser().getName();
+	}
 
 	/**
 	 * Log a message using the internal elog command.

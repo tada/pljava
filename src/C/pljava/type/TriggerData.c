@@ -93,6 +93,9 @@ Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+/****************************************
+ * JNI methods
+ ****************************************/
 /*
  * Class:     org_postgresql_pljava_TriggerData
  * Method:    getRelation
@@ -101,6 +104,7 @@ Datum TriggerData_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_getRelation(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0;
@@ -115,6 +119,7 @@ Java_org_postgresql_pljava_internal_TriggerData_getRelation(JNIEnv* env, jobject
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_getTriggerTuple(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0L;
@@ -129,6 +134,7 @@ Java_org_postgresql_pljava_internal_TriggerData_getTriggerTuple(JNIEnv* env, job
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_getNewTuple(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0L;
@@ -143,6 +149,7 @@ Java_org_postgresql_pljava_internal_TriggerData_getNewTuple(JNIEnv* env, jobject
 JNIEXPORT jobjectArray JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_getArguments(JNIEnv* env, jobject _this)
 {
+	THREAD_FENCE(0)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, _this);
 	if(td == 0)
 		return 0;
@@ -169,6 +176,7 @@ Java_org_postgresql_pljava_internal_TriggerData_getArguments(JNIEnv* env, jobjec
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_getName(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(0)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return 0;
@@ -183,6 +191,7 @@ Java_org_postgresql_pljava_internal_TriggerData_getName(JNIEnv* env, jobject tri
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredAfter(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;
@@ -211,6 +220,7 @@ Java_org_postgresql_pljava_internal_TriggerData_isFiredBefore(JNIEnv* env, jobje
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredForEachRow(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;
@@ -225,6 +235,7 @@ Java_org_postgresql_pljava_internal_TriggerData_isFiredForEachRow(JNIEnv* env, j
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredForStatement(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;
@@ -239,6 +250,7 @@ Java_org_postgresql_pljava_internal_TriggerData_isFiredForStatement(JNIEnv* env,
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredByDelete(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;
@@ -253,6 +265,7 @@ Java_org_postgresql_pljava_internal_TriggerData_isFiredByDelete(JNIEnv* env, job
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredByInsert(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;
@@ -267,6 +280,7 @@ Java_org_postgresql_pljava_internal_TriggerData_isFiredByInsert(JNIEnv* env, job
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData_isFiredByUpdate(JNIEnv* env, jobject triggerData)
 {
+	THREAD_FENCE(false)
 	TriggerData* td = (TriggerData*)NativeStruct_getStruct(env, triggerData);
 	if(td == 0)
 		return false;

@@ -106,6 +106,12 @@ void Exception_throwSPI(JNIEnv* env, const char* function)
 		"SPI function SPI_%s failed with error code %d", function, SPI_result);
 }
 
+void Exception_threadException(JNIEnv* env)
+{
+	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+		"A thread other than main attempted entry to the PostgreSQL backend code");
+}
+
 PG_FUNCTION_INFO_V1(Exception_initialize);
 
 Datum Exception_initialize(PG_FUNCTION_ARGS)

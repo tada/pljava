@@ -26,13 +26,25 @@ extern "C" {
 /* Mutex declarations for critical sections
  */
 #include <pthread.h>
-#define DECLARE_MUTEX(mutexName) static pthread_mutex_t mutexName = PTHREAD_MUTEX_INITIALIZER;
-#define BEGIN_CRITICAL(mutexName) pthread_mutex_lock(&mutexName); {
-#define END_CRITICAL(mutexName) } pthread_mutex_unlock(&mutexName);
+extern pthread_t pljava_mainThread;
+
+#define THREAD_FENCE(retVal) if(!pthread_equal(pthread_self(), pljava_mainThread)) \
+{ Exception_threadException(env);  return retVal; }
+
+#define THREAD_FENCE_VOID if(!pthread_equal(pthread_self(), pljava_mainThread)) \
+{ Exception_threadException(env); return; }
+
+#define DECLARE_MUTEX(mutexName) static pthread_mutex_t mutexName;
+#define INIT_MUTEX(mutexName) {if(mutexName == 0) mutexName = PTHREAD_MUTEX_INITIALIZER;}
+#define BEGIN_CRITICAL(mutexName) pthread_mutex_lock(&mutexName);
+#define END_CRITICAL(mutexName) pthread_mutex_unlock(&mutexName);
 #else
+#define THREAD_FENCE(retVal)
+#define THREAD_FENCE_VOID
 #define DECLARE_MUTEX(mutexName)
-#define BEGIN_CRITICAL(mutexName) {
-#define END_CRITICAL(mutexName) }
+#define INIT_MUTEX(mutexName)
+#define BEGIN_CRITICAL(mutexName)
+#define END_CRITICAL(mutexName)
 
 #endif
 

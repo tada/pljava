@@ -25,6 +25,7 @@
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
 #include "pljava/Server_JNI.h"
+#include "pljava/type/String.h"
 
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR
@@ -35,9 +36,6 @@ DECLARE_MUTEX(jvmInitMutex)
 
 #define LOCAL_REFERENCE_COUNT 32
 
-#ifdef USE_THREADS
-static pthread_t s_mainThread = 0;
-#endif
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 
@@ -242,6 +240,65 @@ static char* getClassPath(const char* prefix)
 	return buf.data;
 }
 
+static void initializeJavaVM()
+{
+	BEGIN_CRITICAL(jvmInitMutex)
+	if(s_javaVM != 0)
+	{
+		END_CRITICAL(jvmInitMutex)
+		return;
+	}
+
+	int nOptions = 0;
+	JavaVMOption options[10]; /* increase if more options are needed! */
+	
+	DirectFunctionCall1(HashMap_initialize, 0);
+
+	char* classPath = getClassPath("-Djava.class.path=");
+	if(classPath != 0)
+	{
+		options[nOptions].optionString = classPath;
+		options[nOptions].extraInfo = 0;
+		nOptions++;
+	}
+
+	/**
+	 * The JVM needs the java.library.path to find its way back to
+	 * the loaded module.
+	 */
+	char* dynLibPath = getLibraryPath("-Djava.library.path=");
+	if(dynLibPath != 0)
+	{
+		options[nOptions].optionString = dynLibPath;
+		options[nOptions].extraInfo = 0;
+		nOptions++;
+	}
+
+	options[nOptions].optionString = "vfprintf";
+	options[nOptions].extraInfo = (void*)my_vfprintf;
+	nOptions++;
+
+	JavaVMInitArgs vm_args;
+	vm_args.nOptions = nOptions;
+	vm_args.options  = options;
+	vm_args.version  = JNI_VERSION_1_4;
+	vm_args.ignoreUnrecognized = JNI_TRUE;
+
+	if(JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args) != JNI_OK)
+		ereport(ERROR, (errmsg("Failed to create Java VM")));
+
+	if(dynLibPath != 0)
+		pfree(dynLibPath);
+	if(classPath != 0)
+		pfree(classPath);
+
+#ifdef USE_THREADS
+	pljava_mainThread = pthread_self();
+#endif
+	initJavaVM(s_mainEnv);
+	END_CRITICAL(jvmInitMutex)
+}
+
 extern Datum java_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(java_call_handler);
 
@@ -252,100 +309,26 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	JNIEnv* env;
-	Datum retval;
-#ifdef USE_THREADS
-	pthread_t thisThread = pthread_self();
-#endif
-
-	BEGIN_CRITICAL(jvmInitMutex)
 	if(s_javaVM == 0)
 	{
-		int nOptions = 0;
-		JavaVMOption options[10]; /* increase if more options are needed! */
-		
-		DirectFunctionCall1(HashMap_initialize, 0);
-
-		char* classPath = getClassPath("-Djava.class.path=");
-		if(classPath != 0)
-		{
-			options[nOptions].optionString = classPath;
-			options[nOptions].extraInfo = 0;
-			nOptions++;
-		}
-
-		/**
-		 * The JVM needs the java.library.path to find its way back to
-		 * the loaded module.
-		 */
-		char* dynLibPath = getLibraryPath("-Djava.library.path=");
-		if(dynLibPath != 0)
-		{
-			options[nOptions].optionString = dynLibPath;
-			options[nOptions].extraInfo = 0;
-			nOptions++;
-		}
-
-		options[nOptions].optionString = "vfprintf";
-		options[nOptions].extraInfo = (void*)my_vfprintf;
-		nOptions++;
-
-		JavaVMInitArgs vm_args;
-		vm_args.nOptions = nOptions;
-		vm_args.options  = options;
-		vm_args.version  = JNI_VERSION_1_4;
-		vm_args.ignoreUnrecognized = JNI_TRUE;
-
-		if(JNI_CreateJavaVM(&s_javaVM, (void **)&env, &vm_args) != JNI_OK)
-			ereport(ERROR, (errmsg("Failed to create Java VM")));
-
-		if(dynLibPath != 0)
-			pfree(dynLibPath);
-		if(classPath != 0)
-			pfree(classPath);
+		INIT_MUTEX(jvmInitMutex)
+		initializeJavaVM();
+	}
 
 #ifdef USE_THREADS
-		s_mainThread = thisThread;
-#endif
-		s_mainEnv = env;
-		initJavaVM(env);
-	}
-	END_CRITICAL(jvmInitMutex)
-
-#ifdef USE_THREADS
-	isMain = pthread_equal(thisThread, s_mainThread);
-	if(isMain)
-		env = s_mainEnv;
-	else
-	{
-		/* This is not the same thread as the one that created the JavaVM.
-		 */
-		JavaVMAttachArgs aa;
-		char threadName[32];
-
-		sprintf(threadName, "0x%lx", (long)thisThread);
-		aa.version = JNI_VERSION_1_4;
-		aa.name = threadName;
-		aa.group = 0;
-
-		if((*s_javaVM)->AttachCurrentThread(s_javaVM, (void**)&env, &aa) != JNI_OK)
-			ereport(ERROR, (errmsg("Failed to attach current thread to Java VM")));
-	}
-#else
-	env = s_mainEnv;
+	if(!pthread_equal(pthread_self(), pljava_mainThread))
+		ereport(ERROR, (errmsg("Multiple threads call in to java_call_handler")));
 #endif
 
 	SPI_connect();
-	retval = callFunction(env, fcinfo);
+	Datum retval = callFunction(s_mainEnv, fcinfo);
 	SPI_finish();
-
-#ifdef USE_THREADS
-	if(!isMain)
-		(*s_javaVM)->DetachCurrentThread(s_javaVM);
-#endif
 	return retval;
 }
 
+/****************************************
+ * JNI methods
+ ****************************************/
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
 	return JNI_VERSION_1_4;
@@ -359,6 +342,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_Server_log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
+	THREAD_FENCE_VOID
 	char* str = String_createNTS(env, jstr);
 	if(str == 0)
 		return;

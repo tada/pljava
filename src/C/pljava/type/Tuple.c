@@ -86,6 +86,7 @@ Datum Tuple_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Tuple_getObject(JNIEnv* env, jobject _this, jobject _tupleDesc, jint index)
 {
+	THREAD_FENCE(0)
 	HeapTuple self = (HeapTuple)NativeStruct_getStruct(env, _this);
 	TupleDesc tupleDesc = (TupleDesc)NativeStruct_getStruct(env, _tupleDesc);
 	Oid typeId = SPI_gettypeid(tupleDesc, (int)index);

@@ -8,8 +8,6 @@
  */
 #include "pljava/HashMap_priv.h"
 
-DECLARE_MUTEX(mapMutex)
-
 HashKey HashKey_clone(HashKey self, MemoryContext ctx)
 {
 	return self->m_class->clone(self, ctx);
@@ -219,7 +217,6 @@ void HashMap_clear(HashMap self)
 	 */
 	if(self->size > 0)
 	{
-		BEGIN_CRITICAL(mapMutex)
 		Entry* table = self->table;
 		uint32 top = self->tableSize;
 		uint32 idx;
@@ -235,7 +232,6 @@ void HashMap_clear(HashMap self)
 			}
 		}
 		self->size = 0;
-		END_CRITICAL(mapMutex)
 	}
 }
 
@@ -274,7 +270,6 @@ Iterator HashMap_entries(HashMap self)
 void* HashMap_get(HashMap self, HashKey key)
 {
 	Entry slot;
-	BEGIN_CRITICAL(mapMutex)
 	slot = self->table[HASHSLOT(self, key)];
 	while(slot != 0)
 		{
@@ -282,14 +277,12 @@ void* HashMap_get(HashMap self, HashKey key)
 			break;
 		slot = slot->next;
 		}
-	END_CRITICAL(mapMutex)
 	return (slot == 0) ? 0 : slot->value;
 }
 
 void* HashMap_put(HashMap self, HashKey key, void* value)
 {
 	void* old = 0;
-	BEGIN_CRITICAL(mapMutex)
 	uint32 slotNo = HASHSLOT(self, key);
 	Entry  slot = self->table[slotNo];
 	while(slot != 0)
@@ -323,14 +316,12 @@ void* HashMap_put(HashMap self, HashKey key, void* value)
 		old = slot->value;
 		slot->value = value;
 	}
-	END_CRITICAL(mapMutex)
 	return old;
 }
 
 void* HashMap_remove(HashMap self, HashKey key)
 {
 	PgObject old = 0;
-	BEGIN_CRITICAL(mapMutex)
 	uint32 slotNo = HASHSLOT(self, key);
 	Entry slot = self->table[slotNo];
 	while(slot != 0)
@@ -357,7 +348,6 @@ void* HashMap_remove(HashMap self, HashKey key)
 		self->size--;
 		PgObject_free((PgObject)slot);
 	}
-	END_CRITICAL(mapMutex)
 	return old;
 }
 
@@ -453,4 +443,3 @@ Datum HashMap_initialize(PG_FUNCTION_ARGS)
 	s_StringKeyClass->clone    = _StringKey_clone;
 	PG_RETURN_VOID();
 }
-
