@@ -6,7 +6,7 @@
  *
  * @author Thomas Hallgren
  */
-include <postgres.h>
+#include <postgres.h>
 #include <executor/spi.h>
 #include <executor/tuptable.h>
 
