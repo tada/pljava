@@ -12,7 +12,7 @@
 #include "pljava/type/String.h"
 #include "pljava/type/SPITupleTable.h"
 
-static MemoryContext upperContext = 0;
+static void* allocatedInUpper = 0;
 
 Datum SPI_initialize(PG_FUNCTION_ARGS)
 {
@@ -45,17 +45,26 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
-void SPI_clearUpperContextInfo()
+void* SPI_clearUpperContextInfo()
 {
-	upperContext = 0;
+	void* old = allocatedInUpper;
+	allocatedInUpper = 0;
+	return old;
+}
+
+void SPI_restoreUpperContextInfo(void* value)
+{
+	if(allocatedInUpper != 0)
+		SPI_pfree(allocatedInUpper);
+	allocatedInUpper = value;
 }
 
 MemoryContext SPI_switchToReturnValueContext()
 {
-	/* Tried the upper context here but it's destroyed between calls
-	 * to the call manager.
-	 */
-	return MemoryContextSwitchTo(QueryContext);
+    if(allocatedInUpper == 0)
+    	allocatedInUpper = SPI_palloc(4);
+
+	return MemoryContextSwitchTo(GetMemoryChunkContext(allocatedInUpper));
 }
 
 /****************************************

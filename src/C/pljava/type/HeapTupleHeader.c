@@ -6,14 +6,27 @@
  * Copyright (c) 2003 TADA AB - Taby Sweden
  * All Rights Reserved
  */
-#include <postgres.h>
+#include "pljava/type/Type_priv.h"
+#include "pljava/type/HeapTupleHeader.h"
+
+#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
+jobject HeapTupleHeader_create(JNIEnv* env, HeapTupleHeader ht)
+{
+	return 0;
+}
+extern Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(HeapTupleHeader_initialize);
+Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_VOID();
+}
+#else
+
 #include <executor/spi.h>
 #include <utils/typcache.h>
 
 #include "pljava/Exception.h"
-#include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/type/HeapTupleHeader.h"
 #include "pljava/type/HeapTupleHeader_JNI.h"
 
 static Type      s_HeapTupleHeader;
@@ -165,3 +178,4 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc(JNIEnv* env, 
 					HeapTupleHeaderGetTypeId(self),
 					HeapTupleHeaderGetTypMod(self)));
 }
+#endif

@@ -716,12 +716,17 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
+	void* oldUpper;
 	Datum ret;
 	if(s_javaVM == 0)
 		initializeJavaVM();
 
 	SPI_connect();
+	oldUpper = SPI_clearUpperContextInfo();
+
 	ret = callFunction(s_mainEnv, fcinfo);
+
+	SPI_restoreUpperContextInfo(oldUpper);
 	SPI_finish();
 	return ret;
 }

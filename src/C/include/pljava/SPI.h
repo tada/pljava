@@ -26,9 +26,14 @@ extern "C" {
  ***********************************************************************/
 
 /*
- * Clear the upper context pointer.
+ * Clear the upper context pointer. Return old value.
  */
-void SPI_clearUpperContextInfo(void);
+void* SPI_clearUpperContextInfo(void);
+
+/*
+ * Restore upper context pointer.
+ */
+void SPI_restoreUpperContextInfo(void* value);
 
 /*
  * Switch memory context to a context that is durable between calls to
