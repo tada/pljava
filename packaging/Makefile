@@ -25,7 +25,7 @@ release:
 		-o -name '*.dll'	\
 		\) -a -not -path $(RELNAME)'/*' -exec cp {} $(RELNAME) \;
 	@(cd $(TARGETDIR); $(TAR) cf $(RELNAME)/docs.tar docs)
-	@(cd $(RELNAME); $(TAR) zcf $(RELNAME).tar.gz .)
+	(cd $(RELNAME); $(TAR) zcf $(RELNAME).tar.gz .)
 
 source_tarball:
 	@-mkdir -p $(TARGETDIR)
@@ -34,6 +34,5 @@ source_tarball:
 		-o -name build \
 		-o -name .cvsignore \
 		\) -prune -o \( -type f -print \) > $(TARGETDIR)/sourcelist.txt
-	@$(TAR) zcf $(TARGETDIR)/pljava_source_$(PLJAVA_VERSION).tar.gz -T $(TARGETDIR)/sourcelist.txt
+	$(TAR) zcf $(TARGETDIR)/pljava_source_$(PLJAVA_VERSION).tar.gz -T $(TARGETDIR)/sourcelist.txt
 	@-rm -f $(TARGETDIR)/sourcelist.txt
-

@@ -5,9 +5,8 @@
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
 SRCDIR		:= $(MODULEROOT)/$(NAME)
-mkclasses	= $(subst $(SRCDIR)/,,$(1:%.java=%.class))
 SRCS		:= $(shell find $(SRCDIR) -type f -name \*.java)
-CLASSES		:= $(call mkclasses,$(SRCS))
+CLASSES		= $(shell find . -type f -name \*.class)
 JAR			:= jar
 JAVADOC		:= javadoc
 
@@ -21,8 +20,9 @@ endif
 JARFILE	:= $(TARGETDIR)/$(NAME).jar
 
 .timestamp: $(SRCS)
-	$(JAVAC) -d . $(JAVAFLAGS) $(SRCS)
-	touch $@
+	@echo $(JAVAC) -d . $(JAVAFLAGS) '<java sources>'
+	@$(JAVAC) -d . $(JAVAFLAGS) $(SRCS)
+	@touch $@
 
 .PHONY: javadoc
 

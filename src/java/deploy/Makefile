@@ -12,4 +12,4 @@ include $(MODULEROOT)/Makefile.global
 all: $(JARFILE)
 
 $(JARFILE): .timestamp
-	$(JAR) cmf $(SRCDIR)/META-INF/manifest.txt $@ $(CLASSES)
+	$(JAR) cmf $(SRCDIR)/META-INF/manifest.txt $@ .

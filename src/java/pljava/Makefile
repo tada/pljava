@@ -43,16 +43,18 @@ all: $(OBJDIR)/$(NAME)_jar.o $(JARFILE) $(JNIDIR)/.timestamp
 
 $(OBJDIR)/$(NAME)_jar.o: .timestamp
 	@-mkdir -p $(@D)
-	$(GCJ) -g -c -fjni -o $@ $(SRCS)
+	@echo $(GCJ) -g -c -fjni -o $@ '<java sources>'
+	@$(GCJ) -g -c -fjni -o $@ $(SRCS)
 else
 all: $(JARFILE) $(JNIDIR)/.timestamp
 
 endif
 
 $(JARFILE): .timestamp
-	$(JAR) cf $@ $(CLASSES)
+	$(JAR) cf $@ .
 
 $(JNIDIR)/.timestamp: $(JNISRCS)
 	@-mkdir -p $(@D)
-	$(JAVAH) -classpath . -d $(@D) $(JNI_CLASSES) java.sql.Types
-	touch $@
+	@echo $(JAVAH) -classpath . -d $(@D) '<jni classes>'
+	@$(JAVAH) -classpath . -d $(@D) $(JNI_CLASSES) java.sql.Types
+	@touch $@

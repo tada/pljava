@@ -11,4 +11,4 @@ include $(MODULEROOT)/Makefile.global
 all: $(JARFILE)
 
 $(JARFILE): .timestamp
-	$(JAR) cf $@ $(CLASSES)
+	$(JAR) cf $@ .
