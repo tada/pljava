@@ -55,6 +55,7 @@ static char* classpath;
 static int statementCacheSize;
 #endif
 static bool  pljavaDebug;
+static bool  pljavaReleaseLingeringSavepoints;
 static jmethodID s_Invocation_onExit;
 
 static void initPLJavaClasses(JNIEnv* env)
@@ -67,6 +68,11 @@ static void initPLJavaClasses(JNIEnv* env)
 		"isCallingJava",
 	  	"()Z",
 	  	Java_org_postgresql_pljava_internal_Backend_isCallingJava
+		},
+		{
+		"isReleaseLingeringSavepoints",
+	  	"()Z",
+	  	Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints
 		},
 		{
 		"_getConfigOption",
@@ -639,9 +645,21 @@ static void initializeJavaVM(void)
 		PGC_USERSET,
 		NULL, NULL);
 
+	DefineCustomBoolVariable(
+		"pljava.release_lingering_savepoints",
+		"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
+		NULL,
+		&pljavaReleaseLingeringSavepoints,
+		PGC_USERSET,
+		NULL, NULL);
+
 	EmitWarningsOnPlaceholders("pljava");
 
 	addUserJVMOptions(&optList);
+#else
+	/* There won't be any
+	 */
+	pljavaReleaseLingeringSavepoints = false;
 #endif
 
 #ifdef PLJAVA_DEBUG
@@ -920,6 +938,17 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isCallingJava(JNIEnv* env, jclass cls)
 {
 	return isCallingJava ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    isReleaseLingeringSavepoints
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv* env, jclass cls)
+{
+	return isReleaseLingeringSavepoints ? JNI_TRUE : JNI_FALSE;
 }
 
 /*

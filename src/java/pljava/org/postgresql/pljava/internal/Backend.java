@@ -89,6 +89,12 @@ public class Backend
 	 */
 	public native static boolean isCallingJava();
 
+	/**
+	 * Returns the value of the GUC custom variable <code>
+	 * pljava.release_lingering_savepoints</code>.
+	 */
+	public native static boolean isReleaseLingeringSavepoints();
+
 	private native static String _getConfigOption(String key);
 
 	private native static int  _getStatementCacheSize();

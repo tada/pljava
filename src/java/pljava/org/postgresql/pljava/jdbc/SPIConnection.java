@@ -242,15 +242,25 @@ public class SPIConnection implements Connection
 
 	public void releaseSavepoint(Savepoint savepoint) throws SQLException
 	{
-		this.executeUtilityCommand("RELEASE SAVEPOINT " + ((SPISavepoint)savepoint).getSPIName());
-		forgetSavepoint(savepoint);
+		if(!(savepoint instanceof SPISavepoint))
+			throw new IllegalArgumentException("Not an SPISavepoint");
+
+		SPISavepoint sp = (SPISavepoint)savepoint;
+		if(sp.isActive())
+			this.executeUtilityCommand("RELEASE SAVEPOINT " + sp.getSPIName());
+		forgetSavepoint(sp);
 	}
 
 	public void rollback(Savepoint savepoint) throws SQLException
 	{
+		if(!(savepoint instanceof SPISavepoint))
+			throw new IllegalArgumentException("Not an SPISavepoint");
+
+		SPISavepoint sp = (SPISavepoint)savepoint;
 		Invocation.clearErrorCondition();
-		this.executeUtilityCommand("ROLLBACK TO SAVEPOINT " + ((SPISavepoint)savepoint).getSPIName());
-		forgetSavepoint(savepoint);
+		if(sp.isActive())
+			this.executeUtilityCommand("ROLLBACK TO SAVEPOINT " + sp.getSPIName());
+		forgetSavepoint(sp);
 	}
 
 	/**
@@ -550,6 +560,7 @@ public class SPIConnection implements Connection
 	throws SQLException
 	{
 		this.executeUtilityCommand("SAVEPOINT " + sp.getSPIName());
+		sp.setActive(true);
 
 		// Remember the first savepoint for each call-level so
 		// that it can be released when the function call ends. Releasing
@@ -562,12 +573,13 @@ public class SPIConnection implements Connection
 		return sp;
 	}
 
-	private static void forgetSavepoint(Savepoint sp)
+	private static void forgetSavepoint(SPISavepoint sp)
 	throws SQLException
 	{
 		Invocation invocation = Invocation.current();
 		if(invocation.getSavepoint() == sp)
 			invocation.setSavepoint(null);
+		sp.setActive(false);
 	}
 
 	private void executeUtilityCommand(String command)
