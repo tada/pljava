@@ -19,7 +19,7 @@
 #include "pljava/type/ExecutionPlan_JNI.h"
 
 #include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
-#include <utils/guc.h> /* Needed to get to the argtypes of the plan */
+#include <utils/guc.h>
 
 static bool s_deathRowFlag;
 
