@@ -2,7 +2,7 @@
 
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
-<title>PL/Java User Guide</title>
+<title>PLJava User Guide</title>
     <style>
 <!--
 h2           { font-size: 18pt }
@@ -16,7 +16,7 @@ pre          { margin-top: 6; margin-left: 15 }
 
 <body>
 
-<h1>PL/Java User Guide</h1>
+<h1>PLJava User Guide</h1>
 <h2>Table of contents</h2>
 <p><a href="#Utilities">Utilities</a><br>
 &nbsp;&nbsp; <a href="#Deployer">Deployer</a><br>
@@ -35,7 +35,7 @@ pre          { margin-top: 6; margin-left: 15 }
 <h2><a name="Utilities">Utilities</a></h2>
 <h3><i><a name="Deployer">Deployer</a></i></h3>
 <p>When running the <code>deployer</code>, you must use a classpath that can see 
-the <code>deploy.jar</code> found in the Pl/Java distribution and the <code>postgresql.jar</code> 
+the <code>deploy.jar</code> found in the PLJava distribution and the <code>postgresql.jar</code> 
 from the PostgreSQL distribution. The former contains the code for the <code>deployer</code> 
 command and the second includes the PostgreSQL JDBC driver. You then run the
 <code>deployer</code> with the command:</p>
@@ -82,7 +82,7 @@ you so that you don&#39;t have to do this over and over again.</p>
   <tr>
     <td width="160">-windows</td>
     <td>Use this option if the host runs on a Cygwin based windows platform. 
-    Affects the name used for the Pl/Java dynamic library.<p>NOTE This option should 
+    Affects the name used for the PLJava dynamic library.<p>NOTE This option should 
     not be used when running native the Win32 port.</p>
     </td>
   </tr>
@@ -117,7 +117,7 @@ SQLActions &lt;left bracket&gt; &lt;rightbracket&gt; &lt;equal sign&gt;
   BEGIN &lt;implementor name&gt; &lt;SQL token&gt;... END &lt;implementor name&gt;
 &lt;implementor name&gt; ::= &lt;identifier&gt;
 &lt;SQL token&gt; ::= !! an SQL lexical unit specified by the term &quot;&lt;token&gt;&quot; in Sub clause 5.2, &quot;&lt;token&gt; and &lt;separator&gt;&quot;, in ISO/IEC 9075-2.</pre>
-<p>If implementor blocks are used, Pl/Java will consider only those with implementor 
+<p>If implementor blocks are used, PLJava will consider only those with implementor 
 name PostgreSQL (case insensitive). Here is a small sample of a deployment descriptor:</p>
 <pre>SQLActions[] = {
   &quot;BEGIN INSTALL
@@ -341,7 +341,7 @@ public class Fum
 SELECT trueIfEvenOrNull(4);</pre>
 <p>In order to return <code>null</code> values from a Java method, you simply use 
 the object type that corresponds to the primitive (i.e. you return <code>java.lang.Integer</code> 
-instead of <code>int</code>). The Pl/Java resolve mechanism will find the method 
+instead of <code>int</code>). The PLJava resolve mechanism will find the method 
 regardless. Since Java cannot have different return types for methods with the same 
 name, this does not introduce any ambiguity.</p>
 <h4>Complex types</h4>
@@ -371,7 +371,7 @@ throws SQLException
 <h3><i><a name="Returning_complex_types_">Returning complex types</a></i></h3>
 <p>Java does not stipulate any way to create a ResultSet from scratch. Hence, returning 
 a ResultSet is not an option. The SQL-2003 draft suggest that a complex return value 
-instead is handled as an IN/OUT parameter and Pl/Java implements it that way. If 
+instead is handled as an IN/OUT parameter and PLJava implements it that way. If 
 you declare a function that returns a complex type, you will need to use a Java 
 method with boolean return type with a last parameter of type <code>java.sql.ResultSet</code>. 
 The parameter will be initialized to an empty updateable ResultSet that contains 
@@ -381,7 +381,7 @@ exactly one row.</p>
   RETURNS complexTest
   AS &#39;foo.fee.Fum.createComplexTest&#39;
   IMMUTABLE LANGUAGE java;</pre>
-<p>The Pl/Java method resolve will now find the following method in the Fum class:</p>
+<p>The PLJava method resolve will now find the following method in the Fum class:</p>
 <pre>public static boolean complexReturn(int base, int increment, ResultSet receiver)
 throws SQLException
 {
@@ -518,7 +518,7 @@ throws SQLException
   _new.updateTimestamp(args[0], new Timestamp(System.currentTimeMillis()));
 }</pre>
 <h3><i><a name="Using_JDBC_">Using JDBC</a></i></h3>
-<p>Pl/Java contains a JDBC driver that maps to the PostgreSQL SPI functions. A connection 
+<p>PLJava contains a JDBC driver that maps to the PostgreSQL SPI functions. A connection 
 that maps to the current transaction can be obtained using the following statement:</p>
 <pre>Connection conn = DriverManager.getConnection(&quot;jdbc:default:connection&quot;); </pre>
 <p>From there on, you can prepare and execute statements, just like with any other 
@@ -545,7 +545,7 @@ JDBC connection. There are a couple of limitations though:</p>
   array is not copied.</li>
 </ul>
 <h3><i><a name="Logging_">Logging</a></i></h3>
-<p>Pl/Java uses the standard Java 1.4 Logger. Hence, you can write things like:</p>
+<p>PLJava uses the standard Java 1.4 Logger. Hence, you can write things like:</p>
 <pre>Logger.getAnonymousLogger().info( &quot;Time is &quot; + new Date(System.currentTimeMillis()));</pre>
 <p>At present, the logger is hardwired to a handler that maps the current state 
 of the PostgreSQL configuration setting log_min_messages to a valid Logger level 

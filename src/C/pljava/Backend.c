@@ -350,42 +350,6 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 }
 
 /*
- * Get the Dynamic_library_path configuration parameter and the
- * LD_LIBRARY_PATH (or PATH in case of WIN32) environment variable
- * merged together. The components found in the Dynamic_library_path
- * are placed first in the result. Substitute for any macros appearing
- * in the given string. Result is always freshly palloc'd.
- *
- * NOTE Currently, we only allow the $libdir macro. All else will
- * result in an exception.
- */
-static char* getLibraryPath(const char* prefix)
-{
-	char* path;
-	StringInfoData buf;
-	HashMap unique = HashMap_create(13, CurrentMemoryContext);
-	const char* dynPath = GetConfigOption("dynamic_library_path");
-
-	initStringInfo(&buf);
-	appendPathParts(dynPath, &buf, unique, prefix);
-
-#if WIN32 || CYGWIN
-	appendPathParts(getenv("PATH"), &buf, unique, prefix); /* DLL's are found using standard system path */
-#else
-	appendPathParts(getenv("LD_LIBRARY_PATH"), &buf, unique, prefix);
-#endif
-
-	PgObject_free((PgObject)unique);
-	path = buf.data;
-	if(strlen(path) == 0)
-	{
-		pfree(path);
-		path = 0;
-	}
-	return path;
-}
-
-/*
  * Get the CLASSPATH. Result is always freshly palloc'd.
  */
 static char* getClassPath(const char* prefix)
@@ -628,7 +592,6 @@ static void initializeJavaVM(void)
 	pqsigfunc saveSigHup;
 	pqsigfunc saveSigQuit;
 #endif
-	const char* tmp;
 	jboolean jstat;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
@@ -697,16 +660,6 @@ static void initializeJavaVM(void)
 	if(effectiveClassPath != 0)
 	{
 		JVMOptList_add(&optList, effectiveClassPath, 0, true);
-	}
-
-	/**
-	 * The JVM needs the java.library.path to find its way back to
-	 * the loaded module.
-	 */
-	tmp = getLibraryPath("-Djava.library.path=");
-	if(tmp != 0)
-	{
-		JVMOptList_add(&optList, tmp, 0, false);
 	}
 
 	/**

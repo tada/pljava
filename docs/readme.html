@@ -1,7 +1,7 @@
 <html>
 
 <head>
-<title>PL/Java readme</title>
+<title>PLJava readme</title>
 <style>
 <!--
 h1           { font-size: 18pt }
@@ -14,10 +14,10 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PL/Java, 1.0.0 beta 6</h1>
+<h1>PLJava, 1.0.0 beta 6</h1>
 <p>A source tarball and a variety of binaries can be found in the download area.
 Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for older
-PostgreSQL versions). On Linux PL/Java also comes in a GNU Java (GCJ) flavor where
+PostgreSQL versions). On Linux PLJava also comes in a GNU Java (GCJ) flavor where
 the actual pljava.jar is compiled into the pljava shared object.</p>
 <h2>Prerequisites</h2>
 <ul>
@@ -25,7 +25,7 @@ the actual pljava.jar is compiled into the pljava shared object.</p>
   <li>PostgreSQL JDBC drivers (needed by the client Deployer program).</li>
   <li>A Java runtime &gt;= Java 1.4 or GCJ &gt;= 3.4.1 (Linux only).</li>
 </ul>
-<p>Get the binary distribution of Pl/Java for your platform. Unzip it into a directory
+<p>Get the binary distribution of PLJava for your platform. Unzip it into a directory
 of your own choice.</p>
 <h2>Postmaster configuration</h2>
 <p>Get the PostgreSQL environment up and running. You will need to modify the
@@ -34,7 +34,7 @@ of your own choice.</p>
 <p>With PostgreSQL 7.4.x you must make the postmaster accept TCP/IP connections
 (needed by the client JDBC driver). So ensure that you have:</p>
 <pre>tcpip_socket = true</pre>
-<p>In order to find the PL/Java shared object, you can do one of two things. Either
+<p>In order to find the PLJava shared object, you can do one of two things. Either
 you install the shared object in a directory already searched by the postmaster
 (such as the data directory) or you tell the postmaster where to find it using the
 <code>dynamic_library_path</code>. I.e. you have a setting similar to this:</p>
@@ -49,7 +49,7 @@ the postgresql.conf file) as directory separators.</p>
 <pre>custom_variable_classes = &#39;pljava&#39;</pre>
 <h4>System classpath</h4>
 Normally, all Java code is loaded into the database using the install_jar/replace_jar
-SQL functions. Most of PL/Java (those functions included) is however implemented in Java.
+SQL functions. Most of PLJava (those functions included) is however implemented in Java.
 Unless you use GCJ, where this Java code is compiled and linked with the pljava shared
 object module, this hen and egg problem needs to be resolved using the system classpath.
 If you have PostgreSQL 8.0 or later, you add the following entry to the <code>
@@ -86,8 +86,8 @@ This will effetively disable all compression support in PostgreSQL.</li>
 JRE and relink your PostgreSQL executables with that version.</li>
 </ul>
 <p>You are now ready to start the postmaster.</p>
-<h2>Deploying the Pl/Java</h2>
-<p>Pl/Java adds a schema named SQLJ to the database (the naming is from the proposed
+<h2>Deploying the PLJava</h2>
+<p>PLJava adds a schema named SQLJ to the database (the naming is from the proposed
 SQL standard for Java backend mapping) and adds a couple of tables and functions
 to that schema. A deploy program exists that should be used for this purpose. In
 order to run this program, you must see to that the PostgreSQL jdbc driver package
@@ -96,7 +96,7 @@ order to run this program, you must see to that the PostgreSQL jdbc driver packa
 <pre>java org.postgresql.pljava.deploy.Deployer</pre>
 This will result in a list of options. Typically you would use something like:
 <pre>java org.postgresql.pljava.deploy.Deployer -install</pre>
-<p>That&#39;s all there&#39;s to it. You are now ready to start using the Pl/Java system.
+<p>That&#39;s all there&#39;s to it. You are now ready to start using the PLJava system.
 If the server runs on a Cygwin system you will need to add the option <code>-windows</code>.
 The reason for this is that PostgreSQL and Java dynamic loading uses different naming
 on Windows.</p>
@@ -119,7 +119,7 @@ of errors here though.</p>
   cause is that the <code>dynamic_library_path</code> in the <code>postgresql.conf</code>
   file is incorrect.</li>
 </ul>
-<p>Once loaded, you must also set the classpath used by the Pl/Java runtime. This
+<p>Once loaded, you must also set the classpath used by the PLJava runtime. This
 classpath is set per schema (namespace). A schema that lacks a classpath will default
 to the classpath that has been set for the public schema. The tests will use the
 schema <code>javatest</code>. To define the classpath for this schema, simply use
@@ -127,7 +127,7 @@ psql and issue the command:</p>
 <pre>SELECT sqlj.set_classpath(&#39;javatest&#39;, &#39;samples&#39;);</pre>
 <p>The first argument is the name of the schema, the second is a colon separated
 list of jar names. The names must reflect jars that are installed in the system.</p>
-<p>NOTE: If you don't use schemas, you must still issue the set_classpath 
+<p>NOTE: If you don't use schemas, you must still issue the set_classpath
 command to assign a correct classpath to the 'public' schema.</p>
 <p>&nbsp;</p>
 <p>Now, you should be able to run the tests:</p>
@@ -137,14 +137,14 @@ command to assign a correct classpath to the 'public' schema.</p>
 <h2>Building</h2>
 <p>Building should be very stright forward:</p>
 <ul>
-  <li>If you are using PostgreSQL 8.0 or later, no PosgreSQL source is needed. 
-  Your path must be set to find the pg_ctl binary. The new 'pgxs' concept in 
+  <li>If you are using PostgreSQL 8.0 or later, no PosgreSQL source is needed.
+  Your path must be set to find the pg_ctl binary. The new 'pgxs' concept in
   PostgreSQL will take care of the rest.</li>
-  <li>In order to build for versions prior to 8.0, you will need the complete 
+  <li>In order to build for versions prior to 8.0, you will need the complete
   source. You must then issue the make command like this:<br>
   make PGSQLDIR=&lt;full path to PostgreSQL 7.4.x source&gt;</li>
   <li>If you are using GCJ, you must supply USE_GCJ=1 to the make command.</li>
-  <li>If you are using a normal Java VM, be sure to set the JAVA_HOME 
+  <li>If you are using a normal Java VM, be sure to set the JAVA_HOME
   environment variable.</li>
 </ul>
 

@@ -80,8 +80,8 @@ else
 				2> /dev/null))
 		endif
 
-		override CPPFLAGS := -I$(JDK_HOME)/include -I$(JDK_HOME)/include/$(JRE_INCL) $(CPPFLAGS)
-		SHLIB_LINK = $(BE_DLLLIBS) -L. -L$(JVM_LIB) -ljvm
+		override CPPFLAGS := -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)" $(CPPFLAGS)
+		SHLIB_LINK = $(BE_DLLLIBS) -L. -L"$(JVM_LIB)" -ljvm
 	endif
 endif
 

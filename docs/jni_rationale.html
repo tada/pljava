@@ -103,7 +103,7 @@ couple of facts that must be remembered: </p>
      href="http://java.sun.com/j2se/1.5.0/docs/relnotes/features.html#vm">here</a>),
      technologies that will minimize the startup time and make the JVM adopt
      its resource consumption in a much improved way.</li>
- <li>Pl/Java can make use of the <a
+ <li>PLJava can make use of the <a
      href="http://gcc.gnu.org/java">GCJ</a>. Using this technology, all core
      classes will be compiled into binaries and optionally pre-loaded by the
      postmaster. It also means that all modules that are loaded using the
@@ -148,7 +148,7 @@ a JDBC driver is written so that it calls back to the SPI functions in the
 invoking process. Both choices results in an increased number of RPC calls and
 a negative performance impact. </p>
 
-<p>The Pl/Java approach is to use the underlying SPI interfaces directly
+<p>The PLJava approach is to use the underlying SPI interfaces directly
 through JNI by providing a &quot;pseudo connection&quot; that implements the
 JDBC interfaces. The mapping is thus very direct. Data need never be serialized
 nor duplicated. </p>
