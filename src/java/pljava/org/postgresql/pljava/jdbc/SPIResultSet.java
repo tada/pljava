@@ -8,6 +8,7 @@ package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.ResultSetMetaData;
 
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
@@ -176,5 +177,11 @@ public class SPIResultSet extends ResultSetBase
 	throws SQLException
 	{
 		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex);
+	}
+
+	public ResultSetMetaData getMetaData()
+	throws SQLException
+	{
+		return new SPIResultSetMetaData(m_tupleDesc);
 	}
 }
