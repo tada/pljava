@@ -8,6 +8,7 @@
  */
 #include "pljava/type/String_priv.h"
 #include "pljava/HashMap.h"
+#include "pljava/SPI.h"
 
 static HashMap s_typeByOid;
 static HashMap s_obtainerByOid;
@@ -125,8 +126,10 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 		fcinfo->isnull = true;
 		return 0;
 	}
+	MemoryContext currCtx = SPI_switchToReturnValueContext();
 	Datum ret = self->m_class->coerceObject(self, env, value);
 	(*env)->DeleteLocalRef(env, value);
+	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
 

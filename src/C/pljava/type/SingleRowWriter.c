@@ -8,9 +8,8 @@
  */
 #include <postgres.h>
 #include <funcapi.h>
-#include <utils/memutils.h>
-#include <utils/numeric.h>
 
+#include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
@@ -54,11 +53,14 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	Datum result = 0;
 	if(hasRow)
 	{
-		/* Obtain tuple and return it as a Datum.
+		/* Obtain tuple and return it as a Datum. Must be done using the
+		 * upper context.
 		 */
+		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
 		TupleTableSlot* slot = TupleDescGetSlot(tupleDesc);
 	    result = TupleGetDatum(slot, tuple);
+		MemoryContextSwitchTo(currCtx);
 	}
 	else
 		fcinfo->isnull = true;

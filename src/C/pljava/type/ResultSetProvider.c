@@ -13,9 +13,10 @@
 #include <funcapi.h>
 
 #include "pljava/type/Type_priv.h"
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
 #include "pljava/HashMap.h"
+#include "pljava/SPI.h"
 
 /*
  * void primitive type.
@@ -117,8 +118,10 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	{
 		/* Obtain tuple and return it as a Datum.
 		 */
+		MemoryContext currCtx = SPI_switchToReturnValueContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 	    Datum result = TupleGetDatum(context->slot, tuple);
+		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
 
