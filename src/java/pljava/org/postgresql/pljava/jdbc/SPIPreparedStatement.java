@@ -58,10 +58,10 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		{
 			m_plan.close();
 			m_plan = null;
-			this.clearParameters();
-			super.close();
-			Invocation.current().forgetStatement(this);
 		}
+		this.clearParameters();
+		super.close();
+		Invocation.current().forgetStatement(this);
 	}
 
 	public ResultSet executeQuery()
@@ -359,6 +359,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setURL(int columnIndex, URL value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.DATALINK);
+	}
+
+	public String toString()
+	{
+		return m_statement;
 	}
 
 	/**

@@ -101,6 +101,13 @@ public class Triggers
 		stmt.executeUpdate();
 	}
 
+	public static void afterUsernameInsert(TriggerData td)
+	throws SQLException
+	{
+		Logger log = Logger.getAnonymousLogger();
+		log.info("After username insert");
+	}
+
 	public static void afterUsernameUpdate(TriggerData td)
 	throws SQLException
 	{

@@ -183,12 +183,10 @@ static void MemoryContext_releaseCache(MemoryContext ctx, bool isDelete)
 
 	if(isDelete)
 	{
-		elog(DEBUG1, "NativeStruct cache %p deleted due to deletion of context %p", cache, ctx);
 		PgObject_free((PgObject)cache);
 	}
 	else
 	{
-		elog(DEBUG1, "NativeStruct cache %p cleared due to reset of context %p", cache, ctx);
 		HashMap_clear(cache);
 	}
 }
@@ -201,7 +199,6 @@ MemoryContext_getCurrentNativeCache(void)
 	{
 		exm->nativeCache = HashMap_create(13, CurrentMemoryContext->parent);
 		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, MemoryContext_releaseCache);
-		elog(DEBUG1, "NativeStruct cache %p created", exm->nativeCache);
 	}
 	return exm->nativeCache;
 }

@@ -199,7 +199,6 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 
 	PG_TRY();
 	{
-		elog(DEBUG1, "SPI_is_cursor_plan %p", ePlan);
 		result = SPI_is_cursor_plan(ePlan);
 	}
 	PG_CATCH();
@@ -234,7 +233,6 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
 		{
 #if (PGSQL_MAJOR_VER >= 8)
-			elog(DEBUG1, "SPI_execute_plan %p", ePlan);
 			result = (jint)SPI_execute_plan(
 				ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
 #else

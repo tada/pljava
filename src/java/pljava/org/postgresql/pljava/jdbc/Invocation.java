@@ -100,10 +100,16 @@ public class Invocation
 				int idx = m_preparedStatements.size();
 				if(idx > 0)
 				{
-					Logger.getAnonymousLogger().warning(
-						"Closing " + idx + " \"forgotten\" statements");
+					Logger w = Logger.getAnonymousLogger();
+					w.warning(
+						"Closing " + idx + " \"forgotten\" statement"
+							+ ((idx > 1) ? "s" : ""));
 					while(--idx >= 0)
-						((PreparedStatement)m_preparedStatements.get(idx)).close();
+					{
+						PreparedStatement stmt = (PreparedStatement)m_preparedStatements.get(idx);
+						w.fine("Closed: " + stmt);
+						stmt.close();
+					}
 				}
 			}
 		}

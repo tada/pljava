@@ -32,7 +32,6 @@ void NativeStruct_releaseCache(HashMap cache)
 			jobject bound = (*env)->NewLocalRef(env, weak);
 			if(bound != 0)
 			{
-				elog(DEBUG1, "Marking object associated with native pointer %p stale", Entry_getKey(e));
 				(*env)->SetLongField(env, bound, s_NativeStruct_m_native, 0L);
 				(*env)->DeleteLocalRef(env, bound);
 			}

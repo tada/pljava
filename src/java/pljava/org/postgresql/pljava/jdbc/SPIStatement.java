@@ -92,8 +92,8 @@ public class SPIStatement implements Statement
 		}
 		finally
 		{
-			plan.close();
-		}
+			try { plan.close(); } catch(Exception e) {}
+ 		}
 	}
 
 	protected boolean executePlan(ExecutionPlan plan, Object[] paramValues)

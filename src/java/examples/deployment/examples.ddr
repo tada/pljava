@@ -54,6 +54,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Triggers.insertUsername'
 			LANGUAGE java;
 
+		CREATE FUNCTION javatest.after_username_insert()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.afterUsernameInsert'
+			LANGUAGE java;
+
 		CREATE FUNCTION javatest.after_username_update()
 			RETURNS trigger
 			AS 'org.postgresql.pljava.example.Triggers.afterUsernameUpdate'
@@ -68,6 +73,11 @@ SQLActions[ ] = {
 			BEFORE INSERT OR UPDATE ON username_test
 			FOR EACH ROW
 			EXECUTE PROCEDURE insert_username (username);
+
+		CREATE TRIGGER after_insert_usernames
+			AFTER INSERT ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE after_username_insert (username);
 
 		CREATE TRIGGER after_username_updates
 			AFTER UPDATE ON username_test
