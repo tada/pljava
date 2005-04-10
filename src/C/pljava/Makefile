@@ -25,6 +25,9 @@ ifeq ($(PORTNAME), darwin)
 	JAVAVM_FWX_ROOT := /System/Library/Frameworks
 	override CPPFLAGS := -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/ $(CPPFLAGS)
 else
+ifeq ($(PORTNAME), ibmos2)
+	DLL_BUILD := 1
+else
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
 		JRE_CPU := i386
@@ -39,7 +42,7 @@ else
 endif
 endif
 endif
-
+endif
 ifdef DLL_BUILD
 	# This works but is not very nice since it affects all
 	# DLLTOOL invocations in Makefile.shlib. A custom flag
@@ -67,11 +70,18 @@ else
 				JDK_HOME := $(JAVA_HOME)
 			endif
 		else
-			JAVA_HOME_TEST_RESULT := $(error You must set JAVA_HOME)
+			ifeq ($(PORTNAME), ibmos2)
+				JAVA_HOME_TEST_RESULT := $(echo "You must set JAVA_HOME")
+			else
+				JAVA_HOME_TEST_RESULT := $(error You must set JAVA_HOME)
+			endif
 		endif
-
 		ifdef DLL_BUILD
-			JRE_INCL := win32
+			ifeq ($(PORTNAME),ibmos2)
+				JRE_INCL := os2
+			else
+				JRE_INCL := win32
+			endif
 			JVM_LIB  := $(JDK_HOME)/jre/bin/client
 		else
 			JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)

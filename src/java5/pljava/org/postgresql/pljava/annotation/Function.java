@@ -43,8 +43,20 @@ public @interface Function
 	 */
 	String schema() default "";
 
+	/**
+	 * Defines what should happen when input to the function
+	 * is null.
+	 */
 	OnNullInput onNullInput() default OnNullInput.CALLED;
+	
+	/**
+	 * Sets the security for the function invocation.
+	 */
 	Security security() default Security.INVOKER;
+	
+	/**
+	 * The type of the function.
+	 */
 	Type type() default Type.VOLATILE;
 
 	/**

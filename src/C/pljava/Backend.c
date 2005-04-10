@@ -807,7 +807,7 @@ static void initializeJavaVM(void)
 	{
 		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
 		while(pljavaDebug)
-#if (PGSQL_MAJOR_VER >= 8)
+#if (PGSQL_MAJOR_VER >= 8) && !defined(__OS2__)
 			pg_usleep(1000000L);
 #else
 			sleep(1);
