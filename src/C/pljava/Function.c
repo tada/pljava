@@ -7,11 +7,14 @@
  * @author Thomas Hallgren
  */
 #include "pljava/PgObject_priv.h"
+#include "pljava/backports.h"
 #include "pljava/Exception.h"
 #include "pljava/Backend.h"
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Oid.h"
+#include "pljava/type/SingleRowWriter.h"
+#include "pljava/type/ResultSetProvider.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 
@@ -212,7 +215,7 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 	}
 }
 
-static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTrigger)
+static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 {
 	const char* ip;
 	const char* paramDecl = 0;
@@ -236,7 +239,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 
 	/* Obtain the tuple that corresponds to the function
 	 */
-	HeapTuple procTup = PgObject_getValidTuple(PROCOID, functionId, "function");
+	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
 	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 
 	/* The user's function definition must be the fully
@@ -371,7 +374,7 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 			errmsg("Extranious characters at end of method name '%s'", methodName)));
 
 	ctx = GetMemoryChunkContext(self);
-	if(isTrigger)
+	if(CALLED_AS_TRIGGER(fcinfo))
 	{
 		if(paramDecl != 0)
 			ereport(ERROR, (
@@ -390,58 +393,58 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	else
 	{
 		int top;
-		Oid retTypeId = procStruct->prorettype;
-		HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
-		Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
 		Type complex = 0;
+		Oid retTypeId = InvalidOid;
+		TupleDesc retTuple = 0;
 
 		self->numParams = (int32)procStruct->pronargs;
 		self->isMultiCall = procStruct->proretset;
 
-		if(self->isMultiCall)
+		switch(get_call_result_type(fcinfo, &retTypeId, &retTuple))
 		{
-			/* The function returns a set. Check if the element type is a
-			 * complex or a scalar type.
-			 */
-			const char* javaName;
-			isResultSetProvider = (pgType->typtype == 'c');
-			javaName = isResultSetProvider
-				? "org.postgresql.pljava.ResultSetProvider"
-				: "java.util.Iterator";
+			case TYPEFUNC_SCALAR:
+				if(self->isMultiCall)
+					self->returnType = Type_fromJavaType(retTypeId, "java.util.Iterator");
+				else
+				{
+					HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
+					Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
+					self->returnType = Type_fromPgType(retTypeId, pgType);
+					ReleaseSysCache(typeTup);
+				}
+				break;
 
-			/* Obtain the provider type for the set type.
-			 */
-			self->returnType = Type_fromJavaType(retTypeId, javaName);
-		}
-		else
-		{
-			/*
-			 * Retreive standard string conversion from the postgres
-			 * type catalog.
-			 */
-			if(pgType->typtype == 'c')
-			{
-				/* Complex functions uses an updateable ResultSet
-				 * as the last argument and returns boolean to indicate
-				 * whether or not this set has been filled in.
-				 */
-				complex = Type_fromJavaType(
-					retTypeId,
-					"org.postgresql.pljava.jdbc.SingleRowWriter");
-				self->returnType = Type_fromOid(BOOLOID);
-				self->numParams++;
-				self->returnComplex = true;
-			}
-			else
-				self->returnType = Type_fromPgType(retTypeId, pgType);
-		}
-		ReleaseSysCache(typeTup);
+			case TYPEFUNC_COMPOSITE:
+			case TYPEFUNC_RECORD:
+				if(self->isMultiCall)
+				{
+					isResultSetProvider = true;
+					self->returnType = ResultSetProvider_createType(retTypeId, retTuple);
+				}
+				else
+				{
+					self->numParams++;
+					self->returnComplex = true;
+					self->returnType = Type_fromOid(BOOLOID);
+					complex = SingleRowWriter_createType(retTypeId, retTuple);
+				}
+				break;
 
+			case TYPEFUNC_OTHER:
+				ereport(ERROR, (
+					errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("PL/Java functions cannot return type %s",
+						format_type_be(procStruct->prorettype))));
+		}
 		top = self->numParams;
 		if(top > 0)
 		{
 			int idx;
+#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0))
 			Oid* typeIds = procStruct->proargtypes;
+#else
+			Oid* typeIds = procStruct->proargtypes.values;
+#endif
 			self->paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
 
 			if(complex != 0)
@@ -546,21 +549,22 @@ static void Function_init(Function self, JNIEnv* env, Oid functionId, bool isTri
 	pfree(className);
 }
 
-static Function Function_create(JNIEnv* env, Oid functionId, bool isTrigger)
+static Function Function_create(JNIEnv* env, PG_FUNCTION_ARGS)
 {
 	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
-	Function_init(self, env, functionId, isTrigger);
+	Function_init(self, env, fcinfo);
 	return self;
 }
 
-Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger)
+Function Function_getFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 {
-	Function func = (Function)HashMap_getByOid(s_funcMap, functionId);
+	Oid funcOid = fcinfo->flinfo->fn_oid;
+	Function func = (Function)HashMap_getByOid(s_funcMap, funcOid);
 	if(func == 0)
 	{
 		PgObject old;
-		func = Function_create(env, functionId, isTrigger);
-		old = HashMap_putByOid(s_funcMap, functionId, func);
+		func = Function_create(env, fcinfo);
+		old = HashMap_putByOid(s_funcMap, funcOid, func);
 		if(old != 0)
 		{
 			/* Can happen in a multithreaded environment. Extremely

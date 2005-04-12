@@ -14,8 +14,10 @@
 #include <executor/spi.h>
 
 #include "pljava/type/Type_priv.h"
+#include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
+#include "pljava/type/ResultSetProvider.h"
 #include "pljava/Backend.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
@@ -136,7 +138,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 */
 		rsInfo = (ReturnSetInfo*)fcinfo->resultinfo;
 
-		tupleDesc = TupleDesc_forOid(Type_getOid(self));
+		tupleDesc = Type_getTupleDesc(self);
 		if(tupleDesc == 0)
 			ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
@@ -253,16 +255,12 @@ static Type ResultSetHandle_obtain(Oid typeId)
 
 static Type ResultSetProvider_obtain(Oid typeId)
 {
-	/* Check to see if we have a cached version for this
-	 * postgres type
-	 */
-	Type infant = (Type)HashMap_getByOid(s_cache, typeId);
-	if(infant == 0)
-	{
-		infant = TypeClass_allocInstance(s_ResultSetProviderClass, typeId);
-		HashMap_putByOid(s_cache, typeId, infant);
-	}
-	return infant;
+	return (Type)ComplexType_createType(s_ResultSetProviderClass, s_cache, typeId, 0);
+}
+
+Type ResultSetProvider_createType(Oid typeId, TupleDesc tupleDesc)
+{
+	return (Type)ComplexType_createType(s_ResultSetProviderClass, s_cache, typeId, tupleDesc);
 }
 
 /* Make this datatype available to the postgres system.
@@ -288,7 +286,7 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
-	s_ResultSetProviderClass = TypeClass_alloc("type.ResultSetProvider");
+	s_ResultSetProviderClass = ComplexTypeClass_alloc("type.ResultSetProvider");
 	s_ResultSetProviderClass->JNISignature = "Lorg/postgresql/pljava/ResultSetProvider;";
 	s_ResultSetProviderClass->javaTypeName = "org.postgresql.pljava.ResultSetProvider";
 	s_ResultSetProviderClass->invoke	   = _ResultSetProvider_invoke;

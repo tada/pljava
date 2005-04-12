@@ -43,7 +43,7 @@ typedef struct Function_* Function;
  * 
  * org.postgresql.pljava.Tuple <method name>(org.postgresql.pljava.TriggerData td)
  */
-extern Function Function_getFunction(JNIEnv* env, Oid functionId, bool isTrigger);
+extern Function Function_getFunction(JNIEnv* env, PG_FUNCTION_ARGS);
 
 /*
  * Invoke a function, i.e. coerce the parameters, call the java method, and

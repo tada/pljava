@@ -209,8 +209,8 @@ public class Tester
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
 				t.testBinaryColumns();
-				t.testDatabaseMetaData();
-				t.testResultSet();
+				// t.testDatabaseMetaData();
+				// t.testResultSet();
 			}
 			t.close();
 		}

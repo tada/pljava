@@ -743,6 +743,7 @@ static void initializeJavaVM(void)
 		"Size of the prepared statement MRU cache",
 		NULL,
 		&statementCacheSize,
+		0, 512,
 		PGC_USERSET,
 		NULL, NULL);
 
@@ -909,10 +910,8 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	CallContext ctx;
-	Function function;
 	Datum retval = 0;
 	bool saveIsCallingJava = isCallingJava;
-	Oid funcOid = fcinfo->flinfo->fn_oid;
 
 	if(s_javaVM == 0)
 	{
@@ -940,18 +939,17 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	++s_callLevel;
 	PG_TRY();
 	{
+		Function function = Function_getFunction(s_mainEnv, fcinfo);
 		if(CALLED_AS_TRIGGER(fcinfo))
 		{
 			/* Called as a trigger procedure
 			 */
-			function = Function_getFunction(s_mainEnv, funcOid, true);
 			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
 		}
 		else
 		{
 			/* Called as a function
 			 */
-			Function function = Function_getFunction(s_mainEnv, funcOid, false);
 			retval = Function_invoke(function, s_mainEnv, fcinfo);
 		}
 		Exception_checkException(s_mainEnv);

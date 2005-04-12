@@ -24,25 +24,6 @@ extern "C" {
  *
  ***********************************************************************/
 
-#if (PGSQL_MAJOR_VER < 8)
-/*
- * Returns the Oid of the type for argument at argIndex. First
- * parameter is at index zero.
- */
-extern Oid SPI_getargtypeid(void* plan, int argIndex);
-
-/*
- * Returns the number of arguments for the prepared plan.
- */
-extern int SPI_getargcount(void* plan);
-
-/*
- *	Return true if the plan is valid for a SPI_open_cursor call.
- */
-extern bool SPI_is_cursor_plan(void* plan);
-
-#endif
-
 extern Datum SPI_initialize(PG_FUNCTION_ARGS);
 
 #if (PGSQL_MAJOR_VER >= 8)

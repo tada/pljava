@@ -76,6 +76,11 @@ struct TypeClass_
 	 * call.
 	 */
 	Datum (*invoke)(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+
+	/*
+	 * Returns the TupleDesc that corresponds to this type.
+	 */
+	TupleDesc (*getTupleDesc)(Type self);
 };
 
 struct Type_
@@ -96,6 +101,12 @@ extern bool _Type_canReplaceType(Type self, Type other);
  * a call to self->coerceObject to create the Datum.
  */
 extern Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+
+/*
+ * Return the m_oid member of the Type. This is the default version of
+ * Type_getTupleDesc.
+ */
+TupleDesc _Type_getTupleDesc(Type self);
 
 /*
  * Create a TypeClass with default sizes for TypeClass and Type.

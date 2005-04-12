@@ -24,6 +24,11 @@ extern "C" {
  *******************************************************************/
 
 /*
+ * Create a Type for a specific Record type.
+ */
+extern Type SingleRowWriter_createType(Oid typeId, TupleDesc tupleDesc);
+
+/*
  * Create an instance of org.postgresql.pljava.jdbc.RowProviderSet
  */
 extern jobject SingleRowWriter_create(JNIEnv* env, jobject tupleDesc);

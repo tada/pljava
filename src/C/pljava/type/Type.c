@@ -7,6 +7,7 @@
  * @author Thomas Hallgren
  */
 #include "pljava/type/String_priv.h"
+#include "pljava/type/TupleDesc.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
@@ -48,6 +49,11 @@ Type Type_getObjectType(Type self)
 Oid Type_getOid(Type self)
 {
 	return self->m_oid;
+}
+
+TupleDesc Type_getTupleDesc(Type self)
+{
+	return self->m_class->getTupleDesc(self);
 }
 
 Datum Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
@@ -147,6 +153,11 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 	MemoryContextSwitchTo(currCtx);
 	(*env)->DeleteLocalRef(env, value);
 	return ret;
+}
+
+TupleDesc _Type_getTupleDesc(Type self)
+{
+	return TupleDesc_forOid(self->m_oid);
 }
 
 /*
@@ -266,6 +277,7 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	self->coerceDatum    = (jvalue (*)(Type, JNIEnv*, Datum))_PgObject_pureVirtualCalled;
 	self->coerceObject   = (Datum (*)(Type, JNIEnv*, jobject))_PgObject_pureVirtualCalled;
 	self->invoke         = _Type_invoke;
+	self->getTupleDesc   = _Type_getTupleDesc;
 	return self;
 }
 

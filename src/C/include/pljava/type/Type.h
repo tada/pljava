@@ -107,6 +107,11 @@ extern Type Type_getObjectType(Type self);
 extern Oid Type_getOid(Type self);
 
 /*
+ * Returns the TupleDesc associated with this type.
+ */
+extern TupleDesc Type_getTupleDesc(Type self);
+
+/*
  * Calls a java method using one of the Call<type>MethodA routines where
  * <type> corresponds to the type represented by this instance and
  * coerces the returned value into a Datum.

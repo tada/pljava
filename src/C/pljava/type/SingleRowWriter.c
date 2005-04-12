@@ -11,6 +11,7 @@
 
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Type_priv.h"
+#include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
 
@@ -39,7 +40,7 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	bool saveIcj = isCallingJava;
 	bool hasRow;
 	Datum result = 0;
-	TupleDesc tupleDesc = TupleDesc_forOid(Type_getOid(self));
+	TupleDesc tupleDesc = Type_getTupleDesc(self);
 	jobject jtd = TupleDesc_create(env, tupleDesc);
 	jobject singleRowWriter = SingleRowWriter_create(env, jtd);
 	int numArgs = fcinfo->nargs;
@@ -119,16 +120,12 @@ static Datum _SingleRowWriter_coerceObject(Type self, JNIEnv* env, jobject nothi
 
 static Type SingleRowWriter_obtain(Oid typeId)
 {
-	/* Check to see if we have a cached version for this
-	 * postgres type
-	 */
-	Type infant = (Type)HashMap_getByOid(s_cache, typeId);
-	if(infant == 0)
-	{
-		infant = TypeClass_allocInstance(s_SingleRowWriterClass, typeId);
-		HashMap_putByOid(s_cache, typeId, infant);
-	}
-	return infant;
+	return (Type)ComplexType_createType(s_SingleRowWriterClass, s_cache, typeId, 0);
+}
+
+Type SingleRowWriter_createType(Oid typeId, TupleDesc tupleDesc)
+{
+	return (Type)ComplexType_createType(s_SingleRowWriterClass, s_cache, typeId, tupleDesc);
 }
 
 /* Make this datatype available to the postgres system.
@@ -150,7 +147,7 @@ Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS)
 
 	s_cache = HashMap_create(13, TopMemoryContext);
 
-	s_SingleRowWriterClass = TypeClass_alloc("type.SingleRowWriter");
+	s_SingleRowWriterClass = ComplexTypeClass_alloc("type.SingleRowWriter");
 	s_SingleRowWriterClass->JNISignature = "Ljava/sql/ResultSet;";
 	s_SingleRowWriterClass->javaTypeName = "java.lang.ResultSet";
 	s_SingleRowWriterClass->coerceDatum  = _SingleRowWriter_coerceDatum;
