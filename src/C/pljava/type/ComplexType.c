@@ -27,7 +27,16 @@ static TupleDesc createGlobalTupleDescCopy(TupleDesc td)
 ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, HashMap modCache, TupleDesc td)
 {
 	ComplexType infant;
-	Oid key = td->tdtypeid;
+	Oid key;
+
+	if(td == 0)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("could not determine row description for complex type")));
+	}
+
+	key = td->tdtypeid;
 	if(key == RECORDOID)
 	{
 		if(td->tdtypmod != -1)
