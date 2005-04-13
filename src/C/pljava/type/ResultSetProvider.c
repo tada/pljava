@@ -9,6 +9,7 @@
 #include <postgres.h>
 #include <utils/memutils.h>
 #include <utils/numeric.h>
+#include <utils/typcache.h>
 #include <nodes/execnodes.h>
 #include <funcapi.h>
 #include <executor/spi.h>
@@ -34,7 +35,8 @@ static jmethodID s_ResultSetPicker_init;
 static TypeClass s_ResultSetProviderClass;
 static TypeClass s_ResultSetHandleClass;
 static Type s_ResultSetHandle;
-static HashMap s_cache;
+static HashMap s_idCache;
+static HashMap s_modCache;
 
 /* Structure used in multi function calls (calls returning
  * SETOF
@@ -138,7 +140,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 */
 		rsInfo = (ReturnSetInfo*)fcinfo->resultinfo;
 
-		tupleDesc = Type_getTupleDesc(self);
+		tupleDesc = Type_getTupleDesc(self, fcinfo);
 		if(tupleDesc == 0)
 			ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
@@ -255,12 +257,14 @@ static Type ResultSetHandle_obtain(Oid typeId)
 
 static Type ResultSetProvider_obtain(Oid typeId)
 {
-	return (Type)ComplexType_createType(s_ResultSetProviderClass, s_cache, typeId, 0);
+	return (Type)ComplexType_createType(
+		s_ResultSetProviderClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
 }
 
-Type ResultSetProvider_createType(Oid typeId, TupleDesc tupleDesc)
+Type ResultSetProvider_createType(TupleDesc tupleDesc)
 {
-	return (Type)ComplexType_createType(s_ResultSetProviderClass, s_cache, typeId, tupleDesc);
+	return (Type)ComplexType_createType(
+		s_ResultSetProviderClass, s_idCache, s_modCache, tupleDesc);
 }
 
 /* Make this datatype available to the postgres system.
@@ -284,7 +288,8 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetPicker_init = PgObject_getJavaMethod(
 				env, s_ResultSetPicker_class, "<init>", "(Lorg/postgresql/pljava/ResultSetHandle;)V");
 
-	s_cache = HashMap_create(13, TopMemoryContext);
+	s_idCache = HashMap_create(13, TopMemoryContext);
+	s_modCache = HashMap_create(13, TopMemoryContext);
 
 	s_ResultSetProviderClass = ComplexTypeClass_alloc("type.ResultSetProvider");
 	s_ResultSetProviderClass->JNISignature = "Lorg/postgresql/pljava/ResultSetProvider;";

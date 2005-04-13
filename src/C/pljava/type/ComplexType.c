@@ -7,6 +7,7 @@
  * @author Thomas Hallgren
  */
 #include "pljava/type/ComplexType_priv.h"
+#include "pljava/backports.h"
 
 ComplexType ComplexType_allocInstance(TypeClass complexTypeClass, Oid typeId)
 {
@@ -15,41 +16,85 @@ ComplexType ComplexType_allocInstance(TypeClass complexTypeClass, Oid typeId)
 	return infant;
 }
 
-ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap cache, Oid typeId, TupleDesc tupleDesc)
+static TupleDesc createGlobalTupleDescCopy(TupleDesc td)
+{
+	MemoryContext curr = MemoryContextSwitchTo(TopMemoryContext);
+	td = CreateTupleDescCopyConstr(td);
+	MemoryContextSwitchTo(curr);
+	return td;
+}
+
+ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, HashMap modCache, TupleDesc td)
 {
 	ComplexType infant;
-	if(typeId == RECORDOID)
+	Oid key = td->tdtypeid;
+	if(key == RECORDOID)
 	{
-		/* Don't put this one in the oid based cache.
-		 */
-		infant = ComplexType_allocInstance(complexTypeClass, typeId);
+		if(td->tdtypmod != -1)
+		{
+			key = (Oid)td->tdtypmod;
+			infant = (ComplexType)HashMap_getByOid(modCache, key);
+			if(infant == 0)
+			{
+				infant = ComplexType_allocInstance(complexTypeClass, td->tdtypeid);
+				infant->m_tupleDesc = createGlobalTupleDescCopy(td);
+				HashMap_putByOid(modCache, key, infant);
+			}
+		}
+		else
+		{
+			/* Get the singleton instance from the idCache that represents
+			 * anonymous RECORD. We *do not* assign a TupleDesc to this
+			 * instance since it will vary between calls.
+			 */
+			infant = (ComplexType)HashMap_getByOid(idCache, key);
+			if(infant == 0)
+			{
+				infant = ComplexType_allocInstance(complexTypeClass, key);
+				HashMap_putByOid(idCache, key, infant);
+			}
+		}
 	}
 	else
 	{
-		infant = (ComplexType)HashMap_getByOid(cache, typeId);
+		infant = (ComplexType)HashMap_getByOid(idCache, key);
 		if(infant == 0)
 		{
-			infant = ComplexType_allocInstance(complexTypeClass, typeId);
-			HashMap_putByOid(cache, typeId, infant);
+			infant = ComplexType_allocInstance(complexTypeClass, key);
+			infant->m_tupleDesc = createGlobalTupleDescCopy(td);
+			HashMap_putByOid(idCache, key, infant);
 		}
-	}
-
-	if(tupleDesc != 0 && infant->m_tupleDesc == 0)
-	{
-		MemoryContext curr = MemoryContextSwitchTo(TopMemoryContext);
-		infant->m_tupleDesc = CreateTupleDescCopyConstr(tupleDesc);
-		MemoryContextSwitchTo(curr);
 	}
 	return infant;
 }
 
-static TupleDesc _ComplexType_getTupleDesc(Type self)
+static TupleDesc _ComplexType_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 {
 	TupleDesc td = ((ComplexType)self)->m_tupleDesc;
-	if(td == 0)
+	if(td != 0)
+		return td;
+
+	switch(get_call_result_type(fcinfo, 0, &td))
 	{
-		td = _Type_getTupleDesc(self);
-		((ComplexType)self)->m_tupleDesc = td;
+		case TYPEFUNC_COMPOSITE:
+		case TYPEFUNC_RECORD:
+			if(td->tdtypeid == RECORDOID && td->tdtypmod == -1)
+				/*
+				 * We can't hold on to this one. It's anonymous
+				 * and may vary between calls.
+				 */
+				td = CreateTupleDescCopy(td);
+			else
+			{
+				td = createGlobalTupleDescCopy(td);
+				((ComplexType)self)->m_tupleDesc = td;
+			}
+			break;
+		default:
+			ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("function returning record called in context "
+						"that cannot accept type record")));
 	}
 	return td;
 }

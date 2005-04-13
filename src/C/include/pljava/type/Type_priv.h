@@ -80,7 +80,7 @@ struct TypeClass_
 	/*
 	 * Returns the TupleDesc that corresponds to this type.
 	 */
-	TupleDesc (*getTupleDesc)(Type self);
+	TupleDesc (*getTupleDesc)(Type self, PG_FUNCTION_ARGS);
 };
 
 struct Type_
@@ -106,7 +106,7 @@ extern Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, 
  * Return the m_oid member of the Type. This is the default version of
  * Type_getTupleDesc.
  */
-TupleDesc _Type_getTupleDesc(Type self);
+TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
 
 /*
  * Create a TypeClass with default sizes for TypeClass and Type.

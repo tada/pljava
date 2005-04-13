@@ -153,8 +153,7 @@ internal_get_result_type(Oid funcid,
 			break;
 		case TYPEFUNC_RECORD:
 			/* We must get the tupledesc from call context */
-			if (rsinfo && IsA(rsinfo, ReturnSetInfo) &&
-				rsinfo->expectedDesc != NULL)
+			if (rsinfo && IsA(rsinfo, ReturnSetInfo) && rsinfo->expectedDesc != NULL)
 			{
 				result = TYPEFUNC_COMPOSITE;
 				if (resultTupleDesc)

@@ -419,14 +419,14 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 				if(self->isMultiCall)
 				{
 					isResultSetProvider = true;
-					self->returnType = ResultSetProvider_createType(retTypeId, retTuple);
+					self->returnType = ResultSetProvider_createType(retTuple);
 				}
 				else
 				{
 					self->numParams++;
 					self->returnComplex = true;
 					self->returnType = Type_fromOid(BOOLOID);
-					complex = SingleRowWriter_createType(retTypeId, retTuple);
+					complex = SingleRowWriter_createType(retTuple);
 				}
 				break;
 

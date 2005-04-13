@@ -7,8 +7,9 @@
 extern "C" {
 #endif
 
-#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0))
-
+#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
+#include <funcapi.h>
+#else
 #include <utils/lsyscache.h>
 
 /*----------

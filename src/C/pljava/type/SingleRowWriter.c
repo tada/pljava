@@ -8,6 +8,7 @@
  */
 #include <postgres.h>
 #include <funcapi.h>
+#include <utils/typcache.h>
 
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Type_priv.h"
@@ -22,7 +23,8 @@ static jclass s_SingleRowWriter_class;
 static jmethodID s_SingleRowWriter_init;
 static jmethodID s_SingleRowWriter_getTupleAndClear;
 static TypeClass s_SingleRowWriterClass;
-static HashMap s_cache;
+static HashMap s_idCache;
+static HashMap s_modCache;
 
 /*
  * This function is a bit special in that it adds an additional parameter
@@ -40,7 +42,7 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 	bool saveIcj = isCallingJava;
 	bool hasRow;
 	Datum result = 0;
-	TupleDesc tupleDesc = Type_getTupleDesc(self);
+	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
 	jobject jtd = TupleDesc_create(env, tupleDesc);
 	jobject singleRowWriter = SingleRowWriter_create(env, jtd);
 	int numArgs = fcinfo->nargs;
@@ -120,12 +122,14 @@ static Datum _SingleRowWriter_coerceObject(Type self, JNIEnv* env, jobject nothi
 
 static Type SingleRowWriter_obtain(Oid typeId)
 {
-	return (Type)ComplexType_createType(s_SingleRowWriterClass, s_cache, typeId, 0);
+	return (Type)ComplexType_createType(
+		s_SingleRowWriterClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
 }
 
-Type SingleRowWriter_createType(Oid typeId, TupleDesc tupleDesc)
+Type SingleRowWriter_createType(TupleDesc tupleDesc)
 {
-	return (Type)ComplexType_createType(s_SingleRowWriterClass, s_cache, typeId, tupleDesc);
+	return (Type)ComplexType_createType(
+		s_SingleRowWriterClass, s_idCache, s_modCache, tupleDesc);
 }
 
 /* Make this datatype available to the postgres system.
@@ -145,7 +149,8 @@ Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS)
 	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(
 				env, s_SingleRowWriter_class, "getTupleAndClear", "()Lorg/postgresql/pljava/internal/Tuple;");
 
-	s_cache = HashMap_create(13, TopMemoryContext);
+	s_idCache = HashMap_create(13, TopMemoryContext);
+	s_modCache = HashMap_create(13, TopMemoryContext);
 
 	s_SingleRowWriterClass = ComplexTypeClass_alloc("type.SingleRowWriter");
 	s_SingleRowWriterClass->JNISignature = "Ljava/sql/ResultSet;";

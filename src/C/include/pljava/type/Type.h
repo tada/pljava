@@ -109,7 +109,7 @@ extern Oid Type_getOid(Type self);
 /*
  * Returns the TupleDesc associated with this type.
  */
-extern TupleDesc Type_getTupleDesc(Type self);
+extern TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
 
 /*
  * Calls a java method using one of the Call<type>MethodA routines where

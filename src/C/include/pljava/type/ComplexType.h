@@ -30,7 +30,7 @@ extern ComplexType ComplexType_allocInstance(TypeClass complexTypeClass, Oid typ
  * Obtain a new ComplexType for the given oid and typeid. The type will be cached if
  * the oid is something other than RECORDOID.
  */
-extern ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap cache, Oid typeId, TupleDesc tupleDesc);
+extern ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, HashMap modCache, TupleDesc tupleDesc);
 
 /**
  * Allocate a new ComplexType class

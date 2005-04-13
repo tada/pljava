@@ -51,9 +51,9 @@ Oid Type_getOid(Type self)
 	return self->m_oid;
 }
 
-TupleDesc Type_getTupleDesc(Type self)
+TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 {
-	return self->m_class->getTupleDesc(self);
+	return self->m_class->getTupleDesc(self, fcinfo);
 }
 
 Datum Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
@@ -155,9 +155,12 @@ Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue*
 	return ret;
 }
 
-TupleDesc _Type_getTupleDesc(Type self)
+TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 {
-	return TupleDesc_forOid(self->m_oid);
+	ereport(ERROR,
+		(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+		 errmsg("Type is not associated with a record")));
+	return 0;	/* Keep compiler happy */
 }
 
 /*

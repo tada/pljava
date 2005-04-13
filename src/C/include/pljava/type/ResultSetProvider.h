@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create a Type for a specific Record type.
  */
-extern Type ResultSetProvider_createType(Oid typeId, TupleDesc tupleDesc);
+extern Type ResultSetProvider_createType(TupleDesc tupleDesc);
 
 #ifdef __cplusplus
 }
