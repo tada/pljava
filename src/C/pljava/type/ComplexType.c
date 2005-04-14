@@ -24,6 +24,7 @@ static TupleDesc createGlobalTupleDescCopy(TupleDesc td)
 	return td;
 }
 
+#if (PGSQL_MAJOR_VER >= 8)
 ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, HashMap modCache, TupleDesc td)
 {
 	ComplexType infant;
@@ -107,6 +108,77 @@ static TupleDesc _ComplexType_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	}
 	return td;
 }
+#else
+ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, Oid key, TupleDesc td)
+{
+	ComplexType infant;
+	Oid key;
+
+	if(td == 0)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("could not determine row description for complex type")));
+	}
+
+	if(key == RECORDOID)
+	{
+		/* Get the singleton instance from the idCache that represents
+		 * anonymous RECORD. We *do not* assign a TupleDesc to this
+		 * instance since it will vary between calls.
+		 */
+		infant = (ComplexType)HashMap_getByOid(idCache, key);
+		if(infant == 0)
+		{
+			infant = ComplexType_allocInstance(complexTypeClass, key);
+			HashMap_putByOid(idCache, key, infant);
+		}
+	}
+	else
+	{
+		infant = (ComplexType)HashMap_getByOid(idCache, key);
+		if(infant == 0)
+		{
+			infant = ComplexType_allocInstance(complexTypeClass, key);
+			infant->m_tupleDesc = createGlobalTupleDescCopy(td);
+			HashMap_putByOid(idCache, key, infant);
+		}
+	}
+	return infant;
+}
+
+static TupleDesc _ComplexType_getTupleDesc(Type self, PG_FUNCTION_ARGS)
+{
+	Oid typid;
+	TupleDesc td = ((ComplexType)self)->m_tupleDesc;
+	if(td != 0)
+		return td;
+
+	switch(get_call_result_type(fcinfo, &typid, &td))
+	{
+		case TYPEFUNC_COMPOSITE:
+		case TYPEFUNC_RECORD:
+			if(typid == RECORDOID)
+				/*
+				 * We can't hold on to this one. It's anonymous
+				 * and may vary between calls.
+				 */
+				td = CreateTupleDescCopy(td);
+			else
+			{
+				td = createGlobalTupleDescCopy(td);
+				((ComplexType)self)->m_tupleDesc = td;
+			}
+			break;
+		default:
+			ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("function returning record called in context "
+						"that cannot accept type record")));
+	}
+	return td;
+}
+#endif
 
 TypeClass ComplexTypeClass_alloc(const char* typeName)
 {
