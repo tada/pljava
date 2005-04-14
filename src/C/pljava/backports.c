@@ -17,6 +17,39 @@ internal_get_result_type(Oid funcid,
 						 Oid *resultTypeId,
 						 TupleDesc *resultTupleDesc);
 
+#if (PGSQL_MAJOR_VER < 8)
+static TypeFuncClass
+get_type_func_class(Oid typid)
+{
+	switch (get_typtype(typid))
+	{
+		case 'c':
+			return TYPEFUNC_COMPOSITE;
+		case 'b':
+		case 'd':
+			return TYPEFUNC_SCALAR;
+		case 'p':
+			if (typid == RECORDOID)
+				return TYPEFUNC_RECORD;
+			/*
+			 * We treat VOID and CSTRING as legitimate scalar datatypes,
+			 * mostly for the convenience of the JDBC driver (which wants
+			 * to be able to do "SELECT * FROM foo()" for all legitimately
+			 * user-callable functions).
+			 */
+			if (typid == VOIDOID || typid == CSTRINGOID)
+				return TYPEFUNC_SCALAR;
+			return TYPEFUNC_OTHER;
+	}
+	/* shouldn't get here, probably */
+	return TYPEFUNC_OTHER;
+}
+
+#define list_length(x) length(x)
+#define list_nth(x) nth(x)
+
+#endif
+
 static Oid
 get_call_expr_argtype(Node *expr, int argnum)
 {
