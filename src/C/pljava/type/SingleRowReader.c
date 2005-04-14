@@ -6,6 +6,7 @@
  *
  * @author Thomas Hallgren
  */
+#include "pljava/backports.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleTableSlot.h"
 
