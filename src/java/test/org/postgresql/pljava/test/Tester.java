@@ -209,8 +209,8 @@ public class Tester
 				t.testSavepointSanity();
 				t.testTrustedSecurity();
 				t.testBinaryColumns();
-				// t.testDatabaseMetaData();
-				// t.testResultSet();
+				t.testDatabaseMetaData();
+				t.testResultSet();
 			}
 			t.close();
 		}
@@ -353,10 +353,7 @@ public class Tester
 	throws SQLException
 	{
 		System.out.println("*** testBinaryColumns()");
-		System.out.println(byte.class.getName());
-		System.out.println(byte[].class.getName());
-		System.out.println(Integer.class.getName());
-		System.out.println(Integer[].class.getName());
+
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt.executeQuery("SELECT * FROM binaryColumnTest()");
 		while(rs.next())
