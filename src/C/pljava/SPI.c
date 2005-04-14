@@ -120,8 +120,6 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 	return SPITupleTable_create(env, SPI_tuptable);
 }
 
-#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
-
 #if (PGSQL_MAJOR_VER >= 8)
 static void assertXid(SubTransactionId xid)
 {

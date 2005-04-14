@@ -46,7 +46,7 @@ get_type_func_class(Oid typid)
 }
 
 #define list_length(x) length(x)
-#define list_nth(x,y) nth(x,y)
+#define list_nth(x,y) nth(y,x)
 
 #endif
 

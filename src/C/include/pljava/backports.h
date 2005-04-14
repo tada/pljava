@@ -67,6 +67,8 @@ extern int SPI_getargcount(void* plan);
  */
 extern bool SPI_is_cursor_plan(void* plan);
 
+#define lookup_rowtype_tupdesc(oid, mod) TypeGetTupleDesc(oid, 0)
+
 #endif
 
 #ifdef __cplusplus

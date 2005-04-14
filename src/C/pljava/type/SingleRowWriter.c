@@ -10,6 +10,7 @@
 #include <funcapi.h>
 #include <utils/typcache.h>
 
+#include "pljava/backports.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ComplexType.h"

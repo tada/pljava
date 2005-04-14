@@ -14,6 +14,7 @@
 #include <funcapi.h>
 #include <executor/spi.h>
 
+#include "pljava/backports.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
