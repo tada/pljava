@@ -219,6 +219,8 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, Node *call_expr)
 
 #if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
 
+#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
+
 Oid SPI_getargtypeid(void* plan, int argIndex)
 {
 	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
