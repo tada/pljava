@@ -30,7 +30,11 @@ extern ComplexType ComplexType_allocInstance(TypeClass complexTypeClass, Oid typ
  * Obtain a new ComplexType for the given oid and typeid. The type will be cached if
  * the oid is something other than RECORDOID.
  */
+#if (PGSQL_MAJOR_VER < 8)
+extern ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, Oid typid, TupleDesc tupleDesc);
+#else
 extern ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, HashMap modCache, TupleDesc tupleDesc);
+#endif
 
 /**
  * Allocate a new ComplexType class

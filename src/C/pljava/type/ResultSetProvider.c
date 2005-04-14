@@ -259,8 +259,13 @@ static Type ResultSetHandle_obtain(Oid typeId)
 
 static Type ResultSetProvider_obtain(Oid typeId)
 {
+#if (PGSQL_MAJOR_VER < 8)
+	return (Type)ComplexType_createType(
+		s_ResultSetProviderClass, s_idCache, typeId, lookup_rowtype_tupdesc(typeId, -1));
+#else
 	return (Type)ComplexType_createType(
 		s_ResultSetProviderClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
+#endif
 }
 
 Type ResultSetProvider_createType(Oid typid, TupleDesc tupleDesc)

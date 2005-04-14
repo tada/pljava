@@ -124,8 +124,13 @@ static Datum _SingleRowWriter_coerceObject(Type self, JNIEnv* env, jobject nothi
 
 static Type SingleRowWriter_obtain(Oid typeId)
 {
+#if (PGSQL_MAJOR_VER < 8)
+	return (Type)ComplexType_createType(
+		s_SingleRowWriterClass, s_idCache, typeId, lookup_rowtype_tupdesc(typeId, -1));
+#else
 	return (Type)ComplexType_createType(
 		s_SingleRowWriterClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
+#endif
 }
 
 Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc)

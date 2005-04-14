@@ -112,7 +112,6 @@ static TupleDesc _ComplexType_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, Oid key, TupleDesc td)
 {
 	ComplexType infant;
-	Oid key;
 
 	if(td == 0)
 	{
