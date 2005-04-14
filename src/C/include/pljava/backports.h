@@ -10,6 +10,19 @@ extern "C" {
 #if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
 #include <funcapi.h>
 #else
+
+#if (PGSQL_MAJOR_VER < 8)
+/* Type categories for get_type_func_class */
+typedef enum TypeFuncClass
+{
+	TYPEFUNC_SCALAR,
+	TYPEFUNC_COMPOSITE,
+	TYPEFUNC_RECORD,
+	TYPEFUNC_OTHER
+} TypeFuncClass;
+
+#endif
+
 #include <utils/lsyscache.h>
 
 /*----------
