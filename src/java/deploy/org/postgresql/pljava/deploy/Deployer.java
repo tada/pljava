@@ -121,7 +121,7 @@ public class Deployer
 	public static void printUsage()
 	{
 		PrintStream out = System.err;
-		out.println("usage: java -jar deploy.jar");
+		out.println("usage: java org.postgresql.pljava.deploy.Deployer");
 		out.println("    {-install | -uninstall | -reinstall}");
 		out.println("    [ -host <hostName>     ]    # default is localhost");
 		out.println("    [ -port <portNumber>   ]    # default is blank");
@@ -392,6 +392,19 @@ public class Deployer
 		stmt.execute(
 			"CREATE FUNCTION sqlj.remove_jar(VARCHAR, BOOLEAN) RETURNS void" +
 			"	AS 'org.postgresql.pljava.management.Commands.removeJar'" +
+			"	LANGUAGE java SECURITY DEFINER");
+
+		// Not proposed, but very useful if you want to send the image over
+		// your JDBC connection.
+		//
+		stmt.execute(
+			"CREATE FUNCTION sqlj.install_jar(BYTEA, VARCHAR, BOOLEAN) RETURNS void" +
+			"	AS 'org.postgresql.pljava.management.Commands.installJar'" +
+			"	LANGUAGE java SECURITY DEFINER");
+
+		stmt.execute(
+			"CREATE FUNCTION sqlj.replace_jar(BYTEA, VARCHAR, BOOLEAN) RETURNS void" +
+			"	AS 'org.postgresql.pljava.management.Commands.replaceJar'" +
 			"	LANGUAGE java SECURITY DEFINER");
 
 		// This function is not as proposed. It's more Java'ish. The proposal
