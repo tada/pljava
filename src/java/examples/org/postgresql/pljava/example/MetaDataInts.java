@@ -35,11 +35,6 @@ public class MetaDataInts implements ResultSetProvider
 			{
 				return ((Method)a).getName().compareTo(((Method)b).getName());
 			}
-
-			public boolean equals(Object a, Object b)
-			{
-				return ((Method)a).getName().equals(((Method)b).getName());
-			}
 		}
 
 		Connection conn = DriverManager
