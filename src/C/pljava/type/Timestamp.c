@@ -167,16 +167,26 @@ int Timestamp_getTimeZone(Timestamp ts)
 #endif
 	fsec_t fsec;
 	int tz = 0;
+#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
+	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL, NULL);
+#else
 	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL);
+#endif
 	return tz;
 }
 
 int Timestamp_getCurrentTimeZone(void)
 {
 	int tz;
+#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
+	struct pg_tm tmp_tm;
+	AbsoluteTime sec = GetCurrentAbsoluteTime();
+	abstime2tm(sec, &tz, &tmp_tm, NULL);
+#else	
 	int usec = 0;
 	AbsoluteTime sec = GetCurrentAbsoluteTimeUsec(&usec);
 	tz = Timestamp_getTimeZone(AbsoluteTimeUsecToTimestampTz(sec, usec));
+#endif
 	return tz;
 }
 
