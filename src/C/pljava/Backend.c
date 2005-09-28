@@ -137,7 +137,10 @@ static void initPLJavaClasses(JNIEnv* env)
 		},
 		{ 0, 0, 0 }};
 
+	elog(DEBUG1, "Getting Backend class pljava.jar");
 	s_Backend_class = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Backend");
+	elog(DEBUG1, "Backend class was there");
+
 	PgObject_registerNatives2(env, s_Backend_class, backendMethods);
 	s_setTrusted = PgObject_getStaticJavaMethod(env, s_Backend_class, "setTrusted", "(Z)V");
 
@@ -468,6 +471,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		CallContext ctx;
+		Backend_pushCallContext(&ctx, false);
 
 #if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
@@ -502,7 +506,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
 		s_mainEnv = 0;
-		currentCallContext = ctx.previous;
+		Backend_popCallContext();
 	}
 }
 
@@ -696,6 +700,8 @@ static void checkIntTimeType(void)
 	elog(DEBUG1, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
 }
 
+static bool s_firstTimeInit = true;
+
 static void initializeJavaVM(void)
 {
 #if !defined(WIN32) && !defined(CYGWIN)
@@ -710,64 +716,73 @@ static void initializeJavaVM(void)
 
 	JVMOptList_init(&optList);
 
-	checkIntTimeType();
-	DirectFunctionCall1(HashMap_initialize, 0);
+	if(s_firstTimeInit)
+	{
+		s_firstTimeInit = false;
 
+		checkIntTimeType();
+		DirectFunctionCall1(HashMap_initialize, 0);
+	
 #ifdef PGSQL_CUSTOM_VARIABLES
-	DefineCustomStringVariable(
-		"pljava.vmoptions",
-		"Options sent to the JVM when it is created",
-		NULL,
-		&vmoptions,
-		PGC_USERSET,
-		NULL, NULL);
-
-	DefineCustomStringVariable(
-		"pljava.classpath",
-		"Classpath used by the JVM",
-		NULL,
-		&classpath,
-		PGC_USERSET,
-		NULL, NULL);
-
-	DefineCustomBoolVariable(
-		"pljava.debug",
-		"Stop the backend to attach a debugger",
-		NULL,
-		&pljavaDebug,
-		PGC_USERSET,
-		NULL, NULL);
-
-	DefineCustomIntVariable(
-		"pljava.statement_cache_size",
-		"Size of the prepared statement MRU cache",
-		NULL,
-		&statementCacheSize,
-		0, 512,
-		PGC_USERSET,
-		NULL, NULL);
-
-	DefineCustomBoolVariable(
-		"pljava.release_lingering_savepoints",
-		"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
-		NULL,
-		&pljavaReleaseLingeringSavepoints,
-		PGC_USERSET,
-		NULL, NULL);
-
-	EmitWarningsOnPlaceholders("pljava");
-
-	addUserJVMOptions(&optList);
+		DefineCustomStringVariable(
+			"pljava.vmoptions",
+			"Options sent to the JVM when it is created",
+			NULL,
+			&vmoptions,
+			PGC_USERSET,
+			NULL, NULL);
+	
+		DefineCustomStringVariable(
+			"pljava.classpath",
+			"Classpath used by the JVM",
+			NULL,
+			&classpath,
+			PGC_USERSET,
+			NULL, NULL);
+	
+		DefineCustomBoolVariable(
+			"pljava.debug",
+			"Stop the backend to attach a debugger",
+			NULL,
+			&pljavaDebug,
+			PGC_USERSET,
+			NULL, NULL);
+	
+		DefineCustomIntVariable(
+			"pljava.statement_cache_size",
+			"Size of the prepared statement MRU cache",
+			NULL,
+			&statementCacheSize,
+			0, 512,
+			PGC_USERSET,
+			NULL, NULL);
+	
+		DefineCustomBoolVariable(
+			"pljava.release_lingering_savepoints",
+			"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
+			NULL,
+			&pljavaReleaseLingeringSavepoints,
+			PGC_USERSET,
+			NULL, NULL);
+	
+		EmitWarningsOnPlaceholders("pljava");
+	
 #else
-	/* There won't be any
-	 */
-	pljavaReleaseLingeringSavepoints = false;
+		/* There won't be any
+		 */
+		pljavaReleaseLingeringSavepoints = false;
 #endif
+		s_firstTimeInit = false;
+	}
 
 #ifdef PLJAVA_DEBUG
 	/* Hard setting for debug. Don't forget to recompile...
 	 */
 	pljavaDebug = 1;
+#endif
+
+#ifdef PGSQL_CUSTOM_VARIABLES
+	addUserJVMOptions(&optList);
 #endif
 
 	effectiveClassPath = getClassPath("-Djava.class.path=");
@@ -837,6 +852,7 @@ static void initializeJavaVM(void)
 
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
+	elog(DEBUG1, "JavaVM created");
 
 #if !defined(WIN32) && !defined(CYGWIN)
 	/* Restore the PostgreSQL signal handlers and retrieve the
@@ -920,7 +936,25 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		 * Java until the JVM is initialized.
 		 */
 		Backend_pushCallContext(&ctx, s_currentTrust);
-		initializeJavaVM();
+		PG_TRY();
+		{
+			initializeJavaVM();
+		}
+		PG_CATCH();
+		{
+			Backend_popCallContext();
+
+			/* JVM initialization failed for some reason. Destroy
+			 * the VM if it exists. Perhaps the user will try
+			 * fixing the pljava.classpath and make a new attempt.
+			 */
+			_destroyJavaVM(0, 0);			
+
+			/* We can't stay here...
+			 */
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
 		Backend_popCallContext();
 
 		/* Force initial setting

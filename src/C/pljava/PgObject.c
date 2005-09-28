@@ -108,8 +108,11 @@ jclass PgObject_getJavaClass(JNIEnv* env, const char* className)
 
 	if(cls == 0)
 	{
-		(*env)->ExceptionDescribe(env);
-		(*env)->ExceptionClear(env);
+		if((*env)->ExceptionCheck(env))
+		{
+			(*env)->ExceptionDescribe(env);
+			(*env)->ExceptionClear(env);
+		}
 		ereport(ERROR, (
 			errmsg("Unable to load class %s using CLASSPATH '%s'",
 				className, effectiveClassPath)));
