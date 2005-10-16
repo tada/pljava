@@ -339,43 +339,6 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			}
 
 		initStringInfo(&buf);
-
-#if defined(CYGWIN) && !defined(GCJ)
-		/**
-		 * Translate "/cygdrive/<driverLetter>/" into "<driveLetter>:/" since
-		 * the JVM dynamic loader will fail to recognize the former.
-		 * 
-		 * This is somewhat ugly and will be removed as soon as the native port
-		 * of postgresql is released.
-		 */
-		if(len >= 11
-		&& (*path == '/' || *path == '\\')
-		&& strncmp(path + 1, "cygdrive", 8) == 0)
-		{
-			const char* cp = path + 9;
-			if(*cp == '/' || *cp == '\\')
-			{
-				char driveLetter = *(++cp);
-				if(isalnum(driveLetter))
-				{
-					char sep = *(++cp);
-					if(sep == '/' || sep == '\\' || sep == ':' || sep == ';' || sep == 0)
-					{
-						/* Path starts with /cygdrive/<driveLetter>. Replace
-						 * this with <driverLetter>:\
-						 */
-						appendStringInfoChar(&buf, driveLetter);
-						appendStringInfo(&buf, ":\\");
-						if(sep == '\\' || sep == '/')
-							++cp;
-						len -= (cp - path);
-						path = cp;
-					}
-				}
-			}
-		}				
-#endif
-
 		if(*path == '$')
 		{
 			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
@@ -402,7 +365,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, prefix);
 			else
-#if defined(WIN32) || (defined(CYGWIN) && !defined(GCJ))
+#if defined(WIN32)
 				appendStringInfoChar(bld, ';');
 #else
 				appendStringInfoChar(bld, ':');
@@ -438,7 +401,6 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
-#if !defined(WIN32) && !defined(CYGWIN)
 static pqsigfunc s_jvmSigQuit;
 static sigjmp_buf recoverBuf;
 
@@ -449,13 +411,12 @@ static void alarmHandler(int signum)
 	/* Some sleep to get the SIGQUIT a chance to generate
 	 * the needed output.
 	 */
-	sleep(1);
+	pg_usleep(1);
 
 	/* JavaVM did not die within the alloted time
 	 */
 	siglongjmp(recoverBuf, 1);
 }
-#endif
 
 /*
  * proc_exit callback to tear down the JVM
@@ -465,12 +426,10 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		CallContext ctx;
-		Backend_pushCallContext(&ctx, false);
-
-#if !defined(WIN32) && !defined(CYGWIN)
 		pqsigfunc saveSigQuit;
 		pqsigfunc saveSigAlrm;
 
+		Backend_pushCallContext(&ctx, false);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
 			elog(DEBUG1, "JavaVM destroyed with force");
@@ -482,20 +441,15 @@ static void _destroyJavaVM(int status, Datum dummy)
 		saveSigAlrm = pqsignal(SIGALRM, alarmHandler);
 
 		enable_sig_alarm(5000, false);
-#endif
-
 		elog(DEBUG1, "Destroying JavaVM...");
 
 		isCallingJava = true;
 		(*s_javaVM)->DestroyJavaVM(s_javaVM);
 		isCallingJava = false;
 
-#if !defined(WIN32) && !defined(CYGWIN)
 		disable_sig_alarm(false);
-
 		pqsignal(SIGQUIT, saveSigQuit);
 		pqsignal(SIGALRM, saveSigAlrm);
-#endif
 
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
@@ -666,12 +620,11 @@ static bool s_firstTimeInit = true;
 
 static void initializeJavaVM(void)
 {
-#if !defined(WIN32) && !defined(CYGWIN)
 	pqsigfunc saveSigInt;
 	pqsigfunc saveSigTerm;
 	pqsigfunc saveSigHup;
 	pqsigfunc saveSigQuit;
-#endif
+
 	jboolean jstat;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
@@ -752,7 +705,6 @@ static void initializeJavaVM(void)
 
 	JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 
-#if !defined(WIN32) && !defined(CYGWIN)
 	/* Save current state of some signal handlers. The JVM will
 	 * redefine them. This redefinition can be avoided by passing
 	 * -Xrs to the JVM but we don't want that since it would make
@@ -762,14 +714,6 @@ static void initializeJavaVM(void)
 	saveSigTerm = pqsignal(SIGTERM, SIG_DFL);
 	saveSigHup  = pqsignal(SIGHUP,  SIG_DFL);
 	saveSigQuit = pqsignal(SIGQUIT, SIG_DFL);
-#else
-	/* We implement this when PostgreSQL have a native port for
-	 * win32. Sure, cygwin has signals but that don't help much
-	 * since the JVM dll is unaware of cygwin and uses Win32
-	 * constructs.
-	 */
-	JVMOptList_add(&optList, "-Xrs", 0, true);
-#endif
 
 	if(pljavaDebug)
 	{
@@ -802,7 +746,6 @@ static void initializeJavaVM(void)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
 	elog(DEBUG1, "JavaVM created");
 
-#if !defined(WIN32) && !defined(CYGWIN)
 	/* Restore the PostgreSQL signal handlers and retrieve the
 	 * ones installed by the JVM. We'll use them when the JVM
 	 * is destroyed.
@@ -811,7 +754,6 @@ static void initializeJavaVM(void)
 	pqsignal(SIGTERM, saveSigTerm);
 	pqsignal(SIGHUP,  saveSigHup);
 	s_jvmSigQuit = pqsignal(SIGQUIT, saveSigQuit);
-#endif
 
 	/* Register an on_proc_exit handler that destroys the VM
 	 */

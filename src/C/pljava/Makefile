@@ -13,10 +13,6 @@ include $(MODULEROOT)/Makefile.global
 ifeq ($(PORTNAME), win32)
 	DLL_BUILD := 1
 else
-ifeq ($(PORTNAME), cygwin)
-	DLL_BUILD := 1
-	override CPPFLAGS := -DCYGWIN $(CPPFLAGS)
-else
 ifeq ($(PORTNAME), darwin)
 	#
 	# override with JAVAVM_FWX_ROOT=/... on command line
@@ -39,7 +35,6 @@ else
 	endif
 	endif
 
-endif
 endif
 endif
 endif
@@ -101,7 +96,7 @@ endif
 
 ifeq ($(JRE_INCL), win32)
 #
-# Cygwin/Mingw is a bit special in that we use a "normal" windows
+# Mingw is a bit special in that we use a "normal" windows
 # port of the Java Runtime Environment (unless we use gcj
 # of course). The headers etc. for the JRE is windows style
 # and contains __int64. GNU compiler doesn't know __int64,

@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.StringTokenizer;
 
 import org.postgresql.pljava.internal.AclId;
+import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
 
 public class SPIDatabaseMetaData implements DatabaseMetaData
@@ -43,20 +44,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	protected int getMaxIndexKeys() throws SQLException
 	{
 		if(INDEX_MAX_KEYS == 0)
-		{
-			String sql = "SELECT t1.typlen/t2.typlen"
-				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_type t1, pg_catalog.pg_type t2"
-				+ " WHERE t1.typnamespace=n.oid AND n.nspname='pg_catalog'"
-				+ " AND t1.typelem=t2.oid AND t1.typname='oidvector'";
-			ResultSet rs = m_connection.createStatement().executeQuery(sql);
-			if(!rs.next())
-			{
-				throw new SQLException(
-					"Unable to find datatypes oid and oidvector in the system catalogs.");
-			}
-			INDEX_MAX_KEYS = rs.getInt(1);
-			rs.close();
-		}
+			INDEX_MAX_KEYS = Integer.parseInt(Backend.getConfigOption("max_index_keys"));
 		return INDEX_MAX_KEYS;
 	}
 
@@ -2598,7 +2586,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ " FROM "
 			+ " pg_catalog.pg_namespace pkn, pg_catalog.pg_class pkc, pg_catalog.pg_attribute pka, "
 			+ " pg_catalog.pg_namespace fkn, pg_catalog.pg_class fkc, pg_catalog.pg_attribute fka, "
-			+ " pg_catalog.pg_constraint con, information_schema._pg_keypositions() pos(n), "
+			+ " pg_catalog.pg_constraint con, "
+			+ " pg_catalog.generate_series(1, " + getMaxIndexKeys() + ") pos(n), "
 			+ " pg_catalog.pg_depend dep, pg_catalog.pg_class pkic "
 			+ " WHERE pkn.oid = pkc.relnamespace AND pkc.oid = pka.attrelid AND pka.attnum = con.confkey[pos.n] AND con.confrelid = pkc.oid "
 			+ " AND fkn.oid = fkc.relnamespace AND fkc.oid = fka.attrelid AND fka.attnum = con.conkey[pos.n] AND con.conrelid = fkc.oid "
