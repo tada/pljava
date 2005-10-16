@@ -14,8 +14,13 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Tuple extends NativeStruct
+public class Tuple extends MemoryContextManaged
 {
+	Tuple(long pointer)
+	{
+		super(pointer);
+	}
+
 	/**
 	 * Obtains a value from the underlying native <code>HeapTuple</code>
 	 * structure.
@@ -29,10 +34,16 @@ public class Tuple extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getObject(tupleDesc, index);
+			return _getObject(this.getNativePointer(), tupleDesc.getNativePointer(), index);
 		}
 	}
 
-	private native Object _getObject(TupleDesc tupleDesc, int index)
+	/**
+	 * Calls the backend function heap_freetuple(HeapTuple tuple)
+	 * @param pointer The native pointer to the source HeapTuple
+	 */
+	protected native void _free(long pointer);
+
+	private static native Object _getObject(long pointer, long tupleDescPointer, int index)
 	throws SQLException;
 }

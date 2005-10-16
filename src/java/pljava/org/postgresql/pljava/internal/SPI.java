@@ -49,7 +49,7 @@ public class SPI extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _exec(command, rowCount);
+			return _exec(System.identityHashCode(Thread.currentThread()), command, rowCount);
 		}
 	}
 
@@ -78,7 +78,7 @@ public class SPI extends NativeStruct
 	/**
 	 * Returns the value of the global variable <code>SPI_tuptable</code>.
 	 */
-	public static SPITupleTable getTupTable()
+	public static TupleTable getTupTable()
 	{
 		synchronized(Backend.THREADLOCK)
 		{
@@ -163,8 +163,8 @@ public class SPI extends NativeStruct
 	return s;
 	}
 
-	private native static int _exec(String command, int rowCount);
+	private native static int _exec(long threadId, String command, int rowCount);
 	private native static int _getProcessed();
 	private native static int _getResult();
-	private native static SPITupleTable _getTupTable();
+	private native static TupleTable _getTupTable();
 }

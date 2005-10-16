@@ -17,10 +17,6 @@
 #include <access/heapam.h>
 #include <utils/syscache.h>
 #include <catalog/catalog.h>
-#if (PGSQL_MAJOR_VER < 8)
-#	include <fcntl.h>
-#	include <catalog/pg_control.h>
-#endif
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
 #include <storage/ipc.h>
@@ -50,6 +46,8 @@
 #define LOCAL_REFERENCE_COUNT 128
 
 bool isCallingJava;
+jlong mainThreadId;
+jobject Backend_THREADLOCK;
 
 static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
@@ -57,21 +55,16 @@ static jclass  s_Backend_class;
 static jmethodID s_setTrusted;
 static bool    s_currentTrust = false;
 
-#if (PGSQL_MAJOR_VER >= 8)
-# define PGSQL_CUSTOM_VARIABLES 1
-#endif
-
-#ifdef PGSQL_CUSTOM_VARIABLES
 static char* vmoptions;
 static char* classpath;
 static int statementCacheSize;
-#endif
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static jmethodID s_Invocation_onExit;
 
 static void initPLJavaClasses(JNIEnv* env)
 {
+	jfieldID tlField;
 	jclass cls;
 	Datum envDatum = PointerGetDatum(env);
 
@@ -143,6 +136,9 @@ static void initPLJavaClasses(JNIEnv* env)
 
 	PgObject_registerNatives2(env, s_Backend_class, backendMethods);
 	s_setTrusted = PgObject_getStaticJavaMethod(env, s_Backend_class, "setTrusted", "(Z)V");
+
+	tlField = PgObject_getStaticJavaField(env, s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
+	Backend_THREADLOCK = (*env)->NewGlobalRef(env, (*env)->GetStaticObjectField(env, s_Backend_class, tlField));
 
 	cls = PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/Invocation");
 	PgObject_registerNatives2(env, cls, invocationMethods);
@@ -430,9 +426,7 @@ static char* getClassPath(const char* prefix)
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
-#ifdef PGSQL_CUSTOM_VARIABLES
 	appendPathParts(classpath, &buf, unique, prefix);
-#endif
 	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix);
 	PgObject_free((PgObject)unique);
 	path = buf.data;
@@ -560,7 +554,6 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	elog(DEBUG1, "Added JVM option string \"%s\"", optString);		
 }
 
-#ifdef PGSQL_CUSTOM_VARIABLES
 /* Split JVM options. The string is split on whitespace unless the
  * whitespace is found within a string or is escaped by backslash. A
  * backslash escaped quote is not considered a string delimiter.
@@ -635,7 +628,6 @@ static void addUserJVMOptions(JVMOptList* optList)
 		pfree(buf.data);
 	}
 }
-#endif
 
 /**
  *  Initialize the session
@@ -648,8 +640,8 @@ static void initJavaSession(JNIEnv* env)
 
 	isCallingJava = true;
 	sessionClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Session");
-	init = PgObject_getStaticJavaMethod(env, sessionClass, "init", "()V");
-	(*env)->CallStaticVoidMethod(env, sessionClass, init);
+	init = PgObject_getStaticJavaMethod(env, sessionClass, "init", "()J");
+	mainThreadId = (*env)->CallStaticLongMethod(env, sessionClass, init);
 	isCallingJava = saveICJ;
 	(*env)->DeleteLocalRef(env, sessionClass);
 
@@ -665,38 +657,8 @@ static void initJavaSession(JNIEnv* env)
 
 static void checkIntTimeType(void)
 {
-#if (PGSQL_MAJOR_VER >= 8)
 	const char* idt = GetConfigOption("integer_datetimes");
 	integerDateTimes = (strcmp(idt, "on") == 0);
-#else	
-	ControlFileData data;
-	int   fd;
-	char  controlFilePath[MAXPGPATH];
-	char* globalTableSpace = GetDatabasePath((Oid)0);
-
-	snprintf(controlFilePath, MAXPGPATH, "%s/pg_control", globalTableSpace);
-	pfree(globalTableSpace);
-
-	if((fd = open(controlFilePath, O_RDONLY)) == -1)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("could not open file \"%s\" for reading: %s\n",
-				controlFilePath, strerror(errno))));
-	}
-
-	if(read(fd, &data, sizeof(ControlFileData)) != sizeof(ControlFileData))
-	{
-		int errCode = errno;
-		close(fd);
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("could not read file \"%s\": %s\n",
-				controlFilePath, strerror(errCode))));
-	}
-	close(fd);
-	integerDateTimes = data.enableIntTimes;
-#endif
 	elog(DEBUG1, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
 }
 
@@ -723,7 +685,6 @@ static void initializeJavaVM(void)
 		checkIntTimeType();
 		DirectFunctionCall1(HashMap_initialize, 0);
 	
-#ifdef PGSQL_CUSTOM_VARIABLES
 		DefineCustomStringVariable(
 			"pljava.vmoptions",
 			"Options sent to the JVM when it is created",
@@ -766,13 +727,7 @@ static void initializeJavaVM(void)
 			NULL, NULL);
 	
 		EmitWarningsOnPlaceholders("pljava");
-	
-#else
-		/* There won't be any
-		 */
-		pljavaReleaseLingeringSavepoints = false;
-#endif
-		s_firstTimeInit = false;
+			s_firstTimeInit = false;
 	}
 
 #ifdef PLJAVA_DEBUG
@@ -781,10 +736,7 @@ static void initializeJavaVM(void)
 	pljavaDebug = 1;
 #endif
 
-#ifdef PGSQL_CUSTOM_VARIABLES
 	addUserJVMOptions(&optList);
-#endif
-
 	effectiveClassPath = getClassPath("-Djava.class.path=");
 	if(effectiveClassPath != 0)
 	{
@@ -823,11 +775,7 @@ static void initializeJavaVM(void)
 	{
 		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
 		while(pljavaDebug)
-#if (PGSQL_MAJOR_VER >= 8) && !defined(__OS2__)
 			pg_usleep(1000000L);
-#else
-			sleep(1);
-#endif
 	}
 
 	vm_args.nOptions = optList.size;
@@ -1063,11 +1011,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize(JNIEnv* env, jclass cls)
 {
-#ifdef PGSQL_CUSTOM_VARIABLES
 	return statementCacheSize;
-#else
-	return 10;
-#endif
 }
 
 /*

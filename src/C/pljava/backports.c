@@ -1,6 +1,6 @@
 #include "pljava/backports.h"
 
-#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0))
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 
 #include <fmgr.h>
 #include <funcapi.h>
@@ -16,39 +16,6 @@ internal_get_result_type(Oid funcid,
 						 ReturnSetInfo *rsinfo,
 						 Oid *resultTypeId,
 						 TupleDesc *resultTupleDesc);
-
-#if (PGSQL_MAJOR_VER < 8)
-static TypeFuncClass
-get_type_func_class(Oid typid)
-{
-	switch (get_typtype(typid))
-	{
-		case 'c':
-			return TYPEFUNC_COMPOSITE;
-		case 'b':
-		case 'd':
-			return TYPEFUNC_SCALAR;
-		case 'p':
-			if (typid == RECORDOID)
-				return TYPEFUNC_RECORD;
-			/*
-			 * We treat VOID and CSTRING as legitimate scalar datatypes,
-			 * mostly for the convenience of the JDBC driver (which wants
-			 * to be able to do "SELECT * FROM foo()" for all legitimately
-			 * user-callable functions).
-			 */
-			if (typid == VOIDOID || typid == CSTRINGOID)
-				return TYPEFUNC_SCALAR;
-			return TYPEFUNC_OTHER;
-	}
-	/* shouldn't get here, probably */
-	return TYPEFUNC_OTHER;
-}
-
-#define list_length(x) length(x)
-#define list_nth(x,y) nth(y,x)
-
-#endif
 
 static Oid
 get_call_expr_argtype(Node *expr, int argnum)
@@ -247,50 +214,5 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, Node *call_expr)
 		}
 	}
 	return true;
-}
-#endif
-
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-
-#include <executor/spi_priv.h> /* Needed to get to the argtypes of the plan */
-
-Oid SPI_getargtypeid(void* plan, int argIndex)
-{
-	if (plan == NULL || argIndex < 0 || argIndex >= ((_SPI_plan*)plan)->nargs)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return InvalidOid;
-	}
-	return ((_SPI_plan*)plan)->argtypes[argIndex];
-}
-
-int SPI_getargcount(void* plan)
-{
-	if (plan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return -1;
-	}
-	return ((_SPI_plan*)plan)->nargs;
-}
-
-bool SPI_is_cursor_plan(void* plan)
-{
-	List* qtlist;
-	_SPI_plan* spiplan = (_SPI_plan*)plan;
-	if (spiplan == NULL)
-	{
-		SPI_result = SPI_ERROR_ARGUMENT;
-		return false;
-	}
-
-	qtlist = spiplan->qtlist;
-	if(length(spiplan->ptlist) == 1 && length(qtlist) == 1)
-	{
-		Query* queryTree = (Query*)lfirst((List*)lfirst(qtlist));
-		if(queryTree->commandType == CMD_SELECT && queryTree->into == NULL)
-			return true;
-	}
-	return false;
 }
 #endif

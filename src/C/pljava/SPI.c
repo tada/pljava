@@ -11,9 +11,8 @@
 #include "pljava/SPI.h"
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
-#include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
-#include "pljava/type/SPITupleTable.h"
+#include "pljava/type/TupleTable.h"
 
 Datum SPI_initialize(PG_FUNCTION_ARGS)
 {
@@ -22,7 +21,7 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 	JNINativeMethod methods[] = {
 		{
 		"_exec",
-	  	"(Ljava/lang/String;I)I",
+	  	"(JLjava/lang/String;I)I",
 	  	Java_org_postgresql_pljava_internal_SPI__1exec
 		},
 		{
@@ -37,12 +36,13 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 		},
 		{
 		"_getTupTable",
-		"()Lorg/postgresql/pljava/internal/SPITupleTable;",
+		"()Lorg/postgresql/pljava/internal/TupleTable;",
 		Java_org_postgresql_pljava_internal_SPI__1getTupTable
 		},
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives(env, "org/postgresql/pljava/internal/SPI", methods);
+
 	PG_RETURN_VOID();
 }
 
@@ -52,11 +52,12 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _exec
- * Signature: (Ljava/lang/String;I)I
+ * Signature: (JLjava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
+Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong threadId, jstring cmd, jint count)
 {
+	STACK_BASE_VARS
 	char* command;
 	jint result;
 	PLJAVA_ENTRY_FENCE(0)
@@ -66,6 +67,7 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 		return 0;
 
 	result = 0;
+	STACK_BASE_PUSH(threadId)
 	Backend_pushJavaFrame(env);
 	PG_TRY();
 	{
@@ -76,10 +78,12 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 
 		Backend_popJavaFrame(env);
 		pfree(command);
+		STACK_BASE_POP()
 	}
 	PG_CATCH();
 	{
 		Backend_popJavaFrame(env);
+		STACK_BASE_POP()
 		Exception_throw_ERROR(env, "SPI_exec");
 	}
 	PG_END_TRY();
@@ -111,16 +115,24 @@ Java_org_postgresql_pljava_internal_SPI__1getResult(JNIEnv* env, jclass cls)
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _getTupTable
- * Signature: ()Lorg/postgresql/pljava/internal/SPITupleTable;
+ * Signature: ()Lorg/postgresql/pljava/internal/TupleTable;
  */
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 {
-	PLJAVA_ENTRY_FENCE(0)
-	return SPITupleTable_create(env, SPI_tuptable);
+	jobject tupleTable = 0;
+	SPITupleTable* tts = SPI_tuptable;
+
+	if(tts != 0)
+	{
+		PLJAVA_ENTRY_FENCE(0)
+		tupleTable = TupleTable_create(env, tts);
+		SPI_freetuptable(tts);
+		SPI_tuptable = 0;
+	}
+	return tupleTable;
 }
 
-#if (PGSQL_MAJOR_VER >= 8)
 static void assertXid(SubTransactionId xid)
 {
 	if(xid != GetCurrentSubTransactionId())
@@ -174,4 +186,4 @@ void SPI_rollbackSavepoint(Savepoint* sp)
 	SPI_restore_connection();
 	pfree(sp);
 }
-#endif
+

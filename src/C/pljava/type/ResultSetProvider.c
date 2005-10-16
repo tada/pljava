@@ -37,9 +37,7 @@ static TypeClass s_ResultSetProviderClass;
 static TypeClass s_ResultSetHandleClass;
 static Type s_ResultSetHandle;
 static HashMap s_idCache;
-#if (PGSQL_MAJOR_VER >= 8)
 static HashMap s_modCache;
-#endif
 
 /* Structure used in multi function calls (calls returning
  * SETOF
@@ -147,13 +145,6 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		if(tupleDesc == 0)
 			ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
-#if (PGSQL_MAJOR_VER < 8)
-		/* allocate a slot for a tuple with this tupdesc and assign it to
-		 * the function context
-		 */
-		context->slot = TupleDescGetSlot(tupleDesc);
-#endif
-
 		/* Create the context used by Pl/Java
 		 */
 		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
@@ -213,11 +204,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
 		if(tuple != 0)
 		{
-#if (PGSQL_MAJOR_VER >= 8)
 			result = HeapTupleGetDatum(tuple);
-#else
-			result = TupleGetDatum(context->slot, tuple);
-#endif
 		}
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
@@ -260,24 +247,14 @@ static Type ResultSetHandle_obtain(Oid typeId)
 
 static Type ResultSetProvider_obtain(Oid typeId)
 {
-#if (PGSQL_MAJOR_VER < 8)
-	return (Type)ComplexType_createType(
-		s_ResultSetProviderClass, s_idCache, typeId, lookup_rowtype_tupdesc(typeId, -1));
-#else
 	return (Type)ComplexType_createType(
 		s_ResultSetProviderClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
-#endif
 }
 
 Type ResultSetProvider_createType(Oid typid, TupleDesc tupleDesc)
 {
-#if (PGSQL_MAJOR_VER < 8)
-	return (Type)ComplexType_createType(
-		s_ResultSetProviderClass, s_idCache, typid, tupleDesc);
-#else
 	return (Type)ComplexType_createType(
 		s_ResultSetProviderClass, s_idCache, s_modCache, tupleDesc);
-#endif
 }
 
 /* Make this datatype available to the postgres system.
@@ -302,9 +279,7 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 				env, s_ResultSetPicker_class, "<init>", "(Lorg/postgresql/pljava/ResultSetHandle;)V");
 
 	s_idCache = HashMap_create(13, TopMemoryContext);
-#if (PGSQL_MAJOR_VER >= 8)
 	s_modCache = HashMap_create(13, TopMemoryContext);
-#endif
 
 	s_ResultSetProviderClass = ComplexTypeClass_alloc("type.ResultSetProvider");
 	s_ResultSetProviderClass->JNISignature = "Lorg/postgresql/pljava/ResultSetProvider;";

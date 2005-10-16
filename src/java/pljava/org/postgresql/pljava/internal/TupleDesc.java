@@ -14,9 +14,14 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class TupleDesc extends NativeStruct
+public class TupleDesc extends MemoryContextManaged
 {
 	private Class[] m_columnClasses;
+
+	TupleDesc(long pointer)
+	{
+		super(pointer);
+	}
 
 	/**
 	 * Returns the name of the column at <code>index</code>.
@@ -30,7 +35,7 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getColumnName(index);
+			return _getColumnName(this.getNativePointer(), index);
 		}
 	}
 
@@ -46,7 +51,7 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getColumnIndex(colName.toLowerCase());
+			return _getColumnIndex(this.getNativePointer(), colName.toLowerCase());
 		}
 	}
 
@@ -63,7 +68,7 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._formTuple(values);
+			return _formTuple(this.getNativePointer(), values);
 		}
 	}
 
@@ -75,7 +80,7 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._size();
+			return _size(this.getNativePointer());
 		}
 	}
 
@@ -89,10 +94,11 @@ public class TupleDesc extends NativeStruct
 		{
 			synchronized(Backend.THREADLOCK)
 			{				
-				int top = this._size();
+				long _this = this.getNativePointer();
+				int top = _size(_this);
 				m_columnClasses = new Class[top];
 				for(int idx = 0; idx < top; ++idx)
-					m_columnClasses[idx] = this._getOid(idx+1).getJavaClass();
+					m_columnClasses[idx] = _getOid(_this, idx+1).getJavaClass();
 			}
 		}
 		return m_columnClasses[index-1];
@@ -106,13 +112,19 @@ public class TupleDesc extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getOid(index);
+			return _getOid(this.getNativePointer(), index);
 		}
 	}
 
-	private native String _getColumnName(int index) throws SQLException;
-	private native int _getColumnIndex(String colName) throws SQLException;
-	private native Tuple _formTuple(Object[] values) throws SQLException;
-	private native int _size();
-	private native Oid _getOid(int index) throws SQLException;
+	/**
+	 * Calls the backend function FreeTupleDesc(TupleDesc desc)
+	 * @param pointer The native pointer to the source TupleDesc
+	 */
+	protected native void _free(long pointer);
+
+	private static native String _getColumnName(long _this, int index) throws SQLException;
+	private static native int _getColumnIndex(long _this, String colName) throws SQLException;
+	private static native Tuple _formTuple(long _this, Object[] values) throws SQLException;
+	private static native int _size(long _this);
+	private static native Oid _getOid(long _this, int index) throws SQLException;
 }

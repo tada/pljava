@@ -42,28 +42,40 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  * that initially called Java finally returns, the intended longjmp (the one
  * to the original value of Warn_restart) must be made.
  */
+extern jlong mainThreadId;
 extern bool isCallingJava;
 extern bool pljavaEntryFence(JNIEnv* env);
 
-#if (PGSQL_MAJOR_VER < 8)
-
-#define PG_TRY_POP memcpy(&Warn_restart, &saveRestart, sizeof(Warn_restart))
-
-#define PG_TRY() do { \
-	sigjmp_buf saveRestart; \
-	memcpy(&saveRestart, &Warn_restart, sizeof(saveRestart)); \
-	if(sigsetjmp(Warn_restart, 1) == 0) {
-
-#define PG_CATCH() \
-		PG_TRY_POP; \
-	} else { \
-		PG_TRY_POP;
-
-#define PG_END_TRY() }} while(0)
-
-#define PG_RE_THROW() siglongjmp(Warn_restart, 1)
-
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+#define STACK_BASE_VARS
+#define STACK_BASE_PUSH(threadId)
+#define STACK_BASE_POP()
 #else
+extern DLLIMPORT char* stack_base_ptr;
+
+#define STACK_BASE_VARS \
+	long  saveMainThreadId = 0; \
+	char* saveStackBasePtr = 0;
+
+#define STACK_BASE_PUSH(threadId) \
+	if(threadId != mainThreadId) \
+	{ \
+		saveStackBasePtr = stack_base_ptr; \
+		saveMainThreadId = mainThreadId; \
+		stack_base_ptr = (char*)&saveMainThreadId; \
+		mainThreadId = threadId; \
+		elog(DEBUG1, "Changed stack_base_ptr from %p to %p", saveStackBasePtr, stack_base_ptr); \
+	}
+
+#define STACK_BASE_POP() \
+	if(saveStackBasePtr != 0) \
+	{ \
+		stack_base_ptr = saveStackBasePtr; \
+		mainThreadId = saveMainThreadId; \
+		elog(DEBUG1, "Restored stack_base_ptr to %p", saveStackBasePtr); \
+	}
+
+#endif
 
 /* NOTE!
  * When using the PG_TRY, PG_CATCH, PG_TRY_END family of macros,
@@ -73,8 +85,6 @@ extern bool pljavaEntryFence(JNIEnv* env);
 #define PG_TRY_POP \
 	PG_exception_stack = save_exception_stack; \
 	error_context_stack = save_context_stack
-
-#endif
 
 #define PG_TRY_RETURN(retVal) { PG_TRY_POP; return retVal; }
 #define PG_TRY_RETURN_VOID { PG_TRY_POP; return; }

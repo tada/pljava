@@ -10,19 +10,6 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/HeapTupleHeader.h"
 
-#if (PGSQL_MAJOR_VER < 8)
-jobject HeapTupleHeader_create(JNIEnv* env, HeapTupleHeader ht)
-{
-	return 0;
-}
-extern Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(HeapTupleHeader_initialize);
-Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS)
-{
-	PG_RETURN_VOID();
-}
-#else
-
 #include <executor/spi.h>
 #include <utils/typcache.h>
 
@@ -178,4 +165,4 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc(JNIEnv* env, 
 					HeapTupleHeaderGetTypeId(self),
 					HeapTupleHeaderGetTypMod(self)));
 }
-#endif
+

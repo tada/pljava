@@ -440,7 +440,7 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		if(top > 0)
 		{
 			int idx;
-#if (PGSQL_MAJOR_VER < 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0))
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 			Oid* typeIds = procStruct->proargtypes;
 #else
 			Oid* typeIds = procStruct->proargtypes.values;
@@ -459,12 +459,7 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 				{
 					self->paramTypes[idx] = Type_fromJavaType(
 						InvalidOid,
-#if (PGSQL_MAJOR_VER < 8)
-						"org.postgresql.pljava.jdbc.SingleRowReader"
-#else
-						"org.postgresql.pljava.jdbc.SingleTupleReader"
-#endif
-						);
+						"org.postgresql.pljava.jdbc.SingleTupleReader");
 				}
 				else
 					self->paramTypes[idx] = Type_fromPgType(typeId, pgType);

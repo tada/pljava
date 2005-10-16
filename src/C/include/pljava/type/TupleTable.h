@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include <executor/tuptable.h>
+#include <executor/spi.h>
 
 /*****************************************************************
  * The TupleTable java class extends the NativeStruct and provides JNI
@@ -26,7 +27,8 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.TupleTable instance
  */
-extern jobject TupleTable_create(JNIEnv* env, TupleTable tupleTable);
+extern jobject TupleTable_createFromSlot(JNIEnv* env, TupleTableSlot* tupleTableSlot);
+extern jobject TupleTable_create(JNIEnv* env, SPITupleTable* tupleTable);
 
 #ifdef __cplusplus
 }

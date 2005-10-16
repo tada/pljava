@@ -9,7 +9,7 @@
 #ifndef __pljava_TupleDesc_h
 #define __pljava_TupleDesc_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/MemoryContextManaged.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,13 +34,7 @@ extern Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index)
  * Create the org.postgresql.pljava.TupleDesc instance
  */
 extern jobject TupleDesc_create(JNIEnv* env, TupleDesc tDesc);
-
-/*
- * Obtain a TupleDesc for a specific Oid from the TupleDesc cache. If no
- * TupleDesc is found, one is created in the TopMemoryContext and added
- * to the cache.
- */
-extern TupleDesc TupleDesc_forOid(Oid oid);
+extern jobject TupleDesc_internalCreate(JNIEnv* env, TupleDesc tDesc);
 
 #ifdef __cplusplus
 }

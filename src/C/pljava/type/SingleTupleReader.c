@@ -8,17 +8,6 @@
  */
 #include "pljava/type/Type_priv.h"
 
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-
-extern Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(SingleTupleReader_initialize);
-Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS)
-{
-	PG_RETURN_VOID();
-}
-
-#else
-
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/HeapTupleHeader.h"
 
@@ -75,5 +64,3 @@ Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS)
 	Type_registerJavaType("org.postgresql.pljava.jdbc.SingleTupleReader", SingleTupleReader_obtain);
 	PG_RETURN_VOID();
 }
-#endif
-

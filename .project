@@ -31,24 +31,24 @@
 					<value>all</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value></value>
+					<key>org.eclipse.cdt.make.core.environment</key>
+					<value>PGXS=C:\\\\msys\\\\local\\\\pgsql\\\\lib\\\\pgxs\\\\src\\\\MAKEFI~1\\\\pgxs.mk|JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_05|</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
 					<value>false</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.environment</key>
-					<value>PROCESSOR_ARCHITECTURE=x86|TMP=C:\\Home\\thhal\\LOCALS~1\\Temp|PROCESSOR_IDENTIFIER=x86 Family 15 Model 2 Stepping 7, GenuineIntel|OSVER=winXPP|OS=Windows_NT|LANG=1033|USERNAME=thhal|JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_05|PROCESSOR_REVISION=0207|MINGW_HOME=c:\\msys\\mingw|PROCESSOR_LEVEL=15|PATH=c:\\tools\\putty;c:\\msys\\bin;C:\\Progra~1\\PostgreSQL\\8.1-beta2\\lib;C:\\Progra~1\\PostgreSQL\\8.1-beta2\\bin;c:\\msys\\mingw\\bin;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\system32\\WBEM;C:\\tools\\Perl\\bin\\;C:\\Progra~1\\Java\\jdk1.5.0_05\\bin;c:\\local\\bin;C:\\Progra~1\\Apache Group\\Apache2\\bin;C:\\Progra~1\\Subversion\\bin;C:\\PROGRA~1\\F-Secure\\Ssh;C:\\Progra~1\\Perforce;C:\\tools\\maven\\bin|</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
-					<value>true</value>
+					<key>org.eclipse.cdt.make.core.buildLocation</key>
+					<value></value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.target.inc</key>
 					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
+					<value>true</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
@@ -59,12 +59,12 @@
 					<value></value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.command</key>
-					<value>c:/msys/bin/rxvt</value>
-				</dictionary>
-				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.target.clean</key>
 					<value>clean</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.command</key>
+					<value>c:/msys/bin/rxvt</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>
@@ -76,7 +76,7 @@
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.append_environment</key>
-					<value>false</value>
+					<value>true</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.target.full</key>

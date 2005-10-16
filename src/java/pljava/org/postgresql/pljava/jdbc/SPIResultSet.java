@@ -12,7 +12,7 @@ import java.sql.ResultSetMetaData;
 
 import org.postgresql.pljava.internal.Portal;
 import org.postgresql.pljava.internal.SPI;
-import org.postgresql.pljava.internal.SPITupleTable;
+import org.postgresql.pljava.internal.TupleTable;
 import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
 
@@ -34,7 +34,7 @@ public class SPIResultSet extends ResultSetBase
 	private Tuple m_currentRow;
 	private Tuple m_nextRow;
 
-	private SPITupleTable m_table;
+	private TupleTable m_table;
 	private int m_tableRow;
 
 	SPIResultSet(SPIStatement statement, Portal portal, int maxRows)
@@ -110,7 +110,7 @@ public class SPIResultSet extends ResultSetBase
 		return m_portal;
 	}
 
-	protected final SPITupleTable getTupleTable()
+	protected final TupleTable getTupleTable()
 	throws SQLException
 	{
 		if(m_table == null)
@@ -154,7 +154,7 @@ public class SPIResultSet extends ResultSetBase
 		if(m_nextRow != null)
 			return m_nextRow;
 
-		SPITupleTable table = this.getTupleTable();
+		TupleTable table = this.getTupleTable();
 		if(table == null)
 			return null;
 
@@ -163,7 +163,6 @@ public class SPIResultSet extends ResultSetBase
 			// Current table is exhaused, get the next
 			// one.
 			//
-			m_table.invalidate();
 			m_table = null;
 			table = this.getTupleTable();
 			if(table == null)

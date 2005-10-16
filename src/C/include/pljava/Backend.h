@@ -84,6 +84,8 @@ extern CallContext* currentCallContext;
 
 extern bool integerDateTimes;
 
+extern jobject Backend_THREADLOCK;
+
 extern void Backend_assertConnect(void);
 
 extern void Backend_assertDisconnect(void);

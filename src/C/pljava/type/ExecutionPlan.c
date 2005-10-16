@@ -41,7 +41,7 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 	JNINativeMethod methods[] = {
 		{
 		"_cursorOpen",
-		"(Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;",
+		"(JLjava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen
 		},
 		{
@@ -51,7 +51,7 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 		},
 		{
 		"_execute",
-		"([Ljava/lang/Object;I)I",
+		"(J[Ljava/lang/Object;I)I",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1execute
 		},
 		{
@@ -135,11 +135,12 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _cursorOpen
- * Signature: (Ljava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
+ * Signature: (JLjava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jstring cursorName, jobjectArray jvalues)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jlong threadId, jstring cursorName, jobjectArray jvalues)
 {
+	STACK_BASE_VARS
 	void* ePlan;
 	jobject jportal = 0;
 	PLJAVA_ENTRY_FENCE(0)
@@ -148,6 +149,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 	if(ePlan == 0)
 		return 0;
 
+	STACK_BASE_PUSH(threadId)
 	PG_TRY();
 	{
 		Datum*  values  = 0;
@@ -160,12 +162,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 				name = String_createNTS(env, cursorName);
 
 			Backend_assertConnect();
-#if (PGSQL_MAJOR_VER >= 8)
 			portal = SPI_cursor_open(
 				name, ePlan, values, nulls, Function_isCurrentReadOnly());
-#else
-			portal = SPI_cursor_open(name, ePlan, values, nulls);
-#endif
 			if(name != 0)
 				pfree(name);
 			if(values != 0)
@@ -175,9 +173,11 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 		
 			jportal = Portal_create(env, portal);
 		}
+		STACK_BASE_POP()
 	}
 	PG_CATCH();
 	{
+		STACK_BASE_POP()
 		Exception_throw_ERROR(env, "SPI_cursor_open");
 	}
 	PG_END_TRY();
@@ -216,11 +216,12 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _execute
- * Signature: ([Ljava/lang/Object;I)V
+ * Signature: (J[Ljava/lang/Object;I)V
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject _this, jobjectArray jvalues, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject _this, jlong threadId, jobjectArray jvalues, jint count)
 {
+	STACK_BASE_VARS
 	void* ePlan;
 	jint result = 0;
 	PLJAVA_ENTRY_FENCE(0)
@@ -229,6 +230,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 	if(ePlan == 0)
 		return 0;
 
+	STACK_BASE_PUSH(threadId)
 	Backend_pushJavaFrame(env);
 	PG_TRY();
 	{
@@ -237,12 +239,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
 		{
 			Backend_assertConnect();
-#if (PGSQL_MAJOR_VER >= 8)
 			result = (jint)SPI_execute_plan(
 				ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
-#else
-			result = (jint)SPI_execp(ePlan, values, nulls, (int)count);
-#endif
 			if(result < 0)
 				Exception_throwSPI(env, "execute_plan", result);
 
@@ -252,10 +250,12 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 				pfree(nulls);
 		}
 		Backend_popJavaFrame(env);
+		STACK_BASE_POP()
 	}
 	PG_CATCH();
 	{
 		Backend_popJavaFrame(env);
+		STACK_BASE_POP()
 		Exception_throw_ERROR(env, "SPI_execute_plan");
 	}
 	PG_END_TRY();

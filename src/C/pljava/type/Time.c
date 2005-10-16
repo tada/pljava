@@ -74,7 +74,7 @@ static int64 Time_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jt, bool tzA
 
 static jvalue _Time_coerceDatum(Type self, JNIEnv* env, Datum arg)
 {
-#if ((PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0) || PGSQL_MAJOR_VERSION < 8)
+#if (PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0)
 	/*
 	 * PostgreSQL 8.0 and earlier has a major bug in how int64 times are
 	 * stored. They are actually first casted to a double
@@ -91,7 +91,7 @@ static jvalue _Time_coerceDatum(Type self, JNIEnv* env, Datum arg)
 
 static Datum _Time_coerceObject(Type self, JNIEnv* env, jobject time)
 {
-#if ((PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0) || PGSQL_MAJOR_VERSION < 8)
+#if (PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0)
 	/*
 	 * PostgreSQL 8.0 and earlier has a major bug in how int64 times are
 	 * stored. They are actually first casted to a double

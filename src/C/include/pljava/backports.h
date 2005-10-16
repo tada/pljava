@@ -7,21 +7,7 @@
 extern "C" {
 #endif
 
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
-#include <funcapi.h>
-#else
-
-#if (PGSQL_MAJOR_VER < 8)
-/* Type categories for get_type_func_class */
-typedef enum TypeFuncClass
-{
-	TYPEFUNC_SCALAR,
-	TYPEFUNC_COMPOSITE,
-	TYPEFUNC_RECORD,
-	TYPEFUNC_OTHER
-} TypeFuncClass;
-
-#endif
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 
 #include <utils/lsyscache.h>
 
@@ -48,27 +34,8 @@ extern TypeFuncClass get_call_result_type(FunctionCallInfo fcinfo,
 extern bool resolve_polymorphic_argtypes(int numargs, Oid *argtypes,
 										 Node *call_expr);
 
-#endif
-
-#if (PGSQL_MAJOR_VER < 8)
-/*
- * Returns the Oid of the type for argument at argIndex. First
- * parameter is at index zero.
- */
-extern Oid SPI_getargtypeid(void* plan, int argIndex);
-
-/*
- * Returns the number of arguments for the prepared plan.
- */
-extern int SPI_getargcount(void* plan);
-
-/*
- *	Return true if the plan is valid for a SPI_open_cursor call.
- */
-extern bool SPI_is_cursor_plan(void* plan);
-
-#define lookup_rowtype_tupdesc(oid, mod) TypeGetTupleDesc(oid, 0)
-
+#else
+#include <funcapi.h>
 #endif
 
 #ifdef __cplusplus

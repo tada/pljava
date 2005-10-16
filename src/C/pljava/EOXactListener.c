@@ -13,29 +13,6 @@
 static jmethodID s_EOXactListener_onEOXact;
 static jobject s_listener;
 
-#if (PGSQL_MAJOR_VER < 8)
-static void onEOXact(bool isCommit, void *arg)
-{
-	JNIEnv* env = Backend_getJNIEnv();
-	if(env == 0)
-	{
-		/* JVM is no longer active. Unregister the callback.
-		 */
-		UnregisterEOXactCallback(onEOXact, s_listener);
-		s_listener = 0;
-	}
-	else
-	{
-		/* TODO: Improve to handle nested transaction events
-		 */
-		bool saveICJ = isCallingJava;
-		isCallingJava = true;
-		(*env)->CallVoidMethod(env, s_listener, s_EOXactListener_onEOXact,
-			isCommit ? JNI_TRUE : JNI_FALSE);
-		isCallingJava = saveICJ;
-	}
-}
-#else
 static void onEOXact(XactEvent event, void *arg)
 {
 	JNIEnv* env = Backend_getJNIEnv();
@@ -57,7 +34,6 @@ static void onEOXact(XactEvent event, void *arg)
 		isCallingJava = saveICJ;
 	}
 }
-#endif
 
 void EOXactListener_register(JNIEnv* env, jobject listener)
 {
@@ -74,11 +50,7 @@ void EOXactListener_register(JNIEnv* env, jobject listener)
 		(*env)->DeleteLocalRef(env, cls);
 
 		s_listener = (*env)->NewGlobalRef(env, listener);
-#if (PGSQL_MAJOR_VER < 8)
-		RegisterEOXactCallback(onEOXact, s_listener);
-#else
 		RegisterXactCallback(onEOXact, s_listener);
-#endif
 	}
 }
 
@@ -86,11 +58,7 @@ void EOXactListener_unregister(JNIEnv* env)
 {
 	if(s_listener != 0)
 	{
-#if (PGSQL_MAJOR_VER < 8)
-		UnregisterEOXactCallback(onEOXact, s_listener);
-#else
 		UnregisterXactCallback(onEOXact, s_listener);
-#endif
 		(*env)->DeleteGlobalRef(env, s_listener);
 		s_listener = 0;
 	}

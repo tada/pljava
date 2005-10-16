@@ -10,45 +10,51 @@
 #include <executor/spi.h>
 #include <executor/tuptable.h>
 
-#include "org_postgresql_pljava_internal_TupleTable.h"
-#include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleTable.h"
-#include "pljava/type/TupleTableSlot.h"
+#include "pljava/type/Tuple.h"
+#include "pljava/type/TupleDesc.h"
 
-static Type      s_TupleTable;
-static TypeClass s_TupleTableClass;
 static jclass    s_TupleTable_class;
 static jmethodID s_TupleTable_init;
 
-/*
- * org.postgresql.pljava.type.Tuple type.
- */
-jobject TupleTable_create(JNIEnv* env, TupleTable tts)
+jobject TupleTable_createFromSlot(JNIEnv* env, TupleTableSlot* tts)
 {
-	jobject jtts;
+	HeapTuple tuple;
+	jobject tupdesc;
+	jobjectArray tuples;
+	MemoryContext curr;
+
 	if(tts == 0)
 		return 0;
 
-	jtts = MemoryContext_lookupNative(env, tts);
-	if(jtts == 0)
-	{
-		jtts = PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init);
-		NativeStruct_init(env, jtts, tts);
-	}
-	return jtts;
+	curr = MemoryContextSwitchTo(JavaMemoryContext);
+
+	tupdesc = TupleDesc_internalCreate(env, tts->tts_tupleDescriptor);
+	tuple   = ExecCopySlotTuple(tts);
+	tuples  = Tuple_createArray(env, &tuple, 1, false);
+
+	MemoryContextSwitchTo(curr);
+
+	return PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
 }
 
-static jvalue _TupleTable_coerceDatum(Type self, JNIEnv* env, Datum arg)
+jobject TupleTable_create(JNIEnv* env, SPITupleTable* tts)
 {
-	jvalue result;
-	result.l = TupleTable_create(env, (TupleTable)DatumGetPointer(arg));
-	return result;
-}
+	jobject tupdesc;
+	jobjectArray tuples;
+	MemoryContext curr;
 
-static Type TupleTable_obtain(Oid typeId)
-{
-	return s_TupleTable;
+	if(tts == 0)
+		return 0;
+
+	curr = MemoryContextSwitchTo(JavaMemoryContext);
+
+	tupdesc = TupleDesc_internalCreate(env, tts->tupdesc);
+	tuples = Tuple_createArray(env, tts->vals, (jint)(tts->alloced - tts->free), true);
+
+	MemoryContextSwitchTo(curr);
+	return PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
 }
 
 /* Make this datatype available to the postgres system.
@@ -57,74 +63,14 @@ extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(TupleTable_initialize);
 Datum TupleTable_initialize(PG_FUNCTION_ARGS)
 {
-	JNINativeMethod methods[] = {
-		{
-		"_getCount",
-	  	"()I",
-	  	Java_org_postgresql_pljava_internal_TupleTable__1getCount
-		},
-		{
-		"_getSlot",
-		"(I)Lorg/postgresql/pljava/internal/TupleTableSlot;",
-		Java_org_postgresql_pljava_internal_TupleTable__1getSlot
-		},
-		{ 0, 0, 0 }};
-
 	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
 	s_TupleTable_class = (*env)->NewGlobalRef(
 				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TupleTable"));
 
-	PgObject_registerNatives2(env, s_TupleTable_class, methods);
-
 	s_TupleTable_init = PgObject_getJavaMethod(
-				env, s_TupleTable_class, "<init>", "()V");
+				env, s_TupleTable_class, "<init>",
+				"(Lorg/postgresql/pljava/internal/TupleDesc;[Lorg/postgresql/pljava/internal/Tuple;)V");
 
-	s_TupleTableClass = NativeStructClass_alloc("type.TupleTable");
-	s_TupleTableClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleTable;";
-	s_TupleTableClass->javaTypeName   = "org.postgresql.pljava.internal.TupleTable";
-	s_TupleTableClass->coerceDatum    = _TupleTable_coerceDatum;
-	s_TupleTable = TypeClass_allocInstance(s_TupleTableClass, InvalidOid);
-
-	Type_registerJavaType("org.postgresql.pljava.internal.TupleTable", TupleTable_obtain);
 	PG_RETURN_VOID();
-}
-
-/****************************************
- * JNI methods
- ****************************************/
-/*
- * Class:     org_postgresql_pljava_internal_TupleTable
- * Method:    _getCount
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_TupleTable__1getCount(JNIEnv* env, jobject _this)
-{
-	TupleTable tupleTable;
-	PLJAVA_ENTRY_FENCE(0)
-	tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
-	if(tupleTable == 0)
-		return 0;
-	return tupleTable->next;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_TupleTable
- * Method:    _getSlot
- * Signature: (I)Lorg/postgresql/pljava/internal/TupleTableSlot;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_TupleTable__1getSlot(JNIEnv* env, jobject _this, jint pos)
-{
-	TupleTable tupleTable;
-	PLJAVA_ENTRY_FENCE(0)
-	tupleTable = (TupleTable)NativeStruct_getStruct(env, _this);
-	if(tupleTable == 0)
-		return 0;
-		
-	if(pos < 0 || pos >= tupleTable->next)
-		return 0;
-
-	return TupleTableSlot_create(env, tupleTable->array + pos);
 }

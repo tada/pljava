@@ -160,17 +160,13 @@ static Type Timestamptz_obtain(Oid typeId)
 
 int Timestamp_getTimeZone(Timestamp ts)
 {
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-	struct tm tmp_tm;
-#else
 	struct pg_tm tmp_tm;
-#endif
 	fsec_t fsec;
 	int tz = 0;
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
-	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL, NULL);
-#else
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL);
+#else
+	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL, NULL);
 #endif
 	return tz;
 }
@@ -178,14 +174,14 @@ int Timestamp_getTimeZone(Timestamp ts)
 int Timestamp_getCurrentTimeZone(void)
 {
 	int tz;
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1))
-	struct pg_tm tmp_tm;
-	AbsoluteTime sec = GetCurrentAbsoluteTime();
-	abstime2tm(sec, &tz, &tmp_tm, NULL);
-#else	
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 	int usec = 0;
 	AbsoluteTime sec = GetCurrentAbsoluteTimeUsec(&usec);
 	tz = Timestamp_getTimeZone(AbsoluteTimeUsecToTimestampTz(sec, usec));
+#else	
+	struct pg_tm tmp_tm;
+	AbsoluteTime sec = GetCurrentAbsoluteTime();
+	abstime2tm(sec, &tz, &tmp_tm, NULL);
 #endif
 	return tz;
 }

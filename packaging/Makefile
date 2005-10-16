@@ -22,7 +22,6 @@ release:
 	@find .	\(				\
 		   -name '*.jar'	\
 		-o -name '*.so'		\
-		-o -name '*.a'		\
 		-o -name '*.dll'	\
 		\) -a -not -path ./$(RELNAME)'/*' -exec cp {} $(RELNAME) \;
 	@cp ../src/sql/*.sql $(RELNAME)

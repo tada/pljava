@@ -16,6 +16,7 @@
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
+#include "pljava/type/NativeStruct.h"
 
 /*
  * void primitive type.
@@ -25,9 +26,7 @@ static jmethodID s_SingleRowWriter_init;
 static jmethodID s_SingleRowWriter_getTupleAndClear;
 static TypeClass s_SingleRowWriterClass;
 static HashMap s_idCache;
-#if (PGSQL_MAJOR_VER >= 8)
 static HashMap s_modCache;
-#endif
 
 /*
  * This function is a bit special in that it adds an additional parameter
@@ -67,11 +66,7 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		 */
 		MemoryContext currCtx = MemoryContext_switchToUpperContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
-#if (PGSQL_MAJOR_VER == 7 && PGSQL_MINOR_VER < 5)
-	    result = TupleGetDatum(TupleDescGetSlot(tupleDesc), tuple);
-#else
 	    result = HeapTupleGetDatum(tuple);
-#endif
 		MemoryContextSwitchTo(currCtx);
 	}
 	else
@@ -125,24 +120,14 @@ static Datum _SingleRowWriter_coerceObject(Type self, JNIEnv* env, jobject nothi
 
 static Type SingleRowWriter_obtain(Oid typeId)
 {
-#if (PGSQL_MAJOR_VER < 8)
-	return (Type)ComplexType_createType(
-		s_SingleRowWriterClass, s_idCache, typeId, lookup_rowtype_tupdesc(typeId, -1));
-#else
 	return (Type)ComplexType_createType(
 		s_SingleRowWriterClass, s_idCache, s_modCache, lookup_rowtype_tupdesc(typeId, -1));
-#endif
 }
 
 Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc)
 {
-#if (PGSQL_MAJOR_VER < 8)
-	return (Type)ComplexType_createType(
-		s_SingleRowWriterClass, s_idCache, typid, tupleDesc);
-#else
 	return (Type)ComplexType_createType(
 		s_SingleRowWriterClass, s_idCache, s_modCache, tupleDesc);
-#endif
 }
 
 /* Make this datatype available to the postgres system.
@@ -163,9 +148,7 @@ Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS)
 				env, s_SingleRowWriter_class, "getTupleAndClear", "()Lorg/postgresql/pljava/internal/Tuple;");
 
 	s_idCache = HashMap_create(13, TopMemoryContext);
-#if (PGSQL_MAJOR_VER >= 8)
 	s_modCache = HashMap_create(13, TopMemoryContext);
-#endif
 
 	s_SingleRowWriterClass = ComplexTypeClass_alloc("type.SingleRowWriter");
 	s_SingleRowWriterClass->JNISignature = "Ljava/sql/ResultSet;";

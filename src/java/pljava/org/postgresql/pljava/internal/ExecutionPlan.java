@@ -7,6 +7,7 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
@@ -89,14 +90,14 @@ public class ExecutionPlan extends NativeStruct
 		}
 	}
 
-	private static final PlanCache s_planCache;
+	private static final Map s_planCache;
 
 	private final Object m_key;
 
 	static
 	{
 		int cacheSize = Backend.getStatementCacheSize();
-		s_planCache = new PlanCache(cacheSize < 11 ? 11 : cacheSize);
+		s_planCache = Collections.synchronizedMap(new PlanCache(cacheSize < 11 ? 11 : cacheSize));
 	}
 
 	private ExecutionPlan(Object key)
@@ -133,7 +134,7 @@ public class ExecutionPlan extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._cursorOpen(cursorName, parameters);
+			return this._cursorOpen(System.identityHashCode(Thread.currentThread()), cursorName, parameters);
 		}
 	}
 	
@@ -167,7 +168,7 @@ public class ExecutionPlan extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._execute(parameters, rowCount);
+			return this._execute(System.identityHashCode(Thread.currentThread()), parameters, rowCount);
 		}
 	}
 
@@ -199,13 +200,13 @@ public class ExecutionPlan extends NativeStruct
 		return plan;
 	}
 
-	private native Portal _cursorOpen(String cursorName, Object[] parameters)
+	private native Portal _cursorOpen(long threadId, String cursorName, Object[] parameters)
 	throws SQLException;
 
 	private native boolean _isCursorPlan()
 	throws SQLException;
 
-	private native int _execute(Object[] parameters, int rowCount)
+	private native int _execute(long threadId, Object[] parameters, int rowCount)
 	throws SQLException;
 
 	private native void _prepare(String statement, Oid[] argTypes)

@@ -6,15 +6,29 @@
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
 </extension>
-<extension id="org.eclipse.cdt.core.domsourceindexer" point="org.eclipse.cdt.core.CIndexer"/>
+<extension id="org.eclipse.cdt.core.ctagsindexer" point="org.eclipse.cdt.core.CIndexer">
+<attribute key="ctagslocation" value=""/>
+<attribute key="ctagfiletype" value="ctags_internal"/>
+<attribute key="ctagsindexincludes" value="true"/>
+<attribute key="ctagfilelocation" value=""/>
+<attribute key="ctagslocationtype" value="ctags_path_default"/>
+</extension>
 <data>
         
     
 <item id="org.eclipse.cdt.core.pathentry">
-<pathentry kind="src" path=""/>
-<pathentry kind="out" path=""/>
 <pathentry kind="mac" name="PGSQL_MAJOR_VERSION" path="" value="8"/>
 <pathentry kind="mac" name="PGSQL_MINOR_VERSION" path="" value="1"/>
+<pathentry kind="mac" name="PKGLIBDIR" path="" value="&quot;/usr/local/pgsql/lib&quot;"/>
+<pathentry include="C:/Tada/Workspace/org.postgresql.pljava/src/C/include" kind="inc" path="" system="true"/>
+<pathentry include="C:/Tada/Workspace/org.postgresql.pljava/build/jni" kind="inc" path="" system="true"/>
+<pathentry include="C:/Program Files/Java/jdk1.5.0_05/include/win32" kind="inc" path="" system="true"/>
+<pathentry include="C:/Program Files/Java/jdk1.5.0_05/include" kind="inc" path="" system="true"/>
+<pathentry include="C:/Tada/Workspace/pgsql/src/include" kind="inc" path="" system="true"/>
+<pathentry include="C:/Tada/Workspace/pgsql/src/include/port/win32" kind="inc" path="" system="true"/>
+<pathentry include="C:/msys/mingw/include" kind="inc" path="" system="true"/>
+<pathentry kind="src" path=""/>
+<pathentry kind="out" path=""/>
 </item>
 <item id="cdt_indexer">
 <indexEnabled indexValue="false"/>

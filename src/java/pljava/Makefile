@@ -26,16 +26,14 @@ JNI_CLASSES := \
 	$(INTPKG).ExecutionPlan \
 	$(INTPKG).HeapTupleHeader \
 	$(INTPKG).LargeObject \
+	$(INTPKG).MemoryContextManaged \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \
 	$(INTPKG).Savepoint \
 	$(INTPKG).Session \
-	$(INTPKG).SPITupleTable \
 	$(INTPKG).TriggerData \
 	$(INTPKG).Tuple \
 	$(INTPKG).TupleDesc \
-	$(INTPKG).TupleTable \
-	$(INTPKG).TupleTableSlot \
 	org.postgresql.pljava.jdbc.Invocation
 
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))

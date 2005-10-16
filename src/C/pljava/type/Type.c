@@ -187,19 +187,17 @@ extern Datum ErrorData_initialize(PG_FUNCTION_ARGS);
 extern Datum String_initialize(PG_FUNCTION_ARGS);
 extern Datum byte_array_initialize(PG_FUNCTION_ARGS);
 
+extern Datum MemoryContextManaged_initialize(PG_FUNCTION_ARGS);
 extern Datum NativeStruct_initialize(PG_FUNCTION_ARGS);
 extern Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS);
 extern Datum Portal_initialize(PG_FUNCTION_ARGS);
 extern Datum Relation_initialize(PG_FUNCTION_ARGS);
-extern Datum SPITupleTable_initialize(PG_FUNCTION_ARGS);
 extern Datum TriggerData_initialize(PG_FUNCTION_ARGS);
 extern Datum Tuple_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleDesc_initialize(PG_FUNCTION_ARGS);
 extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
-extern Datum TupleTableSlot_initialize(PG_FUNCTION_ARGS);
 extern Datum HeapTupleHeader_initialize(PG_FUNCTION_ARGS);
 
-extern Datum SingleRowReader_initialize(PG_FUNCTION_ARGS);
 extern Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS);
 extern Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS);
 extern Datum ValueSetProvider_initialize(PG_FUNCTION_ARGS);
@@ -239,19 +237,17 @@ Datum Type_initialize(PG_FUNCTION_ARGS)
 
 	byte_array_initialize(fcinfo);
 
+	MemoryContextManaged_initialize(fcinfo);
 	NativeStruct_initialize(fcinfo);
 	ExecutionPlan_initialize(fcinfo);
 	Portal_initialize(fcinfo);
 	TriggerData_initialize(fcinfo);
 	Relation_initialize(fcinfo);
-	SPITupleTable_initialize(fcinfo);
 	TupleDesc_initialize(fcinfo);
 	Tuple_initialize(fcinfo);
 	TupleTable_initialize(fcinfo);
-	TupleTableSlot_initialize(fcinfo);
 	HeapTupleHeader_initialize(fcinfo);
 
-	SingleRowReader_initialize(fcinfo);
 	SingleTupleReader_initialize(fcinfo);
 	SingleRowWriter_initialize(fcinfo);
 	ValueSetProvider_initialize(fcinfo);

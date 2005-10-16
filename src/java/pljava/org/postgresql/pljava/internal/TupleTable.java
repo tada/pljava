@@ -6,42 +6,42 @@
  */
 package org.postgresql.pljava.internal;
 
-import java.sql.SQLException;
-
 /**
- * The <code>TupleTable</code> correspons to the internal PostgreSQL
- * <code>TupleTable</code> type.
+ * The <code>SPITupleTable</code> correspons to the internal PostgreSQL
+ * <code>SPITupleTable</code> type.
  *
  * @author Thomas Hallgren
  */
-public class TupleTable extends NativeStruct
+public class TupleTable
 {
-	/**
-	 * Returns the number of TupleTableSlots contained in
-	 * this TupleTable.
-	 */
-	public int getCount()
-	throws SQLException
+	private final TupleDesc m_tupleDesc;
+	private final Tuple[] m_tuples;
+
+	TupleTable(TupleDesc tupleDesc, Tuple[] tuples)
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._getCount();
-		}
+		m_tupleDesc = tupleDesc;
+		m_tuples = tuples;
+	}
+
+	public final TupleDesc getTupleDesc()
+	{
+		return m_tupleDesc;
 	}
 
 	/**
-	 * Returns the TupleTableSlot at the given index.
+	 * Returns the number of <code>Tuple</code> instances contained in this table.
+	 */
+	public final int getCount()
+	{
+		return m_tuples.length;
+	}
+
+	/**
+	 * Returns the <code>Tuple</code> at the given index.
 	 * @param position Index of desired slot. First slot has index zero. 
 	 */
-	public TupleTableSlot getSlot(int position)
-	throws SQLException
+	public final Tuple getSlot(int position)
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._getSlot(position);
-		}
+		return m_tuples[position];
 	}
-
-	private native int _getCount() throws SQLException;
-	private native TupleTableSlot _getSlot(int position) throws SQLException;
 }

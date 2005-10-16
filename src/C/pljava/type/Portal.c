@@ -24,19 +24,11 @@ static TypeClass s_PortalClass;
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
 
-#if PGSQL_MAJOR_VER >= 8
 typedef void (*PortalCleanupProc)(Portal portal);
-#else
-typedef void (*PortalCleanupProc)(Portal portal, bool isError);
-#endif
 
 static PortalCleanupProc s_originalCleanupProc = 0;
 
-#if PGSQL_MAJOR_VER >= 8
 static void _pljavaPortalCleanup(Portal portal)
-#else
-static void _pljavaPortalCleanup(Portal portal, bool isError)
-#endif
 {
 	JNIEnv* env = Backend_getJNIEnv();
 	MemoryContext currCtx = MemoryContextSwitchTo(TopTransactionContext);
@@ -53,11 +45,7 @@ static void _pljavaPortalCleanup(Portal portal, bool isError)
 	portal->cleanup = s_originalCleanupProc;
 	if(s_originalCleanupProc != 0)
 	{
-#if PGSQL_MAJOR_VER >= 8
 		(*s_originalCleanupProc)(portal);
-#else
-		(*s_originalCleanupProc)(portal, isError);
-#endif
 	}
 }
 

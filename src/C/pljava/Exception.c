@@ -54,13 +54,6 @@ void Exception_checkException(JNIEnv* env)
 	(*env)->ExceptionClear(env);
 	isCallingJava = saveicj;
 
-#if(PGSQL_MAJOR_VER < 8)
-	if(currentCallContext->errorOccured)
-		/*
-		 * Oops, just re-throw this one.
-		 */
-		PG_RE_THROW();
-#else
 	if((*env)->IsInstanceOf(env, exh, s_ServerException_class))
 	{
 		/* Rethrow the server error.
@@ -77,7 +70,6 @@ void Exception_checkException(JNIEnv* env)
 			ReThrowError(ed);
 		}
 	}
-#endif
 	sqlState = ERRCODE_INTERNAL_ERROR;
 
 	initStringInfo(&buf);
@@ -203,14 +195,9 @@ void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
 
 void Exception_throwSPI(JNIEnv* env, const char* function, int errCode)
 {
-#if (PGSQL_MAJOR_VER >= 8)
 	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
 		"SPI function SPI_%s failed with error %s", function,
 			SPI_result_code_string(errCode));
-#else
-	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-		"SPI function SPI_%s failed with error code %d", function, errCode);
-#endif
 }
 
 void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
@@ -218,20 +205,9 @@ void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
 	jobject ed;
 	jobject ex;
 	ErrorData* errData;
-#if (PGSQL_MAJOR_VER >= 8)
 	MemoryContext_switchToUpperContext();
 	errData = CopyErrorData();
 	FlushErrorState();
-#else
-	StringInfoData buf;
-	MemoryContext_switchToUpperContext();
-	errData = (ErrorData*)palloc(sizeof(ErrorData));
-	initStringInfo(&buf);
-	appendStringInfoString(&buf, "Error when calling: ");
-	appendStringInfoString(&buf, funcName);
-	errData->sqlerrcode = ERRCODE_INTERNAL_ERROR;
-	errData->message = buf.data;
-#endif
 	ed = ErrorData_create(env, errData);
 	ex = PgObject_newJavaObject(
 		env, s_ServerException_class, s_ServerException_init, ed);
