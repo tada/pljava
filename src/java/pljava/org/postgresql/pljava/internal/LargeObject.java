@@ -56,7 +56,15 @@ public class LargeObject extends JavaHandle
 	 */
 	public static final int SEEK_END = 2;
 
-	public static LargeObject create(int flags)
+	/**
+	 * Creates a LargeObject handle and returns the {@link Oid} of
+	 * that handle.
+	 * @param flags Flags to use for creation.
+	 * @return A Oid that can be used in a call to {@link #open(Oid, int)}
+	 * or {@link #drop(Oid)}.
+	 * @throws SQLException
+	 */
+	public static Oid create(int flags)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
@@ -146,7 +154,7 @@ public class LargeObject extends JavaHandle
 		}
 	}
 
-	private static native LargeObject _create(int flags)
+	private static native Oid _create(int flags)
 	throws SQLException;
 
 	private static native int _drop(Oid lobjId)

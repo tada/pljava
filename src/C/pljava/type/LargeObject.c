@@ -135,7 +135,13 @@ Java_org_postgresql_pljava_internal_LargeObject__1create(JNIEnv* env, jclass cls
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		result = LargeObject_create(inv_create((int)flags));
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+		LargeObjectDesc* lo = inv_create((int)flags);
+		result = Oid_create(lo->id);
+		pfree(lo);
+#else
+		result = Oid_create(inv_create((int)flags));
+#endif
 	}
 	PG_CATCH();
 	{
