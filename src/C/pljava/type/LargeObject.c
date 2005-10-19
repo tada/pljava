@@ -50,7 +50,7 @@ static Type LargeObject_obtain(Oid typeId)
 }
 
 extern void LargeObject_initialize(void);
-void LargeObject_initialize()
+void LargeObject_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

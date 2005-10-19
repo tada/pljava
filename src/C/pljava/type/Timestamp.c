@@ -187,7 +187,7 @@ int Timestamp_getCurrentTimeZone(void)
 }
 
 extern void Timestamp_initialize(void);
-void Timestamp_initialize()
+void Timestamp_initialize(void)
 {
 	s_Timestamp_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Timestamp"));
 	s_Timestamp_init = PgObject_getJavaMethod(s_Timestamp_class, "<init>", "(J)V");

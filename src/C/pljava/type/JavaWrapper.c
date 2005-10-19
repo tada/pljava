@@ -49,7 +49,7 @@ TypeClass JavaWrapperClass_alloc(const char* name)
 }
 
 extern void JavaWrapper_initialize(void);
-void JavaWrapper_initialize()
+void JavaWrapper_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{

@@ -66,7 +66,7 @@ static Type Boolean_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Boolean_initialize(void);
-void Boolean_initialize()
+void Boolean_initialize(void)
 {
 	s_Boolean_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Boolean"));
 	s_Boolean_init = PgObject_getJavaMethod(s_Boolean_class, "<init>", "(Z)V");

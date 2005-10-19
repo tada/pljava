@@ -94,12 +94,12 @@ static void _Function_finalize(PgObject self)
 	}
 }
 
-extern void Function_initialize(void);
 
 static jclass s_Loader_class;
 static jmethodID s_Loader_getSchemaLoader;
 
-void Function_initialize()
+extern void Function_initialize(void);
+void Function_initialize(void)
 {
 	s_funcMap = HashMap_create(59, TopMemoryContext);
 	s_FunctionClass = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);

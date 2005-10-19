@@ -78,7 +78,7 @@ static Type byte_array_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void byte_array_initialize(void);
-void byte_array_initialize()
+void byte_array_initialize(void)
 {
 	s_byteArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[B"));
 	s_BlobValue_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/BlobValue"));

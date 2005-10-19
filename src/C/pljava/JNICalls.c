@@ -392,7 +392,7 @@ jint JNI_destroyVM(JavaVM *vm)
 	return result;
 }
 
-jboolean JNI_exceptionCheck()
+jboolean JNI_exceptionCheck(void)
 {
 	jboolean result;
 	BEGIN_JAVA
@@ -401,21 +401,21 @@ jboolean JNI_exceptionCheck()
 	return result;
 }
 
-void JNI_exceptionClear()
+void JNI_exceptionClear(void)
 {
 	BEGIN_JAVA
 	(*env)->ExceptionDescribe(env);
 	END_JAVA
 }
 
-void JNI_exceptionDescribe()
+void JNI_exceptionDescribe(void)
 {
 	BEGIN_JAVA
 	(*env)->ExceptionDescribe(env);
 	END_JAVA
 }
 
-jthrowable JNI_exceptionOccurred()
+jthrowable JNI_exceptionOccurred(void)
 {
 	jthrowable result;
 	BEGIN_JAVA
@@ -557,7 +557,7 @@ const jbyte* JNI_getStringUTFChars(jstring string, jboolean* isCopy)
 	return result;
 }
 
-jboolean JNI_isCallingJava()
+jboolean JNI_isCallingJava(void)
 {
 	return jniEnv == 0;
 }

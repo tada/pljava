@@ -54,7 +54,7 @@ static Type AclId_obtain(Oid typeId)
 }
 
 extern void AclId_initialize(void);
-void AclId_initialize()
+void AclId_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

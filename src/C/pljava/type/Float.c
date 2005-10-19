@@ -67,7 +67,7 @@ static Type Float_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Float_initialize(void);
-void Float_initialize()
+void Float_initialize(void)
 {
 	s_Float_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Float"));
 	s_Float_init = PgObject_getJavaMethod(s_Float_class, "<init>", "(F)V");

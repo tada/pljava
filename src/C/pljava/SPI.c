@@ -15,7 +15,7 @@
 #include "pljava/type/TupleTable.h"
 
 extern void SPI_initialize(void);
-void SPI_initialize()
+void SPI_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

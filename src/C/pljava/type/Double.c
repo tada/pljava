@@ -76,7 +76,7 @@ static Type Double_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Double_initialize(void);
-void Double_initialize()
+void Double_initialize(void)
 {
 	s_Double_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Double"));
 	s_Double_init = PgObject_getJavaMethod(s_Double_class, "<init>", "(D)V");

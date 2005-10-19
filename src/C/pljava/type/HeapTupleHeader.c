@@ -54,7 +54,7 @@ static Type HeapTupleHeader_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void HeapTupleHeader_initialize(void);
-void HeapTupleHeader_initialize()
+void HeapTupleHeader_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

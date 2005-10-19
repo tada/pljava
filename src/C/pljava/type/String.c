@@ -232,7 +232,7 @@ void String_appendJavaString(StringInfoData* buf, jstring javaString)
 }
 
 extern void String_initialize(void);
-void String_initialize()
+void String_initialize(void)
 {
 	s_Object_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Object"));
 	s_Object_toString = PgObject_getJavaMethod(s_Object_class, "toString", "()Ljava/lang/String;");

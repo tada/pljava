@@ -67,7 +67,7 @@ static Type Short_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Short_initialize(void);
-void Short_initialize()
+void Short_initialize(void)
 {
 	s_Short_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Short"));
 	s_Short_init = PgObject_getJavaMethod(s_Short_class, "<init>", "(S)V");

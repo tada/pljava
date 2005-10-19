@@ -162,7 +162,7 @@ static Type Timetz_obtain(Oid typeId)
 }
 
 extern void Time_initialize(void);
-void Time_initialize()
+void Time_initialize(void)
 {
 	s_Time_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Time"));
 	s_Time_init = PgObject_getJavaMethod(s_Time_class, "<init>", "(J)V");

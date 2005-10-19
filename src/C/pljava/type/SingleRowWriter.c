@@ -124,7 +124,7 @@ Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc)
 /* Make this datatype available to the postgres system.
  */
 extern void SingleRowWriter_initialize(void);
-void SingleRowWriter_initialize()
+void SingleRowWriter_initialize(void)
 {
 	s_SingleRowWriter_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowWriter"));
 	s_SingleRowWriter_init = PgObject_getJavaMethod(s_SingleRowWriter_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");

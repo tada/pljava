@@ -15,7 +15,7 @@
 static jclass    s_ErrorData_class;
 static jmethodID s_ErrorData_init;
 
-jobject ErrorData_getCurrentError()
+jobject ErrorData_getCurrentError(void)
 {
 	Ptr2Long p2l;
 	jobject jed;
@@ -37,7 +37,7 @@ ErrorData* ErrorData_getErrorData(jobject jed)
 /* Make this datatype available to the postgres system.
  */
 extern void ErrorData_initialize(void);
-void ErrorData_initialize()
+void ErrorData_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

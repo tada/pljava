@@ -46,7 +46,7 @@ static Type BigDecimal_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void BigDecimal_initialize(void);
-void BigDecimal_initialize()
+void BigDecimal_initialize(void)
 {
 	s_BigDecimal_class = JNI_newGlobalRef(PgObject_getJavaClass("java/math/BigDecimal"));
 	s_BigDecimal_init = PgObject_getJavaMethod(s_BigDecimal_class, "<init>", "(Ljava/lang/String;)V");

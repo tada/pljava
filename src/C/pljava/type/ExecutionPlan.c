@@ -35,7 +35,7 @@ static Type ExecutionPlan_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void ExecutionPlan_initialize(void);
-void ExecutionPlan_initialize()
+void ExecutionPlan_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

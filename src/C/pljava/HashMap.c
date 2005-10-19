@@ -411,7 +411,7 @@ uint32 HashMap_size(HashMap self)
 
 extern void Iterator_initialize(void);
 extern void HashMap_initialize(void);
-void HashMap_initialize()
+void HashMap_initialize(void)
 {
 	Iterator_initialize();
 

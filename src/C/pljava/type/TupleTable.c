@@ -30,8 +30,13 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+	tupdesc = TupleDesc_internalCreate(tts->ttc_tupleDescriptor);
+	tuple   = heap_copytuple(tts->val);
+#else
 	tupdesc = TupleDesc_internalCreate(tts->tts_tupleDescriptor);
 	tuple   = ExecCopySlotTuple(tts);
+#endif
 	tuples  = Tuple_createArray(&tuple, 1, false);
 
 	MemoryContextSwitchTo(curr);
@@ -60,7 +65,7 @@ jobject TupleTable_create(SPITupleTable* tts)
 /* Make this datatype available to the postgres system.
  */
 extern void TupleTable_initialize(void);
-void TupleTable_initialize()
+void TupleTable_initialize(void)
 {
 	s_TupleTable_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleTable"));
 	s_TupleTable_init = PgObject_getJavaMethod(

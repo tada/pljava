@@ -71,7 +71,7 @@ static Type Byte_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Byte_initialize(void);
-void Byte_initialize()
+void Byte_initialize(void)
 {
 	s_Byte_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Byte"));
 	s_Byte_init = PgObject_getJavaMethod(s_Byte_class, "<init>", "(B)V");

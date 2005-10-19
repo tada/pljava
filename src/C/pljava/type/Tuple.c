@@ -77,7 +77,7 @@ static Type Tuple_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Tuple_initialize(void);
-void Tuple_initialize()
+void Tuple_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

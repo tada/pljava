@@ -69,7 +69,7 @@ extern void Type_initialize(void);
 extern void Function_initialize(void);
 extern void Session_initialize(void);
 
-static void initPLJavaClasses()
+static void initPLJavaClasses(void)
 {
 	jfieldID tlField;
 	jclass cls;
@@ -234,7 +234,7 @@ void Backend_popCallContext(void)
 	currentCallContext = ctx;
 }
 
-void Backend_pushJavaFrame()
+void Backend_pushJavaFrame(void)
 {
 	if(JNI_pushLocalFrame(LOCAL_REFERENCE_COUNT) < 0)
 	{
@@ -247,7 +247,7 @@ void Backend_pushJavaFrame()
 	}
 }
 
-void Backend_popJavaFrame()
+void Backend_popJavaFrame(void)
 {
 	JNI_popLocalFrame(0);
 }
@@ -588,7 +588,7 @@ static void addUserJVMOptions(JVMOptList* optList)
 /**
  *  Initialize the session
  */
-static void initJavaSession()
+static void initJavaSession(void)
 {
 	jclass sessionClass = PgObject_getJavaClass("org/postgresql/pljava/internal/Session");
 	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()J");

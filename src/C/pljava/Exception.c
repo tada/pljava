@@ -36,7 +36,7 @@ static jmethodID s_ServerException_getErrorData;
 static jclass    s_UnsupportedOperationException_class;
 static jmethodID s_UnsupportedOperationException_init;
 
-void Exception_checkException()
+void Exception_checkException(void)
 {
 	int sqlState;
 	StringInfoData buf;
@@ -196,7 +196,7 @@ void Exception_throw_ERROR(const char* funcName)
 }
 
 extern void Exception_initialize(void);
-void Exception_initialize()
+void Exception_initialize(void)
 {
 	s_Class_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Class"));
 

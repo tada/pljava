@@ -67,7 +67,7 @@ static Type Integer_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Integer_initialize(void);
-void Integer_initialize()
+void Integer_initialize(void)
 {
 	s_Integer_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Integer"));
 	s_Integer_init = PgObject_getJavaMethod(s_Integer_class, "<init>", "(I)V");

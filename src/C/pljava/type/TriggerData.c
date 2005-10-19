@@ -69,7 +69,7 @@ static Type TriggerData_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void TriggerData_initialize(void);
-void TriggerData_initialize()
+void TriggerData_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{

@@ -80,7 +80,7 @@ static Type TupleDesc_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void TupleDesc_initialize(void);
-void TupleDesc_initialize()
+void TupleDesc_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

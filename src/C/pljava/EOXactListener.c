@@ -43,7 +43,7 @@ void EOXactListener_register(jobject listener)
 	}
 }
 
-void EOXactListener_unregister()
+void EOXactListener_unregister(void)
 {
 	if(s_listener != 0)
 	{

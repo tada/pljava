@@ -53,7 +53,7 @@ static Type Relation_obtain(Oid typeId)
 }
 
 extern void Relation_initialize(void);
-void Relation_initialize()
+void Relation_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

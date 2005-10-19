@@ -124,7 +124,7 @@ TypeClass JavaHandleClass_alloc(const char* name)
 }
 
 extern void JavaHandle_initialize(void);
-void JavaHandle_initialize()
+void JavaHandle_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{

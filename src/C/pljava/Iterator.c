@@ -80,7 +80,7 @@ Entry Iterator_next(Iterator self)
 }
 
 extern void Iterator_initialize(void);
-void Iterator_initialize()
+void Iterator_initialize(void)
 {
 	s_IteratorClass = PgObjectClass_create("Iterator", sizeof(struct Iterator_), 0);
 }

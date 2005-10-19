@@ -76,7 +76,7 @@ static Type Long_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Long_initialize(void);
-void Long_initialize()
+void Long_initialize(void)
 {
 	s_Long_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Long"));
 	s_Long_init = PgObject_getJavaMethod(s_Long_class, "<init>", "(J)V");

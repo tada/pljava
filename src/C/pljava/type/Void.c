@@ -45,7 +45,7 @@ static Type void_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Void_initialize(void);
-void Void_initialize()
+void Void_initialize(void)
 {
 	s_voidClass = TypeClass_alloc("type.void");
 	s_voidClass->JNISignature = "V";

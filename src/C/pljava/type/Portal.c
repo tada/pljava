@@ -98,7 +98,7 @@ static Type Portal_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Portal_initialize(void);
-void Portal_initialize()
+void Portal_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{

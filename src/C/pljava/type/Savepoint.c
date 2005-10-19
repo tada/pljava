@@ -54,7 +54,7 @@ static Type Savepoint_obtain(Oid typeId)
 }
 
 extern void Savepoint_initialize(void);
-void Savepoint_initialize()
+void Savepoint_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

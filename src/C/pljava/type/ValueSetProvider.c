@@ -127,7 +127,7 @@ static Type ValueSetProvider_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void ValueSetProvider_initialize(void);
-void ValueSetProvider_initialize()
+void ValueSetProvider_initialize(void)
 {
 	s_Iterator_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Iterator"));
 	s_Iterator_hasNext = PgObject_getJavaMethod(s_Iterator_class, "hasNext", "()Z");

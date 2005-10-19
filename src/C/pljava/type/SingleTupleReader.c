@@ -43,7 +43,7 @@ static Type SingleTupleReader_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void SingleTupleReader_initialize(void);
-void SingleTupleReader_initialize()
+void SingleTupleReader_initialize(void)
 {
 	s_SingleTupleReader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleTupleReader"));
 	s_SingleTupleReader_init = PgObject_getJavaMethod(s_SingleTupleReader_class, "<init>", "(Lorg/postgresql/pljava/internal/HeapTupleHeader;)V");

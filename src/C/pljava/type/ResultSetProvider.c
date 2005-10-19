@@ -240,7 +240,7 @@ Type ResultSetProvider_createType(Oid typid, TupleDesc tupleDesc)
 }
 
 extern void ResultSetProvider_initialize(void);
-void ResultSetProvider_initialize()
+void ResultSetProvider_initialize(void)
 {
 	s_ResultSetProvider_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/ResultSetProvider"));
 

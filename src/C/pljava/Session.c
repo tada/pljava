@@ -13,7 +13,7 @@
 #include "pljava/type/AclId.h"
 
 extern void Session_initialize(void);
-void Session_initialize()
+void Session_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

@@ -201,7 +201,7 @@ extern void ResultSetProvider_initialize(void);
 extern void Savepoint_initialize(void);
 
 extern void Type_initialize(void);
-void Type_initialize()
+void Type_initialize(void)
 {
 	s_typeByOid          = HashMap_create(59, TopMemoryContext);
 	s_obtainerByOid      = HashMap_create(59, TopMemoryContext);

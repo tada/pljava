@@ -131,7 +131,7 @@ static Type Oid_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Oid_initialize(void);
-void Oid_initialize()
+void Oid_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{

@@ -52,7 +52,7 @@ static Type Date_obtain(Oid typeId)
 /* Make this datatype available to the postgres system.
  */
 extern void Date_initialize(void);
-void Date_initialize()
+void Date_initialize(void)
 {
 	s_Date_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Date"));
 	s_Date_init = PgObject_getJavaMethod(s_Date_class, "<init>", "(J)V");
