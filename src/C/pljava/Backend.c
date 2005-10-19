@@ -376,7 +376,7 @@ static char* getClassPath(const char* prefix)
 
 static void pljavaStatementCancelHandler(int signum)
 {
-	if(!proc_exit_in_progress)
+	if(!proc_exit_inprogress)
 	{
 		/* Never service the interrupt immediately. In order to find out if
 		 * its safe, we would need to know what kind of threading mechanism
@@ -389,7 +389,7 @@ static void pljavaStatementCancelHandler(int signum)
 
 static void pljavaDieHandler(int signum)
 {
-	if(!proc_exit_in_progress)
+	if(!proc_exit_inprogress)
 	{
 		/* Never service the interrupt immediately. In order to find out if
 		 * its safe, we would need to know what kind of threading mechanism
@@ -446,7 +446,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 
 		elog(DEBUG1, "Destroying JavaVM...");
-		JNI_destroyJavaVM(s_javaVM);
+		JNI_destroyVM(s_javaVM);
 		disable_sig_alarm(false);
 		pqsignal(SIGALRM, saveSigAlrm);
 #else
@@ -725,7 +725,7 @@ static void initializeJavaVM(void)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
 
 #if !defined(WIN32)
-	pqsignal(SIGINT,  pljavaCancelQueryHandler);
+	pqsignal(SIGINT,  pljavaStatementCancelHandler);
 	pqsignal(SIGTERM, pljavaDieHandler);
 	pqsignal(SIGQUIT, pljavaQuickDieHandler);
 #endif
