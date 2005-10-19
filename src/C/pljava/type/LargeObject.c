@@ -55,7 +55,7 @@ void LargeObject_initialize()
 	JNINativeMethod methods[] = {
 		{
 		"_create",
-	  	"(I)Lorg/postgresql/pljava/internal/LargeObject;",
+	  	"(I)Lorg/postgresql/pljava/internal/Oid;",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1create
 		},
 		{
