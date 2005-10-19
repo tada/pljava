@@ -31,24 +31,24 @@
 					<value>all</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.environment</key>
-					<value>PGXS=C:\\\\msys\\\\local\\\\pgsql\\\\lib\\\\pgxs\\\\src\\\\MAKEFI~1\\\\pgxs.mk|JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_05|</value>
+					<key>org.eclipse.cdt.make.core.buildLocation</key>
+					<value></value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
 					<value>false</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value></value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.inc</key>
-					<value>all</value>
+					<key>org.eclipse.cdt.make.core.environment</key>
+					<value>JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_05|</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
 					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.inc</key>
+					<value>all</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
@@ -56,15 +56,15 @@
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.location</key>
-					<value></value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.clean</key>
-					<value>clean</value>
+					<value>\org.postgresql.pljava</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.command</key>
 					<value>c:/msys/bin/rxvt</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.clean</key>
+					<value>clean</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>

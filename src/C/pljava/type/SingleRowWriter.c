@@ -16,7 +16,7 @@
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 
 /*
  * void primitive type.
@@ -39,25 +39,22 @@ static HashMap s_modCache;
  * NOTE! It's an absolute prerequisite that the args argument has room for
  * one extra parameter.
  */
-static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _SingleRowWriter_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	bool saveIcj = isCallingJava;
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
-	jobject jtd = TupleDesc_create(env, tupleDesc);
-	jobject singleRowWriter = SingleRowWriter_create(env, jtd);
+	jobject jtd = TupleDesc_create(tupleDesc);
+	jobject singleRowWriter = SingleRowWriter_create(jtd);
 	int numArgs = fcinfo->nargs;
-	(*env)->DeleteLocalRef(env, jtd);
+	JNI_deleteLocalRef(jtd);
 
 	/* It's guaranteed that the args array has room for one more
 	 * argument.
 	 */
 	args[numArgs].l = singleRowWriter;
 
-	isCallingJava = true;
-	hasRow = ((*env)->CallStaticBooleanMethodA(env, cls, method, args) == JNI_TRUE);
-	isCallingJava = saveIcj;
+	hasRow = (JNI_callStaticBooleanMethodA(cls, method, args) == JNI_TRUE);
 
 	if(hasRow)
 	{
@@ -65,55 +62,49 @@ static Datum _SingleRowWriter_invoke(Type self, JNIEnv* env, jclass cls, jmethod
 		 * durable context.
 		 */
 		MemoryContext currCtx = MemoryContext_switchToUpperContext();
-		HeapTuple tuple = SingleRowWriter_getTupleAndClear(env, singleRowWriter);
+		HeapTuple tuple = SingleRowWriter_getTupleAndClear(singleRowWriter);
 	    result = HeapTupleGetDatum(tuple);
 		MemoryContextSwitchTo(currCtx);
 	}
 	else
 		fcinfo->isnull = true;
 
-	(*env)->DeleteLocalRef(env, singleRowWriter);
+	JNI_deleteLocalRef(singleRowWriter);
 	return result;
 }
 
-jobject SingleRowWriter_create(JNIEnv* env, jobject tupleDesc)
+jobject SingleRowWriter_create(jobject tupleDesc)
 {
-	jobject result;
 	if(tupleDesc == 0)
 		return 0;
-
-	result = PgObject_newJavaObject(env, s_SingleRowWriter_class, s_SingleRowWriter_init, tupleDesc);
-	return result;
+	return JNI_newObject(s_SingleRowWriter_class, s_SingleRowWriter_init, tupleDesc);
 }
 
-HeapTuple SingleRowWriter_getTupleAndClear(JNIEnv* env, jobject jrps)
+HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 {
 	jobject tuple;
 	HeapTuple result;
-	bool saveIcj = isCallingJava;
 
 	if(jrps == 0)
 		return 0;
 
-	isCallingJava = true;
-	tuple = (*env)->CallObjectMethod(env, jrps, s_SingleRowWriter_getTupleAndClear);
-	isCallingJava = saveIcj;
+	tuple = JNI_callObjectMethod(jrps, s_SingleRowWriter_getTupleAndClear);
 	if(tuple == 0)
 		return 0;
 
-	result = (HeapTuple)NativeStruct_getStruct(env, tuple);
-	(*env)->DeleteLocalRef(env, tuple);
+	result = (HeapTuple)JavaHandle_getStruct(tuple);
+	JNI_deleteLocalRef(tuple);
 	return result;
 }
 
-static jvalue _SingleRowWriter_coerceDatum(Type self, JNIEnv* env, Datum nothing)
+static jvalue _SingleRowWriter_coerceDatum(Type self, Datum nothing)
 {
 	jvalue result;
 	result.j = 0L;
 	return result;
 }
 
-static Datum _SingleRowWriter_coerceObject(Type self, JNIEnv* env, jobject nothing)
+static Datum _SingleRowWriter_coerceObject(Type self, jobject nothing)
 {
 	return 0;
 }
@@ -132,20 +123,12 @@ Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(SingleRowWriter_initialize);
-Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS)
+extern void SingleRowWriter_initialize(void);
+void SingleRowWriter_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_SingleRowWriter_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/SingleRowWriter"));
-
-	s_SingleRowWriter_init = PgObject_getJavaMethod(
-				env, s_SingleRowWriter_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");
-
-	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(
-				env, s_SingleRowWriter_class, "getTupleAndClear", "()Lorg/postgresql/pljava/internal/Tuple;");
+	s_SingleRowWriter_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowWriter"));
+	s_SingleRowWriter_init = PgObject_getJavaMethod(s_SingleRowWriter_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");
+	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(s_SingleRowWriter_class, "getTupleAndClear", "()Lorg/postgresql/pljava/internal/Tuple;");
 
 	s_idCache = HashMap_create(13, TopMemoryContext);
 	s_modCache = HashMap_create(13, TopMemoryContext);
@@ -158,5 +141,4 @@ Datum SingleRowWriter_initialize(PG_FUNCTION_ARGS)
 	s_SingleRowWriterClass->invoke       = _SingleRowWriter_invoke;
 
 	Type_registerJavaType("org.postgresql.pljava.jdbc.SingleRowWriter", SingleRowWriter_obtain);
-	PG_RETURN_VOID();
 }

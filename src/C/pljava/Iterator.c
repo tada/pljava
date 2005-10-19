@@ -79,11 +79,9 @@ Entry Iterator_next(Iterator self)
 	return nxt;
 }
 
-extern Datum Iterator_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Iterator_initialize);
-Datum Iterator_initialize(PG_FUNCTION_ARGS)
+extern void Iterator_initialize(void);
+void Iterator_initialize()
 {
 	s_IteratorClass = PgObjectClass_create("Iterator", sizeof(struct Iterator_), 0);
-	PG_RETURN_VOID();
 }
 

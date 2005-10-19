@@ -77,12 +77,12 @@ extern HashMap MemoryContext_getCurrentNativeCache(void);
  * Obtain a locally bound object form the weak cache. This method
  * will return NULL if no such object is found.
  */
-extern jobject MemoryContext_lookupNative(JNIEnv* env, void* nativePointer);
+extern jobject MemoryContext_lookupNative(void* nativePointer);
 
 /*
  * Remove the native pointer from the cache if present.
  */
-extern void MemoryContext_dropNative(JNIEnv* env, void* nativePointer);
+extern void MemoryContext_dropNative(void* nativePointer);
 
 #ifdef __cplusplus
 }

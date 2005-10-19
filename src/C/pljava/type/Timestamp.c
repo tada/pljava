@@ -41,7 +41,7 @@ static bool _Timestamp_canReplaceType(Type self, Type other)
 	return other->m_class == s_TimestampClass || other->m_class == s_TimestamptzClass;
 }
 
-static jvalue Timestamp_coerceDatumTZ_id(Type self, JNIEnv* env, Datum arg, bool tzAdjust)
+static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 {
 	jvalue result;
 	int64 ts = DatumGetInt64(arg);
@@ -53,13 +53,13 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, JNIEnv* env, Datum arg, bool
 	if(tzAdjust)
 		mSecs += Timestamp_getTimeZone(ts) * 1000;/* Adjust from local time to UTC */
 	mSecs += EPOCH_DIFF * 1000;			/* Adjust for diff between Postgres and Java (Unix) */
-	result.l = PgObject_newJavaObject(env, s_Timestamp_class, s_Timestamp_init, mSecs);
+	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
-		(*env)->CallIntMethod(env, result.l, s_Timestamp_setNanos, uSecs * 1000);
+		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;
 }
 
-static jvalue Timestamp_coerceDatumTZ_dd(Type self, JNIEnv* env, Datum arg, bool tzAdjust)
+static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 {
 	jlong mSecs;
 	jint  uSecs;
@@ -76,24 +76,24 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, JNIEnv* env, Datum arg, bool
 	tmp = floor(ts);
 	mSecs = (jlong)tmp;
 	uSecs = ((ts - tmp) * 1000.0);		/* Preserve remaining microsecs */
-	result.l = PgObject_newJavaObject(env, s_Timestamp_class, s_Timestamp_init, mSecs);
+	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
-		(*env)->CallIntMethod(env, result.l, s_Timestamp_setNanos, uSecs * 1000);
+		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;
 }
 
-static jvalue Timestamp_coerceDatumTZ(Type self, JNIEnv* env, Datum arg, bool tzAdjust)
+static jvalue Timestamp_coerceDatumTZ(Type self, Datum arg, bool tzAdjust)
 {
 	return integerDateTimes
-		? Timestamp_coerceDatumTZ_id(self, env, arg, tzAdjust)
-		: Timestamp_coerceDatumTZ_dd(self, env, arg, tzAdjust);
+		? Timestamp_coerceDatumTZ_id(self, arg, tzAdjust)
+		: Timestamp_coerceDatumTZ_dd(self, arg, tzAdjust);
 }
 
-static Datum Timestamp_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jts, bool tzAdjust)
+static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 {
 	int64 ts;
-	jlong mSecs = (*env)->CallLongMethod(env, jts, s_Timestamp_getTime);
-	jint  nSecs = (*env)->CallIntMethod(env, jts, s_Timestamp_getNanos);
+	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
+	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
 	mSecs -= ((jlong)EPOCH_DIFF) * 1000L;
 	ts  = mSecs * 1000L; /* Convert millisecs to microsecs */
 	if(nSecs != 0)
@@ -103,11 +103,11 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, JNIEnv* env, jobject jts, bo
 	return Int64GetDatum(ts);
 }
 
-static Datum Timestamp_coerceObjectTZ_dd(Type self, JNIEnv* env, jobject jts, bool tzAdjust)
+static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 {
 	double ts;
-	jlong mSecs = (*env)->CallLongMethod(env, jts, s_Timestamp_getTime);
-	jint  nSecs = (*env)->CallIntMethod(env, jts, s_Timestamp_getNanos);
+	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
+	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
 	ts = ((double)mSecs) / 1000.0; /* Convert to seconds */
 	ts -= EPOCH_DIFF;
 	if(nSecs != 0)
@@ -117,35 +117,35 @@ static Datum Timestamp_coerceObjectTZ_dd(Type self, JNIEnv* env, jobject jts, bo
 	return Float8GetDatum(ts);
 }
 
-static Datum Timestamp_coerceObjectTZ(Type self, JNIEnv* env, jobject jts, bool tzAdjust)
+static Datum Timestamp_coerceObjectTZ(Type self, jobject jts, bool tzAdjust)
 {
 	return integerDateTimes
-		? Timestamp_coerceObjectTZ_id(self, env, jts, tzAdjust)
-		: Timestamp_coerceObjectTZ_dd(self, env, jts, tzAdjust);
+		? Timestamp_coerceObjectTZ_id(self, jts, tzAdjust)
+		: Timestamp_coerceObjectTZ_dd(self, jts, tzAdjust);
 }
 
-static jvalue _Timestamp_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Timestamp_coerceDatum(Type self, Datum arg)
 {
-	return Timestamp_coerceDatumTZ(self, env, arg, true);
+	return Timestamp_coerceDatumTZ(self, arg, true);
 }
 
-static Datum _Timestamp_coerceObject(Type self, JNIEnv* env, jobject ts)
+static Datum _Timestamp_coerceObject(Type self, jobject ts)
 {
-	return Timestamp_coerceObjectTZ(self, env, ts, true);
+	return Timestamp_coerceObjectTZ(self, ts, true);
 }
 
 /* 
  * Timestamp with time zone. Basically same as Timestamp but postgres will pass
  * this one in GMT timezone so there's no without ajustment for time zone.
  */
-static jvalue _Timestamptz_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Timestamptz_coerceDatum(Type self, Datum arg)
 {
-	return Timestamp_coerceDatumTZ(self, env, arg, false);
+	return Timestamp_coerceDatumTZ(self, arg, false);
 }
 
-static Datum _Timestamptz_coerceObject(Type self, JNIEnv* env, jobject ts)
+static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 {
-	return Timestamp_coerceObjectTZ(self, env, ts, false);
+	return Timestamp_coerceObjectTZ(self, ts, false);
 }
 
 static Type Timestamp_obtain(Oid typeId)
@@ -186,24 +186,14 @@ int Timestamp_getCurrentTimeZone(void)
 	return tz;
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum Timestamp_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Timestamp_initialize);
-Datum Timestamp_initialize(PG_FUNCTION_ARGS)
+extern void Timestamp_initialize(void);
+void Timestamp_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Timestamp_class = (*env)->NewGlobalRef(
-						env, PgObject_getJavaClass(env, "java/sql/Timestamp"));
-	s_Timestamp_init = PgObject_getJavaMethod(
-						env, s_Timestamp_class, "<init>", "(J)V");
-	s_Timestamp_getNanos = PgObject_getJavaMethod(
-						env, s_Timestamp_class, "getNanos", "()I");
-	s_Timestamp_getTime  = PgObject_getJavaMethod(
-						env, s_Timestamp_class, "getTime",  "()J");
-	s_Timestamp_setNanos = PgObject_getJavaMethod(
-						env, s_Timestamp_class, "setNanos", "(I)V");
+	s_Timestamp_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Timestamp"));
+	s_Timestamp_init = PgObject_getJavaMethod(s_Timestamp_class, "<init>", "(J)V");
+	s_Timestamp_getNanos = PgObject_getJavaMethod(s_Timestamp_class, "getNanos", "()I");
+	s_Timestamp_getTime  = PgObject_getJavaMethod(s_Timestamp_class, "getTime",  "()J");
+	s_Timestamp_setNanos = PgObject_getJavaMethod(s_Timestamp_class, "setNanos", "(I)V");
 
 	s_TimestampClass = TypeClass_alloc("type.Timestamp");
 	s_TimestampClass->JNISignature   = "Ljava/sql/Timestamp;";
@@ -224,5 +214,4 @@ Datum Timestamp_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(TIMESTAMPOID, Timestamp_obtain);
 	Type_registerPgType(TIMESTAMPTZOID, Timestamptz_obtain);
 	Type_registerJavaType("java.sql.Timestamp", Timestamptz_obtain);
-	PG_RETURN_VOID();
 }

@@ -45,9 +45,9 @@ struct String_
 	Oid elementType;
 };
 
-extern Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr);
+extern Datum _String_coerceObject(Type self, jobject jstr);
 
-extern jvalue _String_coerceDatum(Type self, JNIEnv* env, Datum value);
+extern jvalue _String_coerceDatum(Type self, Datum value);
 
 #ifdef __cplusplus
 }

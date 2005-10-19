@@ -18,24 +18,21 @@
 static TypeClass s_voidClass;
 static Type s_void;
 
-static Datum _void_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _void_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	(*env)->CallStaticVoidMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	JNI_callStaticVoidMethodA(cls, method, args);
 	fcinfo->isnull = true;
 	return 0;
 }
 
-static jvalue _void_coerceDatum(Type self, JNIEnv* env, Datum nothing)
+static jvalue _void_coerceDatum(Type self, Datum nothing)
 {
 	jvalue result;
 	result.j = 0L;
 	return result;
 }
 
-static Datum _void_coerceObject(Type self, JNIEnv* env, jobject nothing)
+static Datum _void_coerceObject(Type self, jobject nothing)
 {
 	return 0;
 }
@@ -47,9 +44,8 @@ static Type void_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Void_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Void_initialize);
-Datum Void_initialize(PG_FUNCTION_ARGS)
+extern void Void_initialize(void);
+void Void_initialize()
 {
 	s_voidClass = TypeClass_alloc("type.void");
 	s_voidClass->JNISignature = "V";
@@ -61,5 +57,4 @@ Datum Void_initialize(PG_FUNCTION_ARGS)
 
 	Type_registerPgType(VOIDOID, void_obtain);
 	Type_registerJavaType("void", void_obtain);
-	PG_RETURN_VOID();
 }

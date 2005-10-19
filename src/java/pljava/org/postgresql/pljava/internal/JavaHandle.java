@@ -17,7 +17,7 @@ package org.postgresql.pljava.internal;
  * 
  * @author Thomas Hallgren
  */
-public abstract class NativeStruct
+public abstract class JavaHandle
 {
 	/**
 	 * Pointer that points stright to the allocated structure. This

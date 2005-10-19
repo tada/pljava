@@ -20,17 +20,13 @@ static jmethodID s_Integer_intValue;
 /*
  * int primitive type.
  */
-static Datum _int_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _int_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jint iv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	iv = (*env)->CallStaticIntMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	jint iv = JNI_callStaticIntMethodA(cls, method, args);
 	return Int32GetDatum(iv);
 }
 
-static jvalue _int_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _int_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.i = DatumGetInt32(arg);
@@ -50,20 +46,16 @@ static bool _Integer_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_intClass;
 }
 
-static jvalue _Integer_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Integer_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Integer_class, s_Integer_init, DatumGetInt32(arg));
+	result.l = JNI_newObject(s_Integer_class, s_Integer_init, DatumGetInt32(arg));
 	return result;
 }
 
-static Datum _Integer_coerceObject(Type self, JNIEnv* env, jobject intObj)
+static Datum _Integer_coerceObject(Type self, jobject intObj)
 {
-	jint iv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	iv = (*env)->CallIntMethod(env, intObj, s_Integer_intValue);
-	isCallingJava = saveicj;
+	jint iv = JNI_callIntMethod(intObj, s_Integer_intValue);
 	return Int32GetDatum(iv);
 }
 
@@ -74,20 +66,12 @@ static Type Integer_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Integer_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Integer_initialize);
-Datum Integer_initialize(PG_FUNCTION_ARGS)
+extern void Integer_initialize(void);
+void Integer_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Integer_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Integer"));
-
-	s_Integer_init = PgObject_getJavaMethod(
-				env, s_Integer_class, "<init>", "(I)V");
-
-	s_Integer_intValue = PgObject_getJavaMethod(
-				env, s_Integer_class, "intValue", "()I");
+	s_Integer_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Integer"));
+	s_Integer_init = PgObject_getJavaMethod(s_Integer_class, "<init>", "(I)V");
+	s_Integer_intValue = PgObject_getJavaMethod(s_Integer_class, "intValue", "()I");
 
 	s_IntegerClass = TypeClass_alloc("type.Integer");
 	s_IntegerClass->canReplaceType = _Integer_canReplace;
@@ -109,5 +93,4 @@ Datum Integer_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(INT4OID, int_obtain);
 	Type_registerJavaType("int", int_obtain);
 	Type_registerJavaType("java.lang.Integer", Integer_obtain);
-	PG_RETURN_VOID();
 }

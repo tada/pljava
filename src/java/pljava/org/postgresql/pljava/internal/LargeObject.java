@@ -14,7 +14,7 @@ import java.sql.SQLException;
  * 
  * @author Thomas Hallgren
  */
-public class LargeObject extends NativeStruct
+public class LargeObject extends JavaHandle
 {
 	/**
 	 *	Write mode flag to be passed to {@link #create} and {@link #open}

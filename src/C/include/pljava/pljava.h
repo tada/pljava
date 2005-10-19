@@ -43,8 +43,8 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  * to the original value of Warn_restart) must be made.
  */
 extern jlong mainThreadId;
-extern bool isCallingJava;
 extern bool pljavaEntryFence(JNIEnv* env);
+extern JNIEnv* currentJNIEnv;
 
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 #define STACK_BASE_VARS
@@ -89,9 +89,6 @@ extern DLLIMPORT char* stack_base_ptr;
 #define PG_TRY_RETURN(retVal) { PG_TRY_POP; return retVal; }
 #define PG_TRY_RETURN_VOID { PG_TRY_POP; return; }
 
-#define PLJAVA_ENTRY_FENCE(retVal) if(pljavaEntryFence(env)) return retVal;
-#define PLJAVA_ENTRY_FENCE_VOID if(pljavaEntryFence(env)) return;
-
 /* Some error codes missing from errcodes.h
  * 
  * Class 07 - Dynamic SQL Exception
@@ -114,6 +111,12 @@ typedef union
 		uint32 intVal_2;
 	} x64;
 } Ptr2Long;
+
+struct CallContext_;
+typedef struct CallContext_ CallContext;
+
+struct Function_;
+typedef struct Function_* Function;
 
 #ifdef __cplusplus
 }

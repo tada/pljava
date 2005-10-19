@@ -12,7 +12,7 @@ package org.postgresql.pljava.internal;
  *
  * @author Thomas Hallgren
  */
-public class SPI extends NativeStruct
+public class SPI
 {
 	public static final int ERROR_CONNECT		= -1;
 	public static final int ERROR_COPY			= -2;

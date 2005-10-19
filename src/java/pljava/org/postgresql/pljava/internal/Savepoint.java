@@ -11,7 +11,7 @@ import java.sql.SQLException;
 /**
  * @author Thomas Hallgren
  */
-public class Savepoint extends NativeStruct
+public class Savepoint extends JavaHandle
 {
 	public static Savepoint set(String name)
 	throws SQLException

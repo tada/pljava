@@ -31,12 +31,12 @@ extern Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc);
 /*
  * Create an instance of org.postgresql.pljava.jdbc.RowProviderSet
  */
-extern jobject SingleRowWriter_create(JNIEnv* env, jobject tupleDesc);
+extern jobject SingleRowWriter_create(jobject tupleDesc);
 
 /*
  * Returns the Tuple for the SingleRowWriter and clears it.
  */
-extern HeapTuple SingleRowWriter_getTupleAndClear(JNIEnv* env, jobject self);
+extern HeapTuple SingleRowWriter_getTupleAndClear(jobject self);
 
 #ifdef __cplusplus
 }

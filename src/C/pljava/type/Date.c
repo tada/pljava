@@ -26,20 +26,20 @@ static TypeClass s_DateClass;
  * Date data type. Postgres will pass and expect number of days since
  * Jan 01 2000. Java uses number of millisecs since midnight Jan 01 1970.
  */
-static jvalue _Date_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Date_coerceDatum(Type self, Datum arg)
 {
 	jlong date = (jlong)(DatumGetDateADT(arg) + EPOCH_DIFF);
 
 	jvalue result;
 	date *= 86400L;	// Convert to seconds
 	date += Timestamp_getCurrentTimeZone();	// Add local timezone
-	result.l = PgObject_newJavaObject(env, s_Date_class, s_Date_init, date * 1000);
+	result.l = JNI_newObject(s_Date_class, s_Date_init, date * 1000);
 	return result;
 }
 
-static Datum _Date_coerceObject(Type self, JNIEnv* env, jobject date)
+static Datum _Date_coerceObject(Type self, jobject date)
 {
-	jlong secs = (*env)->CallLongMethod(env, date, s_Date_getTime) / 1000;
+	jlong secs = JNI_callLongMethod(date, s_Date_getTime) / 1000;
 	secs -= Timestamp_getCurrentTimeZone(); // UTC
 	return DateADTGetDatum(((DateADT)(secs / 86400)) - EPOCH_DIFF);
 }
@@ -51,19 +51,12 @@ static Type Date_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Date_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Date_initialize);
-Datum Date_initialize(PG_FUNCTION_ARGS)
+extern void Date_initialize(void);
+void Date_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Date_class = (*env)->NewGlobalRef(
-						env, PgObject_getJavaClass(env, "java/sql/Date"));
-
-	s_Date_init = PgObject_getJavaMethod(
-						env, s_Date_class, "<init>", "(J)V");
-	s_Date_getTime = PgObject_getJavaMethod(
-						env, s_Date_class, "getTime",  "()J");
+	s_Date_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Date"));
+	s_Date_init = PgObject_getJavaMethod(s_Date_class, "<init>", "(J)V");
+	s_Date_getTime = PgObject_getJavaMethod(s_Date_class, "getTime",  "()J");
 
 	s_DateClass = TypeClass_alloc("type.Date");
 	s_DateClass->JNISignature = "Ljava/sql/Date;";
@@ -74,5 +67,4 @@ Datum Date_initialize(PG_FUNCTION_ARGS)
 
 	Type_registerPgType(DATEOID,   Date_obtain);
 	Type_registerJavaType("java.sql.Date", Date_obtain);
-	PG_RETURN_VOID();
 }

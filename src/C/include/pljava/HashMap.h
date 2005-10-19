@@ -140,8 +140,6 @@ extern void* HashMap_removeByOpaque(HashMap self, void* key);
  */
 extern uint32 HashMap_size(HashMap self);
 
-extern Datum HashMap_initialize(PG_FUNCTION_ARGS);
-
 /*************************************************************
  * An instance of the Entry class holds a mapping between one
  * HashKey and its associated value.

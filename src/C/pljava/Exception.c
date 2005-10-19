@@ -10,6 +10,7 @@
 #include <executor/spi.h>
 
 #include "pljava/Backend.h"
+#include "pljava/CallContext.h"
 #include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
@@ -35,71 +36,55 @@ static jmethodID s_ServerException_getErrorData;
 static jclass    s_UnsupportedOperationException_class;
 static jmethodID s_UnsupportedOperationException_init;
 
-void Exception_checkException(JNIEnv* env)
+void Exception_checkException()
 {
 	int sqlState;
 	StringInfoData buf;
 	jclass exhClass;
 	jstring jtmp;
-	bool saveicj = isCallingJava;
-	jthrowable exh = (*env)->ExceptionOccurred(env);
+	jthrowable exh = JNI_exceptionOccurred();
 	if(exh == 0)
 		/*
 		 * No exception has been thrown.
 		 */
 		return;
 
-	isCallingJava = true;
-	(*env)->ExceptionDescribe(env);
-	(*env)->ExceptionClear(env);
-	isCallingJava = saveicj;
+	JNI_exceptionDescribe();
+	JNI_exceptionClear();
 
-	if((*env)->IsInstanceOf(env, exh, s_ServerException_class))
+	if(JNI_isInstanceOf(exh, s_ServerException_class))
 	{
 		/* Rethrow the server error.
 		 */
-		jobject jed;
-		isCallingJava = true;
-		jed = (*env)->CallObjectMethod(env, exh, s_ServerException_getErrorData);
-		isCallingJava = saveicj;
-
+		jobject jed = JNI_callObjectMethod(exh, s_ServerException_getErrorData);
 		if(jed != 0)
-		{
-			ErrorData* ed = ErrorData_getErrorData(env, jed);
-			(*env)->DeleteLocalRef(env, jed);
-			ReThrowError(ed);
-		}
+			ReThrowError(ErrorData_getErrorData(jed));
 	}
 	sqlState = ERRCODE_INTERNAL_ERROR;
 
 	initStringInfo(&buf);
 
-	isCallingJava = true;
-	exhClass = (*env)->GetObjectClass(env, exh);
-	jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, s_Class_getName);
-	String_appendJavaString(env, &buf, jtmp);
-	(*env)->DeleteLocalRef(env, exhClass);
-	(*env)->DeleteLocalRef(env, jtmp);
-	jtmp = (jstring)(*env)->CallObjectMethod(env, exh, s_Throwable_getMessage);
-	isCallingJava = saveicj;
+	exhClass = JNI_getObjectClass(exh);
+	jtmp = (jstring)JNI_callObjectMethod(exhClass, s_Class_getName);
+	String_appendJavaString(&buf, jtmp);
+	JNI_deleteLocalRef(exhClass);
+	JNI_deleteLocalRef(jtmp);
 
+	jtmp = (jstring)JNI_callObjectMethod(exh, s_Throwable_getMessage);
 	if(jtmp != 0)
 	{
 		appendStringInfoString(&buf, ": ");
-		String_appendJavaString(env, &buf, jtmp);
-		(*env)->DeleteLocalRef(env, jtmp);
+		String_appendJavaString(&buf, jtmp);
+		JNI_deleteLocalRef(jtmp);
 	}
 
-	if((*env)->IsInstanceOf(env, exh, s_SQLException_class))
+	if(JNI_isInstanceOf(exh, s_SQLException_class))
 	{
-		isCallingJava = true;
-		jtmp = (*env)->CallObjectMethod(env, exh, s_SQLException_getSQLState);
-		isCallingJava = saveicj;
-
+		jtmp = JNI_callObjectMethod(exh, s_SQLException_getSQLState);
 		if(jtmp != 0)
 		{
-			char* s = String_createNTS(env, jtmp);
-			(*env)->DeleteLocalRef(env, jtmp);
+			char* s = String_createNTS(jtmp);
+			JNI_deleteLocalRef(jtmp);
 
 			if(strlen(s) >= 5)
 				sqlState = MAKE_SQLSTATE(s[0], s[1], s[2], s[3], s[4]);
@@ -110,10 +95,10 @@ void Exception_checkException(JNIEnv* env)
 	/* There's no return from this call.
 	 */
 	ereport(ERROR, (errcode(sqlState), errmsg(buf.data)));
-}	
+}
 
 void
-Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const char* introVersion)
+Exception_featureNotSupported(const char* requestedFeature, const char* introVersion)
 {
 	jstring jmsg;
 	jobject ex;
@@ -127,16 +112,15 @@ Exception_featureNotSupported(JNIEnv* env, const char* requestedFeature, const c
 	appendStringInfoString(&buf, introVersion);
 
 	ereport(DEBUG3, (errmsg(buf.data)));
-	jmsg = String_createJavaStringFromNTS(env, buf.data);
+	jmsg = String_createJavaStringFromNTS(buf.data);
 	pfree(buf.data);
 
-	ex = PgObject_newJavaObject(
-		env, s_UnsupportedOperationException_class, s_UnsupportedOperationException_init, jmsg);
-	(*env)->DeleteLocalRef(env, jmsg);
-	(*env)->Throw(env, ex);
+	ex = JNI_newObject(s_UnsupportedOperationException_class, s_UnsupportedOperationException_init, jmsg);
+	JNI_deleteLocalRef(jmsg);
+	JNI_throw(ex);
 }
 
-void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
+void Exception_throw(int errCode, const char* errMessage, ...)
 {
     char buf[1024];
 	va_list args;
@@ -149,7 +133,7 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	vsnprintf(buf, sizeof(buf), errMessage, args);
 	ereport(DEBUG3, (errcode(errCode), errmsg(buf)));
 
-	message = String_createJavaStringFromNTS(env, buf);
+	message = String_createJavaStringFromNTS(buf);
 
 	/* unpack MAKE_SQLSTATE code
 	 */
@@ -160,19 +144,17 @@ void Exception_throw(JNIEnv* env, int errCode, const char* errMessage, ...)
 	}
 	buf[idx] = 0;
 
-	sqlState = String_createJavaStringFromNTS(env, buf);
+	sqlState = String_createJavaStringFromNTS(buf);
 
-	ex = PgObject_newJavaObject(
-		env, s_SQLException_class, s_SQLException_init,
-		message, sqlState);
+	ex = JNI_newObject(s_SQLException_class, s_SQLException_init, message, sqlState);
 
-	(*env)->DeleteLocalRef(env, message);
-	(*env)->DeleteLocalRef(env, sqlState);
-	(*env)->Throw(env, ex);
+	JNI_deleteLocalRef(message);
+	JNI_deleteLocalRef(sqlState);
+	JNI_throw(ex);
 	va_end(args);
 }
 
-void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
+void Exception_throwIllegalArgument(const char* errMessage, ...)
 {
     char buf[1024];
 	va_list args;
@@ -183,87 +165,58 @@ void Exception_throwIllegalArgument(JNIEnv* env, const char* errMessage, ...)
 	vsnprintf(buf, sizeof(buf), errMessage, args);
 	ereport(DEBUG3, (errmsg(buf)));
 
-	message = String_createJavaStringFromNTS(env, buf);
+	message = String_createJavaStringFromNTS(buf);
 
-	ex = PgObject_newJavaObject(
-		env, s_IllegalArgumentException_class, s_IllegalArgumentException_init, message);
+	ex = JNI_newObject(s_IllegalArgumentException_class, s_IllegalArgumentException_init, message);
 
-	(*env)->DeleteLocalRef(env, message);
-	(*env)->Throw(env, ex);
+	JNI_deleteLocalRef(message);
+	JNI_throw(ex);
 	va_end(args);
 }
 
-void Exception_throwSPI(JNIEnv* env, const char* function, int errCode)
+void Exception_throwSPI(const char* function, int errCode)
 {
-	Exception_throw(env, ERRCODE_INTERNAL_ERROR,
+	Exception_throw(ERRCODE_INTERNAL_ERROR,
 		"SPI function SPI_%s failed with error %s", function,
 			SPI_result_code_string(errCode));
 }
 
-void Exception_throw_ERROR(JNIEnv* env, const char* funcName)
+void Exception_throw_ERROR(const char* funcName)
 {
-	jobject ed;
 	jobject ex;
-	ErrorData* errData;
-	MemoryContext_switchToUpperContext();
-	errData = CopyErrorData();
+	jobject ed = ErrorData_getCurrentError();
+
 	FlushErrorState();
-	ed = ErrorData_create(env, errData);
-	ex = PgObject_newJavaObject(
-		env, s_ServerException_class, s_ServerException_init, ed);
-	ereport(DEBUG3, (errcode(errData->sqlerrcode), errmsg(errData->message)));
+
+	ex = JNI_newObject(s_ServerException_class, s_ServerException_init, ed);
 	currentCallContext->errorOccured = true;
-	(*env)->DeleteLocalRef(env, ed);
-	(*env)->Throw(env, ex);
+
+	JNI_deleteLocalRef(ed);
+	JNI_throw(ex);
 }
 
-PG_FUNCTION_INFO_V1(Exception_initialize);
-
-Datum Exception_initialize(PG_FUNCTION_ARGS)
+extern void Exception_initialize(void);
+void Exception_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+	s_Class_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Class"));
 
-	s_Class_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/Class"));
+	s_Throwable_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Throwable"));
+	s_Throwable_getMessage = PgObject_getJavaMethod(s_Throwable_class, "getMessage", "()Ljava/lang/String;");
 
-	s_Throwable_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/Throwable"));
+	s_IllegalArgumentException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/IllegalArgumentException"));
+	s_IllegalArgumentException_init = PgObject_getJavaMethod(s_IllegalArgumentException_class, "<init>", "(Ljava/lang/String;)V");
 
-	s_Throwable_getMessage = PgObject_getJavaMethod(env, s_Throwable_class,
-			"getMessage", "()Ljava/lang/String;");
+	s_SQLException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/sql/SQLException"));
+	s_SQLException_init = PgObject_getJavaMethod(s_SQLException_class, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+	s_SQLException_getSQLState = PgObject_getJavaMethod(s_SQLException_class, "getSQLState", "()Ljava/lang/String;");
 
-	s_IllegalArgumentException_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/IllegalArgumentException"));
+	s_ServerException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ServerException"));
+	s_ServerException_init = PgObject_getJavaMethod(s_ServerException_class, "<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
 
-	s_IllegalArgumentException_init = PgObject_getJavaMethod(env, s_IllegalArgumentException_class,
-			"<init>", "(Ljava/lang/String;)V");
+	s_ServerException_getErrorData = PgObject_getJavaMethod(s_ServerException_class, "getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
 
-	s_SQLException_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/sql/SQLException"));
+	s_UnsupportedOperationException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/UnsupportedOperationException"));
+	s_UnsupportedOperationException_init = PgObject_getJavaMethod(s_UnsupportedOperationException_class, "<init>", "(Ljava/lang/String;)V");
 
-	s_SQLException_init = PgObject_getJavaMethod(env, s_SQLException_class,
-			"<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
-
-	s_SQLException_getSQLState = PgObject_getJavaMethod(env, s_SQLException_class,
-			"getSQLState", "()Ljava/lang/String;");
-
-	s_ServerException_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ServerException"));
-
-	s_ServerException_init = PgObject_getJavaMethod(env, s_ServerException_class,
-			"<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
-
-	s_ServerException_getErrorData = PgObject_getJavaMethod(env, s_ServerException_class,
-			"getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
-
-	s_UnsupportedOperationException_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/UnsupportedOperationException"));
-
-	s_UnsupportedOperationException_init = PgObject_getJavaMethod(env, s_UnsupportedOperationException_class,
-			"<init>", "(Ljava/lang/String;)V");
-
-	s_Class_getName = PgObject_getJavaMethod(env, s_Class_class,
-			"getName", "()Ljava/lang/String;");
-
-	PG_RETURN_VOID();
+	s_Class_getName = PgObject_getJavaMethod(s_Class_class, "getName", "()Ljava/lang/String;");
 }

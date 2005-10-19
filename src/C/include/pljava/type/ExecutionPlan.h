@@ -9,7 +9,7 @@
 #ifndef __pljava_ExecutionPlan_h
 #define __pljava_ExecutionPlan_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,7 +31,7 @@ extern bool SPI_is_cursor_plan(void* plan);
 /*
  * Create the org.postgresql.pljava.ExecutionPlan instance
  */
-extern jobject ExecutionPlan_create(JNIEnv* env, void* plan);
+extern jobject ExecutionPlan_create(void* plan);
 
 #ifdef __cplusplus
 }

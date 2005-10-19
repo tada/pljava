@@ -23,12 +23,12 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.Oid instance
  */
-extern jobject Oid_create(JNIEnv* env, Oid oid);
+extern jobject Oid_create(Oid oid);
 
 /*
  * Extract the native Oid from a Java Oid.
  */
-extern Oid Oid_getOid(JNIEnv* env, jobject joid);
+extern Oid Oid_getOid(jobject joid);
 
 /*
  * Map a java.sql.Types SQL type to an Oid.

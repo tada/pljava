@@ -14,7 +14,7 @@
 #include "pljava/Exception.h"
 
 #include "pljava/type/Type_priv.h"
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #include "pljava/type/String.h"
 #include "pljava/SPI.h"
 
@@ -26,25 +26,25 @@ static jmethodID s_Savepoint_init;
 /*
  * org.postgresql.pljava.internal.Savepoint type.
  */
-static jobject Savepoint_create(JNIEnv* env, Savepoint* sp)
+static jobject Savepoint_create(Savepoint* sp)
 {
 	jobject jsp;
 	if(sp == 0)
 		return 0;
 
-	jsp = MemoryContext_lookupNative(env, sp);
+	jsp = MemoryContext_lookupNative(sp);
 	if(jsp == 0)
 	{
-		jsp = PgObject_newJavaObject(env, s_Savepoint_class, s_Savepoint_init);
-		NativeStruct_init(env, jsp, sp);
+		jsp = JNI_newObject(s_Savepoint_class, s_Savepoint_init);
+		JavaHandle_init(jsp, sp);
 	}
 	return jsp;
 }
 
-static jvalue _Savepoint_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Savepoint_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = Savepoint_create(env, (Savepoint*)DatumGetPointer(arg));
+	result.l = Savepoint_create((Savepoint*)DatumGetPointer(arg));
 	return result;
 }
 
@@ -53,11 +53,8 @@ static Type Savepoint_obtain(Oid typeId)
 	return s_Savepoint;
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum Savepoint_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Savepoint_initialize);
-Datum Savepoint_initialize(PG_FUNCTION_ARGS)
+extern void Savepoint_initialize(void);
+void Savepoint_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
@@ -82,24 +79,17 @@ Datum Savepoint_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+	s_Savepoint_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Savepoint"));
+	PgObject_registerNatives2(s_Savepoint_class, methods);
+	s_Savepoint_init = PgObject_getJavaMethod(s_Savepoint_class, "<init>", "()V");
 
-	s_Savepoint_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Savepoint"));
-
-	PgObject_registerNatives2(env, s_Savepoint_class, methods);
-
-	s_Savepoint_init = PgObject_getJavaMethod(
-				env, s_Savepoint_class, "<init>", "()V");
-
-	s_SavepointClass = NativeStructClass_alloc("type.Savepoint");
+	s_SavepointClass = JavaHandleClass_alloc("type.Savepoint");
 	s_SavepointClass->JNISignature   = "Lorg/postgresql/pljava/internal/Savepoint;";
 	s_SavepointClass->javaTypeName   = "org.postgresql.pljava.internal.Savepoint";
 	s_SavepointClass->coerceDatum    = _Savepoint_coerceDatum;
 	s_Savepoint = TypeClass_allocInstance(s_SavepointClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Savepoint", Savepoint_obtain);
-	PG_RETURN_VOID();
 }
 
 /****************************************
@@ -114,18 +104,19 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1set(JNIEnv* env, jclass cls, jstring jname)
 {
 	jobject jsp = 0;
-	PLJAVA_ENTRY_FENCE(0)
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		char* name = String_createNTS(env, jname);
-		jsp = Savepoint_create(env, SPI_setSavepoint(name));
+		char* name = String_createNTS(jname);
+		jsp = Savepoint_create(SPI_setSavepoint(name));
 		pfree(name);
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_setSavepoint");
+		Exception_throw_ERROR("SPI_setSavepoint");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return jsp;
 }
 
@@ -137,12 +128,13 @@ Java_org_postgresql_pljava_internal_Savepoint__1set(JNIEnv* env, jclass cls, jst
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1getName(JNIEnv* env, jobject _this)
 {
-	Savepoint* self;
-	PLJAVA_ENTRY_FENCE(0)
-	self = (Savepoint*)NativeStruct_getStruct(env, _this);
-	if(self == 0)
-		return 0;
-	return String_createJavaStringFromNTS(env, self->name);
+	jstring result = 0;
+	BEGIN_NATIVE
+	Savepoint* self = (Savepoint*)JavaHandle_getStruct(_this);
+	if(self != 0)
+		result = String_createJavaStringFromNTS(self->name);
+	END_NATIVE
+	return result;
 }
 
 /*
@@ -153,21 +145,21 @@ Java_org_postgresql_pljava_internal_Savepoint__1getName(JNIEnv* env, jobject _th
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1release(JNIEnv* env, jobject _this)
 {
-	Savepoint* self;
-	PLJAVA_ENTRY_FENCE_VOID
-	self = (Savepoint*)NativeStruct_releasePointer(env, _this);
-	if(self == 0)
-		return;
-
-	PG_TRY();
+	BEGIN_NATIVE
+	Savepoint* self = (Savepoint*)JavaHandle_releasePointer(_this);
+	if(self != 0)
 	{
-		SPI_releaseSavepoint(self);
+		PG_TRY();
+		{
+			SPI_releaseSavepoint(self);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_releaseSavepoint");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_releaseSavepoint");
-	}
-	PG_END_TRY();
+	END_NATIVE
 }
 
 /*
@@ -178,19 +170,19 @@ Java_org_postgresql_pljava_internal_Savepoint__1release(JNIEnv* env, jobject _th
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Savepoint__1rollback(JNIEnv* env, jobject _this)
 {
-	Savepoint* self;
-	PLJAVA_ENTRY_FENCE_VOID
-	self = (Savepoint*)NativeStruct_releasePointer(env, _this);
-	if(self == 0)
-		return;
-
-	PG_TRY();
+	BEGIN_NATIVE
+	Savepoint* self = (Savepoint*)JavaHandle_releasePointer(_this);
+	if(self != 0)
 	{
-		SPI_rollbackSavepoint(self);
+		PG_TRY();
+		{
+			SPI_rollbackSavepoint(self);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_rollbackSavepoint");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_rollbackSavepoint");
-	}
-	PG_END_TRY();
+	END_NATIVE
 }

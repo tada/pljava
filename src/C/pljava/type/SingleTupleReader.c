@@ -19,16 +19,16 @@ static jmethodID s_SingleTupleReader_init;
 static TypeClass s_SingleTupleReaderClass;
 static Type s_SingleTupleReader;
 
-static jvalue _SingleTupleReader_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _SingleTupleReader_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	jobject ttSlot = HeapTupleHeader_create(env, DatumGetHeapTupleHeader(arg));
-	result.l = PgObject_newJavaObject(env, s_SingleTupleReader_class, s_SingleTupleReader_init, ttSlot);
-	(*env)->DeleteLocalRef(env, ttSlot);
+	jobject ttSlot = HeapTupleHeader_create(DatumGetHeapTupleHeader(arg));
+	result.l = JNI_newObject(s_SingleTupleReader_class, s_SingleTupleReader_init, ttSlot);
+	JNI_deleteLocalRef(ttSlot);
 	return result;
 }
 
-static Datum _SingleTupleReader_coerceObject(Type self, JNIEnv* env, jobject nothing)
+static Datum _SingleTupleReader_coerceObject(Type self, jobject nothing)
 {
 	/* Should never be used here.
 	 */
@@ -42,17 +42,11 @@ static Type SingleTupleReader_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(SingleTupleReader_initialize);
-Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS)
+extern void SingleTupleReader_initialize(void);
+void SingleTupleReader_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_SingleTupleReader_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/SingleTupleReader"));
-
-	s_SingleTupleReader_init = PgObject_getJavaMethod(
-				env, s_SingleTupleReader_class, "<init>", "(Lorg/postgresql/pljava/internal/HeapTupleHeader;)V");
+	s_SingleTupleReader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleTupleReader"));
+	s_SingleTupleReader_init = PgObject_getJavaMethod(s_SingleTupleReader_class, "<init>", "(Lorg/postgresql/pljava/internal/HeapTupleHeader;)V");
 
 	s_SingleTupleReaderClass = TypeClass_alloc("type.SingleTupleReader");
 	s_SingleTupleReaderClass->JNISignature = "Ljava/sql/ResultSet;";
@@ -62,5 +56,4 @@ Datum SingleTupleReader_initialize(PG_FUNCTION_ARGS)
 	s_SingleTupleReader = TypeClass_allocInstance(s_SingleTupleReaderClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.jdbc.SingleTupleReader", SingleTupleReader_obtain);
-	PG_RETURN_VOID();
 }

@@ -16,7 +16,7 @@ import org.postgresql.pljava.jdbc.TriggerResultSet;
  * 
  * @author Thomas Hallgren
  */
-public class TriggerData extends NativeStruct implements org.postgresql.pljava.TriggerData
+public class TriggerData extends JavaHandle implements org.postgresql.pljava.TriggerData
 {
 	private Relation m_relation;
 	private TriggerResultSet m_old = null;
@@ -130,7 +130,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getRelation();
+			return _getRelation(this.getNative());
 		}
 	}
 
@@ -152,7 +152,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getTriggerTuple();
+			return _getTriggerTuple(this.getNative());
 		}
 	}
 
@@ -172,7 +172,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getNewTuple();
+			return _getNewTuple(this.getNative());
 		}
 	}
 
@@ -189,7 +189,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getArguments();
+			return _getArguments(this.getNative());
 		}
 	}
 
@@ -205,7 +205,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getName();
+			return _getName(this.getNative());
 		}
 	}
 
@@ -221,7 +221,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredAfter();
+			return _isFiredAfter(this.getNative());
 		}
 	}
 
@@ -237,7 +237,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredBefore();
+			return _isFiredBefore(this.getNative());
 		}
 	}
 
@@ -253,7 +253,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredForEachRow();
+			return _isFiredForEachRow(this.getNative());
 		}
 	}
 
@@ -269,7 +269,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredForStatement();
+			return _isFiredForStatement(this.getNative());
 		}
 	}
 
@@ -284,7 +284,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredByDelete();
+			return _isFiredByDelete(this.getNative());
 		}
 	}
 
@@ -299,7 +299,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredByInsert();
+			return _isFiredByInsert(this.getNative());
 		}
 	}
 
@@ -314,7 +314,7 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isFiredByUpdate();
+			return _isFiredByUpdate(this.getNative());
 		}
 	}
 
@@ -326,16 +326,16 @@ public class TriggerData extends NativeStruct implements org.postgresql.pljava.T
 		return m_relation;
 	}
 
-	private native Relation _getRelation() throws SQLException;
-	private native Tuple _getTriggerTuple() throws SQLException;
-	private native Tuple _getNewTuple() throws SQLException;
-	private native String[] _getArguments() throws SQLException;
-	private native String _getName() throws SQLException;
-	private native boolean _isFiredAfter() throws SQLException;
-	private native boolean _isFiredBefore() throws SQLException;
-	private native boolean _isFiredForEachRow() throws SQLException;
-	private native boolean _isFiredForStatement() throws SQLException;
-	private native boolean _isFiredByDelete() throws SQLException;
-	private native boolean _isFiredByInsert() throws SQLException;
-	private native boolean _isFiredByUpdate() throws SQLException;
+	private static native Relation _getRelation(long pointer) throws SQLException;
+	private static native Tuple _getTriggerTuple(long pointer) throws SQLException;
+	private static native Tuple _getNewTuple(long pointer) throws SQLException;
+	private static native String[] _getArguments(long pointer) throws SQLException;
+	private static native String _getName(long pointer) throws SQLException;
+	private static native boolean _isFiredAfter(long pointer) throws SQLException;
+	private static native boolean _isFiredBefore(long pointer) throws SQLException;
+	private static native boolean _isFiredForEachRow(long pointer) throws SQLException;
+	private static native boolean _isFiredForStatement(long pointer) throws SQLException;
+	private static native boolean _isFiredByDelete(long pointer) throws SQLException;
+	private static native boolean _isFiredByInsert(long pointer) throws SQLException;
+	private static native boolean _isFiredByUpdate(long pointer) throws SQLException;
 }

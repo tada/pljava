@@ -25,25 +25,25 @@ static jmethodID s_Relation_init;
 /*
  * org.postgresql.pljava.Relation type.
  */
-jobject Relation_create(JNIEnv* env, Relation td)
+jobject Relation_create(Relation td)
 {
 	jobject jtd;
 	if(td == 0)
 		return 0;
 
-	jtd = MemoryContext_lookupNative(env, td);
+	jtd = MemoryContext_lookupNative(td);
 	if(jtd == 0)
 	{
-		jtd = PgObject_newJavaObject(env, s_Relation_class, s_Relation_init);
-		NativeStruct_init(env, jtd, td);
+		jtd = JNI_newObject(s_Relation_class, s_Relation_init);
+		JavaHandle_init(jtd, td);
 	}
 	return jtd;
 }
 
-static jvalue _Relation_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Relation_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = Relation_create(env, (Relation)DatumGetPointer(arg));
+	result.l = Relation_create((Relation)DatumGetPointer(arg));
 	return result;
 }
 
@@ -52,48 +52,38 @@ static Type Relation_obtain(Oid typeId)
 	return s_Relation;
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum Relation_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Relation_initialize);
-Datum Relation_initialize(PG_FUNCTION_ARGS)
+extern void Relation_initialize(void);
+void Relation_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
 		"_getName",
-		"()Ljava/lang/String;",
+		"(J)Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Relation__1getName
 		},
 		{
 		"_getTupleDesc",
-	  	"()Lorg/postgresql/pljava/internal/TupleDesc;",
+	  	"(J)Lorg/postgresql/pljava/internal/TupleDesc;",
 	  	Java_org_postgresql_pljava_internal_Relation__1getTupleDesc
 		},
 		{
 		"_modifyTuple",
-		"(Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;",
+		"(JJ[I[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;",
 		Java_org_postgresql_pljava_internal_Relation__1modifyTuple
 		},
 		{ 0, 0, 0 }};
 
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+	s_Relation_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Relation"));
+	PgObject_registerNatives2(s_Relation_class, methods);
+	s_Relation_init = PgObject_getJavaMethod(s_Relation_class, "<init>", "()V");
 
-	s_Relation_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Relation"));
-
-	PgObject_registerNatives2(env, s_Relation_class, methods);
-
-	s_Relation_init = PgObject_getJavaMethod(
-				env, s_Relation_class, "<init>", "()V");
-
-	s_RelationClass = NativeStructClass_alloc("type.Relation");
+	s_RelationClass = JavaHandleClass_alloc("type.Relation");
 	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/internal/Relation;";
 	s_RelationClass->javaTypeName   = "org.postgresql.pljava.internal.Relation";
 	s_RelationClass->coerceDatum    = _Relation_coerceDatum;
 	s_Relation = TypeClass_allocInstance(s_RelationClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Relation", Relation_obtain);
-	PG_RETURN_VOID();
 }
 
 /****************************************
@@ -102,145 +92,153 @@ Datum Relation_initialize(PG_FUNCTION_ARGS)
 /*
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    _getName
- * Signature: ()Ljava/lang/String;
+ * Signature: (J)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jclass clazz, jlong _this)
 {
-	Relation self;
-	jstring ret = 0;
-	PLJAVA_ENTRY_FENCE(0)
-	self = (Relation)NativeStruct_getStruct(env, _this);
-	if(self == 0)
-		return 0;
-
-	PG_TRY();
+	jstring result = 0;
+	if(_this != 0)
 	{
-		char* relName = SPI_getrelname(self);
-		ret = String_createJavaStringFromNTS(env, relName);
-		pfree(relName);
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		PG_TRY();
+		{
+			char* relName = SPI_getrelname((Relation)p2l.ptrVal);
+			result = String_createJavaStringFromNTS(relName);
+			pfree(relName);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_getrelname");
+		}
+		PG_END_TRY();
+		END_NATIVE
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_getrelname");
-	}
-	PG_END_TRY();
-	return ret;
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    _getTupleDesc
- * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
+ * Signature: (J)Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jclass clazz, jlong _this)
 {
-	Relation self;
-	PLJAVA_ENTRY_FENCE(0)
-	self = (Relation)NativeStruct_getStruct(env, _this);
-	if(self == 0)
-		return 0;
-
-	return TupleDesc_create(env, self->rd_att);
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		result = TupleDesc_create(((Relation)p2l.ptrVal)->rd_att);
+		END_NATIVE
+	}
+	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    _modifyTuple
- * Signature: (Lorg/postgresql/pljava/internal/Tuple;[I[Ljava/lang/Object;)Lorg/postgresql/internal/pljava/Tuple;
+ * Signature: (JJ[I[Ljava/lang/Object;)Lorg/postgresql/internal/pljava/Tuple;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jobject _this, jobject _tuple, jintArray _indexes, jobjectArray _values)
+Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass clazz, jlong _this, jlong _tuple, jintArray _indexes, jobjectArray _values)
 {
-	Relation self;
-	HeapTuple tuple;
-	PLJAVA_ENTRY_FENCE(0)
-	self = (Relation)NativeStruct_getStruct(env, _this);
-	if(self == 0)
-		return 0;
-
-	tuple = (HeapTuple)NativeStruct_getStruct(env, _tuple);
-	if(tuple == 0)
-		return 0;
-
-	PG_TRY();
+	jobject result = 0;
+	if(_this != 0 && _tuple != 0)
 	{
-		jint idx;
-		TupleDesc tupleDesc = self->rd_att;
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+
+		BEGIN_NATIVE
 	
-		jint   count  = (*env)->GetArrayLength(env, _indexes);
-		Datum* values = (Datum*)palloc(count * sizeof(Datum));
-		char*  nulls  = 0;
-	
-		jint* javaIdxs = (*env)->GetIntArrayElements(env, _indexes, 0);
-	
-		int* indexes;
-		if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
-			indexes = (int*)javaIdxs;
-		else
-			indexes = (int*)palloc(count * sizeof(int));
-	
-		for(idx = 0; idx < count; ++idx)
+		HeapTuple tuple;
+		Relation self = (Relation)p2l.ptrVal;
+
+		p2l.longVal = _tuple;
+		tuple = (HeapTuple)p2l.ptrVal;
+		PG_TRY();
 		{
-			int attIndex;
-			Oid typeId;
-			Type type;
-			jobject value;
-
+			jint idx;
+			TupleDesc tupleDesc = self->rd_att;
+		
+			jint   count  = JNI_getArrayLength(_indexes);
+			Datum* values = (Datum*)palloc(count * sizeof(Datum));
+			char*  nulls  = 0;
+		
+			jint* javaIdxs = JNI_getIntArrayElements(_indexes, 0);
+		
+			int* indexes;
 			if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
-				attIndex = indexes[idx];
+				indexes = (int*)javaIdxs;
 			else
+				indexes = (int*)palloc(count * sizeof(int));
+		
+			for(idx = 0; idx < count; ++idx)
 			{
-				attIndex = (int)javaIdxs[idx];
-				indexes[idx] = attIndex;
-			}
+				int attIndex;
+				Oid typeId;
+				Type type;
+				jobject value;
 	
-			typeId = SPI_gettypeid(tupleDesc, attIndex);
-			if(!OidIsValid(typeId))
-			{
-				Exception_throw(env,
-					ERRCODE_INVALID_DESCRIPTOR_INDEX,
-					"Invalid attribute index \"%d\"", attIndex);
-				return 0L;	/* Exception */
-			}
-	
-			type = Type_fromOid(typeId);
-			value = (*env)->GetObjectArrayElement(env, _values, idx);
-			if(value != 0)
-				values[idx] = Type_coerceObject(type, env, value);
-			else
-			{
-				if(nulls == 0)
+				if(sizeof(int) == sizeof(jint))	/* compiler will optimize this */
+					attIndex = indexes[idx];
+				else
 				{
-					nulls = (char*)palloc(count+1);
-					memset(nulls, ' ', count);	/* all values non-null initially */
-					nulls[count] = 0;
+					attIndex = (int)javaIdxs[idx];
+					indexes[idx] = attIndex;
 				}
-				nulls[idx] = 'n';
-				values[idx] = 0;
+		
+				typeId = SPI_gettypeid(tupleDesc, attIndex);
+				if(!OidIsValid(typeId))
+				{
+					Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
+						"Invalid attribute index \"%d\"", attIndex);
+					return 0L;	/* Exception */
+				}
+		
+				type = Type_fromOid(typeId);
+				value = JNI_getObjectArrayElement(_values, idx);
+				if(value != 0)
+					values[idx] = Type_coerceObject(type, value);
+				else
+				{
+					if(nulls == 0)
+					{
+						nulls = (char*)palloc(count+1);
+						memset(nulls, ' ', count);	/* all values non-null initially */
+						nulls[count] = 0;
+					}
+					nulls[idx] = 'n';
+					values[idx] = 0;
+				}
 			}
+	
+			tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
+			if(tuple == 0)
+				Exception_throwSPI("modifytuple", SPI_result);
+	
+			JNI_releaseIntArrayElements(_indexes, javaIdxs, JNI_ABORT);
+		
+			if(sizeof(int) != sizeof(jint))	/* compiler will optimize this */
+				pfree(indexes);
+		
+			pfree(values);
+			if(nulls != 0)
+				pfree(nulls);	
 		}
-
-		tuple = SPI_modifytuple(self, tuple, count, indexes, values, nulls);
-		if(tuple == 0)
-			Exception_throwSPI(env, "modifytuple", SPI_result);
-
-		(*env)->ReleaseIntArrayElements(env, _indexes, javaIdxs, JNI_ABORT);
-	
-		if(sizeof(int) != sizeof(jint))	/* compiler will optimize this */
-			pfree(indexes);
-	
-		pfree(values);
-		if(nulls != 0)
-			pfree(nulls);	
+		PG_CATCH();
+		{
+			tuple = 0;
+			Exception_throw_ERROR("SPI_gettypeid");
+		}
+		PG_END_TRY();
+		if(tuple != 0)
+			result = Tuple_create(tuple);
+		END_NATIVE
 	}
-	PG_CATCH();
-	{
-		tuple = 0;
-		Exception_throw_ERROR(env, "SPI_gettypeid");
-	}
-	PG_END_TRY();
-
-	return (tuple == 0) ? 0 : Tuple_create(env, tuple);
+	return result;
 }

@@ -20,17 +20,13 @@ static jmethodID s_Boolean_booleanValue;
 /*
  * boolean primitive type.
  */
-static Datum _boolean_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _boolean_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jboolean zv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	zv = (*env)->CallStaticBooleanMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	jboolean zv = JNI_callStaticBooleanMethodA(cls, method, args);
 	return BoolGetDatum(zv == JNI_TRUE);
 }
 
-static jvalue _boolean_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _boolean_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.z = DatumGetBool(arg);
@@ -50,16 +46,16 @@ static bool _Boolean_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_booleanClass;
 }
 
-static jvalue _Boolean_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Boolean_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Boolean_class, s_Boolean_init, DatumGetBool(arg));
+	result.l = JNI_newObject(s_Boolean_class, s_Boolean_init, DatumGetBool(arg));
 	return result;
 }
 
-static Datum _Boolean_coerceObject(Type self, JNIEnv* env, jobject boolObj)
+static Datum _Boolean_coerceObject(Type self, jobject boolObj)
 {
-	return BoolGetDatum((*env)->CallBooleanMethod(env, boolObj, s_Boolean_booleanValue));
+	return BoolGetDatum(JNI_callBooleanMethod(boolObj, s_Boolean_booleanValue));
 }
 
 static Type Boolean_obtain(Oid typeId)
@@ -69,20 +65,12 @@ static Type Boolean_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Boolean_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Boolean_initialize);
-Datum Boolean_initialize(PG_FUNCTION_ARGS)
+extern void Boolean_initialize(void);
+void Boolean_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Boolean_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Boolean"));
-
-	s_Boolean_init = PgObject_getJavaMethod(
-				env, s_Boolean_class, "<init>", "(Z)V");
-
-	s_Boolean_booleanValue = PgObject_getJavaMethod(
-				env, s_Boolean_class, "booleanValue", "()Z");
+	s_Boolean_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Boolean"));
+	s_Boolean_init = PgObject_getJavaMethod(s_Boolean_class, "<init>", "(Z)V");
+	s_Boolean_booleanValue = PgObject_getJavaMethod(s_Boolean_class, "booleanValue", "()Z");
 
 	s_BooleanClass = TypeClass_alloc("type.Boolean");
 	s_BooleanClass->canReplaceType = _Boolean_canReplace;
@@ -104,5 +92,4 @@ Datum Boolean_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(BOOLOID, boolean_obtain);
 	Type_registerJavaType("boolean", boolean_obtain);
 	Type_registerJavaType("java.lang.Boolean", Boolean_obtain);
-	PG_RETURN_VOID();
 }

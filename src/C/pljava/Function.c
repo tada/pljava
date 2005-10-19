@@ -8,6 +8,7 @@
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/backports.h"
+#include "pljava/CallContext.h"
 #include "pljava/Exception.h"
 #include "pljava/Backend.h"
 #include "pljava/HashMap.h"
@@ -93,28 +94,21 @@ static void _Function_finalize(PgObject self)
 	}
 }
 
-PG_FUNCTION_INFO_V1(Function_initialize);
+extern void Function_initialize(void);
 
 static jclass s_Loader_class;
 static jmethodID s_Loader_getSchemaLoader;
 
-Datum Function_initialize(PG_FUNCTION_ARGS)
+void Function_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
 	s_funcMap = HashMap_create(59, TopMemoryContext);
 	s_FunctionClass = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 	
-	s_Loader_class = (*env)->NewGlobalRef(
-						env, PgObject_getJavaClass(env, "org/postgresql/pljava/sqlj/Loader"));
-	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(
-						env, s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
+	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
+	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
 
-	s_ClassLoader_class = (*env)->NewGlobalRef(
-						env, PgObject_getJavaClass(env, "java/lang/ClassLoader"));
-	s_ClassLoader_loadClass = PgObject_getJavaMethod(
-						env, s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-	PG_RETURN_VOID();
+	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
+	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 }
 
 static void Function_buildSignature(Function self, StringInfoData* sign, Type retType)
@@ -215,14 +209,13 @@ static void Function_parseParameters(Function self, Oid* dfltIds, const char* pa
 	}
 }
 
-static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
+static void Function_init(Function self, PG_FUNCTION_ARGS)
 {
 	const char* ip;
 	const char* paramDecl = 0;
 	const char* methodName;
 	char* cp;
 	char* className;
-	bool  saveIcj = isCallingJava;
 	bool  isNull = false;
 	HeapTuple nspTup;
 	Form_pg_namespace nspStruct;
@@ -325,33 +318,28 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
 
 	ip = NameStr(nspStruct->nspname);
-	schemaName = String_createJavaStringFromNTS(env, ip);
+	schemaName = String_createJavaStringFromNTS(ip);
 
 	elog(DEBUG1, "Obtaining classloader for schema %s", ip);
-	isCallingJava = true;
-	loader = (*env)->CallStaticObjectMethod(env, s_Loader_class, s_Loader_getSchemaLoader, schemaName);
-	isCallingJava = saveIcj;
-
-	(*env)->DeleteLocalRef(env, schemaName);
+	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(nspTup);
-	Exception_checkException(env);
+	Exception_checkException();
 
-	jname  = String_createJavaStringFromNTS(env, className);
+	jname  = String_createJavaStringFromNTS(className);
 
 	elog(DEBUG1, "Loading class %s", className);
-	isCallingJava = true;
-	loaded = (*env)->CallObjectMethod(env, loader, s_ClassLoader_loadClass, jname);
-	isCallingJava = saveIcj;
+	loaded = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, jname);
 
-	(*env)->DeleteLocalRef(env, jname);
-	(*env)->DeleteLocalRef(env, loader);
+	JNI_deleteLocalRef(jname);
+	JNI_deleteLocalRef(loader);
 
-	Exception_checkException(env);
+	Exception_checkException();
 
 	self->returnComplex = false;
 	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
-	self->clazz = (jclass)(*env)->NewGlobalRef(env, loaded);
-	(*env)->DeleteLocalRef(env, loaded);
+	self->clazz = (jclass)JNI_newGlobalRef(loaded);
+	JNI_deleteLocalRef(loaded);
 
 	methodName = cp;
 
@@ -485,10 +473,7 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	ReleaseSysCache(procTup);
 
 	elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
-	isCallingJava = true;
-	self->method = (*env)->GetStaticMethodID(
-						env, self->clazz, methodName, sign.data);
-	isCallingJava = saveIcj;
+	self->method = JNI_getStaticMethodID(self->clazz, methodName, sign.data);
 
 	if(self->method == 0)
 	{
@@ -522,20 +507,17 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 
 		if(altType != 0)
 		{
-			(*env)->ExceptionClear(env);
+			JNI_exceptionClear();
 			Function_buildSignature(self, &sign, altType);
 	
 			elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
-			isCallingJava = true;
-			self->method = (*env)->GetStaticMethodID(
-							env, self->clazz, methodName, sign.data);
-			isCallingJava = saveIcj;
+			self->method = JNI_getStaticMethodID(self->clazz, methodName, sign.data);
 	
 			if(self->method != 0)
 				self->returnType = realRetType;
 		}
 		if(self->method == 0)
-			PgObject_throwMemberError(env, self->clazz, methodName, origSign, true, true);
+			PgObject_throwMemberError(self->clazz, methodName, origSign, true, true);
 
 		if(sign.data != origSign)
 			pfree(origSign);
@@ -544,21 +526,21 @@ static void Function_init(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 	pfree(className);
 }
 
-static Function Function_create(JNIEnv* env, PG_FUNCTION_ARGS)
+static Function Function_create(PG_FUNCTION_ARGS)
 {
 	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
-	Function_init(self, env, fcinfo);
+	Function_init(self, fcinfo);
 	return self;
 }
 
-Function Function_getFunction(JNIEnv* env, PG_FUNCTION_ARGS)
+Function Function_getFunction(PG_FUNCTION_ARGS)
 {
 	Oid funcOid = fcinfo->flinfo->fn_oid;
 	Function func = (Function)HashMap_getByOid(s_funcMap, funcOid);
 	if(func == 0)
 	{
 		PgObject old;
-		func = Function_create(env, fcinfo);
+		func = Function_create(fcinfo);
 		old = HashMap_putByOid(s_funcMap, funcOid, func);
 		if(old != 0)
 		{
@@ -572,7 +554,7 @@ Function Function_getFunction(JNIEnv* env, PG_FUNCTION_ARGS)
 	return func;
 }
 
-Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
+Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 {
 	Datum retVal;
 	int32 top = self->numParams;
@@ -609,38 +591,33 @@ Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 				 */
 				args[idx].j = 0L;
 			else
-				args[idx] = Type_coerceDatum(
-								types[idx], env, PG_GETARG_DATUM(idx));
+				args[idx] = Type_coerceDatum(types[idx], PG_GETARG_DATUM(idx));
 		}
 
-		retVal = Type_invoke(invokerType,
-			env, self->clazz, self->method, args, fcinfo);
-	
+		retVal = Type_invoke(invokerType, self->clazz, self->method, args, fcinfo);
 		pfree(args);
 	}
 	else
 	{
-		retVal = Type_invoke(self->returnType,
-			env, self->clazz, self->method, NULL, fcinfo);
+		retVal = Type_invoke(self->returnType, self->clazz, self->method, NULL, fcinfo);
 	}
-
 	return retVal;
 }
 
-Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
+Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 {
 	jvalue arg;
 	Datum  ret;
-	
-	arg.l = TriggerData_create(env, (TriggerData*)fcinfo->context);
+
+	arg.l = TriggerData_create((TriggerData*)fcinfo->context);
 	if(arg.l == 0)
 		return 0;
 
 	currentCallContext->function = self;
-	Type_invoke(self->returnType, env, self->clazz, self->method, &arg, fcinfo);
+	Type_invoke(self->returnType, self->clazz, self->method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
-	if((*env)->ExceptionCheck(env))
+	if(JNI_exceptionCheck())
 		ret = 0;
 	else
 	{
@@ -648,7 +625,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		 * it is created in the upper SPI context.
 		 */
 		MemoryContext currCtx = MemoryContext_switchToUpperContext();
-		ret = TriggerData_getTriggerReturnTuple(env, arg.l, &fcinfo->isnull);
+		ret = TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull);
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.
@@ -658,7 +635,7 @@ Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(currCtx);
 	}
 
-	(*env)->DeleteLocalRef(env, arg.l);
+	JNI_deleteLocalRef(arg.l);
 	return ret;
 }
 

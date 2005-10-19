@@ -9,7 +9,7 @@
 #ifndef __pljava_Tuple_h
 #define __pljava_Tuple_h
 
-#include "pljava/type/MemoryContextManaged.h"
+#include "pljava/type/JavaWrapper.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,14 +26,14 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.Tuple instance
  */
-extern jobject Tuple_create(JNIEnv* env, HeapTuple tuple);
-extern jobject Tuple_internalCreate(JNIEnv* env, HeapTuple tuple, bool mustCopy);
-extern jobjectArray Tuple_createArray(JNIEnv* env, HeapTuple* tuples, jint size, bool mustCopy);
+extern jobject Tuple_create(HeapTuple tuple);
+extern jobject Tuple_internalCreate(HeapTuple tuple, bool mustCopy);
+extern jobjectArray Tuple_createArray(HeapTuple* tuples, jint size, bool mustCopy);
 
 /*
  * Return a java object at given index from a HeapTuple
  */
-extern jobject Tuple_getObject(JNIEnv* env, TupleDesc tupleDesc, HeapTuple tuple, int index);
+extern jobject Tuple_getObject(TupleDesc tupleDesc, HeapTuple tuple, int index);
 
 #ifdef __cplusplus
 }

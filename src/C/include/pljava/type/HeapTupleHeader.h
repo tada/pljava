@@ -9,7 +9,7 @@
 #ifndef __pljava_type_HeapTupleHeader_h
 #define __pljava_type_HeapTupleHeader_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.internal.HeapTupleHeader instance
  */
-extern jobject HeapTupleHeader_create(JNIEnv* env, HeapTupleHeader tuple);
+extern jobject HeapTupleHeader_create(HeapTupleHeader tuple);
 
 #ifdef __cplusplus
 }

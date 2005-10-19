@@ -57,13 +57,13 @@ struct TypeClass_
 	 * Translate a given Datum into a jvalue accorging to the type represented
 	 * by this instance.
 	 */
-	jvalue (*coerceDatum)(Type self, JNIEnv* env, Datum datum);
+	jvalue (*coerceDatum)(Type self, Datum datum);
 
 	/*
 	 * Translate a given Object into a Datum accorging to the type represented
 	 * by this instance.
 	 */
-	Datum (*coerceObject)(Type self, JNIEnv* env, jobject object);
+	Datum (*coerceObject)(Type self, jobject object);
 
 	/*
 	 * Calls a java method using one of the Call<type>MethodA routines where
@@ -75,7 +75,7 @@ struct TypeClass_
 	 * the wasNull parameter is set to false by the caller prior to the
 	 * call.
 	 */
-	Datum (*invoke)(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+	Datum (*invoke)(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
 	/*
 	 * Returns the TupleDesc that corresponds to this type.
@@ -100,7 +100,7 @@ extern bool _Type_canReplaceType(Type self, Type other);
  * Default version of invoke. Will make a JNI CallObjectMethod call and then
  * a call to self->coerceObject to create the Datum.
  */
-extern Datum _Type_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+extern Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
 /*
  * Return the m_oid member of the Type. This is the default version of

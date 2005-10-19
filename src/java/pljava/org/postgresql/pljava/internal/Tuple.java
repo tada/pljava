@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Tuple extends MemoryContextManaged
+public class Tuple extends JavaWrapper
 {
 	Tuple(long pointer)
 	{

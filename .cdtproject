@@ -6,13 +6,7 @@
 <attribute key="addr2line" value="addr2line"/>
 <attribute key="c++filt" value="c++filt"/>
 </extension>
-<extension id="org.eclipse.cdt.core.ctagsindexer" point="org.eclipse.cdt.core.CIndexer">
-<attribute key="ctagslocation" value=""/>
-<attribute key="ctagfiletype" value="ctags_internal"/>
-<attribute key="ctagsindexincludes" value="true"/>
-<attribute key="ctagfilelocation" value=""/>
-<attribute key="ctagslocationtype" value="ctags_path_default"/>
-</extension>
+<extension id="org.eclipse.cdt.core.nullindexer" point="org.eclipse.cdt.core.CIndexer"/>
 <data>
         
     

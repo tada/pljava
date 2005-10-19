@@ -9,7 +9,7 @@
 #ifndef __pljava_PgObject_h
 #define __pljava_PgObject_h
 
-#include "pljava/pljava.h"
+#include "pljava/JNICalls.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,22 +42,31 @@ extern const char* effectiveClassPath;
 extern void PgObject_free(PgObject object);
 
 /*
+ * Misc JNIEnv mappings.
+ */
+extern jobject PgObject_callObjectMethod(jobject object, jmethodID field, ...);
+extern void PgObject_exceptionClear(void);
+extern void PgObject_exceptionDescribe(void);
+extern jint PgObject_getIntField(jobject object, jfieldID field);
+extern jobject PgObject_newGlobalRef(jobject object);
+
+/*
  * Obtains a java class. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.
  */
-extern jclass PgObject_getJavaClass(JNIEnv* env, const char* className);
+extern jclass PgObject_getJavaClass(const char* className);
 
 /*
  * Obtains a java method. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.
  */
-extern jmethodID PgObject_getJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature);
+extern jmethodID PgObject_getJavaMethod(jclass cls, const char* methodName, const char* signature);
 
 /*
  * Obtains a static java method. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.
  */
-extern jmethodID PgObject_getStaticJavaMethod(JNIEnv* env, jclass cls, const char* methodName, const char* signature);
+extern jmethodID PgObject_getStaticJavaMethod(jclass cls, const char* methodName, const char* signature);
 
 /*
  * Obtain a HeapTuple from the system cache and throw an excption
@@ -69,23 +78,23 @@ extern HeapTuple PgObject_getValidTuple(int cacheId, Oid tupleId, const char* tu
  * Obtains a java field. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.
  */
-extern jfieldID PgObject_getJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature);
+extern jfieldID PgObject_getJavaField(jclass cls, const char* fieldName, const char* signature);
 
-extern jobject PgObject_newJavaObject(JNIEnv* env, jclass cls, jmethodID ctor, ...);
+extern jobject PgObject_newJavaObject(jclass cls, jmethodID ctor, ...);
 
 /*
  * Obtains a static java field. Calls elog(ERROR, ...) on failure so that
  * there is no return if the method fails.
  */
-extern jfieldID PgObject_getStaticJavaField(JNIEnv* env, jclass cls, const char* fieldName, const char* signature);
+extern jfieldID PgObject_getStaticJavaField(jclass cls, const char* fieldName, const char* signature);
 
 /*
  * Register native methods with a class. Last entry in the methods array must
  * have all values set to NULL.
  */
-extern void PgObject_registerNatives(JNIEnv* env, const char* className, JNINativeMethod* methods);
+extern void PgObject_registerNatives(const char* className, JNINativeMethod* methods);
 
-extern void PgObject_registerNatives2(JNIEnv* env, jclass cls, JNINativeMethod* methods);
+extern void PgObject_registerNatives2(jclass cls, JNINativeMethod* methods);
 
 #ifdef __cplusplus
 }

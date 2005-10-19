@@ -9,7 +9,7 @@
 #ifndef __pljava_Portal_h
 #define __pljava_Portal_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.Portal instance
  */
-extern jobject Portal_create(JNIEnv* env, Portal portal);
+extern jobject Portal_create(Portal portal);
 
 #ifdef __cplusplus
 }

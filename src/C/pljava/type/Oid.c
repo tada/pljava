@@ -24,21 +24,21 @@ static jobject   s_OidOid;
 /*
  * org.postgresql.pljava.type.Oid type.
  */
-jobject Oid_create(JNIEnv* env, Oid oid)
+jobject Oid_create(Oid oid)
 {
 	jobject joid;
 	if(OidIsValid(oid))
-		joid = PgObject_newJavaObject(env, s_Oid_class, s_Oid_init, oid);
+		joid = JNI_newObject(s_Oid_class, s_Oid_init, oid);
 	else
 		joid = 0;
 	return joid;
 }
 
-Oid Oid_getOid(JNIEnv* env, jobject joid)
+Oid Oid_getOid(jobject joid)
 {
 	if(joid == 0)
 		return InvalidOid;
-	return ObjectIdGetDatum((*env)->GetIntField(env, joid, s_Oid_m_native));
+	return ObjectIdGetDatum(JNI_getIntField(joid, s_Oid_m_native));
 }
 
 Oid Oid_forSqlType(int sqlType)
@@ -111,16 +111,16 @@ Oid Oid_forSqlType(int sqlType)
 	return typeId;
 }
 
-static jvalue _Oid_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Oid_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = Oid_create(env, DatumGetObjectId(arg));
+	result.l = Oid_create(DatumGetObjectId(arg));
 	return result;
 }
 
-static Datum _Oid_coerceObject(Type self, JNIEnv* env, jobject oidObj)
+static Datum _Oid_coerceObject(Type self, jobject oidObj)
 {
-	return Oid_getOid(env, oidObj);
+	return Oid_getOid(oidObj);
 }
 
 static Type Oid_obtain(Oid typeId)
@@ -130,9 +130,8 @@ static Type Oid_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Oid_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Oid_initialize);
-Datum Oid_initialize(PG_FUNCTION_ARGS)
+extern void Oid_initialize(void);
+void Oid_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
@@ -153,18 +152,11 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 		{ 0, 0, 0 }};
 
 	jobject tmp;
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
 
-	s_Oid_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Oid"));
-
-	PgObject_registerNatives2(env, s_Oid_class, methods);
-
-	s_Oid_init = PgObject_getJavaMethod(
-				env, s_Oid_class, "<init>", "(I)V");
-
-	s_Oid_m_native = PgObject_getJavaField(
-				env, s_Oid_class, "m_native", "I");
+	s_Oid_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Oid"));
+	PgObject_registerNatives2(s_Oid_class, methods);
+	s_Oid_init = PgObject_getJavaMethod(s_Oid_class, "<init>", "(I)V");
+	s_Oid_m_native = PgObject_getJavaField(s_Oid_class, "m_native", "I");
 
 	s_OidClass = TypeClass_alloc("type.Oid");
 	s_OidClass->JNISignature   = "Lorg/postgresql/pljava/internal/Oid;";
@@ -172,19 +164,18 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 	s_OidClass->coerceDatum    = _Oid_coerceDatum;
 	s_OidClass->coerceObject   = _Oid_coerceObject;
 	s_Oid = TypeClass_allocInstance(s_OidClass, OIDOID);
-	tmp = Oid_create(env, OIDOID);
-	s_OidOid = (*env)->NewGlobalRef(env, tmp);
-	(*env)->DeleteLocalRef(env, tmp);
+	tmp = Oid_create(OIDOID);
+	s_OidOid = JNI_newGlobalRef(tmp);
+	JNI_deleteLocalRef(tmp);
 
 	Type_registerPgType(OIDOID, Oid_obtain);
 	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
 	
 	s_Oid_registerType = PgObject_getStaticJavaMethod(
-				env, s_Oid_class, "registerType",
+				s_Oid_class, "registerType",
 				"(Ljava/lang/Class;Lorg/postgresql/pljava/internal/Oid;)V");
 
-	(*env)->CallStaticVoidMethod(env, s_Oid_class, s_Oid_registerType, s_Oid_class, s_OidOid);
-	PG_RETURN_VOID();
+	JNI_callStaticVoidMethod(s_Oid_class, s_Oid_registerType, s_Oid_class, s_OidOid);
 }
 
 /*
@@ -195,7 +186,11 @@ Datum Oid_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid__1forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
-	return Oid_create(env, Oid_forSqlType(sqlType));
+	jobject result = 0;
+	BEGIN_NATIVE
+	result = Oid_create(Oid_forSqlType(sqlType));
+	END_NATIVE
+	return result;
 }
 
 /*
@@ -217,21 +212,18 @@ Java_org_postgresql_pljava_internal_Oid__1getTypeId(JNIEnv* env, jclass cls)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jobject _this)
 {
-	Oid oid;
 	jstring result = 0;
-	PLJAVA_ENTRY_FENCE(0)
-
-	oid = Oid_getOid(env, _this);
+	BEGIN_NATIVE
+	Oid oid = Oid_getOid(_this);
 	if(!OidIsValid(oid))
 	{
-		Exception_throw(env,
-			ERRCODE_DATA_EXCEPTION,
-			"Invalid OID \"%d\"", (int)oid);
+		Exception_throw(ERRCODE_DATA_EXCEPTION, "Invalid OID \"%d\"", (int)oid);
 	}
 	else
 	{
 		Type type = Type_objectTypeFromOid(oid);
-		result = String_createJavaStringFromNTS(env, Type_getJavaTypeName(type));
+		result = String_createJavaStringFromNTS(Type_getJavaTypeName(type));
 	}
+	END_NATIVE
 	return result;
 }

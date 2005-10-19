@@ -22,11 +22,11 @@ JNI_CLASSES := \
 	$(INTPKG).AclId \
 	$(INTPKG).ErrorData \
 	$(INTPKG).Oid \
-	$(INTPKG).NativeStruct \
 	$(INTPKG).ExecutionPlan \
 	$(INTPKG).HeapTupleHeader \
+	$(INTPKG).JavaHandle \
+	$(INTPKG).JavaWrapper \
 	$(INTPKG).LargeObject \
-	$(INTPKG).MemoryContextManaged \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \
 	$(INTPKG).Savepoint \

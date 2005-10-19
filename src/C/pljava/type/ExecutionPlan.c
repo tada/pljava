@@ -34,9 +34,8 @@ static Type ExecutionPlan_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(ExecutionPlan_initialize);
-Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
+extern void ExecutionPlan_initialize(void);
+void ExecutionPlan_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
@@ -66,32 +65,27 @@ Datum ExecutionPlan_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+	s_ExecutionPlan_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ExecutionPlan"));
+	PgObject_registerNatives2(s_ExecutionPlan_class, methods);
 
-	s_ExecutionPlan_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ExecutionPlan"));
-
-	PgObject_registerNatives2(env, s_ExecutionPlan_class, methods);
-
-	s_ExecutionPlanClass = NativeStructClass_alloc("type.ExecutionPlan");
+	s_ExecutionPlanClass = JavaHandleClass_alloc("type.ExecutionPlan");
 	s_ExecutionPlanClass->JNISignature   = "Lorg/postgresql/pljava/internal/ExecutionPlan;";
 	s_ExecutionPlanClass->javaTypeName   = "org.postgresql.pljava.internal.ExecutionPlan";
 	s_ExecutionPlan = TypeClass_allocInstance(s_ExecutionPlanClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.ExecutionPlan", ExecutionPlan_obtain);
-	PG_RETURN_VOID();
 }
 
-static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
+static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
 {
 	char*  nulls = 0;
 	Datum* values = 0;
 
 	int count = SPI_getargcount(ePlan);
 	if((jvalues == 0 && count != 0)
-	|| (jvalues != 0 && count != (*env)->GetArrayLength(env, jvalues)))
+	|| (jvalues != 0 && count != JNI_getArrayLength(jvalues)))
 	{
-		Exception_throw(env, ERRCODE_PARAMETER_COUNT_MISMATCH,
+		Exception_throw(ERRCODE_PARAMETER_COUNT_MISMATCH,
 			"Number of values does not match number of arguments for prepared plan");
 		return false;
 	}
@@ -104,11 +98,11 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 		{
 			Oid typeId = SPI_getargtypeid(ePlan, idx);
 			Type type = Type_fromOid(typeId);
-			jobject value = (*env)->GetObjectArrayElement(env, jvalues, idx);
+			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{
-				values[idx] = Type_coerceObject(type, env, value);
-				(*env)->DeleteLocalRef(env, value);
+				values[idx] = Type_coerceObject(type, value);
+				JNI_deleteLocalRef(value);
 			}
 			else
 			{
@@ -140,47 +134,46 @@ static bool coerceObjects(JNIEnv* env, void* ePlan, jobjectArray jvalues, Datum*
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject _this, jlong threadId, jstring cursorName, jobjectArray jvalues)
 {
-	STACK_BASE_VARS
-	void* ePlan;
 	jobject jportal = 0;
-	PLJAVA_ENTRY_FENCE(0)
 
-	ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return 0;
-
-	STACK_BASE_PUSH(threadId)
-	PG_TRY();
+	BEGIN_NATIVE
+	void* ePlan = JavaHandle_getStruct(_this);
+	if(ePlan != 0)
 	{
-		Datum*  values  = 0;
-		char*   nulls   = 0;
-		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
+		STACK_BASE_VARS
+		STACK_BASE_PUSH(threadId)
+		PG_TRY();
 		{
-			Portal portal;
-			char* name = 0;
-			if(cursorName != 0)
-				name = String_createNTS(env, cursorName);
-
-			Backend_assertConnect();
-			portal = SPI_cursor_open(
-				name, ePlan, values, nulls, Function_isCurrentReadOnly());
-			if(name != 0)
-				pfree(name);
-			if(values != 0)
-				pfree(values);
-			if(nulls != 0)
-				pfree(nulls);
-		
-			jportal = Portal_create(env, portal);
+			Datum*  values  = 0;
+			char*   nulls   = 0;
+			if(coerceObjects(ePlan, jvalues, &values, &nulls))
+			{
+				Portal portal;
+				char* name = 0;
+				if(cursorName != 0)
+					name = String_createNTS(cursorName);
+	
+				Backend_assertConnect();
+				portal = SPI_cursor_open(
+					name, ePlan, values, nulls, Function_isCurrentReadOnly());
+				if(name != 0)
+					pfree(name);
+				if(values != 0)
+					pfree(values);
+				if(nulls != 0)
+					pfree(nulls);
+			
+				jportal = Portal_create(portal);
+			}
 		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_cursor_open");
+		}
+		PG_END_TRY();
 		STACK_BASE_POP()
 	}
-	PG_CATCH();
-	{
-		STACK_BASE_POP()
-		Exception_throw_ERROR(env, "SPI_cursor_open");
-	}
-	PG_END_TRY();
+	END_NATIVE
 	return jportal;
 }
 
@@ -192,24 +185,24 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jobject _this)
 {
-	void* ePlan;
-	bool result = false;
-	PLJAVA_ENTRY_FENCE(false)
+	jboolean result = JNI_FALSE;
+	BEGIN_NATIVE
 
-	ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return 0;
-
-	PG_TRY();
+	void* ePlan = JavaHandle_getStruct(_this);
+	if(ePlan != 0)
 	{
-		Backend_assertConnect();
-		result = SPI_is_cursor_plan(ePlan);
+		PG_TRY();
+		{
+			Backend_assertConnect();
+			result = (jboolean)SPI_is_cursor_plan(ePlan);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_is_cursor_plan");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_is_cursor_plan");
-	}
-	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -221,45 +214,45 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jo
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject _this, jlong threadId, jobjectArray jvalues, jint count)
 {
-	STACK_BASE_VARS
 	void* ePlan;
 	jint result = 0;
-	PLJAVA_ENTRY_FENCE(0)
-	
-	ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return 0;
 
-	STACK_BASE_PUSH(threadId)
-	Backend_pushJavaFrame(env);
-	PG_TRY();
+	BEGIN_NATIVE
+
+	ePlan = JavaHandle_getStruct(_this);
+	if(ePlan != 0)
 	{
-		Datum* values = 0;
-		char*  nulls  = 0;
-		if(coerceObjects(env, ePlan, jvalues, &values, &nulls))
+		STACK_BASE_VARS
+		STACK_BASE_PUSH(threadId)
+		Backend_pushJavaFrame();
+		PG_TRY();
 		{
-			Backend_assertConnect();
-			result = (jint)SPI_execute_plan(
-				ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
-			if(result < 0)
-				Exception_throwSPI(env, "execute_plan", result);
-
-			if(values != 0)
-				pfree(values);
-			if(nulls != 0)
-				pfree(nulls);
+			Datum* values = 0;
+			char*  nulls  = 0;
+			if(coerceObjects(ePlan, jvalues, &values, &nulls))
+			{
+				Backend_assertConnect();
+				result = (jint)SPI_execute_plan(
+					ePlan, values, nulls, Function_isCurrentReadOnly(), (int)count);
+				if(result < 0)
+					Exception_throwSPI("execute_plan", result);
+	
+				if(values != 0)
+					pfree(values);
+				if(nulls != 0)
+					pfree(nulls);
+			}
+			Backend_popJavaFrame();
 		}
-		Backend_popJavaFrame(env);
+		PG_CATCH();
+		{
+			Backend_popJavaFrame();
+			Exception_throw_ERROR("SPI_execute_plan");
+		}
+		PG_END_TRY();
 		STACK_BASE_POP()
 	}
-	PG_CATCH();
-	{
-		Backend_popJavaFrame(env);
-		STACK_BASE_POP()
-		Exception_throw_ERROR(env, "SPI_execute_plan");
-	}
-	PG_END_TRY();
-
+	END_NATIVE
 	return result;
 }
 
@@ -271,7 +264,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jobject
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jobject _this, jstring jcmd, jobjectArray paramTypes)
 {
-	PLJAVA_ENTRY_FENCE_VOID
+	BEGIN_NATIVE
 	PG_TRY();
 	{
 		char* cmd;
@@ -281,38 +274,39 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jobject
 
 		if(paramTypes != 0)
 		{
-			paramCount = (*env)->GetArrayLength(env, paramTypes);
+			paramCount = JNI_getArrayLength(paramTypes);
 			if(paramCount > 0)
 			{
 				int idx;
 				paramOids = (Oid*)palloc(paramCount * sizeof(Oid));
 				for(idx = 0; idx < paramCount; ++idx)
 				{
-					jobject joid = (*env)->GetObjectArrayElement(env, paramTypes, idx);
-					paramOids[idx] = Oid_getOid(env, joid);
-					(*env)->DeleteLocalRef(env, joid);
+					jobject joid = JNI_getObjectArrayElement(paramTypes, idx);
+					paramOids[idx] = Oid_getOid(joid);
+					JNI_deleteLocalRef(joid);
 				}
 			}
 		}
 
-		cmd   = String_createNTS(env, jcmd);
+		cmd   = String_createNTS(jcmd);
 		Backend_assertConnect();
 		ePlan = SPI_prepare(cmd, paramCount, paramOids);
 		pfree(cmd);
 
 		if(ePlan == 0)
-			Exception_throwSPI(env, "prepare", SPI_result);
+			Exception_throwSPI("prepare", SPI_result);
 		else
 		{
-			NativeStruct_setPointer(env, _this, SPI_saveplan(ePlan));
+			JavaHandle_setPointer(_this, SPI_saveplan(ePlan));
 			SPI_freeplan(ePlan);	/* Get rid of the original, nobody can see it anymore */
 		}
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_prepare");
+		Exception_throw_ERROR("SPI_prepare");
 	}
 	PG_END_TRY();
+	END_NATIVE
 }
 
 /*
@@ -323,24 +317,24 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jobject
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jobject _this)
 {
-	void* ePlan;
-	PLJAVA_ENTRY_FENCE_VOID
+	BEGIN_NATIVE
 
-	/* The plan is not cached as a normal NativeStruct since its made
+	/* The plan is not cached as a normal JavaHandle since its made
 	 * persistent.
 	 */
-	ePlan = NativeStruct_getStruct(env, _this);
-	if(ePlan == 0)
-		return;
-
-	PG_TRY();
+	void* ePlan = JavaHandle_getStruct(_this);
+	if(ePlan != 0)
 	{
-		NativeStruct_setPointer(env, _this, 0);
-		SPI_freeplan(ePlan);
+		PG_TRY();
+		{
+			JavaHandle_setPointer(_this, 0);
+			SPI_freeplan(ePlan);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_freeplan");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_freeplan");
-	}
-	PG_END_TRY();
+	END_NATIVE
 }

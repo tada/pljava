@@ -26,12 +26,12 @@ extern "C" {
  * Registers the one and only end-of-transaction listener. Attempts to
  * register more than will cause an exception to be thrown.
  */
-extern void EOXactListener_register(JNIEnv* env, jobject listener);
+extern void EOXactListener_register(jobject listener);
 
 /**
  * Unregister the one and only end-of-transaction listener.
  */
-extern void EOXactListener_unregister(JNIEnv* env);
+extern void EOXactListener_unregister(void);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

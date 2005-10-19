@@ -8,7 +8,9 @@
  */
 #include <postgres.h>
 #include <miscadmin.h>
+#ifndef WIN32
 #include <libpq/pqsignal.h>
+#endif
 #include <executor/spi.h>
 #include <commands/trigger.h>
 #include <utils/elog.h>
@@ -27,6 +29,7 @@
 
 #include "org_postgresql_pljava_internal_Backend.h"
 #include "org_postgresql_pljava_jdbc_Invocation.h"
+#include "pljava/CallContext.h"
 #include "pljava/Function.h"
 #include "pljava/type/ExecutionPlan.h"
 #include "pljava/HashMap.h"
@@ -36,7 +39,7 @@
 #include "pljava/MemoryContext.h"
 #include "pljava/Session.h"
 #include "pljava/SPI.h"
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #include "pljava/type/String.h"
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR
@@ -45,11 +48,8 @@
 
 #define LOCAL_REFERENCE_COUNT 128
 
-bool isCallingJava;
 jlong mainThreadId;
-jobject Backend_THREADLOCK;
 
-static JNIEnv* s_mainEnv = 0;
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
 static jmethodID s_setTrusted;
@@ -62,13 +62,20 @@ static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static jmethodID s_Invocation_onExit;
 
-static void initPLJavaClasses(JNIEnv* env)
+extern void Exception_initialize(void);
+extern void HashMap_initialize(void);
+extern void SPI_initialize(void);
+extern void Type_initialize(void);
+extern void Function_initialize(void);
+extern void Session_initialize(void);
+
+static void initPLJavaClasses()
 {
 	jfieldID tlField;
 	jclass cls;
-	Datum envDatum = PointerGetDatum(env);
 
-	JNINativeMethod backendMethods[] = {
+	JNINativeMethod backendMethods[] =
+	{
 		{
 		"isCallingJava",
 	  	"()Z",
@@ -104,10 +111,12 @@ static void initPLJavaClasses(JNIEnv* env)
 		"(Lorg/postgresql/pljava/internal/EOXactListener;)V",
 		Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 
-	JNINativeMethod invocationMethods[] = {
+	JNINativeMethod invocationMethods[] =
+	{
 		{
 		"_getCurrent",
 		"()Lorg/postgresql/pljava/jdbc/Invocation;",
@@ -128,28 +137,29 @@ static void initPLJavaClasses(JNIEnv* env)
 		"()V",
 		Java_org_postgresql_pljava_jdbc_Invocation__1register
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 	elog(DEBUG1, "Getting Backend class pljava.jar");
-	s_Backend_class = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Backend");
+	s_Backend_class = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG1, "Backend class was there");
 
-	PgObject_registerNatives2(env, s_Backend_class, backendMethods);
-	s_setTrusted = PgObject_getStaticJavaMethod(env, s_Backend_class, "setTrusted", "(Z)V");
+	PgObject_registerNatives2(s_Backend_class, backendMethods);
+	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 
-	tlField = PgObject_getStaticJavaField(env, s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
-	Backend_THREADLOCK = (*env)->NewGlobalRef(env, (*env)->GetStaticObjectField(env, s_Backend_class, tlField));
+	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
+	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
 
-	cls = PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/Invocation");
-	PgObject_registerNatives2(env, cls, invocationMethods);
-	s_Invocation_onExit = PgObject_getJavaMethod(env, cls, "onExit", "()V");
-	(*env)->DeleteLocalRef(env, cls);
+	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
+	PgObject_registerNatives2(cls, invocationMethods);
+	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "()V");
+	JNI_deleteLocalRef(cls);
 
-	DirectFunctionCall1(Exception_initialize, envDatum);
-	DirectFunctionCall1(SPI_initialize, envDatum);
-	DirectFunctionCall1(Type_initialize, envDatum);
-	DirectFunctionCall1(Function_initialize, envDatum);
-	DirectFunctionCall1(Session_initialize, envDatum);
+	Exception_initialize();
+	SPI_initialize();
+	Type_initialize();
+	Function_initialize();
+	Session_initialize();
 }
 
 static bool s_topLocalFrameInstalled = false;
@@ -161,9 +171,7 @@ static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
 	{
 		/* Pop this frame. This might call finalizers.
 		 */
-		JNIEnv* env = Backend_getJNIEnv();
-		if(env != 0)
-			Backend_popJavaFrame(env);
+		Backend_popJavaFrame();
 		s_topLocalFrameInstalled = false;
 	}
 }
@@ -171,21 +179,17 @@ static void popJavaFrameCB(MemoryContext ctx, bool isDelete)
 /**
  *  Initialize security
  */
-static void setJavaSecurity(JNIEnv* env, bool trusted)
+static void setJavaSecurity(bool trusted)
 {
 /* GCJ has major issues here. Real work on SecurityManager and
  * related classes has just started in version 4.0.0.
  */
 #ifndef GCJ
-	bool saveICJ = isCallingJava;
-	isCallingJava = true;
-	(*env)->CallStaticVoidMethod(env, s_Backend_class, s_setTrusted, (jboolean)trusted);
-	isCallingJava = saveICJ;
-
-	if((*env)->ExceptionCheck(env))
+	JNI_callStaticVoidMethod(s_Backend_class, s_setTrusted, (jboolean)trusted);
+	if(JNI_exceptionCheck())
 	{
-		(*env)->ExceptionDescribe(env);
-		(*env)->ExceptionClear(env);
+		JNI_exceptionDescribe();
+		JNI_exceptionClear();
 		ereport(ERROR, (
 			errcode(ERRCODE_INTERNAL_ERROR),
 			errmsg("Unable to initialize java security")));
@@ -198,7 +202,6 @@ CallContext* currentCallContext;
 
 void Backend_pushCallContext(CallContext* ctx, bool trusted)
 {
-	ctx->jniEnv          = s_mainEnv;	/* The one and only at the moment */
 	ctx->invocation      = 0;
 	ctx->function        = 0;
 	ctx->trusted         = trusted;
@@ -211,7 +214,7 @@ void Backend_pushCallContext(CallContext* ctx, bool trusted)
 
 	if(trusted != s_currentTrust)
 	{
-		setJavaSecurity(ctx->jniEnv, trusted);
+		setJavaSecurity(trusted);
 		s_currentTrust = trusted;
 	}
 }
@@ -223,7 +226,7 @@ void Backend_popCallContext(void)
 	{
 		if(ctx->trusted != s_currentTrust)
 		{
-			setJavaSecurity(ctx->jniEnv, ctx->trusted);
+			setJavaSecurity(ctx->trusted);
 			s_currentTrust = ctx->trusted;
 		}
 		MemoryContextSwitchTo(ctx->upperContext);
@@ -231,54 +234,22 @@ void Backend_popCallContext(void)
 	currentCallContext = ctx;
 }
 
-void Backend_pushJavaFrame(JNIEnv* env)
+void Backend_pushJavaFrame()
 {
-	if((*env)->PushLocalFrame(env, LOCAL_REFERENCE_COUNT) < 0)
+	if(JNI_pushLocalFrame(LOCAL_REFERENCE_COUNT) < 0)
 	{
 		/* Out of memory
 		 */
-		(*env)->ExceptionClear(env);
+		JNI_exceptionClear();
 		ereport(ERROR, (
 			errcode(ERRCODE_OUT_OF_MEMORY),
 			errmsg("Unable to create java frame for local references")));
 	}
 }
 
-void Backend_popJavaFrame(JNIEnv* env)
+void Backend_popJavaFrame()
 {
-	bool saveIsCallingJava = isCallingJava;
-
-	/* Pop this frame. This might call finalizers.
-	 */
-	isCallingJava = true;
-	(*env)->PopLocalFrame(env, 0);
-	saveIsCallingJava = isCallingJava;
-}
-
-bool pljavaEntryFence(JNIEnv* env)
-{
-	if(currentCallContext != 0 && currentCallContext->errorOccured)
-	{
-		/* An elog with level higher than ERROR was issued. The transaction
-		 * state is unknown. There's no way the JVM is allowed to enter the
-		 * backend at this point.
-		 */
-		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
-		return true;
-	}
-
-	if(!isCallingJava)
-	{
-		/* The backend is *not* awaiting the return of a call to the JVM
-		 * so there's no way the JVM can be allowed to call out at this
-		 * point.
-		 */
-		Exception_throw(env, ERRCODE_INTERNAL_ERROR,
-			"An attempt was made to call a PostgreSQL backend function while main thread was not in the JVM");
-		return true;
-	}
-	return false;
+	JNI_popLocalFrame(0);
 }
 
 /**
@@ -401,10 +372,43 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
-static pqsigfunc s_jvmSigQuit;
-static sigjmp_buf recoverBuf;
+#if !defined(WIN32)
 
-static void alarmHandler(int signum)
+static void pljavaStatementCancelHandler(int signum)
+{
+	if(!proc_exit_in_progress)
+	{
+		/* Never service the interrupt immediately. In order to find out if
+		 * its safe, we would need to know what kind of threading mechanism
+		 * the VM uses. That would count for a lot of conditional code.
+		 */
+		QueryCancelPending = true;
+		InterruptPending = true;
+	}
+}
+
+static void pljavaDieHandler(int signum)
+{
+	if(!proc_exit_in_progress)
+	{
+		/* Never service the interrupt immediately. In order to find out if
+		 * its safe, we would need to know what kind of threading mechanism
+		 * the VM uses. That would count for a lot of conditional code.
+		 */
+		ProcDiePending = true;
+		InterruptPending = true;
+	}
+}
+
+static void pljavaQuickDieHandler(int signum)
+{
+	/* Just die. No ereporting here since we don't know what thread this is.
+	 */
+	exit(1);
+}
+
+static sigjmp_buf recoverBuf;
+static void terminationTimeoutHandler(int signum)
 {
 	kill(MyProcPid, SIGQUIT);
 	
@@ -417,6 +421,7 @@ static void alarmHandler(int signum)
 	 */
 	siglongjmp(recoverBuf, 1);
 }
+#endif
 
 /*
  * proc_exit callback to tear down the JVM
@@ -426,7 +431,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		CallContext ctx;
-		pqsigfunc saveSigQuit;
+#if !defined(WIN32)
 		pqsigfunc saveSigAlrm;
 
 		Backend_pushCallContext(&ctx, false);
@@ -437,23 +442,20 @@ static void _destroyJavaVM(int status, Datum dummy)
 			return;
 		}
 
-		saveSigQuit = pqsignal(SIGQUIT, s_jvmSigQuit);
-		saveSigAlrm = pqsignal(SIGALRM, alarmHandler);
-
+		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
 		enable_sig_alarm(5000, false);
+
 		elog(DEBUG1, "Destroying JavaVM...");
-
-		isCallingJava = true;
-		(*s_javaVM)->DestroyJavaVM(s_javaVM);
-		isCallingJava = false;
-
+		JNI_destroyJavaVM(s_javaVM);
 		disable_sig_alarm(false);
-		pqsignal(SIGQUIT, saveSigQuit);
 		pqsignal(SIGALRM, saveSigAlrm);
-
+#else
+		Backend_pushCallContext(&ctx, false);
+		elog(DEBUG1, "Destroying JavaVM...");
+		JNI_destroyVM(s_javaVM);
+#endif
 		elog(DEBUG1, "JavaVM destroyed");
 		s_javaVM = 0;
-		s_mainEnv = 0;
 		Backend_popCallContext();
 	}
 }
@@ -586,23 +588,17 @@ static void addUserJVMOptions(JVMOptList* optList)
 /**
  *  Initialize the session
  */
-static void initJavaSession(JNIEnv* env)
+static void initJavaSession()
 {
-	jclass sessionClass;
-	jmethodID init;
-	bool saveICJ = isCallingJava;
+	jclass sessionClass = PgObject_getJavaClass("org/postgresql/pljava/internal/Session");
+	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()J");
+	mainThreadId = JNI_callStaticLongMethod(sessionClass, init);
+	JNI_deleteLocalRef(sessionClass);
 
-	isCallingJava = true;
-	sessionClass = PgObject_getJavaClass(env, "org/postgresql/pljava/internal/Session");
-	init = PgObject_getStaticJavaMethod(env, sessionClass, "init", "()J");
-	mainThreadId = (*env)->CallStaticLongMethod(env, sessionClass, init);
-	isCallingJava = saveICJ;
-	(*env)->DeleteLocalRef(env, sessionClass);
-
-	if((*env)->ExceptionCheck(env))
+	if(JNI_exceptionCheck())
 	{
-		(*env)->ExceptionDescribe(env);
-		(*env)->ExceptionClear(env);
+		JNI_exceptionDescribe();
+		JNI_exceptionClear();
 		ereport(ERROR, (
 			errcode(ERRCODE_INTERNAL_ERROR),
 			errmsg("Unable to initialize java session")));
@@ -620,11 +616,6 @@ static bool s_firstTimeInit = true;
 
 static void initializeJavaVM(void)
 {
-	pqsigfunc saveSigInt;
-	pqsigfunc saveSigTerm;
-	pqsigfunc saveSigHup;
-	pqsigfunc saveSigQuit;
-
 	jboolean jstat;
 	JavaVMInitArgs vm_args;
 	JVMOptList optList;
@@ -636,7 +627,7 @@ static void initializeJavaVM(void)
 		s_firstTimeInit = false;
 
 		checkIntTimeType();
-		DirectFunctionCall1(HashMap_initialize, 0);
+		HashMap_initialize();
 	
 		DefineCustomStringVariable(
 			"pljava.vmoptions",
@@ -704,16 +695,7 @@ static void initializeJavaVM(void)
 		0, true);
 
 	JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
-
-	/* Save current state of some signal handlers. The JVM will
-	 * redefine them. This redefinition can be avoided by passing
-	 * -Xrs to the JVM but we don't want that since it would make
-	 * it impossible to get a thread dump.
-	 */
-	saveSigInt  = pqsignal(SIGINT,  SIG_DFL);
-	saveSigTerm = pqsignal(SIGTERM, SIG_DFL);
-	saveSigHup  = pqsignal(SIGHUP,  SIG_DFL);
-	saveSigQuit = pqsignal(SIGQUIT, SIG_DFL);
+	JVMOptList_add(&optList, "-Xrs", 0, true);
 
 	if(pljavaDebug)
 	{
@@ -729,43 +711,37 @@ static void initializeJavaVM(void)
 
 	elog(DEBUG1, "Creating JavaVM");
 
-	isCallingJava = true;
-	jstat = JNI_CreateJavaVM(&s_javaVM, (void **)&s_mainEnv, &vm_args);
+	jstat = JNI_createVM(&s_javaVM, &vm_args);
 
-	if(jstat == JNI_OK && (*s_mainEnv)->ExceptionCheck(s_mainEnv))
+	if(jstat == JNI_OK && JNI_exceptionCheck())
 	{
-		(*s_mainEnv)->ExceptionDescribe(s_mainEnv);
-		(*s_mainEnv)->ExceptionClear(s_mainEnv);
+		JNI_exceptionDescribe();
+		JNI_exceptionClear();
 		jstat = JNI_ERR;
 	}
-	isCallingJava = false;
-
 	JVMOptList_delete(&optList);
 
 	if(jstat != JNI_OK)
 		ereport(ERROR, (errmsg("Failed to create Java VM")));
-	elog(DEBUG1, "JavaVM created");
 
-	/* Restore the PostgreSQL signal handlers and retrieve the
-	 * ones installed by the JVM. We'll use them when the JVM
-	 * is destroyed.
-	 */
-	pqsignal(SIGINT,  saveSigInt);
-	pqsignal(SIGTERM, saveSigTerm);
-	pqsignal(SIGHUP,  saveSigHup);
-	s_jvmSigQuit = pqsignal(SIGQUIT, saveSigQuit);
+#if !defined(WIN32)
+	pqsignal(SIGINT,  pljavaCancelQueryHandler);
+	pqsignal(SIGTERM, pljavaDieHandler);
+	pqsignal(SIGQUIT, pljavaQuickDieHandler);
+#endif
+	elog(DEBUG1, "JavaVM created");
 
 	/* Register an on_proc_exit handler that destroys the VM
 	 */
 	on_proc_exit(_destroyJavaVM, 0);
-	initPLJavaClasses(s_mainEnv);
-	initJavaSession(s_mainEnv);
+	initPLJavaClasses();
+	initJavaSession();
 }
 
 void
 Backend_assertConnect(void)
 {
-	if(currentCallContext != 0 && !currentCallContext->hasConnected)
+	if(!currentCallContext->hasConnected)
 	{
 		SPI_connect();
 		currentCallContext->hasConnected = true;
@@ -775,18 +751,11 @@ Backend_assertConnect(void)
 void
 Backend_assertDisconnect(void)
 {
-	if(currentCallContext != 0 && currentCallContext->hasConnected)
+	if(currentCallContext->hasConnected)
 	{
 		SPI_finish();
 		currentCallContext->hasConnected = false;
 	}
-}
-
-JNIEnv* Backend_getJNIEnv(void)
-{
-	return (currentCallContext == 0)
-		? s_mainEnv
-		: currentCallContext->jniEnv;
 }
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
@@ -817,7 +786,6 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	CallContext ctx;
 	Datum retval = 0;
-	bool saveIsCallingJava = isCallingJava;
 
 	if(s_javaVM == 0)
 	{
@@ -855,7 +823,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Backend_pushCallContext(&ctx, trusted);
 	if(s_callLevel == 0 && !s_topLocalFrameInstalled)
 	{
-		Backend_pushJavaFrame(s_mainEnv);
+		Backend_pushJavaFrame();
 		s_topLocalFrameInstalled = true;
 		MemoryContext_addEndOfScopeCB(CurrentMemoryContext, popJavaFrameCB);
 	}
@@ -863,44 +831,41 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	++s_callLevel;
 	PG_TRY();
 	{
-		Function function = Function_getFunction(s_mainEnv, fcinfo);
+		Function function = Function_getFunction(fcinfo);
 		if(CALLED_AS_TRIGGER(fcinfo))
 		{
 			/* Called as a trigger procedure
 			 */
-			retval = Function_invokeTrigger(function, s_mainEnv, fcinfo);
+			retval = Function_invokeTrigger(function, fcinfo);
 		}
 		else
 		{
 			/* Called as a function
 			 */
-			retval = Function_invoke(function, s_mainEnv, fcinfo);
+			retval = Function_invoke(function, fcinfo);
 		}
-		Exception_checkException(s_mainEnv);
+		Exception_checkException();
 
 		if(ctx.invocation != 0)
 		{
-			(*s_mainEnv)->CallVoidMethod(s_mainEnv, ctx.invocation, s_Invocation_onExit);
-			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
+			JNI_callVoidMethod(ctx.invocation, s_Invocation_onExit);
+			JNI_deleteGlobalRef(ctx.invocation);
 		}
 
 		--s_callLevel;
-		isCallingJava = saveIsCallingJava;
 		Backend_assertDisconnect();
 		Backend_popCallContext();
 	}
 	PG_CATCH();
 	{
 		--s_callLevel;
-		isCallingJava = saveIsCallingJava;
 		if(ctx.invocation != 0)
-			(*s_mainEnv)->DeleteGlobalRef(s_mainEnv, ctx.invocation);
+			JNI_deleteGlobalRef(ctx.invocation);
 		Backend_assertDisconnect();
 		Backend_popCallContext();
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
-
 	return retval;
 }
 
@@ -920,27 +885,26 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 JNIEXPORT jstring JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* env, jclass cls, jstring jkey)
 {
-	char* key;
-	jstring result;
-
-	PLJAVA_ENTRY_FENCE(0)
-	key = String_createNTS(env, jkey);
-	if(key == 0)
-		return 0;
-
-	result = 0;
-	PG_TRY();
+	jstring result = 0;
+	
+	BEGIN_NATIVE
+	char* key = String_createNTS(jkey);
+	if(key != 0)
 	{
-		const char* value = GetConfigOption(key);
-		pfree(key);
-		if(value != 0)
-			result = String_createJavaStringFromNTS(env, value);
+		PG_TRY();
+		{
+			const char* value = GetConfigOption(key);
+			pfree(key);
+			if(value != 0)
+				result = String_createJavaStringFromNTS(value);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("GetConfigOption");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "GetConfigOption");
-	}
-	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -964,51 +928,53 @@ Java_org_postgresql_pljava_internal_Backend__1getStatementCacheSize(JNIEnv* env,
 JNIEXPORT void JNICALL
 JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cls, jint logLevel, jstring jstr)
 {
-	int percentCount = 0;
-	const char* cp;
-	char c;
-	char* str = String_createNTS(env, jstr);
-	if(str == 0)
-		return;
-
-	/* elog uses printf formatting but the logger does not so we must escape all
-	 * '%' in the string.
-	 */
-	for(cp = str; (c = *cp) != 0; ++cp)
+	BEGIN_NATIVE_NO_ERRCHECK
+	char* str = String_createNTS(jstr);
+	if(str != 0)
 	{
-		if(c == '%')
-			++percentCount;
-	}
-
-	if(percentCount > 0)
-	{
-		/* Make room to expand all "%" to "%%"
+		/* elog uses printf formatting but the logger does not so we must escape all
+		 * '%' in the string.
 		 */
-		char* str2 = palloc((cp - str) + percentCount + 1);
-		char* cp2 = str2;
-
-		/* Expand... */
+		char c;
+		const char* cp;
+		int percentCount = 0;
 		for(cp = str; (c = *cp) != 0; ++cp)
 		{
 			if(c == '%')
-				*cp2++ = c;
-			*cp2++ = c;
+				++percentCount;
 		}
-		*cp2 = 0;
-		pfree(str);
-		str = str2;
+	
+		if(percentCount > 0)
+		{
+			/* Make room to expand all "%" to "%%"
+			 */
+			char* str2 = palloc((cp - str) + percentCount + 1);
+			char* cp2 = str2;
+	
+			/* Expand... */
+			for(cp = str; (c = *cp) != 0; ++cp)
+			{
+				if(c == '%')
+					*cp2++ = c;
+				*cp2++ = c;
+			}
+			*cp2 = 0;
+			pfree(str);
+			str = str2;
+		}
+	
+		PG_TRY();
+		{
+			elog(logLevel, str);
+			pfree(str);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("ereport");
+		}
+		PG_END_TRY();
 	}
-
-	PG_TRY();
-	{
-		elog(logLevel, str);
-		pfree(str);
-	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "ereport");
-	}
-	PG_END_TRY();
+	END_NATIVE
 }
 
 /*
@@ -1019,7 +985,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cl
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isCallingJava(JNIEnv* env, jclass cls)
 {
-	return isCallingJava ? JNI_TRUE : JNI_FALSE;
+	return JNI_isCallingJava();
 }
 
 /*
@@ -1041,16 +1007,17 @@ Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv*
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jclass cls, jobject listener)
 {
-	PLJAVA_ENTRY_FENCE_VOID
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		EOXactListener_register(env, listener);
+		EOXactListener_register(listener);
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "RegisterEOXactCallback");
+		Exception_throw_ERROR("RegisterEOXactCallback");
 	}
 	PG_END_TRY();
+	END_NATIVE
 }
 
 /*
@@ -1061,7 +1028,9 @@ Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jcl
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, jclass cls, jobject listener)
 {
-	EOXactListener_unregister(env);
+	BEGIN_NATIVE
+	EOXactListener_unregister();
+	END_NATIVE
 }
 
 /*
@@ -1105,5 +1074,7 @@ Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jc
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this)
 {
-	currentCallContext->invocation = (*env)->NewGlobalRef(env, _this);
+	BEGIN_NATIVE
+	currentCallContext->invocation = JNI_newGlobalRef(_this);
+	END_NATIVE
 }

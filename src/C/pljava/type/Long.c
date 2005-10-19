@@ -21,28 +21,21 @@ static jmethodID s_Long_longValue;
 /*
  * long primitive type.
  */
-static Datum _long_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _long_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jlong lv;
-	MemoryContext currCtx;
-	Datum ret;
-	bool saveicj = isCallingJava;
-	
-	isCallingJava = true;
-	lv = (*env)->CallStaticLongMethodA(env, cls, method, args);
-	isCallingJava = saveicj;	
+	jlong lv = JNI_callStaticLongMethodA(cls, method, args);
 
 	/* Since we don't know if 64 bit quantities are passed by reference or
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	currCtx = MemoryContext_switchToUpperContext();
-	ret = Int64GetDatum(lv);
+	MemoryContext currCtx = MemoryContext_switchToUpperContext();
+	Datum ret = Int64GetDatum(lv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
 
-static jvalue _long_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _long_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.j = DatumGetInt64(arg);
@@ -62,20 +55,16 @@ static bool _Long_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_longClass;
 }
 
-static jvalue _Long_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Long_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Long_class, s_Long_init, DatumGetInt64(arg));
+	result.l = JNI_newObject(s_Long_class, s_Long_init, DatumGetInt64(arg));
 	return result;
 }
 
-static Datum _Long_coerceObject(Type self, JNIEnv* env, jobject longObj)
+static Datum _Long_coerceObject(Type self, jobject longObj)
 {
-	jlong lv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	lv = (*env)->CallLongMethod(env, longObj, s_Long_longValue);
-	isCallingJava = saveicj;	
+	jlong lv = JNI_callLongMethod(longObj, s_Long_longValue);
 	return Int64GetDatum(lv);
 }
 
@@ -86,20 +75,12 @@ static Type Long_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Long_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Long_initialize);
-Datum Long_initialize(PG_FUNCTION_ARGS)
+extern void Long_initialize(void);
+void Long_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Long_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Long"));
-
-	s_Long_init = PgObject_getJavaMethod(
-				env, s_Long_class, "<init>", "(J)V");
-
-	s_Long_longValue = PgObject_getJavaMethod(
-				env, s_Long_class, "longValue", "()J");
+	s_Long_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Long"));
+	s_Long_init = PgObject_getJavaMethod(s_Long_class, "<init>", "(J)V");
+	s_Long_longValue = PgObject_getJavaMethod(s_Long_class, "longValue", "()J");
 
 	s_LongClass = TypeClass_alloc("type.Long");
 	s_LongClass->canReplaceType = _Long_canReplace;
@@ -121,5 +102,4 @@ Datum Long_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(INT8OID, long_obtain);
 	Type_registerJavaType("long", long_obtain);
 	Type_registerJavaType("java.lang.Long", Long_obtain);
-	PG_RETURN_VOID();
 }

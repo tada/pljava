@@ -9,7 +9,8 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/Backend.h"
-#include "pljava/type/NativeStruct.h"
+#include "pljava/CallContext.h"
+#include "pljava/type/JavaHandle.h"
 
 /* Single linked list of callback definitions. Each containing
  * a function and a client data pointer.
@@ -181,7 +182,7 @@ MemoryContext_switchToUpperContext(void)
 static void MemoryContext_releaseCache(MemoryContext ctx, bool isDelete)
 {
 	HashMap cache = ((ExtendedCtxMethods*)ctx->methods)->nativeCache;
-	NativeStruct_releaseCache(cache);
+	JavaHandle_releaseCache(cache);
 	if(isDelete)
 	{
 		PgObject_free((PgObject)cache);
@@ -205,7 +206,7 @@ MemoryContext_getCurrentNativeCache(void)
 }
 
 static jobject
-lookupNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
+lookupNativeHere(MemoryContext ctx, void* nativePointer)
 {
 	if(ctx->methods->reset == mctxReset)
 	{
@@ -214,20 +215,20 @@ lookupNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
 		{
 			jobject weak = HashMap_getByOpaque(cache, nativePointer);
 			if(weak != 0)
-				return (*env)->NewLocalRef(env, weak);
+				return JNI_newLocalRef(weak);
 		}
 	}
 	return 0;
 }
 
 jobject
-MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
+MemoryContext_lookupNative(void* nativePointer)
 {
 	jobject found = 0;
 	MemoryContext ctx = CurrentMemoryContext;
 	while(ctx != 0)
 	{
-		found = lookupNativeHere(env, ctx, nativePointer);
+		found = lookupNativeHere(ctx, nativePointer);
 		if(found != 0)
 			return found;
 		ctx = ctx->parent;
@@ -235,7 +236,7 @@ MemoryContext_lookupNative(JNIEnv* env, void* nativePointer)
 	return 0;
 }
 
-static bool dropNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
+static bool dropNativeHere(MemoryContext ctx, void* nativePointer)
 {
 	if(ctx->methods->reset == mctxReset)
 	{
@@ -245,7 +246,7 @@ static bool dropNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
 			jobject weak = HashMap_removeByOpaque(cache, nativePointer);
 			if(weak != 0)
 			{
-				(*env)->DeleteWeakGlobalRef(env, weak);
+				JNI_deleteWeakGlobalRef(weak);
 				return true;
 			}
 		}
@@ -254,12 +255,12 @@ static bool dropNativeHere(JNIEnv* env, MemoryContext ctx, void* nativePointer)
 }
 
 void
-MemoryContext_dropNative(JNIEnv* env, void* nativePointer)
+MemoryContext_dropNative(void* nativePointer)
 {
 	MemoryContext ctx = CurrentMemoryContext;
 	while(ctx != 0)
 	{
-		if(dropNativeHere(env, ctx, nativePointer))
+		if(dropNativeHere(ctx, nativePointer))
 			break;
 		ctx = ctx->parent;
 	}

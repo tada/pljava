@@ -14,10 +14,9 @@
 #include "pljava/type/String.h"
 #include "pljava/type/TupleTable.h"
 
-Datum SPI_initialize(PG_FUNCTION_ARGS)
+extern void SPI_initialize(void);
+void SPI_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
 	JNINativeMethod methods[] = {
 		{
 		"_exec",
@@ -41,9 +40,7 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	PgObject_registerNatives(env, "org/postgresql/pljava/internal/SPI", methods);
-
-	PG_RETURN_VOID();
+	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
 }
 
 /****************************************
@@ -57,36 +54,34 @@ Datum SPI_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong threadId, jstring cmd, jint count)
 {
-	STACK_BASE_VARS
-	char* command;
-	jint result;
-	PLJAVA_ENTRY_FENCE(0)
+	jint result = 0;
 
-	command = String_createNTS(env, cmd);
-	if(command == 0)
-		return 0;
-
-	result = 0;
-	STACK_BASE_PUSH(threadId)
-	Backend_pushJavaFrame(env);
-	PG_TRY();
+	BEGIN_NATIVE
+	char* command = String_createNTS(cmd);
+	if(command != 0)
 	{
-		Backend_assertConnect();
-		result = (jint)SPI_exec(command, (int)count);
-		if(result < 0)
-			Exception_throwSPI(env, "exec", result);
-
-		Backend_popJavaFrame(env);
-		pfree(command);
+		STACK_BASE_VARS
+		STACK_BASE_PUSH(threadId)
+		Backend_pushJavaFrame();
+		PG_TRY();
+		{
+			Backend_assertConnect();
+			result = (jint)SPI_exec(command, (int)count);
+			if(result < 0)
+				Exception_throwSPI("exec", result);
+	
+			Backend_popJavaFrame();
+			pfree(command);
+		}
+		PG_CATCH();
+		{
+			Backend_popJavaFrame();
+			Exception_throw_ERROR("SPI_exec");
+		}
+		PG_END_TRY();
 		STACK_BASE_POP()
 	}
-	PG_CATCH();
-	{
-		Backend_popJavaFrame(env);
-		STACK_BASE_POP()
-		Exception_throw_ERROR(env, "SPI_exec");
-	}
-	PG_END_TRY();
+	END_NATIVE	
 	return result;
 }
 
@@ -125,10 +120,11 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 
 	if(tts != 0)
 	{
-		PLJAVA_ENTRY_FENCE(0)
-		tupleTable = TupleTable_create(env, tts);
+		BEGIN_NATIVE
+		tupleTable = TupleTable_create(tts);
 		SPI_freetuptable(tts);
 		SPI_tuptable = 0;
+		END_NATIVE
 	}
 	return tupleTable;
 }

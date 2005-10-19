@@ -9,7 +9,7 @@
 #ifndef __pljava_TriggerData_h
 #define __pljava_TriggerData_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,12 +27,12 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.TriggerData object.
  */
-extern jobject TriggerData_create(JNIEnv* env, TriggerData* triggerData);
+extern jobject TriggerData_create(TriggerData* triggerData);
 
 /*
  * Obtains the returned Tuple after trigger has been processed.
  */
-extern Datum TriggerData_getTriggerReturnTuple(JNIEnv* env, jobject jtd, bool* wasNull);
+extern Datum TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull);
 
 #ifdef __cplusplus
 }

@@ -22,8 +22,6 @@ extern "C" {
  *
  ***********************************************************************/
 
-extern Datum Session_initialize(PG_FUNCTION_ARGS);
-
 #ifdef __cplusplus
 } /* end of extern "C" declaration */
 #endif

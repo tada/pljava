@@ -12,10 +12,9 @@
 #include "pljava/Session.h"
 #include "pljava/type/AclId.h"
 
-Datum Session_initialize(PG_FUNCTION_ARGS)
+extern void Session_initialize(void);
+void Session_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
 	JNINativeMethod methods[] = {
 		{
 		"_setUser",
@@ -24,8 +23,7 @@ Datum Session_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	PgObject_registerNatives(env, "org/postgresql/pljava/internal/Session", methods);
-	PG_RETURN_VOID();
+	PgObject_registerNatives("org/postgresql/pljava/internal/Session", methods);
 }
 
 /****************************************
@@ -39,6 +37,8 @@ Datum Session_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Session__1setUser(JNIEnv* env, jclass cls, jobject aclId)
 {
-	SetUserId(AclId_getAclId(env, aclId));
+	BEGIN_NATIVE
+	SetUserId(AclId_getAclId(aclId));
+	END_NATIVE
 }
 

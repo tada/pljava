@@ -22,26 +22,19 @@ static jmethodID s_BigDecimal_init;
 static jmethodID s_BigDecimal_toString;
 static TypeClass s_BigDecimalClass;
 
-static jvalue _BigDecimal_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _BigDecimal_coerceDatum(Type self, Datum arg)
 {
-	jvalue result = _String_coerceDatum(self, env, arg);
+	jvalue result = _String_coerceDatum(self, arg);
 	if(result.l != 0)
-		result.l = PgObject_newJavaObject(env, s_BigDecimal_class,
-						s_BigDecimal_init, result.l);
+		result.l = JNI_newObject(s_BigDecimal_class, s_BigDecimal_init, result.l);
 	return result;
 }
 
-static Datum _BigDecimal_coerceObject(Type self, JNIEnv* env, jobject value)
+static Datum _BigDecimal_coerceObject(Type self, jobject value)
 {
-	jstring jstr;
-	Datum ret;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	jstr = (*env)->CallObjectMethod(env, value, s_BigDecimal_toString);
-	isCallingJava = saveicj;
-
-	ret = _String_coerceObject(self, env, jstr);
-	(*env)->DeleteLocalRef(env, jstr);
+	jstring jstr = (jstring)JNI_callObjectMethod(value, s_BigDecimal_toString);
+	Datum ret = _String_coerceObject(self, jstr);
+	JNI_deleteLocalRef(jstr);
 	return ret;
 }
 
@@ -52,17 +45,12 @@ static Type BigDecimal_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum BigDecimal_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(BigDecimal_initialize);
-Datum BigDecimal_initialize(PG_FUNCTION_ARGS)
+extern void BigDecimal_initialize(void);
+void BigDecimal_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-	s_BigDecimal_class = (*env)->NewGlobalRef(
-					env, PgObject_getJavaClass(env, "java/math/BigDecimal"));
-	s_BigDecimal_init = PgObject_getJavaMethod(
-					env, s_BigDecimal_class, "<init>", "(Ljava/lang/String;)V");
-	s_BigDecimal_toString = PgObject_getJavaMethod(
-					env, s_BigDecimal_class, "toString", "()Ljava/lang/String;");
+	s_BigDecimal_class = JNI_newGlobalRef(PgObject_getJavaClass("java/math/BigDecimal"));
+	s_BigDecimal_init = PgObject_getJavaMethod(s_BigDecimal_class, "<init>", "(Ljava/lang/String;)V");
+	s_BigDecimal_toString = PgObject_getJavaMethod(s_BigDecimal_class, "toString", "()Ljava/lang/String;");
 
 	s_BigDecimalClass = TypeClass_alloc2("type.BigDecimal", sizeof(struct TypeClass_), sizeof(struct String_));
 	s_BigDecimalClass->JNISignature   = "Ljava/math/BigDecimal;";
@@ -73,6 +61,4 @@ Datum BigDecimal_initialize(PG_FUNCTION_ARGS)
 
 	Type_registerPgType(NUMERICOID, BigDecimal_obtain);
 	Type_registerJavaType("java.math.BigDecimal", BigDecimal_obtain);
-	PG_RETURN_VOID();
 }
-

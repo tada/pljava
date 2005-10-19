@@ -20,17 +20,13 @@ static jmethodID s_Short_shortValue;
 /*
  * short primitive type.
  */
-static Datum _short_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _short_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jshort sv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	sv = (*env)->CallStaticShortMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	jshort sv = JNI_callStaticShortMethodA(cls, method, args);
 	return Int16GetDatum(sv);
 }
 
-static jvalue _short_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _short_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.s = DatumGetInt16(arg);
@@ -50,20 +46,16 @@ static bool _Short_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_shortClass;
 }
 
-static jvalue _Short_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Short_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Short_class, s_Short_init, DatumGetInt16(arg));
+	result.l = JNI_newObject(s_Short_class, s_Short_init, DatumGetInt16(arg));
 	return result;
 }
 
-static Datum _Short_coerceObject(Type self, JNIEnv* env, jobject shortObj)
+static Datum _Short_coerceObject(Type self, jobject shortObj)
 {
-	jshort sv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	sv = (*env)->CallShortMethod(env, shortObj, s_Short_shortValue);
-	isCallingJava = saveicj;
+	jshort sv = JNI_callShortMethod(shortObj, s_Short_shortValue);
 	return Int16GetDatum(sv);
 }
 
@@ -74,20 +66,12 @@ static Type Short_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Short_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Short_initialize);
-Datum Short_initialize(PG_FUNCTION_ARGS)
+extern void Short_initialize(void);
+void Short_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Short_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Short"));
-
-	s_Short_init = PgObject_getJavaMethod(
-				env, s_Short_class, "<init>", "(S)V");
-
-	s_Short_shortValue = PgObject_getJavaMethod(
-				env, s_Short_class, "shortValue", "()S");
+	s_Short_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Short"));
+	s_Short_init = PgObject_getJavaMethod(s_Short_class, "<init>", "(S)V");
+	s_Short_shortValue = PgObject_getJavaMethod(s_Short_class, "shortValue", "()S");
 
 	s_ShortClass = TypeClass_alloc("type.Short");
 	s_ShortClass->canReplaceType = _Short_canReplace;
@@ -109,5 +93,4 @@ Datum Short_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(INT2OID, short_obtain);
 	Type_registerJavaType("short", short_obtain);
 	Type_registerJavaType("java.lang.Short", Short_obtain);
-	PG_RETURN_VOID();
 }

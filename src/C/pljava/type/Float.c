@@ -20,17 +20,13 @@ static jmethodID s_Float_floatValue;
 /*
  * float primitive type.
  */
-static Datum _float_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _float_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jfloat fv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	fv = (*env)->CallStaticFloatMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	jfloat fv = JNI_callStaticFloatMethodA(cls, method, args);
 	return Float4GetDatum(fv);
 }
 
-static jvalue _float_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _float_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.f = DatumGetFloat4(arg);
@@ -50,20 +46,16 @@ static bool _Float_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_floatClass;
 }
 
-static jvalue _Float_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Float_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Float_class, s_Float_init, DatumGetFloat4(arg));
+	result.l = JNI_newObject(s_Float_class, s_Float_init, DatumGetFloat4(arg));
 	return result;
 }
 
-static Datum _Float_coerceObject(Type self, JNIEnv* env, jobject floatObj)
+static Datum _Float_coerceObject(Type self, jobject floatObj)
 {
-	jfloat fv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	fv = (*env)->CallFloatMethod(env, floatObj, s_Float_floatValue);
-	isCallingJava = saveicj;
+	jfloat fv = JNI_callFloatMethod(floatObj, s_Float_floatValue);
 	return Float4GetDatum(fv);
 }
 
@@ -74,20 +66,12 @@ static Type Float_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Float_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Float_initialize);
-Datum Float_initialize(PG_FUNCTION_ARGS)
+extern void Float_initialize(void);
+void Float_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Float_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Float"));
-
-	s_Float_init = PgObject_getJavaMethod(
-				env, s_Float_class, "<init>", "(F)V");
-
-	s_Float_floatValue = PgObject_getJavaMethod(
-				env, s_Float_class, "floatValue", "()F");
+	s_Float_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Float"));
+	s_Float_init = PgObject_getJavaMethod(s_Float_class, "<init>", "(F)V");
+	s_Float_floatValue = PgObject_getJavaMethod(s_Float_class, "floatValue", "()F");
 
 	s_FloatClass = TypeClass_alloc("type.Float");
 	s_FloatClass->canReplaceType = _Float_canReplace;
@@ -109,5 +93,4 @@ Datum Float_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(FLOAT4OID, float_obtain);
 	Type_registerJavaType("float", float_obtain);
 	Type_registerJavaType("java.lang.Float", Float_obtain);
-	PG_RETURN_VOID();
 }

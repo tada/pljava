@@ -26,26 +26,26 @@ static jfieldID  s_AclId_m_native;
 /*
  * org.postgresql.pljava.type.AclId type.
  */
-jobject AclId_create(JNIEnv* env, AclId aclId)
+jobject AclId_create(AclId aclId)
 {
-	return PgObject_newJavaObject(env, s_AclId_class, s_AclId_init, (jint)aclId);
+	return JNI_newObject(s_AclId_class, s_AclId_init, (jint)aclId);
 }
 
-AclId AclId_getAclId(JNIEnv* env, jobject aclId)
+AclId AclId_getAclId(jobject aclId)
 {
-	return (AclId)(*env)->GetIntField(env, aclId, s_AclId_m_native);
+	return (AclId)JNI_getIntField(aclId, s_AclId_m_native);
 }
 
-static jvalue _AclId_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _AclId_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = AclId_create(env, (AclId)DatumGetInt32(arg));
+	result.l = AclId_create((AclId)DatumGetInt32(arg));
 	return result;
 }
 
-static Datum _AclId_coerceObject(Type self, JNIEnv* env, jobject aclidObj)
+static Datum _AclId_coerceObject(Type self, jobject aclidObj)
 {
-	return Int32GetDatum(AclId_getAclId(env, aclidObj));
+	return Int32GetDatum(AclId_getAclId(aclidObj));
 }
 
 static Type AclId_obtain(Oid typeId)
@@ -53,11 +53,8 @@ static Type AclId_obtain(Oid typeId)
 	return s_AclId;
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum AclId_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(AclId_initialize);
-Datum AclId_initialize(PG_FUNCTION_ARGS)
+extern void AclId_initialize(void);
+void AclId_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
@@ -87,18 +84,10 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_AclId_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/AclId"));
-
-	PgObject_registerNatives2(env, s_AclId_class, methods);
-
-	s_AclId_init = PgObject_getJavaMethod(
-				env, s_AclId_class, "<init>", "(I)V");
-
-	s_AclId_m_native = PgObject_getJavaField(
-				env, s_AclId_class, "m_native", "I");
+	s_AclId_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/AclId"));
+	PgObject_registerNatives2(s_AclId_class, methods);
+	s_AclId_init = PgObject_getJavaMethod(s_AclId_class, "<init>", "(I)V");
+	s_AclId_m_native = PgObject_getJavaField(s_AclId_class, "m_native", "I");
 
 	s_AclIdClass = TypeClass_alloc("type.AclId");
 	s_AclIdClass->JNISignature   = "Lorg/postgresql/pljava/internal/AclId;";
@@ -108,7 +97,6 @@ Datum AclId_initialize(PG_FUNCTION_ARGS)
 	s_AclId = TypeClass_allocInstance(s_AclIdClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.AclId", AclId_obtain);
-	PG_RETURN_VOID();
 }
 
 /****************************************
@@ -123,16 +111,17 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 {
 	jobject result = 0;
-	PLJAVA_ENTRY_FENCE(0)
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		result = AclId_create(env, GetUserId());
+		result = AclId_create(GetUserId());
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetUserId");
+		Exception_throw_ERROR("GetUserId");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -145,16 +134,17 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass clazz)
 {
 	jobject result = 0;
-	PLJAVA_ENTRY_FENCE(0)
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		result = AclId_create(env, GetSessionUserId());
+		result = AclId_create(GetSessionUserId());
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetSessionUserId");
+		Exception_throw_ERROR("GetSessionUserId");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -167,17 +157,17 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 {
 	jstring result = 0;
-	PLJAVA_ENTRY_FENCE(0)
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		result = String_createJavaStringFromNTS(env,
-			GetUserNameFromId(AclId_getAclId(env, aclId)));
+		result = String_createJavaStringFromNTS(GetUserNameFromId(AclId_getAclId(aclId)));
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "GetUserNameFromId");
+		Exception_throw_ERROR("GetUserNameFromId");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -189,9 +179,11 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_AclId__1hasSchemaCreatePermission(JNIEnv* env, jobject aclId, jobject oid)
 {
-	PLJAVA_ENTRY_FENCE(JNI_FALSE)
-	return (pg_namespace_aclcheck(Oid_getOid(env, oid), AclId_getAclId(env, aclId), ACL_CREATE) == ACLCHECK_OK)
-		? JNI_TRUE : JNI_FALSE;
+	jboolean result = JNI_FALSE;
+	BEGIN_NATIVE
+	result = (jboolean)(pg_namespace_aclcheck(Oid_getOid(oid), AclId_getAclId(aclId), ACL_CREATE) == ACLCHECK_OK);
+	END_NATIVE
+	return result;
 }
 
 /*
@@ -202,6 +194,9 @@ Java_org_postgresql_pljava_internal_AclId__1hasSchemaCreatePermission(JNIEnv* en
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_AclId__1isSuperuser(JNIEnv* env, jobject aclId)
 {
-	PLJAVA_ENTRY_FENCE(JNI_FALSE)
-	return superuser_arg(AclId_getAclId(env, aclId)) ? JNI_TRUE : JNI_FALSE;
+	jboolean result = JNI_FALSE;
+	BEGIN_NATIVE
+	result = superuser_arg(AclId_getAclId(aclId)) ? JNI_TRUE : JNI_FALSE;
+	END_NATIVE
+	return result;
 }

@@ -409,12 +409,11 @@ uint32 HashMap_size(HashMap self)
 	return self->size;
 }
 
-extern Datum Iterator_initialize(PG_FUNCTION_ARGS);
-
-PG_FUNCTION_INFO_V1(HashMap_initialize);
-Datum HashMap_initialize(PG_FUNCTION_ARGS)
+extern void Iterator_initialize(void);
+extern void HashMap_initialize(void);
+void HashMap_initialize()
 {
-	Iterator_initialize(fcinfo);
+	Iterator_initialize();
 
 	s_EntryClass    = PgObjectClass_create("Entry", sizeof(struct Entry_), _Entry_finalize);
 	s_HashMapClass  = PgObjectClass_create("HashMap", sizeof(struct HashMap_), _HashMap_finalize);
@@ -431,5 +430,4 @@ Datum HashMap_initialize(PG_FUNCTION_ARGS)
 	s_StringKeyClass->hashCode = _StringKey_hashCode;
 	s_StringKeyClass->equals   = _StringKey_equals;
 	s_StringKeyClass->clone    = _StringKey_clone;
-	PG_RETURN_VOID();
 }

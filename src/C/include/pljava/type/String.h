@@ -37,14 +37,14 @@ typedef struct String_* String;
  * the Java String. NULL Is accepted as a valid input and will yield
  * a NULL result.
  */
-extern jstring String_createJavaStringFromNTS(JNIEnv* env, const char* cp);
+extern jstring String_createJavaStringFromNTS(const char* cp);
 
 /*
  * Create a Java String object from a text. Conversion is made from the
  * encoding used by the database into UTF8 used when creating the Java String.
  * NULL Is accepted as a valid input and will yield a NULL result.
  */
-extern jstring String_createJavaString(JNIEnv* env, text* cp);
+extern jstring String_createJavaString(text* cp);
 
 /*
  * Create a null terminated string from a Java String. The UTF8 encoded string
@@ -53,14 +53,14 @@ extern jstring String_createJavaString(JNIEnv* env, text* cp);
  * The returned string is allocated using palloc. It's the callers responsability
  * to free it.
  */
-extern char* String_createNTS(JNIEnv* env, jstring javaString);
+extern char* String_createNTS(jstring javaString);
 
 /*
  * The UTF8 encoded string obtained from the Java string is first converted into
  * the encoding used by the database and then appended to the StringInfoData
  * buffer.
  */
-extern void String_appendJavaString(JNIEnv* env, StringInfoData* buf, jstring javaString);
+extern void String_appendJavaString(StringInfoData* buf, jstring javaString);
 
 /*
  * Create a text from a Java String. The UTF8 encoded string obtained from
@@ -69,7 +69,7 @@ extern void String_appendJavaString(JNIEnv* env, StringInfoData* buf, jstring ja
  * The returned text is allocated using palloc. It's the callers responsability
  * to free it.
  */
-extern text* String_createText(JNIEnv* env, jstring javaString);
+extern text* String_createText(jstring javaString);
 
 extern Type String_obtain(Oid typeId);
 

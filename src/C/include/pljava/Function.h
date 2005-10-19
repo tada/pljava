@@ -31,9 +31,6 @@ extern "C" {
  * @author Thomas Hallgren
  *
  *******************************************************************/
-struct Function_;
-typedef struct Function_* Function;
-
 /*
  * Get a Function using a function Oid. If the function is not found, one
  * will be created based on the class and method name denoted in the "AS"
@@ -43,30 +40,25 @@ typedef struct Function_* Function;
  * 
  * org.postgresql.pljava.Tuple <method name>(org.postgresql.pljava.TriggerData td)
  */
-extern Function Function_getFunction(JNIEnv* env, PG_FUNCTION_ARGS);
+extern Function Function_getFunction(PG_FUNCTION_ARGS);
 
 /*
  * Invoke a function, i.e. coerce the parameters, call the java method, and
  * coerce the return value back to a Datum.
  */
-extern Datum Function_invoke(Function self, JNIEnv* env, PG_FUNCTION_ARGS);
+extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
 
 /*
  * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
  * object, make the call, and unwrap the resulting Tuple.
  */
-extern Datum Function_invokeTrigger(Function self, JNIEnv* env, PG_FUNCTION_ARGS);
+extern Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS);
 
 /*
  * Returns true if the currently executing function is non volatile, i.e. stable
  * or immutable. Such functions are not allowed to have side effects.
  */
 extern bool Function_isCurrentReadOnly(void);
-
-/*
- * Initialize the Function class.
- */
-extern Datum Function_initialize(PG_FUNCTION_ARGS);
 
 #ifdef __cplusplus
 }

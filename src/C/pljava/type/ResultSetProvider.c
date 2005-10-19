@@ -15,6 +15,7 @@
 #include <executor/spi.h>
 
 #include "pljava/backports.h"
+#include "pljava/CallContext.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
@@ -44,7 +45,6 @@ static HashMap s_modCache;
  */
 typedef struct
 {
-	JNIEnv*       jniEnv;
 	jobject       singleRowWriter;
 	jobject       resultSetProvider;
 	jobject       invocation;
@@ -55,18 +55,12 @@ typedef struct
 
 static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 {
-	JNIEnv* env = ctxData->jniEnv;
-	bool saveicj = isCallingJava;
-
 	currentCallContext->hasConnected = ctxData->hasConnected;
 	currentCallContext->invocation   = ctxData->invocation;
 
-	isCallingJava = true;
-	(*env)->CallVoidMethod(env, ctxData->resultSetProvider, s_ResultSetProvider_close);
-	isCallingJava = saveicj;
-
-	(*env)->DeleteGlobalRef(env, ctxData->singleRowWriter);
-	(*env)->DeleteGlobalRef(env, ctxData->resultSetProvider);
+	JNI_callVoidMethod(ctxData->resultSetProvider, s_ResultSetProvider_close);
+	JNI_deleteGlobalRef(ctxData->singleRowWriter);
+	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 	pfree(ctxData);
 }
 
@@ -86,13 +80,12 @@ static void _ResultSetProvider_endOfSetCB(Datum arg)
 	MemoryContextSwitchTo(currCtx);
 }
 
-static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	MemoryContext currCtx;
 	CallContextData* ctxData;
 	FuncCallContext* context;
-	bool saveicj = isCallingJava;
 
 	/* stuff done only on the first call of the function
 	 */
@@ -112,10 +105,8 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		 * or a ResultSet. A ResultSet must be wrapped in a ResultSetPicker
 		 * (implements ResultSetProvider).
 		 */
-		isCallingJava = true;
-		tmp = (*env)->CallStaticObjectMethodA(env, cls, method, args);
-		isCallingJava = saveicj;
-		Exception_checkException(env);
+		tmp = JNI_callStaticObjectMethodA(cls, method, args);
+		Exception_checkException();
 
 		if(tmp == 0)
 		{
@@ -123,18 +114,13 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 			SRF_RETURN_DONE(context);
 		}
 
-		if((*env)->IsInstanceOf(env, tmp, s_ResultSetHandle_class))
+		if(JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
 		{
-			jobject wrapper;
-			isCallingJava = true;
-			wrapper = PgObject_newJavaObject(env, s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
-			isCallingJava = saveicj;
-			Exception_checkException(env);
-
-			(*env)->DeleteLocalRef(env, tmp);
+			jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
+			Exception_checkException();
+			JNI_deleteLocalRef(tmp);
 			tmp = wrapper;
 		}
-		isCallingJava = saveicj;
 
 		/* Build a tuple description for the tuples (will be cached
 		 * in TopMemoryContext)
@@ -150,14 +136,13 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
 		context->user_fctx = ctxData;
 
-		ctxData->jniEnv            = env;
-		ctxData->resultSetProvider = (*env)->NewGlobalRef(env, tmp);
-		(*env)->DeleteLocalRef(env, tmp);
-		tmp = TupleDesc_create(env, tupleDesc);
-		tmp2 = SingleRowWriter_create(env, tmp);
-		(*env)->DeleteLocalRef(env, tmp);		
-		ctxData->singleRowWriter = (*env)->NewGlobalRef(env, tmp2);
-		(*env)->DeleteLocalRef(env, tmp2);
+		ctxData->resultSetProvider = JNI_newGlobalRef(tmp);
+		JNI_deleteLocalRef(tmp);
+		tmp = TupleDesc_create(tupleDesc);
+		tmp2 = SingleRowWriter_create(tmp);
+		JNI_deleteLocalRef(tmp);		
+		ctxData->singleRowWriter = JNI_newGlobalRef(tmp2);
+		JNI_deleteLocalRef(tmp2);
 
 		ctxData->memoryContext = CurrentMemoryContext;
 		ctxData->trusted       = currentCallContext->trusted;
@@ -180,18 +165,15 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
-	isCallingJava = true;
-	hasRow = ((*env)->CallBooleanMethod(
-			env, ctxData->resultSetProvider,
+	hasRow = (JNI_callBooleanMethod(ctxData->resultSetProvider,
 			s_ResultSetProvider_assignRowValues,
 			ctxData->singleRowWriter,
 			(jint)context->call_cntr) == JNI_TRUE);
-	isCallingJava = saveicj;
 	ctxData->hasConnected = currentCallContext->hasConnected;
 	ctxData->invocation   = currentCallContext->invocation;
 	currentCallContext->hasConnected = false;
 	currentCallContext->invocation   = 0;
-	Exception_checkException(env);
+	Exception_checkException();
 
 	if(hasRow)
 	{
@@ -201,7 +183,7 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 		Datum result = 0;
 		HeapTuple tuple;
 		currCtx = MemoryContext_switchToUpperContext();
-		tuple = SingleRowWriter_getTupleAndClear(env, ctxData->singleRowWriter);
+		tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
 		if(tuple != 0)
 		{
 			result = HeapTupleGetDatum(tuple);
@@ -228,14 +210,14 @@ static Datum _ResultSetProvider_invoke(Type self, JNIEnv* env, jclass cls, jmeth
 	SRF_RETURN_DONE(context);
 }
 
-static jvalue _ResultSetProvider_coerceDatum(Type self, JNIEnv* env, Datum nothing)
+static jvalue _ResultSetProvider_coerceDatum(Type self, Datum nothing)
 {
 	jvalue result;
 	result.j = 0L;
 	return result;
 }
 
-static Datum _ResultSetProvider_coerceObject(Type self, JNIEnv* env, jobject nothing)
+static Datum _ResultSetProvider_coerceObject(Type self, jobject nothing)
 {
 	return 0;
 }
@@ -257,26 +239,16 @@ Type ResultSetProvider_createType(Oid typid, TupleDesc tupleDesc)
 		s_ResultSetProviderClass, s_idCache, s_modCache, tupleDesc);
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(ResultSetProvider_initialize);
-Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
+extern void ResultSetProvider_initialize(void);
+void ResultSetProvider_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-	s_ResultSetProvider_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetProvider"));
+	s_ResultSetProvider_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/ResultSetProvider"));
 
-	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(
-				env, s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
-	s_ResultSetProvider_close = PgObject_getJavaMethod(
-				env, s_ResultSetProvider_class, "close", "()V");
-	s_ResultSetHandle_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/ResultSetHandle"));
-	s_ResultSetPicker_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/ResultSetPicker"));
-	s_ResultSetPicker_init = PgObject_getJavaMethod(
-				env, s_ResultSetPicker_class, "<init>", "(Lorg/postgresql/pljava/ResultSetHandle;)V");
+	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");
+	s_ResultSetProvider_close = PgObject_getJavaMethod(s_ResultSetProvider_class, "close", "()V");
+	s_ResultSetHandle_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/ResultSetHandle"));
+	s_ResultSetPicker_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ResultSetPicker"));
+	s_ResultSetPicker_init = PgObject_getJavaMethod(s_ResultSetPicker_class, "<init>", "(Lorg/postgresql/pljava/ResultSetHandle;)V");
 
 	s_idCache = HashMap_create(13, TopMemoryContext);
 	s_modCache = HashMap_create(13, TopMemoryContext);
@@ -294,5 +266,4 @@ Datum ResultSetProvider_initialize(PG_FUNCTION_ARGS)
 	s_ResultSetHandleClass->javaTypeName = "org.postgresql.pljava.ResultSetHandle";
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
 	Type_registerJavaType("org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
-	PG_RETURN_VOID();
 }

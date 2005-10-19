@@ -9,7 +9,7 @@
 #ifndef __pljava_ErrorData_h
 #define __pljava_ErrorData_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaWrapper.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,14 +21,15 @@ extern "C" {
  *****************************************************************/
 
 /*
- * Create the org.postgresql.pljava.internal.ErrorData instance
+ * Create the org.postgresql.pljava.internal.ErrorData that represents
+ * the current error obtaind from CopyErrorData().
  */
-extern jobject ErrorData_create(JNIEnv* env, ErrorData* errorData);
+extern jobject ErrorData_getCurrentError(void);
 
 /*
  * Extract the native ErrorData from a Java ErrorData.
  */
-extern ErrorData* ErrorData_getErrorData(JNIEnv* env, jobject jerrorData);
+extern ErrorData* ErrorData_getErrorData(jobject jerrorData);
 
 
 #ifdef __cplusplus

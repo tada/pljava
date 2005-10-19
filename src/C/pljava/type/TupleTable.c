@@ -18,7 +18,7 @@
 static jclass    s_TupleTable_class;
 static jmethodID s_TupleTable_init;
 
-jobject TupleTable_createFromSlot(JNIEnv* env, TupleTableSlot* tts)
+jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 {
 	HeapTuple tuple;
 	jobject tupdesc;
@@ -30,16 +30,16 @@ jobject TupleTable_createFromSlot(JNIEnv* env, TupleTableSlot* tts)
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
-	tupdesc = TupleDesc_internalCreate(env, tts->tts_tupleDescriptor);
+	tupdesc = TupleDesc_internalCreate(tts->tts_tupleDescriptor);
 	tuple   = ExecCopySlotTuple(tts);
-	tuples  = Tuple_createArray(env, &tuple, 1, false);
+	tuples  = Tuple_createArray(&tuple, 1, false);
 
 	MemoryContextSwitchTo(curr);
 
-	return PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
+	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
 }
 
-jobject TupleTable_create(JNIEnv* env, SPITupleTable* tts)
+jobject TupleTable_create(SPITupleTable* tts)
 {
 	jobject tupdesc;
 	jobjectArray tuples;
@@ -50,27 +50,20 @@ jobject TupleTable_create(JNIEnv* env, SPITupleTable* tts)
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
-	tupdesc = TupleDesc_internalCreate(env, tts->tupdesc);
-	tuples = Tuple_createArray(env, tts->vals, (jint)(tts->alloced - tts->free), true);
+	tupdesc = TupleDesc_internalCreate(tts->tupdesc);
+	tuples = Tuple_createArray(tts->vals, (jint)(tts->alloced - tts->free), true);
 
 	MemoryContextSwitchTo(curr);
-	return PgObject_newJavaObject(env, s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
+	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
 }
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum TupleTable_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(TupleTable_initialize);
-Datum TupleTable_initialize(PG_FUNCTION_ARGS)
+extern void TupleTable_initialize(void);
+void TupleTable_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_TupleTable_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TupleTable"));
-
+	s_TupleTable_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleTable"));
 	s_TupleTable_init = PgObject_getJavaMethod(
-				env, s_TupleTable_class, "<init>",
+				s_TupleTable_class, "<init>",
 				"(Lorg/postgresql/pljava/internal/TupleDesc;[Lorg/postgresql/pljava/internal/Tuple;)V");
-
-	PG_RETURN_VOID();
 }

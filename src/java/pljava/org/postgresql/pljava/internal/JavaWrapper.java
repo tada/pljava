@@ -6,27 +6,28 @@
  */
 package org.postgresql.pljava.internal;
 
-public abstract class MemoryContextManaged
+public abstract class JavaWrapper
 {
-	private transient long m_pointer;
+	private final long m_pointer;
 
 	/**
 	 * Creates an instance of this class that will be attached to a native
 	 * structure represented by pointer. This constructor must only be called
 	 * from native code.
 	 * 
-	 * @param copyContext The memory context that will be active during when the
-	 *            native structure is copied or 0 if no such copying is needed.
-	 * @param pointer The pointer to assign.
+	 * @param pointer The wapped pointer.
 	 */
-	protected MemoryContextManaged(long pointer)
+	protected JavaWrapper(long pointer)
 	{
 		m_pointer = pointer;
 	}
 
 	public void finalize()
 	{
-		_free(m_pointer);
+		synchronized(Backend.THREADLOCK)
+		{
+			_free(m_pointer);
+		}
 	}
 
 	/**

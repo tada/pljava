@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Portal extends NativeStruct
+public class Portal extends JavaHandle
 {
 	/**
 	 * Performs an <code>SPI_cursor_close</code>.
@@ -33,7 +33,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getName();
+			return _getName(this.getNative());
 		}
 	}
 
@@ -46,7 +46,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getPortalPos();
+			return _getPortalPos(this.getNative());
 		}
 	}
 
@@ -60,7 +60,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getTupleDesc();
+			return _getTupleDesc(this.getNative());
 		}
 	}
 
@@ -76,7 +76,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._fetch(forward, count);
+			return _fetch(this.getNative(), forward, count);
 		}
 	}
 
@@ -88,7 +88,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			this._invalidate();
+			_invalidate(this.getNative());
 		}
 	}
 
@@ -101,7 +101,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isAtEnd();
+			return _isAtEnd(this.getNative());
 		}
 	}
 
@@ -114,7 +114,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isAtStart();
+			return _isAtStart(this.getNative());
 		}
 	}
 
@@ -127,7 +127,7 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._isPosOverflow();
+			return _isPosOverflow(this.getNative());
 		}
 	}
 
@@ -143,33 +143,33 @@ public class Portal extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._move(forward, count);
+			return _move(this.getNative(), forward, count);
 		}
 	}
 
-	private native String _getName()
+	private static native String _getName(long pointer)
 	throws SQLException;
 
-	private native int _getPortalPos()
+	private static native int _getPortalPos(long pointer)
 	throws SQLException;
 
-	private native TupleDesc _getTupleDesc()
+	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private native int _fetch(boolean forward, int count)
+	private static native int _fetch(long pointer, boolean forward, int count)
 	throws SQLException;
 
-	private native void _invalidate();
+	private static native void _invalidate(long pointer);
 
-	private native boolean _isAtEnd()
+	private static native boolean _isAtEnd(long pointer)
 	throws SQLException;
 
-	private native boolean _isAtStart()
+	private static native boolean _isAtStart(long pointer)
 	throws SQLException;
 	
-	private native boolean _isPosOverflow()
+	private static native boolean _isPosOverflow(long pointer)
 	throws SQLException;
 
-	private native int _move(boolean forward, int count)
+	private static native int _move(long pointer, boolean forward, int count)
 	throws SQLException;
 }

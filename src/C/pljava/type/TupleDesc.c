@@ -11,8 +11,8 @@
 #include <funcapi.h>
 
 #include "org_postgresql_pljava_internal_TupleDesc.h"
+#include "pljava/Backend.h"
 #include "pljava/Exception.h"
-#include "pljava/PLJavaMemoryContext.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
@@ -27,41 +27,36 @@ static jmethodID s_TupleDesc_init;
 /*
  * org.postgresql.pljava.TupleDesc type.
  */
-jobject TupleDesc_create(JNIEnv* env, TupleDesc td)
+jobject TupleDesc_create(TupleDesc td)
 {
-	jobject jtd;
-	if(td == 0)
-		return 0;
-
-	jtd = PLJavaMemoryContext_getJavaObject(env, td);
-	if(jtd == 0)
+	jobject jtd = 0;
+	if(td != 0)
 	{
 		MemoryContext curr = MemoryContextSwitchTo(JavaMemoryContext);
-		jtd = TupleDesc_internalCreate(env, td);
+		jtd = TupleDesc_internalCreate(td);
 		MemoryContextSwitchTo(curr);
 	}
 	return jtd;
 }
 
-jobject TupleDesc_internalCreate(JNIEnv* env, TupleDesc td)
+jobject TupleDesc_internalCreate(TupleDesc td)
 {
 	jobject jtd;
 	Ptr2Long tdH;
 
 	td = CreateTupleDescCopyConstr(td);
 	tdH.ptrVal = td;
-	jtd = PgObject_newJavaObject(env, s_TupleDesc_class, s_TupleDesc_init, tdH.longVal);
-	PLJavaMemoryContext_setJavaObject(env, td, jtd);
+	jtd = JNI_newObject(s_TupleDesc_class, s_TupleDesc_init, tdH.longVal);
 	return jtd;
 }
 
-Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index)
+Type TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 {
 	Type type;
 	Oid typeId = SPI_gettypeid(tupleDesc, index);
 	if(!OidIsValid(typeId))
 	{
-		Exception_throw(env, ERRCODE_INVALID_DESCRIPTOR_INDEX,
+		Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
 			"Invalid attribute index \"%d\"", (int)index);
 		type = 0;
 	}
@@ -70,10 +65,10 @@ Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index)
 	return type;
 }
 
-static jvalue _TupleDesc_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _TupleDesc_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = TupleDesc_create(env, (TupleDesc)DatumGetPointer(arg));
+	result.l = TupleDesc_create((TupleDesc)DatumGetPointer(arg));
 	return result;
 }
 
@@ -84,9 +79,8 @@ static Type TupleDesc_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum TupleDesc_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(TupleDesc_initialize);
-Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
+extern void TupleDesc_initialize(void);
+void TupleDesc_initialize()
 {
 	JNINativeMethod methods[] = {
 		{
@@ -121,24 +115,17 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 		},
 		{ 0, 0, 0 }};
 
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
+	s_TupleDesc_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleDesc"));
+	PgObject_registerNatives2(s_TupleDesc_class, methods);
+	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>", "(J)V");
 
-	s_TupleDesc_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/internal/TupleDesc"));
-
-	PgObject_registerNatives2(env, s_TupleDesc_class, methods);
-
-	s_TupleDesc_init = PgObject_getJavaMethod(
-				env, s_TupleDesc_class, "<init>", "(J)V");
-
-	s_TupleDescClass = MemoryContextManagedClass_alloc("type.TupleDesc");
+	s_TupleDescClass = JavaWrapperClass_alloc("type.TupleDesc");
 	s_TupleDescClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleDesc;";
 	s_TupleDescClass->javaTypeName   = "org.postgresql.pljava.internal.TupleDesc";
 	s_TupleDescClass->coerceDatum    = _TupleDesc_coerceDatum;
 	s_TupleDesc = TypeClass_allocInstance(s_TupleDescClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.TupleDesc", TupleDesc_obtain);
-	PG_RETURN_VOID();
 }
 
 /****************************************
@@ -153,36 +140,32 @@ Datum TupleDesc_initialize(PG_FUNCTION_ARGS)
 JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jclass cls, jlong _this, jint index)
 {
-	Ptr2Long p2l;
-	TupleDesc self;
 	jstring result = 0;
 
-	PLJAVA_ENTRY_FENCE(0)
-	p2l.longVal = _this;
-	self = (TupleDesc)p2l.ptrVal;
-	if(self == 0)
-		return 0;
-
+	BEGIN_NATIVE
 	PG_TRY();
 	{
-		char* name = SPI_fname(self, (int)index);
+		char* name;
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		name = SPI_fname((TupleDesc)p2l.ptrVal, (int)index);
 		if(name == 0)
 		{
-			Exception_throw(env,
-				ERRCODE_INVALID_DESCRIPTOR_INDEX,
+			Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
 				"Invalid attribute index \"%d\"", (int)index);
 		}
 		else
 		{
-			result = String_createJavaStringFromNTS(env, name);
+			result = String_createJavaStringFromNTS(name);
 			pfree(name);
 		}
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "SPI_fname");
+		Exception_throw_ERROR("SPI_fname");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -194,38 +177,32 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jclas
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jclass cls, jlong _this, jstring colName)
 {
-	Ptr2Long p2l;
-	TupleDesc self;
-	char* name;
-	jint index = 0;
+	jint result = 0;
 
-	PLJAVA_ENTRY_FENCE(0)
-	p2l.longVal = _this;
-	self = (TupleDesc)p2l.ptrVal;
-	if(self == 0)
-		return 0;
-	
-	name = String_createNTS(env, colName);
-	if(name == 0)
-		return 0;
-
-	PG_TRY();
+	BEGIN_NATIVE
+	char* name = String_createNTS(colName);
+	if(name != 0)
 	{
-		index = SPI_fnumber(self, name);
-		if(index < 0)
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		PG_TRY();
 		{
-			Exception_throw(env,
-				ERRCODE_UNDEFINED_COLUMN,
-				"Tuple has no attribute \"%s\"", name);
+			result = SPI_fnumber((TupleDesc)p2l.ptrVal, name);
+			if(result < 0)
+			{
+				Exception_throw(ERRCODE_UNDEFINED_COLUMN,
+					"Tuple has no attribute \"%s\"", name);
+			}
+			pfree(name);
 		}
-		pfree(name);
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_fnumber");
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR(env, "SPI_fnumber");
-	}
-	PG_END_TRY();
-	return index;
+	END_NATIVE
+	return result;
 }
 
 /*
@@ -236,19 +213,15 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jcla
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cls, jlong _this, jobjectArray jvalues)
 {
-	Ptr2Long p2l;
-	TupleDesc self;
 	jobject result = 0;
 
-	PLJAVA_ENTRY_FENCE(0)
+	BEGIN_NATIVE
+	Ptr2Long p2l;
 	p2l.longVal = _this;
-	self = (TupleDesc)p2l.ptrVal;
-	if(self == 0)
-		return 0;
-
 	PG_TRY();
 	{
 		jint   idx;
+		TupleDesc self = (TupleDesc)p2l.ptrVal;
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		char*  nulls   = palloc(count);
@@ -258,23 +231,24 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 	
 		for(idx = 0; idx < count; ++idx)
 		{
-			jobject value = (*env)->GetObjectArrayElement(env, jvalues, idx);
+			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{
 				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1));
-				values[idx] = Type_coerceObject(type, env, value);
+				values[idx] = Type_coerceObject(type, value);
 				nulls[idx] = ' ';
 			}
 		}
-		result = Tuple_create(env, heap_formtuple(self, values, nulls));
+		result = Tuple_create(heap_formtuple(self, values, nulls));
 		pfree(values);
 		pfree(nulls);
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR(env, "heap_formtuple");
+		Exception_throw_ERROR("heap_formtuple");
 	}
 	PG_END_TRY();
+	END_NATIVE
 	return result;
 }
 
@@ -287,12 +261,8 @@ JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jclass cls, jlong _this)
 {
 	Ptr2Long p2l;
-	TupleDesc self;
 	p2l.longVal = _this;
-	self = (TupleDesc)p2l.ptrVal;
-	if(self == 0)
-		return 0;
-	return (jint)self->natts;
+	return (jint)((TupleDesc)p2l.ptrVal)->natts;
 }
 
 /*
@@ -303,15 +273,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1size(JNIEnv* env, jclass cls, jl
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1free(JNIEnv* env, jobject _this, jlong pointer)
 {
-	if(pointer != 0)
-	{
-		/* Avoid callback when explicitly freed from Java code
-		 */
-		Ptr2Long p2l;
-		p2l.longVal = pointer;
-		PLJavaMemoryContext_setJavaObject(env, p2l.ptrVal, 0);
-		FreeTupleDesc(p2l.ptrVal);
-	}
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	FreeTupleDesc((TupleDesc)p2l.ptrVal);
+	END_NATIVE
 }
 
 /*
@@ -322,34 +288,30 @@ Java_org_postgresql_pljava_internal_TupleDesc__1free(JNIEnv* env, jobject _this,
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jclass cls, jlong _this, jint index)
 {
-	Ptr2Long p2l;
-	TupleDesc self;
 	jobject result = 0;
-	PLJAVA_ENTRY_FENCE(0)
-
+	
+	BEGIN_NATIVE
+	Ptr2Long p2l;
 	p2l.longVal = _this;
-	self = (TupleDesc)p2l.ptrVal;
-	if(self != 0)
+	PG_TRY();
 	{
-		PG_TRY();
+		Oid typeId = SPI_gettypeid((TupleDesc)p2l.ptrVal, (int)index);
+		if(!OidIsValid(typeId))
 		{
-			Oid typeId = SPI_gettypeid(self, (int)index);
-			if(!OidIsValid(typeId))
-			{
-				Exception_throw(env,
-					ERRCODE_INVALID_DESCRIPTOR_INDEX,
-					"Invalid attribute index \"%d\"", (int)index);
-			}
-			else
-			{
-				result = Oid_create(env, typeId);
-			}
+			Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
+				"Invalid attribute index \"%d\"", (int)index);
 		}
-		PG_CATCH();
+		else
 		{
-			Exception_throw_ERROR(env, "SPI_gettypeid");
+			result = Oid_create(typeId);
 		}
-		PG_END_TRY();
 	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR("SPI_gettypeid");
+	}
+	PG_END_TRY();
+	END_NATIVE
+
 	return result;
 }

@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class HeapTupleHeader extends NativeStruct
+public class HeapTupleHeader extends JavaHandle
 {
 	/**
 	 * Obtains a value from the underlying native <code>HeapTupleHeader</code>

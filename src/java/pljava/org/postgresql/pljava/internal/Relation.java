@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Relation extends NativeStruct
+public class Relation extends JavaHandle
 {
 	/**
 	 * Returns the name of this <code>Relation</code>.
@@ -25,7 +25,7 @@ public class Relation extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getName();
+			return _getName(this.getNative());
 		}
 	}
 
@@ -38,7 +38,7 @@ public class Relation extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getTupleDesc();
+			return _getTupleDesc(this.getNative());
 		}
 	}
 
@@ -59,16 +59,16 @@ public class Relation extends NativeStruct
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._modifyTuple(original, fieldNumbers, values);
+			return _modifyTuple(this.getNative(), original.getNativePointer(), fieldNumbers, values);
 		}
 	}
 
-	private native String _getName()
+	private static native String _getName(long pointer)
 	throws SQLException;
 
-	private native TupleDesc _getTupleDesc()
+	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private native Tuple _modifyTuple(Tuple original, int[] fieldNumbers, Object[] values)
+	private static native Tuple _modifyTuple(long pointer, long original, int[] fieldNumbers, Object[] values)
 	throws SQLException;
 }

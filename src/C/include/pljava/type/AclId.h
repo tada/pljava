@@ -25,9 +25,9 @@ typedef Oid AclId;
  * @author Thomas Hallgren
  *
  ***********************************************************************/
-extern jobject AclId_create(JNIEnv* env, AclId aclId);
+extern jobject AclId_create(AclId aclId);
 
-extern AclId AclId_getAclId(JNIEnv* env, jobject aclId);
+extern AclId AclId_getAclId(jobject aclId);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

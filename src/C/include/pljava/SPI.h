@@ -24,8 +24,6 @@ extern "C" {
  *
  ***********************************************************************/
 
-extern Datum SPI_initialize(PG_FUNCTION_ARGS);
-
 typedef struct
 {
 	SubTransactionId xid;

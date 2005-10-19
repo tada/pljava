@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
  *
  * @author Thomas Hallgren
  */
-public class ExecutionPlan extends NativeStruct
+public class ExecutionPlan extends JavaHandle
 {
     static final int INITIAL_CACHE_CAPACITY = 29;
     static final float CACHE_LOAD_FACTOR = 0.75f;

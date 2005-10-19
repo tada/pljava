@@ -57,13 +57,13 @@ extern bool Type_canReplaceType(Type self, Type type);
  * Translate a given Datum into a jvalue accorging to the type represented
  * by this instance.
  */
-extern jvalue Type_coerceDatum(Type self, JNIEnv* env, Datum datum);
+extern jvalue Type_coerceDatum(Type self, Datum datum);
 
 /*
  * Translate a given Object into a Datum accorging to the type represented
  * by this instance.
  */
-extern Datum Type_coerceObject(Type self, JNIEnv* env, jobject object);
+extern Datum Type_coerceObject(Type self, jobject object);
 
 /*
  * Return a Type based on a Postgres Oid.
@@ -121,7 +121,7 @@ extern TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
  * the wasNull parameter is set to false by the caller prior to the
  * call.
  */
-extern Datum Type_invoke(Type self, JNIEnv* env, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+extern Datum Type_invoke(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
 /*
  * Function used when obtaining a type based on an Oid
@@ -141,8 +141,6 @@ extern void Type_registerPgType(Oid typeId, TypeObtainer obtainer);
  * Register this type as the mapper for an explicit Java type.
  */
 extern void Type_registerJavaType(const char* javaTypeName, TypeObtainer obtainer);
-
-extern Datum Type_initialize(PG_FUNCTION_ARGS);
 
 #ifdef __cplusplus
 }

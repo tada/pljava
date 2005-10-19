@@ -9,7 +9,7 @@
 #ifndef __pljava_Relation_h
 #define __pljava_Relation_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create an instance of org.postgresql.pljava.Relation
  */
-extern jobject Relation_create(JNIEnv* env, Relation rel);
+extern jobject Relation_create(Relation rel);
 
 #ifdef __cplusplus
 }

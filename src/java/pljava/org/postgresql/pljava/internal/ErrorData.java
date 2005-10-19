@@ -12,85 +12,204 @@ package org.postgresql.pljava.internal;
  *
  * @author Thomas Hallgren
  */
-public class ErrorData extends NativeStruct
+public class ErrorData extends JavaWrapper
 {
+	ErrorData(long pointer)
+	{
+		super(pointer);
+	}
+
 	/**
 	 * Returns The error level
 	 */
-	public native int getErrorLevel();
+	public int getErrorLevel()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getErrorLevel(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns true if the error will be reported to the server log
 	 */
-	public native boolean isOutputToServer();
+	public boolean isOutputToServer()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _isOutputToServer(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns true if the error will be reported to the client
 	 */
-	public native boolean isOutputToClient();
+	public boolean isOutputToClient()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _isOutputToClient(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns true if funcname inclusion is set
 	 */
-	public native boolean isShowFuncname();
+	public boolean isShowFuncname()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _isShowFuncname(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns The file where the error occured
 	 */
-	public native String getFilename();
+	public String getFilename()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getFilename(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns The line where the error occured
 	 */
-	public native int getLineno();
+	public int getLineno()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getLineno(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns the name of the function where the error occured
 	 */
-	public native String getFuncname();
+	public String getFuncname()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getFuncname(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns the unencoded ERRSTATE
 	 */
-	public native String getSqlState();
+	public String getSqlState()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getSqlState(this.getNativePointer());
+		}
+	}
 
 	/**
 	 * Returns the primary error message
 	 */
-	public native String getMessage();
+	public String getMessage()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getMessage(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the detailed error message
 	 */
-	public native String getDetail();
+	public String getDetail()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getDetail(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the hint message
 	 */
-	public native String getHint();
+	public String getHint()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getHint(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the context message
 	 */
-	public native String getContextMessage();
+	public String getContextMessage()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getContextMessage(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the cursor index into the query string
 	 */
-	public native int getCursorPos();
+	public int getCursorPos()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getCursorPos(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the cursor index into internal query
 	 */
-	public native int getInternalPos();
+	public int getInternalPos()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getInternalPos(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the internally-generated query
 	 */
-	public native String getInternalQuery();
+	public String getInternalQuery()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getInternalQuery(this.getNativePointer());
+		}
+	}
 	
 	/**
 	 * Returns the errno at entry
 	 */
-	public native int getSavedErrno();	/* errno at entry */
+	public int getSavedErrno()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getSavedErrno(this.getNativePointer());
+		}
+	}
+
+	private static native int _getErrorLevel(long pointer);
+	private static native boolean _isOutputToServer(long pointer);
+	private static native boolean _isOutputToClient(long pointer);
+	private static native boolean _isShowFuncname(long pointer);
+	private static native String _getFilename(long pointer);
+	private static native int _getLineno(long pointer);
+	private static native String _getFuncname(long pointer);
+	private static native String _getSqlState(long pointer);
+	private static native String _getMessage(long pointer);
+	private static native String _getDetail(long pointer);
+	private static native String _getHint(long pointer);
+	private static native String _getContextMessage(long pointer);
+	private static native int _getCursorPos(long pointer);
+	private static native int _getInternalPos(long pointer);
+	private static native String _getInternalQuery(long pointer);
+	private static native int _getSavedErrno(long pointer);	/* errno at entry */
+	protected native void _free(long pointer);
 }

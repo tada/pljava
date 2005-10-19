@@ -17,59 +17,51 @@ static jmethodID s_BlobValue_getContents;
 /*
  * byte[] type. Copies data to/from a bytea struct.
  */
-static jvalue _byte_array_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _byte_array_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	bytea* bytes  = DatumGetByteaP(arg);
 	jsize  length = VARSIZE(bytes) - VARHDRSZ;
-	jbyteArray ba = (*env)->NewByteArray(env, length);
-	(*env)->SetByteArrayRegion(env, ba, 0, length, (jbyte*)VARDATA(bytes)); 
+	jbyteArray ba = JNI_newByteArray(length);
+	JNI_setByteArrayRegion(ba, 0, length, (jbyte*)VARDATA(bytes)); 
 	result.l = ba;
 	return result;
 }
 
-static Datum _byte_array_coerceObject(Type self, JNIEnv* env, jobject byteArray)
+static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 {
 	bytea* bytes = 0;
 	if(byteArray == 0)
 		return 0;
 
-	if((*env)->IsInstanceOf(env, byteArray, s_byteArray_class))
+	if(JNI_isInstanceOf(byteArray, s_byteArray_class))
 	{
-		jsize  length    = (*env)->GetArrayLength(env, (jbyteArray)byteArray);
+		jsize  length    = JNI_getArrayLength((jarray)byteArray);
 		int32  byteaSize = length + VARHDRSZ;
 
 		bytes = (bytea*)palloc(byteaSize);
 		VARATT_SIZEP(bytes) = byteaSize;
-		(*env)->GetByteArrayRegion(env, (jbyteArray)byteArray, 0, length, (jbyte*)VARDATA(bytes));
+		JNI_getByteArrayRegion((jbyteArray)byteArray, 0, length, (jbyte*)VARDATA(bytes));
 	}
-	else if((*env)->IsInstanceOf(env, byteArray, s_BlobValue_class))
+	else if(JNI_isInstanceOf(byteArray, s_BlobValue_class))
 	{
 		jobject byteBuffer;
-		jlong length;
 		int32 byteaSize;
-		bool saveicj = isCallingJava;
-
-		isCallingJava = true;
-		length = (*env)->CallLongMethod(env, byteArray, s_BlobValue_length);
-		isCallingJava = saveicj;
+		jlong length = JNI_callLongMethod(byteArray, s_BlobValue_length);
 
 		byteaSize = (int32)(length + VARHDRSZ);
 		bytes = (bytea*)palloc(byteaSize);
 		VARATT_SIZEP(bytes) = byteaSize;
 
-		isCallingJava = true;
-		byteBuffer = (*env)->NewDirectByteBuffer(env, (void*)VARDATA(bytes), length);
+		byteBuffer = JNI_newDirectByteBuffer((void*)VARDATA(bytes), length);
 		if(byteBuffer != 0)
-			(*env)->CallVoidMethod(env, byteArray, s_BlobValue_getContents, byteBuffer);
-		isCallingJava = saveicj;
-
-		Exception_checkException(env);
-		(*env)->DeleteLocalRef(env, byteBuffer);
+			JNI_callVoidMethod(byteArray, s_BlobValue_getContents, byteBuffer);
+		Exception_checkException();
+		JNI_deleteLocalRef(byteBuffer);
 	}
 	else
 	{
-		Exception_throwIllegalArgument(env, "Not coercable to bytea");
+		Exception_throwIllegalArgument("Not coercable to bytea");
 	}
 
 	PG_RETURN_BYTEA_P(bytes);
@@ -85,17 +77,13 @@ static Type byte_array_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum byte_array_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(byte_array_initialize);
-Datum byte_array_initialize(PG_FUNCTION_ARGS)
+extern void byte_array_initialize(void);
+void byte_array_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-	s_byteArray_class = (*env)->NewGlobalRef(env, PgObject_getJavaClass(env, "[B"));
-	s_BlobValue_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "org/postgresql/pljava/jdbc/BlobValue"));
-
-	s_BlobValue_length = PgObject_getJavaMethod(env, s_BlobValue_class, "length", "()J");
-	s_BlobValue_getContents = PgObject_getJavaMethod(env, s_BlobValue_class, "getContents", "(Ljava/nio/ByteBuffer;)V");
+	s_byteArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[B"));
+	s_BlobValue_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/BlobValue"));
+	s_BlobValue_length = PgObject_getJavaMethod(s_BlobValue_class, "length", "()J");
+	s_BlobValue_getContents = PgObject_getJavaMethod(s_BlobValue_class, "getContents", "(Ljava/nio/ByteBuffer;)V");
 
 	s_byte_arrayClass = TypeClass_alloc("type.byte[]");
 	s_byte_arrayClass->JNISignature = "[B";
@@ -106,6 +94,5 @@ Datum byte_array_initialize(PG_FUNCTION_ARGS)
 
 	Type_registerPgType(BYTEAOID, byte_array_obtain);
 	Type_registerJavaType("byte[]", byte_array_obtain);
-	PG_RETURN_VOID();
 }
 

@@ -9,7 +9,7 @@
 #ifndef __pljava_TupleTable_h
 #define __pljava_TupleTable_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,8 +27,8 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.TupleTable instance
  */
-extern jobject TupleTable_createFromSlot(JNIEnv* env, TupleTableSlot* tupleTableSlot);
-extern jobject TupleTable_create(JNIEnv* env, SPITupleTable* tupleTable);
+extern jobject TupleTable_createFromSlot(TupleTableSlot* tupleTableSlot);
+extern jobject TupleTable_create(SPITupleTable* tupleTable);
 
 #ifdef __cplusplus
 }

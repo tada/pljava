@@ -6,8 +6,8 @@
  *
  * @author Thomas Hallgren
  */
-#ifndef __pljava_NativeStruct_h
-#define __pljava_NativeStruct_h
+#ifndef __pljava_JavaHandle_h
+#define __pljava_JavaHandle_h
 
 #include "pljava/type/Type.h"
 #include "pljava/HashMap.h"
@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 /**************************************************************************
- * The NativeStruct is a Java class that maintains a pointer to a piece of
+ * The JavaHandle is a Java class that maintains a pointer to a piece of
  * memory allocated with a life cycle that spans a call from the PostgreSQL
  * function manager (using palloc()). Since Java uses a garbage collector
  * and since an object in the Java domain might survive longer than memory
@@ -32,40 +32,40 @@ extern "C" {
  * reset. Marks all java objects that still refer to objects in the cache as
  * stale.
  */
-extern void NativeStruct_releaseCache(HashMap cache);
+extern void JavaHandle_releaseCache(HashMap cache);
 
 /*
- * The NativeStruct_init method will assing the pointer value to a Java
- * NativeStruct object and put a Java WeakReference to this object into
+ * The JavaHandle_init method will assing the pointer value to a Java
+ * JavaHandle object and put a Java WeakReference to this object into
  * a HashMap keyed by the native pointer (see HashMap_putByOpaque).
  * This binding serves two purposes; a) A cache so that only one Java object
  * is created for one specific pointer and b) A list of Java objects to be
  * cleared before the current memory context used by palloc goes out of
  * scope.
  */
-extern void NativeStruct_init(JNIEnv* env, jobject self, void* nativePointer);
+extern void JavaHandle_init(jobject self, void* nativePointer);
 
 /*
  * Assing the pointer to the java object without adding it to the native
  * cache.
  */
-extern void NativeStruct_setPointer(JNIEnv* env, jobject nativeStruct, void* nativePointer);
+extern void JavaHandle_setPointer(jobject nativeStruct, void* nativePointer);
 
 /*
- * Return the pointer value stored in a Java NativeStruct.
+ * Return the pointer value stored in a Java JavaHandle.
  */
-extern void* NativeStruct_getStruct(JNIEnv* env, jobject nativeStruct);
+extern void* JavaHandle_getStruct(jobject nativeStruct);
 
 /*
  * Reset the pointer in the java object and remove the entry from the weak cache.
  */
-extern void* NativeStruct_releasePointer(JNIEnv* env, jobject nativeStruct);
+extern void* JavaHandle_releasePointer(jobject nativeStruct);
 
 /*
  * Allocates a new TypeClass and assigns a default coerceObject method used by
- * all NativeStruct derivates.
+ * all JavaHandle derivates.
  */
-extern TypeClass NativeStructClass_alloc(const char* name);
+extern TypeClass JavaHandleClass_alloc(const char* name);
 
 #ifdef __cplusplus
 }

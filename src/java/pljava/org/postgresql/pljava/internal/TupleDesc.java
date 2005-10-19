@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class TupleDesc extends MemoryContextManaged
+public class TupleDesc extends JavaWrapper
 {
 	private Class[] m_columnClasses;
 

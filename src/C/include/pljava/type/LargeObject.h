@@ -9,7 +9,7 @@
 #ifndef __pljava_LargeObject_h
 #define __pljava_LargeObject_h
 
-#include "pljava/type/NativeStruct.h"
+#include "pljava/type/JavaHandle.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +26,7 @@ extern "C" {
 /*
  * Create the org.postgresql.pljava.LargeObject instance
  */
-extern jobject LargeObject_create(JNIEnv* env, LargeObjectDesc* lo);
+extern jobject LargeObject_create(LargeObjectDesc* lo);
 
 #ifdef __cplusplus
 }

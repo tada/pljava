@@ -9,7 +9,7 @@
 #ifndef __pljava_TupleDesc_h
 #define __pljava_TupleDesc_h
 
-#include "pljava/type/MemoryContextManaged.h"
+#include "pljava/type/JavaWrapper.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,13 +28,13 @@ extern "C" {
  * is NULL a Java exception has been initiated and the caller
  * should return to Java ASAP.
  */
-extern Type TupleDesc_getColumnType(JNIEnv* env, TupleDesc tupleDesc, int index);
+extern Type TupleDesc_getColumnType(TupleDesc tupleDesc, int index);
 
 /*
  * Create the org.postgresql.pljava.TupleDesc instance
  */
-extern jobject TupleDesc_create(JNIEnv* env, TupleDesc tDesc);
-extern jobject TupleDesc_internalCreate(JNIEnv* env, TupleDesc tDesc);
+extern jobject TupleDesc_create(TupleDesc tDesc);
+extern jobject TupleDesc_internalCreate(TupleDesc tDesc);
 
 #ifdef __cplusplus
 }

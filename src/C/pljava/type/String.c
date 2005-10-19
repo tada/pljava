@@ -25,7 +25,7 @@ static bool _String_canReplaceType(Type self, Type type)
 	return true;
 }
 
-jvalue _String_coerceDatum(Type self, JNIEnv* env, Datum arg)
+jvalue _String_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	char* tmp = DatumGetCString(FunctionCall3(
@@ -33,28 +33,24 @@ jvalue _String_coerceDatum(Type self, JNIEnv* env, Datum arg)
 					arg,
 					ObjectIdGetDatum(((String)self)->elementType),
 					Int32GetDatum(-1)));
-	result.l = String_createJavaStringFromNTS(env, tmp);
+	result.l = String_createJavaStringFromNTS(tmp);
 	pfree(tmp);
 	return result;
 }
 
-Datum _String_coerceObject(Type self, JNIEnv* env, jobject jstr)
+Datum _String_coerceObject(Type self, jobject jstr)
 {
 	char* tmp;
 	Datum ret;
-	bool saveicj = isCallingJava;
 	if(jstr == 0)
 		return 0;
 
-	isCallingJava = true;
-	jstr = (*env)->CallObjectMethod(env, jstr, s_Object_toString);
-	isCallingJava = saveicj;
-
-	if((*env)->ExceptionCheck(env))
+	jstr = JNI_callObjectMethod(jstr, s_Object_toString);
+	if(JNI_exceptionCheck())
 		return 0;
 
-	tmp = String_createNTS(env, jstr);
-	(*env)->DeleteLocalRef(env, jstr);
+	tmp = String_createNTS(jstr);
+	JNI_deleteLocalRef(jstr);
 
 	ret = FunctionCall3(
 					&((String)self)->textInput,
@@ -114,7 +110,7 @@ String StringClass_obtain(TypeClass self, Oid typeId)
 	return infant;
 }
 
-jstring String_createJavaString(JNIEnv* env, text* t)
+jstring String_createJavaString(text* t)
 {
 	jstring result = 0;
 	if(t != 0)
@@ -129,7 +125,7 @@ jstring String_createJavaString(JNIEnv* env, text* t)
 		 */
 		utf8 = (char*)pg_do_encoding_conversion(
 			(unsigned char*)src, srcLen, GetDatabaseEncoding(), PG_UTF8);
-		result = (*env)->NewStringUTF(env, utf8);
+		result = JNI_newStringUTF(utf8);
 	
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We don't want to accidentally
@@ -141,7 +137,7 @@ jstring String_createJavaString(JNIEnv* env, text* t)
 	return result;
 }
 
-jstring String_createJavaStringFromNTS(JNIEnv* env, const char* cp)
+jstring String_createJavaStringFromNTS(const char* cp)
 {
 	jstring result = 0;
 	if(cp != 0)
@@ -150,7 +146,7 @@ jstring String_createJavaStringFromNTS(JNIEnv* env, const char* cp)
 		 */
 		char* utf8 = (char*)pg_do_encoding_conversion(
 			(unsigned char*)cp, strlen(cp), GetDatabaseEncoding(), PG_UTF8);
-		result = (*env)->NewStringUTF(env, utf8);
+		result = JNI_newStringUTF(utf8);
 	
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We don't want to accidentally
@@ -162,14 +158,14 @@ jstring String_createJavaStringFromNTS(JNIEnv* env, const char* cp)
 	return result;
 }
 
-text* String_createText(JNIEnv* env, jstring javaString)
+text* String_createText(jstring javaString)
 {
 	text* result = 0;
 	if(javaString != 0)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = (*env)->GetStringUTFChars(env, javaString, 0);
+		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
 		char* denc = (char*)pg_do_encoding_conversion(
 			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 		int dencLen = strlen(denc);
@@ -187,19 +183,19 @@ text* String_createText(JNIEnv* env, jstring javaString)
 		 */
 		if(denc != utf8)
 			pfree(denc);
-		(*env)->ReleaseStringUTFChars(env, javaString, utf8);
+		JNI_releaseStringUTFChars(javaString, utf8);
 	}
 	return result;
 }
 
-char* String_createNTS(JNIEnv* env, jstring javaString)
+char* String_createNTS(jstring javaString)
 {
 	char* result = 0;
 	if(javaString != 0)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = (*env)->GetStringUTFChars(env, javaString, 0);
+		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
 		result = (char*)pg_do_encoding_conversion(
 			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 	
@@ -208,18 +204,18 @@ char* String_createNTS(JNIEnv* env, jstring javaString)
 		 */
 		if(result == utf8)
 			result = pstrdup(result);
-		(*env)->ReleaseStringUTFChars(env, javaString, utf8);
+		JNI_releaseStringUTFChars(javaString, utf8);
 	}
 	return result;
 }
 
-void String_appendJavaString(JNIEnv* env, StringInfoData* buf, jstring javaString)
+void String_appendJavaString(StringInfoData* buf, jstring javaString)
 {
 	if(javaString != 0)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = (*env)->GetStringUTFChars(env, javaString, 0);
+		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
 		char* dbEnc = (char*)pg_do_encoding_conversion(
 			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 	
@@ -231,25 +227,16 @@ void String_appendJavaString(JNIEnv* env, StringInfoData* buf, jstring javaStrin
 		 */
 		if(dbEnc != utf8)
 			pfree(dbEnc);
-		(*env)->ReleaseStringUTFChars(env, javaString, utf8);
+		JNI_releaseStringUTFChars(javaString, utf8);
 	}
 }
 
-/* Make this datatype available to the postgres system.
- */
-extern Datum String_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(String_initialize);
-Datum String_initialize(PG_FUNCTION_ARGS)
+extern void String_initialize(void);
+void String_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Object_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/Object"));
-
-	s_Object_toString = PgObject_getJavaMethod(env, s_Object_class, "toString", "()Ljava/lang/String;");
-
-	s_String_class = (jclass)(*env)->NewGlobalRef(
-		env, PgObject_getJavaClass(env, "java/lang/String"));
+	s_Object_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Object"));
+	s_Object_toString = PgObject_getJavaMethod(s_Object_class, "toString", "()Ljava/lang/String;");
+	s_String_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/String"));
 
 	s_StringClass = TypeClass_alloc2("type.String", sizeof(struct TypeClass_), sizeof(struct String_));
 	s_StringClass->JNISignature   = "Ljava/lang/String;";
@@ -274,5 +261,4 @@ Datum String_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(VARCHAROID,String_obtain);
 
 	Type_registerJavaType("java.lang.String", String_obtain);
-	PG_RETURN_VOID();
 }

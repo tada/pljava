@@ -25,17 +25,13 @@ static jmethodID s_Byte_byteValue;
 /*
  * byte primitive type.
  */
-static Datum _byte_invoke(Type self, JNIEnv* env, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _byte_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jbyte bv;
-	bool saveicj = isCallingJava;
-	isCallingJava = true;
-	bv = (*env)->CallStaticByteMethodA(env, cls, method, args);
-	isCallingJava = saveicj;
+	jbyte bv = JNI_callStaticByteMethodA(cls, method, args);
 	return CharGetDatum(bv);
 }
 
-static jvalue _byte_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _byte_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	result.b = DatumGetChar(arg);
@@ -55,16 +51,16 @@ static bool _Byte_canReplace(Type self, Type other)
 	return self->m_class == other->m_class || other->m_class == s_byteClass;
 }
 
-static jvalue _Byte_coerceDatum(Type self, JNIEnv* env, Datum arg)
+static jvalue _Byte_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = PgObject_newJavaObject(env, s_Byte_class, s_Byte_init, DatumGetChar(arg));
+	result.l = JNI_newObject(s_Byte_class, s_Byte_init, DatumGetChar(arg));
 	return result;
 }
 
-static Datum _Byte_coerceObject(Type self, JNIEnv* env, jobject byteObj)
+static Datum _Byte_coerceObject(Type self, jobject byteObj)
 {
-	return CharGetDatum((*env)->CallByteMethod(env, byteObj, s_Byte_byteValue));
+	return CharGetDatum(JNI_callByteMethod(byteObj, s_Byte_byteValue));
 }
 
 static Type Byte_obtain(Oid typeId)
@@ -74,20 +70,12 @@ static Type Byte_obtain(Oid typeId)
 
 /* Make this datatype available to the postgres system.
  */
-extern Datum Byte_initialize(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Byte_initialize);
-Datum Byte_initialize(PG_FUNCTION_ARGS)
+extern void Byte_initialize(void);
+void Byte_initialize()
 {
-	JNIEnv* env = (JNIEnv*)PG_GETARG_POINTER(0);
-
-	s_Byte_class = (*env)->NewGlobalRef(
-				env, PgObject_getJavaClass(env, "java/lang/Byte"));
-
-	s_Byte_init = PgObject_getJavaMethod(
-				env, s_Byte_class, "<init>", "(B)V");
-
-	s_Byte_byteValue = PgObject_getJavaMethod(
-				env, s_Byte_class, "byteValue", "()B");
+	s_Byte_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Byte"));
+	s_Byte_init = PgObject_getJavaMethod(s_Byte_class, "<init>", "(B)V");
+	s_Byte_byteValue = PgObject_getJavaMethod(s_Byte_class, "byteValue", "()B");
 
 	s_ByteClass = TypeClass_alloc("type.Byte");
 	s_ByteClass->canReplaceType = _Byte_canReplace;
@@ -109,5 +97,4 @@ Datum Byte_initialize(PG_FUNCTION_ARGS)
 	Type_registerPgType(CHAROID, byte_obtain);
 	Type_registerJavaType("byte", byte_obtain);
 	Type_registerJavaType("java.lang.Byte", Byte_obtain);
-	PG_RETURN_VOID();
 }
