@@ -48,6 +48,11 @@ public abstract class JavaHandle
 		return m_native;
 	}
 
+	protected final void clearNative()
+	{
+		m_native = 0;
+	}
+
 	/**
 	 * Invalidates this structure without freeing up memory.
 	 */

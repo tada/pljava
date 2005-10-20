@@ -88,7 +88,12 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			_invalidate(this.getNative());
+			long pointer = this.getNative();
+			if(pointer != 0)
+			{
+				this.clearNative();
+				_invalidate(pointer);
+			}
 		}
 	}
 

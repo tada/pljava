@@ -276,6 +276,7 @@ Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jclass claz
 		p2l.longVal = _this;
 		BEGIN_NATIVE_NO_ERRCHECK
 		Portal portal = (Portal)p2l.ptrVal;
+		MemoryContext_dropNative(portal);
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
 		SPI_cursor_close(portal);
