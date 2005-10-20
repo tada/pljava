@@ -844,8 +844,6 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 			 */
 			retval = Function_invoke(function, fcinfo);
 		}
-		Exception_checkException();
-
 		if(ctx.invocation != 0)
 		{
 			JNI_callVoidMethod(ctx.invocation, s_Invocation_onExit);

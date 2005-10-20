@@ -46,7 +46,8 @@ Datum TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull)
 
 	if(jtuple != 0)
 	{
-		ret = PointerGetDatum(JavaHandle_getStruct(jtuple));
+		HeapTuple ht = (HeapTuple)JavaHandle_getStruct(jtuple);
+		ret = PointerGetDatum(heap_copytuple(ht));
 		JNI_deleteLocalRef(jtuple);
 	}
 	else

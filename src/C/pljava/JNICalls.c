@@ -9,6 +9,8 @@
 #include "pljava/JNICalls.h"
 #include "pljava/CallContext.h"
 #include "pljava/Exception.h"
+#include "pljava/type/ErrorData.h"
+#include "pljava/type/String.h"
 
 JNIEnv* jniEnv;
 
@@ -17,8 +19,78 @@ static jobject s_threadLock;
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
 #define END_JAVA jniEnv = env; }
 
-#define BEGIN_CALL BEGIN_JAVA (*env)->MonitorExit(env, s_threadLock);
-#define END_CALL (*env)->MonitorEnter(env, s_threadLock); END_JAVA
+#define BEGIN_CALL \
+	BEGIN_JAVA \
+	if((*env)->MonitorExit(env, s_threadLock) < 0) \
+		elog(ERROR, "Java exit monitor failure");
+
+#define END_CALL endCall(env); }
+
+static void endCall(JNIEnv* env)
+{
+	jobject exh = (*env)->ExceptionOccurred(env);
+	if(exh != 0)
+	{
+		(*env)->ExceptionDescribe(env);
+		(*env)->ExceptionClear(env);
+	}
+
+	jniEnv = env;
+	if((*env)->MonitorEnter(env, s_threadLock) < 0)
+		elog(ERROR, "Java enter monitor failure");
+
+	if(exh != 0)
+	{
+		int sqlState;
+		StringInfoData buf;
+		jclass exhClass;
+		jstring jtmp;
+	
+		if((*env)->IsInstanceOf(env, exh, ServerException_class))
+		{
+			/* Rethrow the server error.
+			 */
+			jobject jed = (*env)->CallObjectMethod(env, exh, ServerException_getErrorData);
+			if(jed != 0)
+				ReThrowError(ErrorData_getErrorData(jed));
+		}
+		sqlState = ERRCODE_INTERNAL_ERROR;
+
+		initStringInfo(&buf);
+	
+		exhClass = (*env)->GetObjectClass(env, exh);
+		jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
+		String_appendJavaString(&buf, jtmp);
+		(*env)->DeleteLocalRef(env, exhClass);
+		(*env)->DeleteLocalRef(env, jtmp);
+	
+		jtmp = (jstring)(*env)->CallObjectMethod(env, exh, Throwable_getMessage);
+		if(jtmp != 0)
+		{
+			appendStringInfoString(&buf, ": ");
+			String_appendJavaString(&buf, jtmp);
+			(*env)->DeleteLocalRef(env, jtmp);
+		}
+	
+		if((*env)->IsInstanceOf(env, exh, SQLException_class))
+		{
+			jtmp = (*env)->CallObjectMethod(env, exh, SQLException_getSQLState);
+			if(jtmp != 0)
+			{
+				char* s = String_createNTS(jtmp);
+				(*env)->DeleteLocalRef(env, jtmp);
+
+				if(strlen(s) >= 5)
+					sqlState = MAKE_SQLSTATE(s[0], s[1], s[2], s[3], s[4]);
+				pfree(s);
+			}
+		}
+	
+		/* There's no return from this call.
+		 */
+		ereport(ERROR, (errcode(sqlState), errmsg(buf.data)));
+	}
+}
 
 bool beginNativeNoErrCheck(JNIEnv* env)
 {
@@ -384,7 +456,8 @@ jint JNI_destroyVM(JavaVM *vm)
 {
 	jint result;
 	BEGIN_JAVA
-	(*env)->MonitorExit(env, s_threadLock);
+	if((*env)->MonitorExit(env, s_threadLock))
+		elog(ERROR, "Java exit monitor failure (final)");
 	result = (*vm)->DestroyJavaVM(vm);
 	END_JAVA
 	jniEnv = 0;
@@ -733,7 +806,8 @@ void JNI_setThreadLock(jobject lockObject)
 {
 	BEGIN_JAVA
 	s_threadLock = (*env)->NewGlobalRef(env, lockObject);
-	(*env)->MonitorEnter(env, s_threadLock);
+	if((*env)->MonitorEnter(env, s_threadLock) < 0)
+		elog(ERROR, "Java enter monitor failure (initial)");
 	END_JAVA
 }
 

@@ -34,6 +34,26 @@ extern "C" {
 extern bool beginNative(JNIEnv* env);
 extern bool beginNativeNoErrCheck(JNIEnv* env);
 
+extern jclass    ServerException_class;
+extern jmethodID ServerException_getErrorData;
+extern jmethodID ServerException_init;
+
+extern jclass    Class_class;
+extern jmethodID Class_getName;
+
+extern jclass    Throwable_class;
+extern jmethodID Throwable_getMessage;
+
+extern jclass    IllegalArgumentException_class;
+extern jmethodID IllegalArgumentException_init;
+
+extern jclass    SQLException_class;
+extern jmethodID SQLException_init;
+extern jmethodID SQLException_getSQLState;
+
+extern jclass    UnsupportedOperationException_class;
+extern jmethodID UnsupportedOperationException_init;
+
 /*
  * Misc JNIEnv mappings. See <jni.h> for more info.
  */

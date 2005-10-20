@@ -92,7 +92,7 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 	if(tuple == 0)
 		return 0;
 
-	result = (HeapTuple)JavaHandle_getStruct(tuple);
+	result = heap_copytuple((HeapTuple)JavaHandle_getStruct(tuple));
 	JNI_deleteLocalRef(tuple);
 	return result;
 }

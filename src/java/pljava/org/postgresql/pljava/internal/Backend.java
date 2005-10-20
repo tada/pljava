@@ -48,8 +48,13 @@ public class Backend
 				public void run()
 				{
 					if(s_session != null)
-						_removeEOXactListener(s_session);
-					s_session = null;
+					{
+						synchronized(THREADLOCK)
+						{
+							_removeEOXactListener(s_session);
+						}
+						s_session = null;
+					}
 				}
 			});
 		}

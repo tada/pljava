@@ -65,15 +65,6 @@ extern void Exception_throwSPI(const char* function, int errCode);
 extern void Exception_throw_ERROR(const char* function);
 
 /*
- * Checks if a Java exception has been thrown. If so, a check is made if the
- * exception was a ServerException. If it was, it's contained ErrorData is
- * re-thrown, otherwise, the function ereport(ERROR, ...) is called. There's
- * no return from this method if that happens. This method is called at the
- * completion of each call to a function or trigger.
- */
-extern void Exception_checkException(void);
-
-/*
  * Throw an exception indicating that wanted member could not be
  * found. This is an ereport(ERROR...) so theres' no return from
  * this function.

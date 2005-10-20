@@ -324,7 +324,6 @@ static void Function_init(Function self, PG_FUNCTION_ARGS)
 	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, schemaName);
 	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(nspTup);
-	Exception_checkException();
 
 	jname  = String_createJavaStringFromNTS(className);
 
@@ -333,8 +332,6 @@ static void Function_init(Function self, PG_FUNCTION_ARGS)
 
 	JNI_deleteLocalRef(jname);
 	JNI_deleteLocalRef(loader);
-
-	Exception_checkException();
 
 	self->returnComplex = false;
 	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);

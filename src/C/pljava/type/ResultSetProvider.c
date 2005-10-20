@@ -106,8 +106,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		 * (implements ResultSetProvider).
 		 */
 		tmp = JNI_callStaticObjectMethodA(cls, method, args);
-		Exception_checkException();
-
 		if(tmp == 0)
 		{
 			fcinfo->isnull = true;
@@ -117,7 +115,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		if(JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
 		{
 			jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
-			Exception_checkException();
 			JNI_deleteLocalRef(tmp);
 			tmp = wrapper;
 		}
@@ -169,11 +166,11 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 			s_ResultSetProvider_assignRowValues,
 			ctxData->singleRowWriter,
 			(jint)context->call_cntr) == JNI_TRUE);
+
 	ctxData->hasConnected = currentCallContext->hasConnected;
 	ctxData->invocation   = currentCallContext->invocation;
 	currentCallContext->hasConnected = false;
 	currentCallContext->invocation   = 0;
-	Exception_checkException();
 
 	if(hasRow)
 	{

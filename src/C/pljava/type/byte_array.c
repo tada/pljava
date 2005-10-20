@@ -56,7 +56,6 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 		byteBuffer = JNI_newDirectByteBuffer((void*)VARDATA(bytes), length);
 		if(byteBuffer != 0)
 			JNI_callVoidMethod(byteArray, s_BlobValue_getContents, byteBuffer);
-		Exception_checkException();
 		JNI_deleteLocalRef(byteBuffer);
 	}
 	else
