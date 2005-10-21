@@ -32,10 +32,10 @@ static void endCall(JNIEnv* env)
 	if(exh != 0)
 		(*env)->ExceptionClear(env);
 
-	jniEnv = env;
 	if((*env)->MonitorEnter(env, s_threadLock) < 0)
 		elog(ERROR, "Java enter monitor failure");
 
+	jniEnv = env;
 	if(exh != 0)
 	{
 		int sqlState;
