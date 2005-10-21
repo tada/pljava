@@ -143,11 +143,11 @@ static void initPLJavaClasses(void)
 	elog(DEBUG1, "Getting Backend class pljava.jar");
 	s_Backend_class = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG1, "Backend class was there");
+	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
 	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
 
-	PgObject_registerNatives2(s_Backend_class, backendMethods);
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
