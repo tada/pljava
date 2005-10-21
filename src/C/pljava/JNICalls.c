@@ -30,10 +30,7 @@ static void endCall(JNIEnv* env)
 {
 	jobject exh = (*env)->ExceptionOccurred(env);
 	if(exh != 0)
-	{
-		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
-	}
 
 	jniEnv = env;
 	if((*env)->MonitorEnter(env, s_threadLock) < 0)
