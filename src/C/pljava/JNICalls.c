@@ -116,8 +116,10 @@ bool beginNative(JNIEnv* env)
 		 * state is unknown. There's no way the JVM is allowed to enter the
 		 * backend at this point.
 		 */
+		env = JNI_setEnv(env);
 		Exception_throw(ERRCODE_INTERNAL_ERROR,
 			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
+		JNI_setEnv(env);
 		return false;
 	}
 	return beginNativeNoErrCheck(env);
@@ -606,9 +608,9 @@ jfieldID JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig)
 jmethodID JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig)
 {
 	jmethodID result;
-	BEGIN_JAVA
+	BEGIN_CALL
 	result = (*env)->GetStaticMethodID(env, clazz, name, sig);
-	END_JAVA
+	END_CALL
 	return result;
 }
 
@@ -617,7 +619,7 @@ jobject JNI_getStaticObjectField(jclass clazz, jfieldID field)
 	jobject result;
 	BEGIN_JAVA
 	result = (*env)->GetStaticObjectField(env, clazz, field);
-	END_JAVA;
+	END_JAVA
 	return result;
 }
 
