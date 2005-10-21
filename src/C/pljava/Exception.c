@@ -43,20 +43,28 @@ Exception_featureNotSupported(const char* requestedFeature, const char* introVer
 	jobject ex;
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendStringInfoString(&buf, "Feature: ");
-	appendStringInfoString(&buf, requestedFeature);
-	appendStringInfoString(&buf, " lacks support in PostgreSQL version ");
-	appendStringInfo(&buf, "%d.%d", PGSQL_MAJOR_VER, PGSQL_MINOR_VER);
-	appendStringInfoString(&buf, ". It was introduced in version ");
-	appendStringInfoString(&buf, introVersion);
-
-	ereport(DEBUG3, (errmsg(buf.data)));
-	jmsg = String_createJavaStringFromNTS(buf.data);
+	PG_TRY();
+	{
+		appendStringInfoString(&buf, "Feature: ");
+		appendStringInfoString(&buf, requestedFeature);
+		appendStringInfoString(&buf, " lacks support in PostgreSQL version ");
+		appendStringInfo(&buf, "%d.%d", PGSQL_MAJOR_VER, PGSQL_MINOR_VER);
+		appendStringInfoString(&buf, ". It was introduced in version ");
+		appendStringInfoString(&buf, introVersion);
+	
+		ereport(DEBUG3, (errmsg(buf.data)));
+		jmsg = String_createJavaStringFromNTS(buf.data);
+	
+		ex = JNI_newObject(UnsupportedOperationException_class, UnsupportedOperationException_init, jmsg);
+		JNI_deleteLocalRef(jmsg);
+		JNI_throw(ex);
+	}
+	PG_CATCH();
+	{
+		ereport(WARNING, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("Exception while generating exception: %s", buf.data)));
+	}
+	PG_END_TRY();
 	pfree(buf.data);
-
-	ex = JNI_newObject(UnsupportedOperationException_class, UnsupportedOperationException_init, jmsg);
-	JNI_deleteLocalRef(jmsg);
-	JNI_throw(ex);
 }
 
 void Exception_throw(int errCode, const char* errMessage, ...)
@@ -72,24 +80,32 @@ void Exception_throw(int errCode, const char* errMessage, ...)
 	vsnprintf(buf, sizeof(buf), errMessage, args);
 	ereport(DEBUG3, (errcode(errCode), errmsg(buf)));
 
-	message = String_createJavaStringFromNTS(buf);
-
-	/* unpack MAKE_SQLSTATE code
-	 */
-	for (idx = 0; idx < 5; ++idx)
+	PG_TRY();
 	{
-		buf[idx] = PGUNSIXBIT(errCode);
-		errCode >>= 6;
+		message = String_createJavaStringFromNTS(buf);
+	
+		/* unpack MAKE_SQLSTATE code
+		 */
+		for (idx = 0; idx < 5; ++idx)
+		{
+			buf[idx] = PGUNSIXBIT(errCode);
+			errCode >>= 6;
+		}
+		buf[idx] = 0;
+	
+		sqlState = String_createJavaStringFromNTS(buf);
+	
+		ex = JNI_newObject(SQLException_class, SQLException_init, message, sqlState);
+	
+		JNI_deleteLocalRef(message);
+		JNI_deleteLocalRef(sqlState);
+		JNI_throw(ex);
 	}
-	buf[idx] = 0;
-
-	sqlState = String_createJavaStringFromNTS(buf);
-
-	ex = JNI_newObject(SQLException_class, SQLException_init, message, sqlState);
-
-	JNI_deleteLocalRef(message);
-	JNI_deleteLocalRef(sqlState);
-	JNI_throw(ex);
+	PG_CATCH();
+	{
+		ereport(WARNING, (errcode(errCode), errmsg("Exception while generating exception: %s", buf)));
+	}
+	PG_END_TRY();
 	va_end(args);
 }
 
@@ -104,12 +120,20 @@ void Exception_throwIllegalArgument(const char* errMessage, ...)
 	vsnprintf(buf, sizeof(buf), errMessage, args);
 	ereport(DEBUG3, (errmsg(buf)));
 
-	message = String_createJavaStringFromNTS(buf);
-
-	ex = JNI_newObject(IllegalArgumentException_class, IllegalArgumentException_init, message);
-
-	JNI_deleteLocalRef(message);
-	JNI_throw(ex);
+	PG_TRY();
+	{
+		message = String_createJavaStringFromNTS(buf);
+	
+		ex = JNI_newObject(IllegalArgumentException_class, IllegalArgumentException_init, message);
+	
+		JNI_deleteLocalRef(message);
+		JNI_throw(ex);
+	}
+	PG_CATCH();
+	{
+		ereport(WARNING, (errcode(ERRCODE_INTERNAL_ERROR), errmsg("Exception while generating exception: %s", buf)));
+	}
+	PG_END_TRY();
 	va_end(args);
 }
 
@@ -123,15 +147,23 @@ void Exception_throwSPI(const char* function, int errCode)
 void Exception_throw_ERROR(const char* funcName)
 {
 	jobject ex;
-	jobject ed = ErrorData_getCurrentError();
-
-	FlushErrorState();
-
-	ex = JNI_newObject(ServerException_class, ServerException_init, ed);
-	currentCallContext->errorOccured = true;
-
-	JNI_deleteLocalRef(ed);
-	JNI_throw(ex);
+	PG_TRY();
+	{
+		jobject ed = ErrorData_getCurrentError();
+	
+		FlushErrorState();
+	
+		ex = JNI_newObject(ServerException_class, ServerException_init, ed);
+		currentCallContext->errorOccured = true;
+	
+		JNI_deleteLocalRef(ed);
+		JNI_throw(ex);
+	}
+	PG_CATCH();
+	{
+		elog(WARNING, "Exception while generating exception");
+	}
+	PG_END_TRY();
 }
 
 extern void Exception_initialize(void);
