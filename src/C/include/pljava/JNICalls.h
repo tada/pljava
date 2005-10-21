@@ -112,6 +112,7 @@ extern jobject      JNI_getObjectArrayElement(jobjectArray array, jsize index);
 extern jclass       JNI_getObjectClass(jobject obj);
 extern jfieldID     JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig);
+extern jmethodID    JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig);
 extern jobject      JNI_getStaticObjectField(jclass clazz, jfieldID field);
 extern const jbyte* JNI_getStringUTFChars(jstring string, jboolean* isCopy);
 extern jboolean     JNI_isCallingJava(void);

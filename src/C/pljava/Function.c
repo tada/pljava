@@ -470,7 +470,7 @@ static void Function_init(Function self, PG_FUNCTION_ARGS)
 	ReleaseSysCache(procTup);
 
 	elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
-	self->method = JNI_getStaticMethodID(self->clazz, methodName, sign.data);
+	self->method = JNI_getStaticMethodIDOrNull(self->clazz, methodName, sign.data);
 
 	if(self->method == 0)
 	{
@@ -508,7 +508,7 @@ static void Function_init(Function self, PG_FUNCTION_ARGS)
 			Function_buildSignature(self, &sign, altType);
 	
 			elog(DEBUG1, "Obtaining method %s.%s %s", className, methodName, sign.data);
-			self->method = JNI_getStaticMethodID(self->clazz, methodName, sign.data);
+			self->method = JNI_getStaticMethodIDOrNull(self->clazz, methodName, sign.data);
 	
 			if(self->method != 0)
 				self->returnType = realRetType;

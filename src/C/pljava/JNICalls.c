@@ -611,6 +611,17 @@ jmethodID JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig)
 	return result;
 }
 
+jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig)
+{
+	jmethodID result;
+	BEGIN_CALL
+	result = (*env)->GetStaticMethodID(env, clazz, name, sig);
+	if(result == 0)
+		(*env)->ExceptionClear(env);
+	END_CALL
+	return result;
+}
+
 jobject JNI_getStaticObjectField(jclass clazz, jfieldID field)
 {
 	jobject result;
