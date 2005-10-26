@@ -11,14 +11,21 @@ import java.sql.SQLException;
 /**
  * @author Thomas Hallgren
  */
-public class Savepoint extends JavaHandle
+public class Savepoint
 {
+	private long m_pointer;
+
+	private Savepoint(long pointer)
+	{
+		m_pointer = pointer;
+	}
+
 	public static Savepoint set(String name)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _set(name);
+			return new Savepoint(_set(name));
 		}
 	}
 
@@ -27,7 +34,8 @@ public class Savepoint extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			this._release();
+			_release(m_pointer);
+			m_pointer = 0;
 		}
 	}
 
@@ -36,7 +44,8 @@ public class Savepoint extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			this._rollback();
+			_rollback(m_pointer);
+			m_pointer = 0;
 		}
 	}
 
@@ -44,18 +53,18 @@ public class Savepoint extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getName();
+			return _getName(m_pointer);
 		}
 	}
 
-	private static native Savepoint _set(String name)
+	private static native long _set(String name)
 	throws SQLException;
 
-	private native void _release()
+	private static native void _release(long pointer)
 	throws SQLException;
 
-	private native void _rollback()
+	private static native void _rollback(long pointer)
 	throws SQLException;
 
-	private native String _getName();
+	private static native String _getName(long pointer);
 }

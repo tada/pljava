@@ -15,7 +15,7 @@
 #include <executor/spi.h>
 
 #include "pljava/backports.h"
-#include "pljava/CallContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
@@ -55,8 +55,8 @@ typedef struct
 
 static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 {
-	currentCallContext->hasConnected = ctxData->hasConnected;
-	currentCallContext->invocation   = ctxData->invocation;
+	currentInvocation->hasConnected = ctxData->hasConnected;
+	currentInvocation->invocation   = ctxData->invocation;
 
 	JNI_callVoidMethod(ctxData->resultSetProvider, s_ResultSetProvider_close);
 	JNI_deleteGlobalRef(ctxData->singleRowWriter);
@@ -66,17 +66,17 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 
 static void _ResultSetProvider_endOfSetCB(Datum arg)
 {
-	CallContext topCall;
+	Invocation topCall;
 	bool saveInExprCtxCB;
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
 	MemoryContext currCtx = MemoryContextSwitchTo(ctxData->memoryContext);
-	if(currentCallContext == 0)
-		Backend_pushCallContext(&topCall, ctxData->trusted);
+	if(currentInvocation == 0)
+		Invocation_pushInvocation(&topCall, ctxData->trusted);
 
-	saveInExprCtxCB = currentCallContext->inExprContextCB;
-	currentCallContext->inExprContextCB = true;
+	saveInExprCtxCB = currentInvocation->inExprContextCB;
+	currentInvocation->inExprContextCB = true;
 	_ResultSetProvider_closeIteration(ctxData);
-	currentCallContext->inExprContextCB = saveInExprCtxCB;
+	currentInvocation->inExprContextCB = saveInExprCtxCB;
 	MemoryContextSwitchTo(currCtx);
 }
 
@@ -142,9 +142,9 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		JNI_deleteLocalRef(tmp2);
 
 		ctxData->memoryContext = CurrentMemoryContext;
-		ctxData->trusted       = currentCallContext->trusted;
-		ctxData->hasConnected  = currentCallContext->hasConnected;
-		ctxData->invocation    = currentCallContext->invocation;
+		ctxData->trusted       = currentInvocation->trusted;
+		ctxData->hasConnected  = currentInvocation->hasConnected;
+		ctxData->invocation    = currentInvocation->invocation;
 
 		/* Register callback to be called when the function ends
 		 */
@@ -155,8 +155,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		context = SRF_PERCALL_SETUP();
 		ctxData = (CallContextData*)context->user_fctx;
 		MemoryContextSwitchTo(ctxData->memoryContext); /* May be an SPI context */
-		currentCallContext->hasConnected = ctxData->hasConnected;
-		currentCallContext->invocation   = ctxData->invocation;
+		currentInvocation->hasConnected = ctxData->hasConnected;
+		currentInvocation->invocation   = ctxData->invocation;
 	}
 
 	/* Obtain next row using the RowProvider as a parameter to the
@@ -167,10 +167,10 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 			ctxData->singleRowWriter,
 			(jint)context->call_cntr) == JNI_TRUE);
 
-	ctxData->hasConnected = currentCallContext->hasConnected;
-	ctxData->invocation   = currentCallContext->invocation;
-	currentCallContext->hasConnected = false;
-	currentCallContext->invocation   = 0;
+	ctxData->hasConnected = currentInvocation->hasConnected;
+	ctxData->invocation   = currentInvocation->invocation;
+	currentInvocation->hasConnected = false;
+	currentInvocation->invocation   = 0;
 
 	if(hasRow)
 	{

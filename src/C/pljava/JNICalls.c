@@ -7,12 +7,16 @@
  * @author Thomas Hallgren
  */
 #include "pljava/JNICalls.h"
-#include "pljava/CallContext.h"
+#include "pljava/Backend.h"
+#include "pljava/Invocation.h"
 #include "pljava/Exception.h"
 #include "pljava/type/ErrorData.h"
 #include "pljava/type/String.h"
 
 JNIEnv* jniEnv;
+
+extern DLLIMPORT int log_min_messages;
+extern DLLIMPORT int client_min_messages;
 
 static jobject s_threadLock;
 
@@ -43,6 +47,13 @@ static void endCall(JNIEnv* env)
 		jclass exhClass;
 		jstring jtmp;
 	
+		if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
+		{
+			int currLevel = Backend_setJavaLogLevel(DEBUG1);
+			(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);
+			Backend_setJavaLogLevel(currLevel);
+		}
+
 		if((*env)->IsInstanceOf(env, exh, ServerException_class))
 		{
 			/* Rethrow the server error.
@@ -107,7 +118,7 @@ bool beginNativeNoErrCheck(JNIEnv* env)
 
 bool beginNative(JNIEnv* env)
 {
-	if(currentCallContext->errorOccured)
+	if(currentInvocation->errorOccured)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the

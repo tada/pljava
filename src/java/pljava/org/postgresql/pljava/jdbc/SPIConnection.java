@@ -598,14 +598,16 @@ public class SPIConnection implements Connection
 
             String ver = rs.getString(1);
             Pattern p = Pattern.compile(
-                "^PostgreSQL\\s+(\\d+)\\.(\\d+)\\.(\\d+)\\s+.*");
+                "^PostgreSQL\\s+(\\d+)\\.(\\d+)(.\\d+)?.*");
             Matcher m = p.matcher(ver);
-            if (m.matches() && m.groupCount() == 3)
+            if(m.matches())
             {
             	VERSION_NUMBER = new int[3];
-                VERSION_NUMBER[0] = Integer.parseInt(m.group(1));
-                VERSION_NUMBER[1] = Integer.parseInt(m.group(2));
-                VERSION_NUMBER[2] = Integer.parseInt(m.group(3));
+            	VERSION_NUMBER[0] = Integer.parseInt(m.group(1));
+            	VERSION_NUMBER[1] = Integer.parseInt(m.group(2));
+            	String bugfix = m.group(3);
+            	if(bugfix != null && bugfix.length() > 1)
+            		VERSION_NUMBER[2] = Integer.parseInt(bugfix.substring(1));
                 return VERSION_NUMBER;
             }
             throw new SQLException(

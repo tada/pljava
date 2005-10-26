@@ -45,6 +45,7 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 extern jlong mainThreadId;
 extern bool pljavaEntryFence(JNIEnv* env);
 extern JNIEnv* currentJNIEnv;
+extern MemoryContext JavaMemoryContext;
 
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 #define STACK_BASE_VARS
@@ -112,8 +113,8 @@ typedef union
 	} x64;
 } Ptr2Long;
 
-struct CallContext_;
-typedef struct CallContext_ CallContext;
+struct Invocation_;
+typedef struct Invocation_ Invocation;
 
 struct Function_;
 typedef struct Function_* Function;

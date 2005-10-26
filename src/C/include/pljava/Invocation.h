@@ -6,23 +6,17 @@
  *
  * @author Thomas Hallgren
  */
-#ifndef __pljava_CallContext_h
-#define __pljava_CallContext_h
+#ifndef __pljava_Invocation_h
+#define __pljava_Invocation_h
 
+#include <postgres.h>
 #include "pljava/pljava.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*****************************************************************
- * The Backend contains the call handler, initialization of the
- * PL/Java, access to config variables, and logging.
- * 
- * @author Thomas Hallgren
- *****************************************************************/
-
-struct CallContext_
+struct Invocation_
 {
 	/**
 	 * A Java object representing the current invocation. This
@@ -70,13 +64,24 @@ struct CallContext_
 	 * The previous call context when nested function calls
 	 * are made or 0 if this call is at the top level.
 	 */
-	CallContext*  previous;
+	Invocation*  previous;
 };
 
-extern CallContext* currentCallContext;
+extern Invocation* currentInvocation;
+
+
+extern void Invocation_assertConnect(void);
+
+extern void Invocation_pushBootContext(Invocation* ctx);
+
+extern void Invocation_popBootContext(void);
+
+extern void Invocation_pushInvocation(Invocation* ctx, bool trusted);
+
+extern void Invocation_popInvocation(bool wasException);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* !__pljava_CallContext_h */
+#endif /* !__pljava_Invocation_h */

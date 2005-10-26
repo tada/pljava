@@ -23,17 +23,9 @@ extern "C" {
  *****************************************************************/
 extern bool integerDateTimes;
 
-extern void Backend_assertConnect(void);
+void Backend_setJavaSecurity(bool trusted);
 
-extern void Backend_assertDisconnect(void);
-
-extern void Backend_pushCallContext(CallContext* ctx, bool trusted);
-
-extern void Backend_popCallContext(void);
-
-extern void Backend_pushJavaFrame(void);
-
-extern void Backend_popJavaFrame(void);
+int Backend_setJavaLogLevel(int logLevel);
 
 #ifdef __cplusplus
 }

@@ -9,7 +9,7 @@
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/Backend.h"
-#include "pljava/CallContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/JavaHandle.h"
 
 /* Single linked list of callback definitions. Each containing
@@ -176,7 +176,7 @@ MemoryContext_removeEndOfScopeCB(MemoryContext ctx, EndOfScopeCB func)
 MemoryContext
 MemoryContext_switchToUpperContext(void)
 {
-	return MemoryContextSwitchTo(currentCallContext->upperContext);
+	return MemoryContextSwitchTo(currentInvocation->upperContext);
 }
 
 static void MemoryContext_releaseCache(MemoryContext ctx, bool isDelete)

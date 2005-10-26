@@ -22,8 +22,6 @@ extern "C" {
  * @author Thomas Hallgren
  *************************************************************************/
 
-extern MemoryContext JavaMemoryContext;
-
 /*
  * Return the pointer value stored in a Java wrapper object.
  */

@@ -9,7 +9,7 @@
 #include "org_postgresql_pljava_internal_SPI.h"
 #include "pljava/backports.h"
 #include "pljava/SPI.h"
-#include "pljava/Backend.h"
+#include "pljava/Invocation.h"
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TupleTable.h"
@@ -62,20 +62,17 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong th
 	{
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(threadId)
-		Backend_pushJavaFrame();
 		PG_TRY();
 		{
-			Backend_assertConnect();
+			Invocation_assertConnect();
 			result = (jint)SPI_exec(command, (int)count);
 			if(result < 0)
 				Exception_throwSPI("exec", result);
 	
-			Backend_popJavaFrame();
 			pfree(command);
 		}
 		PG_CATCH();
 		{
-			Backend_popJavaFrame();
 			Exception_throw_ERROR("SPI_exec");
 		}
 		PG_END_TRY();
@@ -144,11 +141,8 @@ static void assertXid(SubTransactionId xid)
 
 Savepoint* SPI_setSavepoint(const char* name)
 {
-	/* We let the savepoint live in the current MemoryContext. It will be released
-	 * or rolled back even if the creator forgets about it.
-	 */
 	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
-	Backend_assertConnect();
+	Invocation_assertConnect();
 	BeginInternalSubTransaction((char*)name);
 	sp->nestingLevel = GetCurrentTransactionNestLevel();
 	sp->xid = GetCurrentSubTransactionId();

@@ -6,6 +6,8 @@
  *
  * @author Thomas Hallgren
  */
+#include <postgres.h>
+#include <access/heapam.h>
 #include "org_postgresql_pljava_internal_TriggerData.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"

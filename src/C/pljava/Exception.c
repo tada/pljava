@@ -10,7 +10,7 @@
 #include <executor/spi.h>
 
 #include "pljava/Backend.h"
-#include "pljava/CallContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/Exception.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
@@ -25,6 +25,7 @@ jmethodID ServerException_init;
 
 jclass    Throwable_class;
 jmethodID Throwable_getMessage;
+jmethodID Throwable_printStackTrace;
 
 jclass    IllegalArgumentException_class;
 jmethodID IllegalArgumentException_init;
@@ -154,7 +155,7 @@ void Exception_throw_ERROR(const char* funcName)
 		FlushErrorState();
 	
 		ex = JNI_newObject(ServerException_class, ServerException_init, ed);
-		currentCallContext->errorOccured = true;
+		currentInvocation->errorOccured = true;
 	
 		JNI_deleteLocalRef(ed);
 		JNI_throw(ex);
@@ -173,6 +174,7 @@ void Exception_initialize(void)
 
 	Throwable_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Throwable"));
 	Throwable_getMessage = PgObject_getJavaMethod(Throwable_class, "getMessage", "()Ljava/lang/String;");
+	Throwable_printStackTrace = PgObject_getJavaMethod(Throwable_class, "printStackTrace", "()V");
 
 	IllegalArgumentException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/IllegalArgumentException"));
 	IllegalArgumentException_init = PgObject_getJavaMethod(IllegalArgumentException_class, "<init>", "(Ljava/lang/String;)V");

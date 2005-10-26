@@ -9,6 +9,7 @@
 #include <postgres.h>
 #include <funcapi.h>
 #include <utils/typcache.h>
+#include <access/heapam.h>
 
 #include "pljava/backports.h"
 #include "pljava/MemoryContext.h"

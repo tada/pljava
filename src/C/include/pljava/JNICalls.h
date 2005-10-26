@@ -43,6 +43,7 @@ extern jmethodID Class_getName;
 
 extern jclass    Throwable_class;
 extern jmethodID Throwable_getMessage;
+extern jmethodID Throwable_printStackTrace;
 
 extern jclass    IllegalArgumentException_class;
 extern jmethodID IllegalArgumentException_init;

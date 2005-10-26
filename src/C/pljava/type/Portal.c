@@ -14,7 +14,7 @@
 #include "org_postgresql_pljava_internal_Portal.h"
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
-#include "pljava/CallContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
@@ -266,19 +266,21 @@ Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jclass claz
 	 * caused by another exception when we attempt to close.
 	 */
 	if(_this != 0
-	&& !currentCallContext->errorOccured
-	&& !currentCallContext->inExprContextCB)
+	&& !currentInvocation->errorOccured
+	&& !currentInvocation->inExprContextCB)
 	{
-		/* Reset our own cleanup callback if needed. No need to come in
-		 * the backway
-		 */
 		Ptr2Long p2l;
 		p2l.longVal = _this;
 		BEGIN_NATIVE_NO_ERRCHECK
 		Portal portal = (Portal)p2l.ptrVal;
 		MemoryContext_dropNative(portal);
+
+		/* Reset our own cleanup callback if needed. No need to come in
+		 * the backway
+		 */
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
+
 		SPI_cursor_close(portal);
 		END_NATIVE
 	}

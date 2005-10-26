@@ -8,9 +8,9 @@
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/backports.h"
-#include "pljava/CallContext.h"
 #include "pljava/Exception.h"
-#include "pljava/Backend.h"
+#include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/type/Oid.h"
@@ -557,7 +557,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	int32 top = self->numParams;
 
 	fcinfo->isnull = false;
-	currentCallContext->function = self;
+	currentInvocation->function = self;
 	if(top > 0)
 	{
 		int32   idx;
@@ -569,7 +569,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		 * connection must be dropped since its parent context is wrong.
 		 */
 		if(self->isMultiCall && SRF_IS_FIRSTCALL())
-			Backend_assertDisconnect();
+			Invocation_assertConnect();
 
 		args  = (jvalue*)palloc(top * sizeof(jvalue));
 		if(self->returnComplex)
@@ -610,7 +610,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	if(arg.l == 0)
 		return 0;
 
-	currentCallContext->function = self;
+	currentInvocation->function = self;
 	Type_invoke(self->returnType, self->clazz, self->method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
@@ -641,8 +641,8 @@ bool Function_isCurrentReadOnly(void)
 	/* function will be 0 during resolve of class and java function. At
 	 * that time, no updates are allowed (or needed).
 	 */
-	return (currentCallContext->function == 0)
+	return (currentInvocation->function == 0)
 		? true
-		: currentCallContext->function->readOnly;
+		: currentInvocation->function->readOnly;
 }
 
