@@ -14,92 +14,79 @@
 #include <utils/typcache.h>
 
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/TupleDesc.h"
 
-static Type      s_HeapTupleHeader;
-static TypeClass s_HeapTupleHeaderClass;
 static jclass    s_HeapTupleHeader_class;
 static jmethodID s_HeapTupleHeader_init;
 
-/*
- * org.postgresql.pljava.type.Tuple type.
- */
 jobject HeapTupleHeader_create(HeapTupleHeader ht)
 {
-	jobject jht;
-	if(ht == 0)
-		return 0;
-
-	jht = MemoryContext_lookupNative(ht);
-	if(jht == 0)
-	{
-		jht = JNI_newObject(s_HeapTupleHeader_class, s_HeapTupleHeader_init);
-		JavaHandle_init(jht, ht);
-	}
-	return jht;
+	return (ht == 0) ? 0 : JNI_newObject(
+		s_HeapTupleHeader_class,
+		s_HeapTupleHeader_init,
+		Invocation_createLocalWrapper(ht));
 }
 
-static jvalue _HeapTupleHeader_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	result.l = HeapTupleHeader_create((HeapTupleHeader)DatumGetPointer(arg));
-	return result;
-}
-
-static Type HeapTupleHeader_obtain(Oid typeId)
-{
-	return s_HeapTupleHeader;
-}
-
-/* Make this datatype available to the postgres system.
- */
 extern void HeapTupleHeader_initialize(void);
 void HeapTupleHeader_initialize(void)
 {
-	JNINativeMethod methods[] = {
+	JNINativeMethod methods[] =
+	{
 		{
 		"_getObject",
-	  	"(I)Ljava/lang/Object;",
+	  	"(JI)Ljava/lang/Object;",
 	  	Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject
 		},
 		{
 		"_getTupleDesc",
-		"()Lorg/postgresql/pljava/internal/TupleDesc;",
+		"(J)Lorg/postgresql/pljava/internal/TupleDesc;",
 		Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc
 		},
-		{ 0, 0, 0 }};
+		{
+		"_free",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_HeapTupleHeader__1free
+		},
+		{ 0, 0, 0 }
+	};
 
 	s_HeapTupleHeader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/HeapTupleHeader"));
 	PgObject_registerNatives2(s_HeapTupleHeader_class, methods);
-	s_HeapTupleHeader_init = PgObject_getJavaMethod(s_HeapTupleHeader_class, "<init>", "()V");
-
-	s_HeapTupleHeaderClass = JavaHandleClass_alloc("type.Tuple");
-	s_HeapTupleHeaderClass->JNISignature   = "Lorg/postgresql/pljava/internal/HeapTupleHeader;";
-	s_HeapTupleHeaderClass->javaTypeName   = "org.postgresql.pljava.internal.HeapTupleHeader";
-	s_HeapTupleHeaderClass->coerceDatum    = _HeapTupleHeader_coerceDatum;
-	s_HeapTupleHeader = TypeClass_allocInstance(s_HeapTupleHeaderClass, InvalidOid);
-
-	Type_registerJavaType("org.postgresql.pljava.internal.HeapTupleHeader", HeapTupleHeader_obtain);
+	s_HeapTupleHeader_init = PgObject_getJavaMethod(s_HeapTupleHeader_class, "<init>", "(J)V");
 }
 
 /****************************************
  * JNI methods
  ****************************************/
- 
+
+/*
+ * Class:     org_postgresql_pljava_internal_HeapTupleHeader
+ * Method:    _free
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_HeapTupleHeader__1free(JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Invocation_freeLocalWrapper(pointer);
+	END_NATIVE
+}
+
 /*
  * Class:     org_postgresql_pljava_internal_HeapTupleHeader
  * Method:    _getObject
- * Signature: (I)Ljava/lang/Object;
+ * Signature: (JI)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, jobject _this, jint attrNo)
+Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, jclass clazz, jlong _this, jint attrNo)
 {
 	jobject result = 0;
 
-	BEGIN_NATIVE
-	HeapTupleHeader self = (HeapTupleHeader)JavaHandle_getStruct(_this);
+	HeapTupleHeader self = (HeapTupleHeader)Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		PG_TRY();
 		{
 			TupleDesc tupleDesc = lookup_rowtype_tupdesc(
@@ -133,8 +120,8 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, job
 			Exception_throw_ERROR("GetAttributeByNum");
 		}
 		PG_END_TRY();
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 
@@ -144,18 +131,18 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, job
  * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	BEGIN_NATIVE
-	HeapTupleHeader self = (HeapTupleHeader)JavaHandle_getStruct(_this);
+	HeapTupleHeader self = (HeapTupleHeader)Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		result = TupleDesc_create(lookup_rowtype_tupdesc(
 						HeapTupleHeaderGetTypeId(self),
 						HeapTupleHeaderGetTypMod(self)));
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 

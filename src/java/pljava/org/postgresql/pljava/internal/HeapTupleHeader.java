@@ -14,8 +14,13 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class HeapTupleHeader extends JavaHandle
+public class HeapTupleHeader extends JavaWrapper
 {
+	HeapTupleHeader(long pointer)
+	{
+		super(pointer);
+	}
+
 	/**
 	 * Obtains a value from the underlying native <code>HeapTupleHeader</code>
 	 * structure.
@@ -28,7 +33,7 @@ public class HeapTupleHeader extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getObject(index);
+			return _getObject(this.getNativePointer(), index);
 		}
 	}
 
@@ -43,13 +48,15 @@ public class HeapTupleHeader extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getTupleDesc();
+			return _getTupleDesc(this.getNativePointer());
 		}
 	}
 
-	private native TupleDesc _getTupleDesc()
+	protected native void _free(long pointer);
+
+	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private native Object _getObject(int index)
+	private static native Object _getObject(long pointer, int index)
 	throws SQLException;
 }

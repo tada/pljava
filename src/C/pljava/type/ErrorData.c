@@ -31,7 +31,9 @@ jobject ErrorData_getCurrentError(void)
 
 ErrorData* ErrorData_getErrorData(jobject jed)
 {
-	return (ErrorData*)JavaWrapper_getPointer(jed);
+	Ptr2Long p2l;
+	p2l.longVal = JavaWrapper_getPointer(jed);
+	return (ErrorData*)p2l.ptrVal;
 }
 
 /* Make this datatype available to the postgres system.

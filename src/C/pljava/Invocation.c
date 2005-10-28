@@ -17,6 +17,29 @@
 
 #define LOCAL_FRAME_SIZE 128
 
+struct CallLocal_
+{
+	/**
+	 * Pointer to the call local structure.
+	 */
+	void*       pointer;
+
+	/**
+	 * The invocation where this CallLocal was allocated
+	 */
+	Invocation* invocation;
+
+	/**
+	 * Next CallLocal in a double linked list
+	 */
+	CallLocal*	next;
+
+	/**
+	 * Previous CallLocal in a double linked list
+	 */
+	CallLocal*  prev;
+};
+
 static jmethodID    s_Invocation_onExit;
 static unsigned int s_callLevel = 0;
 
@@ -76,7 +99,8 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->errorOccured    = false;
 	ctx->inExprContextCB = false;
 	ctx->previous        = 0;
-	currentInvocation   = ctx;
+	ctx->callLocals      = 0;
+	currentInvocation    = ctx;
 	++s_callLevel;
 }
 
@@ -97,6 +121,7 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->errorOccured    = false;
 	ctx->inExprContextCB = false;
 	ctx->previous        = currentInvocation;
+	ctx->callLocals      = 0;
 	currentInvocation   = ctx;
 	Backend_setJavaSecurity(trusted);
 	++s_callLevel;
@@ -104,6 +129,7 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 
 void Invocation_popInvocation(bool wasException)
 {
+	CallLocal* cl;
 	Invocation* ctx = currentInvocation->previous;
 
 	if(currentInvocation->invocation != 0)
@@ -130,8 +156,91 @@ void Invocation_popInvocation(bool wasException)
 		PG_END_TRY();
 		MemoryContextSwitchTo(ctx->upperContext);
 	}
+	
+	/**
+	 * Reset all local wrappers that has been allocated during this call. Yank them
+	 * from the double linked list but do *not* remove them.
+	 */
+	cl = currentInvocation->callLocals;
+	if(cl != 0)
+	{
+		CallLocal* first = cl;
+		do
+		{
+			cl->pointer = 0;
+			cl->invocation = 0;
+			cl = cl->next;
+		} while(cl != first);
+	}
 	currentInvocation = ctx;
 	--s_callLevel;
+}
+
+void Invocation_freeLocalWrapper(jlong wrapper)
+{
+	Ptr2Long p2l;
+	Invocation* ctx;
+	CallLocal* cl;
+	CallLocal* prev;
+
+	p2l.longVal = wrapper;
+	cl = (CallLocal*)p2l.ptrVal;
+	prev = cl->prev;
+	if(prev != cl)
+	{
+		/* Disconnect
+		 */
+		CallLocal* next = cl->next;
+		prev->next = next;
+		next->prev = prev;
+	}
+
+	/* If this CallLocal is freed before its owning invocation was
+	 * popped then there's a risk that this is the first CallLocal
+	 * in the list.
+	 */
+	ctx = cl->invocation;
+	if(ctx != 0 && ctx->callLocals == cl)
+	{
+		if(prev == cl)
+			prev = 0;
+		ctx->callLocals = prev;
+	}
+	pfree(cl);	
+}
+
+void* Invocation_getWrappedPointer(jlong wrapper)
+{
+	Ptr2Long p2l;
+	p2l.longVal = wrapper;
+	return ((CallLocal*)p2l.ptrVal)->pointer;
+}
+
+jlong Invocation_createLocalWrapper(void* pointer)
+{
+	/* Create a local wrapper for the pointer
+	 */
+	Ptr2Long p2l;
+	CallLocal* cl = (CallLocal*)MemoryContextAlloc(JavaMemoryContext, sizeof(CallLocal));
+	CallLocal* prev = currentInvocation->callLocals;
+	if(prev == 0)
+	{
+		currentInvocation->callLocals = cl;
+		cl->prev = cl;
+		cl->next = cl;
+	}
+	else
+	{
+		CallLocal* next = prev->next;
+		cl->prev = prev;
+		cl->next = next;
+		prev->next = cl;
+		next->prev = cl;
+	}	
+	cl->pointer = pointer;
+	cl->invocation = currentInvocation;
+	p2l.ptrVal = cl;
+	return p2l.longVal;
 }
 
 /*

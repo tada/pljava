@@ -16,6 +16,9 @@
 extern "C" {
 #endif
 
+struct CallLocal_;
+typedef struct CallLocal_ CallLocal;
+
 struct Invocation_
 {
 	/**
@@ -59,7 +62,13 @@ struct Invocation_
 	 * of a savepoint or function exit).
 	 */
 	bool          errorOccured;
-	
+
+	/**
+	 * List of call local structures that has been wrapped
+	 * during this invocation.
+	 */
+	CallLocal*    callLocals;
+
 	/**
 	 * The previous call context when nested function calls
 	 * are made or 0 if this call is at the top level.
@@ -79,6 +88,10 @@ extern void Invocation_popBootContext(void);
 extern void Invocation_pushInvocation(Invocation* ctx, bool trusted);
 
 extern void Invocation_popInvocation(bool wasException);
+
+extern jlong Invocation_createLocalWrapper(void* pointer);
+extern void* Invocation_getWrappedPointer(jlong wrapper);
+extern void Invocation_freeLocalWrapper(jlong wrapper);
 
 #ifdef __cplusplus
 }

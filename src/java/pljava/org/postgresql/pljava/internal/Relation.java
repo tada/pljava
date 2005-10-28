@@ -16,6 +16,8 @@ import java.sql.SQLException;
  */
 public class Relation extends JavaHandle
 {
+	private TupleDesc m_tupleDesc;
+
 	/**
 	 * Returns the name of this <code>Relation</code>.
 	 * @throws SQLException
@@ -36,10 +38,14 @@ public class Relation extends JavaHandle
 	public TupleDesc getTupleDesc()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		if(m_tupleDesc == null)
 		{
-			return _getTupleDesc(this.getNative());
+			synchronized(Backend.THREADLOCK)
+			{
+				m_tupleDesc = _getTupleDesc(this.getNative());
+			}
 		}
+		return m_tupleDesc;
 	}
 
 	/**

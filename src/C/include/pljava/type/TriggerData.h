@@ -32,7 +32,7 @@ extern jobject TriggerData_create(TriggerData* triggerData);
 /*
  * Obtains the returned Tuple after trigger has been processed.
  */
-extern Datum TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull);
+extern HeapTuple TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull);
 
 #ifdef __cplusplus
 }

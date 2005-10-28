@@ -16,11 +16,18 @@ import org.postgresql.pljava.jdbc.TriggerResultSet;
  * 
  * @author Thomas Hallgren
  */
-public class TriggerData extends JavaHandle implements org.postgresql.pljava.TriggerData
+public class TriggerData extends JavaWrapper implements org.postgresql.pljava.TriggerData
 {
 	private Relation m_relation;
 	private TriggerResultSet m_old = null;
 	private TriggerResultSet m_new = null;
+	private Tuple m_newTuple;
+	private Tuple m_triggerTuple;
+
+	TriggerData(long pointer)
+	{
+		super(pointer);
+	}
 
 	/**
 	 * Returns the ResultSet that represents the new row. This ResultSet will
@@ -50,7 +57,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 				
 		// Triggers fired after will always have a read-only row
 		//
-		m_new = new TriggerResultSet(this.relation().getTupleDesc(), tuple, this.isFiredAfter());
+		m_new = new TriggerResultSet(this.getRelation().getTupleDesc(), tuple, this.isFiredAfter());
 		return m_new;
 	}
 
@@ -72,7 +79,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 
 		if (this.isFiredByInsert() || this.isFiredForStatement())
 			return null;
-		m_old = new TriggerResultSet(this.relation().getTupleDesc(), this.getTriggerTuple(), true);
+		m_old = new TriggerResultSet(this.getRelation().getTupleDesc(), this.getTriggerTuple(), true);
 		return m_old;
 	}
 
@@ -102,7 +109,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 				Tuple original = (Tuple)changes[0];
 				int[] indexes = (int[])changes[1];
 				Object[] values = (Object[])changes[2];
-				return this.relation().modifyTuple(original, indexes, values);
+				return this.getRelation().modifyTuple(original, indexes, values);
 			}
 		}
 
@@ -116,7 +123,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	public String getTableName()
 	throws SQLException
 	{
-		return this.relation().getName();
+		return this.getRelation().getName();
 	}
 
 	/**
@@ -128,10 +135,14 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	public Relation getRelation()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		if(m_relation == null)
 		{
-			return _getRelation(this.getNative());
+			synchronized(Backend.THREADLOCK)
+			{
+				m_relation = _getRelation(this.getNativePointer());
+			}
 		}
+		return m_relation;
 	}
 
 	/**
@@ -150,10 +161,14 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	public Tuple getTriggerTuple()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		if(m_triggerTuple == null)
 		{
-			return _getTriggerTuple(this.getNative());
+			synchronized(Backend.THREADLOCK)
+			{
+				m_triggerTuple = _getTriggerTuple(this.getNativePointer());
+			}
 		}
+		return m_triggerTuple;
 	}
 
 	/**
@@ -170,10 +185,14 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	public Tuple getNewTuple()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		if(m_newTuple == null)
 		{
-			return _getNewTuple(this.getNative());
+			synchronized(Backend.THREADLOCK)
+			{
+				m_newTuple = _getNewTuple(this.getNativePointer());
+			}
 		}
+		return m_newTuple;
 	}
 
 	/**
@@ -189,7 +208,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getArguments(this.getNative());
+			return _getArguments(this.getNativePointer());
 		}
 	}
 
@@ -205,7 +224,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getName(this.getNative());
+			return _getName(this.getNativePointer());
 		}
 	}
 
@@ -221,7 +240,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredAfter(this.getNative());
+			return _isFiredAfter(this.getNativePointer());
 		}
 	}
 
@@ -237,7 +256,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredBefore(this.getNative());
+			return _isFiredBefore(this.getNativePointer());
 		}
 	}
 
@@ -253,7 +272,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredForEachRow(this.getNative());
+			return _isFiredForEachRow(this.getNativePointer());
 		}
 	}
 
@@ -269,7 +288,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredForStatement(this.getNative());
+			return _isFiredForStatement(this.getNativePointer());
 		}
 	}
 
@@ -284,7 +303,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredByDelete(this.getNative());
+			return _isFiredByDelete(this.getNativePointer());
 		}
 	}
 
@@ -299,7 +318,7 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredByInsert(this.getNative());
+			return _isFiredByInsert(this.getNativePointer());
 		}
 	}
 
@@ -314,18 +333,11 @@ public class TriggerData extends JavaHandle implements org.postgresql.pljava.Tri
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isFiredByUpdate(this.getNative());
+			return _isFiredByUpdate(this.getNativePointer());
 		}
 	}
 
-	private final Relation relation()
-	throws SQLException
-	{
-		if(m_relation == null)
-			m_relation = this.getRelation();
-		return m_relation;
-	}
-
+	protected native void _free(long pointer);
 	private static native Relation _getRelation(long pointer) throws SQLException;
 	private static native Tuple _getTriggerTuple(long pointer) throws SQLException;
 	private static native Tuple _getNewTuple(long pointer) throws SQLException;

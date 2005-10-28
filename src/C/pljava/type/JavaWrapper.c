@@ -17,28 +17,22 @@ static jfieldID  s_JavaWrapper_m_pointer;
 
 MemoryContext JavaMemoryContext;
 
-void* JavaWrapper_getPointer(jobject managed)
+jlong JavaWrapper_getPointer(jobject managed)
 {
-	Ptr2Long p2l;
 	if(managed == 0)
 	{
 		Exception_throw(ERRCODE_INTERNAL_ERROR, "Null JavaWrapper object");
 		return 0;
 	}
 
-	p2l.longVal = JNI_getLongField(managed, s_JavaWrapper_m_pointer);
-	if(p2l.ptrVal == 0)
-	{
-		/* Stale handle.
-		 */
-		Exception_throw(ERRCODE_INTERNAL_ERROR, "Stale Handle to native structure");
-	}
-	return p2l.ptrVal;
+	return JNI_getLongField(managed, s_JavaWrapper_m_pointer);
 }
 
 static Datum _JavaWrapper_coerceObject(Type self, jobject nStruct)
 {
-	return PointerGetDatum(JavaWrapper_getPointer(nStruct));
+	Ptr2Long p2l;
+	p2l.longVal = JavaWrapper_getPointer(nStruct);
+	return PointerGetDatum(p2l.ptrVal);
 }
 
 TypeClass JavaWrapperClass_alloc(const char* name)
