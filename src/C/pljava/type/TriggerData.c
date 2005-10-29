@@ -235,7 +235,7 @@ Java_org_postgresql_pljava_internal_TriggerData__1getArguments(JNIEnv* env, jcla
 
 		BEGIN_NATIVE
 		Trigger* tg = self->tg_trigger;
-		jint nargs = (jint)tg->tgnattr;
+		jint nargs = (jint)tg->tgnargs;
 		result = JNI_newObjectArray(nargs, s_String_class, 0);
 		cpp = tg->tgargs;
 		for(idx = 0; idx < nargs; ++idx)
