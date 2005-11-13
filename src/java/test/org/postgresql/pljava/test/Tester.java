@@ -207,6 +207,7 @@ public class Tester
 				t.testUsingScalarProperties();
 				t.testUsingResultSetProperties();
 				t.testSavepointSanity();
+				t.testTransactionRecovery();
 				t.testTrustedSecurity();
 				t.testBinaryColumns();
 				t.testDatabaseMetaData();
@@ -541,6 +542,22 @@ public class Tester
 		else
 			System.out.println(
 				"Savepoint sanity = " + rs.getInt(1));
+		rs.close();
+		stmt.close();
+	}
+
+	public void testTransactionRecovery()
+	throws SQLException
+	{
+		System.out.println("*** testTransactionRecovery()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt.executeQuery("SELECT testTransactionRecovery()");
+
+		if(!rs.next())
+			System.out.println("Unable to position ResultSet");
+		else
+			System.out.println(
+				"Transaction recovery = " + rs.getInt(1));
 		rs.close();
 		stmt.close();
 	}
