@@ -1942,12 +1942,12 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			}
 			else if(pgType.equals("bit") || pgType.equals("varbit"))
 			{
-				tuple[6] = (Integer)rs.getObject("atttypmod");
+				tuple[6] = rs.getObject("atttypmod");
 				tuple[9] = new Integer(2);
 			}
 			else
 			{
-				tuple[6] = (Integer)rs.getObject("attlen");
+				tuple[6] = rs.getObject("attlen");
 				tuple[9] = new Integer(10);
 			}
 

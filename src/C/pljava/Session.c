@@ -37,7 +37,10 @@ void Session_initialize(void)
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Session__1setUser(JNIEnv* env, jclass cls, jobject aclId)
 {
-	BEGIN_NATIVE
+	/* No error checking since this might be a restore of user in
+	 * a finally block after an exception.
+	 */
+	BEGIN_NATIVE_NO_ERRCHECK
 	SetUserId(AclId_getAclId(aclId));
 	END_NATIVE
 }

@@ -17,6 +17,10 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.SavepointListener;
+import org.postgresql.pljava.Session;
+import org.postgresql.pljava.SessionManager;
+
 /**
  * Some methods used for testing the SPI JDBC driver.
  *
@@ -37,6 +41,37 @@ public class SPIActions
 			Logger.getAnonymousLogger().info(msg);
 	}
 
+	private static final String SP_CHECKSTATE = "sp.checkState";
+
+	private static final SavepointListener spListener = new SavepointListener()
+	{
+		public void onAbort(Session session, Savepoint savepoint, Savepoint parent) throws SQLException
+		{
+			log("Abort of savepoint " + savepoint.getSavepointId());
+			nextState(session, 3, 4);
+		}
+
+		public void onCommit(Session session, Savepoint savepoint, Savepoint parent) throws SQLException
+		{
+			log("Commit of savepoint " + savepoint.getSavepointId());
+			nextState(session, 3, 4);
+		}
+
+		public void onStart(Session session, Savepoint savepoint, Savepoint parent) throws SQLException
+		{
+			log("Start of savepoint " + savepoint.getSavepointId());
+			nextState(session, 0, 1);
+		}
+	};
+
+	private static void nextState(Session session, int expected, int next) throws SQLException
+	{
+		Integer state = (Integer)session.getAttribute(SP_CHECKSTATE);
+		if(state == null || state.intValue() != expected)
+			throw new SQLException(SP_CHECKSTATE + ": Expected " + expected + ", got " + state);
+		session.setAttribute(SP_CHECKSTATE, new Integer(next));
+	}
+
 	public static int testSavepointSanity()
 	throws SQLException
 	{
@@ -44,28 +79,32 @@ public class SPIActions
 
 		// Create an anonymous savepoint.
 		//
-		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions prior to 8.0");
+		log("Attempting to set an anonymous savepoint");
+		Session currentSession = SessionManager.current();
+		currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+		currentSession.addSavepointListener(spListener);
+
+		Savepoint sp = conn.setSavepoint();
+		nextState(currentSession, 1, 2);
 		try
 		{
-			Savepoint sp = conn.setSavepoint();
-			try
-			{
-				Statement stmt = conn.createStatement();
-				log("Attempting to set a SAVEPOINT using SQL (should fail)");
-				stmt.execute("SAVEPOINT foo");
-			}
-			catch(SQLException e)
-			{
-				log("It failed allright. Everything OK then");
-				log("Rolling back to anonymous savepoint");
-				conn.rollback(sp);
-				return 1;
-			}
+			Statement stmt = conn.createStatement();
+			log("Attempting to set a SAVEPOINT using SQL (should fail)");
+			stmt.execute("SAVEPOINT foo");
 		}
-		catch(UnsupportedOperationException e)
+		catch(SQLException e)
 		{
-			log(e.getMessage());
-			return 0;
+			log("It failed allright. Everything OK then");
+			log("Rolling back to anonymous savepoint");
+			
+			nextState(currentSession, 2, 3);
+			conn.rollback(sp);
+			nextState(currentSession, 4, 5);
+			return 1;
+		}
+		finally
+		{
+			currentSession.removeSavepointListener(spListener);
 		}
 		throw new SQLException("SAVEPOINT through SQL succeeded. That's bad news!");
 	}
@@ -77,41 +116,50 @@ public class SPIActions
 
 		// Create an anonymous savepoint.
 		//
-		log("Attempting to set an anonymous savepoint, expect to see an UnsupportedOperationException for versions prior to 8.0");
-		try
-		{
-    		Statement stmt = conn.createStatement();
-			Savepoint sp = conn.setSavepoint();
+		log("Attempting to set an anonymous savepoint");
+		Session currentSession = SessionManager.current();
+		currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+		currentSession.addSavepointListener(spListener);
 
-            try
-			{
-				log("Attempting to execute a statement with a syntax error");
-				stmt.execute("THIS MUST BE A SYNTAX ERROR");
-			}
-			catch(SQLException e)
-			{
-				log("It failed. Let's try to recover " +
-                    "by rolling back to anonymous savepoint");
-				conn.rollback(sp);
-				log("Rolled back.");
-				log("Now let's try to execute a correct statement.");
-                ResultSet rs = stmt.executeQuery("SELECT 'OK'");
-                while (rs.next())
-                {
-                    log("Expected: OK; Retrieved: " + rs.getString(1));
-                }
-                rs.close();
-                stmt.close();
-                
-				return 1;
-			}
-		}
-		catch(UnsupportedOperationException e)
+		Statement stmt = conn.createStatement();
+		Savepoint sp = conn.setSavepoint();
+		nextState(currentSession, 1, 2);
+
+        try
 		{
-			log(e.getMessage());
-			return 0;
+			log("Attempting to execute a statement with a syntax error");
+			stmt.execute("THIS MUST BE A SYNTAX ERROR");
 		}
-		
+		catch(SQLException e)
+		{
+			log("It failed. Let's try to recover " +
+                "by rolling back to anonymous savepoint");
+			nextState(currentSession, 2, 3);
+			conn.rollback(sp);
+			nextState(currentSession, 4, 5);
+			log("Rolled back.");
+			log("Now let's try to execute a correct statement.");
+
+			currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+			sp = conn.setSavepoint();
+			nextState(currentSession, 1, 2);
+            ResultSet rs = stmt.executeQuery("SELECT 'OK'");
+            while (rs.next())
+            {
+                log("Expected: OK; Retrieved: " + rs.getString(1));
+            }
+            rs.close();
+            stmt.close();                
+			nextState(currentSession, 2, 3);
+			conn.releaseSavepoint(sp);
+			nextState(currentSession, 4, 5);
+			return 1;
+		}
+		finally
+		{
+			currentSession.removeSavepointListener(spListener);
+		}
+
         //Should never get here
         return -1;
 	}

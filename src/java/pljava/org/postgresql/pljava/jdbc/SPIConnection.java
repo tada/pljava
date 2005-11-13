@@ -28,11 +28,12 @@ import java.util.BitSet;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import org.postgresql.pljava.internal.Oid;
+import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
  * @author Thomas Hallgren
@@ -246,20 +247,20 @@ public class SPIConnection implements Connection
 
 	public void releaseSavepoint(Savepoint savepoint) throws SQLException
 	{
-		if(!(savepoint instanceof SPISavepoint))
-			throw new IllegalArgumentException("Not an SPISavepoint");
+		if(!(savepoint instanceof PgSavepoint))
+			throw new IllegalArgumentException("Not a PL/Java Savepoint");
 
-		SPISavepoint sp = (SPISavepoint)savepoint;
+		PgSavepoint sp = (PgSavepoint)savepoint;
 		sp.release();
 		forgetSavepoint(sp);
 	}
 
 	public void rollback(Savepoint savepoint) throws SQLException
 	{
-		if(!(savepoint instanceof SPISavepoint))
-			throw new IllegalArgumentException("Not an SPISavepoint");
+		if(!(savepoint instanceof PgSavepoint))
+			throw new IllegalArgumentException("Not a PL/Java Savepoint");
 
-		SPISavepoint sp = (SPISavepoint)savepoint;
+		PgSavepoint sp = (PgSavepoint)savepoint;
 		Invocation.clearErrorCondition();
 		sp.rollback();
 		forgetSavepoint(sp);
@@ -536,13 +537,13 @@ public class SPIConnection implements Connection
 	public Savepoint setSavepoint()
 	throws SQLException
 	{
-		return this.rememberSavepoint(new SPIAnonymousSavepoint());
+		return this.rememberSavepoint(PgSavepoint.set("anonymous_savepoint"));
 	}
 
 	public Savepoint setSavepoint(String name)
 	throws SQLException
 	{
-		return this.rememberSavepoint(new SPINamedSavepoint(name));
+		return this.rememberSavepoint(PgSavepoint.set(name));
 	}
 
 	static int getTypeForClass(Class c)
@@ -560,7 +561,7 @@ public class SPIConnection implements Connection
 		return Types.OTHER;
 	}
 
-	private Savepoint rememberSavepoint(SPISavepoint sp)
+	private Savepoint rememberSavepoint(PgSavepoint sp)
 	throws SQLException
 	{
 		// Remember the first savepoint for each call-level so
@@ -574,7 +575,7 @@ public class SPIConnection implements Connection
 		return sp;
 	}
 
-	private static void forgetSavepoint(SPISavepoint sp)
+	private static void forgetSavepoint(PgSavepoint sp)
 	throws SQLException
 	{
 		Invocation invocation = Invocation.current();

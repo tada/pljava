@@ -14,6 +14,8 @@
 #include "pljava/type/String.h"
 #include "pljava/type/TupleTable.h"
 
+Savepoint* infant = 0;
+
 extern void SPI_initialize(void);
 void SPI_initialize(void)
 {
@@ -143,10 +145,12 @@ Savepoint* SPI_setSavepoint(const char* name)
 {
 	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
 	Invocation_assertConnect();
-	BeginInternalSubTransaction((char*)name);
-	sp->nestingLevel = GetCurrentTransactionNestLevel();
-	sp->xid = GetCurrentSubTransactionId();
+	sp->nestingLevel = GetCurrentTransactionNestLevel() + 1;
 	strcpy(sp->name, name);
+	infant = sp;
+	BeginInternalSubTransaction(sp->name);
+	infant = 0;
+	sp->xid = GetCurrentSubTransactionId();
 	return sp;
 }
 

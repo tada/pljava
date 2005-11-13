@@ -37,27 +37,7 @@ public class Backend
 	public static synchronized Session getSession()
 	{
 		if(s_session == null)
-		{
 			s_session = new Session();
-			synchronized(THREADLOCK)
-			{
-				_addEOXactListener(s_session);
-			}
-			Runtime.getRuntime().addShutdownHook(new Thread()
-			{
-				public void run()
-				{
-					if(s_session != null)
-					{
-						synchronized(THREADLOCK)
-						{
-							_removeEOXactListener(s_session);
-						}
-						s_session = null;
-					}
-				}
-			});
-		}
 		return s_session;
 	}
 
@@ -262,7 +242,4 @@ public class Backend
 
 	private native static int  _getStatementCacheSize();
 	private native static void _log(int logLevel, String str);
-
-	private native static void _addEOXactListener(EOXactListener listener);
-	private native static void _removeEOXactListener(EOXactListener listener); 
 }

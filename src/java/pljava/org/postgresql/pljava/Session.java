@@ -23,6 +23,22 @@ import java.sql.SQLException;
 public interface Session
 {
 	/**
+	 * Adds the specified <code>listener</code> to the list of listeners that will
+	 * receive savepoint events. This method does nothing if the listener
+	 * was already added.
+	 * @param listener The listener to be added.
+	 */
+	void addSavepointListener(SavepointListener listener);
+
+	/**
+	 * Adds the specified <code>listener</code> to the list of listeners that will
+	 * receive transactional events. This method does nothing if the listener
+	 * was already added.
+	 * @param listener The listener to be added.
+	 */
+	void addTransactionListener(TransactionListener listener);
+
+	/**
 	 * Obtain an attribute from the current session.
 	 * @param attributeName The name of the attribute
 	 * @return The value of the attribute
@@ -71,6 +87,22 @@ public interface Session
 	 * @param attributeName The name of the attribute.
 	 */
 	void removeAttribute(String attributeName);
+
+	/**
+	 * Removes the specified <code>listener</code> from the list of listeners that will
+	 * receive savepoint events. This method does nothing unless the listener is
+	 * found.
+	 * @param listener The listener to be removed.
+	 */
+	void removeSavepointListener(SavepointListener listener);
+
+	/**
+	 * Removes the specified <code>listener</code> from the list of listeners that will
+	 * receive transactional events. This method does nothing unless the listener is
+	 * found.
+	 * @param listener The listener to be removed.
+	 */
+	void removeTransactionListener(TransactionListener listener);
 
 	/**
 	 * Set an attribute to a value in the current session.

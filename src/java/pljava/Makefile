@@ -27,13 +27,15 @@ JNI_CLASSES := \
 	$(INTPKG).JavaHandle \
 	$(INTPKG).JavaWrapper \
 	$(INTPKG).LargeObject \
+	$(INTPKG).PgSavepoint \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \
-	$(INTPKG).Savepoint \
 	$(INTPKG).Session \
+	$(INTPKG).SubXactListener \
 	$(INTPKG).TriggerData \
 	$(INTPKG).Tuple \
 	$(INTPKG).TupleDesc \
+	$(INTPKG).XactListener \
 	org.postgresql.pljava.jdbc.Invocation
 
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))

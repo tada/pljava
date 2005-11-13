@@ -308,7 +308,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jcla
 	 */
 	if(_this != 0)
 	{
-		BEGIN_NATIVE
+		BEGIN_NATIVE_NO_ERRCHECK
 		PG_TRY();
 		{
 			Ptr2Long p2l;

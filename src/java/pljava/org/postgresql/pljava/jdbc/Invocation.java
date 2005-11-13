@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
  * @author Thomas Hallgren
@@ -31,7 +32,7 @@ public class Invocation
 	/**
 	 * Top level savepoint relative to this invocation.
 	 */
-	private SPISavepoint m_savepoint;
+	private PgSavepoint m_savepoint;
 
 	private Invocation(int level)
 	{
@@ -49,7 +50,7 @@ public class Invocation
 	/**
 	 * @return Returns the savePoint.
 	 */
-	final SPISavepoint getSavepoint()
+	final PgSavepoint getSavepoint()
 	{
 		return m_savepoint;
 	}
@@ -80,7 +81,7 @@ public class Invocation
 	/**
 	 * @param savepoint The savepoint to set.
 	 */
-	final void setSavepoint(SPISavepoint savepoint)
+	final void setSavepoint(PgSavepoint savepoint)
 	{
 		m_savepoint = savepoint;
 	}
@@ -95,7 +96,7 @@ public class Invocation
 		try
 		{
 			if(m_savepoint != null)
-				m_savepoint.onInvocationExit();
+				m_savepoint.onInvocationExit(SPIDriver.getDefault());
 
 			if(m_preparedStatements != null)
 			{

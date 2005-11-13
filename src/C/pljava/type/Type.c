@@ -198,7 +198,6 @@ extern void SingleTupleReader_initialize(void);
 extern void SingleRowWriter_initialize(void);
 extern void ValueSetProvider_initialize(void);
 extern void ResultSetProvider_initialize(void);
-extern void Savepoint_initialize(void);
 
 extern void Type_initialize(void);
 void Type_initialize(void)
@@ -246,7 +245,6 @@ void Type_initialize(void)
 	SingleRowWriter_initialize();
 	ValueSetProvider_initialize();
 	ResultSetProvider_initialize();
-	Savepoint_initialize();
 }
 
 /*

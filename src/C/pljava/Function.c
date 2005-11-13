@@ -622,7 +622,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		 * it is created in the upper SPI context.
 		 */
 		MemoryContext currCtx = MemoryContext_switchToUpperContext();
-		ret = TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull);
+		ret = PointerGetDatum(TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.

@@ -9,10 +9,11 @@ package org.postgresql.pljava.internal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.postgresql.pljava.ObjectPool;
+import org.postgresql.pljava.SavepointListener;
+import org.postgresql.pljava.TransactionListener;
 
 
 /**
@@ -21,9 +22,8 @@ import org.postgresql.pljava.ObjectPool;
  *
  * @author Thomas Hallgren
  */
-public class Session implements EOXactListener, org.postgresql.pljava.Session
+public class Session implements org.postgresql.pljava.Session
 {
-	private final ArrayList m_xactListeners = new ArrayList();
 	private final TransactionalMap m_attributes = new TransactionalMap(new HashMap());
 
 	/**
@@ -32,22 +32,21 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 	 */
 	public void addTransactionListener(TransactionListener listener)
 	{
-		if(!m_xactListeners.contains(listener))
-			m_xactListeners.add(listener);
+		XactListener.addListener(listener);
+	}
+
+	/**
+	 * Adds the specified listener to the list of listeners that will
+	 * receive savepoint events.
+	 */
+	public void addSavepointListener(SavepointListener listener)
+	{
+		SubXactListener.addListener(listener);
 	}
 
 	public Object getAttribute(String attributeName)
 	{
 		return m_attributes.get(attributeName);
-	}
-
-	/**
-	 * Returns the list of listeners that will receive transactional events.
-	 */
-	public TransactionListener[] getTransactionListeners()
-	{
-		return (TransactionListener[])m_xactListeners.toArray(
-				new TransactionListener[m_xactListeners.size()]);
 	}
 
 	public ObjectPool getObjectPool(Class cls)
@@ -71,34 +70,6 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 		return AclId.getSessionUser().getName();
 	}
 
-	
-	public void onEOXact(boolean isCommit)
-	{
-		if(isCommit)
-			m_attributes.commit();
-		else
-			m_attributes.abort();
-
-		int top = m_xactListeners.size();
-		if(top == 0)
-			return;
-
-		TransactionEvent te = new TransactionEvent(this);
-
-		// Take a snapshot. Handlers might unregister during event processing
-		//
-		TransactionListener[] listeners = this.getTransactionListeners();
-		if(isCommit)
-		{
-			for(int idx = 0; idx < top; ++idx)
-				listeners[idx].afterCommit(te);
-		}
-		else
-		{
-			for(int idx = 0; idx < top; ++idx)
-				listeners[idx].afterAbort(te);
-		}	
-	}
 
 	public void removeAttribute(String attributeName)
 	{
@@ -116,7 +87,16 @@ public class Session implements EOXactListener, org.postgresql.pljava.Session
 	 */
 	public void removeTransactionListener(TransactionListener listener)
 	{
-		m_xactListeners.remove(listener);
+		XactListener.removeListener(listener);
+	}
+
+	/**
+	 * Removes the specified listener from the list of listeners that will
+	 * receive savepoint events.
+	 */
+	public void removeSavepointListener(SavepointListener listener)
+	{
+		SubXactListener.removeListener(listener);
 	}
 
 	public boolean executeAsSessionUser(Connection conn, String statement)

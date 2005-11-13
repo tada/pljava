@@ -32,7 +32,6 @@
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
-#include "pljava/EOXactListener.h"
 #include "pljava/Backend.h"
 #include "pljava/MemoryContext.h"
 #include "pljava/Session.h"
@@ -68,6 +67,9 @@ extern void SPI_initialize(void);
 extern void Type_initialize(void);
 extern void Function_initialize(void);
 extern void Session_initialize(void);
+extern void PgSavepoint_initialize(void);
+extern void XactListener_initialize(void);
+extern void SubXactListener_initialize(void);
 
 static void initPLJavaClasses(void)
 {
@@ -99,16 +101,6 @@ static void initPLJavaClasses(void)
 		"(ILjava/lang/String;)V",
 		Java_org_postgresql_pljava_internal_Backend__1log
 		},
-		{
-		"_addEOXactListener",
-		"(Lorg/postgresql/pljava/internal/EOXactListener;)V",
-		Java_org_postgresql_pljava_internal_Backend__1addEOXactListener
-		},
-		{
-		"_removeEOXactListener",
-		"(Lorg/postgresql/pljava/internal/EOXactListener;)V",
-		Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener
-		},
 		{ 0, 0, 0 }
 	};
 
@@ -126,6 +118,9 @@ static void initPLJavaClasses(void)
 	Type_initialize();
 	Function_initialize();
 	Session_initialize();
+	PgSavepoint_initialize();
+	XactListener_initialize();
+	SubXactListener_initialize();
 
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 }
@@ -862,38 +857,4 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv* env, jclass cls)
 {
 	return pljavaReleaseLingeringSavepoints ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_Backend
- * Method:    _addEOXactListener
- * Signature: (Lorg/postgresql/pljava/internal/EOXactListener;)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_Backend__1addEOXactListener(JNIEnv* env, jclass cls, jobject listener)
-{
-	BEGIN_NATIVE
-	PG_TRY();
-	{
-		EOXactListener_register(listener);
-	}
-	PG_CATCH();
-	{
-		Exception_throw_ERROR("RegisterEOXactCallback");
-	}
-	PG_END_TRY();
-	END_NATIVE
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_Backend
- * Method:    _removeEOXactListener
- * Signature: (Lorg/postgresql/pljava/internal/EOXactListener;)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_Backend__1removeEOXactListener(JNIEnv* env, jclass cls, jobject listener)
-{
-	BEGIN_NATIVE
-	EOXactListener_unregister();
-	END_NATIVE
 }

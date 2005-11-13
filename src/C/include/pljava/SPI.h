@@ -31,6 +31,11 @@ typedef struct
 	char name[1];
 } Savepoint;
 
+/* infant is set to the savepoint that is being created durin a setSavepoint call.
+ * It is used by the onStart callback.
+ */
+extern Savepoint* infant;
+
 extern Savepoint* SPI_setSavepoint(const char* name);
 
 extern void SPI_releaseSavepoint(Savepoint* sp);
