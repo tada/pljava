@@ -77,6 +77,15 @@ public interface TriggerData
 	String getTableName() throws SQLException;
 
 	/**
+	 * Returns the name of the schema of the table for which this trigger was created (as
+	 * declared in the <code>CREATE TRIGGER</code statement).
+	 * 
+	 * @throws SQLException
+	 *             if the contained native buffer has gone stale.
+	 */
+	String getSchemaName() throws SQLException;
+
+	/**
 	 * Returns <code>true</code> if the trigger was fired after the statement
 	 * or row action that it is associated with.
 	 * 
