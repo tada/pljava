@@ -126,6 +126,10 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 		return this.getRelation().getName();
 	}
 
+	public String getSchemaName() throws SQLException {
+		return this.getRelation().getSchema();
+	}
+
 	/**
 	 * Returns a descriptor for the Tuples exposed by this trigger.
 	 * 
