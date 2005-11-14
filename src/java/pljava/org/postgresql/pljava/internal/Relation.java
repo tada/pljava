@@ -32,6 +32,19 @@ public class Relation extends JavaHandle
 	}
 
 	/**
+	 * Returns the schema name of this <code>Relation</code>.
+	 * @throws SQLException
+	 */
+	public String getSchema()
+	throws SQLException
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getSchema(this.getNative());
+		}
+	}
+
+	/**
 	 * Returns a descriptor that describes tuples in this <code>Relation</code>.
 	 * @throws SQLException
 	 */
@@ -70,6 +83,9 @@ public class Relation extends JavaHandle
 	}
 
 	private static native String _getName(long pointer)
+	throws SQLException;
+
+	private static native String _getSchema(long pointer)
 	throws SQLException;
 
 	private static native TupleDesc _getTupleDesc(long pointer)
