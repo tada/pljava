@@ -62,6 +62,11 @@ void Relation_initialize(void)
 		Java_org_postgresql_pljava_internal_Relation__1getName
 		},
 		{
+		"_getSchema",
+		"(J)Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Relation__1getSchema
+		},
+		{
 		"_getTupleDesc",
 	  	"(J)Lorg/postgresql/pljava/internal/TupleDesc;",
 	  	Java_org_postgresql_pljava_internal_Relation__1getTupleDesc
@@ -112,6 +117,40 @@ Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jclass clazz
 		PG_CATCH();
 		{
 			Exception_throw_ERROR("SPI_getrelname");
+		}
+		PG_END_TRY();
+		END_NATIVE
+	}
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Relation
+ * Method:    _getSchema
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Relation__1getSchema(JNIEnv* env, jclass clazz, jlong _this)
+{
+	jstring result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		PG_TRY();
+		{
+#if (PGSQL_MAJOR_VER < 8 || PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1)
+			Exception_featureNotSupported("SPI_getnspname", "8.1");
+#else
+			char* schema = SPI_getnspname((Relation)p2l.ptrVal);
+			result = String_createJavaStringFromNTS(schema);
+			pfree(schema);
+#endif			
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SPI_getnspname");
 		}
 		PG_END_TRY();
 		END_NATIVE
