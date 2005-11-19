@@ -12,6 +12,7 @@
 #include "org_postgresql_pljava_internal_Relation.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
+#include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TupleDesc.h"
