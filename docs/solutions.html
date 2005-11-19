@@ -1,7 +1,8 @@
 <html>
 
 <head>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<meta http-equiv="Content-Language" content="en-us">
 <title>Some problems and their solution</title>
 <style>
 p {margin-top:0;
@@ -36,27 +37,15 @@ background Garbage Collection thread. Several third party Java-packages that are
 likely to be used make use of multiple threads. How can this model coexist with
 the PostgreSQL backend in the same process without creating havoc?</p>
 <h3>Solution</h3>
-<p>The solution consists of two mechanisms which together form a waterproof
-protection against multiple threads in the backend code.</p>
-<ol type="a">
-  <li>All calls from Java and out to the backend functions are synchronized on
-  one and the same object. All native calls are private to ensure that the
-  synchronization cannot be bypassed. The result is that only one thread at a
-  time can make a call from the JVM and out to the backend functions.</li>
-  <li>A control flag, managed outside of the JVM, keeps track of when the call
-  handler waits for the return of a call into the JVM. If this flag is set, the
-  JVM is allowed to make synchronized calls to the backend. If not set, the JVM
-  will be denied all access. Any attempt to call the backend will result in an
-  exception. This prevents a stray thread from the JVM to enter the backend at a
-  time when it&#8217;s not expecting it.</li>
-</ol>
-<p>The analogy would be to see the JVM as a monster swinging multiple swords at 
-the backend. The
-backend can cope as long as the monster swings one sword at a time. The
-synchronization mechanism ensures this. The backend needs to turn its back to
-the monster and do other things such as attending to client
-requests every now and then. The control flag ensures that the monster doesn&#8217;t stab the backend
-from behind.</p>
+<p>The solution is simple. PL/Java defines a special object called the 
+<code>Backend.THREADLOCK</code>. When PL/Java is initialized, the backend will immediately 
+grab this objects monitor (i.e. it will synchronize on this object). When the 
+backend calls a Java function, the monitor is released and then 
+immediately regained when the call returns. All calls from Java out to backend 
+code are synchronized on the same lock. This ensures that only one thread at a 
+time can call the backend from Java, and only at a time when the backend is 
+awaiting the 
+return of a Java function call.</p>
 <h2>Exception handling</h2>
 <h3>Problem</h3>
 <p>Java makes frequent use of try/catch/finally blocks. PostgreSQL sometimes use
@@ -65,26 +54,14 @@ Such a jump would normally effectively bypass the JVM. Prior to PostgreSQL versi
 the error was propagated before the actual jump and then discarded, thus there
 was no way to catch and handle the error.</p>
 <h3>Solution</h3>
-<p>When using PostgreSQL 7.4.x, the current state of the jump buffer (Warn_restart
-for hackers) is saved by the call handler prior to all calls into the JVM. All
-calls from the JVM into the backend that might result in a longjmp, will setup
-its own local jump buffer. If a longjmp occurs, the jump is caught, remembered
-by raising a flag, and replaced with a Java exception that is thrown. From that
-point on, and until the JVM returns, the JVM is blocked from all access to the
-PostgreSQL backend code. Once the JVM returns (typically immediately due to the
-exception), the flag state is examined and the jump &#8220;continues&#8221; to its intended
-destination (the original state of the Warn_restart buffer). This allows the JVM
-to trap all exceptions and to do normal catch/finally processing. The database
-can of course not be accessed but other housekeeping can be made.</p>
-<p>Starting with PostgreSQL 8.0, this is changed. The backend now allows errors
-to be cougth using the macros <font face="Courier New" size="2">
-PG_TRY/PG_CATCH/PG_END_TRY</font> and in the catch block, the error can be
-examined using the <font face="Courier New" size="2">ErrorData</font> structure.
-PL/Java implements a <font face="Courier New" size="2">java.sql.SQLException</font>
-subclass called <font face="Courier New" size="2">
-org.postgresql.pljava.ServerException</font>. The ErrorData can be retrieved and
+<p>The backend now allows errors to be caught using the macros <code>
+PG_TRY/PG_CATCH/PG_END_TRY</code> and in the catch block, the error can be
+examined using the <code>ErrorData</code> structure.
+PL/Java implements a <code>java.sql.SQLException</code>
+subclass called <code>
+org.postgresql.pljava.ServerException</code>. The ErrorData can be retrieved and
 examined from that exception. A catch handler is allowed to issue a rollback to 
-a savepoint. After a succesful rollback, execution can continue.</p>
+a savepoint. After a successful rollback, execution can continue.</p>
 <h2>Java Garbage Collector versus palloc() and stack allocation.</h2>
 <h3>Problem</h3>
 <p>Primitive types will be passed by value always. This includes the String type

@@ -39,7 +39,8 @@ pre          { margin-top: 6; margin-left: 15 }
 &nbsp;&nbsp;&nbsp; <a href="#Installation">Installation</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Trusted_language">Trusted language</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Execution_of_the_deployment_descriptor">Execution of the deployment descriptor</a><br>
-&nbsp;&nbsp;&nbsp; <a href="#Classpath_manipulation">Classpath manipulation</a></p>
+&nbsp;&nbsp;&nbsp; <a href="#Classpath_manipulation">Classpath manipulation</a><br>
+<a href="#Module_Configuration">Module Configuration</a><br></p>
 <h2><a name="Utilities">Utilities</a></h2>
 <h3><i><a name="Deployer">Deployer</a></i></h3>
 <p>When running the <code>deployer</code>, you must use a classpath that can see 
@@ -94,6 +95,10 @@ you so that you don&#39;t have to do this over and over again.</p>
     </td>
   </tr>
 </table>
+<p>&nbsp;</p>
+<h4>Deploying using SQL</h4>
+<p>An alternative to using the deployer is to run the <code>install.sql</code> and 
+<code>uninstall.sql</code> scripts that are included in the distribution.</p>
 <h2><a name="SQLJ_functions_">SQLJ functions</a></h2>
 <h3><i><a name="Deployment_descriptor_">Deployment descriptor</a></i></h3>
 <p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code> 
@@ -614,17 +619,18 @@ JDBC connection. There are a couple of limitations though:</p>
   copied.</li>
 </ul>
 <h3><i><a name="Exception_handling">Exception handling</a></i></h3>
-<p>It is now possible to catch and handle an exception in the Postgres backend. 
-While it was possible to catch an exception in earlier Postgres versions as 
-well, there was no way to prevent the generated message from being printed, nor 
-to find out what the error was. The nested transaction concept introduced with 
-8.0 forced this to change and Postgres introduced a try/catch system and a 
-structure called <code>ErrorData</code> that can be used when investigating the 
-cause of an exception. PL/Java fully exploits this. The <code>ErrorData</code> is 
+<p>You can catch and handle an exception in the Postgres backend just like any 
+other exceptoin. The <code>backend ErrorData</code> structure is 
 exposed as a property in a class called <code>
 org.postgresql.pljava.ServerException</code> (derived from
 <code>java.sql.SQLException</code>) and the Java try/catch mechanism is 
 synchronized with the backend mechanism.</p>
+<h4>Important Note:</h4>
+<p>You will not be able to continue executing backend functions until your 
+function has returned and the error has been propagated when the backend has 
+generated an exception unless you have used a savepoint. When a savepoint is 
+rolled back, the exceptional condition is reset and you can continue your 
+execution.</p>
 <h3><i><a name="Savepoints">Savepoints</a></i></h3>
 PostgreSQL savepoints are exposed using the <code>java.sql.Connection</code>
 interface. Two restrictions apply.<ul>
@@ -637,7 +643,38 @@ set.</li>
 <pre>Logger.getAnonymousLogger().info( &quot;Time is &quot; + new Date(System.currentTimeMillis()));</pre>
 <p>At present, the logger is hardwired to a handler that maps the current state 
 of the PostgreSQL configuration setting log_min_messages to a valid Logger level 
-and that outputs all messages using the backend function elog().</p>
+and that outputs all messages using the backend function elog(). The following 
+mapping apply between the Logger levels and the PostgreSQL backend levels.</p>
+<table border="0" width="43%" id="table8">
+  <tr>
+    <td><b>java.util.logging.Level</b></td>
+    <td><b>PostgreSQL level</b></td>
+  </tr>
+  <tr>
+    <td>SEVERE</td>
+    <td>ERROR</td>
+  </tr>
+  <tr>
+    <td>WARNING</td>
+    <td>WARNING</td>
+  </tr>
+  <tr>
+    <td>INFO</td>
+    <td>INFO</td>
+  </tr>
+  <tr>
+    <td>FINE</td>
+    <td>DEBUG1</td>
+  </tr>
+  <tr>
+    <td>FINER</td>
+    <td>DEBUG2</td>
+  </tr>
+  <tr>
+    <td>FINEST</td>
+    <td>DEBUG3</td>
+  </tr>
+</table>
 <h2><a name="Security">Security</a></h2>
 <h3><i><a name="Installation">Installation</a></i></h3>
 <p>Only a PostgreSQL super user can install PL/Java. The PL/Java utility functions 
@@ -649,11 +686,6 @@ as trusted has no access to the filesystem and PL/Java enforces this. Any user c
 create and access functions or triggers in a trusted language. PL/Java also installs 
 a language handler for the language &quot;javaU&quot;. This version is not trusted and only 
 a superuser can create new functions that use it. Any user can still call the functions.</p>
-<h4>Note on GCJ</h4>
-<p>Use of the GNU Java implementation should be regarded as experimental at this 
-point. Due to limitations in the current GCJ (CVS head as of Feb-23, 2005) 
-implementation of java.security, the PL/Java trusted language implementation is 
-not really trusted when using GCJ.</p>
 <h3><i><a name="Execution_of_the_deployment_descriptor">Execution of the deployment 
 descriptor</a></i></h3>
 <p>The <code>install_jar</code>, <code>replace_jar</code>, and <code>remove_jar</code>, 
@@ -664,6 +696,42 @@ session user during execution of the deployment descriptor commands.</p>
 <h3><i><a name="Classpath_manipulation">Classpath manipulation</a></i></h3>
 <p>The function <code>set_classpath</code> requires the caller of the function has 
 been granted <code>CREATE</code> permission on the affected schema.</p>
+
+<h2><a name="Module_Configuration">Module Configuration</a>.</h2>
+<p>PL/Java makes use of PostgreSQL <i>custom variable classes</i> in the
+<code>postgresql.conf</code> configuration file to add some configuration parameters. 
+PL/Java introduces a custom variable class named &quot;pljava&quot;. 
+Here's a sample postgresql.conf entry using all (3) of the variables currently 
+introduced:</p>
+<p>&nbsp;</p>
+<pre># define &quot;pljava&quot; as a custom variable class. This is a comma separated
+# list of names.
+#
+custom_variable_classes = 'pljava'
+
+# define the class path that the JVM will use when loading the
+# initial library. Only meaningful for non GCJ installations
+#
+pljava.classpath = '/home/Tada/pljava/build/pljava.jar'
+
+# Set the size of the prepared statement MRU cache
+#
+pljava.statement_cache_size = 10
+
+# If true, lingering savepoints will be released on function exit. If false,
+# the will be rolled back
+#
+pljava.release_lingering_savepoints = true
+
+# Define startup options for the Java VM.
+#
+pljava.vmoptions = '-Xmx64M'
+
+# Setting debug to true will cause the postgres process to go
+# into a sleep(1) loop on its first call to java. This variable is
+# only useful if you want to debug the PL/Java internal C code.
+#
+pljava.debug = false</pre>
 
 </body>
 

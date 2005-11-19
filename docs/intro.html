@@ -44,6 +44,8 @@ release of PL/Java</a> provides the following features.</h3>
   <li>Ability to use IN, INOUT, and OUT parameters when used with PostgreSQL 8.1</li>
 <li>Two language handlers, one TRUSTED (the default) and one that is not TRUSTED (language tag is javaU to
 conform with the defacto standard)</li>
+  <li>Transaction and Savepoint listeners enabling code execution when a 
+  transaction or savepoint is commited or rolled back.</li>
   <li>Integration with GNU GCJ on selected platforms.</li>
 </ol>
 <h3>PL/Java in brief</h3>
@@ -75,9 +77,7 @@ behind the choice of technology and
 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?solutions">a more
 in-depth discussion</a> about some implementation details. PL/Java is primarily targeted
 to the new 8.1 version but will run with PostgreSQL 8.0 versions too albeit with
-some limitations. Read
-<a href="http://gborg.postgresql.org/project/pljava/genpage.php?pljava_and_postgresql_81">
-PL/Java and PostgreSQL 8.1</a> to learn more.</p>
+some limitations. </p>
 <p>For info on how to get started, please read the
 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?readme">release
 notes</a>. A
