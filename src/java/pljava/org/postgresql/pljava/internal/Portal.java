@@ -14,14 +14,26 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Portal extends JavaHandle
+public class Portal
 {
+	private long m_pointer;
+
+	Portal(long pointer)
+	{
+		m_pointer = pointer;
+	}
+
 	/**
-	 * Performs an <code>SPI_cursor_close</code>.
+	 * Invalidates this structure and frees up memory using the
+	 * internal function <code>SPI_cursor_close</code>
 	 */
 	public void close()
 	{
-		this.invalidate();
+		synchronized(Backend.THREADLOCK)
+		{
+			_close(m_pointer);
+			m_pointer = 0;
+		}
 	}
 
 	/**
@@ -33,7 +45,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getName(this.getNative());
+			return _getName(m_pointer);
 		}
 	}
 
@@ -46,7 +58,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getPortalPos(this.getNative());
+			return _getPortalPos(m_pointer);
 		}
 	}
 
@@ -60,7 +72,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getTupleDesc(this.getNative());
+			return _getTupleDesc(m_pointer);
 		}
 	}
 
@@ -76,24 +88,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _fetch(this.getNative(), forward, count);
-		}
-	}
-
-	/**
-	 * Invalidates this structure and frees up memory using the
-	 * internal function <code>SPI_cursor_close</code>
-	 */
-	public void invalidate()
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			long pointer = this.getNative();
-			if(pointer != 0)
-			{
-				this.clearNative();
-				_invalidate(pointer);
-			}
+			return _fetch(m_pointer, forward, count);
 		}
 	}
 
@@ -106,7 +101,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isAtEnd(this.getNative());
+			return _isAtEnd(m_pointer);
 		}
 	}
 
@@ -119,7 +114,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isAtStart(this.getNative());
+			return _isAtStart(m_pointer);
 		}
 	}
 
@@ -132,8 +127,18 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isPosOverflow(this.getNative());
+			return _isPosOverflow(m_pointer);
 		}
+	}
+
+	/**
+	 * Checks if the portal is still active. I can be closed either explicitly
+	 * using the {@link #close()} mehtod or implicitly due to a pop of invocation
+	 * context.
+	 */
+	public boolean isValid()
+	{
+		return m_pointer != 0;
 	}
 
 	/**
@@ -148,7 +153,7 @@ public class Portal extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _move(this.getNative(), forward, count);
+			return _move(m_pointer, forward, count);
 		}
 	}
 
@@ -164,7 +169,7 @@ public class Portal extends JavaHandle
 	private static native int _fetch(long pointer, boolean forward, int count)
 	throws SQLException;
 
-	private static native void _invalidate(long pointer);
+	private static native void _close(long pointer);
 
 	private static native boolean _isAtEnd(long pointer)
 	throws SQLException;

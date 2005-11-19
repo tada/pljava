@@ -8,7 +8,7 @@
  */
 #include "pljava/type/String_priv.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/MemoryContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
@@ -143,7 +143,7 @@ Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUN
 	/* The return value cannot be created in the current context since it
 	 * goes out of scope when SPI_finish is called.
 	 */
-	currCtx = MemoryContext_switchToUpperContext();
+	currCtx = Invocation_switchToUpperContext();
 	ret = self->m_class->coerceObject(self, value);
 	MemoryContextSwitchTo(currCtx);
 	JNI_deleteLocalRef(value);
@@ -184,7 +184,6 @@ extern void String_initialize(void);
 extern void byte_array_initialize(void);
 
 extern void JavaWrapper_initialize(void);
-extern void JavaHandle_initialize(void);
 extern void ExecutionPlan_initialize(void);
 extern void Portal_initialize(void);
 extern void Relation_initialize(void);
@@ -231,7 +230,6 @@ void Type_initialize(void)
 	byte_array_initialize();
 
 	JavaWrapper_initialize();
-	JavaHandle_initialize();
 	ExecutionPlan_initialize();
 	Portal_initialize();
 	TriggerData_initialize();

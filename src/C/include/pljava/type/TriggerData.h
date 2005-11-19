@@ -9,7 +9,7 @@
 #ifndef __pljava_TriggerData_h
 #define __pljava_TriggerData_h
 
-#include "pljava/type/JavaHandle.h"
+#include "pljava/type/Type.h"
 
 #ifdef __cplusplus
 extern "C" {

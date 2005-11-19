@@ -12,7 +12,6 @@
 #include "pljava/Backend.h"
 #include "pljava/Invocation.h"
 #include "pljava/Exception.h"
-#include "pljava/MemoryContext.h"
 #include "pljava/type/String.h"
 #include "pljava/type/ErrorData.h"
 

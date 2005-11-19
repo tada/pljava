@@ -7,7 +7,7 @@
  * @author Thomas Hallgren
  */
 #include "pljava/type/Type_priv.h"
-#include "pljava/MemoryContext.h"
+#include "pljava/Invocation.h"
 
 static Type s_double;	/* Primitive (scalar) type */
 static TypeClass s_doubleClass;
@@ -29,7 +29,7 @@ static Datum _double_invoke(Type self, jclass cls, jmethodID method, jvalue* arg
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	MemoryContext currCtx = MemoryContext_switchToUpperContext();
+	MemoryContext currCtx = Invocation_switchToUpperContext();
 	Datum ret = Float8GetDatum(dv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;

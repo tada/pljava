@@ -12,7 +12,6 @@
 #include "pljava/Invocation.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
-#include "pljava/MemoryContext.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/SingleRowWriter.h"
 #include "pljava/type/ResultSetProvider.h"
@@ -621,7 +620,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		/* A new Tuple may or may not be created here. If it is, ensure that
 		 * it is created in the upper SPI context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToUpperContext();
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		ret = PointerGetDatum(TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when

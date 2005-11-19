@@ -11,6 +11,7 @@
 
 #include "org_postgresql_pljava_internal_Relation.h"
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TupleDesc.h"
@@ -27,24 +28,10 @@ static jmethodID s_Relation_init;
  */
 jobject Relation_create(Relation td)
 {
-	jobject jtd;
-	if(td == 0)
-		return 0;
-
-	jtd = MemoryContext_lookupNative(td);
-	if(jtd == 0)
-	{
-		jtd = JNI_newObject(s_Relation_class, s_Relation_init);
-		JavaHandle_init(jtd, td);
-	}
-	return jtd;
-}
-
-static jvalue _Relation_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	result.l = Relation_create((Relation)DatumGetPointer(arg));
-	return result;
+	return (td == 0) ? 0 : JNI_newObject(
+			s_Relation_class,
+			s_Relation_init,
+			Invocation_createLocalWrapper(td));
 }
 
 static Type Relation_obtain(Oid typeId)
@@ -55,7 +42,13 @@ static Type Relation_obtain(Oid typeId)
 extern void Relation_initialize(void);
 void Relation_initialize(void)
 {
-	JNINativeMethod methods[] = {
+	JNINativeMethod methods[] =
+	{
+		{
+		"_free",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_Relation__1free
+		},
 		{
 		"_getName",
 		"(J)Ljava/lang/String;",
@@ -76,24 +69,36 @@ void Relation_initialize(void)
 		"(JJ[I[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Tuple;",
 		Java_org_postgresql_pljava_internal_Relation__1modifyTuple
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 	s_Relation_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Relation"));
 	PgObject_registerNatives2(s_Relation_class, methods);
-	s_Relation_init = PgObject_getJavaMethod(s_Relation_class, "<init>", "()V");
 
-	s_RelationClass = JavaHandleClass_alloc("type.Relation");
+	s_Relation_init = PgObject_getJavaMethod(s_Relation_class, "<init>", "(J)V");
+	s_RelationClass = TypeClass_alloc("type.Relation");
 	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/internal/Relation;";
 	s_RelationClass->javaTypeName   = "org.postgresql.pljava.internal.Relation";
-	s_RelationClass->coerceDatum    = _Relation_coerceDatum;
 	s_Relation = TypeClass_allocInstance(s_RelationClass, InvalidOid);
-
 	Type_registerJavaType("org.postgresql.pljava.internal.Relation", Relation_obtain);
 }
 
 /****************************************
  * JNI methods
  ****************************************/
+/*
+ * Class:     org_postgresql_pljava_internal_Relation
+ * Method:    _free
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Relation__1free(JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Invocation_freeLocalWrapper(pointer);
+	END_NATIVE
+}
+
 /*
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    _getName
@@ -103,14 +108,13 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jstring result = 0;
-	if(_this != 0)
+	Relation self = Invocation_getWrappedPointer(_this);
+	if(self != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
 		PG_TRY();
 		{
-			char* relName = SPI_getrelname((Relation)p2l.ptrVal);
+			char* relName = SPI_getrelname(self);
 			result = String_createJavaStringFromNTS(relName);
 			pfree(relName);
 		}
@@ -133,20 +137,15 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getSchema(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jstring result = 0;
-	if(_this != 0)
+	Relation self = Invocation_getWrappedPointer(_this);
+	if(self != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
 		PG_TRY();
 		{
-#if (PGSQL_MAJOR_VER < 8 || PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1)
-			Exception_featureNotSupported("SPI_getnspname", "8.1");
-#else
-			char* schema = SPI_getnspname((Relation)p2l.ptrVal);
+			char* schema = SPI_getnspname(self);
 			result = String_createJavaStringFromNTS(schema);
 			pfree(schema);
-#endif			
 		}
 		PG_CATCH();
 		{
@@ -167,12 +166,11 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	if(_this != 0)
+	Relation self = Invocation_getWrappedPointer(_this);
+	if(self != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = TupleDesc_create(((Relation)p2l.ptrVal)->rd_att);
+		result = TupleDesc_create(self->rd_att);
 		END_NATIVE
 	}
 	return result;
@@ -186,19 +184,15 @@ Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jclass 
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass clazz, jlong _this, jlong _tuple, jintArray _indexes, jobjectArray _values)
 {
+	Relation self = Invocation_getWrappedPointer(_this);
 	jobject result = 0;
-	if(_this != 0 && _tuple != 0)
+	if(self != 0 && _tuple != 0)
 	{
 		Ptr2Long p2l;
-		p2l.longVal = _this;
+		p2l.longVal = _tuple;
 
 		BEGIN_NATIVE
-	
-		HeapTuple tuple;
-		Relation self = (Relation)p2l.ptrVal;
-
-		p2l.longVal = _tuple;
-		tuple = (HeapTuple)p2l.ptrVal;
+		HeapTuple tuple = (HeapTuple)p2l.ptrVal;
 		PG_TRY();
 		{
 			jint idx;

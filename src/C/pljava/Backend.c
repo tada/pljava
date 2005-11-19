@@ -33,10 +33,8 @@
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
 #include "pljava/Backend.h"
-#include "pljava/MemoryContext.h"
 #include "pljava/Session.h"
 #include "pljava/SPI.h"
-#include "pljava/type/JavaHandle.h"
 #include "pljava/type/String.h"
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR

@@ -9,7 +9,7 @@
 #ifndef __pljava_type_HeapTupleHeader_h
 #define __pljava_type_HeapTupleHeader_h
 
-#include "pljava/type/JavaHandle.h"
+#include "pljava/type/Type.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

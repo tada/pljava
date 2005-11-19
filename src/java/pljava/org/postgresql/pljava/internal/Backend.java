@@ -134,8 +134,14 @@ public class Backend
 			}
 			else if(perm instanceof PropertyPermission)
 			{
-				if(perm.getActions().indexOf("write") >= 0 && perm.getName().startsWith("java."))
-					throw new SecurityException();
+				if(perm.getActions().indexOf("write") >= 0)
+				{
+					// We never allow this to be changed.
+					//
+					String propName = perm.getName();
+					if(propName.equals("java.home"))
+						throw new SecurityException();
+				}
 			}
 		}
 	}

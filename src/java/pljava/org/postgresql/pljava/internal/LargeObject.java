@@ -14,7 +14,7 @@ import java.sql.SQLException;
  * 
  * @author Thomas Hallgren
  */
-public class LargeObject extends JavaHandle
+public class LargeObject extends JavaWrapper
 {
 	/**
 	 *	Write mode flag to be passed to {@link #create} and {@link #open}
@@ -56,6 +56,11 @@ public class LargeObject extends JavaHandle
 	 */
 	public static final int SEEK_END = 2;
 
+	LargeObject(long nativePointer)
+	{
+		super(nativePointer);
+	}
+
 	/**
 	 * Creates a LargeObject handle and returns the {@link Oid} of
 	 * that handle.
@@ -87,10 +92,10 @@ public class LargeObject extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			this._close();
+			_close(this.getNativePointer());
 		}
 	}
-	
+
 	public static int drop(Oid lobjId)
 	throws SQLException
 	{
@@ -105,16 +110,16 @@ public class LargeObject extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._getId();
+			return _getId(this.getNativePointer());
 		}
 	}
-	
+
 	public long length()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._length();
+			return _length(this.getNativePointer());
 		}
 	}
 
@@ -123,36 +128,38 @@ public class LargeObject extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._seek(offset, whence);
+			return _seek(this.getNativePointer(), offset, whence);
 		}
 	}
-	
+
 	public long tell()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._tell();
+			return _tell(this.getNativePointer());
 		}
 	}
-	
+
 	public int read(byte[] buf)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._read(buf);
+			return _read(this.getNativePointer(), buf);
 		}
 	}
-	
+
 	public int write(byte[] buf)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return this._write(buf);
+			return _write(this.getNativePointer(), buf);
 		}
 	}
+
+	protected native void _free(long pointer);
 
 	private static native Oid _create(int flags)
 	throws SQLException;
@@ -163,24 +170,24 @@ public class LargeObject extends JavaHandle
 	private static native LargeObject _open(Oid lobjId, int flags)
 	throws SQLException;
 
-	private native void _close()
+	private static native void _close(long pointer)
 	throws SQLException;
 
-	private native Oid _getId()
+	private static native Oid _getId(long pointer)
 	throws SQLException;
 
-	private native long _length()
+	private static native long _length(long pointer)
 	throws SQLException;
 
-	private native long _seek(long offset, int whence)
+	private static native long _seek(long pointer, long offset, int whence)
 	throws SQLException;
 
-	private native long _tell()
+	private static native long _tell(long pointer)
 	throws SQLException;
 
-	private native int _read(byte[] buf)
+	private static native int _read(long pointer, byte[] buf)
 	throws SQLException;
 
-	private native int _write(byte[] buf)
+	private static native int _write(long pointer, byte[] buf)
 	throws SQLException;
 }

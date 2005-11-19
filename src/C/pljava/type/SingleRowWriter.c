@@ -12,12 +12,11 @@
 #include <access/heapam.h>
 
 #include "pljava/backports.h"
-#include "pljava/MemoryContext.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ComplexType.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/SingleRowWriter.h"
-#include "pljava/type/JavaHandle.h"
 
 /*
  * void primitive type.
@@ -62,7 +61,7 @@ static Datum _SingleRowWriter_invoke(Type self, jclass cls, jmethodID method, jv
 		/* Obtain tuple and return it as a Datum. Must be done using a more
 		 * durable context.
 		 */
-		MemoryContext currCtx = MemoryContext_switchToUpperContext();
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(singleRowWriter);
 	    result = HeapTupleGetDatum(tuple);
 		MemoryContextSwitchTo(currCtx);
@@ -84,6 +83,7 @@ jobject SingleRowWriter_create(jobject tupleDesc)
 HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 {
 	jobject tuple;
+	Ptr2Long p2l;
 	HeapTuple result;
 
 	if(jrps == 0)
@@ -93,7 +93,8 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 	if(tuple == 0)
 		return 0;
 
-	result = heap_copytuple((HeapTuple)JavaHandle_getStruct(tuple));
+	p2l.longVal = JavaWrapper_getPointer(tuple);
+	result = heap_copytuple((HeapTuple)p2l.ptrVal);
 	JNI_deleteLocalRef(tuple);
 	return result;
 }

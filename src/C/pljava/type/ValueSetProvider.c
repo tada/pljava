@@ -12,7 +12,7 @@
 
 #include "pljava/type/Type_priv.h"
 #include "pljava/HashMap.h"
-#include "pljava/MemoryContext.h"
+#include "pljava/Invocation.h"
 
 static jclass s_Iterator_class;
 static jmethodID s_Iterator_hasNext;
@@ -85,7 +85,7 @@ static Datum _ValueSetProvider_invoke(Type self, jclass cls, jmethodID method, j
 
 		/* The element must be coerced using the return value context
 		 */
-		currCtx = MemoryContext_switchToUpperContext();
+		currCtx = Invocation_switchToUpperContext();
 		result = Type_coerceObject(ctxData->elementType, tmp);
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);

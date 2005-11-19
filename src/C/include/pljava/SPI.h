@@ -42,6 +42,10 @@ extern void SPI_releaseSavepoint(Savepoint* sp);
 
 extern void SPI_rollbackSavepoint(Savepoint* sp);
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1)
+extern char* SPI_getnspname(Relation rel);
+#endif
+
 #ifdef __cplusplus
 } /* end of extern "C" declaration */
 #endif

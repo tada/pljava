@@ -243,6 +243,12 @@ jlong Invocation_createLocalWrapper(void* pointer)
 	return p2l.longVal;
 }
 
+MemoryContext
+Invocation_switchToUpperContext(void)
+{
+	return MemoryContextSwitchTo(currentInvocation->upperContext);
+}
+
 /*
  * Class:     org_postgresql_pljava_jdbc_Invocation
  * Method:    _getNestingLevel

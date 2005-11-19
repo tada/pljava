@@ -24,7 +24,6 @@
 #include "pljava/Backend.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
-#include "pljava/MemoryContext.h"
 
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
@@ -179,7 +178,7 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		 */
 		Datum result = 0;
 		HeapTuple tuple;
-		currCtx = MemoryContext_switchToUpperContext();
+		currCtx = Invocation_switchToUpperContext();
 		tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
 		if(tuple != 0)
 		{

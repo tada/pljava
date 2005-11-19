@@ -93,6 +93,16 @@ extern jlong Invocation_createLocalWrapper(void* pointer);
 extern void* Invocation_getWrappedPointer(jlong wrapper);
 extern void Invocation_freeLocalWrapper(jlong wrapper);
 
+/*
+ * Switch memory context to a context that is durable between calls to
+ * the call manager but not durable between queries. The old context is
+ * returned. This method can be used when creating values that will be
+ * returned from the Pl/Java routines. Once the values have been created
+ * a call to MemoryContextSwitchTo(oldContext) must follow where oldContext
+ * is the context returned from this call.
+ */
+extern MemoryContext Invocation_switchToUpperContext(void);
+
 #ifdef __cplusplus
 }
 #endif

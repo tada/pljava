@@ -24,7 +24,6 @@ JNI_CLASSES := \
 	$(INTPKG).Oid \
 	$(INTPKG).ExecutionPlan \
 	$(INTPKG).HeapTupleHeader \
-	$(INTPKG).JavaHandle \
 	$(INTPKG).JavaWrapper \
 	$(INTPKG).LargeObject \
 	$(INTPKG).PgSavepoint \

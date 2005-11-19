@@ -28,7 +28,7 @@ PostgreSQL savepoints are exposed using the <code>java.sql.Connection</code>
 interface. Two restrictions apply.<ul>
 <li>A savepoint must be rolled back or released in the function where it was 
 set.</li>
-<li>A savepoint must not outlife the function where it was set</li>
+<li>A savepoint must not outlive the function where it was set</li>
 </ul>
 <h2>Module configuration.</h2>
 <p>Postgres 8.0 introduces the concept of <i>custom variable classes</i> in the

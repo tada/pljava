@@ -15,6 +15,7 @@
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
+#include "pljava/HashMap.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
@@ -24,24 +25,25 @@ static Type      s_Portal;
 static TypeClass s_PortalClass;
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
+static jfieldID  s_Portal_pointer;
 
 typedef void (*PortalCleanupProc)(Portal portal);
 
+static HashMap s_portalMap = 0;
 static PortalCleanupProc s_originalCleanupProc = 0;
 
 static void _pljavaPortalCleanup(Portal portal)
 {
-	MemoryContext currCtx = MemoryContextSwitchTo(TopTransactionContext);
-	jobject jportal = MemoryContext_lookupNative(portal);
+	jobject jportal = (jobject)HashMap_getByOpaque(s_portalMap, portal);
 	if(jportal != 0)
+	{
 		/*
 		 * Remove this object from the cache and clear its
 		 * handle.
 		 */
-		JavaHandle_releasePointer(jportal);
-
-	MemoryContextSwitchTo(currCtx);
-
+		HashMap_removeByOpaque(s_portalMap, portal);
+		JNI_setLongField(jportal, s_Portal_pointer, 0);
+	}
 	portal->cleanup = s_originalCleanupProc;
 	if(s_originalCleanupProc != 0)
 	{
@@ -54,40 +56,33 @@ static void _pljavaPortalCleanup(Portal portal)
  */
 jobject Portal_create(Portal portal)
 {
-	MemoryContext currCtx;
-	jobject jportal;
-
-	if(portal == 0)
-		return 0;
-
-	/* We must cache the native mapping in a context that is reachable
-	 * from the _pljavaPortalCleanup callback.
-	 */
-	currCtx = MemoryContextSwitchTo(TopTransactionContext);
-	jportal = MemoryContext_lookupNative(portal);
-	if(jportal == 0)
+	jobject jportal = 0;
+	if(portal != 0)
 	{
-		jportal = JNI_newObject(s_Portal_class, s_Portal_init);
-		JavaHandle_init(jportal, portal);
+		jportal = (jobject)HashMap_getByOpaque(s_portalMap, portal);
+		if(jportal == 0)
+		{
+			Ptr2Long p2l;
+			p2l.ptrVal = portal;
 
-		/* We need to know when a portal is dropped so that we
-		 * don't attempt to drop it twice.
-		 */
-		if(s_originalCleanupProc == 0)
-			s_originalCleanupProc = portal->cleanup;
+			/* We need to know when a portal is dropped so that we
+			* don't attempt to drop it twice.
+			*/
+			if(s_originalCleanupProc == 0)
+				s_originalCleanupProc = portal->cleanup;
 
-		if(portal->cleanup == s_originalCleanupProc)
+			jportal = JNI_newObject(s_Portal_class, s_Portal_init, p2l.longVal);
+			HashMap_putByOpaque(s_portalMap, portal, JNI_newGlobalRef(jportal));
+
+			/*
+			 * Fail the day the backend decides to utilize the pointer for multiple
+			 * purposes.
+			 */
+			Assert(portal->cleanup == s_originalCleanupProc);
 			portal->cleanup = _pljavaPortalCleanup;
+		}
 	}
-	MemoryContextSwitchTo(currCtx);
 	return jportal;
-}
-
-static jvalue _Portal_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	result.l = Portal_create((Portal)DatumGetPointer(arg));
-	return result;
 }
 
 static Type Portal_obtain(Oid typeId)
@@ -123,9 +118,9 @@ void Portal_initialize(void)
 	  	Java_org_postgresql_pljava_internal_Portal__1fetch
 		},
 		{
-		"_invalidate",
+		"_close",
 	  	"(J)V",
-	  	Java_org_postgresql_pljava_internal_Portal__1invalidate
+	  	Java_org_postgresql_pljava_internal_Portal__1close
 		},
 		{
 		"_isAtEnd",
@@ -152,12 +147,14 @@ void Portal_initialize(void)
 
 	s_Portal_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Portal"));
 	PgObject_registerNatives2(s_Portal_class, methods);
-	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>", "()V");
+	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>", "(J)V");
+	s_Portal_pointer = PgObject_getJavaField(s_Portal_class, "m_pointer", "J");
 
-	s_PortalClass = JavaHandleClass_alloc("type.Tuple");
-	s_PortalClass->JNISignature   = "Lorg/postgresql/pljava/internal/Portal;";
-	s_PortalClass->javaTypeName   = "org.postgresql.pljava.internal.Portal";
-	s_PortalClass->coerceDatum    = _Portal_coerceDatum;
+	s_portalMap = HashMap_create(13, TopMemoryContext);
+
+	s_PortalClass = TypeClass_alloc("type.Portal");
+	s_PortalClass->JNISignature = "Lorg/postgresql/pljava/internal/Portal;";
+	s_PortalClass->javaTypeName = "org.postgresql.pljava.internal.Portal";
 	s_Portal = TypeClass_allocInstance(s_PortalClass, InvalidOid);
 
 	Type_registerJavaType("org.postgresql.pljava.internal.Portal", Portal_obtain);
@@ -260,7 +257,7 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jclass cl
  * Signature: (J)V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jclass clazz, jlong _this)
+Java_org_postgresql_pljava_internal_Portal__1close(JNIEnv* env, jclass clazz, jlong _this)
 {
 	/* We don't use error checking here since we don't want an exception
 	 * caused by another exception when we attempt to close.
@@ -273,11 +270,11 @@ Java_org_postgresql_pljava_internal_Portal__1invalidate(JNIEnv* env, jclass claz
 		p2l.longVal = _this;
 		BEGIN_NATIVE_NO_ERRCHECK
 		Portal portal = (Portal)p2l.ptrVal;
-		MemoryContext_dropNative(portal);
 
 		/* Reset our own cleanup callback if needed. No need to come in
 		 * the backway
 		 */
+		HashMap_removeByOpaque(s_portalMap, portal);
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
 

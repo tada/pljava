@@ -9,7 +9,8 @@
 #ifndef __pljava_Portal_h
 #define __pljava_Portal_h
 
-#include "pljava/type/JavaHandle.h"
+#include "pljava/type/Type.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

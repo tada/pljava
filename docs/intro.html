@@ -28,7 +28,7 @@
   	</td>
   </tr>
 </table>
-<h3>The PL/Java 1.1.0 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?downloads">
+<h3>The PL/Java 1.2.0 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?downloads">
 release of PL/Java</a> provides the following features.</h3>
 <ol>
   <li>Ability to write both functions and triggers using Java 1.4 or higher.</li>
@@ -38,19 +38,14 @@ release of PL/Java</a> provides the following features.</h3>
   are supported.</li>
   <li>An embedded, high performance, JDBC driver utilizing the internal PostgreSQL
   SPI routines.</li>
+<li>Metadata support for the JDBC driver. Both DatabaseMetaData and ResultSetMetaData is included.</li>
+  <li>The ability to return a ResultSet that origins from a query as an alternative to build a ResultSet row by row</li>
   <li>Full support for PostgreSQL 8.0 savepoints and exception handling.</li>
-  <li>Integration with GNU GCJ on selected platforms.</li>
-</ol>
-<p>The 1.1 version adds a couple of new features that was not included in the 1.0 release
-such as<ol>
-<li>Metadata support for the JDBC driver. Both DatabaseMetaData and ResultSetMetaData is included</li>
+  <li>Ability to use IN, INOUT, and OUT parameters when used with PostgreSQL 8.1</li>
 <li>Two language handlers, one TRUSTED (the default) and one that is not TRUSTED (language tag is javaU to
 conform with the defacto standard)</li>
-<li>The ability to return a ResultSet that origins from a query as an alternative to build a ResultSet row by row</li>
-<li>A simple but efficient ObjectPool</li>
-<li>Ability to use IN, INOUT, and OUT parameters (requires not yet released PostgreSQL 8.1)</li>
+  <li>Integration with GNU GCJ on selected platforms.</li>
 </ol>
-</p>
 <h3>PL/Java in brief</h3>
 <p>A function or trigger in SQL will appoint a static method in a Java class. In
 order for the function to execute, the appointed class must be installed in the
@@ -79,10 +74,10 @@ backend into the Java VM and vice versa. Please read the
 behind the choice of technology and
 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?solutions">a more
 in-depth discussion</a> about some implementation details. PL/Java is primarily targeted
-to the new 8.0 version but will run with PostgreSQL 7.4 versions too albeit with
+to the new 8.1 version but will run with PostgreSQL 8.0 versions too albeit with
 some limitations. Read
-<a href="http://gborg.postgresql.org/project/pljava/genpage.php?pljava_and_postgresql_8">
-PL/Java and PostgreSQL 8.0</a> to learn more.</p>
+<a href="http://gborg.postgresql.org/project/pljava/genpage.php?pljava_and_postgresql_81">
+PL/Java and PostgreSQL 8.1</a> to learn more.</p>
 <p>For info on how to get started, please read the
 <a href="http://gborg.postgresql.org/project/pljava/genpage.php?readme">release
 notes</a>. A

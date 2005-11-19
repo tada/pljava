@@ -32,6 +32,8 @@ pre          { margin-top: 6; margin-left: 15 }
 &nbsp;&nbsp;&nbsp; <a href="#Returning_complex_types_">Returning complex types</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Functions_returning_sets_">Functions returning sets</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Using_JDBC_">Using JDBC</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Exception_handling">Exception handling</a><br>
+&nbsp;&nbsp;&nbsp; <a href="#Savepoints">Savepoints</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Logging_">Logging</a><br>
 <a href="#Security">Security</a><br>
 &nbsp;&nbsp;&nbsp; <a href="#Installation">Installation</a><br>
@@ -610,6 +612,25 @@ JDBC connection. There are a couple of limitations though:</p>
   <li>Clob/Blob types need more work. byte[] and String works fine for bytea/text 
   respectively. A more efficient mapping is planned where the actual array is not 
   copied.</li>
+</ul>
+<h3><i><a name="Exception_handling">Exception handling</a></i></h3>
+<p>It is now possible to catch and handle an exception in the Postgres backend. 
+While it was possible to catch an exception in earlier Postgres versions as 
+well, there was no way to prevent the generated message from being printed, nor 
+to find out what the error was. The nested transaction concept introduced with 
+8.0 forced this to change and Postgres introduced a try/catch system and a 
+structure called <code>ErrorData</code> that can be used when investigating the 
+cause of an exception. PL/Java fully exploits this. The <code>ErrorData</code> is 
+exposed as a property in a class called <code>
+org.postgresql.pljava.ServerException</code> (derived from
+<code>java.sql.SQLException</code>) and the Java try/catch mechanism is 
+synchronized with the backend mechanism.</p>
+<h3><i><a name="Savepoints">Savepoints</a></i></h3>
+PostgreSQL savepoints are exposed using the <code>java.sql.Connection</code>
+interface. Two restrictions apply.<ul>
+<li>A savepoint must be rolled back or released in the function where it was 
+set.</li>
+<li>A savepoint must not outlive the function where it was set</li>
 </ul>
 <h3><i><a name="Logging_">Logging</a></i></h3>
 <p>PL/Java uses the standard Java 1.4 Logger. Hence, you can write things like:</p>

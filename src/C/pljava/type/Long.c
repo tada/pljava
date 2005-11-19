@@ -7,7 +7,7 @@
  * @author Thomas Hallgren
  */
 #include "pljava/type/Type_priv.h"
-#include "pljava/MemoryContext.h"
+#include "pljava/Invocation.h"
 
 static Type s_long;	/* Primitive (scalar) type */
 static TypeClass s_longClass;
@@ -29,7 +29,7 @@ static Datum _long_invoke(Type self, jclass cls, jmethodID method, jvalue* args,
 	 * by value, we have to make sure that the correct context is used if
 	 * it's the former.
 	 */
-	MemoryContext currCtx = MemoryContext_switchToUpperContext();
+	MemoryContext currCtx = Invocation_switchToUpperContext();
 	Datum ret = Int64GetDatum(lv);
 	MemoryContextSwitchTo(currCtx);
 	return ret;

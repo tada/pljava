@@ -14,9 +14,14 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Relation extends JavaHandle
+public class Relation extends JavaWrapper
 {
 	private TupleDesc m_tupleDesc;
+
+	Relation(long pointer)
+	{
+		super(pointer);
+	}
 
 	/**
 	 * Returns the name of this <code>Relation</code>.
@@ -27,7 +32,7 @@ public class Relation extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getName(this.getNative());
+			return _getName(this.getNativePointer());
 		}
 	}
 
@@ -40,7 +45,7 @@ public class Relation extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getSchema(this.getNative());
+			return _getSchema(this.getNativePointer());
 		}
 	}
 
@@ -55,7 +60,7 @@ public class Relation extends JavaHandle
 		{
 			synchronized(Backend.THREADLOCK)
 			{
-				m_tupleDesc = _getTupleDesc(this.getNative());
+				m_tupleDesc = _getTupleDesc(this.getNativePointer());
 			}
 		}
 		return m_tupleDesc;
@@ -78,9 +83,11 @@ public class Relation extends JavaHandle
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _modifyTuple(this.getNative(), original.getNativePointer(), fieldNumbers, values);
+			return _modifyTuple(this.getNativePointer(), original.getNativePointer(), fieldNumbers, values);
 		}
 	}
+
+	protected native void _free(long pointer);
 
 	private static native String _getName(long pointer)
 	throws SQLException;

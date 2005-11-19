@@ -10,6 +10,7 @@
 
 #include "org_postgresql_pljava_internal_LargeObject.h"
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/LargeObject.h"
@@ -24,24 +25,10 @@ static jmethodID s_LargeObject_init;
  */
 jobject LargeObject_create(LargeObjectDesc* lo)
 {
-	jobject jlo;
-	if(lo == 0)
-		return 0;
-
-	jlo = MemoryContext_lookupNative(lo);
-	if(jlo == 0)
-	{
-		jlo = JNI_newObject(s_LargeObject_class, s_LargeObject_init);
-		JavaHandle_init(jlo, lo);
-	}
-	return jlo;
-}
-
-static jvalue _LargeObject_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	result.l = LargeObject_create((LargeObjectDesc*)DatumGetPointer(arg));
-	return result;
+	return (lo == 0) ? 0 : JNI_newObject(
+			s_LargeObject_class,
+			s_LargeObject_init,
+			Invocation_createLocalWrapper(lo));
 }
 
 static Type LargeObject_obtain(Oid typeId)
@@ -52,7 +39,8 @@ static Type LargeObject_obtain(Oid typeId)
 extern void LargeObject_initialize(void);
 void LargeObject_initialize(void)
 {
-	JNINativeMethod methods[] = {
+	JNINativeMethod methods[] =
+	{
 		{
 		"_create",
 	  	"(I)Lorg/postgresql/pljava/internal/Oid;",
@@ -69,59 +57,75 @@ void LargeObject_initialize(void)
 	  	Java_org_postgresql_pljava_internal_LargeObject__1open
 		},
 		{
+		"_free",
+	  	"(J)V",
+	  	Java_org_postgresql_pljava_internal_LargeObject__1free
+		},
+		{
 		"_close",
-	  	"()V",
+	  	"(J)V",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1close
 		},
 		{
 		"_getId",
-	  	"()Lorg/postgresql/pljava/internal/Oid;",
+	  	"(J)Lorg/postgresql/pljava/internal/Oid;",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1getId
 		},
 		{
 		"_length",
-	  	"()J",
+	  	"(J)J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1length
 		},
 		{
 		"_seek",
-	  	"(JI)J",
+	  	"(JJI)J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1seek
 		},
 		{
 		"_tell",
-	  	"()J",
+	  	"(J)J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1tell
 		},
 		{
 		"_read",
-	  	"([B)I",
+	  	"(J[B)I",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1read
 		},
 		{
 		"_write",
-	  	"([B)I",
+	  	"(J[B)I",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1write
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 	s_LargeObject_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/LargeObject"));
 	PgObject_registerNatives2(s_LargeObject_class, methods);
-	s_LargeObject_init = PgObject_getJavaMethod(s_LargeObject_class, "<init>", "()V");
 
-	s_LargeObjectClass = JavaHandleClass_alloc("type.LargeObject");
+	s_LargeObject_init = PgObject_getJavaMethod(s_LargeObject_class, "<init>", "(J)V");
+	s_LargeObjectClass = TypeClass_alloc("type.LargeObject");
 	s_LargeObjectClass->JNISignature   = "Lorg/postgresql/pljava/internal/LargeObject;";
 	s_LargeObjectClass->javaTypeName   = "org.postgresql.pljava.internal.LargeObject";
-	s_LargeObjectClass->coerceDatum    = _LargeObject_coerceDatum;
 	s_LargeObject = TypeClass_allocInstance(s_LargeObjectClass, InvalidOid);
-
 	Type_registerJavaType("org.postgresql.pljava.internal.LargeObject", LargeObject_obtain);
 }
 
 /****************************************
  * JNI methods
  ****************************************/
- 
+/*
+ * Class:     org_postgresql_pljava_internal_LargeObject
+ * Method:    _free
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_LargeObject__1free(JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Invocation_freeLocalWrapper(pointer);
+	END_NATIVE
+}
+
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _create
@@ -203,15 +207,15 @@ Java_org_postgresql_pljava_internal_LargeObject__1open(JNIEnv* env, jclass cls, 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _close
- * Signature: ()V
+ * Signature: (J)V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1close(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_LargeObject__1close(JNIEnv* env, jclass cls, jlong _this)
 {
-	BEGIN_NATIVE
-	LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		PG_TRY();
 		{
 			inv_close(self);
@@ -221,40 +225,42 @@ Java_org_postgresql_pljava_internal_LargeObject__1close(JNIEnv* env, jobject _th
 			Exception_throw_ERROR("inv_close");
 		}
 		PG_END_TRY();
+		END_NATIVE
 	}
-	END_NATIVE
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _getId
- * Signature: ()Lorg/postgresql/pljava/internal/Oid;
+ * Signature: (J)Lorg/postgresql/pljava/internal/Oid;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1getId(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_LargeObject__1getId(JNIEnv* env, jclass cls, jlong _this)
 {
 	jobject result = 0;
-	BEGIN_NATIVE
-	LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 	if(self != 0)
+	{
+		BEGIN_NATIVE
 		result = Oid_create(self->id);
-	END_NATIVE
+		END_NATIVE
+	}
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _length
- * Signature: ()J
+ * Signature: (J)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1length(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_LargeObject__1length(JNIEnv* env, jclass cls, jlong _this)
 {
 	jlong result = 0;
-	BEGIN_NATIVE
-	LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		PG_TRY();
 		{
 			/* There's no inv_length call so we use inv_seek on
@@ -269,24 +275,24 @@ Java_org_postgresql_pljava_internal_LargeObject__1length(JNIEnv* env, jobject _t
 			Exception_throw_ERROR("inv_seek");
 		}
 		PG_END_TRY();
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _seek
- * Signature: (JI)J
+ * Signature: (JJI)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _this, jlong pos, jint whence)
+Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jclass cls, jlong _this, jlong pos, jint whence)
 {
 	jlong result = 0;
-	BEGIN_NATIVE
-	LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		PG_TRY();
 		{
 			result = (jlong)inv_seek(self, (int)pos, (int)whence);
@@ -296,24 +302,24 @@ Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jobject _thi
 			Exception_throw_ERROR("inv_seek");
 		}
 		PG_END_TRY();
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _tell
- * Signature: ()J
+ * Signature: (J)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jclass cls, jlong _this)
 {
 	jlong result = 0;
-	BEGIN_NATIVE
-	LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 	if(self != 0)
 	{
+		BEGIN_NATIVE
 		PG_TRY();
 		{
 			result = (jlong)inv_tell(self);
@@ -323,91 +329,85 @@ Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jobject _thi
 			Exception_throw_ERROR("inv_tell");
 		}
 		PG_END_TRY();
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _read
- * Signature: ([B)I
+ * Signature: (J[B)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1read(JNIEnv* env, jobject _this, jbyteArray buf)
+Java_org_postgresql_pljava_internal_LargeObject__1read(JNIEnv* env, jclass cls, jlong _this, jbyteArray buf)
 {
 	jint result = -1;
-	BEGIN_NATIVE
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 
-	if(buf != 0)
+	if(self != 0 && buf != 0)
 	{
+		BEGIN_NATIVE
 		jint nBytes = JNI_getArrayLength(buf);
 		if(nBytes != 0)
 		{
-			LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
-			if(self != 0)
+			jbyte* byteBuf = JNI_getByteArrayElements(buf, 0);
+			if(byteBuf != 0)
 			{
-				jbyte* byteBuf = JNI_getByteArrayElements(buf, 0);
-				if(byteBuf != 0)
+				PG_TRY();
 				{
-					PG_TRY();
-					{
-						result = (jint)inv_read(self, (char*)byteBuf, (int)nBytes);
-						JNI_releaseByteArrayElements(buf, byteBuf, 0);
-					}
-					PG_CATCH();
-					{
-						JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
-						Exception_throw_ERROR("inv_read");
-					}
-					PG_END_TRY();
+					result = (jint)inv_read(self, (char*)byteBuf, (int)nBytes);
+					JNI_releaseByteArrayElements(buf, byteBuf, 0);
 				}
+				PG_CATCH();
+				{
+					JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
+					Exception_throw_ERROR("inv_read");
+				}
+				PG_END_TRY();
 			}
 		}
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _write
- * Signature: ([B)I
+ * Signature: (J[B)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1write(JNIEnv* env, jobject _this, jbyteArray buf)
+Java_org_postgresql_pljava_internal_LargeObject__1write(JNIEnv* env, jclass cls, jlong _this, jbyteArray buf)
 {
 	jint result = -1;
-	BEGIN_NATIVE
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
 
-	if(buf != 0)
+	if(self != 0 && buf != 0)
 	{
+		BEGIN_NATIVE
 		jint nBytes = JNI_getArrayLength(buf);
 		if(nBytes != 0)
 		{
-			LargeObjectDesc* self = (LargeObjectDesc*)JavaHandle_getStruct(_this);
-			if(self != 0)
+			jbyte* byteBuf = JNI_getByteArrayElements(buf, 0);
+			if(byteBuf != 0)
 			{
-				jbyte* byteBuf = JNI_getByteArrayElements(buf, 0);
-				if(byteBuf != 0)
+				PG_TRY();
 				{
-					PG_TRY();
-					{
-						result = (jint)inv_write(self, byteBuf, nBytes);
-						
-						/* No need to copy bytes back, hence the JNI_ABORT */
-						JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
-					}
-					PG_CATCH();
-					{
-						JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
-						Exception_throw_ERROR("inv_write");
-					}
-					PG_END_TRY();
+					result = (jint)inv_write(self, byteBuf, nBytes);
+					
+					/* No need to copy bytes back, hence the JNI_ABORT */
+					JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
 				}
+				PG_CATCH();
+				{
+					JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
+					Exception_throw_ERROR("inv_write");
+				}
+				PG_END_TRY();
 			}
 		}
+		END_NATIVE
 	}
-	END_NATIVE
 	return result;
 }
