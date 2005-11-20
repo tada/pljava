@@ -165,12 +165,11 @@ text* String_createText(jstring javaString)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
-		char* denc = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
+		char* denc = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 		int dencLen = strlen(denc);
 		int varSize = dencLen + VARHDRSZ;
-	
+
 		/* Allocate and initialize the text structure.
 		 */
 		result = (text*)palloc(varSize);
@@ -195,10 +194,9 @@ char* String_createNTS(jstring javaString)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
-		result = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
-	
+		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
+		result = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We always want a copy here.
 		 */
@@ -215,10 +213,9 @@ void String_appendJavaString(StringInfoData* buf, jstring javaString)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
-		const char* utf8 = JNI_getStringUTFChars(javaString, 0);
-		char* dbEnc = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
-	
+		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
+		char* dbEnc = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+
 		appendStringInfoString(buf, dbEnc);
 
 		/* pg_do_encoding_conversion will return the source argument

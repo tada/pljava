@@ -394,7 +394,7 @@ Java_org_postgresql_pljava_internal_LargeObject__1write(JNIEnv* env, jclass cls,
 			{
 				PG_TRY();
 				{
-					result = (jint)inv_write(self, byteBuf, nBytes);
+					result = (jint)inv_write(self, (char*)byteBuf, nBytes);
 					
 					/* No need to copy bytes back, hence the JNI_ABORT */
 					JNI_releaseByteArrayElements(buf, byteBuf, JNI_ABORT);
