@@ -144,15 +144,14 @@ jstring String_createJavaStringFromNTS(const char* cp)
 	{
 		/* Would be nice if a direct conversion to UTF16 was provided.
 		 */
-		char* utf8 = (char*)pg_do_encoding_conversion(
-			(unsigned char*)cp, strlen(cp), GetDatabaseEncoding(), PG_UTF8);
+		jbyte* utf8 = pg_do_encoding_conversion((jbyte*)cp, strlen(cp), GetDatabaseEncoding(), PG_UTF8);
 		result = JNI_newStringUTF(utf8);
-	
+
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We don't want to accidentally
 		 * free that pointer.
 		 */
-		if(utf8 != cp)
+		if(utf8 != (jbyte*)cp)
 			pfree(utf8);
 	}
 	return result;
@@ -166,7 +165,7 @@ text* String_createText(jstring javaString)
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
 		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
-		char* denc = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+		jbyte* denc = pg_do_encoding_conversion((jbyte*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 		int dencLen = strlen(denc);
 		int varSize = dencLen + VARHDRSZ;
 
@@ -189,13 +188,13 @@ text* String_createText(jstring javaString)
 
 char* String_createNTS(jstring javaString)
 {
-	char* result = 0;
+	jbyte* result = 0;
 	if(javaString != 0)
 	{
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
 		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
-		result = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+		result = pg_do_encoding_conversion((jbyte*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We always want a copy here.
@@ -204,7 +203,7 @@ char* String_createNTS(jstring javaString)
 			result = pstrdup(result);
 		JNI_releaseStringUTFChars(javaString, utf8);
 	}
-	return result;
+	return (char*)result;
 }
 
 void String_appendJavaString(StringInfoData* buf, jstring javaString)
@@ -214,7 +213,7 @@ void String_appendJavaString(StringInfoData* buf, jstring javaString)
 		/* Would be nice if a direct conversion from UTF16 was provided.
 		 */
 		const jbyte* utf8 = JNI_getStringUTFChars(javaString, 0);
-		char* dbEnc = (char*)pg_do_encoding_conversion(utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+		jbyte* dbEnc = pg_do_encoding_conversion((jbyte*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
 
 		appendStringInfoString(buf, dbEnc);
 
