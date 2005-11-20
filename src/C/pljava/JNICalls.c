@@ -642,9 +642,9 @@ jobject JNI_getStaticObjectField(jclass clazz, jfieldID field)
 	return result;
 }
 
-const jbyte* JNI_getStringUTFChars(jstring string, jboolean* isCopy)
+const char* JNI_getStringUTFChars(jstring string, jboolean* isCopy)
 {
-	const jbyte* result;
+	const char* result;
 	BEGIN_JAVA
 	result = (*env)->GetStringUTFChars(env, string, isCopy);
 	END_JAVA
