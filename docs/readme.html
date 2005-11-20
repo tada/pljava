@@ -14,11 +14,10 @@ p            { margin-top: 0; margin-bottom: 6 }
 
 <body>
 
-<h1>PL/Java, 1.1.x</h1>
+<h1>PL/Java, 1.2.x</h1>
 <p><font size="2">Java&#8482; is a registered trademark of Sun Microsystems, Inc. in the United States and other countries.</font></p>
-<p>A source tarball and a variety of binaries can be found in the download area.
-Two for Windows (one win32 native for PostgreSQL 8.0 and one cygwin based for 
-older PostgreSQL versions) and two for i386 based Linux. Although all 
+<p>A source tarball and four of binary builds can be found in the download area. 
+Two for Windows and two for i386 based Linux. Although all 
 pre-compiled binaries must run using a standard JVM, the PL/Java can also be 
 compiled and linked using GNU GCJ. PL/Java has no pre-compiled binaries for GCJ but the make system 
 contain what's needed to make the build easy.</p>
@@ -37,17 +36,12 @@ regardless of what GCJ version since the code is conditionally compiled.</p>
 of your own choice.</p>
 <h2>Postmaster configuration</h2>
 <p>Get the PostgreSQL environment up and running. You will need to modify the
-<code>postgresql.conf</code> file.</p>
-<p>&nbsp;</p>
-<p>With PostgreSQL 7.4.x you must make the postmaster accept TCP/IP connections
-(needed by the client JDBC driver). So ensure that you have:</p>
-<pre>tcpip_socket = true</pre>
-<p>In order to find the PL/Java shared object, you can do one of two things. Either
+<code>postgresql.conf</code> file. In order to find the PL/Java shared object, you can do one of two things. Either
 you install the shared object in a directory already searched by the postmaster
 (such as the data directory) or you tell the postmaster where to find it using the
 <code>dynamic_library_path</code>. I.e. you have a setting similar to this:</p>
 <pre>dynamic_library_path = &#39;$libdir:&lt;pljava installation&gt;&#39;</pre>
-<p>Note that on the win32 platform (not cygwin) you need to use a semicolon as a
+<p>Note that on the win32 platform you need to use a semicolon as a
 path separator and double backslashes (since backslash is the escape character in
 the postgresql.conf file) as directory separators.</p>
 <p>In order to see the logging from the tests add the following:</p>
@@ -112,10 +106,8 @@ order to run this program, you must see to that the PostgreSQL jdbc driver packa
 <pre>java org.postgresql.pljava.deploy.Deployer</pre>
 This will result in a list of options. Typically you would use something like:
 <pre>java org.postgresql.pljava.deploy.Deployer -install</pre>
-<p>That&#39;s all there&#39;s to it. You are now ready to start using the PL/Java system.
-If the server runs on a Cygwin system you will need to add the option <code>-cygwin</code>.
-The reason for this is that PostgreSQL and Java dynamic loading uses different naming
-on a Cygwin based platform.</p>
+<p>That's all there's to it. You are now ready to start using the PL/Java 
+system.</p>
 <h2>Run the example tests</h2>
 <p>The tests are divided into two jar files. One is the client part found in the <code>test.jar</code>. It contains some methods that executes
 SQL statements and prints the output (all contained there can of course also be

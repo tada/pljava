@@ -14,7 +14,7 @@
     </td>
     <td align="left" valign="top">
     <p></p>
-    <h2>PL/Java 1.1.0 released</h2>
+    <h2>PL/Java 1.2.0 released</h2>
     <h3>Bringing the power of Java<font face="Times New Roman">™</font> to PostgreSQL<font face="Times New Roman">™</font>
     Functions and Triggers.</h3>
 	<p><font size="2">
@@ -61,7 +61,7 @@ Complex types and sets are passed using the standard JDBC ResultSet class. Great
 care has been taken not to introduce any proprietary interfaces unless absolutely
 necessary so that Java code written using PL/Java becomes as database agnostic as
 possible.</p>
-<p>A new JDBC driver is included in PL/Java. This driver is written directly on top
+<p>A JDBC driver is included in PL/Java. This driver is written directly on top
 of the PostgreSQL internal SPI routines. This driver is essential since it's very
 common for functions and triggers to reuse the database. When they do, they must
 use the same transactional boundaries that where used by the caller.</p>
