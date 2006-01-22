@@ -57,6 +57,7 @@ jobject Tuple_internalCreate(HeapTuple ht, bool mustCopy)
 	if(mustCopy)
 		ht = heap_copytuple(ht);
 
+	htH.longVal = 0L; /* ensure that the rest is zeroed out */
 	htH.ptrVal = ht;
 	jht = JNI_newObject(s_Tuple_class, s_Tuple_init, htH.longVal);
 	return jht;

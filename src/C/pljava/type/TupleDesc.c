@@ -45,6 +45,7 @@ jobject TupleDesc_internalCreate(TupleDesc td)
 	Ptr2Long tdH;
 
 	td = CreateTupleDescCopyConstr(td);
+	tdH.longVal = 0L; /* ensure that the rest is zeroed out */
 	tdH.ptrVal = td;
 	jtd = JNI_newObject(s_TupleDesc_class, s_TupleDesc_init, tdH.longVal);
 	return jtd;

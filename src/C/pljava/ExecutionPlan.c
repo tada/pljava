@@ -281,6 +281,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 			
 			/* Make the plan durable
 			 */
+			p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 			p2l.ptrVal = SPI_saveplan(ePlan);
 			result = p2l.longVal;
 			SPI_freeplan(ePlan);	/* Get rid of the original, nobody can see it anymore */

@@ -239,6 +239,7 @@ jlong Invocation_createLocalWrapper(void* pointer)
 	}	
 	cl->pointer = pointer;
 	cl->invocation = currentInvocation;
+	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = cl;
 	return p2l.longVal;
 }

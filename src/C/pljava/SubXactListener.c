@@ -19,6 +19,7 @@ static jmethodID s_SubXactListener_onAbort;
 static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransactionId parentSubid, void* arg)
 {
 	Ptr2Long p2l;
+	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = arg;
 	switch(event)
 	{
@@ -26,6 +27,7 @@ static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransacti
 			{
 			Ptr2Long infant2l;
 			infant->xid = mySubid;
+			infant2l.longVal = 0L; /* ensure that the rest is zeroed out */
 			infant2l.ptrVal = infant;
 			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onStart, p2l.longVal, infant2l.longVal, parentSubid);
 			}

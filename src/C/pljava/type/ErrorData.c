@@ -24,6 +24,7 @@ jobject ErrorData_getCurrentError(void)
 	ErrorData* errorData = CopyErrorData();
 	MemoryContextSwitchTo(curr);
 
+	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = errorData;
 	jed = JNI_newObject(s_ErrorData_class, s_ErrorData_init, p2l.longVal);
 	return jed;

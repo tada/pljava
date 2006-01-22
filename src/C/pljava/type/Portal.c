@@ -63,6 +63,7 @@ jobject Portal_create(Portal portal)
 		if(jportal == 0)
 		{
 			Ptr2Long p2l;
+			p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 			p2l.ptrVal = portal;
 
 			/* We need to know when a portal is dropped so that we

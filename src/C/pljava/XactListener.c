@@ -24,6 +24,7 @@ static jmethodID s_XactListener_onPrepare;
 static void xactCB(XactEvent event, void* arg)
 {
 	Ptr2Long p2l;
+	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = arg;
 	switch(event)
 	{

@@ -68,6 +68,7 @@ Java_org_postgresql_pljava_internal_PgSavepoint__1set(JNIEnv* env, jclass cls, j
 		Ptr2Long p2l;
 		char* name = String_createNTS(jname);
 		MemoryContext currCtx = MemoryContextSwitchTo(JavaMemoryContext);
+		p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 		p2l.ptrVal = SPI_setSavepoint(name);
 		result = p2l.longVal;
 		MemoryContextSwitchTo(currCtx);
