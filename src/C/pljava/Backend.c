@@ -599,8 +599,9 @@ static void initializeJavaVM(void)
 		0, true);
 
 	JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
+#ifndef GCJ
 	JVMOptList_add(&optList, "-Xrs", 0, true);
-
+#endif
 	if(pljavaDebug)
 	{
 		elog(INFO, "Backend pid = %d. Attach the debugger and set pljavaDebug to false to continue", getpid());
