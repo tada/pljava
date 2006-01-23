@@ -13,9 +13,9 @@ import java.sql.SQLException;
  */
 public interface TransactionListener
 {
-	void onAbort(Session session) throws SQLException;;
+	void onAbort(Session session) throws SQLException;
 
-	void onCommit(Session session) throws SQLException;;
+	void onCommit(Session session) throws SQLException;
 
-	void onPrepare(Session session) throws SQLException;;
+	void onPrepare(Session session) throws SQLException;
 }

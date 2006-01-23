@@ -16,7 +16,7 @@ public interface SavepointListener
 {
 	void onAbort(Session session, Savepoint savepoint, Savepoint parent) throws SQLException;
 
-	void onCommit(Session session, Savepoint savepoint, Savepoint parent) throws SQLException;;
+	void onCommit(Session session, Savepoint savepoint, Savepoint parent) throws SQLException;
 
-	void onStart(Session session, Savepoint savepoint, Savepoint parent) throws SQLException;;
+	void onStart(Session session, Savepoint savepoint, Savepoint parent) throws SQLException;
 }
