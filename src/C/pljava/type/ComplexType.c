@@ -37,42 +37,15 @@ ComplexType ComplexType_createType(TypeClass complexTypeClass, HashMap idCache, 
 	}
 
 	key = td->tdtypeid;
-	if(key == RECORDOID)
+	infant = (ComplexType)HashMap_getByOid(idCache, key);
+	if(infant == 0)
 	{
-		if(td->tdtypmod != -1)
-		{
-			key = (Oid)td->tdtypmod;
-			infant = (ComplexType)HashMap_getByOid(modCache, key);
-			if(infant == 0)
-			{
-				infant = ComplexType_allocInstance(complexTypeClass, td->tdtypeid);
-				infant->m_tupleDesc = createGlobalTupleDescCopy(td);
-				HashMap_putByOid(modCache, key, infant);
-			}
-		}
+		infant = ComplexType_allocInstance(complexTypeClass, key);
+		if(key == RECORDOID)
+			infant->m_tupleDesc = 0;
 		else
-		{
-			/* Get the singleton instance from the idCache that represents
-			 * anonymous RECORD. We *do not* assign a TupleDesc to this
-			 * instance since it will vary between calls.
-			 */
-			infant = (ComplexType)HashMap_getByOid(idCache, key);
-			if(infant == 0)
-			{
-				infant = ComplexType_allocInstance(complexTypeClass, key);
-				HashMap_putByOid(idCache, key, infant);
-			}
-		}
-	}
-	else
-	{
-		infant = (ComplexType)HashMap_getByOid(idCache, key);
-		if(infant == 0)
-		{
-			infant = ComplexType_allocInstance(complexTypeClass, key);
 			infant->m_tupleDesc = createGlobalTupleDescCopy(td);
-			HashMap_putByOid(idCache, key, infant);
-		}
+		HashMap_putByOid(idCache, key, infant);
 	}
 	return infant;
 }
@@ -87,7 +60,7 @@ static TupleDesc _ComplexType_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	{
 		case TYPEFUNC_COMPOSITE:
 		case TYPEFUNC_RECORD:
-			if(td->tdtypeid == RECORDOID && td->tdtypmod == -1)
+			if(td->tdtypeid == RECORDOID)
 				/*
 				 * We can't hold on to this one. It's anonymous
 				 * and may vary between calls.
