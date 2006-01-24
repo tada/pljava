@@ -8,6 +8,8 @@ package org.postgresql.pljava.example;
 
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
@@ -74,7 +76,20 @@ public class Parameters
 	{
 		return new Timestamp(System.currentTimeMillis());
 	}
-	
+
+	public static int countNulls(ResultSet input) throws SQLException
+	{
+		int nullCount = 0;
+		int top = input.getMetaData().getColumnCount();
+		for(int idx = 1; idx <= top; ++idx)
+		{
+			input.getObject(idx);
+			if(input.wasNull())
+				nullCount++;
+		}
+		return nullCount;
+	}
+
 	public static void print(Date time)
 	{
 		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);

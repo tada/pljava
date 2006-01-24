@@ -257,6 +257,12 @@ SQLActions[ ] = {
 			RETURNS SETOF RECORD
 			AS 'org.postgresql.pljava.example.SetOfRecordTest.executeSelect'
 			LANGUAGE java;
+
+		CREATE FUNCTION javatest.countNulls(record)
+			RETURNS int
+			AS 'org.postgresql.pljava.example.Parameters.countNulls'
+			LANGUAGE java;
+
 	END INSTALL",
 	
 	"BEGIN REMOVE
