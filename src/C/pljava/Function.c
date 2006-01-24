@@ -439,7 +439,7 @@ static void Function_init(Function self, PG_FUNCTION_ARGS)
 				Oid typeId = typeIds[idx];
 				HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
 				Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
-				if(pgType->typtype == 'c')
+				if(pgType->typtype == 'c' || (pgType->typtype == 'p' && typeId == RECORDOID))
 				{
 					self->paramTypes[idx] = Type_fromJavaType(
 						InvalidOid,
