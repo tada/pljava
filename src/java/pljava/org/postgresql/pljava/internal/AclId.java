@@ -70,6 +70,17 @@ public final class AclId
 	}
 
 	/**
+	 * Return the id of the session user.
+	 */
+	public static AclId fromName(String name)
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return _fromName(name);
+		}
+	}
+
+	/**
 	 * Return the name that corresponds to this id.
 	 */
 	public String getName()
@@ -113,6 +124,7 @@ public final class AclId
 
 	private static native AclId _getUser();
 	private static native AclId _getSessionUser();
+	private static native AclId _fromName(String name);
 	private native String _getName();
 	private native boolean _hasSchemaCreatePermission(Oid oid);
 	private native boolean _isSuperuser();

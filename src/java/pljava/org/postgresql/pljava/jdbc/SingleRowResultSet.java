@@ -12,7 +12,7 @@ import java.sql.SQLException;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
- * A single row, updateable ResultSet
+ * A single row ResultSet
  *
  * @author Thomas Hallgren
  */

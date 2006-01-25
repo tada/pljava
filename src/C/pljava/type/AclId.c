@@ -68,6 +68,11 @@ void AclId_initialize(void)
 		Java_org_postgresql_pljava_internal_AclId__1getSessionUser
 		},
 		{
+		"_fromName",
+		"(Ljava/lang/String;)Lorg/postgresql/pljava/internal/AclId;",
+		Java_org_postgresql_pljava_internal_AclId__1fromName
+		},
+		{
 		"_getName",
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_AclId__1getName
@@ -145,6 +150,38 @@ Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass c
 	}
 	PG_END_TRY();
 	END_NATIVE
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_AclId
+ * Method:    _fromName
+ * Signature: (Ljava/lang/String;)Lorg/postgresql/pljava/internal/AclId;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_AclId__1fromName(JNIEnv* env, jclass clazz, jstring jname)
+{
+	jobject result = 0;
+	if(jname != 0)
+	{
+		BEGIN_NATIVE
+		PG_TRY();
+		{
+			char* roleName = String_createNTS(jname);
+			HeapTuple roleTup = SearchSysCache(AUTHNAME, PointerGetDatum(roleName), 0, 0, 0);
+			if(HeapTupleIsValid(roleTup))
+			{
+				result = AclId_create(HeapTupleGetOid(roleTup));
+				ReleaseSysCache(roleTup);
+			}
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("SearchSysCache");
+		}
+		PG_END_TRY();
+		END_NATIVE
+	}
 	return result;
 }
 

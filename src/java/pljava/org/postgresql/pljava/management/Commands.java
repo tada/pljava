@@ -509,7 +509,7 @@ public class Commands
 			{
 				stmt.setString(1, jarName);
 				stmt.setString(2, urlString);
-				stmt.setInt(3, AclId.getSessionUser().intValue());
+				stmt.setString(3, AclId.getSessionUser().getName());
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository insert did not insert 1 row");
 			}
@@ -563,7 +563,7 @@ public class Commands
 			try
 			{
 				stmt.setString(1, urlString);
-				stmt.setInt(2, user.intValue());
+				stmt.setString(2, user.getName());
 				stmt.setInt(3, jarId);
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException("Jar repository update did not update 1 row");
@@ -775,7 +775,13 @@ public class Commands
 				return -1;
 			int id = rs.getInt(1);
 			if(ownerRet != null)
-				ownerRet[0] = new AclId(rs.getInt(2));
+			{
+				String ownerName = rs.getString(2);
+				AclId owner = AclId.fromName(ownerName);
+				if(owner == null)
+					throw new SQLException("The owner of jar '" + jarName + "' (" + ownerName + ") is not known");
+				ownerRet[0] = owner;
+			}
 			return id;
 		}
 		finally
