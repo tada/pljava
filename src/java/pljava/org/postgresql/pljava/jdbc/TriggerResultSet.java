@@ -6,7 +6,6 @@
  */
 package org.postgresql.pljava.jdbc;
 
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
@@ -51,12 +50,6 @@ public class TriggerResultSet extends SingleRowResultSet
 	public int getConcurrency() throws SQLException
 	{
 		return m_readOnly ? CONCUR_READ_ONLY : CONCUR_UPDATABLE;
-	}
-
-	public ResultSetMetaData getMetaData()
-	throws SQLException
-	{
-		return new SPIResultSetMetaData(m_tupleDesc);
 	}
 
 	/**

@@ -6,6 +6,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
 import org.postgresql.pljava.internal.TupleDesc;
@@ -39,6 +40,14 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 	throws SQLException
 	{
 		return 1;
+	}
+
+	/**
+	 * Returns the metadata for this result set.
+	 */
+	public ResultSetMetaData getMetaData() throws SQLException
+	{
+		return new SPIResultSetMetaData(this.getTupleDesc());
 	}
 
 	public int getRow()

@@ -7,7 +7,6 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
 import org.postgresql.pljava.internal.HeapTupleHeader;
@@ -44,14 +43,6 @@ public class SingleTupleReader extends SingleRowResultSet
 	throws SQLException
 	{
 		return ResultSet.CONCUR_READ_ONLY;
-	}
-
-	/**
-	 * Returns the metadata for this result set.
-	 */
-	public ResultSetMetaData getMetaData() throws SQLException
-	{
-		return new SPIResultSetMetaData(this.getTupleDesc());
 	}
 
 	/**
