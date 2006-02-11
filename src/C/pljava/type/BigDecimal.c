@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -59,6 +59,5 @@ void BigDecimal_initialize(void)
 	s_BigDecimalClass->coerceDatum    = _BigDecimal_coerceDatum;
 	s_BigDecimalClass->coerceObject   = _BigDecimal_coerceObject;
 
-	Type_registerPgType(NUMERICOID, BigDecimal_obtain);
-	Type_registerJavaType("java.math.BigDecimal", BigDecimal_obtain);
+	Type_registerType(NUMERICOID, "java.math.BigDecimal", BigDecimal_obtain);
 }

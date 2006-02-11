@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -65,6 +65,5 @@ void Date_initialize(void)
 	s_DateClass->coerceObject = _Date_coerceObject;
 	s_Date = TypeClass_allocInstance(s_DateClass, DATEOID);
 
-	Type_registerPgType(DATEOID,   Date_obtain);
-	Type_registerJavaType("java.sql.Date", Date_obtain);
+	Type_registerType(DATEOID, "java.sql.Date", Date_obtain);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -68,6 +68,7 @@ extern void Session_initialize(void);
 extern void PgSavepoint_initialize(void);
 extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
+extern void MemoryStream_initialize(void);
 
 static void initPLJavaClasses(void)
 {
@@ -119,6 +120,7 @@ static void initPLJavaClasses(void)
 	PgSavepoint_initialize();
 	XactListener_initialize();
 	SubXactListener_initialize();
+	MemoryStream_initialize();
 
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -100,7 +100,6 @@ void Double_initialize(void)
 	s_doubleClass->coerceObject   = _Double_coerceObject;
 	s_double = TypeClass_allocInstance(s_doubleClass, FLOAT8OID);
 
-	Type_registerPgType(FLOAT8OID, double_obtain);
-	Type_registerJavaType("double", double_obtain);
-	Type_registerJavaType("java.lang.Double", Double_obtain);
+	Type_registerType(FLOAT8OID, "double", double_obtain);
+	Type_registerType(InvalidOid, "java.lang.Double", Double_obtain);
 }

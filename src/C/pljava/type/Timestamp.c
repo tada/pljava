@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -211,7 +211,6 @@ void Timestamp_initialize(void)
 	s_TimestamptzClass->coerceObject   = _Timestamptz_coerceObject;
 	s_Timestamptz = TypeClass_allocInstance(s_TimestamptzClass, TIMESTAMPTZOID);
 
-	Type_registerPgType(TIMESTAMPOID, Timestamp_obtain);
-	Type_registerPgType(TIMESTAMPTZOID, Timestamptz_obtain);
-	Type_registerJavaType("java.sql.Timestamp", Timestamptz_obtain);
+	Type_registerType(TIMESTAMPOID, 0, Timestamp_obtain);
+	Type_registerType(TIMESTAMPTZOID, "java.sql.Timestamp", Timestamptz_obtain);
 }

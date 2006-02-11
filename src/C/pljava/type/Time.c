@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -182,7 +182,6 @@ void Time_initialize(void)
 	s_TimetzClass->coerceObject = _Timetz_coerceObject;
 	s_Timetz = TypeClass_allocInstance(s_TimetzClass, TIMETZOID);
 
-	Type_registerPgType(TIMEOID,   Time_obtain);
-	Type_registerPgType(TIMETZOID, Timetz_obtain);
-	Type_registerJavaType("java.sql.Time", Timetz_obtain);
+	Type_registerType(TIMEOID, 0, Time_obtain);
+	Type_registerType(TIMETZOID, "java.sql.Time", Timetz_obtain);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -158,7 +158,7 @@ void Portal_initialize(void)
 	s_PortalClass->javaTypeName = "org.postgresql.pljava.internal.Portal";
 	s_Portal = TypeClass_allocInstance(s_PortalClass, InvalidOid);
 
-	Type_registerJavaType("org.postgresql.pljava.internal.Portal", Portal_obtain);
+	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.Portal", Portal_obtain);
 }
 
 /****************************************

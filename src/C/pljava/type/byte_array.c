@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -91,7 +91,6 @@ void byte_array_initialize(void)
 	s_byte_arrayClass->coerceObject = _byte_array_coerceObject;
 	s_byte_array = TypeClass_allocInstance(s_byte_arrayClass, BYTEAOID);
 
-	Type_registerPgType(BYTEAOID, byte_array_obtain);
-	Type_registerJavaType("byte[]", byte_array_obtain);
+	Type_registerType(BYTEAOID, "byte[]", byte_array_obtain);
 }
 

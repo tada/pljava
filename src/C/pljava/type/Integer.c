@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -90,7 +90,6 @@ void Integer_initialize(void)
 	s_intClass->coerceObject       = _Integer_coerceObject;
 	s_int = TypeClass_allocInstance(s_intClass, INT4OID);
 
-	Type_registerPgType(INT4OID, int_obtain);
-	Type_registerJavaType("int", int_obtain);
-	Type_registerJavaType("java.lang.Integer", Integer_obtain);
+	Type_registerType(INT4OID, "int", int_obtain);
+	Type_registerType(InvalidOid, "java.lang.Integer", Integer_obtain);
 }

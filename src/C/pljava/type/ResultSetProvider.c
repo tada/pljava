@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -255,11 +255,11 @@ void ResultSetProvider_initialize(void)
 	s_ResultSetProviderClass->invoke	   = _ResultSetProvider_invoke;
 	s_ResultSetProviderClass->coerceDatum  = _ResultSetProvider_coerceDatum;
 	s_ResultSetProviderClass->coerceObject = _ResultSetProvider_coerceObject;
-	Type_registerJavaType("org.postgresql.pljava.ResultSetProvider", ResultSetProvider_obtain);
+	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetProvider", ResultSetProvider_obtain);
 
 	s_ResultSetHandleClass = TypeClass_alloc("type.ResultSetHandle");
 	s_ResultSetHandleClass->JNISignature = "Lorg/postgresql/pljava/ResultSetHandle;";
 	s_ResultSetHandleClass->javaTypeName = "org.postgresql.pljava.ResultSetHandle";
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
-	Type_registerJavaType("org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
+	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -94,7 +94,6 @@ void Byte_initialize(void)
 	s_byteClass->coerceObject   = _Byte_coerceObject;
 	s_byte = TypeClass_allocInstance(s_byteClass, CHAROID);
 
-	Type_registerPgType(CHAROID, byte_obtain);
-	Type_registerJavaType("byte", byte_obtain);
-	Type_registerJavaType("java.lang.Byte", Byte_obtain);
+	Type_registerType(CHAROID, "byte", byte_obtain);
+	Type_registerType(InvalidOid, "java.lang.Byte", Byte_obtain);
 }

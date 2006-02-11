@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -142,5 +142,5 @@ void SingleRowWriter_initialize(void)
 	s_SingleRowWriterClass->coerceObject = _SingleRowWriter_coerceObject;
 	s_SingleRowWriterClass->invoke       = _SingleRowWriter_invoke;
 
-	Type_registerJavaType("org.postgresql.pljava.jdbc.SingleRowWriter", SingleRowWriter_obtain);
+	Type_registerType(InvalidOid, "org.postgresql.pljava.jdbc.SingleRowWriter", SingleRowWriter_obtain);
 }

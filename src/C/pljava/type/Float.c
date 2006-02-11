@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -90,7 +90,6 @@ void Float_initialize(void)
 	s_floatClass->coerceObject   = _Float_coerceObject;
 	s_float = TypeClass_allocInstance(s_floatClass, FLOAT4OID);
 
-	Type_registerPgType(FLOAT4OID, float_obtain);
-	Type_registerJavaType("float", float_obtain);
-	Type_registerJavaType("java.lang.Float", Float_obtain);
+	Type_registerType(FLOAT4OID, "float", float_obtain);
+	Type_registerType(InvalidOid, "java.lang.Float", Float_obtain);
 }

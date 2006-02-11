@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -90,7 +90,6 @@ void Short_initialize(void)
 	s_shortClass->coerceObject   = _Short_coerceObject;
 	s_short = TypeClass_allocInstance(s_shortClass, INT2OID);
 
-	Type_registerPgType(INT2OID, short_obtain);
-	Type_registerJavaType("short", short_obtain);
-	Type_registerJavaType("java.lang.Short", Short_obtain);
+	Type_registerType(INT2OID, "short", short_obtain);
+	Type_registerType(InvalidOid, "java.lang.Short", Short_obtain);
 }

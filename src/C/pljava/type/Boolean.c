@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -89,7 +89,6 @@ void Boolean_initialize(void)
 	s_booleanClass->coerceObject   = _Boolean_coerceObject;
 	s_boolean = TypeClass_allocInstance(s_booleanClass, BOOLOID);
 
-	Type_registerPgType(BOOLOID, boolean_obtain);
-	Type_registerJavaType("boolean", boolean_obtain);
-	Type_registerJavaType("java.lang.Boolean", Boolean_obtain);
+	Type_registerType(BOOLOID, "boolean", boolean_obtain);
+	Type_registerType(InvalidOid, "java.lang.Boolean", Boolean_obtain);
 }

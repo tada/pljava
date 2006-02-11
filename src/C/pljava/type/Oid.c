@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -168,9 +168,8 @@ void Oid_initialize(void)
 	s_OidOid = JNI_newGlobalRef(tmp);
 	JNI_deleteLocalRef(tmp);
 
-	Type_registerPgType(OIDOID, Oid_obtain);
-	Type_registerJavaType("org.postgresql.pljava.internal.Oid", Oid_obtain);
-	
+	Type_registerType(OIDOID, "org.postgresql.pljava.internal.Oid", Oid_obtain);
+
 	s_Oid_registerType = PgObject_getStaticJavaMethod(
 				s_Oid_class, "registerType",
 				"(Ljava/lang/Class;Lorg/postgresql/pljava/internal/Oid;)V");

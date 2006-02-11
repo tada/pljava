@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -252,11 +252,9 @@ void String_initialize(void)
 	 * Registering known types will increase the performance
 	 * a bit. The "default" is used when all else fails.
 	 */
-	Type_registerPgType(TEXTOID,   String_obtain);
-	Type_registerPgType(CSTRINGOID,String_obtain);
-	Type_registerPgType(BPCHAROID, String_obtain);
-	Type_registerPgType(NAMEOID,   String_obtain);
-	Type_registerPgType(VARCHAROID,String_obtain);
-
-	Type_registerJavaType("java.lang.String", String_obtain);
+	Type_registerType(TEXTOID,    0, String_obtain);
+	Type_registerType(CSTRINGOID, 0, String_obtain);
+	Type_registerType(BPCHAROID,  0, String_obtain);
+	Type_registerType(NAMEOID,    0, String_obtain);
+	Type_registerType(VARCHAROID, "java.lang.String", String_obtain);
 }

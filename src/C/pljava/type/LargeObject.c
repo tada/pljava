@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -107,7 +107,7 @@ void LargeObject_initialize(void)
 	s_LargeObjectClass->JNISignature   = "Lorg/postgresql/pljava/internal/LargeObject;";
 	s_LargeObjectClass->javaTypeName   = "org.postgresql.pljava.internal.LargeObject";
 	s_LargeObject = TypeClass_allocInstance(s_LargeObjectClass, InvalidOid);
-	Type_registerJavaType("org.postgresql.pljava.internal.LargeObject", LargeObject_obtain);
+	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.LargeObject", LargeObject_obtain);
 }
 
 /****************************************

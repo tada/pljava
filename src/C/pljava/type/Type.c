@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -15,6 +15,14 @@
 static HashMap s_typeByOid;
 static HashMap s_obtainerByOid;
 static HashMap s_obtainerByJavaName;
+
+typedef struct CacheEntryData
+{
+	TypeObtainer	obtainer;
+	Oid				typeId;
+} CacheEntryData;
+
+typedef CacheEntryData* CacheEntry;
 
 bool Type_canReplaceType(Type self, Type other)
 {
@@ -66,20 +74,22 @@ bool Type_isPrimitive(Type self)
 	return self->m_class->objectType != 0;
 }
 
-Type Type_fromJavaType(Oid dfltTypeId, const char* javaTypeName)
+Type Type_fromJavaType(Oid typeId, const char* javaTypeName)
 {
-	TypeObtainer to = (TypeObtainer)HashMap_getByString(
-							s_obtainerByJavaName, javaTypeName);
-	if(to == 0)
+	CacheEntry ce = (CacheEntry)HashMap_getByString(s_obtainerByJavaName, javaTypeName);
+	if(ce == 0)
 		ereport(ERROR, (
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("No java type mapping installed for \"%s\"", javaTypeName)));
-	return to(dfltTypeId);
+
+	if(typeId == InvalidOid)
+		typeId = ce->typeId;
+	return ce->obtainer(typeId);
 }
 
 Type Type_fromPgType(Oid typeId, Form_pg_type typeStruct)
 {
-	Type type = (Type)HashMap_getByOid(s_typeByOid, typeId);
+	Type type = Type_fromOidCache(typeId);
 	if(type == 0)
 	{
 		TypeObtainer to = (TypeObtainer)HashMap_getByOid(s_obtainerByOid, typeId);
@@ -90,14 +100,24 @@ Type Type_fromPgType(Oid typeId, Form_pg_type typeStruct)
 			type = String_fromPgType(typeId, typeStruct);
 		else
 			type = to(typeId);
-		HashMap_putByOid(s_typeByOid, typeId, type);
+		Type_cacheByOid(typeId, type);
 	}
 	return type;
 }
 
+void Type_cacheByOid(Oid typeId, Type type)
+{
+	HashMap_putByOid(s_typeByOid, typeId, type);
+}
+
+Type Type_fromOidCache(Oid typeId)
+{
+	return (Type)HashMap_getByOid(s_typeByOid, typeId);
+}
+
 Type Type_fromOid(Oid typeId)
 {
-	Type type = (Type)HashMap_getByOid(s_typeByOid, typeId);
+	Type type = Type_fromOidCache(typeId);
 	if(type == 0)
 	{
 		TypeObtainer to = (TypeObtainer)HashMap_getByOid(s_obtainerByOid, typeId);
@@ -112,7 +132,7 @@ Type Type_fromOid(Oid typeId)
 		}
 		else
 			type = to(typeId);
-		HashMap_putByOid(s_typeByOid, typeId, type);
+		Type_cacheByOid(typeId, type);
 	}
 	return type;
 }
@@ -271,26 +291,26 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 /*
  * Types are always allocated in global context.
  */
-Type TypeClass_allocInstance(TypeClass cls, Oid oid)
+Type TypeClass_allocInstance(TypeClass cls, Oid typeId)
 {
 	Type t = (Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
-	t->m_oid = oid;
+	t->m_oid = typeId;
 	return t;
 }
 
 /*
- * Register this type as the default mapping for a postgres type.
+ * Register this type.
  */
-void Type_registerPgType(Oid typeOid, TypeObtainer obtainer)
+void Type_registerType(Oid typeId, const char* javaTypeName, TypeObtainer obtainer)
 {
-	HashMap_putByOid(s_obtainerByOid, typeOid, (void*)obtainer);
-}	
+	if(typeId != InvalidOid)
+		HashMap_putByOid(s_obtainerByOid, typeId, (void*)obtainer);
 
-/*
- * Register this type as the mapper for an explicit Java type.
- */
-void Type_registerJavaType(const char* javaTypeName, TypeObtainer obtainer)
-{
-	HashMap_putByString(s_obtainerByJavaName, javaTypeName, (void*)obtainer);
+	if(javaTypeName != 0)
+	{
+		CacheEntry ce = (CacheEntry)MemoryContextAlloc(TopMemoryContext, sizeof(CacheEntryData));
+		ce->typeId   = typeId;
+		ce->obtainer = obtainer;
+		HashMap_putByString(s_obtainerByJavaName, javaTypeName, ce);
+	}
 }
-

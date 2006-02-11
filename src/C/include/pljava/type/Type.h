@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -135,12 +135,7 @@ typedef Type (*TypeObtainer)(Oid typeId);
 /*
  * Register this type as the default mapping for a postgres type.
  */
-extern void Type_registerPgType(Oid typeId, TypeObtainer obtainer);
-
-/*
- * Register this type as the mapper for an explicit Java type.
- */
-extern void Type_registerJavaType(const char* javaTypeName, TypeObtainer obtainer);
+extern void Type_registerType(Oid typeId, const char* javaTypeName, TypeObtainer obtainer);
 
 #ifdef __cplusplus
 }

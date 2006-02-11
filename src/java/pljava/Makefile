@@ -26,6 +26,8 @@ JNI_CLASSES := \
 	$(INTPKG).HeapTupleHeader \
 	$(INTPKG).JavaWrapper \
 	$(INTPKG).LargeObject \
+	$(INTPKG).MemoryChunkInputStream \
+	$(INTPKG).MemoryChunkOutputStream \
 	$(INTPKG).PgSavepoint \
 	$(INTPKG).Portal \
 	$(INTPKG).Relation \

@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------
-# Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+# Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
 # Distributed under the terms shown in the file COPYRIGHT
 # found in the root folder of this project or at
 # http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -8,16 +8,10 @@
 #
 # Top level Makefile for PLJava
 #
-# To compile a PLJava for PostgreSQL 8.0 the makefile system will utilize
+# To compile a PLJava for PostgreSQL 8.x the makefile system will utilize
 # the PostgreSQL pgxs system. The only prerequisite for such a compile is
-# that a PostgreSQL 8.0 is installed on the system and that the PATH is set
+# that a PostgreSQL 8.x is installed on the system and that the PATH is set
 # so that the binaries of this installed can be executed.
-#
-# In order to compile with a PostgreSQL 7.4, a full source distribution
-# of PostgreSQL is needed. The configure script must have been run in that
-# distribution and the PLJava make must be started as:
-#
-# make PGSQLDIR=<absolute path to PostgreSQL source>
 #
 # The following options are recognized (aside from normal options like
 # CFLAGS etc.)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
+ * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
  * http://eng.tada.se/osprojects/COPYRIGHT.html
@@ -107,6 +107,17 @@ extern Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args,
  * Type_getTupleDesc.
  */
 TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
+
+/*
+ * Store a Type keyed by its Oid in the cache.
+ */
+extern void Type_cacheByOid(Oid typeId, Type type);
+
+/*
+ * Fetch a Type from the cache using its Oid as key. This function will
+ * return nULL when no Type is found in the cache.
+ */
+extern Type Type_fromOidCache(Oid typeId);
 
 /*
  * Create a TypeClass with default sizes for TypeClass and Type.
