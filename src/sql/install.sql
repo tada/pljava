@@ -42,6 +42,13 @@ CREATE TABLE sqlj.classpath_entry(
 );
 GRANT SELECT ON sqlj.classpath_entry TO public;
 
+CREATE TABLE sqlj.typemap_entry(
+	mapId		SERIAL PRIMARY KEY,
+	javaName	VARCHAR(200) NOT NULL,
+	sqlName		NAME NOT NULL
+);
+GRANT SELECT ON sqlj.typemap_entry TO public;
+
 CREATE FUNCTION sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN) RETURNS void
 	AS 'org.postgresql.pljava.management.Commands.installJar'
 	LANGUAGE java SECURITY DEFINER;
@@ -69,3 +76,11 @@ CREATE FUNCTION sqlj.set_classpath(VARCHAR, VARCHAR) RETURNS void
 CREATE FUNCTION sqlj.get_classpath(VARCHAR) RETURNS VARCHAR
 	AS 'org.postgresql.pljava.management.Commands.getClassPath'
 	LANGUAGE java STABLE SECURITY DEFINER;
+
+CREATE FUNCTION sqlj.add_type_mapping(VARCHAR, VARCHAR) RETURNS void
+	AS 'org.postgresql.pljava.management.Commands.addTypeMapping'
+	LANGUAGE java SECURITY DEFINER;
+
+CREATE FUNCTION sqlj.drop_type_mapping(VARCHAR) RETURNS void
+	AS 'org.postgresql.pljava.management.Commands.dropTypeMapping'
+	LANGUAGE java SECURITY DEFINER;

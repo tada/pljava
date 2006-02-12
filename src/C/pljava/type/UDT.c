@@ -7,12 +7,14 @@
  * @author Thomas Hallgren
  */
 #include <postgres.h>
+#include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
 #include <libpq/pqformat.h>
 
 #include "pljava/type/UDT_priv.h"
 #include "pljava/type/String.h"
-#include "pljava/MemoryStream.h"
+#include "pljava/SQLInputFromChunk.h"
+#include "pljava/SQLOutputToChunk.h"
 
 jvalue _UDT_coerceDatum(Type self, Datum arg)
 {
@@ -48,9 +50,9 @@ jvalue _UDT_coerceDatum(Type self, Datum arg)
 		}
 		result.l = JNI_newObject(udt->clazz, udt->init);
 
-		inputStream = MemoryStream_createInputStream(data, dataLen);
-		JNI_callVoidMethod(result.l, udt->internalize, inputStream);
-		MemoryStream_closeInputStream(inputStream);
+		inputStream = SQLInputFromChunk_create(data, dataLen);
+		JNI_callVoidMethod(result.l, udt->readSQL, inputStream, udt->sqlTypeName);
+		SQLInputFromChunk_close(inputStream);
 	}
 	return result;
 }
@@ -80,15 +82,23 @@ Datum _UDT_coerceObject(Type self, jobject value)
 			 */
 			appendBinaryStringInfo(&buffer, (char*)&dataLen, sizeof(int32));
 
-		outputStream = MemoryStream_createOutputStream(&buffer);
-		JNI_callVoidMethod(value, udt->externalize, outputStream);
-		MemoryStream_closeOutputStream(outputStream);
+		outputStream = SQLOutputToChunk_create(&buffer);
+		JNI_callVoidMethod(value, udt->writeSQL, outputStream);
+		SQLOutputToChunk_close(outputStream);
 
 		if(dataLen < 0)
-			/*
-			 * Assign the correct length.
+		{
+			/* Assign the correct length.
 			 */
 			*((int32*)buffer.data) = buffer.len;
+		}
+		else if(dataLen != buffer.len)
+		{
+			ereport(ERROR, (
+				errcode(ERRCODE_CANNOT_COERCE),
+				errmsg("UDT for Oid %d produced image with incorrect size. Expected %d, was %d",
+					Type_getOid(self), dataLen, buffer.len)));
+		}
 		result = PointerGetDatum(buffer.data);
 	}
 	return result;
@@ -183,15 +193,19 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
  */
 UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_type pgType)
 {
+	HeapTuple nspTup;
+	Form_pg_namespace nspStruct;
 	TypeClass udtClass;
 	UDT udt;
 	int signatureLen;
+	jstring sqlTypeName;
 	char* classSignature;
 	char* sp;
 	const char* cp;
+	const char* tp;
 	char c;
 
-	Type existing = Type_fromOid(typeId);
+	Type existing = Type_fromOidCache(typeId);
 	if(existing != 0)
 	{
 		if(existing->m_class->coerceDatum != _UDT_coerceDatum)
@@ -202,6 +216,20 @@ UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_typ
 		}
 		return (UDT)existing;
 	}
+
+	nspTup = PgObject_getValidTuple(NAMESPACEOID, pgType->typnamespace, "namespace");
+	nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
+
+	/* Concatenate namespace + '.' + typename
+	 */
+	cp = NameStr(nspStruct->nspname);
+	tp = NameStr(pgType->typname);
+	sp = palloc(strlen(cp) + strlen(tp) + 2);
+	sprintf(sp, "%s.%s", cp, tp);
+	sqlTypeName = String_createJavaStringFromNTS(sp);
+	pfree(sp);
+
+	ReleaseSysCache(nspTup);
 
 	/* Create a Java Signature String from the class name
 	 */
@@ -231,6 +259,10 @@ UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_typ
 	udt = (UDT)TypeClass_allocInstance(udtClass, typeId);
 	udt->length   = pgType->typlen;
 	udt->clazz    = clazz;
+
+	udt->sqlTypeName = JNI_newGlobalRef(sqlTypeName);
+	JNI_deleteLocalRef(sqlTypeName);
+
 	udt->init     = PgObject_getJavaMethod(clazz, "<init>", "()V");
 	udt->toString = PgObject_getJavaMethod(clazz, "toString", "()Ljava/lang/String;");
 
@@ -243,8 +275,8 @@ UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_typ
 	udt->parse = PgObject_getStaticJavaMethod(clazz, "parse", sp);
 	pfree(sp);
 
-	udt->internalize = PgObject_getJavaMethod(clazz, "internalize", "(Ljava/io/InputStream;)V");
-	udt->externalize = PgObject_getJavaMethod(clazz, "externalize", "(Ljava/io/OutputStream;)V");
+	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
+	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
 
 	Type_cacheByOid(typeId, (Type)udt);
 	Type_registerType(typeId, className, UDT_obtain);

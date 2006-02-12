@@ -263,6 +263,37 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.countNulls'
 			LANGUAGE java;
 
+		CREATE FUNCTION javatest.complexdummy(cstring) RETURNS javatest.complex AS 'lower' LANGUAGE INTERNAL;
+
+		CREATE FUNCTION complex_in(cstring)
+			RETURNS javatest.complex
+			AS 'UDT[org.postgresql.pljava.example.Complex] input'
+			LANGUAGE java IMMUTABLE STRICT;
+
+		CREATE FUNCTION complex_out(javatest.complex)
+			RETURNS cstring
+			AS 'UDT[org.postgresql.pljava.example.Complex] output'
+			LANGUAGE java IMMUTABLE STRICT;
+
+		CREATE FUNCTION complex_recv(internal)
+			RETURNS javatest.complex
+			AS 'UDT[org.postgresql.pljava.example.Complex] receive'
+			LANGUAGE java IMMUTABLE STRICT;
+
+		CREATE FUNCTION complex_send(javatest.complex)
+			RETURNS bytea
+			AS 'UDT[org.postgresql.pljava.example.Complex] send'
+			LANGUAGE java IMMUTABLE STRICT;
+
+		CREATE TYPE javatest.complex (
+			internallength = 16,
+			input = javatest.complex_in,
+			output = javatest.complex_out,
+			receive = javatest.complex_recv,
+			send = javatest.complex_send,
+			alignment = double
+			);
+
 	END INSTALL",
 	
 	"BEGIN REMOVE

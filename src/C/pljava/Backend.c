@@ -68,7 +68,8 @@ extern void Session_initialize(void);
 extern void PgSavepoint_initialize(void);
 extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
-extern void MemoryStream_initialize(void);
+extern void SQLInputFromChunk_initialize(void);
+extern void SQLOutputToChunk_initialize(void);
 
 static void initPLJavaClasses(void)
 {
@@ -120,7 +121,8 @@ static void initPLJavaClasses(void)
 	PgSavepoint_initialize();
 	XactListener_initialize();
 	SubXactListener_initialize();
-	MemoryStream_initialize();
+	SQLInputFromChunk_initialize();
+	SQLOutputToChunk_initialize();
 
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 }

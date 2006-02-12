@@ -6,8 +6,8 @@
  *
  * @author Thomas Hallgren
  */
-#ifndef __pljava_MemoryStream_h
-#define __pljava_MemoryStream_h
+#ifndef __pljava_SQLInputFromChunk_h
+#define __pljava_SQLInputFromChunk_h
 
 #include "pljava/PgObject.h"
 
@@ -16,18 +16,15 @@ extern "C" {
 #endif
 
 /***********************************************************************
- * MemoryStream related stuff.
+ * Provides mapping between java.sql.SQLInput and a chunk of memory
+ * allocated by the backend.
  * 
  * @author Thomas Hallgren
  *
  ***********************************************************************/
-#include <lib/stringinfo.h>
 
-jobject MemoryStream_createOutputStream(StringInfo buffer);
-void MemoryStream_closeOutputStream(jobject outputStream);
-
-jobject MemoryStream_createInputStream(void* data, size_t dataSize);
-void MemoryStream_closeInputStream(jobject object);
+jobject SQLInputFromChunk_create(void* data, size_t dataSize);
+void SQLInputFromChunk_close(jobject input);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

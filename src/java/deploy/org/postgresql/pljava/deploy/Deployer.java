@@ -377,6 +377,16 @@ public class Deployer
 			")");
 		stmt.execute("GRANT SELECT ON sqlj.classpath_entry TO public");
 
+		// Create the table maintaining the SQL to Java type mappings
+		//
+		stmt.execute(
+			"CREATE TABLE sqlj.typemap_entry(" +
+			"	mapId		SERIAL PRIMARY KEY," +
+			"	javaName	VARCHAR(200) NOT NULL," +
+			"	sqlName		NAME NOT NULL" +
+			")");
+		stmt.execute("GRANT SELECT ON sqlj.typemap_entry TO public");
+
 		// These are the proposed SQL standard methods.
 		//
 		stmt.execute(

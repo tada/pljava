@@ -14,30 +14,29 @@ include $(MODULEROOT)/Makefile.global
 SRCDIR_USC	:= $(subst .,^,$(SRCDIR))
 mkclsrc		= $(subst ^,.,$(subst .,/,$(1:%=$(SRCDIR_USC)/%^java)))
 JAVAH		:= javah
-INTPKG		:= org.postgresql.pljava.internal
 
 JNI_CLASSES := \
-	$(INTPKG).Backend \
-	$(INTPKG).SPI \
-	$(INTPKG).AclId \
-	$(INTPKG).ErrorData \
-	$(INTPKG).Oid \
-	$(INTPKG).ExecutionPlan \
-	$(INTPKG).HeapTupleHeader \
-	$(INTPKG).JavaWrapper \
-	$(INTPKG).LargeObject \
-	$(INTPKG).MemoryChunkInputStream \
-	$(INTPKG).MemoryChunkOutputStream \
-	$(INTPKG).PgSavepoint \
-	$(INTPKG).Portal \
-	$(INTPKG).Relation \
-	$(INTPKG).Session \
-	$(INTPKG).SubXactListener \
-	$(INTPKG).TriggerData \
-	$(INTPKG).Tuple \
-	$(INTPKG).TupleDesc \
-	$(INTPKG).XactListener \
-	org.postgresql.pljava.jdbc.Invocation
+	org.postgresql.pljava.internal.Backend \
+	org.postgresql.pljava.internal.SPI \
+	org.postgresql.pljava.internal.AclId \
+	org.postgresql.pljava.internal.ErrorData \
+	org.postgresql.pljava.internal.Oid \
+	org.postgresql.pljava.internal.ExecutionPlan \
+	org.postgresql.pljava.internal.HeapTupleHeader \
+	org.postgresql.pljava.internal.JavaWrapper \
+	org.postgresql.pljava.internal.LargeObject \
+	org.postgresql.pljava.internal.PgSavepoint \
+	org.postgresql.pljava.internal.Portal \
+	org.postgresql.pljava.internal.Relation \
+	org.postgresql.pljava.internal.Session \
+	org.postgresql.pljava.internal.SubXactListener \
+	org.postgresql.pljava.internal.TriggerData \
+	org.postgresql.pljava.internal.Tuple \
+	org.postgresql.pljava.internal.TupleDesc \
+	org.postgresql.pljava.internal.XactListener \
+	org.postgresql.pljava.jdbc.Invocation \
+	org.postgresql.pljava.jdbc.SQLInputFromChunk \
+	org.postgresql.pljava.jdbc.SQLOutputToChunk
 
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))
 

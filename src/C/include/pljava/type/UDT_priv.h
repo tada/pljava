@@ -31,11 +31,12 @@ struct UDT_
 
 	int32 length;
 	jclass    clazz;
+	jstring sqlTypeName;
 	jmethodID init;
 	jmethodID parse;
 	jmethodID toString;
-	jmethodID internalize;
-	jmethodID externalize;
+	jmethodID readSQL;
+	jmethodID writeSQL;
 };
 
 extern Datum _UDT_coerceObject(Type self, jobject jstr);

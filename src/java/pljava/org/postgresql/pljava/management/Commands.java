@@ -184,6 +184,34 @@ import org.postgresql.pljava.sqlj.Loader;
  */
 public class Commands
 {
+	public static void addTypeMapping(String sqlTypeName, String javaClassName)
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			// TODO: Add type check, etc.
+		}
+		finally
+		{
+			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+		}
+	}
+
+	public static void dropTypeMapping(String sqlTypeName, String javaClassName)
+	throws SQLException
+	{
+		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		try
+		{
+			// TODO: Add drop code.
+		}
+		finally
+		{
+			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+		}
+	}
+
 	/**
 	 * Installs a new Jar in the database jar repository under name
 	 * <code>jarName</code>. Once installed classpaths can be defined that
