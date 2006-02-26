@@ -620,6 +620,7 @@ public class Commands
 				addClassImages(conn, jarId, imageStream);
 			}
 			Loader.clearSchemaLoaders();
+			Backend.clearFunctionCache();
 			if(redeploy)
 				deployInstall(conn, jarId);
 		}

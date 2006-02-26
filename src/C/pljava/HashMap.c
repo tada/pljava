@@ -166,6 +166,13 @@ void* Entry_getValue(Entry self)
 	return self->value;
 }
 
+void* Entry_setValue(Entry self, void* value)
+{
+	void* old = self->value;
+	self->value = value;
+	return old;
+}
+
 static void _Entry_finalize(PgObject self)
 {
 	PgObject_free((PgObject)((Entry)self)->key);

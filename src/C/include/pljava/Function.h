@@ -31,6 +31,13 @@ extern "C" {
  * @author Thomas Hallgren
  *
  *******************************************************************/
+
+/*
+ * Clear all cached function to method entries. This is called after a
+ * successful replace_jar operation.
+ */
+extern void Function_clearFunctionCache(void);
+
 /*
  * Get a Function using a function Oid. If the function is not found, one
  * will be created based on the class and method name denoted in the "AS"

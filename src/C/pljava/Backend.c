@@ -101,6 +101,11 @@ static void initPLJavaClasses(void)
 		"(ILjava/lang/String;)V",
 		Java_org_postgresql_pljava_internal_Backend__1log
 		},
+		{
+		"_clearFunctionCache",
+		"()V",
+		Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -860,4 +865,15 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv* env, jclass cls)
 {
 	return pljavaReleaseLingeringSavepoints ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _clearFunctionCache
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache(JNIEnv* env, jclass cls)
+{
+	Function_clearFunctionCache();
 }

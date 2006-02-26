@@ -151,6 +151,11 @@ extern uint32 HashMap_size(HashMap self);
 extern void* Entry_getValue(Entry self);
 
 /*
+ * Assigns a new value to the Entry. Returns the old value.
+ */
+extern void* Entry_setValue(Entry self, void* value);
+
+/*
  * Returns the key of the Entry. Can be used for removal.
  */
 extern HashKey Entry_getKey(Entry self);

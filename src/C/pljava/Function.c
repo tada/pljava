@@ -12,6 +12,7 @@
 #include "pljava/Invocation.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
+#include "pljava/Iterator.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/SingleRowWriter.h"
 #include "pljava/type/ResultSetProvider.h"
@@ -613,6 +614,27 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 		HashMap_putByOid(s_funcMap, funcOid, func);
 	}
 	return func;
+}
+
+void Function_clearFunctionCache()
+{
+	Entry entry;
+	Iterator itor = Iterator_create(s_funcMap);
+	while((entry = Iterator_next(itor)) != 0)
+	{
+		Function func = (Function)Entry_setValue(entry, 0);
+		if(func != 0)
+		{
+			JNI_deleteGlobalRef(func->clazz);
+			if(!func->isUDT)
+			{
+				if(func->paramTypes != 0)
+					pfree(func->paramTypes);
+			}
+			pfree(func);
+		}
+	}
+	HashMap_clear(s_funcMap);
 }
 
 Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
