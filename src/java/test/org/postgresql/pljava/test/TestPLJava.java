@@ -22,8 +22,8 @@ import java.util.regex.Pattern;
  */
 public class TestPLJava
 {
-	private static final int CMD_AMBIGUOUS = -2;
-	private static final int CMD_UNKNOWN   = -1;
+//	private static final int CMD_AMBIGUOUS = -2;
+//	private static final int CMD_UNKNOWN   = -1;
 	private static final int CMD_PGSQLHOME = 0;
 	private static final int CMD_TESTDIR   = 1;
 	private static final int CMD_PORT      = 2;
@@ -44,7 +44,7 @@ public class TestPLJava
 		s_commands.add(CMD_PORT,      "port");
 	}
 
-	private static final int getCommand(String arg)
+/*	private static final int getCommand(String arg)
 	{
 		int top = s_commands.size();
 		int candidateCmd = CMD_UNKNOWN;
@@ -58,7 +58,7 @@ public class TestPLJava
 			}
 		}
 		return candidateCmd;
-	}
+	} */
 	public static void printUsage()
 	{
 		PrintStream out = System.err;
