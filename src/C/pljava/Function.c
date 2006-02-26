@@ -30,6 +30,7 @@ static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_ClassLoader_loadClass;
+static PgObjectClass s_FunctionClass;
 
 struct Function_
 {
@@ -118,6 +119,17 @@ static HashMap s_funcMap = 0;
 static jclass s_Loader_class;
 static jmethodID s_Loader_getSchemaLoader;
 
+static void _Function_finalize(PgObject func)
+{
+	Function self = (Function)func;
+	JNI_deleteGlobalRef(self->clazz);
+	if(!self->isUDT)
+	{
+		if(self->paramTypes != 0)
+			pfree(self->paramTypes);
+	}
+}
+
 extern void Function_initialize(void);
 void Function_initialize(void)
 {
@@ -128,6 +140,7 @@ void Function_initialize(void)
 
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 }
 
 static void buildSignature(Function self, StringInfo sign, Type retType)
@@ -593,7 +606,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 static Function Function_create(PG_FUNCTION_ARGS)
 {
 	ParseResultData info;
-	Function self = (Function)MemoryContextAlloc(TopMemoryContext, sizeof(struct Function_));
+	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
 	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
 
 	parseFunction(&info, procTup);
@@ -616,25 +629,46 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 	return func;
 }
 
+static bool Function_inUse(Function func)
+{
+	Invocation* ic = currentInvocation;
+	while(ic != 0)
+	{
+		if(ic->function == func)
+			return true;
+		ic = ic->previous;
+	}
+}
+
 void Function_clearFunctionCache()
 {
 	Entry entry;
-	Iterator itor = Iterator_create(s_funcMap);
+
+	HashMap oldMap = s_funcMap;
+	Iterator itor = Iterator_create(oldMap);
+
+	s_funcMap = HashMap_create(59, TopMemoryContext);
 	while((entry = Iterator_next(itor)) != 0)
 	{
-		Function func = (Function)Entry_setValue(entry, 0);
+		Function func = (Function)Entry_getValue(entry);
 		if(func != 0)
 		{
-			JNI_deleteGlobalRef(func->clazz);
-			if(!func->isUDT)
+			if(Function_inUse(func))
 			{
-				if(func->paramTypes != 0)
-					pfree(func->paramTypes);
+				/* This is the replace_jar function or similar. Just
+				 * move it to the new map.
+				 */
+				HashMap_put(s_funcMap, Entry_getKey(entry), func);
 			}
-			pfree(func);
+			else
+			{
+				Entry_setValue(entry, 0);
+				PgObject_free((PgObject)func);
+			}
 		}
 	}
-	HashMap_clear(s_funcMap);
+	PgObject_free((PgObject)itor);
+	PgObject_free((PgObject)oldMap);
 }
 
 Datum Function_invoke(Function self, PG_FUNCTION_ARGS)

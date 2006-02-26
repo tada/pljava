@@ -875,5 +875,7 @@ Java_org_postgresql_pljava_internal_Backend_isReleaseLingeringSavepoints(JNIEnv*
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache(JNIEnv* env, jclass cls)
 {
+	BEGIN_NATIVE_NO_ERRCHECK
 	Function_clearFunctionCache();
+	END_NATIVE
 }

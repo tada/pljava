@@ -21,6 +21,8 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.internal.Backend;
+
 /**
  * @author Thomas Hallgren
  */
@@ -38,6 +40,7 @@ public class Loader extends ClassLoader
 	public static void clearSchemaLoaders()
 	{
 		s_schemaLoaders.clear();
+		Backend.clearFunctionCache();
 	}
 
 	/**
