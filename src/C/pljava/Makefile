@@ -73,6 +73,7 @@ ifdef USE_GCJ
 	override OBJS = pljava_jar.o $(OBJS)
 
 else
+	pljava-jar = ../pljava.jar
 	ifeq ($(PORTNAME), darwin)
 		SHLIB_LINK += -L. -framework JavaVM
 	else
@@ -149,14 +150,14 @@ ifneq ($(PORTNAME), aix)
 
 # Normal case
 #
-pljava-plugin: $(OBJS)
+$(plugin): $(OBJS)
 	$(LINK.shared) $(LDFLAGS_SL) $(OBJS) $(SHLIB_LINK) -o $(plugin)
 
 else # PORTNAME == aix
 
 # AIX case
 #
-pljava-plugin: lib$(NAME).a
+$(plugin): lib$(NAME).a
 	$(MKLDEXPORT) lib$(NAME).a > $(NAME)$(EXPSUFF)
 	$(COMPILER) $(LDFLAGS_NO_L) $(LDFLAGS_SL) -o $(plugin) $< -Wl,-bE:$(NAME)$(EXPSUFF) $(SHLIB_LINK)
 
@@ -166,7 +167,7 @@ else # PORTNAME == win32
 
 # win32 case
 #
-pljava-plugin: $(NAME).a: $(OBJS)
+$(plugin): $(OBJS)
 ifndef USE_GCJ
 	$(DLLTOOL) --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 endif
@@ -176,5 +177,16 @@ endif
 
 endif # PORTNAME == win32
 
-build: pljava-plugin
+build_all: $(plugin)
 
+build_install: build_all installdirs
+	$(INSTALL_SHLIB) $(plugin) $(DESTDIR)$(pkglibdir)/$(plugin)
+ifndef USE_GCJ
+	$(INSTALL_DATA) $(pljava-jar) $(DESTDIR)$(pkglibdir)
+endif
+
+build_uninstall:
+	rm -f $(DESTDIR)$(pkglibdir)/$(plugin)
+ifndef USE_GCJ
+	rm -f $(DESTDIR)$(pkglibdir)/$(pljava-jar)
+endif
