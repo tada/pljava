@@ -7,13 +7,6 @@
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
 MODULE_big	:= pljava
-SO_MAJOR_VERSION := $(PLJAVA_MAJOR_VER)
-SO_MINOR_VERSION := $(PLJAVA_MINOR_VER)
-
-SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
-PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
-PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
-
 SRCDIR	:= $(MODULEROOT)/$(MODULE_big)
 INCLDIR	:= -I$(MODULEROOT)/include -I$(JNIDIR)
 
@@ -21,25 +14,26 @@ mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
 SRCS	= $(shell find $(SRCDIR) -name CVS -prune -o -type f -name \*.c -print)
 OBJS	= $(call mkobjs,$(SRCS))
 
-PG_CPPFLAGS = \
-	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
-	-DPGSQL_MAJOR_VER=$(PGSQL_MAJOR_VER) \
-	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER) \
-	$(PLJAVA_CPPFLAGS)
-
 DLLTOOL_DEFFLAGS := --add-stdcall-alias
 
-.PHONY: checkjavahome jvmdll
-
-all: checkjavahome jvmdll all-lib
+.PHONY: checkjavahome build pljava-plugin
 
 $(OBJS): %.o : $(SRCDIR)/%.c
 	@-mkdir -p $(@D)
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 
-# Must include PGXS at this point since it defines PORTNAME
+# Must include PGXS at this point since it defines PORTNAME and VERSION
 #
 include $(PGXS)
+
+SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
+PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
+PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
+
+PLJAVA_CPPFLAGS = \
+	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
+	-DPGSQL_MAJOR_VER=$(PGSQL_MAJOR_VER) \
+	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER)
 
 ifeq ($(PORTNAME), win32)
 	DLL_BUILD := 1
@@ -50,12 +44,11 @@ ifeq ($(PORTNAME), darwin)
 	# if something else is needed
 	#
 	JAVAVM_FWX_ROOT := /System/Library/Frameworks
-	PLJAVA_CPPFLAGS = -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/
+	PLJAVA_CPPFLAGS += -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/
 else
 ifeq ($(PORTNAME), ibmos2)
 	DLL_BUILD := 1
 else
-	PLJAVA_CPPFLAGS =
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
 		JRE_CPU := i386
@@ -132,28 +125,56 @@ PLJAVA_CPPFLAGS += -D__int64='long long'
 # Don't use higher standard then c89 since this rules out older compilers. We
 # must use 'long long' however, since JNI defines it.
 #
-PLJAVA_CFLAGS = -Wno-long-long
+PLJAVA_CFLAGS += -Wno-long-long
 
-# We need to be able to link with the JRE jvm.dll
+endif
+endif
+
+override CPPFLAGS += $(PLJAVA_CPPFLAGS)
+override CFLAGS += $(PLJAVA_CFLAGS)
+
+# shlib naming convention for plugins (no 'lib')
 #
-jvmdll: libjvm.dll.a
-
-libjvm.dll.a: $(SRCDIR)/jvm.def
-	dlltool --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
-
-endif
-endif
+plugin = $(NAME)$(DLSUFFIX)
+soname = $(plugin)
+shlib  = $(plugin)
 
 ifndef USE_GCJ
 checkjavahome:
 	$(JAVA_HOME_TEST_RESULT)
 endif
 
-override CPPFLAGS := $(PLJAVA_CPPFLAGS) $(CPPFLAGS)
-override CFLAGS := $(PLJAVA_CFLAGS) $(CFLAGS)
+ifneq ($(PORTNAME), win32)
+ifneq ($(PORTNAME), aix)
 
-# shlib naming convention for plugins (no 'lib')
+# Normal case
 #
-override shlib       := $(subst lib$(NAME),$(NAME),$(shlib))
-override shlib_major := $(subst lib$(NAME),$(NAME),$(shlib_major))
-override shlib_bare  := $(subst lib$(NAME),$(NAME),$(shlib_bare))
+pljava-plugin: $(OBJS)
+	$(LINK.shared) $(LDFLAGS_SL) $(OBJS) $(SHLIB_LINK) -o $(plugin)
+
+else # PORTNAME == aix
+
+# AIX case
+#
+pljava-plugin: lib$(NAME).a
+	$(MKLDEXPORT) lib$(NAME).a > $(NAME)$(EXPSUFF)
+	$(COMPILER) $(LDFLAGS_NO_L) $(LDFLAGS_SL) -o $(plugin) $< -Wl,-bE:$(NAME)$(EXPSUFF) $(SHLIB_LINK)
+
+endif # PORTNAME == aix
+
+else # PORTNAME == win32
+
+# win32 case
+#
+pljava-plugin: $(NAME).a: $(OBJS)
+ifndef USE_GCJ
+	$(DLLTOOL) --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
+endif
+	$(DLLTOOL) --export-all $(DLLTOOL_DEFFLAGS) --output-def $(NAME).def $(OBJS)
+	$(DLLWRAP) $(LDFLAGS_SL) -o $(plugin) --dllname $(plugin) $(DLLWRAP_FLAGS) --def $(NAME).def $(OBJS) $(SHLIB_LINK)
+	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) --def $(NAME).def
+
+endif # PORTNAME == win32
+
+build: pljava-plugin
+
