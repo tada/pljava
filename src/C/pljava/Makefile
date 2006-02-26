@@ -6,9 +6,40 @@
 #
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
-NAME	:= pljava
+MODULE_big	:= pljava
+SO_MAJOR_VERSION := $(PLJAVA_MAJOR_VER)
+SO_MINOR_VERSION := $(PLJAVA_MINOR_VER)
 
-include $(MODULEROOT)/Makefile.global
+SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
+PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
+PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
+
+SRCDIR	:= $(MODULEROOT)/$(MODULE_big)
+INCLDIR	:= -I$(MODULEROOT)/include -I$(JNIDIR)
+
+mkobjs	= $(subst $(SRCDIR)/,,$(1:%.c=%.o))
+SRCS	= $(shell find $(SRCDIR) -name CVS -prune -o -type f -name \*.c -print)
+OBJS	= $(call mkobjs,$(SRCS))
+
+PG_CPPFLAGS = \
+	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
+	-DPGSQL_MAJOR_VER=$(PGSQL_MAJOR_VER) \
+	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER) \
+	$(PLJAVA_CPPFLAGS)
+
+DLLTOOL_DEFFLAGS := --add-stdcall-alias
+
+.PHONY: checkjavahome jvmdll
+
+all: checkjavahome jvmdll all-lib
+
+$(OBJS): %.o : $(SRCDIR)/%.c
+	@-mkdir -p $(@D)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+
+# Must include PGXS at this point since it defines PORTNAME
+#
+include $(PGXS)
 
 ifeq ($(PORTNAME), win32)
 	DLL_BUILD := 1
@@ -19,11 +50,12 @@ ifeq ($(PORTNAME), darwin)
 	# if something else is needed
 	#
 	JAVAVM_FWX_ROOT := /System/Library/Frameworks
-	override CPPFLAGS := -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/ $(CPPFLAGS)
+	PLJAVA_CPPFLAGS = -I$(JAVAVM_FWX_ROOT)/JavaVM.framework/Headers/
 else
 ifeq ($(PORTNAME), ibmos2)
 	DLL_BUILD := 1
 else
+	PLJAVA_CPPFLAGS =
 	JRE_INCL := $(PORTNAME)
 	ifeq ($(host_cpu), i686)
 		JRE_CPU := i386
@@ -38,25 +70,18 @@ else
 endif
 endif
 endif
-ifdef DLL_BUILD
-	# This works but is not very nice since it affects all
-	# DLLTOOL invocations in Makefile.shlib. A custom flag
-	# is requested from postgres.
-	#
-	override DLLTOOL := $(DLLTOOL) --add-stdcall-alias
-endif
 
 ifdef USE_GCJ
-	override CPPFLAGS := -DGCJ $(CPPFLAGS)
-	SHLIB_LINK = $(BE_DLLLIBS) -lgcj
+	PLJAVA_CPPFLAGS += -DGCJ
+	SHLIB_LINK = -lgcj
 	ifdef DLL_BUILD
 		SHLIB_LINK += -lws2_32
 	endif
-	OBJS += pljava_jar.o
+	override OBJS = pljava_jar.o $(OBJS)
 
 else
 	ifeq ($(PORTNAME), darwin)
-		SHLIB_LINK = $(BE_DLLLIBS) -L. -framework JavaVM
+		SHLIB_LINK += -L. -framework JavaVM
 	else
 		ifdef JAVA_HOME
 			ifeq ($(PORTNAME), win32)
@@ -87,12 +112,10 @@ else
 				2> /dev/null))
 		endif
 
-		override CPPFLAGS := -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)" $(CPPFLAGS)
-		SHLIB_LINK = $(BE_DLLLIBS) -L. -L"$(JVM_LIB)" -ljvm
+		PLJAVA_CPPFLAGS += -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)"
+		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm
 	endif
 endif
-
-.PHONY: checkjavahome extralibs
 
 ifeq ($(JRE_INCL), win32)
 #
@@ -104,27 +127,33 @@ ifeq ($(JRE_INCL), win32)
 #
 ifndef USE_GCJ
 
-override CPPFLAGS := -D__int64='long long' $(CPPFLAGS)
+PLJAVA_CPPFLAGS += -D__int64='long long'
+
+# Don't use higher standard then c89 since this rules out older compilers. We
+# must use 'long long' however, since JNI defines it.
+#
+PLJAVA_CFLAGS = -Wno-long-long
 
 # We need to be able to link with the JRE jvm.dll
 #
-EXTRAS := libjvm.dll.a
+jvmdll: libjvm.dll.a
 
+libjvm.dll.a: $(SRCDIR)/jvm.def
+	dlltool --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
+
+endif
+endif
+
+ifndef USE_GCJ
 checkjavahome:
 	$(JAVA_HOME_TEST_RESULT)
-
-extralibs: libjvm.dll.a
-
-libjvm.dll.a: $(OBJS)
-	dlltool --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 endif
 
-endif
+override CPPFLAGS := $(PLJAVA_CPPFLAGS) $(CPPFLAGS)
+override CFLAGS := $(PLJAVA_CFLAGS) $(CFLAGS)
 
-include $(PGSQLSRC)/Makefile.shlib
-
-all: checkjavahome extralibs $(shlib)
-
-install: install-lib
-
-uninstall: uninstall-lib
+# shlib naming convention for plugins (no 'lib')
+#
+override shlib       := $(subst lib$(NAME),$(NAME),$(shlib))
+override shlib_major := $(subst lib$(NAME),$(NAME),$(shlib_major))
+override shlib_bare  := $(subst lib$(NAME),$(NAME),$(shlib_bare))

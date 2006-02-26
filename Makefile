@@ -21,17 +21,11 @@
 #                          C and Java code. Requires GCJ 3.4 or later.
 #
 #-------------------------------------------------------------------------
-export PROJDIR := $(shell pwd -P)
+export PROJDIR := $(shell pwd)
 
-ifdef PGSQLDIR
-	export NO_PGXS	:= 1
-	export PGSQLSRC	:= $(PGSQLDIR)/src
-	export top_builddir := $(PGSQLDIR)
-else
-	export PGXS := $(dir $(shell pg_config --pgxs))
-	export PGSQLSRC := $(PGXS)..
-	export top_builddir := $(PGSQLSRC)/..
-endif
+export PGXS := $(shell pg_config --pgxs)
+export PGSQLSRC := $(dir $(PGXS))..
+export top_builddir := $(PGSQLSRC)/..
 
 export TARGETDIR		:= $(PROJDIR)/build
 export OBJDIR			:= $(TARGETDIR)/objs
