@@ -73,7 +73,7 @@ ifdef USE_GCJ
 	override OBJS = pljava_jar.o $(OBJS)
 
 else
-	pljava-jar = ../pljava.jar
+	pljava-jar = pljava.jar
 	ifeq ($(PORTNAME), darwin)
 		SHLIB_LINK += -L. -framework JavaVM
 	else
@@ -182,7 +182,7 @@ build_all: $(plugin)
 build_install: build_all installdirs
 	$(INSTALL_SHLIB) $(plugin) $(DESTDIR)$(pkglibdir)/$(plugin)
 ifndef USE_GCJ
-	$(INSTALL_DATA) $(pljava-jar) $(DESTDIR)$(pkglibdir)
+	$(INSTALL_DATA) ../$(pljava-jar) $(DESTDIR)$(pkglibdir)
 endif
 
 build_uninstall:
