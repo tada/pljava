@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
@@ -587,7 +588,7 @@ public class Commands
 				deployRemove(conn, jarId);
 		
 			PreparedStatement stmt = conn.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, deploymentDesc = NULL WHERE jarId = ?");
+				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL, deploymentDesc = NULL WHERE jarId = ?");
 			try
 			{
 				stmt.setString(1, urlString);
@@ -653,6 +654,31 @@ public class Commands
 				"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) VALUES(?, ?, ?)");
 
 			JarInputStream jis = new JarInputStream(urlStream);
+			Manifest manifest = jis.getManifest();
+			if(manifest != null)
+			{
+				ByteArrayOutputStream out = new ByteArrayOutputStream();
+				manifest.write(out);
+				PreparedStatement us = conn.prepareStatement(
+					"UPDATE sqlj.jar_repository SET jarManifest = ? WHERE jarId = ?");
+				try
+				{
+					us.setString(1, new String(out.toByteArray(), "UTF8"));
+					us.setInt(2, jarId);
+					if(us.executeUpdate() != 1)
+						throw new SQLException("Jar repository update did not update 1 row");
+				}
+				catch (UnsupportedEncodingException e)
+				{
+					// Excuse me? No UTF8 encoding?
+					//
+					throw new SQLException("JVM does not support UTF8!!");
+				}
+				finally
+				{
+					try { us.close(); } catch(SQLException e) { /* ignore close errors */ }
+				}
+			}
 			for(;;)
 			{
 				JarEntry je = jis.getNextJarEntry();

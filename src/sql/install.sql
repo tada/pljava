@@ -18,6 +18,7 @@ CREATE TABLE sqlj.jar_repository(
 	jarName		VARCHAR(100) UNIQUE NOT NULL,
 	jarOrigin   VARCHAR(500) NOT NULL,
 	jarOwner	NAME NOT NULL,
+	jarManifest	TEXT,
 	deploymentDesc INT
 );
 GRANT SELECT ON sqlj.jar_repository TO public;
