@@ -2,13 +2,13 @@ CREATE SCHEMA sqlj;
 GRANT USAGE ON SCHEMA sqlj TO public;
 
 CREATE FUNCTION sqlj.java_call_handler()
-  RETURNS language_handler AS 'libpljava'
+  RETURNS language_handler AS 'pljava'
   LANGUAGE C;
 
 CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler;
 
 CREATE FUNCTION sqlj.javau_call_handler()
-  RETURNS language_handler AS 'libpljava'
+  RETURNS language_handler AS 'pljava'
   LANGUAGE C;
 
 CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler;

@@ -88,15 +88,10 @@ test_all: test_%:
 	@$(MAKE) -r -C $(CLASSDIR)/test -f $(PROJDIR)/src/java/test/Makefile \
 	MODULEROOT=$(PROJDIR)/src/java $*
 
-c_install c_uninstall c_depend: c_%:
+c_all c_install c_uninstall c_depend: c_%:
 	@-mkdir -p $(OBJDIR)
 	@$(MAKE) -r -C $(OBJDIR) -f $(PROJDIR)/src/C/pljava/Makefile \
-	MODULEROOT=$(PROJDIR)/src/C $*
-
-c_all:
-	@-mkdir -p $(OBJDIR)
-	@$(MAKE) -r -C $(OBJDIR) -f $(PROJDIR)/src/C/pljava/Makefile \
-	MODULEROOT=$(PROJDIR)/src/C build
+	MODULEROOT=$(PROJDIR)/src/C build_$*
 
 source_tarball:
 	@-mkdir -p $(TARGETDIR)/distrib

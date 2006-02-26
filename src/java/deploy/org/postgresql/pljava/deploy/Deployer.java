@@ -84,7 +84,6 @@ public class Deployer
 	private static final int CMD_DATABASE  = 5;
 	private static final int CMD_HOSTNAME  = 6;
 	private static final int CMD_PORT      = 7;
-	private static final int CMD_CYGWIN    = 8;
 	
 	private final Connection m_connection;
 
@@ -100,7 +99,6 @@ public class Deployer
 		s_commands.add(CMD_DATABASE,  "database");
 		s_commands.add(CMD_HOSTNAME,  "host");
 		s_commands.add(CMD_PORT,      "port");
-		s_commands.add(CMD_CYGWIN,    "cygwin");
 	}
 
 	private static final int getCommand(String arg)
@@ -128,7 +126,6 @@ public class Deployer
 		out.println("    [ -database <database> ]    # default is name of current user");
 		out.println("    [ -user <userName>     ]    # default is name of current user");
 		out.println("    [ -password <password> ]    # default is no password");
-		out.println("    [ -cygwin ]                 # If the server is on a Cygwin based Windows machine");
 	}
 
 	public static void main(String[] argv)
@@ -140,7 +137,6 @@ public class Deployer
 		String subsystem   = "postgresql";
 		String password    = null;
 		String portNumber  = null;
-		boolean cygwin     = false;
 		int cmd = CMD_UNKNOWN;
 
 		int top = argv.length;
@@ -224,10 +220,6 @@ public class Deployer
 					printUsage();
 					return;
 
-				case CMD_CYGWIN:
-					cygwin = true;
-					break;
-
 				default:
 					printUsage();
 					return;
@@ -272,7 +264,7 @@ public class Deployer
 			if(cmd == CMD_INSTALL || cmd == CMD_REINSTALL)
 			{
 				deployer.createSQLJSchema();
-				deployer.initJavaHandlers(cygwin);
+				deployer.initJavaHandlers();
 				deployer.initializeSQLJSchema();
 			}
 			c.close();
@@ -435,14 +427,14 @@ public class Deployer
 		stmt.close();
 	}
 
-	public void initJavaHandlers(boolean cygwin)
+	public void initJavaHandlers()
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
 		stmt.execute(
 			"CREATE FUNCTION sqlj.java_call_handler()" +
 			" RETURNS language_handler" +
-			" AS '" + (cygwin ? "" : "lib") + "pljava'" +
+			" AS 'pljava'" +
 			" LANGUAGE C");
 
 		stmt.execute("CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
@@ -450,7 +442,7 @@ public class Deployer
 		stmt.execute(
 			"CREATE FUNCTION sqlj.javau_call_handler()" +
 			" RETURNS language_handler" +
-			" AS '" + (cygwin ? "" : "lib") + "pljava'" +
+			" AS 'pljava'" +
 			" LANGUAGE C");
 
 		stmt.execute("CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler");
