@@ -13,8 +13,6 @@ import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -227,13 +225,9 @@ public class SQLInputFromChunk implements SQLInput
 	{
 		try
 		{
-			return new URI(this.readString()).toURL();
+			return new URL(this.readString());
 		}
 		catch(MalformedURLException e)
-		{
-			throw new SQLException(e.getMessage());
-		}
-		catch(URISyntaxException e)
 		{
 			throw new SQLException(e.getMessage());
 		}

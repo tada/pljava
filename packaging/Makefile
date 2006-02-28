@@ -4,7 +4,11 @@
 #
 # @author Thomas Hallgren
 #-------------------------------------------------------------------------
-include $(PROJDIR)/src/C/Makefile.global
+include $(PGXS)
+ 
+SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
+PGSQL_MAJOR_VER = $(word 1,$(SS_VERSION))
+PGSQL_MINOR_VER = $(word 2,$(SS_VERSION))
 
 ifdef USE_GCJ
 	GCJEXTRA=-gcj-

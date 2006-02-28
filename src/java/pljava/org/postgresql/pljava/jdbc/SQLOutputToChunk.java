@@ -13,7 +13,6 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -233,14 +232,7 @@ public class SQLOutputToChunk implements SQLOutput
 
 	public void writeURL(URL value) throws SQLException
 	{
-		try
-		{
-			this.writeString(value.toURI().toString());
-		}
-		catch(URISyntaxException e)
-		{
-			throw new SQLException(e.getMessage());
-		}
+		this.writeString(value.toString());
 	}
 
 	void close()
