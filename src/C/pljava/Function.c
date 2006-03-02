@@ -34,6 +34,8 @@ static PgObjectClass s_FunctionClass;
 
 struct Function_
 {
+	struct PgObject_ PgObject_extension;
+
 	/**
 	 * True if the function is not a volatile function (i.e. STABLE or
 	 * IMMUTABLE). This means that the function is not allowed to have
