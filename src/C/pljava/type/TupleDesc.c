@@ -222,6 +222,8 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 	PG_TRY();
 	{
 		jint   idx;
+		HeapTuple tuple;
+		MemoryContext curr;
 		TupleDesc self = (TupleDesc)p2l.ptrVal;
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
@@ -240,9 +242,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 				nulls[idx] = ' ';
 			}
 		}
-		result = Tuple_create(heap_formtuple(self, values, nulls));
-		pfree(values);
-		pfree(nulls);
+
+		curr = MemoryContextSwitchTo(JavaMemoryContext);
+		tuple = heap_formtuple(self, values, nulls);
+		result = Tuple_internalCreate(tuple, false);
+		MemoryContextSwitchTo(curr);
 	}
 	PG_CATCH();
 	{

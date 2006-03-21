@@ -28,6 +28,7 @@
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
+static MemoryContext s_TempContext;
 
 static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
@@ -49,7 +50,6 @@ typedef struct
 	jobject       invocation;
 	bool          hasConnected;
 	bool          trusted;
-	MemoryContext memoryContext;
 } CallContextData;
 
 static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
@@ -68,7 +68,6 @@ static void _ResultSetProvider_endOfSetCB(Datum arg)
 	Invocation topCall;
 	bool saveInExprCtxCB;
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
-	MemoryContext currCtx = MemoryContextSwitchTo(ctxData->memoryContext);
 	if(currentInvocation == 0)
 		Invocation_pushInvocation(&topCall, ctxData->trusted);
 
@@ -76,15 +75,14 @@ static void _ResultSetProvider_endOfSetCB(Datum arg)
 	currentInvocation->inExprContextCB = true;
 	_ResultSetProvider_closeIteration(ctxData);
 	currentInvocation->inExprContextCB = saveInExprCtxCB;
-	MemoryContextSwitchTo(currCtx);
 }
 
 static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
-	MemoryContext currCtx;
 	CallContextData* ctxData;
 	FuncCallContext* context;
+	MemoryContext currCtx;
 
 	/* stuff done only on the first call of the function
 	 */
@@ -140,7 +138,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		ctxData->singleRowWriter = JNI_newGlobalRef(tmp2);
 		JNI_deleteLocalRef(tmp2);
 
-		ctxData->memoryContext = CurrentMemoryContext;
 		ctxData->trusted       = currentInvocation->trusted;
 		ctxData->hasConnected  = currentInvocation->hasConnected;
 		ctxData->invocation    = currentInvocation->invocation;
@@ -153,10 +150,11 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	{
 		context = SRF_PERCALL_SETUP();
 		ctxData = (CallContextData*)context->user_fctx;
-		MemoryContextSwitchTo(ctxData->memoryContext); /* May be an SPI context */
 		currentInvocation->hasConnected = ctxData->hasConnected;
 		currentInvocation->invocation   = ctxData->invocation;
 	}
+
+	currCtx = MemoryContextSwitchTo(s_TempContext);
 
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
@@ -173,18 +171,13 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 
 	if(hasRow)
 	{
-		/* Obtain tuple and return it as a Datum. Must be done using a more
-		 * durable context.
-		 */
 		Datum result = 0;
-		HeapTuple tuple;
-		currCtx = Invocation_switchToUpperContext();
-		tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
+		HeapTuple tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
 		if(tuple != 0)
-		{
 			result = HeapTupleGetDatum(tuple);
-		}
+
 		MemoryContextSwitchTo(currCtx);
+		MemoryContextReset(s_TempContext);
 		SRF_RETURN_NEXT(context, result);
 	}
 
@@ -203,6 +196,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 
 	/* This is the end of the set.
 	 */
+	MemoryContextSwitchTo(currCtx);
+	MemoryContextReset(s_TempContext);
 	SRF_RETURN_DONE(context);
 }
 
@@ -261,5 +256,12 @@ void ResultSetProvider_initialize(void)
 	s_ResultSetHandleClass->JNISignature = "Lorg/postgresql/pljava/ResultSetHandle;";
 	s_ResultSetHandleClass->javaTypeName = "org.postgresql.pljava.ResultSetHandle";
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
+
+	s_TempContext = AllocSetContextCreate(JavaMemoryContext,
+								  "PL/Java return_next temporary cxt",
+								  ALLOCSET_DEFAULT_MINSIZE,
+								  ALLOCSET_DEFAULT_INITSIZE,
+								  ALLOCSET_DEFAULT_MAXSIZE);
+
 	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
 }

@@ -153,6 +153,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.ComplexReturn.setReturn'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.hugeResult(int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE FUNCTION javatest.maxFromSetReturnExample(int, int)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'

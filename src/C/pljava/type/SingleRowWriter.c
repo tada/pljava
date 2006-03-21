@@ -94,7 +94,11 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 		return 0;
 
 	p2l.longVal = JavaWrapper_getPointer(tuple);
+
+	MemoryContext currCtx = Invocation_switchToUpperContext();
 	result = heap_copytuple((HeapTuple)p2l.ptrVal);
+	MemoryContextSwitchTo(currCtx);
+
 	JNI_deleteLocalRef(tuple);
 	return result;
 }
