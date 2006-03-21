@@ -172,7 +172,11 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	if(hasRow)
 	{
 		Datum result = 0;
-		HeapTuple tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
+
+		/* Don't copy the tuple. It will be copied by PostgreSQL when it's put in
+		 * the tuplestore
+		 */
+		HeapTuple tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter, false);
 		if(tuple != 0)
 			result = HeapTupleGetDatum(tuple);
 
