@@ -695,7 +695,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		 * connection must be dropped since its parent context is wrong.
 		 */
 		if(self->isMultiCall && SRF_IS_FIRSTCALL())
-			Invocation_assertConnect();
+			Invocation_assertDisconnect();
 
 		args  = (jvalue*)palloc(top * sizeof(jvalue));
 		if(self->returnComplex)

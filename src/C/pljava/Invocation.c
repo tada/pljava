@@ -89,6 +89,15 @@ void Invocation_assertConnect(void)
 	}
 }
 
+void Invocation_assertDisconnect(void)
+{
+	if(currentInvocation->hasConnected)
+	{
+		SPI_finish();
+		currentInvocation->hasConnected = false;
+	}
+}
+
 void Invocation_pushBootContext(Invocation* ctx)
 {
 	ctx->invocation      = 0;
