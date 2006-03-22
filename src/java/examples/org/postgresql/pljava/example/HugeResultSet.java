@@ -38,9 +38,6 @@ public class HugeResultSet implements ResultSetProvider
 		if(currentRow >= m_rowCount)
 			return false;
 
-		if((currentRow % 10000) == 0)
-			System.gc();
-
 		receiver.updateInt(1, currentRow);
 		receiver.updateInt(2, m_random.nextInt());
 		receiver.updateTimestamp(3, new Timestamp(System.currentTimeMillis()));

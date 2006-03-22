@@ -34,11 +34,9 @@ extern Type SingleRowWriter_createType(Oid typid, TupleDesc tupleDesc);
 extern jobject SingleRowWriter_create(jobject tupleDesc);
 
 /*
- * Returns the Tuple for the SingleRowWriter and clears it. If the
- * makeCopy parameter is true the tuple is copied using the upper
- * MemoryContext prior to return.
+ * Returns the Tuple for the SingleRowWriter and clears it
  */
-extern HeapTuple SingleRowWriter_getTupleAndClear(jobject self, bool makeCopy);
+extern HeapTuple SingleRowWriter_getTupleAndClear(jobject self);
 
 #ifdef __cplusplus
 }

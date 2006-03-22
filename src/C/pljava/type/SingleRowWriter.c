@@ -62,7 +62,7 @@ static Datum _SingleRowWriter_invoke(Type self, jclass cls, jmethodID method, jv
 		 * durable context.
 		 */
 		MemoryContext currCtx = Invocation_switchToUpperContext();
-		HeapTuple tuple = SingleRowWriter_getTupleAndClear(singleRowWriter, true);
+		HeapTuple tuple = SingleRowWriter_getTupleAndClear(singleRowWriter);
 	    result = HeapTupleGetDatum(tuple);
 		MemoryContextSwitchTo(currCtx);
 	}
@@ -80,7 +80,7 @@ jobject SingleRowWriter_create(jobject tupleDesc)
 	return JNI_newObject(s_SingleRowWriter_class, s_SingleRowWriter_init, tupleDesc);
 }
 
-HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps, bool makeCopy)
+HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 {
 	jobject tuple;
 	Ptr2Long p2l;
@@ -96,14 +96,9 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps, bool makeCopy)
 	p2l.longVal = JavaWrapper_getPointer(tuple);
 	JNI_deleteLocalRef(tuple);
 
-	result = (HeapTuple)p2l.ptrVal;
-	if(makeCopy)
-	{
-		MemoryContext currCtx = Invocation_switchToUpperContext();
-		result = heap_copytuple(result);
-		MemoryContextSwitchTo(currCtx);
-	}
-
+	MemoryContext currCtx = Invocation_switchToUpperContext();
+	result = heap_copytuple((HeapTuple)p2l.ptrVal);
+	MemoryContextSwitchTo(currCtx);
 	return result;
 }
 
