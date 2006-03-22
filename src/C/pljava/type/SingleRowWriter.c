@@ -84,7 +84,6 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 {
 	jobject tuple;
 	Ptr2Long p2l;
-	HeapTuple result;
 
 	if(jrps == 0)
 		return 0;
@@ -95,11 +94,7 @@ HeapTuple SingleRowWriter_getTupleAndClear(jobject jrps)
 
 	p2l.longVal = JavaWrapper_getPointer(tuple);
 	JNI_deleteLocalRef(tuple);
-
-	MemoryContext currCtx = Invocation_switchToUpperContext();
-	result = heap_copytuple((HeapTuple)p2l.ptrVal);
-	MemoryContextSwitchTo(currCtx);
-	return result;
+	return (HeapTuple)p2l.ptrVal;
 }
 
 static jvalue _SingleRowWriter_coerceDatum(Type self, Datum nothing)

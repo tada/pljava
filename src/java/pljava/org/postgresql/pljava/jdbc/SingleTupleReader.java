@@ -30,6 +30,10 @@ public class SingleTupleReader extends SingleRowResultSet
 		m_tupleHeader = tupleHeader;
 	}
 
+	public void close()
+	{
+	}
+
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{

@@ -83,16 +83,6 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 	}
 
 	/**
-	 * Cancels all changes but doesn't really close the set.
-	 * @throws SQLException indicating that this feature is not supported.
-	 */
-	public void close()
-	throws SQLException
-	{
-		this.cancelRowUpdates();
-	}
-
-	/**
 	 * Cursor positioning is not implemented.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */

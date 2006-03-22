@@ -27,6 +27,7 @@ public class SingleRowWriter extends SingleRowResultSet
 {
 	private final TupleDesc m_tupleDesc;
 	private final Object[] m_values;
+	private Tuple m_tuple;
 
 	public SingleRowWriter(TupleDesc tupleDesc)
 	throws SQLException
@@ -89,6 +90,16 @@ public class SingleRowWriter extends SingleRowResultSet
 		Arrays.fill(m_values, null);
 	}
 
+	/**
+	 * Cancels all changes but doesn't really close the set.
+	 */
+	public void close()
+	throws SQLException
+	{
+		Arrays.fill(m_values, null);
+		m_tuple = null;	// Feel free to garbage collect...
+	}
+
 	public void copyRowFrom(ResultSet rs)
 	throws SQLException
 	{
@@ -106,9 +117,14 @@ public class SingleRowWriter extends SingleRowResultSet
 	public Tuple getTupleAndClear()
 	throws SQLException
 	{
-		Tuple tuple = this.getTupleDesc().formTuple(m_values);
+		// We hold on to the tuple as an instance variable so that it doesn't
+		// get garbage collected until this result set is closed or we create
+		// another tuple. This behavior is connected to the internal behavior
+		// of Set Returning Functions (SRF) in the backend.
+		//
+		m_tuple = this.getTupleDesc().formTuple(m_values);
 		Arrays.fill(m_values, null);
-		return tuple;
+		return m_tuple;
 	}
 
 	protected final TupleDesc getTupleDesc()

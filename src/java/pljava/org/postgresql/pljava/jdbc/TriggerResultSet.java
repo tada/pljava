@@ -44,6 +44,15 @@ public class TriggerResultSet extends SingleRowResultSet
 	}
 
 	/**
+	 * Cancels all changes but doesn't really close the set.
+	 */
+	public void close()
+	throws SQLException
+	{
+		m_tupleChanges = null;
+	}
+
+	/**
 	 * Returns the concurrency for this ResultSet.
 	 * @see java.sql.ResultSet#getConcurrency
 	 */
