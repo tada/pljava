@@ -76,10 +76,6 @@ static void _ResultSetProvider_endOfSetCB(Datum arg)
 	currentInvocation->inExprContextCB = saveInExprCtxCB;
 }
 
-static Type __self = 0;
-static jclass __cls = 0;
-static jmethodID __method;
-
 static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
@@ -95,10 +91,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		ReturnSetInfo* rsInfo;
 		TupleDesc tupleDesc;
 		MemoryContext currCtx;
-
-		__self = self;
-		__cls = cls;
-		__method = method;
 
 		/* create a function context for cross-call persistence
 		 */
@@ -176,10 +168,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	if(hasRow)
 	{
 		Datum result = 0;
-
-		/* Don't copy the tuple. It will be copied by PostgreSQL when it's put in
-		 * the tuplestore
-		 */
 		HeapTuple tuple = SingleRowWriter_getTupleAndClear(ctxData->singleRowWriter);
 		if(tuple != 0)
 			result = HeapTupleGetDatum(tuple);
@@ -262,29 +250,4 @@ void ResultSetProvider_initialize(void)
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
 
 	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
-}
-
-PG_FUNCTION_INFO_V1(retcomposite);
-
-
-Datum
-retcomposite(PG_FUNCTION_ARGS)
-{
-	Invocation ctx;
-	Datum ret;
-    jvalue args[2];
-    args[0].i = PG_GETARG_UINT32(0);
-    args[1].l = 0;
-	Invocation_pushInvocation(&ctx, true);
-	PG_TRY();
-	{
-	ret = _ResultSetProvider_invoke(__self, __cls, __method, args, fcinfo);
-	Invocation_popInvocation(false);
-	}
-	PG_CATCH();
-	{
-	Invocation_popInvocation(true);
-	}
-	PG_END_TRY();
-	return ret;
 }
