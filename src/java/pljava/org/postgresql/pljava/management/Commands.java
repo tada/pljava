@@ -16,6 +16,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.jar.Attributes;
@@ -188,14 +189,26 @@ public class Commands
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
 	throws SQLException
 	{
+		ResultSet rs = null;
+		PreparedStatement stmt = null;
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		try
 		{
-			// TODO: Add type check, etc.
+			stmt = conn.prepareStatement(
+				"SELECT count(*) FROM pg_type t, pg_namespace n" +
+				" WHERE t.typnamespace = n.oid" +
+				"   AND t.typname = ?" +
+				"   AND n.nspname = ?");
+			
+			rs = stmt.executeQuery();
+			if(!rs.next() && rs.getInt(1) > 0)
+				throw new SQLException("Unknown type " + sqlTypeName);
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+			close(rs);
+			close(stmt);
+			close(conn);
 		}
 	}
 
@@ -209,7 +222,7 @@ public class Commands
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+			close(conn);
 		}
 	}
 
@@ -329,13 +342,13 @@ public class Commands
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+				close(stmt);
 			}
 			Loader.clearSchemaLoaders();
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(conn);
 		}	
 	}
 
@@ -413,7 +426,7 @@ public class Commands
 				}
 				finally
 				{
-					try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+					close(stmt);
 				}
 			}
 
@@ -428,7 +441,7 @@ public class Commands
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+				close(stmt);
 			}
 
 			if(entries != null)
@@ -451,14 +464,14 @@ public class Commands
 				}
 				finally
 				{
-					try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+					close(stmt);
 				}
 			}
-		Loader.clearSchemaLoaders();
+			Loader.clearSchemaLoaders();
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(conn);
 		}
 	}
 
@@ -475,6 +488,8 @@ public class Commands
 	public static String getClassPath(String schemaName)
 	throws SQLException
 	{
+		ResultSet rs = null;
+		PreparedStatement stmt = null;
 		Connection conn = DriverManager.getConnection("jdbc:default:connection");
 		try
 		{
@@ -483,41 +498,29 @@ public class Commands
 			else
 				schemaName = schemaName.toLowerCase();
 
-			PreparedStatement stmt = conn.prepareStatement(
+			stmt = conn.prepareStatement(
 				"SELECT r.jarName" +
 				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c ON r.jarId = c.jarId" +
 				" WHERE c.schemaName = ? ORDER BY c.ordinal");
 			
-			try
+			stmt.setString(1, schemaName);
+			rs = stmt.executeQuery();
+			StringBuffer buf = null;
+			while(rs.next())
 			{
-				stmt.setString(1, schemaName);
-				ResultSet rs = stmt.executeQuery();
-				try
-				{
-					StringBuffer buf = null;
-					while(rs.next())
-					{
-						if(buf == null)
-							buf = new StringBuffer();
-						else
-							buf.append(':');
-						buf.append(rs.getString(1));
-					}
-					return (buf == null) ? null : buf.toString();
-				}
-				finally
-				{
-					try { rs.close(); } catch(SQLException e) { /* ignore */ }
-				}
+				if(buf == null)
+					buf = new StringBuffer();
+				else
+					buf.append(':');
+				buf.append(rs.getString(1));
 			}
-			finally
-			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
-			}
+			return (buf == null) ? null : buf.toString();
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+			close(rs);
+			close(stmt);
+			close(conn);
 		}
 	}
 
@@ -544,7 +547,7 @@ public class Commands
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+				close(stmt);
 			}
 
 			AclId[] ownerRet = new AclId[1];
@@ -565,7 +568,7 @@ public class Commands
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(conn);
 		}
 	}
 
@@ -599,7 +602,7 @@ public class Commands
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+				close(stmt);
 			}
 
 			stmt = conn.prepareStatement("DELETE FROM sqlj.jar_entry WHERE jarId = ?");
@@ -610,7 +613,7 @@ public class Commands
 			}
 			finally
 			{
-				try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+				close(stmt);
 			}
 			if(image == null)
 				Backend.addClassImages(conn, jarId, urlString);
@@ -625,7 +628,7 @@ public class Commands
 		}
 		finally
 		{
-			try { conn.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(conn);
 		}
 	}
 
@@ -676,7 +679,7 @@ public class Commands
 				}
 				finally
 				{
-					try { us.close(); } catch(SQLException e) { /* ignore close errors */ }
+					close(us);
 				}
 			}
 			for(;;)
@@ -744,12 +747,9 @@ public class Commands
 		}
 		finally
 		{
-			if(rs != null)
-				try { rs.close(); } catch(SQLException e) { /* ignore */ }
-			if(descIdStmt != null)
-				try { descIdStmt.close(); } catch(SQLException e) { /* ignore */ }
-			if(stmt != null)
-				try { stmt.close(); } catch(SQLException e) { /* ignore */ }
+			close(rs);
+			close(descIdStmt);
+			close(stmt);
 		}
 	}
 
@@ -814,7 +814,7 @@ public class Commands
 		}
 		finally
 		{
-			try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(stmt);
 		}
 	}
 
@@ -840,13 +840,14 @@ public class Commands
 		}
 		finally
 		{
-			try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(rs);
 		}
 	}
 
 	private static SQLDeploymentDescriptor getDeploymentDescriptor(Connection conn, int jarId)
 	throws SQLException
 	{
+		ResultSet rs = null;
 		PreparedStatement stmt = conn.prepareStatement(
 			"SELECT e.entryImage" +
 			" FROM sqlj.jar_repository r INNER JOIN sqlj.jar_entry e" +
@@ -855,39 +856,33 @@ public class Commands
 		try
 		{
 			stmt.setInt(1, jarId);
-			ResultSet rs = stmt.executeQuery();
-			try
-			{
-				if(!rs.next())
-					return null;
+			rs = stmt.executeQuery();
+			if(!rs.next())
+				return null;
 
-				byte[] bytes = rs.getBytes(1);
-				if(bytes.length == 0)
-					return null;
-				
-				// Accodring to the SQLJ standard, this entry must be
-				// UTF8 encoded.
-				//
-				return  new SQLDeploymentDescriptor(new String(bytes, "UTF8"), "postgresql");
-			}
-			catch (UnsupportedEncodingException e)
-			{
-				// Excuse me? No UTF8 encoding?
-				//
-				throw new SQLException("JVM does not support UTF8!!");
-			}
-			catch(ParseException e)
-			{
-				throw new SQLException(e.getMessage() + " at " + e.getErrorOffset());
-			}
-			finally
-			{
-				try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
+			byte[] bytes = rs.getBytes(1);
+			if(bytes.length == 0)
+				return null;
+			
+			// Accodring to the SQLJ standard, this entry must be
+			// UTF8 encoded.
+			//
+			return  new SQLDeploymentDescriptor(new String(bytes, "UTF8"), "postgresql");
+		}
+		catch (UnsupportedEncodingException e)
+		{
+			// Excuse me? No UTF8 encoding?
+			//
+			throw new SQLException("JVM does not support UTF8!!");
+		}
+		catch(ParseException e)
+		{
+			throw new SQLException(e.getMessage() + " at " + e.getErrorOffset());
 		}
 		finally
 		{
-			try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(rs);
+			close(stmt);
 		}
 	}
 
@@ -902,26 +897,56 @@ public class Commands
 	private static Oid getSchemaId(Connection conn, String schemaName)
 	throws SQLException
 	{
+		ResultSet rs = null;
 		PreparedStatement stmt = conn.prepareStatement(
 			"SELECT oid FROM pg_namespace WHERE nspname = ?");
 		try
 		{
 			stmt.setString(1, schemaName);
-			ResultSet rs = stmt.executeQuery();
-			try
-			{
-				if(!rs.next())
-					return null;
-				return (Oid)rs.getObject(1);
-			}
-			finally
-			{
-				try { rs.close(); } catch(SQLException e) { /* ignore close errors */ }
-			}
+			rs = stmt.executeQuery();
+			if(!rs.next())
+				return null;
+			return (Oid)rs.getObject(1);
 		}
 		finally
 		{
-			try { stmt.close(); } catch(SQLException e) { /* ignore close errors */ }
+			close(rs);
+			close(stmt);
 		}
+	}
+	private static void close(Connection conn)
+	{
+		if(conn != null)
+			try
+			{
+				conn.close();
+			}
+			catch(SQLException e)
+			{ /* ignore */
+			}
+	}
+
+	private static void close(Statement stmt)
+	{
+		if(stmt != null)
+			try
+			{
+				stmt.close();
+			}
+			catch(SQLException e)
+			{ /* ignore */
+			}
+	}
+
+	private static void close(ResultSet rs)
+	{
+		if(rs != null)
+			try
+			{
+				rs.close();
+			}
+			catch(SQLException e)
+			{ /* ignore */
+			}
 	}
 }

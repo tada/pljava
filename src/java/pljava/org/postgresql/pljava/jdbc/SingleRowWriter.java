@@ -38,6 +38,8 @@ public class SingleRowWriter extends SingleRowResultSet
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
+		if(columnIndex < 1)
+			throw new SQLException("System columns cannot be obtained from this type of ResultSet");
 		return m_values[columnIndex - 1];
 	}
 
@@ -58,6 +60,9 @@ public class SingleRowWriter extends SingleRowResultSet
 	public void updateObject(int columnIndex, Object x)
 	throws SQLException
 	{
+		if(columnIndex < 1)
+			throw new SQLException("System columns cannot be updated");
+
 		if(x == null)
 			m_values[columnIndex-1] = x;
 

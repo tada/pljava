@@ -189,7 +189,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jcla
 		PG_TRY();
 		{
 			result = SPI_fnumber((TupleDesc)p2l.ptrVal, name);
-			if(result < 0)
+			if(result == SPI_ERROR_NOATTRIBUTE)
 			{
 				Exception_throw(ERRCODE_UNDEFINED_COLUMN,
 					"Tuple has no attribute \"%s\"", name);
