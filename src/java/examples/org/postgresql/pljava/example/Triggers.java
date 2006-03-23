@@ -103,7 +103,7 @@ public class Triggers
 	throws SQLException
 	{
 		Logger log = Logger.getAnonymousLogger();
-		log.info("After username insert");
+		log.info("After username insert, oid of tuple = " + td.getNew().getInt("oid"));
 	}
 
 	public static void afterUsernameUpdate(TriggerData td)
