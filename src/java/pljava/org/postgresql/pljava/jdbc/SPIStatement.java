@@ -29,7 +29,7 @@ public class SPIStatement implements Statement
 	// Default settings.
 	//
 	private String    m_cursorName     = null;
-	private int       m_fetchSize      = 100;
+	private int       m_fetchSize      = 1000;
 	private int       m_maxRows        = 0;
 	private ResultSet m_resultSet      = null;
 	private int       m_updateCount    = 0;

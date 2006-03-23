@@ -28,7 +28,7 @@ extern "C" {
  * Create the org.postgresql.pljava.TupleTable instance
  */
 extern jobject TupleTable_createFromSlot(TupleTableSlot* tupleTableSlot);
-extern jobject TupleTable_create(SPITupleTable* tupleTable);
+extern jobject TupleTable_create(SPITupleTable* tupleTable, jobject knownTD);
 
 #ifdef __cplusplus
 }

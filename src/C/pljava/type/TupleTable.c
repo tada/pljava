@@ -44,9 +44,8 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
 }
 
-jobject TupleTable_create(SPITupleTable* tts)
+jobject TupleTable_create(SPITupleTable* tts, jobject knownTD)
 {
-	jobject tupdesc;
 	jobjectArray tuples;
 	MemoryContext curr;
 
@@ -55,11 +54,13 @@ jobject TupleTable_create(SPITupleTable* tts)
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
-	tupdesc = TupleDesc_internalCreate(tts->tupdesc);
-	tuples = Tuple_createArray(tts->vals, (jint)(tts->alloced - tts->free), true);
+	if(knownTD == 0)
+		knownTD = TupleDesc_internalCreate(tts->tupdesc);
 
+	tuples = Tuple_createArray(tts->vals, (jint)(tts->alloced - tts->free), true);
 	MemoryContextSwitchTo(curr);
-	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, tupdesc, tuples);
+
+	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, knownTD, tuples);
 }
 
 /* Make this datatype available to the postgres system.

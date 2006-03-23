@@ -37,7 +37,7 @@ void SPI_initialize(void)
 		},
 		{
 		"_getTupTable",
-		"()Lorg/postgresql/pljava/internal/TupleTable;",
+		"(Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;",
 		Java_org_postgresql_pljava_internal_SPI__1getTupTable
 		},
 		{ 0, 0, 0 }};
@@ -109,10 +109,10 @@ Java_org_postgresql_pljava_internal_SPI__1getResult(JNIEnv* env, jclass cls)
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _getTupTable
- * Signature: ()Lorg/postgresql/pljava/internal/TupleTable;
+ * Signature: (Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls, jobject td)
 {
 	jobject tupleTable = 0;
 	SPITupleTable* tts = SPI_tuptable;
@@ -120,7 +120,7 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls)
 	if(tts != 0)
 	{
 		BEGIN_NATIVE
-		tupleTable = TupleTable_create(tts);
+		tupleTable = TupleTable_create(tts, td);
 		SPI_freetuptable(tts);
 		SPI_tuptable = 0;
 		END_NATIVE

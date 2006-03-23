@@ -78,11 +78,11 @@ public class SPI
 	/**
 	 * Returns the value of the global variable <code>SPI_tuptable</code>.
 	 */
-	public static TupleTable getTupTable()
+	public static TupleTable getTupTable(TupleDesc known)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getTupTable();
+			return _getTupTable(known);
 		}
 	}
 
@@ -166,5 +166,5 @@ public class SPI
 	private native static int _exec(long threadId, String command, int rowCount);
 	private native static int _getProcessed();
 	private native static int _getResult();
-	private native static TupleTable _getTupTable();
+	private native static TupleTable _getTupTable(TupleDesc known);
 }

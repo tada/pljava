@@ -81,6 +81,8 @@ extern Invocation* currentInvocation;
 
 extern void Invocation_assertConnect(void);
 
+extern void Invocation_assertDisconnect(void);
+
 extern void Invocation_pushBootContext(Invocation* ctx);
 
 extern void Invocation_popBootContext(void);
