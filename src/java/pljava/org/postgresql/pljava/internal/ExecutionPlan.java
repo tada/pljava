@@ -211,7 +211,8 @@ public class ExecutionPlan
 		{
 			synchronized(Backend.THREADLOCK)
 			{
-				plan = new ExecutionPlan(key, _prepare(statement, argTypes));
+				plan = new ExecutionPlan(key, _prepare(
+					System.identityHashCode(Thread.currentThread()), statement, argTypes));
 			}
 		}
 		return plan;
@@ -226,7 +227,7 @@ public class ExecutionPlan
 	private static native int _execute(long pointer, long threadId,
 		Object[] parameters, int rowCount) throws SQLException;
 
-	private static native long _prepare(String statement, Oid[] argTypes)
+	private static native long _prepare(long threadId, String statement, Oid[] argTypes)
 	throws SQLException;
 
 	private static native void _invalidate(long pointer);

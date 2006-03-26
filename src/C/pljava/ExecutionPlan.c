@@ -46,7 +46,7 @@ void ExecutionPlan_initialize(void)
 		},
 		{
 		"_prepare",
-		"(Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J",
+		"(JLjava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare
 		},
 		{
@@ -238,13 +238,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _prepare
- * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J;
+ * Signature: (JLjava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J;
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jstring jcmd, jobjectArray paramTypes)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jlong threadId, jstring jcmd, jobjectArray paramTypes)
 {
 	jlong result = 0;
 	BEGIN_NATIVE
+	STACK_BASE_VARS
+	STACK_BASE_PUSH(threadId)
 	PG_TRY();
 	{
 		char* cmd;
@@ -292,6 +294,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 		Exception_throw_ERROR("SPI_prepare");
 	}
 	PG_END_TRY();
+	STACK_BASE_POP()
 	END_NATIVE
 	return result;
 }
