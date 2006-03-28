@@ -158,6 +158,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.hugeNonImmutableResult(int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
+			LANGUAGE java;
+
 		CREATE FUNCTION javatest.maxFromSetReturnExample(int, int)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'
@@ -179,6 +184,11 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.scalarPropertyExample()
 			RETURNS SETOF varchar
 			AS 'org.postgresql.pljava.example.UsingPropertiesAsScalarSet.getProperties'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.randomInts(int)
+			RETURNS SETOF int
+			AS 'org.postgresql.pljava.example.RandomInts.createIterator'
 			IMMUTABLE LANGUAGE java;
 
 		CREATE FUNCTION javatest.listSupers()

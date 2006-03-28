@@ -47,6 +47,7 @@ typedef struct
 	jobject       singleRowWriter;
 	jobject       resultSetProvider;
 	jobject       invocation;
+	MemoryContext spiContext;
 	bool          hasConnected;
 	bool          trusted;
 } CallContextData;
@@ -57,6 +58,17 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 	currentInvocation->invocation   = ctxData->invocation;
 
 	JNI_callVoidMethod(ctxData->resultSetProvider, s_ResultSetProvider_close);
+
+	if(ctxData->hasConnected && ctxData->spiContext != 0)
+	{
+		/* Connect during SRF_IS_FIRSTCALL(). Switch context back to what
+		 * it was at that time and disconnect.
+		 */
+		MemoryContext currCtx = MemoryContextSwitchTo(ctxData->spiContext);
+		Invocation_assertDisconnect();
+		MemoryContextSwitchTo(currCtx);
+	}
+
 	JNI_deleteGlobalRef(ctxData->singleRowWriter);
 	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 	pfree(ctxData);
@@ -140,6 +152,10 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		ctxData->trusted       = currentInvocation->trusted;
 		ctxData->hasConnected  = currentInvocation->hasConnected;
 		ctxData->invocation    = currentInvocation->invocation;
+		if(ctxData->hasConnected)
+			ctxData->spiContext = CurrentMemoryContext;
+		else
+			ctxData->spiContext = 0;
 
 		/* Register callback to be called when the function ends
 		 */

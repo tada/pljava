@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Random;
+import java.util.logging.Logger;
 
 import org.postgresql.pljava.ResultSetProvider;
 
@@ -36,7 +37,10 @@ public class HugeResultSet implements ResultSetProvider
 		// Stop when we reach 12 rows.
 		//
 		if(currentRow >= m_rowCount)
+		{
+			Logger.getAnonymousLogger().info("HugeResultSet ends");
 			return false;
+		}
 
 		receiver.updateInt(1, currentRow);
 		receiver.updateInt(2, m_random.nextInt());
