@@ -28,6 +28,7 @@
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
+static MemoryContext s_TempContext;
 
 static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
@@ -93,6 +94,7 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	bool hasRow;
 	CallContextData* ctxData;
 	FuncCallContext* context;
+	MemoryContext currCtx;
 
 	/* stuff done only on the first call of the function
 	 */
@@ -102,7 +104,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		jobject tmp2;
 		ReturnSetInfo* rsInfo;
 		TupleDesc tupleDesc;
-		MemoryContext currCtx;
 
 		/* create a function context for cross-call persistence
 		 */
@@ -168,6 +169,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
+	currCtx = MemoryContextSwitchTo(s_TempContext);
+
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
@@ -188,6 +191,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		if(tuple != 0)
 			result = HeapTupleGetDatum(tuple);
 
+		MemoryContextSwitchTo(currCtx);
+		MemoryContextReset(s_TempContext);
 		SRF_RETURN_NEXT(context, result);
 	}
 
@@ -206,6 +211,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 
 	/* This is the end of the set.
 	 */
+	MemoryContextSwitchTo(currCtx);
+	MemoryContextReset(s_TempContext);
 	SRF_RETURN_DONE(context);
 }
 
@@ -266,4 +273,10 @@ void ResultSetProvider_initialize(void)
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
 
 	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
+
+	s_TempContext = AllocSetContextCreate(JavaMemoryContext,
+								  "PL/Java return_next temporary cxt",
+								  ALLOCSET_DEFAULT_MINSIZE,
+								  ALLOCSET_DEFAULT_INITSIZE,
+								  ALLOCSET_DEFAULT_MAXSIZE);
 }
