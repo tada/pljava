@@ -59,6 +59,8 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 	currentInvocation->invocation   = ctxData->invocation;
 
 	JNI_callVoidMethod(ctxData->resultSetProvider, s_ResultSetProvider_close);
+	JNI_deleteGlobalRef(ctxData->singleRowWriter);
+	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 
 	if(ctxData->hasConnected && ctxData->spiContext != 0)
 	{
@@ -69,8 +71,6 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 		Invocation_assertDisconnect();
 		MemoryContextSwitchTo(currCtx);
 	}
-	JNI_deleteGlobalRef(ctxData->singleRowWriter);
-	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 	pfree(ctxData);
 }
 
