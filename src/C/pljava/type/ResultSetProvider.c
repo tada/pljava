@@ -71,7 +71,6 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 		Invocation_assertDisconnect();
 		MemoryContextSwitchTo(currCtx);
 	}
-	pfree(ctxData);
 }
 
 static void _ResultSetProvider_endOfSetCB(Datum arg)
@@ -170,7 +169,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		RegisterExprContextCallback(rsInfo->econtext, _ResultSetProvider_endOfSetCB, PointerGetDatum(ctxData));
 		MemoryContextSwitchTo(currCtx);
 	}
-
 
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
