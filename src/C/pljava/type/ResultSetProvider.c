@@ -69,7 +69,6 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 		Invocation_assertDisconnect();
 		MemoryContextSwitchTo(currCtx);
 	}
-	MemoryContextDelete(ctxData->rowContext);
 	JNI_deleteGlobalRef(ctxData->singleRowWriter);
 	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 	pfree(ctxData);
@@ -160,7 +159,7 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		else
 			ctxData->spiContext = 0;
 
-		ctxData->rowContext = AllocSetContextCreate(JavaMemoryContext,
+		ctxData->rowContext = AllocSetContextCreate(context->multi_call_memory_ctx,
 								  "PL/Java row context",
 								  ALLOCSET_DEFAULT_MINSIZE,
 								  ALLOCSET_DEFAULT_INITSIZE,
@@ -172,12 +171,13 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		MemoryContextSwitchTo(currCtx);
 	}
 
+	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
+
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
 
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
