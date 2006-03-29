@@ -28,7 +28,6 @@
 static jclass s_ResultSetProvider_class;
 static jmethodID s_ResultSetProvider_assignRowValues;
 static jmethodID s_ResultSetProvider_close;
-static MemoryContext s_TempContext;
 
 static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
@@ -41,13 +40,14 @@ static HashMap s_idCache;
 static HashMap s_modCache;
 
 /* Structure used in multi function calls (calls returning
- * SETOF
+ * SETOF <complex type>)
  */
 typedef struct
 {
 	jobject       singleRowWriter;
 	jobject       resultSetProvider;
 	jobject       invocation;
+	MemoryContext rowContext;
 	MemoryContext spiContext;
 	bool          hasConnected;
 	bool          trusted;
@@ -69,7 +69,7 @@ static void _ResultSetProvider_closeIteration(CallContextData* ctxData)
 		Invocation_assertDisconnect();
 		MemoryContextSwitchTo(currCtx);
 	}
-
+	MemoryContextDelete(ctxData->rowContext);
 	JNI_deleteGlobalRef(ctxData->singleRowWriter);
 	JNI_deleteGlobalRef(ctxData->resultSetProvider);
 	pfree(ctxData);
@@ -117,6 +117,8 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		tmp = JNI_callStaticObjectMethodA(cls, method, args);
 		if(tmp == 0)
 		{
+			Invocation_assertDisconnect();
+			MemoryContextSwitchTo(currCtx);
 			fcinfo->isnull = true;
 			SRF_RETURN_DONE(context);
 		}
@@ -158,6 +160,12 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		else
 			ctxData->spiContext = 0;
 
+		ctxData->rowContext = AllocSetContextCreate(JavaMemoryContext,
+								  "PL/Java row context",
+								  ALLOCSET_DEFAULT_MINSIZE,
+								  ALLOCSET_DEFAULT_INITSIZE,
+								  ALLOCSET_DEFAULT_MAXSIZE);
+
 		/* Register callback to be called when the function ends
 		 */
 		RegisterExprContextCallback(rsInfo->econtext, _ResultSetProvider_endOfSetCB, PointerGetDatum(ctxData));
@@ -169,7 +177,7 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	currCtx = MemoryContextSwitchTo(s_TempContext);
+	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
 
 	/* Obtain next row using the RowProvider as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
@@ -192,9 +200,11 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 			result = HeapTupleGetDatum(tuple);
 
 		MemoryContextSwitchTo(currCtx);
-		MemoryContextReset(s_TempContext);
+		MemoryContextReset(ctxData->rowContext);
 		SRF_RETURN_NEXT(context, result);
 	}
+
+	MemoryContextSwitchTo(currCtx);
 
 	/* Unregister this callback and call it manually. We do this because
 	 * otherwise it will be called when the backend is in progress of
@@ -211,8 +221,6 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 
 	/* This is the end of the set.
 	 */
-	MemoryContextSwitchTo(currCtx);
-	MemoryContextReset(s_TempContext);
 	SRF_RETURN_DONE(context);
 }
 
@@ -273,10 +281,4 @@ void ResultSetProvider_initialize(void)
 	s_ResultSetHandle = TypeClass_allocInstance(s_ResultSetHandleClass, InvalidOid);
 
 	Type_registerType(InvalidOid, "org.postgresql.pljava.ResultSetHandle", ResultSetHandle_obtain);
-
-	s_TempContext = AllocSetContextCreate(JavaMemoryContext,
-								  "PL/Java return_next temporary cxt",
-								  ALLOCSET_DEFAULT_MINSIZE,
-								  ALLOCSET_DEFAULT_INITSIZE,
-								  ALLOCSET_DEFAULT_MAXSIZE);
 }
