@@ -171,10 +171,10 @@ static Datum _ResultSetProvider_invoke(Type self, jclass cls, jmethodID method, 
 		MemoryContextSwitchTo(currCtx);
 	}
 
-	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
 
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
+	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
