@@ -29,7 +29,7 @@ static TypeClass s_DateClass;
 static jvalue _Date_coerceDatum(Type self, Datum arg)
 {
 	DateADT pgDate = DatumGetDateADT(arg);
-	int64 ts = (int64)pgDate * (int64)86400000000;
+	int64 ts = (int64)pgDate * INT64CONST(86400000000);
 	int   tz = Timestamp_getTimeZone_id(ts);
 	
 	jlong date = (jlong)(pgDate + EPOCH_DIFF);
