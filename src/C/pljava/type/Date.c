@@ -28,11 +28,15 @@ static TypeClass s_DateClass;
  */
 static jvalue _Date_coerceDatum(Type self, Datum arg)
 {
-	jlong date = (jlong)(DatumGetDateADT(arg) + EPOCH_DIFF);
+	DateADT pgDate = DatumGetDateADT(arg);
+	int64 ts = (int64)pgDate * 86400000000;
+	int   tz = Timestamp_getTimeZone_id(ts);
+	
+	jlong date = (jlong)(pgDate + EPOCH_DIFF);
 
 	jvalue result;
 	date *= 86400L;	// Convert to seconds
-	date += Timestamp_getCurrentTimeZone();	// Add local timezone
+	date += tz;		// Add local timezone
 	result.l = JNI_newObject(s_Date_class, s_Date_init, date * 1000);
 	return result;
 }

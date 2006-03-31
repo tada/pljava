@@ -21,17 +21,19 @@ extern "C" {
  * @author Thomas Hallgren
  *****************************************************************/
  
-#include <utils/timestamp.h>
-
 /*
  * Returns the current timezone.
  */
 extern int Timestamp_getCurrentTimeZone(void);
 
 /*
- * Returns the timezone fo the given Timestamp.
+ * Returns the timezone fo the given Timestamp. Comes in two variants.
+ * The int64 variant will be used when PL/Java is used with a backend
+ * compiled with integer datetimes. The double variant will be used when
+ * this is not the case.
  */
-extern int Timestamp_getTimeZone(Timestamp t);
+extern int32 Timestamp_getTimeZone_id(int64 t);
+extern int32 Timestamp_getTimeZone_dd(double t);
 
 #ifdef __cplusplus
 }

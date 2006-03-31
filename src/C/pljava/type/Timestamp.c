@@ -45,13 +45,14 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 {
 	jvalue result;
 	int64 ts = DatumGetInt64(arg);
+	int   tz = Timestamp_getTimeZone_id(ts);
 
 	/* Expect number of microseconds since 01 Jan 2000
 	 */
 	jlong mSecs = ts / 1000;			/* Convert to millisecs */
 	jint  uSecs = (jint)(ts % 1000);	/* preserve remaining microsecs */
 	if(tzAdjust)
-		mSecs += Timestamp_getTimeZone(ts) * 1000;/* Adjust from local time to UTC */
+		mSecs += tz * 1000;				/* Adjust from local time to UTC */
 	mSecs += EPOCH_DIFF * 1000;			/* Adjust for diff between Postgres and Java (Unix) */
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
@@ -66,11 +67,12 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 	jvalue result;
 	double tmp;
 	double ts = DatumGetFloat8(arg);
+	int    tz = Timestamp_getTimeZone_dd(ts);
 
 	/* Expect <seconds since Jan 01 2000>.<fractions of seconds>
 	 */
 	if(tzAdjust)
-		ts += Timestamp_getTimeZone(ts);/* Adjust from local time to UTC */
+		ts += tz;						/* Adjust from local time to UTC */
 	ts += EPOCH_DIFF;					/* Adjust for diff between Postgres and Java (Unix) */
 	ts *= 1000.0;						/* Convert to millisecs */
 	tmp = floor(ts);
@@ -99,7 +101,7 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	if(nSecs != 0)
 		ts += nSecs / 1000;	/* Convert nanosecs  to microsecs */
 	if(tzAdjust)
-		ts -= ((jlong)Timestamp_getTimeZone(ts)) * 1000000L; /* Adjust from UTC to local time */
+		ts -= ((jlong)Timestamp_getTimeZone_id(ts)) * 1000000L; /* Adjust from UTC to local time */
 	return Int64GetDatum(ts);
 }
 
@@ -113,7 +115,7 @@ static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 	if(nSecs != 0)
 		ts += ((double)nSecs) / 1000000000.0;	/* Convert to seconds */
 	if(tzAdjust)
-		ts -= Timestamp_getTimeZone(ts); /* Adjust from UTC to local time */
+		ts -= Timestamp_getTimeZone_dd(ts); /* Adjust from UTC to local time */
 	return Float8GetDatum(ts);
 }
 
@@ -158,32 +160,34 @@ static Type Timestamptz_obtain(Oid typeId)
 	return s_Timestamptz;
 }
 
-int Timestamp_getTimeZone(Timestamp ts)
-{
-	struct pg_tm tmp_tm;
-	fsec_t fsec;
-	int tz = 0;
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL);
-#else
-	timestamp2tm(ts, &tz, &tmp_tm, &fsec, NULL, NULL);
+#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+extern DLLIMPORT pg_tz* global_timezone;
 #endif
-	return tz;
+
+static int Timestamp_getTimeZone(pg_time_t time)
+{
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+	struct pg_tm* tx = pg_localtime(&time);
+#else
+	struct pg_tm* tx = pg_localtime(&time, global_timezone);
+#endif
+	return -tx->tm_gmtoff;
 }
 
-int Timestamp_getCurrentTimeZone(void)
+int32 Timestamp_getTimeZone_id(int64 dt)
 {
-	int tz;
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-	int usec = 0;
-	AbsoluteTime sec = GetCurrentAbsoluteTimeUsec(&usec);
-	tz = Timestamp_getTimeZone(AbsoluteTimeUsecToTimestampTz(sec, usec));
-#else	
-	struct pg_tm tmp_tm;
-	AbsoluteTime sec = GetCurrentAbsoluteTime();
-	abstime2tm(sec, &tz, &tmp_tm, NULL);
-#endif
-	return tz;
+	return Timestamp_getTimeZone(
+		(dt / INT64CONST(1000000) + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
+}
+int32 Timestamp_getTimeZone_dd(double dt)
+{
+	return Timestamp_getTimeZone(
+		(pg_time_t)rint(dt + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
+}
+
+int32 Timestamp_getCurrentTimeZone(void)
+{
+	return Timestamp_getTimeZone((pg_time_t)GetCurrentAbsoluteTime());
 }
 
 extern void Timestamp_initialize(void);

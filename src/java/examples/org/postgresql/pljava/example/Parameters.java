@@ -93,22 +93,28 @@ public class Parameters
 	public static void print(Date time)
 	{
 		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);
+		log("Local Date is " + p.format(time));
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		log("Date is " + p.format(time));
+		log("UTC Date is " + p.format(time));
+		log("TZ =  " + TimeZone.getDefault().getDisplayName());
 	}
 
 	public static void print(Time time)
 	{
 		DateFormat p = DateFormat.getTimeInstance(DateFormat.FULL);
+		log("Local Time is " + p.format(time));
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		log("Time is " + p.format(time));
+		log("UTC Time is " + p.format(time));
+		log("TZ =  " + TimeZone.getDefault().getDisplayName());
 	}
 
 	public static void print(Timestamp time)
 	{
 		DateFormat p = DateFormat.getDateTimeInstance(
 				DateFormat.FULL, DateFormat.FULL);
+		log("Local Timestamp is " + p.format(time));
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
-		log("Timestamp is " + p.format(time));
+		log("UTC Timestamp is " + p.format(time));
+		log("TZ =  " + TimeZone.getDefault().getDisplayName());
 	}
 }
