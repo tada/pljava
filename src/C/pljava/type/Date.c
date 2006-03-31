@@ -43,9 +43,9 @@ static jvalue _Date_coerceDatum(Type self, Datum arg)
 
 static Datum _Date_coerceObject(Type self, jobject date)
 {
-	jlong secs = JNI_callLongMethod(date, s_Date_getTime) / 1000;
-	secs -= Timestamp_getCurrentTimeZone(); // UTC
-	return DateADTGetDatum(((DateADT)(secs / 86400)) - EPOCH_DIFF);
+	jlong milliSecs = JNI_callLongMethod(date, s_Date_getTime) - INT64CONST(86400000) * EPOCH_DIFF;
+	jlong secs = milliSecs / 1000 - Timestamp_getTimeZone_id(milliSecs * 1000);
+	return DateADTGetDatum((DateADT)(secs / 86400));
 }
 
 static Type Date_obtain(Oid typeId)
