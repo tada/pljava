@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.TimeZone;
 import java.util.logging.Logger;
 
@@ -101,7 +102,7 @@ public class Parameters
 
 	public static void print(Time time)
 	{
-		DateFormat p = DateFormat.getTimeInstance(DateFormat.FULL);
+		DateFormat p = new SimpleDateFormat("HH:mm:ss z Z");
 		log("Local Time is " + p.format(time));
 		p.setTimeZone(TimeZone.getTimeZone("UTC"));
 		log("UTC Time is " + p.format(time));

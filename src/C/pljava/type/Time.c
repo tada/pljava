@@ -7,6 +7,7 @@
  * @author Thomas Hallgren
  */
 #include <postgres.h>
+#include <utils/nabstime.h>
 #include <utils/date.h>
 #include <utils/datetime.h>
 
@@ -29,6 +30,12 @@ static TypeClass s_TimeClass;
 static Type s_Timetz;
 static TypeClass s_TimetzClass;
 
+static jlong msecsAtMidnight()
+{
+	AbsoluteTime now = GetCurrentAbsoluteTime() / 86400;
+	return INT64CONST(1000) * (jlong)(now * 86400);
+}
+
 static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 {
 	jlong mSecs;
@@ -37,7 +44,7 @@ static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 		t += Timestamp_getCurrentTimeZone();/* Adjust from local time to UTC */
 	t *= 1000.0;						/* Convert to millisecs */
 	mSecs = (jlong)floor(t);
-	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs);
+	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs + msecsAtMidnight());
 	return result;
 }
 
@@ -47,7 +54,7 @@ static jvalue Time_coerceDatumTZ_id(Type self, int64 t, bool tzAdjust)
 	jlong mSecs = t / 1000;			/* Convert to millisecs */
 	if(tzAdjust)
 		mSecs += Timestamp_getCurrentTimeZone() * 1000;/* Adjust from local time to UTC */
-	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs);
+	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs + msecsAtMidnight());
 	return result;
 }
 
