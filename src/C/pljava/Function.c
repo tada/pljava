@@ -640,6 +640,7 @@ static bool Function_inUse(Function func)
 			return true;
 		ic = ic->previous;
 	}
+	return false;
 }
 
 void Function_clearFunctionCache()
