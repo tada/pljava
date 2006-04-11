@@ -94,7 +94,7 @@ Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1writeBytes(JNIEnv* env, jclas
 		if(copySize > BYTE_BUF_SIZE)
 			copySize = BYTE_BUF_SIZE;
 		JNI_getByteArrayRegion(ba, off, copySize, buffer);
-		appendBinaryStringInfo((StringInfo)p2l.ptrVal, buffer, copySize);
+		appendBinaryStringInfo((StringInfo)p2l.ptrVal, (const char*)buffer, copySize);
 		off += copySize;
 		len -= copySize;
 	}
