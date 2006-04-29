@@ -184,13 +184,17 @@ void Exception_initialize(void)
 	SQLException_init = PgObject_getJavaMethod(SQLException_class, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
 	SQLException_getSQLState = PgObject_getJavaMethod(SQLException_class, "getSQLState", "()Ljava/lang/String;");
 
-	ServerException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ServerException"));
-	ServerException_init = PgObject_getJavaMethod(ServerException_class, "<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
-
-	ServerException_getErrorData = PgObject_getJavaMethod(ServerException_class, "getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
-
 	UnsupportedOperationException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/UnsupportedOperationException"));
 	UnsupportedOperationException_init = PgObject_getJavaMethod(UnsupportedOperationException_class, "<init>", "(Ljava/lang/String;)V");
 
 	Class_getName = PgObject_getJavaMethod(Class_class, "getName", "()Ljava/lang/String;");
+}
+
+extern void Exception_initialize2(void);
+void Exception_initialize2(void)
+{
+	ServerException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ServerException"));
+	ServerException_init = PgObject_getJavaMethod(ServerException_class, "<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
+
+	ServerException_getErrorData = PgObject_getJavaMethod(ServerException_class, "getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
 }

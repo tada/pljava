@@ -30,6 +30,44 @@ static jobject s_threadLock;
 
 #define END_CALL endCall(env); }
 
+static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
+{
+	StringInfoData buf;
+	int sqlState = ERRCODE_INTERNAL_ERROR;
+	jclass exhClass = (*env)->GetObjectClass(env, exh);
+	jstring jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
+
+	initStringInfo(&buf);
+
+	String_appendJavaString(&buf, jtmp);
+	(*env)->DeleteLocalRef(env, exhClass);
+	(*env)->DeleteLocalRef(env, jtmp);
+
+	jtmp = (jstring)(*env)->CallObjectMethod(env, exh, Throwable_getMessage);
+	if(jtmp != 0)
+	{
+		appendStringInfoString(&buf, ": ");
+		String_appendJavaString(&buf, jtmp);
+		(*env)->DeleteLocalRef(env, jtmp);
+	}
+
+	if((*env)->IsInstanceOf(env, exh, SQLException_class))
+	{
+		jtmp = (*env)->CallObjectMethod(env, exh, SQLException_getSQLState);
+		if(jtmp != 0)
+		{
+			char* s = String_createNTS(jtmp);
+			(*env)->DeleteLocalRef(env, jtmp);
+
+			if(strlen(s) >= 5)
+				sqlState = MAKE_SQLSTATE(s[0], s[1], s[2], s[3], s[4]);
+			pfree(s);
+		}
+	}
+
+	ereport(logLevel, (errcode(sqlState), errmsg(buf.data)));
+}
+
 static void endCall(JNIEnv* env)
 {
 	jobject exh = (*env)->ExceptionOccurred(env);
@@ -42,11 +80,6 @@ static void endCall(JNIEnv* env)
 	jniEnv = env;
 	if(exh != 0)
 	{
-		int sqlState;
-		StringInfoData buf;
-		jclass exhClass;
-		jstring jtmp;
-	
 		if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
 		{
 			int currLevel = Backend_setJavaLogLevel(DEBUG1);
@@ -62,41 +95,9 @@ static void endCall(JNIEnv* env)
 			if(jed != 0)
 				ReThrowError(ErrorData_getErrorData(jed));
 		}
-		sqlState = ERRCODE_INTERNAL_ERROR;
-
-		initStringInfo(&buf);
-	
-		exhClass = (*env)->GetObjectClass(env, exh);
-		jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
-		String_appendJavaString(&buf, jtmp);
-		(*env)->DeleteLocalRef(env, exhClass);
-		(*env)->DeleteLocalRef(env, jtmp);
-	
-		jtmp = (jstring)(*env)->CallObjectMethod(env, exh, Throwable_getMessage);
-		if(jtmp != 0)
-		{
-			appendStringInfoString(&buf, ": ");
-			String_appendJavaString(&buf, jtmp);
-			(*env)->DeleteLocalRef(env, jtmp);
-		}
-	
-		if((*env)->IsInstanceOf(env, exh, SQLException_class))
-		{
-			jtmp = (*env)->CallObjectMethod(env, exh, SQLException_getSQLState);
-			if(jtmp != 0)
-			{
-				char* s = String_createNTS(jtmp);
-				(*env)->DeleteLocalRef(env, jtmp);
-
-				if(strlen(s) >= 5)
-					sqlState = MAKE_SQLSTATE(s[0], s[1], s[2], s[3], s[4]);
-				pfree(s);
-			}
-		}
-	
 		/* There's no return from this call.
 		 */
-		ereport(ERROR, (errcode(sqlState), errmsg(buf.data)));
+		elogExceptionMessage(env, exh, ERROR);
 	}
 }
 
@@ -466,8 +467,6 @@ jint JNI_destroyVM(JavaVM *vm)
 {
 	jint result;
 	BEGIN_JAVA
-	if((*env)->MonitorExit(env, s_threadLock))
-		elog(ERROR, "Java exit monitor failure (final)");
 	result = (*vm)->DestroyJavaVM(vm);
 	END_JAVA
 	jniEnv = 0;
@@ -493,8 +492,17 @@ void JNI_exceptionClear(void)
 
 void JNI_exceptionDescribe(void)
 {
+	/* The ExceptionDescribe will print on stderr. Not a good idea
+	 * since the exception itself might have been caused by an unwriteable
+	 * stdout/stderr (happens when running as a windows service
+	 *
+	 * (*env)->ExceptionDescribe(env);
+	 */
+	jthrowable exh;
 	BEGIN_JAVA
-	(*env)->ExceptionDescribe(env);
+	exh = (*env)->ExceptionOccurred(env);
+	if(exh != 0)
+		elogExceptionMessage(env, exh, WARNING);
 	END_JAVA
 }
 

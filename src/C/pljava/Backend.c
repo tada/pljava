@@ -60,6 +60,7 @@ bool integerDateTimes = false;
 
 extern void Invocation_initialize(void);
 extern void Exception_initialize(void);
+extern void Exception_initialize2(void);
 extern void HashMap_initialize(void);
 extern void SPI_initialize(void);
 extern void Type_initialize(void);
@@ -109,6 +110,8 @@ static void initPLJavaClasses(void)
 		{ 0, 0, 0 }
 	};
 
+	Exception_initialize();
+
 	elog(DEBUG1, "Getting Backend class pljava.jar");
 	s_Backend_class = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG1, "Backend class was there");
@@ -118,7 +121,7 @@ static void initPLJavaClasses(void)
 	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
 
 	Invocation_initialize();
-	Exception_initialize();
+	Exception_initialize2();
 	SPI_initialize();
 	Type_initialize();
 	Function_initialize();
