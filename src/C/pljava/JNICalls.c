@@ -36,9 +36,11 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 	int sqlState = ERRCODE_INTERNAL_ERROR;
 	jclass exhClass = (*env)->GetObjectClass(env, exh);
 	jstring jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
+	JNIEnv* saveEnv = jniEnv;
 
 	initStringInfo(&buf);
 
+	jniEnv = env; /* Used by the String operations */
 	String_appendJavaString(&buf, jtmp);
 	(*env)->DeleteLocalRef(env, exhClass);
 	(*env)->DeleteLocalRef(env, jtmp);
@@ -64,7 +66,7 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 			pfree(s);
 		}
 	}
-
+	jniEnv = saveEnv;
 	ereport(logLevel, (errcode(sqlState), errmsg(buf.data)));
 }
 
