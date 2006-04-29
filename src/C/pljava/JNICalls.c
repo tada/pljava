@@ -487,7 +487,7 @@ jboolean JNI_exceptionCheck(void)
 void JNI_exceptionClear(void)
 {
 	BEGIN_JAVA
-	(*env)->ExceptionDescribe(env);
+	(*env)->ExceptionClear(env);
 	END_JAVA
 }
 
