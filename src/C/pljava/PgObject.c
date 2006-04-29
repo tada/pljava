@@ -103,7 +103,7 @@ jclass PgObject_getJavaClass(const char* className)
 		}
 		ereport(ERROR, (
 			errmsg("Unable to load class %s using CLASSPATH '%s'",
-				className, effectiveClassPath)));
+				className, effectiveClassPath == 0 ? "null" : effectiveClassPath)));
 	}
 	return cls;
 }
