@@ -6,12 +6,19 @@
  *
  * @author Thomas Hallgren
  */
+#include <postgres.h>
+
+#define Type PGType
+#include <parser/parse_type.h>
+#undef Type
+
 #include "org_postgresql_pljava_internal_Oid.h"
 #include "java_sql_Types.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 
 static Type      s_Oid;
 static TypeClass s_OidClass;
@@ -44,6 +51,7 @@ Oid Oid_getOid(jobject joid)
 Oid Oid_forSqlType(int sqlType)
 {
 	Oid typeId;
+
 	switch(sqlType)
 	{
 		case java_sql_Types_BIT:
@@ -135,8 +143,13 @@ void Oid_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{
+		"_forTypeName",
+	  	"(Ljava/lang/String;)I",
+	  	Java_org_postgresql_pljava_internal_Oid__1forTypeName
+		},
+		{
 		"_forSqlType",
-	  	"(I)Lorg/postgresql/pljava/internal/Oid;",
+	  	"(I)I",
 	  	Java_org_postgresql_pljava_internal_Oid__1forSqlType
 		},
 		{
@@ -146,7 +159,7 @@ void Oid_initialize(void)
 		},
 		{
 		"_getJavaClassName",
-		"()Ljava/lang/String;",
+		"(I)Ljava/lang/String;",
 	  	Java_org_postgresql_pljava_internal_Oid__1getJavaClassName
 		},
 		{ 0, 0, 0 }};
@@ -180,17 +193,49 @@ void Oid_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_Oid
  * Method:    _forSqlType
- * Signature: (I)Lorg/postgresql/pljava/internal/Oid;
+ * Signature: (I)I
  */
-JNIEXPORT jobject JNICALL
+JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_Oid__1forSqlType(JNIEnv* env, jclass cls, jint sqlType)
 {
-	jobject result = 0;
+	Oid typeId = InvalidOid;
 	BEGIN_NATIVE
-	result = Oid_create(Oid_forSqlType(sqlType));
+	typeId = Oid_forSqlType(sqlType);
+	if(typeId == InvalidOid)
+		Exception_throw(ERRCODE_INTERNAL_ERROR, "No such SQL type: %d", (int)sqlType);
 	END_NATIVE
-	return result;
+	return typeId;
 }
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    _forTypeName
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_internal_Oid__1forTypeName(JNIEnv* env, jclass cls, jstring typeString)
+{
+	Oid typeId = InvalidOid;
+	BEGIN_NATIVE
+	char* typeNameOrOid = String_createNTS(typeString);
+	if(typeNameOrOid != 0)
+	{
+		PG_TRY();
+		{
+			int32 typmod = 0;
+			parseTypeString(typeNameOrOid, &typeId, &typmod);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("parseTypeString");
+		}
+		PG_END_TRY();
+		pfree(typeNameOrOid);
+	}
+	END_NATIVE
+	return typeId;
+}
+
 
 /*
  * Class:     org_postgresql_pljava_internal_Oid
@@ -206,21 +251,20 @@ Java_org_postgresql_pljava_internal_Oid__1getTypeId(JNIEnv* env, jclass cls)
 /*
  * Class:     org_postgresql_pljava_internal_Oid
  * Method:    _getJavaClassName
- * Signature: ()Ljava/lang/String;
+ * Signature: (I)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL
-Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jobject _this)
+Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jclass cls, jint oid)
 {
 	jstring result = 0;
 	BEGIN_NATIVE
-	Oid oid = Oid_getOid(_this);
-	if(!OidIsValid(oid))
+	if(!OidIsValid((Oid)oid))
 	{
 		Exception_throw(ERRCODE_DATA_EXCEPTION, "Invalid OID \"%d\"", (int)oid);
 	}
 	else
 	{
-		Type type = Type_objectTypeFromOid(oid);
+		Type type = Type_objectTypeFromOid((Oid)oid, Invocation_getTypeMap());
 		result = String_createJavaStringFromNTS(Type_getJavaTypeName(type));
 	}
 	END_NATIVE

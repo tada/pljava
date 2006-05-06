@@ -62,6 +62,11 @@ extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
 extern Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS);
 
 /*
+ * Returns the Type Map that is associated with the function
+ */
+extern jobject Function_getTypeMap(Function self);
+
+/*
  * Returns true if the currently executing function is non volatile, i.e. stable
  * or immutable. Such functions are not allowed to have side effects.
  */

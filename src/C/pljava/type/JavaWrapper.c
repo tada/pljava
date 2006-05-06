@@ -76,7 +76,6 @@ Java_org_postgresql_pljava_internal_JavaWrapper__1free(JNIEnv* env, jobject _thi
 {
 	BEGIN_NATIVE_NO_ERRCHECK
 	Ptr2Long p2l;
-	JNI_setEnv(env);
 	p2l.longVal = pointer;
 	pfree(p2l.ptrVal);
 	END_NATIVE

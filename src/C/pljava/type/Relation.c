@@ -198,7 +198,8 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 		{
 			jint idx;
 			TupleDesc tupleDesc = self->rd_att;
-		
+			jobject typeMap = Invocation_getTypeMap();
+
 			jint   count  = JNI_getArrayLength(_indexes);
 			Datum* values = (Datum*)palloc(count * sizeof(Datum));
 			char*  nulls  = 0;
@@ -210,7 +211,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 				indexes = (int*)javaIdxs;
 			else
 				indexes = (int*)palloc(count * sizeof(int));
-		
+
 			for(idx = 0; idx < count; ++idx)
 			{
 				int attIndex;
@@ -234,7 +235,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 					return 0L;	/* Exception */
 				}
 		
-				type = Type_fromOid(typeId);
+				type = Type_fromOid(typeId, typeMap);
 				value = JNI_getObjectArrayElement(_values, idx);
 				if(value != 0)
 					values[idx] = Type_coerceObject(type, value);

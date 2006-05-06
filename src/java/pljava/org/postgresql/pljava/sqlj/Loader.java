@@ -10,10 +10,12 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,25 +24,83 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.Oid;
+import org.postgresql.pljava.jdbc.SQLUtils;
 
 /**
  * @author Thomas Hallgren
  */
 public class Loader extends ClassLoader
 {
+	private final static Logger s_logger = Logger.getLogger(Loader.class.getName());
+
+	static class EntryEnumeration implements Enumeration
+	{
+		private final int[] m_entryIds;
+		private int m_top = 0;
+
+		EntryEnumeration(int[] entryIds)
+		{
+			m_entryIds = entryIds;
+		}
+
+		public boolean hasMoreElements()
+		{
+			return (m_top < m_entryIds.length);
+		}
+		
+		public Object nextElement()
+		throws NoSuchElementException
+		{
+			if (m_top >= m_entryIds.length)
+				throw new NoSuchElementException();
+			return entryURL(m_entryIds[m_top++]);
+		}
+	}
 	private static final String PUBLIC_SCHEMA = "public";
+
 	private static final Map s_schemaLoaders = new HashMap();
 
-	private final Map m_entries;
+	private static final Map s_typeMap = new HashMap();
 
 	/**
-	 * Removes all cached schema loaders.
-	 * @param schemaName
+	 * Removes all cached schema loaders, functions, and type maps. This
+	 * method is called by the utility functions that manipulate the
+	 * data that has been cached. It is not intended to be called
+	 * from user code.
 	 */
 	public static void clearSchemaLoaders()
 	{
 		s_schemaLoaders.clear();
+		s_typeMap.clear();
 		Backend.clearFunctionCache();
+	}
+
+	/**
+	 * Obtains the loader that is in effect for the current schema (i.e. the
+	 * schema that is first in the search path).
+	 * @return A loader
+	 * @throws SQLException
+	 */
+	public static ClassLoader getCurrentLoader()
+	throws SQLException
+	{
+		String schema;
+		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
+		ResultSet rs = null;
+		try
+		{
+			rs = stmt.executeQuery("SELECT current_schema()");
+			if(!rs.next())
+				throw new SQLException("Unable to determine current schema");
+			schema = rs.getString(1);
+		}
+		finally
+		{
+			SQLUtils.close(rs);
+			SQLUtils.close(stmt);
+		}
+		return getSchemaLoader(schema);
 	}
 
 	/**
@@ -63,7 +123,7 @@ public class Loader extends ClassLoader
 			return loader;
 
 		Map classImages = new HashMap();
-		Connection conn = DriverManager.getConnection("jdbc:default:connection");
+		Connection conn = SQLUtils.getDefaultConnection();
 		PreparedStatement outer = null;
 		PreparedStatement inner = null;
 		try
@@ -107,22 +167,19 @@ public class Loader extends ClassLoader
 					}
 					finally
 					{
-						try { rs2.close(); } catch(SQLException e) { /* ignore */ }
+						SQLUtils.close(rs2);
 					}
 				}
 			}
 			finally
 			{
-				try { rs.close(); } catch(SQLException e) { /* ignore */ }
+				SQLUtils.close(rs);
 			}
 		}
 		finally
 		{
-			if(outer != null)
-				try { outer.close(); } catch(SQLException e) { /* ignore */ }
-			if(inner != null)
-				try { inner.close(); } catch(SQLException e) { /* ignore */ }
-			try { conn.close(); } catch(SQLException e) { /* ignore */ }
+			SQLUtils.close(outer);
+			SQLUtils.close(inner);
 		}
 
 		ClassLoader parent = ClassLoader.getSystemClassLoader();
@@ -139,6 +196,86 @@ public class Loader extends ClassLoader
 		s_schemaLoaders.put(schemaName, loader);
 		return loader;
 	}
+
+	/**
+	 * Returns the SQL type {@link Oid} to Java {@link Class} map that contains the
+	 * Java UDT mappings for the given <code>schema</code>.
+	 * This method is called by the function mapping mechanisms. Application code
+	 * should never call this method.
+	 *
+	 * @param schema The schema
+	 * @return The Map, possibly empty but never <code>null</code>.
+	 */
+	public static Map getTypeMap(final String schema) throws SQLException
+	{
+		Map typesForSchema = (Map)s_typeMap.get(schema);
+		if(typesForSchema != null)
+			return typesForSchema;
+
+		s_logger.fine("Creating typeMappings for schema " + schema);
+		typesForSchema = new HashMap()
+		{
+			public Object get(Object key)
+			{
+				s_logger.fine("Obtaining type mapping for OID " + key + " for schema " + schema);
+				return super.get(key);
+			}
+		};
+		ClassLoader loader = Loader.getSchemaLoader(schema);
+		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
+		ResultSet rs = null;
+		try
+		{
+			rs = stmt.executeQuery("SELECT javaName, sqlName FROM sqlj.typemap_entry");
+			while(rs.next())
+			{
+				try
+				{
+					String javaClassName = rs.getString(1);
+					String sqlName = rs.getString(2);
+					Class cls = loader.loadClass(javaClassName);
+					if(!SQLData.class.isAssignableFrom(cls))
+						throw new SQLException("Class " + javaClassName + " does not implement java.sql.SQLData");
+					
+					Oid typeOid = Oid.forTypeName(sqlName);
+					typesForSchema.put(typeOid, cls);
+					s_logger.fine("Adding type mapping for OID " + typeOid + " -> class " + cls.getName() + " for schema " + schema);
+				}
+				catch(ClassNotFoundException e)
+				{
+					// Ignore, type is not know to this schema and that is ok
+				}
+			}
+			if(typesForSchema.isEmpty())
+				typesForSchema = Collections.EMPTY_MAP;
+			s_typeMap.put(schema, typesForSchema);
+			return typesForSchema;
+		}
+		finally
+		{
+			SQLUtils.close(rs);
+			SQLUtils.close(stmt);
+		}
+	}
+
+	private static URL entryURL(int entryId)
+	{
+		try
+		{
+			return new URL(
+					"dbf",
+					"localhost",
+					-1,
+					"/" + entryId,
+					EntryStreamHandler.getInstance());
+		}
+		catch(MalformedURLException e)
+		{
+			throw new RuntimeException(e);
+		}
+	}
+
+	private final Map m_entries;
 
 	/**
 	 * Create a new Loader.
@@ -166,8 +303,7 @@ public class Loader extends ClassLoader
 				// is a singleton and that the prepared statement will live
 				// for the duration of the loader.
 				//
-				Connection conn = DriverManager.getConnection("jdbc:default:connection");
-				stmt = conn.prepareStatement(
+				stmt = SQLUtils.getDefaultConnection().prepareStatement(
 					"SELECT entryImage FROM sqlj.jar_entry WHERE entryId = ?");
 
 				stmt.setInt(1, entryId[0]);
@@ -187,10 +323,8 @@ public class Loader extends ClassLoader
 			}
 			finally
 			{
-				if(rs != null)
-					try { rs.close(); } catch(SQLException e) { /* ignore */ }
-				if(stmt != null)
-					try { stmt.close(); } catch(SQLException e) { /* ignore */ }
+				SQLUtils.close(rs);
+				SQLUtils.close(stmt);
 			}
 		}
 	throw new ClassNotFoundException(name);
@@ -205,23 +339,6 @@ public class Loader extends ClassLoader
 		return entryURL(entryIds[0]);
 	}
 
-	private static URL entryURL(int entryId)
-	{
-		try
-		{
-			return new URL(
-					"dbf",
-					"localhost",
-					-1,
-					"/" + entryId,
-					EntryStreamHandler.getInstance());
-		}
-		catch(MalformedURLException e)
-		{
-			throw new RuntimeException(e);
-		}
-	}
-
 	protected Enumeration findResources(String name)
     throws IOException
 	{
@@ -229,29 +346,5 @@ public class Loader extends ClassLoader
 		if(entryIds == null)
 			entryIds = new int[0];
 		return new EntryEnumeration(entryIds);
-	}
-
-	static class EntryEnumeration implements Enumeration
-	{
-		private final int[] m_entryIds;
-		private int m_top = 0;
-
-		EntryEnumeration(int[] entryIds)
-		{
-			m_entryIds = entryIds;
-		}
-
-		public boolean hasMoreElements()
-		{
-			return (m_top < m_entryIds.length);
-		}
-		
-		public Object nextElement()
-		throws NoSuchElementException
-		{
-			if (m_top >= m_entryIds.length)
-				throw new NoSuchElementException();
-			return entryURL(m_entryIds[m_top++]);
-		}
 	}
 }

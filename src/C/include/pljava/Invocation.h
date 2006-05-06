@@ -95,6 +95,8 @@ extern jlong Invocation_createLocalWrapper(void* pointer);
 extern void* Invocation_getWrappedPointer(jlong wrapper);
 extern void Invocation_freeLocalWrapper(jlong wrapper);
 
+extern jobject Invocation_getTypeMap(void);
+
 /*
  * Switch memory context to a context that is durable between calls to
  * the call manager but not durable between queries. The old context is

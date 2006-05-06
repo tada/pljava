@@ -19,16 +19,33 @@ import java.sql.SQLException;
  */
 public class BlobValue extends InputStream implements Blob
 {
-	private final InputStream m_stream;
-	private final long m_nBytes;
-	private long m_streamPos;
+	public static int getStreamLength(InputStream value) throws SQLException
+	{
+		try
+		{
+			value.mark(Integer.MAX_VALUE);
+			long length = value.skip(Long.MAX_VALUE);
+			if(length > Integer.MAX_VALUE)
+				throw new SQLException("stream content too large");
+			value.reset();
+			return (int)length;
+		}
+		catch(IOException e)
+		{
+			throw new SQLException(e.getMessage());
+		}
+	}
+
 	private long m_markPos;
+	private final long m_nBytes;
+	private final InputStream m_stream;
+
+	private long m_streamPos;
 
 	public BlobValue(byte[] bytes)
 	{
 		this(new ByteArrayInputStream(bytes), bytes.length);
 	}
-
 	public BlobValue(InputStream stream, long nBytes)
 	{
 		m_stream    = stream;
@@ -37,12 +54,14 @@ public class BlobValue extends InputStream implements Blob
 		m_markPos   = 0L;
 	}
 
+
 	//***************************************
-	// Implementation of java.sql.Blob
+	// Implementation of java.io.InputStream
 	//***************************************
-	public long length()
+	public int available()
+	throws IOException
 	{
-		return m_nBytes;
+		return m_stream.available();
 	}
 
 	public InputStream getBinaryStream()
@@ -81,11 +100,53 @@ public class BlobValue extends InputStream implements Blob
 	}
 
 	/**
-	 * Not supported.
+	 * Called from within...
+	 * @param buf a buffer that reflects the internally allocated bytea buffer.
+	 * This size of this buffer will be exactly the size returned by a call to
+	 * {@link #length()}.
+	 * @throws IOException
 	 */
-	public long position(byte[] pattern, long start)
+	public void getContents(ByteBuffer buf)
+	throws IOException
 	{
-		throw new UnsupportedOperationException();
+		int rs = 0;
+		if(buf.hasArray())
+		{
+			byte[] bytes = buf.array();
+			rs = m_stream.read(bytes);
+		}
+		else
+		{
+			byte[] trBuf = new byte[1024];
+			int br;
+			while((br = m_stream.read(trBuf)) > 0)
+			{
+				buf.put(trBuf, 0, br);
+				rs += br;
+			}
+		}
+		if(rs != m_nBytes)
+			throw new IOException("Not all bytes could be read");
+		m_streamPos += rs;
+	}
+
+	//***************************************
+	// Implementation of java.sql.Blob
+	//***************************************
+	public long length()
+	{
+		return m_nBytes;
+	}
+
+	public synchronized void mark(int readLimit)
+	{
+		m_stream.mark(readLimit);
+		m_markPos = m_streamPos;
+	}
+
+	public boolean markSupported()
+	{
+		return m_stream.markSupported();
 	}
 
 	/**
@@ -94,6 +155,45 @@ public class BlobValue extends InputStream implements Blob
 	public long position(Blob pattern, long start)
 	{
 		throw new UnsupportedOperationException();
+	}
+
+	/**
+	 * Not supported.
+	 */
+	public long position(byte[] pattern, long start)
+	{
+		throw new UnsupportedOperationException();
+	}
+
+	public synchronized int read()
+	throws IOException
+	{
+		int rs = m_stream.read();
+		m_streamPos++;
+		return rs;
+	}
+
+	public synchronized int read(byte[] b)
+	throws IOException
+	{
+		int rs = m_stream.read(b);
+		m_streamPos += rs;
+		return rs;
+	}
+
+	public synchronized int read(byte[] b, int off,  int len)
+	throws IOException
+	{
+		int rs = m_stream.read(b, off, len);
+		m_streamPos += rs;
+		return rs;
+	}
+
+	public synchronized void reset()
+	throws IOException
+	{
+		m_stream.reset();
+		m_streamPos = m_markPos;
 	}
 
 	//*************************************************************************
@@ -128,89 +228,6 @@ public class BlobValue extends InputStream implements Blob
 		throw new UnsupportedOperationException();
 	}
 
-	/**
-	 * In this method is not supported by <code>BlobValue</code>
-	 */
-	public void truncate(long len)
-	{
-		throw new UnsupportedOperationException();
-	}
-
-	//***************************************
-	// Implementation of java.io.InputStream
-	//***************************************
-	public int available()
-	throws IOException
-	{
-		return m_stream.available();
-	}
-
-	public synchronized void mark(int readLimit)
-	{
-		m_stream.mark(readLimit);
-		m_markPos = m_streamPos;
-	}
-
-	public boolean markSupported()
-	{
-		return m_stream.markSupported();
-	}
-
-	public synchronized int read()
-	throws IOException
-	{
-		int rs = m_stream.read();
-		m_streamPos++;
-		return rs;
-	}
-
-	public synchronized int read(byte[] b)
-	throws IOException
-	{
-		int rs = m_stream.read(b);
-		m_streamPos += rs;
-		return rs;
-	}
-
-	/**
-	 * Called from within...
-	 * @param buf a buffer that reflects the internally allocated bytea buffer.
-	 * This size of this buffer will be exactly the size returned by a call to
-	 * {@link #length()}.
-	 * @throws IOException
-	 */
-	public void getContents(ByteBuffer buf)
-	throws IOException
-	{
-		int rs = 0;
-		if(buf.hasArray())
-		{
-			byte[] bytes = buf.array();
-			rs = m_stream.read(bytes);
-		}
-		else
-		{
-			byte[] trBuf = new byte[1024];
-			int br;
-			while((br = m_stream.read(trBuf)) > 0)
-			{
-				buf.put(trBuf, 0, br);
-				rs += br;
-			}
-		}
-		if(rs != m_nBytes)
-			throw new IOException("Not all bytes could be read");
-		m_streamPos += rs;
-	}
-
-	public synchronized int read(byte[] b, int off,  int len)
-	throws IOException
-	{
-		int rs = m_stream.read(b, off, len);
-		m_streamPos += rs;
-		return rs;
-	}
-
 	public synchronized long skip(long nBytes)
 	throws IOException
 	{
@@ -219,10 +236,11 @@ public class BlobValue extends InputStream implements Blob
 		return skipped;
 	}
 
-	public synchronized void reset()
-	throws IOException
+	/**
+	 * In this method is not supported by <code>BlobValue</code>
+	 */
+	public void truncate(long len)
 	{
-		m_stream.reset();
-		m_streamPos = m_markPos;
+		throw new UnsupportedOperationException();
 	}
 }

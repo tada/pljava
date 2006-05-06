@@ -14,8 +14,6 @@
 #include "pljava/HashMap.h"
 #include "pljava/Iterator.h"
 #include "pljava/type/Oid.h"
-#include "pljava/type/SingleRowWriter.h"
-#include "pljava/type/ResultSetProvider.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 #include "pljava/type/UDT.h"
@@ -25,10 +23,18 @@
 #include <utils/builtins.h>
 #include <ctype.h>
 #include <funcapi.h>
+#include <utils/typcache.h>
+
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes
+#else
+#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
+#endif
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jmethodID s_Loader_getSchemaLoader;
+static jmethodID s_Loader_getTypeMap;
 static jmethodID s_ClassLoader_loadClass;
 static PgObjectClass s_FunctionClass;
 
@@ -65,11 +71,6 @@ struct Function_
 		bool      isMultiCall;
 	
 		/*
-		 * True if the function returns a complex type.
-		 */
-		bool      returnComplex;
-	
-		/*
 		 * The number of parameters
 		 */
 		int32     numParams;
@@ -83,7 +84,14 @@ struct Function_
 		 * The return type.
 		 */
 		Type      returnType;
-	
+
+		/*
+		 * The type map used when mapping parameter and return types. We
+		 * need to store it here in order to cope with dynamic types (any
+		 * and anyarray)
+		 */
+		jobject typeMap;
+
 		/*
 		 * The static method that should be called.
 		 */
@@ -127,6 +135,8 @@ static void _Function_finalize(PgObject func)
 	JNI_deleteGlobalRef(self->clazz);
 	if(!self->isUDT)
 	{
+		if(self->typeMap != 0)
+			JNI_deleteGlobalRef(self->typeMap);
 		if(self->paramTypes != 0)
 			pfree(self->paramTypes);
 	}
@@ -139,13 +149,15 @@ void Function_initialize(void)
 	
 	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
 	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
+	s_Loader_getTypeMap = PgObject_getStaticJavaMethod(s_Loader_class, "getTypeMap", "(Ljava/lang/String;)Ljava/util/Map;");
 
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 }
 
-static void buildSignature(Function self, StringInfo sign, Type retType)
+static void buildSignature(Function self, StringInfo sign, Type retType, bool alt)
 {
 	Type* tp = self->paramTypes;
 	Type* ep = tp + self->numParams;
@@ -153,8 +165,12 @@ static void buildSignature(Function self, StringInfo sign, Type retType)
 	appendStringInfoChar(sign, '(');
 	while(tp < ep)
 		appendStringInfoString(sign, Type_getJNISignature(*tp++));
+
+	if(!self->isMultiCall && Type_isOutParameter(retType))
+		appendStringInfoString(sign, Type_getJNISignature(retType));
+
 	appendStringInfoChar(sign, ')');
-	appendStringInfoString(sign, Type_getJNISignature(retType));
+	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->isMultiCall, alt));
 }
 
 static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
@@ -162,25 +178,29 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 	char c;
 	int idx = 0;
 	int top = self->numParams;
+	bool lastIsOut = !self->isMultiCall && Type_isOutParameter(self->returnType);
 	StringInfoData sign;
 	initStringInfo(&sign);
 	for(;;)
 	{
 		if(idx >= top)
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("To many parameters - expected %d ", top)));
+		{
+			if(!(lastIsOut && idx == top))
+				ereport(ERROR, (
+					errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("To many parameters - expected %d ", top)));
+		}
 
 		c = *paramDecl++;
 		if(c == 0 || c == ',')
 		{
-			Type deflt = self->paramTypes[idx];
+			Type deflt = (idx == top) ? self->returnType : self->paramTypes[idx];
 			const char* jtName = Type_getJavaTypeName(deflt);
 			if(strcmp(jtName, sign.data) != 0)
 			{
 				Oid did;
 				Type repl;
-				if(self->returnComplex && idx == self->numParams - 1)
+				if(idx == top)
 					/*
 					 * Last parameter is the OUT parameter. It has no corresponding
 					 * entry in the dfltIds array.
@@ -195,7 +215,11 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 						errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Default type %s cannot be replaced by %s",
 							jtName, Type_getJavaTypeName(repl))));
-				self->paramTypes[idx] = repl;
+				
+				if(idx == top)
+					self->returnType = repl;
+				else
+					self->paramTypes[idx] = repl;
 			}
 			pfree(sign.data);
 
@@ -205,6 +229,8 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 				/*
 				 * We are done.
 				 */
+				if(lastIsOut)
+					++top;
 				if(idx != top)
 					ereport(ERROR, (
 						errcode(ERRCODE_SYNTAX_ERROR),
@@ -346,44 +372,6 @@ static jstring getSchemaName(int namespaceOid)
 	return schemaName;
 }
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes
-#else
-#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
-#endif
-
-static Type getParameterType(Form_pg_proc procStruct, int idx)
-{
-	Type result;
-	Oid typeId;
-	HeapTuple typeTup;
-	Form_pg_type pgType;
-
-	if(idx < 0 || idx >= procStruct->pronargs)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_INTERNAL_ERROR),
-			errmsg("Parameter index is out of range")));
-	}
-
-	typeId  = PARAM_OIDS(procStruct)[idx];
-	typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
-	pgType  = (Form_pg_type)GETSTRUCT(typeTup);
-	if(pgType->typtype == 'c' || (pgType->typtype == 'p' && typeId == RECORDOID))
-	{
-		/* Complex types and RECORD types are read using a singe row ResultSet
-		 */
-		result = Type_fromJavaType(
-			InvalidOid,
-			"org.postgresql.pljava.jdbc.SingleTupleReader");
-	}
-	else
-		result = Type_fromPgType(typeId, pgType);
-
-	ReleaseSysCache(typeTup);
-	return result;
-}
-
 static void setupTriggerParams(Function self, ParseResult info)
 {
 	if(info->parameters != 0)
@@ -435,121 +423,95 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 
 	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
 	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->udt = UDT_registerUDT(info->className, self->clazz, udtId, pgType);
+	self->udt = UDT_registerUDT(self->clazz, udtId, pgType, 0);
 	ReleaseSysCache(typeTup);
 }
 
-static bool setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
+static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
 {
+	Oid* paramOids;
 	MemoryContext ctx = GetMemoryChunkContext(self);
-	int top;
-	Type complex = 0;
-	Oid retTypeId = InvalidOid;
-	TupleDesc retTuple = 0;
-	bool isResultSetProvider = false;
+	int32 top = (int32)procStruct->pronargs;;
 
-	self->numParams = (int32)procStruct->pronargs;
+	self->numParams = top;
 	self->isMultiCall = procStruct->proretset;
+	self->returnType = Type_fromOid(procStruct->prorettype, self->typeMap);
 
-	switch(get_call_result_type(fcinfo, &retTypeId, &retTuple))
-	{
-		case TYPEFUNC_SCALAR:
-			if(self->isMultiCall)
-				self->returnType = Type_fromJavaType(retTypeId, "java.util.Iterator");
-			else
-			{
-				HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, retTypeId, "type");
-				Form_pg_type pgType = (Form_pg_type)GETSTRUCT(typeTup);
-				self->returnType = Type_fromPgType(retTypeId, pgType);
-				ReleaseSysCache(typeTup);
-			}
-			break;
-
-		case TYPEFUNC_COMPOSITE:
-		case TYPEFUNC_RECORD:
-			if(self->isMultiCall)
-			{
-				isResultSetProvider = true;
-				self->returnType = ResultSetProvider_createType(retTypeId, retTuple);
-			}
-			else
-			{
-				self->numParams++;
-				self->returnComplex = true;
-				self->returnType = Type_fromOid(BOOLOID);
-				complex = SingleRowWriter_createType(retTypeId, retTuple);
-			}
-			break;
-
-		case TYPEFUNC_OTHER:
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("PL/Java functions cannot return type %s",
-					format_type_be(procStruct->prorettype))));
-	}
-	top = self->numParams;
 	if(top > 0)
 	{
 		int idx;
+		paramOids = PARAM_OIDS(procStruct);
 		self->paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
 
-		if(complex != 0)
-			--top; /* Last argument is not present in typeIds */
-
 		for(idx = 0; idx < top; ++idx)
-			self->paramTypes[idx] = getParameterType(procStruct, idx);
-
-		if(complex != 0)
-			self->paramTypes[idx] = complex;
-
-		if(info->parameters != 0)
-			parseParameters(self, PARAM_OIDS(procStruct), info->parameters);
+			self->paramTypes[idx] = Type_fromOid(paramOids[idx], self->typeMap);
 	}
 	else
+	{
 		self->paramTypes = 0;
-		
-	return isResultSetProvider;
+		paramOids = 0;
+	}
+
+	if(info->parameters != 0)
+		parseParameters(self, paramOids, info->parameters);
 }
 
 static void Function_init(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
 {
 	StringInfoData sign;
 	jobject loader;
-	jstring jname;
-	jobject tmp;
-	bool isResultSetProvider = false;
+	jstring className;
 
 	/* Get the ClassLoader for the schema that this function belongs to
 	 */
-	jname = getSchemaName(procStruct->pronamespace);
-	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, jname);
-	JNI_deleteLocalRef(jname);
+	jstring schemaName = getSchemaName(procStruct->pronamespace);
 
-	elog(DEBUG1, "Loading class %s", info->className);
-	jname  = String_createJavaStringFromNTS(info->className);
-	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, jname);
-	JNI_deleteLocalRef(jname);
-
-	self->clazz = (jclass)JNI_newGlobalRef(tmp);
+	/* Install the type map for the current schema. This must be done ASAP since
+	 * many other functions (including obtaining the loader) depends on it.
+	 */
+	jobject tmp = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getTypeMap, schemaName);
+	self->typeMap = JNI_newGlobalRef(tmp);
 	JNI_deleteLocalRef(tmp);
-	JNI_deleteLocalRef(loader);
 
 	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
 	self->isUDT = info->isUDT;
+
+	currentInvocation->function = self;
+
+	/* Get the ClassLoader for the schema that this function belongs to
+	 */
+	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	JNI_deleteLocalRef(schemaName);
+
+	elog(DEBUG1, "Loading class %s", info->className);
+	className = String_createJavaStringFromNTS(info->className);
+
+	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, className);
+	JNI_deleteLocalRef(loader);
+	JNI_deleteLocalRef(className);
+
+	self->clazz = (jclass)JNI_newGlobalRef(tmp);
+	JNI_deleteLocalRef(tmp);
+
 	if(self->isUDT)
 	{
 		setupUDT(self, info, procStruct);
 		return;
 	}
 
-	self->returnComplex = false;
 	if(CALLED_AS_TRIGGER(fcinfo))
+	{
+		self->typeMap = 0;
 		setupTriggerParams(self, info);
+	}
 	else
-		isResultSetProvider = setupFunctionParams(self, info, procStruct, fcinfo);
+	{
+		setupFunctionParams(self, info, procStruct, fcinfo);
+	}
+
 
 	initStringInfo(&sign);
-	buildSignature(self, &sign, self->returnType);
+	buildSignature(self, &sign, self->returnType, false);
 
 	elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
 	self->method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
@@ -573,7 +535,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			altType = Type_getObjectType(self->returnType);
 			realRetType = altType;
 		}
-		else if(isResultSetProvider)
+		else if(strcmp(Type_getJavaTypeName(self->returnType), "java.sql.ResultSet") == 0)
 		{
 			/*
 			 * Another reason might be that we expected a ResultSetProvider
@@ -581,15 +543,15 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			 * wrapped. The wrapping is internal so we retain the original
 			 * return type anyway.
 			 */
-			altType = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.ResultSetHandle");
+			altType = realRetType;
 		}
 
 		if(altType != 0)
 		{
 			JNI_exceptionClear();
 			initStringInfo(&sign);
-			buildSignature(self, &sign, altType);
-	
+			buildSignature(self, &sign, altType, true);
+
 			elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
 			self->method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
 	
@@ -629,6 +591,11 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 		HashMap_putByOid(s_funcMap, funcOid, func);
 	}
 	return func;
+}
+
+jobject Function_getTypeMap(Function self)
+{
+	return self->typeMap;
 }
 
 static bool Function_inUse(Function func)
@@ -678,34 +645,36 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 {
 	Datum retVal;
 	int32 top;
+	jvalue* args;
+	Type  invokerType;
+
+	fcinfo->isnull = false;
+	currentInvocation->function = self;
 
 	if(self->isUDT)
 		return self->udtFunction(self->udt, fcinfo);
 
+	if(self->isMultiCall && SRF_IS_FIRSTCALL())
+		Invocation_assertDisconnect();
+
 	top = self->numParams;
-	fcinfo->isnull = false;
-	currentInvocation->function = self;
+	
+	/* Leave room for one extra parameter. Functions that returns unmapped
+	 * composite types must have a single row ResultSet as an OUT parameter.
+	 */
+	args  = (jvalue*)palloc((top + 1) * sizeof(jvalue));
+	invokerType = self->returnType;
+
 	if(top > 0)
 	{
-		int32   idx;
-		Type    invokerType;
-		jvalue* args;
-		Type*   types = self->paramTypes;
+		int32 idx;
+		Type* types = self->paramTypes;
 
 		/* a class loader or other mechanism might have connected already. This
 		 * connection must be dropped since its parent context is wrong.
 		 */
-		if(self->isMultiCall && SRF_IS_FIRSTCALL())
-			Invocation_assertDisconnect();
-
-		args  = (jvalue*)palloc(top * sizeof(jvalue));
-		if(self->returnComplex)
-		{
-			--top; /* Last argument is not present in fcinfo */
-			invokerType = types[top];
-		}
-		else
-			invokerType = self->returnType;
+		if(Type_isDynamic(invokerType))
+			invokerType = Type_getRealType(invokerType, get_fn_expr_rettype(fcinfo->flinfo), self->typeMap);
 
 		for(idx = 0; idx < top; ++idx)
 		{
@@ -715,16 +684,20 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 				 */
 				args[idx].j = 0L;
 			else
-				args[idx] = Type_coerceDatum(types[idx], PG_GETARG_DATUM(idx));
+			{
+				Type paramType = types[idx];
+				if(Type_isDynamic(paramType))
+					paramType = Type_getRealType(paramType, get_fn_expr_argtype(fcinfo->flinfo, idx), self->typeMap);
+				args[idx] = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
+			}
 		}
+	}
 
-		retVal = Type_invoke(invokerType, self->clazz, self->method, args, fcinfo);
-		pfree(args);
-	}
-	else
-	{
-		retVal = Type_invoke(self->returnType, self->clazz, self->method, NULL, fcinfo);
-	}
+	retVal = self->isMultiCall
+		? Type_invokeSRF(invokerType, self->clazz, self->method, args, fcinfo)
+		: Type_invoke(invokerType, self->clazz, self->method, args, fcinfo);
+
+	pfree(args);
 	return retVal;
 }
 

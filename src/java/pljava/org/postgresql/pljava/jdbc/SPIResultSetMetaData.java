@@ -25,7 +25,7 @@ public class SPIResultSetMetaData extends AbstractResultSetMetaData
 
 	/**
 	 * Constructor.
-	 * @param fields Array of ResultSetField
+	 * @param tupleDesc The descriptor for the ResultSet tuples
 	 */
 	public SPIResultSetMetaData(TupleDesc tupleDesc)
 	{

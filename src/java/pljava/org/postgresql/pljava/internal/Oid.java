@@ -47,15 +47,29 @@ public class Oid extends Number
 	}
 
 	/**
+	 * Finds the PostgreSQL well known Oid for a type name.
+	 * @param typeString The name of the type, optionally qualified with a namespace.
+	 * @return The well known Oid.
+	 * @throws SQLException if the type could not be found
+	 */
+	public static Oid forTypeName(String typeString)
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			return new Oid(_forTypeName(typeString));
+		}
+	}
+
+	/**
 	 * Finds the PostgreSQL well known Oid for the XOPEN Sql type.
 	 * @param sqlType The XOPEN type code.
-	 * @return The well known Oid or null if no such Oid could be found.
+	 * @throws SQLException if the type could not be found
 	 */
 	public static Oid forSqlType(int sqlType)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _forSqlType(sqlType);
+			return new Oid(_forSqlType(sqlType));
 		}
 	}
 
@@ -126,7 +140,7 @@ public class Oid extends Number
 			String className;
 			synchronized(Backend.THREADLOCK)
 			{
-				className = this._getJavaClassName();
+				className = _getJavaClassName(m_native);
 			}
 			try
 			{
@@ -212,10 +226,12 @@ public class Oid extends Number
 		return name;
 	}
 
-	private native static Oid _forSqlType(int sqlType);
+	private native static int _forTypeName(String typeString);
+
+	private native static int _forSqlType(int sqlType);
 
 	private native static Oid _getTypeId();
 
-	private native String _getJavaClassName()
+	private native static String _getJavaClassName(int nativeOid)
 	throws SQLException;
 }

@@ -29,9 +29,10 @@ struct UDT_
 	 */
 	struct Type_ Type_extension;
 
-	int32 length;
+	int32     length;
 	jclass    clazz;
-	jstring sqlTypeName;
+	jstring   sqlTypeName;
+	TupleDesc tupleDesc;
 	jmethodID init;
 	jmethodID parse;
 	jmethodID toString;

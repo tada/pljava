@@ -22,42 +22,61 @@ import java.sql.SQLException;
  */
 public class ClobValue extends Reader implements Clob
 {
-	private final Reader m_reader;
-	private final long m_nChars;
-	private long m_readerPos;
+	public static int getReaderLength(Reader value) throws SQLException
+	{
+		try
+		{
+			value.mark(Integer.MAX_VALUE);
+			long length = value.skip(Long.MAX_VALUE);
+			if(length > Integer.MAX_VALUE)
+				throw new SQLException("stream content too large");
+			value.reset();
+			return (int)length;
+		}
+		catch(IOException e)
+		{
+			throw new SQLException(e.getMessage());
+		}
+	}
+
 	private long m_markPos;
+
+	private final long m_nChars;
+
+	private final Reader m_reader;
+
+	private long m_readerPos;
+
+	public ClobValue(Reader reader, long nChars)
+	{
+		m_reader = reader;
+		m_nChars = nChars;
+		m_readerPos = 0L;
+		m_markPos = 0L;
+	}
 
 	public ClobValue(String value)
 	{
 		this(new StringReader(value), value.length());
 	}
 
-	public ClobValue(Reader reader, long nChars)
+	public void close() throws IOException
 	{
-		m_reader    = reader;
-		m_nChars    = nChars;
-		m_readerPos = 0L;
-		m_markPos   = 0L;
-	}
-
-	//***************************************
-	// Implementation of java.sql.Clob
-	//***************************************
-	public long length()
-	{
-		return m_nChars;
+		m_reader.close();
+		m_readerPos = 0;
+		m_markPos = 0;
 	}
 
 	public InputStream getAsciiStream()
 	{
 		return new BufferedInputStream(new InputStream()
-				{
-			public int read()
-			throws IOException
+		{
+			public int read() throws IOException
 			{
 				int nextChar = ClobValue.this.read();
 				if(nextChar > 127)
-					throw new CharConversionException("Non ascii character in Clob data");
+					throw new CharConversionException(
+						"Non ascii character in Clob data");
 				return nextChar;
 			}
 		});
@@ -68,8 +87,7 @@ public class ClobValue extends Reader implements Clob
 		return this;
 	}
 
-	public String getSubString(long pos, int length)
-	throws SQLException
+	public String getSubString(long pos, int length) throws SQLException
 	{
 		if(pos < 0L || length < 0)
 			throw new IllegalArgumentException();
@@ -100,12 +118,20 @@ public class ClobValue extends Reader implements Clob
 		}
 	}
 
-	/**
-	 * In this method is not supported by <code>ClobValue</code>
-	 */
-	public long position(String pattern, long start)
+	public long length()
 	{
-		throw new UnsupportedOperationException();
+		return m_nChars;
+	}
+
+	public synchronized void mark(int readLimit) throws IOException
+	{
+		m_reader.mark(readLimit);
+		m_markPos = m_readerPos;
+	}
+
+	public boolean markSupported()
+	{
+		return m_reader.markSupported();
 	}
 
 	/**
@@ -116,14 +142,46 @@ public class ClobValue extends Reader implements Clob
 		throw new UnsupportedOperationException();
 	}
 
-	//*************************************************************************
-	// Implementation of java.sql.Clob JDK 1.4 methods
-	//
-	// Those method are intended to provide a channel to the underlying data
-	// storage as an alternatvie to the setCharacterStream and setAsciiStream
-	// on the preparedStatement and are not implemented by the ClobValue.
-	//
-	//*************************************************************************
+	/**
+	 * In this method is not supported by <code>ClobValue</code>
+	 */
+	public long position(String pattern, long start)
+	{
+		throw new UnsupportedOperationException();
+	}
+
+	public synchronized int read() throws IOException
+	{
+		int rs = m_reader.read();
+		m_readerPos++;
+		return rs;
+	}
+
+	public synchronized int read(char[] b) throws IOException
+	{
+		int rs = m_reader.read(b);
+		m_readerPos += rs;
+		return rs;
+	}
+
+	public synchronized int read(char[] b, int off, int len) throws IOException
+	{
+		int rs = m_reader.read(b, off, len);
+		m_readerPos += rs;
+		return rs;
+	}
+
+	public synchronized boolean ready() throws IOException
+	{
+		return m_reader.ready();
+	}
+
+	public synchronized void reset() throws IOException
+	{
+		m_reader.reset();
+		m_readerPos = m_markPos;
+	}
+
 	/**
 	 * In this method is not supported by <code>ClobValue</code>
 	 */
@@ -156,79 +214,18 @@ public class ClobValue extends Reader implements Clob
 		throw new UnsupportedOperationException();
 	}
 
-	/**
-	 * In this method is not supported by <code>ClobValue</code>
-	 */
-	public void truncate(long len)
-	{
-		throw new UnsupportedOperationException();
-	}
-
-	//***************************************
-	// Implementation of java.io.Reader
-	//***************************************
-	public void close()
-	throws IOException
-	{
-		m_reader.close();
-		m_readerPos = 0;
-		m_markPos = 0;
-	}
-
-	public boolean markSupported()
-	{
-		return m_reader.markSupported();
-	}
-
-	public synchronized void mark(int readLimit)
-	throws IOException
-	{
-		m_reader.mark(readLimit);
-		m_markPos = m_readerPos;
-	}
-
-	public synchronized int read()
-	throws IOException
-	{
-		int rs = m_reader.read();
-		m_readerPos++;
-		return rs;
-	}
-
-	public synchronized int read(char[] b)
-	throws IOException
-	{
-		int rs = m_reader.read(b);
-		m_readerPos += rs;
-		return rs;
-	}
-
-	public synchronized int read(char[] b, int off,  int len)
-	throws IOException
-	{
-		int rs = m_reader.read(b, off, len);
-		m_readerPos += rs;
-		return rs;
-	}
-
-	public synchronized long skip(long nBytes)
-	throws IOException
+	public synchronized long skip(long nBytes) throws IOException
 	{
 		long skipped = m_reader.skip(nBytes);
 		m_readerPos += skipped;
 		return skipped;
 	}
 
-	public synchronized boolean ready()
-	throws IOException
+	/**
+	 * In this method is not supported by <code>ClobValue</code>
+	 */
+	public void truncate(long len)
 	{
-		return m_reader.ready();
-	}
-
-	public synchronized void reset()
-	throws IOException
-	{
-		m_reader.reset();
-		m_readerPos = m_markPos;
+		throw new UnsupportedOperationException();
 	}
 }

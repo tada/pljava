@@ -10,24 +10,28 @@
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
 #include <libpq/pqformat.h>
+#include <funcapi.h>
 
 #include "pljava/type/UDT_priv.h"
 #include "pljava/type/String.h"
+#include "pljava/type/Tuple.h"
+#include "pljava/Invocation.h"
 #include "pljava/SQLInputFromChunk.h"
 #include "pljava/SQLOutputToChunk.h"
+#include "pljava/SQLInputFromTuple.h"
+#include "pljava/SQLOutputToTuple.h"
 
-jvalue _UDT_coerceDatum(Type self, Datum arg)
+static jobject coerceScalarDatum(UDT self, Datum arg)
 {
-	jvalue result;
-	UDT    udt = (UDT)self;
-	int32  dataLen = udt->length;
+	jobject result;
+	int32  dataLen = self->length;
 
 	if(dataLen == -2)
 	{
 		/* Data is a zero terminated string
 		 */
 		jstring jstr = String_createJavaStringFromNTS(DatumGetCString(arg));
-		result.l = JNI_callStaticObjectMethod(udt->clazz, udt->parse, jstr);
+		result = JNI_callStaticObjectMethod(self->clazz, self->parse, jstr, self->sqlTypeName);
 		JNI_deleteLocalRef(jstr);
 	}
 	else
@@ -48,23 +52,31 @@ jvalue _UDT_coerceDatum(Type self, Datum arg)
 			 */
 			data = DatumGetPointer(arg);
 		}
-		result.l = JNI_newObject(udt->clazz, udt->init);
+		result = JNI_newObject(self->clazz, self->init);
 
 		inputStream = SQLInputFromChunk_create(data, dataLen);
-		JNI_callVoidMethod(result.l, udt->readSQL, inputStream, udt->sqlTypeName);
+		JNI_callVoidMethod(result, self->readSQL, inputStream, self->sqlTypeName);
 		SQLInputFromChunk_close(inputStream);
 	}
 	return result;
 }
 
-Datum _UDT_coerceObject(Type self, jobject value)
+static jobject coerceTupleDatum(UDT udt, Datum arg)
+{
+	jobject result = JNI_newObject(udt->clazz, udt->init);
+	jobject inputStream = SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), udt->tupleDesc);
+	JNI_callVoidMethod(result, udt->readSQL, inputStream, udt->sqlTypeName);
+	JNI_deleteLocalRef(inputStream);
+	return result;
+}
+
+static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
-	UDT udt = (UDT)self;
-	int32 dataLen = udt->length;
+	int32 dataLen = self->length;
 	if(dataLen == -2)
 	{
-		jstring jstr = (jstring)JNI_callObjectMethod(value, udt->toString);
+		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
 		char* tmp = String_createNTS(jstr);
 		result = CStringGetDatum(tmp);
 		JNI_deleteLocalRef(jstr);
@@ -73,6 +85,8 @@ Datum _UDT_coerceObject(Type self, jobject value)
 	{
 		jobject outputStream;
 		StringInfoData buffer;
+		MemoryContext currCtx = Invocation_switchToUpperContext();
+
 		initStringInfo(&buffer);
 
 		if(dataLen < 0)
@@ -83,8 +97,9 @@ Datum _UDT_coerceObject(Type self, jobject value)
 			appendBinaryStringInfo(&buffer, (char*)&dataLen, sizeof(int32));
 
 		outputStream = SQLOutputToChunk_create(&buffer);
-		JNI_callVoidMethod(value, udt->writeSQL, outputStream);
+		JNI_callVoidMethod(value, self->writeSQL, outputStream);
 		SQLOutputToChunk_close(outputStream);
+		MemoryContextSwitchTo(currCtx);
 
 		if(dataLen < 0)
 		{
@@ -97,30 +112,70 @@ Datum _UDT_coerceObject(Type self, jobject value)
 			ereport(ERROR, (
 				errcode(ERRCODE_CANNOT_COERCE),
 				errmsg("UDT for Oid %d produced image with incorrect size. Expected %d, was %d",
-					Type_getOid(self), dataLen, buffer.len)));
+					Type_getOid((Type)self), dataLen, buffer.len)));
 		}
 		result = PointerGetDatum(buffer.data);
 	}
 	return result;
 }
 
+static Datum coerceTupleObject(UDT self, jobject value)
+{
+	Datum result = 0;
+	if(value != 0)
+	{
+		HeapTuple tuple;
+		jobject sqlOutput = SQLOutputToTuple_create(self->tupleDesc);
+		JNI_callVoidMethod(value, self->writeSQL, sqlOutput);
+		tuple = SQLOutputToTuple_getTuple(sqlOutput);
+		if(tuple != 0)
+			result = HeapTupleGetDatum(tuple);
+	}
+	return result;
+}
+
+jvalue _UDT_coerceDatum(Type self, Datum arg)
+{
+	jvalue result;
+	UDT    udt = (UDT)self;
+	if(UDT_isScalar(udt))
+		result.l = coerceScalarDatum(udt, arg);
+	else
+		result.l = coerceTupleDatum(udt, arg);
+	return result;
+}
+
+Datum _UDT_coerceObject(Type self, jobject value)
+{
+	Datum result;
+	UDT udt = (UDT)self;
+	if(UDT_isScalar(udt))
+		result = coerceScalarObject(udt, value);
+	else
+		result = coerceTupleObject(udt, value);
+	return result;
+}
+
 static Type UDT_obtain(Oid typeId)
 {
-	Type type = Type_fromOidCache(typeId);
-	if(type == 0)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_CANNOT_COERCE),
-			errmsg("No type mapping installed for UDT with Oid %d", typeId)));
-	}
-	return type;
+	ereport(ERROR, (
+		errcode(ERRCODE_CANNOT_COERCE),
+		errmsg("No type mapping installed for UDT with Oid %d", typeId)));
+	return 0; /* Keep compiler happy */
 }
 
 Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 {
 	jstring jstr;
 	jobject obj;
-	char* txt = PG_GETARG_CSTRING(0);
+	char* txt;
+
+	if(!UDT_isScalar(udt))
+		ereport(ERROR, (
+			errcode(ERRCODE_CANNOT_COERCE),
+			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
+	txt = PG_GETARG_CSTRING(0);
 
 	if(udt->length == -2)
 	{
@@ -129,7 +184,7 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 		PG_RETURN_CSTRING(txt);
 	}
 	jstr = String_createJavaStringFromNTS(txt);
-	obj  = JNI_callStaticObjectMethod(udt->clazz, udt->parse, jstr);
+	obj  = JNI_callStaticObjectMethod(udt->clazz, udt->parse, jstr, udt->sqlTypeName);
 	JNI_deleteLocalRef(jstr);
 
 	return _UDT_coerceObject((Type)udt, obj);
@@ -138,6 +193,12 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 Datum UDT_output(UDT udt, PG_FUNCTION_ARGS)
 {
 	char* txt;
+
+	if(!UDT_isScalar(udt))
+		ereport(ERROR, (
+			errcode(ERRCODE_CANNOT_COERCE),
+			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
 	if(udt->length == -2)
 	{
 		txt = PG_GETARG_CSTRING(0);
@@ -161,6 +222,11 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 	char* tmp;
 	int32 dataLen = udt->length;
 
+	if(!UDT_isScalar(udt))
+		ereport(ERROR, (
+			errcode(ERRCODE_CANNOT_COERCE),
+			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
 	if(dataLen == -1)
 		return bytearecv(fcinfo);
 
@@ -178,6 +244,11 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 	StringInfoData buf;
 	int32 dataLen = udt->length;
 
+	if(!UDT_isScalar(udt))
+		ereport(ERROR, (
+			errcode(ERRCODE_CANNOT_COERCE),
+			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
 	if(dataLen == -1)
 		return byteasend(fcinfo);
 
@@ -189,16 +260,24 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
     PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
+bool UDT_isScalar(UDT udt)
+{
+	return udt->toString != 0;
+}
+
 /* Make this datatype available to the postgres system.
  */
-UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_type pgType)
+UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 {
+	jstring jcn;
+	MemoryContext currCtx;
 	HeapTuple nspTup;
 	Form_pg_namespace nspStruct;
 	TypeClass udtClass;
 	UDT udt;
 	int signatureLen;
 	jstring sqlTypeName;
+	char* className;
 	char* classSignature;
 	char* sp;
 	const char* cp;
@@ -233,8 +312,14 @@ UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_typ
 
 	/* Create a Java Signature String from the class name
 	 */
+	jcn = JNI_callObjectMethod(clazz, Class_getName);
+	currCtx = MemoryContextSwitchTo(TopMemoryContext);
+	className = String_createNTS(jcn);
+	JNI_deleteLocalRef(jcn);
+
 	signatureLen = strlen(className) + 2;
-	classSignature = MemoryContextAlloc(TopMemoryContext, signatureLen + 1);
+	classSignature = palloc(signatureLen + 1);
+	MemoryContextSwitchTo(currCtx);
 
 	sp = classSignature;
 	cp = className;
@@ -258,23 +343,43 @@ UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_typ
 
 	udt = (UDT)TypeClass_allocInstance(udtClass, typeId);
 	udt->length   = pgType->typlen;
-	udt->clazz    = clazz;
+	udt->clazz    = JNI_newGlobalRef(clazz);
 
 	udt->sqlTypeName = JNI_newGlobalRef(sqlTypeName);
 	JNI_deleteLocalRef(sqlTypeName);
 
 	udt->init     = PgObject_getJavaMethod(clazz, "<init>", "()V");
-	udt->toString = PgObject_getJavaMethod(clazz, "toString", "()Ljava/lang/String;");
 
-	/* The parse method is a static method on the class with the signature
-	 * (Ljava/lang/String;)<classSignature>
-	 */
-	sp = palloc(signatureLen + 21);
-	strcpy(sp, "(Ljava/lang/String;)");
-	strcpy(sp + 20, classSignature);
-	udt->parse = PgObject_getStaticJavaMethod(clazz, "parse", sp);
-	pfree(sp);
+	if(td == 0)
+	{
+		/* A scalar mapping must have the static method:
+		 * 
+		 *   T parse(String stringRep, String sqlTypeName);
+		 * 
+		 * and a matching:
+		 * 
+		 *   String toString();
+		 * 
+		 * instance method
+		 */
+		udt->toString = PgObject_getJavaMethod(clazz, "toString", "()Ljava/lang/String;");
+	
+		/* The parse method is a static method on the class with the signature
+		 * (Ljava/lang/String;Ljava/lang/String;)<classSignature>
+		 */
+		sp = palloc(signatureLen + 40);
+		strcpy(sp, "(Ljava/lang/String;Ljava/lang/String;)");
+		strcpy(sp + 38, classSignature);
+		udt->parse = PgObject_getStaticJavaMethod(clazz, "parse", sp);
+		pfree(sp);
+	}
+	else
+	{
+		udt->toString = 0;
+		udt->parse = 0;
+	}
 
+	udt->tupleDesc = td;
 	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
 	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
 

@@ -30,8 +30,6 @@ public interface ObjectPool
 	/**
 	 * Call the {@link PooledObject#remove()} method and evict the object
 	 * from the pool.
-	 * 
-	 * @return A new object or an object found in the pool.
 	 */
 	void removeInstance(PooledObject instance)
 	throws SQLException;

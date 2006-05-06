@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.security.Permission;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.PropertyPermission;
 import java.util.logging.Level;
@@ -56,10 +55,8 @@ public class Backend
 	}
 
 	/**
-	 * Returns the configuration option as read from the Global
-	 * Unified Config package (GUC).
-	 * @param key The name of the option.
-	 * @return The value of the option.
+	 * Returns the size of the statement cache.
+	 * @return the size of the statement cache.
 	 */
 	public static int getStatementCacheSize()
 	{
@@ -71,10 +68,11 @@ public class Backend
 
 	/**
 	 * Log a message using the internal elog command.
-	 * @param logLevel The log level.
+	 * @param logLevel The log level as defined in
+	 * {@link ELogHandler}.
 	 * @param str The message
 	 */
-	public static void log(int logLevel, String str)
+	static void log(int logLevel, String str)
 	{
 		synchronized(THREADLOCK)
 		{
@@ -181,7 +179,7 @@ public class Backend
 		}
 	};
 
-	public static void addClassImages(Connection conn, int jarId, String urlString)
+	public static void addClassImages(int jarId, String urlString)
 	throws SQLException
 	{
 		InputStream urlStream = null;
@@ -194,7 +192,7 @@ public class Backend
 		{
 			URL url = new URL(urlString);
 			urlStream = url.openStream();
-			Commands.addClassImages(conn, jarId, urlStream);
+			Commands.addClassImages(jarId, urlStream);
 		}
 		catch(IOException e)
 		{

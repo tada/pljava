@@ -11,6 +11,7 @@
 
 #include "org_postgresql_pljava_jdbc_Invocation.h"
 #include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
@@ -96,6 +97,12 @@ void Invocation_assertDisconnect(void)
 		SPI_finish();
 		currentInvocation->hasConnected = false;
 	}
+}
+
+jobject Invocation_getTypeMap(void)
+{
+	Function f = currentInvocation->function;
+	return f == 0 ? 0 : Function_getTypeMap(f);
 }
 
 void Invocation_pushBootContext(Invocation* ctx)

@@ -31,7 +31,9 @@ extern Datum UDT_output(UDT udt, PG_FUNCTION_ARGS);
 extern Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS);
 extern Datum UDT_send(UDT udt, PG_FUNCTION_ARGS);
 
-extern UDT UDT_registerUDT(const char* className, jclass clazz, Oid typeId, Form_pg_type pgType);
+extern bool UDT_isScalar(UDT udt);
+
+extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td);
 
 typedef Datum (*UDTFunction)(UDT udt, PG_FUNCTION_ARGS);
 

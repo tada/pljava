@@ -15,12 +15,12 @@ import org.postgresql.pljava.ResultSetProvider;
 /**
  * @author Thomas Hallgren
  */
-public class ComplexReturn implements ResultSetProvider
+public class TupleReturn implements ResultSetProvider
 {
 	private final int m_base;
 	private final int m_increment;
 	
-	public ComplexReturn(int base, int increment)
+	public TupleReturn(int base, int increment)
 	{
 		m_base = base;
 		m_increment = increment;
@@ -47,10 +47,10 @@ public class ComplexReturn implements ResultSetProvider
 	public static ResultSetProvider setReturn(int base, int increment)
 	throws SQLException
 	{
-		return new ComplexReturn(base, increment);
+		return new TupleReturn(base, increment);
 	}
 
-	public static boolean complexReturn(int base, int increment, ResultSet receiver)
+	public static boolean tupleReturn(int base, int increment, ResultSet receiver)
 	throws SQLException
 	{
 		receiver.updateInt(1, base);

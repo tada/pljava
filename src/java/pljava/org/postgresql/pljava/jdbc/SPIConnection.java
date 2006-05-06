@@ -8,6 +8,7 @@ package org.postgresql.pljava.jdbc;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -702,6 +703,17 @@ public class SPIConnection implements Connection
 			|| value instanceof Date
 			|| value instanceof Time)
 				return value.toString();
+		}
+		else if(cls == URL.class && value instanceof String)
+		{
+			try
+			{
+				return new URL((String)value);
+			}
+			catch(MalformedURLException e)
+			{
+				throw new SQLException(e.toString());
+			}
 		}
 		throw new SQLException("Cannot derive a value of class " +
 				cls.getName() + " from an object of class " + value.getClass().getName());

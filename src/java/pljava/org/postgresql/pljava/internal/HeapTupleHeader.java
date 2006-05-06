@@ -16,9 +16,12 @@ import java.sql.SQLException;
  */
 public class HeapTupleHeader extends JavaWrapper
 {
-	HeapTupleHeader(long pointer)
+	private final TupleDesc m_tupleDesc;
+
+	HeapTupleHeader(long pointer, TupleDesc tupleDesc)
 	{
 		super(pointer);
+		m_tupleDesc = tupleDesc;
 	}
 
 	/**
@@ -28,35 +31,26 @@ public class HeapTupleHeader extends JavaWrapper
 	 * @return The value or <code>null</code>.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public Object getObject(int index)
+	public final Object getObject(int index)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getObject(this.getNativePointer(), index);
+			return _getObject(this.getNativePointer(), m_tupleDesc.getNativePointer(), index);
 		}
 	}
 
 	/**
-	 * Obtains the TupleDesc from the underlying native <code>HeapTupleHeader
-	 * </code> structure.
+	 * Obtains the TupleDesc that describes the tuple and returns it.
 	 * @return The TupleDesc that describes this tuple.
-	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public TupleDesc getTupleDesc()
-	throws SQLException
+	public final TupleDesc getTupleDesc()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getTupleDesc(this.getNativePointer());
-		}
+		return m_tupleDesc;
 	}
 
 	protected native void _free(long pointer);
 
-	private static native TupleDesc _getTupleDesc(long pointer)
-	throws SQLException;
-
-	private static native Object _getObject(long pointer, int index)
+	private static native Object _getObject(long pointer, long tupleDescPointer, int index)
 	throws SQLException;
 }

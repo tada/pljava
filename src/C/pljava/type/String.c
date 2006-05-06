@@ -10,7 +10,6 @@
 #include "pljava/HashMap.h"
 
 static TypeClass s_StringClass;
-static HashMap s_cache;
 jclass s_String_class;
 jclass s_Object_class;
 static jmethodID s_Object_toString;
@@ -61,28 +60,17 @@ Datum _String_coerceObject(Type self, jobject jstr)
 	return ret;
 }
 
-static String String_create(TypeClass cls, Oid typeId, Form_pg_type pgType)
+static String String_create(TypeClass cls, Oid typeId)
 {
+	HeapTuple    typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
+	Form_pg_type pgType  = (Form_pg_type)GETSTRUCT(typeTup);
 	String self = (String)TypeClass_allocInstance(cls, typeId);
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	fmgr_info_cxt(pgType->typoutput, &self->textOutput, ctx);
 	fmgr_info_cxt(pgType->typinput,  &self->textInput,  ctx);
 	self->elementType = pgType->typelem;
+	ReleaseSysCache(typeTup);
 	return self;
-}
-
-Type String_fromPgType(Oid typeId, Form_pg_type pgType)
-{
-	String self = (String)HashMap_getByOid(s_cache, typeId);
-	if(self == 0)
-	{
-		/*
-		 * Create the new type
-		 */
-		self = String_create(s_StringClass, typeId, pgType);
-		HashMap_putByOid(s_cache, typeId, self);
-	}
-	return (Type)self;
 }
 
 Type String_obtain(Oid typeId)
@@ -92,22 +80,7 @@ Type String_obtain(Oid typeId)
 
 String StringClass_obtain(TypeClass self, Oid typeId)
 {
-	/* Check to see if we have a cached version for this
-	 * postgres type
-	 */
-	String infant = (String)HashMap_getByOid(s_cache, typeId);
-	if(infant == 0)
-	{
-		/*
-		 * Retreive standard string conversion from the postgres
-		 * type catalog.
-		 */
-		HeapTuple typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
-		infant = String_create(self, typeId, (Form_pg_type)GETSTRUCT(typeTup));
-		ReleaseSysCache(typeTup);
-		HashMap_putByOid(s_cache, typeId, infant);
-	}
-	return infant;
+	return String_create(s_StringClass, typeId);
 }
 
 jstring String_createJavaString(text* t)
@@ -242,11 +215,6 @@ void String_initialize(void)
 	s_StringClass->canReplaceType = _String_canReplaceType;
 	s_StringClass->coerceDatum    = _String_coerceDatum;
 	s_StringClass->coerceObject   = _String_coerceObject;
-
-	/*
-	 * Initialize the type cache for the default types.
-	 */
-	s_cache = HashMap_create(13, TopMemoryContext);
 
 	/*
 	 * Registering known types will increase the performance

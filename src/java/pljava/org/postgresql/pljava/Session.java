@@ -74,11 +74,10 @@ public interface Session
 	 * rights.
 	 * @param conn The connection used for the execution
 	 * @param statement The statement to execute
-	 * @return The result of the execution.
 	 * @throws SQLException if something goes wrong when executing.
 	 * @see java.sql.Statement#execute(java.lang.String)
 	 */
-	boolean executeAsSessionUser(Connection conn, String statement)
+	void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException;
 
 	/**

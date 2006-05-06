@@ -21,7 +21,12 @@
 #                          C and Java code. Requires GCJ 3.4 or later.
 #
 #-------------------------------------------------------------------------
-export PROJDIR := $(shell pwd)
+
+# Can't use $(shell pwd) directly since /bin/pwd doesn't handle mounted
+# volumes very well on some systems. The /mnt/hgfs that enables host shares
+# in a vmware client is one example of this.
+#
+export PROJDIR := $(shell $(SHELL) -c pwd)
 
 export PGXS := $(shell pg_config --pgxs)
 export PGSQLSRC := $(dir $(PGXS))..

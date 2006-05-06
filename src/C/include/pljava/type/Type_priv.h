@@ -29,7 +29,7 @@ struct TypeClass_
 	 * Contains the JNI compliant signature for the type.
 	 */
 	const char* JNISignature;
-	
+
 	/*
 	 * Contains the Java type name.
 	 */
@@ -41,6 +41,24 @@ struct TypeClass_
 	 * will be NULL.
 	 */
 	Type objectType;
+
+	/*
+	 * Set to true if this type represents a dynamic type (anyelement or
+	 * collection/iterator of anyelement)
+	 */
+	bool dynamic;
+
+	/*
+	 * Set to true if the invocation will create an out parameter (ResultSet typically)
+	 * to collect the return value. If so, the real return value will be a bool.
+	 */
+	bool outParameter;
+
+	/*
+	 * Returns the real type for a dynamic type. A non dynamic type will
+	 * return itself.
+	 */
+	Type (*getRealType)(Type self, Oid realTypeID, jobject typeMap);
 
 	/*
 	 * Returns true if this type uses the same postgres type the other type.
@@ -77,6 +95,13 @@ struct TypeClass_
 	 */
 	Datum (*invoke)(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
 
+	jobject (*getSRFProducer)(Type self, jclass clazz, jmethodID method, jvalue* args);
+	jobject (*getSRFCollector)(Type self, PG_FUNCTION_ARGS);
+	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jint counter);
+	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
+	void (*closeSRF)(Type self, jobject producer);
+	const char* (*getJNIReturnSignature)(Type self, bool forMultiCall, bool useAltRepr);
+
 	/*
 	 * Returns the TupleDesc that corresponds to this type.
 	 */
@@ -106,18 +131,12 @@ extern Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args,
  * Return the m_oid member of the Type. This is the default version of
  * Type_getTupleDesc.
  */
-TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
+extern TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
 
 /*
  * Store a Type keyed by its Oid in the cache.
  */
 extern void Type_cacheByOid(Oid typeId, Type type);
-
-/*
- * Fetch a Type from the cache using its Oid as key. This function will
- * return nULL when no Type is found in the cache.
- */
-extern Type Type_fromOidCache(Oid typeId);
 
 /*
  * Create a TypeClass with default sizes for TypeClass and Type.

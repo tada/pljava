@@ -22,7 +22,6 @@ JNI_CLASSES := \
 	org.postgresql.pljava.internal.ErrorData \
 	org.postgresql.pljava.internal.Oid \
 	org.postgresql.pljava.internal.ExecutionPlan \
-	org.postgresql.pljava.internal.HeapTupleHeader \
 	org.postgresql.pljava.internal.JavaWrapper \
 	org.postgresql.pljava.internal.LargeObject \
 	org.postgresql.pljava.internal.PgSavepoint \
@@ -35,8 +34,11 @@ JNI_CLASSES := \
 	org.postgresql.pljava.internal.TupleDesc \
 	org.postgresql.pljava.internal.XactListener \
 	org.postgresql.pljava.jdbc.Invocation \
+	org.postgresql.pljava.jdbc.SingleRowReader \
 	org.postgresql.pljava.jdbc.SQLInputFromChunk \
-	org.postgresql.pljava.jdbc.SQLOutputToChunk
+	org.postgresql.pljava.jdbc.SQLOutputToChunk \
+	org.postgresql.pljava.jdbc.SQLInputFromTuple \
+	org.postgresql.pljava.jdbc.SQLOutputToTuple
 
 JNISRCS := $(call mkclsrc,$(JNI_CLASSES))
 

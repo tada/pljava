@@ -73,8 +73,6 @@ extern text* String_createText(jstring javaString);
 
 extern Type String_obtain(Oid typeId);
 
-extern Type String_fromPgType(Oid typeId, Form_pg_type pgType);
-
 extern String StringClass_obtain(TypeClass self, Oid typeId);
 
 #ifdef __cplusplus

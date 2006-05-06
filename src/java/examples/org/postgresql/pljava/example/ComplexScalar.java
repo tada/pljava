@@ -15,14 +15,15 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 import java.util.logging.Logger;
 
-public class Complex implements SQLData
+public class ComplexScalar implements SQLData
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
 	private double m_x;
 	private double m_y;
+	private String m_typeName;
 
-	public static Complex parse(String input) throws SQLException
+	public static ComplexScalar parse(String input, String typeName) throws SQLException
 	{
 		try
 		{
@@ -37,8 +38,8 @@ public class Complex implements SQLData
 					double y = tz.nval;
 					if(tz.nextToken() == ')')
 					{
-						s_logger.info("complex from string");
-						return new Complex(x, y);
+						s_logger.info(typeName + " from string");
+						return new ComplexScalar(x, y, typeName);
 					}
 				}
 			}
@@ -50,44 +51,52 @@ public class Complex implements SQLData
 		}
 	}
 
-	public Complex()
+	public ComplexScalar()
 	{
 	}
 
-	public Complex(double x, double y)
+	public ComplexScalar(double x, double y, String typeName)
 	{
 		m_x = x;
 		m_y = y;
+		m_typeName = typeName;
 	}
 
-	public String getSQLTypeName() throws SQLException
+	public String getSQLTypeName()
 	{
-		return "javatest.complex";
+		return m_typeName;
 	}
 
 	public void readSQL(SQLInput stream, String typeName) throws SQLException
 	{
+		s_logger.info(typeName + " from SQLInput");
 		m_x = stream.readDouble();
 		m_y = stream.readDouble();
-		s_logger.info("complex from SQLInput");
+		m_typeName = typeName;
 	}
 
 	public void writeSQL(SQLOutput stream) throws SQLException
 	{
+		s_logger.info(m_typeName + " to SQLOutput");
 		stream.writeDouble(m_x);
 		stream.writeDouble(m_y);
-		s_logger.info("complex to SQLOutput");
 	}
 
 	public String toString()
 	{
+		s_logger.info(m_typeName + " toString");
 		StringBuffer sb = new StringBuffer();
 		sb.append('(');
 		sb.append(m_x);
 		sb.append(',');
 		sb.append(m_y);
 		sb.append(')');
-		s_logger.info("complex toString");
 		return sb.toString();
+	}
+
+	public static ComplexScalar logAndReturn(ComplexScalar cpl)
+	{
+		s_logger.info(cpl.getSQLTypeName() + cpl);
+		return cpl;
 	}
 }

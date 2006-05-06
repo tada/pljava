@@ -71,13 +71,13 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong th
 			if(result < 0)
 				Exception_throwSPI("exec", result);
 	
-			pfree(command);
 		}
 		PG_CATCH();
 		{
 			Exception_throw_ERROR("SPI_exec");
 		}
 		PG_END_TRY();
+		pfree(command);
 		STACK_BASE_POP()
 	}
 	END_NATIVE	

@@ -263,9 +263,7 @@ Java_org_postgresql_pljava_internal_Portal__1close(JNIEnv* env, jclass clazz, jl
 	/* We don't use error checking here since we don't want an exception
 	 * caused by another exception when we attempt to close.
 	 */
-	if(_this != 0
-	&& !currentInvocation->errorOccured
-	&& !currentInvocation->inExprContextCB)
+	if(_this != 0)
 	{
 		Ptr2Long p2l;
 		p2l.longVal = _this;
@@ -279,7 +277,8 @@ Java_org_postgresql_pljava_internal_Portal__1close(JNIEnv* env, jclass clazz, jl
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
 
-		SPI_cursor_close(portal);
+		if(!(currentInvocation->errorOccured || currentInvocation->inExprContextCB))
+			SPI_cursor_close(portal);
 		END_NATIVE
 	}
 }

@@ -33,7 +33,7 @@ public abstract class JavaWrapper
 	/**
 	 * Returns the native pointer
 	 */
-	protected final long getNativePointer()
+	public final long getNativePointer()
 	{
 		return m_pointer;
 	}

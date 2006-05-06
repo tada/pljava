@@ -23,10 +23,11 @@ extern "C" {
  * @author Thomas Hallgren
  *****************************************************************/
 
-/*
- * Create the org.postgresql.pljava.internal.HeapTupleHeader instance
- */
-extern jobject HeapTupleHeader_create(HeapTupleHeader tuple);
+extern jobject HeapTupleHeader_getTupleDesc(HeapTupleHeader ht);
+
+extern jobject HeapTupleHeader_getObject(JNIEnv* env, jlong hth, jlong jtd, jint attrNo);
+
+extern void HeapTupleHeader_free(JNIEnv* env, jlong hth);
 
 #ifdef __cplusplus
 }

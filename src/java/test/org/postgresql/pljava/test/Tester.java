@@ -231,8 +231,8 @@ public class Tester
 					t.testModdatetimeTrigger();
 				if(p == null || !p.matcher("spiactions").matches())
 					t.testSPIActions();
-				if(p == null || !p.matcher("complexreturn").matches())
-					t.testComplexReturn();
+				if(p == null || !p.matcher("tuplereturn").matches())
+					t.testTupleReturn();
 				if(p == null || !p.matcher("setreturn").matches())
 					t.testSetReturn();
 				if(p == null || !p.matcher("callincall").matches())
@@ -255,8 +255,12 @@ public class Tester
 					t.testBinaryColumns();
 				if(p == null || !p.matcher("databasemetadata").matches())
 					t.testDatabaseMetaData();
-				if(p == null || !p.matcher("testresultset").matches())
+				if(p == null || !p.matcher("resultset").matches())
 					t.testResultSet();
+				if(p == null || !p.matcher("complexscalar").matches())
+					t.testComplexScalar();
+				if(p == null || !p.matcher("complextuple").matches())
+					t.testComplexTuple();
 			}
 			t.close();
 		}
@@ -315,12 +319,12 @@ public class Tester
 		rs.close();
 	}
 
-	public void testComplexReturn() throws SQLException
+	public void testTupleReturn() throws SQLException
 	{
-		System.out.println("*** testComplexReturn()");
+		System.out.println("*** testTupleReturn()");
 		Statement stmt = m_connection.createStatement();
 		ResultSet rs = stmt
-			.executeQuery("SELECT complexReturnToString(complexReturnExample(1, 5))");
+			.executeQuery("SELECT tupleReturnToString(tupleReturnExample(1, 5))");
 		while(rs.next())
 		{
 			String str = rs.getString(1);
@@ -545,6 +549,34 @@ public class Tester
 			System.out.println("nullOnEven(2) = "
 				+ (rs.wasNull() ? "null" : Integer.toString(n)));
 		}
+		rs.close();
+		stmt.close();
+	}
+
+	public void testComplexScalar() throws SQLException
+	{
+		System.out.println("*** testComplexScalar()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt
+			.executeQuery("SELECT logcomplex('(34.56,12.78)'::complex)");
+		if(!rs.next())
+			System.out.println("Unable to position ResultSet");
+		else
+			System.out.println(rs.getString(1));
+		rs.close();
+		stmt.close();
+	}
+
+	public void testComplexTuple() throws SQLException
+	{
+		System.out.println("*** testComplexTuple()");
+		Statement stmt = m_connection.createStatement();
+		ResultSet rs = stmt
+			.executeQuery("SELECT logcomplex((34.56,12.78)::complextuple)");
+		if(!rs.next())
+			System.out.println("Unable to position ResultSet");
+		else
+			System.out.println(rs.getString(1));
 		rs.close();
 		stmt.close();
 	}

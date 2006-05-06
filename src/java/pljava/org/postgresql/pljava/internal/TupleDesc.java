@@ -16,11 +16,13 @@ import java.sql.SQLException;
  */
 public class TupleDesc extends JavaWrapper
 {
+	private final int m_size;
 	private Class[] m_columnClasses;
 
-	TupleDesc(long pointer)
+	TupleDesc(long pointer, int size) throws SQLException
 	{
 		super(pointer);
+		m_size = size;
 	}
 
 	/**
@@ -76,12 +78,8 @@ public class TupleDesc extends JavaWrapper
 	 * Returns the number of columns in this tuple descriptor.
 	 */
 	public int size()
-	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _size(this.getNativePointer());
-		}
+		return m_size;
 	}
 
 	/**
@@ -92,12 +90,11 @@ public class TupleDesc extends JavaWrapper
 	{
 		if(m_columnClasses == null)
 		{
+			m_columnClasses = new Class[m_size];
 			synchronized(Backend.THREADLOCK)
 			{				
 				long _this = this.getNativePointer();
-				int top = _size(_this);
-				m_columnClasses = new Class[top];
-				for(int idx = 0; idx < top; ++idx)
+				for(int idx = 0; idx < m_size; ++idx)
 					m_columnClasses[idx] = _getOid(_this, idx+1).getJavaClass();
 			}
 		}
@@ -125,6 +122,5 @@ public class TupleDesc extends JavaWrapper
 	private static native String _getColumnName(long _this, int index) throws SQLException;
 	private static native int _getColumnIndex(long _this, String colName) throws SQLException;
 	private static native Tuple _formTuple(long _this, Object[] values) throws SQLException;
-	private static native int _size(long _this);
 	private static native Oid _getOid(long _this, int index) throws SQLException;
 }

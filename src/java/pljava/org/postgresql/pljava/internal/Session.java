@@ -7,6 +7,7 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import org.postgresql.pljava.ObjectPool;
 import org.postgresql.pljava.SavepointListener;
 import org.postgresql.pljava.TransactionListener;
+import org.postgresql.pljava.jdbc.SQLUtils;
 
 
 /**
@@ -99,24 +101,28 @@ public class Session implements org.postgresql.pljava.Session
 		SubXactListener.removeListener(listener);
 	}
 
-	public boolean executeAsSessionUser(Connection conn, String statement)
+	public void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException
 	{
 		Statement stmt = conn.createStatement();
 		synchronized(Backend.THREADLOCK)
 		{
+			ResultSet rs = null;
 			AclId sessionUser = AclId.getSessionUser();
 			AclId effectiveUser = AclId.getUser();
-			if(sessionUser.equals(effectiveUser))
-				return stmt.execute(statement);
-
 			try
 			{
 				_setUser(sessionUser);
-				return stmt.execute(statement);
+				if(stmt.execute(statement))
+				{
+					rs = stmt.getResultSet();
+					rs.next();
+				}
 			}
 			finally
 			{
+				SQLUtils.close(rs);
+				SQLUtils.close(stmt);
 				_setUser(effectiveUser);
 			}
 		}

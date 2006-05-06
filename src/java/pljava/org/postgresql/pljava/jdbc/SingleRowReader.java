@@ -9,7 +9,7 @@ package org.postgresql.pljava.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.postgresql.pljava.internal.HeapTupleHeader;
+import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
@@ -19,25 +19,37 @@ import org.postgresql.pljava.internal.TupleDesc;
  *
  * @author Thomas Hallgren
  */
-public class SingleTupleReader extends SingleRowResultSet
+public class SingleRowReader extends SingleRowResultSet
 {
-	private TupleDesc m_tupleDesc;
-	private final HeapTupleHeader m_tupleHeader;
+	private final TupleDesc m_tupleDesc;
+	private final long m_pointer;
 
-	public SingleTupleReader(HeapTupleHeader tupleHeader)
+	public SingleRowReader(long pointer, TupleDesc tupleDesc)
 	throws SQLException
 	{
-		m_tupleHeader = tupleHeader;
+		m_pointer = pointer;
+		m_tupleDesc = tupleDesc;
 	}
 
 	public void close()
 	{
 	}
 
+	public void finalize()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			_free(m_pointer);
+		}
+	}
+
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
-		return m_tupleHeader.getObject(columnIndex);
+		synchronized(Backend.THREADLOCK)
+		{
+			return _getObject(m_pointer, m_tupleDesc.getNativePointer(), columnIndex);
+		}
 	}
 
 	/**
@@ -133,10 +145,12 @@ public class SingleTupleReader extends SingleRowResultSet
 	}
 
 	protected final TupleDesc getTupleDesc()
-	throws SQLException
 	{
-		if(m_tupleDesc == null)
-			m_tupleDesc = m_tupleHeader.getTupleDesc();
 		return m_tupleDesc;
 	}
+
+	protected native void _free(long pointer);
+
+	private static native Object _getObject(long pointer, long tupleDescPointer, int index)
+	throws SQLException;
 }

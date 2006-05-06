@@ -76,11 +76,12 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 	if(count > 0)
 	{
 		int idx;
+		jobject typeMap = Invocation_getTypeMap();
 		values = (Datum*)palloc(count * sizeof(Datum));
 		for(idx = 0; idx < count; ++idx)
 		{
 			Oid typeId = SPI_getargtypeid(ePlan, idx);
-			Type type = Type_fromOid(typeId);
+			Type type = Type_fromOid(typeId, typeMap);
 			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{

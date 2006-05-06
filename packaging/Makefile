@@ -9,6 +9,7 @@ include $(PGXS)
 SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
 PGSQL_MAJOR_VER = $(word 1,$(SS_VERSION))
 PGSQL_MINOR_VER = $(word 2,$(SS_VERSION))
+DISTRIB := distrib
 
 ifdef USE_GCJ
 	GCJEXTRA=-gcj-
@@ -42,7 +43,7 @@ source_tarball:
 		-o -name build \
 		-o -name .cvsignore \
 		\) -prune -o \( -type f -exec cp --parent {} build/$(PKGNAME) \; \) )
-	@$(TAR) zcf distrib/$(SRCNAME).tar.gz $(PKGNAME)
+	@$(TAR) zcf $(DISTRIB)/$(SRCNAME).tar.gz $(PKGNAME)
 
 JAR				:= jar
 

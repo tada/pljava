@@ -71,6 +71,8 @@ extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
 extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
+extern void SQLInputFromTuple_initialize(void);
+extern void SQLOutputToTuple_initialize(void);
 
 static void initPLJavaClasses(void)
 {
@@ -131,6 +133,8 @@ static void initPLJavaClasses(void)
 	SubXactListener_initialize();
 	SQLInputFromChunk_initialize();
 	SQLOutputToChunk_initialize();
+	SQLInputFromTuple_initialize();
+	SQLOutputToTuple_initialize();
 
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 }

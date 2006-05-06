@@ -6,7 +6,6 @@
  *
  * @author Thomas Hallgren
  */
-#include "org_postgresql_pljava_internal_HeapTupleHeader.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/HeapTupleHeader.h"
 
@@ -17,83 +16,26 @@
 #include "pljava/Invocation.h"
 #include "pljava/type/TupleDesc.h"
 
-static jclass    s_HeapTupleHeader_class;
-static jmethodID s_HeapTupleHeader_init;
-
-jobject HeapTupleHeader_create(HeapTupleHeader ht)
+jobject HeapTupleHeader_getTupleDesc(HeapTupleHeader ht)
 {
-	return (ht == 0) ? 0 : JNI_newObject(
-		s_HeapTupleHeader_class,
-		s_HeapTupleHeader_init,
-		Invocation_createLocalWrapper(ht));
+	return TupleDesc_create(
+		lookup_rowtype_tupdesc(
+			HeapTupleHeaderGetTypeId(ht),
+			HeapTupleHeaderGetTypMod(ht)));
 }
 
-extern void HeapTupleHeader_initialize(void);
-void HeapTupleHeader_initialize(void)
-{
-	JNINativeMethod methods[] =
-	{
-		{
-		"_getObject",
-	  	"(JI)Ljava/lang/Object;",
-	  	Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject
-		},
-		{
-		"_getTupleDesc",
-		"(J)Lorg/postgresql/pljava/internal/TupleDesc;",
-		Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc
-		},
-		{
-		"_free",
-		"(J)V",
-		Java_org_postgresql_pljava_internal_HeapTupleHeader__1free
-		},
-		{ 0, 0, 0 }
-	};
-
-	s_HeapTupleHeader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/HeapTupleHeader"));
-	PgObject_registerNatives2(s_HeapTupleHeader_class, methods);
-	s_HeapTupleHeader_init = PgObject_getJavaMethod(s_HeapTupleHeader_class, "<init>", "(J)V");
-}
-
-/****************************************
- * JNI methods
- ****************************************/
-
-/*
- * Class:     org_postgresql_pljava_internal_HeapTupleHeader
- * Method:    _free
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_HeapTupleHeader__1free(JNIEnv* env, jobject _this, jlong pointer)
-{
-	BEGIN_NATIVE_NO_ERRCHECK
-	Invocation_freeLocalWrapper(pointer);
-	END_NATIVE
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_HeapTupleHeader
- * Method:    _getObject
- * Signature: (JI)Ljava/lang/Object;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, jclass clazz, jlong _this, jint attrNo)
+jobject HeapTupleHeader_getObject(JNIEnv* env, jlong hth, jlong jtd, jint attrNo)
 {
 	jobject result = 0;
-
-	HeapTupleHeader self = (HeapTupleHeader)Invocation_getWrappedPointer(_this);
-	if(self != 0)
+	HeapTupleHeader self = (HeapTupleHeader)Invocation_getWrappedPointer(hth);
+	if(self != 0 && jtd != 0)
 	{
+		Ptr2Long p2l;
+		p2l.longVal = jtd;
 		BEGIN_NATIVE
 		PG_TRY();
 		{
-			TupleDesc tupleDesc = lookup_rowtype_tupdesc(
-						HeapTupleHeaderGetTypeId(self),
-						HeapTupleHeaderGetTypMod(self));
-	
-			Oid typeId = SPI_gettypeid(tupleDesc, (int)attrNo);
+			Oid typeId = SPI_gettypeid((TupleDesc)p2l.ptrVal, (int)attrNo);
 			if(!OidIsValid(typeId))
 			{
 				Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
@@ -103,7 +45,7 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, jcl
 			{
 				Datum binVal;
 				bool wasNull = false;
-				Type type = Type_fromOid(typeId);
+				Type type = Type_fromOid(typeId, Invocation_getTypeMap());
 				if(Type_isPrimitive(type))
 					/*
 					 * This is a primitive type
@@ -123,26 +65,12 @@ Java_org_postgresql_pljava_internal_HeapTupleHeader__1getObject(JNIEnv* env, jcl
 		END_NATIVE
 	}
 	return result;
+		
 }
 
-/*
- * Class:     org_postgresql_pljava_internal_HeapTupleHeader
- * Method:    _getTupleDesc
- * Signature: ()Lorg/postgresql/pljava/internal/TupleDesc;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_HeapTupleHeader__1getTupleDesc(JNIEnv* env, jclass clazz, jlong _this)
+void HeapTupleHeader_free(JNIEnv* env, jlong hth)
 {
-	jobject result = 0;
-	HeapTupleHeader self = (HeapTupleHeader)Invocation_getWrappedPointer(_this);
-	if(self != 0)
-	{
-		BEGIN_NATIVE
-		result = TupleDesc_create(lookup_rowtype_tupdesc(
-						HeapTupleHeaderGetTypeId(self),
-						HeapTupleHeaderGetTypMod(self)));
-		END_NATIVE
-	}
-	return result;
+	BEGIN_NATIVE_NO_ERRCHECK
+	Invocation_freeLocalWrapper(hth);
+	END_NATIVE
 }
-

@@ -19,44 +19,56 @@
 					<value>-e /bin/make</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.core.errorOutputParser</key>
-					<value>org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.VCErrorParser;</value>
+					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>
+					<value>true</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.fullBuildTarget</key>
-					<value>clean all</value>
+					<key>org.eclipse.cdt.make.core.autoBuildTarget</key>
+					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.location</key>
+					<value>\org.postgresql.pljava</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.buildCommand</key>
+					<value>c:/msys/1.0/bin/make</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.environment</key>
+					<value>JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_06|</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.incrementalBuildTarget</key>
 					<value>all</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value></value>
+					<key>org.eclipse.cdt.make.core.fullBuildTarget</key>
+					<value>clean all</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
-					<value>false</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.environment</key>
-					<value>JAVA_HOME=C:/Progra~1/Java/jdk1.5.0_05|</value>
+					<key>org.eclipse.cdt.make.core.build.target.auto</key>
+					<value>all</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
 					<value>true</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.inc</key>
-					<value>all</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
+					<key>org.eclipse.cdt.make.core.append_environment</key>
 					<value>true</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.location</key>
-					<value>\org.postgresql.pljava</value>
+					<key>org.eclipse.cdt.make.core.stopOnError</key>
+					<value>false</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.full</key>
+					<value>clean all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>
+					<value>clean</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.build.command</key>
@@ -67,20 +79,20 @@
 					<value>clean</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>
+					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
 					<value>true</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>
-					<value>clean</value>
+					<key>org.eclipse.cdt.core.errorOutputParser</key>
+					<value>org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.VCErrorParser;</value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.append_environment</key>
-					<value>true</value>
+					<key>org.eclipse.cdt.make.core.buildLocation</key>
+					<value></value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.full</key>
-					<value>clean all</value>
+					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
+					<value>false</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.useDefaultBuildCmd</key>
@@ -91,19 +103,7 @@
 					<value></value>
 				</dictionary>
 				<dictionary>
-					<key>org.eclipse.cdt.make.core.buildCommand</key>
-					<value>c:/msys/1.0/bin/make</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.stopOnError</key>
-					<value>false</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.autoBuildTarget</key>
-					<value>all</value>
-				</dictionary>
-				<dictionary>
-					<key>org.eclipse.cdt.make.core.build.target.auto</key>
+					<key>org.eclipse.cdt.make.core.build.target.inc</key>
 					<value>all</value>
 				</dictionary>
 			</arguments>
@@ -129,7 +129,7 @@
 		<link>
 			<name>org.postgresql.jdbc</name>
 			<type>2</type>
-			<location>POSTGRESQL_HOME/src/interfaces/jdbc</location>
+			<locationURI>POSTGRESQL_HOME/src/interfaces/jdbc</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>

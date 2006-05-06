@@ -13,11 +13,11 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import org.postgresql.pljava.jdbc.SQLUtils;
 
 /**
  * @author Thomas Hallgren
@@ -72,8 +72,7 @@ class EntryStreamHandler extends URLStreamHandler
 	    	try
 			{
 
-				Connection conn = DriverManager.getConnection("jdbc:default:connection");
-				stmt = conn.prepareStatement(
+				stmt = SQLUtils.getDefaultConnection().prepareStatement(
 					"SELECT entryName, entryImage FROM sqlj.jar_entry WHERE entryId = ?");
 				stmt.setInt(1, m_entryId);
 	    		rs = stmt.executeQuery();
@@ -92,10 +91,8 @@ class EntryStreamHandler extends URLStreamHandler
 			}
 			finally
 			{
-				if(rs != null)
-					try { rs.close(); } catch(SQLException e) { /* ignore */ }
-				if(stmt != null)
-					try { stmt.close(); } catch(SQLException e) { /* ignore */ }
+				SQLUtils.close(rs);
+				SQLUtils.close(stmt);
 			}
 		}
 
