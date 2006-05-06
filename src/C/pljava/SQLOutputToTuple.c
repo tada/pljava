@@ -27,18 +27,14 @@ jobject SQLOutputToTuple_create(TupleDesc td)
 
 HeapTuple SQLOutputToTuple_getTuple(jobject sqlOutput)
 {
-	jobject tuple;
 	Ptr2Long p2l;
-
 	if(sqlOutput == 0)
 		return 0;
 
-	tuple = JNI_callObjectMethod(sqlOutput, s_SQLOutputToTuple_getTuple);
-	if(tuple == 0)
+	p2l.longVal = JNI_callLongMethod(sqlOutput, s_SQLOutputToTuple_getTuple);
+	if(p2l.longVal == 0)
 		return 0;
 
-	p2l.longVal = JavaWrapper_getPointer(tuple);
-	JNI_deleteLocalRef(tuple);
 	return (HeapTuple)p2l.ptrVal;
 }
 
@@ -49,5 +45,5 @@ void SQLOutputToTuple_initialize(void)
 {
 	s_SQLOutputToTuple_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLOutputToTuple"));
 	s_SQLOutputToTuple_init = PgObject_getJavaMethod(s_SQLOutputToTuple_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");
-	s_SQLOutputToTuple_getTuple = PgObject_getJavaMethod(s_SQLOutputToTuple_class, "getTuple", "()Lorg/postgresql/pljava/internal/Tuple;");
+	s_SQLOutputToTuple_getTuple = PgObject_getJavaMethod(s_SQLOutputToTuple_class, "getTuple", "()J");
 }

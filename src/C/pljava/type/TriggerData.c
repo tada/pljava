@@ -35,15 +35,11 @@ jobject TriggerData_create(TriggerData* triggerData)
 
 HeapTuple TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull)
 {
+	Ptr2Long p2l;
 	HeapTuple ret = 0;
-	jobject jtuple = JNI_callObjectMethod(jtd, s_TriggerData_getTriggerReturnTuple);
-	if(jtuple != 0)
-	{
-		Ptr2Long p2l;
-		p2l.longVal = JavaWrapper_getPointer(jtuple);
+	p2l.longVal = JNI_callLongMethod(jtd, s_TriggerData_getTriggerReturnTuple);
+	if(p2l.longVal != 0)
 		ret = heap_copytuple((HeapTuple)p2l.ptrVal);
-		JNI_deleteLocalRef(jtuple);
-	}
 	else
 		*wasNull = true;
 	return ret;
@@ -133,7 +129,7 @@ void TriggerData_initialize(void)
 	PgObject_registerNatives2(s_TriggerData_class, methods);
 
 	s_TriggerData_init = PgObject_getJavaMethod(s_TriggerData_class, "<init>", "(J)V");
-	s_TriggerData_getTriggerReturnTuple = PgObject_getJavaMethod(s_TriggerData_class, "getTriggerReturnTuple", "()Lorg/postgresql/pljava/internal/Tuple;");
+	s_TriggerData_getTriggerReturnTuple = PgObject_getJavaMethod(s_TriggerData_class, "getTriggerReturnTuple", "()J");
 
 	/* Use interface name for signatures.
 	 */

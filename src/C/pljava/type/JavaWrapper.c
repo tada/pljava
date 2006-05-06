@@ -17,7 +17,7 @@ static jfieldID  s_JavaWrapper_m_pointer;
 
 MemoryContext JavaMemoryContext;
 
-jlong JavaWrapper_getPointer(jobject managed)
+static jlong _getPointer(jobject managed)
 {
 	if(managed == 0)
 	{
@@ -31,7 +31,7 @@ jlong JavaWrapper_getPointer(jobject managed)
 static Datum _JavaWrapper_coerceObject(Type self, jobject nStruct)
 {
 	Ptr2Long p2l;
-	p2l.longVal = JavaWrapper_getPointer(nStruct);
+	p2l.longVal = _getPointer(nStruct);
 	return PointerGetDatum(p2l.ptrVal);
 }
 

@@ -85,21 +85,21 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 
 	/**
 	 * Commits the changes made on the <code>ResultSet</code> representing
-	 * <code>new</code> and returns the new tuple. This method is called
-	 * automatically by the trigger handler and should not be called in any
-	 * other way.
+	 * <code>new</code> and returns the native pointer of new tuple. This
+	 * method is called automatically by the trigger handler and should not
+	 * be called in any other way.
 	 * 
 	 * @return The modified tuple, or if no modifications have been made, the
 	 *         original tuple.
 	 */
-	public Tuple getTriggerReturnTuple() throws SQLException
+	public long getTriggerReturnTuple() throws SQLException
 	{
 		if(this.isFiredForStatement() || this.isFiredAfter())
 			//
 			// Only triggers fired before each row can have a return
 			// value.
 			//
-			return null;
+			return 0;
 
 		if (m_new != null)
 		{
@@ -109,15 +109,13 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 				Tuple original = (Tuple)changes[0];
 				int[] indexes = (int[])changes[1];
 				Object[] values = (Object[])changes[2];
-				return this.getRelation().modifyTuple(original, indexes, values);
+				return this.getRelation().modifyTuple(original, indexes, values).getNativePointer();
 			}
 		}
 
 		// Return the original tuple.
 		//
-		return this.isFiredByUpdate()
-			? this.getNewTuple()
-			: this.getTriggerTuple();
+		return (this.isFiredByUpdate() ? this.getNewTuple() : this.getTriggerTuple()).getNativePointer();
 	}
 
 	public String getTableName()

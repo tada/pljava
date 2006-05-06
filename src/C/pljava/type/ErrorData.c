@@ -14,6 +14,7 @@
 
 static jclass    s_ErrorData_class;
 static jmethodID s_ErrorData_init;
+static jmethodID s_ErrorData_getNativePointer;
 
 jobject ErrorData_getCurrentError(void)
 {
@@ -31,9 +32,9 @@ jobject ErrorData_getCurrentError(void)
 }
 
 ErrorData* ErrorData_getErrorData(jobject jed)
-{
+{	
 	Ptr2Long p2l;
-	p2l.longVal = JavaWrapper_getPointer(jed);
+	p2l.longVal = JNI_callLongMethod(jed, s_ErrorData_getNativePointer);
 	return (ErrorData*)p2l.ptrVal;
 }
 
@@ -134,6 +135,7 @@ void ErrorData_initialize(void)
 	s_ErrorData_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ErrorData"));
 	PgObject_registerNatives2(s_ErrorData_class, methods);
 	s_ErrorData_init = PgObject_getJavaMethod(s_ErrorData_class, "<init>", "(J)V");
+	s_ErrorData_getNativePointer = PgObject_getJavaMethod(s_ErrorData_class, "getNativePointer", "()J");
 }
 
 /****************************************

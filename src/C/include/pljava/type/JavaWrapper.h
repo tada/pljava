@@ -23,11 +23,6 @@ extern "C" {
  *************************************************************************/
 
 /*
- * Return the pointer value stored in a Java wrapper object.
- */
-extern jlong JavaWrapper_getPointer(jobject javaWrapper);
-
-/*
  * Allocates a new TypeClass and assigns a default coerceObject method used by
  * all JavaWrapper derivates.
  */

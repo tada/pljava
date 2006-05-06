@@ -58,18 +58,12 @@ static jobject _createWriter(jobject tupleDesc)
 
 static HeapTuple _getTupleAndClear(jobject jrps)
 {
-	jobject tuple;
 	Ptr2Long p2l;
 
 	if(jrps == 0)
 		return 0;
 
-	tuple = JNI_callObjectMethod(jrps, s_SingleRowWriter_getTupleAndClear);
-	if(tuple == 0)
-		return 0;
-
-	p2l.longVal = JavaWrapper_getPointer(tuple);
-	JNI_deleteLocalRef(tuple);
+	p2l.longVal = JNI_callLongMethod(jrps, s_SingleRowWriter_getTupleAndClear);
 	return (HeapTuple)p2l.ptrVal;
 }
 
@@ -269,7 +263,7 @@ void Composite_initialize(void)
 
 	s_SingleRowWriter_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowWriter"));
 	s_SingleRowWriter_init = PgObject_getJavaMethod(s_SingleRowWriter_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");
-	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(s_SingleRowWriter_class, "getTupleAndClear", "()Lorg/postgresql/pljava/internal/Tuple;");
+	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(s_SingleRowWriter_class, "getTupleAndClear", "()J");
 
 	s_ResultSetProvider_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/ResultSetProvider"));
 	s_ResultSetProvider_assignRowValues = PgObject_getJavaMethod(s_ResultSetProvider_class, "assignRowValues", "(Ljava/sql/ResultSet;I)Z");

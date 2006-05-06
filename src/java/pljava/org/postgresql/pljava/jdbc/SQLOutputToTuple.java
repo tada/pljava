@@ -47,22 +47,24 @@ public class SQLOutputToTuple implements SQLOutput
 	}
 
 	/**
-	 * Creates a tuple from the written values. All values must have
-	 * been written.
+	 * Creates a tuple from the written values and returns its native pointer.
+	 * All values must have been written. This method is called automatically by
+	 * the trigger handler and should not be called in any other way.
+	 * 
 	 * @return The Tuple reflecting the current row values.
 	 * @throws SQLException
 	 */
-	public Tuple getTuple()
+	public long getTuple()
 	throws SQLException
 	{
 		if(m_tuple != null)
-			return m_tuple;
+			return m_tuple.getNativePointer();
 
 		if(m_index < m_values.length)
 			throw new SQLException("Too few values have been written");
 
 		m_tuple = m_tupleDesc.formTuple(m_values);
-		return m_tuple;
+		return m_tuple.getNativePointer();
 	}
 
 	public void writeArray(Array value) throws SQLException

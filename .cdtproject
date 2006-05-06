@@ -35,7 +35,7 @@
 <buildTargets>
 <target name="all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments/>
+<buildArguments>-e /bin/make</buildArguments>
 <buildTarget>all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
@@ -46,6 +46,13 @@
 <buildTarget>clean</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
+</target>
+<target name="all against head" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+<buildCommand>make</buildCommand>
+<buildArguments>PGSQLSRC=C:/Tada/Workspace/pgsql/src</buildArguments>
+<buildTarget>all</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>false</useDefaultCommand>
 </target>
 </buildTargets>
 </item>

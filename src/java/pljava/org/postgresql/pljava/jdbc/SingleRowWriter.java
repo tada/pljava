@@ -110,11 +110,14 @@ public class SingleRowWriter extends SingleRowResultSet
 
 	/**
 	 * Creates a tuple from the current row values and then cancel all row
-	 * updates to prepare for a new row.
-	 * @return The Tuple reflecting the current row values.
+	 * updates to prepare for a new row. This method is called automatically by
+	 * the trigger handler and should not be called in any other way.
+	 * 
+	 * @return The native pointer of the Tuple reflecting the current row
+	 *         values.
 	 * @throws SQLException
 	 */
-	public Tuple getTupleAndClear()
+	public long getTupleAndClear()
 	throws SQLException
 	{
 		// We hold on to the tuple as an instance variable so that it doesn't
@@ -124,7 +127,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		//
 		m_tuple = this.getTupleDesc().formTuple(m_values);
 		Arrays.fill(m_values, null);
-		return m_tuple;
+		return m_tuple.getNativePointer();
 	}
 
 	protected final TupleDesc getTupleDesc()
