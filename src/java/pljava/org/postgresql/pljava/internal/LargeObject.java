@@ -159,8 +159,6 @@ public class LargeObject extends JavaWrapper
 		}
 	}
 
-	protected native void _free(long pointer);
-
 	private static native Oid _create(int flags)
 	throws SQLException;
 

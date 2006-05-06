@@ -25,10 +25,16 @@ static jmethodID s_LargeObject_init;
  */
 jobject LargeObject_create(LargeObjectDesc* lo)
 {
-	return (lo == 0) ? 0 : JNI_newObject(
-			s_LargeObject_class,
-			s_LargeObject_init,
-			Invocation_createLocalWrapper(lo));
+	jobject jlo;
+	Ptr2Long loH;
+
+	if(lo == 0)
+		return 0;
+
+	loH.longVal = 0L; /* ensure that the rest is zeroed out */
+	loH.ptrVal = lo;
+	jlo = JNI_newObject(s_LargeObject_class, s_LargeObject_init, loH.longVal);
+	return jlo;
 }
 
 static Type LargeObject_obtain(Oid typeId)
@@ -55,11 +61,6 @@ void LargeObject_initialize(void)
 		"_open",
 	  	"(Lorg/postgresql/pljava/internal/Oid;I)Lorg/postgresql/pljava/internal/LargeObject;",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1open
-		},
-		{
-		"_free",
-	  	"(J)V",
-	  	Java_org_postgresql_pljava_internal_LargeObject__1free
 		},
 		{
 		"_close",
@@ -113,19 +114,6 @@ void LargeObject_initialize(void)
 /****************************************
  * JNI methods
  ****************************************/
-/*
- * Class:     org_postgresql_pljava_internal_LargeObject
- * Method:    _free
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_LargeObject__1free(JNIEnv* env, jobject _this, jlong pointer)
-{
-	BEGIN_NATIVE_NO_ERRCHECK
-	Invocation_freeLocalWrapper(pointer);
-	END_NATIVE
-}
-
 /*
  * Class:     org_postgresql_pljava_internal_LargeObject
  * Method:    _create
@@ -189,10 +177,17 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_LargeObject__1open(JNIEnv* env, jclass cls, jobject oid, jint flags)
 {
 	jobject result = 0;
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+	MemoryContext currCtx = MemoryContextSwitchTo(JavaMemoryContext);
+#endif
 	BEGIN_NATIVE
 	PG_TRY();
 	{
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 		result = LargeObject_create(inv_open(Oid_getOid(oid), (int)flags));
+#else
+		result = LargeObject_create(inv_open(Oid_getOid(oid), (int)flags, JavaMemoryContext));
+#endif
 	}
 	PG_CATCH();
 	{
@@ -200,6 +195,9 @@ Java_org_postgresql_pljava_internal_LargeObject__1open(JNIEnv* env, jclass cls, 
 	}
 	PG_END_TRY();
 	END_NATIVE
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+	MemoryContextSwitchTo(currCtx);
+#endif
 	return result;
 }
 
