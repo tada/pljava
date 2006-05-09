@@ -91,6 +91,58 @@ public class Parameters
 		return nullCount;
 	}
 
+	public static int countNulls(Integer[] intArray) throws SQLException
+	{
+		int nullCount = 0;
+		int top = intArray.length;
+		for(int idx = 0; idx < top; ++idx)
+		{
+			if(intArray[idx] == null)
+				nullCount++;
+		}
+		return nullCount;
+	}
+
+	public static int[] print(int[] intArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = intArray.length;
+		buf.append("int[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(intArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(intArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return intArray;
+	}
+
+	public static Integer[] print(Integer[] intArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = intArray.length;
+		buf.append("int[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(intArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(intArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return intArray;
+	}
+
 	public static void print(Date time)
 	{
 		DateFormat p = DateFormat.getDateInstance(DateFormat.FULL);

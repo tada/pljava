@@ -130,6 +130,11 @@ const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAlt
 	return self->m_class->getJNIReturnSignature(self, forMultiCall, useAltRepr);
 }
 
+Type Type_getArrayType(Type self)
+{
+	return self->m_class->arrayType;
+}
+
 Type Type_getObjectType(Type self)
 {
 	return self->m_class->objectType;
@@ -305,6 +310,14 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	typeTup    = PgObject_getValidTuple(TYPEOID, typeId, "type");
 	typeStruct = (Form_pg_type)GETSTRUCT(typeTup);
+
+	if(typeStruct->typelem != 0 && typeStruct->typlen == -1)
+	{
+		type = Type_getArrayType(Type_fromOid(typeStruct->typelem, typeMap));
+		if(type == 0)
+			type = String_obtain(typeId);
+		goto finally;
+	}
 
 	if(typeStruct->typbasetype != 0)
 	{
@@ -556,6 +569,7 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	PgObjectClass_init((PgObjectClass)self, typeName, instanceSize, 0);
 	self->JNISignature    = "";
 	self->javaTypeName    = "";
+	self->arrayType       = 0;
 	self->objectType      = 0;
 	self->canReplaceType  = _Type_canReplaceType;
 	self->coerceDatum     = (jvalue (*)(Type, Datum))_PgObject_pureVirtualCalled;

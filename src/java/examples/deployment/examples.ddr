@@ -28,6 +28,16 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.print'
 			LANGUAGE java;
 
+		CREATE FUNCTION javatest.java_print(int[])
+			RETURNS int[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.java_printObj(int[])
+			RETURNS int[]
+			AS 'org.postgresql.pljava.example.Parameters.print(java.lang.Integer[])'
+			LANGUAGE java;
+
 		CREATE FUNCTION javatest.java_addOne(int)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'
@@ -276,6 +286,11 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.countNulls(record)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.Parameters.countNulls'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.countNulls(int[])
+			RETURNS int
+			AS 'org.postgresql.pljava.example.Parameters.countNulls(java.lang.Integer[])'
 			LANGUAGE java;
 
 		/* Here is an example of a scalar type that maps to a Java class.

@@ -12,9 +12,6 @@
 
 #include "pljava/type/Type_priv.h"
 
-/*
- * any primitive type.
- */
 static TypeClass s_anyClass;
 static Type s_any;
 

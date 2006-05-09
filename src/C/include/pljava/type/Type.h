@@ -122,6 +122,11 @@ extern const char* Type_getJNISignature(Type self);
 extern const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr);
 
 /*
+ * Returns the array Type or NULL if no such type exists.
+ */
+extern Type Type_getArrayType(Type self);
+
+/*
  * Returns the object Type if the type is primitive and NULL if not.
  */
 extern Type Type_getObjectType(Type self);

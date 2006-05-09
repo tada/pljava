@@ -551,6 +551,22 @@ void JNI_getByteArrayRegion(jbyteArray array, jsize start, jsize len, jbyte* buf
 	END_JAVA
 }
 
+jdouble* JNI_getDoubleArrayElements(jdoubleArray array, jboolean* isCopy)
+{
+	jdouble* result;
+	BEGIN_JAVA
+	result = (*env)->GetDoubleArrayElements(env, array, isCopy);
+	END_JAVA
+	return result;
+}
+
+void JNI_getDoubleArrayRegion(jdoubleArray array, jsize start, jsize len, jdouble* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetDoubleArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
 jfieldID JNI_getFieldID(jclass clazz, const char* name, const char* sig)
 {
 	jfieldID result;
@@ -558,6 +574,22 @@ jfieldID JNI_getFieldID(jclass clazz, const char* name, const char* sig)
 	result = (*env)->GetFieldID(env, clazz, name, sig);
 	END_JAVA
 	return result;
+}
+
+jfloat* JNI_getFloatArrayElements(jfloatArray array, jboolean* isCopy)
+{
+	jfloat* result;
+	BEGIN_JAVA
+	result = (*env)->GetFloatArrayElements(env, array, isCopy);
+	END_JAVA
+	return result;
+}
+
+void JNI_getFloatArrayRegion(jfloatArray array, jsize start, jsize len, jfloat* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetFloatArrayRegion(env, array, start, len, buf);
+	END_JAVA
 }
 
 jint* JNI_getIntArrayElements(jintArray array, jboolean* isCopy)
@@ -569,6 +601,13 @@ jint* JNI_getIntArrayElements(jintArray array, jboolean* isCopy)
 	return result;
 }
 
+void JNI_getIntArrayRegion(jintArray array, jsize start, jsize len, jint* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetIntArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
 jint JNI_getIntField(jobject object, jfieldID field)
 {
 	jint result;
@@ -576,6 +615,22 @@ jint JNI_getIntField(jobject object, jfieldID field)
 	result = (*env)->GetIntField(env, object, field);
 	END_JAVA
 	return result;
+}
+
+jlong* JNI_getLongArrayElements(jlongArray array, jboolean* isCopy)
+{
+	jlong* result;
+	BEGIN_JAVA
+	result = (*env)->GetLongArrayElements(env, array, isCopy);
+	END_JAVA
+	return result;
+}
+
+void JNI_getLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetLongArrayRegion(env, array, start, len, buf);
+	END_JAVA
 }
 
 jlong JNI_getLongField(jobject object, jfieldID field)
@@ -612,6 +667,22 @@ jclass JNI_getObjectClass(jobject obj)
 	result = (*env)->GetObjectClass(env, obj);
 	END_JAVA
 	return result;
+}
+
+jshort* JNI_getShortArrayElements(jshortArray array, jboolean* isCopy)
+{
+	jshort* result;
+	BEGIN_JAVA
+	result = (*env)->GetShortArrayElements(env, array, isCopy);
+	END_JAVA
+	return result;
+}
+
+void JNI_getShortArrayRegion(jshortArray array, jsize start, jsize len, jshort* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetShortArrayRegion(env, array, start, len, buf);
+	END_JAVA
 }
 
 jfieldID JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig)
@@ -661,6 +732,23 @@ const char* JNI_getStringUTFChars(jstring string, jboolean* isCopy)
 	return result;
 }
 
+jboolean JNI_hasNullArrayElement(jobjectArray array)
+{
+	jsize idx;
+	jboolean foundNull = JNI_FALSE;
+	BEGIN_JAVA
+	idx = (*env)->GetArrayLength(env, array);
+	while(--idx >= 0)
+	{
+		if((*env)->GetObjectArrayElement(env, array, idx) != 0)
+			continue;
+		foundNull = JNI_TRUE;
+		break;
+	}
+	END_JAVA
+	return foundNull;
+}
+
 jboolean JNI_isCallingJava(void)
 {
 	return jniEnv == 0;
@@ -702,6 +790,24 @@ jobject JNI_newDirectByteBuffer(void* address, jlong capacity)
 	return result;
 }
 
+jdoubleArray JNI_newDoubleArray(jsize length)
+{
+	jdoubleArray result;
+	BEGIN_JAVA
+	result = (*env)->NewDoubleArray(env, length);
+	END_JAVA
+	return result;
+}
+
+jfloatArray JNI_newFloatArray(jsize length)
+{
+	jfloatArray result;
+	BEGIN_JAVA
+	result = (*env)->NewFloatArray(env, length);
+	END_JAVA
+	return result;
+}
+
 jobject JNI_newGlobalRef(jobject object)
 {
 	jobject result;
@@ -711,11 +817,38 @@ jobject JNI_newGlobalRef(jobject object)
 	return result;
 }
 
+jintArray JNI_newIntArray(jsize length)
+{
+	jintArray result;
+	BEGIN_JAVA
+	result = (*env)->NewIntArray(env, length);
+	END_JAVA
+	return result;
+}
+
 jobject JNI_newLocalRef(jobject object)
 {
 	jobject result;
 	BEGIN_JAVA
 	result = (*env)->NewLocalRef(env, object);
+	END_JAVA
+	return result;
+}
+
+jlongArray JNI_newLongArray(jsize length)
+{
+	jlongArray result;
+	BEGIN_JAVA
+	result = (*env)->NewLongArray(env, length);
+	END_JAVA
+	return result;
+}
+
+jshortArray JNI_newShortArray(jsize length)
+{
+	jshortArray result;
+	BEGIN_JAVA
+	result = (*env)->NewShortArray(env, length);
 	END_JAVA
 	return result;
 }
@@ -782,10 +915,38 @@ void JNI_releaseByteArrayElements(jbyteArray array, jbyte* elems, jint mode)
 	END_JAVA
 }
 
+void JNI_releaseDoubleArrayElements(jdoubleArray array, jdouble* elems, jint mode)
+{
+	BEGIN_JAVA
+	(*env)->ReleaseDoubleArrayElements(env, array, elems, mode);
+	END_JAVA
+}
+
+void JNI_releaseFloatArrayElements(jfloatArray array, jfloat* elems, jint mode)
+{
+	BEGIN_JAVA
+	(*env)->ReleaseFloatArrayElements(env, array, elems, mode);
+	END_JAVA
+}
+
 void JNI_releaseIntArrayElements(jintArray array, jint* elems, jint mode)
 {
 	BEGIN_JAVA
 	(*env)->ReleaseIntArrayElements(env, array, elems, mode);
+	END_JAVA
+}
+
+void JNI_releaseLongArrayElements(jlongArray array, jlong* elems, jint mode)
+{
+	BEGIN_JAVA
+	(*env)->ReleaseLongArrayElements(env, array, elems, mode);
+	END_JAVA
+}
+
+void JNI_releaseShortArrayElements(jshortArray array, jshort* elems, jint mode)
+{
+	BEGIN_JAVA
+	(*env)->ReleaseShortArrayElements(env, array, elems, mode);
 	END_JAVA
 }
 
@@ -812,11 +973,39 @@ void JNI_setByteArrayRegion(jbyteArray array, jsize start, jsize len, jbyte* buf
 	END_JAVA
 }
 
+void JNI_setDoubleArrayRegion(jdoubleArray array, jsize start, jsize len, jdouble* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetDoubleArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
+void JNI_setFloatArrayRegion(jfloatArray array, jsize start, jsize len, jfloat* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetFloatArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
 JNIEnv* JNI_setEnv(JNIEnv* env)
 {
 	JNIEnv* oldEnv = jniEnv;
 	jniEnv = env;
 	return oldEnv;
+}
+
+void JNI_setIntArrayRegion(jintArray array, jsize start, jsize len, jint* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetIntArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
+void JNI_setLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetLongArrayRegion(env, array, start, len, buf);
+	END_JAVA
 }
 
 void JNI_setLongField(jobject object, jfieldID field, jlong value)
@@ -830,6 +1019,13 @@ void JNI_setObjectArrayElement(jobjectArray array, jsize index, jobject value)
 {
 	BEGIN_JAVA
 	(*env)->SetObjectArrayElement(env, array, index, value);
+	END_JAVA
+}
+
+void JNI_setShortArrayRegion(jshortArray array, jsize start, jsize len, jshort* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetShortArrayRegion(env, array, start, len, buf);
 	END_JAVA
 }
 

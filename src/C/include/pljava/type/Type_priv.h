@@ -36,6 +36,12 @@ struct TypeClass_
 	const char* javaTypeName;
 
 	/*
+	 * Points to the array type that corresponds to this type. If the
+	 * type has no corresponding array type, this type will be NULL.
+	 */
+	Type arrayType;
+
+	/*
 	 * Points to the object type that corresponds to this type
 	 * if this type is a primitive. For non primitives, this attribute
 	 * will be NULL.
