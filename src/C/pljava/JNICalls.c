@@ -551,6 +551,22 @@ void JNI_getByteArrayRegion(jbyteArray array, jsize start, jsize len, jbyte* buf
 	END_JAVA
 }
 
+jboolean* JNI_getBooleanArrayElements(jbooleanArray array, jboolean* isCopy)
+{
+	jboolean* result;
+	BEGIN_JAVA
+	result = (*env)->GetBooleanArrayElements(env, array, isCopy);
+	END_JAVA
+	return result;
+}
+
+void JNI_getBooleanArrayRegion(jbooleanArray array, jsize start, jsize len, jboolean* buf)
+{
+	BEGIN_JAVA
+	(*env)->GetBooleanArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
 jdouble* JNI_getDoubleArrayElements(jdoubleArray array, jboolean* isCopy)
 {
 	jdouble* result;
@@ -772,6 +788,15 @@ jbyteArray JNI_newByteArray(jsize length)
 	return result;
 }
 
+jbooleanArray JNI_newBooleanArray(jsize length)
+{
+	jbooleanArray result;
+	BEGIN_JAVA
+	result = (*env)->NewBooleanArray(env, length);
+	END_JAVA
+	return result;
+}
+
 jobjectArray JNI_newObjectArray(jsize length, jclass elementClass, jobject initialElement)
 {
 	jobjectArray result;
@@ -915,6 +940,13 @@ void JNI_releaseByteArrayElements(jbyteArray array, jbyte* elems, jint mode)
 	END_JAVA
 }
 
+void JNI_releaseBooleanArrayElements(jbooleanArray array, jboolean* elems, jint mode)
+{
+	BEGIN_JAVA
+	(*env)->ReleaseBooleanArrayElements(env, array, elems, mode);
+	END_JAVA
+}
+
 void JNI_releaseDoubleArrayElements(jdoubleArray array, jdouble* elems, jint mode)
 {
 	BEGIN_JAVA
@@ -970,6 +1002,13 @@ void JNI_setByteArrayRegion(jbyteArray array, jsize start, jsize len, jbyte* buf
 {
 	BEGIN_JAVA
 	(*env)->SetByteArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
+void JNI_setBooleanArrayRegion(jbooleanArray array, jsize start, jsize len, jboolean* buf)
+{
+	BEGIN_JAVA
+	(*env)->SetBooleanArrayRegion(env, array, start, len, buf);
 	END_JAVA
 }
 
