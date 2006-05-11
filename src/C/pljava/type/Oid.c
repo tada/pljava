@@ -20,8 +20,6 @@
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 
-static Type      s_Oid;
-static TypeClass s_OidClass;
 static jclass    s_Oid_class;
 static jmethodID s_Oid_init;
 static jmethodID s_Oid_registerType;
@@ -131,16 +129,12 @@ static Datum _Oid_coerceObject(Type self, jobject oidObj)
 	return Oid_getOid(oidObj);
 }
 
-static Type Oid_obtain(Oid typeId)
-{
-	return s_Oid;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void Oid_initialize(void);
 void Oid_initialize(void)
 {
+	TypeClass cls;
 	JNINativeMethod methods[] = {
 		{
 		"_forTypeName",
@@ -171,17 +165,16 @@ void Oid_initialize(void)
 	s_Oid_init = PgObject_getJavaMethod(s_Oid_class, "<init>", "(I)V");
 	s_Oid_m_native = PgObject_getJavaField(s_Oid_class, "m_native", "I");
 
-	s_OidClass = TypeClass_alloc("type.Oid");
-	s_OidClass->JNISignature   = "Lorg/postgresql/pljava/internal/Oid;";
-	s_OidClass->javaTypeName   = "org.postgresql.pljava.internal.Oid";
-	s_OidClass->coerceDatum    = _Oid_coerceDatum;
-	s_OidClass->coerceObject   = _Oid_coerceObject;
-	s_Oid = TypeClass_allocInstance(s_OidClass, OIDOID);
+	cls = TypeClass_alloc("type.Oid");
+	cls->JNISignature   = "Lorg/postgresql/pljava/internal/Oid;";
+	cls->javaTypeName   = "org.postgresql.pljava.internal.Oid";
+	cls->coerceDatum    = _Oid_coerceDatum;
+	cls->coerceObject   = _Oid_coerceObject;
+	Type_registerType("org.postgresql.pljava.internal.Oid", TypeClass_allocInstance(cls, OIDOID));
+
 	tmp = Oid_create(OIDOID);
 	s_OidOid = JNI_newGlobalRef(tmp);
 	JNI_deleteLocalRef(tmp);
-
-	Type_registerType(OIDOID, "org.postgresql.pljava.internal.Oid", Oid_obtain);
 
 	s_Oid_registerType = PgObject_getStaticJavaMethod(
 				s_Oid_class, "registerType",

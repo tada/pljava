@@ -220,9 +220,9 @@ void String_initialize(void)
 	 * Registering known types will increase the performance
 	 * a bit. The "default" is used when all else fails.
 	 */
-	Type_registerType(TEXTOID,    0, String_obtain);
-	Type_registerType(CSTRINGOID, 0, String_obtain);
-	Type_registerType(BPCHAROID,  0, String_obtain);
-	Type_registerType(NAMEOID,    0, String_obtain);
-	Type_registerType(VARCHAROID, "java.lang.String", String_obtain);
+	Type_registerType2(TEXTOID,    0, String_obtain);
+	Type_registerType2(CSTRINGOID, 0, String_obtain);
+	Type_registerType2(BPCHAROID,  0, String_obtain);
+	Type_registerType2(NAMEOID,    0, String_obtain);
+	Type_registerType2(VARCHAROID, "java.lang.String", String_obtain);
 }

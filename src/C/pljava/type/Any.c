@@ -12,17 +12,12 @@
 
 #include "pljava/type/Type_priv.h"
 
-static TypeClass s_anyClass;
-static Type s_any;
-
-static Type _Any_obtain(Oid typeId)
-{
-	return s_any;
-}
-
 static Type _Any_getRealType(Type self, Oid realId, jobject typeMap)
 {
-	return Type_objectTypeFromOid(realId, typeMap);
+	Type real = Type_fromOid(realId, typeMap);
+	if(Type_isPrimitive(real) && Type_getElementType(real) == 0)
+		real = Type_getObjectType(real);
+	return real;
 }
 
 /* Make this datatype available to the postgres system.
@@ -30,12 +25,10 @@ static Type _Any_getRealType(Type self, Oid realId, jobject typeMap)
 extern void Any_initialize(void);
 void Any_initialize(void)
 {
-	s_anyClass = TypeClass_alloc("type.any");
-	s_anyClass->JNISignature = "Ljava/lang/Object;";
-	s_anyClass->javaTypeName = "java.lang.Object";
-	s_anyClass->dynamic      = true;
-	s_anyClass->getRealType  = _Any_getRealType;
-	s_any = TypeClass_allocInstance(s_anyClass, ANYELEMENTOID);
-
-	Type_registerType(ANYELEMENTOID, "java.lang.Object", _Any_obtain);
+	TypeClass cls = TypeClass_alloc("type.any");
+	cls->JNISignature = "Ljava/lang/Object;";
+	cls->javaTypeName = "java.lang.Object";
+	cls->dynamic      = true;
+	cls->getRealType  = _Any_getRealType;
+	Type_registerType("java.lang.Object", TypeClass_allocInstance(cls, ANYELEMENTOID));
 }

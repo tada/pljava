@@ -50,7 +50,7 @@ jobject HeapTupleHeader_getObject(JNIEnv* env, jlong hth, jlong jtd, jint attrNo
 					/*
 					 * This is a primitive type
 					 */
-					type = type->m_class->objectType;
+					type = Type_getObjectType(type);
 	
 				binVal = GetAttributeByNum(self, (AttrNumber)attrNo, &wasNull);
 				if(!wasNull)

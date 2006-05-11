@@ -20,8 +20,6 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Oid.h"
 
-static Type      s_TupleDesc;
-static TypeClass s_TupleDescClass;
 static jclass    s_TupleDesc_class;
 static jmethodID s_TupleDesc_init;
 
@@ -74,16 +72,12 @@ static jvalue _TupleDesc_coerceDatum(Type self, Datum arg)
 	return result;
 }
 
-static Type TupleDesc_obtain(Oid typeId)
-{
-	return s_TupleDesc;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void TupleDesc_initialize(void);
 void TupleDesc_initialize(void)
 {
+	TypeClass cls;
 	JNINativeMethod methods[] = {
 		{
 		"_getColumnName",
@@ -116,13 +110,11 @@ void TupleDesc_initialize(void)
 	PgObject_registerNatives2(s_TupleDesc_class, methods);
 	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>", "(JI)V");
 
-	s_TupleDescClass = JavaWrapperClass_alloc("type.TupleDesc");
-	s_TupleDescClass->JNISignature   = "Lorg/postgresql/pljava/internal/TupleDesc;";
-	s_TupleDescClass->javaTypeName   = "org.postgresql.pljava.internal.TupleDesc";
-	s_TupleDescClass->coerceDatum    = _TupleDesc_coerceDatum;
-	s_TupleDesc = TypeClass_allocInstance(s_TupleDescClass, InvalidOid);
-
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.TupleDesc", TupleDesc_obtain);
+	cls = JavaWrapperClass_alloc("type.TupleDesc");
+	cls->JNISignature = "Lorg/postgresql/pljava/internal/TupleDesc;";
+	cls->javaTypeName = "org.postgresql.pljava.internal.TupleDesc";
+	cls->coerceDatum  = _TupleDesc_coerceDatum;
+	Type_registerType("org.postgresql.pljava.internal.TupleDesc", TypeClass_allocInstance(cls, InvalidOid));
 }
 
 /****************************************

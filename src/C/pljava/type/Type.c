@@ -10,8 +10,10 @@
 #include <fmgr.h>
 #include <funcapi.h>
 #include <utils/typcache.h>
+#include <utils/lsyscache.h>
 
 #include "pljava/type/String_priv.h"
+#include "pljava/type/Array.h"
 #include "pljava/type/Composite.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Oid.h"
@@ -29,6 +31,7 @@ static jmethodID s_Map_get;
 
 typedef struct CacheEntryData
 {
+	Type			type;
 	TypeObtainer	obtainer;
 	Oid				typeId;
 } CacheEntryData;
@@ -92,72 +95,143 @@ static void _endOfSetCB(Datum arg)
 
 bool Type_canReplaceType(Type self, Type other)
 {
-	return self->m_class->canReplaceType(self, other);
+	return self->typeClass->canReplaceType(self, other);
 }
 
 bool Type_isDynamic(Type self)
 {
-	return self->m_class->dynamic;
+	return self->typeClass->dynamic;
 }
 
 bool Type_isOutParameter(Type self)
 {
-	return self->m_class->outParameter;
+	return self->typeClass->outParameter;
 }
 
 jvalue Type_coerceDatum(Type self, Datum value)
 {
-	return self->m_class->coerceDatum(self, value);
+	return self->typeClass->coerceDatum(self, value);
 }
 
 Datum Type_coerceObject(Type self, jobject object)
 {
-	return self->m_class->coerceObject(self, object);
+	return self->typeClass->coerceObject(self, object);
+}
+
+char Type_getAlign(Type self)
+{
+	return self->align;
+}
+
+TypeClass Type_getClass(Type self)
+{
+	return self->typeClass;
+}
+
+int16 Type_getLength(Type self)
+{
+	return self->length;
+}
+
+bool Type_isByValue(Type self)
+{
+	return self->byValue;
+}
+
+jclass Type_getJavaClass(Type self)
+{
+	TypeClass typeClass = self->typeClass;
+	if(typeClass->javaClass == 0)
+	{
+		char c;
+		char* bp;
+		char* mp;
+		jclass cls;
+		const char* cp = typeClass->javaTypeName;
+		if(cp == 0)
+			ereport(ERROR, (
+				errmsg("Type '%s' has no corresponding java class",
+					PgObjectClass_getName((PgObjectClass)typeClass))));
+
+		bp = mp = palloc(strlen(cp) + 1);
+		while((c = *cp++) != 0)
+		{
+			if(c == '.')
+				c = '/';
+			*mp++ = c;
+		}
+		*mp = 0;
+		
+		cls = PgObject_getJavaClass(bp);
+		typeClass->javaClass = JNI_newGlobalRef(cls);
+		JNI_deleteLocalRef(cls);
+		pfree(bp);
+	}
+	return typeClass->javaClass;
 }
 
 const char* Type_getJavaTypeName(Type self)
 {
-	return self->m_class->javaTypeName;
+	return self->typeClass->javaTypeName;
 }
 
 const char* Type_getJNISignature(Type self)
 {
-	return self->m_class->JNISignature;
+	return self->typeClass->JNISignature;
 }
 
 const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
 {
-	return self->m_class->getJNIReturnSignature(self, forMultiCall, useAltRepr);
+	return self->typeClass->getJNIReturnSignature(self, forMultiCall, useAltRepr);
 }
 
-Type Type_getArrayType(Type self)
+Type Type_getArrayType(Type self, Oid arrayTypeId)
 {
-	return self->m_class->arrayType;
+	Type arrayType = self->arrayType;
+	if(arrayType != 0)
+	{
+		if(arrayType->typeId == arrayTypeId)
+			return arrayType;
+
+		if(arrayType->typeId == InvalidOid)
+		{
+			arrayType->typeId = arrayTypeId;
+			return arrayType;
+		}
+	}
+	arrayType = self->typeClass->createArrayType(self, arrayTypeId);
+	self->arrayType = arrayType;
+	return arrayType;
+}
+
+Type Type_getElementType(Type self)
+{
+	return self->elementType;
 }
 
 Type Type_getObjectType(Type self)
 {
-	return self->m_class->objectType;
+	return self->objectType;
 }
 
 Type Type_getRealType(Type self, Oid realTypeId, jobject typeMap)
 {
-	return self->m_class->getRealType(self, realTypeId, typeMap);
+	return self->typeClass->getRealType(self, realTypeId, typeMap);
 }
 
 Oid Type_getOid(Type self)
 {
-	return self->m_oid;
+	return self->typeId;
 }
 
 TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 {
-	return self->m_class->getTupleDesc(self, fcinfo);
+	return self->typeClass->getTupleDesc(self, fcinfo);
 }
 
 Datum Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	return self->m_class->invoke(self, cls, method, args, fcinfo);
+	return self->typeClass->invoke(self, cls, method, args, fcinfo);
 }
 
 Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
@@ -272,20 +346,33 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 
 bool Type_isPrimitive(Type self)
 {
-	return self->m_class->objectType != 0;
+	return self->objectType != 0;
 }
 
 Type Type_fromJavaType(Oid typeId, const char* javaTypeName)
 {
 	CacheEntry ce = (CacheEntry)HashMap_getByString(s_obtainerByJavaName, javaTypeName);
 	if(ce == 0)
+	{
+		int jtlen = strlen(javaTypeName) - 2;
+		if(jtlen > 0 && strcmp("[]", javaTypeName + jtlen) == 0)
+		{
+			Type type;
+			char* elemName = palloc(jtlen+1);
+			memcpy(elemName, javaTypeName, jtlen);
+			elemName[jtlen] = 0;
+			type = Type_getArrayType(Type_fromJavaType(InvalidOid, elemName), typeId);
+			pfree(elemName);
+			return type;
+		}
 		ereport(ERROR, (
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("No java type mapping installed for \"%s\"", javaTypeName)));
+	}
 
-	if(typeId == InvalidOid)
-		typeId = ce->typeId;
-	return ce->obtainer(typeId);
+	return ce->type == 0
+		? ce->obtainer(typeId == InvalidOid ? ce->typeId : typeId)
+		: ce->type;
 }
 
 void Type_cacheByOid(Oid typeId, Type type)
@@ -300,9 +387,9 @@ Type Type_fromOidCache(Oid typeId)
 
 Type Type_fromOid(Oid typeId, jobject typeMap)
 {
+	CacheEntry   ce;
 	HeapTuple    typeTup;
 	Form_pg_type typeStruct;
-	TypeObtainer to;
 	Type         type = Type_fromOidCache(typeId);
 
 	if(type != 0)
@@ -313,9 +400,7 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	if(typeStruct->typelem != 0 && typeStruct->typlen == -1)
 	{
-		type = Type_getArrayType(Type_fromOid(typeStruct->typelem, typeMap));
-		if(type == 0)
-			type = String_obtain(typeId);
+		type = Type_getArrayType(Type_fromOid(typeStruct->typelem, typeMap), typeId);
 		goto finally;
 	}
 
@@ -346,17 +431,23 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	/* Composite and record types will not have a TypeObtainer registered
 	 */
 	if(typeStruct->typtype == 'c' || (typeStruct->typtype == 'p' && typeId == RECORDOID))
-		to = Composite_obtain;
+	{
+		type = Composite_obtain(typeId);
+		goto finally;
+	}
+
+	ce = (CacheEntry)HashMap_getByOid(s_obtainerByOid, typeId);
+	if(ce == 0)
+		/*
+		 * Default to String and standard textin/textout coersion.
+		 */
+		type = String_obtain(typeId);
 	else
 	{
-		to = (TypeObtainer)HashMap_getByOid(s_obtainerByOid, typeId);
-		if(to == 0)
-			/*
-			 * Default to String and standard textin/textout coersion.
-			 */
-			to = String_obtain;
+		type = ce->type;
+		if(type == 0)
+			type = ce->obtainer(typeId);
 	}
-	type = to(typeId);
 
 finally:
 	ReleaseSysCache(typeTup);
@@ -367,13 +458,13 @@ finally:
 Type Type_objectTypeFromOid(Oid typeId, jobject typeMap)
 {
 	Type type = Type_fromOid(typeId, typeMap);
-	Type objectType = type->m_class->objectType;
+	Type objectType = type->objectType;
 	return (objectType == 0) ? type : objectType;
 }
 
 bool _Type_canReplaceType(Type self, Type other)
 {
-	return self->m_class == other->m_class;
+	return self->typeClass == other->typeClass;
 }
 
 Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
@@ -391,10 +482,15 @@ Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUN
 	 * goes out of scope when SPI_finish is called.
 	 */
 	currCtx = Invocation_switchToUpperContext();
-	ret = self->m_class->coerceObject(self, value);
+	ret = self->typeClass->coerceObject(self, value);
 	MemoryContextSwitchTo(currCtx);
 	JNI_deleteLocalRef(value);
 	return ret;
+}
+
+static Type _Type_createArrayType(Type self, Oid arrayTypeId)
+{
+	return Array_fromOid(arrayTypeId, self);
 }
 
 static jobject _Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
@@ -426,27 +522,27 @@ static void _Type_closeSRF(Type self, jobject rowProducer)
 
 jobject Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
 {
-	return self->m_class->getSRFProducer(self, cls, method, args);
+	return self->typeClass->getSRFProducer(self, cls, method, args);
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 {
-	return self->m_class->getSRFCollector(self, fcinfo);
+	return self->typeClass->getSRFCollector(self, fcinfo);
 }
 
 bool Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jint callCounter)
 {
-	return self->m_class->hasNextSRF(self, rowProducer, rowCollector, callCounter);
+	return self->typeClass->hasNextSRF(self, rowProducer, rowCollector, callCounter);
 }
 
 Datum Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
 {
-	return self->m_class->nextSRF(self, rowProducer, rowCollector);
+	return self->typeClass->nextSRF(self, rowProducer, rowCollector);
 }
 
 void Type_closeSRF(Type self, jobject rowProducer)
 {
-	self->m_class->closeSRF(self, rowProducer);
+	self->typeClass->closeSRF(self, rowProducer);
 }
 
 static Type _Type_getRealType(Type self, Oid realId, jobject typeMap)
@@ -569,11 +665,11 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	PgObjectClass_init((PgObjectClass)self, typeName, instanceSize, 0);
 	self->JNISignature    = "";
 	self->javaTypeName    = "";
-	self->arrayType       = 0;
-	self->objectType      = 0;
+	self->javaClass       = 0;
 	self->canReplaceType  = _Type_canReplaceType;
-	self->coerceDatum     = (jvalue (*)(Type, Datum))_PgObject_pureVirtualCalled;
-	self->coerceObject    = (Datum (*)(Type, jobject))_PgObject_pureVirtualCalled;
+	self->coerceDatum     = (DatumCoercer)_PgObject_pureVirtualCalled;
+	self->coerceObject    = (ObjectCoercer)_PgObject_pureVirtualCalled;
+	self->createArrayType = _Type_createArrayType;
 	self->invoke          = _Type_invoke;
 	self->getSRFProducer  = _Type_getSRFProducer;
 	self->getSRFCollector = _Type_getSRFCollector;
@@ -593,24 +689,58 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
  */
 Type TypeClass_allocInstance(TypeClass cls, Oid typeId)
 {
+	return TypeClass_allocInstance2(cls, typeId, 0);
+}
+
+/*
+ * Types are always allocated in global context.
+ */
+Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType)
+{
 	Type t = (Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
-	t->m_oid = typeId;
+	t->typeId      = typeId;
+	t->arrayType   = 0;
+	t->elementType = 0;
+	t->objectType  = 0;
+	if(pgType != 0)
+	{
+		t->length  = pgType->typlen;
+		t->byValue = pgType->typbyval;
+		t->align   = pgType->typalign;
+	}
+	else if(typeId != InvalidOid)
+	{
+		get_typlenbyvalalign(typeId,
+						 &t->length,
+						 &t->byValue,
+						 &t->align);
+	}
 	return t;
 }
 
 /*
  * Register this type.
  */
-void Type_registerType(Oid typeId, const char* javaTypeName, TypeObtainer obtainer)
+static void _registerType(Oid typeId, const char* javaTypeName, Type type, TypeObtainer obtainer)
 {
-	if(typeId != InvalidOid)
-		HashMap_putByOid(s_obtainerByOid, typeId, (void*)obtainer);
+	CacheEntry ce = (CacheEntry)MemoryContextAlloc(TopMemoryContext, sizeof(CacheEntryData));
+	ce->typeId   = typeId;
+	ce->type     = type;
+	ce->obtainer = obtainer;
 
 	if(javaTypeName != 0)
-	{
-		CacheEntry ce = (CacheEntry)MemoryContextAlloc(TopMemoryContext, sizeof(CacheEntryData));
-		ce->typeId   = typeId;
-		ce->obtainer = obtainer;
 		HashMap_putByString(s_obtainerByJavaName, javaTypeName, ce);
-	}
+
+	if(typeId != InvalidOid && HashMap_getByOid(s_obtainerByOid, typeId) == 0)
+		HashMap_putByOid(s_obtainerByOid, typeId, ce);
+}
+
+void Type_registerType(const char* javaTypeName, Type type)
+{
+	_registerType(type->typeId, javaTypeName, type, (TypeObtainer)_PgObject_pureVirtualCalled);
+}
+
+void Type_registerType2(Oid typeId, const char* javaTypeName, TypeObtainer obtainer)
+{
+	_registerType(typeId, javaTypeName, 0, obtainer);
 }

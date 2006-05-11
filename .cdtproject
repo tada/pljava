@@ -33,10 +33,10 @@
 
 <item id="org.eclipse.cdt.make.core.buildtargets">
 <buildTargets>
-<target name="all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+<target name="test_all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
 <buildArguments>-e /bin/make</buildArguments>
-<buildTarget>all</buildTarget>
+<buildTarget>test_all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
@@ -44,6 +44,13 @@
 <buildCommand>c:/msys/bin/rxvt</buildCommand>
 <buildArguments>-e /bin/make</buildArguments>
 <buildTarget>clean</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
+<target name="all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+<buildCommand>c:/msys/bin/rxvt</buildCommand>
+<buildArguments>-e /bin/make</buildArguments>
+<buildTarget>all</buildTarget>
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>

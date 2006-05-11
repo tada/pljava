@@ -13,10 +13,7 @@
  * char since a Java char is UTF-16 and "char" is not in any way
  * subject to character set encodings.
  */
-static Type s_byte;	/* Primitive (scalar) type */
 static TypeClass s_byteClass;
-static Type s_Byte;	/* Object type */
-static TypeClass s_ByteClass;
 
 static jclass    s_Byte_class;
 static jmethodID s_Byte_init;
@@ -38,17 +35,13 @@ static jvalue _byte_coerceDatum(Type self, Datum arg)
 	return result;
 }
 
-static Type byte_obtain(Oid typeId)
-{
-	return s_byte;
-}
-
 /*
  * java.lang.Byte type.
  */
 static bool _Byte_canReplace(Type self, Type other)
 {
-	return self->m_class == other->m_class || other->m_class == s_byteClass;
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls || cls == s_byteClass;
 }
 
 static jvalue _Byte_coerceDatum(Type self, Datum arg)
@@ -63,37 +56,36 @@ static Datum _Byte_coerceObject(Type self, jobject byteObj)
 	return CharGetDatum(JNI_callByteMethod(byteObj, s_Byte_byteValue));
 }
 
-static Type Byte_obtain(Oid typeId)
-{
-	return s_Byte;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void Byte_initialize(void);
 void Byte_initialize(void)
 {
+	Type t_byte;
+	Type t_Byte;
+	TypeClass cls;
 	s_Byte_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Byte"));
 	s_Byte_init = PgObject_getJavaMethod(s_Byte_class, "<init>", "(B)V");
 	s_Byte_byteValue = PgObject_getJavaMethod(s_Byte_class, "byteValue", "()B");
 
-	s_ByteClass = TypeClass_alloc("type.Byte");
-	s_ByteClass->canReplaceType = _Byte_canReplace;
-	s_ByteClass->JNISignature   = "Ljava/lang/Byte;";
-	s_ByteClass->javaTypeName   = "java.lang.Byte";
-	s_ByteClass->coerceDatum    = _Byte_coerceDatum;
-	s_ByteClass->coerceObject   = _Byte_coerceObject;
-	s_Byte = TypeClass_allocInstance(s_ByteClass, CHAROID);
+	cls = TypeClass_alloc("type.Byte");
+	cls->canReplaceType = _Byte_canReplace;
+	cls->JNISignature   = "Ljava/lang/Byte;";
+	cls->javaTypeName   = "java.lang.Byte";
+	cls->coerceDatum    = _Byte_coerceDatum;
+	cls->coerceObject   = _Byte_coerceObject;
+	t_Byte = TypeClass_allocInstance(cls, CHAROID);
 
-	s_byteClass = TypeClass_alloc("type.byte");
-	s_byteClass->JNISignature   = "B";
-	s_byteClass->javaTypeName   = "byte";
-	s_byteClass->objectType     = s_Byte;
-	s_byteClass->invoke         = _byte_invoke;
-	s_byteClass->coerceDatum    = _byte_coerceDatum;
-	s_byteClass->coerceObject   = _Byte_coerceObject;
-	s_byte = TypeClass_allocInstance(s_byteClass, CHAROID);
+	cls = TypeClass_alloc("type.byte");
+	cls->JNISignature   = "B";
+	cls->javaTypeName   = "byte";
+	cls->invoke         = _byte_invoke;
+	cls->coerceDatum    = _byte_coerceDatum;
+	cls->coerceObject   = _Byte_coerceObject;
+	t_byte = TypeClass_allocInstance(cls, CHAROID);
+	t_byte->objectType = t_Byte;
+	s_byteClass = cls;
 
-	Type_registerType(CHAROID, "byte", byte_obtain);
-	Type_registerType(InvalidOid, "java.lang.Byte", Byte_obtain);
+	Type_registerType("byte", t_byte);
+	Type_registerType("java.lang.Byte", t_Byte);
 }

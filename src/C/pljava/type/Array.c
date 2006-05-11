@@ -6,6 +6,7 @@
  *
  * @author Thomas Hallgren
  */
+#include "pljava/type/Type_priv.h"
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
@@ -28,11 +29,9 @@ bool arrayIsNull(const bits8* bitmap, int offset)
 	return bitmap == 0 ? false : !(bitmap[offset / 8] & (1 << (offset % 8)));
 }
 
-ArrayType*
-createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool withNulls)
+ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool withNulls)
 #else
-ArrayType*
-createArrayType(jsize nElems, size_t elemSize, Oid elemType)
+ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 #endif
 {
 	ArrayType* v;
@@ -68,3 +67,124 @@ createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 	*((int*)ARR_LBOUND(v)) = 1;
 	return v;
 }
+
+static jvalue _Array_coerceDatum(Type self, Datum arg)
+{
+	jvalue result;
+	jsize idx;
+	Type  elemType    = Type_getElementType(self);
+	int16 elemLength  = Type_getLength(elemType);
+	char  elemAlign   = Type_getAlign(elemType);
+	bool  elemByValue = Type_isByValue(elemType);
+	ArrayType* v = DatumGetArrayTypeP(arg);
+	jsize nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
+	jobjectArray objArray = JNI_newObjectArray(nElems, Type_getJavaClass(elemType), 0);
+	const char* values = ARR_DATA_PTR(v);
+#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+	bits8* nullBitMap = ARR_NULLBITMAP(v);
+#endif
+
+	for(idx = 0; idx < nElems; ++idx)
+	{
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+		Datum value = fetch_att(values, elemByValue, elemLength);
+		jvalue obj = Type_coerceDatum(elemType, value);
+		JNI_setObjectArrayElement(objArray, idx, obj.l);
+		JNI_deleteLocalRef(obj.l);
+		values = att_addlength(values, elemLength, PointerGetDatum(values));
+		values = (char*)att_align(values, elemAlign);
+#else
+		if(arrayIsNull(nullBitMap, idx))
+			JNI_setObjectArrayElement(objArray, idx, 0);
+		else
+		{
+			Datum value = fetch_att(values, elemByValue, elemLength);
+			jvalue obj = Type_coerceDatum(elemType, value);
+			JNI_setObjectArrayElement(objArray, idx, obj.l);
+			JNI_deleteLocalRef(obj.l);
+			values = att_addlength(values, elemLength, PointerGetDatum(values));
+			values = (char*)att_align(values, elemAlign);
+		}
+#endif
+	}
+	result.l = (jobject)objArray;
+	return result;
+}
+
+static Datum _Array_coerceObject(Type self, jobject objArray)
+{
+	ArrayType* v;
+	jsize idx;
+	Type   elemType = Type_getElementType(self);
+	jsize  nElems   = JNI_getArrayLength((jarray)objArray);
+	Datum* values   = (Datum*)palloc(nElems * sizeof(Datum));
+
+	for(idx = 0; idx < nElems; ++idx)
+	{
+		/* TODO: Check for NULL values
+		 */
+		jobject obj = JNI_getObjectArrayElement(objArray, idx);
+		if(objArray == 0)
+			values[idx] = 0;
+		else
+		{
+			values[idx] = Type_coerceObject(elemType, obj);
+			JNI_deleteLocalRef(obj);
+		}
+	}
+
+	v = construct_array(values, nElems,
+		Type_getOid(elemType),
+		Type_getLength(elemType),
+		Type_isByValue(elemType),
+		Type_getAlign(elemType));
+	pfree(values);
+	PG_RETURN_ARRAYTYPE_P(v);
+}
+
+static bool _Array_canReplaceType(Type self, Type other)
+{
+	Type oe = Type_getElementType(other);
+	return oe == 0 ? false : Type_canReplaceType(Type_getElementType(self), oe);
+}
+
+Type Array_fromOid(Oid typeId, Type elementType)
+{
+	return Array_fromOid2(typeId, elementType, _Array_coerceDatum, _Array_coerceObject);
+}
+
+Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, ObjectCoercer coerceObject)
+{
+	Type self;
+	TypeClass arrayClass;
+	const char* elemClassName    = PgObjectClass_getName(PgObject_getClass((PgObject)elementType));
+	const char* elemJNISignature = Type_getJNISignature(elementType);
+	const char* elemJavaTypeName = Type_getJavaTypeName(elementType);
+
+	MemoryContext currCtx = MemoryContextSwitchTo(TopMemoryContext);
+
+	char* tmp = palloc(strlen(elemClassName) + 3);
+	sprintf(tmp, "%s[]", elemClassName);
+	arrayClass = TypeClass_alloc(tmp);
+
+	tmp = palloc(strlen(elemJNISignature) + 2);
+	sprintf(tmp, "[%s", elemJNISignature);
+	arrayClass->JNISignature = tmp;
+
+	tmp = palloc(strlen(elemJavaTypeName) + 3);
+	sprintf(tmp, "%s[]", elemJavaTypeName);
+	arrayClass->javaTypeName = tmp;
+	arrayClass->coerceDatum  = coerceDatum;
+	arrayClass->coerceObject = coerceObject;
+	arrayClass->canReplaceType = _Array_canReplaceType;
+	self = TypeClass_allocInstance(arrayClass, typeId);
+	MemoryContextSwitchTo(currCtx);
+
+	self->elementType = elementType;
+	Type_registerType(arrayClass->javaTypeName, self);
+
+	if(Type_isPrimitive(elementType))
+		self->objectType = Array_fromOid(InvalidOid, Type_getObjectType(elementType));
+	return self;
+}
+

@@ -59,5 +59,5 @@ void BigDecimal_initialize(void)
 	s_BigDecimalClass->coerceDatum    = _BigDecimal_coerceDatum;
 	s_BigDecimalClass->coerceObject   = _BigDecimal_coerceObject;
 
-	Type_registerType(NUMERICOID, "java.math.BigDecimal", BigDecimal_obtain);
+	Type_registerType2(NUMERICOID, "java.math.BigDecimal", BigDecimal_obtain);
 }

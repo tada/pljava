@@ -37,6 +37,11 @@ struct TypeClass_;
 typedef struct TypeClass_* TypeClass;
 
 /*
+ * Returns the TypeClass
+ */
+extern TypeClass Type_getClass(Type self);
+
+/*
  * Returns true if the Type is primitive (i.e. not a real object in
  * the Java domain).
  */
@@ -83,6 +88,26 @@ extern Type Type_fromOidCache(Oid typeId);
 extern bool Type_isDynamic(Type self);
 
 /*
+ * Returns the type alignment (i.e. pg_type->typalign).
+ */
+extern char Type_getAlign(Type self);
+
+/*
+ * Returns the type length (i.e. pg_type->typlen).
+ */
+extern int16 Type_getLength(Type self);
+
+/*
+ * Returns the type length (i.e. pg_type->typlen).
+ */
+extern jclass Type_getJavaClass(Type self);
+
+/*
+ * Returns true if the type is passed by value (i.e. pg_type->typbyval).
+ */
+extern bool Type_isByValue(Type self);
+
+/*
  * Returns true if the invocation will create an out parameter (ResultSet typically)
  * to collect the return value. If so, the real return value will be a bool.
  */
@@ -122,9 +147,14 @@ extern const char* Type_getJNISignature(Type self);
 extern const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr);
 
 /*
- * Returns the array Type or NULL if no such type exists.
+ * Returns the array Type. The type is created if it doesn't exist
  */
-extern Type Type_getArrayType(Type self);
+extern Type Type_getArrayType(Type self, Oid arrayTypeId);
+
+/*
+ * Returns the element Type if this type is an array.
+ */
+extern Type Type_getElementType(Type self);
 
 /*
  * Returns the object Type if the type is primitive and NULL if not.
@@ -196,9 +226,20 @@ extern void Type_closeSRF(Type self, jobject producer);
 typedef Type (*TypeObtainer)(Oid typeId);
 
 /*
+ * Function that can coerce a Datum into a jvalue
+ */
+typedef jvalue (*DatumCoercer)(Type, Datum);
+
+/*
+ * Function that can coerce a jobject into a Datum
+ */
+typedef Datum (*ObjectCoercer)(Type, jobject);
+
+/*
  * Register this type as the default mapping for a postgres type.
  */
-extern void Type_registerType(Oid typeId, const char* javaTypeName, TypeObtainer obtainer);
+extern void Type_registerType(const char* javaTypeName, Type type);
+extern void Type_registerType2(Oid typeId, const char* javaTypeName, TypeObtainer obtainer);
 
 #ifdef __cplusplus
 }

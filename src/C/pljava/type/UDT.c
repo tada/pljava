@@ -24,14 +24,15 @@
 static jobject coerceScalarDatum(UDT self, Datum arg)
 {
 	jobject result;
-	int32  dataLen = self->length;
+	int16 dataLen = Type_getLength((Type)self);
+	jclass javaClass = Type_getJavaClass((Type)self);
 
 	if(dataLen == -2)
 	{
 		/* Data is a zero terminated string
 		 */
 		jstring jstr = String_createJavaStringFromNTS(DatumGetCString(arg));
-		result = JNI_callStaticObjectMethod(self->clazz, self->parse, jstr, self->sqlTypeName);
+		result = JNI_callStaticObjectMethod(javaClass, self->parse, jstr, self->sqlTypeName);
 		JNI_deleteLocalRef(jstr);
 	}
 	else
@@ -52,7 +53,7 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 			 */
 			data = DatumGetPointer(arg);
 		}
-		result = JNI_newObject(self->clazz, self->init);
+		result = JNI_newObject(javaClass, self->init);
 
 		inputStream = SQLInputFromChunk_create(data, dataLen);
 		JNI_callVoidMethod(result, self->readSQL, inputStream, self->sqlTypeName);
@@ -63,7 +64,7 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 
 static jobject coerceTupleDatum(UDT udt, Datum arg)
 {
-	jobject result = JNI_newObject(udt->clazz, udt->init);
+	jobject result = JNI_newObject(Type_getJavaClass((Type)udt), udt->init);
 	jobject inputStream = SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), udt->tupleDesc);
 	JNI_callVoidMethod(result, udt->readSQL, inputStream, udt->sqlTypeName);
 	JNI_deleteLocalRef(inputStream);
@@ -73,7 +74,7 @@ static jobject coerceTupleDatum(UDT udt, Datum arg)
 static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
-	int32 dataLen = self->length;
+	int16 dataLen = Type_getLength((Type)self);
 	if(dataLen == -2)
 	{
 		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
@@ -156,14 +157,6 @@ Datum _UDT_coerceObject(Type self, jobject value)
 	return result;
 }
 
-static Type UDT_obtain(Oid typeId)
-{
-	ereport(ERROR, (
-		errcode(ERRCODE_CANNOT_COERCE),
-		errmsg("No type mapping installed for UDT with Oid %d", typeId)));
-	return 0; /* Keep compiler happy */
-}
-
 Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 {
 	jstring jstr;
@@ -177,14 +170,14 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 
 	txt = PG_GETARG_CSTRING(0);
 
-	if(udt->length == -2)
+	if(Type_getLength((Type)udt) == -2)
 	{
 		if(txt != 0)
 			txt = pstrdup(txt);
 		PG_RETURN_CSTRING(txt);
 	}
 	jstr = String_createJavaStringFromNTS(txt);
-	obj  = JNI_callStaticObjectMethod(udt->clazz, udt->parse, jstr, udt->sqlTypeName);
+	obj  = JNI_callStaticObjectMethod(Type_getJavaClass((Type)udt), udt->parse, jstr, udt->sqlTypeName);
 	JNI_deleteLocalRef(jstr);
 
 	return _UDT_coerceObject((Type)udt, obj);
@@ -199,7 +192,7 @@ Datum UDT_output(UDT udt, PG_FUNCTION_ARGS)
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
 
-	if(udt->length == -2)
+	if(Type_getLength((Type)udt) == -2)
 	{
 		txt = PG_GETARG_CSTRING(0);
 		if(txt != 0)
@@ -220,7 +213,7 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 {
 	StringInfo buf;
 	char* tmp;
-	int32 dataLen = udt->length;
+	int32 dataLen = Type_getLength((Type)udt);
 
 	if(!UDT_isScalar(udt))
 		ereport(ERROR, (
@@ -242,7 +235,7 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 {
 	StringInfoData buf;
-	int32 dataLen = udt->length;
+	int32 dataLen = Type_getLength((Type)udt);
 
 	if(!UDT_isScalar(udt))
 		ereport(ERROR, (
@@ -287,7 +280,7 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 	Type existing = Type_fromOidCache(typeId);
 	if(existing != 0)
 	{
-		if(existing->m_class->coerceDatum != _UDT_coerceDatum)
+		if(existing->typeClass->coerceDatum != _UDT_coerceDatum)
 		{
 			ereport(ERROR, (
 				errcode(ERRCODE_CANNOT_COERCE),
@@ -337,14 +330,12 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 
 	udtClass->JNISignature   = classSignature;
 	udtClass->javaTypeName   = className;
+	udtClass->javaClass      = JNI_newGlobalRef(clazz);
 	udtClass->canReplaceType = _Type_canReplaceType;
 	udtClass->coerceDatum    = _UDT_coerceDatum;
 	udtClass->coerceObject   = _UDT_coerceObject;
 
-	udt = (UDT)TypeClass_allocInstance(udtClass, typeId);
-	udt->length   = pgType->typlen;
-	udt->clazz    = JNI_newGlobalRef(clazz);
-
+	udt = (UDT)TypeClass_allocInstance2(udtClass, typeId, pgType);
 	udt->sqlTypeName = JNI_newGlobalRef(sqlTypeName);
 	JNI_deleteLocalRef(sqlTypeName);
 
@@ -382,8 +373,6 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 	udt->tupleDesc = td;
 	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
 	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
-
-	Type_cacheByOid(typeId, (Type)udt);
-	Type_registerType(typeId, className, UDT_obtain);
+	Type_registerType(className, (Type)udt);
 	return udt;
 }

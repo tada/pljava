@@ -17,8 +17,6 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 
-static Type      s_Tuple;
-static TypeClass s_TupleClass;
 static jclass    s_Tuple_class;
 static jmethodID s_Tuple_init;
 
@@ -70,16 +68,12 @@ static jvalue _Tuple_coerceDatum(Type self, Datum arg)
 	return result;
 }
 
-static Type Tuple_obtain(Oid typeId)
-{
-	return s_Tuple;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void Tuple_initialize(void);
 void Tuple_initialize(void)
 {
+	TypeClass cls;
 	JNINativeMethod methods[] = {
 		{
 		"_getObject",
@@ -97,13 +91,11 @@ void Tuple_initialize(void)
 	PgObject_registerNatives2(s_Tuple_class, methods);
 	s_Tuple_init = PgObject_getJavaMethod(s_Tuple_class, "<init>", "(J)V");
 
-	s_TupleClass = JavaWrapperClass_alloc("type.Tuple");
-	s_TupleClass->JNISignature   = "Lorg/postgresql/pljava/internal/Tuple;";
-	s_TupleClass->javaTypeName   = "org.postgresql.pljava.internal.Tuple";
-	s_TupleClass->coerceDatum    = _Tuple_coerceDatum;
-	s_Tuple = TypeClass_allocInstance(s_TupleClass, InvalidOid);
-
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.Tuple", Tuple_obtain);
+	cls = JavaWrapperClass_alloc("type.Tuple");
+	cls->JNISignature = "Lorg/postgresql/pljava/internal/Tuple;";
+	cls->javaTypeName = "org.postgresql.pljava.internal.Tuple";
+	cls->coerceDatum  = _Tuple_coerceDatum;
+	Type_registerType("org.postgresql.pljava.internal.Tuple", TypeClass_allocInstance(cls, InvalidOid));
 }
 
 jobject

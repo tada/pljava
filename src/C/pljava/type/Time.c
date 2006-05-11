@@ -25,11 +25,6 @@ static jclass    s_Time_class;
 static jmethodID s_Time_init;
 static jmethodID s_Time_getTime;
 
-static Type s_Time;
-static TypeClass s_TimeClass;
-static Type s_Timetz;
-static TypeClass s_TimetzClass;
-
 static jlong msecsAtMidnight()
 {
 	AbsoluteTime now = GetCurrentAbsoluteTime() / 86400;
@@ -113,11 +108,6 @@ static Datum _Time_coerceObject(Type self, jobject time)
 #endif
 }
 
-static Type Time_obtain(Oid typeId)
-{
-	return s_Time;
-}
-
 /* 
  * Time with time zone. Postgres will pass local time and an associated
  * time zone. In the future, we might create a special java object for
@@ -163,32 +153,25 @@ static Datum _Timetz_coerceObject(Type self, jobject time)
 	return datum;
 }
 
-static Type Timetz_obtain(Oid typeId)
-{
-	return s_Timetz;
-}
-
 extern void Time_initialize(void);
 void Time_initialize(void)
 {
+	TypeClass cls;
 	s_Time_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Time"));
 	s_Time_init = PgObject_getJavaMethod(s_Time_class, "<init>", "(J)V");
 	s_Time_getTime = PgObject_getJavaMethod(s_Time_class, "getTime", "()J");
 
-	s_TimeClass = TypeClass_alloc("type.Time");
-	s_TimeClass->JNISignature = "Ljava/sql/Time;";
-	s_TimeClass->javaTypeName = "java.sql.Time";
-	s_TimeClass->coerceDatum  = _Time_coerceDatum;
-	s_TimeClass->coerceObject = _Time_coerceObject;
-	s_Time = TypeClass_allocInstance(s_TimeClass, TIMEOID);
+	cls = TypeClass_alloc("type.Time");
+	cls->JNISignature = "Ljava/sql/Time;";
+	cls->javaTypeName = "java.sql.Time";
+	cls->coerceDatum  = _Time_coerceDatum;
+	cls->coerceObject = _Time_coerceObject;
+	Type_registerType(0, TypeClass_allocInstance(cls, TIMEOID));
 
-	s_TimetzClass = TypeClass_alloc("type.Timetz");
-	s_TimetzClass->JNISignature = "Ljava/sql/Time;";
-	s_TimetzClass->javaTypeName = "java.sql.Time";
-	s_TimetzClass->coerceDatum  = _Timetz_coerceDatum;
-	s_TimetzClass->coerceObject = _Timetz_coerceObject;
-	s_Timetz = TypeClass_allocInstance(s_TimetzClass, TIMETZOID);
-
-	Type_registerType(TIMEOID, 0, Time_obtain);
-	Type_registerType(TIMETZOID, "java.sql.Time", Timetz_obtain);
+	cls = TypeClass_alloc("type.Timetz");
+	cls->JNISignature = "Ljava/sql/Time;";
+	cls->javaTypeName = "java.sql.Time";
+	cls->coerceDatum  = _Timetz_coerceDatum;
+	cls->coerceObject = _Timetz_coerceObject;
+	Type_registerType("java.sql.Time", TypeClass_allocInstance(cls, TIMETZOID));
 }

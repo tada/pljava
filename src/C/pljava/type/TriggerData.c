@@ -19,8 +19,6 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Relation.h"
 
-static Type      s_TriggerData;
-static TypeClass s_TriggerDataClass;
 static jclass    s_TriggerData_class;
 static jmethodID s_TriggerData_init;
 static jmethodID s_TriggerData_getTriggerReturnTuple;
@@ -45,16 +43,12 @@ HeapTuple TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull)
 	return ret;
 }
 
-static Type TriggerData_obtain(Oid typeId)
-{
-	return s_TriggerData;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void TriggerData_initialize(void);
 void TriggerData_initialize(void)
 {
+	TypeClass cls;
 	JNINativeMethod methods[] =
 	{
 		{
@@ -133,11 +127,10 @@ void TriggerData_initialize(void)
 
 	/* Use interface name for signatures.
 	 */
-	s_TriggerDataClass = TypeClass_alloc("type.TriggerData");
-	s_TriggerDataClass->JNISignature   = "Lorg/postgresql/pljava/TriggerData;";
-	s_TriggerDataClass->javaTypeName   = "org.postgresql.pljava.TriggerData";
-	s_TriggerData = TypeClass_allocInstance(s_TriggerDataClass, InvalidOid);
-	Type_registerType(InvalidOid, "org.postgresql.pljava.TriggerData", TriggerData_obtain);
+	cls = TypeClass_alloc("type.TriggerData");
+	cls->JNISignature   = "Lorg/postgresql/pljava/TriggerData;";
+	cls->javaTypeName   = "org.postgresql.pljava.TriggerData";
+	Type_registerType("org.postgresql.pljava.TriggerData", TypeClass_allocInstance(cls, InvalidOid));
 }
 
 /****************************************

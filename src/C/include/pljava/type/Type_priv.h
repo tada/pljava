@@ -36,17 +36,10 @@ struct TypeClass_
 	const char* javaTypeName;
 
 	/*
-	 * Points to the array type that corresponds to this type. If the
-	 * type has no corresponding array type, this type will be NULL.
+	 * The Java class that represents this type. Will be NULL for
+	 * primitive types.
 	 */
-	Type arrayType;
-
-	/*
-	 * Points to the object type that corresponds to this type
-	 * if this type is a primitive. For non primitives, this attribute
-	 * will be NULL.
-	 */
-	Type objectType;
+	jclass javaClass;
 
 	/*
 	 * Set to true if this type represents a dynamic type (anyelement or
@@ -59,6 +52,11 @@ struct TypeClass_
 	 * to collect the return value. If so, the real return value will be a bool.
 	 */
 	bool outParameter;
+
+	/*
+	 * Creates the array type for this type.
+	 */
+	Type (*createArrayType)(Type self, Oid arrayType);
 
 	/*
 	 * Returns the real type for a dynamic type. A non dynamic type will
@@ -81,13 +79,13 @@ struct TypeClass_
 	 * Translate a given Datum into a jvalue accorging to the type represented
 	 * by this instance.
 	 */
-	jvalue (*coerceDatum)(Type self, Datum datum);
+	DatumCoercer coerceDatum;
 
 	/*
 	 * Translate a given Object into a Datum accorging to the type represented
 	 * by this instance.
 	 */
-	Datum (*coerceObject)(Type self, jobject object);
+	ObjectCoercer coerceObject;
 
 	/*
 	 * Calls a java method using one of the Call<type>MethodA routines where
@@ -116,9 +114,34 @@ struct TypeClass_
 
 struct Type_
 {
-	TypeClass m_class;
-	
-	Oid m_oid;
+	TypeClass typeClass;
+
+	/*
+	 * The Oid that identifies this type.
+	 */
+	Oid       typeId;
+
+	/*
+	 * Points to the array type where this type is the element type.
+	 * If the type has no corresponding array type, this type will be NULL.
+	 */
+	Type  arrayType;
+
+	/*
+	 * If the type is an array type, this is the element type.
+	 */
+	Type  elementType;
+
+	/*
+	 * Points to the object type that corresponds to this type
+	 * if this type is a primitive. For non primitives, this attribute
+	 * will be NULL.
+	 */
+	Type  objectType;
+
+	int16 length;
+	bool  byValue;
+	char  align;
 };
 
 /*
@@ -158,6 +181,7 @@ extern TypeClass TypeClass_alloc2(const char* className, Size classSize, Size in
  * Types are always allocated in global context.
  */
 extern Type TypeClass_allocInstance(TypeClass cls, Oid typeId);
+extern Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType);
 
 #ifdef __cplusplus
 }

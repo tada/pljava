@@ -10,16 +10,7 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
-static Type s_boolean;	/* Primitive (scalar) type */
 static TypeClass s_booleanClass;
-static Type s_booleanArray;	/* Primitive (scalar) array type */
-static TypeClass s_booleanArrayClass;
-
-static Type s_Boolean;	/* Object type */
-static TypeClass s_BooleanClass;
-static Type s_BooleanArray;	/* Object array type */
-static TypeClass s_BooleanArrayClass;
-
 static jclass    s_Boolean_class;
 static jmethodID s_Boolean_init;
 static jmethodID s_Boolean_booleanValue;
@@ -29,27 +20,22 @@ static jmethodID s_Boolean_booleanValue;
  */
 static Datum _boolean_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	bool bv = JNI_callStaticBooleanMethodA(cls, method, args) == JNI_TRUE;
-	return BoolGetDatum(bv);
+	jboolean v = JNI_callStaticBooleanMethodA(cls, method, args);
+	return BoolGetDatum(v);
 }
 
 static jvalue _boolean_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.z = DatumGetBool(arg) ? JNI_TRUE : JNI_FALSE;
+	result.z = DatumGetBool(arg);
 	return result;
-}
-
-static Type boolean_obtain(Oid typeId)
-{
-	return s_boolean;
 }
 
 static jvalue _booleanArray_coerceDatum(Type self, Datum arg)
 {
 	jvalue     result;
-	ArrayType* v        = DatumGetArrayTypeP(arg);
-	jsize      nElems   = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
+	ArrayType* v      = DatumGetArrayTypeP(arg);
+	jsize      nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jbooleanArray booleanArray = JNI_newBooleanArray(nElems);
 
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
@@ -97,144 +83,30 @@ static Datum _booleanArray_coerceObject(Type self, jobject booleanArray)
 	PG_RETURN_ARRAYTYPE_P(v);
 }
 
-static Type booleanArray_obtain(Oid typeId)
-{
-	return s_booleanArray;
-}
-
 /*
  * java.lang.Boolean type.
  */
-static jobject _create(jboolean value)
-{
-	return JNI_newObject(s_Boolean_class, s_Boolean_init, value);
-}
-
-static jboolean _booleanValue(jobject booleanObj)
-{
-	return booleanObj == 0 ? JNI_FALSE : JNI_callBooleanMethod(booleanObj, s_Boolean_booleanValue);
-}
-
 static bool _Boolean_canReplace(Type self, Type other)
 {
-	return self->m_class == other->m_class || other->m_class == s_booleanClass;
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls || cls == s_booleanClass;
 }
 
 static jvalue _Boolean_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = _create(DatumGetBool(arg));
+	result.l = JNI_newObject(s_Boolean_class, s_Boolean_init, DatumGetBool(arg));
 	return result;
 }
 
 static Datum _Boolean_coerceObject(Type self, jobject booleanObj)
 {
-	bool bv = _booleanValue(booleanObj) == JNI_TRUE;
-	return BoolGetDatum(bv);
+	return BoolGetDatum(booleanObj == 0 ? false : JNI_callBooleanMethod(booleanObj, s_Boolean_booleanValue) == JNI_TRUE);
 }
 
-static Type Boolean_obtain(Oid typeId)
+static Type _boolean_createArrayType(Type self, Oid arrayTypeId)
 {
-	return s_Boolean;
-}
-
-/*
- * java.lang.Boolean[] type.
- */
-static bool _BooleanArray_canReplace(Type self, Type other)
-{
-	return self->m_class == other->m_class || other->m_class == s_booleanArrayClass;
-}
-
-static jvalue _BooleanArray_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	jsize idx;
-	ArrayType* v = DatumGetArrayTypeP(arg);
-	jsize nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
-	jobjectArray booleanArray = JNI_newObjectArray(nElems, s_Boolean_class, 0);
-	jboolean* values = (jboolean*)ARR_DATA_PTR(v);
-#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	bits8* nullBitMap = ARR_NULLBITMAP(v);
-#endif
-
-	for(idx = 0; idx < nElems; ++idx)
-	{
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-		jobject booleanObj = _create(*values++);
-		JNI_setObjectArrayElement(booleanArray, idx, booleanObj);
-		JNI_deleteLocalRef(booleanObj);
-#else
-		if(arrayIsNull(nullBitMap, idx))
-			JNI_setObjectArrayElement(booleanArray, idx, 0);
-		else
-		{
-			jobject booleanObj = _create(*values++);
-			JNI_setObjectArrayElement(booleanArray, idx, booleanObj);
-			JNI_deleteLocalRef(booleanObj);
-		}
-#endif
-	}
-	result.l = (jobject)booleanArray;
-	return result;
-}
-
-static Datum _BooleanArray_coerceObject(Type self, jobject booleanArray)
-{
-	ArrayType* v;
-	jsize idx;
-	jsize nElems;
-	jboolean* values;
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	if(booleanArray == 0)
-		return 0;
-
-	nElems = JNI_getArrayLength((jarray)booleanArray);
-	v = createArrayType(nElems, sizeof(jboolean), BOOLOID);
-#else
-	bool hasNull;
-	bits8* nullBitMap;
-
-	if(booleanArray == 0)
-		return 0;
-
-	hasNull = JNI_hasNullArrayElement((jobjectArray)booleanArray) == JNI_TRUE;
-	nElems = JNI_getArrayLength((jarray)booleanArray);
-	v = createArrayType(nElems, sizeof(jboolean), BOOLOID, hasNull);
-	nullBitMap = ARR_NULLBITMAP(v);
-#endif
-
-	values = (jboolean*)ARR_DATA_PTR(v);
-	for(idx = 0; idx < nElems; ++idx)
-	{
-		/* TODO: Check for NULL values
-		 */
-		jobject booleanObj = JNI_getObjectArrayElement(booleanArray, idx);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-		if(booleanObj == 0)
-			*values++ = 0;
-		else
-		{
-			*values++ = _booleanValue(booleanObj);
-			JNI_deleteLocalRef(booleanObj);
-		}
-#else
-		if(booleanObj == 0)
-			arraySetNull(nullBitMap, idx, true);
-		else
-		{
-			arraySetNull(nullBitMap, idx, false);
-			*values++ = _booleanValue(booleanObj);
-			JNI_deleteLocalRef(booleanObj);
-		}
-#endif
-	}
-	PG_RETURN_ARRAYTYPE_P(v);
-}
-
-static Type BooleanArray_obtain(Oid typeId)
-{
-	return s_BooleanArray;
+	return Array_fromOid2(arrayTypeId, self, _booleanArray_coerceDatum, _booleanArray_coerceObject);
 }
 
 /* Make this datatype available to the postgres system.
@@ -242,48 +114,34 @@ static Type BooleanArray_obtain(Oid typeId)
 extern void Boolean_initialize(void);
 void Boolean_initialize(void)
 {
+	Type t_boolean;
+	Type t_Boolean;
+	TypeClass cls;
+
 	s_Boolean_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Boolean"));
 	s_Boolean_init = PgObject_getJavaMethod(s_Boolean_class, "<init>", "(Z)V");
 	s_Boolean_booleanValue = PgObject_getJavaMethod(s_Boolean_class, "booleanValue", "()Z");
 
-	s_BooleanClass = TypeClass_alloc("type.Boolean");
-	s_BooleanClass->canReplaceType = _Boolean_canReplace;
-	s_BooleanClass->JNISignature   = "Ljava/lang/Boolean;";
-	s_BooleanClass->javaTypeName   = "java.lang.Boolean";
-	s_BooleanClass->coerceObject   = _Boolean_coerceObject;
-	s_BooleanClass->coerceDatum    = _Boolean_coerceDatum;
-	s_Boolean = TypeClass_allocInstance(s_BooleanClass, BOOLOID);
+	cls = TypeClass_alloc("type.Boolean");
+	cls->canReplaceType = _Boolean_canReplace;
+	cls->JNISignature = "Ljava/lang/Boolean;";
+	cls->javaTypeName = "java.lang.Boolean";
+	cls->coerceDatum  = _Boolean_coerceDatum;
+	cls->coerceObject = _Boolean_coerceObject;
+	t_Boolean = TypeClass_allocInstance(cls, BOOLOID);
 
-	s_BooleanArrayClass = TypeClass_alloc("type.Boolean[]");
-	s_BooleanArrayClass->canReplaceType = _BooleanArray_canReplace;
-	s_BooleanArrayClass->JNISignature   = "[Ljava/lang/Boolean;";
-	s_BooleanArrayClass->javaTypeName   = "java.lang.Boolean[]";
-	s_BooleanArrayClass->coerceDatum    = _BooleanArray_coerceDatum;
-	s_BooleanArrayClass->coerceObject   = _BooleanArray_coerceObject;
-	s_BooleanArray = TypeClass_allocInstance(s_BooleanArrayClass, InvalidOid);
+	cls = TypeClass_alloc("type.boolean");
+	cls->JNISignature = "Z";
+	cls->javaTypeName = "boolean";
+	cls->invoke       = _boolean_invoke;
+	cls->coerceDatum  = _boolean_coerceDatum;
+	cls->coerceObject = _Boolean_coerceObject;
+	cls->createArrayType = _boolean_createArrayType;
+	s_booleanClass = cls;
 
-	s_booleanClass = TypeClass_alloc("type.boolean");
-	s_booleanClass->JNISignature   = "Z";
-	s_booleanClass->javaTypeName   = "boolean";
-	s_booleanClass->objectType     = s_Boolean;
-	s_booleanClass->invoke         = _boolean_invoke;
-	s_booleanClass->coerceDatum    = _boolean_coerceDatum;
-	s_booleanClass->coerceObject   = _Boolean_coerceObject;
-	s_boolean = TypeClass_allocInstance(s_booleanClass, BOOLOID);
+	t_boolean = TypeClass_allocInstance(cls, BOOLOID);
+	t_boolean->objectType = t_Boolean;
 
-	s_booleanArrayClass = TypeClass_alloc("type.boolean[]");
-	s_booleanArrayClass->JNISignature       = "[Z";
-	s_booleanArrayClass->javaTypeName       = "boolean[]";
-	s_booleanArrayClass->objectType         = s_BooleanArray;
-	s_booleanArrayClass->coerceDatum        = _booleanArray_coerceDatum;
-	s_booleanArrayClass->coerceObject       = _booleanArray_coerceObject;
-	s_booleanArray = TypeClass_allocInstance(s_booleanArrayClass, InvalidOid);
-
-	s_booleanClass->arrayType = s_booleanArray;
-	s_BooleanClass->arrayType = s_BooleanArray;
-
-	Type_registerType(BOOLOID, "boolean", boolean_obtain);
-	Type_registerType(InvalidOid, "java.lang.Boolean", Boolean_obtain);
-	Type_registerType(InvalidOid, "boolean[]", booleanArray_obtain);
-	Type_registerType(InvalidOid, "java.lang.Boolean[]", BooleanArray_obtain);
+	Type_registerType("boolean", t_boolean);
+	Type_registerType("java.lang.Boolean", t_Boolean);
 }

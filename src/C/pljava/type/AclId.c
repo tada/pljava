@@ -17,8 +17,6 @@
 #include "org_postgresql_pljava_internal_AclId.h"
 #include "pljava/Exception.h"
 
-static Type      s_AclId;
-static TypeClass s_AclIdClass;
 static jclass    s_AclId_class;
 static jmethodID s_AclId_init;
 static jfieldID  s_AclId_m_native;
@@ -34,23 +32,6 @@ jobject AclId_create(AclId aclId)
 AclId AclId_getAclId(jobject aclId)
 {
 	return (AclId)JNI_getIntField(aclId, s_AclId_m_native);
-}
-
-static jvalue _AclId_coerceDatum(Type self, Datum arg)
-{
-	jvalue result;
-	result.l = AclId_create((AclId)DatumGetInt32(arg));
-	return result;
-}
-
-static Datum _AclId_coerceObject(Type self, jobject aclidObj)
-{
-	return Int32GetDatum(AclId_getAclId(aclidObj));
-}
-
-static Type AclId_obtain(Oid typeId)
-{
-	return s_AclId;
 }
 
 extern void AclId_initialize(void);
@@ -93,15 +74,6 @@ void AclId_initialize(void)
 	PgObject_registerNatives2(s_AclId_class, methods);
 	s_AclId_init = PgObject_getJavaMethod(s_AclId_class, "<init>", "(I)V");
 	s_AclId_m_native = PgObject_getJavaField(s_AclId_class, "m_native", "I");
-
-	s_AclIdClass = TypeClass_alloc("type.AclId");
-	s_AclIdClass->JNISignature   = "Lorg/postgresql/pljava/internal/AclId;";
-	s_AclIdClass->javaTypeName   = "org.postgresql.pljava.internal.AclId";
-	s_AclIdClass->coerceDatum    = _AclId_coerceDatum;
-	s_AclIdClass->coerceObject   = _AclId_coerceObject;
-	s_AclId = TypeClass_allocInstance(s_AclIdClass, InvalidOid);
-
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.AclId", AclId_obtain);
 }
 
 /****************************************

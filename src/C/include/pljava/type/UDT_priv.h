@@ -29,8 +29,6 @@ struct UDT_
 	 */
 	struct Type_ Type_extension;
 
-	int32     length;
-	jclass    clazz;
 	jstring   sqlTypeName;
 	TupleDesc tupleDesc;
 	jmethodID init;

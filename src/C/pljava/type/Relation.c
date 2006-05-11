@@ -19,8 +19,6 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/Relation.h"
 
-static Type      s_Relation;
-static TypeClass s_RelationClass;
 static jclass    s_Relation_class;
 static jmethodID s_Relation_init;
 
@@ -33,11 +31,6 @@ jobject Relation_create(Relation td)
 			s_Relation_class,
 			s_Relation_init,
 			Invocation_createLocalWrapper(td));
-}
-
-static Type Relation_obtain(Oid typeId)
-{
-	return s_Relation;
 }
 
 extern void Relation_initialize(void);
@@ -75,13 +68,7 @@ void Relation_initialize(void)
 
 	s_Relation_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Relation"));
 	PgObject_registerNatives2(s_Relation_class, methods);
-
 	s_Relation_init = PgObject_getJavaMethod(s_Relation_class, "<init>", "(J)V");
-	s_RelationClass = TypeClass_alloc("type.Relation");
-	s_RelationClass->JNISignature   = "Lorg/postgresql/pljava/internal/Relation;";
-	s_RelationClass->javaTypeName   = "org.postgresql.pljava.internal.Relation";
-	s_Relation = TypeClass_allocInstance(s_RelationClass, InvalidOid);
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.Relation", Relation_obtain);
 }
 
 /****************************************

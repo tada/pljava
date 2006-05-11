@@ -30,15 +30,13 @@ static jmethodID s_Timestamp_getNanos;
 static jmethodID s_Timestamp_getTime;
 static jmethodID s_Timestamp_setNanos;
 
-static Type s_Timestamp;
 static TypeClass s_TimestampClass;
-
-static Type s_Timestamptz;
 static TypeClass s_TimestamptzClass;
 
 static bool _Timestamp_canReplaceType(Type self, Type other)
 {
-	return other->m_class == s_TimestampClass || other->m_class == s_TimestamptzClass;
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls || cls == s_TimestamptzClass;
 }
 
 static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
@@ -140,6 +138,12 @@ static Datum _Timestamp_coerceObject(Type self, jobject ts)
  * Timestamp with time zone. Basically same as Timestamp but postgres will pass
  * this one in GMT timezone so there's no without ajustment for time zone.
  */
+static bool _Timestamptz_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls || cls == s_TimestampClass;
+}
+
 static jvalue _Timestamptz_coerceDatum(Type self, Datum arg)
 {
 	return Timestamp_coerceDatumTZ(self, arg, false);
@@ -148,16 +152,6 @@ static jvalue _Timestamptz_coerceDatum(Type self, Datum arg)
 static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 {
 	return Timestamp_coerceObjectTZ(self, ts, false);
-}
-
-static Type Timestamp_obtain(Oid typeId)
-{
-	return s_Timestamp;
-}
-
-static Type Timestamptz_obtain(Oid typeId)
-{
-	return s_Timestamptz;
 }
 
 #if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
@@ -193,28 +187,28 @@ int32 Timestamp_getCurrentTimeZone(void)
 extern void Timestamp_initialize(void);
 void Timestamp_initialize(void)
 {
+	TypeClass cls;
 	s_Timestamp_class = JNI_newGlobalRef(PgObject_getJavaClass("java/sql/Timestamp"));
 	s_Timestamp_init = PgObject_getJavaMethod(s_Timestamp_class, "<init>", "(J)V");
 	s_Timestamp_getNanos = PgObject_getJavaMethod(s_Timestamp_class, "getNanos", "()I");
 	s_Timestamp_getTime  = PgObject_getJavaMethod(s_Timestamp_class, "getTime",  "()J");
 	s_Timestamp_setNanos = PgObject_getJavaMethod(s_Timestamp_class, "setNanos", "(I)V");
 
-	s_TimestampClass = TypeClass_alloc("type.Timestamp");
-	s_TimestampClass->JNISignature   = "Ljava/sql/Timestamp;";
-	s_TimestampClass->javaTypeName   = "java.sql.Timestamp";
-	s_TimestampClass->canReplaceType = _Timestamp_canReplaceType;
-	s_TimestampClass->coerceDatum    = _Timestamp_coerceDatum;
-	s_TimestampClass->coerceObject   = _Timestamp_coerceObject;
-	s_Timestamp = TypeClass_allocInstance(s_TimestampClass, TIMESTAMPOID);
+	cls = TypeClass_alloc("type.Timestamp");
+	cls->JNISignature   = "Ljava/sql/Timestamp;";
+	cls->javaTypeName   = "java.sql.Timestamp";
+	cls->canReplaceType = _Timestamp_canReplaceType;
+	cls->coerceDatum    = _Timestamp_coerceDatum;
+	cls->coerceObject   = _Timestamp_coerceObject;
+	Type_registerType(0, TypeClass_allocInstance(cls, TIMESTAMPOID));
+	s_TimestampClass = cls;
 
-	s_TimestamptzClass = TypeClass_alloc("type.Timestamptz");
-	s_TimestamptzClass->JNISignature   = "Ljava/sql/Timestamp;";
-	s_TimestamptzClass->javaTypeName   = "java.sql.Timestamp";
-	s_TimestamptzClass->canReplaceType = _Timestamp_canReplaceType;
-	s_TimestamptzClass->coerceDatum    = _Timestamptz_coerceDatum;
-	s_TimestamptzClass->coerceObject   = _Timestamptz_coerceObject;
-	s_Timestamptz = TypeClass_allocInstance(s_TimestamptzClass, TIMESTAMPTZOID);
-
-	Type_registerType(TIMESTAMPOID, 0, Timestamp_obtain);
-	Type_registerType(TIMESTAMPTZOID, "java.sql.Timestamp", Timestamptz_obtain);
+	cls = TypeClass_alloc("type.Timestamptz");
+	cls->JNISignature   = "Ljava/sql/Timestamp;";
+	cls->javaTypeName   = "java.sql.Timestamp";
+	cls->canReplaceType = _Timestamptz_canReplaceType;
+	cls->coerceDatum    = _Timestamptz_coerceDatum;
+	cls->coerceObject   = _Timestamptz_coerceObject;
+	Type_registerType("java.sql.Timestamp", TypeClass_allocInstance(cls, TIMESTAMPTZOID));
+	s_TimestamptzClass = cls;
 }

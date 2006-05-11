@@ -7,11 +7,13 @@
 #ifndef __pljava_type_Array_h
 #define __pljava_type_Array_h
 
-#include "pljava/PgObject.h"
+#include "pljava/type/Type.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <access/tupmacs.h>
 
 /***********************************************************************
  * Array related stuff.
@@ -27,6 +29,9 @@ extern ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, b
 extern void arraySetNull(bits8* bitmap, int offset, bool flag);
 extern bool arrayIsNull(const bits8* bitmap, int offset);
 #endif
+
+extern Type Array_fromOid(Oid typeId, Type elementType);
+extern Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, ObjectCoercer coerceObject);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */

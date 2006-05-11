@@ -96,6 +96,16 @@ extern void PgObject_registerNatives(const char* className, JNINativeMethod* met
 
 extern void PgObject_registerNatives2(jclass cls, JNINativeMethod* methods);
 
+/*
+ * Returns the class for the instance.
+ */
+extern PgObjectClass PgObject_getClass(PgObject self);
+
+/*
+ * Returns the name of the class
+ */
+extern const char* PgObjectClass_getName(PgObjectClass self);
+
 #ifdef __cplusplus
 }
 #endif

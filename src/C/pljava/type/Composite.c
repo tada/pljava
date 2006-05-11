@@ -287,7 +287,7 @@ void Composite_initialize(void)
 	s_CompositeClass->getJNIReturnSignature = _Composite_getJNIReturnSignature;
 	s_CompositeClass->outParameter    = true;
 
-	Type_registerType(InvalidOid, "java.sql.ResultSet", Composite_obtain);
+	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);
 }
 
 /****************************************

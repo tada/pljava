@@ -52,6 +52,16 @@ PgObjectClass PgObjectClass_create(const char* name, Size instanceSize, Finalize
 	return self;
 }
 
+PgObjectClass PgObject_getClass(PgObject self)
+{
+	return self->m_class;
+}
+
+const char* PgObjectClass_getName(PgObjectClass self)
+{
+	return self->name;
+}
+
 void _PgObject_pureVirtualCalled(PgObject object)
 {
 	ereport(ERROR, (errmsg("Pure virtual method called")));

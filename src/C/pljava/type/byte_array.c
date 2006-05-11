@@ -66,31 +66,21 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 	PG_RETURN_BYTEA_P(bytes);
 }
 
-static Type s_byte_array;
-static TypeClass s_byte_arrayClass;
-
-static Type byte_array_obtain(Oid typeId)
-{
-	return s_byte_array;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void byte_array_initialize(void);
 void byte_array_initialize(void)
 {
+	TypeClass cls = TypeClass_alloc("type.byte[]");
+	cls->JNISignature = "[B";
+	cls->javaTypeName = "byte[]";
+	cls->coerceDatum  = _byte_array_coerceDatum;
+	cls->coerceObject = _byte_array_coerceObject;
+	Type_registerType("byte[]", TypeClass_allocInstance(cls, BYTEAOID));
+
 	s_byteArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[B"));
 	s_BlobValue_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/BlobValue"));
 	s_BlobValue_length = PgObject_getJavaMethod(s_BlobValue_class, "length", "()J");
 	s_BlobValue_getContents = PgObject_getJavaMethod(s_BlobValue_class, "getContents", "(Ljava/nio/ByteBuffer;)V");
-
-	s_byte_arrayClass = TypeClass_alloc("type.byte[]");
-	s_byte_arrayClass->JNISignature = "[B";
-	s_byte_arrayClass->javaTypeName = "byte[]";
-	s_byte_arrayClass->coerceDatum  = _byte_array_coerceDatum;
-	s_byte_arrayClass->coerceObject = _byte_array_coerceObject;
-	s_byte_array = TypeClass_allocInstance(s_byte_arrayClass, BYTEAOID);
-
-	Type_registerType(BYTEAOID, "byte[]", byte_array_obtain);
 }
 

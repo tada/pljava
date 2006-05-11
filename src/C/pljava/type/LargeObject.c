@@ -15,8 +15,6 @@
 #include "pljava/type/Oid.h"
 #include "pljava/type/LargeObject.h"
 
-static Type      s_LargeObject;
-static TypeClass s_LargeObjectClass;
 static jclass    s_LargeObject_class;
 static jmethodID s_LargeObject_init;
 
@@ -37,14 +35,10 @@ jobject LargeObject_create(LargeObjectDesc* lo)
 	return jlo;
 }
 
-static Type LargeObject_obtain(Oid typeId)
-{
-	return s_LargeObject;
-}
-
 extern void LargeObject_initialize(void);
 void LargeObject_initialize(void)
 {
+	TypeClass cls;
 	JNINativeMethod methods[] =
 	{
 		{
@@ -102,13 +96,12 @@ void LargeObject_initialize(void)
 
 	s_LargeObject_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/LargeObject"));
 	PgObject_registerNatives2(s_LargeObject_class, methods);
-
 	s_LargeObject_init = PgObject_getJavaMethod(s_LargeObject_class, "<init>", "(J)V");
-	s_LargeObjectClass = TypeClass_alloc("type.LargeObject");
-	s_LargeObjectClass->JNISignature   = "Lorg/postgresql/pljava/internal/LargeObject;";
-	s_LargeObjectClass->javaTypeName   = "org.postgresql.pljava.internal.LargeObject";
-	s_LargeObject = TypeClass_allocInstance(s_LargeObjectClass, InvalidOid);
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.LargeObject", LargeObject_obtain);
+
+	cls = TypeClass_alloc("type.LargeObject");
+	cls->JNISignature = "Lorg/postgresql/pljava/internal/LargeObject;";
+	cls->javaTypeName = "org.postgresql.pljava.internal.LargeObject";
+	Type_registerType("org.postgresql.pljava.internal.LargeObject", TypeClass_allocInstance(cls, InvalidOid));
 }
 
 /****************************************

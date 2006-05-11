@@ -21,8 +21,6 @@
 #include "pljava/type/Portal.h"
 #include "pljava/type/String.h"
 
-static Type      s_Portal;
-static TypeClass s_PortalClass;
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
 static jfieldID  s_Portal_pointer;
@@ -86,11 +84,6 @@ jobject Portal_create(Portal portal)
 	return jportal;
 }
 
-static Type Portal_obtain(Oid typeId)
-{
-	return s_Portal;
-}
-
 /* Make this datatype available to the postgres system.
  */
 extern void Portal_initialize(void);
@@ -150,15 +143,7 @@ void Portal_initialize(void)
 	PgObject_registerNatives2(s_Portal_class, methods);
 	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>", "(J)V");
 	s_Portal_pointer = PgObject_getJavaField(s_Portal_class, "m_pointer", "J");
-
 	s_portalMap = HashMap_create(13, TopMemoryContext);
-
-	s_PortalClass = TypeClass_alloc("type.Portal");
-	s_PortalClass->JNISignature = "Lorg/postgresql/pljava/internal/Portal;";
-	s_PortalClass->javaTypeName = "org.postgresql.pljava.internal.Portal";
-	s_Portal = TypeClass_allocInstance(s_PortalClass, InvalidOid);
-
-	Type_registerType(InvalidOid, "org.postgresql.pljava.internal.Portal", Portal_obtain);
 }
 
 /****************************************
