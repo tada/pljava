@@ -59,7 +59,7 @@ static jvalue _doubleArray_coerceDatum(Type self, Datum arg)
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
-		jdouble isCopy = JNI_FALSE;
+		jboolean isCopy = JNI_FALSE;
 		bits8* nullBitMap = ARR_NULLBITMAP(v);
 		jdouble* values = (jdouble*)ARR_DATA_PTR(v);
 		jdouble* elems  = JNI_getDoubleArrayElements(doubleArray, &isCopy);

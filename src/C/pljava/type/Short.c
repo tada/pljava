@@ -44,7 +44,7 @@ static jvalue _shortArray_coerceDatum(Type self, Datum arg)
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
-		jshort isCopy = JNI_FALSE;
+		jboolean isCopy = JNI_FALSE;
 		bits8* nullBitMap = ARR_NULLBITMAP(v);
 		jshort* values = (jshort*)ARR_DATA_PTR(v);
 		jshort* elems  = JNI_getShortArrayElements(shortArray, &isCopy);
