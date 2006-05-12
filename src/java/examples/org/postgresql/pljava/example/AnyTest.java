@@ -6,7 +6,9 @@
  */
 package org.postgresql.pljava.example;
 
+import java.lang.reflect.Array;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.logging.Logger;
 
 public class AnyTest
@@ -18,5 +20,12 @@ public class AnyTest
 	{
 		s_logger.info("logAny received an object of class " + param.getClass());
 		return param;
+	}
+
+	public static Object[] makeArray(Object param)
+	{
+		Object[] result = (Object[])Array.newInstance(param.getClass(), 1);
+		result[0] = param;
+		return result;
 	}
 }

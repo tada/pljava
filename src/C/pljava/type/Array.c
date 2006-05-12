@@ -115,29 +115,41 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 {
 	ArrayType* v;
 	jsize idx;
+	int    lowerBound = 1;
 	Type   elemType = Type_getElementType(self);
-	jsize  nElems   = JNI_getArrayLength((jarray)objArray);
-	Datum* values   = (Datum*)palloc(nElems * sizeof(Datum));
+	int    nElems   = (int)JNI_getArrayLength((jarray)objArray);
+	Datum* values   = (Datum*)palloc(nElems * sizeof(Datum) + nElems * sizeof(bool));
+	bool*  nulls    = (bool*)(values + nElems);
 
 	for(idx = 0; idx < nElems; ++idx)
 	{
-		/* TODO: Check for NULL values
-		 */
 		jobject obj = JNI_getObjectArrayElement(objArray, idx);
-		if(objArray == 0)
+		if(obj == 0)
+		{
+			nulls[idx] = true;
 			values[idx] = 0;
+		}
 		else
 		{
+			nulls[idx] = false;
 			values[idx] = Type_coerceObject(elemType, obj);
 			JNI_deleteLocalRef(obj);
 		}
 	}
 
-	v = construct_array(values, nElems,
+	v = construct_md_array(
+		values,
+#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+		nulls,
+#endif
+		1,
+		&nElems,
+		&lowerBound,
 		Type_getOid(elemType),
 		Type_getLength(elemType),
 		Type_isByValue(elemType),
 		Type_getAlign(elemType));
+
 	pfree(values);
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -184,7 +196,7 @@ Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, Obje
 	Type_registerType(arrayClass->javaTypeName, self);
 
 	if(Type_isPrimitive(elementType))
-		self->objectType = Array_fromOid(InvalidOid, Type_getObjectType(elementType));
+		self->objectType = Array_fromOid(typeId, Type_getObjectType(elementType));
 	return self;
 }
 

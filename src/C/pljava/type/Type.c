@@ -404,6 +404,15 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 		goto finally;
 	}
 
+	/* For some reason, the anyarray is *not* an array with anyelement as the
+	 * element type. We'd like to see it that way though.
+	 */
+	if(typeId == ANYARRAYOID)
+	{
+		type = Type_getArrayType(Type_fromOid(ANYELEMENTOID, typeMap), typeId);
+		goto finally;
+	}
+
 	if(typeStruct->typbasetype != 0)
 	{
 		/* Domain type, recurse using the base type (which in turn may

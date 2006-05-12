@@ -373,6 +373,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.AnyTest.logAny'
 			LANGUAGE java IMMUTABLE STRICT;
 
+		CREATE FUNCTION javatest.makearray(anyelement)
+			RETURNS anyarray
+			AS 'org.postgresql.pljava.example.AnyTest.makeArray'
+			LANGUAGE java IMMUTABLE STRICT;
+
 	END INSTALL",
 
 	"BEGIN REMOVE
