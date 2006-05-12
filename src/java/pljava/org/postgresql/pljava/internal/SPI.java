@@ -53,6 +53,14 @@ public class SPI
 		}
 	}
 
+	public static void freeTupTable()
+	{
+		synchronized(Backend.THREADLOCK)
+		{
+			_freeTupTable();
+		}
+	}
+
 	/**
 	 * Returns the value of the global variable <code>SPI_processed</code>.
 	 */
@@ -166,5 +174,6 @@ public class SPI
 	private native static int _exec(long threadId, String command, int rowCount);
 	private native static int _getProcessed();
 	private native static int _getResult();
+	private native static void _freeTupTable();
 	private native static TupleTable _getTupTable(TupleDesc known);
 }

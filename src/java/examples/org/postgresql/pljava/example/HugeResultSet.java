@@ -34,7 +34,7 @@ public class HugeResultSet implements ResultSetProvider
 	public boolean assignRowValues(ResultSet receiver, int currentRow)
 	throws SQLException
 	{
-		// Stop when we reach 12 rows.
+		// Stop when we reach rowCount rows.
 		//
 		if(currentRow >= m_rowCount)
 		{

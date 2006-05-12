@@ -40,6 +40,11 @@ void SPI_initialize(void)
 		"(Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;",
 		Java_org_postgresql_pljava_internal_SPI__1getTupTable
 		},
+		{
+		"_freeTupTable",
+		"()V",
+		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
+		},
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
@@ -115,17 +120,30 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls, jobject td)
 {
 	jobject tupleTable = 0;
-	SPITupleTable* tts = SPI_tuptable;
-
-	if(tts != 0)
+	if(SPI_tuptable != 0)
 	{
 		BEGIN_NATIVE
-		tupleTable = TupleTable_create(tts, td);
-		SPI_freetuptable(tts);
-		SPI_tuptable = 0;
+		tupleTable = TupleTable_create(SPI_tuptable, td);
 		END_NATIVE
 	}
 	return tupleTable;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPI
+ * Method:    _freeTupTable
+ * Signature: ()V;
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_SPI__1freeTupTable(JNIEnv* env, jclass cls)
+{
+	if(SPI_tuptable != 0)
+	{
+		BEGIN_NATIVE
+		SPI_freetuptable(SPI_tuptable);
+		SPI_tuptable = 0;
+		END_NATIVE
+	}
 }
 
 static void assertXid(SubTransactionId xid)

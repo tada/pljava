@@ -132,10 +132,17 @@ public class SPIResultSet extends ResultSetBase
 			else
 				mx = fetchSize;
 
-			int result = portal.fetch(true, mx);
-			if(result > 0)
-				m_table = SPI.getTupTable(m_tupleDesc);
-			m_tableRow = -1;
+			try
+			{
+				int result = portal.fetch(true, mx);
+				if(result > 0)
+					m_table = SPI.getTupTable(m_tupleDesc);
+				m_tableRow = -1;
+			}
+			finally
+			{
+				SPI.freeTupTable();
+			}
 		}
 		return m_table;
 	}

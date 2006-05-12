@@ -153,6 +153,11 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.TupleReturn.tupleReturn'
 			IMMUTABLE LANGUAGE java;
 
+		CREATE FUNCTION javatest.tupleReturnExample2(int, int)
+			RETURNS _testSetReturn
+			AS 'org.postgresql.pljava.example.TupleReturn.tupleReturn(java.lang.Integer, java.lang.Integer, java.sql.ResultSet)'
+			IMMUTABLE LANGUAGE java;
+
 		CREATE FUNCTION javatest.tupleReturnToString(_testSetReturn)
 			RETURNS VARCHAR
 			AS 'org.postgresql.pljava.example.TupleReturn.makeString'
@@ -177,6 +182,11 @@ SQLActions[ ] = {
 			RETURNS int
 			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'
 			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.nestedStatements(int)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.SPIActions.nestedStatements'
+			LANGUAGE java;
 
 		CREATE TYPE javatest._properties
 			AS (name varchar(200), value varchar(200));

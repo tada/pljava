@@ -323,8 +323,15 @@ public class Tester
 	{
 		System.out.println("*** testTupleReturn()");
 		Statement stmt = m_connection.createStatement();
-		ResultSet rs = stmt
-			.executeQuery("SELECT tupleReturnToString(tupleReturnExample(1, 5))");
+		ResultSet rs = stmt.executeQuery("SELECT tupleReturnToString(tupleReturnExample(1, 5))");
+		while(rs.next())
+		{
+			String str = rs.getString(1);
+			System.out.println(str);
+		}
+		rs.close();
+
+		rs = stmt.executeQuery("SELECT tupleReturnToString(tupleReturnExample2(1, NULL))");
 		while(rs.next())
 		{
 			String str = rs.getString(1);

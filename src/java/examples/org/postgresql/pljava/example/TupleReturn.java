@@ -58,6 +58,26 @@ public class TupleReturn implements ResultSetProvider
 		receiver.updateTimestamp(3, new Timestamp(System.currentTimeMillis()));
 		return true;
 	}
+
+	public static boolean tupleReturn(Integer base, Integer increment, ResultSet receiver)
+	throws SQLException
+	{
+		if(base == null)
+		{
+			receiver.updateNull(1);
+			receiver.updateNull(2);
+		}
+		else
+		{
+			receiver.updateInt(1, base.intValue());
+			if(increment == null)
+				receiver.updateNull(2);
+			else
+				receiver.updateInt(2, base.intValue() + increment.intValue());
+		}
+		receiver.updateTimestamp(3, new Timestamp(System.currentTimeMillis()));
+		return true;
+	}
 	
 	public static String makeString(ResultSet _testSetReturn)
 	throws SQLException

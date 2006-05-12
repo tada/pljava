@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Time;
+import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.SavepointListener;
@@ -261,6 +262,45 @@ public class SPIActions
 				stmt.close();
 			conn.close();
 		}
+	}
+
+	/**
+	 * Test of bug #1556
+	 *
+	 */
+	public static void nestedStatements(int innerCount)
+	throws SQLException
+	{
+		Connection connection = DriverManager.getConnection("jdbc:default:connection");
+		Statement statement = connection.createStatement();
+
+		// Create a set of ID's so that we can do somthing semi-useful during
+		// the long loop.
+		//
+		statement.execute("DELETE FROM javatest.employees1");
+		statement.execute("INSERT INTO javatest.employees1 VALUES("
+			+ "1, 'Calvin Forrester', 10000)");
+		statement.execute("INSERT INTO javatest.employees1 VALUES("
+			+ "2, 'Edwin Archer', 20000)");
+		statement.execute("INSERT INTO javatest.employees1 VALUES("
+			+ "3, 'Rebecka Shawn', 30000)");
+		statement.execute("INSERT INTO javatest.employees1 VALUES("
+			+ "4, 'Priscilla Johnson', 25000)");
+
+		int idx = 1;
+		ResultSet results = statement.executeQuery("SELECT * FROM javatest.hugeResult(" + innerCount + ")");
+		while(results.next())
+		{
+			Statement innerStatement = connection.createStatement();
+			innerStatement.executeUpdate(
+				"UPDATE javatest.employees1 SET salary = salary + 1 WHERE id=" + idx);
+			innerStatement.close();
+			if(++idx == 5)
+				idx = 0;
+		}
+		results.close();
+		statement.close();
+		connection.close();
 	}
 
 	public static String getDateAsString()

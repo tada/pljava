@@ -115,9 +115,16 @@ public class SPIStatement implements Statement
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else
-		{	
-			plan.execute(paramValues, m_maxRows);
-			m_updateCount = SPI.getProcessed();
+		{
+			try
+			{
+				plan.execute(paramValues, m_maxRows);
+				m_updateCount = SPI.getProcessed();
+			}
+			finally
+			{
+				SPI.freeTupTable();
+			}
 		}
 		return isResultSet;
 	}
