@@ -80,7 +80,7 @@ Type String_obtain(Oid typeId)
 
 String StringClass_obtain(TypeClass self, Oid typeId)
 {
-	return String_create(s_StringClass, typeId);
+	return String_create(self, typeId);
 }
 
 jstring String_createJavaString(text* t)

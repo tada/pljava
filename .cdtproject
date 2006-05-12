@@ -54,6 +54,13 @@
 <stopOnError>false</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 </target>
+<target name="release" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+<buildCommand>c:/msys/bin/rxvt</buildCommand>
+<buildArguments>-e /bin/make</buildArguments>
+<buildTarget>release</buildTarget>
+<stopOnError>false</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+</target>
 </buildTargets>
 </item>
 <item id="scannerConfiguration">
