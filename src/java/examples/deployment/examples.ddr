@@ -13,27 +13,82 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.getTimestamp'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_print(date)
+		CREATE FUNCTION javatest.print(date)
 			RETURNS void
 			AS 'org.postgresql.pljava.example.Parameters.print'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_print(timetz)
+		CREATE FUNCTION javatest.print(timetz)
 			RETURNS void
 			AS 'org.postgresql.pljava.example.Parameters.print'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_print(timestamptz)
+		CREATE FUNCTION javatest.print(timestamptz)
 			RETURNS void
 			AS 'org.postgresql.pljava.example.Parameters.print'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_print(int[])
-			RETURNS int[]
+		CREATE FUNCTION javatest.print("char")
+			RETURNS "char"
 			AS 'org.postgresql.pljava.example.Parameters.print'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.java_printObj(int[])
+		CREATE FUNCTION javatest.print(bytea)
+			RETURNS bytea
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int2)
+			RETURNS int2
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int2[])
+			RETURNS int2[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int4)
+			RETURNS int4
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int4[])
+			RETURNS int4[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int8)
+			RETURNS int8
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(int8[])
+			RETURNS int8[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(real)
+			RETURNS real
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(real[])
+			RETURNS real[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(double precision)
+			RETURNS double precision
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.print(double precision[])
+			RETURNS double precision[]
+			AS 'org.postgresql.pljava.example.Parameters.print'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.printObj(int[])
 			RETURNS int[]
 			AS 'org.postgresql.pljava.example.Parameters.print(java.lang.Integer[])'
 			LANGUAGE java;
@@ -378,8 +433,13 @@ SQLActions[ ] = {
 		/*
 		 * An example using the ANY type
 		 */
-		CREATE FUNCTION javatest.logany(anyelement)
+		CREATE FUNCTION javatest.loganyelement(anyelement)
 			RETURNS anyelement
+			AS 'org.postgresql.pljava.example.AnyTest.logAnyElement'
+			LANGUAGE java IMMUTABLE STRICT;
+
+		CREATE FUNCTION javatest.logany("any")
+			RETURNS void
 			AS 'org.postgresql.pljava.example.AnyTest.logAny'
 			LANGUAGE java IMMUTABLE STRICT;
 

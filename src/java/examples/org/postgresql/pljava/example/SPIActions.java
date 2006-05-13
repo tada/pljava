@@ -15,7 +15,6 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Time;
-import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.SavepointListener;

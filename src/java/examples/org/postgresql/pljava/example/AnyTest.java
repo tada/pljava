@@ -8,17 +8,22 @@ package org.postgresql.pljava.example;
 
 import java.lang.reflect.Array;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.logging.Logger;
 
 public class AnyTest
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
-	public static Object logAny(Object param)
+	public static void logAny(Object param)
 	throws SQLException
 	{
 		s_logger.info("logAny received an object of class " + param.getClass());
+	}
+
+	public static Object logAnyElement(Object param)
+	throws SQLException
+	{
+		s_logger.info("logAnyElement received an object of class " + param.getClass());
 		return param;
 	}
 

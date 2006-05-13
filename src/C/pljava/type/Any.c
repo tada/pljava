@@ -49,4 +49,5 @@ void Any_initialize(void)
 	cls->getRealType     = _Any_getRealType;
 	cls->createArrayType = _Any_createArrayType;
 	Type_registerType("java.lang.Object", TypeClass_allocInstance(cls, ANYELEMENTOID));
+	Type_registerType(0, TypeClass_allocInstance(cls, ANYOID));
 }

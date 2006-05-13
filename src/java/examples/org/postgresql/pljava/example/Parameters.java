@@ -103,6 +103,64 @@ public class Parameters
 		return nullCount;
 	}
 
+	public static byte print(byte value)
+	{
+		log("byte " + value);
+		return value;
+	}
+
+	public static byte[] print(byte[] byteArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = byteArray.length;
+		buf.append("byte[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(byteArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(byteArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return byteArray;
+	}
+
+	public static short print(short value)
+	{
+		log("short " + value);
+		return value;
+	}
+
+	public static short[] print(short[] shortArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = shortArray.length;
+		buf.append("short[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(shortArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(shortArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return shortArray;
+	}
+
+	public static int print(int value)
+	{
+		log("int " + value);
+		return value;
+	}
+
 	public static int[] print(int[] intArray)
 	{
 		StringBuffer buf = new StringBuffer();
@@ -123,11 +181,89 @@ public class Parameters
 		return intArray;
 	}
 
+	public static long print(long value)
+	{
+		log("long " + value);
+		return value;
+	}
+
+	public static long[] print(long[] longArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = longArray.length;
+		buf.append("long[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(longArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(longArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return longArray;
+	}
+
+	public static float print(float value)
+	{
+		log("float " + value);
+		return value;
+	}
+
+	public static float[] print(float[] floatArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = floatArray.length;
+		buf.append("float[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(floatArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(floatArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return floatArray;
+	}
+
+	public static double print(double value)
+	{
+		log("double " + value);
+		return value;
+	}
+
+	public static double[] print(double[] doubleArray)
+	{
+		StringBuffer buf = new StringBuffer();
+		int top = doubleArray.length;
+		buf.append("double[] of size " + top);
+		if(top > 0)
+		{
+			buf.append(" {");
+			buf.append(doubleArray[0]);
+			for(int idx = 1; idx < top; ++idx)
+			{
+				buf.append(',');
+				buf.append(doubleArray[idx]);
+			}
+			buf.append('}');
+		}
+		log(buf.toString());
+		return doubleArray;
+	}
+
 	public static Integer[] print(Integer[] intArray)
 	{
 		StringBuffer buf = new StringBuffer();
 		int top = intArray.length;
-		buf.append("int[] of size " + top);
+		buf.append("Integer[] of size " + top);
 		if(top > 0)
 		{
 			buf.append(" {");

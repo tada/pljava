@@ -267,12 +267,6 @@ public class SQLDeploymentDescriptor
 				break;
 
 			case '"':
-				if(inQuote == 0)
-					throw parseError("Unexpected double qoute in SQL command");
-				m_buffer.append((char)c);
-				c = this.read();
-				break;
-
 			case '\'':
 				if(inQuote == 0)
 				{
@@ -284,7 +278,6 @@ public class SQLDeploymentDescriptor
 					startQuotePos = -1;
 					inQuote = 0;
 				}
-
 				m_buffer.append((char)c);
 				c = this.read();
 				break;
