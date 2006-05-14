@@ -423,7 +423,7 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 
 	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
 	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->udt = UDT_registerUDT(self->clazz, udtId, pgType, 0);
+	self->udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
 	ReleaseSysCache(typeTup);
 }
 

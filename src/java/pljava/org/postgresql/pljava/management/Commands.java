@@ -181,9 +181,8 @@ import org.postgresql.pljava.sqlj.Loader;
  * </tr>
  * </table></blockquote>
  * <h2>add_type_mapping</h2>
- * The add_type_mapping defines the mapping between a composite type and a Java
- * class. This mapping is indended for composite types only. Consult the user
- * guide for instruction on how to map base (or scalar) types.
+ * The add_type_mapping defines the mapping between an SQL type and a Java
+ * class.
  * <h3>Usage</h3>
  * <blockquote><code>SELECT sqlj.add_type_mapping(&lt;sqlTypeName&gt;, &lt;className&gt;);</code>
  * </blockquote>
@@ -191,7 +190,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><table>
  * <tr>
  * <td><b>sqlTypeName</b></td>
- * <td>The name of the SQL composite type. The name can be qualified with a
+ * <td>The name of the SQL type. The name can be qualified with a
  * schema (namespace). If the schema is omitted, it will be resolved according
  * to the current setting of the search_path.</td>
  * </tr>
@@ -202,7 +201,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * </tr>
  * </table></blockquote>
  * <h2>drop_type_mapping</h2>
- * The drop_type_mapping removes the mapping between a composite type and a Java
+ * The drop_type_mapping removes the mapping between an SQL type and a Java
  * class.
  * <h3>Usage</h3>
  * <blockquote><code>SELECT sqlj.drop_type_mapping(&lt;sqlTypeName&gt;);</code>
@@ -211,7 +210,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><table>
  * <tr>
  * <td><b>sqlTypeName</b></td>
- * <td>The name of the SQL composite type. The name can be qualified with a
+ * <td>The name of the SQL type. The name can be qualified with a
  * schema (namespace). If the schema is omitted, it will be resolved according
  * to the current setting of the search_path.</td>
  * </tr>
@@ -358,11 +357,9 @@ public class Commands
 	}
 
 	/**
-	 * Defines the mapping between a composite type and a Java class. This
-	 * mapping is indended for composite types only. Consult the user guide for
-	 * instruction on how to map base (or scalar) types.
+	 * Defines the mapping between an SQL type and a Java class.
 	 * 
-	 * @param sqlTypeName The name of the SQL composite type. The name can be
+	 * @param sqlTypeName The name of the SQL type. The name can be
 	 *            qualified with a schema (namespace). If the schema is omitted,
 	 *            it will be resolved according to the current setting of the
 	 *            <code>search_path</code>.
@@ -403,9 +400,9 @@ public class Commands
 	}
 
 	/**
-	 * Drops the mapping between a composite type and a Java class.
+	 * Drops the mapping between an SQL type and a Java class.
 	 * 
-	 * @param sqlTypeName The name of the SQL composite type. The name can be
+	 * @param sqlTypeName The name of the SQL type. The name can be
 	 *            qualified with a schema (namespace). If the schema is omitted,
 	 *            it will be resolved according to the current setting of the
 	 *            <code>search_path</code>.

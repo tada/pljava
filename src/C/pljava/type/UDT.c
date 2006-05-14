@@ -255,12 +255,12 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 
 bool UDT_isScalar(UDT udt)
 {
-	return udt->toString != 0;
+	return udt->tupleDesc == 0;
 }
 
 /* Make this datatype available to the postgres system.
  */
-UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
+UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td, bool isJavaBasedScalar)
 {
 	jstring jcn;
 	MemoryContext currCtx;
@@ -341,9 +341,9 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 
 	udt->init     = PgObject_getJavaMethod(clazz, "<init>", "()V");
 
-	if(td == 0)
+	if(isJavaBasedScalar)
 	{
-		/* A scalar mapping must have the static method:
+		/* A scalar mapping that is implemented in Java will have the static method:
 		 * 
 		 *   T parse(String stringRep, String sqlTypeName);
 		 * 
@@ -351,7 +351,8 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td)
 		 * 
 		 *   String toString();
 		 * 
-		 * instance method
+		 * instance method. A pure mapping (i.e. no Java I/O methods) will not have
+		 * this.
 		 */
 		udt->toString = PgObject_getJavaMethod(clazz, "toString", "()Ljava/lang/String;");
 	
