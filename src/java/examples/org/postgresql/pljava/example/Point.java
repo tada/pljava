@@ -40,7 +40,7 @@ public class Point implements SQLData
 		stream.writeDouble(m_y);
 	}
 
-	public static ComplexScalar logAndReturn(ComplexScalar cpl)
+	public static Point logAndReturn(Point cpl)
 	{
 		s_logger.info(cpl.getSQLTypeName() + cpl);
 		return cpl;
