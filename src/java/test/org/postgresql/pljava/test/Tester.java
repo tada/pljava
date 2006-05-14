@@ -524,9 +524,9 @@ public class Tester
 		// Test parameter overloading. Set log_min_messages (in posgresql.conf)
 		// to INFO or higher and watch the result.
 		//
-		stmt.execute("SELECT java_print(current_date)");
-		stmt.execute("SELECT java_print(current_time)");
-		stmt.execute("SELECT java_print(current_timestamp)");
+		stmt.execute("SELECT print(current_date)");
+		stmt.execute("SELECT print(current_time)");
+		stmt.execute("SELECT print(current_timestamp)");
 		stmt.close();
 	}
 
