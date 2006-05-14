@@ -143,29 +143,30 @@ jclass Type_getJavaClass(Type self)
 	TypeClass typeClass = self->typeClass;
 	if(typeClass->javaClass == 0)
 	{
-		char c;
-		char* bp;
-		char* mp;
 		jclass cls;
-		const char* cp = typeClass->javaTypeName;
-		if(cp == 0)
+		const char* cp = typeClass->JNISignature;
+		if(cp == 0 || *cp == 0)
 			ereport(ERROR, (
 				errmsg("Type '%s' has no corresponding java class",
 					PgObjectClass_getName((PgObjectClass)typeClass))));
 
-		bp = mp = palloc(strlen(cp) + 1);
-		while((c = *cp++) != 0)
+		if(*cp == 'L')
 		{
-			if(c == '.')
-				c = '/';
-			*mp++ = c;
+			/* L<object name>; should be just <object name>. Strange
+			 * since the L and ; are retained if its an array.
+			 */
+			int len = strlen(cp) - 2;
+			char* bp = palloc(len + 1);
+			memcpy(bp, cp + 1, len);
+			bp[len] = 0;
+			cls = PgObject_getJavaClass(bp);
+			pfree(bp);
 		}
-		*mp = 0;
-		
-		cls = PgObject_getJavaClass(bp);
+		else
+			cls = PgObject_getJavaClass(cp);
+
 		typeClass->javaClass = JNI_newGlobalRef(cls);
 		JNI_deleteLocalRef(cls);
-		pfree(bp);
 	}
 	return typeClass->javaClass;
 }
