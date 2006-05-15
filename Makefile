@@ -39,7 +39,7 @@ export JNIDIR			:= $(TARGETDIR)/jni
 export CLASSDIR			:= $(TARGETDIR)/classes
 export PLJAVA_MAJOR_VER	:= 1
 export PLJAVA_MINOR_VER	:= 3
-export PLJAVA_PATCH_VER	:= beta
+export PLJAVA_PATCH_VER	:= b2
 export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER).$(PLJAVA_PATCH_VER)
 export TAR				:= /bin/tar
 
