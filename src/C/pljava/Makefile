@@ -70,8 +70,7 @@ ifdef USE_GCJ
 	ifdef DLL_BUILD
 		SHLIB_LINK += -lws2_32
 	endif
-	override OBJS = pljava_jar.o $(OBJS)
-
+	OBJS += pljava_jar.o
 else
 	pljava-jar = pljava.jar
 	ifeq ($(PORTNAME), darwin)
