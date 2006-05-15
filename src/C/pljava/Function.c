@@ -327,8 +327,6 @@ static void parseFunction(ParseResult info, HeapTuple procTup)
 	char* ep;
 	char* bp = getAS(procTup, &ep);
 
-	elog(INFO, "AS = '%s'", bp);
-
 	info->buffer = bp;
 
 	/* The AS clause can have two formats
@@ -399,7 +397,7 @@ static void parseFunction(ParseResult info, HeapTuple procTup)
 	else
 		info->className = bp;
 
-	elog(INFO, "className = '%s', methodName = '%s', parameters = '%s', returnType = '%s'",
+	elog(DEBUG3, "className = '%s', methodName = '%s', parameters = '%s', returnType = '%s'",
 		info->className == 0 ? "null" : info->className,
 		info->methodName == 0 ? "null" : info->methodName,
 		info->parameters == 0 ? "null" : info->parameters,
