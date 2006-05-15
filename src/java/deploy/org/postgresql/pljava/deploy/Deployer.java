@@ -10,6 +10,7 @@ import java.io.PrintStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -254,6 +255,7 @@ public class Deployer
 					password);
 
 			checkIfConnectedAsSuperuser(c);
+			c.setAutoCommit(false);
 			Deployer deployer = new Deployer(c);
 
 			if(cmd == CMD_UNINSTALL || cmd == CMD_REINSTALL)
@@ -267,6 +269,7 @@ public class Deployer
 				deployer.initJavaHandlers();
 				deployer.initializeSQLJSchema();
 			}
+			c.commit();
 			c.close();
 		}
 		catch(Exception e)
@@ -305,16 +308,38 @@ public class Deployer
 	throws SQLException
 	{
 		Statement stmt = m_connection.createStatement();
+		Savepoint p = null;
 
 		try
 		{
+			if (m_connection.getMetaData().supportsSavepoints())
+				p = m_connection.setSavepoint();
 			stmt.execute("DROP LANGUAGE java CASCADE");
 			stmt.execute("DROP LANGUAGE javaU CASCADE");
 		}
 		catch(SQLException e)
 		{
-			/* ignore */
+			/* roll back to savepoint (if available)
+			 * or restart the transaction (if no savepoint is available)
+			 * & ignore the exception */
+			
+			if (p != null)
+				m_connection.rollback(p);
+			else
+				/* Assuming that the dropSQLJSchema is the
+				 * first method called in a transaction,
+				 * we can afford to restart the transaction.
+				 * 
+				 * This solution is designed for PostgreSQL < 8 (no savepoints available)
+				 */
+				m_connection.rollback();
 		}
+		finally
+		{
+			if (p != null)
+				m_connection.releaseSavepoint(p);
+		}
+
 		stmt.execute("DROP SCHEMA sqlj CASCADE");
 		stmt.close();
 	}
