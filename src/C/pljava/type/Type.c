@@ -9,11 +9,13 @@
 #include <postgres.h>
 #include <fmgr.h>
 #include <funcapi.h>
+#include <parser/parse_coerce.h>
 #include <utils/typcache.h>
 #include <utils/lsyscache.h>
 
 #include "pljava/type/String_priv.h"
 #include "pljava/type/Array.h"
+#include "pljava/type/Coerce.h"
 #include "pljava/type/Composite.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Oid.h"
@@ -91,6 +93,76 @@ static void _endOfSetCB(Datum arg)
 	currentInvocation->inExprContextCB = true;
 	_closeIteration(ctxData);
 	currentInvocation->inExprContextCB = saveInExprCtxCB;
+}
+
+Type Type_getCoerceIn(Type self, Type other)
+{
+	Oid  funcId;
+	Type coerce;
+	Oid  fromOid = other->typeId;
+	Oid  toOid = self->typeId;
+
+	if(self->inCoercions != 0)
+	{
+		coerce = HashMap_getByOid(self->inCoercions, fromOid);
+		if(coerce != 0)
+			return coerce;
+	}
+
+	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+	{
+		elog(ERROR, "no conversion function from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	}
+
+	if(funcId == InvalidOid)
+		/*
+		 * Binary compatible type. No need for a special coercer
+		 */
+		return self;
+
+	if(self->inCoercions == 0)
+		self->inCoercions = HashMap_create(7, GetMemoryChunkContext(self));
+
+	coerce = Coerce_createIn(self, other, funcId);
+	HashMap_putByOid(self->inCoercions, fromOid, coerce);
+	return coerce;
+}
+
+Type Type_getCoerceOut(Type self, Type other)
+{
+	Oid  funcId;
+	Type coercer;
+	Oid  fromOid = self->typeId;
+	Oid  toOid = other->typeId;
+
+	if(self->outCoercions != 0)
+	{
+		coercer = HashMap_getByOid(self->outCoercions, toOid);
+		if(coercer != 0)
+			return coercer;
+	}
+
+	if(funcId == InvalidOid)
+		/*
+		 * Binary compatible type. No need for a special coercer
+		 */
+		return self;
+
+	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+	{
+		elog(ERROR, "no conversion function from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	}
+
+	if(self->outCoercions == 0)
+		self->outCoercions = HashMap_create(7, GetMemoryChunkContext(self));
+
+	coercer = Coerce_createOut(self, other, funcId);
+	HashMap_putByOid(self->outCoercions, toOid, coercer);
+	return coercer;
 }
 
 bool Type_canReplaceType(Type self, Type other)
@@ -178,7 +250,7 @@ const char* Type_getJavaTypeName(Type self)
 
 const char* Type_getJNISignature(Type self)
 {
-	return self->typeClass->JNISignature;
+	return self->typeClass->getJNISignature(self);
 }
 
 const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
@@ -560,6 +632,11 @@ static Type _Type_getRealType(Type self, Oid realId, jobject typeMap)
 	return self;
 }
 
+static const char* _Type_getJNISignature(Type self)
+{
+	return self->typeClass->JNISignature;
+}
+
 static const char* _Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
 {
 	return forMultiCall ? "Ljava/util/Iterator;" : Type_getJNISignature(self);
@@ -577,6 +654,7 @@ TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
  * Shortcuts to initializers of known types
  */
 extern void Any_initialize(void);
+extern void Coerce_initialize(void);
 extern void Void_initialize(void);
 extern void Boolean_initialize(void);
 extern void Byte_initialize(void);
@@ -620,6 +698,7 @@ void Type_initialize(void)
 	String_initialize();
 
 	Any_initialize();
+	Coerce_initialize();
 	Void_initialize();
 	Boolean_initialize();
 	Byte_initialize();
@@ -687,6 +766,7 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	self->nextSRF         = _Type_nextSRF;
 	self->closeSRF        = _Type_closeSRF;
 	self->getTupleDesc    = _Type_getTupleDesc;
+	self->getJNISignature = _Type_getJNISignature;
 	self->getJNIReturnSignature = _Type_getJNIReturnSignature;
 	self->dynamic         = false;
 	self->outParameter    = false;
@@ -708,10 +788,12 @@ Type TypeClass_allocInstance(TypeClass cls, Oid typeId)
 Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType)
 {
 	Type t = (Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
-	t->typeId      = typeId;
-	t->arrayType   = 0;
-	t->elementType = 0;
-	t->objectType  = 0;
+	t->typeId       = typeId;
+	t->arrayType    = 0;
+	t->elementType  = 0;
+	t->objectType   = 0;
+	t->inCoercions  = 0;
+	t->outCoercions = 0;
 	if(pgType != 0)
 	{
 		t->length  = pgType->typlen;
@@ -724,6 +806,12 @@ Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType)
 						 &t->length,
 						 &t->byValue,
 						 &t->align);
+	}
+	else
+	{
+		t->length = 0;
+		t->byValue = true;
+		t->align = 'i';
 	}
 	return t;
 }

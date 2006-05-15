@@ -10,6 +10,7 @@
 #define __pljava_type_Type_priv_h
 
 #include "pljava/PgObject_priv.h"
+#include "pljava/HashMap.h"
 #include "pljava/type/Type.h"
 
 #ifdef __cplusplus
@@ -104,6 +105,7 @@ struct TypeClass_
 	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jint counter);
 	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
 	void (*closeSRF)(Type self, jobject producer);
+	const char* (*getJNISignature)(Type self);
 	const char* (*getJNIReturnSignature)(Type self, bool forMultiCall, bool useAltRepr);
 
 	/*
@@ -138,6 +140,18 @@ struct Type_
 	 * will be NULL.
 	 */
 	Type  objectType;
+
+	/*
+	 * Oid keyed hash map of coercion routines that can front this type when doing
+	 * parameter input coercion.
+	 */
+	HashMap inCoercions;
+
+	/*
+	 * Oid keyed hash map of coercion routines that can front this type when doing
+	 * coercion of output results.
+	 */
+	HashMap outCoercions;
 
 	int16 length;
 	bool  byValue;

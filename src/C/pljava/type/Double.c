@@ -18,25 +18,17 @@ static jmethodID s_Double_doubleValue;
 /*
  * double primitive type.
  */
-static Datum _asDatum(Type self, jdouble v)
+static Datum _asDatum(jdouble v)
 {
-	Datum ret;
-	if(Type_isByValue(self))
-		ret = Float8GetDatum(v);
-	else
-	{
-		/* Careful. This needs to be allocated in the caller context
-		 */
-		MemoryContext currCtx = Invocation_switchToUpperContext();
-		ret = Float8GetDatum(v);
-		MemoryContextSwitchTo(currCtx);
-	}
+	MemoryContext currCtx = Invocation_switchToUpperContext();
+	Datum ret = Float8GetDatum(v);
+	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
 
 static Datum _double_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	return _asDatum(self, JNI_callStaticDoubleMethodA(cls, method, args));
+	return _asDatum(JNI_callStaticDoubleMethodA(cls, method, args));
 }
 
 static jvalue _double_coerceDatum(Type self, Datum arg)
@@ -116,7 +108,7 @@ static jvalue _Double_coerceDatum(Type self, Datum arg)
 
 static Datum _Double_coerceObject(Type self, jobject doubleObj)
 {
-	return _asDatum(self, doubleObj == 0 ? 0 : JNI_callDoubleMethod(doubleObj, s_Double_doubleValue));
+	return _asDatum(doubleObj == 0 ? 0 : JNI_callDoubleMethod(doubleObj, s_Double_doubleValue));
 }
 
 static Type _double_createArrayType(Type self, Oid arrayTypeId)

@@ -25,7 +25,7 @@ static jclass    s_Time_class;
 static jmethodID s_Time_init;
 static jmethodID s_Time_getTime;
 
-static jlong msecsAtMidnight()
+static jlong msecsAtMidnight(void)
 {
 	AbsoluteTime now = GetCurrentAbsoluteTime() / 86400;
 	return INT64CONST(1000) * (jlong)(now * 86400);

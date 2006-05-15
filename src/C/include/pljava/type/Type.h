@@ -83,6 +83,17 @@ extern Type Type_fromOid(Oid typeId, jobject typeMap);
 extern Type Type_fromOidCache(Oid typeId);
 
 /*
+ * Return a coerce type that can front this type when doing parameter coercion
+ */
+extern Type Type_getCoerceIn(Type self, Type other);
+
+/*
+ * Return a coerce type that this type can hand over to when doing result value
+ * coercion
+ */
+extern Type Type_getCoerceOut(Type self, Type other);
+
+/*
  * Returns true if the type represents the dynamic (any) type.
  */
 extern bool Type_isDynamic(Type self);

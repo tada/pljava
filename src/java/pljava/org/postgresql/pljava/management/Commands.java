@@ -904,11 +904,7 @@ public class Commands
 			if(ownerRet != null)
 			{
 				String ownerName = rs.getString(2);
-				AclId owner = AclId.fromName(ownerName);
-				if(owner == null)
-					throw new SQLException("The owner of jar '" + jarName
-						+ "' (" + ownerName + ") is not known");
-				ownerRet[0] = owner;
+				ownerRet[0] = AclId.fromName(ownerName);
 			}
 			return id;
 		}

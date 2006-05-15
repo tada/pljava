@@ -6,6 +6,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.sql.SQLException;
+
 /**
  * The <code>AclId</code> correspons to the internal PostgreSQL <code>AclId</code>.
  *
@@ -71,8 +73,9 @@ public final class AclId
 
 	/**
 	 * Return the id of the session user.
+	 * @throws SQLException if the user is unknown to the system.
 	 */
-	public static AclId fromName(String name)
+	public static AclId fromName(String name) throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{

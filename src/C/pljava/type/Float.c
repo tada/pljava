@@ -18,10 +18,17 @@ static jmethodID s_Float_floatValue;
 /*
  * float primitive type.
  */
+static Datum _asDatum(jfloat v)
+{
+	MemoryContext currCtx = Invocation_switchToUpperContext();
+	Datum ret = Float4GetDatum(v);
+	MemoryContextSwitchTo(currCtx);
+	return ret;
+}
+
 static Datum _float_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	jfloat v = JNI_callStaticFloatMethodA(cls, method, args);
-	return Float4GetDatum(v);
+	return _asDatum(JNI_callStaticFloatMethodA(cls, method, args));
 }
 
 static jvalue _float_coerceDatum(Type self, Datum arg)
@@ -101,7 +108,7 @@ static jvalue _Float_coerceDatum(Type self, Datum arg)
 
 static Datum _Float_coerceObject(Type self, jobject floatObj)
 {
-	return Float4GetDatum(floatObj == 0 ? 0.0 : JNI_callFloatMethod(floatObj, s_Float_floatValue));
+	return _asDatum(floatObj == 0 ? 0.0 : JNI_callFloatMethod(floatObj, s_Float_floatValue));
 }
 
 static Type _float_createArrayType(Type self, Oid arrayTypeId)

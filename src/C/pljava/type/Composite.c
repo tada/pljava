@@ -7,6 +7,7 @@
  * @author Thomas Hallgren
  */
 #include <postgres.h>
+#include <funcapi.h>
 #include <utils/typcache.h>
 
 #include "pljava/type/Type_priv.h"

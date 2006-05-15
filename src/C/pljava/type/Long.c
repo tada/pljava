@@ -18,25 +18,17 @@ static jmethodID s_Long_longValue;
 /*
  * long primitive type.
  */
-static Datum _asDatum(Type self, jlong v)
+static Datum _asDatum(jlong v)
 {
-	Datum ret;
-	if(Type_isByValue(self))
-		ret = Int64GetDatum(v);
-	else
-	{
-		/* Careful. This needs to be allocated in the caller context
-		 */
-		MemoryContext currCtx = Invocation_switchToUpperContext();
-		ret = Int64GetDatum(v);
-		MemoryContextSwitchTo(currCtx);
-	}
+	MemoryContext currCtx = Invocation_switchToUpperContext();
+	Datum ret = Int64GetDatum(v);
+	MemoryContextSwitchTo(currCtx);
 	return ret;
 }
 
 static Datum _long_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
 {
-	return _asDatum(self, JNI_callStaticLongMethodA(cls, method, args));
+	return _asDatum(JNI_callStaticLongMethodA(cls, method, args));
 }
 
 static jvalue _long_coerceDatum(Type self, Datum arg)
@@ -116,7 +108,7 @@ static jvalue _Long_coerceDatum(Type self, Datum arg)
 
 static Datum _Long_coerceObject(Type self, jobject longObj)
 {
-	return _asDatum(self, longObj == 0 ? 0 : JNI_callLongMethod(longObj, s_Long_longValue));
+	return _asDatum(longObj == 0 ? 0 : JNI_callLongMethod(longObj, s_Long_longValue));
 }
 
 static Type _long_createArrayType(Type self, Oid arrayTypeId)

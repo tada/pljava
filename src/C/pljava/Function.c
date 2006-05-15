@@ -116,6 +116,7 @@ struct Function_
 typedef struct ParseResultData
 {
 	char* buffer;	/* The buffer to pfree once we are done */
+	const char* returnType;
 	const char* className;
 	const char* methodName;
 	const char* parameters;
@@ -211,11 +212,8 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 
 				repl = Type_fromJavaType(did, sign.data);
 				if(!Type_canReplaceType(repl, deflt))
-					ereport(ERROR, (
-						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Default type %s cannot be replaced by %s",
-							jtName, Type_getJavaTypeName(repl))));
-				
+					repl = Type_getCoerceIn(repl, deflt);
+
 				if(idx == top)
 					self->returnType = repl;
 				else
@@ -254,6 +252,8 @@ static char* getAS(HeapTuple procTup, char** epHolder)
 	char* cp1;
 	char* cp2;
 	char* bp;
+	bool  atStart = true;
+	bool  passedFirst = false;
 	bool  isNull = false;
 	Datum tmp = SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_prosrc, &isNull);
 	if(isNull)
@@ -265,13 +265,33 @@ static char* getAS(HeapTuple procTup, char** epHolder)
 
 	bp = pstrdup(DatumGetCString(DirectFunctionCall1(textout, tmp)));
 
-	/* Strip all whitespace
-	*/
+	/* Strip all whitespace except the first one if it occures after
+	 * some alpha numeric characers and before some other alpha numeric
+	 * characters. We insert a '=' when that happens since it delimits
+	 * the return value from the method name.
+	 */
 	cp1 = cp2 = bp;
 	while((c = *cp1++) != 0)
 	{
 		if(isspace(c))
-			continue;
+		{
+			if(atStart || passedFirst)
+				continue;
+
+			while((c = *cp1++) != 0)
+				if(!isspace(c))
+					break;
+
+			if(c == 0)
+				break;
+
+			if(isalpha(c))
+				*cp2++ = '=';
+			passedFirst = true;
+		}
+		atStart = false;
+		if(!isalnum(c))
+			passedFirst = true;
 		*cp2++ = c;
 	}
 	*cp2 = 0;
@@ -307,8 +327,9 @@ static void parseFunction(ParseResult info, HeapTuple procTup)
 	char* ep;
 	char* bp = getAS(procTup, &ep);
 
+	elog(INFO, "AS = '%s'", bp);
+
 	info->buffer = bp;
-	info->parameters = 0;
 
 	/* The AS clause can have two formats
 	 *
@@ -360,7 +381,29 @@ static void parseFunction(ParseResult info, HeapTuple procTup)
 	}
 	info->methodName = ip + 1;
 	*ip = 0;
-	info->className = bp;
+	
+	/* Check if we have a return type declaration
+	 */
+	while(--ip > bp)
+	{
+		if(*ip == '=')
+		{
+			info->className = ip + 1;
+			*ip = 0;
+			break;
+		}
+	}
+
+	if(info->className != 0)
+		info->returnType = bp;
+	else
+		info->className = bp;
+
+	elog(INFO, "className = '%s', methodName = '%s', parameters = '%s', returnType = '%s'",
+		info->className == 0 ? "null" : info->className,
+		info->methodName == 0 ? "null" : info->methodName,
+		info->parameters == 0 ? "null" : info->parameters,
+		info->returnType == 0 ? "null" : info->returnType);
 }
 
 static jstring getSchemaName(int namespaceOid)
@@ -454,6 +497,18 @@ static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc pr
 
 	if(info->parameters != 0)
 		parseParameters(self, paramOids, info->parameters);
+
+	if(info->returnType != 0)
+	{
+		const char* jtName = Type_getJavaTypeName(self->returnType);
+		if(strcmp(jtName, info->returnType) != 0)
+		{
+			Type repl = Type_fromJavaType(Type_getOid(self->returnType), info->returnType);
+			if(!Type_canReplaceType(repl, self->returnType))
+				repl = Type_getCoerceOut(repl, self->returnType);
+			self->returnType = repl;
+		}
+	}
 }
 
 static void Function_init(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
@@ -573,6 +628,7 @@ static Function Function_create(PG_FUNCTION_ARGS)
 	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
 	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
 
+	memset(&info, 0, sizeof(ParseResultData));
 	parseFunction(&info, procTup);
 	Function_init(self, &info, (Form_pg_proc)GETSTRUCT(procTup), fcinfo);
 
@@ -610,7 +666,7 @@ static bool Function_inUse(Function func)
 	return false;
 }
 
-void Function_clearFunctionCache()
+void Function_clearFunctionCache(void)
 {
 	Entry entry;
 
