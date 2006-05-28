@@ -170,13 +170,13 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_LargeObject__1open(JNIEnv* env, jclass cls, jobject oid, jint flags)
 {
 	jobject result = 0;
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+#if (PGSQL_MAJOR_VER == 8 && (PGSQL_MINOR_VER < 1 || (PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER < 4)))
 	MemoryContext currCtx = MemoryContextSwitchTo(JavaMemoryContext);
 #endif
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+#if (PGSQL_MAJOR_VER == 8 && (PGSQL_MINOR_VER < 1 || (PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER < 4)))
 		result = LargeObject_create(inv_open(Oid_getOid(oid), (int)flags));
 #else
 		result = LargeObject_create(inv_open(Oid_getOid(oid), (int)flags, JavaMemoryContext));
@@ -188,7 +188,7 @@ Java_org_postgresql_pljava_internal_LargeObject__1open(JNIEnv* env, jclass cls, 
 	}
 	PG_END_TRY();
 	END_NATIVE
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
+#if (PGSQL_MAJOR_VER == 8 && (PGSQL_MINOR_VER < 1 || (PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER < 4)))
 	MemoryContextSwitchTo(currCtx);
 #endif
 	return result;

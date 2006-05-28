@@ -26,14 +26,16 @@ $(OBJS): %.o : $(SRCDIR)/%.c
 #
 include $(PGXS)
 
-SS_VERSION := $(subst ., ,$(subst devel,.devel,$(subst beta,.beta,$(VERSION))))
+SS_VERSION := $(subst ., ,$(subst devel,.99,$(subst beta,.99,$(VERSION))))
 PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
 PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
+PGSQL_PATCH_VER	= $(word 3,$(SS_VERSION))
 
 PLJAVA_CPPFLAGS = \
 	-DPKGLIBDIR=\"$(pkglibdir)\" $(INCLDIR) \
 	-DPGSQL_MAJOR_VER=$(PGSQL_MAJOR_VER) \
-	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER)
+	-DPGSQL_MINOR_VER=$(PGSQL_MINOR_VER) \
+	-DPGSQL_PATCH_VER=$(PGSQL_PATCH_VER)
 
 ifeq ($(PORTNAME), win32)
 	DLL_BUILD := 1

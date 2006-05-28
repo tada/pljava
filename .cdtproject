@@ -11,10 +11,11 @@
         
     
 <item id="org.eclipse.cdt.core.pathentry">
+<pathentry excluding="type/" kind="src" path="src/C/pljava"/>
+<pathentry kind="src" path="src/C/pljava/type"/>
+<pathentry kind="out" path=""/>
 <pathentry kind="mac" name="PGSQL_MAJOR_VERSION" path="" value="8"/>
 <pathentry kind="mac" name="PGSQL_MINOR_VERSION" path="" value="1"/>
-<pathentry kind="mac" name="PKGLIBDIR" path="" value="&quot;/usr/local/pgsql/lib&quot;"/>
-<pathentry kind="mac" name="HAVE_STRINGIZE" path="" value="1"/>
 <pathentry base-path="org.postgresql.pljava" include="src/C/include" kind="inc" path="" system="true"/>
 <pathentry base-path="org.postgresql.pljava" include="build/jni" kind="inc" path="" system="true"/>
 <pathentry base-path="pgsql" include="src/include" kind="inc" path="" system="true"/>
@@ -22,9 +23,6 @@
 <pathentry include="C:/Program Files/Java/jdk1.5.0_06/include" kind="inc" path="" system="true"/>
 <pathentry include="C:/msys/mingw/include" kind="inc" path="" system="true"/>
 <pathentry include="C:/msys/mingw/include/sys" kind="inc" path="" system="true"/>
-<pathentry excluding="type/" kind="src" path="src/C/pljava"/>
-<pathentry kind="src" path="src/C/pljava/type"/>
-<pathentry kind="out" path=""/>
 </item>
 <item id="cdt_indexer">
 <indexEnabled indexValue="false"/>
