@@ -41,6 +41,13 @@
 #error "PKGLIBDIR needs to be defined to compile this file."
 #endif
 
+/* Include the 'magic block' that PostgreSQL 8.2 and up will use to ensure
+ * that a module is not loaded into an incompatible server.
+ */ 
+#ifdef PG_MODULE_MAGIC
+PG_MODULE_MAGIC;
+#endif
+
 #define LOCAL_REFERENCE_COUNT 128
 
 jlong mainThreadId;
