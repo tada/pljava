@@ -450,6 +450,20 @@ public class Deployer
 			"	AS 'org.postgresql.pljava.management.Commands.getClassPath'" +
 			"	LANGUAGE java STABLE SECURITY DEFINER");
 
+		// The following functions are not included in the standard. Type mapping
+		// is radically different in SQL 2003 and requires a lot of additions to
+		// the PostgreSQL dialect.
+		//
+		stmt.execute(
+			"CREATE FUNCTION sqlj.add_type_mapping(VARCHAR, VARCHAR) RETURNS void" +
+			"	AS 'org.postgresql.pljava.management.Commands.addTypeMapping'" +
+			"	LANGUAGE java SECURITY DEFINER");
+
+		stmt.execute(
+			"CREATE FUNCTION sqlj.drop_type_mapping(VARCHAR) RETURNS void" +
+			"	AS 'org.postgresql.pljava.management.Commands.dropTypeMapping'" +
+			"	LANGUAGE java SECURITY DEFINER");
+
 		stmt.close();
 	}
 
