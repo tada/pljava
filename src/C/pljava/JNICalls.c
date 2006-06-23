@@ -70,6 +70,16 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 	ereport(logLevel, (errcode(sqlState), errmsg(buf.data)));
 }
 
+static void printStacktrace(JNIEnv* env, jobject exh)
+{
+	if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
+	{
+		int currLevel = Backend_setJavaLogLevel(DEBUG1);
+		(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);
+		Backend_setJavaLogLevel(currLevel);
+	}
+}
+
 static void endCall(JNIEnv* env)
 {
 	jobject exh = (*env)->ExceptionOccurred(env);
@@ -82,13 +92,7 @@ static void endCall(JNIEnv* env)
 	jniEnv = env;
 	if(exh != 0)
 	{
-		if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
-		{
-			int currLevel = Backend_setJavaLogLevel(DEBUG1);
-			(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);
-			Backend_setJavaLogLevel(currLevel);
-		}
-
+		printStacktrace(env, exh);
 		if((*env)->IsInstanceOf(env, exh, ServerException_class))
 		{
 			/* Rethrow the server error.
@@ -504,7 +508,11 @@ void JNI_exceptionDescribe(void)
 	BEGIN_JAVA
 	exh = (*env)->ExceptionOccurred(env);
 	if(exh != 0)
+	{
+		(*env)->ExceptionClear(env);
+		printStacktrace(env, exh);
 		elogExceptionMessage(env, exh, WARNING);
+	}
 	END_JAVA
 }
 
