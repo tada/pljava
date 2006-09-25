@@ -11,7 +11,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.StringTokenizer;
 
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
@@ -406,7 +405,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		// and " mycol LIKE ? " which using the V3 protocol would skip
 		// pg's input parser, but I don't know what we can do about that.
 		//
-		return "\\\\";
+		return "\\";
 	}
 
 	/*
@@ -1486,10 +1485,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String returnTypeType = null;
 		Oid returnTypeRelid = null;
 
-		String strArgTypes = null;
-		StringTokenizer st = null;
-		ArrayList argTypes = null;
-
+		Oid[] argTypes = null;
 		while(rs.next())
 		{
 			schema = rs.getString("nspname");
@@ -1497,16 +1493,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			returnType = (Oid)rs.getObject("prorettype");
 			returnTypeType = rs.getString("typtype");
 			returnTypeRelid = (Oid)rs.getObject("typrelid");
-			strArgTypes = rs.getString("proargtypes");
-			//argTypesArr = rs.getArray("proargtypes");
-			//ResultSet argrs = argTypesArr.getResultSet();
-
-			st = new StringTokenizer(strArgTypes);
-			argTypes = new ArrayList();
-			while(st.hasMoreTokens())
-			{
-				argTypes.add(new Oid(Integer.parseInt(st.nextToken())));
-			}
+			argTypes = (Oid[])rs.getObject("proargtypes");
 
 			// decide if we are returning a single column result.
 			if(!returnTypeType.equals("c"))
@@ -1529,9 +1516,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			}
 
 			// Add a row for each argument.
-			for(int i = 0; i < argTypes.size(); i++)
+			for(int i = 0; i < argTypes.length; i++)
 			{
-				Oid argOid = (Oid)argTypes.get(i);
+				Oid argOid = argTypes[i];
 				Object[] tuple = new Object[13];
 				tuple[0] = null;
 				tuple[1] = schema;
@@ -1610,7 +1597,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	{
 		String useSchemas = "SCHEMAS";
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, c.relname AS TABLE_NAME, "
-				+ " CASE n.nspname LIKE 'pg\\\\_%' OR n.nspname = 'information_schema' "
+				+ " CASE n.nspname LIKE 'pg!_%' ESCAPE '!' OR n.nspname = 'information_schema' "
 				+ " WHEN true THEN CASE "
 				+ " WHEN n.nspname = 'pg_catalog' OR n.nspname = 'information_schema' THEN CASE c.relkind "
 				+ "  WHEN 'r' THEN 'SYSTEM TABLE' "
@@ -1681,21 +1668,21 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		HashMap ht = new HashMap();
 		s_tableTypeClauses.put("TABLE", ht);
 		ht.put("SCHEMAS",
-			"c.relkind = 'r' AND n.nspname NOT LIKE 'pg\\\\_%' AND n.nspname <> 'information_schema'");
+			"c.relkind = 'r' AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' AND n.nspname <> 'information_schema'");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname NOT LIKE 'pg\\\\_%'");
+			"c.relkind = 'r' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("VIEW", ht);
 		ht.put("SCHEMAS",
 			"c.relkind = 'v' AND n.nspname <> 'pg_catalog' AND n.nspname <> 'information_schema'");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'v' AND c.relname NOT LIKE 'pg\\\\_%'");
+			"c.relkind = 'v' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("INDEX", ht);
 		ht.put("SCHEMAS",
-			"c.relkind = 'i' AND n.nspname NOT LIKE 'pg\\\\_%' AND n.nspname <> 'information_schema'");
+			"c.relkind = 'i' AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' AND n.nspname <> 'information_schema'");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname NOT LIKE 'pg\\\\_%'");
+			"c.relkind = 'i' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("SEQUENCE", ht);
 		ht.put("SCHEMAS", "c.relkind = 'S'");
@@ -1705,40 +1692,40 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ht.put("SCHEMAS",
 			"c.relkind = 'r' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema')");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg\\\\_%' AND c.relname NOT LIKE 'pg\\\\_toast\\\\_%' AND c.relname NOT LIKE 'pg\\\\_temp\\\\_%'");
+			"c.relkind = 'r' AND c.relname LIKE 'pg!_%' ESCAPE '!' AND c.relname NOT LIKE 'pgLIKE 'pg!_toast!_%' ESCAPE '!'toast!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("SYSTEM TOAST TABLE", ht);
 		ht.put("SCHEMAS", "c.relkind = 'r' AND n.nspname = 'pg_toast'");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg\\\\_toast\\\\_%'");
+			"c.relkind = 'r' AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("SYSTEM TOAST INDEX", ht);
 		ht.put("SCHEMAS", "c.relkind = 'i' AND n.nspname = 'pg_toast'");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname LIKE 'pg\\\\_toast\\\\_%'");
+			"c.relkind = 'i' AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("SYSTEM VIEW", ht);
 		ht.put("SCHEMAS",
 			"c.relkind = 'v' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema') ");
-		ht.put("NOSCHEMAS", "c.relkind = 'v' AND c.relname LIKE 'pg\\\\_%'");
+		ht.put("NOSCHEMAS", "c.relkind = 'v' AND c.relname LIKE 'pg!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("SYSTEM INDEX", ht);
 		ht.put("SCHEMAS",
 			"c.relkind = 'i' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema') ");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'v' AND c.relname LIKE 'pg\\\\_%' AND c.relname NOT LIKE 'pg\\\\_toast\\\\_%' AND c.relname NOT LIKE 'pg\\\\_temp\\\\_%'");
+			"c.relkind = 'v' AND c.relname LIKE 'pg!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_toast!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
 		ht = new HashMap();
 		s_tableTypeClauses.put("TEMPORARY TABLE", ht);
 		ht.put("SCHEMAS",
-			"c.relkind = 'r' AND n.nspname LIKE 'pg\\\\_temp\\\\_%' ");
+			"c.relkind = 'r' AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg\\\\_temp\\\\_%' ");
+			"c.relkind = 'r' AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 		ht = new HashMap();
 		s_tableTypeClauses.put("TEMPORARY INDEX", ht);
 		ht.put("SCHEMAS",
-			"c.relkind = 'i' AND n.nspname LIKE 'pg\\\\_temp\\\\_%' ");
+			"c.relkind = 'i' AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname LIKE 'pg\\\\_temp\\\\_%' ");
+			"c.relkind = 'i' AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 	}
 
 	// These are the default tables, used when NULL is passed to getTables
@@ -1754,7 +1741,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public java.sql.ResultSet getSchemas() throws SQLException
 	{
-		String sql = "SELECT nspname AS TABLE_SCHEM FROM pg_catalog.pg_namespace WHERE nspname <> 'pg_toast' AND nspname NOT LIKE 'pg\\\\_temp\\\\_%' ORDER BY TABLE_SCHEM";
+		String sql = "SELECT nspname AS TABLE_SCHEM FROM pg_catalog.pg_namespace WHERE nspname <> 'pg_toast' AND nspname NOT LIKE 'pg!_temp!_%' ESCAPE '!' ORDER BY TABLE_SCHEM";
 		return createMetaDataStatement().executeQuery(sql);
 	}
 
@@ -2042,7 +2029,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String tableName = null;
 		String column = null;
 		String owner = null;
-		String acl = null;
+		String[] acls = null;
 		HashMap permissions = null;
 		String permNames[] = null;
 
@@ -2052,8 +2039,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			tableName = rs.getString("relname");
 			column = rs.getString("attname");
 			owner = rs.getString("usename");
-			acl = rs.getString("relacl");
-			permissions = parseACL(acl, owner);
+			acls = (String[])rs.getObject("relacl");
+			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
 			sortStringArray(permNames);
 			for(int i = 0; i < permNames.length; i++)
@@ -2139,7 +2126,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String schema = null;
 		String table = null;
 		String owner = null;
-		String acl = null;
+		String[] acls = null;
 		HashMap permissions = null;
 		String permNames[] = null;
 
@@ -2148,8 +2135,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			schema = rs.getString("nspname");
 			table = rs.getString("relname");
 			owner = rs.getString("usename");
-			acl = rs.getString("relacl");
-			permissions = parseACL(acl, owner);
+			acls = (String[])rs.getObject("relacl");
+			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
 			sortStringArray(permNames);
 			for(int i = 0; i < permNames.length; i++)
@@ -2190,50 +2177,6 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				}
 			}
 		}
-	}
-
-	/**
-	 * Parse an String of ACLs into a ArrayList of ACLs.
-	 */
-	private static ArrayList parseACLArray(String aclString)
-	{
-		ArrayList acls = new ArrayList();
-		if(aclString == null || aclString.length() == 0)
-			return acls;
-
-		boolean inQuotes = false;
-		// start at 1 because of leading "{"
-		int beginIndex = 1;
-		char prevChar = ' ';
-		for(int i = beginIndex; i < aclString.length(); i++)
-		{
-
-			char c = aclString.charAt(i);
-			if(c == '"' && prevChar != '\\')
-			{
-				inQuotes = !inQuotes;
-			}
-			else if(c == ',' && !inQuotes)
-			{
-				acls.add(aclString.substring(beginIndex, i));
-				beginIndex = i + 1;
-			}
-			prevChar = c;
-		}
-		// add last element removing the trailing "}"
-		acls.add(aclString.substring(beginIndex, aclString.length() - 1));
-
-		// Strip out enclosing quotes, if any.
-		for(int i = 0; i < acls.size(); i++)
-		{
-			String acl = (String)acls.get(i);
-			if(acl.startsWith("\"") && acl.endsWith("\""))
-			{
-				acl = acl.substring(1, acl.length() - 1);
-				acls.set(i, acl);
-			}
-		}
-		return acls;
 	}
 
 	/**
@@ -2308,18 +2251,17 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * mapping the SQL permission name to a ArrayList of usernames who have that
 	 * permission.
 	 */
-	protected HashMap parseACL(String aclArray, String owner)
+	protected HashMap parseACL(String[] aclArray, String owner)
 	{
-		if(aclArray == null || aclArray == "")
+		if(aclArray == null || aclArray.length == 0)
 		{
 			// null acl is a shortcut for owner having full privs
-			aclArray = "{" + owner + "=arwdRxt}";
+			aclArray = new String[] { owner + "=arwdRxt" };
 		}
-		ArrayList acls = parseACLArray(aclArray);
 		HashMap privileges = new HashMap();
-		for(int i = 0; i < acls.size(); i++)
+		for(int i = 0; i < aclArray.length; i++)
 		{
-			String acl = (String)acls.get(i);
+			String acl = aclArray[i];
 			addACLPrivileges(acl, privileges);
 		}
 		return privileges;

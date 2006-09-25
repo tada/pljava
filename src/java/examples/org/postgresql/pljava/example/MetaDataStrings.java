@@ -61,6 +61,7 @@ public class MetaDataStrings implements ResultSetProvider
 			try
 			{
 				result = (String)m[i].invoke(md, args);
+				log.info("Method: " + m[i].getName() + " => Success");
 			}
 			catch(Exception e)
 			{

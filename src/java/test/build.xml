@@ -9,6 +9,7 @@
     	<pljava.load
     		name="samples"
     		userid="${user.name}"
+    		portNumber="15432"
     		password=""
     		file="../../../build/examples.jar"
     		schema="public"

@@ -85,6 +85,10 @@ public class SPIStatement implements Statement
 	public boolean execute(String statement)
 	throws SQLException
 	{
+		// Ensure that the statement is closed before we re-execute
+		//
+		this.close();
+
 		ExecutionPlan plan = ExecutionPlan.prepare(
 			m_connection.nativeSQL(statement), null);
 
