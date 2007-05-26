@@ -40,7 +40,11 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 		int32  byteaSize = length + VARHDRSZ;
 
 		bytes = (bytea*)palloc(byteaSize);
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 		VARATT_SIZEP(bytes) = byteaSize;
+#else
+		SET_VARSIZE(bytes, byteaSize);
+#endif
 		JNI_getByteArrayRegion((jbyteArray)byteArray, 0, length, (jbyte*)VARDATA(bytes));
 	}
 	else if(JNI_isInstanceOf(byteArray, s_BlobValue_class))
@@ -51,7 +55,11 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 
 		byteaSize = (int32)(length + VARHDRSZ);
 		bytes = (bytea*)palloc(byteaSize);
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 		VARATT_SIZEP(bytes) = byteaSize;
+#else
+		SET_VARSIZE(bytes, byteaSize);
+#endif
 
 		byteBuffer = JNI_newDirectByteBuffer((void*)VARDATA(bytes), length);
 		if(byteBuffer != 0)

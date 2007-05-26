@@ -101,6 +101,7 @@ Type Type_getCoerceIn(Type self, Type other)
 	Type coerce;
 	Oid  fromOid = other->typeId;
 	Oid  toOid = self->typeId;
+	bool arrayCoerce = false;
 
 	if(self->inCoercions != 0)
 	{
@@ -109,11 +110,20 @@ Type Type_getCoerceIn(Type self, Type other)
 			return coerce;
 	}
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+#else
+	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId, &arrayCoerce))
+#endif
 	{
 		elog(ERROR, "no conversion function from %s to %s",
 			 format_type_be(fromOid),
 			 format_type_be(toOid));
+	}
+
+	if (arrayCoerce)
+	{
+		elog(ERROR, "can't coerce array types");
 	}
 
 	if(funcId == InvalidOid)
@@ -136,6 +146,7 @@ Type Type_getCoerceOut(Type self, Type other)
 	Type coercer;
 	Oid  fromOid = self->typeId;
 	Oid  toOid = other->typeId;
+	bool arrayCoerce;
 
 	if(self->outCoercions != 0)
 	{
@@ -150,11 +161,20 @@ Type Type_getCoerceOut(Type self, Type other)
 		 */
 		return self;
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+#else
+	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId, &arrayCoerce))
+#endif
 	{
 		elog(ERROR, "no conversion function from %s to %s",
 			 format_type_be(fromOid),
 			 format_type_be(toOid));
+	}
+
+	if (arrayCoerce)
+	{
+		elog(ERROR, "can't coerce array types");
 	}
 
 	if(self->outCoercions == 0)

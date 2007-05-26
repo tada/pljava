@@ -60,7 +60,11 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 #endif
 	MemoryContextSwitchTo(currCtx);
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 	ARR_SIZE(v) = nBytes;
+#else
+	SET_VARSIZE(v, nBytes);
+#endif
 	ARR_NDIM(v) = 1;
 	ARR_ELEMTYPE(v) = elemType;
 	*((int*)ARR_DIMS(v)) = nElems;
@@ -102,8 +106,15 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 			jvalue obj = Type_coerceDatum(elemType, value);
 			JNI_setObjectArrayElement(objArray, idx, obj.l);
 			JNI_deleteLocalRef(obj.l);
+
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 			values = att_addlength(values, elemLength, PointerGetDatum(values));
 			values = (char*)att_align(values, elemAlign);
+#else
+			values = att_addlength_datum(values, elemLength, PointerGetDatum(values));
+			values = (char*)att_align_nominal(values, elemAlign);
+#endif
+
 		}
 #endif
 	}

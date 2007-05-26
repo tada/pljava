@@ -145,7 +145,11 @@ text* String_createText(jstring javaString)
 		/* Allocate and initialize the text structure.
 		 */
 		result = (text*)palloc(varSize);
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 		VARATT_SIZEP(result) = varSize;	/* Total size of structure, not just data */
+#else
+		SET_VARSIZE(result, varSize);	/* Total size of structure, not just data */
+#endif
 		memcpy(VARDATA(result), denc, dencLen);
 
 		/* pg_do_encoding_conversion will return the source argument
