@@ -96,7 +96,7 @@ struct Function_
 		 * The static method that should be called.
 		 */
 		jmethodID method;
-		};
+		} nonudt;
 		
 		struct
 		{
@@ -109,8 +109,8 @@ struct Function_
 		 * The UDT function to call
 		 */
 		UDTFunction udtFunction;
-		};
-	};
+		} udt;
+	} func;
 };
 
 typedef struct ParseResultData
@@ -136,10 +136,10 @@ static void _Function_finalize(PgObject func)
 	JNI_deleteGlobalRef(self->clazz);
 	if(!self->isUDT)
 	{
-		if(self->typeMap != 0)
-			JNI_deleteGlobalRef(self->typeMap);
-		if(self->paramTypes != 0)
-			pfree(self->paramTypes);
+		if(self->func.nonudt.typeMap != 0)
+			JNI_deleteGlobalRef(self->func.nonudt.typeMap);
+		if(self->func.nonudt.paramTypes != 0)
+			pfree(self->func.nonudt.paramTypes);
 	}
 }
 
@@ -160,26 +160,26 @@ void Function_initialize(void)
 
 static void buildSignature(Function self, StringInfo sign, Type retType, bool alt)
 {
-	Type* tp = self->paramTypes;
-	Type* ep = tp + self->numParams;
+	Type* tp = self->func.nonudt.paramTypes;
+	Type* ep = tp + self->func.nonudt.numParams;
 
 	appendStringInfoChar(sign, '(');
 	while(tp < ep)
 		appendStringInfoString(sign, Type_getJNISignature(*tp++));
 
-	if(!self->isMultiCall && Type_isOutParameter(retType))
+	if(!self->func.nonudt.isMultiCall && Type_isOutParameter(retType))
 		appendStringInfoString(sign, Type_getJNISignature(retType));
 
 	appendStringInfoChar(sign, ')');
-	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->isMultiCall, alt));
+	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
 }
 
 static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 {
 	char c;
 	int idx = 0;
-	int top = self->numParams;
-	bool lastIsOut = !self->isMultiCall && Type_isOutParameter(self->returnType);
+	int top = self->func.nonudt.numParams;
+	bool lastIsOut = !self->func.nonudt.isMultiCall && Type_isOutParameter(self->func.nonudt.returnType);
 	StringInfoData sign;
 	initStringInfo(&sign);
 	for(;;)
@@ -195,7 +195,7 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 		c = *paramDecl++;
 		if(c == 0 || c == ',')
 		{
-			Type deflt = (idx == top) ? self->returnType : self->paramTypes[idx];
+			Type deflt = (idx == top) ? self->func.nonudt.returnType : self->func.nonudt.paramTypes[idx];
 			const char* jtName = Type_getJavaTypeName(deflt);
 			if(strcmp(jtName, sign.data) != 0)
 			{
@@ -215,9 +215,9 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 					repl = Type_getCoerceIn(repl, deflt);
 
 				if(idx == top)
-					self->returnType = repl;
+					self->func.nonudt.returnType = repl;
 				else
-					self->paramTypes[idx] = repl;
+					self->func.nonudt.paramTypes[idx] = repl;
 			}
 			pfree(sign.data);
 
@@ -420,13 +420,13 @@ static void setupTriggerParams(Function self, ParseResult info)
 			errcode(ERRCODE_SYNTAX_ERROR),
 			errmsg("Triggers can not have a java parameter declaration")));
 
-	self->returnType = Type_fromJavaType(InvalidOid, "void");
+	self->func.nonudt.returnType = Type_fromJavaType(InvalidOid, "void");
 
 	/* Parameters are not used when calling triggers.
 		*/
-	self->numParams  = 1;
-	self->paramTypes = (Type*)MemoryContextAlloc(GetMemoryChunkContext(self), sizeof(Type));
-	self->paramTypes[0] = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.TriggerData");
+	self->func.nonudt.numParams  = 1;
+	self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(GetMemoryChunkContext(self), sizeof(Type));
+	self->func.nonudt.paramTypes[0] = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.TriggerData");
 }
 
 static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
@@ -437,22 +437,22 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 
 	if(strcasecmp("input", info->methodName) == 0)
 	{
-		self->udtFunction = UDT_input;
+		self->func.udt.udtFunction = UDT_input;
 		udtId = procStruct->prorettype;
 	}
 	else if(strcasecmp("output", info->methodName) == 0)
 	{
-		self->udtFunction = UDT_output;
+		self->func.udt.udtFunction = UDT_output;
 		udtId = PARAM_OIDS(procStruct)[0];
 	}
 	else if(strcasecmp("receive", info->methodName) == 0)
 	{
-		self->udtFunction = UDT_receive;
+		self->func.udt.udtFunction = UDT_receive;
 		udtId = procStruct->prorettype;
 	}
 	else if(strcasecmp("send", info->methodName) == 0)
 	{
-		self->udtFunction = UDT_send;
+		self->func.udt.udtFunction = UDT_send;
 		udtId = PARAM_OIDS(procStruct)[0];
 	}
 	else
@@ -464,7 +464,7 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 
 	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
 	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
+	self->func.udt.udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
 	ReleaseSysCache(typeTup);
 }
 
@@ -474,22 +474,22 @@ static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc pr
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	int32 top = (int32)procStruct->pronargs;;
 
-	self->numParams = top;
-	self->isMultiCall = procStruct->proretset;
-	self->returnType = Type_fromOid(procStruct->prorettype, self->typeMap);
+	self->func.nonudt.numParams = top;
+	self->func.nonudt.isMultiCall = procStruct->proretset;
+	self->func.nonudt.returnType = Type_fromOid(procStruct->prorettype, self->func.nonudt.typeMap);
 
 	if(top > 0)
 	{
 		int idx;
 		paramOids = PARAM_OIDS(procStruct);
-		self->paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
+		self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
 
 		for(idx = 0; idx < top; ++idx)
-			self->paramTypes[idx] = Type_fromOid(paramOids[idx], self->typeMap);
+			self->func.nonudt.paramTypes[idx] = Type_fromOid(paramOids[idx], self->func.nonudt.typeMap);
 	}
 	else
 	{
-		self->paramTypes = 0;
+		self->func.nonudt.paramTypes = 0;
 		paramOids = 0;
 	}
 
@@ -498,13 +498,13 @@ static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc pr
 
 	if(info->returnType != 0)
 	{
-		const char* jtName = Type_getJavaTypeName(self->returnType);
+		const char* jtName = Type_getJavaTypeName(self->func.nonudt.returnType);
 		if(strcmp(jtName, info->returnType) != 0)
 		{
-			Type repl = Type_fromJavaType(Type_getOid(self->returnType), info->returnType);
-			if(!Type_canReplaceType(repl, self->returnType))
-				repl = Type_getCoerceOut(repl, self->returnType);
-			self->returnType = repl;
+			Type repl = Type_fromJavaType(Type_getOid(self->func.nonudt.returnType), info->returnType);
+			if(!Type_canReplaceType(repl, self->func.nonudt.returnType))
+				repl = Type_getCoerceOut(repl, self->func.nonudt.returnType);
+			self->func.nonudt.returnType = repl;
 		}
 	}
 }
@@ -523,7 +523,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 	 * many other functions (including obtaining the loader) depends on it.
 	 */
 	jobject tmp = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getTypeMap, schemaName);
-	self->typeMap = JNI_newGlobalRef(tmp);
+	self->func.nonudt.typeMap = JNI_newGlobalRef(tmp);
 	JNI_deleteLocalRef(tmp);
 
 	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
@@ -554,7 +554,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 
 	if(CALLED_AS_TRIGGER(fcinfo))
 	{
-		self->typeMap = 0;
+		self->func.nonudt.typeMap = 0;
 		setupTriggerParams(self, info);
 	}
 	else
@@ -564,20 +564,20 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 
 
 	initStringInfo(&sign);
-	buildSignature(self, &sign, self->returnType, false);
+	buildSignature(self, &sign, self->func.nonudt.returnType, false);
 
 	elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-	self->method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
+	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
 
-	if(self->method == 0)
+	if(self->func.nonudt.method == 0)
 	{
 		char* origSign = sign.data;
 		Type altType = 0;
-		Type realRetType = self->returnType;
+		Type realRetType = self->func.nonudt.returnType;
 
 		elog(DEBUG1, "Method %s.%s %s not found", info->className, info->methodName, origSign);
 
-		if(Type_isPrimitive(self->returnType))
+		if(Type_isPrimitive(self->func.nonudt.returnType))
 		{
 			/*
 			 * One valid reason for not finding the method is when
@@ -585,10 +585,10 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			 * the true return type of the method is the object class that
 			 * corresponds to that primitive.
 			 */
-			altType = Type_getObjectType(self->returnType);
+			altType = Type_getObjectType(self->func.nonudt.returnType);
 			realRetType = altType;
 		}
-		else if(strcmp(Type_getJavaTypeName(self->returnType), "java.sql.ResultSet") == 0)
+		else if(strcmp(Type_getJavaTypeName(self->func.nonudt.returnType), "java.sql.ResultSet") == 0)
 		{
 			/*
 			 * Another reason might be that we expected a ResultSetProvider
@@ -606,12 +606,12 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			buildSignature(self, &sign, altType, true);
 
 			elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-			self->method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
+			self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
 	
-			if(self->method != 0)
-				self->returnType = realRetType;
+			if(self->func.nonudt.method != 0)
+				self->func.nonudt.returnType = realRetType;
 		}
-		if(self->method == 0)
+		if(self->func.nonudt.method == 0)
 			PgObject_throwMemberError(self->clazz, info->methodName, origSign, true, true);
 
 		if(sign.data != origSign)
@@ -649,7 +649,7 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 
 jobject Function_getTypeMap(Function self)
 {
-	return self->typeMap;
+	return self->func.nonudt.typeMap;
 }
 
 static bool Function_inUse(Function func)
@@ -706,29 +706,29 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	currentInvocation->function = self;
 
 	if(self->isUDT)
-		return self->udtFunction(self->udt, fcinfo);
+		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
 
-	if(self->isMultiCall && SRF_IS_FIRSTCALL())
+	if(self->func.nonudt.isMultiCall && SRF_IS_FIRSTCALL())
 		Invocation_assertDisconnect();
 
-	top = self->numParams;
+	top = self->func.nonudt.numParams;
 	
 	/* Leave room for one extra parameter. Functions that returns unmapped
 	 * composite types must have a single row ResultSet as an OUT parameter.
 	 */
 	args  = (jvalue*)palloc((top + 1) * sizeof(jvalue));
-	invokerType = self->returnType;
+	invokerType = self->func.nonudt.returnType;
 
 	if(top > 0)
 	{
 		int32 idx;
-		Type* types = self->paramTypes;
+		Type* types = self->func.nonudt.paramTypes;
 
 		/* a class loader or other mechanism might have connected already. This
 		 * connection must be dropped since its parent context is wrong.
 		 */
 		if(Type_isDynamic(invokerType))
-			invokerType = Type_getRealType(invokerType, get_fn_expr_rettype(fcinfo->flinfo), self->typeMap);
+			invokerType = Type_getRealType(invokerType, get_fn_expr_rettype(fcinfo->flinfo), self->func.nonudt.typeMap);
 
 		for(idx = 0; idx < top; ++idx)
 		{
@@ -741,15 +741,15 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 			{
 				Type paramType = types[idx];
 				if(Type_isDynamic(paramType))
-					paramType = Type_getRealType(paramType, get_fn_expr_argtype(fcinfo->flinfo, idx), self->typeMap);
+					paramType = Type_getRealType(paramType, get_fn_expr_argtype(fcinfo->flinfo, idx), self->func.nonudt.typeMap);
 				args[idx] = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
 			}
 		}
 	}
 
-	retVal = self->isMultiCall
-		? Type_invokeSRF(invokerType, self->clazz, self->method, args, fcinfo)
-		: Type_invoke(invokerType, self->clazz, self->method, args, fcinfo);
+	retVal = self->func.nonudt.isMultiCall
+		? Type_invokeSRF(invokerType, self->clazz, self->func.nonudt.method, args, fcinfo)
+		: Type_invoke(invokerType, self->clazz, self->func.nonudt.method, args, fcinfo);
 
 	pfree(args);
 	return retVal;
@@ -765,7 +765,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		return 0;
 
 	currentInvocation->function = self;
-	Type_invoke(self->returnType, self->clazz, self->method, &arg, fcinfo);
+	Type_invoke(self->func.nonudt.returnType, self->clazz, self->func.nonudt.method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
 	if(JNI_exceptionCheck())
