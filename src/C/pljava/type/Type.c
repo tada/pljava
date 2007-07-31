@@ -146,7 +146,7 @@ Type Type_getCoerceOut(Type self, Type other)
 	Type coercer;
 	Oid  fromOid = self->typeId;
 	Oid  toOid = other->typeId;
-	bool arrayCoerce;
+	bool arrayCoerce = false;
 
 	if(self->outCoercions != 0)
 	{
