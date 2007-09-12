@@ -155,15 +155,21 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 }
 
 #if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3)
+extern PGDLLIMPORT pg_tz* session_timezone;
+#else
 extern DLLIMPORT pg_tz* global_timezone;
+#endif
 #endif
 
 static int Timestamp_getTimeZone(pg_time_t time)
 {
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 	struct pg_tm* tx = pg_localtime(&time);
-#else
+#elif (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 	struct pg_tm* tx = pg_localtime(&time, global_timezone);
+#else
+	struct pg_tm* tx = pg_localtime(&time, session_timezone);
 #endif
 	return -tx->tm_gmtoff;
 }

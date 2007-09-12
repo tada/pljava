@@ -52,7 +52,12 @@ extern MemoryContext JavaMemoryContext;
 #define STACK_BASE_PUSH(threadId)
 #define STACK_BASE_POP()
 #else
+
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3)
+extern PGDLLIMPORT char* stack_base_ptr;
+#else
 extern DLLIMPORT char* stack_base_ptr;
+#endif
 
 #define STACK_BASE_VARS \
 	long  saveMainThreadId = 0; \

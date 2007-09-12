@@ -15,9 +15,13 @@
 
 JNIEnv* jniEnv;
 
+#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3)
+extern PGDLLIMPORT int log_min_messages;
+extern PGDLLIMPORT int client_min_messages;
+#else
 extern DLLIMPORT int log_min_messages;
 extern DLLIMPORT int client_min_messages;
-
+#endif
 static jobject s_threadLock;
 
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
