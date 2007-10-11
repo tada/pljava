@@ -66,6 +66,11 @@ public class MetaDataBooleans implements ResultSetProvider
 			{
 				log.info("Method: " + m[i].getName() + " => " + e.getMessage());
 			}
+                      catch(AbstractMethodError e)
+                      {
+                              // probably a JDBC 4 method that isn't supported yet
+                              log.info("Method: " + m[i].getName() + " => " + e.getMessage());
+                      }
 
 			mn.add(m[i].getName());
 			mr.add(result);
