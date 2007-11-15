@@ -738,7 +738,7 @@ public class Commands
 	{
 		String currentSchema = getCurrentSchema();
 		String currentClasspath = getClassPath(currentSchema);
-		originalSchemaAndPath[0] = currentClasspath;
+		originalSchemaAndPath[0] = currentSchema;
 		originalSchemaAndPath[1] = currentClasspath;
 		if(currentClasspath == null)
 		{
