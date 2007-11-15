@@ -278,7 +278,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void addBatch()
 	throws SQLException
 	{
-		this.internalAddBatch(m_values.clone());
+		this.internalAddBatch(new Object[]{m_values.clone(), m_sqlTypes.clone()});
 		this.clearParameters(); // Parameters are cleared upon successful completion.
 	}
 
@@ -387,7 +387,12 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	throws SQLException
 	{
 		int ret = SUCCESS_NO_INFO;
-		System.arraycopy(batchEntry, 0, m_values, 0, m_values.length);
+		Object batchParams[] = (Object[])batchEntry;
+		Object batchValues = batchParams[0];
+		Object batchTypes = batchParams[1];
+
+		System.arraycopy(batchValues, 0, m_values, 0, m_values.length);
+		System.arraycopy(batchTypes, 0, m_sqlTypes, 0, m_sqlTypes.length);
 		if(this.execute())
 			this.getResultSet().close();
 		else
