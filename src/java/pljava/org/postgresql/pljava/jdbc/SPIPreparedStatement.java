@@ -278,7 +278,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void addBatch()
 	throws SQLException
 	{
-		this.internalAddBatch(new Object[]{m_values.clone(), m_sqlTypes.clone()});
+		this.internalAddBatch(new Object[]{m_values.clone(), m_sqlTypes.clone(), m_typeIds.clone()});
 		this.clearParameters(); // Parameters are cleared upon successful completion.
 	}
 
@@ -389,10 +389,29 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		int ret = SUCCESS_NO_INFO;
 		Object batchParams[] = (Object[])batchEntry;
 		Object batchValues = batchParams[0];
-		Object batchTypes = batchParams[1];
+		Object batchSqlTypes = batchParams[1];
+		Object batchTypeIds[] = (Object[])batchParams[2];
 
 		System.arraycopy(batchValues, 0, m_values, 0, m_values.length);
-		System.arraycopy(batchTypes, 0, m_sqlTypes, 0, m_sqlTypes.length);
+		System.arraycopy(batchSqlTypes, 0, m_sqlTypes, 0, m_sqlTypes.length);
+
+		// Determine if we need to replan the query because the
+		// types have changed from the last execution.
+		//
+		for (int i=0; i<m_typeIds.length; i++) {
+			if (m_typeIds[i] != batchTypeIds[i]) {
+				// We must re-prepare
+				//
+				if(m_plan != null) {
+					m_plan.close();
+					m_plan = null;
+				}
+
+				System.arraycopy(batchTypeIds, 0, m_typeIds, 0, m_typeIds.length);
+				break;
+			}
+		}
+
 		if(this.execute())
 			this.getResultSet().close();
 		else
