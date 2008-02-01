@@ -51,7 +51,7 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 	jint  uSecs = (jint)(ts % 1000);	/* preserve remaining microsecs */
 	if(tzAdjust)
 		mSecs += tz * 1000;				/* Adjust from local time to UTC */
-	mSecs += EPOCH_DIFF * 1000;			/* Adjust for diff between Postgres and Java (Unix) */
+	mSecs += ((jlong)EPOCH_DIFF) * 1000L;			/* Adjust for diff between Postgres and Java (Unix) */
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
