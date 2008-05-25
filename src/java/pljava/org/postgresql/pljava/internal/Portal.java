@@ -88,7 +88,7 @@ public class Portal
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _fetch(m_pointer, forward, count);
+			return _fetch(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
 		}
 	}
 
@@ -153,7 +153,7 @@ public class Portal
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _move(m_pointer, forward, count);
+			return _move(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
 		}
 	}
 
@@ -166,7 +166,7 @@ public class Portal
 	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private static native int _fetch(long pointer, boolean forward, int count)
+	private static native int _fetch(long pointer, long threadId, boolean forward, int count)
 	throws SQLException;
 
 	private static native void _close(long pointer);
@@ -180,6 +180,6 @@ public class Portal
 	private static native boolean _isPosOverflow(long pointer)
 	throws SQLException;
 
-	private static native int _move(long pointer, boolean forward, int count)
+	private static native int _move(long pointer, long threadId, boolean forward, int count)
 	throws SQLException;
 }

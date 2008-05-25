@@ -108,7 +108,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_fetch",
-	  	"(JZI)I",
+	  	"(JJZI)I",
 	  	Java_org_postgresql_pljava_internal_Portal__1fetch
 		},
 		{
@@ -133,7 +133,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_move",
-	  	"(JZI)I",
+	  	"(JJZI)I",
 	  	Java_org_postgresql_pljava_internal_Portal__1move
 		},
 		{ 0, 0, 0 }
@@ -171,16 +171,19 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _fetch
- * Signature: (JZI)I
+ * Signature: (JJZI)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jboolean forward, jint count)
+Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
 {
 	jint result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
 		Ptr2Long p2l;
+		STACK_BASE_VARS
+		STACK_BASE_PUSH(threadId)
+
 		p2l.longVal = _this;
 		PG_TRY();
 		{
@@ -192,6 +195,7 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 			Exception_throw_ERROR("SPI_cursor_fetch");
 		}
 		PG_END_TRY();
+		STACK_BASE_POP()
 		END_NATIVE
 	}
 	return result;
@@ -325,16 +329,19 @@ Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jclass c
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _move
- * Signature: (ZI)I
+ * Signature: (JJZI)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jboolean forward, jint count)
+Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
 {
 	jint result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
 		Ptr2Long p2l;
+		STACK_BASE_VARS
+		STACK_BASE_PUSH(threadId)
+
 		p2l.longVal = _this;
 		PG_TRY();
 		{
@@ -346,6 +353,7 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 			Exception_throw_ERROR("SPI_cursor_move");
 		}
 		PG_END_TRY();
+		STACK_BASE_POP()
 		END_NATIVE
 	}
 	return result;
