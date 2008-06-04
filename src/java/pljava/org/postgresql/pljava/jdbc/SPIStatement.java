@@ -34,7 +34,7 @@ public class SPIStatement implements Statement
 	private ResultSet m_resultSet      = null;
 	private int       m_updateCount    = 0;
 	private ArrayList m_batch          = null;
-    private boolean   m_closed         = false;
+	private boolean   m_closed         = false;
 
 	public SPIStatement(SPIConnection conn)
 	{
@@ -66,7 +66,7 @@ public class SPIStatement implements Statement
 	{
 	}
 
-	public void close()
+	private void clear()
 	throws SQLException
 	{
 		if(m_resultSet != null)
@@ -79,15 +79,22 @@ public class SPIStatement implements Statement
 		m_updateCount = -1;
 		m_cursorName = null;
 		m_batch = null;
-        m_closed = true;
+	}
+
+	public void close()
+	throws SQLException
+	{
+		clear();
+		m_closed = true;
 	}
 
 	public boolean execute(String statement)
 	throws SQLException
 	{
-		// Ensure that the statement is closed before we re-execute
+		// Ensure that the last statement is cleaned up
+		// before we re-execute
 		//
-		this.close();
+		this.clear();
 
 		ExecutionPlan plan = ExecutionPlan.prepare(
 			m_connection.nativeSQL(statement), null);
@@ -310,9 +317,9 @@ public class SPIStatement implements Statement
 	public SQLWarning getWarnings()
 	throws SQLException
 	{
-        if (m_closed) {
-            throw new SQLException("getWarnings: Statement is closed");
-        }
+		if (m_closed) {
+			throw new SQLException("getWarnings: Statement is closed");
+		}
 
 		return null;
 	}
