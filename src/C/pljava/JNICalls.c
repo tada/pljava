@@ -129,6 +129,14 @@ bool beginNativeNoErrCheck(JNIEnv* env)
 
 bool beginNative(JNIEnv* env)
 {
+	if (!currentInvocation)
+	{
+		env = JNI_setEnv(env);
+		Exception_throw(ERRCODE_INTERNAL_ERROR, "An attempt was made to call a PostgreSQL backend function in a transaction callback.  At the end of a transaction you may not access the database any longer.");
+		JNI_setEnv(env);
+		return false;
+	}
+
 	if(currentInvocation->errorOccured)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
