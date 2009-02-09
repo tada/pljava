@@ -11,6 +11,8 @@
 #include "pljava/SPI.h"
 #include "org_postgresql_pljava_internal_SubXactListener.h"
 
+#include <access/xact.h>
+
 static jclass s_SubXactListener_class;
 static jmethodID s_SubXactListener_onStart;
 static jmethodID s_SubXactListener_onCommit;

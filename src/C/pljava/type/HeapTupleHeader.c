@@ -9,6 +9,7 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/HeapTupleHeader.h"
 
+#include <executor/executor.h>
 #include <executor/spi.h>
 #include <utils/typcache.h>
 

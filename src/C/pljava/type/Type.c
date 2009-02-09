@@ -10,6 +10,7 @@
 #include <fmgr.h>
 #include <funcapi.h>
 #include <parser/parse_coerce.h>
+#include <utils/builtins.h>
 #include <utils/typcache.h>
 #include <utils/lsyscache.h>
 

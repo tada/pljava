@@ -14,6 +14,8 @@
 #include "pljava/type/String.h"
 #include "pljava/type/TupleTable.h"
 
+#include <access/xact.h>
+
 Savepoint* infant = 0;
 
 extern void SPI_initialize(void);
