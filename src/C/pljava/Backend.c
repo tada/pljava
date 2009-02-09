@@ -561,7 +561,13 @@ static void initializeJavaVM(void)
 			"Options sent to the JVM when it is created",
 			NULL,
 			&vmoptions,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				NULL,
+			#endif
 			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				0,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomStringVariable(
@@ -569,7 +575,13 @@ static void initializeJavaVM(void)
 			"Classpath used by the JVM",
 			NULL,
 			&classpath,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				NULL,
+			#endif
 			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				0,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomBoolVariable(
@@ -577,7 +589,13 @@ static void initializeJavaVM(void)
 			"Stop the backend to attach a debugger",
 			NULL,
 			&pljavaDebug,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				false,
+			#endif
 			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				0,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomIntVariable(
@@ -586,7 +604,13 @@ static void initializeJavaVM(void)
 			NULL,
 			&statementCacheSize,
 			0, 512,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				11,
+			#endif
 			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				0,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomBoolVariable(
@@ -594,7 +618,13 @@ static void initializeJavaVM(void)
 			"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
 			NULL,
 			&pljavaReleaseLingeringSavepoints,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				false,
+			#endif
 			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
+				0,
+			#endif
 			NULL, NULL);
 	
 		EmitWarningsOnPlaceholders("pljava");
