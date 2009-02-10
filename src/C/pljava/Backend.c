@@ -603,10 +603,10 @@ static void initializeJavaVM(void)
 			"Size of the prepared statement MRU cache",
 			NULL,
 			&statementCacheSize,
-			0, 512,
 			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
 				11,
 			#endif
+			0, 512,
 			PGC_USERSET,
 			#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3)
 				0,
