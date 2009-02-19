@@ -233,7 +233,11 @@ Datum UDT_output(UDT udt, PG_FUNCTION_ARGS)
 	{
 		jobject value = _UDT_coerceDatum((Type)udt, PG_GETARG_DATUM(0)).l;
 		jstring jstr  = (jstring)JNI_callObjectMethod(value, udt->toString);
+
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		txt = String_createNTS(jstr);
+		MemoryContextSwitchTo(currCtx);
+
 		JNI_deleteLocalRef(value);
 		JNI_deleteLocalRef(jstr);
 	}
