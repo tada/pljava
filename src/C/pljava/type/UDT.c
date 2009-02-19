@@ -49,9 +49,23 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 		}
 		else
 		{
+			bool passByValue = Type_isByValue((Type)self);
 			/* Data is a binary chunk of size dataLen
 			 */
-			data = DatumGetPointer(arg);
+			if (passByValue)
+			{
+				/* pass by value data is stored in the least
+				 * significant bits of a Datum. */
+#ifdef WORDS_BIGENDIAN
+				data = ((char *)(&arg)) + SIZEOF_DATUM - dataLen;
+#else
+				data = ((char *)(&arg));
+#endif
+			}
+			else
+			{
+				data = DatumGetPointer(arg);
+			}
 		}
 		result = JNI_newObject(javaClass, self->init);
 
@@ -86,6 +100,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 	{
 		jobject outputStream;
 		StringInfoData buffer;
+		bool passByValue = Type_isByValue((Type)self);
 		MemoryContext currCtx = Invocation_switchToUpperContext();
 
 		initStringInfo(&buffer);
@@ -119,7 +134,19 @@ static Datum coerceScalarObject(UDT self, jobject value)
 				errmsg("UDT for Oid %d produced image with incorrect size. Expected %d, was %d",
 					Type_getOid((Type)self), dataLen, buffer.len)));
 		}
-		result = PointerGetDatum(buffer.data);
+		if (passByValue) {
+			memset(&result, 0, SIZEOF_DATUM);
+			/* pass by value data is stored in the least
+			 * significant bits of a Datum. */
+#ifdef WORDS_BIGENDIAN
+			memcpy(&result + SIZEOF_DATUM - dataLen, buffer.data, dataLen);
+#else
+			memcpy(&result, buffer.data, dataLen);
+#endif
+		} else {
+			result = PointerGetDatum(buffer.data);
+		}
+
 	}
 	return result;
 }
