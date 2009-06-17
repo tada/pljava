@@ -26,7 +26,7 @@ $(OBJS): %.o : $(SRCDIR)/%.c
 #
 include $(PGXS)
 
-SS_VERSION := $(subst ., ,$(subst devel,.99,$(subst beta,.99,$(subst RC,.99,$(VERSION)))))
+SS_VERSION := $(subst ., ,$(subst devel,.99,$(subst beta,.99,$(subst rc,.99,$(subst RC,.99,$(VERSION))))))
 PGSQL_MAJOR_VER	= $(word 1,$(SS_VERSION))
 PGSQL_MINOR_VER	= $(word 2,$(SS_VERSION))
 PGSQL_PATCH_VER	= $(word 3,$(SS_VERSION))
