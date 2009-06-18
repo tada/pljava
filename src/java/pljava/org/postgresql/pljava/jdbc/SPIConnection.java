@@ -208,12 +208,18 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Returns <code>null</code>.
+	 * Returns the database in which we are running.
 	 */
 	public String getCatalog()
 	throws SQLException
 	{
-		return null;
+		ResultSet rs = createStatement().executeQuery("SELECT pg_catalog.current_database()");
+		try {
+			rs.next();
+			return rs.getString(1);
+		} finally {
+			rs.close();
+		}
 	}
 
 	/**
