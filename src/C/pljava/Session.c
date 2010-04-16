@@ -42,7 +42,8 @@ Java_org_postgresql_pljava_internal_Session__1setUser(JNIEnv* env, jclass cls, j
 	 */
 	BEGIN_NATIVE_NO_ERRCHECK
 #if ( \
-    (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3) \
+    (PGSQL_MAJOR_VER > 8) \
+    || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3) \
     || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 2 && PGSQL_PATCH_VER >= 6)  \
     || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER >= 11) \
     || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0 && PGSQL_PATCH_VER >= 15) \

@@ -53,7 +53,7 @@ extern MemoryContext JavaMemoryContext;
 #define STACK_BASE_POP()
 #else
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3)
+#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
 extern PGDLLIMPORT char* stack_base_ptr;
 #else
 extern DLLIMPORT char* stack_base_ptr;
