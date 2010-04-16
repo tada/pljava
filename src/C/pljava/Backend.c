@@ -566,11 +566,11 @@ static void initializeJavaVM(void)
 			"Options sent to the JVM when it is created",
 			NULL,
 			&vmoptions,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				NULL,
 			#endif
 			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
 			NULL, NULL);
@@ -580,11 +580,11 @@ static void initializeJavaVM(void)
 			"Classpath used by the JVM",
 			NULL,
 			&classpath,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				NULL,
 			#endif
 			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
 			NULL, NULL);
@@ -594,11 +594,11 @@ static void initializeJavaVM(void)
 			"Stop the backend to attach a debugger",
 			NULL,
 			&pljavaDebug,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				false,
 			#endif
 			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
 			NULL, NULL);
@@ -608,12 +608,12 @@ static void initializeJavaVM(void)
 			"Size of the prepared statement MRU cache",
 			NULL,
 			&statementCacheSize,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				11,
 			#endif
 			0, 512,
 			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
 			NULL, NULL);
@@ -623,11 +623,11 @@ static void initializeJavaVM(void)
 			"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
 			NULL,
 			&pljavaReleaseLingeringSavepoints,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				false,
 			#endif
 			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER > 3))
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
 			NULL, NULL);

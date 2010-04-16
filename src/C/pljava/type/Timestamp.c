@@ -155,7 +155,7 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 }
 
 #if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VAR == 8 && PGSQL_MINOR_VER >= 3))
+#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
 extern PGDLLIMPORT pg_tz* session_timezone;
 #else
 extern DLLIMPORT pg_tz* global_timezone;
