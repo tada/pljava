@@ -12,6 +12,10 @@
 #include <libpq/pqformat.h>
 #include <funcapi.h>
 
+#if PGSQL_MAJOR_VER > 8
+#include <utils/bytea.h>
+#endif
+
 #include "pljava/type/UDT_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
