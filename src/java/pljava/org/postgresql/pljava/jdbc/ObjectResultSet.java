@@ -287,7 +287,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBinaryStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		this.updateBlob(columnIndex, new BlobValue(x, length));
+		this.updateBlob(columnIndex, (Blob) new BlobValue(x, length));
 	}
 
 	public void updateBlob(int columnIndex, Blob x)
@@ -317,7 +317,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateCharacterStream(int columnIndex, Reader x, int length)
 	throws SQLException
 	{
-		this.updateClob(columnIndex, new ClobValue(x, length));
+		this.updateClob(columnIndex, (Clob) new ClobValue(x, length));
 	}
 
 	public void updateClob(int columnIndex, Clob x)
