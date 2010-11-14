@@ -14,7 +14,7 @@ ifdef USE_GCJ
 	GCJ	:= gcj
 	JAVAC	:= $(GCJ) -C
 else
-	JAVAC	:= javac -source 1.4 -target 1.4
+	JAVAC	:= javac -source 1.6 -target 1.6
 endif
 
 JARFILE	:= $(TARGETDIR)/$(NAME).jar
