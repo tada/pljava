@@ -397,39 +397,4 @@ public class SPIStatement implements Statement
 		if(rs == m_resultSet)
 			m_resultSet = null;
 	}
-
-	public void setPoolable(boolean poolable)
-	throws SQLException
-	{
-		if ( m_closed )
-			throw new SQLException( "The statement is already closed." );
-	}
-
-	public boolean isPoolable()
-	throws SQLException
-	{
-		if ( m_closed )
-			throw new SQLException( "The statement is already closed." );
-		return false;
-	}
-
-	public boolean isClosed()
-	throws SQLException
-	{
-		return m_closed;
-	}
-
-	public boolean isWrapperFor(Class<?> iface)
-	throws SQLException
-	{
-		return iface == SPIStatement.class || iface == Statement.class;
-	}
-
-	public <T> T unwrap(Class<T> iface)
-	throws SQLException
-	{
-		if ( isWrapperFor( iface ) )
-			return (T) this;
-		throw new SQLException( "SPIStatement does not implement " + iface.getName() );
-	}
 }

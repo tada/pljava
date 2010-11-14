@@ -10,34 +10,25 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
-import java.sql.ClientInfoStatus;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.Date;
-import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
-import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
-import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.BitSet;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -51,8 +42,7 @@ import org.postgresql.pljava.internal.PgSavepoint;
 public class SPIConnection implements Connection
 {
 	private static final HashMap s_sqlType2Class = new HashMap(30);
-	private int[] VERSION_NUMBER = null; //version number
-	private Properties _clientInfo;
+    private int[] VERSION_NUMBER = null; //version number
 
 	static
 	{
@@ -894,100 +884,4 @@ public class SPIConnection implements Connection
                 Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
                 Types.ARRAY
             };
-
-	public Struct createStruct( String typeName, Object[] attributes )
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException(
-			"SPIConnection.createStruct( String, Object[] ) not implemented yet.", "0A000" );
-	}
-
-	public Array createArrayOf(String typeName, Object[] elements)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException(
-			"SPIConnection.createArrayOf( String, Object[] ) not implemented yet.", "0A000" );
-	}
-
-	public boolean isValid( int timeout )
-	throws SQLException
-	{
-		return true; // The connection is always alive and ready, right?
-	}
-
-	public SQLXML createSQLXML()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createSQLXML() not implemented yet.",
-			"0A000" );
-	}
-	public NClob createNClob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createNClob() not implemented yet.",
-			"0A000" );
-	}
-	public Blob createBlob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createBlob() not implemented yet.",
-			"0A000" );
-	}
-	public Clob createClob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createClob() not implemented yet.",
-			"0A000" );
-	}
-
-	public boolean isWrapperFor(Class<?> iface)
-	throws SQLException
-	{
-		return iface == SPIConnection.class || iface == Connection.class;
-	}
-
-	public <T> T unwrap(Class<T> iface)
-	throws SQLException
-	{
-		if ( iface == SPIConnection.class || iface == Connection.class )
-			return (T) this;
-		throw new SQLException( "SPIConnection does not implement " + iface.getName() );
-	}
-	// Begin portion copyright PostgreSQL Global Development Group
-
-	// Lifted from org.postgresql.jdbc4.Abstractjdbc4Connection.java
-	public void setClientInfo(String name, String value) throws SQLClientInfoException
-	{
-		Map<String, ClientInfoStatus> failures = new HashMap<String, ClientInfoStatus>();
-		failures.put(name, ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
-		throw new SQLClientInfoException("ClientInfo property not supported.", failures);
-	}
-
-	public void setClientInfo(Properties properties) throws SQLClientInfoException
-	{
-		if (properties == null || properties.size() == 0)
-			return;
-
-		Map<String, ClientInfoStatus> failures = new HashMap<String, ClientInfoStatus>();
-
-		Iterator<String> i = properties.stringPropertyNames().iterator();
-		while (i.hasNext()) {
-			failures.put(i.next(), ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
-		}
-		throw new SQLClientInfoException("ClientInfo property not supported.", failures);
-	}
-
-	public String getClientInfo(String name) throws SQLException
-	{
-		return null;
-	}
-
-	public Properties getClientInfo() throws SQLException
-	{
-		if (_clientInfo == null) {
-			_clientInfo = new Properties();
-		}
-		return _clientInfo;
-	}
-	// End portion copyright PostgreSQL Global Development Group
- }	
+ }
