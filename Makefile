@@ -28,7 +28,7 @@
 #
 export PROJDIR := $(shell $(SHELL) -c pwd)
 
-PG_CONFIG = pg_config
+export PG_CONFIG = pg_config
 export PGXS := $(shell $(PG_CONFIG) --pgxs)
 export PGSQLSRC := $(dir $(PGXS))..
 export top_builddir := $(PGSQLSRC)/..
@@ -110,5 +110,3 @@ release: all docs javadoc
 maven_bundle: pljava_all
 	@-mkdir -p $(TARGETDIR)/distrib
 	@$(MAKE) -r -C $(TARGETDIR) -f $(PROJDIR)/packaging/Makefile $@
-
-	
