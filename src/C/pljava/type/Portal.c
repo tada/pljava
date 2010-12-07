@@ -32,16 +32,18 @@ static PortalCleanupProc s_originalCleanupProc = 0;
 
 static void _pljavaPortalCleanup(Portal portal)
 {
-	jobject jportal = (jobject)HashMap_getByOpaque(s_portalMap, portal);
-	if(jportal != 0)
+	/*
+	 * Remove this object from the cache and clear its
+	 * handle.
+	 */
+	jobject jportal = (jobject)HashMap_removeByOpaque(s_portalMap, portal);
+	if(jportal)
 	{
-		/*
-		 * Remove this object from the cache and clear its
-		 * handle.
-		 */
-		HashMap_removeByOpaque(s_portalMap, portal);
+
 		JNI_setLongField(jportal, s_Portal_pointer, 0);
+		JNI_deleteGlobalRef(jportal);
 	}
+
 	portal->cleanup = s_originalCleanupProc;
 	if(s_originalCleanupProc != 0)
 	{
@@ -262,7 +264,13 @@ Java_org_postgresql_pljava_internal_Portal__1close(JNIEnv* env, jclass clazz, jl
 		/* Reset our own cleanup callback if needed. No need to come in
 		 * the backway
 		 */
-		HashMap_removeByOpaque(s_portalMap, portal);
+
+		jobject jportal = (jobject)HashMap_removeByOpaque(s_portalMap, portal);
+		if(jportal)
+		{
+			JNI_deleteGlobalRef(jportal);
+		}
+
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
 
