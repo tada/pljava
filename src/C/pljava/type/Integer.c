@@ -12,6 +12,7 @@
 
 static TypeClass s_intClass;
 static jclass    s_Integer_class;
+static jclass    s_IntegerArray_class;
 static jmethodID s_Integer_init;
 static jmethodID s_Integer_intValue;
 
@@ -73,12 +74,27 @@ static Datum _intArray_coerceObject(Type self, jobject intArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)intArray);
+
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 	v = createArrayType(nElems, sizeof(jint), INT4OID);
 #else
 	v = createArrayType(nElems, sizeof(jint), INT4OID, false);
 #endif
-	JNI_getIntArrayRegion((jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));	
+
+	if(!JNI_isInstanceOf( intArray, s_IntegerArray_class))
+	  JNI_getIntArrayRegion((jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
+	else
+	  {
+	    int idx = 0;
+	    jint *array = (jint*)ARR_DATA_PTR(v);
+
+	    for(idx = 0; idx < nElems; ++idx)
+	      {
+		array[idx] = JNI_callIntMethod(JNI_getObjectArrayElement(intArray, idx),
+					       s_Integer_intValue);
+	      }
+	  }
+
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -119,6 +135,7 @@ void Integer_initialize(void)
 	TypeClass cls;
 
 	s_Integer_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Integer"));
+	s_IntegerArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Integer;"));
 	s_Integer_init = PgObject_getJavaMethod(s_Integer_class, "<init>", "(I)V");
 	s_Integer_intValue = PgObject_getJavaMethod(s_Integer_class, "intValue", "()I");
 
