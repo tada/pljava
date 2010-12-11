@@ -12,6 +12,7 @@
 
 static TypeClass s_longClass;
 static jclass    s_Long_class;
+static jclass    s_LongArray_class;
 static jmethodID s_Long_init;
 static jmethodID s_Long_longValue;
 
@@ -80,12 +81,26 @@ static Datum _longArray_coerceObject(Type self, jobject longArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)longArray);
+
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 	v = createArrayType(nElems, sizeof(jlong), INT8OID);
 #else
 	v = createArrayType(nElems, sizeof(jlong), INT8OID, false);
 #endif
-	JNI_getLongArrayRegion((jlongArray)longArray, 0, nElems, (jlong*)ARR_DATA_PTR(v));	
+
+	if(!JNI_isInstanceOf( longArray, s_LongArray_class))
+		JNI_getLongArrayRegion((jlongArray)longArray, 0, nElems, (jlong*)ARR_DATA_PTR(v));
+	else
+	{
+		int idx = 0;
+		jlong *array = (jlong*)ARR_DATA_PTR(v);
+
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			array[idx] = JNI_callLongMethod(JNI_getObjectArrayElement(longArray, idx),
+							s_Long_longValue);
+		}
+	}
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -126,6 +141,7 @@ void Long_initialize(void)
 	TypeClass cls;
 
 	s_Long_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Long"));
+	s_LongArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Long;"));
 	s_Long_init = PgObject_getJavaMethod(s_Long_class, "<init>", "(J)V");
 	s_Long_longValue = PgObject_getJavaMethod(s_Long_class, "longValue", "()J");
 
