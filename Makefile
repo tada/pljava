@@ -46,6 +46,11 @@ export TAR				:= /bin/tar
 OS := $(shell uname -s)
 MACHINE := $(shell uname -m)
 
+ifndef USE_GCJ
+JAVA_VERSION_MSG=PL/Java ${PLJAVA_VERSION} can only be compiled with JDK 1.4 or 1.5
+JAVA_VERSION := $(or $(filter 1.4% 1.5%, $(shell java -version 2>&1)),$(error ${JAVA_VERSION_MSG}))
+endif
+
 .PHONY: all clean docs javadoc source_tarball maven_bundle install uninstall depend release \
 	c_all c_install c_uninstall c_depend \
 	pljava_all pljava_javadoc \
