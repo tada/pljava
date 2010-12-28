@@ -70,6 +70,12 @@ else
 	endif
 	endif
 
+	ifeq ($(JRE_CPU), i386)
+		ifeq ($(findstring -m64, $(CFLAGS)), -m64)
+			JRE_CPU := amd64
+		endif
+	endif
+
 endif
 endif
 endif
