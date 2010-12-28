@@ -10,9 +10,11 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.nio.ByteBuffer;
 import java.sql.Blob;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 /**
  * @author Thomas Hallgren
@@ -243,4 +245,20 @@ public class BlobValue extends InputStream implements Blob
 	{
 		throw new UnsupportedOperationException();
 	}
+
+    // Start of Java 6 stubs
+    public InputStream getBinaryStream(long pos,
+				       long length)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    public void free()
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    // End of Java 6 stubs
 }

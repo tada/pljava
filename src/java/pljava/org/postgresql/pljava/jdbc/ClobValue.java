@@ -16,6 +16,7 @@ import java.io.StringReader;
 import java.io.Writer;
 import java.sql.Clob;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 /**
  * @author Thomas Hallgren
@@ -228,4 +229,21 @@ public class ClobValue extends Reader implements Clob
 	{
 		throw new UnsupportedOperationException();
 	}
+
+    // Start of Java 6 stubs
+
+        public Reader getCharacterStream(long pos,long length)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+	}
+
+    public void free()
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    // End of Java 6 stubs
+
 }

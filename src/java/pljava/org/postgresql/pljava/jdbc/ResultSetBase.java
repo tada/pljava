@@ -6,6 +6,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
@@ -151,6 +152,27 @@ abstract class ResultSetBase extends ReadOnlyResultSet
 		if(direction != FETCH_FORWARD)
 			throw new UnsupportedFeatureException("Non forward fetch direction");
 	}
+
+    // Start of Java 6 stubs
+
+    public boolean isClosed()
+	throws SQLException
+    {
+	return m_row == -1;
+    }
+
+	/**
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
+	 * closed when a function returns to SQL.
+	 */
+	public int getHoldability()
+		throws SQLException
+		{
+			return ResultSet.CLOSE_CURSORS_AT_COMMIT;
+		}
+
+
+    // End of Java 6 stubs
 
 	public void setFetchSize(int fetchSize)
 	throws SQLException

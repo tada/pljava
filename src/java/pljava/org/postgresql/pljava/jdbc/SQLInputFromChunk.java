@@ -18,9 +18,13 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
 import java.sql.Ref;
+import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLInput;
+import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 
@@ -256,6 +260,34 @@ public class SQLInputFromChunk implements SQLInput
 		}
 		return -1;
 	}
+
+	// Start of Java 6 stubs
+
+	public RowId readRowId()
+                throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public SQLXML readSQLXML()
+		throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public String readNString()
+                   throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+       public NClob readNClob()
+	       throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+
+	// End of Java 6 stubs
 
 	private static native int _readByte(long handle, int position);
 

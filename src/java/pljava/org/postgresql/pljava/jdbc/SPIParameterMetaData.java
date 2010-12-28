@@ -8,6 +8,7 @@ package org.postgresql.pljava.jdbc;
 
 import java.sql.ParameterMetaData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 /**
  *
@@ -90,4 +91,16 @@ public class SPIParameterMetaData implements ParameterMetaData
 			throw new SQLException("Parameter index out of range");
 		return parameterModeIn;
 	}
+
+	public boolean isWrapperFor(Class<?> c)
+		throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public <T> T unwrap(Class<T> iface)
+		throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
 }

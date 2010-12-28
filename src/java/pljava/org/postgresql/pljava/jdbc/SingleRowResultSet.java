@@ -6,6 +6,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
@@ -272,6 +273,21 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 		//
 		this.updateObject(columnIndex, x);
 	}
+
+    // Start of Java 6 stubs
+
+	/**
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
+	 * closed when a function returns to SQL.
+	 */
+	public int getHoldability()
+		throws SQLException
+		{
+			return ResultSet.CLOSE_CURSORS_AT_COMMIT;
+		}
+
+    // End of Java 6 stubs
+
 
 	protected abstract TupleDesc getTupleDesc()
 	throws SQLException;

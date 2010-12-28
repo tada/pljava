@@ -137,4 +137,14 @@ public class TriggerResultSet extends SingleRowResultSet
 	{
 		return m_tupleDesc;
 	}
+
+	// Start of Java 6 stubs
+	
+	public boolean isClosed()
+		throws SQLException
+		{
+			return m_tupleChanges == null;
+		}
+
+	// end of Java 6 stubs
 }

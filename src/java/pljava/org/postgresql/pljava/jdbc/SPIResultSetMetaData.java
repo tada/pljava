@@ -8,6 +8,7 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.TupleDesc;
@@ -132,4 +133,23 @@ public class SPIResultSetMetaData extends AbstractResultSetMetaData
 	{
 		return 0;
 	}
+
+    // Start of Java 6 stubs
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException();
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException();
+	}
+
+
+    // End of Java 6 stubs
+
+    
 }

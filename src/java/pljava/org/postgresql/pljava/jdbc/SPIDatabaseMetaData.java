@@ -7,7 +7,9 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -3448,4 +3450,67 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	{
 		return new SyntheticResultSet(f, tuples);
 	}
+
+    // Start of Java 6 stubs
+
+    public ResultSet getFunctionColumns(String catalog,
+				 String schemaPattern,
+				 String functionNamePattern,
+                             String columnNamePattern)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    public ResultSet getFunctions(String catalog,
+                       String schemaPattern,
+                       String functionNamePattern)
+                       throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+    
+    public ResultSet getClientInfoProperties()
+                                  throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    public boolean autoCommitFailureClosesAllResultSets()
+    throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+public boolean supportsStoredFunctionsUsingCallSyntax()
+                                               throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+public ResultSet getSchemas(String catalog,
+                     String schemaPattern)
+                     throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+public RowIdLifetime getRowIdLifetime()
+                               throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+    public boolean isWrapperFor(Class<?> c)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    public <T> T unwrap(java.lang.Class<T> T)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    // End of Java 6 stubs
 }

@@ -144,6 +144,16 @@ public class SingleRowReader extends SingleRowResultSet
 		return new UnsupportedFeatureException("ResultSet is read-only");
 	}
 
+    // Start of Java 6 stubs
+
+    public boolean isClosed()
+	throws SQLException
+    {
+	return false;
+    }
+
+    // End of Java 6 stubs
+
 	protected final TupleDesc getTupleDesc()
 	{
 		return m_tupleDesc;

@@ -8,6 +8,7 @@
 package org.postgresql.pljava.jdbc;
 
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 import org.postgresql.pljava.internal.Oid;
 
@@ -129,4 +130,21 @@ public class SyntheticResultSetMetaData extends AbstractResultSetMetaData
 	{
 		return m_fields[column-1].getLength();
 	}
+
+    // Start of Java 6 stubs
+
+
+    public boolean isWrapperFor(Class<?> c)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    public <T> T unwrap(java.lang.Class<T> T)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException();
+    }
+
+    // End of Java 6 stubs
 }

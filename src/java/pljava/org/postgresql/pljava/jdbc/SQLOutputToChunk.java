@@ -18,10 +18,14 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
 import java.sql.Ref;
+import java.sql.RowId;
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLOutput;
+import java.sql.SQLXML;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -239,6 +243,34 @@ public class SQLOutputToChunk implements SQLOutput
 	{
 		m_handle = 0;
 	}
+
+	// Start of Java 6 stubs
+
+	public void writeNClob(NClob x)
+                throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public void writeNString(String x)
+		throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public void writeRowId(RowId x)
+                throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	public void writeSQLXML(SQLXML x)
+		throws SQLException
+		{
+			throw new SQLFeatureNotSupportedException();
+		}
+
+	// End of Java 6 stubs
 
 	private void write(int b) throws SQLException
 	{
