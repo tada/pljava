@@ -233,11 +233,17 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * DatabaseMetaData is not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
+	 * Retrieves an instance of {@link SPIDatabaseMetaData}
+	 * representing this <code>Connection</code> object.  The
+	 * metadata includes information about the SQL grammar
+	 * supported by PostgreSQL, the capabilities of PL/Java, as
+	 * well as the tables and stored procedures for this
+	 * connection and so on.
+	 *
+	 * @return an SPIDatabaseMetaData object for this
+	 * <code>Connection</code> object
 	 */
 	public DatabaseMetaData getMetaData()
-	throws SQLException
 	{
 		return new SPIDatabaseMetaData(this);
 	}
