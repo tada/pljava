@@ -12,6 +12,7 @@
 
 static TypeClass s_booleanClass;
 static jclass    s_Boolean_class;
+static jclass    s_BooleanArray_class;
 static jmethodID s_Boolean_init;
 static jmethodID s_Boolean_booleanValue;
 
@@ -73,12 +74,27 @@ static Datum _booleanArray_coerceObject(Type self, jobject booleanArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)booleanArray);
+
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 	v = createArrayType(nElems, sizeof(jboolean), BOOLOID);
 #else
 	v = createArrayType(nElems, sizeof(jboolean), BOOLOID, false);
 #endif
-	JNI_getBooleanArrayRegion((jbooleanArray)booleanArray, 0, nElems, (jboolean*)ARR_DATA_PTR(v));	
+
+	if(!JNI_isInstanceOf( booleanArray, s_BooleanArray_class))
+		JNI_getBooleanArrayRegion((jbooleanArray)booleanArray, 0,
+					  nElems, (jboolean*)ARR_DATA_PTR(v));
+	else
+	{
+		int idx = 0;
+		jboolean *array = (jboolean*)ARR_DATA_PTR(v);
+
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			array[idx] = JNI_callBooleanMethod(JNI_getObjectArrayElement(booleanArray, idx),
+							   s_Boolean_booleanValue);
+		}
+	}
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -119,6 +135,7 @@ void Boolean_initialize(void)
 	TypeClass cls;
 
 	s_Boolean_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Boolean"));
+	s_BooleanArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Boolean;"));
 	s_Boolean_init = PgObject_getJavaMethod(s_Boolean_class, "<init>", "(Z)V");
 	s_Boolean_booleanValue = PgObject_getJavaMethod(s_Boolean_class, "booleanValue", "()Z");
 

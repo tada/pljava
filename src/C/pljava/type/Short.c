@@ -12,6 +12,7 @@
 
 static TypeClass s_shortClass;
 static jclass    s_Short_class;
+static jclass    s_ShortArray_class;
 static jmethodID s_Short_init;
 static jmethodID s_Short_shortValue;
 
@@ -78,7 +79,20 @@ static Datum _shortArray_coerceObject(Type self, jobject shortArray)
 #else
 	v = createArrayType(nElems, sizeof(jshort), INT2OID, false);
 #endif
-	JNI_getShortArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));	
+
+	if(!JNI_isInstanceOf( shortArray, s_ShortArray_class))
+	  JNI_getIntArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
+	else
+	  {
+	    int idx = 0;
+	    jshort *array = (jshort*)ARR_DATA_PTR(v);
+
+	    for(idx = 0; idx < nElems; ++idx)
+	      {
+		array[idx] = JNI_callShortMethod(JNI_getObjectArrayElement(shortArray, idx),
+					       s_Short_shortValue);
+	      }
+	  }
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -119,6 +133,7 @@ void Short_initialize(void)
 	TypeClass cls;
 
 	s_Short_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Short"));
+	s_ShortArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Short;"));
 	s_Short_init = PgObject_getJavaMethod(s_Short_class, "<init>", "(S)V");
 	s_Short_shortValue = PgObject_getJavaMethod(s_Short_class, "shortValue", "()S");
 

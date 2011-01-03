@@ -12,6 +12,7 @@
 
 static TypeClass s_floatClass;
 static jclass    s_Float_class;
+static jclass    s_FloatArray_class;
 static jmethodID s_Float_init;
 static jmethodID s_Float_floatValue;
 
@@ -80,12 +81,27 @@ static Datum _floatArray_coerceObject(Type self, jobject floatArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)floatArray);
+
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 	v = createArrayType(nElems, sizeof(jfloat), FLOAT4OID);
 #else
 	v = createArrayType(nElems, sizeof(jfloat), FLOAT4OID, false);
 #endif
-	JNI_getFloatArrayRegion((jfloatArray)floatArray, 0, nElems, (jfloat*)ARR_DATA_PTR(v));	
+
+	if(!JNI_isInstanceOf( floatArray, s_FloatArray_class))
+		JNI_getFloatArrayRegion((jfloatArray)floatArray, 0,
+					  nElems, (jfloat*)ARR_DATA_PTR(v));
+	else
+	{
+		int idx = 0;
+		jfloat *array = (jfloat*)ARR_DATA_PTR(v);
+
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			array[idx] = JNI_callFloatMethod(JNI_getObjectArrayElement(floatArray, idx),
+							   s_Float_floatValue);
+		}
+	}
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -126,6 +142,7 @@ void Float_initialize(void)
 	TypeClass cls;
 
 	s_Float_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Float"));
+	s_FloatArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Float;"));
 	s_Float_init = PgObject_getJavaMethod(s_Float_class, "<init>", "(F)V");
 	s_Float_floatValue = PgObject_getJavaMethod(s_Float_class, "floatValue", "()F");
 
