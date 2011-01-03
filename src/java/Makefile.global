@@ -9,6 +9,7 @@ SRCS		:= $(shell find $(SRCDIR) -name CVS -prune -o -type f -name \*.java -print
 CLASSES		:= $(shell find . -type f -name \*.class)
 JAR			:= jar
 JAVADOC		:= javadoc
+JAVAFLAGS += $(findstring -g,$(shell ${PG_CONFIG} --cflags))
 
 ifdef USE_GCJ
 	GCJ	:= gcj
