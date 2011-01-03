@@ -37,19 +37,14 @@ export TARGETDIR		:= $(PROJDIR)/build
 export OBJDIR			:= $(TARGETDIR)/objs
 export JNIDIR			:= $(TARGETDIR)/jni
 export CLASSDIR			:= $(TARGETDIR)/classes
-export PLJAVA_MAJOR_VER	:= 1
-export PLJAVA_MINOR_VER	:= 4
-export PLJAVA_PATCH_VER	:= 2
+export PLJAVA_MAJOR_VER	:= 2
+export PLJAVA_MINOR_VER	:= 0
+export PLJAVA_PATCH_VER	:= 0-beta1
 export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER).$(PLJAVA_PATCH_VER)
 export TAR				:= /bin/tar
 
 OS := $(shell uname -s)
 MACHINE := $(shell uname -m)
-
-ifndef USE_GCJ
-JAVA_VERSION_MSG=PL/Java ${PLJAVA_VERSION} can only be compiled with JDK 1.4 or 1.5
-JAVA_VERSION := $(or $(filter 1.4% 1.5%, $(shell java -version 2>&1)),$(error ${JAVA_VERSION_MSG}))
-endif
 
 .PHONY: all clean docs javadoc source_tarball maven_bundle install uninstall depend release \
 	c_all c_install c_uninstall c_depend \
