@@ -123,6 +123,28 @@ else
 
 		PLJAVA_CPPFLAGS += -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)"
 		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm
+
+		ifdef USE_LD_RPATH
+			ifeq (${USE_LD_RPATH},1)
+				SHLIB_LINK += -rpath ${JVM_LIB}
+			else
+			ifeq (${USE_LD_RPATH},2)
+				SHLIB_LINK += -R${JVM_LIB}
+			else
+			ifeq (${USE_LD_RPATH},3)
+				SHLIB_LINK += -R ${JVM_LIB}
+			else
+			ifeq (${USE_LD_RPATH},4)
+				SHLIB_LINK += -Wl,-R${JVM_LIB}
+			else
+			ifeq (${USE_LD_RPATH},5)
+				SHLIB_LINK += -Wl,-R,${JVM_LIB}
+			endif
+			endif
+			endif
+			endif
+			endif
+		endif
 	endif
 endif
 
