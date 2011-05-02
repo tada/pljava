@@ -573,6 +573,9 @@ static void initializeJavaVM(void)
 			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomStringVariable(
@@ -587,6 +590,9 @@ static void initializeJavaVM(void)
 			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomBoolVariable(
@@ -600,6 +606,9 @@ static void initializeJavaVM(void)
 			PGC_USERSET,
 			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
+			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
 			#endif
 			NULL, NULL);
 	
@@ -616,6 +625,9 @@ static void initializeJavaVM(void)
 			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
 			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
+			#endif
 			NULL, NULL);
 	
 		DefineCustomBoolVariable(
@@ -629,6 +641,9 @@ static void initializeJavaVM(void)
 			PGC_USERSET,
 			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
 				0,
+			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
 			#endif
 			NULL, NULL);
 	
