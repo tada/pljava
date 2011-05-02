@@ -37,12 +37,32 @@ import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
+ * Provides access to the current connection (session) the Java stored
+ * procedure is running in.  It is returned from the driver manager
+ * with
+ * <code>DriverManager.getConnection("jdbc:default:connection");</code>
+ * and cannot be managed in any way since it's already running inside
+ * a transaction.  This means the following methods cannot be used.
+ * <ul>
+ * <li><code>commit()</code></li>
+ * <li><code>rollback()</code></li>
+ * <li><code>setAutoCommit()</code></li>
+ * <li><code>setTransactionIsolation()</code></li>
+ * </ul>
  * @author Thomas Hallgren
  */
 public class SPIConnection implements Connection
 {
-	private static final HashMap s_sqlType2Class = new HashMap(30);
-    private int[] VERSION_NUMBER = null; //version number
+    /**
+     * A map from Java classes to java.sql.Types integers.
+     */
+    private static final HashMap s_sqlType2Class = new HashMap(30);
+
+    /**
+     * The version number of the currently executing PostgreSQL
+     * server.
+     */
+    private int[] VERSION_NUMBER = null;
 
 	static
 	{
@@ -86,7 +106,7 @@ public class SPIConnection implements Connection
 	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
 	 * closed when a function returns to SQL.
 	 */
-	public int getHoldability() throws SQLException
+	public int getHoldability()
 	{
 		return ResultSet.CLOSE_CURSORS_AT_COMMIT;
 	}
@@ -94,7 +114,7 @@ public class SPIConnection implements Connection
 	/**
 	 * Returns {@link Connection#TRANSACTION_READ_COMMITTED}.
 	 */
-	public int getTransactionIsolation() throws SQLException
+	public int getTransactionIsolation()
 	{
 		return TRANSACTION_READ_COMMITTED;
 	}
@@ -113,7 +133,6 @@ public class SPIConnection implements Connection
 	 * This is a no-op. The default connection never closes.
 	 */
 	public void close()
-	throws SQLException
 	{
 	}
 
@@ -142,7 +161,6 @@ public class SPIConnection implements Connection
 	 * will always return <code>false</code>.
 	 */
 	public boolean getAutoCommit()
-	throws SQLException
 	{
 		return false;
 	}
@@ -151,7 +169,6 @@ public class SPIConnection implements Connection
 	 * Will always return false.
 	 */
 	public boolean isClosed()
-	throws SQLException
 	{
 		return false;
 	}
@@ -160,7 +177,6 @@ public class SPIConnection implements Connection
 	 * Returns <code>false</code>. The SPIConnection is not real-only.
 	 */
 	public boolean isReadOnly()
-	throws SQLException
 	{
 		return false;
 	}
@@ -294,9 +310,11 @@ public class SPIConnection implements Connection
 	 * Creates a new instance of <code>SPIStatement</code>.
 	 * 
 	 * @throws SQLException
-	 *             if the <code>resultSetType</code> differs from {@link
-	 *             ResultSet#TYPE_FORWARD_ONLY} or if the <code>resultSetConcurrencty</code>
-	 *             differs from {@link ResultSet#CONCUR_READ_ONLY}.
+	 *
+	 *             if the <code>resultSetType</code> differs from
+	 *             {@link ResultSet#TYPE_FORWARD_ONLY} or if the
+	 *             <code>resultSetConcurrencty</code> differs from
+	 *             {@link ResultSet#CONCUR_READ_ONLY}.
 	 */
 	public Statement createStatement(
 		int resultSetType,
