@@ -111,7 +111,11 @@ else
 			else
 				JRE_INCL := win32
 			endif
-			JVM_LIB  := $(JDK_HOME)/jre/bin/client
+			ifeq ($(host_cpu), x86_64)
+				JVM_LIB  := $(JDK_HOME)/jre/bin/server
+			else
+				JVM_LIB  := $(JDK_HOME)/jre/bin/client
+			endif
 		else
 			JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
 			JVM_LIB := $(firstword $(shell /bin/ls -d \
@@ -206,11 +210,27 @@ else # PORTNAME == win32
 #
 $(plugin): $(OBJS)
 ifndef USE_GCJ
+ifneq ($(host_cpu), x86_64)
 	$(DLLTOOL) --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 endif
-	$(DLLTOOL) --export-all $(DLLTOOL_DEFFLAGS) --output-def $(NAME).def $(OBJS)
-	$(DLLWRAP) $(LDFLAGS_SL) -o $(plugin) --dllname $(plugin) $(DLLWRAP_FLAGS) --def $(NAME).def $(OBJS) $(SHLIB_LINK)
-	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) --def $(NAME).def
+endif
+ifeq ($(host_cpu), x86_64)
+	$(DLLTOOL) --export-all --output-def $(NAME).def $(OBJS)
+	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) \
+		--def $(NAME).def
+	gendef - ${JVM_LIB}/jvm.dll > jvm.def
+	${DLLTOOL} --export-all-symbols --input-def jvm.def \
+		--output-lib libjvm.dll.a
+	${CC} -shared -o ${plugin} ${OBJS} ${BE_DLLLIBS} -L. -ljvm
+else
+	$(DLLTOOL) --export-all $(DLLTOOL_DEFFLAGS) \
+		--output-def $(NAME).def $(OBJS)
+	$(DLLWRAP) $(LDFLAGS_SL) -o $(plugin) --dllname $(plugin) \
+		$(DLLWRAP_FLAGS) --def $(NAME).def $(OBJS) \
+		$(SHLIB_LINK)
+	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) \
+		--def $(NAME).def
+endif
 
 endif # PORTNAME == win32
 
