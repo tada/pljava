@@ -122,7 +122,7 @@ else
 				$(JRE_LIB)/client \
 				$(JRE_LIB)/server \
 				$(JRE_LIB)/jrockit \
-				$(JRE_HOME)/bin/j9vm \
+				$(JDK_HOME)/bin/j9vm \
 				2> /dev/null))
 		endif
 
