@@ -132,26 +132,52 @@ else
 		ifdef USE_LD_RPATH
 			ifeq (${USE_LD_RPATH},1)
 				SHLIB_LINK += -Wl,-rpath,${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-rpath,$(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},2)
 				SHLIB_LINK += -rpath ${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-rpath $(JVM_LIB:/j9vm=)
+				endif
+			else
 			ifeq (${USE_LD_RPATH},3)
 				SHLIB_LINK += -R${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-R$(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},4)
 				SHLIB_LINK += -R ${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-R $(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},5)
 				SHLIB_LINK += -Wl,-R${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-R$(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},6)
 				SHLIB_LINK += -Wl,-R,${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-R,$(JVM_LIB:/j9vm=)
+				endif
 			endif
 			endif
 			endif
 			endif
 			endif
 			endif
+
 		endif
 	endif
 endif
