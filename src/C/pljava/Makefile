@@ -82,7 +82,7 @@ endif
 
 ifdef USE_GCJ
 	PLJAVA_CPPFLAGS += -DGCJ
-	SHLIB_LINK = -lgcj
+	SHLIB_LINK = -lgcj $(PLJAVA_LDFLAGS)
 	ifdef DLL_BUILD
 		SHLIB_LINK += -lws2_32
 	endif
@@ -90,7 +90,7 @@ ifdef USE_GCJ
 else
 	pljava-jar = pljava.jar
 	ifeq ($(PORTNAME), darwin)
-		SHLIB_LINK += -L. -framework JavaVM
+		SHLIB_LINK += -L. -framework JavaVM $(PLJAVA_LDFLAGS)
 	else
 		ifdef JAVA_HOME
 			ifeq ($(PORTNAME), win32)
@@ -127,7 +127,7 @@ else
 		endif
 
 		PLJAVA_CPPFLAGS += -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)"
-		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm
+		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm $(PLJAVA_LDFLAGS)
 
 		ifdef USE_LD_RPATH
 			ifeq (${USE_LD_RPATH},1)
