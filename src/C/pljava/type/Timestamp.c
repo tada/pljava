@@ -47,11 +47,15 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 
 	/* Expect number of microseconds since 01 Jan 2000
 	 */
-	jlong mSecs = ts / 1000;			/* Convert to millisecs */
-	jint  uSecs = (jint)(ts % 1000);	/* preserve remaining microsecs */
+	jlong mSecs = ts / 1000; /* Convert to millisecs */
+	jint  uSecs = (jint)(ts % 1000000); /* preserve microsecs */
+
 	if(tzAdjust)
-		mSecs += tz * 1000;				/* Adjust from local time to UTC */
-	mSecs += ((jlong)EPOCH_DIFF) * 1000L;			/* Adjust for diff between Postgres and Java (Unix) */
+		mSecs += tz * 1000; /* Adjust from local time to UTC */
+
+	/* Adjust for diff between Postgres and Java (Unix) */
+	mSecs += ((jlong)EPOCH_DIFF) * 1000L; 
+
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
@@ -63,19 +67,16 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 	jlong mSecs;
 	jint  uSecs;
 	jvalue result;
-	double tmp;
 	double ts = DatumGetFloat8(arg);
 	int    tz = Timestamp_getTimeZone_dd(ts);
 
 	/* Expect <seconds since Jan 01 2000>.<fractions of seconds>
 	 */
 	if(tzAdjust)
-		ts += tz;						/* Adjust from local time to UTC */
-	ts += EPOCH_DIFF;					/* Adjust for diff between Postgres and Java (Unix) */
-	ts *= 1000.0;						/* Convert to millisecs */
-	tmp = floor(ts);
-	mSecs = (jlong)tmp;
-	uSecs = ((ts - tmp) * 1000.0);		/* Preserve remaining microsecs */
+		ts += tz; /* Adjust from local time to UTC */
+	ts += EPOCH_DIFF; /* Adjust for diff between Postgres and Java (Unix) */
+	mSecs = (jlong) floor(ts * 1000.0); /* Convert to millisecs */
+	uSecs = (jint) ((ts - floor(ts)) * 1000000.0); /* Preserve microsecs */
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
