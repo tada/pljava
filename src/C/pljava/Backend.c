@@ -48,6 +48,20 @@
 PG_MODULE_MAGIC;
 #endif
 
+#ifdef PG_GETCONFIGOPTION
+#error The macro PG_GETCONFIGOPTION needs to be renamed.
+#endif
+
+#if ( PGSQL_MAJOR_VER > 8 )
+#if ( PGSQL_MINOR_VER > 0 )
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key, false, true)
+#else
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key, true)
+#endif
+#else
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key)
+#endif
+
 #define LOCAL_REFERENCE_COUNT 128
 
 jlong mainThreadId;
@@ -533,11 +547,7 @@ static void initJavaSession(void)
 
 static void checkIntTimeType(void)
 {
-	#if (PGSQL_MAJOR_VER > 8)
-	const char* idt = GetConfigOption("integer_datetimes", true);
-	#else
-	const char* idt = GetConfigOption("integer_datetimes");
-	#endif
+	const char* idt = PG_GETCONFIGOPTION("integer_datetimes");
 
 	integerDateTimes = (strcmp(idt, "on") == 0);
 	elog(DEBUG1, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
@@ -825,12 +835,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 	{
 		PG_TRY();
 		{
-			#if (PGSQL_MAJOR_VER > 8)
-			const char* value = GetConfigOption(key, true);
-			#else
-			const char* value = GetConfigOption(key);
-			#endif
-			
+			const char *value = PG_GETCONFIGOPTION(key);
 			pfree(key);
 			if(value != 0)
 				result = String_createJavaStringFromNTS(value);
