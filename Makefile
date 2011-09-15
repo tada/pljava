@@ -28,8 +28,8 @@
 #
 export PROJDIR := $(shell $(SHELL) -c pwd)
 
-export PG_CONFIG = pg_config
-export PGXS := $(shell $(PG_CONFIG) --pgxs)
+export PG_CONFIG ?= pg_config
+export PGXS ?= $(shell $(PG_CONFIG) --pgxs)
 export PGSQLSRC := $(dir $(PGXS))..
 export top_builddir := $(PGSQLSRC)/..
 
