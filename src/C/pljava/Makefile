@@ -82,7 +82,7 @@ endif
 
 ifdef USE_GCJ
 	PLJAVA_CPPFLAGS += -DGCJ
-	SHLIB_LINK = -lgcj
+	SHLIB_LINK = -lgcj $(PLJAVA_LDFLAGS)
 	ifdef DLL_BUILD
 		SHLIB_LINK += -lws2_32
 	endif
@@ -90,7 +90,7 @@ ifdef USE_GCJ
 else
 	pljava-jar = pljava.jar
 	ifeq ($(PORTNAME), darwin)
-		SHLIB_LINK += -L. -framework JavaVM
+		SHLIB_LINK += -L. -framework JavaVM $(PLJAVA_LDFLAGS)
 	else
 		ifdef JAVA_HOME
 			ifeq ($(PORTNAME), win32)
@@ -111,39 +111,73 @@ else
 			else
 				JRE_INCL := win32
 			endif
-			JVM_LIB  := $(JDK_HOME)/jre/bin/client
+			ifeq ($(host_cpu), x86_64)
+				JVM_LIB  := $(JDK_HOME)/jre/bin/server
+			else
+				JVM_LIB  := $(JDK_HOME)/jre/bin/client
+			endif
 		else
 			JRE_LIB := $(JDK_HOME)/jre/lib/$(JRE_CPU)
 			JVM_LIB := $(firstword $(shell /bin/ls -d \
 				$(JRE_LIB)/client \
 				$(JRE_LIB)/server \
 				$(JRE_LIB)/jrockit \
+				$(JDK_HOME)/jre/bin/j9vm \
 				2> /dev/null))
 		endif
 
 		PLJAVA_CPPFLAGS += -I"$(JDK_HOME)/include" -I"$(JDK_HOME)/include/$(JRE_INCL)"
-		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm
+		SHLIB_LINK += -L. -L"$(JVM_LIB)" -ljvm $(PLJAVA_LDFLAGS)
 
 		ifdef USE_LD_RPATH
 			ifeq (${USE_LD_RPATH},1)
-				SHLIB_LINK += -rpath ${JVM_LIB}
+				SHLIB_LINK += -Wl,-rpath,${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-rpath,$(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},2)
-				SHLIB_LINK += -R${JVM_LIB}
+				SHLIB_LINK += -rpath ${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-rpath $(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},3)
-				SHLIB_LINK += -R ${JVM_LIB}
+				SHLIB_LINK += -R${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-R$(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},4)
-				SHLIB_LINK += -Wl,-R${JVM_LIB}
+				SHLIB_LINK += -R ${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-R $(JVM_LIB:/j9vm=)
+				endif
 			else
 			ifeq (${USE_LD_RPATH},5)
+				SHLIB_LINK += -Wl,-R${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-R$(JVM_LIB:/j9vm=)
+				endif
+			else
+			ifeq (${USE_LD_RPATH},6)
 				SHLIB_LINK += -Wl,-R,${JVM_LIB}
+				ifneq ($(JVM_LIB), $(JVM_LIB:/j9vm=))
+					SHLIB_LINK += \
+						-Wl,-R,$(JVM_LIB:/j9vm=)
+				endif
 			endif
 			endif
 			endif
 			endif
 			endif
+			endif
+
 		endif
 	endif
 endif
@@ -206,11 +240,27 @@ else # PORTNAME == win32
 #
 $(plugin): $(OBJS)
 ifndef USE_GCJ
+ifneq ($(host_cpu), x86_64)
 	$(DLLTOOL) --input-def $(SRCDIR)/jvm.def --kill-at --dllname jvm.dll --output-lib libjvm.dll.a
 endif
-	$(DLLTOOL) --export-all $(DLLTOOL_DEFFLAGS) --output-def $(NAME).def $(OBJS)
-	$(DLLWRAP) $(LDFLAGS_SL) -o $(plugin) --dllname $(plugin) $(DLLWRAP_FLAGS) --def $(NAME).def $(OBJS) $(SHLIB_LINK)
-	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) --def $(NAME).def
+endif
+ifeq ($(host_cpu), x86_64)
+	$(DLLTOOL) --export-all --output-def $(NAME).def $(OBJS)
+	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) \
+		--def $(NAME).def
+	gendef - ${JVM_LIB}/jvm.dll > jvm.def
+	${DLLTOOL} --export-all-symbols --input-def jvm.def \
+		--output-lib libjvm.dll.a
+	${CC} -shared -o ${plugin} ${OBJS} ${BE_DLLLIBS} -L. -ljvm
+else
+	$(DLLTOOL) --export-all $(DLLTOOL_DEFFLAGS) \
+		--output-def $(NAME).def $(OBJS)
+	$(DLLWRAP) $(LDFLAGS_SL) -o $(plugin) --dllname $(plugin) \
+		$(DLLWRAP_FLAGS) --def $(NAME).def $(OBJS) \
+		$(SHLIB_LINK)
+	$(DLLTOOL) --dllname $(plugin) $(DLLTOOL_LIBFLAGS) \
+		--def $(NAME).def
+endif
 
 endif # PORTNAME == win32
 
