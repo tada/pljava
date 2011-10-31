@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -246,19 +248,27 @@ public class BlobValue extends InputStream implements Blob
 		throw new UnsupportedOperationException();
 	}
 
-    // Start of Java 6 stubs
-    public InputStream getBinaryStream(long pos,
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	public InputStream getBinaryStream(long pos,
 				       long length)
-	throws SQLException
-    {
-	throw new SQLFeatureNotSupportedException();
-    }
-
-    public void free()
-	throws SQLException
-    {
-	throw new SQLFeatureNotSupportedException();
-    }
-
-    // End of Java 6 stubs
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".getBinaryStream( long,long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+	}
+	
+	public void free()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".free() not implemented yet.",
+			  "0A000" );
+	}
 }

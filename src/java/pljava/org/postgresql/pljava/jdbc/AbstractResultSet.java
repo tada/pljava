@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -13,9 +15,13 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
+import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -356,5 +362,385 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		this.updateTimestamp(this.findColumn(columnName), x);
+	}
+
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	public void updateNClob(int columnIndex, NClob nClob)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() + 
+			".updateNClob( int, NClob ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNClob(String columnLabel, NClob nClob)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( String, NClob ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public void updateNClob(int columnIndex, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( int, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public void updateNClob(int columnIndex, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( int, Reader, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public void updateNClob(String columnLabel, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( String, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public void updateNClob(String columnLabel, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( String, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateClob(int columnIndex, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( int, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+	public void updateClob(int columnIndex, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( int, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateClob(String columnLabel, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( String, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateClob(String columnLabel, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( String, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBlob(int columnIndex, InputStream inputStream)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( int, InputStream ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBlob(int columnIndex, InputStream inputStream, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( int, InputStream, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+
+	public void updateBlob(String columnLabel, InputStream inputStream)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( String, InputStream ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBlob(String columnLabel, InputStream inputStream, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( String, InputStream, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateCharacterStream(int columnIndex, Reader x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( int, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateCharacterStream(int columnIndex, Reader x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( int, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateCharacterStream(String ColumnLabel, Reader x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( String, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateCharacterStream(String ColumnLabel, Reader x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( String, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+
+	public void updateBinaryStream(String columnLabel, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( String, InputStream ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBinaryStream(String columnLabel, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( String, InputStream, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBinaryStream(int columnIndex, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( int, InputStream ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateBinaryStream(int columnIndex, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( int, InputStream, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateAsciiStream(String columnLabel, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateAsciiStream( String, InputStream ) not implemented yet.", "0A000" );
+	}
+
+	public void updateAsciiStream(String columnLabel, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateAsciiStream( String, InputStream, long ) not implemented yet.", "0A000" );
+	}
+
+	public void updateAsciiStream(int columnIndex, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateAsciiStream( int, InputStream ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public void updateAsciiStream(int columnIndex, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateAsciiStream( int, InputStream, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNCharacterStream(String columnLabel, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNCharacterStream( String, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNCharacterStream(String columnLabel, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNCharacterStream( String, Reader, long ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNCharacterStream(int columnIndex, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNCharacterStream( int, Reader ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNCharacterStream(int columnIndex, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNCharaterStream( int, Reader, long] ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public Reader getNCharacterStream(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNCharacterStream( String ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public Reader getNCharacterStream(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".gett( int ) not implemented yet.", "0A000" );
+	}
+
+	public String getNString(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNString( int ) not implemented yet.", "0A000" );
+	}
+
+	public String getNString(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNString( String ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateSQLXML( int, SQLXML ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateSQLXML( String, SQLXML ) not implemented yet.",
+							   "0A000" );
+	}
+
+	public SQLXML getSQLXML(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getSQLXML( int ) not implemented yet.", "0A000" );
+	}
+
+	public SQLXML getSQLXML(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getSQLXML( String ) not implemented yet.", "0A000" );
+	}
+
+	public NClob getNClob(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNClob( String ) not implemented yet.", "0A000" );
+	}
+	public NClob getNClob(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNClob( int ) not implemented yet.", "0A000" );
+	}
+
+	public void updateNString(String columnLabel, String nString)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNString( String, String ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateNString(int columnIndex, String nString)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNString( String, Object[] ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateRowId(int columnIndex, RowId x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateRowId( int, RowId ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public void updateRowId(String columnLabel, RowId x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateRowId( String, RowId ) not implemented yet.", 
+							   "0A000" );
+	}
+
+	public RowId getRowId(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			"getRowId( int ) not implemented yet.", "0A000" );
+	}
+
+	public RowId getRowId(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getRowId( String ) not implemented yet.", "0A000" );
+	}
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isWrapperFor( Class<?> ) not implemented yet.",
+		  "0A000" );
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".unwrapClass( Class<?> ) not implemented yet.",
+		  "0A000" );
 	}
 }

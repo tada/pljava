@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2005, 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 
 package org.postgresql.pljava.jdbc;
@@ -131,20 +133,30 @@ public class SyntheticResultSetMetaData extends AbstractResultSetMetaData
 		return m_fields[column-1].getLength();
 	}
 
-    // Start of Java 6 stubs
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
 
-
-    public boolean isWrapperFor(Class<?> c)
+	public boolean isWrapperFor(Class<?> iface)
 	throws SQLException
-    {
-	throw new SQLFeatureNotSupportedException();
-    }
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isWrapperFor( Class<?> ) not implemented yet.",
+		  "0A000" );
+	}
 
-    public <T> T unwrap(java.lang.Class<T> T)
+	public <T> T unwrap(Class<T> iface)
 	throws SQLException
-    {
-	throw new SQLFeatureNotSupportedException();
-    }
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".unwrapClass( Class<?> ) not implemented yet.",
+		  "0A000" );
+	}
 
-    // End of Java 6 stubs
+	// ************************************************************
+	// End of non-implementation of JDBC 4 methods.
+	// ************************************************************
+
 }

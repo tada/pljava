@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -261,35 +263,58 @@ public class SQLInputFromChunk implements SQLInput
 		return -1;
 	}
 
-	// Start of Java 6 stubs
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
 
 	public RowId readRowId()
                 throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readRowId() not implemented yet.",
+			  "0A000" );
+	}
 
 	public SQLXML readSQLXML()
 		throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readSQLXML() not implemented yet.",
+			  "0A000" );
+	}
 
 	public String readNString()
-                   throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
-       public NClob readNClob()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNString() not implemented yet.",
+			  "0A000" );
+		
+	}
+	
+	public NClob readNClob()
 	       throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNClob() not implemented yet.",
+		  "0A000" );
+		
+	}
+
+	// ************************************************************
+	// End of non-implementation of JDBC 4 methods.
+	// ************************************************************
 
 
-	// End of Java 6 stubs
+	private static native int _readByte(long handle, 
+					    int position);
 
-	private static native int _readByte(long handle, int position);
-
-	private static native void _readBytes(long handle, int position, byte[] dest, int len);
+	private static native void _readBytes(long handle, 
+					      int position, 
+					      byte[] dest, 
+					      int len);
 }

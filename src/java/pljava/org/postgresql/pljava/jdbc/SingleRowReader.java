@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -144,15 +146,19 @@ public class SingleRowReader extends SingleRowResultSet
 		return new UnsupportedFeatureException("ResultSet is read-only");
 	}
 
-    // Start of Java 6 stubs
+	// ************************************************************
+	// Implementation of JDBC 4 methods.
+	// ************************************************************
 
-    public boolean isClosed()
-	throws SQLException
-    {
-	return false;
-    }
+	public boolean isClosed()
+		throws SQLException
+	{
+		return false;
+	}
 
-    // End of Java 6 stubs
+	// ************************************************************
+	// End of implementation of JDBC 4 methods.
+	// ************************************************************
 
 	protected final TupleDesc getTupleDesc()
 	{

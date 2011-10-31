@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -274,21 +276,23 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 		this.updateObject(columnIndex, x);
 	}
 
-    // Start of Java 6 stubs
+	// ************************************************************
+	// Implementation of JDBC 4 methods.
+	// ************************************************************
 
 	/**
-	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
-	 * closed when a function returns to SQL.
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors
+	 * are actually closed when a function returns to SQL.
 	 */
 	public int getHoldability()
-		throws SQLException
-		{
-			return ResultSet.CLOSE_CURSORS_AT_COMMIT;
-		}
+	{
+		return ResultSet.CLOSE_CURSORS_AT_COMMIT;
+	}
 
-    // End of Java 6 stubs
-
-
+	// ************************************************************
+	// End of implementation of JDBC 4 methods.
+	// ************************************************************
+	
 	protected abstract TupleDesc getTupleDesc()
 	throws SQLException;
 }

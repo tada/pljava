@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -244,33 +246,50 @@ public class SQLOutputToChunk implements SQLOutput
 		m_handle = 0;
 	}
 
-	// Start of Java 6 stubs
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
 
 	public void writeNClob(NClob x)
                 throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
-
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".writeNClob( NClob ) not implemented yet.",
+			  "0A000" );
+	}
+	
 	public void writeNString(String x)
 		throws SQLException
 		{
-			throw new SQLFeatureNotSupportedException();
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".writeNString( String ) not implemented yet.",
+		  "0A000" );
 		}
 
 	public void writeRowId(RowId x)
                 throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
-
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".writeRowId( RowId ) not implemented yet.",
+			  "0A000" );
+	}
+	
 	public void writeSQLXML(SQLXML x)
 		throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".writeSQLXML( SQLXML ) not implemented yet.",
+			  "0A000" );
+	}
 
-	// End of Java 6 stubs
+	// ************************************************************
+	// End of non-implementation of JDBC 4 methods.
+	// ************************************************************
+
 
 	private void write(int b) throws SQLException
 	{

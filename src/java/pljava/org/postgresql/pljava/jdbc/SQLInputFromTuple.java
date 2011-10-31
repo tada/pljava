@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -18,6 +20,7 @@ import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLInput;
 import java.sql.SQLXML;
@@ -196,35 +199,52 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	{
 		return SPIConnection.basicCoersion(valueClass, this.readObject());
 	}
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
 
-	// Start of Java 6 stubs
-	
+
 	public RowId readRowId()
-		throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+                throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readRowId() not implemented yet.",
+			  "0A000" );
+	}
 
 	public SQLXML readSQLXML()
 		throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readSQLXML() not implemented yet.",
+			  "0A000" );
+	}
 
 	public String readNString()
-                   throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
-       public NClob readNClob()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNString() not implemented yet.",
+			  "0A000" );
+		
+	}
+	
+	public NClob readNClob()
 	       throws SQLException
-		{
-			throw new SQLFeatureNotSupportedException();
-		}
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNClob() not implemented yet.",
+		  "0A000" );
+		
+	}
 
-
-
-	// End of Java 6 stubs
+	// ************************************************************
+	// End of non-implementation of JDBC 4 methods.
+	// ************************************************************
 
 	protected native void _free(long pointer);
 
