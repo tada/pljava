@@ -48,12 +48,36 @@ import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
+ * Provides access to the current connection (session) the Java stored
+ * procedure is running in.  It is returned from the driver manager
+ * with
+ * <code>DriverManager.getConnection("jdbc:default:connection");</code>
+ * and cannot be managed in any way since it's already running inside
+ * a transaction.  This means the following methods cannot be used.
+ * <ul>
+ * <li><code>commit()</code></li>
+ * <li><code>rollback()</code></li>
+ * <li><code>setAutoCommit()</code></li>
+ * <li><code>setTransactionIsolation()</code></li>
+ * </ul>
  * @author Thomas Hallgren
  */
 public class SPIConnection implements Connection
 {
+	/**
+	 * A map from Java classes to java.sql.Types integers.
+	 */
 	private static final HashMap s_sqlType2Class = new HashMap(30);
-	private int[] VERSION_NUMBER = null; //version number
+	
+	/**
+	 * The version number of the currently executing PostgreSQL
+	 * server.
+	 */
+	private int[] VERSION_NUMBER = null;
+	
+	/**
+	 * Client info properties for JDBC 4.
+	 */
 	private Properties _clientInfo;
 
 	static
@@ -245,8 +269,15 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * DatabaseMetaData is not yet supported.
-	 * @throws SQLException indicating that this feature is not supported.
+	 * Retrieves an instance of {@link SPIDatabaseMetaData}
+	 * representing this <code>Connection</code> object.  The
+	 * metadata includes information about the SQL grammar
+	 * supported by PostgreSQL, the capabilities of PL/Java, as
+	 * well as the tables and stored procedures for this
+	 * connection and so on.
+	 *
+	 * @return an SPIDatabaseMetaData object for this
+	 * <code>Connection</code> object
 	 */
 	public DatabaseMetaData getMetaData()
 	throws SQLException
@@ -300,9 +331,11 @@ public class SPIConnection implements Connection
 	 * Creates a new instance of <code>SPIStatement</code>.
 	 * 
 	 * @throws SQLException
-	 *             if the <code>resultSetType</code> differs from {@link
-	 *             ResultSet#TYPE_FORWARD_ONLY} or if the <code>resultSetConcurrencty</code>
-	 *             differs from {@link ResultSet#CONCUR_READ_ONLY}.
+	 *
+	 *             if the <code>resultSetType</code> differs from
+	 *             {@link ResultSet#TYPE_FORWARD_ONLY} or if the
+	 *             <code>resultSetConcurrencty</code> differs from
+	 *             {@link ResultSet#CONCUR_READ_ONLY}.
 	 */
 	public Statement createStatement(
 		int resultSetType,

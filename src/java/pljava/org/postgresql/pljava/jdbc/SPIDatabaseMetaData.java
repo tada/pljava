@@ -1,7 +1,6 @@
 /*
- * Copyright (c) 2005 Filip Hrbek
  * Copyright (c) 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2005, 2010, 2011 PostgreSQL Global Development Group
  *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
@@ -3390,7 +3389,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public int getJDBCMajorVersion() throws SQLException
 	{
-		return 3; // This class implements JDBC 3.0
+		return 4; // This class implements JDBC 4.0.
 	}
 
 	/**
@@ -3402,7 +3401,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public int getJDBCMinorVersion() throws SQLException
 	{
-		return 0; // This class implements JDBC 3.0
+		return 0; // This class implements JDBC 4.0
 	}
 
 	/**
