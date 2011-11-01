@@ -1,13 +1,16 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * 
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
 import java.sql.ParameterMetaData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 /**
  *
@@ -89,5 +92,27 @@ public class SPIParameterMetaData implements ParameterMetaData
 		if(paramIndex < 1 || paramIndex > this.getParameterCount())
 			throw new SQLException("Parameter index out of range");
 		return parameterModeIn;
+	}
+
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isWrapperFor( Class<?> ) not implemented yet.",
+		  "0A000" );
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".unwrapClass( Class<?> ) not implemented yet.",
+		  "0A000" );
 	}
 }

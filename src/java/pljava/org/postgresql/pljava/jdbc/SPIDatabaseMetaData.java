@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2005, 2010, 2011 PostgreSQL Global Development Group
+ *
+ * Distributed under the terms shown in the file COPYRIGHT
+ * found in the root folder of this project or at
+ * http://wiki.tada.se/index.php?title=PLJava_License
+ */
+
 package org.postgresql.pljava.jdbc;
 
 /**
@@ -7,7 +16,9 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -3378,7 +3389,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public int getJDBCMajorVersion() throws SQLException
 	{
-		return 3; // This class implements JDBC 3.0
+		return 4; // This class implements JDBC 4.0.
 	}
 
 	/**
@@ -3390,7 +3401,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public int getJDBCMinorVersion() throws SQLException
 	{
-		return 0; // This class implements JDBC 3.0
+		return 0; // This class implements JDBC 4.0
 	}
 
 	/**
@@ -3447,5 +3458,90 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	throws SQLException
 	{
 		return new SyntheticResultSet(f, tuples);
+	}
+    
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+
+	public ResultSet getFunctionColumns(String catalog,
+					    String schemaPattern,
+					    String functionNamePattern,
+					    String columnNamePattern)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.getFunctionColumns"
+			+ "( String, String, String, String ) not implemented yet.",
+			"0A000" );
+
+	}
+	
+	public ResultSet getFunctions(String catalog,
+				      String schemaPattern,
+				      String functionNamePattern)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.getFunctions( String, String, String ) not implemented yet.", "0A000" );
+
+	}
+	
+	public ResultSet getClientInfoProperties()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.getClientInfoProperties() not implemented yet.", "0A000" );
+
+	}
+	
+	public boolean autoCommitFailureClosesAllResultSets()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.autoCommitFailureClosesAllResultSets() not implemented yet.", "0A000" );
+
+	}
+	
+	public boolean supportsStoredFunctionsUsingCallSyntax()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.supportsStoredFunctionsUsingCallSyntax() not implemented yet.", "0A000" );
+
+	}
+	
+	public ResultSet getSchemas(String catalog,
+				    String schemaPattern)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+
+			"SPIDatabaseMetadata.getSchemas( String, String ) not implemented yet.", "0A000" );
+
+	}
+	
+	public RowIdLifetime getRowIdLifetime()
+                               throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.getRowIdLifetime() not implemented yet.", "0A000" );
+
+	}
+	public boolean isWrapperFor(Class<?> c)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.isWrapperFor( Class< ? > ) not implemented yet.", "0A000" );
+
+	}
+	
+	public <T> T unwrap(java.lang.Class<T> T)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.unwrap( Class< T > ) not implemented yet.", "0A000" );
+
 	}
 }

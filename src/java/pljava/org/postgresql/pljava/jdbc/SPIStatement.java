@@ -1,16 +1,19 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2008, 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
+import java.sql.Statement;
 import java.util.ArrayList;
 
 import org.postgresql.pljava.internal.ExecutionPlan;
@@ -397,4 +400,54 @@ public class SPIStatement implements Statement
 		if(rs == m_resultSet)
 			m_resultSet = null;
 	}
+
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	public void setPoolable(boolean poolable)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".setPoolable( boolean ) not implemented yet.",
+		  "0A000" );
+	}
+
+	public boolean isPoolable()
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isPoolable() not implemented yet.",
+		  "0A000" );
+	}
+
+	public boolean isClosed()
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isClosed() not implemented yet.",
+		  "0A000" );
+	}
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".isWrapperFor( Class<?> ) not implemented yet.",
+		  "0A000" );
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".unwrapClass( Class<T> ) not implemented yet.",
+		  "0A000" );
+	}
 }
+

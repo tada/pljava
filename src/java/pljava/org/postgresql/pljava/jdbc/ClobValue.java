@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -16,6 +18,7 @@ import java.io.StringReader;
 import java.io.Writer;
 import java.sql.Clob;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 
 /**
  * @author Thomas Hallgren
@@ -228,4 +231,27 @@ public class ClobValue extends Reader implements Clob
 	{
 		throw new UnsupportedOperationException();
 	}
+
+    //************************************************************
+      // Non-implementation of JDBC 4 methods.
+    //************************************************************
+
+    public Reader getCharacterStream(long pos,
+					  long length)
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException
+	    ( this.getClass()
+	      + ".getCharacterStream( long,long ) not implemented yet.",
+	      "0A000" );
+    }
+
+    public void free()
+	throws SQLException
+    {
+	throw new SQLFeatureNotSupportedException
+	    ( this.getClass()
+	      + ".free() not implemented yet.",
+	      "0A000" );
+    }
 }

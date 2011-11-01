@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2007, 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -16,15 +18,19 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.sql.SQLXML;
 import java.util.Arrays;
 import java.util.Calendar;
 
@@ -421,5 +427,213 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 				ret = updCount;
 		}
 		return ret;
+	}
+
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	public void setNClob(int parameterIndex,
+			     Reader reader)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNClob( int, Reader ) not implemented yet.",
+			  "0A000" );
+
+	}
+
+	public void setNClob(int parameterIndex,
+			     NClob value)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNClob( int, NClob ) not implemented yet.",
+			  "0A000" );
+
+	}
+
+	public void setNClob(int parameterIndex,
+			 Reader reader,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNClob( int, Reader, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setBlob(int parameterIndex,
+			    InputStream inputStream)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setBlob( int, InputStream ) not "
+			  + "implemented yet.",
+			  "0A000" );
+	}
+
+	public void setBlob(int parameterIndex,
+			    InputStream inputStream,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setBlob( int, InputStream, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setClob(int parameterIndex,
+			    Reader reader)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setClob( int, Reader ) not implemented yet.",
+			  "0A000" );
+
+	}
+	public void setClob(int parameterIndex,
+			    Reader reader,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setClob( int, Reader, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setNCharacterStream(int parameterIndex,
+					Reader value)
+	    throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNCharacterStream( int, Reader ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	public void setNCharacterStream(int parameterIndex,
+					Reader value,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNCharacterStream( int, Reader, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setCharacterStream(int parameterIndex,
+				       Reader reader)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setCharacterStream( int, Reader ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+
+	public void setCharacterStream(int parameterIndex,
+				       Reader reader,long lenght)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setCharacterStream( int, Reader, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setBinaryStream(int parameterIndex,
+				    InputStream x)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setBinaryStream( int, InputStream ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+
+	public void setBinaryStream(int parameterIndex,
+				    InputStream x,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setBinaryStream( int, InputStream, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setAsciiStream(int parameterIndex,
+				   InputStream x)
+                    throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setAsciiStream( int, InputStream ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setAsciiStream(int parameterIndex,
+				   InputStream x,long length)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setAsciiStream( int, InputStream, long ) not "
+			  + "implemented yet.",
+			  "0A000" );
+
+	}
+	
+	public void setSQLXML(int parameterIndex,
+               SQLXML xmlObject)
+		throws SQLException
+	{
+	    throw new SQLFeatureNotSupportedException
+		    ( this.getClass()
+		      + ".setSQLXML( int, SQLXML ) not implemented yet.",
+		      "0A000" );
+	}
+
+	public void setNString(int parameterIndex,
+			       String value)
+                throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setNString( int, String ) not implemented yet.",
+			  "0A000" );
+	}
+	
+	public void setRowId(int parameterIndex,
+			     RowId x)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".setRowId( int, RowId ) not implemented yet.",
+			  "0A000" );
 	}
 }

@@ -1,8 +1,10 @@
 #-------------------------------------------------------------------------
 # Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+# Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+#
 # Distributed under the terms shown in the file COPYRIGHT
 # found in the root folder of this project or at
-# http://eng.tada.se/osprojects/COPYRIGHT.html
+# http://wiki.tada.se/index.php?title=PLJava_License
 #
 # @author Thomas Hallgren
 #
@@ -17,8 +19,26 @@
 # CFLAGS etc.)
 #
 #   PGSQLDIR=<pgsql root>  For old style (not pgxs based) compilation
+#
 #   USE_GCJ=1              Builds a shared object file containing both
 #                          C and Java code. Requires GCJ 3.4 or later.
+#
+#   PGXS                   To explicitly set the PXGS file.
+#
+#   PLJAVA_LDFLAGS         Added to the final link command.
+#
+#   USE_LD_RPATH=<n>       Adds run time link path to the final object
+#                          file.  Using this requires knowledge of your
+#                          linker.
+#
+#                          Accepted values for <n> are
+#
+#                          1 Adds -Wl,-rpath,<jvm-library>
+#                          2 Adds -rpath <jvm-library>
+#                          3 Adds -R<jvm-library>
+#                          4 Adds -R <jvm-library>
+#                          5 Adds -Wl,-R<jvm-library>
+#                          6 Adds -Wl,-R,<jvm-library>
 #
 #-------------------------------------------------------------------------
 
@@ -37,19 +57,14 @@ export TARGETDIR		:= $(PROJDIR)/build
 export OBJDIR			:= $(TARGETDIR)/objs
 export JNIDIR			:= $(TARGETDIR)/jni
 export CLASSDIR			:= $(TARGETDIR)/classes
-export PLJAVA_MAJOR_VER	:= 1
-export PLJAVA_MINOR_VER	:= 4
-export PLJAVA_PATCH_VER	:= 3
+export PLJAVA_MAJOR_VER	:= 2
+export PLJAVA_MINOR_VER	:= 0
+export PLJAVA_PATCH_VER	:= 0
 export PLJAVA_VERSION	:= $(PLJAVA_MAJOR_VER).$(PLJAVA_MINOR_VER).$(PLJAVA_PATCH_VER)
 export TAR				:= /bin/tar
 
 OS := $(shell uname -s)
 MACHINE := $(shell uname -m)
-
-ifndef USE_GCJ
-JAVA_VERSION_MSG=PL/Java ${PLJAVA_VERSION} can only be compiled with JDK 1.4 or 1.5
-JAVA_VERSION := $(or $(filter 1.4% 1.5%, $(shell java -version 2>&1)),$(error ${JAVA_VERSION_MSG}))
-endif
 
 .PHONY: all clean docs javadoc source_tarball maven_bundle install uninstall depend release \
 	c_all c_install c_uninstall c_depend \

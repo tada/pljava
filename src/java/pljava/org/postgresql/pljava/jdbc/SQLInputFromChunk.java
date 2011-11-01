@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  */
 package org.postgresql.pljava.jdbc;
 
@@ -18,9 +20,13 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
 import java.sql.Ref;
+import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLInput;
+import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 
@@ -257,7 +263,58 @@ public class SQLInputFromChunk implements SQLInput
 		return -1;
 	}
 
-	private static native int _readByte(long handle, int position);
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
 
-	private static native void _readBytes(long handle, int position, byte[] dest, int len);
+	public RowId readRowId()
+                throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readRowId() not implemented yet.",
+			  "0A000" );
+	}
+
+	public SQLXML readSQLXML()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readSQLXML() not implemented yet.",
+			  "0A000" );
+	}
+
+	public String readNString()
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNString() not implemented yet.",
+			  "0A000" );
+		
+	}
+	
+	public NClob readNClob()
+	       throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException
+			( this.getClass()
+			  + ".readNClob() not implemented yet.",
+		  "0A000" );
+		
+	}
+
+	// ************************************************************
+	// End of non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+
+	private static native int _readByte(long handle, 
+					    int position);
+
+	private static native void _readBytes(long handle, 
+					      int position, 
+					      byte[] dest, 
+					      int len);
 }
