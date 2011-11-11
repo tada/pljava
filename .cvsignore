@@ -1,4 +1,5 @@
-bin
 distrib
 *.gz
+bin
 build
+.dep.inc
