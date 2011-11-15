@@ -913,7 +913,7 @@ public class SPIConnection implements Connection
                 Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR,
                 Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
                 Types.BINARY,
-                Types.BIT,
+                Types.BOOLEAN,
                 Types.BIT,
                 Types.DATE,
                 Types.TIME, Types.TIME,
