@@ -71,7 +71,7 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 		}
 	}
 	jniEnv = saveEnv;
-	ereport(logLevel, (errcode(sqlState), errmsg(buf.data)));
+	ereport(logLevel, (errcode(sqlState), errmsg("%s", buf.data)));
 }
 
 static void printStacktrace(JNIEnv* env, jobject exh)

@@ -52,7 +52,7 @@ Exception_featureNotSupported(const char* requestedFeature, const char* introVer
 		appendStringInfoString(&buf, ". It was introduced in version ");
 		appendStringInfoString(&buf, introVersion);
 	
-		ereport(DEBUG3, (errmsg(buf.data)));
+		ereport(DEBUG3, (errmsg("%s", buf.data)));
 		jmsg = String_createJavaStringFromNTS(buf.data);
 	
 		ex = JNI_newObject(UnsupportedOperationException_class, UnsupportedOperationException_init, jmsg);
@@ -78,7 +78,7 @@ void Exception_throw(int errCode, const char* errMessage, ...)
 
 	va_start(args, errMessage);
 	vsnprintf(buf, sizeof(buf), errMessage, args);
-	ereport(DEBUG3, (errcode(errCode), errmsg(buf)));
+	ereport(DEBUG3, (errcode(errCode), errmsg("%s", buf)));
 
 	PG_TRY();
 	{
@@ -118,7 +118,7 @@ void Exception_throwIllegalArgument(const char* errMessage, ...)
 
 	va_start(args, errMessage);
 	vsnprintf(buf, sizeof(buf), errMessage, args);
-	ereport(DEBUG3, (errmsg(buf)));
+	ereport(DEBUG3, (errmsg("%s", buf)));
 
 	PG_TRY();
 	{

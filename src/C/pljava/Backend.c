@@ -213,7 +213,7 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
  	++ep;
  	*ep = 0;
 
-    elog(s_javaLogLevel, buf);
+    elog(s_javaLogLevel, "%s", buf);
     return 0;
 }
 
@@ -276,14 +276,14 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 		if(HashMap_getByString(unique, pathPart) == 0)
 		{
 			if(HashMap_size(unique) == 0)
-				appendStringInfo(bld, prefix);
+				appendStringInfo(bld, "%s", prefix);
 			else
 #if defined(WIN32)
 				appendStringInfoChar(bld, ';');
 #else
 				appendStringInfoChar(bld, ':');
 #endif
-			appendStringInfo(bld, pathPart);
+			appendStringInfo(bld, "%s", pathPart);
 			HashMap_putByString(unique, pathPart, (void*)1);
 		}
 		pfree(pathPart);
@@ -909,7 +909,7 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cl
 	
 		PG_TRY();
 		{
-			elog(logLevel, str);
+			elog(logLevel, "%s", str);
 			pfree(str);
 		}
 		PG_CATCH();
