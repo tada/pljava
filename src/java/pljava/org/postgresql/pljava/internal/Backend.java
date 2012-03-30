@@ -98,10 +98,12 @@ public class Backend
 		{
 			if(m_recursion)
 				//
-				// Something, probably a ClassLoader loading one of
-				// the referenced classes, caused a recursion. Well
-				// everything done within this method is permitted
-				// so we just return here.
+				// Something, probably a ClassLoader
+				// loading one of the referenced
+				// classes, caused a recursion. Well
+				// everything done within this method
+				// is permitted so we just return
+				// here.
 				//
 				return;
 
@@ -123,9 +125,11 @@ public class Backend
 				String name = perm.getName();
 				if("*".equals(name) || "exitVM".equals(name))
 					throw new SecurityException();
-				else if("setSecurityManager".equals(name) && !s_inSetTrusted)
+				else if("setSecurityManager".equals(name) 
+					&& !s_inSetTrusted)
 					//
-					// Attempt to set another security manager while not
+					// Attempt to set another
+					// security manager while not
 					// in the setTrusted method
 					//
 					throw new SecurityException();
@@ -160,8 +164,21 @@ public class Backend
 				String actions = perm.getActions();
 				if("read".equals(actions))
 				{
-					// Must be able to read timezone info etc. in the java
-					// installation directory.
+					// Allow read of /dev/random
+					// and /dev/urandom
+
+					String fileName = perm.getName();
+
+					if ( "/dev/random".equals( fileName )
+					     || 
+					     "/dev/urandom".equals( fileName )
+						)
+						return;
+					
+					// Must be able to read
+					// timezone info etc. in the
+					// java installation
+					// directory.
 					//
 					File javaHome = new File(System.getProperty("java.home"));
 					File accessedFile = new File(perm.getName());
