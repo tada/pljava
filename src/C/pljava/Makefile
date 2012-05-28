@@ -54,6 +54,9 @@ ifeq ($(PORTNAME), ibmos2)
 	DLL_BUILD := 1
 else
 	JRE_INCL := $(PORTNAME)
+	ifeq ($(host_cpu), powerpc64)
+		JRE_CPU := ppc64
+	else
 	ifeq ($(host_cpu), i686)
 		JRE_CPU := i386
 	else
@@ -67,6 +70,7 @@ else
 		JRE_CPU := amd64
 	else
 		JRE_CPU := $(host_cpu)
+	endif
 	endif
 	endif
 	endif
