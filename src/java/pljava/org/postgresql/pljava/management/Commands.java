@@ -553,7 +553,8 @@ public class Commands
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)
 			throw new SQLException("No Jar named '" + jarName
-				+ "' is known to the system");
+					       + "' is known to the system", 
+					       "4600B");
 
 		AclId user = AclId.getSessionUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
@@ -976,7 +977,8 @@ public class Commands
 
 		if(getJarId(jarName, null) >= 0)
 			throw new SQLException("A jar named '" + jarName
-				+ "' already exists");
+					       + "' already exists",
+					       "46002");
 
 		PreparedStatement stmt = SQLUtils
 			.getDefaultConnection()
@@ -1020,7 +1022,8 @@ public class Commands
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)
 			throw new SQLException("No Jar named '" + jarName
-				+ "' is known to the system");
+					       + "' is known to the system",
+					       "4600A");
 
 		AclId user = AclId.getSessionUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
