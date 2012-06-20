@@ -42,7 +42,8 @@ source_tarball:
 		-o -name bin \
 		-o -name build \
 		-o -name .cvsignore \
-		\) -prune -o \( -type f -exec cp --parent {} build/$(PKGNAME) \; \) )
+		\) -prune -o \( -type f -print \) \
+		| cpio -pmud "build/$(PKGNAME)" )
 	@$(TAR) zcf $(DISTRIB)/$(SRCNAME).tar.gz $(PKGNAME)
 
 JAR				:= jar
