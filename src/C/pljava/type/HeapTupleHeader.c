@@ -1,8 +1,10 @@
 /*
  * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2012 PostgreSQL Global Development Group
+ *
  * Distributed under the terms shown in the file COPYRIGHT
  * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * http://wiki.tada.se/index.php?title=PLJava_License
  *
  * @author Thomas Hallgren
  */
@@ -19,10 +21,17 @@
 
 jobject HeapTupleHeader_getTupleDesc(HeapTupleHeader ht)
 {
-	return TupleDesc_create(
-		lookup_rowtype_tupdesc(
-			HeapTupleHeaderGetTypeId(ht),
-			HeapTupleHeaderGetTypMod(ht)));
+	jobject result;
+	TupleDesc tupleDesc =
+	  lookup_rowtype_tupdesc(HeapTupleHeaderGetTypeId(ht),
+				 HeapTupleHeaderGetTypMod(ht));
+	result = TupleDesc_create(tupleDesc);
+	/*
+	 * TupleDesc_create() creates a copy of the tuple descriptor, so
+	 * can release this now
+	 */
+	ReleaseTupleDesc(tupleDesc);
+	return result;
 }
 
 jobject HeapTupleHeader_getObject(JNIEnv* env, jlong hth, jlong jtd, jint attrNo)
