@@ -11,5 +11,6 @@
 		<module>pljava-api</module>
 		<module>pljava-deploy</module>
 		<module>pljava-examples</module>
+		<module>pljava</module>
 	</modules>
 </project>
