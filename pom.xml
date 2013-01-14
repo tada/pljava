@@ -5,10 +5,11 @@
 	<artifactId>pljava.app</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>PostgreSQL PL/JAVA</name>
+	<name>PostgreSQL pl/java</name>
 	<description>Java stored procedures for PostgreSQL</description>
 	<modules>
 		<module>pljava-api</module>
 		<module>pljava-deploy</module>
+		<module>pljava-examples</module>
 	</modules>
 </project>
