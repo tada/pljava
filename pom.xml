@@ -9,5 +9,6 @@
 	<description>Java stored procedures for PostgreSQL</description>
 	<modules>
 		<module>pljava-api</module>
+		<module>pljava-deploy</module>
 	</modules>
 </project>
