@@ -12,5 +12,6 @@
 		<module>pljava-deploy</module>
 		<module>pljava-examples</module>
 		<module>pljava</module>
+		<module>pljava-ant</module>
 	</modules>
 </project>
