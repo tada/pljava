@@ -1,3 +1,6 @@
+---
+title: Deployer
+---
 ##Deploying using JAVA##
 The PL/Java Deployer is a Java client program that helps you deploy PL/Java in the database.
 You must use a classpath that can includes the deploy.jar (from the PL/Java distribution) and the postgresql.jar (from the [PostgreSQL JDBC distribution](http://jdbc.postgresql.org/)) when running the deployer. The former contains the code for the deployer command and the second includes the PostgreSQL JDBC driver. You then run thedeployer with the command:
