@@ -1,0 +1,156 @@
+<project
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.postgresql</groupId>
+        <artifactId>pljava.app</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+    <artifactId>pljava-so</artifactId>
+    <name>pl/java server side library</name>
+    <description>Generates the pljava.so library which gets loaded by the PostgreSQL server.</description>
+    <packaging>nar</packaging>
+
+    <build>
+        <plugins>
+
+            <!-- Several things that could not be done using Maven plugins.
+            This plugin must be listet FIRST as the pgsql.properties file
+            has to be written before properties-maven-plugin is called, which
+            can apparently also only happen in the "initialize" phase. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.7</version>
+                <executions>
+                    <!-- Converts pg_config output to "pgsql.properties" -->
+                    <execution>
+                        <id>pg_config to pgsql.properties</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <ant />
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- Deploy the PostgreSQL library by copying it. -->
+                    <execution>
+                        <id>deploy pljava.so</id>
+                        <phase>deploy</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy verbose="true"
+                                      file="${basedir}/target/nar/pljava-so-${project.version}-${nar.aol}-shared/lib/${nar.aol}/shared/libpljava-so-${project.version}.so"
+                                      tofile="${PGSQL_PKGLIBDIR}/pljava.so" />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Reads the pg_config properties, which were extracted by an
+            Ant task in the "initialize" phase, into Maven variables.
+            As this plugin seems to get ignored in any phase other than
+            "initialize" it must be listed after the Ant task. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>1.0-alpha-2</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <files>
+                                <file>${basedir}/pgsql.properties</file>
+                            </files>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Compiles and links the C library. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-nar-plugin</artifactId>
+                <version>2.1-SNAPSHOT</version>
+                <extensions>true</extensions>
+
+                <configuration>
+                    <!-- Generates C header files from Java class files. -->
+                    <javah>
+                        <classPaths>
+                            <classPath>${basedir}/../pljava-jdbc/target/classes/</classPath>
+                            <classPath>${basedir}/../pljava-api/target/classes/</classPath>
+                        </classPaths>
+                        <classDirectory>${basedir}/../pljava-jdbc/target/classes/</classDirectory>
+                        <!-- The following needs https://github.com/maven-nar/maven-nar-plugin/pull/22 -->
+                        <extraClasses>
+                            <extraClass>java.sql.Types</extraClass>
+                        </extraClasses>
+                    </javah>
+
+                    <!-- Compiles the C sources to object files. -->
+                    <c>
+                        <defines>
+                            <define>PKGLIBDIR="target/lib/"</define>
+                            <define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
+                            <define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
+                            <define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
+                        </defines>
+                        <includePaths>
+                            <!-- TODO: hardcoded paths -->
+                            <includePath>${PGSQL_INCLUDEDIR}</includePath>
+                            <includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
+                            <includePath>${basedir}/src/main/include/</includePath>
+                            <includePath>${basedir}/target/nar/javah-include/</includePath>
+                        </includePaths>
+                    </c>
+
+                    <!-- Defines linker flags "-ljvm -L.../server" -->
+                    <linker>
+                        <libs>
+                            <lib>
+                                <name>jvm</name>
+                                <type>shared</type>
+                                <!-- TODO: Check how this works for gcj. -->
+                                <directory>${sun.boot.library.path}/server</directory>
+                            </lib>
+                        </libs>
+                    </linker>
+
+                    <!-- Builds a *.so library. -->
+                    <libraries>
+                        <library>
+                            <type>shared</type>
+                            <!-- Do not add "-lstdc++". Adds "-shared-libgcc" though. -->
+                            <linkCPP>false</linkCPP>
+                        </library>
+                    </libraries>
+                </configuration>
+            </plugin>
+
+            <!-- The deploy goal will be hijacked by an ant task so the original
+            plugin has to be silenced until we actually use it. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+</project>
