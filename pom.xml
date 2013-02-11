@@ -12,10 +12,11 @@
 	</properties>
 	<modules>
 		<module>pljava-api</module>
-        <module>pljava</module>
+        <module>pljava-jdbc</module>
 		<module>pljava-deploy</module>
         <module>pljava-ant</module>
 		<module>pljava-examples</module>
+        <module>pljava-so</module>
 	</modules>
 	<build>
 		<plugins>

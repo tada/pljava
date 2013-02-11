@@ -6,12 +6,12 @@
 		<artifactId>pljava.app</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<artifactId>pljava</artifactId>
-	<name>pl/java implementation</name>
+	<artifactId>pljava-jdbc</artifactId>
+	<name>pl/java JDBC</name>
 	<description>Java stored procedure implementation for PostgreSQL</description>
 	<dependencies>
 		<dependency>
-			<groupId>com.hellblazer</groupId>
+			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-api</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
