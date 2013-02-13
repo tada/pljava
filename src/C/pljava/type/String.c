@@ -54,7 +54,7 @@ Datum _String_coerceObject(Type self, jobject jstr)
 	ret = FunctionCall3(
 					&((String)self)->textInput,
 					CStringGetDatum(tmp),
-					ObjectIdGetDatum(((String)self)->elementType),
+					ObjectIdGetDatum(((String)self) -> Type_extension.typeId /* elementType */ ),
 					Int32GetDatum(-1));
 	pfree(tmp);
 	return ret;
