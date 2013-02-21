@@ -11,8 +11,6 @@
 #include "pljava/type/JavaWrapper.h"
 #include "pljava/SQLOutputToTuple.h"
 
-#include "org_postgresql_pljava_jdbc_SQLOutputToTuple.h"
-
 static jclass    s_SQLOutputToTuple_class;
 static jmethodID s_SQLOutputToTuple_init;
 static jmethodID s_SQLOutputToTuple_getTuple;
