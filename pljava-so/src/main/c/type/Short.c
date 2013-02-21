@@ -83,7 +83,7 @@ static Datum _shortArray_coerceObject(Type self, jobject shortArray)
 #endif
 
 	if(!JNI_isInstanceOf( shortArray, s_ShortArray_class))
-	  JNI_getIntArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
+	  JNI_getShortArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
 	else
 	  {
 	    int idx = 0;
