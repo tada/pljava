@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.postgresql</groupId>
         <artifactId>pljava.app</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.2-SNAPSHOT</version>
     </parent>
     <artifactId>pljava-so</artifactId>
     <name>pl/java server side library</name>
