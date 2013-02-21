@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<project name="project" default="pg_config">
+    <target name="pg_config">
+        <!-- First gather all values from the pg_config executable. -->
+        <exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
+            <arg line="--pkglibdir"/>
+        </exec>
+        <exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR">
+            <arg line="--includedir"/>
+        </exec>
+        <exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
+            <arg line="--includedir-server"/>
+        </exec>
+        <exec executable="pg_config" outputproperty="PGSQL_VER">
+            <arg line="--version"/>
+        </exec>
+
+        <!-- Then split the version number into its components. -->
+        <loadresource property="PGSQL_MAJOR_VER">
+            <string value="${PGSQL_VER}" />
+            <filterchain>
+                <tokenfilter>
+                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\1" />
+                </tokenfilter>
+            </filterchain>
+        </loadresource>
+        <loadresource property="PGSQL_MINOR_VER">
+            <string value="${PGSQL_VER}" />
+            <filterchain>
+                <tokenfilter>
+                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\2" />
+                </tokenfilter>
+            </filterchain>
+        </loadresource>
+        <loadresource property="PGSQL_PATCH_VER">
+            <string value="${PGSQL_VER}" />
+            <filterchain>
+                <tokenfilter>
+                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\3" />
+                </tokenfilter>
+            </filterchain>
+        </loadresource>
+
+        <!-- Finally write all properties to a file which Maven understands. -->
+        <propertyfile file="pgsql.properties" jdkproperties="true">
+            <entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
+            <entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
+            <entry key="PGSQL_INCLUDEDIR-SERVER" value="${PGSQL_INCLUDEDIR-SERVER}" />
+            <entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />
+            <entry key="PGSQL_MINOR_VER" value="${PGSQL_MINOR_VER}" />
+            <entry key="PGSQL_PATCH_VER" value="${PGSQL_PATCH_VER}" />
+        </propertyfile>
+    </target>
+</project>
