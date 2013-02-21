@@ -12,10 +12,11 @@
 	</properties>
 	<modules>
 		<module>pljava-api</module>
-        <module>pljava</module>
+		<module>pljava</module>
 		<module>pljava-deploy</module>
-        <module>pljava-ant</module>
+		<module>pljava-ant</module>
 		<module>pljava-examples</module>
+		<module>pljava-so</module>
 	</modules>
 	<build>
 		<plugins>
@@ -27,6 +28,9 @@
 					<source>1.6</source>
 					<target>1.6</target>
 					<encoding>${project.build.sourceEncoding}</encoding>
+					<compilerArguments>
+						<bootclasspath>${env.JAVA6_HOME}/jre/lib/rt.jar</bootclasspath>
+					</compilerArguments>
 				</configuration>
 			</plugin>
 		</plugins>
