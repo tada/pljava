@@ -36,7 +36,7 @@
 							</target>
 						</configuration>
 					</execution>
-					<!-- Deploy the PostgreSQL library by copying it. -->
+					<!-- Deploy the PostgreSQL library by copying it.
 					<execution>
 						<id>deploy pljava.so</id>
 						<phase>deploy</phase>
@@ -50,7 +50,7 @@
 									tofile="${PGSQL_PKGLIBDIR}/pljava.so" />
 							</target>
 						</configuration>
-					</execution>
+					</execution> -->
 				</executions>
 			</plugin>
 
@@ -139,7 +139,7 @@
 			</plugin>
 
 			<!-- The deploy goal will be hijacked by an ant task so the original plugin 
-				has to be silenced until we actually use it. -->
+				has to be silenced until we actually use it.
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-deploy-plugin</artifactId>
@@ -147,7 +147,7 @@
 				<configuration>
 					<skip>true</skip>
 				</configuration>
-			</plugin>
+			</plugin> -->
 
 		</plugins>
 		<pluginManagement>
