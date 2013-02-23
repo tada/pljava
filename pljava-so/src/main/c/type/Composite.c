@@ -198,6 +198,14 @@ static TupleDesc _Composite_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	{
 		case TYPEFUNC_COMPOSITE:
 		case TYPEFUNC_RECORD:
+			if(td == 0)
+			{
+				ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("function returning record is missing "
+						" result type (try AS?)")));
+				break;
+			}
 			if(td->tdtypeid == RECORDOID)
 				/*
 				 * We can't hold on to this one. It's anonymous
