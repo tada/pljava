@@ -1,8 +1,13 @@
 /*
- * Copyright (c) 2004 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
  */
 package org.postgresql.pljava.example;
 
@@ -13,36 +18,33 @@ import java.sql.Statement;
 
 import org.postgresql.pljava.ResultSetHandle;
 
-public class Users implements ResultSetHandle
-{
-	private final String m_filter;
-	private Statement m_statement;
-
-	public Users(String filter)
-	{
-		m_filter = filter;
+public class Users implements ResultSetHandle {
+	public static ResultSetHandle listNonSupers() {
+		return new Users("usesuper = false");
 	}
 
-	public ResultSet getResultSet()
-	throws SQLException
-	{
-		m_statement = DriverManager.getConnection("jdbc:default:connection").createStatement();
-		return m_statement.executeQuery("SELECT * FROM pg_user WHERE " + m_filter);
-	}
-
-	public void close()
-	throws SQLException
-	{
-		m_statement.close();
-	}
-
-	public static ResultSetHandle listSupers()
-	{
+	public static ResultSetHandle listSupers() {
 		return new Users("usesuper = true");
 	}
 
-	public static ResultSetHandle listNonSupers()
-	{
-		return new Users("usesuper = false");
+	private final String m_filter;
+
+	private Statement m_statement;
+
+	public Users(String filter) {
+		m_filter = filter;
+	}
+
+	@Override
+	public void close() throws SQLException {
+		m_statement.close();
+	}
+
+	@Override
+	public ResultSet getResultSet() throws SQLException {
+		m_statement = DriverManager.getConnection("jdbc:default:connection")
+				.createStatement();
+		return m_statement.executeQuery("SELECT * FROM pg_user WHERE "
+				+ m_filter);
 	}
 }

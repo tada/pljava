@@ -1,8 +1,13 @@
 /*
- * Copyright (c) 2004 2005 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
  */
 package org.postgresql.pljava.example;
 
@@ -15,39 +20,34 @@ import java.sql.SQLException;
 
 import org.postgresql.pljava.ResultSetProvider;
 
-public class BinaryColumnTest implements ResultSetProvider
-{
+public class BinaryColumnTest implements ResultSetProvider {
+	public static ResultSetProvider getBinaryPairs() {
+		return new BinaryColumnTest();
+	}
+
+	@Override
 	public boolean assignRowValues(ResultSet rs, int rowCount)
-	throws SQLException
-	{
-		try
-		{
-			if(rowCount >= 100)
+			throws SQLException {
+		try {
+			if (rowCount >= 100)
 				return false;
 
 			int offset = rowCount * 100;
 			ByteArrayOutputStream bld = new ByteArrayOutputStream();
 			DataOutputStream da = new DataOutputStream(bld);
-			for(int idx = 0; idx < 100; ++idx)
+			for (int idx = 0; idx < 100; ++idx)
 				da.writeInt(offset + idx);
 			byte[] bytes = bld.toByteArray();
 			ByteArrayInputStream input = new ByteArrayInputStream(bytes);
 			rs.updateBinaryStream(1, input, bytes.length);
 			rs.updateBytes(2, bytes);
 			return true;
-		}
-		catch(IOException e)
-		{
+		} catch (IOException e) {
 			throw new SQLException(e.getMessage());
 		}
 	}
 
-	public void close() throws SQLException
-	{
-	}
-
-	public static ResultSetProvider getBinaryPairs()
-	{
-		return new BinaryColumnTest();
+	@Override
+	public void close() throws SQLException {
 	}
 }

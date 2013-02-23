@@ -1,8 +1,13 @@
 /*
- * Copyright (c) 2004 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
  */
 package org.postgresql.pljava.example;
 
@@ -11,41 +16,38 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
-public class RandomInts implements Iterator
-{
-	private final int m_rowCount;
-	private final Random m_random;
-	private int m_currentRow;
-
-	public static Iterator createIterator(int rowCount)
-	throws SQLException
-	{
+public class RandomInts implements Iterator<Integer> {
+	public static Iterator<Integer> createIterator(int rowCount)
+			throws SQLException {
 		return new RandomInts(rowCount);
 	}
 
-	public RandomInts(int rowCount) throws SQLException
-	{
+	private final int m_rowCount;
+	private final Random m_random;
+
+	private int m_currentRow;
+
+	public RandomInts(int rowCount) throws SQLException {
 		m_rowCount = rowCount;
 		m_random = new Random(System.currentTimeMillis());
 	}
 
-	public boolean hasNext()
-	{
+	@Override
+	public boolean hasNext() {
 		return m_currentRow < m_rowCount;
 	}
 
-	public Object next()
-	{
-		if(m_currentRow < m_rowCount)
-		{
+	@Override
+	public Integer next() {
+		if (m_currentRow < m_rowCount) {
 			++m_currentRow;
-			return new Integer(m_random.nextInt());
+			return Integer.valueOf(m_random.nextInt());
 		}
 		throw new NoSuchElementException();
 	}
 
-	public void remove()
-	{
+	@Override
+	public void remove() {
 		throw new UnsupportedOperationException();
 	}
 }

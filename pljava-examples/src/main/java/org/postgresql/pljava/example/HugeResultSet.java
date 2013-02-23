@@ -1,8 +1,13 @@
 /*
- * Copyright (c) 2004 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
  */
 package org.postgresql.pljava.example;
 
@@ -14,30 +19,27 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.ResultSetProvider;
 
-public class HugeResultSet implements ResultSetProvider
-{
-	private final int m_rowCount;
-	private final Random m_random;
-
+public class HugeResultSet implements ResultSetProvider {
 	public static ResultSetProvider executeSelect(int rowCount)
-	throws SQLException
-	{
+			throws SQLException {
 		return new HugeResultSet(rowCount);
 	}
 
-	public HugeResultSet(int rowCount) throws SQLException
-	{
+	private final int m_rowCount;
+
+	private final Random m_random;
+
+	public HugeResultSet(int rowCount) throws SQLException {
 		m_rowCount = rowCount;
 		m_random = new Random(System.currentTimeMillis());
 	}
 
+	@Override
 	public boolean assignRowValues(ResultSet receiver, int currentRow)
-	throws SQLException
-	{
+			throws SQLException {
 		// Stop when we reach rowCount rows.
 		//
-		if(currentRow >= m_rowCount)
-		{
+		if (currentRow >= m_rowCount) {
 			Logger.getAnonymousLogger().info("HugeResultSet ends");
 			return false;
 		}
@@ -48,6 +50,7 @@ public class HugeResultSet implements ResultSetProvider
 		return true;
 	}
 
-	public void close()
-	{}
+	@Override
+	public void close() {
+	}
 }

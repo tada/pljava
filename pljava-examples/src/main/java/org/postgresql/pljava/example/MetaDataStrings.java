@@ -1,15 +1,25 @@
 /*
- * Copyright (c) 2004, 2005 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Filip Hrbek
  */
 package org.postgresql.pljava.example;
 
-import java.sql.*;
 import java.lang.reflect.Method;
-import java.util.Arrays;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.logging.Logger;
 
@@ -18,53 +28,56 @@ import org.postgresql.pljava.ResultSetProvider;
 /**
  * @author Filip Hrbek
  */
-public class MetaDataStrings implements ResultSetProvider
-{
+public class MetaDataStrings implements ResultSetProvider {
+	public static ResultSetProvider getDatabaseMetaDataStrings()
+			throws SQLException {
+		try {
+			return new MetaDataStrings();
+		} catch (SQLException e) {
+			throw new SQLException("Error reading DatabaseMetaData",
+					e.getMessage());
+		}
+	}
+
 	String[] methodNames;
 
 	String[] methodResults;
 
-	public MetaDataStrings() throws SQLException
-	{
+	public MetaDataStrings() throws SQLException {
 		Logger log = Logger.getAnonymousLogger();
 
-		class MethodComparator implements Comparator
-		{
-			public int compare(Object a, Object b)
-			{
-				return ((Method)a).getName().compareTo(((Method)b).getName());
+		class MethodComparator implements Comparator<Method> {
+			@Override
+			public int compare(Method a, Method b) {
+				return a.getName().compareTo(b.getName());
 			}
 		}
 
 		Connection conn = DriverManager
-			.getConnection("jdbc:default:connection");
+				.getConnection("jdbc:default:connection");
 		DatabaseMetaData md = conn.getMetaData();
 		Method[] m = DatabaseMetaData.class.getMethods();
 		Arrays.sort(m, new MethodComparator());
-		Class prototype[];
-		Class returntype;
+		Class<?> prototype[];
+		Class<?> returntype;
 		Object[] args = new Object[0];
 		String result = null;
-		ArrayList mn = new ArrayList();
-		ArrayList mr = new ArrayList();
+		ArrayList<String> mn = new ArrayList<String>();
+		ArrayList<String> mr = new ArrayList<String>();
 
-		for(int i = 0; i < m.length; i++)
-		{
+		for (int i = 0; i < m.length; i++) {
 			prototype = m[i].getParameterTypes();
-			if(prototype.length > 0)
+			if (prototype.length > 0)
 				continue;
 
 			returntype = m[i].getReturnType();
-			if(!returntype.equals(String.class))
+			if (!returntype.equals(String.class))
 				continue;
 
-			try
-			{
-				result = (String)m[i].invoke(md, args);
+			try {
+				result = (String) m[i].invoke(md, args);
 				log.info("Method: " + m[i].getName() + " => Success");
-			}
-			catch(Exception e)
-			{
+			} catch (Exception e) {
 				log.info("Method: " + m[i].getName() + " => " + e.getMessage());
 			}
 
@@ -72,15 +85,14 @@ public class MetaDataStrings implements ResultSetProvider
 			mr.add(result);
 		}
 
-		methodNames = (String[])mn.toArray(new String[0]);
-		methodResults = (String[])mr.toArray(new String[0]);
+		methodNames = mn.toArray(new String[0]);
+		methodResults = mr.toArray(new String[0]);
 	}
 
+	@Override
 	public boolean assignRowValues(ResultSet receiver, int currentRow)
-	throws SQLException
-	{
-		if(currentRow < methodNames.length)
-		{
+			throws SQLException {
+		if (currentRow < methodNames.length) {
 			receiver.updateString(1, methodNames[currentRow]);
 			receiver.updateString(2, methodResults[currentRow]);
 			return true;
@@ -88,21 +100,7 @@ public class MetaDataStrings implements ResultSetProvider
 		return false;
 	}
 
-	public void close()
-	{
-	}
-
-	public static ResultSetProvider getDatabaseMetaDataStrings()
-	throws SQLException
-	{
-		try
-		{
-			return new MetaDataStrings();
-		}
-		catch(SQLException e)
-		{
-			throw new SQLException("Error reading DatabaseMetaData", e
-				.getMessage());
-		}
+	@Override
+	public void close() {
 	}
 }
