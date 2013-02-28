@@ -1119,38 +1119,38 @@ class DDRProcessorImpl
 		TypeMapper() {
 			mappings = new ArrayList<Map.Entry<Class<?>, String>>();
 
-		// Primitives
-		//
-		this.addMap(boolean.class, "boolean");
-		this.addMap(Boolean.class, "boolean");
-		this.addMap(byte.class, "smallint");
-		this.addMap(Byte.class, "smallint");
-		this.addMap(char.class, "smallint");
-		this.addMap(Character.class, "smallint");
-		this.addMap(double.class, "double precision");
-		this.addMap(Double.class, "double precision");
-		this.addMap(float.class, "real");
-		this.addMap(Float.class, "real");
-		this.addMap(int.class, "integer");
-		this.addMap(Integer.class, "integer");
-		this.addMap(long.class, "bigint");
-		this.addMap(Long.class, "bigint");
-		this.addMap(short.class, "smallint");
-		this.addMap(Short.class, "smallint");
+			// Primitives
+			//
+			this.addMap(boolean.class, "boolean");
+			this.addMap(Boolean.class, "boolean");
+			this.addMap(byte.class, "smallint");
+			this.addMap(Byte.class, "smallint");
+			this.addMap(char.class, "smallint");
+			this.addMap(Character.class, "smallint");
+			this.addMap(double.class, "double precision");
+			this.addMap(Double.class, "double precision");
+			this.addMap(float.class, "real");
+			this.addMap(Float.class, "real");
+			this.addMap(int.class, "integer");
+			this.addMap(Integer.class, "integer");
+			this.addMap(long.class, "bigint");
+			this.addMap(Long.class, "bigint");
+			this.addMap(short.class, "smallint");
+			this.addMap(Short.class, "smallint");
 
-		// Known common mappings
-		//
-		this.addMap(Number.class, "numeric");
-		this.addMap(String.class, "varchar");
-		this.addMap(java.util.Date.class, "timestamp");
-		this.addMap(Timestamp.class, "timestamp");
-		this.addMap(Time.class, "time");
-		this.addMap(java.sql.Date.class, "date");
-		this.addMap(BigInteger.class, "numeric");
-		this.addMap(BigDecimal.class, "numeric");
-		this.addMap(ResultSet.class, "record");
+			// Known common mappings
+			//
+			this.addMap(Number.class, "numeric");
+			this.addMap(String.class, "varchar");
+			this.addMap(java.util.Date.class, "timestamp");
+			this.addMap(Timestamp.class, "timestamp");
+			this.addMap(Time.class, "time");
+			this.addMap(java.sql.Date.class, "date");
+			this.addMap(BigInteger.class, "numeric");
+			this.addMap(BigDecimal.class, "numeric");
+			this.addMap(ResultSet.class, "record");
 
-		this.addMap(byte[].class, "bytea");
+			this.addMap(byte[].class, "bytea");
 
 			// Need to check more specific types before those they are
 			// assignable to by widening reference conversions, so a
