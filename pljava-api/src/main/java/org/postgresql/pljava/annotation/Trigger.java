@@ -8,6 +8,7 @@
  *
  * Contributors:
  *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava.annotation;
 
@@ -23,7 +24,7 @@ public @interface Trigger
 {
 	enum When { BEFORE, AFTER };
 
-	enum Event { DELETE, INSERT, UPDATE };
+	enum Event { DELETE, INSERT, UPDATE, TRUNCATE };
 
 	enum Scope { STATEMENT, ROW };
 
