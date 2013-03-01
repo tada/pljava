@@ -335,7 +335,7 @@ public class Commands
 					if ( descIdStoreStmt == null )
 						descIdStoreStmt = SQLUtils.getDefaultConnection()
 							.prepareStatement(
-								"INSERT INTO sqlj.jar_descriptors"
+								"INSERT INTO sqlj.jar_descriptor"
 									+ " (jarId, entryId, ordinal) VALUES"
 									+ " ( ?, ?, ? )");
 					descIdStoreStmt.setInt(1, jarId);
@@ -830,7 +830,7 @@ public class Commands
 		PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT e.entryImage"
-					+ " FROM sqlj.jar_descriptors d INNER JOIN sqlj.jar_entry e"
+					+ " FROM sqlj.jar_descriptor d INNER JOIN sqlj.jar_entry e"
 					+ "   ON d.entryId = e.entryId"
 					+ " WHERE d.jarId = ?"
 					+ " ORDER BY d.ordinal");

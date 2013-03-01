@@ -386,14 +386,14 @@ public class Deployer
 		stmt.execute("GRANT SELECT ON sqlj.jar_entry TO public");
 
 		stmt.execute(
-			"CREATE TABLE sqlj.jar_descriptors(" +
+			"CREATE TABLE sqlj.jar_descriptor(" +
 			"   jarId		INT REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 			"   ordinal     INT2," +
 			"   PRIMARY KEY (jarId, ordinal)," +
 			"   entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
 			")");
 
-		stmt.execute("GRANT SELECT ON sqlj.jar_descriptors TO public");
+		stmt.execute("GRANT SELECT ON sqlj.jar_descriptor TO public");
 
 		// Create the table maintaining the class path.
 		//
