@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava.management;
 
@@ -235,12 +241,13 @@ public class Commands
 	throws SQLException
 	{
 		PreparedStatement stmt = null;
-		PreparedStatement descIdStmt = null;
+		PreparedStatement descIdFetchStmt = null;
+		PreparedStatement descIdStoreStmt = null;
 		ResultSet rs = null;
 
 		try
 		{
-			int deployImageId = -1;
+			int deployImageCnt = 0;
 			byte[] buf = new byte[1024];
 			ByteArrayOutputStream img = new ByteArrayOutputStream();
 			stmt = SQLUtils
@@ -294,10 +301,6 @@ public class Commands
 				{
 					isDepDescr = "true".equalsIgnoreCase(attrs
 						.getValue("SQLJDeploymentDescriptor"));
-
-					if(isDepDescr && deployImageId >= 0)
-						throw new SQLException(
-							"Only one SQLJDeploymentDescriptor allowed");
 				}
 
 				int nBytes;
@@ -315,32 +318,34 @@ public class Commands
 
 				if(isDepDescr)
 				{
-					descIdStmt = SQLUtils.getDefaultConnection()
-						.prepareStatement(
-							"SELECT entryId FROM sqlj.jar_entry"
-								+ " WHERE jarId = ? AND entryName = ?");
-					descIdStmt.setInt(1, jarId);
-					descIdStmt.setString(2, entryName);
-					rs = descIdStmt.executeQuery();
+					if ( descIdFetchStmt == null )
+						descIdFetchStmt = SQLUtils.getDefaultConnection()
+							.prepareStatement(
+								"SELECT entryId FROM sqlj.jar_entry"
+									+ " WHERE jarId = ? AND entryName = ?");
+					descIdFetchStmt.setInt(1, jarId);
+					descIdFetchStmt.setString(2, entryName);
+					rs = descIdFetchStmt.executeQuery();
 					if(!rs.next())
 						throw new SQLException(
-							"Failed to refecth row in sqlj.jar_entry");
+							"Failed to refetch row in sqlj.jar_entry");
 
-					deployImageId = rs.getInt(1);
+					int deployImageId = rs.getInt(1);
+					
+					if ( descIdStoreStmt == null )
+						descIdStoreStmt = SQLUtils.getDefaultConnection()
+							.prepareStatement(
+								"INSERT INTO sqlj.jar_descriptor"
+									+ " (jarId, entryId, ordinal) VALUES"
+									+ " ( ?, ?, ? )");
+					descIdStoreStmt.setInt(1, jarId);
+					descIdStoreStmt.setInt(2, deployImageId);
+					descIdStoreStmt.setInt(3, ++deployImageCnt);
+					if ( descIdStoreStmt.executeUpdate() != 1 )
+						throw new SQLException(
+							"Jar deployment descriptor insert did not insert " +
+							"1 row");
 				}
-			}
-			if(deployImageId >= 0)
-			{
-				stmt.close();
-				stmt = SQLUtils
-					.getDefaultConnection()
-					.prepareStatement(
-						"UPDATE sqlj.jar_repository SET deploymentDesc = ? WHERE jarId = ?");
-				stmt.setInt(1, deployImageId);
-				stmt.setInt(2, jarId);
-				if(stmt.executeUpdate() != 1)
-					throw new SQLException(
-						"Jar repository update did not insert 1 row");
 			}
 		}
 		catch(IOException e)
@@ -351,7 +356,8 @@ public class Commands
 		finally
 		{
 			SQLUtils.close(rs);
-			SQLUtils.close(descIdStmt);
+			SQLUtils.close(descIdStoreStmt);
+			SQLUtils.close(descIdFetchStmt);
 			SQLUtils.close(stmt);
 		}
 	}
@@ -794,13 +800,12 @@ public class Commands
 	private static void deployInstall(int jarId, String jarName)
 	throws SQLException
 	{
-		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(jarId);
-		if(depDesc == null)
-			return;
+		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptor(jarId);
 
 		String[] originalSchemaAndPath = new String[2];
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		depDesc.install(SQLUtils.getDefaultConnection());
+		for ( SQLDeploymentDescriptor dd : depDesc )
+			dd.install(SQLUtils.getDefaultConnection());
 		if(classpathChanged)
 			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
 	}
@@ -808,43 +813,43 @@ public class Commands
 	private static void deployRemove(int jarId, String jarName)
 	throws SQLException
 	{
-		SQLDeploymentDescriptor depDesc = getDeploymentDescriptor(jarId);
-		if(depDesc == null)
-			return;
+		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptor(jarId);
 
 		String[] originalSchemaAndPath = new String[2];
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		depDesc.remove(SQLUtils.getDefaultConnection());
+		for ( int i = depDesc.length ; i --> 0 ; )
+			depDesc[i].remove(SQLUtils.getDefaultConnection());
 		if(classpathChanged)
 			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
 	}
 
-	private static SQLDeploymentDescriptor getDeploymentDescriptor(int jarId)
+	private static SQLDeploymentDescriptor[] getDeploymentDescriptor(int jarId)
 	throws SQLException
 	{
 		ResultSet rs = null;
 		PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT e.entryImage"
-					+ " FROM sqlj.jar_repository r INNER JOIN sqlj.jar_entry e"
-					+ "   ON r.deploymentDesc = e.entryId"
-					+ " WHERE r.jarId = ?");
+					+ " FROM sqlj.jar_descriptor d INNER JOIN sqlj.jar_entry e"
+					+ "   ON d.entryId = e.entryId"
+					+ " WHERE d.jarId = ?"
+					+ " ORDER BY d.ordinal");
 		try
 		{
 			stmt.setInt(1, jarId);
 			rs = stmt.executeQuery();
-			if(!rs.next())
-				return null;
-
-			byte[] bytes = rs.getBytes(1);
-			if(bytes.length == 0)
-				return null;
-
-			// Accodring to the SQLJ standard, this entry must be
-			// UTF8 encoded.
-			//
-			return new SQLDeploymentDescriptor(new String(bytes, "UTF8"),
-				"postgresql");
+			ArrayList<SQLDeploymentDescriptor> sdds =
+				new ArrayList<SQLDeploymentDescriptor>();
+			while(rs.next())
+			{
+				byte[] bytes = rs.getBytes(1);
+				// According to the SQLJ standard, this entry must be
+				// UTF8 encoded.
+				//
+				sdds.add(new SQLDeploymentDescriptor(new String(bytes, "UTF8"),
+					"postgresql"));
+			}
+			return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 		}
 		catch(UnsupportedEncodingException e)
 		{

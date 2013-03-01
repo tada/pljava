@@ -18,8 +18,7 @@ CREATE TABLE sqlj.jar_repository(
 	jarName		VARCHAR(100) UNIQUE NOT NULL,
 	jarOrigin   VARCHAR(500) NOT NULL,
 	jarOwner	NAME NOT NULL,
-	jarManifest	TEXT,
-	deploymentDesc INT
+	jarManifest	TEXT
 );
 GRANT SELECT ON sqlj.jar_repository TO public;
 
@@ -32,8 +31,13 @@ CREATE TABLE sqlj.jar_entry(
 );
 GRANT SELECT ON sqlj.jar_entry TO public;
 
-ALTER TABLE sqlj.jar_repository
-   ADD FOREIGN KEY (deploymentDesc) REFERENCES sqlj.jar_entry ON DELETE SET NULL;
+CREATE TABLE sqlj.jar_descriptor(
+	jarId		INT REFERENCES sqlj.jar_repository ON DELETE CASCADE,
+	ordinal		INT2,
+	PRIMARY KEY (jarId, ordinal),
+	entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE
+);
+GRANT SELECT ON sqlj.jar_descriptor TO public;
 
 CREATE TABLE sqlj.classpath_entry(
 	schemaName	VARCHAR(30) NOT NULL,

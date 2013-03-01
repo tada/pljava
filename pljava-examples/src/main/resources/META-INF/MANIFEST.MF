@@ -1,3 +1,6 @@
 
 Name: deployment/examples.ddr
 SQLJDeploymentDescriptor: TRUE
+
+Name: pljava.ddr
+SQLJDeploymentDescriptor: TRUE
