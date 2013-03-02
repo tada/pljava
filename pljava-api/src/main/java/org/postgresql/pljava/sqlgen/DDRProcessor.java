@@ -28,6 +28,7 @@ import java.sql.Timestamp;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -928,7 +929,7 @@ class DDRProcessorImpl
 				TypeMirror tm = ptms.get( arity - 1);
 				if ( tm.getKind().equals( TypeKind.ERROR)
 					// unresolved things seem assignable to anything
-					|| ! typu.isAssignable( tm, TY_RESULTSET) )
+					|| ! typu.isSameType( tm, TY_RESULTSET) )
 				{
 					msg( Kind.ERROR, func.getParameters().get( arity - 1),
 						"Last parameter of complex-type-returning function " +
@@ -981,7 +982,7 @@ class DDRProcessorImpl
 				TypeMirror tm = ptms.get( 0);
 				if ( ! tm.getKind().equals( TypeKind.ERROR)
 					// unresolved things seem assignable to anything
-					&& typu.isAssignable( tm, TY_TRIGGERDATA) )
+					&& typu.isSameType( tm, TY_TRIGGERDATA) )
 				{
 					trigger = true;
 				}
@@ -1026,7 +1027,8 @@ class DDRProcessorImpl
 				{
 					VariableElement ve = ves.next();
 					sb.append( "\n\t").append( ve.getSimpleName().toString());
-					sb.append( ' ').append( tmpr.getSQLType( tm, ve, dflts));
+					sb.append( ' ');
+					sb.append( tmpr.getSQLType( tm, ve, true, dflts));
 					if ( 0 < -- s )
 						sb.append( ',');
 				}
@@ -1114,7 +1116,7 @@ class DDRProcessorImpl
 	 */
 	class TypeMapper
 	{
-		List<Map.Entry<Class<?>, String>> mappings;
+		ArrayList<Map.Entry<Class<?>, String>> mappings;
 
 		TypeMapper() {
 			mappings = new ArrayList<Map.Entry<Class<?>, String>>();
@@ -1149,6 +1151,7 @@ class DDRProcessorImpl
 			this.addMap(BigInteger.class, "numeric");
 			this.addMap(BigDecimal.class, "numeric");
 			this.addMap(ResultSet.class, "record");
+			this.addMap(Object.class, "\"any\"");
 
 			this.addMap(byte[].class, "bytea");
 
@@ -1213,7 +1216,8 @@ class DDRProcessorImpl
 		 * Return the SQL type for the Java type represented by a TypeMirror,
 		 * from an explicit annotation if present, otherwise by applying the
 		 * default mappings. No default-value information is included in the
-		 * string returned.
+		 * string returned. It is assumed that a function return is being typed
+		 * rather than a function parameter.
 		 *
 		 * @param tm Represents the type whose corresponding SQL type is wanted.
 		 * @param e Annotated element (chiefly for use as a location hint in
@@ -1221,7 +1225,7 @@ class DDRProcessorImpl
 		 */
 		String getSQLType(TypeMirror tm, Element e)
 		{
-			return getSQLType( tm, e, false);
+			return getSQLType( tm, e, false, false);
 		}
 
 
@@ -1233,10 +1237,15 @@ class DDRProcessorImpl
 		 * @param tm Represents the type whose corresponding SQL type is wanted.
 		 * @param e Annotated element (chiefly for use as a location hint in
 		 * diagnostic messages).
+		 * @param contravariant Indicates that the element whose type is wanted
+		 * is a function parameter and should be given the widest type that can
+		 * be assigned to it. If false, find the narrowest type that a function
+		 * return can be assigned to.
 		 * @param withDefault Indicates whether any specified default value
 		 * information should also be included in the "type" string returned.
 		 */
-		String getSQLType(TypeMirror tm, Element e, boolean withDefault)
+		String getSQLType(TypeMirror tm, Element e,
+			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
 			String rslt = null;
@@ -1279,7 +1288,13 @@ class DDRProcessorImpl
 			}
 			else
 			{    
-				for ( Map.Entry<Class<?>, String> me : mappings )
+				ArrayList<Map.Entry<Class<?>, String>> ms = mappings;
+				if ( contravariant )
+				{
+					ms = (ArrayList<Map.Entry<Class<?>, String>>)ms.clone();
+					Collections.reverse( ms);
+				}
+				for ( Map.Entry<Class<?>, String> me : ms )
 				{
 					Class<?> k = me.getKey();
 					TypeMirror ktm;
@@ -1301,9 +1316,18 @@ class DDRProcessorImpl
 						if ( null == te ) // can't find it -> not used in code?
 							continue; // hope it's not the one I'm looking for
 						ktm = te.asType();
-						if ( typu.isAssignable( tm, ktm) )
+						boolean accept;
+						if ( contravariant )
+							accept = typu.isAssignable( ktm, tm);
+						else
+							accept = typu.isAssignable( tm, ktm);
+						if ( accept )
 						{
-							rslt = me.getValue();
+							// don't compute a type of Object/"any" for
+							// a function return (just admit defeat instead)
+							if ( contravariant
+								|| ! Object.class.equals( me.getKey()) )
+								rslt = me.getValue();
 							break;
 						}
 					}
