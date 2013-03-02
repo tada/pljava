@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava.deploy;
 
@@ -364,8 +370,7 @@ public class Deployer
 			"	jarName		VARCHAR(100) UNIQUE NOT NULL," +
 			"	jarOrigin   VARCHAR(500) NOT NULL," +
 			"	jarOwner	NAME NOT NULL," +
-			"	jarManifest	TEXT," +
-			"   deploymentDesc INT" +
+			"	jarManifest	TEXT" +
 		")");
 		stmt.execute("GRANT SELECT ON sqlj.jar_repository TO public");
 
@@ -381,8 +386,14 @@ public class Deployer
 		stmt.execute("GRANT SELECT ON sqlj.jar_entry TO public");
 
 		stmt.execute(
-			"ALTER TABLE sqlj.jar_repository" +
-			"   ADD FOREIGN KEY (deploymentDesc) REFERENCES sqlj.jar_entry ON DELETE SET NULL");
+			"CREATE TABLE sqlj.jar_descriptor(" +
+			"   jarId		INT REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
+			"   ordinal     INT2," +
+			"   PRIMARY KEY (jarId, ordinal)," +
+			"   entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
+			")");
+
+		stmt.execute("GRANT SELECT ON sqlj.jar_descriptor TO public");
 
 		// Create the table maintaining the class path.
 		//
