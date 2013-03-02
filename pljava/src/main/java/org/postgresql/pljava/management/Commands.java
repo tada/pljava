@@ -800,7 +800,7 @@ public class Commands
 	private static void deployInstall(int jarId, String jarName)
 	throws SQLException
 	{
-		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptor(jarId);
+		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
 		String[] originalSchemaAndPath = new String[2];
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
@@ -813,7 +813,7 @@ public class Commands
 	private static void deployRemove(int jarId, String jarName)
 	throws SQLException
 	{
-		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptor(jarId);
+		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
 		String[] originalSchemaAndPath = new String[2];
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
@@ -823,7 +823,7 @@ public class Commands
 			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
 	}
 
-	private static SQLDeploymentDescriptor[] getDeploymentDescriptor(int jarId)
+	private static SQLDeploymentDescriptor[] getDeploymentDescriptors(int jarId)
 	throws SQLException
 	{
 		ResultSet rs = null;
