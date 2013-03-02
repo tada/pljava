@@ -71,6 +71,10 @@ import static javax.lang.model.util.ElementFilter.methodsIn;
 
 import static javax.tools.Diagnostic.Kind;
 
+import org.postgresql.pljava.ResultSetHandle;
+import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.TriggerData;
+
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
@@ -199,11 +203,11 @@ class DDRProcessorImpl
 		TY_RESULTSET = typu.getDeclaredType(
 			elmu.getTypeElement( java.sql.ResultSet.class.getName()));
 		TY_RESULTSETPROVIDER = typu.getDeclaredType(
-			elmu.getTypeElement( "org.postgresql.pljava.ResultSetProvider"));
+			elmu.getTypeElement( ResultSetProvider.class.getName()));
 		TY_RESULTSETHANDLE = typu.getDeclaredType(
-			elmu.getTypeElement( "org.postgresql.pljava.ResultSetHandle"));
+			elmu.getTypeElement( ResultSetHandle.class.getName()));
 		TY_TRIGGERDATA = typu.getDeclaredType(
-			elmu.getTypeElement( "org.postgresql.pljava.TriggerData"));
+			elmu.getTypeElement( TriggerData.class.getName()));
 
 		AN_FUNCTION    = elmu.getTypeElement( Function.class.getName());
 		AN_SQLACTION   = elmu.getTypeElement( SQLAction.class.getName());
