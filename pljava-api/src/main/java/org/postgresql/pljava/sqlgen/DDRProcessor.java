@@ -98,7 +98,7 @@ import org.postgresql.pljava.annotation.Trigger;
 ({
   "ddr.name.trusted",    // default "java"
   "ddr.name.untrusted",  // default "javaU"
-  "ddr.output",          // name of ddr file to write
+  "ddr.output"          // name of ddr file to write
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_6)
 public class DDRProcessor extends AbstractProcessor

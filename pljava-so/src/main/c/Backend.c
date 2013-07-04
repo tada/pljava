@@ -38,6 +38,11 @@
 #include "pljava/Session.h"
 #include "pljava/SPI.h"
 #include "pljava/type/String.h"
+
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#include "utils/timeout.h"
+#endif
+
 /* Example format: "/usr/local/pgsql/lib" */
 #ifndef PKGLIBDIR
 #error "PKGLIBDIR needs to be defined to compile this file."
@@ -374,7 +379,12 @@ static void _destroyJavaVM(int status, Datum dummy)
 	{
 		Invocation ctx;
 #if !defined(WIN32)
+
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+		TimeoutId tid;
+#else
 		pqsigfunc saveSigAlrm;
+#endif
 
 		Invocation_pushInvocation(&ctx, false);
 		if(sigsetjmp(recoverBuf, 1) != 0)
@@ -384,13 +394,24 @@ static void _destroyJavaVM(int status, Datum dummy)
 			return;
 		}
 
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+		InitializeTimeouts();           /* establishes SIGALRM handler */
+		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
+#else
 		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
 		enable_sig_alarm(5000, false);
+#endif
 
 		elog(DEBUG1, "Destroying JavaVM...");
 		JNI_destroyVM(s_javaVM);
+
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+		disable_timeout(tid, false);
+#else
 		disable_sig_alarm(false);
 		pqsignal(SIGALRM, saveSigAlrm);
+#endif
+
 #else
 		Invocation_pushInvocation(&ctx, false);
 		elog(DEBUG1, "Destroying JavaVM...");
