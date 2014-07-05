@@ -1,6 +1,42 @@
 <?xml version="1.0"?>
 <project name="project" default="pg_config">
-    <target name="pg_config">
+
+	<property environment="env" />
+	<condition property="msvc-present">
+		<and>
+			<os family="windows"/>
+			<or>
+				<available file="cl.exe" filepath="${env.Path}" />
+				<available file="cl.exe" filepath="${env.PATH}" />
+			</or>
+		</and>
+	</condition>
+
+	<target name="configure_msvc" if="msvc-present">
+        <exec executable="cl" outputproperty="MSVC_HEADER"
+			osfamily="windows" logError="false"
+			failifexecutionfails="false"
+		/>
+        <loadresource property="MSVC_VER">
+            <string value="${MSVC_HEADER}" />
+            <filterchain>
+                <tokenfilter>
+                    <containsregex pattern="[^\d]*(\d+)\.(\d+).*$" replace="\1\2" />
+                </tokenfilter>
+				<striplinebreaks/>
+            </filterchain>
+        </loadresource>
+		<property name="MSVC_VER" value="0000"/>
+	</target>
+
+	<target name="configure_nomsvc" unless="msvc-present">
+		<property name="MSVC_VER" value=""/>
+		<property name="MSVC_RINT" value="msvc.rint"/>
+	</target>
+
+	<target name="configure_msvc_options" depends="configure_msvc, configure_nomsvc"/>
+	
+    <target name="pg_config" depends="configure_msvc_options">
         <!-- First gather all values from the pg_config executable. -->
         <exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
             <arg line="--pkglibdir"/>
@@ -23,6 +59,7 @@
             <string value="${PGSQL_VER}" />
             <filterchain>
                 <tokenfilter>
+					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
                     <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\1" />
                 </tokenfilter>
             </filterchain>
@@ -31,6 +68,7 @@
             <string value="${PGSQL_VER}" />
             <filterchain>
                 <tokenfilter>
+					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
                     <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\2" />
                 </tokenfilter>
             </filterchain>
@@ -39,10 +77,22 @@
             <string value="${PGSQL_VER}" />
             <filterchain>
                 <tokenfilter>
+					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
                     <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\3" />
                 </tokenfilter>
             </filterchain>
         </loadresource>
+
+		<script language="javascript"><![CDATA[
+			var msvc_version = parseInt(project.getProperty('MSVC_VER'));
+			var pg_major_version = parseInt(project.getProperty('PGSQL_MAJOR_VER'));
+			var pg_minor_version = parseInt(project.getProperty('PGSQL_MINOR_VER'));
+			if (msvc_version >= 1800  && (pg_major_version < 9 || (pg_major_version == 9 && pg_minor_version  < 4))) {
+				project.setProperty('MSVC_RINT', 'HAVE_RINT=1' );
+			} else {
+				project.setProperty('MSVC_RINT', 'msvc.rint' );
+			}
+			]]></script>
 
         <!-- Finally write all properties to a file which Maven understands. -->
         <propertyfile file="pgsql.properties" jdkproperties="true">
@@ -53,6 +103,7 @@
             <entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />
             <entry key="PGSQL_MINOR_VER" value="${PGSQL_MINOR_VER}" />
             <entry key="PGSQL_PATCH_VER" value="${PGSQL_PATCH_VER}" />
+            <entry key="MSVC_RINT" value="${MSVC_RINT}" />
         </propertyfile>
     </target>
 </project>

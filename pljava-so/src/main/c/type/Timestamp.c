@@ -159,7 +159,14 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 
 #if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 #if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
+/* MSVC will not allow redefinition WITH dllimport after seeing
+ * the definition in pgtime.h that does not include dllimport.
+ */
+#ifdef _MSC_VER 
+extern pg_tz *session_timezone;
+#else 
 extern PGDLLIMPORT pg_tz* session_timezone;
+#endif
 #else
 extern DLLIMPORT pg_tz* global_timezone;
 #endif

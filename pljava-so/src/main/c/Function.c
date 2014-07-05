@@ -25,6 +25,11 @@
 #include <funcapi.h>
 #include <utils/typcache.h>
 
+#ifdef _MSC_VER
+#	define strcasecmp _stricmp
+#	define strncasecmp _strnicmp
+#endif
+
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 #	define PARAM_OIDS(procStruct) (procStruct)->proargtypes
 #else
