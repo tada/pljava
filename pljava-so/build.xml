@@ -5,6 +5,9 @@
         <exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
             <arg line="--pkglibdir"/>
         </exec>
+        <exec executable="pg_config" outputproperty="PGSQL_LIBDIR">
+            <arg line="--libdir"/>
+        </exec>
         <exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR">
             <arg line="--includedir"/>
         </exec>
@@ -44,6 +47,7 @@
         <!-- Finally write all properties to a file which Maven understands. -->
         <propertyfile file="pgsql.properties" jdkproperties="true">
             <entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
+            <entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
             <entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
             <entry key="PGSQL_INCLUDEDIR-SERVER" value="${PGSQL_INCLUDEDIR-SERVER}" />
             <entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />

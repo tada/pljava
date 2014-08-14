@@ -11,7 +11,9 @@ import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
+import java.util.logging.Logger;
 
 /**
  *
@@ -19,6 +21,7 @@ import java.util.Properties;
  */
 public class SPIDriver implements Driver
 {
+  private static final Logger s_logger = Logger.getLogger( "org.postgresql.pljava.jdbc" );
 	private static final String s_defaultURL = "jdbc:default:connection";
 	private static final int s_defaultURLLen = s_defaultURL.length();
 
@@ -84,4 +87,9 @@ public class SPIDriver implements Driver
 	{
 		return s_defaultConn;
 	}
+
+  public Logger getParentLogger() throws SQLFeatureNotSupportedException
+  {
+    return s_logger;
+  }
 }

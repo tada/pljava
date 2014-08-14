@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -1027,4 +1028,35 @@ public class SPIConnection implements Connection
 		}
 		return _clientInfo;
 	}
+
+  public void abort(Executor executor) throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.abort(Executor) not implemented yet.", "0A000" );
+  }
+
+  public int getNetworkTimeout() throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.getNetworkTimeout() not implemented yet.", "0A000" );
+	}
+
+  public void setNetworkTimeout(Executor executor, int milliseconds)
+    throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.setNetworkTimeout(Executor,int) not implemented yet.", "0A000" );
+  }
+
+  public String getSchema() throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.getSchema() not implemented yet.", "0A000" );
+  }
+
+  public void setSchema(String schema) throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.setSchema(String) not implemented yet.", "0A000" );
+  }
 }	

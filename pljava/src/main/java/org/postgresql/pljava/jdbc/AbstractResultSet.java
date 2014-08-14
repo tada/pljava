@@ -163,6 +163,22 @@ public abstract class AbstractResultSet implements ResultSet
 		return this.getObject(this.findColumn(columnName), map);
 	}
 
+  public <T> T getObject(int columnIndex, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnIndex );
+    if ( obj.getClass().equals( type ) ) return (T) obj;
+    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
+	}
+
+  public <T> T getObject(String columnName, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnName );
+    if ( obj.getClass().equals( type ) ) return (T) obj;
+    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
+	}
+
 	public Ref getRef(String columnName)
 	throws SQLException
 	{

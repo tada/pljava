@@ -3544,4 +3544,17 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			"SPIDatabaseMetadata.unwrap( Class< T > ) not implemented yet.", "0A000" );
 
 	}
+
+  public boolean generatedKeyAlwaysReturned() throws SQLException
+  {
+    return false;
+  }
+
+  public ResultSet getPseudoColumns(String catalog, String schemaPattern,
+      String tableNamePattern, String columnNamePattern) throws SQLException
+  {
+		throw new SQLFeatureNotSupportedException(
+			"SPIDatabaseMetadata.getPseudoColumns(String,String,String,String) not implemented yet.", "0A000" );
+
+  }
 }

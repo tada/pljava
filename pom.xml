@@ -15,7 +15,7 @@
 		<module>pljava</module>
 		<module>pljava-deploy</module>
 		<module>pljava-ant</module>
-		<module>pljava-examples</module>
+    <!--<module>pljava-examples</module>-->
 		<module>pljava-so</module>
 	</modules>
 
@@ -91,7 +91,7 @@
 					<target>1.6</target>
 					<encoding>${project.build.sourceEncoding}</encoding>
 					<compilerArguments>
-						<bootclasspath>${env.JAVA6_HOME}/jre/lib/rt.jar</bootclasspath>
+						<bootclasspath>${env.JAVA_HOME}/jre/lib/rt.jar</bootclasspath>
 					</compilerArguments>
 				</configuration>
 			</plugin>
