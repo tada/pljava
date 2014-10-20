@@ -79,10 +79,10 @@
 
 			<!-- Compiles and links the C library. -->
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-nar-plugin</artifactId>
-				<version>2.1-pljava-SNAPSHOT</version>
-				<extensions>true</extensions>
+        			<groupId>com.github.maven-nar</groupId>
+			        <artifactId>nar-maven-plugin</artifactId>
+			        <version>3.2.0</version>
+			        <extensions>true</extensions>
 
 				<configuration>
 					<!-- Generates C header files from Java class files. -->
