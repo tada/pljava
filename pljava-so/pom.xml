@@ -100,7 +100,9 @@
 
 					<!-- Compiles the C sources to object files. -->
 					<c>
-            <name>clang</name>
+				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
+						<name>${CPP_COMPILER}</name>
+				-->
 						<defines>
 							<define>PKGLIBDIR="target/lib/"</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
@@ -208,7 +210,7 @@
 									<pluginExecutionFilter>
 										<groupId>org.apache.maven.plugins</groupId>
 										<artifactId>maven-nar-plugin</artifactId>
-										<versionRange>[2.1-pljava-SNAPSHOT,)</versionRange>
+										<versionRange>[3.1.0]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
 											<goal>nar-download</goal>
