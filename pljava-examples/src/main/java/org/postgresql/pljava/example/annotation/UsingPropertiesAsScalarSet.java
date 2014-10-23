@@ -32,7 +32,7 @@ import org.postgresql.pljava.annotation.Function;
  */
 public class UsingPropertiesAsScalarSet
 {
-	@Function
+	@Function( complexType = "SETOF VARCHAR" )
 	public static Iterator<String> getProperties()
 	throws SQLException
 	{
