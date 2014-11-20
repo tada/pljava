@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<project name="project" default="init" basedir=".">
+
+	<target name="init">
+		<fileset dir="../pljava-so/target/nar" id="narloc">
+			<include name="**/history.xml"/>
+		</fileset>
+		<pathconvert property="narpath" refid="narloc" dirsep="/"/>
+
+        <loadresource property="naraol">
+            <string value="${narpath}" />
+            <filterchain>
+                <tokenfilter>
+                    <!--containsregex pattern=".*SNAPSHOT-(.*)-shared.*$" replace="\1" /-->
+                    <containsregex pattern=".*/lib/(.*)/shared/.*$" replace="\1" />
+                </tokenfilter>
+				<striplinebreaks/>
+            </filterchain>
+        </loadresource>
+		
+		<loadproperties srcFile="../pljava-so/pgsql.properties"/>
+		
+		<property name="suffix" value="pg${PGSQL_MAJOR_VER}.${PGSQL_MINOR_VER}-${naraol}"/>
+	</target>
+
+	<target name="package-zip" depends="init">
+		<zip destfile="target/docs.zip">
+			<zipfileset dir="../docs" includes="*.html" />
+		</zip>
+		<zip destfile="target/pljava-${suffix}.zip">
+			<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
+			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
+			<zipfileset dir="../pljava-deploy/target" includes="pljava-deploy*.jar" fullpath="pljava/deploy.jar"/>
+			<zipfileset dir="../pljava-examples/target" includes="pljava-examples*.jar" fullpath="pljava/examples.jar"/>
+			<zipfileset dir="../pljava-so/target/nar" includes="**/pljava-so*.dll"
+				fullpath="pljava/pljava.dll" erroronmissingarchive="false"
+				filemode="755"/>
+			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
+				fullpath="pljava/pljava.so" erroronmissingarchive="false"
+				filemode="755"/>
+			<zipfileset dir="target" includes="docs.zip" prefix="pljava/"/>
+		</zip>
+	</target>
+
+	<target name="package-targz" depends="init">
+		<tar destfile="target/docs.tar">
+			<zipfileset dir="../docs" includes="*.html" />
+		</tar>
+		<tar destfile="target/pljava.tar">
+		<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
+			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
+			<zipfileset dir="../pljava-deploy/target" includes="pljava-deploy*.jar" fullpath="pljava/deploy.jar"/>
+			<zipfileset dir="../pljava-examples/target" includes="pljava-examples*.jar" fullpath="pljava/examples.jar"/>
+			<zipfileset dir="../pljava-so/target/nar" includes="**/pljava-so*.dll"
+				fullpath="pljava/pljava.dll" erroronmissingarchive="false"
+				filemode="755"/>
+			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
+				fullpath="pljava/pljava.so" erroronmissingarchive="false"
+				filemode="755"/>
+			<zipfileset dir="target" includes="docs.tar" prefix="pljava/"/>
+		</tar>
+		<gzip src="target/pljava.tar" destfile="target/pljava-${suffix}.tar.gz"/>
+	</target>
+	
+</project>

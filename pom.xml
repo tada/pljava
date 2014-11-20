@@ -17,6 +17,7 @@
 		<module>pljava-ant</module>
 		<module>pljava-examples</module>
 		<module>pljava-so</module>
+		<module>packaging</module>
 	</modules>
 
 	<distributionManagement>
