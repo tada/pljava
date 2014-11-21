@@ -79,9 +79,9 @@
 
 			<!-- Compiles and links the C library. -->
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-nar-plugin</artifactId>
-				<version>2.1-pljava-SNAPSHOT</version>
+				<groupId>com.github.maven-nar</groupId>
+				<artifactId>nar-maven-plugin</artifactId>
+				<version>3.1.0</version>
 				<extensions>true</extensions>
 
 				<configuration>
@@ -100,6 +100,9 @@
 
 					<!-- Compiles the C sources to object files. -->
 					<c>
+				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
+						<name>${CPP_COMPILER}</name>
+				-->
 						<defines>
 							<define>PKGLIBDIR="target/lib/"</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
@@ -121,8 +124,22 @@
 							<lib>
 								<name>jvm</name>
 								<type>shared</type>
-								<!-- TODO: Check how this works for gcj. -->
 								<directory>${sun.boot.library.path}/server</directory>
+							</lib>
+							<lib>
+								<name>ecpg</name>
+								<type>shared</type>
+								<directory>${PGSQL_LIBDIR}</directory>
+							</lib>
+							<lib>
+								<name>pgtypes</name>
+								<type>shared</type>
+								<directory>${PGSQL_LIBDIR}</directory>
+							</lib>
+							<lib>
+								<name>pq</name>
+								<type>shared</type>
+								<directory>${PGSQL_LIBDIR}</directory>
 							</lib>
 						</libs>
 					</linker>
@@ -193,7 +210,7 @@
 									<pluginExecutionFilter>
 										<groupId>org.apache.maven.plugins</groupId>
 										<artifactId>maven-nar-plugin</artifactId>
-										<versionRange>[2.1-pljava-SNAPSHOT,)</versionRange>
+										<versionRange>[3.1.0]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
 											<goal>nar-download</goal>

@@ -26,7 +26,7 @@ import org.postgresql.pljava.internal.SPIException;
  * @author Thomas Hallgren
  */
 public class SPIStatement implements Statement
-	{
+{
 	private final SPIConnection m_connection;
 	
 	// Default settings.
@@ -449,5 +449,18 @@ public class SPIStatement implements Statement
 		  + ".unwrapClass( Class<T> ) not implemented yet.",
 		  "0A000" );
 	}
+
+  public void closeOnCompletion() throws SQLException
+  {
+	    throw new SQLFeatureNotSupportedException
+		( this.getClass()
+		  + ".closeOneCompletion() not implemented yet.",
+		  "0A000" );
+  }
+
+  public boolean isCloseOnCompletion() throws SQLException
+  {
+    return false;
+  }
 }
 

@@ -15,72 +15,11 @@
 		<module>pljava</module>
 		<module>pljava-deploy</module>
 		<module>pljava-ant</module>
-		<module>pljava-examples</module>
+    		<module>pljava-examples</module>
 		<module>pljava-so</module>
 		<module>packaging</module>
 	</modules>
-
-	<distributionManagement>
-		<repository>
-			<uniqueVersion>false</uniqueVersion>
-			<id>tada.se</id>
-			<name>PL/Java Releases</name>
-			<url>http://nexus.tada.se/content/repositories/releases/</url>
-		</repository>
-		<snapshotRepository>
-			<uniqueVersion>false</uniqueVersion>
-			<id>tada.se</id>
-			<name>PL/Java Snapshots</name>
-			<url>http://nexus.tada.se/content/repositories/snapshots/</url>
-		</snapshotRepository>
-	</distributionManagement>
-
-	<repositories>
-		<repository>
-			<id>releases.tada.se</id>
-			<url>http://nexus.tada.se/content/repositories/releases/</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository>
-		<repository>
-			<id>snapshots.tada.se</id>
-			<url>http://nexus.tada.se/content/repositories/snapshots/</url>
-			<releases>
-				<enabled>false</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</repository>
-	</repositories>
-
-	<pluginRepositories>
-		<pluginRepository>
-			<id>releases.tada.se</id>
-			<url>http://nexus.tada.se/content/repositories/releases/</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</pluginRepository>
-		<pluginRepository>
-			<id>snapshots.tada.se</id>
-			<url>http://nexus.tada.se/content/repositories/snapshots/</url>
-			<releases>
-				<enabled>false</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</pluginRepository>
-	</pluginRepositories>
-
+	
 	<build>
 		<plugins>
 			<plugin>
@@ -92,7 +31,7 @@
 					<target>1.6</target>
 					<encoding>${project.build.sourceEncoding}</encoding>
 					<compilerArguments>
-						<bootclasspath>${env.JAVA6_HOME}/jre/lib/rt.jar</bootclasspath>
+						<bootclasspath>${env.JAVA_HOME}/jre/lib/rt.jar</bootclasspath>
 					</compilerArguments>
 				</configuration>
 			</plugin>
