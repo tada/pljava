@@ -1041,7 +1041,9 @@ public class Commands
 		PreparedStatement stmt = SQLUtils
 			.getDefaultConnection()
 			.prepareStatement(
-				"UPDATE sqlj.jar_repository SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL, deploymentDesc = NULL WHERE jarId = ?");
+				"UPDATE sqlj.jar_repository "
+				+ "SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL "
+				+ "WHERE jarId = ?");
 		try
 		{
 			stmt.setString(1, urlString);
