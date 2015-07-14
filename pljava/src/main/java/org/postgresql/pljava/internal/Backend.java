@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava.internal;
 
@@ -11,6 +17,7 @@ import java.io.FilePermission;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.security.Permission;
 import java.sql.SQLException;
 import java.util.PropertyPermission;
@@ -208,8 +215,11 @@ public class Backend
 		try
 		{
 			URL url = new URL(urlString);
-			urlStream = url.openStream();
-			Commands.addClassImages(jarId, urlStream);
+			URLConnection uc = url.openConnection();
+			uc.connect();
+			int sz = uc.getContentLength(); // once java6 obsolete, use ...Long
+			urlStream = uc.getInputStream();
+			Commands.addClassImages(jarId, urlStream, sz);
 		}
 		catch(IOException e)
 		{
