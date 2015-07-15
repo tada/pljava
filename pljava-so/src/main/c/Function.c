@@ -179,71 +179,89 @@ static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 	char c;
 	int idx = 0;
 	int top = self->func.nonudt.numParams;
-	bool lastIsOut = !self->func.nonudt.isMultiCall && Type_isOutParameter(self->func.nonudt.returnType);
+	bool lastIsOut = !self->func.nonudt.isMultiCall
+					&& Type_isOutParameter(self->func.nonudt.returnType);
 	StringInfoData sign;
-	initStringInfo(&sign);
-	for(;;)
+	Type deflt;
+	const char* jtName;
+	bool gotone = false;
+	for( ; ; ++ paramDecl )
 	{
-		if(idx >= top)
+		c = *paramDecl;
+		/* all whitespace has already been stripped by getAS() */
+
+		if ( '\0' != c  &&  ',' != c )
 		{
-			if(!(lastIsOut && idx == top))
-				ereport(ERROR, (
-					errcode(ERRCODE_SYNTAX_ERROR),
-					errmsg("To many parameters - expected %d ", top)));
-		}
-
-		c = *paramDecl++;
-		if(c == 0 || c == ',')
-		{
-			Type deflt = (idx == top) ? self->func.nonudt.returnType : self->func.nonudt.paramTypes[idx];
-			const char* jtName = Type_getJavaTypeName(deflt);
-			if(strcmp(jtName, sign.data) != 0)
+			if ( ! gotone ) /* first character of a param type has been seen. */
 			{
-				Oid did;
-				Type repl;
-				if(idx == top)
-					/*
-					 * Last parameter is the OUT parameter. It has no corresponding
-					 * entry in the dfltIds array.
-					 */
-					did = InvalidOid;
-				else
-					did = dfltIds[idx];
-
-				repl = Type_fromJavaType(did, sign.data);
-				if(!Type_canReplaceType(repl, deflt))
-					repl = Type_getCoerceIn(repl, deflt);
-
-				if(idx == top)
-					self->func.nonudt.returnType = repl;
-				else
-					self->func.nonudt.paramTypes[idx] = repl;
+				if(idx >= top)
+				{
+					if(!(lastIsOut && idx == top))
+						ereport(ERROR, (
+							errcode(ERRCODE_SYNTAX_ERROR),
+							errmsg("AS (Java): expected %d parameter types, "
+							       "found more", top)));
+				}
+				gotone = true;
+				initStringInfo(&sign);
 			}
-			pfree(sign.data);
-
-			++idx;
-			if(c == 0)
-			{
-				/*
-				 * We are done.
-				 */
-				if(lastIsOut)
-					++top;
-				if(idx != top)
-					ereport(ERROR, (
-						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("To few parameters - expected %d ", top)));
-				break;
-			}
-
-			/*
-			 * Initialize next parameter.
-			 */
-			initStringInfo(&sign);
-		}
-		else
 			appendStringInfoChar(&sign, c);
+			continue;
+		}
+
+		if ( ! gotone )
+		{
+			if ( '\0' == c )
+				break;
+			ereport(ERROR, (
+				errcode(ERRCODE_SYNTAX_ERROR),
+				errmsg("AS (Java): expected parameter type, found comma")));
+		}
+
+		/* so, got one. */
+		deflt = (idx == top)
+			? self->func.nonudt.returnType : self->func.nonudt.paramTypes[idx];
+		jtName = Type_getJavaTypeName(deflt);
+		if ( strcmp(jtName, sign.data) != 0 )
+		{
+			Oid did;
+			Type repl;
+			if(idx == top)
+				/*
+				 * Last parameter is the OUT parameter. It has no corresponding
+				 * entry in the dfltIds array.
+				 */
+				did = InvalidOid;
+			else
+				did = dfltIds[idx];
+
+			repl = Type_fromJavaType(did, sign.data);
+			if(!Type_canReplaceType(repl, deflt))
+				repl = Type_getCoerceIn(repl, deflt);
+
+			if(idx == top)
+				self->func.nonudt.returnType = repl;
+			else
+				self->func.nonudt.paramTypes[idx] = repl;
+		}
+		pfree(sign.data);
+
+		++idx;
+		if ( '\0' == c )
+			break;
+		gotone = false;
 	}
+
+    /*
+     * We are done.
+     */
+    if(lastIsOut)
+		++top;
+    if(idx != top)
+		ereport(ERROR, (
+			errcode(ERRCODE_SYNTAX_ERROR),
+			errmsg("AS (Java): expected %d parameter types, found fewer",
+				top)));
 }
 
 static char* getAS(HeapTuple procTup, char** epHolder)
