@@ -25,12 +25,12 @@ import static org.postgresql.pljava.annotation.Function.Security.*;
 @SQLAction(
 	provides = "foobar tables",
 	install = {
-		"CREATE TABLE foobar_1 ( username text, stuff text )",
-		"CREATE TABLE foobar_2 ( username text, value numeric )"
+		"CREATE TABLE javatest.foobar_1 ( username text, stuff text )",
+		"CREATE TABLE javatest.foobar_2 ( username text, value numeric )"
 	},
 	remove = {
-		"DROP TABLE foobar_2",
-		"DROP TABLE foobar_1"
+		"DROP TABLE javatest.foobar_2",
+		"DROP TABLE javatest.foobar_1"
 	})
 public class Triggers
 {
