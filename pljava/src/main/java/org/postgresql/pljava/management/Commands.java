@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,10 +12,14 @@
  */
 package org.postgresql.pljava.management;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.io.UnsupportedEncodingException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,8 +31,11 @@ import java.util.ArrayList;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
-import java.util.jar.Manifest;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
@@ -234,10 +241,13 @@ public class Commands
 	 * jar_entry table.
 	 * 
 	 * @param jarId The id used for the foreign key to the jar_repository table
-	 * @param urlStream The URL
+	 * @param urlStream An InputStream (opened on what may have been a URL)
+	 * @param sz The expected size of the stream, used as a worst-case
+	 * mark/reset limit. The caller might pass -1 if the URLConnection can't
+	 * determine a size in advance (a generous guess will be made in that case).
 	 * @throws SQLException
 	 */
-	public static void addClassImages(int jarId, InputStream urlStream)
+	public static void addClassImages(int jarId, InputStream urlStream, int sz)
 	throws SQLException
 	{
 		PreparedStatement stmt = null;
@@ -247,7 +257,6 @@ public class Commands
 
 		try
 		{
-			int deployImageCnt = 0;
 			byte[] buf = new byte[1024];
 			ByteArrayOutputStream img = new ByteArrayOutputStream();
 			stmt = SQLUtils
@@ -255,35 +264,29 @@ public class Commands
 				.prepareStatement(
 					"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) VALUES(?, ?, ?)");
 
-			JarInputStream jis = new JarInputStream(urlStream);
-			Manifest manifest = jis.getManifest();
+			BufferedInputStream bis = new BufferedInputStream( urlStream);
+			String manifest = rawManifest( bis, sz);
+			JarInputStream jis = new JarInputStream(bis);
 			if(manifest != null)
 			{
-				ByteArrayOutputStream out = new ByteArrayOutputStream();
-				manifest.write(out);
 				PreparedStatement us = SQLUtils
 					.getDefaultConnection()
 					.prepareStatement(
 						"UPDATE sqlj.jar_repository SET jarManifest = ? WHERE jarId = ?");
 				try
 				{
-					us.setString(1, new String(out.toByteArray(), "UTF8"));
+					us.setString(1, manifest);
 					us.setInt(2, jarId);
 					if(us.executeUpdate() != 1)
 						throw new SQLException(
 							"Jar repository update did not update 1 row");
-				}
-				catch(UnsupportedEncodingException e)
-				{
-					// Excuse me? No UTF8 encoding?
-					//
-					throw new SQLException("JVM does not support UTF8!!");
 				}
 				finally
 				{
 					SQLUtils.close(us);
 				}
 			}
+
 			for(;;)
 			{
 				JarEntry je = jis.getNextJarEntry();
@@ -294,14 +297,6 @@ public class Commands
 					continue;
 
 				String entryName = je.getName();
-				Attributes attrs = je.getAttributes();
-
-				boolean isDepDescr = false;
-				if(attrs != null)
-				{
-					isDepDescr = "true".equalsIgnoreCase(attrs
-						.getValue("SQLJDeploymentDescriptor"));
-				}
 
 				int nBytes;
 				img.reset();
@@ -315,37 +310,40 @@ public class Commands
 				if(stmt.executeUpdate() != 1)
 					throw new SQLException(
 						"Jar entry insert did not insert 1 row");
+			}
 
-				if(isDepDescr)
-				{
-					if ( descIdFetchStmt == null )
-						descIdFetchStmt = SQLUtils.getDefaultConnection()
-							.prepareStatement(
-								"SELECT entryId FROM sqlj.jar_entry"
-									+ " WHERE jarId = ? AND entryName = ?");
-					descIdFetchStmt.setInt(1, jarId);
-					descIdFetchStmt.setString(2, entryName);
-					rs = descIdFetchStmt.executeQuery();
-					if(!rs.next())
-						throw new SQLException(
-							"Failed to refetch row in sqlj.jar_entry");
+			Matcher ddr = ddrSection.matcher( null != manifest ? manifest : "");
+			Matcher cnt = mfCont.matcher( "");
+			for ( int ordinal = 0; ddr.find(); ++ ordinal )
+			{
+				String entryName = cnt.reset( ddr.group( 1)).replaceAll( "");
+				if ( descIdFetchStmt == null )
+					descIdFetchStmt = SQLUtils.getDefaultConnection()
+						.prepareStatement(
+							"SELECT entryId FROM sqlj.jar_entry"
+								+ " WHERE jarId = ? AND entryName = ?");
+				descIdFetchStmt.setInt(1, jarId);
+				descIdFetchStmt.setString(2, entryName);
+				rs = descIdFetchStmt.executeQuery();
+				if(!rs.next())
+					throw new SQLException(
+						"Failed to refetch row in sqlj.jar_entry");
 
-					int deployImageId = rs.getInt(1);
-					
-					if ( descIdStoreStmt == null )
-						descIdStoreStmt = SQLUtils.getDefaultConnection()
-							.prepareStatement(
-								"INSERT INTO sqlj.jar_descriptor"
-									+ " (jarId, entryId, ordinal) VALUES"
-									+ " ( ?, ?, ? )");
-					descIdStoreStmt.setInt(1, jarId);
-					descIdStoreStmt.setInt(2, deployImageId);
-					descIdStoreStmt.setInt(3, ++deployImageCnt);
-					if ( descIdStoreStmt.executeUpdate() != 1 )
-						throw new SQLException(
-							"Jar deployment descriptor insert did not insert " +
-							"1 row");
-				}
+				int deployImageId = rs.getInt(1);
+
+				if ( descIdStoreStmt == null )
+					descIdStoreStmt = SQLUtils.getDefaultConnection()
+						.prepareStatement(
+							"INSERT INTO sqlj.jar_descriptor"
+								+ " (jarId, entryId, ordinal) VALUES"
+								+ " ( ?, ?, ? )");
+				descIdStoreStmt.setInt(1, jarId);
+				descIdStoreStmt.setInt(2, deployImageId);
+				descIdStoreStmt.setInt(3, ordinal);
+				if ( descIdStoreStmt.executeUpdate() != 1 )
+					throw new SQLException(
+						"Jar deployment descriptor insert did not insert " +
+						"1 row");
 			}
 		}
 		catch(IOException e)
@@ -360,6 +358,65 @@ public class Commands
 			SQLUtils.close(descIdFetchStmt);
 			SQLUtils.close(stmt);
 		}
+	}
+
+	private final static Pattern ddrSection = Pattern.compile(
+	    "(?<=[\\r\\n])Name: ((?:.|(?:\\r\\n?|\\n) )+)(?:(?:\\r\\n?|\\n))" +
+		"(?:[^\\r\\n]+(?:\\r\\n?|\\n)(?![\\r\\n]))*" +
+		"SQLJDeploymentDescriptor: (?:(?:\\r\\n?|\\r) )*TRUE(?!\\S)",
+		Pattern.CASE_INSENSITIVE
+	);
+
+	private final static Pattern mfCont = Pattern.compile( "(?:\\r\\n?|\\n) ");
+
+	/**
+	 * Read and return a manifest, rewinding the buffered input stream.
+	 *
+	 * The caller needs to construct a BufferedInputStream over its raw input
+	 * stream, and indicate its expected size (for mark/reset purposes). This
+	 * method returns the manifest as a String if there is one, else null, and
+	 * resets the buffered input stream so the caller can treat it as a
+	 * JarInputStream to read the rest of it.
+	 *
+	 * Why such an exercise? The SQL/JRT specs provide that deployment
+	 * descriptors are to be taken, for install, in the order they
+	 * are named _in the manifest_, and for remove in the reverse of
+	 * their order in the manifest ... at least according to a committee
+	 * draft 5CD2-13-JRT-2006-01 I got my hands on; see sections 11.1
+	 * and 11.3. That's lovely, but of course Java's Manifest class
+	 * doesn't expose the order of its per-file entries! Plan B could be
+	 * to use Manifest.write() into a buffer and parse that for the
+	 * order, but the API doesn't promise to write it back out in the
+	 * original order, and in fact Oracle's implementation doesn't. That
+	 * leaves little choice but to sneak in ahead of the JarInputStream and
+	 * pluck out the original manifest as a zip entry.
+	 */
+	private static String rawManifest( BufferedInputStream bis, int markLimit)
+	throws IOException
+	{
+		// If the caller can't say how long the stream is, this mark() limit
+		// should be plenty
+		bis.mark( markLimit > 0 ? markLimit : 32*1024*1024);
+		ZipInputStream zis = new ZipInputStream( bis);
+		for ( ZipEntry ze; null != (ze = zis.getNextEntry()); )
+		{
+			if ( "META-INF/MANIFEST.MF".equals( ze.getName()) )
+			{
+				StringBuilder sb = new StringBuilder();
+				// I'll take my chances on a required charset not being there!
+				CharsetDecoder u8 = Charset.forName( "UTF-8").newDecoder();
+				InputStreamReader isr = new InputStreamReader( zis, u8);
+				char[] b = new char[512];
+				for ( int got; -1 != (got = isr.read(b)); )
+					sb.append(b, 0, got);
+				zis.closeEntry();
+				bis.reset();
+				return sb.toString();
+			}
+			zis.closeEntry();
+		}
+		bis.reset();
+		return null;
 	}
 
 	/**
@@ -1013,7 +1070,7 @@ public class Commands
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);
-			addClassImages(jarId, imageStream);
+			addClassImages(jarId, imageStream, image.length);
 		}
 		Loader.clearSchemaLoaders();
 		if(deploy)
@@ -1074,7 +1131,7 @@ public class Commands
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);
-			addClassImages(jarId, imageStream);
+			addClassImages(jarId, imageStream, image.length);
 		}
 		Loader.clearSchemaLoaders();
 		if(redeploy)
