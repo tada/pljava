@@ -922,7 +922,8 @@ class DDRProcessorImpl
 		public void characterize()
 		{
 			TypeMirror ret = func.getReturnType();
-			if ( ret.getKind().equals( TypeKind.ERROR) ) {
+			if ( ret.getKind().equals( TypeKind.ERROR) )
+			{
 				msg( Kind.ERROR, func,
 					"Unable to resolve return type of function");
 				return;
@@ -1470,7 +1471,8 @@ class DDRProcessorImpl
  * will always be emitted in a fixed order. A collection of Snippets will be
  * output in an order constrained by their provides and requires methods.
  */
-interface Snippet {
+interface Snippet
+{
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
