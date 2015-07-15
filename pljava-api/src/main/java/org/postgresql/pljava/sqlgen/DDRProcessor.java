@@ -61,6 +61,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
+import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
@@ -153,6 +154,7 @@ class DDRProcessorImpl
 	// Certain known types that need to be recognized in the processed code
 	//
 	final DeclaredType TY_ITERATOR;
+	final DeclaredType TY_OBJECT;
 	final DeclaredType TY_RESULTSET;
 	final DeclaredType TY_RESULTSETPROVIDER;
 	final DeclaredType TY_RESULTSETHANDLE;
@@ -200,6 +202,8 @@ class DDRProcessorImpl
 		
 		TY_ITERATOR = typu.getDeclaredType(
 			elmu.getTypeElement( java.util.Iterator.class.getName()));
+		TY_OBJECT = typu.getDeclaredType(
+			elmu.getTypeElement( Object.class.getName()));
 		TY_RESULTSET = typu.getDeclaredType(
 			elmu.getTypeElement( java.sql.ResultSet.class.getName()));
 		TY_RESULTSETPROVIDER = typu.getDeclaredType(
@@ -288,6 +292,8 @@ class DDRProcessorImpl
 		if ( sqlActionsPresent )
 			for ( Element e : re.getElementsAnnotatedWith( AN_SQLACTIONS) )
 				processSQLActions( e);
+
+		tmpr.workAroundJava7Breakage(); // perhaps it will be fixed in Java 9?
 
 		if ( re.processingOver() && ! re.errorRaised() )
 			generateDescriptor();
@@ -916,7 +922,8 @@ class DDRProcessorImpl
 		public void characterize()
 		{
 			TypeMirror ret = func.getReturnType();
-			if ( ret.getKind().equals( TypeKind.ERROR) ) {
+			if ( ret.getKind().equals( TypeKind.ERROR) )
+			{
 				msg( Kind.ERROR, func,
 					"Unable to resolve return type of function");
 				return;
@@ -1120,10 +1127,12 @@ class DDRProcessorImpl
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<Class<?>, String>> mappings;
+		ArrayList<Map.Entry<Class<?>, String>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
 
-		TypeMapper() {
-			mappings = new ArrayList<Map.Entry<Class<?>, String>>();
+		TypeMapper()
+		{
+			protoMappings = new ArrayList<Map.Entry<Class<?>, String>>();
 
 			// Primitives
 			//
@@ -1158,6 +1167,36 @@ class DDRProcessorImpl
 			this.addMap(Object.class, "\"any\"");
 
 			this.addMap(byte[].class, "bytea");
+		}
+
+		/*
+		 * What worked in Java 6 was to keep a list of Class<?> -> sqltype
+		 * mappings, and get TypeMirrors from the Classes at the time of trying
+		 * to identify types (in the final, after-all-sources-processed round).
+		 * Starting in Java 7, you get different TypeMirror instances in
+		 * different rounds for the same types, so you can't match something
+		 * seen in round 1 to something looked up in the final round. (However,
+		 * you can match things seen in round 1 to things looked up prior to
+		 * the first round, when init() is called and constructs the processor.)
+		 *
+		 * So, this method needs to be called at the end of round 1 (or at the
+		 * end of every round, it just won't do anything but once), and at that
+		 * point it will compute the list order and freeze a list of TypeMirrors
+		 * to avoid looking up the Class<?>es later and getting different
+		 * mirrors.
+		 *
+		 * This should work as long as all the sources containg pljava
+		 * annotations will be found in round 1. That would only not be the case
+		 * if some other annotation processor is in use that could generate new
+		 * sources with pljava annotations in them, requiring additional rounds.
+		 * In the present state of things, that simply won't work. Java bug
+		 * http://bugs.java.com/bugdatabase/view_bug.do?bug_id=8038455 might
+		 * cover this, and promises a fix in Java 9, but who knows?
+		 */
+		private void workAroundJava7Breakage()
+		{
+			if ( null != finalMappings )
+				return; // after the first round, it's too late!
 
 			// Need to check more specific types before those they are
 			// assignable to by widening reference conversions, so a
@@ -1165,16 +1204,17 @@ class DDRProcessorImpl
 			//
 			List<Vertex<Map.Entry<Class<?>, String>>> vs =
 				new ArrayList<Vertex<Map.Entry<Class<?>, String>>>(
-					mappings.size());
+					protoMappings.size());
 
-			for ( Map.Entry<Class<?>, String> me : mappings )
+			for ( Map.Entry<Class<?>, String> me : protoMappings )
 				vs.add( new Vertex<Map.Entry<Class<?>, String>>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
 				Vertex<Map.Entry<Class<?>, String>> vi = vs.get( i);
 				Class<?> ci = vi.payload.getKey();
-				for ( int j = i; j --> 0; ) {
+				for ( int j = i; j --> 0; )
+				{
 					Vertex<Map.Entry<Class<?>, String>> vj = vs.get( j);
 					Class<?> cj = vj.payload.getKey();
 					boolean oij = ci.isAssignableFrom( cj);
@@ -1194,13 +1234,37 @@ class DDRProcessorImpl
 				if ( 0 == v.indegree )
 					q.add( v);
 
-			mappings.clear();
+			finalMappings = new ArrayList<Map.Entry<TypeMirror, String>>(
+				protoMappings.size());
+			protoMappings.clear();
 
 			while ( ! q.isEmpty() )
 			{
 				Vertex<Map.Entry<Class<?>, String>> v = q.remove();
-				mappings.add( v.payload);
 				v.use( q);
+				Class<?> k = v.payload.getKey();
+				TypeMirror ktm;
+				if ( k.isPrimitive() )
+				{
+					TypeKind tk = 
+						TypeKind.valueOf( k.getName().toUpperCase());
+					ktm = typu.getPrimitiveType( tk);
+				}
+				else
+				{
+					TypeElement te =
+						elmu.getTypeElement( k.getName());
+					if ( null == te ) // can't find it -> not used in code?
+					{
+						msg( Kind.WARNING,
+							"Found no TypeElement for %s", k.getName());
+						continue; // hope it wasn't one we'll need!
+					}
+					ktm = te.asType();
+				}
+				finalMappings.add(
+					new AbstractMap.SimpleImmutableEntry<TypeMirror, String>(
+						ktm, v.payload.getValue()));
 			}
 		}
 
@@ -1212,7 +1276,14 @@ class DDRProcessorImpl
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			mappings.add(
+			if ( null != finalMappings )
+			{
+				msg( Kind.ERROR,
+					"addMap(%s, %s)\n" +
+					"called after workAroundJava7Breakage", k.getName(), v);
+				return;
+			}
+			protoMappings.add(
 				new AbstractMap.SimpleImmutableEntry<Class<?>, String>( k, v));
 		}
 
@@ -1292,21 +1363,17 @@ class DDRProcessorImpl
 			}
 			else
 			{    
-				ArrayList<Map.Entry<Class<?>, String>> ms = mappings;
+				ArrayList<Map.Entry<TypeMirror, String>> ms = finalMappings;
 				if ( contravariant )
 				{
-					ms = (ArrayList<Map.Entry<Class<?>, String>>)ms.clone();
+					ms = (ArrayList<Map.Entry<TypeMirror, String>>)ms.clone();
 					Collections.reverse( ms);
 				}
-				for ( Map.Entry<Class<?>, String> me : ms )
+				for ( Map.Entry<TypeMirror, String> me : ms )
 				{
-					Class<?> k = me.getKey();
-					TypeMirror ktm;
-					if ( k.isPrimitive() )
+					TypeMirror ktm = me.getKey();
+					if ( ktm instanceof PrimitiveType )
 					{
-						TypeKind tk = 
-							TypeKind.valueOf( k.getName().toUpperCase());
-						ktm = typu.getPrimitiveType( tk);
 						if ( typu.isSameType( tm, ktm) )
 						{
 							rslt = me.getValue();
@@ -1315,11 +1382,6 @@ class DDRProcessorImpl
 					}
 					else
 					{
-						TypeElement te =
-							elmu.getTypeElement( me.getKey().getName());
-						if ( null == te ) // can't find it -> not used in code?
-							continue; // hope it's not the one I'm looking for
-						ktm = te.asType();
 						boolean accept;
 						if ( contravariant )
 							accept = typu.isAssignable( ktm, tm);
@@ -1330,7 +1392,7 @@ class DDRProcessorImpl
 							// don't compute a type of Object/"any" for
 							// a function return (just admit defeat instead)
 							if ( contravariant
-								|| ! Object.class.equals( me.getKey()) )
+								|| ! typu.isSameType( ktm, TY_OBJECT) )
 								rslt = me.getValue();
 							break;
 						}
@@ -1409,7 +1471,8 @@ class DDRProcessorImpl
  * will always be emitted in a fixed order. A collection of Snippets will be
  * output in an order constrained by their provides and requires methods.
  */
-interface Snippet {
+interface Snippet
+{
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
