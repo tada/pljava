@@ -23,6 +23,7 @@
 #include <catalog/catalog.h>
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
+#include <dynloader.h>
 #include <storage/ipc.h>
 #include <storage/proc.h>
 #include <stdio.h>
@@ -50,6 +51,29 @@
 PG_MODULE_MAGIC;
 #endif
 
+/* About PGDLLEXPORT. It didn't exist before PG 9.0. In that revision it was
+ * defined (for Windows) as __declspec(dllexport) for MSVC, but as
+ * __declspec(dllimport) for any other toolchain. That was quickly changed
+ * (for 9.0.2 and ever since) as still __declspec(dllexport) for MSVC, but
+ * empty for any other toolchain. The explanation for that (in PG commit
+ * 844ed5d in November 2010) was that "dllexport and dllwrap don't work well
+ * together." There are records as far back as 2002 anyway
+ * (e.g. http://lists.gnu.org/archive/html/libtool/2002-09/msg00069.html)
+ * calling dllwrap deprecated, and PL/Java's Maven build certainly doesn't
+ * use it, I don't know what it would do if it did, and at the moment I have
+ * no one to test Windows builds using any toolchain other than MSVC anyway.
+ * It seems too brittle to rely on whatever PGDLLEXPORT might happen to mean
+ * across PG versions, and wiser for the moment to cleanly define something
+ * here, for the all of three symbols that need it.
+ */
+#ifdef _MSC_VER
+#define PLJAVADLLEXPORT __declspec (dllexport)
+#else
+#define PLJAVADLLEXPORT
+#endif
+
+extern PLJAVADLLEXPORT void _PG_init(void);
+
 #ifdef PG_GETCONFIGOPTION
 #error The macro PG_GETCONFIGOPTION needs to be renamed.
 #endif
@@ -71,6 +95,7 @@ jlong mainThreadId;
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
 static jmethodID s_setTrusted;
+static char* libjvmlocation;
 static char* vmoptions;
 static char* classpath;
 static char* implementors;
@@ -97,6 +122,51 @@ extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
 extern void SQLInputFromTuple_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
+
+static void registerGUCOptions(void);
+
+void _PG_init()
+{
+	void *libjvm_handle;
+
+	registerGUCOptions();
+	
+	if ( NULL == libjvmlocation )
+	{
+		ereport(ERROR, (errcode(ERRCODE_CONFIG_FILE_ERROR),
+			errmsg("could not load Java virtual machine"),
+			errdetail("location of libjvm is not configured"),
+			errhint("SET pljava.libjvm_location TO the correct path "
+					"to the libjvm (.so or .dll, etc.)")));
+	}
+
+	libjvm_handle = pg_dlopen(libjvmlocation);
+
+	if ( NULL == libjvm_handle )
+	{
+		ereport(ERROR, (errcode_for_file_access(),
+			errmsg("could not load Java virtual machine"),
+			errdetail("%s", (char *)pg_dlerror()),
+			errhint("SET pljava.libjvm_location TO the correct path "
+					"to the libjvm (.so or .dll, etc.)")));
+	}
+
+	pljava_createvm =
+		(jint JNICALL (*)(JavaVM **, void **, void *))
+		pg_dlsym(libjvm_handle, "JNI_CreateJavaVM");
+
+	if ( NULL == pljava_createvm )
+	{
+		char *dle = (pre_format_elog_string(errno, TEXTDOMAIN),
+			format_elog_string("%s", (char *)pg_dlerror()));
+		pg_dlclose(libjvm_handle);
+		ereport(ERROR, (errcode(ERRCODE_SYSTEM_ERROR),
+			errmsg("could not link Java virtual machine"),
+			errdetail("%s", dle),
+			errhint("Is the file named in pljava.libjvm_location "
+					"the right one?")));
+	}
+}
 
 static void initPLJavaClasses(void)
 {
@@ -590,113 +660,7 @@ static void initializeJavaVM(void)
 		s_javaLogLevel = INFO;
 
 		checkIntTimeType();
-		HashMap_initialize();
-	
-		DefineCustomStringVariable(
-			"pljava.vmoptions",
-			"Options sent to the JVM when it is created",
-			NULL,
-			&vmoptions,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				NULL,
-			#endif
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				0,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-	
-		DefineCustomStringVariable(
-			"pljava.classpath",
-			"Classpath used by the JVM",
-			NULL,
-			&classpath,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				NULL,
-			#endif
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				0,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-	
-		DefineCustomBoolVariable(
-			"pljava.debug",
-			"Stop the backend to attach a debugger",
-			NULL,
-			&pljavaDebug,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				false,
-			#endif
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				0,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-	
-		DefineCustomIntVariable(
-			"pljava.statement_cache_size",
-			"Size of the prepared statement MRU cache",
-			NULL,
-			&statementCacheSize,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				11,
-			#endif
-			0, 512,
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				0,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-	
-		DefineCustomBoolVariable(
-			"pljava.release_lingering_savepoints",
-			"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
-			NULL,
-			&pljavaReleaseLingeringSavepoints,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				false,
-			#endif
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				0,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-
-		DefineCustomStringVariable(
-			"pljava.implementors",
-			"Implementor names recognized in deployment descriptors",
-			NULL,
-			&implementors,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				"postgresql",
-			#endif
-			PGC_USERSET,
-			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-				GUC_LIST_INPUT | GUC_LIST_QUOTE,
-			#endif
-			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-				NULL,
-			#endif
-			NULL, NULL);
-
-		EmitWarningsOnPlaceholders("pljava");
-			s_firstTimeInit = false;
+		HashMap_initialize();	
 	}
 
 #ifdef PLJAVA_DEBUG
@@ -764,15 +728,134 @@ static void initializeJavaVM(void)
 	initJavaSession();
 }
 
+static void registerGUCOptions(void)
+{
+	DefineCustomStringVariable(
+		"pljava.libjvm_location",
+		"Path to the libjvm (.so, .dll, etc.) file in Java's jre/lib area",
+		NULL, /* extended description */
+		&libjvmlocation,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			"libjvm",
+		#endif
+		PGC_SUSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomStringVariable(
+		"pljava.vmoptions",
+		"Options sent to the JVM when it is created",
+		NULL, /* extended description */
+		&vmoptions,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			NULL, /* boot value */
+		#endif
+		PGC_SUSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomStringVariable(
+		"pljava.classpath",
+		"Classpath used by the JVM",
+		NULL, /* extended description */
+		&classpath,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			NULL, /* boot value */
+		#endif
+		PGC_SUSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomBoolVariable(
+		"pljava.debug",
+		"Stop the backend to attach a debugger",
+		NULL, /* extended description */
+		&pljavaDebug,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			false, /* boot value */
+		#endif
+		PGC_USERSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomIntVariable(
+		"pljava.statement_cache_size",
+		"Size of the prepared statement MRU cache",
+		NULL, /* extended description */
+		&statementCacheSize,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			11,   /* boot value */
+		#endif
+		0, 512,   /* min, max values */
+		PGC_USERSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomBoolVariable(
+		"pljava.release_lingering_savepoints",
+		"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
+		NULL, /* extended description */
+		&pljavaReleaseLingeringSavepoints,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			false, /* boot value */
+		#endif
+		PGC_USERSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomStringVariable(
+		"pljava.implementors",
+		"Implementor names recognized in deployment descriptors",
+		NULL, /* extended description */
+		&implementors,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			"postgresql", /* boot value */
+		#endif
+		PGC_USERSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			GUC_LIST_INPUT | GUC_LIST_QUOTE,
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			NULL, /* check hook */
+		#endif
+		NULL, NULL); /* assign hook, show hook */
+
+	EmitWarningsOnPlaceholders("pljava");
+}
+
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
-#if (PGSQL_MAJOR_VER > 8)
-extern PGDLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
-#elif defined(_MSC_VER)
-extern __declspec (dllexport) Datum javau_call_handler(PG_FUNCTION_ARGS);
-#else 
-extern Datum javau_call_handler(PG_FUNCTION_ARGS);
-#endif
+extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
 
 /*
@@ -783,13 +866,7 @@ Datum javau_call_handler(PG_FUNCTION_ARGS)
 	return internalCallHandler(false, fcinfo);
 }
 
-#if (PGSQL_MAJOR_VER > 9)
-extern PGDLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
-#elif defined(_MSC_VER)
-extern __declspec (dllexport) Datum java_call_handler(PG_FUNCTION_ARGS);
-#else
-extern Datum java_call_handler(PG_FUNCTION_ARGS);
-#endif
+extern PLJAVADLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(java_call_handler);
 
 /*

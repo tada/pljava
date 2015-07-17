@@ -14,6 +14,7 @@
 #include "pljava/type/String.h"
 
 JNIEnv* jniEnv;
+jint JNICALL (*pljava_createvm)(JavaVM **, void **, void *);
 
 /* MSVC will not allow redefinition WITH dllimport after seeing
  * the definition in guc.h that does not include dllimport.
@@ -563,7 +564,7 @@ void JNI_callVoidMethodLockedV(jobject object, jmethodID methodID, va_list args)
 jint JNI_createVM(JavaVM** javaVM, JavaVMInitArgs* vmArgs)
 {
 	JNIEnv* env = 0;
-	jint jstat = JNI_CreateJavaVM(javaVM, (void **)&env, vmArgs);
+	jint jstat = pljava_createvm(javaVM, (void **)&env, vmArgs);
 	if(jstat == JNI_OK)
 		jniEnv = env;
 	return jstat;

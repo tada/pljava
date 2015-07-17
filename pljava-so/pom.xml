@@ -203,13 +203,6 @@
 						</includePaths>
 					</c>
 
-					<java>
-						<!-- This is supposed to be the same as adding the
-						     exact right <lib> specification under <linker>
-							 to refer to libjvm.
-						-->
-						<link>true</link>
-					</java>
 					<!-- Defines linker flags "-ljvm -L.../server" -->
 					<linker>
 						<libs>
