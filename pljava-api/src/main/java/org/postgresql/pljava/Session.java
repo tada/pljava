@@ -46,9 +46,10 @@ public interface Session
 	Object getAttribute(String attributeName);
 
 	/**
-	 * Return an object pool for the given class. The class must implement
-	 * the interface {@link PooledObject}.
-	 * @param cls
+	 * Return an object pool for the given class.
+	 * @param cls The class of object to be managed by this pool. It must
+	 * implement the interface {@link PooledObject} and have an accessible
+	 * constructor for one argument of type <code>ObjectPool</code>.
 	 * @return An object pool that pools object of the given class.
 	 */
 	ObjectPool getObjectPool(Class cls);

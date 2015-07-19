@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava;
 
@@ -11,7 +17,10 @@ import java.sql.SQLException;
 
 /**
  * An implementation of this interface is returned from functions and procedures
- * that are declared to return <code>SET OF</code> a complex type. Functions that
+ * that are declared to return <code>SET OF</code> a complex type. This
+ * interface is appropriate when the function will be generating the returned
+ * set on the fly; if it will have a {@link ResultSet} obtained from a query,
+ * it should just return {@link ResultSetHandle} instead. Functions that
  * return <code>SET OF</code> a simple type should simply return an
  * {@link java.util.Iterator Iterator}.
  * @author Thomas Hallgren

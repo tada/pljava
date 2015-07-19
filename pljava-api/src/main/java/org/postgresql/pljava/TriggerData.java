@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Purdue University
  */
 package org.postgresql.pljava;
 
@@ -10,6 +16,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
+ * The data passed to an ordinary (insert/update/delete/truncate) trigger
+ * function.
  * The SQL 2003 spec. does not stipulate a standard way of mapping
  * triggers to functions. The PLJava mapping use this interface. All
  * functions that are intended to be triggers must be public, static,
