@@ -1,5 +1,8 @@
 /.classpath
 /.project
 /.settings
+target/site
+target/staging
+target/javadoc-bundle-options
 pljava-so/pgsql.properties
 pljava-so/target/

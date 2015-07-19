@@ -33,6 +33,11 @@
 			<name>PL/Java Snapshots</name>
 			<url>http://nexus.tada.se/content/repositories/snapshots/</url>
 		</snapshotRepository>
+		<site>
+			<id>site.pljava.tada.se</id>
+			<name>PL/Java Developer Info</name>
+			<url>http://tada.github.io/pljava/</url>
+		</site>
 	</distributionManagement>
 
 	<repositories>
@@ -98,4 +103,20 @@
 			</plugin>
 		</plugins>
 	</build>
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>2.10.3</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>javadoc-no-fork</report>
+						</reports>
+					</reportSet>
+				</reportSets>
+			</plugin>
+		</plugins>
+	</reporting>
 </project>
