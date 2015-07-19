@@ -23,7 +23,7 @@ import static org.postgresql.pljava.annotation.Trigger.Event.TRUNCATE;
  * @author Chapman Flack (Purdue Mathematics) - update to Java6
  */
 
-public class TriggerNamer
+class TriggerNamer
 {
 	static String synthesizeName( Trigger t)
 	{

@@ -19,8 +19,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Container for multiple SQLAction annotations (in case it is convenient to
- * hang more than one on a given program element).
+ * Container for multiple {@link SQLAction} annotations (in case it is
+ * convenient to hang more than one on a given program element).
  *
  * @author Thomas Hallgren - pre-Java6 version
  * @author Chapman Flack (Purdue Mathematics) - updated to Java6,

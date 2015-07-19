@@ -24,7 +24,7 @@ import java.lang.annotation.Target;
  * automatically mapped type, and/or to supply an SQL default value.
  *
  * This annotation cannot be used to supply the SQL declaration's return type,
- * but the complexType element in the Function annotation can.
+ * but {@link Function#complexType @Function(complexType=...)} can.
  *
  * @author Thomas Hallgren - pre-Java6 version
  * @author Chapman Flack (Purdue Mathematics) - updated to Java6, added SQLType
