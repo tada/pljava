@@ -17,15 +17,27 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
+ * Annotation, only used in {@link Function#triggers @Function(triggers=...)},
+ * to specify what trigger(s) the function will be called for.
  * @author Thomas Hallgren
  */
 @Target({}) @Retention(RetentionPolicy.CLASS)
 public @interface Trigger
 {
+	/**
+	 * Whether the trigger is invoked before or after the specified event.
+	 */
 	enum When { BEFORE, AFTER };
 
+	/**
+	 * Types of event that can occasion a trigger.
+	 */
 	enum Event { DELETE, INSERT, UPDATE, TRUNCATE };
 
+	/**
+	 * Whether the trigger will occur only once for a statement of interest,
+	 * or once for each row affected by the statement.
+	 */
 	enum Scope { STATEMENT, ROW };
 
 	/**
@@ -45,7 +57,7 @@ public @interface Trigger
 	String name() default "";
 
 	/**
-	 * The name of the schema where containing the table for
+	 * The name of the schema containing the table for
 	 * this trigger.
 	 */
 	String schema() default "";
@@ -56,7 +68,7 @@ public @interface Trigger
 	String table();
 
 	/**
-	 * Scope, i.e. statement or row.
+	 * Scope: statement or row.
 	 */
 	Scope scope() default Scope.STATEMENT;
 	

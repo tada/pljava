@@ -31,12 +31,37 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 public @interface Function
 {
+	/**
+	 * Whether the function is called even for null input,
+	 * or known to return null in that case and therefore not called.
+	 */
 	enum OnNullInput { CALLED, RETURNS_NULL };
 
+	/**
+	 * Whether the function executes with the same identity and
+	 * permissions as the role that has invoked it (the usual case), or
+	 * with the rights of the role that <em>defined</em> it (such as to
+	 * offer controlled access to data the invoker would otherwise have
+	 * no access to). A function should be annotated <code>SECURITY
+	 * DEFINER</code> only after carefully <a href=
+'http://www.postgresql.org/docs/current/static/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY'
+>considering the implications</a>.
+	 */
 	enum Security { INVOKER, DEFINER };
 
+	/**
+	 * The <a href=
+'http://www.postgresql.org/docs/current/static/xfunc-volatility.html'>volatility
+category</a>
+	 * of the function.
+	 */
 	enum Type { IMMUTABLE, STABLE, VOLATILE };
 
+	/**
+	 * Whether the function only needs restricted capabilities and can
+	 * run in the "trusted" language instance, or requires an unrestricted
+	 * environment and has to run in an "untrusted" language instance.
+	 */
 	enum Trust { RESTRICTED, UNRESTRICTED };
 
 	/**
@@ -84,9 +109,10 @@ public @interface Function
 	 * invoker (the usual case) or with those of its definer (the special
 	 * case for a function that needs to access objects with the authority
 	 * of the user who declared it). Security.DEFINER functions must be coded
-	 * and declared carefully; see at least "Writing SECURITY DEFINER Functions
-	 * Safely" in the SQL Commands reference for CREATE FUNCTION, and the
-	 * settings element of this annotation.
+	 * and declared carefully; see at least <a href=
+'http://www.postgresql.org/docs/current/static/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY'
+>Writing SECURITY DEFINER Functions Safely</a> in the PostgreSQL docs, and the
+	 * {@link #settings} element of this annotation.
 	 */
 	Security security() default Security.INVOKER;
 	
@@ -114,7 +140,10 @@ public @interface Function
 	
 	/**
 	 * Whether the function can be safely pushed inside the evaluation of views
-	 * created with the security_barrier option. This should only be set true on
+	 * created with the <a href=
+'http://www.postgresql.org/docs/current/static/rules-privileges.html'
+>security_barrier option.</a>
+	 * This should only be set true on
 	 * a function known not to leak data under any circumstances (even, for
 	 * example, throwing errors for certain parameter values and not others).
 	 * Appeared in PostgreSQL 9.2.
