@@ -897,37 +897,6 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1log(JNIEnv* env, jclass cl
 	char* str = String_createNTS(jstr);
 	if(str != 0)
 	{
-		/* elog uses printf formatting but the logger does not so we must escape all
-		 * '%' in the string.
-		 */
-		char c;
-		const char* cp;
-		int percentCount = 0;
-		for(cp = str; (c = *cp) != 0; ++cp)
-		{
-			if(c == '%')
-				++percentCount;
-		}
-	
-		if(percentCount > 0)
-		{
-			/* Make room to expand all "%" to "%%"
-			 */
-			char* str2 = palloc((cp - str) + percentCount + 1);
-			char* cp2 = str2;
-	
-			/* Expand... */
-			for(cp = str; (c = *cp) != 0; ++cp)
-			{
-				if(c == '%')
-					*cp2++ = c;
-				*cp2++ = c;
-			}
-			*cp2 = 0;
-			pfree(str);
-			str = str2;
-		}
-	
 		PG_TRY();
 		{
 			elog(logLevel, "%s", str);
