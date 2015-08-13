@@ -13,15 +13,15 @@
 	
 	<properties>
 		<!-- default values when NOT using Microsoft Visual C compiler -->
-		<msvc.pkglibdir>"target/lib/"</msvc.pkglibdir>
+		<pkglibdir>"target/lib/"</pkglibdir>
 		<msvc.rint>msvc.rint</msvc.rint>
-		<msvc.include.win32></msvc.include.win32>
-		<msvc.include.win32.msvc></msvc.include.win32.msvc>
+		<pgsql.include.extradir1></pgsql.include.extradir1>
+		<pgsql.include.extradir2></pgsql.include.extradir2>
 		<!-- TODO: Check how this works for gcj. -->
-		<msvc.jvm.lib.dir>${sun.boot.library.path}/server</msvc.jvm.lib.dir>
+		<jvm.lib.dir>${sun.boot.library.path}/server</jvm.lib.dir>
 		<!-- MSVC requires postgres.lib, so supply dummy reference for other platforms -->
-		<msvc.postgres.lib.name>jvm</msvc.postgres.lib.name>
-		<msvc.postgres.lib.path>${msvc.jvm.lib.dir}</msvc.postgres.lib.path>
+		<postgres.lib.name>jvm</postgres.lib.name>
+		<postgres.lib.path>${jvm.lib.dir}</postgres.lib.path>
 	</properties>
 
 	<profiles>
@@ -34,12 +34,13 @@
 			</activation>
 			<properties>
 				<!-- override values when using Microsoft Visual C compiler -->
-				<msvc.pkglibdir>\"target/lib/\"</msvc.pkglibdir>
-				<msvc.include.win32>port/win32</msvc.include.win32>
-				<msvc.include.win32.msvc>port/win32_msvc</msvc.include.win32.msvc>
-				<msvc.jvm.lib.dir>${JAVA6_HOME}/lib</msvc.jvm.lib.dir>
-				<msvc.postgres.lib.name>postgres</msvc.postgres.lib.name>
-				<msvc.postgres.lib.path>${PGSQL_PKGLIBDIR}</msvc.postgres.lib.path>
+				<pkglibdir>\"target/lib/\"</pkglibdir>
+				<!-- add only the additional suffix to avoid injecting empty entries in command line -->
+				<pgsql.include.extradir1>port/win32</pgsql.include.extradir1>
+				<pgsql.include.extradir2>port/win32_msvc</pgsql.include.extradir2>
+				<jvm.lib.dir>${JAVA6_HOME}/lib</jvm.lib.dir>
+				<postgres.lib.name>postgres</postgres.lib.name>
+				<postgres.lib.path>${PGSQL_PKGLIBDIR}</postgres.lib.path>
 				<!-- Need this for Visual Studio 2013 and Postgresql v9.3 and below -->
 				<msvc.rint>${MSVC_RINT}</msvc.rint>
 			</properties>
@@ -139,7 +140,7 @@
 						<name>${CPP_COMPILER}</name>
 				-->
 						<defines>
-							<define>PKGLIBDIR=${msvc.pkglibdir}</define>
+							<define>PKGLIBDIR=${pkglibdir}</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
 							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
 							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
@@ -151,8 +152,8 @@
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
 							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
 							<!-- include paths for MSVC required headers -->
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${msvc.include.win32}</includePath>
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${msvc.include.win32.msvc}</includePath>
+							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir1}</includePath>
+							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir2}</includePath>
 							<includePath>${basedir}/src/main/include/</includePath>
 							<includePath>${basedir}/target/nar/javah-include/</includePath>
 						</includePaths>
@@ -164,12 +165,12 @@
 							<lib>
 								<name>jvm</name>
 								<type>shared</type>
-								<directory>${msvc.jvm.lib.dir}</directory>
+								<directory>${jvm.lib.dir}</directory>
 							</lib>
 							<lib>
-								<name>${msvc.postgres.lib.name}</name>
+								<name>${postgres.lib.name}</name>
 								<type>shared</type>
-								<directory>${msvc.postgres.lib.path}</directory>
+								<directory>${postgres.lib.path}</directory>
 							</lib>
 							<lib>
 								<name>ecpg</name>
