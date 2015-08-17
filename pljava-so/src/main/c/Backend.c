@@ -751,7 +751,13 @@ static void initializeJavaVM(void)
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
+#if (PGSQL_MAJOR_VER > 8)
+extern PGDLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
+#elif defined(_MSC_VER)
+extern __declspec (dllexport) Datum javau_call_handler(PG_FUNCTION_ARGS);
+#else 
 extern Datum javau_call_handler(PG_FUNCTION_ARGS);
+#endif
 PG_FUNCTION_INFO_V1(javau_call_handler);
 
 /*
@@ -762,7 +768,13 @@ Datum javau_call_handler(PG_FUNCTION_ARGS)
 	return internalCallHandler(false, fcinfo);
 }
 
+#if (PGSQL_MAJOR_VER > 9)
+extern PGDLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
+#elif defined(_MSC_VER)
+extern __declspec (dllexport) Datum java_call_handler(PG_FUNCTION_ARGS);
+#else
 extern Datum java_call_handler(PG_FUNCTION_ARGS);
+#endif
 PG_FUNCTION_INFO_V1(java_call_handler);
 
 /*

@@ -10,7 +10,43 @@
 	<name>pl/java server side library</name>
 	<description>Generates the pljava.so library which gets loaded by the PostgreSQL server.</description>
 	<packaging>nar</packaging>
+	
+	<properties>
+		<!-- default values when NOT using Microsoft Visual C compiler -->
+		<pkglibdir>"target/lib/"</pkglibdir>
+		<msvc.rint>msvc.rint</msvc.rint>
+		<pgsql.include.extradir1></pgsql.include.extradir1>
+		<pgsql.include.extradir2></pgsql.include.extradir2>
+		<!-- TODO: Check how this works for gcj. -->
+		<jvm.lib.dir>${sun.boot.library.path}/server</jvm.lib.dir>
+		<!-- MSVC requires postgres.lib, so supply dummy reference for other platforms -->
+		<postgres.lib.name>jvm</postgres.lib.name>
+		<postgres.lib.path>${jvm.lib.dir}</postgres.lib.path>
+	</properties>
 
+	<profiles>
+		<profile>
+			<id>compiler-msvc</id>
+			<activation>
+				<property>
+					<name>env.VCINSTALLDIR</name>
+				</property>
+			</activation>
+			<properties>
+				<!-- override values when using Microsoft Visual C compiler -->
+				<pkglibdir>\"target/lib/\"</pkglibdir>
+				<!-- add only the additional suffix to avoid injecting empty entries in command line -->
+				<pgsql.include.extradir1>port/win32</pgsql.include.extradir1>
+				<pgsql.include.extradir2>port/win32_msvc</pgsql.include.extradir2>
+				<jvm.lib.dir>${JAVA6_HOME}/lib</jvm.lib.dir>
+				<postgres.lib.name>postgres</postgres.lib.name>
+				<postgres.lib.path>${PGSQL_PKGLIBDIR}</postgres.lib.path>
+				<!-- Need this for Visual Studio 2013 and Postgresql v9.3 and below -->
+				<msvc.rint>${MSVC_RINT}</msvc.rint>
+			</properties>
+		</profile>
+	</profiles>
+	
 	<build>
 		<plugins>
 
@@ -104,15 +140,20 @@
 						<name>${CPP_COMPILER}</name>
 				-->
 						<defines>
-							<define>PKGLIBDIR="target/lib/"</define>
+							<define>PKGLIBDIR=${pkglibdir}</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
 							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
 							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
+							<!-- for MSVC -->
+							<define>${msvc.rint}</define>
 						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
 							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
+							<!-- include paths for MSVC required headers -->
+							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir1}</includePath>
+							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir2}</includePath>
 							<includePath>${basedir}/src/main/include/</includePath>
 							<includePath>${basedir}/target/nar/javah-include/</includePath>
 						</includePaths>
@@ -124,7 +165,12 @@
 							<lib>
 								<name>jvm</name>
 								<type>shared</type>
-								<directory>${sun.boot.library.path}/server</directory>
+								<directory>${jvm.lib.dir}</directory>
+							</lib>
+							<lib>
+								<name>${postgres.lib.name}</name>
+								<type>shared</type>
+								<directory>${postgres.lib.path}</directory>
 							</lib>
 							<lib>
 								<name>ecpg</name>
