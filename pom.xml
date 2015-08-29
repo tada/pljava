@@ -5,11 +5,42 @@
 	<artifactId>pljava.app</artifactId>
 	<version>0.0.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>PostgreSQL pl/java</name>
+	<name>PostgreSQL PL/Java</name>
+	<url>https://github.com/tada/pljava</url>
 	<description>Java stored procedures for PostgreSQL</description>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+
+	<licenses>
+		<license>
+			<name>BSD 3-clause</name>
+			<comments>A business-friendly OSD-conformant license</comments>
+		</license>
+	</licenses>
+
+	<issueManagement>
+		<system>Github</system>
+		<url>https://github.com/tada/pljava/issues</url>
+	</issueManagement>
+
+	<mailingLists>
+		<mailingList>
+			<name>Mailing list for PL/Java users and developers</name>
+			<post>pljava-dev@lists.pgfoundry.org</post>
+			<archive>http://lists.pgfoundry.org/pipermail/pljava-dev/</archive>
+			<otherArchives>
+				<otherArchive>http://news.gmane.org/gmane.comp.db.postgresql.pljava</otherArchive>
+			</otherArchives>
+		</mailingList>
+	</mailingLists>
+	
+	<scm>
+		<connection>scm:git:https://github.com/tada/pljava.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/tada/pljava.git</developerConnection>
+		<url>https://github.com/tada/pljava</url>
+	</scm>
+
 	<modules>
 		<module>pljava-api</module>
 		<module>pljava</module>
@@ -105,6 +136,11 @@
 	</build>
 	<reporting>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-project-info-reports-plugin</artifactId>
+				<version>2.8</version>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
