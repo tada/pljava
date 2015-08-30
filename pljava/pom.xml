@@ -7,7 +7,8 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava</artifactId>
-	<name>pl/java implementation</name>
+	<name>PL/Java backend Java code</name>
+	<url>https://github.com/tada/pljava</url>
 	<description>Java stored procedure implementation for PostgreSQL</description>
 	<dependencies>
 		<dependency>

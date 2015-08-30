@@ -7,8 +7,11 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-so</artifactId>
-	<name>pl/java server side library</name>
-	<description>Generates the pljava.so library which gets loaded by the PostgreSQL server.</description>
+	<name>PL/Java backend native code</name>
+	<url>https://github.com/tada/pljava</url>
+	<description>
+		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
+	</description>
 	<packaging>nar</packaging>
 	
 	<properties>

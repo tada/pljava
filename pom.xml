@@ -11,6 +11,11 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+	
+	<organization>
+		<name>Tada AB</name>
+		<url>http://tada.se/eng/</url>
+	</organization>
 
 	<licenses>
 		<license>
@@ -38,16 +43,16 @@
 	<scm>
 		<connection>scm:git:https://github.com/tada/pljava.git</connection>
 		<developerConnection>scm:git:ssh://git@github.com/tada/pljava.git</developerConnection>
-		<url>https://github.com/tada/pljava</url>
+		<url>https://github.com/tada/pljava/tree/master/</url>
 	</scm>
 
 	<modules>
 		<module>pljava-api</module>
 		<module>pljava</module>
+		<module>pljava-so</module>
 		<module>pljava-deploy</module>
 		<module>pljava-ant</module>
-    		<module>pljava-examples</module>
-		<module>pljava-so</module>
+    	<module>pljava-examples</module>
 		<module>packaging</module>
 	</modules>
 
@@ -132,6 +137,14 @@
 					</compilerArguments>
 				</configuration>
 			</plugin>
+    		<plugin>
+        	  <groupId>org.apache.maven.plugins</groupId>
+        	  <artifactId>maven-site-plugin</artifactId>
+        	  <version>3.0</version>
+        	  <configuration>
+        		<relativizeDecorationLinks>false</relativizeDecorationLinks>
+        	  </configuration>
+    		</plugin>
 		</plugins>
 	</build>
 	<reporting>
