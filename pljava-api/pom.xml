@@ -8,7 +8,6 @@
 	</parent>
 	<artifactId>pljava-api</artifactId>
 	<name>PL/Java API</name>
-	<url>https://github.com/tada/pljava</url>
 	<description>The API for Java stored procedures in PostgreSQL using PL/Java</description>
 	<build>
 		<plugins>

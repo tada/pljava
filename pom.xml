@@ -6,7 +6,7 @@
 	<version>0.0.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>PostgreSQL PL/Java</name>
-	<url>https://github.com/tada/pljava</url>
+	<url>https://tada.github.io/pljava/</url>
 	<description>Java stored procedures for PostgreSQL</description>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

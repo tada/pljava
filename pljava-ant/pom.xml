@@ -8,7 +8,6 @@
 	</parent>
 	<artifactId>pljava-ant</artifactId>
 	<name>PL/Java Ant tasks</name>
-	<url>https://github.com/tada/pljava</url>
 	<description>Ant tasks useful in projects that use PL/Java</description>
 	<dependencies>
 		<dependency>

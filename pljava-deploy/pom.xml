@@ -8,7 +8,6 @@
 	</parent>
 	<artifactId>pljava-deploy</artifactId>
 	<name>PL/Java Deploy</name>
-	<url>https://github.com/tada/pljava</url>
 	<description>
 		A Java standalone utility to complete the SQL steps of deploying		PL/Java into a PostgreSQL database, over a JDBC connection
 	</description>

@@ -8,7 +8,6 @@
 	</parent>
 	<artifactId>pljava-examples</artifactId>
 	<name>PL/Java examples</name>
-	<url>https://github.com/tada/pljava</url>
 	<description>Examples of Java stored procedures using PL/Java</description>
 	<dependencies>
 		<dependency>
