@@ -52,7 +52,7 @@
 		<module>pljava-so</module>
 		<module>pljava-deploy</module>
 		<module>pljava-ant</module>
-    	<module>pljava-examples</module>
+		<module>pljava-examples</module>
 		<module>packaging</module>
 	</modules>
 
