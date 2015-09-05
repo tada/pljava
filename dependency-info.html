@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PL/Java: stored procedures, triggers, and functions for PostgreSQL™</title>
+    <title>Dependency Information</title>
     <style type="text/css" media="all">
       @import url("./css/maven-base.css");
       @import url("./css/maven-theme.css");
@@ -90,14 +90,14 @@
                           <a href="dependency-convergence.html" title="Dependency Convergence">Dependency Convergence</a>
             </li>
                       <li class="none">
-                          <a href="dependency-info.html" title="Dependency Information">Dependency Information</a>
-            </li>
+            <strong>Dependency Information</strong>
+          </li>
                       <li class="none">
                           <a href="distribution-management.html" title="Distribution Management">Distribution Management</a>
             </li>
                       <li class="none">
-            <strong>About</strong>
-          </li>
+                          <a href="index.html" title="About">About</a>
+            </li>
                       <li class="none">
                           <a href="issue-tracking.html" title="Issue Tracking">Issue Tracking</a>
             </li>
@@ -134,7 +134,16 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>PL/Java: stored procedures, triggers, and functions for PostgreSQL&#x2122;</h1><p>PL/Java is a free open-source extension for <a class="externalLink" href="http://www.postgresql.org/">PostgreSQL&#x2122;</a> that allows stored procedures, triggers, and functions to be written in the <a class="externalLink" href="https://www.oracle.com/java/">Java&#x2122;</a> language and executed in the backend. More about the features and benefits of PL/Java can be read on the <a class="externalLink" href="https://github.com/tada/pljava/wiki">wiki</a>.</p><div class="section"><h2>About this site<a name="About_this_site"></a></h2><p>You have reached the web site for comprehensive (largely machine generated) information on PL/Java, suitable for advanced use or for those interested in contributing to the project. More basic information on how to <a class="externalLink" href="https://github.com/tada/pljava/wiki/Installation-guide">set up</a> or <a class="externalLink" href="https://github.com/tada/pljava/wiki/User-guide">use</a> PL/Java can be found on the <a class="externalLink" href="https://github.com/tada/pljava/wiki">wiki</a>. The following sections offer very brief summaries.</p></div><div class="section"><h2>Use of PL/Java, in a nutshell<a name="Use_of_PLJava_in_a_nutshell"></a></h2><p>Backend functions and triggers are written in Java using a directly-connected, efficient version of the standard Java <a class="externalLink" href="https://docs.oracle.com/javase/tutorial/jdbc/">JDBC</a> API that PL/Java transparently provides, with enhanced capabilities found in the <a href="pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description">PL/Java API</a>.</p><p>PL/Java source files can use Java <a class="externalLink" href="https://docs.oracle.com/javase/tutorial/java/annotations/">annotations</a> from the <a href="pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/package-summary.html#package_description">org.postgresql.pljava.annotation package</a> to identify the methods and types that should be seen in PostgreSQL, as in this <a class="externalLink" href="https://github.com/tada/pljava/blob/master/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java">example code</a>.</p><p>When the sources are compiled, the Java compiler will also write an <a class="externalLink" href="https://github.com/tada/pljava/wiki/Sql-deployment-descriptor">SQLJ deployment descriptor</a> containing the SQL statments that must be executed when installing and uninstalling the compiled Java code in the PostgreSQL backend.</p><p>When the compiled Java code and the deployment descriptor file are stored together in a <a class="externalLink" href="https://docs.oracle.com/javase/tutorial/deployment/jar/index.html">JAR file</a>, PL/Java's <a class="externalLink" href="https://github.com/tada/pljava/wiki/SQL%20Functions#wiki-install_jar">install_jar</a> function will both load the code into PostgreSQL and execute the necessary SQL commands in the deployment descriptor, making the new types/functions/triggers available for use.</p></div><div class="section"><h2>Installation, in a nutshell<a name="Installation_in_a_nutshell"></a></h2><p>PL/Java can be downloaded, then <a class="externalLink" href="https://github.com/tada/pljava/wiki/Building-pl-java">built using Maven</a>. The build produces a native code library (file with name ending in .so, .dll, etc., depending on the plaform) and a JAR file. PostgreSQL must be configured to know where these are, in addition to the native library for the Java runtime itself. The <a class="externalLink" href="https://github.com/tada/pljava/wiki/Installation-guide">installation guide</a> has details.</p></div><div class="section"><h2>Moving PL/Java forward<a name="Moving_PLJava_forward"></a></h2><p>The <a class="externalLink" href="https://github.com/tada/pljava/wiki/Contribution-guide">Contribution Guide</a> describes how to contribute to PL/Java's development. While only the <a href="pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description">PL/Java API</a> module must be understood to <i>use</i> PL/Java, contributing may require getting familiar with PL/Java's other <a href="modules.html">modules</a>. Most have JavaDoc available, which will be found under each module's Project Reports menu.</p></div>
+        <div class="section"><h2>Dependency Information<a name="Dependency_Information"></a></h2><a name="Dependency_Information"></a><div class="section"><h3>Apache Maven<a name="Apache_Maven"></a></h3><a name="Apache_Maven"></a><div class="source"><pre>&lt;dependency&gt;
+  &lt;groupId&gt;org.postgresql&lt;/groupId&gt;
+  &lt;artifactId&gt;pljava.app&lt;/artifactId&gt;
+  &lt;version&gt;0.0.2-SNAPSHOT&lt;/version&gt;
+  &lt;type&gt;pom&lt;/type&gt;
+&lt;/dependency&gt;</pre></div></div><div class="section"><h3>Apache Buildr<a name="Apache_Buildr"></a></h3><a name="Apache_Buildr"></a><div class="source"><pre>'org.postgresql:pljava.app:pom:0.0.2-SNAPSHOT'</pre></div></div><div class="section"><h3>Apache Ivy<a name="Apache_Ivy"></a></h3><a name="Apache_Ivy"></a><div class="source"><pre>&lt;dependency org=&quot;org.postgresql&quot; name=&quot;pljava.app&quot; rev=&quot;0.0.2-SNAPSHOT&quot;&gt;
+  &lt;artifact name=&quot;pljava.app&quot; type=&quot;pom&quot; /&gt;
+&lt;/dependency&gt;</pre></div></div><div class="section"><h3>Groovy Grape<a name="Groovy_Grape"></a></h3><a name="Groovy_Grape"></a><div class="source"><pre>@Grapes(
+@Grab(group='org.postgresql', module='pljava.app', version='0.0.2-SNAPSHOT')
+)</pre></div></div><div class="section"><h3>Grails<a name="Grails"></a></h3><a name="Grails"></a><div class="source"><pre>compile 'org.postgresql:pljava.app:0.0.2-SNAPSHOT'</pre></div></div><div class="section"><h3>Leiningen<a name="Leiningen"></a></h3><a name="Leiningen"></a><div class="source"><pre>[org.postgresql/pljava.app &quot;0.0.2-SNAPSHOT&quot;]</pre></div></div><div class="section"><h3>SBT<a name="SBT"></a></h3><a name="SBT"></a><div class="source"><pre>libraryDependencies += &quot;org.postgresql&quot; % &quot;pljava.app&quot; % &quot;0.0.2-SNAPSHOT&quot;</pre></div></div></div>
       </div>
     </div>
     <div class="clear">
