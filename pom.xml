@@ -120,16 +120,6 @@
 				<enabled>true</enabled>
 			</snapshots>
 		</pluginRepository>
-		<pluginRepository>
-			<id>oss.sonatype.org</id>
-			<url>http://oss.sonatype.org/content/repositories/snapshots/</url>
-			<releases>
-				<enabled>false</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</pluginRepository>
 	</pluginRepositories>
 
 	<build>
@@ -160,7 +150,7 @@
 					<dependency>
 						<groupId>net.trajano.wagon</groupId>
 						<artifactId>wagon-git</artifactId>
-						<version>2.0.4-SNAPSHOT</version>
+						<version>2.0.4</version>
 					</dependency>
 				</dependencies>
 				<configuration>
