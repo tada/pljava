@@ -5,18 +5,54 @@
 	<artifactId>pljava.app</artifactId>
 	<version>0.0.2-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>PostgreSQL pl/java</name>
+	<name>PostgreSQL PL/Java</name>
+	<url>https://tada.github.io/pljava/</url>
 	<description>Java stored procedures for PostgreSQL</description>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+	
+	<organization>
+		<name>Tada AB</name>
+		<url>http://tada.se/eng/</url>
+	</organization>
+
+	<licenses>
+		<license>
+			<name>BSD 3-clause</name>
+			<comments>A business-friendly OSD-conformant license</comments>
+		</license>
+	</licenses>
+
+	<issueManagement>
+		<system>Github</system>
+		<url>https://github.com/tada/pljava/issues</url>
+	</issueManagement>
+
+	<mailingLists>
+		<mailingList>
+			<name>Mailing list for PL/Java users and developers</name>
+			<post>pljava-dev@lists.pgfoundry.org</post>
+			<archive>http://lists.pgfoundry.org/pipermail/pljava-dev/</archive>
+			<otherArchives>
+				<otherArchive>http://news.gmane.org/gmane.comp.db.postgresql.pljava</otherArchive>
+			</otherArchives>
+		</mailingList>
+	</mailingLists>
+	
+	<scm>
+		<connection>scm:git:https://github.com/tada/pljava.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/tada/pljava.git</developerConnection>
+		<url>https://github.com/tada/pljava/tree/master/</url>
+	</scm>
+
 	<modules>
 		<module>pljava-api</module>
 		<module>pljava</module>
+		<module>pljava-so</module>
 		<module>pljava-deploy</module>
 		<module>pljava-ant</module>
-    		<module>pljava-examples</module>
-		<module>pljava-so</module>
+		<module>pljava-examples</module>
 		<module>packaging</module>
 	</modules>
 
@@ -36,7 +72,7 @@
 		<site>
 			<id>site.pljava.tada.se</id>
 			<name>PL/Java Developer Info</name>
-			<url>http://tada.github.io/pljava/</url>
+			<url>github:http://tada.github.io/pljava/</url>
 		</site>
 	</distributionManagement>
 
@@ -101,10 +137,43 @@
 					</compilerArguments>
 				</configuration>
 			</plugin>
+    		<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-site-plugin</artifactId>
+				<version>3.0</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.apache.maven.doxia</groupId>
+						<artifactId>doxia-module-markdown</artifactId>
+						<version>1.6</version>
+					</dependency>
+					<dependency>
+						<groupId>net.trajano.wagon</groupId>
+						<artifactId>wagon-git</artifactId>
+						<version>2.0.4</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<relativizeDecorationLinks>false</relativizeDecorationLinks>
+				</configuration>
+				<executions>
+					<execution>
+						<id>attach-descriptor</id>
+						<goals>
+							<goal>attach-descriptor</goal>
+						</goals>
+					</execution>
+				</executions>
+    		</plugin>
 		</plugins>
 	</build>
 	<reporting>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-project-info-reports-plugin</artifactId>
+				<version>2.8</version>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>

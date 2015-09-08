@@ -7,8 +7,10 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-deploy</artifactId>
-	<name>pl/java deploy</name>
-	<description>pl/java deployment utility</description>
+	<name>PL/Java Deploy</name>
+	<description>
+		A Java standalone utility to complete the SQL steps of deploying		PL/Java into a PostgreSQL database, over a JDBC connection
+	</description>
 	<build>
 		<plugins>
 			<plugin>

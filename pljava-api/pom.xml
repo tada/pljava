@@ -7,8 +7,8 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-api</artifactId>
-	<name>PL/JAVA API</name>
-	<description>The api for Java stored procedures</description>
+	<name>PL/Java API</name>
+	<description>The API for Java stored procedures in PostgreSQL using PL/Java</description>
 	<build>
 		<plugins>
 			<plugin>

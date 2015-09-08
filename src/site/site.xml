@@ -1,0 +1,31 @@
+<project
+ xmlns="http://maven.apache.org/DECORATION/1.6.0"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation=
+ "http://maven.apache.org/DECORATION/1.6.0
+  http://maven.apache.org/xsd/decoration-1.6.0.xsd"
+ name="PostgreSQL PL/Java">
+	<bannerLeft>
+		<name>PL/Java - Stored procedures for PostgreSQL in Java</name>
+		<src>images/pljava_logo.jpg</src>
+		<alt>PL/Java logo combining the PostgreSQL elephant and a Java bean</alt>
+		<href>${project.url}</href>
+	</bannerLeft>
+	<body>
+		<links>
+			<item name='Wiki' href='https://github.com/tada/pljava/wiki/'/>
+			<item name='Issues' href='${project.issueManagement.url}'/>
+			<item name='Mailing list'
+			 href='http://lists.pgfoundry.org/pipermail/pljava-dev/'/>
+			<item name='Code' href='${project.scm.url}'/>
+		</links>
+		<menu name='Wiki shortcuts' inherit='top'>
+			<item name='Installation guide'
+			 href='https://github.com/tada/pljava/wiki/Installation-guide'/>
+			<item name='User guide'
+			 href='https://github.com/tada/pljava/wiki/User-guide'/>
+		</menu>
+		<menu ref='modules'/>
+		<menu ref='reports' inherit='top'/>
+	</body>
+</project>

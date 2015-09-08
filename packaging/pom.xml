@@ -7,8 +7,8 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>packaging</artifactId>
-	<name>pl/java packaging</name>
-	<description>Package pl/java build for zip/tar distribution</description>
+	<name>PL/Java packaging</name>
+	<description>Package PL/Java build for zip/tar distribution</description>
 	<packaging>pom</packaging>
 
 	<dependencies>

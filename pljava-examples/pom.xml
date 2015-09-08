@@ -7,8 +7,8 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-examples</artifactId>
-	<name>pl/java examples</name>
-	<description>Examples of java stored procedures</description>
+	<name>PL/Java examples</name>
+	<description>Examples of Java stored procedures using PL/Java</description>
 	<dependencies>
 		<dependency>
 			<groupId>org.postgresql</groupId>

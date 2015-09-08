@@ -7,8 +7,8 @@
 		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-ant</artifactId>
-	<name>pl/java Ant Tasks</name>
-	<description>Ant tasks for pl/java</description>
+	<name>PL/Java Ant tasks</name>
+	<description>Ant tasks useful in projects that use PL/Java</description>
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.ant</groupId>
