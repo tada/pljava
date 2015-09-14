@@ -254,8 +254,8 @@
 								</pluginExecution>
 								<pluginExecution>
 									<pluginExecutionFilter>
-										<groupId>org.apache.maven.plugins</groupId>
-										<artifactId>maven-nar-plugin</artifactId>
+										<groupId>com.github.maven-nar</groupId>
+										<artifactId>nar-maven-plugin</artifactId>
 										<versionRange>[3.1.0]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
