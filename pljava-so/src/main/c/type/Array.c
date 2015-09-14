@@ -17,10 +17,7 @@ void arraySetNull(bits8* bitmap, int offset, bool flag)
 	{
 		int bitmask = 1 << (offset % 8);	
 		bitmap += offset / 8;
-		if(flag)
-			*bitmap &= ~bitmask;
-		else
-			*bitmap |= bitmask;
+		*bitmap = (bits8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
 	}
 }
 
