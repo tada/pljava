@@ -51,6 +51,25 @@
 				</plugins>
 			</build>
 		</profile>
+
+		<profile>
+			<id>wnosign</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+							<configuration>
+								<c>
+									<options>
+										<option>-Wno-sign-conversion</option>
+									</options>
+								</c>
+							</configuration>
+						<artifactId>nar-maven-plugin</artifactId>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 	
 	<build>
