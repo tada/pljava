@@ -88,7 +88,7 @@ void Exception_throw(int errCode, const char* errMessage, ...)
 		 */
 		for (idx = 0; idx < 5; ++idx)
 		{
-			buf[idx] = PGUNSIXBIT(errCode);
+			buf[idx] = (char)PGUNSIXBIT(errCode);
 			errCode >>= 6;
 		}
 		buf[idx] = 0;

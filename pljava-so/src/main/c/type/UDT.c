@@ -307,7 +307,7 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td,
 	Form_pg_namespace nspStruct;
 	TypeClass udtClass;
 	UDT udt;
-	int signatureLen;
+	Size signatureLen;
 	jstring sqlTypeName;
 	char* className;
 	char* classSignature;

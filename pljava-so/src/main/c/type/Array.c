@@ -32,7 +32,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 #endif
 {
 	ArrayType* v;
-	int nBytes = elemSize * nElems;
+	Size nBytes = elemSize * nElems;
 	MemoryContext currCtx = Invocation_switchToUpperContext();
 
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
@@ -41,7 +41,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 	v = (ArrayType*)palloc0(nBytes);
 	v->flags &= ~LEAFKEY;
 #else
-	int dataoffset;
+	Size dataoffset;
 	if(withNulls)
 	{
 		dataoffset = ARR_OVERHEAD_WITHNULLS(1, nElems);
@@ -53,7 +53,8 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 		nBytes += ARR_OVERHEAD_NONULLS(1);
 	}
 	v = (ArrayType*)palloc0(nBytes);
-	v->dataoffset = dataoffset;
+	AssertVariableIsOfType(v->dataoffset, int32);
+	v->dataoffset = (int32)dataoffset;
 #endif
 	MemoryContextSwitchTo(currCtx);
 
