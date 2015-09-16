@@ -12,6 +12,11 @@
 		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
 	</description>
 	<packaging>nar</packaging>
+	
+	<properties>
+		<!-- use -Dnar.cores=1 if non-interleaved warning messages wanted -->
+		<nar.cores>0</nar.cores>
+	</properties>
 
 	<profiles>
 		<profile>
@@ -146,6 +151,7 @@
 				<extensions>true</extensions>
 
 				<configuration>
+					<maxCores>${nar.cores}</maxCores>
 					<!-- Generates C header files from Java class files. -->
 					<javah>
 						<classPaths>
