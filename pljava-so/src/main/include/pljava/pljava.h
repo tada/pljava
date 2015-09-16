@@ -35,6 +35,14 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include <tcop/tcopprot.h>
 
 /*
+ * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
+ */
+#ifndef AssertVariableIsOfType
+#define AssertVariableIsOfType(varname, typename)
+#endif
+
+
+/*
  * GETSTRUCT require "access/htup_details.h" to be included in PG9.3
  */
 #if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
