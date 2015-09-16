@@ -58,6 +58,7 @@
 				<plugins>
 					<plugin>
 						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
 							<configuration>
 								<c>
 									<options>
@@ -65,7 +66,6 @@
 									</options>
 								</c>
 							</configuration>
-						<artifactId>nar-maven-plugin</artifactId>
 					</plugin>
 				</plugins>
 			</build>
