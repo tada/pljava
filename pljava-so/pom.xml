@@ -12,19 +12,6 @@
 		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
 	</description>
 	<packaging>nar</packaging>
-	
-	<properties>
-		<!-- default values when NOT using Microsoft Visual C compiler -->
-		<pkglibdir>"target/lib/"</pkglibdir>
-		<msvc.rint>msvc.rint</msvc.rint>
-		<pgsql.include.extradir1></pgsql.include.extradir1>
-		<pgsql.include.extradir2></pgsql.include.extradir2>
-		<!-- TODO: Check how this works for gcj. -->
-		<jvm.lib.dir>${sun.boot.library.path}/server</jvm.lib.dir>
-		<!-- MSVC requires postgres.lib, so supply dummy reference for other platforms -->
-		<postgres.lib.name>jvm</postgres.lib.name>
-		<postgres.lib.path>${jvm.lib.dir}</postgres.lib.path>
-	</properties>
 
 	<profiles>
 		<profile>
@@ -34,18 +21,40 @@
 					<name>env.VCINSTALLDIR</name>
 				</property>
 			</activation>
-			<properties>
-				<!-- override values when using Microsoft Visual C compiler -->
-				<pkglibdir>\"target/lib/\"</pkglibdir>
-				<!-- add only the additional suffix to avoid injecting empty entries in command line -->
-				<pgsql.include.extradir1>port/win32</pgsql.include.extradir1>
-				<pgsql.include.extradir2>port/win32_msvc</pgsql.include.extradir2>
-				<jvm.lib.dir>${JAVA6_HOME}/lib</jvm.lib.dir>
-				<postgres.lib.name>postgres</postgres.lib.name>
-				<postgres.lib.path>${PGSQL_PKGLIBDIR}</postgres.lib.path>
-				<!-- Need this for Visual Studio 2013 and Postgresql v9.3 and below -->
-				<msvc.rint>${MSVC_RINT}</msvc.rint>
-			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<c>
+								<defines combine.children='append'>
+									<!-- Need this for Visual Studio 2013 and Postgresql v9.3 and below -->
+									<define>${MSVC_RINT}</define>
+								</defines>
+								<includePaths combine.children='append'>
+									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
+									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32_msvc</includePath>
+								</includePaths>
+							</c>
+							<linker>
+								<libs combine.children='append'>
+									<lib>
+										<name>jvm</name>
+										<type>shared</type>
+										<directory>${java.home}/lib</directory>
+									</lib>
+									<lib>
+										<name>postgres</name>
+										<type>shared</type>
+										<directory>${PGSQL_PKGLIBDIR}</directory>
+									</lib>
+								</libs>
+							</linker>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 	</profiles>
 	
@@ -130,7 +139,6 @@
 							<classPath>${basedir}/../pljava-api/target/classes/</classPath>
 						</classPaths>
 						<classDirectory>${basedir}/../pljava/target/classes/</classDirectory>
-						<!-- The following needs https://github.com/maven-nar/maven-nar-plugin/pull/22 -->
 						<extraClasses>
 							<extraClass>java.sql.Types</extraClass>
 						</extraClasses>
@@ -142,20 +150,18 @@
 						<name>${CPP_COMPILER}</name>
 				-->
 						<defines>
-							<define>PKGLIBDIR=${pkglibdir}</define>
+							<!-- What PKGLIBDIR controls is the expansion of
+							     $libdir if used in pljava.classpath
+							-->
+							<define>PKGLIBDIR=${PGSQL_PKGLIBDIR}</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
 							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
 							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
-							<!-- for MSVC -->
-							<define>${msvc.rint}</define>
 						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
 							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
-							<!-- include paths for MSVC required headers -->
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir1}</includePath>
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}/${pgsql.include.extradir2}</includePath>
 							<includePath>${basedir}/src/main/include/</includePath>
 							<includePath>${basedir}/target/nar/javah-include/</includePath>
 						</includePaths>
@@ -167,12 +173,8 @@
 							<lib>
 								<name>jvm</name>
 								<type>shared</type>
-								<directory>${jvm.lib.dir}</directory>
-							</lib>
-							<lib>
-								<name>${postgres.lib.name}</name>
-								<type>shared</type>
-								<directory>${postgres.lib.path}</directory>
+								<!-- Never mind gcj. pipermail/pljava-dev/2013/002081.html -->
+								<directory>${sun.boot.library.path}/server</directory>
 							</lib>
 							<lib>
 								<name>ecpg</name>
