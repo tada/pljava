@@ -40,11 +40,6 @@
 							<linker>
 								<libs combine.children='append'>
 									<lib>
-										<name>jvm</name>
-										<type>shared</type>
-										<directory>${java.home}/lib</directory>
-									</lib>
-									<lib>
 										<name>postgres</name>
 										<type>shared</type>
 										<directory>${PGSQL_PKGLIBDIR}</directory>
@@ -167,15 +162,16 @@
 						</includePaths>
 					</c>
 
+					<java>
+						<!-- This is supposed to be the same as adding the
+						     exact right <lib> specification under <linker>
+							 to refer to libjvm.
+						-->
+						<link>true</link>
+					</java>
 					<!-- Defines linker flags "-ljvm -L.../server" -->
 					<linker>
 						<libs>
-							<lib>
-								<name>jvm</name>
-								<type>shared</type>
-								<!-- Never mind gcj. pipermail/pljava-dev/2013/002081.html -->
-								<directory>${sun.boot.library.path}/server</directory>
-							</lib>
 							<lib>
 								<name>ecpg</name>
 								<type>shared</type>
