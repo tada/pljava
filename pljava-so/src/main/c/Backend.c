@@ -43,9 +43,19 @@
 #include "utils/timeout.h"
 #endif
 
-/* Example format: "/usr/local/pgsql/lib" */
+/* Example format: /usr/local/pgsql/lib */
 #ifndef PKGLIBDIR
 #error "PKGLIBDIR needs to be defined to compile this file."
+/*
+ * Though really, the only bad thing that would happen without it is $libdir
+ * wouldn't be expandable in pljava.classpath.
+ */
+#else
+/*
+ * CppAsString2 first appears in PG8.4.  IF that's a problem, the definition
+ * is really simple.
+ */
+#define PKGLIBDIRSTRING CppAsString2(PKGLIBDIR)
 #endif
 
 /* Include the 'magic block' that PostgreSQL 8.2 and up will use to ensure
@@ -259,16 +269,18 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 		initStringInfo(&buf);
 		if(*path == '$')
 		{
+#if defined(PKGLIBDIRSTRING)
 			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
 			{
 				len -= 7;
 				path += 7;
-				appendStringInfo(&buf, PKGLIBDIR);
+				appendStringInfo(&buf, PKGLIBDIRSTRING);
 			}
 			else
+#endif
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name '%*s' in dynamic library path", (int)len, path)));
+					errmsg("invalid macro name '%*s' in PL/Java classpath", (int)len, path)));
 		}
 
 		if(len > 0)
