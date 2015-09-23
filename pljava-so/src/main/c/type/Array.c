@@ -166,7 +166,9 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 static bool _Array_canReplaceType(Type self, Type other)
 {
 	Type oe = Type_getElementType(other);
-	return oe == 0 ? false : Type_canReplaceType(Type_getElementType(self), oe);
+	if ( oe == 0 )
+		return false;
+	return Type_canReplaceType(Type_getElementType(self), oe);
 }
 
 Type Array_fromOid(Oid typeId, Type elementType)
