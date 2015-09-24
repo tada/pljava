@@ -28,7 +28,7 @@
 static jobject coerceScalarDatum(UDT self, Datum arg)
 {
 	jobject result;
-	int16 dataLen = Type_getLength((Type)self);
+	int32 dataLen = Type_getLength((Type)self);
 	jclass javaClass = Type_getJavaClass((Type)self);
 
 	if(dataLen == -2)
@@ -92,7 +92,7 @@ static jobject coerceTupleDatum(UDT udt, Datum arg)
 static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
-	int16 dataLen = Type_getLength((Type)self);
+	int32 dataLen = Type_getLength((Type)self);
 	if(dataLen == -2)
 	{
 		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
