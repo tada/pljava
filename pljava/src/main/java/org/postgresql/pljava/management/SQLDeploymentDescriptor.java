@@ -47,7 +47,46 @@ import org.postgresql.pljava.SessionManager;
  * &lt;SQL token&gt; ::= an SQL lexical unit specified by the term &quot;&lt;token&gt;&quot; in
  * Subclause 5.2, &quot;&lt;token&gt;&quot; and &quot;&lt;separator&gt;&quot;, in ISO/IEC 9075-2.</code></pre>
  *
+ * <p><strong>Note:</strong> this parser departs from the specification for
+ * {@code <descriptor file>} in the following ways:</p>
+ * <ul>
+ *  <li>Per ISO/IEC 9075-13, an {@code <SQL statement>} (not wrapped as an
+ *  {@code <implementor block>}), may be one of only a few types of statement:
+ *  declaring a procedure, function, or type; granting {@code USAGE} on a
+ *  type, or {@code EXECUTE} on a procedure or function; declaring the ordering
+ *  of a type. Any SQL that is not one of those, or does not use the exact
+ *  ISO/IEC 9075 syntax, is allowed only within an {@code <implementor block>}.
+ *  This parser does not enforce that restriction. This behavior is strictly
+ *  more lax than the spec, and will not reject any standards-conformant
+ *  descriptor file.</li>
+ *  <li>Officially, an {@code <implementor name>} is an SQL {@code identifier}
+ *  and may have any of the forms defined in 9075-2 subclause 5.2. This parser
+ *  (a) only recognizes the {@code <regular identifier>} form (that is,
+ *  non-double-quoted, no Unicode escape, matched case-insensitively), and (b)
+ *  replaces the SQL allowable-character rules {@code <identifier start>} and
+ *  {@code <identifier extend>} with the similar but nonidentical Java rules
+ *  {@link Character#isJavaIdentifierStart(char)} and
+ *  {@link Character#isJavaIdentifierPart(char)} (which do not work for
+ *  characters in the {@linkplain Character#isSupplementaryCodePoint(int)
+ *  supplementary character} range). In unlikely cases this
+ *  could lead to rejecting a deployment descriptor that in fact conforms to the
+ *  standard.</li>
+ *  <li>Through PL/Java 1.4.3, this parser has not recognized {@code --} as the
+ *  start of an SQL comment (which it is), and <em>has</em> recognized
+ *  {@code //}, which isn't.</li>
+ *  <li>Also through PL/Java 1.4.3, all whitespace (outside of quoted literals
+ *  and identifiers) has been collapsed to a single {@code SPACE}, which would
+ *  run afoul of the SQL rules for quoted literal/identifier continuation, if
+ *  a deployment descriptor were ever to use that.</li>
+ * </ul>
+ * <p>The most conservative way to generate a deployment descriptor for
+ * PL/Java's consumption is to wrap <em>all</em> commands as
+ * {@code <implementor block>} and ensure that any {@code <implementor name>}
+ * is both a valid Java identifier and a valid SQL {@code <regular identifier>}
+ * containing nothing from the supplementary character range.
+ * </p>
  * @author Thomas Hallgren
+ * @author Chapman Flack
  */
 public class SQLDeploymentDescriptor
 {
