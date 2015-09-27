@@ -750,10 +750,16 @@ jmethodID JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig)
 jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig)
 {
 	jmethodID result;
+	jobject exh;
 	BEGIN_CALL
 	result = (*env)->GetStaticMethodID(env, clazz, name, sig);
-	if(result == 0)
-		(*env)->ExceptionClear(env);
+	if(result == 0) {
+		exh = (*env)->ExceptionOccurred(env);
+		if ( 0 == exh
+			||  (*env)->IsInstanceOf(env, exh, NoSuchMethodError_class) )
+			(*env)->ExceptionClear(env); /* NoSuch... is only thing to ignore */
+		(*env)->DeleteLocalRef(env, exh);
+	}
 	END_CALL
 	return result;
 }

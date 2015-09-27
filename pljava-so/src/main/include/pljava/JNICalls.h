@@ -55,6 +55,8 @@ extern jmethodID SQLException_getSQLState;
 extern jclass    UnsupportedOperationException_class;
 extern jmethodID UnsupportedOperationException_init;
 
+extern jclass    NoSuchMethodError_class;
+
 /*
  * Misc JNIEnv mappings. See <jni.h> for more info.
  */
