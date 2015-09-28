@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
 import static javax.tools.Diagnostic.Kind.ERROR;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 
+import static org.postgresql.pljava.sqlgen.Lexicals.ISO_PG_JAVA_IDENTIFIER;
+
 /**
  * Class for writing an SQLJ deployment descriptor file in proper form, given
  * snippets of SQL code for deployment and undeployment that have already been
@@ -43,14 +45,6 @@ class DDRWriter
 	 */
 	static void emit( Snippet[] snips, DDRProcessorImpl p) throws IOException
 	{
-		String implementor = null;
-		// No caller logic controls the implementor string yet. The Snippet
-		// interface could be extended to record whether particular commands
-		// are generic or intended for a specific implementor, but so far that
-		// hasn't been done. Arguably this whole tool may be built around
-		// PostgreSQL assumptions and should most correctly use BEGIN POSTGRESQL
-		// for every command, but so far it is not that pedantic either.
-
 		if ( ! ensureLexable( snips, p) )
 			return;
 
@@ -61,13 +55,13 @@ class DDRWriter
 		
 		for ( Snippet snip : snips )
 			for ( String s : snip.deployStrings() )
-				writeCommand( w, s, implementor);
+				writeCommand( w, s, snip.implementor());
 
 		w.write( "END INSTALL\",\n\"BEGIN REMOVE\n");
 		
 		for ( int i = snips.length; i --> 0; )
 			for ( String s : snips[i].undeployStrings() )
-				writeCommand( w, s, implementor);
+				writeCommand( w, s, snips[i].implementor());
 
 		w.write( "END REMOVE\"\n}\n");
 		
@@ -151,9 +145,28 @@ class DDRWriter
 	{
 		boolean errorRaised = false;
 		Matcher m = checker.matcher( "");
+		/*
+		 * Restricting this identifier to satisfy Java rules as well as SQL ones
+		 * is unnecessarily restrictive (it isn't going to appear in Java code,
+		 * after all), but at present those are the rules used to scan it in
+		 * SQLDeploymentDescriptor, so it had better fit.
+		 */
+		Matcher i = ISO_PG_JAVA_IDENTIFIER.matcher( "");
 		
 		for ( Snippet snip : snips )
 		{
+			String implementor = snip.implementor();
+			if ( null != implementor )
+			{
+				i.reset( implementor);
+				if ( ! i.matches() )
+				{
+					p.msg( ERROR,
+						"non-SQL- or -Java-structured implementor-name: %s",
+						implementor
+					);
+				}
+			}
 			for ( String s : snip.deployStrings() )
 			{
 				m.reset( s);

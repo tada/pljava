@@ -488,6 +488,14 @@ class DDRProcessorImpl
 				a[i++] = k.cast(av.getValue());
 			return a;
 		}
+
+		/**
+		 * Supply the required implementor() method for those subclasses
+		 * that will implement {@link Snippet}.
+		 */
+		public String implementor() { return _implementor; }
+
+		String _implementor = "PostgreSQL";
 	}
 
 	/**
@@ -1473,6 +1481,12 @@ class DDRProcessorImpl
  */
 interface Snippet
 {
+	/**
+	 * An {@code <implementor name>} that will be used to wrap each command
+	 * from this Snippet as an {@code <implementor block>}. If null, the
+	 * commands will be emitted as plain {@code <SQL statement>}s.
+	 */
+	public String implementor();
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
