@@ -332,7 +332,19 @@ class DDRProcessorImpl
 		
 		for ( Vertex<Snippet> v : vs )
 			for ( String s : v.payload.requires() )
-				provider.get( s).precede( v);
+			{
+				Vertex<Snippet> p = provider.get( s);
+				if ( null != p )
+					p.precede( v);
+				else if ( s == v.payload.implementor() )
+					/*
+					 * It's the implicit requires(implementor()). Bump the
+					 * indegree anyway so the snippet won't be emitted until
+					 * the cycle breaker code (see below) sets it free after
+					 * any others that can be handled first.
+					 */
+					++ v.indegree;
+			}
 
 		Snippet[] snips = new Snippet [ vs.size() ];
 
@@ -347,7 +359,7 @@ class DDRProcessorImpl
 			}
 		}
 
-		for ( int i = 0 ; ; )
+queuerunning: for ( int i = 0 ; ; )
 		{
 			while ( ! q.isEmpty() )
 			{
@@ -358,7 +370,31 @@ class DDRProcessorImpl
 					consumer.remove(p);
 			}
 			if ( vs.isEmpty() )
-				break;
+				break; // all done
+			/*
+			 * There are snippets remaining to output but they all have
+			 * indegree > 0, normally a 'cycle' error. But somewhere there may
+			 * be one with indegree exactly 1 and an implicit requirement of its
+			 * own implementor tag, with no snippet on record to provide it.
+			 * That's allowed (maybe the installing/removing environment will
+			 * be "providing" that tag anyway), so set one such snippet free
+			 * and see how much farther we get.
+			 */
+			for ( Iterator<Vertex<Snippet>> it = vs.iterator(); it.hasNext(); )
+			{
+				Vertex<Snippet> v = it.next();
+				if ( 1 < v.indegree  ||  null == v.payload.implementor() )
+					continue;
+				if ( provider.containsKey( v.payload.implementor()) )
+					continue;
+				-- v.indegree;
+				it.remove();
+				q.add( v);
+				continue queuerunning;
+			}
+			/*
+			 * Got here? It's a real cycle ... nothing to be done.
+			 */
 			for ( String s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
 			return;
@@ -502,6 +538,24 @@ class DDRProcessorImpl
 		public String implementor() { return _implementor; }
 
 		String _implementor = "PostgreSQL";
+
+		public void setImplementor( String imp)
+		{
+			_implementor = "".equals( imp) ? null : imp;
+		}
+
+		/**
+		 * Use from characterize() in any subclass implementing Snippet.
+		 */
+		protected String[] augmentRequires( String req[], String imp)
+		{
+			if ( null == imp )
+				return req;
+			String[] newreq = new String [ 1 + req.length ];
+			System.arraycopy( req, 0, newreq, 0, req.length);
+			newreq[req.length] = imp;
+			return newreq;
+		}
 	}
 
 	/**
@@ -641,7 +695,6 @@ class DDRProcessorImpl
 
 		public String[]   deployStrings() { return _install; }
 		public String[] undeployStrings() { return _remove; }
-		public void        characterize() { }
 		
 		String[] _install;
 		String[] _remove;
@@ -667,6 +720,11 @@ class DDRProcessorImpl
 		{
 			_requires = avToArray( o, String.class);
 		}
+
+		public void characterize()
+		{
+			_requires = augmentRequires( _requires, implementor());
+		}
 	}
 	
 	class TriggerImpl
@@ -683,6 +741,7 @@ class DDRProcessorImpl
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
+		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
 		String[] _arguments;
 		Event[] 	_events;
@@ -1021,6 +1080,8 @@ class DDRProcessorImpl
 				msg( Kind.ERROR, func,
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
+
+			_requires = augmentRequires( _requires, implementor());
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
