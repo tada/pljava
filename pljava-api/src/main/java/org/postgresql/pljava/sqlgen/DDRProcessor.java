@@ -28,6 +28,7 @@ import java.sql.Timestamp;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -308,8 +309,7 @@ class DDRProcessorImpl
 	 */
 	void generateDescriptor()
 	{
-		List<Vertex<Snippet>> vs =
-			new ArrayList<Vertex<Snippet>>( snippets.size());
+		Queue<Vertex<Snippet>> vs =	new LinkedList<Vertex<Snippet>>();
 		Map<String, Vertex<Snippet>> provider =
 			new HashMap<String, Vertex<Snippet>>();
 		Set<String> consumer = new HashSet<String>();
@@ -330,32 +330,38 @@ class DDRProcessorImpl
 				consumer.add( s);
 		}
 		
-		consumer.removeAll( provider.keySet());
-		
-		for ( String s : consumer )
-		{
-			msg( Kind.ERROR, "tag \"%s\" is required but nowhere provided", s);
-			errorRaised = true;
-		}
-		
-		if ( errorRaised )
-			return;
-
 		for ( Vertex<Snippet> v : vs )
 			for ( String s : v.payload.requires() )
 				provider.get( s).precede( v);
 
-		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
-		for ( Vertex<Snippet> v : vs )
-			if ( 0 == v.indegree )
-				q.add( v);
-
 		Snippet[] snips = new Snippet [ vs.size() ];
-		for ( int i = 0 ; i < snips.length ; ++ i )
+
+		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
+		for ( Iterator<Vertex<Snippet>> it = vs.iterator() ; it.hasNext() ; )
 		{
-			Vertex<Snippet> v = q.remove();
-			snips[i] = v.payload;
-			v.use( q);
+			Vertex<Snippet> v = it.next();
+			if ( 0 == v.indegree )
+			{
+				q.add( v);
+				it.remove();
+			}
+		}
+
+		for ( int i = 0 ; ; )
+		{
+			while ( ! q.isEmpty() )
+			{
+				Vertex<Snippet> v = q.remove();
+				snips[i++] = v.payload;
+				v.use( q, vs);
+				for ( String p : v.payload.provides() )
+					consumer.remove(p);
+			}
+			if ( vs.isEmpty() )
+				break;
+			for ( String s : consumer )
+				msg( Kind.ERROR, "requirement in a cycle: %s", s);
+			return;
 		}
 		
 		try
@@ -1542,10 +1548,20 @@ class Vertex<P>
 		adj.add( v);
 	}
 	
-	void use( Queue<Vertex<P>> q)
+	void use( Collection<Vertex<P>> q)
 	{
 		for ( Vertex<P> v : adj )
 			if ( 0 == -- v.indegree )
 				q.add( v);
+	}
+
+	void use( Collection<Vertex<P>> q, Collection<Vertex<P>> vs)
+	{
+		for ( Vertex<P> v : adj )
+			if ( 0 == -- v.indegree )
+			{
+				vs.remove( v);
+				q.add( v);
+			}
 	}
 }
