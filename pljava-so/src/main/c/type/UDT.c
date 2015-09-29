@@ -28,7 +28,7 @@
 static jobject coerceScalarDatum(UDT self, Datum arg)
 {
 	jobject result;
-	int16 dataLen = Type_getLength((Type)self);
+	int32 dataLen = Type_getLength((Type)self);
 	jclass javaClass = Type_getJavaClass((Type)self);
 
 	if(dataLen == -2)
@@ -92,7 +92,7 @@ static jobject coerceTupleDatum(UDT udt, Datum arg)
 static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
-	int16 dataLen = Type_getLength((Type)self);
+	int32 dataLen = Type_getLength((Type)self);
 	if(dataLen == -2)
 	{
 		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
@@ -307,7 +307,7 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td,
 	Form_pg_namespace nspStruct;
 	TypeClass udtClass;
 	UDT udt;
-	int signatureLen;
+	Size signatureLen;
 	jstring sqlTypeName;
 	char* className;
 	char* classSignature;

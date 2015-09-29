@@ -228,7 +228,7 @@ jclass Type_getJavaClass(Type self)
 			/* L<object name>; should be just <object name>. Strange
 			 * since the L and ; are retained if its an array.
 			 */
-			int len = strlen(cp) - 2;
+			size_t len = strlen(cp) - 2;
 			char* bp = palloc(len + 1);
 			memcpy(bp, cp + 1, len);
 			bp[len] = 0;
@@ -428,7 +428,7 @@ Type Type_fromJavaType(Oid typeId, const char* javaTypeName)
 	CacheEntry ce = (CacheEntry)HashMap_getByString(s_obtainerByJavaName, javaTypeName);
 	if(ce == 0)
 	{
-		int jtlen = strlen(javaTypeName) - 2;
+		size_t jtlen = strlen(javaTypeName) - 2;
 		if(jtlen > 0 && strcmp("[]", javaTypeName + jtlen) == 0)
 		{
 			Type type;

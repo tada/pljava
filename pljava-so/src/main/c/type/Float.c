@@ -126,7 +126,7 @@ static jvalue _Float_coerceDatum(Type self, Datum arg)
 
 static Datum _Float_coerceObject(Type self, jobject floatObj)
 {
-	return _asDatum(floatObj == 0 ? 0.0 : JNI_callFloatMethod(floatObj, s_Float_floatValue));
+	return _asDatum(floatObj == 0 ? 0.0f : JNI_callFloatMethod(floatObj, s_Float_floatValue));
 }
 
 static Type _float_createArrayType(Type self, Oid arrayTypeId)

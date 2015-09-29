@@ -17,10 +17,7 @@ void arraySetNull(bits8* bitmap, int offset, bool flag)
 	{
 		int bitmask = 1 << (offset % 8);	
 		bitmap += offset / 8;
-		if(flag)
-			*bitmap &= ~bitmask;
-		else
-			*bitmap |= bitmask;
+		*bitmap = (bits8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
 	}
 }
 
@@ -35,7 +32,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 #endif
 {
 	ArrayType* v;
-	int nBytes = elemSize * nElems;
+	Size nBytes = elemSize * nElems;
 	MemoryContext currCtx = Invocation_switchToUpperContext();
 
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
@@ -44,7 +41,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 	v = (ArrayType*)palloc0(nBytes);
 	v->flags &= ~LEAFKEY;
 #else
-	int dataoffset;
+	Size dataoffset;
 	if(withNulls)
 	{
 		dataoffset = ARR_OVERHEAD_WITHNULLS(1, nElems);
@@ -56,7 +53,8 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 		nBytes += ARR_OVERHEAD_NONULLS(1);
 	}
 	v = (ArrayType*)palloc0(nBytes);
-	v->dataoffset = dataoffset;
+	AssertVariableIsOfType(v->dataoffset, int32);
+	v->dataoffset = (int32)dataoffset;
 #endif
 	MemoryContextSwitchTo(currCtx);
 
@@ -168,7 +166,9 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 static bool _Array_canReplaceType(Type self, Type other)
 {
 	Type oe = Type_getElementType(other);
-	return oe == 0 ? false : Type_canReplaceType(Type_getElementType(self), oe);
+	if ( oe == 0 )
+		return false;
+	return Type_canReplaceType(Type_getElementType(self), oe);
 }
 
 Type Array_fromOid(Oid typeId, Type elementType)

@@ -818,8 +818,8 @@ bool Function_isCurrentReadOnly(void)
 	/* function will be 0 during resolve of class and java function. At
 	 * that time, no updates are allowed (or needed).
 	 */
-	return (currentInvocation->function == 0)
-		? true
-		: currentInvocation->function->readOnly;
+	if (currentInvocation->function == 0)
+		return true;
+	return currentInvocation->function->readOnly;
 }
 

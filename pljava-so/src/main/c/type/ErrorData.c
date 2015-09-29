@@ -191,7 +191,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getSql
 	errCode = ((ErrorData*)p2l.ptrVal)->sqlerrcode;
 	for (idx = 0; idx < 5; ++idx)
 	{
-		buf[idx] = PGUNSIXBIT(errCode);
+		buf[idx] = (char)PGUNSIXBIT(errCode); /*why not cast in macro?*/
 		errCode >>= 6;
 	}
 	buf[idx] = 0;

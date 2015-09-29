@@ -172,7 +172,7 @@ extern DLLIMPORT pg_tz* global_timezone;
 #endif
 #endif
 
-static int Timestamp_getTimeZone(pg_time_t time)
+static int32 Timestamp_getTimeZone(pg_time_t time)
 {
 #if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
 	struct pg_tm* tx = pg_localtime(&time);
@@ -181,7 +181,7 @@ static int Timestamp_getTimeZone(pg_time_t time)
 #else
 	struct pg_tm* tx = pg_localtime(&time, session_timezone);
 #endif
-	return -tx->tm_gmtoff;
+	return -(int32)tx->tm_gmtoff;
 }
 
 int32 Timestamp_getTimeZone_id(int64 dt)
