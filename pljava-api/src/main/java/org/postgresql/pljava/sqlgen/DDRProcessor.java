@@ -539,9 +539,10 @@ queuerunning: for ( int i = 0 ; ; )
 
 		String _implementor = "PostgreSQL";
 
-		public void setImplementor( String imp)
+		public void setImplementor( Object o, boolean explicit, Element e)
 		{
-			_implementor = "".equals( imp) ? null : imp;
+			if ( explicit )
+				_implementor = "".equals( o) ? null : (String)o;
 		}
 
 		/**

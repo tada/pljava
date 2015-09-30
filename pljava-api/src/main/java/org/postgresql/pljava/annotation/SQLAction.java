@@ -67,4 +67,11 @@ public @interface SQLAction
 	 * later for remove actions.
 	 */
 	String[] requires() default {};
+
+	/**
+	 * The {@code <implementor name>} to be used around SQL code generated
+	 * here. Defaults to {@code PostgreSQL}. Set explicitly to {@code ""} to
+	 * emit code not wrapped in an {@code <implementor block>}.
+	 */
+	String implementor() default "";
 }
