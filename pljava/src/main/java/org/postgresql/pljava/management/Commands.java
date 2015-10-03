@@ -903,8 +903,8 @@ public class Commands
 				// According to the SQLJ standard, this entry must be
 				// UTF8 encoded.
 				//
-				sdds.add(new SQLDeploymentDescriptor(new String(bytes, "UTF8"),
-					"postgresql"));
+				sdds.add(
+					new SQLDeploymentDescriptor(new String(bytes, "UTF8")));
 			}
 			return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 		}

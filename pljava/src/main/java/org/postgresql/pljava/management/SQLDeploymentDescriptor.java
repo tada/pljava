@@ -12,9 +12,6 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
-import org.postgresql.pljava.Session;
-import org.postgresql.pljava.SessionManager;
-
 /**
  * This class deals with parsing and executing the deployment descriptor as
  * defined in ISO/IEC 9075-13:2003. It has the following format:<pre><code>
@@ -97,25 +94,23 @@ public class SQLDeploymentDescriptor
 	
 	private final StringBuffer m_buffer = new StringBuffer();
 	private final char[] m_image;
-	private final String m_implementorName;
 	private final Logger m_logger;
 
 	private int m_position = 0;
 
 	/**
-	 * Parses the deployment descriptor <code>descImage</code> using
-	 * <code>implementorName</code> as discriminator for implementor specific
-	 * blocks. The install and remove blocks are remembered for later execution
+	 * Parses the deployment descriptor <code>descImage</code> into a series of
+	 * {@code Command} objects each having an SQL command and, if present, an
+	 * {@code <implementor name>}. The install and remove blocks are remembered
+	 * for later execution
 	 * with calls to {@link #install install()} and {@link #remove remove()}.
 	 * @param descImage The image to parse
-	 * @param implementorName The discriminator to use for implementor blocks
 	 * @throws ParseException If a parse error is encountered
 	 */
-	public SQLDeploymentDescriptor(String descImage, String implementorName)
+	public SQLDeploymentDescriptor(String descImage)
 	throws ParseException
 	{
 		m_image = descImage.toCharArray();
-		m_implementorName = implementorName;
 		m_logger = Logger.getAnonymousLogger();
 		this.readDescriptor();
 	}
@@ -154,17 +149,8 @@ public class SQLDeploymentDescriptor
 	throws SQLException
 	{
 		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
-		Session session = SessionManager.current();
 		for( Command c : array )
-		{
-			if ( c.active(m_implementorName) )
-			{
-				m_logger.finer(c.toString());
-				session.executeAsSessionUser(conn, c.sql);
-			}
-			else
-				m_logger.finest("/*"+c+"*/");
-		}
+			c.execute( conn);
 		m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
 	}
 
@@ -528,23 +514,13 @@ class Command
 	private  final String tag;
 
 	/**
-	 * Whether this command should be active, based on matching
-	 * {@link #activeTag}.
-	 *
-	 * @return Always true
-	 * if this is an {@code <SQL statement>} (not an {@code <implementor block>}
-	 * with an {@code <implementor name>}; otherwise, true if its tag matches
-	 * {@code activeTag}.
-	 *
-	 * @param activeTag An {@code <implementor name>} that should be considered
-	 * active.
-	 * @throws NullPointerException if {@code activeTag} is null.
+	 * Execute this {@code Command} using a {@code DDRExecutor} chosen
+	 * according to its {@code <implementor name>}.
 	 */
-	boolean active(String activeTag)
+	void execute( Connection conn) throws SQLException
 	{
-		if ( null == tag )
-			return true;
-		return activeTag.equalsIgnoreCase(tag);
+		DDRExecutor ddre = DDRExecutor.forImplementor( tag);
+		ddre.execute( sql, conn);
 	}
 
 	Command(String sql, String tag)

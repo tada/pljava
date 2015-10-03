@@ -299,7 +299,7 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.logMessage(varchar, varchar)
 			RETURNS void
 			AS 'org.postgresql.pljava.example.LoggerTest.logMessage'
-			IMMUTABLE LANGUAGE java;
+			LANGUAGE java;
 
 		CREATE TYPE javatest.BinaryColumnPair
 			AS (col1 bytea, col2 bytea);
