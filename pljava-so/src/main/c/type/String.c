@@ -105,17 +105,27 @@ jstring String_createJavaString(text* t)
 	jstring result = 0;
 	if(t != 0)
 	{
-		char* utf8;
+		jobject bytebuf;
+		jobject charbuf;
 		char* src = VARDATA(t);
+		char* utf8 = src;
 		int srcLen = VARSIZE(t) - VARHDRSZ;
 		if(srcLen == 0)
 			return s_the_empty_string;
 	
-		/* Would be nice if a direct conversion to UTF16 was provided.
-		 */
-		utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src, srcLen, s_server_encoding, PG_UTF8);
-		result = JNI_newStringUTF(utf8);
+		if ( s_two_step_conversion )
+		{
+			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src, srcLen,
+				s_server_encoding, PG_UTF8);
+			srcLen = strlen(utf8);
+		}
+		bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
+		charbuf = JNI_callObjectMethod(s_CharsetDecoder_instance,
+			s_CharsetDecoder_decode, bytebuf);
+		result = JNI_callObjectMethod(charbuf, s_Object_toString);
 
+		JNI_deleteLocalRef(bytebuf);
+		JNI_deleteLocalRef(charbuf);
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We don't want to accidentally
 		 * free that pointer.
