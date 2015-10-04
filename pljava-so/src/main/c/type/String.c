@@ -14,6 +14,22 @@ jclass s_String_class;
 jclass s_Object_class;
 static jmethodID s_Object_toString;
 
+static jobject s_CharsetDecoder_instance;
+static jobject s_CharsetEncoder_instance;
+static jmethodID s_CharsetDecoder_decode;
+static jmethodID s_CharsetEncoder_encode;
+static jfloat  s_CharsetEncoder_averageBytesPerChar;
+static jobject s_CoderResult_OVERFLOW;
+static jobject s_CoderResult_UNDERFLOW;
+static jmethodID s_CoderResult_throwException;
+static jclass  s_CharBuffer_class;
+static jmethodID s_CharBuffer_wrap;
+static jmethodID s_Buffer_position;
+static jmethodID s_Buffer_remaining;
+
+static int s_server_encoding;
+static bool s_two_step_conversion;
+
 /*
  * Default type. Uses Posgres String conversion routines.
  */
@@ -96,7 +112,7 @@ jstring String_createJavaString(text* t)
 	
 		/* Would be nice if a direct conversion to UTF16 was provided.
 		 */
-		utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src, srcLen, GetDatabaseEncoding(), PG_UTF8);
+		utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src, srcLen, s_server_encoding, PG_UTF8);
 		result = JNI_newStringUTF(utf8);
 
 		/* pg_do_encoding_conversion will return the source argument
@@ -114,11 +130,23 @@ jstring String_createJavaStringFromNTS(const char* cp)
 	jstring result = 0;
 	if(cp != 0)
 	{
-		/* Would be nice if a direct conversion to UTF16 was provided.
-		 */
-		char* utf8 = (char*)pg_do_encoding_conversion((unsigned char*)cp, strlen(cp), GetDatabaseEncoding(), PG_UTF8);
-		result = JNI_newStringUTF(utf8);
+		jobject bytebuf;
+		jobject charbuf;
+		Size sz = strlen(cp);
+		char* utf8 = cp;
+		if ( s_two_step_conversion )
+		{
+			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)cp, sz,
+				s_server_encoding, PG_UTF8);
+			sz = strlen(utf8);
+		}
+		bytebuf = JNI_newDirectByteBuffer(utf8, sz);
+		charbuf = JNI_callObjectMethod(s_CharsetDecoder_instance,
+			s_CharsetDecoder_decode, bytebuf);
+		result = JNI_callObjectMethod(charbuf, s_Object_toString);
 
+		JNI_deleteLocalRef(bytebuf);
+		JNI_deleteLocalRef(charbuf);
 		/* pg_do_encoding_conversion will return the source argument
 		 * when no conversion is required. We don't want to accidentally
 		 * free that pointer.
@@ -129,18 +157,31 @@ jstring String_createJavaStringFromNTS(const char* cp)
 	return result;
 }
 
+static void appendCharBuffer(StringInfoData*, jobject);
+
 text* String_createText(jstring javaString)
 {
 	text* result = 0;
 	if(javaString != 0)
 	{
-		/* Would be nice if a direct conversion from UTF16 was provided.
-		 */
-		char* utf8 = (char*)JNI_getStringUTFChars(javaString, 0);
-		char* denc = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
-		int dencLen = strlen(denc);
-		int varSize = dencLen + VARHDRSZ;
+		char* denc;
+		Size dencLen;
+		Size varSize;
+		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+			s_CharBuffer_wrap, javaString);
+		StringInfoData sid;
+		initStringInfo(&sid);
+		appendCharBuffer(&sid, charbuf);
+		JNI_deleteLocalRef(charbuf);
+		denc = sid.data;
+		dencLen = sid.len;
+		if ( s_two_step_conversion )
+		{
+			denc = (char*)pg_do_encoding_conversion(
+				(unsigned char*)denc, dencLen, PG_UTF8, s_server_encoding);
+			dencLen = strlen(denc);
+		}
+		varSize = dencLen + VARHDRSZ;
 
 		/* Allocate and initialize the text structure.
 		 */
@@ -152,13 +193,9 @@ text* String_createText(jstring javaString)
 #endif
 		memcpy(VARDATA(result), denc, dencLen);
 
-		/* pg_do_encoding_conversion will return the source argument
-		 * when no conversion is required. We don't want to accidentally
-		 * free that pointer.
-		 */
-		if(denc != utf8)
+		if(denc != sid.data)
 			pfree(denc);
-		JNI_releaseStringUTFChars(javaString, utf8);
+		pfree(sid.data);
 	}
 	return result;
 }
@@ -168,45 +205,99 @@ char* String_createNTS(jstring javaString)
 	char* result = 0;
 	if(javaString != 0)
 	{
-		/* Would be nice if a direct conversion from UTF16 was provided.
-		 */
-		char* utf8 = (char*)JNI_getStringUTFChars(javaString, 0);
+		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+			s_CharBuffer_wrap, javaString);
+		StringInfoData sid;
+		initStringInfo(&sid);
+		appendCharBuffer(&sid, charbuf);
+		JNI_deleteLocalRef(charbuf);
+
 		result = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
+			(unsigned char *)sid.data, sid.len, PG_UTF8, s_server_encoding);
 
 		/* pg_do_encoding_conversion will return the source argument
-		 * when no conversion is required. We always want a copy here.
+		 * when no conversion is required. Don't free it in that case.
 		 */
-		if(result == utf8)
-			result = pstrdup(result);
-		JNI_releaseStringUTFChars(javaString, utf8);
+		if(result != sid.data)
+			pfree(sid.data);
 	}
 	return result;
 }
 
 void String_appendJavaString(StringInfoData* buf, jstring javaString)
 {
-	if(javaString != 0)
+	if ( 0 == javaString )
+		return;
+	if ( ! s_two_step_conversion )
 	{
-		/* Would be nice if a direct conversion from UTF16 was provided.
-		 */
-		char* utf8 = (char*)JNI_getStringUTFChars(javaString, 0);
-		char* dbEnc = (char*)pg_do_encoding_conversion(
-			(unsigned char*)utf8, strlen(utf8), PG_UTF8, GetDatabaseEncoding());
-
+		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+			s_CharBuffer_wrap, javaString);
+		appendCharBuffer(buf, charbuf);
+		JNI_deleteLocalRef(charbuf);
+	}
+	else
+	{
+		char* dbEnc = String_createNTS(javaString);
 		appendStringInfoString(buf, dbEnc);
-
-		/* pg_do_encoding_conversion will return the source argument
-		 * when no conversion is required. We don't want to accidentally
-		 * free that pointer.
-		 */
-		if(dbEnc != utf8)
-			pfree(dbEnc);
-		JNI_releaseStringUTFChars(javaString, utf8);
+		pfree(dbEnc);
 	}
 }
 
+static void appendCharBuffer(StringInfoData* buf, jobject charbuf)
+{
+	Size nchars;
+	char *bp;
+	Size cap;
+	jobject bytebuf;
+	jobject coderresult;
+
+	for ( ;; )
+	{
+		/*
+		 * Invariant: charbuf has some chars to encode, buf _might_ have room.
+		 * Broken StringInfo invariant: within this loop, might lack end NUL.
+		 */
+		nchars = JNI_callIntMethod(charbuf, s_Buffer_remaining);
+		/*
+		 * enlargeStringInfo does nothing if it's already large enough, and
+		 * enlarges generously if it isn't, not by nickels and dimes.
+		 */
+		cap = s_CharsetEncoder_averageBytesPerChar * (double)nchars;
+		enlargeStringInfo(buf, cap);
+		/*
+		 * Give the JVM a window into the unused portion of buf.
+		 */
+		bp = buf->data + buf->len;
+		cap = buf->maxlen - buf->len;
+		bytebuf = JNI_newDirectByteBuffer(bp, cap);
+		/*
+		 * Encode as much as will fit, then update StringInfo len to reflect it.
+		 */
+		coderresult = JNI_callObjectMethod(s_CharsetEncoder_instance,
+			s_CharsetEncoder_encode, charbuf, bytebuf, (jboolean)JNI_TRUE);
+		buf->len += JNI_callIntMethod(bytebuf, s_Buffer_position);
+		JNI_deleteLocalRef(bytebuf);
+
+		if ( ! JNI_isSameObject(coderresult, s_CoderResult_OVERFLOW) )
+			break;
+		JNI_deleteLocalRef(coderresult);
+	}
+	/*
+	 * Remember the StringInfo-is-NUL-terminated invariant might not hold here.
+	 */
+	if ( JNI_isSameObject(coderresult, s_CoderResult_UNDERFLOW) )
+		if ( 0 == JNI_callIntMethod(charbuf, s_Buffer_remaining) )
+		{
+			JNI_deleteLocalRef(coderresult);
+			enlargeStringInfo(buf, 1); /* MOST PROBABLY a no-op */
+			buf->data[buf->len] = '\0'; /* I want my invariant back! */
+			return;
+		}
+	JNI_callVoidMethod(coderresult, s_CoderResult_throwException);
+}
+
 extern void String_initialize(void);
+static void String_initialize_codec(void);
 void String_initialize(void)
 {
 	s_Object_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Object"));
@@ -220,6 +311,8 @@ void String_initialize(void)
 	s_StringClass->coerceDatum    = _String_coerceDatum;
 	s_StringClass->coerceObject   = _String_coerceObject;
 
+	String_initialize_codec();
+
 	/*
 	 * Registering known types will increase the performance
 	 * a bit. The "default" is used when all else fails.
@@ -229,4 +322,59 @@ void String_initialize(void)
 	Type_registerType2(BPCHAROID,  0, String_obtain);
 	Type_registerType2(NAMEOID,    0, String_obtain);
 	Type_registerType2(VARCHAROID, "java.lang.String", String_obtain);
+}
+
+static void String_initialize_codec()
+{
+	jstring u8Name = JNI_newStringUTF( "UTF-8");
+	jclass charset_class = PgObject_getJavaClass("java/nio/charset/Charset");
+	jmethodID charset_forName = PgObject_getStaticJavaMethod(charset_class,
+		"forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
+	jmethodID charset_newDecoder = PgObject_getJavaMethod(charset_class,
+		"newDecoder", "()Ljava/nio/charset/CharsetDecoder;");
+	jmethodID charset_newEncoder = PgObject_getJavaMethod(charset_class,
+		"newEncoder", "()Ljava/nio/charset/CharsetEncoder;");
+	jobject u8cs = JNI_callStaticObjectMethod(charset_class, charset_forName,
+		u8Name);
+	jclass decoder_class =
+		PgObject_getJavaClass("java/nio/charset/CharsetDecoder");
+	jclass encoder_class =
+		PgObject_getJavaClass("java/nio/charset/CharsetEncoder");
+	jmethodID encoder_abpc =
+		PgObject_getJavaMethod(encoder_class, "averageBytesPerChar", "()F");
+	jclass result_class = PgObject_getJavaClass("java/nio/charset/CoderResult");
+	jfieldID overflow = PgObject_getStaticJavaField(result_class, "OVERFLOW",
+		"Ljava/nio/charset/CoderResult;");
+	jfieldID underflow = PgObject_getStaticJavaField(result_class, "UNDERFLOW",
+		"Ljava/nio/charset/CoderResult;");
+	jclass buffer_class = PgObject_getJavaClass("java/nio/Buffer");
+
+	s_CharsetDecoder_instance =
+		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newDecoder));
+	s_CharsetEncoder_instance =
+		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newEncoder));
+	s_CharsetDecoder_decode = PgObject_getJavaMethod(decoder_class, "decode",
+		"(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;");
+	s_CharsetEncoder_encode = PgObject_getJavaMethod(encoder_class, "encode",
+		"(Ljava/nio/CharBuffer;Ljava/nio/ByteBuffer;Z)"
+		"Ljava/nio/charset/CoderResult;");
+	s_CharsetEncoder_averageBytesPerChar =
+		JNI_callFloatMethod(s_CharsetEncoder_instance, encoder_abpc);
+	s_CoderResult_OVERFLOW = JNI_newGlobalRef(
+		JNI_getStaticObjectField(result_class, overflow));
+	s_CoderResult_UNDERFLOW = JNI_newGlobalRef(
+		JNI_getStaticObjectField(result_class, underflow));
+	s_CoderResult_throwException = PgObject_getJavaMethod(result_class,
+		"throwException", "()V");
+	s_CharBuffer_class = (jclass)JNI_newGlobalRef(
+		PgObject_getJavaClass("java/nio/CharBuffer"));
+	s_CharBuffer_wrap = PgObject_getStaticJavaMethod(s_CharBuffer_class,
+		"wrap", "(Ljava/lang/CharSequence;)Ljava/nio/CharBuffer;");
+	s_Buffer_position = PgObject_getJavaMethod(buffer_class,
+		"position", "()I");
+	s_Buffer_remaining = PgObject_getJavaMethod(buffer_class,
+		"remaining", "()I");
+
+	s_server_encoding = GetDatabaseEncoding();
+	s_two_step_conversion = PG_UTF8 != s_server_encoding;
 }

@@ -132,6 +132,7 @@ extern const char*  JNI_getStringUTFChars(jstring string, jboolean* isCopy);
 extern jboolean     JNI_hasNullArrayElement(jobjectArray array);
 extern jboolean     JNI_isCallingJava(void);
 extern jboolean     JNI_isInstanceOf(jobject obj, jclass clazz);
+extern jboolean     JNI_isSameObject(jobject obj1, jobject obj2);
 extern jbyteArray   JNI_newByteArray(jsize length);
 extern jbooleanArray JNI_newBooleanArray(jsize length);
 extern jobject      JNI_newDirectByteBuffer(void* address, jlong capacity);

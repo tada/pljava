@@ -813,6 +813,15 @@ jboolean JNI_isInstanceOf(jobject obj, jclass clazz)
 	return result;
 }
 
+jboolean JNI_isSameObject(jobject obj1, jobject obj2)
+{
+	jboolean result;
+	BEGIN_JAVA
+	result = (*env)->IsSameObject(env, obj1, obj2);
+	END_JAVA
+	return result;
+}
+
 jbyteArray JNI_newByteArray(jsize length)
 {
 	jbyteArray result;
