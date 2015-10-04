@@ -26,6 +26,7 @@ static jclass  s_CharBuffer_class;
 static jmethodID s_CharBuffer_wrap;
 static jmethodID s_Buffer_position;
 static jmethodID s_Buffer_remaining;
+static jstring s_the_empty_string;
 
 static int s_server_encoding;
 static bool s_two_step_conversion;
@@ -108,7 +109,7 @@ jstring String_createJavaString(text* t)
 		char* src = VARDATA(t);
 		int srcLen = VARSIZE(t) - VARHDRSZ;
 		if(srcLen == 0)
-			return 0;
+			return s_the_empty_string;
 	
 		/* Would be nice if a direct conversion to UTF16 was provided.
 		 */
@@ -326,6 +327,11 @@ void String_initialize(void)
 
 static void String_initialize_codec()
 {
+	JNI_pushLocalFrame(16);
+
+	jmethodID string_intern = PgObject_getJavaMethod(s_String_class,
+		"intern", "()Ljava/lang/String;");
+	jstring empty = JNI_newStringUTF( "");
 	jstring u8Name = JNI_newStringUTF( "UTF-8");
 	jclass charset_class = PgObject_getJavaClass("java/nio/charset/Charset");
 	jmethodID charset_forName = PgObject_getStaticJavaMethod(charset_class,
@@ -374,6 +380,11 @@ static void String_initialize_codec()
 		"position", "()I");
 	s_Buffer_remaining = PgObject_getJavaMethod(buffer_class,
 		"remaining", "()I");
+
+	s_the_empty_string = JNI_newGlobalRef(
+		JNI_callObjectMethod(empty, string_intern));
+
+	JNI_popLocalFrame(NULL);
 
 	s_server_encoding = GetDatabaseEncoding();
 	s_two_step_conversion = PG_UTF8 != s_server_encoding;
