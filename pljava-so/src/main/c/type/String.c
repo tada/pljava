@@ -120,9 +120,9 @@ jstring String_createJavaString(text* t)
 			srcLen = strlen(utf8);
 		}
 		bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
-		charbuf = JNI_callObjectMethod(s_CharsetDecoder_instance,
+		charbuf = JNI_callObjectMethodLocked(s_CharsetDecoder_instance,
 			s_CharsetDecoder_decode, bytebuf);
-		result = JNI_callObjectMethod(charbuf, s_Object_toString);
+		result = JNI_callObjectMethodLocked(charbuf, s_Object_toString);
 
 		JNI_deleteLocalRef(bytebuf);
 		JNI_deleteLocalRef(charbuf);
@@ -152,9 +152,9 @@ jstring String_createJavaStringFromNTS(const char* cp)
 			sz = strlen(utf8);
 		}
 		bytebuf = JNI_newDirectByteBuffer(utf8, sz);
-		charbuf = JNI_callObjectMethod(s_CharsetDecoder_instance,
+		charbuf = JNI_callObjectMethodLocked(s_CharsetDecoder_instance,
 			s_CharsetDecoder_decode, bytebuf);
-		result = JNI_callObjectMethod(charbuf, s_Object_toString);
+		result = JNI_callObjectMethodLocked(charbuf, s_Object_toString);
 
 		JNI_deleteLocalRef(bytebuf);
 		JNI_deleteLocalRef(charbuf);
@@ -178,7 +178,7 @@ text* String_createText(jstring javaString)
 		char* denc;
 		Size dencLen;
 		Size varSize;
-		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+		jobject charbuf = JNI_callStaticObjectMethodLocked(s_CharBuffer_class,
 			s_CharBuffer_wrap, javaString);
 		StringInfoData sid;
 		initStringInfo(&sid);
@@ -216,7 +216,7 @@ char* String_createNTS(jstring javaString)
 	char* result = 0;
 	if(javaString != 0)
 	{
-		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+		jobject charbuf = JNI_callStaticObjectMethodLocked(s_CharBuffer_class,
 			s_CharBuffer_wrap, javaString);
 		StringInfoData sid;
 		initStringInfo(&sid);
@@ -241,7 +241,7 @@ void String_appendJavaString(StringInfoData* buf, jstring javaString)
 		return;
 	if ( ! s_two_step_conversion )
 	{
-		jobject charbuf = JNI_callStaticObjectMethod(s_CharBuffer_class,
+		jobject charbuf = JNI_callStaticObjectMethodLocked(s_CharBuffer_class,
 			s_CharBuffer_wrap, javaString);
 		appendCharBuffer(buf, charbuf);
 		JNI_deleteLocalRef(charbuf);
@@ -268,7 +268,7 @@ static void appendCharBuffer(StringInfoData* buf, jobject charbuf)
 		 * Invariant: charbuf has some chars to encode, buf _might_ have room.
 		 * Broken StringInfo invariant: within this loop, might lack end NUL.
 		 */
-		nchars = JNI_callIntMethod(charbuf, s_Buffer_remaining);
+		nchars = JNI_callIntMethodLocked(charbuf, s_Buffer_remaining);
 		/*
 		 * enlargeStringInfo does nothing if it's already large enough, and
 		 * enlarges generously if it isn't, not by nickels and dimes.
@@ -284,9 +284,9 @@ static void appendCharBuffer(StringInfoData* buf, jobject charbuf)
 		/*
 		 * Encode as much as will fit, then update StringInfo len to reflect it.
 		 */
-		coderresult = JNI_callObjectMethod(s_CharsetEncoder_instance,
+		coderresult = JNI_callObjectMethodLocked(s_CharsetEncoder_instance,
 			s_CharsetEncoder_encode, charbuf, bytebuf, (jboolean)JNI_TRUE);
-		buf->len += JNI_callIntMethod(bytebuf, s_Buffer_position);
+		buf->len += JNI_callIntMethodLocked(bytebuf, s_Buffer_position);
 		JNI_deleteLocalRef(bytebuf);
 
 		if ( ! JNI_isSameObject(coderresult, s_CoderResult_OVERFLOW) )
@@ -297,14 +297,14 @@ static void appendCharBuffer(StringInfoData* buf, jobject charbuf)
 	 * Remember the StringInfo-is-NUL-terminated invariant might not hold here.
 	 */
 	if ( JNI_isSameObject(coderresult, s_CoderResult_UNDERFLOW) )
-		if ( 0 == JNI_callIntMethod(charbuf, s_Buffer_remaining) )
+		if ( 0 == JNI_callIntMethodLocked(charbuf, s_Buffer_remaining) )
 		{
 			JNI_deleteLocalRef(coderresult);
 			enlargeStringInfo(buf, 1); /* MOST PROBABLY a no-op */
 			buf->data[buf->len] = '\0'; /* I want my invariant back! */
 			return;
 		}
-	JNI_callVoidMethod(coderresult, s_CoderResult_throwException);
+	JNI_callVoidMethodLocked(coderresult, s_CoderResult_throwException);
 }
 
 extern void String_initialize(void);
