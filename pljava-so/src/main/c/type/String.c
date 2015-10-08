@@ -109,14 +109,14 @@ jstring String_createJavaString(text* t)
 		jobject charbuf;
 		char* src = VARDATA(t);
 		char* utf8 = src;
-		int srcLen = VARSIZE(t) - VARHDRSZ;
+		Size srcLen = VARSIZE(t) - VARHDRSZ;
 		if(srcLen == 0)
 			return s_the_empty_string;
 	
 		if ( s_two_step_conversion )
 		{
-			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src, srcLen,
-				s_server_encoding, PG_UTF8);
+			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src,
+				(int)srcLen, s_server_encoding, PG_UTF8);
 			srcLen = strlen(utf8);
 		}
 		bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
@@ -144,14 +144,14 @@ jstring String_createJavaStringFromNTS(const char* cp)
 		jobject bytebuf;
 		jobject charbuf;
 		Size sz = strlen(cp);
-		char* utf8 = cp;
+		char const * utf8 = cp;
 		if ( s_two_step_conversion )
 		{
-			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)cp, sz,
-				s_server_encoding, PG_UTF8);
+			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)cp,
+				(int)sz, s_server_encoding, PG_UTF8);
 			sz = strlen(utf8);
 		}
-		bytebuf = JNI_newDirectByteBuffer(utf8, sz);
+		bytebuf = JNI_newDirectByteBuffer((void *)utf8, sz);
 		charbuf = JNI_callObjectMethodLocked(s_CharsetDecoder_instance,
 			s_CharsetDecoder_decode, bytebuf);
 		result = JNI_callObjectMethodLocked(charbuf, s_Object_toString);
@@ -163,7 +163,7 @@ jstring String_createJavaStringFromNTS(const char* cp)
 		 * free that pointer.
 		 */
 		if(utf8 != cp)
-			pfree(utf8);
+			pfree((void *)utf8);
 	}
 	return result;
 }
@@ -189,7 +189,7 @@ text* String_createText(jstring javaString)
 		if ( s_two_step_conversion )
 		{
 			denc = (char*)pg_do_encoding_conversion(
-				(unsigned char*)denc, dencLen, PG_UTF8, s_server_encoding);
+				(unsigned char*)denc, (int)dencLen, PG_UTF8, s_server_encoding);
 			dencLen = strlen(denc);
 		}
 		varSize = dencLen + VARHDRSZ;
@@ -273,8 +273,8 @@ static void appendCharBuffer(StringInfoData* buf, jobject charbuf)
 		 * enlargeStringInfo does nothing if it's already large enough, and
 		 * enlarges generously if it isn't, not by nickels and dimes.
 		 */
-		cap = s_CharsetEncoder_averageBytesPerChar * (double)nchars;
-		enlargeStringInfo(buf, cap);
+		cap = (Size)(s_CharsetEncoder_averageBytesPerChar * (double)nchars);
+		enlargeStringInfo(buf, (int)cap);
 		/*
 		 * Give the JVM a window into the unused portion of buf.
 		 */
