@@ -58,6 +58,24 @@ extern jmethodID UnsupportedOperationException_init;
 extern jclass    NoSuchMethodError_class;
 
 /*
+ * A few very specialized JNI method-invocation wrappers, that do NOT do
+ * one thing all the rest of the method wrappers do. These do NOT release the
+ * threadlock before calling the method and reacquire it after the method
+ * returns. These versions just call the method with the threadlock held the
+ * whole time. They are used in String.c for character set coding conversions,
+ * which may frequently call Java methods that are never expected to have any
+ * reason to block or reenter the backend.
+ */
+extern jobject      JNI_callObjectMethodLocked(jobject object, jmethodID methodID, ...);
+extern jobject      JNI_callObjectMethodLockedV(jobject object, jmethodID methodID, va_list args);
+extern jobject      JNI_callStaticObjectMethodLocked(jclass clazz, jmethodID methodID, ...);
+extern jobject      JNI_callStaticObjectMethodLockedV(jclass clazz, jmethodID methodID, va_list args);
+extern jint         JNI_callIntMethodLocked(jobject object, jmethodID methodID, ...);
+extern jint         JNI_callIntMethodLockedV(jobject object, jmethodID methodID, va_list args);
+extern void         JNI_callVoidMethodLocked(jobject object, jmethodID methodID, ...);
+extern void         JNI_callVoidMethodLockedV(jobject object, jmethodID methodID, va_list args);
+
+/*
  * Misc JNIEnv mappings. See <jni.h> for more info.
  */
 extern jboolean     JNI_callBooleanMethod(jobject object, jmethodID methodID, ...);
@@ -132,6 +150,7 @@ extern const char*  JNI_getStringUTFChars(jstring string, jboolean* isCopy);
 extern jboolean     JNI_hasNullArrayElement(jobjectArray array);
 extern jboolean     JNI_isCallingJava(void);
 extern jboolean     JNI_isInstanceOf(jobject obj, jclass clazz);
+extern jboolean     JNI_isSameObject(jobject obj1, jobject obj2);
 extern jbyteArray   JNI_newByteArray(jsize length);
 extern jbooleanArray JNI_newBooleanArray(jsize length);
 extern jobject      JNI_newDirectByteBuffer(void* address, jlong capacity);
