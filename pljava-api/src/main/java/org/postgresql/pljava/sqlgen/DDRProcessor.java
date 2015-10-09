@@ -17,17 +17,22 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import java.sql.ResultSet;
+import java.sql.SQLData;
+import java.sql.SQLInput;
+import java.sql.SQLOutput;
 import java.sql.Time;
 import java.sql.Timestamp;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -62,6 +67,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
+import javax.lang.model.type.NoType;
 import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -69,6 +75,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
+import static javax.lang.model.util.ElementFilter.constructorsIn;
 import static javax.lang.model.util.ElementFilter.methodsIn;
 
 import static javax.tools.Diagnostic.Kind;
@@ -82,6 +89,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.Trigger;
+import org.postgresql.pljava.annotation.UDT;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
@@ -100,7 +108,8 @@ import org.postgresql.pljava.annotation.Trigger;
 ({
   "ddr.name.trusted",    // default "java"
   "ddr.name.untrusted",  // default "javaU"
-  "ddr.output"          // name of ddr file to write
+  "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
+  "ddr.output"           // name of ddr file to write
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_6)
 public class DDRProcessor extends AbstractProcessor
@@ -151,6 +160,7 @@ class DDRProcessorImpl
 	final String nameTrusted;
 	final String nameUntrusted;
 	final String output;
+	final String defaultImplementor;
 	
 	// Certain known types that need to be recognized in the processed code
 	//
@@ -159,7 +169,12 @@ class DDRProcessorImpl
 	final DeclaredType TY_RESULTSET;
 	final DeclaredType TY_RESULTSETPROVIDER;
 	final DeclaredType TY_RESULTSETHANDLE;
+	final DeclaredType TY_SQLDATA;
+	final DeclaredType TY_SQLINPUT;
+	final DeclaredType TY_SQLOUTPUT;
+	final DeclaredType TY_STRING;
 	final DeclaredType TY_TRIGGERDATA;
+	final       NoType TY_VOID;
 	
 	// Our own annotations
 	//
@@ -168,6 +183,7 @@ class DDRProcessorImpl
 	final TypeElement  AN_SQLACTIONS;
 	final TypeElement  AN_SQLTYPE;
 	final TypeElement  AN_TRIGGER;
+	final TypeElement  AN_UDT;
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -195,6 +211,12 @@ class DDRProcessorImpl
 		else
 			nameUntrusted = "javaU";
 		
+		optv = opts.get( "ddr.implementor");
+		if ( null != optv )
+			defaultImplementor = optv;
+		else
+			defaultImplementor = "PostgreSQL";
+
 		optv = opts.get( "ddr.output");
 		if ( null != optv )
 			output = optv;
@@ -211,14 +233,24 @@ class DDRProcessorImpl
 			elmu.getTypeElement( ResultSetProvider.class.getName()));
 		TY_RESULTSETHANDLE = typu.getDeclaredType(
 			elmu.getTypeElement( ResultSetHandle.class.getName()));
+		TY_SQLDATA = typu.getDeclaredType(
+			elmu.getTypeElement( SQLData.class.getName()));
+		TY_SQLINPUT = typu.getDeclaredType(
+			elmu.getTypeElement( SQLInput.class.getName()));
+		TY_SQLOUTPUT = typu.getDeclaredType(
+			elmu.getTypeElement( SQLOutput.class.getName()));
+		TY_STRING = typu.getDeclaredType(
+			elmu.getTypeElement( String.class.getName()));
 		TY_TRIGGERDATA = typu.getDeclaredType(
 			elmu.getTypeElement( TriggerData.class.getName()));
+		TY_VOID = typu.getNoType( TypeKind.VOID);
 
 		AN_FUNCTION    = elmu.getTypeElement( Function.class.getName());
 		AN_SQLACTION   = elmu.getTypeElement( SQLAction.class.getName());
 		AN_SQLACTIONS  = elmu.getTypeElement( SQLActions.class.getName());
 		AN_SQLTYPE     = elmu.getTypeElement( SQLType.class.getName());
 		AN_TRIGGER     = elmu.getTypeElement( Trigger.class.getName());
+		AN_UDT         = elmu.getTypeElement( UDT.class.getName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -242,13 +274,56 @@ class DDRProcessorImpl
 	{
 		msgr.printMessage( kind, String.format( fmt, args), e, a, v);
 	}
+
+	/**
+	 * Key usable in a mapping from (Object, Snippet-subtype) to Snippet.
+	 * Because there's no telling in which order a Map implementation will
+	 * compare two keys, the class matches if either one is assignable to
+	 * the other. That's ok as long as the Snippet-subtype is never Snippet
+	 * itself, no Object ever has two Snippets hung on it where one extends
+	 * the other, and getSnippet is always called for the widest of any of
+	 * the types it may retrieve.
+	 */
+	static final class SnippetsKey
+	{
+		final Object o;
+		final Class<? extends Snippet> c;
+		SnippetsKey(Object o, Class<? extends Snippet> c)
+		{
+			assert Snippet.class != c : "Snippet key must be a subtype";
+			this.o = o;
+			this.c = c;
+		}
+		public boolean equals(Object oth)
+		{
+			if ( ! (oth instanceof SnippetsKey) )
+				return false;
+			SnippetsKey osk = (SnippetsKey)oth;
+			return o.equals( osk.o)
+				&& ( c.isAssignableFrom( osk.c) || osk.c.isAssignableFrom( c) );
+		}
+		public int hashCode()
+		{
+			return o.hashCode(); // must not depend on c (subtypes will match)
+		}
+	}
 	
 	/**
 	 * Collection of code snippets being accumulated (possibly over more than
 	 * one round), keyed by the object for which each snippet has been
 	 * generated.
 	 */
-	Map<Object, Snippet> snippets = new HashMap<Object, Snippet>();
+	Map<SnippetsKey, Snippet> snippets = new HashMap<SnippetsKey, Snippet>();
+
+	<S extends Snippet> S getSnippet(Object o, Class<S> c)
+	{
+		return (S)snippets.get( new SnippetsKey( o, c));
+	}
+
+	void putSnippet( Object o, Snippet s)
+	{
+		snippets.put( new SnippetsKey( o, s.getClass()), s);
+	}
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -260,6 +335,7 @@ class DDRProcessorImpl
 		boolean functionPresent = false;
 		boolean sqlActionPresent = false;
 		boolean sqlActionsPresent = false;
+		boolean udtPresent = false;
 		
 		boolean willClaim = true;
 		
@@ -271,6 +347,8 @@ class DDRProcessorImpl
 				sqlActionPresent = true;
 			else if ( AN_SQLACTIONS.equals( te) )
 				sqlActionsPresent = true;
+			else if ( AN_UDT.equals( te) )
+				udtPresent = true;
 			else if ( AN_SQLTYPE.equals( te) )
 				; // these are handled within FunctionImpl
 			else
@@ -282,6 +360,10 @@ class DDRProcessorImpl
 			}
 		}
 		
+		if ( udtPresent )
+			for ( Element e : re.getElementsAnnotatedWith( AN_UDT) )
+				processUDT( e);
+
 		if ( functionPresent )
 			for ( Element e : re.getElementsAnnotatedWith( AN_FUNCTION) )
 				processFunction( e);
@@ -317,7 +399,8 @@ class DDRProcessorImpl
 
 		for ( Snippet snip : snippets.values() )
 		{
-			snip.characterize();
+			if ( ! snip.characterize() )
+				continue;
 			Vertex<Snippet> v = new Vertex<Snippet>( snip);
 			vs.add( v);
 			for ( String s : snip.provides() )
@@ -336,15 +419,27 @@ class DDRProcessorImpl
 				Vertex<Snippet> p = provider.get( s);
 				if ( null != p )
 					p.precede( v);
-				else if ( s == v.payload.implementor() )
+				else if ( s == v.payload.implementor() ) // yes == if from impl
+				{
 					/*
 					 * It's the implicit requires(implementor()). Bump the
 					 * indegree anyway so the snippet won't be emitted until
 					 * the cycle breaker code (see below) sets it free after
 					 * any others that can be handled first.
 					 */
-					++ v.indegree;
+					if ( ! defaultImplementor.equals( s) )
+						++ v.indegree;
+				}
+				else
+				{
+					msg( Kind.ERROR,
+						"tag \"%s\" is required but nowhere provided", s);
+					errorRaised = true;
+				}
 			}
+
+		if ( errorRaised )
+			return;
 
 		Snippet[] snips = new Snippet [ vs.size() ];
 
@@ -415,11 +510,11 @@ queuerunning: for ( int i = 0 ; ; )
 	 */
 	void processSQLAction( Element e)
 	{
-		SQLActionImpl sa = (SQLActionImpl)snippets.get( e);
+		SQLActionImpl sa = getSnippet( e, SQLActionImpl.class);
 		if ( null == sa )
 		{
 			sa = new SQLActionImpl();
-			snippets.put( e, sa);
+			putSnippet( e, sa);
 		}
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
@@ -442,9 +537,98 @@ queuerunning: for ( int i = 0 ; ; )
 				SQLActionsImpl sas = new SQLActionsImpl();
 				populateAnnotationImpl( sas, e, am);
 				for ( SQLAction sa : sas.value() )
-					snippets.put( sa, (Snippet)sa);
+					putSnippet( sa, (Snippet)sa);
 			}
 		}
+	}
+
+	/**
+	 * Do UDT thing.
+	 */
+	void processUDT( Element e)
+	{
+		if ( ! ElementKind.CLASS.equals( e.getKind()) )
+		{
+			msg( Kind.ERROR, e, "A pljava UDT must be a class");
+		}
+		Set<Modifier> mods = e.getModifiers();
+		if ( ! mods.contains( Modifier.PUBLIC) )
+		{
+			msg( Kind.ERROR, e, "A pljava UDT must be public");
+		}
+		if ( mods.contains( Modifier.ABSTRACT) )
+		{
+			msg( Kind.ERROR, e, "A pljava UDT must not be abstract");
+		}
+		if ( ! ((TypeElement)e).getNestingKind().equals(
+			NestingKind.TOP_LEVEL) )
+		{
+			if ( ! mods.contains( Modifier.STATIC) )
+			{
+				msg( Kind.ERROR, e,
+					"When nested, a pljava UDT must be static (not inner)");
+			}
+			for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
+			{
+				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
+					msg( Kind.ERROR, ee,
+						"A pljava UDT must not have a non-public " +
+						"enclosing class");
+				if ( ((TypeElement)ee).getNestingKind().equals(
+					NestingKind.TOP_LEVEL) )
+					break;
+			}
+		}
+
+		UDTImpl u = getSnippet( e, UDTImpl.class);
+		if ( null == u )
+		{
+			u = new UDTImpl( (TypeElement)e);
+			putSnippet( e, u);
+		}
+		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
+		{
+			if ( am.getAnnotationType().asElement().equals( AN_UDT) )
+				populateAnnotationImpl( u, e, am);
+		}
+		u.registerFunctions();
+	}
+
+	ExecutableElement huntFor(List<ExecutableElement> ees, String name,
+		boolean isStatic, TypeMirror retType, TypeMirror... paramTypes)
+	{
+		ExecutableElement quarry = null;
+hunt:	for ( ExecutableElement ee : ees )
+		{
+			if ( null != name && ! ee.getSimpleName().contentEquals( name) )
+				continue;
+			if ( ee.isVarArgs() )
+				continue;
+			if ( null != retType
+				&& ! typu.isSameType( ee.getReturnType(), retType) )
+				continue;
+			List<? extends TypeMirror> pts =
+				((ExecutableType)ee.asType()).getParameterTypes();
+			if ( pts.size() != paramTypes.length )
+				continue;
+			for ( int i = 0; i < paramTypes.length; ++i )
+				if ( ! typu.isSameType( pts.get( i), paramTypes[i]) )
+					continue hunt;
+			Set<Modifier> mods = ee.getModifiers();
+			if ( ! mods.contains( Modifier.PUBLIC) )
+				continue;
+			if ( isStatic && ! mods.contains( Modifier.STATIC) )
+				continue;
+			if ( null == quarry )
+				quarry = ee;
+			else
+			{
+				msg( Kind.ERROR, ee,
+					"Found more than one candidate " +
+					(null == name ? "constructor" : (name + " method")));
+			}
+		}
+		return quarry;
 	}
 
 	/**
@@ -458,10 +642,6 @@ queuerunning: for ( int i = 0 ; ; )
 		if ( ! mods.contains( Modifier.PUBLIC) )
 		{
 			msg( Kind.ERROR, e, "A pljava function must be public");
-		}
-		if ( ! mods.contains( Modifier.STATIC) )
-		{
-			msg( Kind.ERROR, e, "A pljava function must be static");
 		}
 
 		for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
@@ -478,17 +658,48 @@ queuerunning: for ( int i = 0 ; ; )
 			}
 		}
 
-		FunctionImpl f = (FunctionImpl)snippets.get( e);
+		FunctionImpl f = getSnippet( e, FunctionImpl.class);
 		if ( null == f )
 		{
 			f = new FunctionImpl( (ExecutableElement)e);
-			snippets.put( e, f);
+			putSnippet( e, f);
 		}
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_FUNCTION) )
 				populateAnnotationImpl( f, e, am);
 		}
+	}
+
+	/**
+	 * Populate an array of specified type from an annotation value
+	 * representing an array.
+	 *
+	 * AnnotationValue's getValue() method returns Object, where the
+	 * object is known to be an instance of one of a small set of classes.
+	 * Populating an array when that value represents one is a common
+	 * operation, so it is factored out here.
+	 */
+	static <T> T[] avToArray( Object o, Class<T> k)
+	{
+		boolean isEnum = k.isEnum();
+
+		@SuppressWarnings({"unchecked"})
+		List<? extends AnnotationValue> vs = (List<? extends AnnotationValue>)o;
+
+		@SuppressWarnings({"unchecked"})
+		T[] a = (T[])Array.newInstance( k, vs.size());
+
+		int i = 0;
+		for ( AnnotationValue av : vs )
+		{
+			Object v = av.getValue();
+			if ( isEnum )
+				v = Enum.valueOf( k.asSubclass( Enum.class),
+					((VariableElement)v).getSimpleName().toString());
+			a[i++] = k.cast( v);
+		}
+		return a;
 	}
 
 	/**
@@ -508,28 +719,6 @@ queuerunning: for ( int i = 0 ; ; )
 		{
 			throw new UnsupportedOperationException();
 		}
-		
-		/**
-		 * Populate an array of specified type from an annotation value
-		 * representing an array.
-		 *
-		 * AnnotationValue's getValue() method returns Object, where the
-		 * object is known to be an instance of one of a small set of classes.
-		 * Populating an array when that value represents one is a common
-		 * operation, so it is factored out here.
-		 */
-		<T> T[] avToArray( Object o, Class<T> k)
-		{
-			@SuppressWarnings({"unchecked"})
-			List<? extends AnnotationValue> vs =
-				(List<? extends AnnotationValue>)o;
-			@SuppressWarnings({"unchecked"})
-			T[] a = (T[])Array.newInstance( k, vs.size());
-			int i = 0;
-			for ( AnnotationValue av : vs )
-				a[i++] = k.cast(av.getValue());
-			return a;
-		}
 
 		/**
 		 * Supply the required implementor() method for those subclasses
@@ -537,7 +726,7 @@ queuerunning: for ( int i = 0 ; ; )
 		 */
 		public String implementor() { return _implementor; }
 
-		String _implementor = "PostgreSQL";
+		String _implementor = defaultImplementor;
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
@@ -573,6 +762,15 @@ queuerunning: for ( int i = 0 ; ; )
 	 * null if they were not given explicit values, in order to have a clear
 	 * indication that they were defaulted, even though that is not the way
 	 * normal annotation objects behave.
+	 *
+	 * If a setFoo(Object o, boolean explicit, element e) method is not found
+	 * but there is an accessible field _foo it will be set directly, but only
+	 * if the value was explicitly present in the annotation or the field value
+	 * is null. By this convention, an implementation can declare a field
+	 * initially null and let its default value be filled in from what the
+	 * annotation declares, or initially some non-null value distinct from
+	 * possible annotation values, and be able to tell whether it was explicitly
+	 * set. Note that a field of primitive type will never be seen as null.
 	 */
 	void populateAnnotationImpl(
 		AbstractAnnotationImpl inst, Element e, AnnotationMirror am)
@@ -621,12 +819,27 @@ queuerunning: for ( int i = 0 ; ; )
 			}
 			catch (NoSuchMethodException nsme)
 			{
-				// could use this space to look for a _foo field and set it in
-				// the obvious way, eliminating the need for all the setter
-				// methods that do nothing but set the field in the obvious way.
-				//
-				throw new RuntimeException(
-					"Incomplete implementation in annotation processor", nsme);
+				try
+				{
+					Field f = kl.getField( "_"+name);
+					Class<?> fkl = f.getType();
+					if ( ! isExplicit  &&  null != f.get( inst) )
+						continue;
+					if ( fkl.isArray() )
+						f.set( inst, avToArray( v, fkl.getComponentType()));
+					else if ( fkl.isEnum() )
+						f.set( inst, Enum.valueOf( fkl.asSubclass( Enum.class),
+							((VariableElement)v).getSimpleName().toString()));
+					else
+						f.set( inst, v);
+					nsme = null;
+				}
+				catch (NoSuchFieldException nsfe) { }
+				catch (IllegalAccessException iae) { }
+				if ( null != nsme )
+					throw new RuntimeException(
+						"Incomplete implementation in annotation processor",
+						nsme);
 			}
 			catch (IllegalAccessException iae)
 			{
@@ -697,34 +910,15 @@ queuerunning: for ( int i = 0 ; ; )
 		public String[]   deployStrings() { return _install; }
 		public String[] undeployStrings() { return _remove; }
 		
-		String[] _install;
-		String[] _remove;
-		String[] _provides;
-		String[] _requires;
-		
-		public void setInstall( Object o, boolean explicit, Element e)
-		{
-			_install = avToArray( o, String.class);
-		}
-		
-		public void setRemove( Object o, boolean explicit, Element e)
-		{
-			_remove = avToArray( o, String.class);
-		}
-		
-		public void setProvides( Object o, boolean explicit, Element e)
-		{
-			_provides = avToArray( o, String.class);
-		}
-		
-		public void setRequires( Object o, boolean explicit, Element e)
-		{
-			_requires = avToArray( o, String.class);
-		}
+		public String[] _install;
+		public String[] _remove;
+		public String[] _provides;
+		public String[] _requires;
 
-		public void characterize()
+		public boolean characterize()
 		{
 			_requires = augmentRequires( _requires, implementor());
+			return true;
 		}
 	}
 	
@@ -744,13 +938,13 @@ queuerunning: for ( int i = 0 ; ; )
 		public String[] requires() { return new String[0]; }
 		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
-		String[] _arguments;
-		Event[] 	_events;
-		String  	  _name;
-		String  	_schema;
-		String  	 _table;
-		Scope		 _scope;
-		When		  _when;
+		public String[] _arguments;
+		public Event[]  _events;
+		public String   _name;
+		public String   _schema;
+		public String  	_table;
+		public Scope    _scope;
+		public When     _when;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
@@ -760,50 +954,8 @@ queuerunning: for ( int i = 0 ; ; )
 			func = f;
 			origin = am;
 		}
-		
-		public void setArguments( Object o, boolean explicit, Element e)
-		{
-			_arguments = avToArray( o, String.class);
-		}
-		
-		public void setEvents( Object o, boolean explicit, Element e)
-		{
-			VariableElement[] ves = avToArray( o, VariableElement.class);
-			_events = new Event [ ves.length ];
-			int i = 0;
-			for ( VariableElement ve : ves )
-				_events[i++] = Event.valueOf( ve.getSimpleName().toString());
-		}
-		
-		public void setName( Object o, boolean explicit, Element e)
-		{
-			if ( explicit )
-				_name = (String)o;
-		}
-		
-		public void setSchema( Object o, boolean explicit, Element e)
-		{
-			_schema = (String)o;
-		}
-		
-		public void setTable( Object o, boolean explicit, Element e)
-		{
-			_table = (String)o;
-		}
-		
-		public void setScope( Object o, boolean explicit, Element e)
-		{
-			_scope =
-				Scope.valueOf( ((VariableElement)o).getSimpleName().toString());
-		}
-		
-		public void setWhen( Object o, boolean explicit, Element e)
-		{
-			_when =
-				When.valueOf( ((VariableElement)o).getSimpleName().toString());
-		}
 
-		public void characterize()
+		public boolean characterize()
 		{
 			if ( Scope.ROW.equals( _scope) )
 				for ( Event e : _events )
@@ -811,8 +963,9 @@ queuerunning: for ( int i = 0 ; ; )
 						msg( Kind.ERROR, func.func, origin,
 							"TRUNCATE trigger cannot be FOR EACH ROW");
 
-			if ( null == _name )
+			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
+			return false;
 		}
 		
 		public String[] deployStrings()
@@ -832,9 +985,8 @@ queuerunning: for ( int i = 0 ; ; )
 				sb.append( schema()).append( '.');
 			sb.append( table()).append( "\n\tFOR EACH ");
 			sb.append( scope().toString()).append( "\n\tEXECUTE PROCEDURE ");
-			String n = func.nameAndParams( false);
-			n = n.substring( 0, n.length() - 1); // drop closing )
-			sb.append( n);
+			func.appendNameAndParams( sb, false);
+			sb.setLength( sb.length() - 1); // drop closing )
 			s = _arguments.length;
 			for ( String a : _arguments )
 			{
@@ -878,20 +1030,20 @@ queuerunning: for ( int i = 0 ; ; )
 
 		ExecutableElement func;
 
-		String _complexType;
-		String _name;
-		String _schema;
-		OnNullInput _onNullInput;
-		Security _security;
-		Type _type;
-		Trust _trust;
-		boolean _leakproof;
-		int _cost;
-		int _rows;
-		String[] _settings;
-		String[] _provides;
-		String[] _requires;
-		Trigger[] _triggers;
+		public String      _complexType;
+		public String      _name;
+		public String      _schema;
+		public OnNullInput _onNullInput;
+		public Security    _security;
+		public Type        _type;
+		public Trust       _trust;
+		public Boolean     _leakproof;
+		int                _cost;
+		int                _rows;
+		public String[]    _settings;
+		public String[]    _provides;
+		public String[]    _requires;
+		Trigger[]          _triggers;
 
 		boolean complexViaInOut = false;
 		boolean setof = false;
@@ -901,54 +1053,6 @@ queuerunning: for ( int i = 0 ; ; )
 		FunctionImpl(ExecutableElement e)
 		{
 			func = e;
-		}
-
-		public void setComplexType( Object o, boolean explicit, Element e)
-		{
-			_complexType = (String)o;
-		}
-
-		public void setName( Object o, boolean explicit, Element e)
-		{
-			_name = (String)o;
-			if ( "".equals( _name) )
-				_name = func.getSimpleName().toString();
-		}
-
-		public void setSchema( Object o, boolean explicit, Element e)
-		{
-			_schema = (String)o;
-		}
-
-		public void setOnNullInput( Object o, boolean explicit, Element e)
-		{
-			_onNullInput =
-				OnNullInput.valueOf( ((VariableElement)o).getSimpleName()
-					.toString());
-		}
-
-		public void setSecurity( Object o, boolean explicit, Element e)
-		{
-			_security =
-				Security.valueOf( ((VariableElement)o).getSimpleName()
-					.toString());
-		}
-
-		public void setType( Object o, boolean explicit, Element e)
-		{
-			_type =
-				Type.valueOf( ((VariableElement)o).getSimpleName().toString());
-		}
-
-		public void setTrust( Object o, boolean explicit, Element e)
-		{
-			_trust =
-				Trust.valueOf( ((VariableElement)o).getSimpleName().toString());
-		}
-
-		public void setLeakproof( Object o, boolean explicit, Element e)
-		{
-			_leakproof = ((Boolean)o).booleanValue();
 		}
 
 		public void setCost( Object o, boolean explicit, Element e)
@@ -965,21 +1069,6 @@ queuerunning: for ( int i = 0 ; ; )
 				throw new IllegalArgumentException( "rows must be nonnegative");
 		}
 
-		public void setSettings( Object o, boolean explicit, Element e)
-		{
-			_settings = avToArray( o, String.class);
-		}
-
-		public void setProvides( Object o, boolean explicit, Element e)
-		{
-			_provides = avToArray( o, String.class);
-		}
-
-		public void setRequires( Object o, boolean explicit, Element e)
-		{
-			_requires = avToArray( o, String.class);
-		}
-
 		public void setTriggers( Object o, boolean explicit, Element e)
 		{
 			AnnotationMirror[] ams = avToArray( o, AnnotationMirror.class);
@@ -993,14 +1082,23 @@ queuerunning: for ( int i = 0 ; ; )
 			}
 		}
 
-		public void characterize()
+		public boolean characterize()
 		{
+			if ( "".equals( _name) )
+				_name = func.getSimpleName().toString();
+
+			Set<Modifier> mods = func.getModifiers();
+			if ( ! mods.contains( Modifier.STATIC) )
+			{
+				msg( Kind.ERROR, func, "A pljava function must be static");
+			}
+
 			TypeMirror ret = func.getReturnType();
 			if ( ret.getKind().equals( TypeKind.ERROR) )
 			{
 				msg( Kind.ERROR, func,
 					"Unable to resolve return type of function");
-				return;
+				return false;
 			}
 
 			ExecutableType et = (ExecutableType)func.asType();
@@ -1019,7 +1117,7 @@ queuerunning: for ( int i = 0 ; ; )
 					msg( Kind.ERROR, func.getParameters().get( arity - 1),
 						"Last parameter of complex-type-returning function " +
 						"must be ResultSet");
-					return;
+					return false;
 				}
 			}
 			else if ( typu.isAssignable( typu.erasure( ret), TY_ITERATOR) )
@@ -1040,7 +1138,7 @@ queuerunning: for ( int i = 0 ; ; )
 							msg( Kind.ERROR, func,
 								"Need one type argument for Iterator " +
 								"return type");
-							return;
+							return false;
 						}
 						setofComponent = typeArgs.get( 0);
 						break;
@@ -1054,7 +1152,7 @@ queuerunning: for ( int i = 0 ; ; )
 				{
 					msg( Kind.ERROR, func,
 						"Failed to find setof component type");
-					return;
+					return false;
 				}
 			}
 			else if ( typu.isAssignable( ret, TY_RESULTSETPROVIDER)
@@ -1086,21 +1184,28 @@ queuerunning: for ( int i = 0 ; ; )
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
+			return true;
 		}
 
 		/**
-		 * Return SQL syntax for the function's name (schema-qualified if
+		 * Append SQL syntax for the function's name (schema-qualified if
 		 * appropriate) and parameters, either with any defaults indicated
 		 * (for use in CREATE FUNCTION) or without (for use in DROP FUNCTION).
 		 *
 		 * @param dflts Whether to include the defaults, if any.
 		 */
-		String nameAndParams( boolean dflts)
+		void appendNameAndParams( StringBuilder sb, boolean dflts)
 		{
-			StringBuilder sb = new StringBuilder();
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
 			sb.append( name()).append( '(');
+			appendParams( sb, dflts);
+			// TriggerImpl relies on ) being the very last character
+			sb.append( ')');
+		}
+
+		void appendParams( StringBuilder sb, boolean dflts)
+		{
 			if ( ! trigger )
 			{
 				ExecutableType et = (ExecutableType)func.asType();
@@ -1120,8 +1225,17 @@ queuerunning: for ( int i = 0 ; ; )
 						sb.append( ',');
 				}
 			}
-			// TriggerImpl relies on ) being the very last character
-			return sb.append( ')').toString();
+		}
+
+		void appendAS( StringBuilder sb)
+		{
+			Element e = func.getEnclosingElement();
+			if ( ! e.getKind().equals( ElementKind.CLASS) )
+				msg( Kind.ERROR, func,
+					"Somehow this method got enclosed by something other " +
+					"than a class");
+			sb.append( e.toString()).append( '.');
+			sb.append( func.toString());
 		}
 
 		public String[] deployStrings()
@@ -1130,7 +1244,7 @@ queuerunning: for ( int i = 0 ; ; )
 			// relies on each trigger's deployStrings() having length == 1
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
-			sb.append( nameAndParams( true));
+			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
 				sb.append( "trigger");
@@ -1167,13 +1281,8 @@ queuerunning: for ( int i = 0 ; ; )
 			for ( String s : settings() )
 				sb.append( "\tSET ").append( s).append( '\n');
 			sb.append( "\tAS '");
-			Element e = func.getEnclosingElement();
-			if ( ! e.getKind().equals( ElementKind.CLASS) )
-				msg( Kind.ERROR, func,
-					"Somehow this method got enclosed by something other " +
-					"than a class");
-			sb.append( e.toString()).append( '.');
-			sb.append( func.toString()).append( '\'');
+			appendAS( sb);
+			sb.append( '\'');
 			rslt [ 0 ] = sb.toString();
 			
 			int i = 1;
@@ -1192,9 +1301,395 @@ queuerunning: for ( int i = 0 ; ; )
 					rslt [ --i ] = s;
 
 			StringBuilder sb = new StringBuilder();
-			sb.append( "DROP FUNCTION ").append( nameAndParams( false));
+			sb.append( "DROP FUNCTION ");
+			appendNameAndParams( sb, false);
 			rslt [ rslt.length - 1 ] = sb.toString();
 			return rslt;
+		}
+	}
+
+	static enum UDTFunctionID
+	{
+		INPUT( "in", "cstring", null),
+		OUTPUT( "out", null, "cstring"),
+		RECEIVE( "recv", "internal", null),
+		SEND( "send", null, "bytea");
+		UDTFunctionID( String suffix, String param, String ret)
+		{
+			this.suffix = suffix;
+			this.param = param;
+			this.ret = ret;
+		}
+		private String suffix;
+		private String param;
+		private String ret;
+		String getSuffix() { return suffix; }
+		String getParam( UDTImpl u)
+		{
+			if ( null != param )
+				return param;
+			return u.qname;
+		}
+		String getRet( UDTImpl u)
+		{
+			if ( null != ret )
+				return ret;
+			return u.qname;
+		}
+	}
+
+	class UDTFunctionImpl extends FunctionImpl
+	{
+		UDTFunctionImpl( UDTImpl ui, TypeElement te, UDTFunctionID id)
+		{
+			super( null);
+			this.ui = ui;
+			this.te = te;
+			this.id = id;
+
+			_complexType = id.getRet( ui);
+			_name = ui.name() + '_' + id.getSuffix();
+			_schema = ui.schema();
+			_cost = -1;
+			_rows = -1;
+			_onNullInput = Function.OnNullInput.CALLED;
+			_security = Function.Security.INVOKER;
+			_type = Function.Type.VOLATILE;
+			_trust = Function.Trust.RESTRICTED;
+			_leakproof = false;
+			_settings = new String[0];
+			_triggers = new Trigger[0];
+			_provides = _settings;
+			_requires = _settings;
+		}
+
+		UDTImpl ui;
+		TypeElement te;
+		UDTFunctionID id;
+
+		@Override
+		void appendParams( StringBuilder sb, boolean dflts)
+		{
+			sb.append( id.getParam( ui));
+		}
+
+		@Override
+		void appendAS( StringBuilder sb)
+		{
+			sb.append( "UDT[").append( te.toString()).append( "] ");
+			sb.append( id.name());
+		}
+
+		StringBuilder appendTypeOp( StringBuilder sb)
+		{
+			sb.append( id.name()).append( " = ");
+			if ( ! "".equals( schema()) )
+				sb.append( schema()).append( '.');
+			return sb.append( name());
+		}
+
+		@Override
+		public boolean characterize()
+		{
+			return false;
+		}
+
+		public void setComplexType( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"The complexType of a UDT function may not be changed", e);
+		}
+
+		public void setRows( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"The rows attribute of a UDT function may not be set", e);
+		}
+
+		public void setProvides( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"A UDT function does not have its own provides/requires",
+					e);
+		}
+
+		public void setRequires( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"A UDT function does not have its own provides/requires",
+					e);
+		}
+
+		public void setTriggers( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"A UDT function may not have associated triggers", e);
+		}
+
+		public void setImplementor( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR,
+					"A UDT function does not have its own implementor", e);
+		}
+
+		public String implementor()
+		{
+			return ui.implementor();
+		}
+	}
+
+	class UDTImpl
+	extends AbstractAnnotationImpl
+	implements UDT, Snippet
+	{
+		public String       name() { return _name; }
+		public String     schema() { return _schema; }
+		public String[] provides() { return _provides; }
+		public String[] requires() { return _requires; }
+
+		public String  typeModifierInput() { return _typeModifierInput; }
+		public String typeModifierOutput() { return _typeModifierOutput; }
+		public String            analyze() { return _analyze; }
+		public int        internalLength() { return _internalLength; }
+		public boolean     passedByValue() { return _passedByValue; }
+		public UDT.Alignment   alignment() { return _alignment; }
+		public UDT.Storage       storage() { return _storage; }
+		public String               like() { return _like; }
+		public char             category() { return _category; }
+		public boolean         preferred() { return _preferred; }
+		public String       defaultValue() { return _defaultValue; }
+		public String            element() { return _element; }
+		public char            delimiter() { return _delimiter; }
+		public boolean        collatable() { return _collatable; }
+
+		TypeElement tclass;
+		String qname;
+		UDTFunctionImpl in, out, recv, send;
+
+		public String[] _provides;
+		public String[] _requires;
+		public String   _name;
+		public String   _schema;
+
+		public String        _typeModifierInput;
+		public String        _typeModifierOutput;
+		public String        _analyze;
+		public Integer       _internalLength;
+		public Boolean       _passedByValue;
+		public UDT.Alignment _alignment;
+		public UDT.Storage   _storage;
+		public String        _like;
+		char                 _category;
+		public Boolean       _preferred;
+		String               _defaultValue;
+		public String        _element;
+		char                 _delimiter;
+		public Boolean       _collatable;
+
+		boolean categoryExplicit;
+		boolean delimiterExplicit;
+
+		public void setDefaultValue( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_defaultValue = (String)o; // "" could be a real default value
+		}
+
+		public void setCategory( Object o, boolean explicit, Element e)
+		{
+			_category = (Character)o;
+			categoryExplicit = explicit;
+		}
+
+		public void setDelimiter( Object o, boolean explicit, Element e)
+		{
+			_delimiter = (Character)o;
+			delimiterExplicit = explicit;
+		}
+
+		UDTImpl(TypeElement e)
+		{
+			tclass = e;
+
+			if ( ! typu.isAssignable( e.asType(), TY_SQLDATA) )
+			{
+				msg( Kind.ERROR, e,	"A pljava UDT must implement %s",
+					TY_SQLDATA);
+			}
+		}
+
+		void registerFunctions()
+		{
+			if ( "".equals( _name) )
+				_name = tclass.getSimpleName().toString();
+
+			if ( "".equals( _schema) )
+				qname = _name;
+			else
+				qname = _schema + "." + _name;
+
+			ExecutableElement niladicCtor =	huntFor(
+				constructorsIn( tclass.getEnclosedElements()), null, false,
+					null);
+
+			if ( null == niladicCtor )
+			{
+				msg( Kind.ERROR, tclass,
+					"A pljava UDT must have a public no-arg constructor");
+			}
+
+			ExecutableElement instanceReadSQL = huntFor(
+				methodsIn( tclass.getEnclosedElements()), "readSQL", false,
+					TY_VOID, TY_SQLINPUT, TY_STRING);
+
+			ExecutableElement instanceWriteSQL = huntFor(
+				methodsIn( tclass.getEnclosedElements()), "writeSQL", false,
+					TY_VOID, TY_SQLOUTPUT);
+
+			ExecutableElement instanceToString = huntFor(
+				methodsIn( tclass.getEnclosedElements()), "toString", false,
+					TY_STRING);
+
+			ExecutableElement staticParse = huntFor(
+				methodsIn( tclass.getEnclosedElements()), "parse", true,
+					tclass.asType(), TY_STRING, TY_STRING);
+
+			if ( null == staticParse )
+			{
+				msg( Kind.ERROR, tclass,
+					"A pljava UDT must have a public static " +
+					"parse(String,String) method that returns the UDT");
+			}
+
+			in = new UDTFunctionImpl( this, tclass, UDTFunctionID.INPUT);
+			putSnippet( staticParse, in);
+
+			out = new UDTFunctionImpl( this, tclass, UDTFunctionID.OUTPUT);
+			putSnippet( null != instanceToString ? instanceToString : out, out);
+
+			recv = new UDTFunctionImpl( this, tclass, UDTFunctionID.RECEIVE);
+			putSnippet( null != instanceReadSQL ? instanceReadSQL : recv, recv);
+
+			send = new UDTFunctionImpl( this, tclass, UDTFunctionID.SEND);
+			putSnippet( null != instanceWriteSQL ? instanceWriteSQL : send,
+				send);
+		}
+
+		public boolean characterize()
+		{
+			if ( "".equals( typeModifierInput())
+				&& ! "".equals( typeModifierOutput()) )
+				msg( Kind.ERROR, tclass,
+					"UDT typeModifierOutput useless without typeModifierInput");
+
+			if ( 1 > internalLength() && -1 != internalLength() )
+				msg( Kind.ERROR, tclass,
+					"UDT internalLength must be positive, or -1 for varying");
+
+			if ( passedByValue() &&
+				( 8 < internalLength() || -1 == internalLength() ) )
+				msg( Kind.ERROR, tclass,
+					"Only a UDT of fixed length <= 8 can be passed by value");
+
+			if ( -1 == internalLength() &&
+				-1 == alignment().compareTo( UDT.Alignment.INT4) )
+				msg( Kind.ERROR, tclass,
+					"A variable-length UDT must have alignment at least INT4");
+
+			if ( -1 != internalLength() && UDT.Storage.PLAIN != storage() )
+				msg( Kind.ERROR, tclass,
+					"Storage for a fixed-length UDT must be PLAIN");
+
+			// see PostgreSQL backend/commands/typecmds.c "must be simple ASCII"
+			if ( 32 > category() || category() > 126 )
+				msg( Kind.ERROR, tclass,
+					"UDT category must be a printable ASCII character");
+
+			_requires = augmentRequires( _requires, implementor());
+
+			return true;
+		}
+
+		public String[] deployStrings()
+		{
+			ArrayList<String> al = new ArrayList<String>();
+			al.add( "CREATE TYPE " + qname);
+
+			al.addAll( Arrays.asList( in.deployStrings()));
+			al.addAll( Arrays.asList( out.deployStrings()));
+			al.addAll( Arrays.asList( recv.deployStrings()));
+			al.addAll( Arrays.asList( send.deployStrings()));
+
+			StringBuilder sb = new StringBuilder();
+			sb.append( "CREATE TYPE ").append( qname).append( " (\n\t");
+			in.appendTypeOp( sb).append( ",\n\t");
+			out.appendTypeOp( sb).append( ",\n\t");
+			recv.appendTypeOp( sb).append( ",\n\t");
+			send.appendTypeOp( sb);
+
+			if ( ! "".equals( typeModifierInput()) )
+				sb.append( ",\n\tTYPMOD_IN = ").append( typeModifierInput());
+
+			if ( ! "".equals( typeModifierOutput()) )
+				sb.append( ",\n\tTYPMOD_OUT = ").append( typeModifierOutput());
+
+			if ( ! "".equals( analyze()) )
+				sb.append( ",\n\tANALYZE = ").append( typeModifierOutput());
+
+			if ( -1 != internalLength()  ||  "".equals( like()) )
+				sb.append( ",\n\tINTERNALLENGTH = ").append(
+					-1 == internalLength() ? "VARIABLE"
+					: String.valueOf( internalLength()));
+
+			if ( passedByValue() )
+				sb.append( ",\n\tPASSEDBYVALUE");
+
+			if ( UDT.Alignment.INT4 != alignment() ||  "".equals( like()) )
+				sb.append( ",\n\tALIGNMENT = ").append( alignment().name());
+
+			if ( UDT.Storage.PLAIN != storage() ||  "".equals( like()) )
+				sb.append( ",\n\tSTORAGE = ").append( storage().name());
+
+			if ( ! "".equals( like()) )
+				sb.append( ",\n\tLIKE = ").append( like());
+
+			if ( categoryExplicit )
+				sb.append( ",\n\tCATEGORY = '").append(
+					DDRWriter.eQuote( String.valueOf( category())));
+
+			if ( preferred() )
+				sb.append( ",\n\tPREFERRED = true");
+
+			if ( null != defaultValue() )
+				sb.append( ",\n\tDEFAULT = ").append(
+					DDRWriter.eQuote( defaultValue()));
+
+			if ( ! "".equals( element()) )
+				sb.append( ",\n\tELEMENT = ").append( element());
+
+			if ( delimiterExplicit )
+				sb.append( ",\n\tDELIMITER = '").append(
+					DDRWriter.eQuote( String.valueOf( delimiter())));
+
+			if ( collatable() )
+				sb.append( ",\n\tCOLLATABLE = true");
+
+			al.add( sb.append( "\n)").toString());
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			return new String[]
+			{
+				"DROP TYPE " + qname + " CASCADE"
+			};
 		}
 	}
 
@@ -1584,8 +2079,10 @@ interface Snippet
 	 * element/value pairs have been filled in, to compute any additional
 	 * information derived from those values before deployStrings() or
 	 * undeployStrings() can be called.
+	 * @return true if this Snippet is standalone and should be scheduled and
+	 * emitted based on provides/requires; false if something else will emit it.
 	 */
-	public void characterize();
+	public boolean characterize();
 }
 
 /**
