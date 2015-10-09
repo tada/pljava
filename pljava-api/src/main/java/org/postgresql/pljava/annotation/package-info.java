@@ -52,12 +52,12 @@
  * in the top directory of the tree where the compiled class files are written.
  * <dt><code>ddr.name.trusted</code>
  * <dd>The language name that will be used to declare methods that are
- * annotated to have {@link Function.Trust#RESTRICTED} behavior. If not
+ * annotated to have {@link org.postgresql.pljava.annotation.Function.Trust#RESTRICTED} behavior. If not
  * specified, the name <code>java</code> will be used. It must match the name
  * used for the "trusted" language declaration when PL/Java was installed.
  * <dt><code>ddr.name.untrusted</code>
  * <dd>The language name that will be used to declare methods that are
- * annotated to have {@link Function.Trust#UNRESTRICTED} behavior. If not
+ * annotated to have {@link org.postgresql.pljava.annotation.Function.Trust#UNRESTRICTED} behavior. If not
  * specified, the name <code>javaU</code> will be used. It must match the name
  * used for the "untrusted" language declaration when PL/Java was installed.
  * </dl>

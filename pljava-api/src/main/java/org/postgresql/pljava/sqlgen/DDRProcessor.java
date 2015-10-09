@@ -28,6 +28,7 @@ import java.sql.Timestamp;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -308,8 +309,7 @@ class DDRProcessorImpl
 	 */
 	void generateDescriptor()
 	{
-		List<Vertex<Snippet>> vs =
-			new ArrayList<Vertex<Snippet>>( snippets.size());
+		Queue<Vertex<Snippet>> vs =	new LinkedList<Vertex<Snippet>>();
 		Map<String, Vertex<Snippet>> provider =
 			new HashMap<String, Vertex<Snippet>>();
 		Set<String> consumer = new HashSet<String>();
@@ -330,32 +330,74 @@ class DDRProcessorImpl
 				consumer.add( s);
 		}
 		
-		consumer.removeAll( provider.keySet());
-		
-		for ( String s : consumer )
-		{
-			msg( Kind.ERROR, "tag \"%s\" is required but nowhere provided", s);
-			errorRaised = true;
-		}
-		
-		if ( errorRaised )
-			return;
-
 		for ( Vertex<Snippet> v : vs )
 			for ( String s : v.payload.requires() )
-				provider.get( s).precede( v);
-
-		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
-		for ( Vertex<Snippet> v : vs )
-			if ( 0 == v.indegree )
-				q.add( v);
+			{
+				Vertex<Snippet> p = provider.get( s);
+				if ( null != p )
+					p.precede( v);
+				else if ( s == v.payload.implementor() )
+					/*
+					 * It's the implicit requires(implementor()). Bump the
+					 * indegree anyway so the snippet won't be emitted until
+					 * the cycle breaker code (see below) sets it free after
+					 * any others that can be handled first.
+					 */
+					++ v.indegree;
+			}
 
 		Snippet[] snips = new Snippet [ vs.size() ];
-		for ( int i = 0 ; i < snips.length ; ++ i )
+
+		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
+		for ( Iterator<Vertex<Snippet>> it = vs.iterator() ; it.hasNext() ; )
 		{
-			Vertex<Snippet> v = q.remove();
-			snips[i] = v.payload;
-			v.use( q);
+			Vertex<Snippet> v = it.next();
+			if ( 0 == v.indegree )
+			{
+				q.add( v);
+				it.remove();
+			}
+		}
+
+queuerunning: for ( int i = 0 ; ; )
+		{
+			while ( ! q.isEmpty() )
+			{
+				Vertex<Snippet> v = q.remove();
+				snips[i++] = v.payload;
+				v.use( q, vs);
+				for ( String p : v.payload.provides() )
+					consumer.remove(p);
+			}
+			if ( vs.isEmpty() )
+				break; // all done
+			/*
+			 * There are snippets remaining to output but they all have
+			 * indegree > 0, normally a 'cycle' error. But somewhere there may
+			 * be one with indegree exactly 1 and an implicit requirement of its
+			 * own implementor tag, with no snippet on record to provide it.
+			 * That's allowed (maybe the installing/removing environment will
+			 * be "providing" that tag anyway), so set one such snippet free
+			 * and see how much farther we get.
+			 */
+			for ( Iterator<Vertex<Snippet>> it = vs.iterator(); it.hasNext(); )
+			{
+				Vertex<Snippet> v = it.next();
+				if ( 1 < v.indegree  ||  null == v.payload.implementor() )
+					continue;
+				if ( provider.containsKey( v.payload.implementor()) )
+					continue;
+				-- v.indegree;
+				it.remove();
+				q.add( v);
+				continue queuerunning;
+			}
+			/*
+			 * Got here? It's a real cycle ... nothing to be done.
+			 */
+			for ( String s : consumer )
+				msg( Kind.ERROR, "requirement in a cycle: %s", s);
+			return;
 		}
 		
 		try
@@ -487,6 +529,33 @@ class DDRProcessorImpl
 			for ( AnnotationValue av : vs )
 				a[i++] = k.cast(av.getValue());
 			return a;
+		}
+
+		/**
+		 * Supply the required implementor() method for those subclasses
+		 * that will implement {@link Snippet}.
+		 */
+		public String implementor() { return _implementor; }
+
+		String _implementor = "PostgreSQL";
+
+		public void setImplementor( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_implementor = "".equals( o) ? null : (String)o;
+		}
+
+		/**
+		 * Use from characterize() in any subclass implementing Snippet.
+		 */
+		protected String[] augmentRequires( String req[], String imp)
+		{
+			if ( null == imp )
+				return req;
+			String[] newreq = new String [ 1 + req.length ];
+			System.arraycopy( req, 0, newreq, 0, req.length);
+			newreq[req.length] = imp;
+			return newreq;
 		}
 	}
 
@@ -627,7 +696,6 @@ class DDRProcessorImpl
 
 		public String[]   deployStrings() { return _install; }
 		public String[] undeployStrings() { return _remove; }
-		public void        characterize() { }
 		
 		String[] _install;
 		String[] _remove;
@@ -653,6 +721,11 @@ class DDRProcessorImpl
 		{
 			_requires = avToArray( o, String.class);
 		}
+
+		public void characterize()
+		{
+			_requires = augmentRequires( _requires, implementor());
+		}
 	}
 	
 	class TriggerImpl
@@ -669,6 +742,7 @@ class DDRProcessorImpl
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
+		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
 		String[] _arguments;
 		Event[] 	_events;
@@ -1007,6 +1081,8 @@ class DDRProcessorImpl
 				msg( Kind.ERROR, func,
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
+
+			_requires = augmentRequires( _requires, implementor());
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
@@ -1474,6 +1550,12 @@ class DDRProcessorImpl
 interface Snippet
 {
 	/**
+	 * An {@code <implementor name>} that will be used to wrap each command
+	 * from this Snippet as an {@code <implementor block>}. If null, the
+	 * commands will be emitted as plain {@code <SQL statement>}s.
+	 */
+	public String implementor();
+	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
 	 */
@@ -1528,10 +1610,20 @@ class Vertex<P>
 		adj.add( v);
 	}
 	
-	void use( Queue<Vertex<P>> q)
+	void use( Collection<Vertex<P>> q)
 	{
 		for ( Vertex<P> v : adj )
 			if ( 0 == -- v.indegree )
 				q.add( v);
+	}
+
+	void use( Collection<Vertex<P>> q, Collection<Vertex<P>> vs)
+	{
+		for ( Vertex<P> v : adj )
+			if ( 0 == -- v.indegree )
+			{
+				vs.remove( v);
+				q.add( v);
+			}
 	}
 }

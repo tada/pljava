@@ -88,6 +88,7 @@ static jclass  s_Backend_class;
 static jmethodID s_setTrusted;
 static char* vmoptions;
 static char* classpath;
+static char* implementors;
 static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
@@ -691,7 +692,24 @@ static void initializeJavaVM(void)
 				NULL,
 			#endif
 			NULL, NULL);
-	
+
+		DefineCustomStringVariable(
+			"pljava.implementors",
+			"Implementor names recognized in deployment descriptors",
+			NULL,
+			&implementors,
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+				"postgresql",
+			#endif
+			PGC_USERSET,
+			#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+				GUC_LIST_INPUT | GUC_LIST_QUOTE,
+			#endif
+			#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+				NULL,
+			#endif
+			NULL, NULL);
+
 		EmitWarningsOnPlaceholders("pljava");
 			s_firstTimeInit = false;
 	}

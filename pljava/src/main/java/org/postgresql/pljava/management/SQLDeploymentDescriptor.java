@@ -12,9 +12,6 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
-import org.postgresql.pljava.Session;
-import org.postgresql.pljava.SessionManager;
-
 /**
  * This class deals with parsing and executing the deployment descriptor as
  * defined in ISO/IEC 9075-13:2003. It has the following format:<pre><code>
@@ -47,34 +44,73 @@ import org.postgresql.pljava.SessionManager;
  * &lt;SQL token&gt; ::= an SQL lexical unit specified by the term &quot;&lt;token&gt;&quot; in
  * Subclause 5.2, &quot;&lt;token&gt;&quot; and &quot;&lt;separator&gt;&quot;, in ISO/IEC 9075-2.</code></pre>
  *
+ * <p><strong>Note:</strong> this parser departs from the specification for
+ * {@code <descriptor file>} in the following ways:</p>
+ * <ul>
+ *  <li>Per ISO/IEC 9075-13, an {@code <SQL statement>} (not wrapped as an
+ *  {@code <implementor block>}), may be one of only a few types of statement:
+ *  declaring a procedure, function, or type; granting {@code USAGE} on a
+ *  type, or {@code EXECUTE} on a procedure or function; declaring the ordering
+ *  of a type. Any SQL that is not one of those, or does not use the exact
+ *  ISO/IEC 9075 syntax, is allowed only within an {@code <implementor block>}.
+ *  This parser does not enforce that restriction. This behavior is strictly
+ *  more lax than the spec, and will not reject any standards-conformant
+ *  descriptor file.</li>
+ *  <li>Officially, an {@code <implementor name>} is an SQL {@code identifier}
+ *  and may have any of the forms defined in 9075-2 subclause 5.2. This parser
+ *  (a) only recognizes the {@code <regular identifier>} form (that is,
+ *  non-double-quoted, no Unicode escape, matched case-insensitively), and (b)
+ *  replaces the SQL allowable-character rules {@code <identifier start>} and
+ *  {@code <identifier extend>} with the similar but nonidentical Java rules
+ *  {@link Character#isJavaIdentifierStart(char)} and
+ *  {@link Character#isJavaIdentifierPart(char)} (which do not work for
+ *  characters in the {@linkplain Character#isSupplementaryCodePoint(int)
+ *  supplementary character} range). In unlikely cases this
+ *  could lead to rejecting a deployment descriptor that in fact conforms to the
+ *  standard.</li>
+ *  <li>Through PL/Java 1.4.3, this parser has not recognized {@code --} as the
+ *  start of an SQL comment (which it is), and <em>has</em> recognized
+ *  {@code //}, which isn't.</li>
+ *  <li>Also through PL/Java 1.4.3, all whitespace (outside of quoted literals
+ *  and identifiers) has been collapsed to a single {@code SPACE}, which would
+ *  run afoul of the SQL rules for quoted literal/identifier continuation, if
+ *  a deployment descriptor were ever to use that.</li>
+ * </ul>
+ * <p>The most conservative way to generate a deployment descriptor for
+ * PL/Java's consumption is to wrap <em>all</em> commands as
+ * {@code <implementor block>} and ensure that any {@code <implementor name>}
+ * is both a valid Java identifier and a valid SQL {@code <regular identifier>}
+ * containing nothing from the supplementary character range.
+ * </p>
  * @author Thomas Hallgren
+ * @author Chapman Flack
  */
 public class SQLDeploymentDescriptor
 {
-	private final ArrayList m_installCommands = new ArrayList();
-	private final ArrayList m_removeCommands = new ArrayList();
+	private final ArrayList<Command> m_installCommands =
+		new ArrayList<Command>();
+	private final ArrayList<Command> m_removeCommands =
+		new ArrayList<Command>();
 	
 	private final StringBuffer m_buffer = new StringBuffer();
 	private final char[] m_image;
-	private final String m_implementorName;
 	private final Logger m_logger;
 
 	private int m_position = 0;
 
 	/**
-	 * Parses the deployment descriptor <code>descImage</code> using
-	 * <code>implementorName</code> as discriminator for implementor specific
-	 * blocks. The install and remove blocks are remembered for later execution
+	 * Parses the deployment descriptor <code>descImage</code> into a series of
+	 * {@code Command} objects each having an SQL command and, if present, an
+	 * {@code <implementor name>}. The install and remove blocks are remembered
+	 * for later execution
 	 * with calls to {@link #install install()} and {@link #remove remove()}.
 	 * @param descImage The image to parse
-	 * @param implementorName The discriminator to use for implementor blocks
 	 * @throws ParseException If a parse error is encountered
 	 */
-	public SQLDeploymentDescriptor(String descImage, String implementorName)
+	public SQLDeploymentDescriptor(String descImage)
 	throws ParseException
 	{
 		m_image = descImage.toCharArray();
-		m_implementorName = implementorName;
 		m_logger = Logger.getAnonymousLogger();
 		this.readDescriptor();
 	}
@@ -109,18 +145,12 @@ public class SQLDeploymentDescriptor
 		return new String(m_image);
 	}
 
-	private void executeArray(ArrayList array, Connection conn)
+	private void executeArray(ArrayList<Command> array, Connection conn)
 	throws SQLException
 	{
 		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
-		Session session = SessionManager.current();
-		int top = array.size();
-		for(int idx = 0; idx < top; ++idx)
-		{
-			String cmd = (String)array.get(idx);
-			m_logger.finer(cmd);
-			session.executeAsSessionUser(conn, cmd);
-		}
+		for( Command c : array )
+			c.execute( conn);
 		m_logger.exiting("org.postgresql.pljava.management.SQLDeploymentDescriptor", "executeArray");
 	}
 
@@ -163,16 +193,16 @@ public class SQLDeploymentDescriptor
 		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readActionGroup");
 		this.readToken('"');
 		if(!"BEGIN".equals(this.readIdentifier()))
-			throw this.parseError("Excpected keyword 'BEGIN'");
+			throw this.parseError("Expected keyword 'BEGIN'");
 
-		ArrayList commands;
+		ArrayList<Command> commands;
 		String actionType = this.readIdentifier();
 		if("INSTALL".equals(actionType))
 			commands = m_installCommands;
 		else if("REMOVE".equals(actionType))
 			commands = m_removeCommands;
 		else
-			throw this.parseError("Excpected keyword 'INSTALL' or 'REMOVE'");
+			throw this.parseError("Expected keyword 'INSTALL' or 'REMOVE'");
 
 		for(;;)
 		{
@@ -186,6 +216,7 @@ public class SQLDeploymentDescriptor
 			// If it is, and if the implementor name corresponds to the one
 			// defined for this deployment, then extract the SQL token stream.
 			//
+			String implementorName;
 			int top = cmd.length();
 			if(top >= 15
 			&& "BEGIN ".equalsIgnoreCase(cmd.substring(0, 6))
@@ -200,7 +231,7 @@ public class SQLDeploymentDescriptor
 					throw this.parseError(
 						"Expected whitespace after <implementor name>");
 
-				String implementorName = cmd.substring(6, pos);
+				implementorName = cmd.substring(6, pos);
 				int iLen = implementorName.length();
 
 				int endNamePos = top - iLen;
@@ -210,16 +241,12 @@ public class SQLDeploymentDescriptor
 					throw this.parseError(
 						"Implementor block must end with END <implementor name>");
 
-				if(implementorName.equalsIgnoreCase(m_implementorName))
-					cmd = cmd.substring(pos+1, endPos);
-				else
-					// Block is not intended for this implementor.
-					//
-					cmd = null;
+				cmd = cmd.substring(pos+1, endPos);
 			}
+			else
+				implementorName = null;
 
-			if(cmd != null)
-				commands.add(cmd.trim());
+			commands.add(new Command(cmd.trim(), implementorName));
 
 			// Check if we have END INSTALL or END REMOVE
 			//
@@ -461,5 +488,51 @@ public class SQLDeploymentDescriptor
 	{
 		int pos = m_position++;
 		return (pos >= m_image.length) ? -1 : m_image[pos];
+	}
+}
+
+/**
+ * A {@code <command>} in the deployment descriptor grammar.
+ * If {@link #tag} is {@code null}, this is an {@code <SQL statement>}
+ * (that is, to be run unconditionally, though no attempt has been made to
+ * restrict it to the five types of standard-conforming statements allowed
+ * by the spec). If {@code tag} is not null, this is an
+ * {@code <implementor block>}, to be executed conditionally based on the
+ * value of {@code tag}.
+ * <p>
+ * It could seem tempting to subclass this and assign specific behaviors, but
+ * really it is created too early for that. At the time of creation only the
+ * tag name (or absence) is known. Which tags are to be honored with what sort
+ * of behavior will not be known for all tags, and may change as commands are
+ * executed.
+ */
+class Command
+{
+	/** The sql to execute (if this command is not suppressed). Never null.
+	 */
+	final String sql;
+	private  final String tag;
+
+	/**
+	 * Execute this {@code Command} using a {@code DDRExecutor} chosen
+	 * according to its {@code <implementor name>}.
+	 */
+	void execute( Connection conn) throws SQLException
+	{
+		DDRExecutor ddre = DDRExecutor.forImplementor( tag);
+		ddre.execute( sql, conn);
+	}
+
+	Command(String sql, String tag)
+	{
+		this.sql = sql.trim();
+		this.tag = tag;
+	}
+
+	public String toString()
+	{
+		if ( null == tag )
+			return "/*<SQL statement>*/ " + sql;
+		return "/*<implementor block> " + tag + "*/ " + sql;
 	}
 }

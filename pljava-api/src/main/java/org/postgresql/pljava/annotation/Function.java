@@ -187,4 +187,12 @@ category</a>
 	 * later for remove actions.
 	 */
 	String[] requires() default {};
+
+	/**
+	 * The {@code <implementor name>} to be used around SQL code generated
+	 * for this function (and for its triggers, if any, and not overridden for
+	 * them). Defaults to {@code PostgreSQL}. Set explicitly to {@code ""} to
+	 * emit code not wrapped in an {@code <implementor block>}.
+	 */
+	String implementor() default "";
 }
