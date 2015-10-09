@@ -85,7 +85,7 @@ static String String_create(TypeClass cls, Oid typeId)
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	fmgr_info_cxt(pgType->typoutput, &self->textOutput, ctx);
 	fmgr_info_cxt(pgType->typinput,  &self->textInput,  ctx);
-	self->elementType = pgType->typelem;
+	self->elementType = 'e' == pgType->typtype ? typeId : pgType->typelem;
 	ReleaseSysCache(typeTup);
 	return self;
 }
