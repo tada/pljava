@@ -82,15 +82,15 @@ import org.postgresql.pljava.annotation.Function;
 "    from test_summary"
 	),
 	@SQLAction(
-    	install=
-    		"CREATE TYPE unicodetestrow AS " +
-    		"(matched boolean, cparray integer[], s text)",
-    	remove="DROP TYPE unicodetestrow",
-    	provides="unicodetestrow type"
+		install=
+			"CREATE TYPE unicodetestrow AS " +
+			"(matched boolean, cparray integer[], s text)",
+		remove="DROP TYPE unicodetestrow",
+		provides="unicodetestrow type"
 	)
 })
 public class UnicodeRoundTripTest {
-	/** 
+	/**
 	 * This function takes a string and an array of ints constructed in PG,
 	 * such that PG believes the codepoints in the string to correspond exactly
 	 * with the ints in the array. The function compares the two, generates a

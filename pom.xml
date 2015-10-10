@@ -11,7 +11,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
-	
+
 	<organization>
 		<name>Tada AB</name>
 		<url>http://tada.se/eng/</url>
@@ -39,7 +39,7 @@
 			</otherArchives>
 		</mailingList>
 	</mailingLists>
-	
+
 	<scm>
 		<connection>scm:git:https://github.com/tada/pljava.git</connection>
 		<developerConnection>scm:git:ssh://git@github.com/tada/pljava.git</developerConnection>
@@ -137,7 +137,7 @@
 					</compilerArguments>
 				</configuration>
 			</plugin>
-    		<plugin>
+			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-site-plugin</artifactId>
 				<version>3.0</version>
@@ -164,7 +164,7 @@
 						</goals>
 					</execution>
 				</executions>
-    		</plugin>
+			</plugin>
 		</plugins>
 	</build>
 	<reporting>

@@ -47,16 +47,16 @@ been tested with mingw.
 
 Postgresql 9.4beta1 -
 	A modification to Oid.c was necessary to accommodate a modified Postgresql API.
-	
+
 	The modifications have been tested with Postgresql 9.4beta1 and build
 	correctly on Linux.
-	
+
 	While the pljava code compiles with Visual Studio 2013 and Postgresql 9.4beta1,
 	the link fails with 3 unresolved symbols (which are successfully found in
 	previous Postgresql releases). This appears to be an artifact of the use of
 	Visual Studio 2013 to compile Postgresql 9.4beta1. I have not had a chance to
 	rebuild Postgresql 9.4beta1 from source to determine a workaround.
-	
+
 About the code changes for Visual Studio compilation:
 	Backend.c - need to dllexport functions referenced by Java JNI calls.
 	Function.c - need to define macros for strcasecmp and strncasecmp.
@@ -71,4 +71,3 @@ suspect that ultimately the correct solution would be for Postgresql to declare
 these dllexport and then adjusting the conditionalization in pljava to account
 for this in 9.4 and above.
 
-	

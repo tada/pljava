@@ -62,11 +62,11 @@ import org.postgresql.pljava.annotation.SQLActions;
 		"  current_setting('pljava.implementors'), true) " +
 		"END"
 	),
-	
+
 	@SQLAction(implementor="LifeIsGood", install=
 		"SELECT javatest.logmessage('INFO', 'Looking good!')"
 	),
-	
+
 	@SQLAction(implementor="LifeIsNotGood", install=
 		"SELECT javatest.logmessage('WARNING', 'This should not be executed')"
 	)

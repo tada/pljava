@@ -13,19 +13,19 @@
 	</condition>
 
 	<target name="configure_msvc" if="msvc-present">
-        <exec executable="cl" outputproperty="MSVC_HEADER"
+		<exec executable="cl" outputproperty="MSVC_HEADER"
 			osfamily="windows" logError="false"
 			failifexecutionfails="false"
 		/>
-        <loadresource property="MSVC_VER">
-            <string value="${MSVC_HEADER}" />
-            <filterchain>
-                <tokenfilter>
-                    <containsregex pattern="[^\d]*(\d+)\.(\d+).*$" replace="\1\2" />
-                </tokenfilter>
+		<loadresource property="MSVC_VER">
+			<string value="${MSVC_HEADER}" />
+			<filterchain>
+				<tokenfilter>
+					<containsregex pattern="[^\d]*(\d+)\.(\d+).*$" replace="\1\2" />
+				</tokenfilter>
 				<striplinebreaks/>
-            </filterchain>
-        </loadresource>
+			</filterchain>
+		</loadresource>
 		<property name="MSVC_VER" value="0000"/>
 	</target>
 
@@ -35,53 +35,53 @@
 	</target>
 
 	<target name="configure_msvc_options" depends="configure_msvc, configure_nomsvc"/>
-	
-    <target name="pg_config" depends="configure_msvc_options">
-        <!-- First gather all values from the pg_config executable. -->
-        <exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
-            <arg line="--pkglibdir"/>
-        </exec>
-        <exec executable="pg_config" outputproperty="PGSQL_LIBDIR">
-            <arg line="--libdir"/>
-        </exec>
-        <exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR">
-            <arg line="--includedir"/>
-        </exec>
-        <exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
-            <arg line="--includedir-server"/>
-        </exec>
-        <exec executable="pg_config" outputproperty="PGSQL_VER">
-            <arg line="--version"/>
-        </exec>
 
-        <!-- Then split the version number into its components. -->
-        <loadresource property="PGSQL_MAJOR_VER">
-            <string value="${PGSQL_VER}" />
-            <filterchain>
-                <tokenfilter>
+	<target name="pg_config" depends="configure_msvc_options">
+		<!-- First gather all values from the pg_config executable. -->
+		<exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
+			<arg line="--pkglibdir"/>
+		</exec>
+		<exec executable="pg_config" outputproperty="PGSQL_LIBDIR">
+			<arg line="--libdir"/>
+		</exec>
+		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR">
+			<arg line="--includedir"/>
+		</exec>
+		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
+			<arg line="--includedir-server"/>
+		</exec>
+		<exec executable="pg_config" outputproperty="PGSQL_VER">
+			<arg line="--version"/>
+		</exec>
+
+		<!-- Then split the version number into its components. -->
+		<loadresource property="PGSQL_MAJOR_VER">
+			<string value="${PGSQL_VER}" />
+			<filterchain>
+				<tokenfilter>
 					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\1" />
-                </tokenfilter>
-            </filterchain>
-        </loadresource>
-        <loadresource property="PGSQL_MINOR_VER">
-            <string value="${PGSQL_VER}" />
-            <filterchain>
-                <tokenfilter>
+					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\1" />
+				</tokenfilter>
+			</filterchain>
+		</loadresource>
+		<loadresource property="PGSQL_MINOR_VER">
+			<string value="${PGSQL_VER}" />
+			<filterchain>
+				<tokenfilter>
 					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\2" />
-                </tokenfilter>
-            </filterchain>
-        </loadresource>
-        <loadresource property="PGSQL_PATCH_VER">
-            <string value="${PGSQL_VER}" />
-            <filterchain>
-                <tokenfilter>
+					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\2" />
+				</tokenfilter>
+			</filterchain>
+		</loadresource>
+		<loadresource property="PGSQL_PATCH_VER">
+			<string value="${PGSQL_VER}" />
+			<filterchain>
+				<tokenfilter>
 					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-                    <containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\3" />
-                </tokenfilter>
-            </filterchain>
-        </loadresource>
+					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\3" />
+				</tokenfilter>
+			</filterchain>
+		</loadresource>
 
 		<script language="javascript"><![CDATA[
 			var msvc_version = parseInt(project.getProperty('MSVC_VER'));
@@ -94,16 +94,16 @@
 			}
 			]]></script>
 
-        <!-- Finally write all properties to a file which Maven understands. -->
-        <propertyfile file="pgsql.properties" jdkproperties="true">
-            <entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
-            <entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
-            <entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
-            <entry key="PGSQL_INCLUDEDIR-SERVER" value="${PGSQL_INCLUDEDIR-SERVER}" />
-            <entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />
-            <entry key="PGSQL_MINOR_VER" value="${PGSQL_MINOR_VER}" />
-            <entry key="PGSQL_PATCH_VER" value="${PGSQL_PATCH_VER}" />
-            <entry key="MSVC_RINT" value="${MSVC_RINT}" />
-        </propertyfile>
-    </target>
+		<!-- Finally write all properties to a file which Maven understands. -->
+		<propertyfile file="pgsql.properties" jdkproperties="true">
+			<entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
+			<entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
+			<entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
+			<entry key="PGSQL_INCLUDEDIR-SERVER" value="${PGSQL_INCLUDEDIR-SERVER}" />
+			<entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />
+			<entry key="PGSQL_MINOR_VER" value="${PGSQL_MINOR_VER}" />
+			<entry key="PGSQL_PATCH_VER" value="${PGSQL_PATCH_VER}" />
+			<entry key="MSVC_RINT" value="${MSVC_RINT}" />
+		</propertyfile>
+	</target>
 </project>

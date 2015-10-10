@@ -12,7 +12,7 @@
 		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
 	</description>
 	<packaging>nar</packaging>
-	
+
 	<properties>
 		<!-- use -Dnar.cores=1 if non-interleaved warning messages wanted -->
 		<nar.cores>0</nar.cores>
@@ -76,13 +76,13 @@
 			</build>
 		</profile>
 	</profiles>
-	
+
 	<build>
 		<plugins>
 
-			<!-- Several things that could not be done using Maven plugins. This plugin 
-				must be listet FIRST as the pgsql.properties file has to be written before 
-				properties-maven-plugin is called, which can apparently also only happen 
+			<!-- Several things that could not be done using Maven plugins. This plugin
+				must be listet FIRST as the pgsql.properties file has to be written before
+				properties-maven-plugin is called, which can apparently also only happen
 				in the "initialize" phase. -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -120,9 +120,9 @@
 				</executions>
 			</plugin>
 
-			<!-- Reads the pg_config properties, which were extracted by an Ant task 
-				in the "initialize" phase, into Maven variables. As this plugin seems to 
-				get ignored in any phase other than "initialize" it must be listed after 
+			<!-- Reads the pg_config properties, which were extracted by an Ant task
+				in the "initialize" phase, into Maven variables. As this plugin seems to
+				get ignored in any phase other than "initialize" it must be listed after
 				the Ant task. -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
@@ -226,7 +226,7 @@
 				</configuration>
 			</plugin>
 
-			<!-- The deploy goal will be hijacked by an ant task so the original plugin 
+			<!-- The deploy goal will be hijacked by an ant task so the original plugin
 				has to be silenced until we actually use it.
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -240,7 +240,7 @@
 		</plugins>
 		<pluginManagement>
 			<plugins>
-				<!--This plugin's configuration is used to store Eclipse m2e settings 
+				<!--This plugin's configuration is used to store Eclipse m2e settings
 					only. It has no influence on the Maven build itself. -->
 				<plugin>
 					<groupId>org.eclipse.m2e</groupId>

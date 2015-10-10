@@ -18,7 +18,7 @@ JNIEnv* jniEnv;
 /* MSVC will not allow redefinition WITH dllimport after seeing
  * the definition in guc.h that does not include dllimport.
  */
-#ifdef _MSC_VER 
+#ifdef _MSC_VER
 extern int	log_min_error_statement;
 extern int	client_min_messages;
 #else
