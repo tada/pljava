@@ -42,7 +42,15 @@ import org.postgresql.pljava.annotation.Function;
  * @return true to indicate the OUT tuple is not null
  */
 @SQLActions({
-	@SQLAction(requires="unicodetest fn", install=
+	@SQLAction(provides="postgresql9_0plus", install=
+"   select case " +
+"    when 90000 <= cast(current_setting('server_version_num') as integer) " +
+"    then set_config('pljava.implementors', 'postgresql9_0plus,' || " +
+"    current_setting('pljava.implementors'), true) " +
+"   end"
+	),
+	@SQLAction(requires="unicodetest fn", implementor="postgresql9_0plus",
+	install=
 "   with " +
 "    usable_codepoints ( cp ) as ( " +
 "     select generate_series(1,x'd7ff'::int) " +
@@ -129,7 +137,7 @@ public class UnicodeRoundTripTest {
 	if ( ints[i] != myInts[i] )
 		ok = false;
 
-		rs.updateBoolean("matched", true);
+		rs.updateBoolean("matched", ok);
 		rs.updateObject("cparray", myInts);
 		rs.updateString("s", myS);
 		return true;
