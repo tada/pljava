@@ -17,7 +17,7 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.UDT;
+import org.postgresql.pljava.annotation.BaseUDT;
 
 /**
  * A User Defined Type with varlena storage, tesing github issue 52.
@@ -36,7 +36,7 @@ import org.postgresql.pljava.annotation.UDT;
 "   FROM (VALUES (('32767')), (('32768')), (('65536')), (('1048576'))) " +
 "   AS t ( v )"
 )
-@UDT(schema="javatest", provides="varlena UDT")
+@BaseUDT(schema="javatest", provides="varlena UDT")
 public class VarlenaUDTTest implements SQLData {
 	int apop = 73;
 	String typname;

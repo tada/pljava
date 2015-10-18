@@ -89,7 +89,8 @@ import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.Trigger;
-import org.postgresql.pljava.annotation.UDT;
+import org.postgresql.pljava.annotation.BaseUDT;
+import org.postgresql.pljava.annotation.MappedUDT;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
@@ -183,7 +184,8 @@ class DDRProcessorImpl
 	final TypeElement  AN_SQLACTIONS;
 	final TypeElement  AN_SQLTYPE;
 	final TypeElement  AN_TRIGGER;
-	final TypeElement  AN_UDT;
+	final TypeElement  AN_BASEUDT;
+	final TypeElement  AN_MAPPEDUDT;
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -250,7 +252,8 @@ class DDRProcessorImpl
 		AN_SQLACTIONS  = elmu.getTypeElement( SQLActions.class.getName());
 		AN_SQLTYPE     = elmu.getTypeElement( SQLType.class.getName());
 		AN_TRIGGER     = elmu.getTypeElement( Trigger.class.getName());
-		AN_UDT         = elmu.getTypeElement( UDT.class.getName());
+		AN_BASEUDT     = elmu.getTypeElement( BaseUDT.class.getName());
+		AN_MAPPEDUDT   = elmu.getTypeElement( MappedUDT.class.getName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -335,7 +338,8 @@ class DDRProcessorImpl
 		boolean functionPresent = false;
 		boolean sqlActionPresent = false;
 		boolean sqlActionsPresent = false;
-		boolean udtPresent = false;
+		boolean baseUDTPresent = false;
+		boolean mappedUDTPresent = false;
 		
 		boolean willClaim = true;
 		
@@ -347,8 +351,10 @@ class DDRProcessorImpl
 				sqlActionPresent = true;
 			else if ( AN_SQLACTIONS.equals( te) )
 				sqlActionsPresent = true;
-			else if ( AN_UDT.equals( te) )
-				udtPresent = true;
+			else if ( AN_BASEUDT.equals( te) )
+				baseUDTPresent = true;
+			else if ( AN_MAPPEDUDT.equals( te) )
+				mappedUDTPresent = true;
 			else if ( AN_SQLTYPE.equals( te) )
 				; // these are handled within FunctionImpl
 			else
@@ -360,9 +366,13 @@ class DDRProcessorImpl
 			}
 		}
 		
-		if ( udtPresent )
-			for ( Element e : re.getElementsAnnotatedWith( AN_UDT) )
-				processUDT( e);
+		if ( baseUDTPresent )
+			for ( Element e : re.getElementsAnnotatedWith( AN_BASEUDT) )
+				processUDT( e, UDTKind.BASE);
+
+		if ( mappedUDTPresent )
+			for ( Element e : re.getElementsAnnotatedWith( AN_MAPPEDUDT) )
+				processUDT( e, UDTKind.MAPPED);
 
 		if ( functionPresent )
 			for ( Element e : re.getElementsAnnotatedWith( AN_FUNCTION) )
@@ -542,10 +552,13 @@ queuerunning: for ( int i = 0 ; ; )
 		}
 	}
 
+	static enum UDTKind { BASE, MAPPED }
+
 	/**
-	 * Do UDT thing.
+	 * Process a single element annotated with @BaseUDT or @MappedUDT, as
+	 * indicated by the UDTKind k.
 	 */
-	void processUDT( Element e)
+	void processUDT( Element e, UDTKind k)
 	{
 		if ( ! ElementKind.CLASS.equals( e.getKind()) )
 		{
@@ -580,18 +593,37 @@ queuerunning: for ( int i = 0 ; ; )
 			}
 		}
 
-		UDTImpl u = getSnippet( e, UDTImpl.class);
-		if ( null == u )
+		switch ( k )
 		{
-			u = new UDTImpl( (TypeElement)e);
-			putSnippet( e, u);
+		case BASE:
+			BaseUDTImpl bu = getSnippet( e, BaseUDTImpl.class);
+			if ( null == bu )
+			{
+				bu = new BaseUDTImpl( (TypeElement)e);
+				putSnippet( e, bu);
+			}
+			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
+			{
+				if ( am.getAnnotationType().asElement().equals( AN_BASEUDT) )
+					populateAnnotationImpl( bu, e, am);
+			}
+			bu.registerFunctions();
+			break;
+
+		case MAPPED:
+			MappedUDTImpl mu = getSnippet( e, MappedUDTImpl.class);
+			if ( null == mu )
+			{
+				mu = new MappedUDTImpl( (TypeElement)e);
+				putSnippet( e, mu);
+			}
+			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
+			{
+				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
+					populateAnnotationImpl( mu, e, am);
+			}
+			break;
 		}
-		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
-		{
-			if ( am.getAnnotationType().asElement().equals( AN_UDT) )
-				populateAnnotationImpl( u, e, am);
-		}
-		u.registerFunctions();
 	}
 
 	ExecutableElement huntFor(List<ExecutableElement> ees, String name,
@@ -1308,13 +1340,13 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
-	static enum UDTFunctionID
+	static enum BaseUDTFunctionID
 	{
 		INPUT( "in", "cstring", null),
 		OUTPUT( "out", null, "cstring"),
 		RECEIVE( "recv", "internal", null),
 		SEND( "send", null, "bytea");
-		UDTFunctionID( String suffix, String param, String ret)
+		BaseUDTFunctionID( String suffix, String param, String ret)
 		{
 			this.suffix = suffix;
 			this.param = param;
@@ -1324,13 +1356,13 @@ hunt:	for ( ExecutableElement ee : ees )
 		private String param;
 		private String ret;
 		String getSuffix() { return suffix; }
-		String getParam( UDTImpl u)
+		String getParam( BaseUDTImpl u)
 		{
 			if ( null != param )
 				return param;
 			return u.qname;
 		}
-		String getRet( UDTImpl u)
+		String getRet( BaseUDTImpl u)
 		{
 			if ( null != ret )
 				return ret;
@@ -1338,9 +1370,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
-	class UDTFunctionImpl extends FunctionImpl
+	class BaseUDTFunctionImpl extends FunctionImpl
 	{
-		UDTFunctionImpl( UDTImpl ui, TypeElement te, UDTFunctionID id)
+		BaseUDTFunctionImpl(
+			BaseUDTImpl ui, TypeElement te, BaseUDTFunctionID id)
 		{
 			super( null);
 			this.ui = ui;
@@ -1363,9 +1396,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			_requires = _settings;
 		}
 
-		UDTImpl ui;
+		BaseUDTImpl ui;
 		TypeElement te;
-		UDTFunctionID id;
+		BaseUDTFunctionID id;
 
 		@Override
 		void appendParams( StringBuilder sb, boolean dflts)
@@ -1444,53 +1477,151 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
-	class UDTImpl
+	abstract class AbstractUDTImpl
 	extends AbstractAnnotationImpl
-	implements UDT, Snippet
+	implements Snippet
 	{
 		public String       name() { return _name; }
 		public String     schema() { return _schema; }
 		public String[] provides() { return _provides; }
 		public String[] requires() { return _requires; }
 
-		public String  typeModifierInput() { return _typeModifierInput; }
-		public String typeModifierOutput() { return _typeModifierOutput; }
-		public String            analyze() { return _analyze; }
-		public int        internalLength() { return _internalLength; }
-		public boolean     passedByValue() { return _passedByValue; }
-		public UDT.Alignment   alignment() { return _alignment; }
-		public UDT.Storage       storage() { return _storage; }
-		public String               like() { return _like; }
-		public char             category() { return _category; }
-		public boolean         preferred() { return _preferred; }
-		public String       defaultValue() { return _defaultValue; }
-		public String            element() { return _element; }
-		public char            delimiter() { return _delimiter; }
-		public boolean        collatable() { return _collatable; }
-
-		TypeElement tclass;
-		String qname;
-		UDTFunctionImpl in, out, recv, send;
-
 		public String[] _provides;
 		public String[] _requires;
 		public String   _name;
 		public String   _schema;
 
-		public String        _typeModifierInput;
-		public String        _typeModifierOutput;
-		public String        _analyze;
-		public Integer       _internalLength;
-		public Boolean       _passedByValue;
-		public UDT.Alignment _alignment;
-		public UDT.Storage   _storage;
-		public String        _like;
-		char                 _category;
-		public Boolean       _preferred;
-		String               _defaultValue;
-		public String        _element;
-		char                 _delimiter;
-		public Boolean       _collatable;
+		TypeElement tclass;
+
+		String qname;
+
+		AbstractUDTImpl(TypeElement e)
+		{
+			tclass = e;
+
+			if ( ! typu.isAssignable( e.asType(), TY_SQLDATA) )
+			{
+				msg( Kind.ERROR, e,	"A pljava UDT must implement %s",
+					TY_SQLDATA);
+			}
+
+			ExecutableElement niladicCtor =	huntFor(
+				constructorsIn( tclass.getEnclosedElements()), null, false,
+					null);
+
+			if ( null == niladicCtor )
+			{
+				msg( Kind.ERROR, tclass,
+					"A pljava UDT must have a public no-arg constructor");
+			}
+		}
+
+		protected void setQname()
+		{
+			if ( "".equals( _name) )
+				_name = tclass.getSimpleName().toString();
+
+			if ( "".equals( _schema) )
+				qname = _name;
+			else
+				qname = _schema + "." + _name;
+		}
+	}
+
+	class MappedUDTImpl
+	extends AbstractUDTImpl
+	implements MappedUDT
+	{
+		public String[]    structure() { return _structure; }
+
+		String[] _structure;
+
+		public void setStructure( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_structure = (String[])o;
+		}
+
+		MappedUDTImpl(TypeElement e)
+		{
+			super( e);
+		}
+
+		public boolean characterize()
+		{
+			setQname();
+
+			_requires = augmentRequires( _requires, implementor());
+
+			return true;
+		}
+
+		public String[] deployStrings()
+		{
+			ArrayList<String> al = new ArrayList<String>();
+			if ( null != structure() )
+			{
+				StringBuilder sb = new StringBuilder();
+				sb.append( "CREATE TYPE ").append( qname).append( " AS (");
+				int i = structure().length;
+				for ( String s : structure() )
+					sb.append( "\n\t").append( s).append(
+						( 0 < -- i ) ? ',' : '\n');
+				sb.append( ')');
+				al.add( sb.toString());
+			}
+			al.add( "SELECT sqlj.add_type_mapping(" +
+				DDRWriter.eQuote( qname) + ", " +
+				DDRWriter.eQuote( tclass.toString()) + ')');
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			ArrayList<String> al = new ArrayList<String>();
+			al.add( "SELECT sqlj.drop_type_mapping(" +
+				DDRWriter.eQuote( qname) + ')');
+			if ( null != structure() )
+				al.add( "DROP TYPE " + qname);
+			return al.toArray( new String [ al.size() ]);
+		}
+	}
+
+	class BaseUDTImpl
+	extends AbstractUDTImpl
+	implements BaseUDT
+	{
+		public String    typeModifierInput() { return _typeModifierInput; }
+		public String   typeModifierOutput() { return _typeModifierOutput; }
+		public String              analyze() { return _analyze; }
+		public int          internalLength() { return _internalLength; }
+		public boolean       passedByValue() { return _passedByValue; }
+		public BaseUDT.Alignment alignment() { return _alignment; }
+		public BaseUDT.Storage     storage() { return _storage; }
+		public String                 like() { return _like; }
+		public char               category() { return _category; }
+		public boolean           preferred() { return _preferred; }
+		public String         defaultValue() { return _defaultValue; }
+		public String              element() { return _element; }
+		public char              delimiter() { return _delimiter; }
+		public boolean          collatable() { return _collatable; }
+
+		BaseUDTFunctionImpl in, out, recv, send;
+
+		public String            _typeModifierInput;
+		public String            _typeModifierOutput;
+		public String            _analyze;
+		public Integer           _internalLength;
+		public Boolean           _passedByValue;
+		public BaseUDT.Alignment _alignment;
+		public BaseUDT.Storage   _storage;
+		public String            _like;
+		char                     _category;
+		public Boolean           _preferred;
+		String                   _defaultValue;
+		public String            _element;
+		char                     _delimiter;
+		public Boolean           _collatable;
 
 		boolean categoryExplicit;
 		boolean delimiterExplicit;
@@ -1513,36 +1644,14 @@ hunt:	for ( ExecutableElement ee : ees )
 			delimiterExplicit = explicit;
 		}
 
-		UDTImpl(TypeElement e)
+		BaseUDTImpl(TypeElement e)
 		{
-			tclass = e;
-
-			if ( ! typu.isAssignable( e.asType(), TY_SQLDATA) )
-			{
-				msg( Kind.ERROR, e,	"A pljava UDT must implement %s",
-					TY_SQLDATA);
-			}
+			super( e);
 		}
 
 		void registerFunctions()
 		{
-			if ( "".equals( _name) )
-				_name = tclass.getSimpleName().toString();
-
-			if ( "".equals( _schema) )
-				qname = _name;
-			else
-				qname = _schema + "." + _name;
-
-			ExecutableElement niladicCtor =	huntFor(
-				constructorsIn( tclass.getEnclosedElements()), null, false,
-					null);
-
-			if ( null == niladicCtor )
-			{
-				msg( Kind.ERROR, tclass,
-					"A pljava UDT must have a public no-arg constructor");
-			}
+			setQname();
 
 			ExecutableElement instanceReadSQL = huntFor(
 				methodsIn( tclass.getEnclosedElements()), "readSQL", false,
@@ -1567,16 +1676,20 @@ hunt:	for ( ExecutableElement ee : ees )
 					"parse(String,String) method that returns the UDT");
 			}
 
-			in = new UDTFunctionImpl( this, tclass, UDTFunctionID.INPUT);
+			in = new BaseUDTFunctionImpl(
+				this, tclass, BaseUDTFunctionID.INPUT);
 			putSnippet( staticParse, in);
 
-			out = new UDTFunctionImpl( this, tclass, UDTFunctionID.OUTPUT);
+			out = new BaseUDTFunctionImpl(
+				this, tclass, BaseUDTFunctionID.OUTPUT);
 			putSnippet( null != instanceToString ? instanceToString : out, out);
 
-			recv = new UDTFunctionImpl( this, tclass, UDTFunctionID.RECEIVE);
+			recv = new BaseUDTFunctionImpl(
+				this, tclass, BaseUDTFunctionID.RECEIVE);
 			putSnippet( null != instanceReadSQL ? instanceReadSQL : recv, recv);
 
-			send = new UDTFunctionImpl( this, tclass, UDTFunctionID.SEND);
+			send = new BaseUDTFunctionImpl(
+				this, tclass, BaseUDTFunctionID.SEND);
 			putSnippet( null != instanceWriteSQL ? instanceWriteSQL : send,
 				send);
 		}
@@ -1598,11 +1711,11 @@ hunt:	for ( ExecutableElement ee : ees )
 					"Only a UDT of fixed length <= 8 can be passed by value");
 
 			if ( -1 == internalLength() &&
-				-1 == alignment().compareTo( UDT.Alignment.INT4) )
+				-1 == alignment().compareTo( BaseUDT.Alignment.INT4) )
 				msg( Kind.ERROR, tclass,
 					"A variable-length UDT must have alignment at least INT4");
 
-			if ( -1 != internalLength() && UDT.Storage.PLAIN != storage() )
+			if ( -1 != internalLength() && BaseUDT.Storage.PLAIN != storage() )
 				msg( Kind.ERROR, tclass,
 					"Storage for a fixed-length UDT must be PLAIN");
 
@@ -1650,10 +1763,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( passedByValue() )
 				sb.append( ",\n\tPASSEDBYVALUE");
 
-			if ( UDT.Alignment.INT4 != alignment() ||  "".equals( like()) )
+			if ( BaseUDT.Alignment.INT4 != alignment() ||  "".equals( like()) )
 				sb.append( ",\n\tALIGNMENT = ").append( alignment().name());
 
-			if ( UDT.Storage.PLAIN != storage() ||  "".equals( like()) )
+			if ( BaseUDT.Storage.PLAIN != storage() ||  "".equals( like()) )
 				sb.append( ",\n\tSTORAGE = ").append( storage().name());
 
 			if ( ! "".equals( like()) )

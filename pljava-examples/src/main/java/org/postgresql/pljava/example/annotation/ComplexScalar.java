@@ -23,14 +23,14 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLType;
-import org.postgresql.pljava.annotation.UDT;
+import org.postgresql.pljava.annotation.BaseUDT;
 
 import static org.postgresql.pljava.annotation.Function.Type.IMMUTABLE;
 import static
 	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
 
-@UDT(schema="javatest", name="complex", provides="scalar complex type",
-	internalLength=16, alignment=UDT.Alignment.DOUBLE)
+@BaseUDT(schema="javatest", name="complex", provides="scalar complex type",
+	internalLength=16, alignment=BaseUDT.Alignment.DOUBLE)
 public class ComplexScalar implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
