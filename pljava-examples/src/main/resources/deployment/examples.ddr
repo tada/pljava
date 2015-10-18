@@ -358,62 +358,6 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.countNulls(java.lang.Integer[])'
 			LANGUAGE java;
 
-		/* Here is an example of a scalar type that maps to a Java class.
-		 */
-		 
-		/* This is a dummy function that we must have in order to create a
-		 * PostgreSQL 'shell' type (i.e. a type that doesn't really exist
-		 * yet). If we where using language 'C', the shell type would be
-		 * created automatically. Instead, we use a well known C function
-		 * to force this behavior (ugly, it's been reported to the postgresql
-		 * dev mailing list). The suggested solution will probably be to
-		 * implement the following syntax for shell types:
-		 *
-		 * CREATE TYPE javatest.complex;
-		 */
-		CREATE FUNCTION javatest.complexdummy(cstring) RETURNS javatest.complex AS 'lower' LANGUAGE INTERNAL;
-
-		/* The scalar input function */
-		CREATE FUNCTION complex_in(cstring)
-			RETURNS javatest.complex
-			AS 'UDT[org.postgresql.pljava.example.ComplexScalar] input'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		/* The scalar output function */
-		CREATE FUNCTION complex_out(javatest.complex)
-			RETURNS cstring
-			AS 'UDT[org.postgresql.pljava.example.ComplexScalar] output'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		/* The scalar receive function */
-		CREATE FUNCTION complex_recv(internal)
-			RETURNS javatest.complex
-			AS 'UDT[org.postgresql.pljava.example.ComplexScalar] receive'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		/* The scalar send function */
-		CREATE FUNCTION complex_send(javatest.complex)
-			RETURNS bytea
-			AS 'UDT[org.postgresql.pljava.example.ComplexScalar] send'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		/* The scalar type declaration */
-		CREATE TYPE javatest.complex (
-			internallength = 16,
-			input = javatest.complex_in,
-			output = javatest.complex_out,
-			receive = javatest.complex_recv,
-			send = javatest.complex_send,
-			alignment = double
-			);
-
-		/* A test function that just logs and returns its argument.
-		 */
-		CREATE FUNCTION javatest.logcomplex(javatest.complex)
-			RETURNS javatest.complex		
-			AS 'org.postgresql.pljava.example.ComplexScalar.logAndReturn'
-			LANGUAGE java IMMUTABLE STRICT;
-
 		/* Here's an example of a tuple based UDT that maps
 		 * to a Java class.
 		 */
