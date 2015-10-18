@@ -38,7 +38,7 @@ import org.postgresql.pljava.annotation.BaseUDT;
 )
 @BaseUDT(schema="javatest", provides="varlena UDT")
 public class VarlenaUDTTest implements SQLData {
-	int apop = 73;
+	int apop;
 	String typname;
 
 	public VarlenaUDTTest() { }

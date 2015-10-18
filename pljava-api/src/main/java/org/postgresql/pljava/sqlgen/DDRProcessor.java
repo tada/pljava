@@ -1385,10 +1385,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			_schema = ui.schema();
 			_cost = -1;
 			_rows = -1;
-			_onNullInput = Function.OnNullInput.CALLED;
-			_security = Function.Security.INVOKER;
-			_type = Function.Type.VOLATILE;
-			_trust = Function.Trust.RESTRICTED;
+			_onNullInput = OnNullInput.CALLED;
+			_security = Security.INVOKER;
+			_type = Type.VOLATILE;
+			_trust = Trust.RESTRICTED;
 			_leakproof = false;
 			_settings = new String[0];
 			_triggers = new Trigger[0];
@@ -1430,45 +1430,43 @@ hunt:	for ( ExecutableElement ee : ees )
 		public void setComplexType( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"The complexType of a UDT function may not be changed", e);
+				msg( Kind.ERROR, e,
+					"The complexType of a UDT function may not be changed");
 		}
 
 		public void setRows( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"The rows attribute of a UDT function may not be set", e);
+				msg( Kind.ERROR, e,
+					"The rows attribute of a UDT function may not be set");
 		}
 
 		public void setProvides( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"A UDT function does not have its own provides/requires",
-					e);
+				msg( Kind.ERROR, e,
+					"A UDT function does not have its own provides/requires");
 		}
 
 		public void setRequires( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"A UDT function does not have its own provides/requires",
-					e);
+				msg( Kind.ERROR, e,
+					"A UDT function does not have its own provides/requires");
 		}
 
 		public void setTriggers( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"A UDT function may not have associated triggers", e);
+				msg( Kind.ERROR, e,
+					"A UDT function may not have associated triggers");
 		}
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR,
-					"A UDT function does not have its own implementor", e);
+				msg( Kind.ERROR, e,
+					"A UDT function does not have its own implementor");
 		}
 
 		public String implementor()
@@ -1539,7 +1537,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public void setStructure( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				_structure = (String[])o;
+				_structure = avToArray( o, String.class);
 		}
 
 		MappedUDTImpl(TypeElement e)
@@ -1596,8 +1594,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String              analyze() { return _analyze; }
 		public int          internalLength() { return _internalLength; }
 		public boolean       passedByValue() { return _passedByValue; }
-		public BaseUDT.Alignment alignment() { return _alignment; }
-		public BaseUDT.Storage     storage() { return _storage; }
+		public Alignment         alignment() { return _alignment; }
+		public Storage             storage() { return _storage; }
 		public String                 like() { return _like; }
 		public char               category() { return _category; }
 		public boolean           preferred() { return _preferred; }
@@ -1611,10 +1609,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String            _typeModifierInput;
 		public String            _typeModifierOutput;
 		public String            _analyze;
-		public Integer           _internalLength;
+		int                      _internalLength;
 		public Boolean           _passedByValue;
-		public BaseUDT.Alignment _alignment;
-		public BaseUDT.Storage   _storage;
+		Alignment                _alignment;
+		Storage                  _storage;
 		public String            _like;
 		char                     _category;
 		public Boolean           _preferred;
@@ -1623,8 +1621,31 @@ hunt:	for ( ExecutableElement ee : ees )
 		char                     _delimiter;
 		public Boolean           _collatable;
 
+		boolean lengthExplicit;
+		boolean alignmentExplicit;
+		boolean storageExplicit;
 		boolean categoryExplicit;
 		boolean delimiterExplicit;
+
+		public void setInternalLength( Object o, boolean explicit, Element e)
+		{
+			_internalLength = (Integer)o;
+			lengthExplicit = explicit;
+		}
+
+		public void setAlignment( Object o, boolean explicit, Element e)
+		{
+			_alignment = Alignment.valueOf(
+				((VariableElement)o).getSimpleName().toString());
+			alignmentExplicit = explicit;
+		}
+
+		public void setStorage( Object o, boolean explicit, Element e)
+		{
+			_storage = Storage.valueOf(
+				((VariableElement)o).getSimpleName().toString());
+			categoryExplicit = explicit;
+		}
 
 		public void setDefaultValue( Object o, boolean explicit, Element e)
 		{
@@ -1711,11 +1732,11 @@ hunt:	for ( ExecutableElement ee : ees )
 					"Only a UDT of fixed length <= 8 can be passed by value");
 
 			if ( -1 == internalLength() &&
-				-1 == alignment().compareTo( BaseUDT.Alignment.INT4) )
+				-1 == alignment().compareTo( Alignment.INT4) )
 				msg( Kind.ERROR, tclass,
 					"A variable-length UDT must have alignment at least INT4");
 
-			if ( -1 != internalLength() && BaseUDT.Storage.PLAIN != storage() )
+			if ( -1 != internalLength() && Storage.PLAIN != storage() )
 				msg( Kind.ERROR, tclass,
 					"Storage for a fixed-length UDT must be PLAIN");
 
@@ -1755,7 +1776,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( analyze()) )
 				sb.append( ",\n\tANALYZE = ").append( typeModifierOutput());
 
-			if ( -1 != internalLength()  ||  "".equals( like()) )
+			if ( lengthExplicit  ||  "".equals( like()) )
 				sb.append( ",\n\tINTERNALLENGTH = ").append(
 					-1 == internalLength() ? "VARIABLE"
 					: String.valueOf( internalLength()));
@@ -1763,10 +1784,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( passedByValue() )
 				sb.append( ",\n\tPASSEDBYVALUE");
 
-			if ( BaseUDT.Alignment.INT4 != alignment() ||  "".equals( like()) )
+			if ( alignmentExplicit  ||  "".equals( like()) )
 				sb.append( ",\n\tALIGNMENT = ").append( alignment().name());
 
-			if ( BaseUDT.Storage.PLAIN != storage() ||  "".equals( like()) )
+			if ( storageExplicit  ||  "".equals( like()) )
 				sb.append( ",\n\tSTORAGE = ").append( storage().name());
 
 			if ( ! "".equals( like()) )

@@ -358,22 +358,6 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.Parameters.countNulls(java.lang.Integer[])'
 			LANGUAGE java;
 
-		/* Here's an example of a tuple based UDT that maps
-		 * to a Java class.
-		 */
-		CREATE TYPE javatest.complextuple AS (x float8, y float8);
-
-		/* Install the actual type mapping.
-		 */
-		SELECT sqlj.add_type_mapping('javatest.complextuple', 'org.postgresql.pljava.example.ComplexTuple');
-
-		/* A test function that just logs and returns its argument.
-		 */
-		CREATE FUNCTION javatest.logcomplex(javatest.complextuple)
-			RETURNS javatest.complextuple		
-			AS 'org.postgresql.pljava.example.ComplexTuple.logAndReturn'
-			LANGUAGE java IMMUTABLE STRICT;
-
 		/*
 		 * An example using the ANY type
 		 */
