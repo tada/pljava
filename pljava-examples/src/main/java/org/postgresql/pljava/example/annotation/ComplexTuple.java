@@ -31,6 +31,8 @@ public class ComplexTuple implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
 	@Function(schema="javatest", name="logcomplex",
+		type=Function.Type.IMMUTABLE,
+		onNullInput=Function.OnNullInput.RETURNS_NULL,
 		complexType="javatest.complextuple", requires="complextuple type")
 	public static ComplexTuple logAndReturn(
 		@SQLType("javatest.complextuple") ComplexTuple cpl) {
