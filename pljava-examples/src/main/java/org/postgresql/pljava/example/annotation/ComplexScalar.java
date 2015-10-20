@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -8,8 +8,9 @@
  *
  * Contributors:
  *   Tada AB
+ *   Chapman Flack
  */
-package org.postgresql.pljava.example;
+package org.postgresql.pljava.example.annotation;
 
 import java.io.IOException;
 import java.io.StreamTokenizer;
@@ -20,14 +21,29 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.SQLType;
+import org.postgresql.pljava.annotation.BaseUDT;
+
+import static org.postgresql.pljava.annotation.Function.Type.IMMUTABLE;
+import static
+	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
+
+@BaseUDT(schema="javatest", name="complex", provides="scalar complex type",
+	internalLength=16, alignment=BaseUDT.Alignment.DOUBLE)
 public class ComplexScalar implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
-	public static ComplexScalar logAndReturn(ComplexScalar cpl) {
+	@Function(requires="scalar complex type", complexType="javatest.complex",
+		schema="javatest", name="logcomplex", type=IMMUTABLE,
+		onNullInput=RETURNS_NULL)
+	public static ComplexScalar logAndReturn(
+		@SQLType("javatest.complex") ComplexScalar cpl) {
 		s_logger.info(cpl.getSQLTypeName() + cpl);
 		return cpl;
 	}
 
+	@Function(type=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static ComplexScalar parse(String input, String typeName)
 			throws SQLException {
 		try {
@@ -71,6 +87,7 @@ public class ComplexScalar implements SQLData {
 		return m_typeName;
 	}
 
+	@Function(type=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public void readSQL(SQLInput stream, String typeName) throws SQLException {
 		s_logger.info(typeName + " from SQLInput");
@@ -79,6 +96,7 @@ public class ComplexScalar implements SQLData {
 		m_typeName = typeName;
 	}
 
+	@Function(type=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public String toString() {
 		s_logger.info(m_typeName + " toString");
@@ -91,6 +109,7 @@ public class ComplexScalar implements SQLData {
 		return sb.toString();
 	}
 
+	@Function(type=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public void writeSQL(SQLOutput stream) throws SQLException {
 		s_logger.info(m_typeName + " to SQLOutput");

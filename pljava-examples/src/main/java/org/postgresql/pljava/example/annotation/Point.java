@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -8,8 +8,9 @@
  *
  * Contributors:
  *   Tada AB
+ *   Chapman Flack
  */
-package org.postgresql.pljava.example;
+package org.postgresql.pljava.example.annotation;
 
 import java.sql.SQLData;
 import java.sql.SQLException;
@@ -17,10 +18,17 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLType;
+
+@MappedUDT(name="point")
 public class Point implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
-	public static Point logAndReturn(Point cpl) {
+	@Function(schema="javatest", complexType="point",
+		onNullInput=Function.OnNullInput.RETURNS_NULL)
+	public static Point logAndReturn(@SQLType("point") Point cpl) {
 		s_logger.info(cpl.getSQLTypeName() + cpl);
 		return cpl;
 	}
@@ -48,5 +56,11 @@ public class Point implements SQLData {
 		s_logger.info(m_typeName + " to SQLOutput");
 		stream.writeDouble(m_x);
 		stream.writeDouble(m_y);
+	}
+
+	@Override
+	public String toString()
+	{
+		return String.format("(%g,%g)", m_x, m_y);
 	}
 }
