@@ -17,6 +17,8 @@
 		<url>http://tada.se/eng/</url>
 	</organization>
 
+	<inceptionYear>2003</inceptionYear>
+
 	<licenses>
 		<license>
 			<name>BSD 3-clause</name>
