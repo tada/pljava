@@ -57,18 +57,6 @@
 	</modules>
 
 	<distributionManagement>
-		<repository>
-			<uniqueVersion>false</uniqueVersion>
-			<id>tada.se</id>
-			<name>PL/Java Releases</name>
-			<url>http://nexus.tada.se/content/repositories/releases/</url>
-		</repository>
-		<snapshotRepository>
-			<uniqueVersion>false</uniqueVersion>
-			<id>tada.se</id>
-			<name>PL/Java Snapshots</name>
-			<url>http://nexus.tada.se/content/repositories/snapshots/</url>
-		</snapshotRepository>
 		<site>
 			<id>site.pljava.tada.se</id>
 			<name>PL/Java Developer Info</name>
