@@ -215,7 +215,7 @@ class DDRProcessorImpl
 		
 		optv = opts.get( "ddr.implementor");
 		if ( null != optv )
-			defaultImplementor = optv;
+			defaultImplementor = "-".equals( optv) ? null : optv;
 		else
 			defaultImplementor = "PostgreSQL";
 
