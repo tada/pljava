@@ -170,10 +170,6 @@
 						<name>${CPP_COMPILER}</name>
 				-->
 						<defines>
-							<!-- What PKGLIBDIR controls is the expansion of
-							     $libdir if used in pljava.classpath
-							-->
-							<define>PKGLIBDIR=${PGSQL_PKGLIBDIR}</define>
 							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
 							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
 							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
