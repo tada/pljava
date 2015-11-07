@@ -218,7 +218,7 @@
 					<!-- Builds a *.so library. -->
 					<libraries>
 						<library>
-							<type>shared</type>
+							<type>plugin</type>
 							<!-- Do not add "-lstdc++". Adds "-shared-libgcc" though. -->
 							<linkCPP>false</linkCPP>
 						</library>
