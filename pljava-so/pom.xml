@@ -169,11 +169,6 @@
 				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
 						<name>${CPP_COMPILER}</name>
 				-->
-						<defines>
-							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
-							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
-							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
-						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>

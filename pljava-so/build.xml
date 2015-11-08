@@ -50,44 +50,21 @@
 		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
 			<arg line="--includedir-server"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_VER">
-			<arg line="--version"/>
-		</exec>
-
-		<!-- Then split the version number into its components. -->
-		<loadresource property="PGSQL_MAJOR_VER">
-			<string value="${PGSQL_VER}" />
+		<loadresource property="KNOWS_MSVC_RINT">
+			<filelist files="pg_config.h" dir="${PGSQL_INCLUDEDIR}"/>
 			<filterchain>
 				<tokenfilter>
-					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\1" />
-				</tokenfilter>
-			</filterchain>
-		</loadresource>
-		<loadresource property="PGSQL_MINOR_VER">
-			<string value="${PGSQL_VER}" />
-			<filterchain>
-				<tokenfilter>
-					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\2" />
-				</tokenfilter>
-			</filterchain>
-		</loadresource>
-		<loadresource property="PGSQL_PATCH_VER">
-			<string value="${PGSQL_VER}" />
-			<filterchain>
-				<tokenfilter>
-					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="\3" />
+					<filetokenizer/>
+					<containsregex
+						pattern="#if \(_MSC_VER >= 1800\)\s+#define HAVE_RINT"/>
 				</tokenfilter>
 			</filterchain>
 		</loadresource>
 
 		<script language="javascript"><![CDATA[
 			var msvc_version = parseInt(project.getProperty('MSVC_VER'));
-			var pg_major_version = parseInt(project.getProperty('PGSQL_MAJOR_VER'));
-			var pg_minor_version = parseInt(project.getProperty('PGSQL_MINOR_VER'));
-			if (msvc_version >= 1800  && (pg_major_version < 9 || (pg_major_version == 9 && pg_minor_version  < 4))) {
+			var knows_rint = project.getProperty('KNOWS_MSVC_RINT');
+			if (msvc_version >= 1800  && knows_rint === null) {
 				project.setProperty('MSVC_RINT', 'HAVE_RINT=1' );
 			} else {
 				project.setProperty('MSVC_RINT', 'msvc.rint' );
@@ -100,9 +77,6 @@
 			<entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
 			<entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
 			<entry key="PGSQL_INCLUDEDIR-SERVER" value="${PGSQL_INCLUDEDIR-SERVER}" />
-			<entry key="PGSQL_MAJOR_VER" value="${PGSQL_MAJOR_VER}" />
-			<entry key="PGSQL_MINOR_VER" value="${PGSQL_MINOR_VER}" />
-			<entry key="PGSQL_PATCH_VER" value="${PGSQL_PATCH_VER}" />
 			<entry key="MSVC_RINT" value="${MSVC_RINT}" />
 		</propertyfile>
 	</target>
