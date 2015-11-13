@@ -259,7 +259,9 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			{
 				len -= 7;
 				path += 7;
-				appendStringInfoString(&buf, pkglib_path);
+				enlargeStringInfo(&buf, MAXPGPATH);
+				get_pkglib_path(my_exec_path, buf.data);
+				buf.len += strlen(buf.data);
 			}
 			else
 				ereport(ERROR, (
