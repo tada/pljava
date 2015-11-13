@@ -145,18 +145,18 @@ Type Type_getCoerceOut(Type self, Type other)
 			return coercer;
 	}
 
-	if(funcId == InvalidOid)
-		/*
-		 * Binary compatible type. No need for a special coercer
-		 */
-		return self;
-
 	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
 	{
 		elog(ERROR, "no conversion function from %s to %s",
 			 format_type_be(fromOid),
 			 format_type_be(toOid));
 	}
+
+	if(funcId == InvalidOid)
+		/*
+		 * Binary compatible type. No need for a special coercer
+		 */
+		return self;
 
 	if(self->outCoercions == 0)
 		self->outCoercions = HashMap_create(7, GetMemoryChunkContext(self));
