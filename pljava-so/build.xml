@@ -72,7 +72,7 @@
 			]]></script>
 
 		<!-- Finally write all properties to a file which Maven understands. -->
-		<propertyfile file="pgsql.properties" jdkproperties="true">
+		<propertyfile file="target/pgsql.properties" jdkproperties="true">
 			<entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
 			<entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
 			<entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />

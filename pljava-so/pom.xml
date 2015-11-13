@@ -136,7 +136,7 @@
 						</goals>
 						<configuration>
 							<files>
-								<file>${basedir}/pgsql.properties</file>
+								<file>${basedir}/target/pgsql.properties</file>
 							</files>
 						</configuration>
 					</execution>
