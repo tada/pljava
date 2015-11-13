@@ -322,7 +322,14 @@ void String_initialize(void)
 	s_StringClass->coerceDatum    = _String_coerceDatum;
 	s_StringClass->coerceObject   = _String_coerceObject;
 
+	/*
+	 * Frame push/pop hoisted here out of String_initialize_codec to mollify
+	 * pre-C99 compilers that don't want that function to have declarations
+	 * after a statement.
+	 */
+	JNI_pushLocalFrame(16);
 	String_initialize_codec();
+	JNI_popLocalFrame(NULL);
 
 	/*
 	 * Registering known types will increase the performance
@@ -337,8 +344,6 @@ void String_initialize(void)
 
 static void String_initialize_codec()
 {
-	JNI_pushLocalFrame(16);
-
 	jmethodID string_intern = PgObject_getJavaMethod(s_String_class,
 		"intern", "()Ljava/lang/String;");
 	jstring empty = JNI_newStringUTF( "");
@@ -393,8 +398,6 @@ static void String_initialize_codec()
 
 	s_the_empty_string = JNI_newGlobalRef(
 		JNI_callObjectMethod(empty, string_intern));
-
-	JNI_popLocalFrame(NULL);
 
 	s_server_encoding = GetDatabaseEncoding();
 	s_two_step_conversion = PG_UTF8 != s_server_encoding;
