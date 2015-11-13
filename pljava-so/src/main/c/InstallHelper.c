@@ -128,7 +128,9 @@ char *InstallHelper_hello()
 	jstring user = String_createJavaStringFromNTS(MyProcPort->user_name);
 	jstring dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
 	jstring ddir = String_createJavaStringFromNTS(DataDir);
-	jstring ldir = String_createJavaStringFromNTS(pkglib_path);
+
+	get_pkglib_path(my_exec_path, pathbuf);
+	jstring ldir = String_createJavaStringFromNTS(pathbuf);
 
 	get_share_path(my_exec_path, pathbuf);
 	jstring sdir = String_createJavaStringFromNTS(pathbuf);
