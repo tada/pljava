@@ -172,7 +172,7 @@
 			<plugin>
 				<groupId>com.github.maven-nar</groupId>
 				<artifactId>nar-maven-plugin</artifactId>
-				<version>3.1.0</version>
+				<version>3.2.3</version>
 				<extensions>true</extensions>
 
 				<configuration>
@@ -306,7 +306,7 @@
 									<pluginExecutionFilter>
 										<groupId>com.github.maven-nar</groupId>
 										<artifactId>nar-maven-plugin</artifactId>
-										<versionRange>[3.1.0]</versionRange>
+										<versionRange>[3.2.3]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
 											<goal>nar-download</goal>
