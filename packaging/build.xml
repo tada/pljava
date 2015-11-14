@@ -18,9 +18,9 @@
             </filterchain>
         </loadresource>
 		
-		<loadproperties srcFile="../pljava-so/pgsql.properties"/>
+		<loadproperties srcFile="../pljava-so/target/pgsql.properties"/>
 		
-		<property name="suffix" value="pg${PGSQL_MAJOR_VER}.${PGSQL_MINOR_VER}-${naraol}"/>
+		<property name="suffix" value="${PGSQL_VER_CLASSIFIER}-${naraol}"/>
 	</target>
 
 	<target name="package-zip" depends="init">

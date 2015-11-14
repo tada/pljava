@@ -50,6 +50,18 @@
 		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
 			<arg line="--includedir-server"/>
 		</exec>
+		<exec executable="pg_config" outputproperty="PGSQL_VER">
+			<arg line="--version"/>
+		</exec>
+		<loadresource property="PGSQL_VER_CLASSIFIER">
+			<string value="${PGSQL_VER}" />
+			<filterchain>
+				<tokenfilter>
+					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
+					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="pg\1.\2" />
+				</tokenfilter>
+			</filterchain>
+		</loadresource>
 		<loadresource property="KNOWS_MSVC_RINT">
 			<filelist files="pg_config.h" dir="${PGSQL_INCLUDEDIR}"/>
 			<filterchain>
@@ -73,6 +85,7 @@
 
 		<!-- Finally write all properties to a file which Maven understands. -->
 		<propertyfile file="target/pgsql.properties" jdkproperties="true">
+			<entry key="PGSQL_VER_CLASSIFIER" value="${PGSQL_VER_CLASSIFIER}" />
 			<entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
 			<entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
 			<entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
