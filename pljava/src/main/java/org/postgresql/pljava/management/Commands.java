@@ -237,6 +237,11 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </table></blockquote>
  * 
  * @author Thomas Hallgren
+ * @author Chapman Flack
+ */
+/*
+ * Attention: any evolution of the schema here needs to be reflected in
+ * o.p.p.internal.InstallHelper.SchemaVariant and .recognizeSchema().
  */
 @SQLAction(install={
 "	CREATE TABLE sqlj.jar_repository(" +
