@@ -110,9 +110,12 @@ public class Session implements org.postgresql.pljava.Session
 			ResultSet rs = null;
 			AclId sessionUser = AclId.getSessionUser();
 			AclId effectiveUser = AclId.getUser();
+			boolean wasLocalChange = false;
+			boolean changeSucceeded = false;
 			try
 			{
-				_setUser(sessionUser);
+				wasLocalChange = _setUser(sessionUser, true);
+				changeSucceeded = true;
 				if(stmt.execute(statement))
 				{
 					rs = stmt.getResultSet();
@@ -123,7 +126,8 @@ public class Session implements org.postgresql.pljava.Session
 			{
 				SQLUtils.close(rs);
 				SQLUtils.close(stmt);
-				_setUser(effectiveUser);
+				if ( changeSucceeded )
+					_setUser(effectiveUser, wasLocalChange);
 			}
 		}
 	}
@@ -142,5 +146,5 @@ public class Session implements org.postgresql.pljava.Session
 		return System.identityHashCode(Thread.currentThread());
 	}
 
-	private static native void _setUser(AclId userId);
+	private static native boolean _setUser(AclId userId, boolean isLocalChange);
 }

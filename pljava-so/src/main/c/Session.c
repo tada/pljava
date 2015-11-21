@@ -18,7 +18,7 @@ void Session_initialize(void)
 	JNINativeMethod methods[] = {
 		{
 		"_setUser",
-	  	"(Lorg/postgresql/pljava/internal/AclId;)V",
+		"(Lorg/postgresql/pljava/internal/AclId;Z)Z",
 	  	Java_org_postgresql_pljava_internal_Session__1setUser
 		},
 		{ 0, 0, 0 }};
@@ -32,11 +32,14 @@ void Session_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_Session
  * Method:    _setUser
- * Signature: (Lorg/postgresql/pljava/internal/AclId;)V
+ * Signature: (Lorg/postgresql/pljava/internal/AclId;Z)Z
  */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_Session__1setUser(JNIEnv* env, jclass cls, jobject aclId)
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Session__1setUser(
+	JNIEnv* env, jclass cls, jobject aclId, jboolean isLocalChange)
 {
+	bool wasLocalChange = false;
+	Oid dummy;
 	/* No error checking since this might be a restore of user in
 	 * a finally block after an exception.
 	 */
@@ -48,10 +51,13 @@ Java_org_postgresql_pljava_internal_Session__1setUser(JNIEnv* env, jclass cls, j
     || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER >= 11) \
     || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0 && PGSQL_PATCH_VER >= 15) \
     )
-	SetUserIdAndContext(AclId_getAclId(aclId), true);
+	GetUserIdAndContext(&dummy, &wasLocalChange);
+	SetUserIdAndContext(AclId_getAclId(aclId), (bool)isLocalChange);
 #else
+	(void)dummy; /* away with your unused-variable warnings! */
 	SetUserId(AclId_getAclId(aclId));
 #endif
 	END_NATIVE
+	return wasLocalChange ? JNI_TRUE : JNI_FALSE;
 }
 
