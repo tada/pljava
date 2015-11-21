@@ -56,20 +56,22 @@ public class Session implements org.postgresql.pljava.Session
 		return ObjectPoolImpl.getObjectPool(cls);
 	}
 
-	/**
-	 * Return the current user.
-	 */
+	@Override
 	public String getUserName()
 	{
 		return AclId.getUser().getName();
 	}
 
-	/**
-	 * Return the session user.
-	 */
+	@Override
+	public String getOuterUserName()
+	{
+		return AclId.getOuterUser().getName();
+	}
+
+	@Override
 	public String getSessionUserName()
 	{
-		return AclId.getSessionUser().getName();
+		return getOuterUserName();
 	}
 
 
@@ -101,10 +103,54 @@ public class Session implements org.postgresql.pljava.Session
 		SubXactListener.removeListener(listener);
 	}
 
+	@Override
 	public void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException
 	{
+		executeAsOuterUser(conn, statement);
+	}
+
+	@Override
+	public void executeAsOuterUser(Connection conn, String statement)
+	throws SQLException
+	{
 		Statement stmt = conn.createStatement();
+		synchronized(Backend.THREADLOCK)
+		{
+			ResultSet rs = null;
+			AclId outerUser = AclId.getOuterUser();
+			AclId effectiveUser = AclId.getUser();
+			boolean wasLocalChange = false;
+			boolean changeSucceeded = false;
+			try
+			{
+				wasLocalChange = _setUser(outerUser, true);
+				changeSucceeded = true;
+				if(stmt.execute(statement))
+				{
+					rs = stmt.getResultSet();
+					rs.next();
+				}
+			}
+			finally
+			{
+				SQLUtils.close(rs);
+				SQLUtils.close(stmt);
+				if ( changeSucceeded )
+					_setUser(effectiveUser, wasLocalChange);
+			}
+		}
+	}
+
+	/**
+	 * Return current_schema() as the outer user would see it.
+	 * Currently used only in Commands.java. Not made visible API yet
+	 * because there <em>has</em> to be a more general way to do this.
+	 */
+	public String getOuterUserSchema()
+	throws SQLException
+	{
+		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
 		synchronized(Backend.THREADLOCK)
 		{
 			ResultSet rs = null;
@@ -116,11 +162,10 @@ public class Session implements org.postgresql.pljava.Session
 			{
 				wasLocalChange = _setUser(sessionUser, true);
 				changeSucceeded = true;
-				if(stmt.execute(statement))
-				{
-					rs = stmt.getResultSet();
-					rs.next();
-				}
+				rs = stmt.executeQuery("SELECT current_schema()");
+				if ( rs.next() )
+					return rs.getString(1);
+				throw new SQLException("Unable to obtain current schema");
 			}
 			finally
 			{

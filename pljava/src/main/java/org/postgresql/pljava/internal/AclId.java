@@ -50,7 +50,14 @@ public final class AclId
 	}
 
 	/**
-	 * Return the id of the current database user.
+	 * Return the current <em>effective</em> database user id.
+	 *<p>
+	 * <a href=
+'http://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/backend/utils/init/miscinit.c;h=f8cc2d85c18f4e3a21a3e22457ef78d286cd1330;hb=b196a71d88a325039c0bf2a9823c71583b3f9047#l291'
+>Definition</a>:
+	 * "The one to use for all normal permissions-checking purposes."
+	 * Within {@code SECURITY DEFINER} functions and some specialized commands,
+	 * it can be different from the {@linkplain #getOuterUser outer ID}.
 	 */
 	public static AclId getUser()
 	{
@@ -61,18 +68,45 @@ public final class AclId
 	}
 
 	/**
-	 * Return the id of the session user.
+	 * Return the <em>outer</em> database user id.
+	 *<p>
+	 * <a href=
+'http://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/backend/utils/init/miscinit.c;h=f8cc2d85c18f4e3a21a3e22457ef78d286cd1330;hb=b196a71d88a325039c0bf2a9823c71583b3f9047#l286'
+>Definition</a>:
+	 * "the current user ID in effect at the 'outer level' (outside any
+	 * transaction or function)." The session user id taking into account any
+	 * {@code SET ROLE} in effect. This is the ID that a
+	 * {@code SECURITY DEFINER} function should revert to if it needs to operate
+	 * with the invoker's permissions.
+	 * @since 1.5.0
 	 */
-	public static AclId getSessionUser()
+	public static AclId getOuterUser()
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getSessionUser();
+			return _getOuterUser();
 		}
 	}
 
 	/**
-	 * Return the id of the session user.
+	 * Deprecated synonym for {@link #getOuterUser getOuterUser}.
+	 * @deprecated As of 1.5.0, this method is retained only for compatibility
+	 * with old code, and returns the same value as
+	 * {@link #getOuterUser getOuterUser}, which should be used instead.
+	 * Previously, it returned the <em>session</em> ID unconditionally, which is
+	 * incorrect for any PostgreSQL version newer than 8.0, because it was
+	 * unaware of {@code SET ROLE} introduced in 8.1. Any actual use case for a
+	 * method that ignores roles and reports only the session ID should be
+	 * reported as an issue.
+	 */
+	@Deprecated
+	public static AclId getSessionUser()
+	{
+		return getOuterUser();
+	}
+
+	/**
+	 * Return the id of the named user.
 	 * @throws SQLException if the user is unknown to the system.
 	 */
 	public static AclId fromName(String name) throws SQLException
@@ -126,7 +160,7 @@ public final class AclId
 	}
 
 	private static native AclId _getUser();
-	private static native AclId _getSessionUser();
+	private static native AclId _getOuterUser();
 	private static native AclId _fromName(String name);
 	private native String _getName();
 	private native boolean _hasSchemaCreatePermission(Oid oid);

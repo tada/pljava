@@ -150,7 +150,7 @@ public abstract class DDRExecutor
 		throws SQLException
 		{
 			Session session = SessionManager.current();
-			session.executeAsSessionUser( conn, sql);
+			session.executeAsOuterUser( conn, sql);
 		}
 	}
 }

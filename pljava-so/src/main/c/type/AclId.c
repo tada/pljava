@@ -44,9 +44,9 @@ void AclId_initialize(void)
 	  	Java_org_postgresql_pljava_internal_AclId__1getUser
 		},
 		{
-		"_getSessionUser",
+		"_getOuterUser",
 		"()Lorg/postgresql/pljava/internal/AclId;",
-		Java_org_postgresql_pljava_internal_AclId__1getSessionUser
+		Java_org_postgresql_pljava_internal_AclId__1getOuterUser
 		},
 		{
 		"_fromName",
@@ -104,21 +104,21 @@ Java_org_postgresql_pljava_internal_AclId__1getUser(JNIEnv* env, jclass clazz)
 
 /*
  * Class:     org_postgresql_pljava_internal_AclId
- * Method:    _getSessionUser
+ * Method:    _getOuterUser
  * Signature: ()Lorg/postgresql/pljava/internal/AclId;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_AclId__1getSessionUser(JNIEnv* env, jclass clazz)
+Java_org_postgresql_pljava_internal_AclId__1getOuterUser(JNIEnv* env, jclass clazz)
 {
 	jobject result = 0;
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		result = AclId_create(GetSessionUserId());
+		result = AclId_create(GetOuterUserId());
 	}
 	PG_CATCH();
 	{
-		Exception_throw_ERROR("GetSessionUserId");
+		Exception_throw_ERROR("GetOuterUserId");
 	}
 	PG_END_TRY();
 	END_NATIVE

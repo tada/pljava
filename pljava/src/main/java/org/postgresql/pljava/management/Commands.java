@@ -37,6 +37,9 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import org.postgresql.pljava.Session;
+import org.postgresql.pljava.SessionManager;
+
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
@@ -601,20 +604,9 @@ public class Commands
 
 	public static String getCurrentSchema() throws SQLException
 	{
-		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
-		ResultSet rs = null;
-		try
-		{
-			rs = stmt.executeQuery("SELECT current_schema()");
-			if(!rs.next())
-				throw new SQLException("Unable to obtain current schema");
-			return rs.getString(1);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
-		}
+		Session session = SessionManager.current();
+		return ((org.postgresql.pljava.internal.Session)session)
+			.getOuterUserSchema();
 	}
 
 	/**
@@ -685,7 +677,7 @@ public class Commands
 					       + "' is known to the system", 
 					       "4600B");
 
-		AclId user = AclId.getSessionUser();
+		AclId user = AclId.getOuterUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
 			throw new SecurityException(
 				"Only super user or owner can remove a jar");
@@ -769,19 +761,19 @@ public class Commands
 		if(schemaName == null || schemaName.length() == 0)
 			schemaName = "public";
 
+		schemaName = schemaName.toLowerCase();
 		if("public".equals(schemaName))
 		{
-			if(!AclId.getSessionUser().isSuperuser())
+			if(!AclId.getOuterUser().isSuperuser())
 				throw new SQLException(
 					"Permission denied. Only a super user can set the classpath of the public schema");
 		}
 		else
 		{
-			schemaName = schemaName.toLowerCase();
 			Oid schemaId = getSchemaId(schemaName);
 			if(schemaId == null)
 				throw new SQLException("No such schema: " + schemaName);
-			if(!AclId.getSessionUser().hasSchemaCreatePermission(schemaId))
+			if(!AclId.getOuterUser().hasSchemaCreatePermission(schemaId))
 				throw new SQLException(
 					"Permission denied. User must have create permission on the target schema in order to set the classpath");
 		}
@@ -1120,7 +1112,7 @@ public class Commands
 		{
 			stmt.setString(1, jarName);
 			stmt.setString(2, urlString);
-			stmt.setString(3, AclId.getSessionUser().getName());
+			stmt.setString(3, AclId.getOuterUser().getName());
 			if(stmt.executeUpdate() != 1)
 				throw new SQLException(
 					"Jar repository insert did not insert 1 row");
@@ -1157,7 +1149,7 @@ public class Commands
 					       + "' is known to the system",
 					       "4600A");
 
-		AclId user = AclId.getSessionUser();
+		AclId user = AclId.getOuterUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
 			throw new SecurityException(
 				"Only super user or owner can replace a jar");
