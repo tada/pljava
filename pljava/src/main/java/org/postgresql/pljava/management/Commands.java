@@ -25,6 +25,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
+import java.sql.SQLSyntaxErrorException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -411,7 +413,7 @@ public class Commands
 		catch(IOException e)
 		{
 			throw new SQLException("I/O exception reading jar file: "
-				+ e.getMessage());
+				+ e.getMessage(), "58030", e);
 		}
 		finally
 		{
@@ -516,7 +518,8 @@ public class Commands
 		}
 		catch(ClassNotFoundException e)
 		{
-			throw new SQLException("No such class: " + javaClassName);
+			throw new SQLException(
+				"No such class: " + javaClassName, "46103", e);
 		}
 		finally
 		{
@@ -679,8 +682,8 @@ public class Commands
 
 		AclId user = AclId.getOuterUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
-			throw new SecurityException(
-				"Only super user or owner can remove a jar");
+			throw new SQLSyntaxErrorException(
+				"Only super user or owner can remove a jar", "42501");
 
 		if(undeploy)
 			deployRemove(jarId, jarName);
@@ -765,17 +768,20 @@ public class Commands
 		if("public".equals(schemaName))
 		{
 			if(!AclId.getOuterUser().isSuperuser())
-				throw new SQLException(
-					"Permission denied. Only a super user can set the classpath of the public schema");
+				throw new SQLSyntaxErrorException( // yeah, for 42501, really
+					"Permission denied. Only a super user can set the " +
+					"classpath of the public schema", "42501");
 		}
 		else
 		{
 			Oid schemaId = getSchemaId(schemaName);
 			if(schemaId == null)
-				throw new SQLException("No such schema: " + schemaName);
+				throw new SQLNonTransientException(
+					"No such schema: " + schemaName, "3F000");
 			if(!AclId.getOuterUser().hasSchemaCreatePermission(schemaId))
-				throw new SQLException(
-					"Permission denied. User must have create permission on the target schema in order to set the classpath");
+				throw new SQLSyntaxErrorException(
+					"Permission denied. User must have create permission on " +
+					"the target schema in order to set the classpath", "42501");
 		}
 
 		PreparedStatement stmt;
@@ -804,7 +810,8 @@ public class Commands
 
 					int jarId = getJarId(stmt, jarName, null);
 					if(jarId < 0)
-						throw new SQLException("No such jar: " + jarName);
+						throw new SQLNonTransientException(
+							"No such jar: " + jarName, "46102");
 
 					entries.add(new Integer(jarId));
 					if(colon < 0)
@@ -912,8 +919,8 @@ public class Commands
 					return;
 			}
 		}
-		throw new SQLException("The jar name '" + jarName
-			+ "' is not a valid name");
+		throw new SQLNonTransientException("The jar name '" + jarName
+			+ "' is not a valid name", "46002");
 	}
 
 	private static void deployInstall(int jarId, String jarName)
@@ -925,7 +932,7 @@ public class Commands
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
 		for ( SQLDeploymentDescriptor dd : depDesc )
 			dd.install(SQLUtils.getDefaultConnection());
-		if(classpathChanged)
+		if (classpathChanged)
 			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
 	}
 
@@ -938,8 +945,16 @@ public class Commands
 		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
 		for ( int i = depDesc.length ; i --> 0 ; )
 			depDesc[i].remove(SQLUtils.getDefaultConnection());
-		if(classpathChanged)
-			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
+		try
+		{
+			if (classpathChanged)
+				setClassPath(originalSchemaAndPath[0],originalSchemaAndPath[1]);
+		}
+		catch ( SQLException sqle )
+		{
+			if ( ! "3F000".equals(sqle.getSQLState()) )
+				throw sqle;
+		}
 	}
 
 	private static SQLDeploymentDescriptor[] getDeploymentDescriptors(int jarId)
@@ -1100,7 +1115,7 @@ public class Commands
 		assertJarName(jarName);
 
 		if(getJarId(jarName, null) >= 0)
-			throw new SQLException("A jar named '" + jarName
+			throw new SQLNonTransientException("A jar named '" + jarName
 					       + "' already exists",
 					       "46002");
 
@@ -1145,14 +1160,14 @@ public class Commands
 		AclId[] ownerRet = new AclId[1];
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)
-			throw new SQLException("No Jar named '" + jarName
+			throw new SQLNonTransientException("No Jar named '" + jarName
 					       + "' is known to the system",
 					       "4600A");
 
 		AclId user = AclId.getOuterUser();
 		if(!(user.isSuperuser() || user.equals(ownerRet[0])))
-			throw new SecurityException(
-				"Only super user or owner can replace a jar");
+			throw new SQLSyntaxErrorException(
+				"Only super user or owner can replace a jar", "42501");
 
 		if(redeploy)
 			deployRemove(jarId, jarName);
