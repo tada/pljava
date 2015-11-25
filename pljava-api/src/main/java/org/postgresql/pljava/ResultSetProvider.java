@@ -30,7 +30,7 @@ public interface ResultSetProvider
 	/**
 	 * This method is called once for each row that should be returned from
 	 * a procedure that returns a set of rows. The receiver
-	 * is a {@link org.postgresql.pljava.jdbc.SingleRowWriter SingleRowWriter}
+	 * is a {@code SingleRowWriter}
 	 * writer instance that is used for capturing the data for the row.
 	 * @param receiver Receiver of values for the given row.
 	 * @param currentRow Row number. First call will have row number 0.

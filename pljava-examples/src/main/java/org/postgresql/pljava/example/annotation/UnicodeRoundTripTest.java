@@ -35,11 +35,6 @@ import org.postgresql.pljava.annotation.Function;
  * calls this function on each (1k array, 1k string) pair, and counts a failure
  * if {@code matched} is false or the original and returned arrays or strings
  * do not match as seen in SQL.
- *
- * @param s A string, whose codepoints should match the entries of {@code ints}.
- * @param ints Array of ints that should match the codepoints in {@code s}.
- * @param rs OUT (matched, cparray, s) as described above.
- * @return true to indicate the OUT tuple is not null
  */
 @SQLActions({
 	@SQLAction(provides="postgresql9_0plus", install=

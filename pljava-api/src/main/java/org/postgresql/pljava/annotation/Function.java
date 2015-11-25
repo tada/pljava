@@ -155,8 +155,8 @@ category</a>
 	 * function, reverting afterward to the former setting. Suggested for, e.g.,
 	 * applying a trusted search_path during execution of a SECURITY DEFINER
 	 * function. Each string will simply be injected into the generated CREATE
-	 * FUNCTION command after a SET token, and so should have the forms <br />
-	 * configuration_parameter {=|TO} somevalue or<br />
+	 * FUNCTION command after a SET token, and so should have the forms <br>
+	 * configuration_parameter {=|TO} somevalue or<br>
 	 * configuration_parameter FROM CURRENT. The latter will ensure that the
 	 * function executes with the same setting for configuration_parameter that
 	 * was in effect when the function was created.

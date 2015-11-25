@@ -30,7 +30,7 @@ public interface TriggerData
 	/**
 	 * Returns the ResultSet that represents the new row. This ResultSet will
 	 * be null for delete triggers and for triggers that was fired for
-	 * statement. <br/>The returned set will be updateable and positioned on a
+	 * statement. <br>The returned set will be updateable and positioned on a
 	 * valid row. When the trigger call returns, the trigger manager will see
 	 * the changes that has been made to this row and construct a new tuple
 	 * which will become the new or updated row.
@@ -45,7 +45,7 @@ public interface TriggerData
 	/**
 	 * Returns the ResultSet that represents the old row. This ResultSet will
 	 * be null for insert triggers and for triggers that was fired for
-	 * statement. <br/>The returned set will be read-only and positioned on a
+	 * statement. <br>The returned set will be read-only and positioned on a
 	 * valid row.
 	 * 
 	 * @return A read-only <code>ResultSet</code> containing one row or
@@ -77,7 +77,7 @@ public interface TriggerData
 
 	/**
 	 * Returns the name of the table for which this trigger was created (as
-	 * declared in the <code>CREATE TRIGGER</code statement).
+	 * declared in the <code>CREATE TRIGGER</code> statement).
 	 * 
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
@@ -86,7 +86,7 @@ public interface TriggerData
 
 	/**
 	 * Returns the name of the schema of the table for which this trigger was created (as
-	 * declared in the <code>CREATE TRIGGER</code statement).
+	 * declared in the <code>CREATE TRIGGER</code> statement).
 	 * 
 	 * @throws SQLException
 	 *             if the contained native buffer has gone stale.
