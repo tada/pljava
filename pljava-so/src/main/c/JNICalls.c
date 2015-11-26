@@ -6,6 +6,9 @@
  *
  * @author Thomas Hallgren
  */
+
+#include <string.h> /* for _MSC_VER *_min_messages hack */
+
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
 #include "pljava/Invocation.h"
@@ -16,21 +19,6 @@
 JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
-/* MSVC will not allow redefinition WITH dllimport after seeing
- * the definition in guc.h that does not include dllimport.
- */
-#ifdef _MSC_VER
-extern int	log_min_error_statement;
-extern int	client_min_messages;
-#else
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
-extern PGDLLIMPORT int log_min_messages;
-extern PGDLLIMPORT int client_min_messages;
-#else
-extern DLLIMPORT int log_min_messages;
-extern DLLIMPORT int client_min_messages;
-#endif
-#endif
 static jobject s_threadLock;
 
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
@@ -90,7 +78,17 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 
 static void printStacktrace(JNIEnv* env, jobject exh)
 {
+#ifndef _MSC_VER
 	if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
+#else
+	/* This is gross, but only happens as often as an exception escapes Java
+	 * code to be rethrown. There is some renewed interest on pgsql-hackers to
+	 * find a good answer for the MSVC PGDLLIMPORT nonsense, and all of this
+	 * handling of exceptions and logging could stand some rework anyway.
+	 */
+	if ( 0 == strncmp("debug", PG_GETCONFIGOPTION("log_min_messages"), 5)
+		|| 0 == strncmp("debug", PG_GETCONFIGOPTION("client_min_messages"), 5) )
+#endif
 	{
 		int currLevel = Backend_setJavaLogLevel(DEBUG1);
 		(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);

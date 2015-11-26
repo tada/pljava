@@ -75,20 +75,6 @@ PG_MODULE_MAGIC;
 
 extern PLJAVADLLEXPORT void _PG_init(void);
 
-#ifdef PG_GETCONFIGOPTION
-#error The macro PG_GETCONFIGOPTION needs to be renamed.
-#endif
-
-#if ( PGSQL_MAJOR_VER > 8 )
-#if ( PGSQL_MINOR_VER > 0 )
-#define PG_GETCONFIGOPTION(key) GetConfigOption(key, false, true)
-#else
-#define PG_GETCONFIGOPTION(key) GetConfigOption(key, true)
-#endif
-#else
-#define PG_GETCONFIGOPTION(key) GetConfigOption(key)
-#endif
-
 #define LOCAL_REFERENCE_COUNT 128
 
 jlong mainThreadId;
