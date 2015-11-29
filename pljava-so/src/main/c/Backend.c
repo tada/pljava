@@ -556,14 +556,18 @@ static void initsequencer(enum initstage is, bool tolerant)
 			 * are just function parameters with evaluation order unknown.
 			 */
 			StringInfoData buf;
+#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 2
+#define MOREHINT \
+				appendStringInfo(&buf, \
+					"using ALTER DATABASE %s SET ... FROM CURRENT or ", \
+					pljavaDbName()),
+#else
+#define MOREHINT
+#endif
 			ereport(NOTICE, (
 				errmsg("PL/Java successfully started after adjusting settings"),
 				(initStringInfo(&buf),
-		#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 2
-				appendStringInfo(&buf,
-					"using ALTER DATABASE %s SET ... FROM CURRENT or ",
-					pljavaDbName()),
-		#endif
+				MOREHINT
 				errhint("The settings that worked should be saved (%s"
 					"in the \"%s\" file). For a reminder of what has been set, "
 					"try: SELECT name, setting FROM pg_settings WHERE name LIKE"
@@ -572,6 +576,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 					superuser()
 						? PG_GETCONFIGOPTION("config_file")
 						: "postgresql.conf"))));
+#undef MOREHINT
 		}
 		return;
 
@@ -608,9 +613,9 @@ check_tolerant:
 static void reLogWithChangedLevel(int level)
 {
 	ErrorData *edata = CopyErrorData();
-	FlushErrorState();
 	int sqlstate = edata->sqlerrcode;
 	int category = ERRCODE_TO_CATEGORY(sqlstate);
+	FlushErrorState();
 	if ( WARNING > level )
 	{
 		if ( ERRCODE_SUCCESSFUL_COMPLETION != category )
