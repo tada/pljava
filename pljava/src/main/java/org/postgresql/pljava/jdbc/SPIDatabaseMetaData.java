@@ -3169,15 +3169,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * the designated UDT and a direct supertype. A row has the following
 	 * columns:
 	 * <OL>
-	 * <LI><B>TYPE_CAT</B> String => the UDT's catalog (may be
+	 * <LI><B>TYPE_CAT</B> String =&gt; the UDT's catalog (may be
 	 * <code>null</code>)
-	 * <LI><B>TYPE_SCHEM</B> String => UDT's schema (may be <code>null</code>)
-	 * <LI><B>TYPE_NAME</B> String => type name of the UDT
-	 * <LI><B>SUPERTYPE_CAT</B> String => the direct super type's catalog (may
-	 * be <code>null</code>)
-	 * <LI><B>SUPERTYPE_SCHEM</B> String => the direct super type's schema
+	 * <LI><B>TYPE_SCHEM</B> String =&gt; UDT's schema (may be
+	 * <code>null</code>)
+	 * <LI><B>TYPE_NAME</B> String =&gt; type name of the UDT
+	 * <LI><B>SUPERTYPE_CAT</B> String =&gt; the direct super type's catalog
 	 * (may be <code>null</code>)
-	 * <LI><B>SUPERTYPE_NAME</B> String => the direct super type's name
+	 * <LI><B>SUPERTYPE_SCHEM</B> String =&gt; the direct super type's schema
+	 * (may be <code>null</code>)
+	 * <LI><B>SUPERTYPE_NAME</B> String =&gt; the direct super type's name
 	 * </OL>
 	 * <P>
 	 * <B>Note:</B> If the driver does not support type hierarchies, an empty
@@ -3214,12 +3215,12 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * <P>
 	 * Each type description has the following columns:
 	 * <OL>
-	 * <LI><B>TABLE_CAT</B> String => the type's catalog (may be
+	 * <LI><B>TABLE_CAT</B> String =&gt; the type's catalog (may be
 	 * <code>null</code>)
-	 * <LI><B>TABLE_SCHEM</B> String => type's schema (may be
+	 * <LI><B>TABLE_SCHEM</B> String =&gt; type's schema (may be
 	 * <code>null</code>)
-	 * <LI><B>TABLE_NAME</B> String => type name
-	 * <LI><B>SUPERTABLE_NAME</B> String => the direct super type's name
+	 * <LI><B>TABLE_NAME</B> String =&gt; type name
+	 * <LI><B>SUPERTABLE_NAME</B> String =&gt; the direct super type's name
 	 * </OL>
 	 * <P>
 	 * <B>Note:</B> If the driver does not support type hierarchies, an empty
@@ -3256,45 +3257,45 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * The <code>ResultSet</code> object that is returned has the following
 	 * columns:
 	 * <OL>
-	 * <LI><B>TYPE_CAT</B> String => type catalog (may be <code>null</code>)
-	 * <LI><B>TYPE_SCHEM</B> String => type schema (may be <code>null</code>)
-	 * <LI><B>TYPE_NAME</B> String => type name
-	 * <LI><B>ATTR_NAME</B> String => attribute name
-	 * <LI><B>DATA_TYPE</B> short => attribute type SQL type from
+	 * <LI><B>TYPE_CAT</B> String =&gt; type catalog (may be <code>null</code>)
+	 * <LI><B>TYPE_SCHEM</B> String =&gt; type schema (may be <code>null</code>)
+	 * <LI><B>TYPE_NAME</B> String =&gt; type name
+	 * <LI><B>ATTR_NAME</B> String =&gt; attribute name
+	 * <LI><B>DATA_TYPE</B> short =&gt; attribute type SQL type from
 	 * java.sql.Types
-	 * <LI><B>ATTR_TYPE_NAME</B> String => Data source dependent type name.
+	 * <LI><B>ATTR_TYPE_NAME</B> String =&gt; Data source dependent type name.
 	 * For a UDT, the type name is fully qualified. For a REF, the type name is
 	 * fully qualified and represents the target type of the reference type.
-	 * <LI><B>ATTR_SIZE</B> int => column size. For char or date types this is
-	 * the maximum number of characters; for numeric or decimal types this is
+	 * <LI><B>ATTR_SIZE</B> int =&gt; column size. For char or date types this
+	 * is the maximum number of characters; for numeric or decimal types this is
 	 * precision.
-	 * <LI><B>DECIMAL_DIGITS</B> int => the number of fractional digits
-	 * <LI><B>NUM_PREC_RADIX</B> int => Radix (typically either 10 or 2)
-	 * <LI><B>NULLABLE</B> int => whether NULL is allowed
+	 * <LI><B>DECIMAL_DIGITS</B> int =&gt; the number of fractional digits
+	 * <LI><B>NUM_PREC_RADIX</B> int =&gt; Radix (typically either 10 or 2)
+	 * <LI><B>NULLABLE</B> int =&gt; whether NULL is allowed
 	 * <UL>
 	 * <LI> attributeNoNulls - might not allow NULL values
 	 * <LI> attributeNullable - definitely allows NULL values
 	 * <LI> attributeNullableUnknown - nullability unknown
 	 * </UL>
-	 * <LI><B>REMARKS</B> String => comment describing column (may be
+	 * <LI><B>REMARKS</B> String =&gt; comment describing column (may be
 	 * <code>null</code>)
-	 * <LI><B>ATTR_DEF</B> String => default value (may be <code>null</code>)
-	 * <LI><B>SQL_DATA_TYPE</B> int => unused
-	 * <LI><B>SQL_DATETIME_SUB</B> int => unused
-	 * <LI><B>CHAR_OCTET_LENGTH</B> int => for char types the maximum number
+	 * <LI><B>ATTR_DEF</B> String =&gt; default value (may be <code>null</code>)
+	 * <LI><B>SQL_DATA_TYPE</B> int =&gt; unused
+	 * <LI><B>SQL_DATETIME_SUB</B> int =&gt; unused
+	 * <LI><B>CHAR_OCTET_LENGTH</B> int =&gt; for char types the maximum number
 	 * of bytes in the column
-	 * <LI><B>ORDINAL_POSITION</B> int => index of column in table (starting
+	 * <LI><B>ORDINAL_POSITION</B> int =&gt; index of column in table (starting
 	 * at 1)
-	 * <LI><B>IS_NULLABLE</B> String => "NO" means column definitely does not
+	 * <LI><B>IS_NULLABLE</B> String =&gt; "NO" means column definitely does not
 	 * allow NULL values; "YES" means the column might allow NULL values. An
 	 * empty string means unknown.
-	 * <LI><B>SCOPE_CATALOG</B> String => catalog of table that is the scope
+	 * <LI><B>SCOPE_CATALOG</B> String =&gt; catalog of table that is the scope
 	 * of a reference attribute (<code>null</code> if DATA_TYPE isn't REF)
-	 * <LI><B>SCOPE_SCHEMA</B> String => schema of table that is the scope of
+	 * <LI><B>SCOPE_SCHEMA</B> String =&gt; schema of table that is the scope of
 	 * a reference attribute (<code>null</code> if DATA_TYPE isn't REF)
-	 * <LI><B>SCOPE_TABLE</B> String => table name that is the scope of a
+	 * <LI><B>SCOPE_TABLE</B> String =&gt; table name that is the scope of a
 	 * reference attribute (<code>null</code> if the DATA_TYPE isn't REF)
-	 * <LI><B>SOURCE_DATA_TYPE</B> short => source type of a distinct type or
+	 * <LI><B>SOURCE_DATA_TYPE</B> short =&gt; source type of a distinct type or
 	 * user-generated Ref type,SQL type from java.sql.Types (<code>null</code>
 	 * if DATA_TYPE isn't DISTINCT or user-generated REF)
 	 * </OL>
@@ -3329,7 +3330,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * 
 	 * @param holdability one of the following constants:
 	 *            <code>ResultSet.HOLD_CURSORS_OVER_COMMIT</code> or
-	 *            <code>ResultSet.CLOSE_CURSORS_AT_COMMIT<code>
+	 *            <code>ResultSet.CLOSE_CURSORS_AT_COMMIT</code>
 	 * @return <code>true</code> if so; <code>false</code> otherwise
 	 * @exception SQLException if a database access error occurs
 	 * @see Connection
@@ -3442,7 +3443,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * Retrieves weather this database supports statement pooling.
 	 * 
 	 * @return <code>true</code> is so; <code>false</code> otherwise
-	 * @throws SQLExcpetion if a database access error occurs
+	 * @throws SQLException if a database access error occurs
 	 * @since 1.4
 	 */
 	public boolean supportsStatementPooling() throws SQLException

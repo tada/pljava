@@ -53,6 +53,7 @@ public class Oid extends Number
 	 * @throws SQLException if the type could not be found
 	 */
 	public static Oid forTypeName(String typeString)
+	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
@@ -66,6 +67,7 @@ public class Oid extends Number
 	 * @throws SQLException if the type could not be found
 	 */
 	public static Oid forSqlType(int sqlType)
+	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
@@ -226,9 +228,11 @@ public class Oid extends Number
 		return name;
 	}
 
-	private native static int _forTypeName(String typeString);
+	private native static int _forTypeName(String typeString)
+	throws SQLException;
 
-	private native static int _forSqlType(int sqlType);
+	private native static int _forSqlType(int sqlType)
+	throws SQLException;
 
 	private native static Oid _getTypeId();
 
