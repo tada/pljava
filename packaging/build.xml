@@ -12,7 +12,7 @@
             <filterchain>
                 <tokenfilter>
                     <!--containsregex pattern=".*SNAPSHOT-(.*)-shared.*$" replace="\1" /-->
-                    <containsregex pattern=".*/lib/(.*)/shared/.*$" replace="\1" />
+                    <containsregex pattern=".*/lib/(.*)/plugin/.*$" replace="\1" />
                 </tokenfilter>
 				<striplinebreaks/>
             </filterchain>

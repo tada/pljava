@@ -20,6 +20,31 @@
 
 	<profiles>
 		<profile>
+			<id>osx</id>
+			<activation>
+				<os>
+					<name>mac os x</name>
+				</os>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<linker>
+								<options>
+									<option>-bundle_loader</option>
+									<option>${PGSQL_BINDIR}/postgres</option>
+								</options>
+							</linker>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
 			<id>compiler-msvc</id>
 			<activation>
 				<property>
@@ -147,7 +172,7 @@
 			<plugin>
 				<groupId>com.github.maven-nar</groupId>
 				<artifactId>nar-maven-plugin</artifactId>
-				<version>3.1.0</version>
+				<version>3.2.3</version>
 				<extensions>true</extensions>
 
 				<configuration>
@@ -218,7 +243,7 @@
 					<!-- Builds a *.so library. -->
 					<libraries>
 						<library>
-							<type>shared</type>
+							<type>plugin</type>
 							<!-- Do not add "-lstdc++". Adds "-shared-libgcc" though. -->
 							<linkCPP>false</linkCPP>
 						</library>
@@ -281,7 +306,7 @@
 									<pluginExecutionFilter>
 										<groupId>com.github.maven-nar</groupId>
 										<artifactId>nar-maven-plugin</artifactId>
-										<versionRange>[3.1.0]</versionRange>
+										<versionRange>[3.2.3]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
 											<goal>nar-download</goal>
