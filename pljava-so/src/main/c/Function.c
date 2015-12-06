@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
@@ -586,20 +590,30 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 {
 	StringInfoData sign;
 
-	/* Get the ClassLoader for the schema that this function belongs to
+	/* Get the name of the schema that this function belongs to
 	 */
 	jstring schemaName = getSchemaName(procStruct->pronamespace);
 
-	/* Install the type map for the current schema. This must be done ASAP since
-	 * many other functions (including obtaining the loader) depends on it.
-	 */
-	jobject tmp = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getTypeMap, schemaName);
-	self->func.nonudt.typeMap = JNI_newGlobalRef(tmp);
-	JNI_deleteLocalRef(tmp);
+	self->isUDT = info->isUDT;
+	if ( ! self->isUDT )
+	{
+		/* Install the type map for the current schema. This must be done ASAP
+		 * since many other functions (including obtaining the loader) depends
+		 * on it.
+		 */
+		jobject tmp = JNI_callStaticObjectMethod(s_Loader_class,
+			s_Loader_getTypeMap, schemaName);
+		self->func.nonudt.typeMap = JNI_newGlobalRef(tmp);
+		JNI_deleteLocalRef(tmp);
+	}
 
 	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
-	self->isUDT = info->isUDT;
 
+	/*
+	 * This will be set down in Function_getFunction in every case, but
+	 * redundantly setting it here provides more diagnostic info if method
+	 * resolution doesn't go smoothly.
+	 */
 	currentInvocation->function = self;
 
 	self->clazz = Function_loadClass(
@@ -727,6 +741,10 @@ static Function Function_create(PG_FUNCTION_ARGS)
 	return self;
 }
 
+/*
+ * In all cases, this Function has been stored in currentInvocation->function
+ * upon succesful return from here.
+ */
 Function Function_getFunction(PG_FUNCTION_ARGS)
 {
 	Oid funcOid = fcinfo->flinfo->fn_oid;
@@ -736,6 +754,7 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 		func = Function_create(fcinfo);
 		HashMap_putByOid(s_funcMap, funcOid, func);
 	}
+	currentInvocation->function = func;
 	return func;
 }
 
@@ -795,7 +814,6 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	Type  invokerType;
 
 	fcinfo->isnull = false;
-	currentInvocation->function = self;
 
 	if(self->isUDT)
 		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
@@ -857,7 +875,6 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	if(arg.l == 0)
 		return 0;
 
-	currentInvocation->function = self;
 #if PG_VERSION_NUM >= 100000
 	currentInvocation->triggerData = td;
 	/* Also starting in PG 10, Invocation_assertConnect must be called before
