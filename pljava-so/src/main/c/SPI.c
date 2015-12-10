@@ -15,6 +15,9 @@
 #include "pljava/type/TupleTable.h"
 
 #include <access/xact.h>
+#if defined(NEED_MISCADMIN_FOR_STACK_BASE)
+#include <miscadmin.h>
+#endif
 
 Savepoint* infant = 0;
 

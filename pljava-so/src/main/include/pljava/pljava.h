@@ -63,41 +63,80 @@ extern bool pljavaEntryFence(JNIEnv* env);
 extern JNIEnv* currentJNIEnv;
 extern MemoryContext JavaMemoryContext;
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-#define STACK_BASE_VARS
-#define STACK_BASE_PUSH(threadId)
-#define STACK_BASE_POP()
+/* The STACK_BASE_PUSH / STACK_BASE_POP macros are used to surround code where
+ * a thread will be entering the backend that isn't necessarily the same one
+ * that has called into PL/Java from the backend. (This can only occur when the
+ * threadlock has been released by a call into PL/Java from whatever thread had
+ * been executing in the backend, and the thread that is about to enter the
+ * backend now holds the lock.) The backend does proactive checking of stack
+ * depth as a precaution, and that check would be incorrect if comparing the
+ * current stack pointer to some other thread's stack base. Therefore, these
+ * macros will check whether the thread is indeed different from the last one
+ * in the backend and, if so, substitute this thread's stack base for the old
+ * value, which is then restored by STACK_BASE_POP.
+ *
+ * Large caution, though: what this WANTS to do is change PG's notion of the
+ * BASE of this thread's stack, and that's not at all what it really does;
+ * set_stack_base() uses the CURRENT stack position, which could be who knows
+ * how deep already, and there is really no way to do better because the JVM
+ * doesn't expose the base of a thread's stack anyway (or even drop any hints
+ * about how it implements stacks). So, all this fussing around may indeed
+ * prevent nuisance stack-overflow aborts caused by comparing pointers to
+ * different stacks ... but it may only serve to conceal, or prevent recovery
+ * from, actual excessive stack use.
+ *
+ * stack_base_ptr was static before PG 8.1. By executive decision, PL/Java now
+ * has 8.1 as a back compatibility limit; no empty #defines here for earlier.
+ */
+#if PGSQL_MAJOR_VER > 9 || \
+	PGSQL_MAJOR_VER == 9 && ( \
+		PGSQL_MINOR_VER >= 2 || \
+		PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER >= 4 || \
+		PGSQL_MINOR_VER == 0 && PGSQL_PATCH_VER >= 8 \
+	) || \
+	PGSQL_MAJOR_VER == 8 && ( \
+		PGSQL_MINOR_VER == 4 && PGSQL_PATCH_VER >= 12 || \
+		PGSQL_MINOR_VER == 3 && PGSQL_PATCH_VER >= 19 \
+	)
+#define NEED_MISCADMIN_FOR_STACK_BASE
+#define _STACK_BASE_TYPE pg_stack_base_t
+#define _STACK_BASE_SET saveStackBasePtr = set_stack_base()
+#define _STACK_BASE_RESTORE restore_stack_base(saveStackBasePtr)
 #else
-
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
-extern PGDLLIMPORT char* stack_base_ptr;
+extern
+#if PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3
+DLLIMPORT
 #else
-extern DLLIMPORT char* stack_base_ptr;
+PGDLLIMPORT
+#endif
+char* stack_base_ptr;
+#define _STACK_BASE_TYPE char*
+#define _STACK_BASE_SET \
+	saveStackBasePtr = stack_base_ptr; \
+	stack_base_ptr = (char*)&saveMainThreadId
+#define _STACK_BASE_RESTORE stack_base_ptr = saveStackBasePtr
 #endif
 
 #define STACK_BASE_VARS \
 	long  saveMainThreadId = 0; \
-	char* saveStackBasePtr = 0;
+	_STACK_BASE_TYPE saveStackBasePtr;
 
 #define STACK_BASE_PUSH(threadId) \
 	if(threadId != mainThreadId) \
 	{ \
-		saveStackBasePtr = stack_base_ptr; \
+		_STACK_BASE_SET; \
 		saveMainThreadId = mainThreadId; \
-		stack_base_ptr = (char*)&saveMainThreadId; \
 		mainThreadId = threadId; \
-		elog(DEBUG1, "Changed stack_base_ptr from %p to %p", saveStackBasePtr, stack_base_ptr); \
+		elog(DEBUG1, "Set stack base for thread %lx", mainThreadId); \
 	}
 
 #define STACK_BASE_POP() \
-	if(saveStackBasePtr != 0) \
+	if(saveMainThreadId != 0) \
 	{ \
-		stack_base_ptr = saveStackBasePtr; \
+		_STACK_BASE_RESTORE; \
 		mainThreadId = saveMainThreadId; \
-		elog(DEBUG1, "Restored stack_base_ptr to %p", saveStackBasePtr); \
+		elog(DEBUG1, "Restored stack base for thread %lx", mainThreadId); \
 	}
-
-#endif
 
 /* NOTE!
  * When using the PG_TRY, PG_CATCH, PG_TRY_END family of macros,

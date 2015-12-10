@@ -23,6 +23,10 @@
 #include "pljava/type/Portal.h"
 #include "pljava/type/String.h"
 
+#if defined(NEED_MISCADMIN_FOR_STACK_BASE)
+#include <miscadmin.h>
+#endif
+
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
 static jfieldID  s_Portal_pointer;

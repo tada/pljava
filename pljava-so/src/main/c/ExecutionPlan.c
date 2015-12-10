@@ -19,6 +19,10 @@
 #include "pljava/type/Portal.h"
 #include "pljava/type/String.h"
 
+#if defined(NEED_MISCADMIN_FOR_STACK_BASE)
+#include <miscadmin.h>
+#endif
+
 /* Class 07 - Dynamic SQL Error */
 #define ERRCODE_PARAMETER_COUNT_MISMATCH	MAKE_SQLSTATE('0','7', '0','0','1')
 
