@@ -136,7 +136,7 @@
 						</goals>
 						<configuration>
 							<files>
-								<file>${basedir}/pgsql.properties</file>
+								<file>${basedir}/target/pgsql.properties</file>
 							</files>
 						</configuration>
 					</execution>
@@ -147,7 +147,7 @@
 			<plugin>
 				<groupId>com.github.maven-nar</groupId>
 				<artifactId>nar-maven-plugin</artifactId>
-				<version>3.1.0</version>
+				<version>3.2.3</version>
 				<extensions>true</extensions>
 
 				<configuration>
@@ -169,15 +169,6 @@
 				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
 						<name>${CPP_COMPILER}</name>
 				-->
-						<defines>
-							<!-- What PKGLIBDIR controls is the expansion of
-							     $libdir if used in pljava.classpath
-							-->
-							<define>PKGLIBDIR=${PGSQL_PKGLIBDIR}</define>
-							<define>PGSQL_MAJOR_VER=${PGSQL_MAJOR_VER}</define>
-							<define>PGSQL_MINOR_VER=${PGSQL_MINOR_VER}</define>
-							<define>PGSQL_PATCH_VER=${PGSQL_PATCH_VER}</define>
-						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
@@ -281,7 +272,7 @@
 									<pluginExecutionFilter>
 										<groupId>com.github.maven-nar</groupId>
 										<artifactId>nar-maven-plugin</artifactId>
-										<versionRange>[3.1.0]</versionRange>
+										<versionRange>[3.2.3]</versionRange>
 										<goals>
 											<goal>nar-compile</goal>
 											<goal>nar-download</goal>

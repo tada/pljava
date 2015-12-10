@@ -34,6 +34,10 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include <utils/memutils.h>
 #include <tcop/tcopprot.h>
 
+#define PGSQL_MAJOR_VER (PG_VERSION_NUM / 10000)
+#define PGSQL_MINOR_VER ((PG_VERSION_NUM / 100) % 100)
+#define PGSQL_PATCH_VER (PG_VERSION_NUM % 100)
+
 /*
  * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
  */
