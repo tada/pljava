@@ -38,6 +38,9 @@
 
 	<target name="pg_config" depends="configure_msvc_options">
 		<!-- First gather all values from the pg_config executable. -->
+		<exec executable="pg_config" outputproperty="PGSQL_BINDIR">
+			<arg line="--bindir"/>
+		</exec>
 		<exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
 			<arg line="--pkglibdir"/>
 		</exec>
@@ -86,6 +89,7 @@
 		<!-- Finally write all properties to a file which Maven understands. -->
 		<propertyfile file="target/pgsql.properties" jdkproperties="true">
 			<entry key="PGSQL_VER_CLASSIFIER" value="${PGSQL_VER_CLASSIFIER}" />
+			<entry key="PGSQL_BINDIR" value="${PGSQL_BINDIR}" />
 			<entry key="PGSQL_PKGLIBDIR" value="${PGSQL_PKGLIBDIR}" />
 			<entry key="PGSQL_LIBDIR" value="${PGSQL_LIBDIR}" />
 			<entry key="PGSQL_INCLUDEDIR" value="${PGSQL_INCLUDEDIR}" />
