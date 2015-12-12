@@ -237,7 +237,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 		if ( *newval )
 			return true;
 		GUC_check_errmsg(
-			"too late to change \"pljava.enabled\" setting");
+			"too late to change \"pljava.enable\" setting");
 		GUC_check_errdetail(
 			"Start-up has progressed past the point where it is checked.");
 		GUC_check_errhint(
@@ -382,10 +382,10 @@ static void initsequencer(enum initstage is, bool tolerant)
 			ereport(WARNING, (
 				errmsg("Java virtual machine not yet loaded"),
 				errdetail(
-					"Pausing because \"pljava.enable\" is set \"false\". "),
+					"Pausing because \"pljava.enable\" is set \"off\". "),
 				errhint(
 					"After changing any other settings as necessary, set it "
-					"\"true\" to proceed.")));
+					"\"on\" to proceed.")));
 			goto check_tolerant;
 		}
 		initstage = IS_PLJAVA_ENABLED;
@@ -1307,7 +1307,7 @@ static void registerGUCOptions(void)
 
 	DefineCustomBoolVariable(
 		"pljava.enable",
-		"If false, the Java virtual machine will not be started until set true.",
+		"If off, the Java virtual machine will not be started until set on.",
 		"This is mostly of use on PostgreSQL versions < 9.2, where option "
 		"settings changed before LOADing PL/Java may be rejected, so they must "
 		"be made after LOAD, but before the virtual machine is started.",

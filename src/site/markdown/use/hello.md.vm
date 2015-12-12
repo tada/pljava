@@ -52,8 +52,7 @@ right from the beginning.
 In preparation, PL/Java must have been built, using the command
 `mvn clean install`. Recall from the [installation][inst] page that
 the `install` Maven goal has nothing to do with installing PL/Java into
-PostgreSQL--that requires only `mvn clean package` plus further non-Maven
-steps--but the `install` goal _does_ register PL/Java in your Maven
+PostgreSQL, but _does_ register PL/Java in your Maven
 repository. With that done, any project of your own needs only declare
 `pljava-api` as a dependency, and Maven can compile and package it for you.
 

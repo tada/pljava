@@ -8,7 +8,7 @@
 #set($h2 = '##')
 #set($h3 = '###')
 
-The PL/Java [build process][bld] using `mvn clean package` produces files
+The PL/Java [build process][bld] using `mvn clean install` produces files
 needed to install the language in PostgreSQL, which need to be copied to
 appropriate permanent locations, and their pathnames may have to be set
 in `pljava.*` variables, as the [installation page][inst] describes.

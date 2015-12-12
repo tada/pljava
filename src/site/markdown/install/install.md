@@ -1,9 +1,8 @@
 # Installing PL/Java
 
-The PL/Java [build process][bld] using `mvn clean package` produces files
+The PL/Java [build process][bld] using `mvn clean install` produces files
 needed to install the language in PostgreSQL, but does not place those
-files in their final locations or configure PostgreSQL to use them. (Even
-though Maven also has an `install` command, that's not what it does, either.)
+files in their final locations or configure PostgreSQL to use them.
 Once the build is done, these instructions cover how to make PL/Java available
 in your database. 
 
@@ -37,9 +36,11 @@ Be sure to read these additional sections if:
 
 * You are installing to [a PostgreSQL release earlier than 9.2][pre92]
 * You are installing on [a system using SELinux][selinux]
+* You are installing on [Mac OS X][osx]
 
 [pre92]: prepg92.html
 [selinux]: selinux.html
+[osx]: ../build/macosx.html
 
 ## Install, configure, check
 

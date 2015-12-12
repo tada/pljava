@@ -30,7 +30,7 @@ Before release 9.2, however, the order has to be `LOAD` first, which typically
 will lead to an incompletely-started warning because the configuration settings
 have not been made yet. _Then_, because the module has been loaded,
 `pljava.*` variables will be recognized and can be set and changed until
-PL/Java successfully loads, just as in the newer releases.
+PL/Java successfully loads, just as in the newer versions of PostgreSQL.
 
 Once working settings are found, edit `postgresql.conf`, make sure that
 `custom_variable_classes` includes `pljava`, copy in the variable settings
@@ -46,18 +46,18 @@ the `LOAD` command starts PL/Java right up, leaving you no chance in the
 interactive session to change anything.
 
 To escape that behavior, there is one more very simple configuration variable,
-`pljava.enable`. If it is `false`, `LOAD`ing PL/Java will always stop early and
-allow you to set other variables before setting `pljava.enable` to `true`.
+`pljava.enable`. If it is `off`, `LOAD`ing PL/Java will always stop early and
+allow you to set other variables before setting `pljava.enable` to `on`.
 
-To answer the hen-and-egg question of how to set `pljava.enable` to `false`
-before loading the module, it defaults to `false` on PostgreSQL releases
+To answer the hen-and-egg question of how to set `pljava.enable` to `off`
+before loading the module, it _defaults_ to `off` on PostgreSQL releases
 earlier than 9.2, so you will always have the chance to test your settings
-interactively (and you will always have to set it explicitly `true` when
+interactively (and you will always have to set it explicitly `on` when
 you are ready).
 
-If it is already `true` because of an earlier configuration saved in
+If it is already `on` because of an earlier configuration saved in
 `postgresql.conf`, it will be recognized in your interactive session and you
-can set it `false` as needed.
+can set it `off` as needed.
 
-On later PostgreSQL releases with no such complications, it defaults to `true`
+On later PostgreSQL releases with no such complications, it defaults to `on`
 and can be ignored.

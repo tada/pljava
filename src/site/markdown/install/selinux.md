@@ -39,7 +39,7 @@ problem, it can be solved in more than one way. For example:
 [chcon]:    http://www.gnu.org/software/coreutils/manual/html_node/chcon-invocation.html
 [sepolmod]: http://docs.fedoraproject.org/en-US/Fedora/13/html/SELinux_FAQ/index.html#faq-entry-whatare-policy-modules
 
-### Issues requiring policy modules
+## Issues requiring policy modules
 
 Something in the JVM uses the `sched_get{param,priority,scheduler}` system
 calls, so a process of type `postgresql_t` has to be given the `getsched`
@@ -89,6 +89,25 @@ to the `ssh` port on the _intended_ remote machine, using the right
 [melange of SELinux and iptables][melange].
 
 [melange]: http://serverfault.com/questions/366922/selinux-limit-httpd-outbound-connections-by-address-and-port
+
+### avc: denied { execstack }
+
+At one time, log messages saying `avc: denied { execstack }` might be seen,
+because Sun had released a Java distribution with a `libjvm.so` with the
+`execstack` attribute missing entirely, which SELinux interprets to mean that
+the library _might_ need to execute code on the stack, even if it doesn't
+really.
+
+If seen, the problem can be confirmed by running
+`execstack -q` ([manual page][execstack]) on the
+`libjvm.so` file and seeing that it has no `execstack` attribute.
+
+Recent Java distributions have properly included the attribute, set to false,
+so SELinux knows the JVM will not need to execute code on the stack. Therefore,
+the best resolution to the issue is to upgrade to a JDK distribution that is
+not missing the attribute.
+
+[execstack]: http://man7.org/linux/man-pages/man8/execstack.8.html
 
 ## How to break things
 

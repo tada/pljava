@@ -2,11 +2,11 @@
 
 **For the impatient:**
 
-    mvn  clean  package
+    mvn  clean  install
 
 PL/Java is built using [Apache Maven][mvn]. The above command will build it
-and package up the resulting files that you need to then
-[install it into PostgreSQL][inst].
+and produce the files you need, but *not* install them into PostgreSQL.
+To do that, continue with the [installation instructions][inst].
 
 [mvn]: https://maven.apache.org/
 [java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
@@ -37,12 +37,12 @@ There are prerequisites, of course:
     succeeds.
 
 0. Development files (mostly `.h` files) for that PostgreSQL version must also
-   be installed. To check, look in the output of that `pg_config` command for
-   an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
-   should be a bunch of `*.h` files there. If not, you probably installed
-   PostgreSQL from a packaged distribution, and there is probably another
-   package with a similar name but a suffix like `-devel` that needs to be
-   installed to provide the `.h` files.
+    be installed. To check, look in the output of that `pg_config` command for
+    an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
+    should be a bunch of `*.h` files there. If not, you probably installed
+    PostgreSQL from a packaged distribution, and there is probably another
+    package with a similar name but a suffix like `-devel` that needs to be
+    installed to provide the `.h` files.
 
 0. Naturally, [Maven][mvn] needs to be installed.
 
@@ -56,6 +56,9 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
+* Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
+* Building on [Mac OS X](macosx.html)
+* Building on [FreeBSD](freebsd.html)
 
 ## Obtaining PL/Java sources
 
@@ -77,7 +80,7 @@ To start the build, your current directory should be the one the sources were
 checked out into. Looking around, there should be a `pom.xml` file there, and
 several subdirectories `pljava`, `pljava-api`, `pljava-so`, etc.
 
-A successful `mvn clean package` should produce output like this near the end:
+A successful `mvn clean install` should produce output like this near the end:
 
 ```
 [INFO] PostgreSQL PL/Java ................................ SUCCESS
@@ -101,7 +104,7 @@ Java. The `pom.xml` file contains the information Maven needs not only for
 building the project, but obtaining its dependencies and generating reports
 and documentation (including the web site you see here).
 
-If this is your first use of Maven, your first `mvn clean package` command will
+If this is your first use of Maven, your first `mvn clean install` command will
 do a lot of downloading, obtaining all of PL/Java's dependencies as declared in
 its `pom.xml` files, and those dependencies' dependencies, etc. Most of the
 dependencies are the various Maven plugins used in the build, and the libraries
@@ -125,16 +128,15 @@ a path.
 It is thinkable to place the repository on storage that is not backed up, as
 it contains nothing that cannot be redownloaded or rebuilt from your sources.
 
-#### Shouldn't that command be `mvn clean install`?
+#### Why does `mvn clean install` not "install" PL/Java into PostgreSQL?
 
-There is a Maven goal called `install`, but it has a Maven-specific meaning:
-it does not, as you might be thinking, set up your newly-built PL/Java as a
+The Maven goal called `install` has a meaning specific to Maven:
+it does not set up your newly-built PL/Java as a
 language in PostgreSQL. (Neither does the `deploy` goal, if you are wondering.)
 
 What Maven's `install` does is save the newly-built artifact into the local
 repository, so other Maven-built projects can list it as a dependency. That
-_is_ useful for the `pljava-api` subproject: if you run `mvn clean install`
-instead of just `package`, you can then easily
+is useful for the `pljava-api` subproject, so you can then easily
 [build your Java projects that _use_ PL/Java][jproj].
 
 To "install" your built PL/Java as a language in PostgreSQL, proceed to
@@ -147,12 +149,12 @@ the [installation instructions][inst].
 
 The process of downloading and building PL/Java with Maven will be familiar
 to you, but the step saving artifacts into the local repository with the
-`install` goal is not necessary or useful for most of PL/Java; PostgreSQL itself
-is not Maven-aware and will not find them there. Instead, once the `package`
-goal has been reached, just proceed to the [installation instructions][inst].
+`install` goal is only a first step; PostgreSQL itself
+is not Maven-aware and will not find them there. After the
+`mvn clean install`, just proceed to the [installation instructions][inst].
 
-The exception is the `pljava-api` subproject. Installing `pljava-api` into
-the local Maven repository will allow you to declare it like any other Maven
+The `pljava-api` subproject does benefit from being saved in your local
+Maven repository; you can then declare it like any other Maven
 dependency when [building your own projects that _use_ PL/Java][jproj].
 
 ### Troubleshooting the build
@@ -176,4 +178,4 @@ The option `-Dnar.cores=1` will force the messages into a sequential order
 The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
-    mvn  -X  -Pwnosign  -Dnar.cores=1  clean  package
+    mvn  -X  -Pwnosign  -Dnar.cores=1  clean  install

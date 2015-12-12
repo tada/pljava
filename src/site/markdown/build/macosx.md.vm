@@ -1,0 +1,48 @@
+# Building on Mac OS X
+#set($h2 = '##')
+
+Given the Unix heritage of Mac OS X, the PL/Java
+[build instructions](build.html) apply with few differences.
+After installing a suitably recent Java Development Kit
+([JDK, not just JRE][jdk8osx]) from Oracle, a quick  
+  
+`mvn -version`  
+  
+should confirm that it is installed, and is the version of Java
+that Maven will use in the build.
+
+[jdk8osx]: https://docs.oracle.com/javase/8/docs/technotes/guides/install/mac_jdk.html
+
+$h2 Note the PL/Java shared object name
+
+On OS X, the shared object file that results from the build will have a name
+that ends in `.bundle`. Because `.bundle` is not a suffix the PostgreSQL `LOAD`
+command automatically tries, it must be spelled out in full:
+
+    LOAD 'libpljava-so-${project.version}.bundle';
+
+As always, unless the file is installed in `$libdir` or in one of the
+directories named in `dynamic_library_path`, then the `LOAD` command must
+also be given the path to the file.
+
+$h2 No need to edit JDK task capabilities
+
+Apple's Java framework allows Java installations to be selectively enabled
+for five different types of task: `Applets`, `WebStart`, `BundledApp`,
+`JNI`, and `CommandLine`, as documented for Apple's [`java_home`][jh] tool.
+
+[jh]: https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man1/java_home.1.html
+
+Some procedures have been posted for editing an `Info.plist` file after
+installing Oracle's Java to enable it for additional task types.
+**Nothing of the sort is needed for PL/Java**, because PL/Java does not use
+the Apple Java framework to locate the Java runtime. Instead, you simply
+set PostgreSQL's `pljava.libjvm_location` variable to identify the exact
+`libjvm.dylib` that PL/Java will use.
+
+For example, if the `mvn -v` shows "Java home" to be  
+`/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre`  
+then you will probably set `pljava.libjvm_location` so:
+
+    SET pljava.libjvm_location TO
+    '/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre/lib/server/libjvm.dylib`;

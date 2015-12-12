@@ -30,8 +30,8 @@ versions 4.3.0 or later are recommended in order to avoid a
 
 ## PostgreSQL
 
-PL/Java does not currently support PostgreSQL releases before 8.1.
-Recent work is known to have introduced dependencies on 8.1 features.
+PL/Java does not currently support PostgreSQL releases before 8.2.
+Recent work is known to have introduced dependencies on 8.2 features.
 
 The current aim is to avoid deliberately breaking compatibility back
 to 8.2. (A former commercial fork of PostgreSQL 8.2 recently returned
