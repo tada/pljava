@@ -1,27 +1,27 @@
-# Building PL/Java
+# Building PL/Java with Microsoft Visual Studio
 
-**For the impatient:**
-
-    mvn  clean  package
-
-PL/Java is built using [Apache Maven][mvn]. The above command will build it
-and package up the resulting files that you need to then
-[install it into PostgreSQL][inst].
-
+[edb]: http://www.enterprisedb.com/products-services-training/pgdownload
+[msvc]: https://www.visualstudio.com/downloads/download-visual-studio-vs
+[java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[ant]: https://ant.apache.org/bindownload.cgi
+[git]: https://git-scm.com/downloads
+[github]: https://desktop.github.com/
 [mvn]: https://maven.apache.org/
 
-There are prerequisites, of course:
 
-0. You need the C compiling and linking tools for your platform.
-    On many platforms that means `gcc` and `g++`, and your normal search
-    path should include them, which you can test with
+PL/Java may be built on Windows using the compilers in Microsoft Visual Studio (including the Express and Community editions). 
 
-        g++  --version
+Most Windows users will install Postgresql using the binary distributions from [EnterpriseDB][edb]. You may find that using the same version of Visual Studio to compile PL/Java as that used by EnterpriseDB to compile their Postgresql distribution will result in fewer compile warnings and a somewhat smaller runtime memory footprint because the same runtime DLLs will be used by both Postgresql and PL/Java. Using a **newer** version of Visual Studio (including the Community 2015 version) will generally work, while older versions are more likely to be problematic.
 
-    at the command line, which should tell you the version you have installed.
+* Postgresql 9.1 to 9.3 were built using Visual Studio 2010.
+* Postgresql 9.4 was built using Visual Studio 2013.
 
-0. The Java Development Kit (not just the Java Runtime Environment) version
-    that you plan to use should be installed, also ideally in your search path
+## Software Prerequisites
+0. You will need an appropriate version of [Microsoft Visual Studio][msvc]. When installing Visual Studio be
+   sure to select the "compiler tools" option so that the command line compiler is installed.
+
+0. The [Java Development Kit][java] (not just the Java Runtime Environment) version that you plan to use.
+    that you plan to use should be installed, also ideally in your PATH environment variable
     so that
 
         javac  -version
@@ -29,7 +29,7 @@ There are prerequisites, of course:
     just works.
 
 0. The PostgreSQL server version that you intend to use should be installed,
-    and on your search path so that the command
+    and on your PATH so that the command
 
         pg_config
 
@@ -38,28 +38,60 @@ There are prerequisites, of course:
 0. Development files (mostly `.h` files) for that PostgreSQL version must also
    be installed. To check, look in the output of that `pg_config` command for
    an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
-   should be a bunch of `*.h` files there. If not, you probably installed
-   PostgreSQL from a packaged distribution, and there is probably another
-   package with a similar name but a suffix like `-devel` that needs to be
-   installed to provide the `.h` files.
+   should be a bunch of `*.h` files there.
 
-0. Naturally, [Maven][mvn] needs to be installed.
+0. You will need to install [Maven][mvn] and add it to your PATH so that
+
+		mvn -version
+
+    just works.
+
+0. You will need to install [Ant][ant] and add it to your PATH so that
+
+		ant -version
+
+    just works.
+
+0. You will need either [Git][git] or [GitHub for Windows][github]. If you are using Git, add it to your PATH
+    so that
+
+		git --version
+
+    just works.
+
+You **must** match the 32-bit vs 64-bit version of the Java JVM, C compiler and PostgreSQL installation 
+used to build PL/Java. (All must be either 32-bit or 64-bit.)
 
 If you have more than one version installed of PostgreSQL, Java, or the
 compile/link tools, make sure the ones found on your search path are the
 ones you plan to use, and the version-test commands above give the output
 you expect.
 
-## Special topics
+## Visual C Configuration
 
-Please review any of the following that apply to your situation:
+You will need to open a command window with the appropriate Visual C native tools environment variables defined.
+You may do this by using the preconfigured links accessible from the Start menu
+(for example at Visual Studio 2013 | Visual Studio Tools) or by creating a desktop shortcut for the tools. 
 
-* [Version compatibility](versions.html)
+* Visual Studio 2013:
+
+		"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" x86
+		"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" amd64
+* Visual Studio 2010:
+
+		"C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\vcvarsall.bat" x86
+		"C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\vcvarsall.bat" amd64
 
 ## Obtaining PL/Java sources
 
-The best way to obtain up-to-date PL/Java sources is to have [git][] installed
-and `clone` the PL/Java GitHub repository, using either of these commands:
+You may use GitHub for Windows to `clone` the PL/Java GitHub repository by opening your browser to
+
+	https://github.com/tada/pljava
+
+and clicking on the appropriate icon. At the time these notes were written, the icon is located to the left
+of the "Download ZIP" button.
+
+Alternatively you may use [git][] to `clone` the PL/Java GitHub repository, using either of these commands:
 
     git clone https://github.com/tada/pljava.git
     git clone ssh://git@github.com/tada/pljava.git
@@ -68,73 +100,42 @@ The second only works if you have a GitHub account, but has the advantage
 of being faster if you do `git pull` later on to stay in sync with updated
 sources.
 
-[git]: https://git-scm.com/
 
-## The build
+## Building PL/Java
 
-To start the build, your current directory should be the one the sources were
-checked out into. Looking around, there should be a `pom.xml` file there, and
-several subdirectories `pljava`, `pljava-api`, `pljava-so`, etc.
+0. Open a command window using the Visual Studio shortcut for the appropriate version.
+
+0. To start the build, your current directory should be the one the sources were
+   checked out into. Looking around, there should be a `pom.xml` file there, and
+   several subdirectories `pljava`, `pljava-api`, `pljava-so`, etc.
+   In the command window, change the directory to the location of the cloned PL/Java repository. For example,
+
+		cd C:\GitHub\pljava
+
+0. PL/Java is built using [Apache Maven][mvn]. The above command will build it
+   and package up the resulting files that you need to then
+   [install it into PostgreSQL][inst].
+
+	    mvn  clean  package
+
+
 
 A successful `mvn clean package` should produce output like this near the end:
 
-```
-[INFO] PostgreSQL PL/Java ................................ SUCCESS
-[INFO] PL/Java API ....................................... SUCCESS
-[INFO] PL/Java backend Java code ......................... SUCCESS
-[INFO] PL/Java backend native code ....................... SUCCESS
-[INFO] PL/Java Deploy .................................... SUCCESS
-[INFO] PL/Java Ant tasks ................................. SUCCESS
-[INFO] PL/Java examples .................................. SUCCESS
-[INFO] PL/Java packaging ................................. SUCCESS
-```
+	[INFO] PostgreSQL PL/Java ................................ SUCCESS
+	[INFO] PL/Java API ....................................... SUCCESS
+	[INFO] PL/Java backend Java code ......................... SUCCESS
+	[INFO] PL/Java backend native code ....................... SUCCESS
+	[INFO] PL/Java Deploy .................................... SUCCESS
+	[INFO] PL/Java Ant tasks ................................. SUCCESS
+	[INFO] PL/Java examples .................................. SUCCESS
+	[INFO] PL/Java packaging ................................. SUCCESS
+
 (the real output will include timings on each line). You will then be ready
 to [try out PL/Java in PostgreSQL][inst].
 
 [inst]: ../install/install.html
 
-### I know PostgreSQL and PGXS. Explain Maven!
-
-[Maven][mvn] is a widely used tool for building and maintaining projects in
-Java. The `pom.xml` file contains the information Maven needs not only for
-building the project, but obtaining its dependencies and generating reports
-and documentation (including the web site you see here).
-
-If this is your first use of Maven, your first `mvn clean package` command will
-do a lot of downloading, obtaining all of PL/Java's dependencies as declared in
-its `pom.xml` files, and those dependencies' dependencies, etc. Most of the
-dependencies are the various Maven plugins used in the build, and the libraries
-they depend on.
-
-Maven will create a local "maven repository" to store what it downloads, so
-your later `mvn` commands will complete much faster, with no downloading or
-only a few artifacts downloaded if versions have updated.
-
-With default settings, Maven will create this local repository under your home
-directory. It will grow to contain artifacts you have built with Maven and all
-the artifacts downloaded as dependencies, which can be a large set, especially
-if you work on several different Maven-built projects requiring different
-versions of the same dependencies. (It may reach 50 MB after building only
-PL/Java.) If you would like Maven to create the local repository elsewhere,
-the `<localRepository>` element of your [Maven settings][mvnset] can specify
-a path.
-
-[mvnset]: https://maven.apache.org/settings.html
-
-It is thinkable to place the repository on storage that is not backed up, as
-it contains nothing that cannot be redownloaded or rebuilt from your sources.
-
-#### Shouldn't that command be `mvn clean install`?
-
-There is a Maven goal called `install`, but it has a Maven-specific meaning:
-it does not, as you might be thinking, set up your newly-built PL/Java as a
-language in PostgreSQL. (Neither does the `deploy` goal, if you are wondering.)
-
-What Maven's `install` does is save the newly-built artifact into the local
-repository, so other Maven-built projects can list it as a dependency. That
-_is_ useful for the `pljava-api` subproject: if you run `mvn clean install`
-instead of just `package`, you can then easily
-[build your Java projects that _use_ PL/Java][jproj].
 
 To "install" your built PL/Java as a language in PostgreSQL, proceed to
 the [installation instructions][inst].
@@ -161,11 +162,11 @@ a lot of nuisance warnings, because the Maven plugin driving it enables many
 types of warning that would be impractical to fix. With many warnings it may
 be difficult to pick out messages that matter.
 
-If the compiler is `gcc`, an extra option `-Pwnosign` can be given on the
-`mvn` command line, and will suppress the most voluminous and least useful
-warnings. It adds the compiler option `-Wno-sign-conversion` which might not
-be understood by other compilers, so may not have the intended effect if the
-compiler is not `gcc`.
+If the link step of the build reports that the symbol `rint` is undefined
+you are probably using an older version of Visual Studio (2010) with a newer
+version of Postgresql (9.4). This symbol is defined in Visual Studio 2013 and
+later and the Postgresql 9.4 headers lack the appropriate conditional options for
+the older compilers. You will need to use a newer version of Visual Studio.
 
 On a machine with many cores, messages from several compilation threads may be
 intermingled in the output so that related messages are hard to identify.
@@ -175,4 +176,4 @@ The option `-Dnar.cores=1` will force the messages into a sequential order
 The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
-    mvn  -X  -Pwnosign  -Dnar.cores=1  clean  package
+    mvn  -X  -Dnar.cores=1  clean  package
