@@ -12,10 +12,6 @@
 #include <libpq/pqformat.h>
 #include <funcapi.h>
 
-#if PGSQL_MAJOR_VER > 8
-#include <utils/bytea.h>
-#endif
-
 #include "pljava/type/UDT_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
@@ -24,6 +20,10 @@
 #include "pljava/SQLOutputToChunk.h"
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/SQLOutputToTuple.h"
+
+#if PGSQL_MAJOR_VER > 8
+#include <utils/bytea.h>
+#endif
 
 static jobject coerceScalarDatum(UDT self, Datum arg)
 {
