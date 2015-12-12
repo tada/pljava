@@ -9,7 +9,6 @@ and package up the resulting files that you need to then
 [install it into PostgreSQL][inst].
 
 [mvn]: https://maven.apache.org/
-[java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
 
 There are prerequisites, of course:
 
@@ -21,9 +20,9 @@ There are prerequisites, of course:
 
     at the command line, which should tell you the version you have installed.
 
-0. The [Java Development Kit][java] (not just the Java Runtime Environment)
-    version that you plan to use should be installed, also ideally in your
-    search path so that
+0. The Java Development Kit (not just the Java Runtime Environment) version
+    that you plan to use should be installed, also ideally in your search path
+    so that
 
         javac  -version
 
