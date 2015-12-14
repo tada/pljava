@@ -120,7 +120,9 @@ given just the basename of the file instead of a full path. Or, if
 `dynamic_library_path` is already set, the file can be placed in any
 directory on that list for the same effect.
 
-_Todo: proclaim and implement default location for pljava.classpath_
+If the `pljava-${project.version}.jar` file is placed in the default location
+(typically a `pljava` subdirectory of the PostgreSQL "share" directory), then
+`pljava.classpath` will not need to be set.
 
 **If you are a distribution maintainer** packaging PL/Java for a certain
 platform, and you know or control that platform's conventions for where

@@ -1216,6 +1216,8 @@ static jint initializeJavaVM(JVMOptList *optList)
 
 static void registerGUCOptions(void)
 {
+	char pathbuf[MAXPGPATH];
+
 	DefineCustomStringVariable(
 		"pljava.libjvm_location",
 		"Path to the libjvm (.so, .dll, etc.) file in Java's jre/lib area",
@@ -1258,7 +1260,7 @@ static void registerGUCOptions(void)
 		NULL, /* extended description */
 		&classpath,
 		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-			NULL, /* boot value */
+			InstallHelper_defaultClassPath(pathbuf), /* boot value */
 		#endif
 		PGC_SUSET,
 		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))

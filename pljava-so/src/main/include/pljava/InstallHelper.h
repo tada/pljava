@@ -43,6 +43,13 @@ extern Oid pljavaTrustedOid, pljavaUntrustedOid;
  */
 extern char *pljavaDbName();
 
+/*
+ * Construct a default for pljava.classpath ($sharedir/java/pljava-$VER.jar)
+ * in pathbuf (which must have length at least MAXPGPATH), and return pathbuf,
+ * or NULL if the constructed path would not fit.
+ */
+extern char const *InstallHelper_defaultClassPath(char *);
+
 extern char *InstallHelper_hello();
 
 extern void InstallHelper_groundwork();

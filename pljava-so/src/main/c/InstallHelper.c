@@ -132,6 +132,30 @@ char *pljavaFnOidToLibPath(Oid myOid)
 	return result;
 }
 
+char const *InstallHelper_defaultClassPath(char *pathbuf)
+{
+	char * const pbend = pathbuf + MAXPGPATH;
+	char *pbp = pathbuf;
+	size_t remaining;
+	size_t verlen = strlen(SO_VERSION_STRING);
+
+	get_share_path(my_exec_path, pathbuf);
+	join_path_components(pathbuf, pathbuf, "pljava");
+	join_path_components(pathbuf, pathbuf, "pljava-");
+
+	for ( ; pbp < pbend && '\0' != *pbp ; ++ pbp )
+		;
+	if ( pbend == pbp )
+		return NULL;
+
+	remaining = pbend - pbp;
+	if ( remaining < verlen + 5 )
+		return NULL;
+
+	snprintf(pbp, remaining, "%s.jar", SO_VERSION_STRING);
+	return pathbuf;
+}
+
 char *InstallHelper_hello()
 {
 	char pathbuf[MAXPGPATH];

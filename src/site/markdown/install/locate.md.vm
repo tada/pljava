@@ -76,6 +76,10 @@ done, it will be found in `pljava/target/pljava-\${project.version}.jar`
 with `\${project.version}` replaced in the obvious way,
 for example `${project.version}`.
 
+In the simplest installation, determine the default value of `pljava.classpath`
+and place the jar file at that exact name. In a typical distribution, the
+default will be `$sharedir/pljava/pljava-\${project.version}.jar`.
+
 $h3 The architecture-dependent PL/Java native library
 
 This is built by the `pljava-so` subproject. Its filename extension can depend
