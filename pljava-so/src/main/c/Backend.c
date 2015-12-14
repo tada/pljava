@@ -858,11 +858,11 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 		{
 			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
 			{
+				char pathbuf[MAXPGPATH];
+				get_pkglib_path(my_exec_path, pathbuf);
 				len -= 7;
 				path += 7;
-				enlargeStringInfo(&buf, MAXPGPATH);
-				get_pkglib_path(my_exec_path, buf.data);
-				buf.len += strlen(buf.data);
+				appendStringInfoString(&buf, pathbuf);
 			}
 			else
 				ereport(ERROR, (
@@ -872,7 +872,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 
 		if(len > 0)
 		{
-			appendBinaryStringInfo(&buf, path, len);
+			appendBinaryStringInfo(&buf, path, (int)len);
 			path += len;
 		}
 
@@ -954,7 +954,12 @@ static void pljavaQuickDieHandler(int signum)
 }
 
 static sigjmp_buf recoverBuf;
-static void terminationTimeoutHandler(int signum)
+static void terminationTimeoutHandler(
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#else
+	int signum
+#endif
+)
 {
 	kill(MyProcPid, SIGQUIT);
 	
