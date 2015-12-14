@@ -123,6 +123,7 @@ static jint initializeJavaVM(JVMOptList*);
 static void JVMOptList_init(JVMOptList*);
 static void JVMOptList_delete(JVMOptList*);
 static void JVMOptList_add(JVMOptList*, const char*, void*, bool);
+static void JVMOptList_addVisualVMName(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static void checkIntTimeType(void);
 static char* getClassPath(const char*);
@@ -155,6 +156,8 @@ static enum initstage initstage = IS_FORMLESS_VOID;
 static void *libjvm_handle;
 static bool jvmStartedAtLeastOnce = false;
 static bool alteredSettingsWereNeeded = false;
+static bool seenVisualVMName;
+static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 
 static void initsequencer(enum initstage is, bool tolerant);
 
@@ -438,8 +441,11 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_MISC_ONCE_DONE;
 
 	case IS_MISC_ONCE_DONE:
-		JVMOptList_init(&optList);
+		JVMOptList_init(&optList); /* uses CurrentMemoryContext */
+		seenVisualVMName = false;
 		addUserJVMOptions(&optList);
+		if ( ! seenVisualVMName )
+			JVMOptList_addVisualVMName(&optList);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
@@ -1058,7 +1064,19 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	added->extraInfo    = extraInfo;
 	jol->size++;
 
+	if ( 0 == strncmp(optString, visualVMprefix, sizeof visualVMprefix - 1) )
+		seenVisualVMName = true;
+
 	elog(DEBUG1, "Added JVM option string \"%s\"", optString);		
+}
+
+static void JVMOptList_addVisualVMName(JVMOptList* jol)
+{
+	StringInfoData buf;
+	initStringInfo(&buf);
+	appendStringInfo(&buf, "%sPL/Java:%d:%s",
+		visualVMprefix, MyProcPid, pljavaDbName());
+	JVMOptList_add(jol, buf.data, 0, false);
 }
 
 /* Split JVM options. The string is split on whitespace unless the
@@ -1222,7 +1240,7 @@ static void registerGUCOptions(void)
 		NULL, /* extended description */
 		&vmoptions,
 		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
-			NULL, /* boot value */
+			"-XX:+DisableAttachMechanism", /* boot value */
 		#endif
 		PGC_SUSET,
 		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))

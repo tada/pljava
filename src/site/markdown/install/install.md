@@ -76,20 +76,28 @@ in the [`examples.jar` supplied in the build][examples].
 
 [examples]: ../examples/examples.html
 
+Although typically only `pljava.libjvm_location` and `pljava.classpath` need
+to be set, there is a [reference to PL/Java configuration variables][varref]
+if you need it.
+
+[varref]: ../use/variables.html
+
+### Choosing where to place the files
+
 Exactly where you place the files, and what pathnames you use in the
 above commands, can depend on your situation:
 
-* You are a superuser on the OS where PostgreSQL is installed (or you are
-    a distribution maintainer building a PL/Java package for that platform).
-* You are not an OS superuser, but you have PostgreSQL superuser rights and
-    OS permissions as the user that runs `postgres`.
-* You have only PostgreSQL superuser rights, cannot write locations owned
-    by the user `postgres` runs as, but you can write some locations that are
-    readable by that user.
-* You have PostgreSQL superuser rights and want to quickly test that you have
-    built a working PL/Java.
+* Are you a superuser on the OS where PostgreSQL is installed (or are you
+    a distribution maintainer building a PL/Java package for that platform)?
+* Are you not an OS superuser, but you have PostgreSQL superuser rights and
+    OS permissions as the user that runs `postgres`?
+* Do you have only PostgreSQL superuser rights, no ability to write locations
+    owned by the user `postgres` runs as, but the ability to write some
+    locations that user can read?
+* Do you have PostgreSQL superuser rights and want to quickly test that you have
+    built a working PL/Java?
 
-First, the quick check.
+The rest of this page will cover those cases. First, the quick check.
 
 ### A quick install check
 

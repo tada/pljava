@@ -49,6 +49,12 @@ public class InstallHelper
 	{
 		String implVersion =
 			InstallHelper.class.getPackage().getImplementationVersion();
+		/*
+		 * visualvm.display.name is not really used as a property. jvisualvm
+		 * picks it up by looking for -Dvisualvm.display.name=something in the
+		 * JVM invocation arguments, not by looking at actual properties.
+		 */
+		System.clearProperty( "visualvm.display.name");
 		System.setProperty( "user.name", user);
 		setPropertyIfNull( "java.awt.headless", "true");
 		setPropertyIfNull( "org.postgresql.database", dbname);
