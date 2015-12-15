@@ -55,7 +55,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.install_jar(url...)</caption>
  * <tr>
  * <td valign="top"><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded </td>
@@ -76,7 +76,8 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for
+ * sqlj.install_jar(bytea...)</caption>
  * <tr>
  * <td valign="top"><b>jar_image</b></td>
  * <td>The byte array that constitutes the contents of the jar that should be
@@ -101,7 +102,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.replace_jar(url...)</caption>
  * <tr>
  * <td valign="top"><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded </td>
@@ -122,7 +123,8 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for
+ * sqlj.replace_jar(bytea...)</caption>
  * <tr>
  * <td valign="top"><b>jar_image</b></td>
  * <td>The byte array that constitutes the contents of the jar that should be
@@ -148,7 +150,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.remove_jar(&lt;jar_name&gt;, &lt;undeploy&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.remove_jar</caption>
  * <tr>
  * <td valign="top"><b>jar_name</b></td>
  * <td>The name of the jar to be removed</td>
@@ -168,7 +170,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.get_classpath(&lt;schema&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.get_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
  * <td>The name of the schema</td>
@@ -183,7 +185,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.set_classpath(&lt;schema&gt;, &lt;classpath&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.set_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
  * <td>The name of the schema</td>
@@ -200,7 +202,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.add_type_mapping(&lt;sqlTypeName&gt;, &lt;className&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.add_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
  * <td>The name of the SQL type. The name can be qualified with a
@@ -220,7 +222,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * <blockquote><code>SELECT sqlj.drop_type_mapping(&lt;sqlTypeName&gt;);</code>
  * </blockquote>
  * <h3>Parameters</h3>
- * <blockquote><table>
+ * <blockquote><table><caption>Parameters for sqlj.drop_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
  * <td>The name of the SQL type. The name can be qualified with a

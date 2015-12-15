@@ -27,7 +27,8 @@ import org.postgresql.pljava.TriggerException;
  * This class contains some triggers that I found written in C under the
  * contrib/spi directory of the postgres source distribution. Code to create the
  * necessary tables, functions, triggers, and some code to actually execute them
- * can be found in class {@link org.postgresql.pljava.test.Tester}.
+ * can be found in class {@code org.postgresql.pljava.test.Tester} (no longer
+ * part of the build, see under {@code src/java/test}).
  * 
  * @author Thomas Hallgren
  */

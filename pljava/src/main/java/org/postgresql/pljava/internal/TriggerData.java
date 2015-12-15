@@ -32,7 +32,8 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	/**
 	 * Returns the ResultSet that represents the new row. This ResultSet will
 	 * be null for delete triggers and for triggers that was fired for
-	 * statement. <br/>The returned set will be updateable and positioned on a
+	 * statement. <br>
+	 * The returned set will be updateable and positioned on a
 	 * valid row.
 	 * 
 	 * @return An updateable <code>ResultSet</code> containing one row or
@@ -64,7 +65,8 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	/**
 	 * Returns the ResultSet that represents the old row. This ResultSet will
 	 * be null for insert triggers and for triggers that was fired for
-	 * statement. <br/>The returned set will be read-only and positioned on a
+	 * statement. <br>
+	 * The returned set will be read-only and positioned on a
 	 * valid row.
 	 * 
 	 * @return A read-only <code>ResultSet</code> containing one row or

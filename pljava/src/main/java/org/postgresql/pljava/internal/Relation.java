@@ -69,7 +69,7 @@ public class Relation extends JavaWrapper
 	/**
 	 * Creates a new <code>Tuple</code> by substituting new values for selected columns
 	 * copying the columns of the original <code>Tuple</code> at other positions. The
-	 * original <code>Tuple</code> is not modified.<br/>
+	 * original <code>Tuple</code> is not modified.<br>
 	 * @param original The tuple that serves as the source.
 	 * @param fieldNumbers An array of one based indexes denoting the positions that
 	 * are to receive modified values.
