@@ -194,6 +194,9 @@
 				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
 						<name>${CPP_COMPILER}</name>
 				-->
+						<defines>
+							<define>PLJAVA_SO_VERSION=${project.version}</define>
+						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>

@@ -30,6 +30,23 @@
 #endif
 
 #include "pljava/InstallHelper.h"
+#include "pljava/Invocation.h"
+#include "pljava/JNICalls.h"
+#include "pljava/PgObject.h"
+#include "pljava/type/String.h"
+
+#ifndef PLJAVA_SO_VERSION
+#error "PLJAVA_SO_VERSION needs to be defined to compile this file."
+#else
+/*
+ * CppAsString2 first appears in PG8.4.  IF that's a problem, the definition
+ * is really simple.
+ */
+#define SO_VERSION_STRING CppAsString2(PLJAVA_SO_VERSION)
+#endif
+
+static jclass s_InstallHelper_class;
+static jmethodID s_InstallHelper_hello;
 
 char const *pljavaLoadPath = NULL;
 
@@ -98,4 +115,49 @@ char *pljavaFnOidToLibPath(Oid myOid)
 	pfree(probinstring);
 	ReleaseSysCache(handlerPT);
 	return result;
+}
+
+char *InstallHelper_hello()
+{
+	char pathbuf[MAXPGPATH];
+	Invocation ctx;
+	Invocation_pushBootContext(&ctx);
+	jstring nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
+	jstring user = String_createJavaStringFromNTS(MyProcPort->user_name);
+	jstring dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
+	jstring ddir = String_createJavaStringFromNTS(DataDir);
+	jstring ldir = String_createJavaStringFromNTS(pkglib_path);
+
+	get_share_path(my_exec_path, pathbuf);
+	jstring sdir = String_createJavaStringFromNTS(pathbuf);
+
+	get_etc_path(my_exec_path, pathbuf);
+	jstring edir = String_createJavaStringFromNTS(pathbuf);
+
+	jstring hi = JNI_callStaticObjectMethod(
+		s_InstallHelper_class, s_InstallHelper_hello,
+		nativeVer, user, dbname, ddir, ldir, sdir, edir);
+
+	JNI_deleteLocalRef(nativeVer);
+	JNI_deleteLocalRef(user);
+	JNI_deleteLocalRef(dbname);
+	JNI_deleteLocalRef(ddir);
+	JNI_deleteLocalRef(ldir);
+	JNI_deleteLocalRef(sdir);
+	JNI_deleteLocalRef(edir);
+	char *hiC = String_createNTS(hi);
+	JNI_deleteLocalRef(hi);
+	Invocation_popBootContext();
+	return hiC;
+}
+
+void InstallHelper_initialize()
+{
+	s_InstallHelper_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/InstallHelper"));
+	s_InstallHelper_hello = PgObject_getStaticJavaMethod(s_InstallHelper_class,
+		"hello",
+		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/lang/String;");
 }

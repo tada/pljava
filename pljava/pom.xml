@@ -44,6 +44,92 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifestSections>
+							<manifestSection>
+								<name>org/postgresql/pljava/</name>
+								<!--
+								  This section totally doesn't belong here - it
+								  is crazy that the shade plugin cannot copy it
+								  from the manifest of the API jar being shaded
+								  in - even the manifest transformer is no help.
+								-->
+								<manifestEntries>
+									<Implementation-Title>
+										PL/Java API
+									</Implementation-Title>
+									<Implementation-Version>
+										${project.dependencies[0].version}
+									</Implementation-Version>
+									<Implementation-Vendor>
+										${project.organization.name}
+									</Implementation-Vendor>
+								</manifestEntries>
+							</manifestSection>
+							<manifestSection>
+								<name>org/postgresql/pljava/internal/</name>
+								<manifestEntries>
+									<Implementation-Title>
+										${project.name}
+									</Implementation-Title>
+									<Implementation-Version>
+										${project.version}
+									</Implementation-Version>
+									<Implementation-Vendor>
+										${project.organization.name}
+									</Implementation-Vendor>
+								</manifestEntries>
+							</manifestSection>
+							<manifestSection>
+								<name>org/postgresql/pljava/jdbc/</name>
+								<manifestEntries>
+									<Implementation-Title>
+										${project.name}
+									</Implementation-Title>
+									<Implementation-Version>
+										${project.version}
+									</Implementation-Version>
+									<Implementation-Vendor>
+										${project.organization.name}
+									</Implementation-Vendor>
+								</manifestEntries>
+							</manifestSection>
+							<manifestSection>
+								<name>org/postgresql/pljava/management/</name>
+								<manifestEntries>
+									<Implementation-Title>
+										${project.name}
+									</Implementation-Title>
+									<Implementation-Version>
+										${project.version}
+									</Implementation-Version>
+									<Implementation-Vendor>
+										${project.organization.name}
+									</Implementation-Vendor>
+								</manifestEntries>
+							</manifestSection>
+							<manifestSection>
+								<name>org/postgresql/pljava/sqlj/</name>
+								<manifestEntries>
+									<Implementation-Title>
+										${project.name}
+									</Implementation-Title>
+									<Implementation-Version>
+										${project.version}
+									</Implementation-Version>
+									<Implementation-Vendor>
+										${project.organization.name}
+									</Implementation-Vendor>
+								</manifestEntries>
+							</manifestSection>
+						</manifestSections>
+					</archive>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 </project>

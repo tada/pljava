@@ -42,3 +42,7 @@ extern Oid pljavaTrustedOid, pljavaUntrustedOid;
  * Return the name of the current database, from MyProcPort ... don't free it.
  */
 extern char *pljavaDbName();
+
+extern char *InstallHelper_hello();
+
+extern void InstallHelper_initialize();

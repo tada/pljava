@@ -334,6 +334,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 	JVMOptList optList;
 	Invocation ctx;
 	jint JNIresult;
+	char *greeting;
 
 	switch (is)
 	{
@@ -403,12 +404,6 @@ static void initsequencer(enum initstage is, bool tolerant)
 	case IS_MISC_ONCE_DONE:
 		JVMOptList_init(&optList);
 		addUserJVMOptions(&optList);
-		/**
-		 * As stipulated by JRT-2003
-		 */
-		JVMOptList_add(&optList,
-			"-Dsqlj.defaultconnection=jdbc:default:connection",
-			0, true);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
@@ -500,9 +495,11 @@ static void initsequencer(enum initstage is, bool tolerant)
 		}
 
 	case IS_COMPLETE:
-		if ( NULL != pljavaLoadPath )
-			ereport(NOTICE, (
-				errmsg("PL/Java loaded from \"%s\"", pljavaLoadPath)));
+		greeting = InstallHelper_hello();
+		ereport(NULL != pljavaLoadPath ? NOTICE : DEBUG1, (
+				errmsg("PL/Java loaded"),
+				errdetail_internal(greeting)));
+		pfree(greeting);
 		if ( alteredSettingsWereNeeded )
 			ereport(NOTICE, (
 				errmsg("PL/Java successfully started after adjusting settings"),
@@ -685,6 +682,8 @@ static void initPLJavaClasses(void)
 	SQLOutputToChunk_initialize();
 	SQLInputFromTuple_initialize();
 	SQLOutputToTuple_initialize();
+
+	InstallHelper_initialize();
 
 	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
 }
