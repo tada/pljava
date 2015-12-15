@@ -21,7 +21,7 @@ executable and triggers one kind of rule, while to SELinux a `.jar` file
 is just an ordinary file that Java is trying to open.
 
 Whether a failure is being caused by SELinux can be determined by
-searching the system log for `avc denied` messages. If that is the
+searching the system log for `avc: denied` messages. If that is the
 problem, it can be solved in more than one way. For example:
 
 * Search the system's existing SELinux policy (using [apol][] or

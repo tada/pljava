@@ -14,8 +14,10 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     should be any of the available _fully defined_ character encodings. In
     particular, the PostgreSQL pseudo-encoding `SQL_ASCII` (which means
     "characters within ASCII are ASCII, others are no-one-knows-what") will
-    not work well with PL/Java, raising exceptions whenever strings contain
-    non-ASCII characters.
+    _not_ work well with PL/Java, raising exceptions whenever strings contain
+    non-ASCII characters. (PL/Java can still be used in such a database, but
+    the application code needs to know what it's doing and use the right
+    conversion functions where needed.)
 
 `pljava.classpath`
 : The class path to be passed to the Java application class loader. There
@@ -42,7 +44,7 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     removed. Deployment descriptors can contain commands with no implementor
     name, which will be executed always, or with an implementor name, executed
     only on a system recognizing that name. By default, this list contains only
-    the entry `PostgreSQL`. A deployment descriptor that contains commands with
+    the entry `postgresql`. A deployment descriptor that contains commands with
     other implementor names can achieve a rudimentary kind of conditional
     execution if earlier commands adjust this list of names.
 
@@ -57,7 +59,7 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     analog of "committed") or rolled back.
     If `off` (the default), they will be rolled back. If `on`, they will be
     released/committed. If possible, rather than setting this variable `on`,
-    it would be better to fix the function to release its own savepoints when
+    it would be safer to fix the function to release its own savepoints when
     appropriate.
 
 `pljava.statement_cache_size`

@@ -156,9 +156,9 @@ accordingly.
 
 If you have loaded PL/Java successfully after making necessary changes to
 some `pljava.*` variables, you will want those settings to stick. The simplest
-way is to reissue the same `SET` commands as `ALTER DATABASE ` *databasename*`
-SET ...` commands, which will be effective when any user connects to the same
-database.
+way is to reissue the same `SET` commands as
+`ALTER DATABASE ` *databasename* ` SET ...` commands, which will be effective
+when any user connects to the same database.
 
 Another approach is to save them to the server's configuration file.
 If you wish PL/Java to be available for all databases in a cluster, it may

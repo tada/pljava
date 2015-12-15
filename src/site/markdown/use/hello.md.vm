@@ -231,7 +231,7 @@ proj
    | src
    |   | main
    |        | java
-   |	         | Hello.java
+   |             | Hello.java
    | target
           | proj-0.0.1-SNAPSHOT.jar
 ```
@@ -420,7 +420,7 @@ even calling the function_ any time a parameter is null.
   ...
 ```
 
-Another optimization rests on the observation that the `hello` function has
+Another optimization suggests itself because the `hello` function has
 no side effects, and its result depends on nothing except the parameter passed
 to it. By default, functions are assumed to possibly have side effects, depend
 on database contents or outside influences, and otherwise be harder to reason
