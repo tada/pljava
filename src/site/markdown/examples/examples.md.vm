@@ -1,0 +1,97 @@
+# The examples built with PL/Java
+
+## This is a comment, according to Apache Velocity, which is why you'll see
+## extraordinary measures taken below to make ## or lower level headings....
+## Also, if you do not know all the ins and outs of the Velocity template
+## language and would like to spend less time than I did to find the docs:
+## http://velocity.apache.org/engine/devel/user-guide.html
+#set($h2 = '##')
+#set($h3 = '###')
+
+#set($gitdir = "$project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example")
+
+The PL/Java source includes a number of [examples][] that are built into
+a jar that can be installed in the same way as a jar of your own PL/Java
+functions and types.
+
+[examples]: $gitdir
+
+You can extract `examples.jar` from the [packaged archive][locate], or use
+the direct path to where it was built: relative to the build root,
+`pljava-examples/target/pljava-examples-\${project.version}.jar`, with
+`\${project.version}` expanded the obvious way, for example
+`${project.version}`.
+
+[locate]: ../install/locate.html
+
+$h2 Loading the examples
+
+Assuming you are connected to a database where PL/Java has been successfully
+loaded, use the `sqlj.install_jar` function, which takes three parameters.
+The first is a URL to the jar file to be loaded. The simplest case would be
+a `file:` URL giving a path on the PostgreSQL server host to the jar file,
+with permissions set so the backend can read it. Other forms of URL are also
+accepted, so `install_jar` could retrieve a jar from the web, for example.
+
+The second parameter is a short name to identify the jar within PL/Java,
+and the third is a boolean controlling whether to execute the
+[deployment descriptor][depdesc] included in the jar as part of installing it.
+
+[depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
+
+Therefore:
+
+```sql
+SELECT sqlj.install_jar(
+  'file://'
+  '/buildroot/pljava-examples/target/pljava-examples-${project.version}.jar',
+  'examples', true);
+```
+
+will install the `examples.jar` file (assuming the build was done in
+`/buildroot`), giving it the identifier `examples` and executing the
+deployment descriptor.
+
+A typical deployment descriptor will merely declare functions or types provided
+by the jar, create tables they rely on, etc. The `examples.jar` deployment
+descriptor goes farther, and calls several functions provided as test cases,
+so this use of `install_jar` may take a few extra seconds and produce some
+test-related output. (To see _successful_ test-related output, be sure to
+set `client_min_messages` to a level at least as detailed as `INFO` before
+invoking `install_jar`.)
+
+$h2 Trying the examples
+
+While the deployment descriptor itself runs some of the examples, once the
+jar is installed, they are all available for you to run, as functions in
+the `javatest` schema.
+
+First, be sure the `javatest` schema is on your `search_path`:
+
+```sql
+SHOW search_path;
+```
+It will be, after `install_jar` returns (though that is arguably a bug and
+could change), but that will not persist into new sessions.
+
+Make sure that the Java classpath for that schema includes the ID for this
+jar:
+
+```sql
+SELECT sqlj.get_classpath('javatest');
+```
+
+If it does not, set the classpath:
+
+```sql
+SELECT sqlj.set_classpath('javatest', 'examples');
+```
+
+Then use some example function:
+
+```sql
+ SELECT javatest.java_addone(3);
+ java_addone 
+-------------
+           4
+```

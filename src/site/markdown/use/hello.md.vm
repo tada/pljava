@@ -1,0 +1,461 @@
+# The obligatory Hello example
+#set($h2 = '##')
+#set($h3 = '###')
+
+Every employee of `example.com` is required to write a function that says
+`Hello, world!`. There is no escape from this requirement. This page is
+dedicated to all those `example.com` employees faced with that terrible task.
+
+$h2 The goal
+
+Clearly, a function that only returns `Hello, world!` is useless for
+illustrating how to pass parameters. So, the goal will be a function
+that works like this:
+
+```sql
+# \df
+                           List of functions
+ Schema | Name  | Result data type  |   Argument data types    |  Type  
+--------+-------+-------------------+--------------------------+--------
+ public | hello | character varying | towhom character varying | normal
+(1 row)
+# select hello('world');
+     hello     
+---------------
+ Hello, world!
+(1 row)
+```
+
+$h2 A start: the Java program
+
+Employees of `example.com` never forget to put their Java code in a package
+that begins with `com.example`, so very quickly this program takes shape:
+
+```java
+package com.example.proj;
+
+public class Hello {
+
+  public static String hello(String toWhom) {
+    return "Hello, " + toWhom + "!";
+  }
+
+}
+```
+
+$h2 How to build it: a Maven project
+
+Such a small program might not need a build system like Maven, but like any
+project, the requirements could grow over time, so it might as well be set up
+right from the beginning.
+
+In preparation, PL/Java must have been built, using the command
+`mvn clean install`. Recall from the [installation][inst] page that
+the `install` Maven goal has nothing to do with installing PL/Java into
+PostgreSQL--that requires only `mvn clean package` plus further non-Maven
+steps--but the `install` goal _does_ register PL/Java in your Maven
+repository. With that done, any project of your own needs only declare
+`pljava-api` as a dependency, and Maven can compile and package it for you.
+
+[inst]: ../install/install.html
+
+$h3 The POM file
+
+The project begins as an empty directory (named `proj` in this example),
+and the first thing to go in that directory is a `pom.xml` file. The
+Project Object Model is what tells Maven all it needs to know about
+this project. It is XML and verbose, and more lines than the Hello program
+itself! But it is mostly unchanging boilerplate and, as you can see, only
+has a few places to change for information specific to the project.
+
+An important Maven feature is POM inheritance. In an organization with many
+similar projects, there might be one `pom.xml` like this one, and many
+individual projects with shorter `pom.xml` files naming this as the parent.
+
+```xml
+<project
+ xmlns="http://maven.apache.org/POM/4.0.0"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation=
+ "http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Above is all boilerplate. Next: your project's "Maven coordinates" -->
+
+  <groupId>com.example</groupId>
+  <artifactId>proj</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+
+  <!-- Coordinates are nice, but so are names and descriptions for humans. -->
+
+  <name>Hello in PL/Java</name>
+  <description>Project that provides a Hello function</description>
+
+  <!--
+    Many Maven plugins care what character set encoding your files are in.
+    For this example I've chosen the most restrictive (US-ASCII). Change if
+    your files use a different encoding, but be sure not to lie. You should
+    be sure the encoding named here IS the way your source files are coded.
+  -->
+  
+  <properties>
+    <project.build.sourceEncoding>US-ASCII</project.build.sourceEncoding>
+  </properties>
+
+  <!-- Here's where you say your project depends on a pljava-api version. -->
+
+  <dependencies>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>pljava-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
+  <!-- The rest here is pretty much boilerplate. -->
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.6</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <!-- This identifies and version-stamps the jar.
+                 Not essential, but easy and useful. -->
+              <addDefaultImplementationEntries>
+                true
+              </addDefaultImplementationEntries>
+            </manifest>
+
+            <manifestSections>
+              <!-- This identifies a file in the jar named
+                 pljava.ddr as an SQLJDeploymentDescriptor. -->
+              <manifestSection>
+                <name>pljava.ddr</name>
+                <manifestEntries>
+                  <SQLJDeploymentDescriptor>
+                    true
+                  </SQLJDeploymentDescriptor>
+                </manifestEntries>
+              </manifestSection>
+            </manifestSections>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+So far, so good. There is a new `proj` directory with only this `pom.xml` file
+in it:
+
+```
+proj
+   | pom.xml
+```
+
+What happens if `mvn clean package` is run in this directory, even before
+any Java code has been written?
+
+```
+[WARNING] JAR will be empty - no content was marked for inclusion!
+[INFO] Building jar: /var/tmp/proj/target/proj-0.0.1-SNAPSHOT.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+```
+
+Now there is a `target` subdirectory with something in it:
+
+```
+proj
+   | pom.xml
+   | target
+          | proj-0.0.1-SNAPSHOT.jar
+```
+
+Although Maven warned the jar would be empty, in fact it is not _completely_
+empty:
+
+```
+$ jar tf target/proj-0.0.1-SNAPSHOT.jar 
+META-INF/
+META-INF/MANIFEST.MF
+META-INF/maven/
+META-INF/maven/com.example/
+META-INF/maven/com.example/proj/
+META-INF/maven/com.example/proj/pom.xml
+META-INF/maven/com.example/proj/pom.properties
+```
+
+It has a manifest file, and a couple of files Maven adds to save information
+about the build. What is in the manifest?
+
+```
+$ unzip -c target/proj-0.0.1-SNAPSHOT.jar META-INF/MANIFEST.MF
+Manifest-Version: 1.0
+Implementation-Title: Hello in PL/Java
+Implementation-Version: 0.0.1-SNAPSHOT
+Implementation-Vendor-Id: com.example
+
+Name: pljava.ddr
+SQLJDeploymentDescriptor: true
+```
+
+Clearly, Maven did what the POM told it to do. It created a manifest with
+naming and version information for the project, and declaring that the file
+`pljava.ddr` (if there were such a file in the jar) is special because it is
+an [SQLJ deployment descriptor][depdesc].
+
+**This proves that Maven can successfully build an empty project with no code!**
+
+[depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
+
+$h3 Adding the Java code
+
+Maven has a _convention over configuration_ philosophy: it has strict
+expectations of how the project directories will be laid out, and if those
+expectations are followed, it knows what to do, without need to add more
+information in the POM. Sources go in `src`, and they are split between `main`
+and `test` for sources that are only built for tests. Sources written in Java
+go in a `java` subdirectory. So, the Java class that was shown earlier could be
+saved as `Hello.java`, here:
+
+```
+proj
+   | pom.xml
+   | src
+   |   | main
+   |        | java
+   |	         | Hello.java
+   | target
+          | proj-0.0.1-SNAPSHOT.jar
+```
+
+After running `mvn clean package` again, what is now in the jar?
+
+
+```
+$ jar tf target/proj-0.0.1-SNAPSHOT.jar 
+META-INF/
+META-INF/MANIFEST.MF
+com/
+com/example/
+com/example/proj/
+com/example/proj/Hello.class
+META-INF/maven/
+META-INF/maven/com.example/
+META-INF/maven/com.example/proj/
+META-INF/maven/com.example/proj/pom.xml
+META-INF/maven/com.example/proj/pom.properties
+```
+
+This is good progress. The class file is placed in the jar at its correct,
+package-based path, even though the Java file was saved directly in
+`src/main/java`. That is convenient for such a small project. A larger project
+with many classes would probably organize the source files into package-based
+subdirectories of `src/main/java` also.
+
+But something is still missing from this jar. It does not contain any
+`pljava.ddr` file to tell PL/Java what to do when loading it.
+
+$h3 Annotating the Java code
+
+That can be fixed by adding two lines to the Java code:
+
+```java
+package com.example.proj;
+
+import org.postgresql.pljava.annotation.Function;
+
+public class Hello {
+
+  @Function
+  public static String hello(String toWhom) {
+    return "Hello, " + toWhom + "!";
+  }
+
+}
+```
+
+The [@Function annotation][funcanno] declares that the `hello` function should
+be available from SQL, so a `pljava.ddr` file will be added to the jar,
+containing the SQL commands to make that happen.
+
+[funcanno]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/Function.html
+
+One more try with `mvn clean package` and there it is:
+
+```
+$ jar tf target/proj-0.0.1-SNAPSHOT.jar 
+META-INF/
+META-INF/MANIFEST.MF
+com/
+com/example/
+com/example/proj/
+com/example/proj/Hello.class
+pljava.ddr
+META-INF/maven/
+META-INF/maven/com.example/
+META-INF/maven/com.example/proj/
+META-INF/maven/com.example/proj/pom.xml
+META-INF/maven/com.example/proj/pom.properties
+```
+
+Curious about what is _in_ the `pljava.ddr` file?
+
+```
+$ unzip -c target/proj-0.0.1-SNAPSHOT.jar pljava.ddr
+SQLActions[]={
+"BEGIN INSTALL
+BEGIN PostgreSQL
+CREATE OR REPLACE FUNCTION hello(
+	toWhom varchar)
+	RETURNS varchar
+	LANGUAGE java VOLATILE
+	AS 'com.example.proj.Hello.hello(java.lang.String)'
+END PostgreSQL;
+END INSTALL",
+"BEGIN REMOVE
+BEGIN PostgreSQL
+DROP FUNCTION hello(
+	toWhom varchar)
+END PostgreSQL;
+END REMOVE"
+}
+```
+
+There you have it. A jar file containing the new class, and the instructions
+PL/Java needs when installing or removing it.
+
+$h2 Using the jar in PostgreSQL
+
+The time has come to load this jar file into PostgreSQL and try it out!
+Within PL/Java, each jar has a short name; this one can be `myjar`. The
+final `true` parameter to `install_jar` means that the deployment descriptor
+commands should be used.
+
+```sql
+# select sqlj.install_jar(
+  'file:///home/me/proj/target/proj-0.0.1-SNAPSHOT.jar', 'myjar', true);
+ install_jar 
+-------------
+ 
+(1 row)
+```
+
+The result returned by `install_jar` isn't very interesting, but it does not
+show an error, so is the function ready to use?
+
+```sql
+# \df
+                           List of functions
+ Schema | Name  | Result data type  |   Argument data types    |  Type  
+--------+-------+-------------------+--------------------------+--------
+ public | hello | character varying | towhom character varying | normal
+(1 row)
+# select hello('world');
+ERROR:  java.lang.ClassNotFoundException: com.example.proj.Hello
+```
+
+Not so fast! In PL/Java, there is a classpath for every schema. (This is
+not quite what the SQL-JRT standard intended, but it is manageable for
+some related functions grouped into a schema.) The `hello` function was put
+into the `public` schema. Why could the class not be found?
+
+```sql
+# select sqlj.get_classpath('public');
+ get_classpath 
+---------------
+ 
+(1 row)
+```
+
+An empty classpath would have that effect. The short name `myjar` should be
+added.
+
+```sql
+# select sqlj.set_classpath('public', 'myjar');
+ set_classpath 
+---------------
+ 
+(1 row)
+
+# select hello('world');
+     hello     
+---------------
+ Hello, world!
+(1 row)
+```
+
+**Success!**
+
+$h3 One or two refinements
+
+The function says hello, but it also does this:
+
+```sql
+# select hello(null);
+    hello     
+--------------
+ Hello, null!
+(1 row)
+```
+
+The function has not been written to notice when the parameter is null.
+In this case, Java substitutes the word `null` and nothing worse happens,
+but perhaps the function should do something different. If the function
+should _return_ null whenever a parameter is null, there is no need to
+even add any code to the function. It can be annotated to declare that
+behavior, and then PostgreSQL will consider it to return null _without
+even calling the function_ any time a parameter is null.
+
+```java
+  @Function(onNullInput=Function.OnNullInput.RETURNS_NULL)
+  public static String hello(String toWhom) {
+  ...
+```
+
+Another optimization rests on the observation that the `hello` function has
+no side effects, and its result depends on nothing except the parameter passed
+to it. By default, functions are assumed to possibly have side effects, depend
+on database contents or outside influences, and otherwise be harder to reason
+about. The PostgreSQL optimizer will be helped if this function is declared
+`IMMUTABLE`. That leads to a program like this:
+
+```java
+package com.example.proj;
+
+import org.postgresql.pljava.annotation.Function;
+
+import static org.postgresql.pljava.annotation.Function.Type.IMMUTABLE;
+import static
+  org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
+
+public class Hello {
+
+  @Function(onNullInput=RETURNS_NULL, type=IMMUTABLE)
+  public static String hello(String toWhom) {
+    return "Hello, " + toWhom + "!";
+  }
+
+}
+```
+
+$h2 Further reading
+
+From here, consider:
+
+* The documentation for [@Function][funcanno] and the rest of the
+    [PL/Java API][pljapi]
+* The user guide pages [on the wiki][uwik]
+* The many pre-built [examples][]
+
+[pljapi]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description
+[uwik]: https://github.com/tada/pljava/wiki/User-guide
+[examples]: ../examples/examples.html

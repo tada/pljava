@@ -103,6 +103,7 @@ static char* implementors;
 static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
+static bool  pljavaEnabled;
 static bool  s_currentTrust;
 static int   s_javaLogLevel;
 
@@ -153,6 +154,7 @@ enum initstage
 	IS_FORMLESS_VOID,
 	IS_GUCS_REGISTERED,
 	IS_CAND_JVMLOCATION,
+	IS_PLJAVA_ENABLED,
 	IS_CAND_JVMOPENED,
 	IS_CREATEVM_SYM_FOUND,
 	IS_MISC_ONCE_DONE,
@@ -240,6 +242,22 @@ static void initsequencer(enum initstage is, bool tolerant);
 			"To try a different value, exit this session and start a new one.");
 		return false;
 	}
+
+	static bool check_enabled(
+		bool *newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_PLJAVA_ENABLED )
+			return true;
+		if ( *newval )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.enabled\" setting");
+		GUC_check_errdetail(
+			"Start-up has progressed past the point where it is checked.");
+		GUC_check_errhint(
+			"For another chance, exit this session and start a new one.");
+		return false;
+	}
 #endif
 
 #if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER == 0
@@ -248,7 +266,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
 	static bool \
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source)
-#define ASSIGNRETURN(thing) return thing
+#define ASSIGNRETURN(thing) return (thing)
+#define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
 #define ASSIGNSTRINGHOOK(name) \
 	static const char * \
 	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
@@ -261,11 +280,13 @@ static void initsequencer(enum initstage is, bool tolerant);
 	static void \
 	CppConcat(assign_,name)(type newval, void *extra)
 #define ASSIGNRETURN(thing)
+#define ASSIGNRETURNIFCHECK(thing)
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
 ASSIGNSTRINGHOOK(libjvm_location)
 {
+	ASSIGNRETURNIFCHECK(newval);
 	libjvmlocation = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_CAND_JVMOPENED )
 	{
@@ -277,6 +298,7 @@ ASSIGNSTRINGHOOK(libjvm_location)
 
 ASSIGNSTRINGHOOK(vmoptions)
 {
+	ASSIGNRETURNIFCHECK(newval);
 	vmoptions = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
@@ -288,6 +310,7 @@ ASSIGNSTRINGHOOK(vmoptions)
 
 ASSIGNSTRINGHOOK(classpath)
 {
+	ASSIGNRETURNIFCHECK(newval);
 	classpath = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
@@ -295,6 +318,18 @@ ASSIGNSTRINGHOOK(classpath)
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
+}
+
+ASSIGNHOOK(enabled, bool)
+{
+	ASSIGNRETURNIFCHECK(true);
+	pljavaEnabled = newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_PLJAVA_ENABLED )
+	{
+		alteredSettingsWereNeeded = true;
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(true);
 }
 
 /*
@@ -356,6 +391,20 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_CAND_JVMLOCATION;
 
 	case IS_CAND_JVMLOCATION:
+		if ( ! pljavaEnabled )
+		{
+			ereport(WARNING, (
+				errmsg("Java virtual machine not yet loaded"),
+				errdetail(
+					"Pausing because \"pljava.enable\" is set \"false\". "),
+				errhint(
+					"After changing any other settings as necessary, set it "
+					"\"true\" to proceed.")));
+			goto check_tolerant;
+		}
+		initstage = IS_PLJAVA_ENABLED;
+
+	case IS_PLJAVA_ENABLED:
 		libjvm_handle = pg_dlopen(libjvmlocation);
 		if ( NULL == libjvm_handle )
 		{
@@ -507,15 +556,37 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_COMPLETE:
 		if ( alteredSettingsWereNeeded )
+		{
+			/* Use this StringInfoData to conditionally construct part of the
+			 * hint string suggesting ALTER DATABASE ... SET ... FROM CURRENT
+			 * provided the server is >= 9.2 where that will actually work.
+			 * In 9.3, psprintf appeared, which would make this all simpler,
+			 * but if 9.3+ were all that had to be supported, this would all
+			 * be moot anyway. Doing the initStringInfo inside the ereport
+			 * ensures the string is allocated in ErrorContext and won't leak.
+			 * Don't remove the extra parens grouping
+			 * (initStringInfo, appendStringInfo, errhint) ... with the parens,
+			 * that's a comma expression, which is sequenced; without them, they
+			 * are just function parameters with evaluation order unknown.
+			 */
+			StringInfoData buf;
 			ereport(NOTICE, (
 				errmsg("PL/Java successfully started after adjusting settings"),
-				errhint("The settings that worked should be saved (using "
-					"\"ALTER DATABASE %s SET ... TO ...\" or in the "
-					"\"%s\" file). For a reminder of what has been set, try: "
-					"SELECT name, setting FROM pg_settings WHERE name LIKE "
-					"'pljava.%%' AND source = 'session'",
-					pljavaDbName(),
-					PG_GETCONFIGOPTION("config_file"))));
+				(initStringInfo(&buf),
+		#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 2
+				appendStringInfo(&buf,
+					"using ALTER DATABASE %s SET ... FROM CURRENT or ",
+					pljavaDbName()),
+		#endif
+				errhint("The settings that worked should be saved (%s"
+					"in the \"%s\" file). For a reminder of what has been set, "
+					"try: SELECT name, setting FROM pg_settings WHERE name LIKE"
+					" 'pljava.%%' AND source = 'session'",
+					buf.data,
+					superuser()
+						? PG_GETCONFIGOPTION("config_file")
+						: "postgresql.conf"))));
+		}
 		return;
 
 	default:
@@ -1227,7 +1298,8 @@ static void registerGUCOptions(void)
 
 	DefineCustomBoolVariable(
 		"pljava.release_lingering_savepoints",
-		"If true, lingering savepoints will be released on function exit. If false, the will be rolled back",
+		"If true, lingering savepoints will be released on function exit. "
+		"If false, they will be rolled back",
 		NULL, /* extended description */
 		&pljavaReleaseLingeringSavepoints,
 		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
@@ -1241,6 +1313,28 @@ static void registerGUCOptions(void)
 			NULL, /* check hook */
 		#endif
 		NULL, NULL); /* assign hook, show hook */
+
+	DefineCustomBoolVariable(
+		"pljava.enable",
+		"If false, the Java virtual machine will not be started until set true.",
+		"This is mostly of use on PostgreSQL versions < 9.2, where option "
+		"settings changed before LOADing PL/Java may be rejected, so they must "
+		"be made after LOAD, but before the virtual machine is started.",
+		&pljavaEnabled,
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 1))
+			true,  /* boot value */
+		#elif (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			false, /* boot value */
+		#endif
+		PGC_USERSET,
+		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+			0,    /* flags */
+		#endif
+		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+			check_enabled, /* check hook */
+		#endif
+		assign_enabled,
+		NULL); /* show hook */
 
 	DefineCustomStringVariable(
 		"pljava.implementors",
