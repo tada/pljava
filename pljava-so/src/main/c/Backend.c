@@ -370,7 +370,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_CAND_JVMOPENED:
 		pljava_createvm =
-			(jint JNICALL (*)(JavaVM **, void **, void *))
+			(jint (JNICALL *)(JavaVM **, void **, void *))
 			pg_dlsym(libjvm_handle, "JNI_CreateJavaVM");
 		if ( NULL == pljava_createvm )
 		{

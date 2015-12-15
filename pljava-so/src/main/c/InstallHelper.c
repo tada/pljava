@@ -63,14 +63,18 @@ char *pljavaDbName()
 
 void pljavaCheckLoadPath()
 {
+	List *l;
+	Node *ut;
+	LoadStmt *ls;
+
 	if ( NULL == ActivePortal )
 		return;
-	List *l = ActivePortal->stmts;
+	l = ActivePortal->stmts;
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
 		elog(DEBUG1, "ActivePortal lists %d statements", list_length( l));
-	Node *ut = (Node *)linitial(l);
+	ut = (Node *)linitial(l);
 	if ( NULL == ut )
 	{
 		elog(DEBUG1, "got null for first statement from ActivePortal");
@@ -78,7 +82,7 @@ void pljavaCheckLoadPath()
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
 		return;
-	LoadStmt *ls = (LoadStmt *)ut;
+	ls = (LoadStmt *)ut;
 	if ( NULL == ls->filename )
 	{
 		elog(DEBUG1, "got null for a LOAD statement's filename");
@@ -93,26 +97,35 @@ char *pljavaFnOidToLibPath(Oid myOid)
 	bool isnull;
 	char *result;
 	HeapTuple myPT = SearchSysCache1(PROCOID, ObjectIdGetDatum(myOid));
+	Form_pg_proc myPS;
+	Oid langId;
+	HeapTuple langTup;
+	Form_pg_language langSt;
+	Oid handlerOid;
+	HeapTuple handlerPT;
+	Datum probinattr;
+	char *probinstring;
+
 	if (!HeapTupleIsValid(myPT))
 		elog(ERROR, "cache lookup failed for function %u", myOid);
-	Form_pg_proc myPS = (Form_pg_proc) GETSTRUCT(myPT);
-	Oid langId = myPS->prolang;
+	myPS = (Form_pg_proc) GETSTRUCT(myPT);
+	langId = myPS->prolang;
 	ReleaseSysCache(myPT);
-	HeapTuple langTup = SearchSysCache1(LANGOID, ObjectIdGetDatum(langId));
+	langTup = SearchSysCache1(LANGOID, ObjectIdGetDatum(langId));
 	if (!HeapTupleIsValid(langTup))
 		elog(ERROR, "cache lookup failed for language %u", langId);
-	Form_pg_language langSt = (Form_pg_language) GETSTRUCT(langTup);
-	Oid handlerOid = langSt->lanplcallfoid;
+	langSt = (Form_pg_language) GETSTRUCT(langTup);
+	handlerOid = langSt->lanplcallfoid;
 	ReleaseSysCache(langTup);
-	HeapTuple handlerPT =
+	handlerPT =
 		SearchSysCache1(PROCOID, ObjectIdGetDatum(handlerOid));
 	if (!HeapTupleIsValid(handlerPT))
 		elog(ERROR, "cache lookup failed for function %u", handlerOid);
-	Datum probinattr =
+	probinattr =
 		SysCacheGetAttr(PROCOID, handlerPT, Anum_pg_proc_probin, &isnull);
 	if ( isnull )
 		elog(ERROR, "null probin for C function %u", handlerOid);
-	char *probinstring = TextDatumGetCString(probinattr);
+	probinstring = TextDatumGetCString(probinattr);
 	result = pstrdup( probinstring);
 	pfree(probinstring);
 	ReleaseSysCache(handlerPT);
@@ -123,22 +136,32 @@ char *InstallHelper_hello()
 {
 	char pathbuf[MAXPGPATH];
 	Invocation ctx;
+	jstring nativeVer;
+	jstring user;
+	jstring dbname;
+	jstring ddir;
+	jstring ldir;
+	jstring sdir;
+	jstring edir;
+	jstring greeting;
+	char *greetingC;
+
 	Invocation_pushBootContext(&ctx);
-	jstring nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
-	jstring user = String_createJavaStringFromNTS(MyProcPort->user_name);
-	jstring dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
-	jstring ddir = String_createJavaStringFromNTS(DataDir);
+	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
+	user = String_createJavaStringFromNTS(MyProcPort->user_name);
+	dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
+	ddir = String_createJavaStringFromNTS(DataDir);
 
 	get_pkglib_path(my_exec_path, pathbuf);
-	jstring ldir = String_createJavaStringFromNTS(pathbuf);
+	ldir = String_createJavaStringFromNTS(pathbuf);
 
 	get_share_path(my_exec_path, pathbuf);
-	jstring sdir = String_createJavaStringFromNTS(pathbuf);
+	sdir = String_createJavaStringFromNTS(pathbuf);
 
 	get_etc_path(my_exec_path, pathbuf);
-	jstring edir = String_createJavaStringFromNTS(pathbuf);
+	edir = String_createJavaStringFromNTS(pathbuf);
 
-	jstring hi = JNI_callStaticObjectMethod(
+	greeting = JNI_callStaticObjectMethod(
 		s_InstallHelper_class, s_InstallHelper_hello,
 		nativeVer, user, dbname, ddir, ldir, sdir, edir);
 
@@ -149,10 +172,10 @@ char *InstallHelper_hello()
 	JNI_deleteLocalRef(ldir);
 	JNI_deleteLocalRef(sdir);
 	JNI_deleteLocalRef(edir);
-	char *hiC = String_createNTS(hi);
-	JNI_deleteLocalRef(hi);
+	greetingC = String_createNTS(greeting);
+	JNI_deleteLocalRef(greeting);
 	Invocation_popBootContext();
-	return hiC;
+	return greetingC;
 }
 
 void InstallHelper_groundwork()

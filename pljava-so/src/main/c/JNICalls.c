@@ -14,7 +14,7 @@
 #include "pljava/type/String.h"
 
 JNIEnv* jniEnv;
-jint JNICALL (*pljava_createvm)(JavaVM **, void **, void *);
+jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
 /* MSVC will not allow redefinition WITH dllimport after seeing
  * the definition in guc.h that does not include dllimport.

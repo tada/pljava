@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /* only here to be filled in by Backend and used here */
-extern jint JNICALL (*pljava_createvm)(JavaVM **, void **, void *);
+extern jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
 #define BEGIN_NATIVE_NO_ERRCHECK if(beginNativeNoErrCheck(env)) {
 #define BEGIN_NATIVE if(beginNative(env)) {
