@@ -32,7 +32,7 @@ import static org.postgresql.pljava.sqlgen.Lexicals.ISO_PG_JAVA_IDENTIFIER;
  * @author Chapman Flack (Purdue Mathematics) - update to Java6, reorganize,
  * add lexable check
  */
-class DDRWriter
+public class DDRWriter
 {
 	/**
 	 * Generate the deployment descriptor file.

@@ -45,4 +45,6 @@ extern char *pljavaDbName();
 
 extern char *InstallHelper_hello();
 
+extern void InstallHelper_groundwork();
+
 extern void InstallHelper_initialize();

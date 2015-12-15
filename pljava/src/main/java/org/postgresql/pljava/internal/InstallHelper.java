@@ -11,6 +11,19 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Savepoint;
+import java.sql.Statement;
+import java.text.ParseException;
+import java.util.Scanner;
+
+import org.postgresql.pljava.jdbc.SQLUtils;
+import org.postgresql.pljava.management.SQLDeploymentDescriptor;
+import static org.postgresql.pljava.sqlgen.DDRWriter.eQuote;
+
 /**
  * Group of methods intended to streamline the PL/Java installation/startup
  * experience.
@@ -69,5 +82,107 @@ public class InstallHelper
 			sb.append( ", ").append( vmInfo);
 		sb.append( ')');
 		return sb.toString();
+	}
+
+	public static void groundwork( String module_pathname)
+	throws SQLException, ParseException
+	{
+		Connection c = null;
+		Statement s = null;
+		try
+		{
+			c = SQLUtils.getDefaultConnection();
+			s = c.createStatement();
+
+			schema(c, s);
+			handlers(c, s, module_pathname);
+			languages(c, s);
+			deployment(c, s);
+		}
+		finally
+		{
+			SQLUtils.close(s);
+			SQLUtils.close(c);
+		}
+	}
+
+	private static void schema( Connection c, Statement s)
+	throws SQLException
+	{
+		Savepoint p = null;
+		try
+		{
+			p = c.setSavepoint();
+			s.execute("CREATE SCHEMA sqlj");
+			s.execute("GRANT USAGE ON SCHEMA sqlj TO public");
+			c.releaseSavepoint(p);
+		}
+		catch ( SQLException sqle )
+		{
+			c.rollback(p);
+			if ( ! "42P06".equals(sqle.getSQLState()) )
+				throw sqle;
+		}
+	}
+
+	private static void handlers( Connection c, Statement s, String module_path)
+	throws SQLException
+	{
+		s.execute(
+			"CREATE OR REPLACE FUNCTION sqlj.java_call_handler()" +
+			" RETURNS language_handler" +
+			" AS " + eQuote(module_path) +
+			" LANGUAGE C");
+		s.execute("REVOKE ALL PRIVILEGES" +
+			" ON FUNCTION sqlj.java_call_handler() FROM public");
+
+		s.execute(
+			"CREATE OR REPLACE FUNCTION sqlj.javau_call_handler()" +
+			" RETURNS language_handler" +
+			" AS " + eQuote(module_path) +
+			" LANGUAGE C");
+		s.execute("REVOKE ALL PRIVILEGES" +
+			" ON FUNCTION sqlj.javau_call_handler() FROM public");
+	}
+
+	private static void languages( Connection c, Statement s)
+	throws SQLException
+	{
+		Savepoint p = null;
+		try
+		{
+			p = c.setSavepoint();
+			s.execute(
+				"CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
+			c.releaseSavepoint(p);
+		}
+		catch ( SQLException sqle )
+		{
+			c.rollback(p);
+			if ( ! "42710".equals(sqle.getSQLState()) )
+				throw sqle;
+		}
+		try
+		{
+			p = c.setSavepoint();
+			s.execute(
+				"CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler");
+			c.releaseSavepoint(p);
+		}
+		catch ( SQLException sqle )
+		{
+			c.rollback(p);
+			if ( ! "42710".equals(sqle.getSQLState()) )
+				throw sqle;
+		}
+	}
+
+	private static void deployment( Connection c, Statement s)
+	throws SQLException, ParseException
+	{
+		InputStream is = InstallHelper.class.getResourceAsStream("/pljava.ddr");
+		String raw = new Scanner(is, "utf-8").useDelimiter("\\A").next();
+		SQLDeploymentDescriptor sdd = new SQLDeploymentDescriptor(raw);
+		sdd.install(c);
 	}
 }
