@@ -29,7 +29,17 @@ static jmethodID s_Buffer_remaining;
 static jstring s_the_empty_string;
 
 static int s_server_encoding;
-static bool s_two_step_conversion;
+
+/*
+ * String_appendJavaString and String_createNTS can be called from
+ * elogExceptionMessage in JNICalls.c if something goes off the rails before
+ * or during initialization of this class. The statically initialized values
+ * here will make appendJavaString use createNTS, and createNTS use a fallback
+ * based on JNI_getStringUTFChars (and live with the possibility that it gets
+ * non-BMP characters wrong).
+ */
+static bool uninitialized = true;
+static bool s_two_step_conversion = true;
 
 /*
  * Default type. Uses Posgres String conversion routines.
@@ -214,7 +224,27 @@ text* String_createText(jstring javaString)
 char* String_createNTS(jstring javaString)
 {
 	char* result = 0;
-	if(javaString != 0)
+
+	if( 0 == javaString )
+		return result;
+
+	if ( uninitialized )
+	{
+		const char* u8buf;
+
+		s_server_encoding = GetDatabaseEncoding();
+		u8buf = JNI_getStringUTFChars( javaString, NULL);
+		if ( 0 == u8buf )
+			return result;
+		result = (char*)pg_do_encoding_conversion(
+			(unsigned char *)u8buf, (int)strlen( u8buf),
+			PG_UTF8, s_server_encoding);
+		if ( result == u8buf )
+			result = pstrdup( result);
+		JNI_releaseStringUTFChars( javaString, u8buf);
+		return result;
+	}
+	else
 	{
 		jobject charbuf = JNI_callStaticObjectMethodLocked(s_CharBuffer_class,
 			s_CharBuffer_wrap, javaString);
@@ -232,6 +262,7 @@ char* String_createNTS(jstring javaString)
 		if(result != sid.data)
 			pfree(sid.data);
 	}
+
 	return result;
 }
 
@@ -249,6 +280,8 @@ void String_appendJavaString(StringInfoData* buf, jstring javaString)
 	else
 	{
 		char* dbEnc = String_createNTS(javaString);
+		if ( 0 == dbEnc ) /* this can happen if a JNI call fails */
+			return;
 		appendStringInfoString(buf, dbEnc);
 		pfree(dbEnc);
 	}
@@ -401,4 +434,5 @@ static void String_initialize_codec()
 
 	s_server_encoding = GetDatabaseEncoding();
 	s_two_step_conversion = PG_UTF8 != s_server_encoding;
+	uninitialized = false;
 }
