@@ -145,6 +145,7 @@ static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
+static void reLogWithChangedLevel(int);
 
 enum initstage
 {
@@ -162,12 +163,125 @@ enum initstage
 
 static enum initstage initstage = IS_FORMLESS_VOID;
 static void *libjvm_handle;
+static bool jvmStartedAtLeastOnce = false;
+static bool alteredSettingsWereNeeded = false;
 
 static void initsequencer(enum initstage is, bool tolerant);
+
+#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+	static bool check_libjvm_location(
+		char **newval, void **extra, GucSource source);
+	static bool check_vmoptions(
+		char **newval, void **extra, GucSource source);
+	static bool check_classpath(
+		char **newval, void **extra, GucSource source);
+
+	static bool check_libjvm_location(
+		char **newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_CAND_JVMOPENED )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.libjvm_location\" setting");
+		GUC_check_errdetail(
+			"Changing the setting can have no effect after "
+			"PL/Java has found and opened the library it points to.");
+		GUC_check_errhint(
+			"To try a different value, exit this session and start a new one.");
+		return false;
+	}
+
+	static bool check_vmoptions(
+		char **newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_JAVAVM_OPTLIST )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.vmoptions\" setting");
+		GUC_check_errdetail(
+			"Changing the setting can have no effect after "
+			"PL/Java has started the Java virtual machine.");
+		GUC_check_errhint(
+			"To try a different value, exit this session and start a new one.");
+		return false;
+	}
+
+	static bool check_classpath(
+		char **newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_JAVAVM_OPTLIST )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.classpath\" setting");
+		GUC_check_errdetail(
+			"Changing the setting has no effect after "
+			"PL/Java has started the Java virtual machine.");
+		GUC_check_errhint(
+			"To try a different value, exit this session and start a new one.");
+		return false;
+	}
+#endif
+
+#if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER == 0
+#define ASSIGNHOOK(name,type) \
+	static bool \
+	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
+	static bool \
+	CppConcat(assign_,name)(type newval, bool doit, GucSource source)
+#define ASSIGNRETURN(thing) return thing
+#define ASSIGNSTRINGHOOK(name) \
+	static const char * \
+	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
+	static const char * \
+	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source)
+#else
+#define ASSIGNHOOK(name,type) \
+	static void \
+	CppConcat(assign_,name)(type newval, void *extra); \
+	static void \
+	CppConcat(assign_,name)(type newval, void *extra)
+#define ASSIGNRETURN(thing)
+#define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
+#endif
+
+ASSIGNSTRINGHOOK(libjvm_location)
+{
+	libjvmlocation = (char *)newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_CAND_JVMOPENED )
+	{
+		alteredSettingsWereNeeded = true;
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(newval);
+}
+
+ASSIGNSTRINGHOOK(vmoptions)
+{
+	vmoptions = (char *)newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
+	{
+		alteredSettingsWereNeeded = true;
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(newval);
+}
+
+ASSIGNSTRINGHOOK(classpath)
+{
+	classpath = (char *)newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
+	{
+		alteredSettingsWereNeeded = true;
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(newval);
+}
+
 static void initsequencer(enum initstage is, bool tolerant)
 {
 	JVMOptList optList;
 	Invocation ctx;
+	jint JNIresult;
 
 	switch (is)
 	{
@@ -211,14 +325,13 @@ static void initsequencer(enum initstage is, bool tolerant)
 			 * library, so close/unload it so another can be tried.
 			 * Format the dlerror string first: dlclose may clobber it.
 			 */
-			char *dle = (pre_format_elog_string(errno, TEXTDOMAIN),
-				format_elog_string("%s", (char *)pg_dlerror()));
+			char *dle = MemoryContextStrdup(ErrorContext, pg_dlerror());
 			pg_dlclose(libjvm_handle);
 			initstage = IS_CAND_JVMLOCATION;
 			ereport(WARNING, (
 				errmsg("Java virtual machine not yet started"),
 				errdetail("%s", dle),
-				errhint("Is the file named in pljava.libjvm_location "
+				errhint("Is the file named in \"pljava.libjvm_location\" "
 						"the right one?")));
 			goto check_tolerant;
 		}
@@ -256,12 +369,24 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_JAVAVM_OPTLIST;
 
 	case IS_JAVAVM_OPTLIST:
-		if( JNI_OK != initializeJavaVM(&optList) )
+		JNIresult = initializeJavaVM(&optList); /* frees the optList */
+		if( JNI_OK != JNIresult )
 		{
-			ereport(WARNING, (errmsg("Failed to create Java VM")));
+			initstage = IS_MISC_ONCE_DONE; /* optList has been freed */
+			ereport(WARNING,
+				(errmsg("failed to create Java virtual machine"),
+				 errdetail("JNI_CreateJavaVM returned an error code: %d",
+					JNIresult),
+				 jvmStartedAtLeastOnce ?
+					errhint("Because an earlier attempt during this session "
+					"did start a VM before failing, this probably means your "
+					"Java runtime environment does not support more than one "
+					"VM creation per session.  You may need to exit this "
+					"session and start a new one.") : 0));
 			goto check_tolerant;
 		}
-		elog(DEBUG1, "JavaVM created");
+		jvmStartedAtLeastOnce = true;
+		elog(DEBUG1, "successfully created Java virtual machine");
 		initstage = IS_JAVAVM_STARTED;
 
 	case IS_JAVAVM_STARTED:
@@ -282,40 +407,158 @@ static void initsequencer(enum initstage is, bool tolerant)
 			initPLJavaClasses();
 			initJavaSession();
 			Invocation_popBootContext();
+			initstage = IS_COMPLETE;
 		}
 		PG_CATCH();
 		{
+			MemoryContextSwitchTo(ctx.upperContext); /* leave ErrorContext */
 			Invocation_popBootContext();
-			/* JVM initialization failed for some reason. Destroy
-			 * the VM if it exists. Perhaps the user will try
-			 * fixing the pljava.classpath and make a new attempt.
-			 */
-			_destroyJavaVM(0, 0);
 			initstage = IS_MISC_ONCE_DONE;
 			/* We can't stay here...
 			 */
 			if ( tolerant )
-				PG_TRY_RETURN_VOID;
-			PG_RE_THROW();
+				reLogWithChangedLevel(WARNING); /* so xact is not aborted */
+			else
+			{
+				EmitErrorReport(); /* no more unwinding, just log it */
+				/* Seeing an ERROR emitted to the log, without leaving the
+				 * transaction aborted, would violate the principle of least
+				 * astonishment. But at check_tolerant below, another ERROR will
+				 * be thrown immediately, so the transaction effect will be as
+				 * expected and this ERROR will contribute information beyond
+				 * what is in the generic one thrown down there.
+				 */
+				FlushErrorState();
+			}
 		}
 		PG_END_TRY();
-		initstage = IS_COMPLETE;
+		if ( IS_COMPLETE != initstage )
+		{
+			/* JVM initialization failed for some reason. Destroy
+			 * the VM if it exists. Perhaps the user will try
+			 * fixing the pljava.classpath and make a new attempt.
+			 */
+			ereport(WARNING, (
+				errmsg("failed to load initial PL/Java classes"),
+				errhint("The most common reason is that \"pljava.classpath\" "
+					"needs to be set, naming the proper \"pljava.jar\" file.")
+					));
+			_destroyJavaVM(0, 0); /* which undoes the sighandlers, btw */
+			goto check_tolerant;
+		}
 
 	case IS_COMPLETE:
+		if ( alteredSettingsWereNeeded )
+			ereport(NOTICE, (
+				errmsg("PL/Java successfully started after adjusting settings"),
+				errhint("The settings that worked should be saved in the "
+					"\"%s\" file. For a reminder of what has been set, try: "
+					"SELECT name, setting FROM pg_settings WHERE name LIKE "
+					"'pljava.%%' AND source = 'session'",
+					PG_GETCONFIGOPTION("config_file"))));
 		return;
 
 	default:
 		ereport(ERROR, (
-			errmsg("PL/Java startup failed"),
-			errdetail("unexpected stage in startup sequence")));
+			errmsg("cannot set up PL/Java"),
+			errdetail(
+				"An unexpected stage was reached in the startup sequence."),
+			errhint(
+				"Please report the circumstances to the PL/Java maintainers.")
+			));
 	}
 
 check_tolerant:
 	if ( !tolerant ) {
 		ereport(ERROR, (
 			errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			errmsg("PL/Java used before its startup complete")));
+			errmsg(
+				"cannot use PL/Java before successfully completing its setup"),
+			errhint(
+				"Check the log for messages closely preceding this one, "
+				"detailing what step of setup failed and what will be needed, "
+				"probably setting one of the \"pljava.\" configuration "
+				"variables, to complete the setup. If there is not enough "
+				"help in the log, try again with different settings for "
+				"\"log_min_messages\" or \"log_error_verbosity\".")));
 	}
+}
+
+/*
+ * A function having everything to do with logging, which ought to be factored
+ * out one day to make a start on the Thoughts-on-logging wiki ideas.
+ */
+static void reLogWithChangedLevel(int level)
+{
+	ErrorData *edata = CopyErrorData();
+	ErrorData *newedata;
+	FlushErrorState();
+	int sqlstate = edata->sqlerrcode;
+	int category = ERRCODE_TO_CATEGORY(sqlstate);
+	if ( WARNING > level )
+	{
+		if ( ERRCODE_SUCCESSFUL_COMPLETION != category )
+			sqlstate = ERRCODE_SUCCESSFUL_COMPLETION;
+	}
+	else if ( WARNING == level )
+	{
+		if ( ERRCODE_WARNING != category && ERRCODE_NO_DATA != category )
+			sqlstate = ERRCODE_WARNING;
+	}
+	else if ( ERRCODE_WARNING == category || ERRCODE_NO_DATA == category ||
+		ERRCODE_SUCCESSFUL_COMPLETION == category )
+		sqlstate = ERRCODE_INTERNAL_ERROR;
+#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 5
+	edata->elevel = level;
+	edata->sqlerrcode = sqlstate;
+	PG_TRY();
+	{
+		ThrowErrorData(edata);
+	}
+	PG_CATCH();
+	{
+		FreeErrorData(edata); /* otherwise this wouldn't happen in ERROR case */
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	FreeErrorData(edata);
+#else
+	if (!errstart(level, edata->filename, edata->lineno,
+				  edata->funcname, NULL))
+	{
+		FreeErrorData(edata);
+		return;
+	}
+
+	errcode(sqlstate);
+	if (edata->message)
+		errmsg("%s", edata->message);
+	if (edata->detail)
+		errdetail("%s", edata->detail);
+	if (edata->detail_log)
+		errdetail_log("%s", edata->detail_log);
+	if (edata->hint)
+		errhint("%s", edata->hint);
+	if (edata->context)
+		errcontext("%s", edata->context); /* this may need to be trimmed */
+#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3
+	if (edata->schema_name)
+		err_generic_string(PG_DIAG_SCHEMA_NAME, edata->schema_name);
+	if (edata->table_name)
+		err_generic_string(PG_DIAG_TABLE_NAME, edata->table_name);
+	if (edata->column_name)
+		err_generic_string(PG_DIAG_COLUMN_NAME, edata->column_name);
+	if (edata->datatype_name)
+		err_generic_string(PG_DIAG_DATATYPE_NAME, edata->datatype_name);
+	if (edata->constraint_name)
+		err_generic_string(PG_DIAG_CONSTRAINT_NAME, edata->constraint_name);
+#endif
+	if (edata->internalquery)
+		internalerrquery(edata->internalquery);
+
+	FreeErrorData(edata);
+	errfinish(0);
+#endif
 }
 
 void _PG_init()
@@ -363,9 +606,10 @@ static void initPLJavaClasses(void)
 
 	Exception_initialize();
 
-	elog(DEBUG1, "Getting Backend class pljava.jar");
-	s_Backend_class = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
-	elog(DEBUG1, "Backend class was there");
+	elog(DEBUG1, "checking for a PL/Java Backend class on the given classpath");
+	s_Backend_class = PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Backend");
+	elog(DEBUG1, "successfully loaded Backend class");
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
@@ -612,7 +856,8 @@ static void _destroyJavaVM(int status, Datum dummy)
 		Invocation_pushInvocation(&ctx, false);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
-			elog(DEBUG1, "JavaVM destroyed with force");
+			elog(DEBUG1,
+				"needed to forcibly shut down the Java virtual machine");
 			s_javaVM = 0;
 			return;
 		}
@@ -625,7 +870,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 #endif
 
-		elog(DEBUG1, "Destroying JavaVM...");
+		elog(DEBUG1, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 
 #if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
@@ -637,10 +882,10 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 #else
 		Invocation_pushInvocation(&ctx, false);
-		elog(DEBUG1, "Destroying JavaVM...");
+		elog(DEBUG1, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
-		elog(DEBUG1, "JavaVM destroyed");
+		elog(DEBUG1, "done shutting down the Java virtual machine");
 		s_javaVM = 0;
 		currentInvocation = 0;
 	}
@@ -810,7 +1055,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 	vm_args.version  = JNI_VERSION_1_4;
 	vm_args.ignoreUnrecognized = JNI_FALSE;
 
-	elog(DEBUG1, "Creating JavaVM");
+	elog(DEBUG1, "creating Java virtual machine");
 
 	jstat = JNI_createVM(&s_javaVM, &vm_args);
 
@@ -840,9 +1085,10 @@ static void registerGUCOptions(void)
 			0,    /* flags */
 		#endif
 		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-			NULL, /* check hook */
+			check_libjvm_location,
 		#endif
-		NULL, NULL); /* assign hook, show hook */
+		assign_libjvm_location,
+		NULL); /* show hook */
 
 	DefineCustomStringVariable(
 		"pljava.vmoptions",
@@ -857,9 +1103,10 @@ static void registerGUCOptions(void)
 			0,    /* flags */
 		#endif
 		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-			NULL, /* check hook */
+			check_vmoptions,
 		#endif
-		NULL, NULL); /* assign hook, show hook */
+		assign_vmoptions,
+		NULL); /* show hook */
 
 	DefineCustomStringVariable(
 		"pljava.classpath",
@@ -874,9 +1121,10 @@ static void registerGUCOptions(void)
 			0,    /* flags */
 		#endif
 		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
-			NULL, /* check hook */
+			check_classpath,
 		#endif
-		NULL, NULL); /* assign hook, show hook */
+		assign_classpath,
+		NULL); /* show hook */
 
 	DefineCustomBoolVariable(
 		"pljava.debug",
