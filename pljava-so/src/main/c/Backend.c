@@ -32,6 +32,7 @@
 
 #include "org_postgresql_pljava_internal_Backend.h"
 #include "pljava/Invocation.h"
+#include "pljava/InstallHelper.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/Exception.h"
@@ -176,10 +177,20 @@ static void initsequencer(enum initstage is, bool tolerant);
 	static bool check_classpath(
 		char **newval, void **extra, GucSource source);
 
+	/* Check hooks will always allow "setting" a value that is the same as
+	 * current; otherwise, it would be frustrating to have just found settings
+	 * that work, and be unable to save them with ALTER DATABASE SET ... because
+	 * the check hook is called for that too, and would say it is too late....
+	 */
+
 	static bool check_libjvm_location(
 		char **newval, void **extra, GucSource source)
 	{
 		if ( initstage < IS_CAND_JVMOPENED )
+			return true;
+		if ( vmoptions == *newval )
+			return true;
+		if ( libjvmlocation && *newval && 0 == strcmp(libjvmlocation, *newval) )
 			return true;
 		GUC_check_errmsg(
 			"too late to change \"pljava.libjvm_location\" setting");
@@ -196,6 +207,10 @@ static void initsequencer(enum initstage is, bool tolerant);
 	{
 		if ( initstage < IS_JAVAVM_OPTLIST )
 			return true;
+		if ( vmoptions == *newval )
+			return true;
+		if ( vmoptions && *newval && 0 == strcmp(vmoptions, *newval) )
+			return true;
 		GUC_check_errmsg(
 			"too late to change \"pljava.vmoptions\" setting");
 		GUC_check_errdetail(
@@ -210,6 +225,10 @@ static void initsequencer(enum initstage is, bool tolerant);
 		char **newval, void **extra, GucSource source)
 	{
 		if ( initstage < IS_JAVAVM_OPTLIST )
+			return true;
+		if ( classpath == *newval )
+			return true;
+		if ( classpath && *newval && 0 == strcmp(classpath, *newval) )
 			return true;
 		GUC_check_errmsg(
 			"too late to change \"pljava.classpath\" setting");
@@ -277,6 +296,39 @@ ASSIGNSTRINGHOOK(classpath)
 	ASSIGNRETURN(newval);
 }
 
+/*
+ * There are a few ways to arrive in the initsequencer.
+ * 1. From _PG_init (called exactly once when the library is loaded for ANY
+ *    reason).
+ *    1a. Because of the command LOAD 'libraryname';
+ *        This case can be distinguished because _PG_init will have found the
+ *        LOAD command and saved the 'libraryname' in pljavaLoadPath.
+ *    1b. Because of a CREATE FUNCTION naming this library. pljavaLoadPath will
+ *        be NULL.
+ *    1c. By the first actual use of a PL/Java function, causing this library
+ *        to be loaded. pljavaLoadPath will be NULL. The called function's Oid
+ *        will be available to the call handler once we return from _PG_init,
+ *        but it isn't (easily) available here.
+ * 2. From the call handler, if initialization isn't complete yet. That can only
+ *    mean something failed in the earlier call to _PG_init, and whatever it was
+ *    is highly likely to fail again. That may lead to the untidyness of
+ *    duplicated diagnostic messages, but for now I like the belt-and-suspenders
+ *    approach of making sure the init sequence gets as many chances as possible
+ *    to succeed.
+ * 3. From a GUC assign hook, if the user has updated a setting that might allow
+ *    initialization to succeed. It resumes from where it left off.
+ *
+ * In all cases, the sequence must progress as far as starting the VM and
+ * initializing the PL/Java classes. In all cases except 1a, that's enough,
+ * assuming the language handlers and schema have all been set up already (or,
+ * in case 1b, the user is intent on setting them up explicitly).
+ *
+ * In case 1a, we can go ahead and test for, and create, the schema, functions,
+ * and language entries as needed, using pljavaLoadPath as the library path
+ * if creating the language handler functions. One-stop shopping. (The presence
+ * of pljavaLoadPath in any of the other cases, such as resumption by an assign
+ * hook, indicates it is really a continuation of case 1a.)
+ */
 static void initsequencer(enum initstage is, bool tolerant)
 {
 	JVMOptList optList;
@@ -448,13 +500,18 @@ static void initsequencer(enum initstage is, bool tolerant)
 		}
 
 	case IS_COMPLETE:
+		if ( NULL != pljavaLoadPath )
+			ereport(NOTICE, (
+				errmsg("PL/Java loaded from \"%s\"", pljavaLoadPath)));
 		if ( alteredSettingsWereNeeded )
 			ereport(NOTICE, (
 				errmsg("PL/Java successfully started after adjusting settings"),
-				errhint("The settings that worked should be saved in the "
-					"\"%s\" file. For a reminder of what has been set, try: "
+				errhint("The settings that worked should be saved (using "
+					"\"ALTER DATABASE %s SET ... TO ...\" or in the "
+					"\"%s\" file). For a reminder of what has been set, try: "
 					"SELECT name, setting FROM pg_settings WHERE name LIKE "
 					"'pljava.%%' AND source = 'session'",
+					pljavaDbName(),
 					PG_GETCONFIGOPTION("config_file"))));
 		return;
 
@@ -491,7 +548,6 @@ check_tolerant:
 static void reLogWithChangedLevel(int level)
 {
 	ErrorData *edata = CopyErrorData();
-	ErrorData *newedata;
 	FlushErrorState();
 	int sqlstate = edata->sqlerrcode;
 	int category = ERRCODE_TO_CATEGORY(sqlstate);
@@ -563,6 +619,7 @@ static void reLogWithChangedLevel(int level)
 
 void _PG_init()
 {
+	pljavaCheckLoadPath();
 	initsequencer( initstage, true);
 }
 
@@ -1229,6 +1286,14 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 
 	if ( IS_COMPLETE != initstage )
 	{
+		/*
+		 * Just in case it could be helpful in offering diagnostics later, hang
+		 * on to an Oid that is known to refer to PL/Java (because it got here).
+		 * It's cheap, and can be followed back to the right language and
+		 * handler function entries later if needed.
+		 */
+		*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid)
+			= fcinfo->flinfo->fn_oid;
 		initsequencer( initstage, false);
 
 		/* Force initial setting
