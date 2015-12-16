@@ -30,9 +30,9 @@ likely to be problematic.
     installing Visual Studio be sure to select the "compiler tools" option so
     that the command line compiler is installed.
 
-0. The [Java Development Kit][java] (not just the Java Runtime Environment) version that you plan to use.
-    that you plan to use should be installed, also ideally in your PATH environment variable
-    so that
+0. The [Java Development Kit][java] (not just the Java Runtime Environment)
+    version that you plan to use. that you plan to use should be installed, also
+    ideally in your PATH environment variable so that
 
         javac  -version
 
@@ -52,18 +52,12 @@ likely to be problematic.
 
 0. You will need to install [Maven][mvn] and add it to your PATH so that
 
-        mvn -version
+        mvn --version
 
     just works.
 
-0. You will need to install [Ant][ant] and add it to your PATH so that
-
-        ant -version
-
-    just works.
-
-0. You will need either [Git][git] or [GitHub for Windows][ghd]. If you are using Git, add it to your PATH
-    so that
+0. You will need either [Git][git] or [GitHub for Windows][ghd]. If you are
+    using Git, add it to your PATH so that
 
         git --version
 
@@ -103,10 +97,11 @@ opening your browser to
 
     https://github.com/tada/pljava
 
-and clicking on the appropriate icon. At the time these notes were written, the icon is located to the left
-of the "Download ZIP" button.
+and clicking on the appropriate icon. At the time these notes were written, the
+icon is located to the left of the "Download ZIP" button.
 
-Alternatively you may use [git][] to `clone` the PL/Java GitHub repository, using either of these commands:
+Alternatively you may use [git][] to `clone` the PL/Java GitHub repository,
+using either of these commands:
 
     git clone https://github.com/tada/pljava.git
     git clone ssh://git@github.com/tada/pljava.git
@@ -208,11 +203,11 @@ a lot of nuisance warnings, because the Maven plugin driving it enables many
 types of warning that would be impractical to fix. With many warnings it may
 be difficult to pick out messages that matter.
 
-If the link step of the build reports that the symbol `rint` is undefined
-you are probably using an older version of Visual Studio (2010) with a newer
-version of Postgresql (9.4). This symbol is defined in Visual Studio 2013 and
-later and the Postgresql 9.4 headers lack the appropriate conditional options for
-the older compilers. You will need to use a newer version of Visual Studio.
+If the link step of the build reports that the symbol `rint` is undefined you
+are probably using an older version of Visual Studio (2010) with a newer version
+of Postgresql (9.4). This symbol is defined in Visual Studio 2013 and later and
+the Postgresql 9.4 headers lack the appropriate conditional options for the
+older compilers. You will need to use a newer version of Visual Studio.
 
 On a machine with many cores, messages from several compilation threads may be
 intermingled in the output so that related messages are hard to identify.

@@ -44,7 +44,11 @@ There are prerequisites, of course:
     package with a similar name but a suffix like `-devel` that needs to be
     installed to provide the `.h` files.
 
-0. Naturally, [Maven][mvn] needs to be installed.
+0. Naturally, [Maven][mvn] needs to be installed. When it properly is,
+
+        mvn --version
+
+    succeeds.
 
 If you have more than one version installed of PostgreSQL, Java, or the
 compile/link tools, make sure the ones found on your search path are the
