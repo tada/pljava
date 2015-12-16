@@ -180,7 +180,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 	{
 		if ( initstage < IS_CAND_JVMOPENED )
 			return true;
-		if ( vmoptions == *newval )
+		if ( libjvmlocation == *newval )
 			return true;
 		if ( libjvmlocation && *newval && 0 == strcmp(libjvmlocation, *newval) )
 			return true;
