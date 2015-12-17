@@ -36,13 +36,17 @@
 #include "pljava/PgObject.h"
 #include "pljava/type/String.h"
 
+/*
+ * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
+ * 8.4, this fallback will not be needed.
+ */
+#ifndef CppAsString2
+#define CppAsString2(x) CppAsString(x)
+#endif
+
 #ifndef PLJAVA_SO_VERSION
 #error "PLJAVA_SO_VERSION needs to be defined to compile this file."
 #else
-/*
- * CppAsString2 first appears in PG8.4.  IF that's a problem, the definition
- * is really simple.
- */
 #define SO_VERSION_STRING CppAsString2(PLJAVA_SO_VERSION)
 #endif
 

@@ -168,6 +168,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 		char **newval, void **extra, GucSource source);
 	static bool check_classpath(
 		char **newval, void **extra, GucSource source);
+	static bool check_enabled(
+		bool *newval, void **extra, GucSource source);
 
 	/* Check hooks will always allow "setting" a value that is the same as
 	 * current; otherwise, it would be frustrating to have just found settings
