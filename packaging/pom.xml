@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.postgresql</groupId>
 		<artifactId>pljava.app</artifactId>
-		<version>0.0.2-SNAPSHOT</version>
+		<version>1.5.0-SNAPSHOT</version>
 	</parent>
 	<artifactId>packaging</artifactId>
 	<name>PL/Java packaging</name>
@@ -15,22 +15,22 @@
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-deploy</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-examples</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-so</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
+			<version>${project.version}</version>
 			<type>nar</type>
 		</dependency>
 	</dependencies>
