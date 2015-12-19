@@ -96,51 +96,31 @@ static void _endOfSetCB(Datum arg)
 	currentInvocation->inExprContextCB = saveInExprCtxCB;
 }
 
+static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
+	HashMap *map, Type builder(Type, Type, Oid));
+
 Type Type_getCoerceIn(Type self, Type other)
 {
-	Oid  funcId;
-	Type coerce;
-	Oid  fromOid = other->typeId;
-	Oid  toOid = self->typeId;
-
-	if(self->inCoercions != 0)
-	{
-		coerce = HashMap_getByOid(self->inCoercions, fromOid);
-		if(coerce != 0)
-			return coerce;
-	}
-
-	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
-	{
-		elog(ERROR, "no conversion function from %s to %s",
-			 format_type_be(fromOid),
-			 format_type_be(toOid));
-	}
-
-	if(funcId == InvalidOid)
-		/*
-		 * Binary compatible type. No need for a special coercer
-		 */
-		return self;
-
-	if(self->inCoercions == 0)
-		self->inCoercions = HashMap_create(7, GetMemoryChunkContext(self));
-
-	coerce = Coerce_createIn(self, other, funcId);
-	HashMap_putByOid(self->inCoercions, fromOid, coerce);
-	return coerce;
+	return _getCoerce(self, other, other->typeId, self->typeId,
+		&(self->inCoercions), Coerce_createIn);
 }
+
 
 Type Type_getCoerceOut(Type self, Type other)
 {
+	return _getCoerce(self, other, self->typeId, other->typeId,
+		&(self->outCoercions), Coerce_createOut);
+}
+
+static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
+	HashMap *map, Type builder(Type, Type, Oid))
+{
 	Oid  funcId;
 	Type coercer;
-	Oid  fromOid = self->typeId;
-	Oid  toOid = other->typeId;
 
-	if(self->outCoercions != 0)
+	if(*map != 0)
 	{
-		coercer = HashMap_getByOid(self->outCoercions, toOid);
+		coercer = HashMap_getByOid(*map, other->typeId);
 		if(coercer != 0)
 			return coercer;
 	}
@@ -158,11 +138,11 @@ Type Type_getCoerceOut(Type self, Type other)
 		 */
 		return self;
 
-	if(self->outCoercions == 0)
-		self->outCoercions = HashMap_create(7, GetMemoryChunkContext(self));
+	if(*map == 0)
+		*map = HashMap_create(7, GetMemoryChunkContext(self));
 
-	coercer = Coerce_createOut(self, other, funcId);
-	HashMap_putByOid(self->outCoercions, toOid, coercer);
+	coercer = builder(self, other, funcId);
+	HashMap_putByOid(*map, other->typeId, coercer);
 	return coercer;
 }
 
