@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.postgresql</groupId>
 		<artifactId>pljava.app</artifactId>
-		<version>0.0.2-SNAPSHOT</version>
+		<version>1.5.0-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-examples</artifactId>
 	<name>PL/Java examples</name>
@@ -13,7 +13,7 @@
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-api</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
 	<build>
