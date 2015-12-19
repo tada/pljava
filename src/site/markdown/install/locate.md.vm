@@ -92,4 +92,4 @@ is at the end of a long and redundant path that contains the project version
 An example, for version `${project.version}` and arch-os-linker of
 `amd64-Linux-gpp` is (very deep breath):
 
-`pljava-so/target/nar/pljava-so-${project.version}-amd64-Linux-gpp-shared/lib/amd64-Linux-gpp/shared/libpljava-so-${project.version}.so`
+`pljava-so/target/nar/pljava-so-${project.version}-amd64-Linux-gpp-plugin/lib/amd64-Linux-gpp/plugin/libpljava-so-${project.version}.so`
