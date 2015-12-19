@@ -157,25 +157,15 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 	return Timestamp_coerceObjectTZ(self, ts, false);
 }
 
-#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3))
-/* MSVC will not allow redefinition WITH dllimport after seeing
- * the definition in pgtime.h that does not include dllimport.
- */
-#ifdef _MSC_VER
-extern pg_tz *session_timezone;
-#else
-extern PGDLLIMPORT pg_tz* session_timezone;
-#endif
-#else
-extern DLLIMPORT pg_tz* global_timezone;
-#endif
-#endif
-
 static int32 Timestamp_getTimeZone(pg_time_t time)
 {
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-	struct pg_tm* tx = pg_localtime(&time);
+#ifdef _MSC_VER
+	/* This is gross, but pg_tzset has a cache, so not as gross as you think.
+	 * There is some renewed interest on pgsql-hackers to find a good answer for
+	 * the MSVC PGDLLIMPORT nonsense, so this may not have to stay gross.
+	 */
+	char const *tzname = PG_GETCONFIGOPTION("timezone");
+	struct pg_tm* tx = pg_localtime(&time, pg_tzset(tzname));
 #elif (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
 	struct pg_tm* tx = pg_localtime(&time, global_timezone);
 #else

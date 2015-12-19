@@ -27,6 +27,18 @@ void Backend_setJavaSecurity(bool trusted);
 
 int Backend_setJavaLogLevel(int logLevel);
 
+#ifdef PG_GETCONFIGOPTION
+#error The macro PG_GETCONFIGOPTION needs to be renamed.
+#endif
+
+#if PGSQL_MAJOR_VER > 9  ||  PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key, false, true)
+#elif PGSQL_MAJOR_VER == 9
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key, true)
+#else
+#define PG_GETCONFIGOPTION(key) GetConfigOption(key)
+#endif
+
 #ifdef __cplusplus
 }
 #endif

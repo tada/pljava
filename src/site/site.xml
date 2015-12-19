@@ -19,11 +19,13 @@
 			 href='http://lists.pgfoundry.org/pipermail/pljava-dev/'/>
 			<item name='Code' href='${project.scm.url}'/>
 		</links>
-		<menu name='Wiki shortcuts' inherit='top'>
-			<item name='Installation guide'
-			 href='https://github.com/tada/pljava/wiki/Installation-guide'/>
+		<menu name='Usage' inherit='top'>
+			<item name='Building PL/Java'
+			 href='build/build.html'/>
+			<item name='Installing into PostgreSQL'
+			 href='install/install.html'/>
 			<item name='User guide'
-			 href='https://github.com/tada/pljava/wiki/User-guide'/>
+			 href='use/use.html'/>
 		</menu>
 		<menu ref='modules'/>
 		<menu ref='reports' inherit='top'/>

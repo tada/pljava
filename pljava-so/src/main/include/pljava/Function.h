@@ -72,6 +72,11 @@ extern jobject Function_getTypeMap(Function self);
  */
 extern bool Function_isCurrentReadOnly(void);
 
+/*
+ * A nameless Function singleton with the property ! isCurrentReadOnly()
+ */
+extern Function Function_INIT_WRITER;
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,95 @@
+# Finding the files produced by a PL/Java build
+
+## This is a comment, according to Apache Velocity, which is why you'll see
+## extraordinary measures taken below to make ## or lower level headings....
+## Also, if you do not know all the ins and outs of the Velocity template
+## language and would like to spend less time than I did to find the docs:
+## http://velocity.apache.org/engine/devel/user-guide.html
+#set($h2 = '##')
+#set($h3 = '###')
+
+The PL/Java [build process][bld] using `mvn clean install` produces files
+needed to install the language in PostgreSQL, which need to be copied to
+appropriate permanent locations, and their pathnames may have to be set
+in `pljava.*` variables, as the [installation page][inst] describes.
+
+They are produced in different locations in the build tree and their
+exact names can depend on platform and version details, so these tips
+may help in finding them.
+
+[bld]: ../build/build.html
+[inst]: install.html
+
+$h2 The packaged tar or zip file
+
+The `packaging` subproject builds a single `.tar.gz` or `.zip` file
+(depending on the platform where the build is done). Relative to the
+root of the build tree, it is found at
+
+`packaging/target/pljava-${pgversion}-${naraol}.tar.gz` (or `.zip`)
+
+where `${pgversion}` resembles `pg9.4` and `${naraol}` is an
+*architecture-os-linker* triple, for example `amd64-Linux-gpp`
+or `amd64-Windows-msvc`. It contains these things:
+
+`pljava/pljava.jar`
+: The architecture-independent, Java portion of the PL/Java implementation
+    (more below).
+
+`pljava/pljava.so` (or `.dll`, etc.)
+: The architecture-dependent, native library portion of the PL/Java
+    implementation (more below).
+
+`pljava/examples.jar`
+: A set of [examples demonstrating PL/Java usage][examples], usable also
+    as rudimentary tests.
+
+`pljava/docs.tar`
+: A collection of historical-interest and design documents from the origins
+    of PL/Java.
+
+`pljava/install.sql`, `pljava/uninstall.sql`
+: _Deprecated_ In normal circumstances, these are no longer needed to install
+    or uninstall PL/Java.
+
+`pljava/deploy.jar`
+: _Deprecated_ In normal circumstances, this tool is no longer needed to install
+    or uninstall PL/Java.
+
+[examples]: ../examples/examples.html
+
+Extract the needed files from this archive and place them in appropriate
+locations, then complete the [installation][inst].
+
+$h2 Naming the built files directly
+
+When the only purpose is to quickly check the built PL/Java, it is faster
+not to extract files from the packaged archive into some other location,
+but simply to `SET` the `pljava.*` variables to point to the files right
+where they were generated in the build tree.
+
+$h3 The architecture-independent PL/Java `jar` file
+
+This file is built by the `pljava` subproject,
+so relative to the source root where the build was
+done, it will be found in `pljava/target/pljava-\${project.version}.jar`
+with `\${project.version}` replaced in the obvious way,
+for example `${project.version}`.
+
+In the simplest installation, determine the default value of `pljava.classpath`
+and place the jar file at that exact name. In a typical distribution, the
+default will be `$sharedir/pljava/pljava-\${project.version}.jar`.
+
+$h3 The architecture-dependent PL/Java native library
+
+This is built by the `pljava-so` subproject. Its filename extension can depend
+on the operating system: `.so` on many systems, `.dll` on Windows, `.bundle` on
+Mac OS X / Darwin. Relative to the source root where the build was performed, it
+is at the end of a long and redundant path that contains the project version
+(twice), an "architecture-OS-linker" string (twice), and a build type
+("plugin"), also twice.
+
+An example, for version `${project.version}` and arch-os-linker of
+`amd64-Linux-gpp` is (very deep breath):
+
+`pljava-so/target/nar/pljava-so-${project.version}-amd64-Linux-gpp-shared/lib/amd64-Linux-gpp/shared/libpljava-so-${project.version}.so`

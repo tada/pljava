@@ -55,21 +55,50 @@ public interface Session
 	ObjectPool getObjectPool(Class cls);
 
 	/**
-	 * Return the name of the effective user. If the currently
-	 * executing funciton is declared with <code>SECURITY DEFINER</code>,
-	 * then this method returns the name of the user that defined
-	 * the function, otherwise, this method will return the same
-	 * as {@link #getSessionUserName()}.
+	 * Return the current <em>effective</em> database user name.
+	 *<p>
+	 * <a href=
+'http://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/backend/utils/init/miscinit.c;h=f8cc2d85c18f4e3a21a3e22457ef78d286cd1330;hb=b196a71d88a325039c0bf2a9823c71583b3f9047#l291'
+>Definition</a>:
+	 * "The one to use for all normal permissions-checking purposes."
+	 * Within {@code SECURITY DEFINER} functions and some specialized
+	 * commands, it can be different from the
+	 * {@linkplain #getOuterUserName outer user name}.
 	 */
 	String getUserName();
 
 	/**
-	 * Return the name of the user that owns the current session.
+	 * Return the <em>outer</em> database user name.
+	 *<p>
+	 * <a href=
+'http://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/backend/utils/init/miscinit.c;h=f8cc2d85c18f4e3a21a3e22457ef78d286cd1330;hb=b196a71d88a325039c0bf2a9823c71583b3f9047#l286'
+>Definition</a>:
+	 * "the current user ID in effect at the 'outer level' (outside any
+	 * transaction or function)." The session user id taking into account
+	 * any {@code SET ROLE} in effect. This is the ID that a
+	 * {@code SECURITY DEFINER} function should revert to if it needs to
+	 * operate with the invoker's permissions.
+	 * @since 1.5.0
 	 */
+	String getOuterUserName();
+
+	/**
+	 * Deprecated synonym for {@link #getOuterUserName getOuterUserName}.
+	 * @deprecated As of 1.5.0, this method is retained only for
+	 * compatibility with old code, and returns the same value as
+	 * {@link #getOuterUserName getOuterUserName}, which should be used
+	 * instead. Previously, it returned the <em>session</em> ID
+	 * unconditionally, which is incorrect for any PostgreSQL version newer
+	 * than 8.0, because it was unaware of {@code SET ROLE} introduced in
+	 * 8.1. Any actual use case for a method that ignores roles and reports
+	 * only the session ID should be
+	 * <a href='../../../../issue-tracking.html'>reported as an issue.</a>
+	 */
+	@Deprecated
 	String getSessionUserName();
 
 	/**
-	 * Execute a statement as a session user rather then the effective
+	 * Execute a statement as the outer user rather than the effective
 	 * user. This is useful when functions declared using
 	 * <code>SECURITY DEFINER</code> wants to give up the definer
 	 * rights.
@@ -78,6 +107,23 @@ public interface Session
 	 * @throws SQLException if something goes wrong when executing.
 	 * @see java.sql.Statement#execute(java.lang.String)
 	 */
+	void executeAsOuterUser(Connection conn, String statement)
+	throws SQLException;
+
+	/**
+	 * Deprecated synonym for
+	 * {@link #executeAsOuterUser executeAsOuterUser}.
+	 * @deprecated As of 1.5.0, this method is retained only for
+	 * compatibility with old code, and has the same effect as
+	 * {@link #executeAsOuterUser executeAsOuterUser}, which should be used
+	 * instead. Previously, it used the <em>session</em> ID unconditionally,
+	 * which is incorrect for any PostgreSQL version newer than 8.0, because
+	 * it was unaware of {@code SET ROLE} introduced in 8.1. Any actual use
+	 * case for a method that ignores roles and uses only the session ID
+	 * should be <a href='../../../../issue-tracking.html'>reported as an
+	 * issue</a>.
+	 */
+	@Deprecated
 	void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException;
 

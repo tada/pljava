@@ -118,6 +118,14 @@ struct Function_
 	} func;
 };
 
+/*
+ * Not fussing with initializer, relying on readOnly being false by C static
+ * initial default.
+ */
+static struct Function_ s_initWriter;
+
+Function Function_INIT_WRITER = &s_initWriter;
+
 typedef struct ParseResultData
 {
 	char* buffer;	/* The buffer to pfree once we are done */

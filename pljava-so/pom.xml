@@ -65,6 +65,7 @@
 								<includePaths combine.children='append'>
 									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
 									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32_msvc</includePath>
+									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
 								</includePaths>
 							</c>
 							<linker>
@@ -194,6 +195,9 @@
 				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
 						<name>${CPP_COMPILER}</name>
 				-->
+						<defines>
+							<define>PLJAVA_SO_VERSION=${project.version}</define>
+						</defines>
 						<includePaths>
 							<!-- TODO: hardcoded paths -->
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
@@ -203,13 +207,6 @@
 						</includePaths>
 					</c>
 
-					<java>
-						<!-- This is supposed to be the same as adding the
-						     exact right <lib> specification under <linker>
-							 to refer to libjvm.
-						-->
-						<link>true</link>
-					</java>
 					<!-- Defines linker flags "-ljvm -L.../server" -->
 					<linker>
 						<libs>
