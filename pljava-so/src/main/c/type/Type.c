@@ -25,6 +25,34 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
+#if PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3
+typedef enum CoercionPathType
+{
+	COERCION_PATH_NONE, 		/* failed to find any coercion pathway */
+	COERCION_PATH_FUNC, 		/* apply the specified coercion function */
+	COERCION_PATH_RELABELTYPE,  /* binary-compatible cast, no function */
+	COERCION_PATH_ARRAYCOERCE,  /* need an ArrayCoerceExpr node */
+	COERCION_PATH_COERCEVIAIO	/* need a CoerceViaIO node */
+} CoercionPathType;
+
+static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
+							CoercionContext ccontext, Oid *funcid);
+static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
+							CoercionContext ccontext, Oid *funcid)
+{
+	if ( find_coercion_pathway(targetTypeId, sourceTypeId, ccontext, funcid) )
+		return *funcId != InvalidOid ?
+			COERCION_PATH_FUNC : COERCION_PATH_RELABELTYPE;
+	else
+		return COERCION_PATH_NONE;
+}
+#define find_coercion_pathway fcp
+#endif
+
+#if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER < 5
+#define DomainHasConstraints(x) true
+#endif
+
 static HashMap s_typeByOid;
 static HashMap s_obtainerByOid;
 static HashMap s_obtainerByJavaName;
@@ -101,6 +129,9 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 
 Type Type_getCoerceIn(Type self, Type other)
 {
+	elog(DEBUG2, "Type_getCoerceIn(%s,%s)",
+			 format_type_be(self->typeId),
+			 format_type_be(other->typeId));
 	return _getCoerce(self, other, other->typeId, self->typeId,
 		&(self->inCoercions), Coerce_createIn);
 }
@@ -108,6 +139,9 @@ Type Type_getCoerceIn(Type self, Type other)
 
 Type Type_getCoerceOut(Type self, Type other)
 {
+	elog(DEBUG2, "Type_getCoerceOut(%s,%s)",
+			 format_type_be(self->typeId),
+			 format_type_be(other->typeId));
 	return _getCoerce(self, other, self->typeId, other->typeId,
 		&(self->outCoercions), Coerce_createOut);
 }
@@ -117,6 +151,7 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 {
 	Oid  funcId;
 	Type coercer;
+	CoercionPathType cpt;
 
 	if(*map != 0)
 	{
@@ -125,18 +160,33 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 			return coercer;
 	}
 
-	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+	cpt = find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId);
+	switch ( cpt )
 	{
+	case COERCION_PATH_NONE:
 		elog(ERROR, "no conversion function from %s to %s",
 			 format_type_be(fromOid),
 			 format_type_be(toOid));
-	}
-
-	if(funcId == InvalidOid)
+	case COERCION_PATH_RELABELTYPE:
 		/*
-		 * Binary compatible type. No need for a special coercer
+		 * Binary compatible type. No need for a special coercer.
+		 * Unless ... it's a domain ....
 		 */
+		if ( ! IsBinaryCoercible(fromOid, toOid) && DomainHasConstraints(toOid))
+			elog(WARNING, "disregarding domain constraints of %s",
+				 format_type_be(toOid));
 		return self;
+	case COERCION_PATH_COERCEVIAIO:
+		elog(ERROR, "COERCEVIAIO not implemented from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	case COERCION_PATH_ARRAYCOERCE:
+		elog(ERROR, "ARRAYCOERCE not implemented from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	case COERCION_PATH_FUNC:
+		break;
+	}
 
 	if(*map == 0)
 		*map = HashMap_create(7, GetMemoryChunkContext(self));
