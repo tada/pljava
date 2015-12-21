@@ -24,9 +24,6 @@
 	</target>
 
 	<target name="package-zip" depends="init">
-		<zip destfile="target/docs.zip">
-			<zipfileset dir="../docs" includes="*.html" />
-		</zip>
 		<zip destfile="target/pljava-${suffix}.zip">
 			<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
 			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
@@ -38,14 +35,10 @@
 			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
 				fullpath="pljava/pljava.so" erroronmissingarchive="false"
 				filemode="755"/>
-			<zipfileset dir="target" includes="docs.zip" prefix="pljava/"/>
 		</zip>
 	</target>
 
 	<target name="package-targz" depends="init">
-		<tar destfile="target/docs.tar">
-			<zipfileset dir="../docs" includes="*.html" />
-		</tar>
 		<tar destfile="target/pljava.tar">
 		<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
 			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
@@ -57,7 +50,6 @@
 			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
 				fullpath="pljava/pljava.so" erroronmissingarchive="false"
 				filemode="755"/>
-			<zipfileset dir="target" includes="docs.tar" prefix="pljava/"/>
 		</tar>
 		<gzip src="target/pljava.tar" destfile="target/pljava-${suffix}.tar.gz"/>
 	</target>

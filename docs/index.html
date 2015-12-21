@@ -1,0 +1,67 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<title>Historical PL/Java documentation</title>
+</head>
+
+<body>
+  <h1>Historical PL/Java documentation</h1>
+  <p>
+    The documents in this directory contain some of the earliest information
+    on the design and implementation of PL/Java. They <em>are not current
+    information</em> (see
+    <a href='https://tada.github.io/pljava/'>the project web site</a>
+    for that), but they may offer interesting insights into why certain
+    aspects of PL/Java are the way they are.
+  </p>
+  <p>
+    Note that the documentation available
+    <a href='https://tada.github.io/pljava/'>on the project web site</a> and
+    <a href='https://github.com/tada/pljava/wiki'>on the wiki</a>
+    does include much of the information you can find here, but more actively
+    kept up to date.
+  </p>
+  <p>
+    The files in this directory (excepting the one you are reading now &#9786;)
+    have not been modified since 2007, and so predate the release of PL/Java
+    1.4.0. PL/Java had recently been updated to support PostgreSQL 8.1 and
+    Java 1.4!
+  </p>
+  <dl>
+    <dt><a href='intro.html'>intro</a></dt>
+    <dd>
+      An early introduction and description of the project and its
+      capabilities. In March of 2006, an acknowledgment of sponsorship
+      by EnterpriseDB was added.
+    </dd>
+    <dt><a href='readme.html'>readme</a></dt>
+    <dd>
+      A README from a PL/Java 1.2.x distribution, with builds for Windows
+      and for i386-based Linux, and instructions for how it was built and
+      installed at that time.
+    </dd>
+    <dt><a href='userguide.html'>userguide</a></dt>
+    <dd>
+      User Guide for PL/Java 1.2. Described installation using the
+      <code>Deployer</code> or <code>install.sql</code> and making entries
+      in <code>postgresql.conf</code>. People really lived like that.
+    </dd>
+    <dt><a href='jni_rationale.html'>jni_rationale</a></dt>
+    <dd>
+      Explains the original reasoning for PL/Java's choice to load a Java
+      virtual machine in each PostgreSQL session backend using it, rather
+      than to share a VM in another process, the approach a contemporaneous
+      project was exploring.
+    </dd>
+    <dt><a href='solutions.html'>solutions</a></dt>
+    <dd>
+      Describes several challenges that were encountered in PL/Java's
+      development, and the techniques adopted to meet them. This document
+      is good background on: the locking strategy used to serialize access
+      by Java threads into PostgreSQL, the integration of PostgreSQL exceptions
+      and savepoints with Java exceptions, and the management of pointer
+      lifetimes by Invocation, CallLocal, and JavaWrapper.
+    </dd>
+  </dl>
+</body>
