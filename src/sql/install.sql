@@ -1,3 +1,12 @@
+-- Note: as of PL/Java 1.5.0, this file is obsolescent and not needed to install
+-- PL/Java. See "Installing into PostgreSQL" at the project web site for current
+-- installation instructions that do not involve this file. This will eventually
+-- grow out of date and be removed.
+--
+-- You can generate a local copy of the web site with 'mvn site site:stage' and
+-- point a web browser at target/site/staging/install/install.html for the
+-- installation instructions offline.
+
 CREATE SCHEMA sqlj;
 GRANT USAGE ON SCHEMA sqlj TO public;
 
