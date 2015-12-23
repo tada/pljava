@@ -25,6 +25,34 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
+#if PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3
+typedef enum CoercionPathType
+{
+	COERCION_PATH_NONE, 		/* failed to find any coercion pathway */
+	COERCION_PATH_FUNC, 		/* apply the specified coercion function */
+	COERCION_PATH_RELABELTYPE,  /* binary-compatible cast, no function */
+	COERCION_PATH_ARRAYCOERCE,  /* need an ArrayCoerceExpr node */
+	COERCION_PATH_COERCEVIAIO	/* need a CoerceViaIO node */
+} CoercionPathType;
+
+static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
+							CoercionContext ccontext, Oid *funcid);
+static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
+							CoercionContext ccontext, Oid *funcid)
+{
+	if ( find_coercion_pathway(targetTypeId, sourceTypeId, ccontext, funcid) )
+		return *funcId != InvalidOid ?
+			COERCION_PATH_FUNC : COERCION_PATH_RELABELTYPE;
+	else
+		return COERCION_PATH_NONE;
+}
+#define find_coercion_pathway fcp
+#endif
+
+#if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER < 5
+#define DomainHasConstraints(x) true
+#endif
+
 static HashMap s_typeByOid;
 static HashMap s_obtainerByOid;
 static HashMap s_obtainerByJavaName;
@@ -96,73 +124,75 @@ static void _endOfSetCB(Datum arg)
 	currentInvocation->inExprContextCB = saveInExprCtxCB;
 }
 
+static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
+	HashMap *map, Type builder(Type, Type, Oid));
+
 Type Type_getCoerceIn(Type self, Type other)
 {
-	Oid  funcId;
-	Type coerce;
-	Oid  fromOid = other->typeId;
-	Oid  toOid = self->typeId;
-
-	if(self->inCoercions != 0)
-	{
-		coerce = HashMap_getByOid(self->inCoercions, fromOid);
-		if(coerce != 0)
-			return coerce;
-	}
-
-	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
-	{
-		elog(ERROR, "no conversion function from %s to %s",
-			 format_type_be(fromOid),
-			 format_type_be(toOid));
-	}
-
-	if(funcId == InvalidOid)
-		/*
-		 * Binary compatible type. No need for a special coercer
-		 */
-		return self;
-
-	if(self->inCoercions == 0)
-		self->inCoercions = HashMap_create(7, GetMemoryChunkContext(self));
-
-	coerce = Coerce_createIn(self, other, funcId);
-	HashMap_putByOid(self->inCoercions, fromOid, coerce);
-	return coerce;
+	elog(DEBUG2, "Type_getCoerceIn(%s,%s)",
+			 format_type_be(self->typeId),
+			 format_type_be(other->typeId));
+	return _getCoerce(self, other, other->typeId, self->typeId,
+		&(self->inCoercions), Coerce_createIn);
 }
+
 
 Type Type_getCoerceOut(Type self, Type other)
 {
+	elog(DEBUG2, "Type_getCoerceOut(%s,%s)",
+			 format_type_be(self->typeId),
+			 format_type_be(other->typeId));
+	return _getCoerce(self, other, self->typeId, other->typeId,
+		&(self->outCoercions), Coerce_createOut);
+}
+
+static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
+	HashMap *map, Type builder(Type, Type, Oid))
+{
 	Oid  funcId;
 	Type coercer;
-	Oid  fromOid = self->typeId;
-	Oid  toOid = other->typeId;
+	CoercionPathType cpt;
 
-	if(self->outCoercions != 0)
+	if(*map != 0)
 	{
-		coercer = HashMap_getByOid(self->outCoercions, toOid);
+		coercer = HashMap_getByOid(*map, other->typeId);
 		if(coercer != 0)
 			return coercer;
 	}
 
-	if (!find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId))
+	cpt = find_coercion_pathway(toOid, fromOid, COERCION_EXPLICIT, &funcId);
+	switch ( cpt )
 	{
+	case COERCION_PATH_NONE:
 		elog(ERROR, "no conversion function from %s to %s",
 			 format_type_be(fromOid),
 			 format_type_be(toOid));
+	case COERCION_PATH_RELABELTYPE:
+		/*
+		 * Binary compatible type. No need for a special coercer.
+		 * Unless ... it's a domain ....
+		 */
+		if ( ! IsBinaryCoercible(fromOid, toOid) && DomainHasConstraints(toOid))
+			elog(WARNING, "disregarding domain constraints of %s",
+				 format_type_be(toOid));
+		return self;
+	case COERCION_PATH_COERCEVIAIO:
+		elog(ERROR, "COERCEVIAIO not implemented from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	case COERCION_PATH_ARRAYCOERCE:
+		elog(ERROR, "ARRAYCOERCE not implemented from %s to %s",
+			 format_type_be(fromOid),
+			 format_type_be(toOid));
+	case COERCION_PATH_FUNC:
+		break;
 	}
 
-	if(funcId == InvalidOid)
-		/*
-		 * Binary compatible type. No need for a special coercer
-		 */
-		return self;
+	if(*map == 0)
+		*map = HashMap_create(7, GetMemoryChunkContext(self));
 
-	if(self->outCoercions == 0)
-		self->outCoercions = HashMap_create(7, GetMemoryChunkContext(self));
-
-	coercer = Coerce_createOut(self, other, funcId);
-	HashMap_putByOid(self->outCoercions, toOid, coercer);
+	coercer = builder(self, other, funcId);
+	HashMap_putByOid(*map, other->typeId, coercer);
 	return coercer;
 }
 
