@@ -78,7 +78,10 @@ import java.util.ArrayList;
  * name used for the Pl/Java dynamic library</td>
  * </tr>
  * </table></blockquote>
- * 
+ * @deprecated See
+ * <a href='{@docRoot}/../../install/install.html'>Installing PL/Java</a>
+ * for the current installation instructions that do not require this code.
+ * This subproject will eventually be outdated and removed.
  * @author Thomas Hallgren
  */
 public class Deployer

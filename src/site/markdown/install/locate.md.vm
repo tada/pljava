@@ -22,11 +22,11 @@ may help in finding them.
 
 $h2 The packaged tar or zip file
 
-The `packaging` subproject builds a single `.tar.gz` or `.zip` file
+The `pljava-packaging` subproject builds a single `.tar.gz` or `.zip` file
 (depending on the platform where the build is done). Relative to the
 root of the build tree, it is found at
 
-`packaging/target/pljava-${pgversion}-${naraol}.tar.gz` (or `.zip`)
+`pljava-packaging/target/pljava-${pgversion}-${naraol}.tar.gz` (or `.zip`)
 
 where `${pgversion}` resembles `pg9.4` and `${naraol}` is an
 *architecture-os-linker* triple, for example `amd64-Linux-gpp`

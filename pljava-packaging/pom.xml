@@ -6,7 +6,7 @@
 		<artifactId>pljava.app</artifactId>
 		<version>1.5.0-SNAPSHOT</version>
 	</parent>
-	<artifactId>packaging</artifactId>
+	<artifactId>pljava-packaging</artifactId>
 	<name>PL/Java packaging</name>
 	<description>Package PL/Java build for zip/tar distribution</description>
 	<packaging>pom</packaging>
