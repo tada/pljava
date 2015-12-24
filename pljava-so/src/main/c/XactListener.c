@@ -10,10 +10,8 @@
 #include "pljava/Exception.h"
 #include "org_postgresql_pljava_internal_XactListener.h"
 
-#if ((PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1) || PGSQL_MAJOR_VER > 8)
 #define HAS_2PC 1
 #include "access/xact.h"
-#endif
 
 static jclass s_XactListener_class;
 static jmethodID s_XactListener_onAbort;

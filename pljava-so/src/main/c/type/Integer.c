@@ -41,9 +41,6 @@ static jvalue _intArray_coerceDatum(Type self, Datum arg)
 	jsize      nElems   = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jintArray  intArray = JNI_newIntArray(nElems);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	JNI_setIntArrayRegion(intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
-#else
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
@@ -62,7 +59,6 @@ static jvalue _intArray_coerceDatum(Type self, Datum arg)
 	}
 	else
 		JNI_setIntArrayRegion(intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
-#endif
 	result.l = (jobject)intArray;
 	return result;
 }
@@ -77,11 +73,7 @@ static Datum _intArray_coerceObject(Type self, jobject intArray)
 
 	nElems = JNI_getArrayLength((jarray)intArray);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	v = createArrayType(nElems, sizeof(jint), INT4OID);
-#else
 	v = createArrayType(nElems, sizeof(jint), INT4OID, false);
-#endif
 
 	if(!JNI_isInstanceOf( intArray, s_IntegerArray_class))
 	  JNI_getIntArrayRegion((jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));

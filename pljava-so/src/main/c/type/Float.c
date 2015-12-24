@@ -48,9 +48,6 @@ static jvalue _floatArray_coerceDatum(Type self, Datum arg)
 	jsize      nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jfloatArray floatArray = JNI_newFloatArray(nElems);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	JNI_setFloatArrayRegion(floatArray, 0, nElems, (jfloat*)ARR_DATA_PTR(v));
-#else
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
@@ -69,7 +66,6 @@ static jvalue _floatArray_coerceDatum(Type self, Datum arg)
 	}
 	else
 		JNI_setFloatArrayRegion(floatArray, 0, nElems, (jfloat*)ARR_DATA_PTR(v));
-#endif
 	result.l = (jobject)floatArray;
 	return result;
 }
@@ -84,11 +80,7 @@ static Datum _floatArray_coerceObject(Type self, jobject floatArray)
 
 	nElems = JNI_getArrayLength((jarray)floatArray);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	v = createArrayType(nElems, sizeof(jfloat), FLOAT4OID);
-#else
 	v = createArrayType(nElems, sizeof(jfloat), FLOAT4OID, false);
-#endif
 
 	if(!JNI_isInstanceOf( floatArray, s_FloatArray_class))
 		JNI_getFloatArrayRegion((jfloatArray)floatArray, 0,

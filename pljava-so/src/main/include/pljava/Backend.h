@@ -31,9 +31,9 @@ int Backend_setJavaLogLevel(int logLevel);
 #error The macro PG_GETCONFIGOPTION needs to be renamed.
 #endif
 
-#if PGSQL_MAJOR_VER > 9  ||  PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0
+#if PG_VERSION_NUM >= 90100
 #define PG_GETCONFIGOPTION(key) GetConfigOption(key, false, true)
-#elif PGSQL_MAJOR_VER == 9
+#elif PG_VERSION_NUM >= 90000
 #define PG_GETCONFIGOPTION(key) GetConfigOption(key, true)
 #else
 #define PG_GETCONFIGOPTION(key) GetConfigOption(key)

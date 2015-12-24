@@ -34,10 +34,6 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include <utils/memutils.h>
 #include <tcop/tcopprot.h>
 
-#define PGSQL_MAJOR_VER (PG_VERSION_NUM / 10000)
-#define PGSQL_MINOR_VER ((PG_VERSION_NUM / 100) % 100)
-#define PGSQL_PATCH_VER (PG_VERSION_NUM % 100)
-
 /*
  * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
  */
@@ -49,7 +45,7 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 /*
  * GETSTRUCT require "access/htup_details.h" to be included in PG9.3
  */
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
 #endif
 
@@ -92,23 +88,15 @@ extern MemoryContext JavaMemoryContext;
  * stack_base_ptr was static before PG 8.1. By executive decision, PL/Java now
  * has 8.1 as a back compatibility limit; no empty #defines here for earlier.
  */
-#if PGSQL_MAJOR_VER > 9 || \
-	PGSQL_MAJOR_VER == 9 && ( \
-		PGSQL_MINOR_VER >= 2 || \
-		PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER >= 4 || \
-		PGSQL_MINOR_VER == 0 && PGSQL_PATCH_VER >= 8 \
-	) || \
-	PGSQL_MAJOR_VER == 8 && ( \
-		PGSQL_MINOR_VER == 4 && PGSQL_PATCH_VER >= 12 || \
-		PGSQL_MINOR_VER == 3 && PGSQL_PATCH_VER >= 19 \
-	)
+#if PG_VERSION_NUM>=90200 || PG_VERSION_NUM>=90104 || PG_VERSION_NUM>=90008 || \
+	PG_VERSION_NUM>=80412 || PG_VERSION_NUM>=80319
 #define NEED_MISCADMIN_FOR_STACK_BASE
 #define _STACK_BASE_TYPE pg_stack_base_t
 #define _STACK_BASE_SET saveStackBasePtr = set_stack_base()
 #define _STACK_BASE_RESTORE restore_stack_base(saveStackBasePtr)
 #else
 extern
-#if PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3
+#if PG_VERSION_NUM < 80300
 DLLIMPORT
 #else
 PGDLLIMPORT

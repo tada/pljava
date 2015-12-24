@@ -21,7 +21,7 @@
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/SQLOutputToTuple.h"
 
-#if PGSQL_MAJOR_VER > 8
+#if PG_VERSION_NUM >= 90000
 #include <utils/bytea.h>
 #endif
 
@@ -125,7 +125,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		{
 			/* Assign the correct length.
 			 */
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 			VARATT_SIZEP(buffer.data) = buffer.len;
 #else
 			SET_VARSIZE(buffer.data, buffer.len);

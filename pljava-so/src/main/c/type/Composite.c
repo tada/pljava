@@ -245,9 +245,7 @@ Type Composite_obtain(Oid typeId)
 	{
 		TupleDesc tmp = lookup_rowtype_tupdesc(typeId, -1);
 		infant->m_tupleDesc = createGlobalTupleDescCopy(tmp);
-#if ((PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 2) || PGSQL_MAJOR_VER > 8)
 		ReleaseTupleDesc(tmp);
-#endif
 	}
 	return (Type)infant;
 }

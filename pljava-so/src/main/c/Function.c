@@ -30,11 +30,7 @@
 #	define strncasecmp _strnicmp
 #endif
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0)
-#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes
-#else
-#	define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
-#endif
+#define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;

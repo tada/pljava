@@ -40,7 +40,7 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 		int32  byteaSize = length + VARHDRSZ;
 
 		bytes = (bytea*)palloc(byteaSize);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 		VARATT_SIZEP(bytes) = byteaSize;
 #else
 		SET_VARSIZE(bytes, byteaSize);
@@ -55,7 +55,7 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 
 		byteaSize = (int32)(length + VARHDRSZ);
 		bytes = (bytea*)palloc(byteaSize);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 		VARATT_SIZEP(bytes) = byteaSize;
 #else
 		SET_VARSIZE(bytes, byteaSize);

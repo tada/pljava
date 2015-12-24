@@ -76,36 +76,16 @@ static int64 Time_coerceObjectTZ_id(Type self, jobject jt, bool tzAdjust)
 
 static jvalue _Time_coerceDatum(Type self, Datum arg)
 {
-#if (PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0)
-	/*
-	 * PostgreSQL 8.0 and earlier has a major bug in how int64 times are
-	 * stored. They are actually first casted to a double
-	 */
-	return integerDateTimes
-		? Time_coerceDatumTZ_id(self, DatumGetFloat8(arg), true)
-		: Time_coerceDatumTZ_dd(self, DatumGetFloat8(arg), true);
-#else
 	return integerDateTimes
 		? Time_coerceDatumTZ_id(self, DatumGetInt64(arg), true)
 		: Time_coerceDatumTZ_dd(self, DatumGetFloat8(arg), true);
-#endif
 }
 
 static Datum _Time_coerceObject(Type self, jobject time)
 {
-#if (PGSQL_MAJOR_VERSION == 8 && PGSQL_MINOR_VERSION == 0)
-	/*
-	 * PostgreSQL 8.0 and earlier has a major bug in how int64 times are
-	 * stored. They are actually first casted to a double
-	 */
-	return integerDateTimes
-		? Float8GetDatum(Time_coerceObjectTZ_id(self, time, true))
-		: Float8GetDatum(Time_coerceObjectTZ_dd(self, time, true));
-#else
 	return integerDateTimes
 		? Int64GetDatum(Time_coerceObjectTZ_id(self, time, true))
 		: Float8GetDatum(Time_coerceObjectTZ_dd(self, time, true));
-#endif
 }
 
 /* 

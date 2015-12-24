@@ -173,7 +173,7 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 	{
 		result = String_createJavaStringFromNTS(
 			GetUserNameFromId(
-#if PGSQL_MAJOR_VER > 9  ||  PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 5
+#if PG_VERSION_NUM >= 90500
 				AclId_getAclId(aclId), /* noerr= */ false
 #else
 				AclId_getAclId(aclId)

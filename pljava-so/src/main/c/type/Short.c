@@ -41,9 +41,6 @@ static jvalue _shortArray_coerceDatum(Type self, Datum arg)
 	jsize      nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jshortArray shortArray = JNI_newShortArray(nElems);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	JNI_setShortArrayRegion(shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
-#else
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
@@ -62,7 +59,6 @@ static jvalue _shortArray_coerceDatum(Type self, Datum arg)
 	}
 	else
 		JNI_setShortArrayRegion(shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
-#endif
 	result.l = (jobject)shortArray;
 	return result;
 }
@@ -76,11 +72,7 @@ static Datum _shortArray_coerceObject(Type self, jobject shortArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)shortArray);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	v = createArrayType(nElems, sizeof(jshort), INT2OID);
-#else
 	v = createArrayType(nElems, sizeof(jshort), INT2OID, false);
-#endif
 
 	if(!JNI_isInstanceOf( shortArray, s_ShortArray_class))
 	  JNI_getShortArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));

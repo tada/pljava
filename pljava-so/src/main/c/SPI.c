@@ -203,13 +203,3 @@ void SPI_rollbackSavepoint(Savepoint* sp)
 	SPI_restore_connection();
 	pfree(sp);
 }
-
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1)
-char* SPI_getnspname(Relation rel)
-{
-	return get_namespace_name(RelationGetNamespace(rel));
-}
-
-#endif
-
-

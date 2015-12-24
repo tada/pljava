@@ -25,7 +25,7 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
-#if PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3
+#if PG_VERSION_NUM < 80300
 typedef enum CoercionPathType
 {
 	COERCION_PATH_NONE, 		/* failed to find any coercion pathway */
@@ -49,7 +49,7 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 #define find_coercion_pathway fcp
 #endif
 
-#if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER < 5
+#if PG_VERSION_NUM < 90500
 #define DomainHasConstraints(x) true
 #endif
 

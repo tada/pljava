@@ -44,13 +44,7 @@ Java_org_postgresql_pljava_internal_Session__1setUser(
 	 * a finally block after an exception.
 	 */
 	BEGIN_NATIVE_NO_ERRCHECK
-#if ( \
-    (PGSQL_MAJOR_VER > 8) \
-    || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 3) \
-    || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 2 && PGSQL_PATCH_VER >= 6)  \
-    || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 1 && PGSQL_PATCH_VER >= 11) \
-    || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0 && PGSQL_PATCH_VER >= 15) \
-    )
+#if PG_VERSION_NUM>=90000 || PG_VERSION_NUM>=80300 || PG_VERSION_NUM>=80206
 	GetUserIdAndContext(&dummy, &wasLocalChange);
 	SetUserIdAndContext(AclId_getAclId(aclId), (bool)isLocalChange);
 #else
