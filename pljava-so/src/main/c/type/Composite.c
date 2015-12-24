@@ -15,7 +15,6 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/HeapTupleHeader.h"
 #include "pljava/Invocation.h"
-#include "pljava/backports.h"
 #include "org_postgresql_pljava_jdbc_SingleRowReader.h"
 
 struct Composite_

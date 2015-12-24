@@ -7,7 +7,6 @@
  * @author Thomas Hallgren
  */
 #include "pljava/PgObject_priv.h"
-#include "pljava/backports.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/Function.h"
