@@ -156,6 +156,7 @@ static enum initstage initstage = IS_FORMLESS_VOID;
 static void *libjvm_handle;
 static bool jvmStartedAtLeastOnce = false;
 static bool alteredSettingsWereNeeded = false;
+static bool loadAsExtensionFailed = false;
 static bool seenVisualVMName;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 
@@ -585,6 +586,21 @@ static void initsequencer(enum initstage is, bool tolerant)
 						? PG_GETCONFIGOPTION("config_file")
 						: "postgresql.conf"))));
 #undef MOREHINT
+			if ( loadAsExtensionFailed )
+			{
+				ereport(NOTICE, (errmsg(
+					"PL/Java load successful after failed CREATE EXTENSION"),
+					errdetail(
+					"PL/Java is now installed, but not as an extension."),
+					errhint(
+					"To correct that, either COMMIT or ROLLBACK, make sure "
+					"the working settings are saved, exit this session, and "
+					"in a new session, either: "
+					"1. if committed, run "
+					"\"CREATE EXTENSION pljava FROM unpackaged\", or 2. "
+					"if rolled back, simply \"CREATE EXTENSION pljava\" again."
+					)));
+			}
 		}
 		return;
 
@@ -599,7 +615,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 	}
 
 check_tolerant:
-	if ( !tolerant ) {
+	if ( pljavaLoadingAsExtension )
+	{
+		tolerant = false;
+		loadAsExtensionFailed = true;
+		pljavaLoadingAsExtension = false;
+	}
+	if ( !tolerant )
+	{
 		ereport(ERROR, (
 			errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 			errmsg(
@@ -694,7 +717,7 @@ void _PG_init()
 {
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
-	pljavaCheckLoadPath();
+	pljavaCheckExtension();
 	initsequencer( initstage, true);
 }
 

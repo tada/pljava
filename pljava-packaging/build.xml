@@ -25,31 +25,49 @@
 
 	<target name="package-zip" depends="init">
 		<zip destfile="target/pljava-${suffix}.zip">
+			<zipfileset dir="target/classes" includes="pljava.control"
+				prefix="pljava/sharedir/extension/"/>
+			<zipfileset dir="target/classes" includes="pljava.sql"
+				fullpath="pljava/sharedir/pljava/pljava--${project.version}.sql"/>
+			<zipfileset dir="target/classes" includes="pljava--unpackaged.sql"
+				fullpath=
+		"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"/>
+			<zipfileset dir="target/classes" prefix="pljava/sharedir/pljava/"
+				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>
 			<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
-			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
+			<zipfileset dir="../pljava/target" includes="pljava*.jar"
+				prefix="pljava/sharedir/pljava/"/>
 			<zipfileset dir="../pljava-deploy/target" includes="pljava-deploy*.jar" fullpath="pljava/deploy.jar"/>
-			<zipfileset dir="../pljava-examples/target" includes="pljava-examples*.jar" fullpath="pljava/examples.jar"/>
-			<zipfileset dir="../pljava-so/target/nar" includes="**/pljava-so*.dll"
-				fullpath="pljava/pljava.dll" erroronmissingarchive="false"
-				filemode="755"/>
-			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
-				fullpath="pljava/pljava.so" erroronmissingarchive="false"
-				filemode="755"/>
+			<zipfileset dir="../pljava-examples/target"
+				includes="pljava-examples*.jar"
+				prefix="pljava/sharedir/pljava"/>
+			<zipfileset prefix="pljava/pkglibdir/" filemode="755" dir=
+"../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
+				includes="**/*pljava-so*"/>
 		</zip>
 	</target>
 
 	<target name="package-targz" depends="init">
 		<tar destfile="target/pljava.tar">
-		<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
-			<zipfileset dir="../pljava/target" includes="pljava*.jar" fullpath="pljava/pljava.jar"/>
+			<zipfileset dir="target/classes" includes="pljava.control"
+				prefix="pljava/sharedir/extension/"/>
+			<zipfileset dir="target/classes" includes="pljava.sql"
+				fullpath="pljava/sharedir/pljava/pljava--${project.version}.sql"/>
+			<zipfileset dir="target/classes" includes="pljava--unpackaged.sql"
+				fullpath=
+		"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"/>
+			<zipfileset dir="target/classes" prefix="pljava/sharedir/pljava/"
+				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>
+			<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
+			<zipfileset dir="../pljava/target" includes="pljava*.jar"
+				prefix="pljava/sharedir/pljava"/>
 			<zipfileset dir="../pljava-deploy/target" includes="pljava-deploy*.jar" fullpath="pljava/deploy.jar"/>
-			<zipfileset dir="../pljava-examples/target" includes="pljava-examples*.jar" fullpath="pljava/examples.jar"/>
-			<zipfileset dir="../pljava-so/target/nar" includes="**/pljava-so*.dll"
-				fullpath="pljava/pljava.dll" erroronmissingarchive="false"
-				filemode="755"/>
-			<zipfileset dir="../pljava-so/target/nar" includes="**/libpljava-so*.so"
-				fullpath="pljava/pljava.so" erroronmissingarchive="false"
-				filemode="755"/>
+			<zipfileset dir="../pljava-examples/target"
+				includes="pljava-examples*.jar"
+				prefix="pljava/sharedir/pljava"/>
+			<zipfileset prefix="pljava/pkglibdir/" filemode="755" dir=
+"../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
+				includes="**/*pljava-so*"/>
 		</tar>
 		<gzip src="target/pljava.tar" destfile="target/pljava-${suffix}.tar.gz"/>
 	</target>

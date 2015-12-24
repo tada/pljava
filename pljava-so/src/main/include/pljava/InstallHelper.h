@@ -19,15 +19,27 @@
  */
 
 /*
- * If a LoadStatement is what the current ActivePortal is executing, then save
- * a copy of the pathname being loaded (pstrdup'd in TopMemoryContext) in
- * pljavaLoadPath, otherwise leave that variable unchanged/NULL. Nothing like
- * this would be necessary if PostgreSQL called _PG_init functions with the
- * path of the library being loaded.
+ * The path from which this library is being loaded, which is surprisingly
+ * tricky to find (and wouldn't be, if PostgreSQL called _PG_init functions
+ * with the path of the library being loaded!). Set by pljavaCheckExtension().
  */
-extern void pljavaCheckLoadPath();
-
 extern char const *pljavaLoadPath;
+
+/*
+ * If an extension is being created, try to determine pljavaLoadPath from a
+ * temporary table in the sqlj schema; if it's there, created by PL/Java's
+ * extension script, then the extension being created is PL/Java itself, so
+ * set pljavaLoadingAsExtension and pljavaLoadPath accordingly. Otherwise
+ * PL/Java is just being mentioned while creating some other extension, so set
+ * pljavaInExtension. If an extension is not being created, just check for a
+ * LOAD command and set pljavaLoadPath accordingly.
+ *
+ * Only called from _PG_init, which only calls once.
+ */
+extern void pljavaCheckExtension();
+
+extern bool pljavaLoadingAsExtension;
+extern bool pljavaInExtension;
 
 /*
  * Another way of getting the library path: if invoked by the fmgr before

@@ -17,16 +17,22 @@
 #endif
 #include <catalog/pg_language.h>
 #include <catalog/pg_proc.h>
+#if PG_VERSION_NUM >= 90100
+#include <commands/extension.h>
+#endif
 #include <commands/portalcmds.h>
+#include <executor/spi.h>
 #include <miscadmin.h>
 #include <libpq/libpq-be.h>
 #include <tcop/pquery.h>
 #include <utils/builtins.h>
+#include <utils/lsyscache.h>
 #include <utils/memutils.h>
 #include <utils/syscache.h>
 
-#ifndef SearchSysCache1
+#if PG_VERSION_NUM < 90000
 #define SearchSysCache1(cid, k1) SearchSysCache(cid, k1, 0, 0, 0)
+#define GetSysCacheOid1(cid, k1) GetSysCacheOid(cid, k1, 0, 0, 0)
 #endif
 
 #include "pljava/InstallHelper.h"
@@ -54,7 +60,13 @@ static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
 
+static void checkLoadPath();
+static void getExtensionLoadPath();
+
 char const *pljavaLoadPath = NULL;
+
+bool pljavaLoadingAsExtension = false;
+bool pljavaInExtension = false;
 
 Oid pljavaTrustedOid = InvalidOid;
 
@@ -65,7 +77,26 @@ char *pljavaDbName()
 	return MyProcPort->database_name;
 }
 
-void pljavaCheckLoadPath()
+void pljavaCheckExtension()
+{
+#if PG_VERSION_NUM < 90100
+	checkLoadPath();
+	return;
+#else
+	if ( ! creating_extension )
+	{
+		checkLoadPath();
+		return;
+	}
+	getExtensionLoadPath();
+	if ( NULL != pljavaLoadPath )
+		pljavaLoadingAsExtension = true;
+	else
+		pljavaInExtension = true;
+#endif
+}
+
+static void checkLoadPath()
 {
 	List *l;
 	Node *ut;
@@ -94,6 +125,34 @@ void pljavaCheckLoadPath()
 	}
 	pljavaLoadPath =
 		(char const *)MemoryContextStrdup( TopMemoryContext, ls->filename);
+}
+
+static void getExtensionLoadPath()
+{
+	MemoryContext curr;
+
+	/*
+	 * Check whether sqlj.loadpath exists before querying it. I would more
+	 * happily just PG_CATCH() the error and compare to ERRCODE_UNDEFINED_TABLE
+	 * but what's required to make that work right is "not terribly well
+	 * documented, but the exception-block handling in plpgsql provides a
+	 * working model" and that code is a lot more fiddly than you would guess.
+	 */
+	if ( InvalidOid == get_relname_relid("loadpath",
+		GetSysCacheOid1(NAMESPACENAME, CStringGetDatum("sqlj"))) )
+		return;
+
+	SPI_connect();
+	curr = CurrentMemoryContext;
+	if ( SPI_OK_SELECT == SPI_execute(
+		"SELECT s FROM sqlj.loadpath", true, 1) && 1 == SPI_processed )
+	{
+		MemoryContextSwitchTo(TopMemoryContext);
+		pljavaLoadPath = (char const *)SPI_getvalue(
+			SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+		MemoryContextSwitchTo(curr);
+	}
+	SPI_finish();
 }
 
 char *pljavaFnOidToLibPath(Oid myOid)

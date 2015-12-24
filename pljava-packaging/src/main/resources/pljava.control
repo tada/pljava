@@ -1,0 +1,6 @@
+comment = 'PL/Java procedural language (https://tada.github.io/pljava/)'
+default_version = '${project.version}'
+encoding = UTF8
+directory = 'pljava'
+module_pathname = '${module.pathname}'
+schema = sqlj
