@@ -25,13 +25,27 @@
 
 	<target name="package" depends="init">
 		<zip destfile="target/pljava-${suffix}.zip">
-			<zipfileset dir="target/classes" includes="pljava.control"
-				prefix="pljava/sharedir/extension/"/>
-			<zipfileset dir="target/classes" includes="pljava.sql"
-				fullpath="pljava/sharedir/pljava/pljava--${project.version}.sql"/>
-			<zipfileset dir="target/classes" includes="pljava--unpackaged.sql"
-				fullpath=
-		"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"/>
+			<concat resourcename="pljava/sharedir/extension/pljava.control">
+				<fileset dir="target/classes" includes="pljava.control"/>
+				<filterchain>
+					<fixcrlf eol="crlf" eof="remove"/>
+				</filterchain>
+			</concat>
+			<concat resourcename=
+				"pljava/sharedir/pljava/pljava--${project.version}.sql">
+				<fileset dir="target/classes" includes="pljava.sql"/>
+				<filterchain>
+					<fixcrlf eol="crlf" eof="remove"/>
+				</filterchain>
+			</concat>
+			<concat resourcename=
+			"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql">
+				<fileset dir="target/classes"
+					includes="pljava--unpackaged.sql"/>
+				<filterchain>
+					<fixcrlf eol="crlf" eof="remove"/>
+				</filterchain>
+			</concat>
 			<zipfileset dir="target/classes" prefix="pljava/sharedir/pljava/"
 				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>
 			<zipfileset dir="../pljava/target" includes="pljava*.jar"
