@@ -36,8 +36,6 @@
 	</dependencies>
 
 	<properties>
-		<sharedsuffix>so</sharedsuffix>
-		<distrotype>targz</distrotype>
 		<module.pathname>libpljava-so-${project.version}</module.pathname>
 	</properties>
 
@@ -62,8 +60,6 @@
 				</os>
 			</activation>
 			<properties>
-				<sharedsuffix>dll</sharedsuffix>
-				<distrotype>zip</distrotype>
 				<module.pathname>pljava-so-${project.version}</module.pathname>
 			</properties>
 		</profile>
@@ -107,7 +103,7 @@
 						</goals>
 						<configuration>
 							<target>
-								<ant target="package-${distrotype}" dir="${project.basedir}"/>
+								<ant target="package" dir="${project.basedir}"/>
 							</target>
 						</configuration>
 					</execution>
