@@ -34,10 +34,8 @@
 		"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"/>
 			<zipfileset dir="target/classes" prefix="pljava/sharedir/pljava/"
 				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>
-			<zipfileset dir="../src/sql" includes="*.sql" prefix="pljava/"/>
 			<zipfileset dir="../pljava/target" includes="pljava*.jar"
 				prefix="pljava/sharedir/pljava/"/>
-			<zipfileset dir="../pljava-deploy/target" includes="pljava-deploy*.jar" fullpath="pljava/deploy.jar"/>
 			<zipfileset dir="../pljava-examples/target"
 				includes="pljava-examples*.jar"
 				prefix="pljava/sharedir/pljava"/>
