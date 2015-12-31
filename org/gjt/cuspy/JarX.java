@@ -11,6 +11,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
 import java.util.Vector;
 import java.util.Dictionary;
 import java.util.Hashtable;
@@ -24,10 +27,10 @@ import java.util.zip.ZipOutputStream;
 /**
  * Distribute your work as a self-extracting jar file by including one file,
  * JarX.class, that also safely converts text files to the receiver's encoding
- * and newline conventions, and adds less than 6kB to your jar.
+ * and newline conventions, and adds less than 12kB to your jar.
  *<P>
  * A self-extracting file is handy if your recipient might have a
- * Java 1.1 or 1.2 runtime environment but not the jar tool.
+ * Java 1.1 or later runtime environment but not the jar tool.
  * The text conversion offered by JarX is useful if your distribution will
  * include text files, source, documentation, scripts, etc., and your recipients
  * have platforms with different newline conventions.
@@ -123,7 +126,7 @@ import java.util.zip.ZipOutputStream;
  * by any jar or unzip tool, but current tools will not automatically convert
  * the text files to the local conventions.  By including the single class file
  * <CODE>JarX.class</CODE> in the jar, a developer produces a self-extracting
- * archive that can be executed to unpack itself on any Java 1.1 or later
+ * archive that can be executed to unpack itself on any Java 1.5 or later
  * virtual machine, performing all automatic conversions and requiring no jar
  * tool at all.
  *<H3>Building a Jar</H3>
@@ -151,13 +154,12 @@ import java.util.zip.ZipOutputStream;
  * The order of files in the jar will be the order of their names in the
  * manifest.
  *<H3>Extracting a jar</H3>
- * Under Java 1.2, the command <CODE>java -jar foo.jar</CODE> is all it takes
+ * The command <CODE>java -jar foo.jar</CODE> is all it takes
  * to extract a jar.  The <CODE>Main-Class</CODE> entry in the manifest
  * identifies the entry point of JarX so it does not need to be specified.
- * Under Java 1.1, the <CODE>Main-Class</CODE> attribute is not supported and
- * the slightly longer command<BR>
- * <CODE>java -classpath foo.jar org.gjt.cuspy.JarX foo.jar</CODE><BR>
- * is required.
+ * It is possible to give the jar file name as a command-line argument, which
+ * was necessary under Java 1.1, though JarX no longer supports such early
+ * Java versions.
  *<H3>Call to action</H3>
  * At the moment, Sun's Jar File Specification contains a mistake in the
  * description of a content type that could lead to implementations
@@ -182,9 +184,6 @@ import java.util.zip.ZipOutputStream;
  * successful, but makes no attempt to be graceful about errors or surprises.
  * If something doesn't work the likely result is a one line message and abrupt
  * exit, or an uncaught exception and stack trace.
- *<P>
- * JarX would be much simpler if I could have used the Java 1.2 API, but the
- * goal of making it usable on 1.1 virtual machines made it uglier.
  *<P>
  * The coding style is a little contrived just to arrange it so JarX.class is
  * the only file needed in the jar to make it self-extracting.  In particular
@@ -465,89 +464,12 @@ public class JarX {
       }
     }
     
-    String enc = blindDesperateSearchForCorrespondingEncodingName( charset);
-    
-    if ( enc == null ) {
-      System.err.println( "Can't find converter for charset " + charset);
-      System.exit( 1);
-    }
+    Charset enc = Charset.forName( charset);
     
     if ( type[2].value.equalsIgnoreCase( "plain") )
       shovelLines( is, os, enc);
     else
       shovelChars( is, os, enc);
-  }
-
-  /**Try to find a Java character encoding matching a MIME charset name.
-   * As of Java 1.3, Sun has specified that character encodings must be
-   * accessible <EM>by</EM> their MIME names, and that the names are case
-   * insensitive as required by RFC2046, but that was never specified
-   * (or consistently true) previously.  Also, the API provides no way to
-   * examine a list of supported encodings, so this method just tries a bunch
-   * of plausible mungings of the charset name until one succeeds.  If this
-   * method gives up, it does not necessarily mean that the implementation
-   * doesn't support the needed encoding, only that the implementors were more
-   * clever at hiding it than I am at guessing the name.
-   *@param charSet a MIME charset name
-   *@return The original argument if it was accepted as an encoding name,
-   * or some munging of it that was accepted, or null if we struck out.
-   */
-  public static String
-  blindDesperateSearchForCorrespondingEncodingName( String charset) {
-    String s = null;
-    bewilderedObsessiveRepetition: for ( int i = 0 ;; ++i ) {
-      switch ( i ) {
-      	case 0: s = charset; break;
-      	case 1: s = s.toLowerCase(); break;
-	case 2: s = s.toUpperCase(); break;
-	case 3: s = s.substring( 0, 1) + s.substring( 1).toLowerCase(); break;
-	case 4: {
-	  char[] c = new char [ charset.length() ];
-	  charset.getChars( 0, charset.length(), c, 0);
-	  int dst = 0;
-	  for ( int src = 0; src < c.length; ++src )
-	    if ( Character.isJavaIdentifierPart( c[src]) )
-	      c [ dst++ ] = c [ src ];
-	  s = new String( c, 0, dst);
-	  }
-	  break;
-	case 5: s = s.toLowerCase(); break;
-	case 6: s = s.toUpperCase(); break;
-	case 7: s = s.substring( 0, 1) + s.substring( 1).toLowerCase(); break;
-	case 8:
-	  if ( charset.equalsIgnoreCase( "us-ascii") ) {
-	    s = charset.substring( 3);
-	    break;
-	  }
-	  i += 3;
-	  continue;
-	case 9: s = s.toLowerCase(); break;
-	case 10: s = s.toUpperCase(); break;
-	case 11: s = s.substring( 0, 1) + s.substring( 1).toLowerCase(); break;
-	default:
-	  break bewilderedObsessiveRepetition;
-      }
-      if ( isEncoding( s) )
-      	return s;
-    }
-    return null;
-  }
-  
-  /**Test if an encoding name is supported by the implementation.
-   * Uses the only test allowed by the API--try to encode something with it
-   * and catch the exception.
-   *@param name a prospective encoding name
-   *@return true if and only if the named encoding is supported, false otherwise
-   */
-  public static boolean isEncoding( String name) {
-    byte[] b = null;
-    try {
-      b = "".getBytes( name);
-    }
-    catch ( Exception e ) {
-      return false;
-    }
-    return b != null;
   }
 
   /**Copy <EM>lines</EM> of text from an input from an output stream, applying
@@ -564,37 +486,31 @@ public class JarX {
    * encoding.
    *@param is the source of input
    *@param os destination for output
-   *@param enc the character encoding name (not necessarily the same as
-   * the MIME charset name pre-Java-1.3) used in the jar
+   *@param enc the Charset used in the jar
    */
   public void
-  shovelLines( InputStream is, OutputStream os, String enc)
+  shovelLines( InputStream is, OutputStream os, Charset enc)
   throws IOException {
-    InputStreamReader isr = new InputStreamReader( is, enc);
+    InputStreamReader isr = new InputStreamReader( is, enc.newDecoder());
     BufferedReader br = new BufferedReader( isr);
-    OutputStreamWriter osw = new OutputStreamWriter( os);
+    OutputStreamWriter osw =
+      new OutputStreamWriter( os, Charset.defaultCharset().newEncoder());
     BufferedWriter bw = new BufferedWriter( osw);
     
     String s;
-    byte[] b;
     
     for ( ;; ) {
       s = br.readLine();
       if ( s == null )
       	break;
-      b = s.getBytes();
-      if ( ! new String( b).equals( s) ) {
-      	System.err.println( "Characters unrepresentable in local encoding!");
-	System.err.println( s);
-	System.err.println( new String( b));
-	System.exit( 1);
-      }
-      os.write( b);
+      bw.write( s);
       bw.newLine();
-      bw.flush();
     }
+    bw.flush();
+    osw.flush();
     
-    System.err.println( "as lines ("+enc+" -> "+osw.getEncoding()+")");
+    System.err.println(
+      "as lines ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
   }
   
   /**Copy <EM>characters</EM> of text from an input from an output stream,
@@ -610,33 +526,26 @@ public class JarX {
    * encoding.
    *@param is the source of input
    *@param os destination for output
-   *@param enc the Java character encoding name (not necessarily the same as
-   * the MIME charset name pre-Java-1.3) used in the jar
+   *@param enc the Charset used in the jar
    */
   public void
-  shovelChars( InputStream is, OutputStream os, String enc)
+  shovelChars( InputStream is, OutputStream os, Charset enc)
   throws IOException {
-    InputStreamReader isr = new InputStreamReader( is, enc);
-    OutputStreamWriter osw = new OutputStreamWriter( os);
+    InputStreamReader isr = new InputStreamReader( is, enc.newDecoder());
+    OutputStreamWriter osw =
+      new OutputStreamWriter( os, Charset.defaultCharset().newEncoder());
     char[] c = new char [ 1024 ];
-    byte[] b;
     int got;
-    String s;
     
     for ( ;; ) {
       got = isr.read( c, 0, c.length);
       if ( got == -1 )
       	break;
-      s = new String( c, 0, got);
-      b = s.getBytes();
-      if ( ! new String( b).equals( s) ) {
-      	System.err.println( "Characters unrepresentable in local encoding!");
-	System.exit( 1);
-      }
-      os.write( b);
+      osw.write( c, 0, got);
     }
-    os.flush();
-    System.err.println( "as characters ("+enc+" -> "+osw.getEncoding()+")");
+    System.err.println(
+      "as characters ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
+    osw.flush();
   }
 
   /**Read the manifest and build a map from entry names to content types.
@@ -650,15 +559,12 @@ public class JarX {
    */
   public void manifest( InputStream is, Dictionary d) throws IOException {
     InputStreamReader isr;
-    String enc = blindDesperateSearchForCorrespondingEncodingName(manifestCode);
-    if ( enc != null )
-      isr = new InputStreamReader( is, enc);
-    else
-      isr = new InputStreamReader( is); // and hope for the best
+    Charset enc = Charset.forName(manifestCode);
+    isr = new InputStreamReader( is, enc.newDecoder());
     BufferedReader br = new BufferedReader( isr);
     
     while ( section( br, d) ); /**/
-    
+
     store( manifestName, manifestType, d);
   }
 
@@ -985,64 +891,60 @@ public class JarX {
      * use the RFC2046-required CRLF line separator on the output.
      *@param is source of input (local file)
      *@param os destination of output (jar entry)
-     *@param enc Java name of encoding to use
+     *@param enc Charset to use in the archive
      */
     public void
-    shovelLines( InputStream is, OutputStream os, String enc)
+    shovelLines( InputStream is, OutputStream os, Charset enc)
     throws IOException {
-      InputStreamReader isr = new InputStreamReader( is);
+      InputStreamReader isr = new InputStreamReader( is,
+        Charset.defaultCharset().newDecoder());
       BufferedReader br = new BufferedReader( isr);
+      OutputStreamWriter osw = new OutputStreamWriter( os, enc.newEncoder());
+      BufferedWriter bw = new BufferedWriter( osw);
 
-      byte[] crlf = "\r\n".getBytes( enc);
+      String crlf = "\r\n";
 
       String s;
-      byte[] b;
  
       for ( ;; ) {
     	s = br.readLine();
     	if ( s == null )
     	  break;
-    	b = s.getBytes( enc);
-    	if ( ! new String( b, enc).equals( s) ) {
-    	  System.err.println( "Characters unrepresentable in jar encoding!");
-    	  System.exit( 1);
-    	}
-    	os.write( b);
-    	os.write( crlf);
+	bw.write( s);
+	bw.write( crlf);
       }
+      bw.flush();
+      osw.flush();
  
-      System.err.println( "as lines ("+isr.getEncoding()+" -> "+enc+")");
+      System.err.println(
+        "as lines ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
     }
   
     /**Overridden to apply the named encoding to the output stream (jar entry)
      * and the platform default encoding to the input stream (local file).
      *@param is source of input (local file)
      *@param os destination of output (jar entry)
-     *@param enc Java name of encoding to use
+     *@param enc Charset to use in the archive
      */
     public void
-    shovelChars( InputStream is, OutputStream os, String enc)
+    shovelChars( InputStream is, OutputStream os, Charset enc)
     throws IOException {
-      InputStreamReader isr = new InputStreamReader( is);
+      InputStreamReader isr =
+        new InputStreamReader( is, Charset.defaultCharset().newDecoder());
+      OutputStreamWriter osw = new OutputStreamWriter( os, enc.newEncoder());
       char[] c = new char [ 1024 ];
-      byte[] b;
       int got;
-      String s;
 
       for ( ;; ) {
 	got = isr.read( c, 0, c.length);
 	if ( got == -1 )
       	  break;
-	s = new String( c, 0, got);
-	b = s.getBytes( enc);
-	if ( ! new String( b, enc).equals( s) ) {
-      	  System.err.println( "Characters unrepresentable in jar encoding!");
-	  System.exit( 1);
-	}
-	os.write( b);
+	osw.write( c, 0, got);
       }
-      os.flush();
-      System.err.println( "as characters ("+isr.getEncoding()+" -> "+enc+")");
+      osw.flush();
+
+      System.err.println(
+        "as characters ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
     }
   }
 }
