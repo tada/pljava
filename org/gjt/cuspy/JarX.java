@@ -14,10 +14,9 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
-import java.util.Vector;
-import java.util.Dictionary;
-import java.util.Hashtable;
-import java.util.Enumeration;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.net.URL;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
@@ -214,7 +213,7 @@ public class JarX {
   public static final short TSPECIAL = 1;
   static final short START = 0;
   /**Constant "content type token list" stored by
-   *{@link #section(BufferedReader,Dictionary) section} for any entry
+   *{@link #section(BufferedReader,Map) section} for any entry
    * with an explicit content type that isn't text.  We only care that it
    * isn't text, so no need to store the actual tokens.
    */
@@ -271,7 +270,7 @@ public class JarX {
     FileInputStream fis;
     ZipInputStream zis;
     InputStream is;
-    Dictionary mf = new Hashtable();
+    Map<String,JarX[]> mf = new HashMap<String,JarX[]>();
     
     ze = zf.getEntry( manifestName);
     if ( ze != null ) {
@@ -325,7 +324,7 @@ public class JarX {
     mfURL = new URL( jarURL, manifestName);
     
     InputStream is = mfURL.openStream();
-    Dictionary mf = new Hashtable();
+    Map<String,JarX[]> mf = new HashMap<String,JarX[]>();
     manifest( is, mf);
     is.close();
     
@@ -347,11 +346,11 @@ public class JarX {
   /**Extract a single entry, performing any appropriate conversion
    *@param ze ZipEntry for the current entry
    *@param is InputStream with the current entry content
-   *@param mf Dictionary filled in by
-   *{@link #manifest(InputStream,Dictionary) manifest} to look up content type
+   *@param mf Map filled in by
+   *{@link #manifest(InputStream,Map) manifest} to look up content type
    * for this entry
    */
-  public void extract( ZipEntry ze, InputStream is, Dictionary mf)
+  public void extract( ZipEntry ze, InputStream is, Map<String,JarX[]> mf)
   throws IOException {
     String s = ze.getName();
     System.err.print( s + " ");
@@ -557,7 +556,8 @@ public class JarX {
    *@param d dictionary in which to build the name to type map
    *@throws IOException if unable to read the manifest
    */
-  public void manifest( InputStream is, Dictionary d) throws IOException {
+  public void manifest( InputStream is, Map<String,JarX[]> d)
+  throws IOException {
     InputStreamReader isr;
     Charset enc = Charset.forName(manifestCode);
     isr = new InputStreamReader( is, enc.newDecoder());
@@ -577,7 +577,7 @@ public class JarX {
    * manifest has been reached
    *@throws IOException if the manifest can't be read
    */
-  public boolean section( BufferedReader r, Dictionary d)
+  public boolean section( BufferedReader r, Map<String,JarX[]> d)
   throws IOException {
     String field;
     String front;
@@ -619,7 +619,7 @@ public class JarX {
    *@param type its content type (list of field body tokens)
    *@param d dictionary in which to add the mapping
    */
-  void store( String name, JarX[] type, Dictionary d) {
+  void store( String name, JarX[] type, Map<String,JarX[]> d) {
     if ( type != null )
       d.put( name, type);
   }
@@ -681,13 +681,13 @@ public class JarX {
     short state = START;
     short lastState = state;
     boolean bashed = false;
-    Vector v = new Vector();
+    ArrayList<JarX> v = new ArrayList<JarX>();
     
     dfa: for ( la = 0; la < buf.length; ) {
       
       if ( end >= beg ) {
       	if ( lastState != COMMENT )
-	  v.addElement(new JarX( lastState, new String( buf, beg, end-beg)));
+	  v.add(new JarX( lastState, new String( buf, beg, end-beg)));
 	end = -1;
       }
       lastState = state;
@@ -782,10 +782,8 @@ public class JarX {
       System.err.println( "Warning: incomplete qstring, dtext, or comment");
     if ( end >= beg )
       if ( lastState != COMMENT )
-      	v.addElement(new JarX( lastState, new String( buf, beg, end-beg)));
-    JarX[] result = new JarX [ v.size() ];
-    v.copyInto( result);
-    return result;
+	v.add(new JarX( lastState, new String( buf, beg, end-beg)));
+    return v.toArray( new JarX [ v.size() ]);
   }
 
   /**Subclass of JarX containing the code needed to build jars.  This class
@@ -809,11 +807,11 @@ public class JarX {
     }
     
     /**Names of files to include, in order of appearance in the manifest*/
-    Vector names = new Vector();
+    ArrayList<String> names = new ArrayList<String>();
     /**Content-Types of those files, null if not specified,
      * NOTTEXT if not text
      */
-    Vector types = new Vector();
+    ArrayList<JarX[]> types = new ArrayList<JarX[]>();
     
     /**Method to be used by an application using this class to build a jar.
      *@param jarFile name of jar file to be created
@@ -844,8 +842,8 @@ public class JarX {
       String[] n = new String [ names.size() ];
       JarX[][] t = new JarX   [ types.size() ] [];
       
-      names.copyInto( n);
-      types.copyInto( t);
+      names.toArray( n);
+      types.toArray( t);
       
       for ( int i = 0; i < n.length; ++i ) {
       	if ( n[i].equals( manifestName) )
@@ -878,12 +876,12 @@ public class JarX {
     }
 
     /**Overridden to
-     * save name-to-type mappings in Vectors instead of the dictionary, to
+     * save name-to-type mappings in Lists instead of the Map, to
      * preserve the order of names in the manifest.
      */
-    void store( String name, JarX[] type, Dictionary d) {
-      names.addElement( name);
-      types.addElement( type);
+    void store( String name, JarX[] type, Map<String,JarX[]> d) {
+      names.add( name);
+      types.add( type);
     }
 
     /**Overridden to apply the named encoding to the output stream (jar entry),
