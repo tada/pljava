@@ -18,6 +18,10 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.net.URL;
+import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -193,6 +197,47 @@ import java.util.zip.ZipOutputStream;
  *@version $Id$
  */
 public class JarX {
+  /**How to treat the entry being processed: bytes, characters, lines.
+   * Used only in the JarX instance created by main(). Set by classify().
+   * Only the exact String instances BYTES, CHARACTERS, LINES are to be used.
+   */
+  protected String treatment;
+  protected static final String BYTES = "bytes";
+  protected static final String CHARACTERS = "characters";
+  protected static final String LINES = "lines";
+  /**Charset (in archive) of the entry being processed.
+   * Used only in the JarX instance created by main(). Set by classify().
+   */
+  protected Charset archiveCharset;
+  /**Charset when unpacked of the entry being processed.
+   * Used only in the JarX instance created by main(). Set by classify().
+   */
+  protected Charset unpackedCharset;
+
+  /**As for treatment, but set from main attributes (or BYTES if not present).*/
+  protected String defaultTreatment = BYTES;
+  /**As for archiveCharset, but set from main attributes (default UTF-8).*/
+  protected Charset defaultArchiveCharset = Charset.forName( "UTF-8");
+  /**As for unpackedCharset, but set from main attributes or platform default.*/
+  protected Charset defaultUnpackedCharset = Charset.defaultCharset();
+
+  /**Attribute name for specifying the in-archive charset.
+   * The Java powers that be didn't go for
+   *<A HREF="http://developer.java.sun.com/developer/bugParade/bugs/4310708.html">
+   *Bug #4310708</A> so there needs to be a dedicated manifest key for this
+   * (though JarX will still honor ;charset= on the Content-Type too).
+   */
+  public final Attributes.Name ARCHIVE_CHARSET =
+    new Attributes.Name( "_JarX_CharsetInArchive");
+  /**Attribute name for specifying the when-unpacked charset.
+   * This was not in the original JarX; the platform default was always used,
+   * and still is if this attribute is not present.
+   */
+  public final Attributes.Name UNPACKED_CHARSET =
+    new Attributes.Name( "_JarX_CharsetWhenUnpacked");
+
+  /**Main attributes saved from the manifest (which must be seen early).*/
+  protected Attributes mainAttributes;
 
   /**Token type, when JarX objects are used to return content type tokens*/
   public short type;
@@ -220,79 +265,25 @@ public class JarX {
   public static final JarX[] NOTTEXT = new JarX[0];
   /**Name of the JarX class file as stored in the jar*/
   public static final String me
-  = JarX.class.getName().replace('.', '/') + ".class";
+    = JarX.class.getName().replace('.', '/') + ".class";
   /**Name of the manifest file as stored in the jar*/
   public static final String manifestName = "META-INF/MANIFEST.MF";
   /**The (fixed) encoding used for manifest content*/
   public static final String manifestCode = "UTF-8";
-  /**A constant token list representing the content type of the manifest*/
-  public static final JarX[] manifestType = new JarX[] {
-    new JarX(     ATOM, "text"	      ),
-    new JarX( TSPECIAL, "/"	      ),
-    new JarX(     ATOM, "plain"       ),
-    new JarX( TSPECIAL, ";"	      ),
-    new JarX(     ATOM, "charset"     ),
-    new JarX( TSPECIAL, "="	      ),
-    new JarX(     ATOM, manifestCode  )
-  };
 
-  /**The entry point for extracting.  There is one optional argument: if
-   * present, it will be used as the name of the jar to extract.  If the name
-   * isn't given, JarX will try to find the jar it was loaded from (which will
-   * only work in Java 1.2).
+  /**The entry point for extracting.
    *@param args argument list
    *@throws Exception if anything doesn't work, punt
    */
   public static void main( String[] args) throws Exception {
     JarX e = new JarX();
     
-    if ( args.length > 0 )
-      e.extract( args[0]);
-    else
-      e.extract();
-  }
-  
-  /**Extract all entries (except JarX.class itself) from a given zip file.
-   * The archive is opened twice: first as a {@link ZipFile} (random
-   * access) to read the manifest, then closed and reopened as a
-   * {@link ZipInputStream} to get the entries sequentially.  I hate doing
-   * this as it introduces more assumptions that the file is a regular file,
-   * still there the second time we try to open it, etc.  But the other
-   * way, using {@link ZipFile#entries()}, extracted files in an
-   * unintuitive, hashed order, and, because of the associated seeking,
-   * scaled poorly to larger jars.
-   *@param zipFile the archive
-   *@throws Exception if anything doesn't work, punt
-   */
-  public void extract( String zipFile) throws Exception {
-    ZipFile zf = new ZipFile( zipFile);
-    ZipEntry ze;
-    FileInputStream fis;
-    ZipInputStream zis;
-    InputStream is;
-    Map<String,JarX[]> mf = new HashMap<String,JarX[]>();
-    
-    ze = zf.getEntry( manifestName);
-    if ( ze != null ) {
-      is = zf.getInputStream( ze);
-      manifest( is, mf);
-      is.close();
+    if ( args.length > 0 ) {
+      System.err.println( "usage: java -jar filename.jar");
+      System.exit( 1);
     }
-    
-    zf.close();
-    fis = new FileInputStream( zipFile);
-    zis = new ZipInputStream( fis);
-    
-    for ( ;; ) {
-      ze = zis.getNextEntry();
-      if ( ze == null )
-      	break;
-      if ( ! ze.getName().equals( me) )
-      	extract( ze, zis, mf);
-      zis.closeEntry();
-    }
-    
-    zis.close();
+
+    e.extract();
   }
 
   /**Find the jar I was loaded from and extract all entries except my own
@@ -300,49 +291,111 @@ public class JarX {
    *@throws Exception if anything doesn't work, punt
    */
   public void extract() throws Exception {
-    ClassLoader cl = this.getClass().getClassLoader();
-    URL jarURL, fileURL = null, mfURL;
-    String s;
-    int offset;
+    URL jarURL =
+      this.getClass().getProtectionDomain().getCodeSource().getLocation();
+
+    InputStream is = jarURL.openStream();
+    JarInputStream jis = new JarInputStream( is);
     
-    if ( cl != null )
-      jarURL = cl.getResource( me);
-    else
-      jarURL = ClassLoader.getSystemResource( me);
-    
-    if ( jarURL == null  ||  ! jarURL.getProtocol().equals( "jar") ) {
-      System.err.println(
-"Can't find myself; please add the source jar file name to the command line.");
-      System.exit( 1);
-    }
-    
-    s = jarURL.toString();
-    offset = s.indexOf( "!/");
-    jarURL = new URL( s.substring( 0, offset + 2));
-    s = jarURL.getFile();
-    fileURL = new URL( fileURL, s.substring( 0, s.length() - 2));
-    mfURL = new URL( jarURL, manifestName);
-    
-    InputStream is = mfURL.openStream();
-    Map<String,JarX[]> mf = new HashMap<String,JarX[]>();
-    manifest( is, mf);
-    is.close();
-    
-    is = fileURL.openStream();
-    ZipInputStream zis = new ZipInputStream( is);
-    
-    for ( ZipEntry ze;; ) {
-      ze = zis.getNextEntry();
-      if ( ze == null )
+    Manifest mf = null;
+
+    for ( JarEntry je;; ) {
+      je = jis.getNextJarEntry();
+      if ( je == null )
       	break;
-      if ( ! ze.getName().equals( me) )
-      	extract( ze, zis, mf);
-      zis.closeEntry();
+      if ( null == mf ) {
+        mf = jis.getManifest();
+	if ( null != mf )
+	  setDefaults( mf.getMainAttributes());
+      }
+      if ( ! je.getName().equals( me) )
+	extract( je, jis);
+      jis.closeEntry();
     }
     
-    zis.close();
+    jis.close();
   }
   
+  protected void setDefaults( Attributes mainAttributes) {
+    this.mainAttributes = mainAttributes;
+
+    classify( mainAttributes, false);
+
+    defaultTreatment = treatment;
+    defaultArchiveCharset = archiveCharset;
+    defaultUnpackedCharset = unpackedCharset;
+  }
+
+  protected void classify( Attributes atts, boolean lazy) {
+    treatment = defaultTreatment;
+    archiveCharset = defaultArchiveCharset;
+    unpackedCharset = defaultUnpackedCharset;
+
+    if ( null == atts )
+      return;
+
+    boolean archiveCharsetFound = false;
+
+    String v = atts.getValue( Attributes.Name.CONTENT_TYPE);
+    if ( null != v ) {
+      JarX[] type = structuredFieldBody( v, 0);
+      if ( "text".equalsIgnoreCase( type[0].value)
+        && "/".equals( type[1].value) ) {
+        treatment =
+	  "plain".equalsIgnoreCase( type[2].value) ? LINES : CHARACTERS;
+        archiveCharsetFound = archiveCharsetFromType( type);
+      }
+    }
+
+    if ( BYTES == treatment && lazy )
+      return;
+
+    if ( ! archiveCharsetFound ) {
+      v = atts.getValue( ARCHIVE_CHARSET);
+      if ( null != v )
+        archiveCharset = Charset.forName( v);
+    }
+
+    v = atts.getValue( UNPACKED_CHARSET);
+    if ( null != v )
+      unpackedCharset = Charset.forName( v);
+  }
+
+  protected boolean archiveCharsetFromType( JarX[] type) {
+    String charset = null;
+    int i = 3;
+
+    while ( i < type.length ) {
+      if ( ! ";".equals( type[i].value) )
+      	break;
+      if ( "charset".equalsIgnoreCase( type[++i].value) ) {
+      	if ( ! "=".equals( type[++i].value) )
+	  break;
+	if ( ! (ATOM == type[++i].type  ||  QUOTEDSTRING == type[i].type) )
+	  break;
+	charset = type[i].value;
+	break;
+      }
+      if ( ! "=".equals( type[++i].value) )
+	break;
+      if ( ! (ATOM == type[++i].type  ||  QUOTEDSTRING == type[i].type) )
+	break;
+      ++i;
+    }
+
+    if ( null != charset ) {
+      archiveCharset = Charset.forName( charset);
+      return true;
+    }
+
+    if ( i < type.length ) {
+      System.err.println( "Malformed Content-Type specification!");
+      System.exit( 1);
+    }
+
+    return false;
+  }
+
   /**Extract a single entry, performing any appropriate conversion
    *@param ze ZipEntry for the current entry
    *@param is InputStream with the current entry content
@@ -350,18 +403,19 @@ public class JarX {
    *{@link #manifest(InputStream,Map) manifest} to look up content type
    * for this entry
    */
-  public void extract( ZipEntry ze, InputStream is, Map<String,JarX[]> mf)
+  public void extract( JarEntry je, InputStream is)
   throws IOException {
-    String s = ze.getName();
+    classify( je.getAttributes(), true);
+
+    String s = je.getName();
     System.err.print( s + " ");
-    JarX[] type = (JarX[])mf.get( s);
     
     if ( File.separatorChar != '/' )
       s = s.replace( '/', File.separatorChar);
     
     File f = new File( s);
     
-    if ( ze.isDirectory() ) {
+    if ( je.isDirectory() ) {
       if ( f.isDirectory()  ||  f.mkdirs() )
       	System.err.println();
       else
@@ -381,10 +435,10 @@ public class JarX {
       os = new FileOutputStream( f);
     }
     
-    if ( type == null  ||  type == NOTTEXT )
+    if ( BYTES == treatment )
       shovelBytes( is, os);
     else
-      shovelText( is, os, type);
+      shovelText( is, os);
     
     os.close();
   }
@@ -417,58 +471,15 @@ public class JarX {
    * as characters.
    *@param is source of input
    *@param os destination of output
-   *@param type the content type as an array of token structures returned
-   * by the {@link JarX#structuredFieldBody(String,int) structuredFieldBody}
-   * lexer.
    *@throws IOException
    */
   public void
-  shovelText( InputStream is, OutputStream os, JarX[] type)
+  shovelText( InputStream is, OutputStream os)
   throws IOException {
-    if ( type.length < 3
-      || ! type[0].value.equalsIgnoreCase( "text")
-      || ! type[1].value.equals( "/")
-      || ! ( type[2].type == ATOM  ||  type[2].type == QUOTEDSTRING ) ) {
-      	System.err.println("shovelText called on non-text (shouldn't happen!)");
-	System.exit( 1);
-      }
-      
-    String charset = null;
-    int i;
-     
-    for ( i = 3; i < type.length; ) {
-      if ( ! type[i].value.equals( ";") )
-      	break;
-      if ( type[++i].value.equalsIgnoreCase( "charset") ) {
-      	if ( ! type[++i].value.equals( "=") )
-	  break;
-	if ( ! (type[++i].type == ATOM  ||  type[i].type == QUOTEDSTRING) )
-	  break;
-	charset = type[i].value;
-	break;
-      }
-      if ( ! type[++i].value.equals( "=") )
-	break;
-      if ( ! (type[++i].type == ATOM  ||  type[i].type == QUOTEDSTRING) )
-	break;
-      ++i;
-    }
-    
-    if ( charset == null ) {
-      if ( i >= type.length )
-      	charset = "US-ASCII";
-      else {
-      	System.err.println( "Malformed Content-Type specification!");
-      	System.exit( 1);
-      }
-    }
-    
-    Charset enc = Charset.forName( charset);
-    
-    if ( type[2].value.equalsIgnoreCase( "plain") )
-      shovelLines( is, os, enc);
+    if ( LINES == treatment )
+      shovelLines( is, os);
     else
-      shovelChars( is, os, enc);
+      shovelChars( is, os);
   }
 
   /**Copy <EM>lines</EM> of text from an input from an output stream, applying
@@ -485,15 +496,15 @@ public class JarX {
    * encoding.
    *@param is the source of input
    *@param os destination for output
-   *@param enc the Charset used in the jar
    */
   public void
-  shovelLines( InputStream is, OutputStream os, Charset enc)
+  shovelLines( InputStream is, OutputStream os)
   throws IOException {
-    InputStreamReader isr = new InputStreamReader( is, enc.newDecoder());
+    InputStreamReader isr =
+      new InputStreamReader( is, archiveCharset.newDecoder());
     BufferedReader br = new BufferedReader( isr);
     OutputStreamWriter osw =
-      new OutputStreamWriter( os, Charset.defaultCharset().newEncoder());
+      new OutputStreamWriter( os, unpackedCharset.newEncoder());
     BufferedWriter bw = new BufferedWriter( osw);
     
     String s;
@@ -508,8 +519,7 @@ public class JarX {
     bw.flush();
     osw.flush();
     
-    System.err.println(
-      "as lines ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
+    System.err.printf( "as lines (%s)\n", describeTranscoding(isr, osw));
   }
   
   /**Copy <EM>characters</EM> of text from an input from an output stream,
@@ -525,14 +535,14 @@ public class JarX {
    * encoding.
    *@param is the source of input
    *@param os destination for output
-   *@param enc the Charset used in the jar
    */
   public void
-  shovelChars( InputStream is, OutputStream os, Charset enc)
+  shovelChars( InputStream is, OutputStream os)
   throws IOException {
-    InputStreamReader isr = new InputStreamReader( is, enc.newDecoder());
+    InputStreamReader isr =
+      new InputStreamReader( is, archiveCharset.newDecoder());
     OutputStreamWriter osw =
-      new OutputStreamWriter( os, Charset.defaultCharset().newEncoder());
+      new OutputStreamWriter( os, unpackedCharset.newEncoder());
     char[] c = new char [ 1024 ];
     int got;
     
@@ -542,112 +552,17 @@ public class JarX {
       	break;
       osw.write( c, 0, got);
     }
-    System.err.println(
-      "as characters ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
     osw.flush();
+    System.err.printf( "as characters (%s)\n", describeTranscoding(isr, osw));
   }
 
-  /**Read the manifest and build a map from entry names to content types.
-   * Only names for which content types were explicitly given are added to the
-   * dictionary. The range of the mapping is arrays of content-type field body
-   * tokens returned by the lexer. Non-text content types are replaced by the
-   * value {@link JarX#NOTTEXT}, a list of no tokens.
-   *@param is an input stream already open on the manifest
-   *@param d dictionary in which to build the name to type map
-   *@throws IOException if unable to read the manifest
-   */
-  public void manifest( InputStream is, Map<String,JarX[]> d)
-  throws IOException {
-    InputStreamReader isr;
-    Charset enc = Charset.forName(manifestCode);
-    isr = new InputStreamReader( is, enc.newDecoder());
-    BufferedReader br = new BufferedReader( isr);
-    
-    while ( section( br, d) ); /**/
-
-    store( manifestName, manifestType, d);
-  }
-
-  /**Process one manifest section, adding a dictionary entry if the section
-   * contains both a <CODE>Name:</CODE> and a <CODE>Content-Type</CODE>
-   * attribute.
-   *@param r BufferedReader already open on the manifest
-   *@param d dictionary in which to add the mapping
-   *@return true if there is another section to read, false if the end of the
-   * manifest has been reached
-   *@throws IOException if the manifest can't be read
-   */
-  public boolean section( BufferedReader r, Map<String,JarX[]> d)
-  throws IOException {
-    String field;
-    String front;
-    String name = null;
-    JarX[] type = null;
-    
-    for ( ;; ) {
-      field = header( r);
-      if ( field == null  ||  0 == field.length() )
-      	break;
-      front = field.toLowerCase();
-      if ( front.startsWith( "name: ") ) {
-      	if ( name == null )
-	  name = field.substring( 6);
-	else
-	  System.err.println(
-      	      	"Warning: name attribute repeated within a section, ignored.");
-      }
-      else if ( front.startsWith( "content-type: ") ) {
-      	if ( type == null ) {
-	  type = structuredFieldBody( field, 14);
-	  if ( ! type[0].value.equalsIgnoreCase( "text")
-	    || ! type[1].value.equals( "/") )
-	    type = NOTTEXT;
-	}
-	else
-	  System.err.println(
-      	 "Warning: content-type attribute repeated within a section, ignored.");
-      }
-    }
-    if ( name != null )
-      store( name, type, d);
-    return field != null;
-  }
-
-  /**Enter one name-to-type mapping in a dictionary; overridden in
-   * {@link Build}.
-   *@param name an entry name
-   *@param type its content type (list of field body tokens)
-   *@param d dictionary in which to add the mapping
-   */
-  void store( String name, JarX[] type, Map<String,JarX[]> d) {
-    if ( type != null )
-      d.put( name, type);
-  }
-  
-  /**Buffer used between calls to {@link #header(BufferedReader) header}.*/
-  String nextManifestLine = null;
-
-  /**Return one header line (complete after RFC822 continuation unfolding).
-   *@param r BufferedReader to read from
-   *@return the line read, or null at end of input
-   *@throws IOException if the input cannot be read
-   */ 
-  public String header( BufferedReader r) throws IOException {
-    if ( nextManifestLine == null )
-      nextManifestLine = r.readLine();
-    
-    String line = nextManifestLine;
-    
-    for  ( ;; ) {
-      nextManifestLine = r.readLine();
-      if ( nextManifestLine == null
-        || ! nextManifestLine.startsWith( " ")
-        && ! nextManifestLine.startsWith( "\u0009") )
-      	break;
-      line += nextManifestLine;
-    }
-    
-    return line;
+  public String describeTranscoding(
+    InputStreamReader isr, OutputStreamWriter osw) {
+    String ie = isr.getEncoding();
+    String oe = osw.getEncoding();
+    if ( ie.equals( oe) )
+      return ie;
+    return ie + " -> " + oe;
   }
   
   /**Public constructor for an application using JarX to unpack jars.*/
@@ -658,7 +573,7 @@ public class JarX {
    * resolved for quoted strings, domain text, and comments)
    */
   protected JarX( short t, String v) { type = t; value = v; }
-  
+
   /**Lexical analyzer for structured field bodies as described in
    *<A HREF="ftp://ftp.isi.edu/in-notes/rfc822.txt">RFC822</A>
    * and modified in
@@ -808,10 +723,8 @@ public class JarX {
     
     /**Names of files to include, in order of appearance in the manifest*/
     ArrayList<String> names = new ArrayList<String>();
-    /**Content-Types of those files, null if not specified,
-     * NOTTEXT if not text
-     */
-    ArrayList<JarX[]> types = new ArrayList<JarX[]>();
+    /**Attribute sections of those files, null if not specified*/
+    ArrayList<Attributes> sections = new ArrayList<Attributes>();
     
     /**Method to be used by an application using this class to build a jar.
      *@param jarFile name of jar file to be created
@@ -828,22 +741,24 @@ public class JarX {
       ZipEntry ze;
       File f;
       
-      this.manifest( is, null);
+      this.manifest( is);
       is.close();
       
       System.err.print( manifestName + " ");
       is = new FileInputStream( manif);
       ze = new ZipEntry( manifestName);
       zos.putNextEntry( ze);
-      this.shovelText( is, zos, manifestType);
+      classify( null, true);
+      archiveCharset = Charset.forName( manifestCode);
+      this.shovelLines( is, zos);
       is.close();
       zos.closeEntry();
       
       String[] n = new String [ names.size() ];
-      JarX[][] t = new JarX   [ types.size() ] [];
+      Attributes[] t = new Attributes[ sections.size() ];
       
       names.toArray( n);
-      types.toArray( t);
+      sections.toArray( t);
       
       for ( int i = 0; i < n.length; ++i ) {
       	if ( n[i].equals( manifestName) )
@@ -863,10 +778,11 @@ public class JarX {
 	}
 	else {
 	  is = new FileInputStream( f);
-	  if ( t[i] == null  ||  t[i] == NOTTEXT )
+	  classify( t[i], true);
+	  if ( BYTES == treatment )
 	    this.shovelBytes( is, zos);
 	  else
-	    this.shovelText( is, zos, t[i]);
+	    this.shovelText( is, zos);
 	  is.close();
 	}
 	zos.closeEntry();
@@ -879,25 +795,25 @@ public class JarX {
      * save name-to-type mappings in Lists instead of the Map, to
      * preserve the order of names in the manifest.
      */
-    void store( String name, JarX[] type, Map<String,JarX[]> d) {
+    void store( String name, Attributes atts) {
       names.add( name);
-      types.add( type);
+      sections.add( atts);
     }
 
-    /**Overridden to apply the named encoding to the output stream (jar entry),
-     * the platform default encoding to the input stream (local file), and
-     * use the RFC2046-required CRLF line separator on the output.
+    /**Overridden to apply the archive encoding to the output stream (jar
+     * entry), the unpacked encoding to the input stream (local file), and use
+     * the RFC2046-required CRLF line separator on the output.
      *@param is source of input (local file)
      *@param os destination of output (jar entry)
-     *@param enc Charset to use in the archive
      */
     public void
-    shovelLines( InputStream is, OutputStream os, Charset enc)
+    shovelLines( InputStream is, OutputStream os)
     throws IOException {
-      InputStreamReader isr = new InputStreamReader( is,
-        Charset.defaultCharset().newDecoder());
+      InputStreamReader isr =
+        new InputStreamReader( is, unpackedCharset.newDecoder());
       BufferedReader br = new BufferedReader( isr);
-      OutputStreamWriter osw = new OutputStreamWriter( os, enc.newEncoder());
+      OutputStreamWriter osw =
+        new OutputStreamWriter( os, archiveCharset.newEncoder());
       BufferedWriter bw = new BufferedWriter( osw);
 
       String crlf = "\r\n";
@@ -914,22 +830,21 @@ public class JarX {
       bw.flush();
       osw.flush();
  
-      System.err.println(
-        "as lines ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
+      System.err.printf( "as lines (%s)\n", describeTranscoding(isr, osw));
     }
   
-    /**Overridden to apply the named encoding to the output stream (jar entry)
-     * and the platform default encoding to the input stream (local file).
+    /**Overridden to apply the archive encoding to the output stream (jar entry)
+     * and the unpacked encoding to the input stream (local file).
      *@param is source of input (local file)
      *@param os destination of output (jar entry)
-     *@param enc Charset to use in the archive
      */
     public void
-    shovelChars( InputStream is, OutputStream os, Charset enc)
+    shovelChars( InputStream is, OutputStream os)
     throws IOException {
       InputStreamReader isr =
-        new InputStreamReader( is, Charset.defaultCharset().newDecoder());
-      OutputStreamWriter osw = new OutputStreamWriter( os, enc.newEncoder());
+        new InputStreamReader( is, unpackedCharset.newDecoder());
+      OutputStreamWriter osw =
+        new OutputStreamWriter( os, archiveCharset.newEncoder());
       char[] c = new char [ 1024 ];
       int got;
 
@@ -941,8 +856,114 @@ public class JarX {
       }
       osw.flush();
 
-      System.err.println(
-        "as characters ("+isr.getEncoding()+" -> "+osw.getEncoding()+")");
+      System.err.printf( "as characters (%s)\n", describeTranscoding(isr, osw));
+    }
+
+    /**Read the manifest and build lists of file names and Attributes objects.
+     * This was originally here because JarX wanted to support Java 1.1, which
+     * lacked java.util.jar. The reason it is still here (in Build only) is that
+     * the java.util.jar.Manifest implementation doesn't preserve the order of
+     * manifest sections, while it is nice to build the jar in the specified
+     * order.
+     *@param is an input stream already open on the manifest
+     *@throws IOException if unable to read the manifest
+     */
+    public void manifest( InputStream is)
+    throws IOException {
+      InputStreamReader isr;
+      Charset enc = Charset.forName(manifestCode);
+      isr = new InputStreamReader( is, enc.newDecoder());
+      BufferedReader br = new BufferedReader( isr);
+
+      while ( section( br) ); /* */
+    }
+
+    /**Process one manifest section, adding a dictionary entry if the section
+     * contains both a <CODE>Name:</CODE> and a <CODE>Content-Type</CODE>
+     * attribute.
+     *@param r BufferedReader already open on the manifest
+     *@return true if there is another section to read, false if the end of the
+     * manifest has been reached
+     *@throws IOException if the manifest can't be read
+     */
+    public boolean section( BufferedReader r)
+    throws IOException {
+      String field;
+      String front;
+      String name = null;
+      Attributes atts = new Attributes();
+      boolean gotany = false;
+
+      for ( ;; ) {
+        field = header( r);
+        if ( field == null  ||  0 == field.length() )
+          break;
+        gotany = true;
+	int i = field.indexOf( ": ");
+	if ( i < 1 ) {
+	  System.err.printf( "Malformed line in manifest: %s\n", field);
+	  System.exit( 1);
+	}
+	front = field.substring(0, i);
+	field = field.substring(i+2);
+        if ( front.equalsIgnoreCase( "Name") ) {
+          if ( name == null )
+            name = field;
+          else
+            System.err.println(
+              "Warning: name attribute repeated within a section, ignored.");
+          continue;
+	}
+	atts.putValue( front, field);
+      }
+
+      if ( ! gotany )
+        return null != field;
+
+      if ( null == name ) {
+        if ( null != mainAttributes ) {
+	  System.err.println(
+	    "Main attributes followed by another nameless section");
+	  System.exit( 1);
+	}
+	setDefaults( atts);
+      }
+      else
+        store( name, atts);
+
+      return null != field;
+    }
+
+    /**Buffer used between calls to {@link #header(BufferedReader) header}.*/
+    String nextManifestLine = null;
+
+    /**Return one header line (complete after RFC822 continuation unfolding).
+     * <strong>Note:</strong> The Jar specification says it is "inspired by"
+     * RFC822, but the folding rule <strong>differs</strong>. RFC822 allows
+     * "linear whitespace" (i.e. space or tab) to start the continuation line,
+     * and the LWSP <em>remains in the line</em> (RFC822 lines are only supposed
+     * to be folded at places LWSP can appear). A jar manifest line continuation
+     * can only begin with a space, and the space is <em>eaten</em>; Java's
+     * manifest writer can arbitrarily fold in the middle of anything.
+     *@param r BufferedReader to read from
+     *@return the line read, or null at end of input
+     *@throws IOException if the input cannot be read
+     */
+    public String header( BufferedReader r) throws IOException {
+      if ( nextManifestLine == null )
+        nextManifestLine = r.readLine();
+
+      String line = nextManifestLine;
+
+      for  ( ;; ) {
+        nextManifestLine = r.readLine();
+        if ( nextManifestLine == null
+          || ! nextManifestLine.startsWith( " ") )
+          break;
+        line += nextManifestLine.substring(1);
+      }
+
+      return line;
     }
   }
 }
