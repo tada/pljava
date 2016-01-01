@@ -22,15 +22,13 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 /**
  * Distribute your work as a self-extracting jar file by including one file,
  * JarX.class, that also safely converts text files to the receiver's encoding
- * and newline conventions, and adds less than 12kB to your jar.
+ * and newline conventions, and adds only 6 kB to your jar.
  *<P>
  * A self-extracting file is handy if your recipient might have a
  * Java 1.1 or later runtime environment but not the jar tool.
@@ -129,7 +127,7 @@ import java.util.zip.ZipOutputStream;
  * by any jar or unzip tool, but current tools will not automatically convert
  * the text files to the local conventions.  By including the single class file
  * <CODE>JarX.class</CODE> in the jar, a developer produces a self-extracting
- * archive that can be executed to unpack itself on any Java 1.5 or later
+ * archive that can be executed to unpack itself on any Java 1.6 or later
  * virtual machine, performing all automatic conversions and requiring no jar
  * tool at all.
  *<H3>Building a Jar</H3>
@@ -214,12 +212,40 @@ public class JarX {
    */
   protected Charset unpackedCharset;
 
+  /**Read permission to be set on the file.
+   * Only the final Strings NONE, OWNER, or ALL are to be used, or null, in
+   * which case no explicit setting is made and the OS defaults apply.
+   */
+  protected String readPermission;
+  /**Write permission to be set on the file.
+   * Only the final Strings NONE, OWNER, or ALL are to be used, or null, in
+   * which case no explicit setting is made and the OS defaults apply.
+   */
+  protected String writePermission;
+  /**Execute permission to be set on the file.
+   * Only the final Strings NONE, OWNER, or ALL are to be used, or null, in
+   * which case no explicit setting is made and the OS defaults apply.
+   */
+  protected String executePermission;
+
+  protected static final String NONE = "none";
+  protected static final String OWNER = "owner";
+  protected static final String ALL = "all";
+
   /**As for treatment, but set from main attributes (or BYTES if not present).*/
   protected String defaultTreatment = BYTES;
   /**As for archiveCharset, but set from main attributes (default UTF-8).*/
   protected Charset defaultArchiveCharset = Charset.forName( "UTF-8");
   /**As for unpackedCharset, but set from main attributes or platform default.*/
   protected Charset defaultUnpackedCharset = Charset.defaultCharset();
+
+  /**As for readPermission but set from main attributes, null if not present.*/
+  protected String defaultReadPermission;
+  /**As for writePermission but set from main attributes, null if not present.*/
+  protected String defaultWritePermission;
+  /**As for executePermission but set from main attributes, null if not present.
+   */
+  protected String defaultExecutePermission;
 
   /**Attribute name for specifying the in-archive charset.
    * The Java powers that be didn't go for
@@ -235,6 +261,12 @@ public class JarX {
    */
   public final Attributes.Name UNPACKED_CHARSET =
     new Attributes.Name( "_JarX_CharsetWhenUnpacked");
+  /**Permissions (only as supported in java.io.File for SE 6)
+   * spec *(, spec) where spec is action=whom, action is read, write, or
+   * execute, and whom is none, owner, or all.
+   */
+  public final Attributes.Name PERMISSIONS =
+    new Attributes.Name( "_JarX_Permissions");
 
   /**Main attributes saved from the manifest (which must be seen early).*/
   protected Attributes mainAttributes;
@@ -257,12 +289,22 @@ public class JarX {
   public static final short QUOTEDSTRING = 2;
   public static final short TSPECIAL = 1;
   static final short START = 0;
-  /**Constant "content type token list" stored by
-   *{@link #section(BufferedReader,Map) section} for any entry
-   * with an explicit content type that isn't text.  We only care that it
-   * isn't text, so no need to store the actual tokens.
-   */
-  public static final JarX[] NOTTEXT = new JarX[0];
+
+  public boolean is( short... type) {
+    for ( short t : type )
+      if ( t == this.type )
+        return true;
+    return false;
+  }
+
+  public boolean holds( String value, short... type) {
+    return is( type) && value.equals( this.value);
+  }
+
+  public boolean holdsIgnoreCase( String value, short... type) {
+    return is( type) && value.equalsIgnoreCase( this.value);
+  }
+
   /**Name of the JarX class file as stored in the jar*/
   public static final String me
     = JarX.class.getName().replace('.', '/') + ".class";
@@ -324,6 +366,10 @@ public class JarX {
     defaultTreatment = treatment;
     defaultArchiveCharset = archiveCharset;
     defaultUnpackedCharset = unpackedCharset;
+
+    defaultReadPermission = readPermission;
+    defaultWritePermission = writePermission;
+    defaultExecutePermission = executePermission;
   }
 
   protected void classify( Attributes atts, boolean lazy) {
@@ -331,18 +377,69 @@ public class JarX {
     archiveCharset = defaultArchiveCharset;
     unpackedCharset = defaultUnpackedCharset;
 
+    readPermission = defaultReadPermission;
+    writePermission = defaultWritePermission;
+    executePermission = defaultExecutePermission;
+
     if ( null == atts )
       return;
 
+    String v = atts.getValue( PERMISSIONS);
+    if ( null != v ) {
+      String r = null;
+      String w = null;
+      String x = null;
+      JarX[] toks = structuredFieldBody( v, 0);
+      int i = 0;
+      while ( i + 2 < toks.length ) {
+	if ( ! toks[i].is( ATOM) || ! toks[i+1].holds( "=", TSPECIAL) )
+	  break;
+	if ( ! toks[i+2].is( ATOM) )
+	  break;
+	String p = toks[i].value;
+	String noa = toks[i+2].value;
+	if ( NONE.equalsIgnoreCase( noa) )
+	  noa = NONE;
+	else if ( OWNER.equalsIgnoreCase( noa) )
+	  noa = OWNER;
+	else if ( ALL.equalsIgnoreCase( noa) )
+	  noa = ALL;
+	else
+	  break;
+	if ( "read".equalsIgnoreCase( p) && null == r )
+	  r = noa;
+	else if ( "write".equalsIgnoreCase( p) && null == w )
+	  w = noa;
+	else if ( "execute".equalsIgnoreCase( p) && null == x )
+	  x = noa;
+	else
+	  break;
+	i += 3;
+	if ( i+3 < toks.length && toks[i].holds( ",", TSPECIAL) )
+	  ++i;
+      }
+
+      if ( i < toks.length ) {
+	System.err.printf( "Malformed permissions attribute: %s\n", v);
+	System.exit( 1);
+      }
+
+      if ( null != r )
+        readPermission = r;
+      if ( null != w )
+        writePermission = w;
+      if ( null != x )
+        executePermission = x;
+    }
+
     boolean archiveCharsetFound = false;
 
-    String v = atts.getValue( Attributes.Name.CONTENT_TYPE);
+    v = atts.getValue( Attributes.Name.CONTENT_TYPE);
     if ( null != v ) {
       JarX[] type = structuredFieldBody( v, 0);
-      if ( "text".equalsIgnoreCase( type[0].value)
-        && "/".equals( type[1].value) ) {
-        treatment =
-	  "plain".equalsIgnoreCase( type[2].value) ? LINES : CHARACTERS;
+      if ( type[0].holdsIgnoreCase( "text", ATOM)
+        && type[1].holds( "/", TSPECIAL) ) {
+        treatment = type[2].holdsIgnoreCase( "plain", ATOM)? LINES : CHARACTERS;
         archiveCharsetFound = archiveCharsetFromType( type);
       }
     }
@@ -366,19 +463,19 @@ public class JarX {
     int i = 3;
 
     while ( i < type.length ) {
-      if ( ! ";".equals( type[i].value) )
+      if ( ! type[i].holds( ";", TSPECIAL) )
       	break;
-      if ( "charset".equalsIgnoreCase( type[++i].value) ) {
-      	if ( ! "=".equals( type[++i].value) )
+      if ( type[++i].holdsIgnoreCase( "charset", ATOM) ) {
+	if ( ! type[++i].holds( "=", TSPECIAL) )
 	  break;
-	if ( ! (ATOM == type[++i].type  ||  QUOTEDSTRING == type[i].type) )
+	if ( ! type[++i].is( ATOM, QUOTEDSTRING) )
 	  break;
 	charset = type[i].value;
 	break;
       }
-      if ( ! "=".equals( type[++i].value) )
+      if ( ! type[++i].holds( "=", TSPECIAL) )
 	break;
-      if ( ! (ATOM == type[++i].type  ||  QUOTEDSTRING == type[i].type) )
+      if ( ! type[++i].is( ATOM, QUOTEDSTRING) )
 	break;
       ++i;
     }
@@ -397,7 +494,7 @@ public class JarX {
   }
 
   /**Extract a single entry, performing any appropriate conversion
-   *@param ze ZipEntry for the current entry
+   *@param ze JarEntry for the current entry
    *@param is InputStream with the current entry content
    *@param mf Map filled in by
    *{@link #manifest(InputStream,Map) manifest} to look up content type
@@ -425,14 +522,38 @@ public class JarX {
       
     OutputStream os;
     
+    File tmpf;
+    File d = f.getParentFile();
+    if ( null == d )
+      d = new File( System.getProperty( "user.dir"));
     try {
-      os = new FileOutputStream( f);
+      tmpf = File.createTempFile( f.getName(), ".tmp", d);
     }
     catch ( IOException e ) {
-      File fp = new File( f.getParent());
-      if ( fp == null  ||  ! fp.mkdirs() )
+      if ( ! d.mkdirs() )
       	throw e;
-      os = new FileOutputStream( f);
+      tmpf = File.createTempFile( f.getName(), ".tmp", d);
+    }
+
+    os = new FileOutputStream( tmpf);
+
+    if ( null != readPermission ) {
+      if ( ALL == readPermission )
+        tmpf.setReadable( true, false);
+      else {
+        tmpf.setReadable( false, false);
+	if ( OWNER == readPermission )
+	  tmpf.setReadable( true, true);
+      }
+    }
+
+    if ( null != writePermission ) {
+      if ( ALL == writePermission )
+        tmpf.setWritable( true, false);
+      else {
+        tmpf.setWritable( false, false);
+	tmpf.setWritable( true, true); /* will when done writing */
+      }
     }
     
     if ( BYTES == treatment )
@@ -441,6 +562,21 @@ public class JarX {
       shovelText( is, os);
     
     os.close();
+
+    if ( NONE == writePermission )
+      tmpf.setWritable( false, false);
+
+    if ( null != executePermission ) {
+      if ( ALL == executePermission )
+        tmpf.setExecutable( true, false);
+      else {
+        tmpf.setExecutable( false, false);
+	if ( OWNER == executePermission )
+	  tmpf.setExecutable( true, true);
+      }
+    }
+
+    tmpf.renameTo( f);
   }
   
   /**Copy <EM>bytes</EM> from an input to an output stream until end.
