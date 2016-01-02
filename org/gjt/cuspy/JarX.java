@@ -24,11 +24,14 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 
 /**
  * Distribute your work as a self-extracting jar file by including one file,
  * JarX.class, that also safely converts text files to the receiver's encoding
- * and newline conventions, and adds only 6 kB to your jar.
+ * and newline conventions, and adds less than 7 kB to your jar.
  *<P>
  * A self-extracting file is handy if your recipient might have a
  * Java runtime environment but not the jar tool.
@@ -187,14 +190,44 @@ import java.util.zip.ZipOutputStream;
  *   that is left unspecified, no {@link java.io.File File} method will be
  *   called to change that permission, so the system's defaults will apply.
  *  </DD>
+ *  <DT>_JarX_PathResolver</DT>
+ *  <DD>Only recognized as a main attribute, this specifies a script that JarX
+ *   will invoke for every archive member, with the following bindings in scope:
+ *    <DL>
+ *     <DT>properties</DT><DD>The Java system Properties object.</DD>
+ *     <DT>storedPath</DT><DD>The full pathname of the member, exactly as
+ *      stored in the archive.</DD>
+ *     <DT>platformPath</DT><DD>The full pathname after only replacing the
+ *      {@code /} separator character with the platform's {@code file.separator}
+ *      if different.
+ *     </DD>
+ *     <DT>computedPath</DT><DD>Initially the same as {@code platformPath}.
+ *      If the script stores a new value in {@code computedPath}, the member
+ *      will be extracted to that full path.</DD>
+ *    </DL>
+ *   The script is given as the value of this attribute, using the same
+ *   RFC822-ish lexical conventions the jar spec says it was "inspired by".
+ *   The value must begin with a MIME type (two atoms separated by a slash,
+ *   as in {@code application/javascript}, followed by at least one
+ *   {@code QUOTEDSTRING}. RFC822 uses the double-quote for this purpose, and
+ *   backslash to escape it when needed, which also means you must double any
+ *   backslash intended for the script. Additional {@code QUOTEDSTRING}s simply
+ *   append to the script. The RFC822 line-continuation rule can be exploited
+ *   by supplying the script as multiple quoted strings, one per line, each
+ *   indented by a space. The strings are appended with nothing in between
+ *   (so, the continuation newlines do not become newlines in the script), but
+ *   a {@code /} can appear between any two quoted strings to insert an
+ *   explicit newline in the script. In addition to whatever comment syntax is
+ *   allowed in the scripting language, RFC822 comments (marked by parentheses,
+ *   and nestable) are allowed outside of the quoted strings.
+ *  </DD>
  * </DL>
  *<H3>Extracting a jar</H3>
  * The command <CODE>java -jar foo.jar</CODE> is all it takes
  * to extract a jar.  The <CODE>Main-Class</CODE> entry in the manifest
  * identifies the entry point of JarX so it does not need to be specified.
- * It is possible to give the jar file name as a command-line argument, which
- * was necessary under Java 1.1, though JarX no longer supports such early
- * Java versions.
+ *<P>
+ * JarX
  *<H3>Call to action</H3>
  * At the moment, Sun's Jar File Specification contains a mistake in the
  * description of a content type that could lead to implementations
@@ -281,6 +314,11 @@ public class JarX {
    */
   protected String defaultExecutePermission;
 
+  /**Script engine to run the name resolver script, if any.*/
+  protected ScriptEngine resolverEngine;
+  /**The name resolver script, if any.*/
+  protected String resolverScript;
+
   /**Attribute name for specifying the in-archive charset.
    * The Java powers that be didn't go for
    *<A HREF="http://developer.java.sun.com/developer/bugParade/bugs/4310708.html">
@@ -301,6 +339,9 @@ public class JarX {
    */
   public final Attributes.Name PERMISSIONS =
     new Attributes.Name( "_JarX_Permissions");
+  /** Main attribute to specify a JSR223 script to control extracted names. */
+  public final Attributes.Name PATHRESOLVER =
+    new Attributes.Name( "_JarX_PathResolver");
 
   /**Main attributes saved from the manifest (which must be seen early).*/
   protected Attributes mainAttributes;
@@ -409,6 +450,8 @@ public class JarX {
   }
   
   /**Examine the main attributes to set any defaults.
+   * Includes loading the required script engine if a name resolver script
+   * is given.
    * @param mainAttributes as obtained from the manifest
    */
   protected void setDefaults( Attributes mainAttributes) {
@@ -423,6 +466,50 @@ public class JarX {
     defaultReadPermission = readPermission;
     defaultWritePermission = writePermission;
     defaultExecutePermission = executePermission;
+
+    if ( null == mainAttributes )
+      return;
+
+    String v = mainAttributes.getValue( PATHRESOLVER);
+    if ( null == v )
+      return;
+
+    JarX[] toks = structuredFieldBody( v, 0);
+    if ( toks.length < 4
+      || ! toks[0].is( ATOM)
+      || ! toks[1].holds("/", TSPECIAL)
+      || ! toks[2].is( ATOM)
+      || ! toks[3].is( QUOTEDSTRING) ) {
+      System.err.printf( "Malformed name resolver attribute: %s\n", v);
+      System.exit( 1);
+    }
+
+    String mimetype = toks[0].value + "/" + toks[2].value;
+    StringBuilder script = new StringBuilder( toks[3].value);
+    int i = 4;
+    while ( i < toks.length ) {
+      if ( toks[i].holds( "/", TSPECIAL) )
+        script.append( '\n');
+      else if ( toks[i].is( QUOTEDSTRING) )
+        script.append( toks[i].value);
+      else
+        break;
+      ++i;
+    }
+
+    if ( i < toks.length ) {
+      System.err.printf( "Malformed name resolver attribute: %s\n", v);
+      System.exit( 1);
+    }
+
+    ScriptEngineManager mgr = new ScriptEngineManager();
+    resolverEngine = mgr.getEngineByMimeType( mimetype);
+    if ( null == resolverEngine ) {
+      System.err.printf( "No script engine found for %s\n", mimetype);
+      System.exit( 1);
+    }
+    resolverEngine.put( "properties", System.getProperties());
+    resolverScript = script.toString();
   }
 
   /**Set instance variables for text/binary and permissions treatment
@@ -563,16 +650,27 @@ public class JarX {
    *@param je JarEntry for the current entry
    *@param is InputStream with the current entry content
    *@throws IOException for any problem involving I/O
+   *@throws ScriptException for any problem involving the script engine
    */
   public void extract( JarEntry je, InputStream is)
-  throws IOException {
+  throws IOException, ScriptException {
     classify( je.getAttributes(), true);
 
-    String s = je.getName();
-    System.err.print( s + " ");
+    String orig = je.getName();
+    String s = orig;
     
     if ( File.separatorChar != '/' )
       s = s.replace( '/', File.separatorChar);
+
+    if ( null != resolverScript ) {
+      resolverEngine.put( "storedPath", orig);
+      resolverEngine.put( "platformPath", s);
+      resolverEngine.put( "computedPath", s);
+      resolverEngine.eval( resolverScript);
+      s = (String)resolverEngine.get( "computedPath");
+    }
+
+    System.err.print( s + " ");
     
     File f = new File( s);
     
