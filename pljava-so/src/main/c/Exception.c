@@ -50,7 +50,8 @@ Exception_featureNotSupported(const char* requestedFeature, const char* introVer
 		appendStringInfoString(&buf, "Feature: ");
 		appendStringInfoString(&buf, requestedFeature);
 		appendStringInfoString(&buf, " lacks support in PostgreSQL version ");
-		appendStringInfo(&buf, "%d.%d", PGSQL_MAJOR_VER, PGSQL_MINOR_VER);
+		appendStringInfo(&buf, "%d.%d",
+						PG_VERSION_NUM / 10000, (PG_VERSION_NUM / 100) % 100);
 		appendStringInfoString(&buf, ". It was introduced in version ");
 		appendStringInfoString(&buf, introVersion);
 	

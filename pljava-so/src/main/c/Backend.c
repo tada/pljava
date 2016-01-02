@@ -41,7 +41,7 @@
 #include "pljava/SPI.h"
 #include "pljava/type/String.h"
 
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 #include "utils/timeout.h"
 #endif
 
@@ -161,7 +161,7 @@ static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 
 static void initsequencer(enum initstage is, bool tolerant);
 
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+#if PG_VERSION_NUM >= 90100
 	static bool check_libjvm_location(
 		char **newval, void **extra, GucSource source);
 	static bool check_vmoptions(
@@ -251,7 +251,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 	}
 #endif
 
-#if PGSQL_MAJOR_VER < 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER == 0
+#if PG_VERSION_NUM < 90100
 #define ASSIGNHOOK(name,type) \
 	static bool \
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
@@ -564,7 +564,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			 * are just function parameters with evaluation order unknown.
 			 */
 			StringInfoData buf;
-#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 2
+#if PG_VERSION_NUM >= 90200
 #define MOREHINT \
 				appendStringInfo(&buf, \
 					"using ALTER DATABASE %s SET ... FROM CURRENT or ", \
@@ -637,7 +637,7 @@ static void reLogWithChangedLevel(int level)
 	else if ( ERRCODE_WARNING == category || ERRCODE_NO_DATA == category ||
 		ERRCODE_SUCCESSFUL_COMPLETION == category )
 		sqlstate = ERRCODE_INTERNAL_ERROR;
-#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 5
+#if PG_VERSION_NUM >= 90500
 	edata->elevel = level;
 	edata->sqlerrcode = sqlstate;
 	PG_TRY();
@@ -670,7 +670,7 @@ static void reLogWithChangedLevel(int level)
 		errhint("%s", edata->hint);
 	if (edata->context)
 		errcontext("%s", edata->context); /* this may need to be trimmed */
-#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3
+#if PG_VERSION_NUM >= 90300
 	if (edata->schema_name)
 		err_generic_string(PG_DIAG_SCHEMA_NAME, edata->schema_name);
 	if (edata->table_name)
@@ -957,7 +957,7 @@ static void pljavaQuickDieHandler(int signum)
 
 static sigjmp_buf recoverBuf;
 static void terminationTimeoutHandler(
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 #else
 	int signum
 #endif
@@ -986,7 +986,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		Invocation ctx;
 #if !defined(WIN32)
 
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 		TimeoutId tid;
 #else
 		pqsigfunc saveSigAlrm;
@@ -1001,7 +1001,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 			return;
 		}
 
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 		InitializeTimeouts();           /* establishes SIGALRM handler */
 		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
 #else
@@ -1012,7 +1012,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		elog(DEBUG1, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 
-#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3))
+#if PG_VERSION_NUM >= 90300
 		disable_timeout(tid, false);
 #else
 		disable_sig_alarm(false);
@@ -1230,14 +1230,14 @@ static void registerGUCOptions(void)
 		"Path to the libjvm (.so, .dll, etc.) file in Java's jre/lib area",
 		NULL, /* extended description */
 		&libjvmlocation,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			"libjvm",
 		#endif
 		PGC_SUSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			check_libjvm_location,
 		#endif
 		assign_libjvm_location,
@@ -1248,14 +1248,14 @@ static void registerGUCOptions(void)
 		"Options sent to the JVM when it is created",
 		NULL, /* extended description */
 		&vmoptions,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			"-XX:+DisableAttachMechanism", /* boot value */
 		#endif
 		PGC_SUSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			check_vmoptions,
 		#endif
 		assign_vmoptions,
@@ -1266,14 +1266,14 @@ static void registerGUCOptions(void)
 		"Classpath used by the JVM",
 		NULL, /* extended description */
 		&classpath,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			InstallHelper_defaultClassPath(pathbuf), /* boot value */
 		#endif
 		PGC_SUSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			check_classpath,
 		#endif
 		assign_classpath,
@@ -1284,14 +1284,14 @@ static void registerGUCOptions(void)
 		"Stop the backend to attach a debugger",
 		NULL, /* extended description */
 		&pljavaDebug,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			false, /* boot value */
 		#endif
 		PGC_USERSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			NULL, /* check hook */
 		#endif
 		NULL, NULL); /* assign hook, show hook */
@@ -1301,15 +1301,15 @@ static void registerGUCOptions(void)
 		"Size of the prepared statement MRU cache",
 		NULL, /* extended description */
 		&statementCacheSize,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			11,   /* boot value */
 		#endif
 		0, 512,   /* min, max values */
 		PGC_USERSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			NULL, /* check hook */
 		#endif
 		NULL, NULL); /* assign hook, show hook */
@@ -1320,14 +1320,14 @@ static void registerGUCOptions(void)
 		"If false, they will be rolled back",
 		NULL, /* extended description */
 		&pljavaReleaseLingeringSavepoints,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			false, /* boot value */
 		#endif
 		PGC_USERSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			NULL, /* check hook */
 		#endif
 		NULL, NULL); /* assign hook, show hook */
@@ -1339,16 +1339,16 @@ static void registerGUCOptions(void)
 		"settings changed before LOADing PL/Java may be rejected, so they must "
 		"be made after LOAD, but before the virtual machine is started.",
 		&pljavaEnabled,
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 1))
+		#if PG_VERSION_NUM >= 90200
 			true,  /* boot value */
-		#elif (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#elif PG_VERSION_NUM >= 80400
 			false, /* boot value */
 		#endif
 		PGC_USERSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			0,    /* flags */
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			check_enabled, /* check hook */
 		#endif
 		assign_enabled,
@@ -1359,14 +1359,14 @@ static void registerGUCOptions(void)
 		"Implementor names recognized in deployment descriptors",
 		NULL, /* extended description */
 		&implementors,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			"postgresql", /* boot value */
 		#endif
 		PGC_USERSET,
-		#if (PGSQL_MAJOR_VER > 8 || (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER > 3))
+		#if PG_VERSION_NUM >= 80400
 			GUC_LIST_INPUT | GUC_LIST_QUOTE,
 		#endif
-		#if (PGSQL_MAJOR_VER > 9 || (PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER > 0))
+		#if PG_VERSION_NUM >= 90100
 			NULL, /* check hook */
 		#endif
 		NULL, NULL); /* assign hook, show hook */

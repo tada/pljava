@@ -10,7 +10,7 @@
  *   Chapman Flack
  */
 #include <postgres.h>
-#if PGSQL_MAJOR_VER > 9 || PGSQL_MAJOR_VER == 9 && PGSQL_MINOR_VER >= 3
+#if PG_VERSION_NUM >= 90300
 #include <access/htup_details.h>
 #else
 #include <access/htup.h>

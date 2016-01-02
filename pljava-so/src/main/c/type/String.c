@@ -207,7 +207,7 @@ text* String_createText(jstring javaString)
 		/* Allocate and initialize the text structure.
 		 */
 		result = (text*)palloc(varSize);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 		VARATT_SIZEP(result) = varSize;	/* Total size of structure, not just data */
 #else
 		SET_VARSIZE(result, varSize);	/* Total size of structure, not just data */

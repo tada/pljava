@@ -7,13 +7,13 @@
  * @author Thomas Hallgren
  */
 #include "org_postgresql_pljava_internal_SPI.h"
-#include "pljava/backports.h"
 #include "pljava/SPI.h"
 #include "pljava/Invocation.h"
 #include "pljava/Exception.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TupleTable.h"
 
+#include <funcapi.h>
 #include <access/xact.h>
 #if defined(NEED_MISCADMIN_FOR_STACK_BASE)
 #include <miscadmin.h>
@@ -203,13 +203,3 @@ void SPI_rollbackSavepoint(Savepoint* sp)
 	SPI_restore_connection();
 	pfree(sp);
 }
-
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 1)
-char* SPI_getnspname(Relation rel)
-{
-	return get_namespace_name(RelationGetNamespace(rel));
-}
-
-#endif
-
-

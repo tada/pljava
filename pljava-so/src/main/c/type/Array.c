@@ -10,7 +10,6 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
-#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 void arraySetNull(bits8* bitmap, int offset, bool flag)
 {
 	if(bitmap != 0)
@@ -27,20 +26,11 @@ bool arrayIsNull(const bits8* bitmap, int offset)
 }
 
 ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool withNulls)
-#else
-ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
-#endif
 {
 	ArrayType* v;
 	Size nBytes = elemSize * nElems;
 	MemoryContext currCtx = Invocation_switchToUpperContext();
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-#define LEAFKEY (1<<31)
-	nBytes += ARR_OVERHEAD(1);
-	v = (ArrayType*)palloc0(nBytes);
-	v->flags &= ~LEAFKEY;
-#else
 	Size dataoffset;
 	if(withNulls)
 	{
@@ -55,10 +45,9 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType)
 	v = (ArrayType*)palloc0(nBytes);
 	AssertVariableIsOfType(v->dataoffset, int32);
 	v->dataoffset = (int32)dataoffset;
-#endif
 	MemoryContextSwitchTo(currCtx);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 	ARR_SIZE(v) = nBytes;
 #else
 	SET_VARSIZE(v, nBytes);
@@ -82,20 +71,10 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 	jsize nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jobjectArray objArray = JNI_newObjectArray(nElems, Type_getJavaClass(elemType), 0);
 	const char* values = ARR_DATA_PTR(v);
-#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 	bits8* nullBitMap = ARR_NULLBITMAP(v);
-#endif
 
 	for(idx = 0; idx < nElems; ++idx)
 	{
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-		Datum value = fetch_att(values, elemByValue, elemLength);
-		jvalue obj = Type_coerceDatum(elemType, value);
-		JNI_setObjectArrayElement(objArray, idx, obj.l);
-		JNI_deleteLocalRef(obj.l);
-		values = att_addlength(values, elemLength, PointerGetDatum(values));
-		values = (char*)att_align(values, elemAlign);
-#else
 		if(arrayIsNull(nullBitMap, idx))
 			JNI_setObjectArrayElement(objArray, idx, 0);
 		else
@@ -105,7 +84,7 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 			JNI_setObjectArrayElement(objArray, idx, obj.l);
 			JNI_deleteLocalRef(obj.l);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 3)
+#if PG_VERSION_NUM < 80300
 			values = att_addlength(values, elemLength, PointerGetDatum(values));
 			values = (char*)att_align(values, elemAlign);
 #else
@@ -114,7 +93,6 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 #endif
 
 		}
-#endif
 	}
 	result.l = (jobject)objArray;
 	return result;
@@ -148,9 +126,7 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 
 	v = construct_md_array(
 		values,
-#if !(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
 		nulls,
-#endif
 		1,
 		&nElems,
 		&lowerBound,

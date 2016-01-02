@@ -15,9 +15,7 @@
 extern "C" {
 #endif
 
-#if (!(PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER == 0))
 typedef Oid AclId;
-#endif
 
 /***********************************************************************
  * ACL related stuff.

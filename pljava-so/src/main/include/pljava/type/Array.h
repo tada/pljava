@@ -22,13 +22,9 @@ extern "C" {
  *
  ***********************************************************************/
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-extern ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType);
-#else
 extern ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool withNulls);
 extern void arraySetNull(bits8* bitmap, int offset, bool flag);
 extern bool arrayIsNull(const bits8* bitmap, int offset);
-#endif
 
 extern Type Array_fromOid(Oid typeId, Type elementType);
 extern Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, ObjectCoercer coerceObject);

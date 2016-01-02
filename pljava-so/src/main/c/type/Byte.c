@@ -43,9 +43,6 @@ static jvalue _byteArray_coerceDatum(Type self, Datum arg)
 	jsize      nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jbyteArray byteArray = JNI_newByteArray(nElems);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	JNI_setByteArrayRegion(byteArray, 0, nElems, (jbyte*)ARR_DATA_PTR(v));
-#else
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
@@ -64,7 +61,6 @@ static jvalue _byteArray_coerceDatum(Type self, Datum arg)
 	}
 	else
 		JNI_setByteArrayRegion(byteArray, 0, nElems, (jbyte*)ARR_DATA_PTR(v));
-#endif
 	result.l = (jobject)byteArray;
 	return result;
 }
@@ -78,11 +74,7 @@ static Datum _byteArray_coerceObject(Type self, jobject byteArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)byteArray);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	v = createArrayType(nElems, sizeof(jbyte), CHAROID);
-#else
 	v = createArrayType(nElems, sizeof(jbyte), CHAROID, false);
-#endif
 	JNI_getByteArrayRegion((jbyteArray)byteArray, 0, nElems, (jbyte*)ARR_DATA_PTR(v));	
 
 	PG_RETURN_ARRAYTYPE_P(v);

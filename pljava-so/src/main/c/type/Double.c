@@ -48,9 +48,6 @@ static jvalue _doubleArray_coerceDatum(Type self, Datum arg)
 	jsize      nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jdoubleArray doubleArray = JNI_newDoubleArray(nElems);
 
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	JNI_setDoubleArrayRegion(doubleArray, 0, nElems, (jdouble*)ARR_DATA_PTR(v));
-#else
 	if(ARR_HASNULL(v))
 	{
 		jsize idx;
@@ -69,7 +66,6 @@ static jvalue _doubleArray_coerceDatum(Type self, Datum arg)
 	}
 	else
 		JNI_setDoubleArrayRegion(doubleArray, 0, nElems, (jdouble*)ARR_DATA_PTR(v));
-#endif
 	result.l = (jobject)doubleArray;
 	return result;
 }
@@ -83,11 +79,7 @@ static Datum _doubleArray_coerceObject(Type self, jobject doubleArray)
 		return 0;
 
 	nElems = JNI_getArrayLength((jarray)doubleArray);
-#if (PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER < 2)
-	v = createArrayType(nElems, sizeof(jdouble), FLOAT8OID);
-#else
 	v = createArrayType(nElems, sizeof(jdouble), FLOAT8OID, false);
-#endif
 	if(!JNI_isInstanceOf( doubleArray, s_DoubleArray_class))
 		JNI_getDoubleArrayRegion((jdoubleArray)doubleArray, 0,
 					 nElems, (jdouble*)ARR_DATA_PTR(v));

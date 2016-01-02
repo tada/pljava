@@ -10,17 +10,12 @@
 #include "pljava/Exception.h"
 #include "org_postgresql_pljava_internal_XactListener.h"
 
-#if ((PGSQL_MAJOR_VER == 8 && PGSQL_MINOR_VER >= 1) || PGSQL_MAJOR_VER > 8)
-#define HAS_2PC 1
 #include "access/xact.h"
-#endif
 
 static jclass s_XactListener_class;
 static jmethodID s_XactListener_onAbort;
 static jmethodID s_XactListener_onCommit;
-#if HAS_2PC
 static jmethodID s_XactListener_onPrepare;
-#endif
 
 static void xactCB(XactEvent event, void* arg)
 {
@@ -35,11 +30,9 @@ static void xactCB(XactEvent event, void* arg)
 		case XACT_EVENT_COMMIT:
 			JNI_callStaticVoidMethod(s_XactListener_class, s_XactListener_onCommit, p2l.longVal);
 			break;
-#ifdef HAS_2PC
 		case XACT_EVENT_PREPARE:
 			JNI_callStaticVoidMethod(s_XactListener_class, s_XactListener_onPrepare, p2l.longVal);
 			break;
-#endif
 	}
 }
 
@@ -64,9 +57,7 @@ void XactListener_initialize(void)
 	s_XactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/XactListener"));
 	s_XactListener_onAbort = PgObject_getStaticJavaMethod(s_XactListener_class, "onAbort", "(J)V");
 	s_XactListener_onCommit = PgObject_getStaticJavaMethod(s_XactListener_class, "onCommit", "(J)V");
-#if HAS_2PC
 	s_XactListener_onPrepare = PgObject_getStaticJavaMethod(s_XactListener_class, "onPrepare", "(J)V");
-#endif
 }
 
 /*
