@@ -31,15 +31,15 @@ import java.util.zip.ZipOutputStream;
  * and newline conventions, and adds only 6 kB to your jar.
  *<P>
  * A self-extracting file is handy if your recipient might have a
- * Java 1.1 or later runtime environment but not the jar tool.
+ * Java runtime environment but not the jar tool.
  * The text conversion offered by JarX is useful if your distribution will
  * include text files, source, documentation, scripts, etc., and your recipients
  * have platforms with different newline conventions.
  *<H3>Text conversion background</H3>
  * There are two issues in the cross-platform delivery of text files.
  *<OL><LI>Different platforms indicate the end of a line differently.
- * The UNIX convention uses the single character LINE FEED; the Macintosh
- * uses only the CARRIAGE RETURN character, and DOS/Windows systems require
+ * The UNIX convention uses the single character LINE FEED; the (old) Macintosh
+ * used only the CARRIAGE RETURN character, and DOS/Windows systems require
  * every line to end with a CARRIAGE RETURN followed by a LINE FEED.
  * If some conversion isn't done, a Windows file appears to have garbage
  * characters at the ends of lines if moved to UNIX, or the beginnings of lines
@@ -88,7 +88,7 @@ import java.util.zip.ZipOutputStream;
  *<P>
  * As of JDK 1.3, Sun has extended the
  *<A
- HREF="http://java.sun.com/products/jdk/1.3/docs/guide/jar/jar.html#Per-Entry Attributes">
+ HREF="http://java.sun.com/products/jdk/1.3/docs/guide/jar/jar.html#Per-Entry%20Attributes">
  *Jar File Specification</A> to allow a <CODE>Content-Type</CODE> in the
  * Manifest for each jar entry.  The value of <CODE>Content-Type</CODE> is a
  *<A HREF="http://www.isi.edu/in-notes/iana/assignments/media-types/media-types">MIME
@@ -105,7 +105,7 @@ import java.util.zip.ZipOutputStream;
  * Finally, the <CODE>charset</CODE> parameter of the <CODE>text</CODE> type
  * allows explicit specification of the character encoding used in a jar entry,
  * and the extracting program can automatically convert into the encoding used
- * on the local system. (But see <STRONG>Call to action</CODE> below.)
+ * on the local system. (But see <STRONG>Call to action</STRONG> below.)
  *<H3>What JarX Does</H3>
  * <CODE>Content-Type</CODE> entries in a Manifest were introduced in Java 1.3
  * but are compatible with earlier jar specifications; a jar file containing
@@ -154,6 +154,40 @@ import java.util.zip.ZipOutputStream;
  * <CODE>foo.jar</CODE> names the jar you want to create.
  * The order of files in the jar will be the order of their names in the
  * manifest.
+ *<H4>Special manifest attributes</H4>
+ * For 2016, JarX now recognizes some special manifest attributes:
+ * <DL>
+ *  <DT>_JarX_CharsetInArchive</DT>
+ *  <DD>As a per-entry attribute, identifies the character set of the associated
+ *   text member as stored in the archive. This is entirely equivalent to the
+ *   earlier method using {@code ;charset=} on the Content-Type attribute,
+ *   which JarX still supports, but has not been widely adopted. As a main
+ *   attribute, sets a default for any text members without a per-entry value.
+ *  </DD>
+ *  <DT>_JarX_CharsetWhenUnpacked</DT>
+ *  <DD>As a per-entry attribute, identifies the character set of the associated
+ *   text member when not in the archive. At Build time, the member will be
+ *   transcoded from this charset (instead of the platform's default) to the
+ *   specified InArchive charset, and, on extraction, will be transcoded back
+ *   to this charset regardless of the platform's default encoding. This
+ *   attribute can be used for files conforming to specifications that define
+ *   a fixed encoding. In other cases, omitting this attribute allows the
+ *   member to be extracted into the receiving platform's default charset.
+ *   As a main attribute, sets a default for text members without a per-entry
+ *   value.</DD>
+ *  <DT>_JarX_Permissions</DT>
+ *  <DD>As a per-entry attribute, declares permissions to apply to the
+ *   extracted file. (At present, not applied to directories.) Only the
+ *   Java SE 6 {@link java.io.File} permissions are supported, a small subset
+ *   of what most platforms support. A comma-separated list of
+ *   <em>usage</em>{@code =}<em>bywhom</em>, where <em>usage</em> can be
+ *   {@code read}, {@code write}, or {@code execute} and <em>bywhom</em> can be
+ *   {@code none}, {@code owner}, or {@code all}. As a main attribute, sets a
+ *   default for members without a per-entry attribute. For any <em>usage</em>
+ *   that is left unspecified, no {@link java.io.File File} method will be
+ *   called to change that permission, so the system's defaults will apply.
+ *  </DD>
+ * </DL>
  *<H3>Extracting a jar</H3>
  * The command <CODE>java -jar foo.jar</CODE> is all it takes
  * to extract a jar.  The <CODE>Main-Class</CODE> entry in the manifest
@@ -189,8 +223,8 @@ import java.util.zip.ZipOutputStream;
  * The coding style is a little contrived just to arrange it so JarX.class is
  * the only file needed in the jar to make it self-extracting.  In particular
  * the JarX class is also written to serve as the class of tokens returned by
- * the content-type lexer, to avoid introducing a second class.  Weird, perhaps,
- * but harmless weird.
+ * the structured-field-body lexer, to avoid introducing a second class.  Weird,
+ * perhaps, but harmless weird.
  *@author <A HREF="mailto:chap@gjt.org">Chapman Flack</A>
  *@version $Id$
  */
@@ -290,6 +324,10 @@ public class JarX {
   public static final short TSPECIAL = 1;
   static final short START = 0;
 
+  /**True if this JarX object represents a token of one of the given types.
+   * @param type allowable types
+   * @return as titled
+   */
   public boolean is( short... type) {
     for ( short t : type )
       if ( t == this.type )
@@ -297,10 +335,22 @@ public class JarX {
     return false;
   }
 
+  /**True if this JarX object represents a token of one of the given types
+   * and its value equals the given string.
+   * @param value string value for comparison
+   * @param type allowable types
+   * @return as titled
+   */
   public boolean holds( String value, short... type) {
     return is( type) && value.equals( this.value);
   }
 
+  /**True if this JarX object represents a token of one of the given types
+   * and its value equals the given string, case-insensitively.
+   * @param value string value for comparison
+   * @param type allowable types
+   * @return as titled
+   */
   public boolean holdsIgnoreCase( String value, short... type) {
     return is( type) && value.equalsIgnoreCase( this.value);
   }
@@ -358,6 +408,9 @@ public class JarX {
     jis.close();
   }
   
+  /**Examine the main attributes to set any defaults.
+   * @param mainAttributes as obtained from the manifest
+   */
   protected void setDefaults( Attributes mainAttributes) {
     this.mainAttributes = mainAttributes;
 
@@ -372,6 +425,15 @@ public class JarX {
     defaultExecutePermission = executePermission;
   }
 
+  /**Set instance variables for text/binary and permissions treatment
+   * according to the passed Attributes.
+   * @param atts Usually a per-entry attribute set, but {@code classify} is
+   * also called by {@code setDefaults} to parse the main attributes.
+   * @param lazy In the usual case, as soon as an entry is classified as
+   * non-text, {@code classify} can return without looking for charset
+   * information. When called by {@code setDefaults}, however, laziness is not
+   * appropriate.
+   */
   protected void classify( Attributes atts, boolean lazy) {
     treatment = defaultTreatment;
     archiveCharset = defaultArchiveCharset;
@@ -458,6 +520,10 @@ public class JarX {
       unpackedCharset = Charset.forName( v);
   }
 
+  /**Parse a Content-Type for any {@code charset} parameter.
+   * @param type tokenized Content-Type value
+   * @return true if the Content-Type specified a charset
+   */
   protected boolean archiveCharsetFromType( JarX[] type) {
     String charset = null;
     int i = 3;
@@ -494,11 +560,9 @@ public class JarX {
   }
 
   /**Extract a single entry, performing any appropriate conversion
-   *@param ze JarEntry for the current entry
+   *@param je JarEntry for the current entry
    *@param is InputStream with the current entry content
-   *@param mf Map filled in by
-   *{@link #manifest(InputStream,Map) manifest} to look up content type
-   * for this entry
+   *@throws IOException for any problem involving I/O
    */
   public void extract( JarEntry je, InputStream is)
   throws IOException {
@@ -583,7 +647,7 @@ public class JarX {
    * No character encoding or newline conversion applies.
    *@param is source of input
    *@param os destination for output
-   *@throws IOException
+   *@throws IOException for any problem involving I/O
    */
   public static void shovelBytes( InputStream is, OutputStream os)
   throws IOException {
@@ -607,7 +671,7 @@ public class JarX {
    * as characters.
    *@param is source of input
    *@param os destination of output
-   *@throws IOException
+   *@throws IOException for any problem involving I/O
    */
   public void
   shovelText( InputStream is, OutputStream os)
@@ -625,13 +689,14 @@ public class JarX {
    * with the output (local file), and the local line.separator is used to
    * separate lines on the output.
    * Overridden in
-   * {@link JarX.Build#shovelLines(InputStream,OutputStream,String) build} to do
+   * {@link JarX.Build#shovelLines(InputStream,OutputStream) build} to do
    * the reverse when building a jar.
    * To avoid silent corruption of data, this method verifies that all
    * characters from the jar are successfully converted to the local platform's
    * encoding.
    *@param is the source of input
    *@param os destination for output
+   *@throws IOException for any problem involving I/O
    */
   public void
   shovelLines( InputStream is, OutputStream os)
@@ -664,13 +729,14 @@ public class JarX {
    * associated with the input stream (jar) and the platform default encoding
    * with the output (local file).
    * Overridden in
-   * {@link Build#shovelChars(InputStream,OutputStream,String) build} to do
+   * {@link Build#shovelChars(InputStream,OutputStream) build} to do
    * the reverse when building a jar.
    * To avoid silent corruption of data, this method verifies that all
    * characters from the jar are successfully converted to the local platform's
    * encoding.
    *@param is the source of input
    *@param os destination for output
+   *@throws IOException for any problem involving I/O
    */
   public void
   shovelChars( InputStream is, OutputStream os)
@@ -848,6 +914,7 @@ public class JarX {
      * are taken from the manifest.
      *@param args two command line arguments: 1) the name of the jar file
      * to create; 2) the name of the manifest file.
+     *@throws Exception if anything goes wrong, punt
      */
     public static void main( String[] args) throws Exception {
       if ( args.length != 2 ) {
