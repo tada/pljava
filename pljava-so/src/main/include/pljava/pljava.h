@@ -88,8 +88,10 @@ extern MemoryContext JavaMemoryContext;
  * stack_base_ptr was static before PG 8.1. By executive decision, PL/Java now
  * has 8.1 as a back compatibility limit; no empty #defines here for earlier.
  */
-#if PG_VERSION_NUM>=90200 || PG_VERSION_NUM>=90104 || PG_VERSION_NUM>=90008 || \
-	PG_VERSION_NUM>=80412 || PG_VERSION_NUM>=80319
+#if 90104<=PG_VERSION_NUM || \
+	90008<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
+	80412<=PG_VERSION_NUM && PG_VERSION_NUM<90000 || \
+	80319<=PG_VERSION_NUM && PG_VERSION_NUM<80400
 #define NEED_MISCADMIN_FOR_STACK_BASE
 #define _STACK_BASE_TYPE pg_stack_base_t
 #define _STACK_BASE_SET saveStackBasePtr = set_stack_base()

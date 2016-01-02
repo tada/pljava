@@ -44,7 +44,7 @@ Java_org_postgresql_pljava_internal_Session__1setUser(
 	 * a finally block after an exception.
 	 */
 	BEGIN_NATIVE_NO_ERRCHECK
-#if PG_VERSION_NUM>=90000 || PG_VERSION_NUM>=80300 || PG_VERSION_NUM>=80206
+#if PG_VERSION_NUM>=80206
 	GetUserIdAndContext(&dummy, &wasLocalChange);
 	SetUserIdAndContext(AclId_getAclId(aclId), (bool)isLocalChange);
 #else
