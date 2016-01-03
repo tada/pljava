@@ -454,7 +454,7 @@ public class JarX {
    * is given.
    * @param mainAttributes as obtained from the manifest
    */
-  protected void setDefaults( Attributes mainAttributes) {
+  public void setDefaults( Attributes mainAttributes) {
     this.mainAttributes = mainAttributes;
 
     classify( mainAttributes, false);
@@ -521,7 +521,7 @@ public class JarX {
    * information. When called by {@code setDefaults}, however, laziness is not
    * appropriate.
    */
-  protected void classify( Attributes atts, boolean lazy) {
+  public void classify( Attributes atts, boolean lazy) {
     treatment = defaultTreatment;
     archiveCharset = defaultArchiveCharset;
     unpackedCharset = defaultUnpackedCharset;
@@ -718,10 +718,7 @@ public class JarX {
       }
     }
     
-    if ( BYTES == treatment )
-      shovelBytes( is, os);
-    else
-      shovelText( is, os);
+    shovel( is, os);
     
     os.close();
 
@@ -739,6 +736,21 @@ public class JarX {
     }
 
     tmpf.renameTo( f);
+  }
+
+  /**Copy content from an input to an output stream until end.
+   * Whether the content is shoveled as bytes, characters, or lines will be
+   * determined by instance variables that have been set by calling
+   * {@link #classify(Attributes,boolean) classify} before calling this method.
+   *@param is source of input
+   *@param os destination for output
+   *@throws IOException for any problem involving I/O
+   */
+  public void shovel( InputStream is, OutputStream os) throws IOException {
+    if ( BYTES == treatment )
+      shovelBytes( is, os);
+    else
+      shovelText( is, os);
   }
   
   /**Copy <EM>bytes</EM> from an input to an output stream until end.
