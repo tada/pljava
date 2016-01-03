@@ -24,39 +24,286 @@
 	</target>
 
 	<target name="package" depends="init">
-		<zip destfile="target/pljava-${suffix}.zip">
-			<concat resourcename="pljava/sharedir/extension/pljava.control">
-				<fileset dir="target/classes" includes="pljava.control"/>
-				<filterchain>
-					<fixcrlf eol="crlf" eof="remove"/>
-				</filterchain>
-			</concat>
-			<concat resourcename=
-				"pljava/sharedir/pljava/pljava--${project.version}.sql">
-				<fileset dir="target/classes" includes="pljava.sql"/>
-				<filterchain>
-					<fixcrlf eol="crlf" eof="remove"/>
-				</filterchain>
-			</concat>
-			<concat resourcename=
-			"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql">
-				<fileset dir="target/classes"
-					includes="pljava--unpackaged.sql"/>
-				<filterchain>
-					<fixcrlf eol="crlf" eof="remove"/>
-				</filterchain>
-			</concat>
-			<zipfileset dir="target/classes" prefix="pljava/sharedir/pljava/"
-				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>
-			<zipfileset dir="../pljava/target" includes="pljava*.jar"
-				prefix="pljava/sharedir/pljava/"/>
-			<zipfileset dir="../pljava-examples/target"
-				includes="pljava-examples*.jar"
-				prefix="pljava/sharedir/pljava"/>
-			<zipfileset prefix="pljava/pkglibdir/" filemode="755" dir=
+
+		<!--
+			Create a new ant task <jarxbuild> for building a jar that self-
+			extracts by including org/gjt/cuspy/JarX.class. <jarxbuild> takes
+			one attribute, destfile= (which should be absolute, consider
+			specifying ${basedir} at the front). To specify what goes IN the
+			jar, supply nested zipfileset elements; that class was chosen
+			because it already supports prefix=, fullpath=, and filemode=
+			attributes to control the stored path and permission info, as well
+			as all the scanning/inclusion/exclusion rules you could want. But by
+			itself, it isn't enough to tell JarX which files are binary or text,
+			or the encodings of the text files. That is conveyed by which alias
+			is used for each zipfileset. That is, you don't literally use
+			nested <zipfileset> elements, but instead <binary>, <ascii>, or
+			<utf8> elements, which all are zipfilesets behind the scenes and
+			have all the same attributes and elements. Any files supplied in
+			a <binary> element will be archived and unarchived unchanged.
+			Files supplied in an <ascii> or <utf8> element will be treated as
+			text and have their line endings converted to local conventions on
+			extraction; they won't be transcoded, but will be stored in and
+			extracted from the jar in the specified encoding (and verified to
+			be well-formed in it). That obviously isn't a fully-general way to
+			specify the text handling, but it gets the job done, and if you have
+			another case to handle, just add another zipfileset <element> with
+			another name, and edit the javascript below to know what to do
+			with it.
+
+			To emphasize, files given in an <ascii> or <utf8> element are
+			extracted in exactly that encoding on any target platform regardless
+			of the platform's default encoding. That's appropriate for an
+			extension .control file (which must be <ascii> because PostgreSQL
+			assumes it), and any extension .sql scripts we supply (which must
+			be <utf8> because the .control file says so). It's possible that
+			for some other text files we might include (general docs or
+			what not), it would be nicer to let them be extracted into the
+			platform's default encoding (achieved by specifying a fixed value
+			such as UTF-8 for _JarX_CharsetInArchive while entirely omitting
+			_JarX_CharsetWhenUnpacked). But at the moment no such files are
+			being included, so I haven't provided another element name to give
+			that behavior.
+
+			There has to be a <binary> element supplying JarX.class itself.
+
+			The <jarxbuild> task also accepts nested text, which will be treated
+			as a path-resolver script (the language is assumed to be
+			application/javascript; I'm lazy). It will be stuffed into the
+			manifest in a form that survives manifest line-wrapping, and JarX
+			will use it at extraction time to rewrite pathnames. In this case,
+			that script (see further below) will use pg_config or system
+			properties to determine the extraction paths.
+		-->
+
+		<scriptdef name='jarxbuild' language='javascript'>
+			<attribute name='destfile'/>
+			<element type='zipfileset' name='binary'/>
+			<element type='zipfileset' name='ascii'/>
+			<element type='zipfileset' name='utf8'/>
+			<classpath>
+				<pathelement path='${classpath}'/>
+				<pathelement location='target/classes'/> <!-- JarX is there -->
+			</classpath>
+<![CDATA[
+var manifest = new java.util.jar.Manifest();
+var sections = manifest.getEntries();
+var mainsect = manifest.getMainAttributes();
+mainsect.putValue('Manifest-Version', '1.0');
+mainsect.putValue('Created-By', project.getProperty('project.name') + ' ' +
+								project.getProperty('project.version'));
+mainsect.putValue('Main-Class', 'org.gjt.cuspy.JarX');
+
+/* Declare default permissions for entries that don't have their own.
+ */
+mainsect.putValue('_JarX_Permissions', 'read=all,write=none,execute=none');
+
+/* Munge a name (obtained directly from a resource in a fileset) according to
+   the prefix or fullpath given for the fileset itself.
+ */
+function munge(rsrc, fileset) {
+	var fullpath = fileset.getFullpath(project);
+	var prefix = fileset.getPrefix(project);
+	var n = rsrc.getName();
+	if ( !(null === fullpath || '' == fullpath) )
+		n = fullpath;
+	else if ( !(null === prefix) )
+		n = prefix + n;
+	return n;
+}
+
+/* Given one fileset, compute a set of manifest per-entry attributes from the
+   specified charset (caller supplied according to the alias name that was used
+   for the fileset) and file mode specified on the fileset, if any, then enter
+   a manifest section with those attributes for every resource name in the
+   fileset. Caller supplies charset === null for a fileset to be treated as
+   binary.
+ */
+function mksections(charset, fileset) {
+	var atts = new java.util.jar.Attributes();
+	if ( !(null === charset) ) {
+		atts.putValue('Content-Type', 'text/plain');
+		atts.putValue('_JarX_CharsetInArchive', charset);
+		atts.putValue('_JarX_CharsetWhenUnpacked', charset);
+	}
+	if ( fileset.hasFileModeBeenSet() ) {
+		var m = fileset.getFileMode(project) - 32768; /* don't ask me why */
+		if ( 0444 == m )
+			atts.putValue('_JarX_Permissions',
+							'read=all,write=none,execute=none');
+		else if ( 0555 == m )
+			atts.putValue('_JarX_Permissions',
+							'read=all,write=none,execute=all');
+		else
+			self.fail('File mode '+m+' not covered in script.');
+	}
+	var it = fileset.iterator();
+	while ( it.hasNext() ) {
+		var rsrc = it.next();
+		sections.put(munge(rsrc, fileset), atts);
+	}
+}
+
+/* Given a fileset and JarOutputStream, for each resource look up the manifest
+   per-entry section earlier created, pass that to builder.classify() to set
+   how shovel() will handle the contents, then make the next jar entry and
+   shovel the resource contents in.
+ */
+function storeset(fileset, jos) {
+	var it = fileset.iterator();
+	while ( it.hasNext() ) {
+		var rsrc = it.next();
+		var n = munge(rsrc, fileset);
+		var atts = sections.get(n);
+		builder.classify(atts, true);
+		var je = new java.util.jar.JarEntry(n);
+		jos.putNextEntry(je);
+		var instream = rsrc.getInputStream();
+		print(n+' ');
+		builder.shovel(instream, jos);
+		jos.closeEntry();
+	}
+}
+
+/* If there is text nested in the <jarxbuild> element, it is a path-resolver
+   script. Munge it to the manifest-attribute-linewrap-resistant style JarX
+   expects (first \-escape every \ and " then turn every line ending to the
+   three characters "/" then add " at start and end), and place into the main
+   manifest section as _JarX_PathResolver, with the language tag
+   application/javascript (hardcoded here, you weren't thinking of using
+   a different script language anyway).
+ */
+var pathresolver = self.text.trim() + ''; /* ensure js string not java string */
+if ( !(null === pathresolver || '' == pathresolver) ) {
+	pathresolver = pathresolver.replace(/["\\]/g, "\\$&");
+	pathresolver = pathresolver.replace(/\r\n?|\n/g, '"/"');
+	pathresolver = '"' + pathresolver + '"';
+	mainsect.putValue('_JarX_PathResolver',
+						'application/javascript' + pathresolver);
+}
+
+/* For each element name that can be used to supply a zipfileset, get all the
+   zipfilesets supplied under that name and pass them to mksections with the
+   appropriate charset parameter according to the element name.
+ */
+var binary = elements.get("binary");
+for ( i = 0; i < binary.size(); ++i ) {
+	var fset = binary.get(i);
+	mksections(null, fset);
+}
+var ascii = elements.get("ascii");
+for ( i = 0; i < ascii.size(); ++i ) {
+	var fset = ascii.get(i);
+	mksections('US-ASCII', fset);
+}
+var utf = elements.get("utf8");
+for ( i = 0; i < utf.size(); ++i ) {
+	var fset = utf.get(i);
+	mksections('UTF-8', fset);
+}
+
+/* Set up the output archive...
+ */
+var builder = new org.gjt.cuspy.JarX.Build();
+builder.setDefaults(mainsect);
+var destf = attributes.get('destfile');
+var fos = new java.io.FileOutputStream(destf);
+var jos = new java.util.jar.JarOutputStream(fos, manifest);
+
+/* Go through the supplied filesets once again, passing them to storeset...
+ */
+for ( i = 0; i < binary.size(); ++i ) {
+	var fset = binary.get(i);
+	storeset(fset, jos);
+}
+for ( i = 0; i < ascii.size(); ++i ) {
+	var fset = ascii.get(i);
+	storeset(fset, jos);
+}
+for ( i = 0; i < utf.size(); ++i ) {
+	var fset = utf.get(i);
+	storeset(fset, jos);
+}
+
+/* And finalize the output.
+ */
+jos.close();
+]]>
+		</scriptdef>
+
+		<!-- Now build the jar using the <jarxbuild> task just created. -->
+
+		<jarxbuild destfile="${basedir}/target/pljava-${suffix}.jar">
+			<binary dir="target/classes" includes="**/JarX.class"/>
+			<binary prefix="pljava/pkglibdir/" filemode="555" dir=
 "../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
 				includes="**/*pljava-so*"/>
-		</zip>
+			<binary dir="../pljava/target" includes="pljava*.jar"
+				prefix="pljava/sharedir/pljava/"/>
+			<binary dir="../pljava-examples/target"
+				includes="pljava-examples*.jar"
+				prefix="pljava/sharedir/pljava/"/>
+			<ascii dir="target/classes" includes="pljava.control"
+				prefix="pljava/sharedir/extension/"/>
+			<utf8 dir="target/classes" includes="pljava.sql"
+				fullpath="pljava/sharedir/pljava/pljava--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--unpackaged.sql"
+				fullpath=
+			"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" prefix="pljava/sharedir/pljava/"
+				includes="*.sql" excludes="pljava.sql pljava--unpackaged.sql"/>			
+<!-- If editing the script below, expand tabs to spaces (at 4 columns, and only
+	 for the lines of the script) before saving. Line-wrapped into the manifest,
+	 it looks horrible with tabs.
+-->
+<![CDATA[
+/*
+    At extraction time, JarX invokes this for each entry, with these bindings:
+    properties   - the Java system properties object
+    storedPath   - the full path of the archive member as stored
+                   in the archive
+    platformPath - the name after changing only file.separator
+                   for the platform (if different from /)
+    computedPath - initially the same as platformPath
+    If the script updates computedPath, that is where the member
+    will be extracted.
+*/
+var re = new RegExp('^pljava/([^/]+dir)(?![^/])');
+var found = re.exec(storedPath);
+if (found) {
+    var prefix = found[0];
+    var key = found[1];
+    var propkey = 'pgconfig.' + key;
+    var replacement = properties.getProperty(propkey);
+    if ( null === replacement ) {
+        var pgc = properties.getProperty('pgconfig');
+        if ( null === pgc )
+            pgc = 'pg_config';
+        var pb = new java.lang.ProcessBuilder(pgc, '--'+key);
+        pb.redirectErrorStream(true);
+        var proc = pb.start();
+        var instream = proc.getInputStream();
+        var scanner =
+            new java.util.Scanner(instream).useDelimiter('\\A');
+        var output = scanner.next();
+        var status = proc.waitFor();
+        if ( 0 != status ) {
+            java.lang.System.err.println(
+                'ERROR: pg_config status is '+status+':\n'+output);
+            java.lang.System.exit(1);
+        }
+        replacement = output.trim();
+        properties.setProperty(propkey, replacement);
+    }
+    var fsep = properties.getProperty('file.separator');
+    var plen = fsep.length() - 1; /* original separator had length 1 */
+    plen += prefix.length;
+    computedPath = replacement + computedPath.slice(plen);
+}
+]]>
+		</jarxbuild>
 	</target>
 	
 </project>
