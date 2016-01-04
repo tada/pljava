@@ -30,16 +30,23 @@ extern char const *pljavaLoadPath;
  * temporary table in the sqlj schema; if it's there, created by PL/Java's
  * extension script, then the extension being created is PL/Java itself, so
  * set pljavaLoadingAsExtension and pljavaLoadPath accordingly. Otherwise
- * PL/Java is just being mentioned while creating some other extension, so set
- * pljavaInExtension. If an extension is not being created, just check for a
- * LOAD command and set pljavaLoadPath accordingly.
+ * PL/Java is just being mentioned while creating some other extension.
+ * If an extension is not being created, just check for a LOAD command and
+ * set pljavaLoadPath accordingly.
  *
- * Only called from _PG_init, which only calls once.
+ * When called from _PG_init, which only calls once, the argument is null,
+ * indicating that the static result variables should be set. If the address of
+ * a boolean is provided, the static variables are not set, and the supplied
+ * boolean is set true if an extension is being created. (It is not touched if
+ * an extension is not being created.) That serves the case
+ * where PL/Java is already loaded, sqlj.install_jar has been called, and needs
+ * to know if the jar is being installed as part of an(other) extension. Such
+ * PL/Java-managed extensions aren't supported yet, but the case has to be
+ * recognized, even if only to say "you can't do that yet."
  */
-extern void pljavaCheckExtension();
+extern void pljavaCheckExtension(bool*);
 
 extern bool pljavaLoadingAsExtension;
-extern bool pljavaInExtension;
 
 /*
  * Another way of getting the library path: if invoked by the fmgr before

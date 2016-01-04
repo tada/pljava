@@ -550,6 +550,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_COMPLETE;
 
 	case IS_COMPLETE:
+		pljavaLoadingAsExtension = false;
 		if ( alteredSettingsWereNeeded )
 		{
 			/* Use this StringInfoData to conditionally construct part of the
@@ -717,7 +718,7 @@ void _PG_init()
 {
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
-	pljavaCheckExtension();
+	pljavaCheckExtension( NULL);
 	initsequencer( initstage, true);
 }
 
@@ -755,6 +756,11 @@ static void initPLJavaClasses(void)
 		"_clearFunctionCache",
 		"()V",
 		Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache
+		},
+		{
+		"_isCreatingExtension",
+		"()Z",
+		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
 		},
 		{ 0, 0, 0 }
 	};
@@ -1580,4 +1586,17 @@ Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache(JNIEnv* env, jc
 	BEGIN_NATIVE_NO_ERRCHECK
 	Function_clearFunctionCache();
 	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _isCreatingExtension
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, jclass cls)
+{
+	bool inExtension = false;
+	pljavaCheckExtension( &inExtension);
+	return inExtension ? JNI_TRUE : JNI_FALSE;
 }

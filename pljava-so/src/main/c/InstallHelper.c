@@ -50,6 +50,19 @@
 #define CppAsString2(x) CppAsString(x)
 #endif
 
+/*
+ * Before 9.1, there was no creating_extension. Before 9.5, it did not have
+ * PGDLLIMPORT and so was not visible in Windows. In either case, just define
+ * it to be false, but also define CREATING_EXTENSION_HACK if on Windows and
+ * it needs to be tested for in some roundabout way.
+ */
+#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
+#define creating_extension false
+#if PG_VERSION_NUM >= 90100
+#define CREATING_EXTENSION_HACK
+#endif
+#endif
+
 #ifndef PLJAVA_SO_VERSION
 #error "PLJAVA_SO_VERSION needs to be defined to compile this file."
 #else
@@ -60,13 +73,12 @@ static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
 
-static void checkLoadPath();
+static void checkLoadPath( bool *livecheck);
 static void getExtensionLoadPath();
 
 char const *pljavaLoadPath = NULL;
 
 bool pljavaLoadingAsExtension = false;
-bool pljavaInExtension = false;
 
 Oid pljavaTrustedOid = InvalidOid;
 
@@ -77,31 +89,43 @@ char *pljavaDbName()
 	return MyProcPort->database_name;
 }
 
-void pljavaCheckExtension()
+void pljavaCheckExtension( bool *livecheck)
 {
-#if PG_VERSION_NUM < 90100
-	checkLoadPath();
-	return;
-#else
 	if ( ! creating_extension )
 	{
-		checkLoadPath();
+		checkLoadPath( livecheck);
+		return;
+	}
+	if ( NULL != livecheck )
+	{
+		*livecheck = true;
 		return;
 	}
 	getExtensionLoadPath();
 	if ( NULL != pljavaLoadPath )
 		pljavaLoadingAsExtension = true;
-	else
-		pljavaInExtension = true;
-#endif
 }
 
-static void checkLoadPath()
+/*
+ * As for pljavaCheckExtension, livecheck == null when called from _PG_init
+ * (when the real questions are whether PL/Java itself is being loaded, from
+ * what path, and whether or not as an extension). When livecheck is not null,
+ * PL/Java is already alive and the caller wants to know if an extension is
+ * being created for some other reason. That wouldn't even involve this
+ * function, except for the need to work around creating_extension visibility
+ * on Windows. So if livecheck isn't null, this function only needs to proceed
+ * as far as the CREATING_EXTENSION_HACK and then return.
+ */
+static void checkLoadPath( bool *livecheck)
 {
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
 
+#ifndef CREATING_EXTENSION_HACK
+	if ( NULL != livecheck )
+		return;
+#endif
 	if ( NULL == ActivePortal )
 		return;
 	l = ActivePortal->stmts;
@@ -116,6 +140,21 @@ static void checkLoadPath()
 		return;
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
+#ifdef CREATING_EXTENSION_HACK
+		if ( T_CreateExtensionStmt == nodeTag(ut) )
+		{
+			if ( NULL != livecheck )
+			{
+				*livecheck = true;
+				return;
+			}
+			getExtensionLoadPath();
+			if ( NULL != pljavaLoadPath )
+				pljavaLoadingAsExtension = true;
+		}
+#endif
+		return;
+	if ( NULL != livecheck )
 		return;
 	ls = (LoadStmt *)ut;
 	if ( NULL == ls->filename )
