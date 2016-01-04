@@ -66,3 +66,9 @@ ALTER EXTENSION pljava ADD TABLE sqlj.typemap_entry;
 ALTER EXTENSION pljava ADD SEQUENCE sqlj.jar_entry_entryid_seq;
 ALTER EXTENSION pljava ADD SEQUENCE sqlj.jar_repository_jarid_seq;
 ALTER EXTENSION pljava ADD SEQUENCE sqlj.typemap_entry_mapid_seq;
+
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_repository', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_entry', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_descriptor', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.classpath_entry', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.typemap_entry', '');
