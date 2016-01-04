@@ -98,13 +98,37 @@ mainsect.putValue('Main-Class', 'org.gjt.cuspy.JarX');
  */
 mainsect.putValue('_JarX_Permissions', 'read=all,write=none,execute=none');
 
+/* Declare a function pathxfrm(p) if needed to convert from this platform's
+   file separator to the / used in the jar (just an identity function
+   if they are the same). The overcomplicated look is mostly to avoid using
+   replace(), which is a method (with different behavior) on both Java and
+   JavaScript strings, and Rhino and Nashorn have different rules about which
+   one you get.
+ */
+var filesep = project.getProperty('file.separator');
+if ( filesep == '/' ) {
+	function pathxfrm(p) {
+		return p;
+	}
+} else {
+	var fseprx =
+	java.util.regex.Pattern.compile(filesep, java.util.regex.Pattern.LITERAL);
+	function pathxfrm(p) {
+		return p.replaceAll(fseprx, '/');
+	}
+}
+
 /* Munge a name (obtained directly from a resource in a fileset) according to
    the prefix or fullpath given for the fileset itself.
  */
 function munge(rsrc, fileset) {
 	var fullpath = fileset.getFullpath(project);
 	var prefix = fileset.getPrefix(project);
-	var n = rsrc.getName();
+	var n = pathxfrm(rsrc.getName());
+	/*
+	 * The fullpath or prefix parts do not need to be pathxfrm()d; they are
+	 * defined here in build.xml with / as the separator already.
+	 */
 	if ( !(null === fullpath || '' == fullpath) )
 		n = fullpath;
 	else if ( !(null === prefix) )
