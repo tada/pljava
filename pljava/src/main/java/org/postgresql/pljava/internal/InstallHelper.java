@@ -61,7 +61,7 @@ public class InstallHelper
 		setPropertyIfNull( "org.postgresql.datadir", datadir);
 		setPropertyIfNull( "org.postgresql.libdir", libdir);
 		setPropertyIfNull( "org.postgresql.sharedir", sharedir);
-		setPropertyIfNull( "org.postgresql.etcdir", etcdir);
+		setPropertyIfNull( "org.postgresql.sysconfdir", etcdir);
 		setPropertyIfNull( "org.postgresql.pljava.version", implVersion);
 		setPropertyIfNull( "org.postgresql.pljava.native.version", nativeVer);
 		setPropertyIfNull( "org.postgresql.version",

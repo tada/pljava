@@ -8,35 +8,163 @@
 #set($h2 = '##')
 #set($h3 = '###')
 
-The PL/Java [build process][bld] using `mvn clean install` produces files
-needed to install the language in PostgreSQL, but does not place those
-files in their final locations or configure PostgreSQL to use them.
-Once the build is done, these instructions cover how to make PL/Java available
-in your database. 
+$h2 For the impatient
+
+After completing the [build][bld]:
+
+    java -jar pljava-packaging/target/pljava-pgX.Y-arch-os-link.jar
+    psql
+    CREATE EXTENSION pljava;
+
+where *pgX.Y* represents the PostgreSQL version, and *arch*, *os*, and
+*link* are ... wait, you're impatient, just look in the directory, you'll
+see the jar file there.
+
+*Not running PostgreSQL 9.1 or higher? Use
+`LOAD 'libpljava-so-${project.version}';` instead of the `CREATE EXTENSION`
+command. (It works in later versions too, if you prefer it to
+`CREATE EXTENSION`.) Using a Mac? Be sure to add `.bundle` at the end of the file name
+in the `LOAD` command. Windows? Remove `lib` from the front. Something else?
+Keep reading.*
+
+You may get a message that some configuration variable must be set.
+If so, keep reading.
+
+$h3 What the above will do
+
+The jar file produced in `pljava-packaging/target` at the end of the build
+contains all the files needed to install PL/Java, and it is self-extracting
+when simply run with `java -jar`. It does not contain any complicated,
+black-box installer, and if you prefer, it is just as easy to extract
+normally with the `jar` command or any `zip` tool, in which case you will
+see that it contains files at symbolic paths such as
+
+    pljava/pkglibdir/...
+    pljava/sharedir/...
+
+which you can move to wherever you like. Those names are based on
+the options you would pass to `pg_config` to find
+the right locations for your PostgreSQL setup, and that is exactly
+what the self-extractor does. Assuming it is run with the permissions needed
+to write there, it will put the PL/Java files into the expected locations,
+so that `CREATE EXTENSION` will find it without much configuration needed.
+
+Because that is done by the extractor, you can take the built jar file to
+other PostgreSQL installations, even with other filesystem layouts, and
+it will put the files in the right places there too.
+
+It has to be able to find `pg_config`, and if you have more than one
+installation of PostgreSQL on the machine, it has to find the *right*
+`pg_config`. You can either arrange the path in your environment so
+the right `pg_config` comes first, or specify it with `-Dpgconfig=` on
+the command line:
+
+    java -Dpgconfig=/local/pgsql/bin/pg_config -jar pljava-packaging/...
+
+All of the standard install locations can also be changed with `-D`
+options:
+
+    java -Dpgconfig.sharedir=/local/foo -jar pljava-packaging/...
+
+would cause all the files that would normally go in the configured
+share directory to be placed in `/local/foo` instead. You can therefore
+install PL/Java in many situations where you might not have write access
+to the standard locations, or might have other reasons to prefer
+giving the files another location.
+
+If you change locations, you will probably have to adjust some of PL/Java's
+configuration variables to match, before installation will succeed. For that,
+you will have to become patient, and read the rest of this page.
+
+**You will most probably have to set `pljava.libjvm_location`.** See the
+next section.
+
+*One last small thing the extractor does, that won't automatically happen if
+you extract with other tools, is make sure the text files have the right
+line-ending style for your system. Everything will still work, and there
+are easy fixes if you open them in an editor and they look funny. As long
+as you just extract with `java -jar` the self-extractor takes care of it
+for you.*
+
+$h2 PL/Java configuration variables
+
+PL/Java has configuration variables for most important file locations.
+One that you will *almost always have to set* is `pljava.libjvm_location`
+because the PL/Java installer doesn't control where different platforms
+and packagers put the Java files. *(If it did, things would be a lot
+more organized, have no doubt.)*
+
+You can set these variables within a database session, before issuing
+the `LOAD` or `CREATE EXTENSION` command. (In case you don't always get
+things right on the first try, you might set them after, too.) For example:
+
+    SET pljava.libjvm_location TO '/usr/lib/jvm/java-1.8.0/lib/...';
+
+`pljava.libjvm_location`
+: You are looking for a file named `libjvm` with extension `.so`, `.dll`,
+    or `.dylib` typically, buried a few directories/folders down in the
+    location where Java is installed. If more than one Java version is
+    installed, be sure to find the library from the version you want
+    PL/Java to use. See [locating libjvm][jvmloc] for help finding it.
+    Then set this variable to the full pathname, including the filename
+    and extension.
+
+`pljava.classpath`
+: There is probably no need to set this variable unless installation locations
+    were changed, in which case, it should be set to the final installed full
+    pathname of the file that is called
+    `pljava/sharedir/pljava/pljava-${project.version}.jar` in the installer jar.
+    Note: this variable isn't meant to point to the code you develop and
+    use in PL/Java--that's what the [`sqlj.install_jar function`][sqjij]
+    is for.
+
+[sqjij]: https://github.com/tada/pljava/wiki/SQL-functions
+
+Those two are not the only PL/Java configuration variables there are,
+but it is unlikely you would have to change any others before installation
+succeeds. For the rest, there is a [configuration variable reference][varref]
+page.
 
 [bld]: ../build/build.html
 
-The successful build will have produced two important files:
-
-* The PL/Java `jar` file, which contains Java classes, so it is
-    architecture-independent.
-
-* The PL/Java native library, which is architecture-specific. Its filename
-    extension can depend on the operating system: `.so` on many systems,
-    `.dll` on Windows, `.bundle` on Mac OS X / Darwin.
-
-For a final installation, you will want to copy these files from the build tree
-to more permanent locations, though a quick test that PL/Java works can be made
-with the files right where they are. See [locating the built files][locate] for
-how to find their exact names in your build tree.
-
-A third path name you will need to know is the one to your Java Runtime
-Environment's `libjvm` shared object (`.so`, `.dll`, etc.), usually a few
-levels deep under the directory where Java is installed on your platform.
-See [locating libjvm][jvmloc] for help finding it.
+One thing you can do with the configuration settings is quickly test that
+you have built a working PL/Java before installing the files in any permanent
+location. As long as the database server has access to the files in the
+build tree, you can start a session and set the variables to point to them,
+for a quick simple test. See [locating the built files][locate] for
+how to find their exact names in your build tree. After testing, you would
+probably put the files in more permanent locations and discard the temporary
+variable settings.
 
 [locate]: locate.html
 [jvmloc]: locatejvm.html
+
+$h2 Making the configuration settings persistent
+
+If you have loaded PL/Java successfully after making necessary changes to
+some `pljava.*` variables, and the files are in the final locations where
+you want them, you will want your variable settings to stick. The simplest
+way is to reissue the same `SET` commands as
+`ALTER DATABASE ` *databasename* ` SET ` *variablename* ` FROM CURRENT`
+commands, which will preserve the current settings and make them effective
+when any user connects to the same database.
+
+Another approach is to save them to the server's configuration file.
+If you wish PL/Java to be available for all databases in a cluster, it may
+be more convenient to put the settings in the file than to issue
+`ALTER DATABASE` for several databases, but `pg_ctl reload` will be needed
+to make changed settings effective. Starting with PostgreSQL 9.4,
+`ALTER SYSTEM` may be used as an alternative to editing the file.
+
+If you have several databases in the cluster and you favor the
+`CREATE EXTENSION` way of installing PL/Java, setting the variables
+with `ALTER SYSTEM` or the cluster-wide configuration file will make
+sure that `CREATE EXTENSION` just works, in any database where PL/Java
+is wanted. Different per-database settings can still be made if one
+database needs them.
+
+For PostgreSQL releases [earlier than 9.2][pre92], the configuration file is
+the _only_ way to make your settings persistent.
 
 $h2 Special topics
 
@@ -50,13 +178,19 @@ Be sure to read these additional sections if:
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
 
-$h2 Install, configure, check
+$h2 More background and special considerations
+
+These last sections cover a little more of what happens under the hood.
+`CREATE EXTENSION` wraps these details up nicely, but they may still be
+of interest for particular needs.
+
+$h3 Install, configure, check
 
 Because PL/Java, by design, runs entirely in the backend process created
 for each connection to PostgreSQL, to configure it does not require any
 cluster-wide actions such as stopping or restarting the server, or editing
 the configuration file; any necessary settings can be made in SQL over
-an ordinary connection.
+an ordinary connection (in PostgreSQL 9.2 and later, anyway).
 
 _Caution: if you are installing a new, little-tested PL/Java build, be aware
 that in the unexpected case of a crash, the `postmaster` will kick other
@@ -159,21 +293,3 @@ $h3 PostgreSQL superuser, OS user distinct from the user running postgres
 In this case, simply place the files in any location where you can make them
 readable by the user running `postgres`, and set the `pljava.*` variables
 accordingly.
-
-$h2 Making the configuration settings persistent
-
-If you have loaded PL/Java successfully after making necessary changes to
-some `pljava.*` variables, you will want those settings to stick. The simplest
-way is to reissue the same `SET` commands as
-`ALTER DATABASE ` *databasename* ` SET ...` commands, which will be effective
-when any user connects to the same database.
-
-Another approach is to save them to the server's configuration file.
-If you wish PL/Java to be available for all databases in a cluster, it may
-be more convenient to put the settings in the file than to issue
-`ALTER DATABASE` for several databases, but `pg_ctl reload` will be needed
-to make changed settings effective. Starting with PostgreSQL 9.4,
-`ALTER SYSTEM` may be used as an alternative to editing the file.
-
-For PostgreSQL releases [earlier than 9.2][pre92], the configuration file is
-the _only_ way to make your settings persistent.
