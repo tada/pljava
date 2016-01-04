@@ -1,5 +1,13 @@
 # Installing PL/Java
 
+## This is a comment, according to Apache Velocity, which is why you'll see
+## extraordinary measures taken below to make ## or lower level headings....
+## Also, if you do not know all the ins and outs of the Velocity template
+## language and would like to spend less time than I did to find the docs:
+## http://velocity.apache.org/engine/devel/user-guide.html
+#set($h2 = '##')
+#set($h3 = '###')
+
 The PL/Java [build process][bld] using `mvn clean install` produces files
 needed to install the language in PostgreSQL, but does not place those
 files in their final locations or configure PostgreSQL to use them.
@@ -30,7 +38,7 @@ See [locating libjvm][jvmloc] for help finding it.
 [locate]: locate.html
 [jvmloc]: locatejvm.html
 
-## Special topics
+$h2 Special topics
 
 Be sure to read these additional sections if:
 
@@ -42,7 +50,7 @@ Be sure to read these additional sections if:
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
 
-## Install, configure, check
+$h2 Install, configure, check
 
 Because PL/Java, by design, runs entirely in the backend process created
 for each connection to PostgreSQL, to configure it does not require any
@@ -82,7 +90,7 @@ if you need it.
 
 [varref]: ../use/variables.html
 
-### Choosing where to place the files
+$h3 Choosing where to place the files
 
 Exactly where you place the files, and what pathnames you use in the
 above commands, can depend on your situation:
@@ -99,7 +107,7 @@ above commands, can depend on your situation:
 
 The rest of this page will cover those cases. First, the quick check.
 
-### A quick install check
+$h3 A quick install check
 
 For a quick sanity test, there is no need to move the built files to more
 permanent locations, as long as the build tree location and permissions are
@@ -109,7 +117,7 @@ pathnames directly in the `SET` and `LOAD` commands.
 For the lowest-impact quick test, begin a transaction first, load PL/Java
 and run [any tests you like][examples], then roll the transaction back.
 
-### OS superuser or distribution maintainer
+$h3 OS superuser or distribution maintainer
 
 If you fall in this category, you can minimize configuration within
 PostgreSQL by placing the built files into standard locations,
@@ -120,7 +128,7 @@ given just the basename of the file instead of a full path. Or, if
 `dynamic_library_path` is already set, the file can be placed in any
 directory on that list for the same effect.
 
-If the `pljava-${project.version}.jar` file is placed in the default location
+If the `pljava-\${project.version}.jar` file is placed in the default location
 (typically a `pljava` subdirectory of the PostgreSQL "share" directory), then
 `pljava.classpath` will not need to be set.
 
@@ -133,7 +141,7 @@ PL/Java variables, and with the built files in those locations.
 
 _Todo: add maven build options usable by distro spinners to set those defaults._
 
-### PostgreSQL superuser with access as user running postgres
+$h3 PostgreSQL superuser with access as user running postgres
 
 If you are not a superuser on the OS, you may not be able to place the
 PL/Java files in the default locations PostgreSQL was built with.
@@ -146,13 +154,13 @@ include its location, and give only the basename to `LOAD`.
 If you would rather ensure that the user running `postgres`, if compromised,
 could not modify these files, then the next case will be more appropriate.
 
-### PostgreSQL superuser, OS user distinct from the user running postgres
+$h3 PostgreSQL superuser, OS user distinct from the user running postgres
 
 In this case, simply place the files in any location where you can make them
 readable by the user running `postgres`, and set the `pljava.*` variables
 accordingly.
 
-## Making the configuration settings persistent
+$h2 Making the configuration settings persistent
 
 If you have loaded PL/Java successfully after making necessary changes to
 some `pljava.*` variables, you will want those settings to stick. The simplest
