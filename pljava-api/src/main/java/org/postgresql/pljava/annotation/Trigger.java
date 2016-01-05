@@ -27,7 +27,7 @@ public @interface Trigger
 	/**
 	 * Whether the trigger is invoked before or after the specified event.
 	 */
-	enum When { BEFORE, AFTER };
+	enum Called { BEFORE, AFTER, INSTEAD_OF };
 
 	/**
 	 * Types of event that can occasion a trigger.
@@ -73,8 +73,22 @@ public @interface Trigger
 	Scope scope() default Scope.STATEMENT;
 	
 	/**
-	 * Denotes if the trigger is fired before or after its
+	 * Denotes if the trigger is fired before, after, or instead of its
 	 * scope (row or statement)
 	 */
-	When when();
+	Called called();
+
+	/**
+	 * A boolean condition limiting when the trigger can be fired.
+	 * This text is injected verbatim into the generated SQL, after
+	 * the keyword {@code WHEN}.
+	 */
+	String when() default "";
+
+	/**
+	 * A list of columns (only meaningful for an UPDATE trigger). The trigger
+	 * will only fire for update if at least one of the columns is mentioned
+	 * as a target of the update command.
+	 */
+	String[] columns() default {};
 }

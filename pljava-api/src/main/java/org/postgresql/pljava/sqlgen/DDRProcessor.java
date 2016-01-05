@@ -964,7 +964,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String      schema() { return _schema; }
 		public String       table() { return _table; }
 		public Scope        scope() { return _scope; }
-		public When          when() { return _when; }
+		public Called      called() { return _called; }
+		public String        when() { return _when; }
+		public String[]   columns() { return _columns; }
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
@@ -976,7 +978,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String   _schema;
 		public String  	_table;
 		public Scope    _scope;
-		public When     _when;
+		public Called   _called;
+		public String   _when;
+		public String[] _columns;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
@@ -990,10 +994,33 @@ hunt:	for ( ExecutableElement ee : ees )
 		public boolean characterize()
 		{
 			if ( Scope.ROW.equals( _scope) )
+			{
 				for ( Event e : _events )
 					if ( Event.TRUNCATE.equals( e) )
 						msg( Kind.ERROR, func.func, origin,
 							"TRUNCATE trigger cannot be FOR EACH ROW");
+			}
+			else if ( Called.INSTEAD_OF.equals( _called) )
+				msg( Kind.ERROR, func.func, origin,
+					"INSTEAD OF trigger cannot be FOR EACH STATEMENT");
+
+			if ( ! "".equals( _when) && Called.INSTEAD_OF.equals( _called) )
+				msg( Kind.ERROR, func.func, origin,
+					"INSTEAD OF triggers do not support WHEN conditions");
+
+			if ( 0 < _columns.length )
+			{
+				if ( Called.INSTEAD_OF.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+						"INSTEAD OF triggers do not support lists of columns");
+				boolean seen = false;
+				for ( Event e : _events )
+					if ( Event.UPDATE.equals( e) )
+						seen = true;
+				if ( ! seen )
+					msg( Kind.ERROR, func.func, origin,
+				"Column list is meaningless unless UPDATE is a trigger event");
+			}
 
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
@@ -1004,11 +1031,27 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE TRIGGER ").append( name()).append( "\n\t");
-			sb.append( when().toString()).append( ' ');
+			switch ( called() )
+			{
+				case BEFORE:	 sb.append( "BEFORE "	 ); break;
+				case AFTER: 	 sb.append( "AFTER "	 ); break;
+				case INSTEAD_OF: sb.append( "INSTEAD OF "); break;
+			}
 			int s = _events.length;
 			for ( Event e : _events )
 			{
 				sb.append( e.toString());
+				if ( Event.UPDATE.equals( e) && 0 < _columns.length )
+				{
+					sb.append( " OF ");
+					int cs = _columns.length;
+					for ( String c : _columns )
+					{
+						sb.append( c);
+						if ( 0 < -- cs )
+							sb.append( ", ");
+					}
+				}
 				if ( 0 < -- s )
 					sb.append( " OR ");
 			}
@@ -1016,7 +1059,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
 			sb.append( table()).append( "\n\tFOR EACH ");
-			sb.append( scope().toString()).append( "\n\tEXECUTE PROCEDURE ");
+			sb.append( scope().toString());
+			if ( ! "".equals( _when) )
+				sb.append( "\n\tWHEN ").append( _when); 
+			sb.append( "\n\tEXECUTE PROCEDURE ");
 			func.appendNameAndParams( sb, false);
 			sb.setLength( sb.length() - 1); // drop closing )
 			s = _arguments.length;
@@ -1045,12 +1091,12 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractAnnotationImpl
 	implements Function, Snippet
 	{
-		public String      complexType() { return _complexType; }
+		public String             type() { return _type; }
 		public String             name() { return _name; }
 		public String           schema() { return _schema; }
 		public OnNullInput onNullInput() { return _onNullInput; }
 		public Security       security() { return _security; }
-		public Type               type() { return _type; }
+		public Effects         effects() { return _effects; }
 		public Trust             trust() { return _trust; }
 		public boolean       leakproof() { return _leakproof; }
 		public int                cost() { return _cost; }
@@ -1062,12 +1108,12 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		ExecutableElement func;
 
-		public String      _complexType;
+		public String      _type;
 		public String      _name;
 		public String      _schema;
 		public OnNullInput _onNullInput;
 		public Security    _security;
-		public Type        _type;
+		public Effects     _effects;
 		public Trust       _trust;
 		public Boolean     _leakproof;
 		int                _cost;
@@ -1137,7 +1183,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			List<? extends TypeMirror> ptms = et.getParameterTypes();
 			int arity = ptms.size();
 
-			if ( ! "".equals( complexType())
+			if ( ! "".equals( type())
 				&& ret.getKind().equals( TypeKind.BOOLEAN) )
 			{
 				complexViaInOut = true;
@@ -1284,8 +1330,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				if ( setof )
 					sb.append( "SETOF ");
-				if ( ! "".equals( complexType()) )
-					sb.append( complexType());
+				if ( ! "".equals( type()) )
+					sb.append( type());
 				else if ( null != setofComponent )
 					sb.append( tmpr.getSQLType( setofComponent, func));
 				else if ( setof )
@@ -1294,11 +1340,11 @@ hunt:	for ( ExecutableElement ee : ees )
 					sb.append( tmpr.getSQLType( func.getReturnType(), func));
 			}
 			sb.append( "\n\tLANGUAGE ");
-			if ( Trust.RESTRICTED.equals( trust()) )
+			if ( Trust.SANDBOXED.equals( trust()) )
 				sb.append( nameTrusted);
 			else
 				sb.append( nameUntrusted);
-			sb.append( ' ').append( type());
+			sb.append( ' ').append( effects());
 			if ( leakproof() )
 				sb.append( " LEAKPROOF");
 			sb.append( '\n');
@@ -1380,15 +1426,15 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.te = te;
 			this.id = id;
 
-			_complexType = id.getRet( ui);
+			_type = id.getRet( ui);
 			_name = ui.name() + '_' + id.getSuffix();
 			_schema = ui.schema();
 			_cost = -1;
 			_rows = -1;
 			_onNullInput = OnNullInput.CALLED;
 			_security = Security.INVOKER;
-			_type = Type.VOLATILE;
-			_trust = Trust.RESTRICTED;
+			_effects = Effects.VOLATILE;
+			_trust = Trust.SANDBOXED;
 			_leakproof = false;
 			_settings = new String[0];
 			_triggers = new Trigger[0];
@@ -1427,11 +1473,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			return false;
 		}
 
-		public void setComplexType( Object o, boolean explicit, Element e)
+		public void setType( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
 				msg( Kind.ERROR, e,
-					"The complexType of a UDT function may not be changed");
+					"The type of a UDT function may not be changed");
 		}
 
 		public void setRows( Object o, boolean explicit, Element e)

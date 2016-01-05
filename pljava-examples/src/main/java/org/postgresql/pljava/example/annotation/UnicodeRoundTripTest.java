@@ -109,7 +109,7 @@ public class UnicodeRoundTripTest {
 	 * @param rs OUT (matched, cparray, s) as described above
 	 * @return true to indicate the OUT tuple is not null
 	 */
-	@Function(complexType="unicodetestrow",
+	@Function(type="unicodetestrow",
 		requires="unicodetestrow type", provides="unicodetest fn")
 	public static boolean unicodetest(String s, int[] ints, ResultSet rs)
 	throws SQLException {

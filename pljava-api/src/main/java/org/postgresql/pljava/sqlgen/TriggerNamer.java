@@ -29,7 +29,12 @@ class TriggerNamer
 	{
 		StringBuilder bld = new StringBuilder();
 		bld.append("trg_");
-		bld.append((t.when() == Trigger.When.BEFORE) ? 'b' : 'a');
+		switch ( t.called() )
+		{
+			case     BEFORE: bld.append( 'b'); break;
+			case      AFTER: bld.append( 'a'); break;
+			case INSTEAD_OF: bld.append( 'i'); break;
+		}
 		bld.append((t.scope() == Trigger.Scope.ROW) ? 'r' : 's');
 
 		// Fixed order regardless of order in list.
@@ -64,8 +69,6 @@ class TriggerNamer
 			bld.append('u');
 		if(atTruncate)
 			bld.append('t');
-		bld.append('_');
-		bld.append(t.table());
 		return bld.toString();
 	}
 }
