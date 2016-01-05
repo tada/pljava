@@ -111,8 +111,7 @@ if ( filesep == '/' ) {
 		return p;
 	}
 } else {
-	var fseprx =
-	java.util.regex.Pattern.compile(filesep, java.util.regex.Pattern.LITERAL);
+	var fseprx = java.util.regex.Pattern.quote(filesep);
 	function pathxfrm(p) {
 		return p.replaceAll(fseprx, '/');
 	}
