@@ -260,6 +260,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source)
 #define ASSIGNRETURN(thing) return (thing)
 #define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
+#define ASSIGNRETURNIFNXACT(thing) \
+	if (pljavaViableXact()) ; else return (thing)
 #define ASSIGNSTRINGHOOK(name) \
 	static const char * \
 	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
@@ -273,6 +275,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, void *extra)
 #define ASSIGNRETURN(thing)
 #define ASSIGNRETURNIFCHECK(thing)
+#define ASSIGNRETURNIFNXACT(thing) if (pljavaViableXact()) ; else return
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
@@ -283,6 +286,7 @@ ASSIGNSTRINGHOOK(libjvm_location)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_CAND_JVMOPENED )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -295,6 +299,7 @@ ASSIGNSTRINGHOOK(vmoptions)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -307,6 +312,7 @@ ASSIGNSTRINGHOOK(classpath)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -319,6 +325,7 @@ ASSIGNHOOK(enabled, bool)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_PLJAVA_ENABLED )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(true);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(true);

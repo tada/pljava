@@ -15,6 +15,7 @@
 #else
 #include <access/htup.h>
 #endif
+#include <access/xact.h>
 #include <catalog/pg_language.h>
 #include <catalog/pg_proc.h>
 #if PG_VERSION_NUM >= 90100
@@ -83,6 +84,11 @@ bool pljavaLoadingAsExtension = false;
 Oid pljavaTrustedOid = InvalidOid;
 
 Oid pljavaUntrustedOid = InvalidOid;
+
+bool pljavaViableXact()
+{
+	return IsTransactionState() && 'E' != TransactionBlockStatusCode();
+}
 
 char *pljavaDbName()
 {

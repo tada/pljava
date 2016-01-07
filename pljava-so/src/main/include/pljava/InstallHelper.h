@@ -69,6 +69,29 @@ extern char *pljavaDbName();
  */
 extern char const *InstallHelper_defaultClassPath(char *);
 
+/*
+ * Return true if in a 'viable' transaction (not aborted or abort pending).
+ * The assign hooks can do two things: 1. they assign the variable values
+ * (no surprises there, and nothing to go wrong). 2. they *can* re-enter the
+ * init sequencer, if it has not completed the sequence, to see if the new
+ * value helped--otherwise, there really isn't an easy way to try to resume
+ * it, because LOAD/_PG_init only give you one shot per session. This is a use
+ * of the assign-hook machinery not envisioned in its design, and it should be
+ * very rare in practice (i.e., only in a session where a superuser is poking
+ * about to install a new PL/Java), and in that context it can make the
+ * installation process much less frustrating. BUT: a very important limit on
+ * the behavior of an assign hook is that it might be called during abort of
+ * a transaction, and must not do things that could throw errors and disrupt
+ * the rollback. That's a very big BUT, because the init sequencer can do all
+ * sorts of things that might throw errors. On the other hand, it doesn't NEED
+ * to be reentered at all: because that is purely a user-experience convenience,
+ * we are totally free to skip it if the assign hook has been called in the
+ * context of an aborting transaction, and then there is nothing to go wrong
+ * and disrupt the abort. The trickiest bit was finding available API to
+ * recognize the ABORT_PENDING cases.
+ */
+extern bool pljavaViableXact();
+
 extern char *InstallHelper_hello();
 
 extern void InstallHelper_groundwork();
