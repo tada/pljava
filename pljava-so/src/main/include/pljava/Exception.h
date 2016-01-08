@@ -11,6 +11,14 @@
 
 #include "pljava/PgObject.h"
 
+#if PG_VERSION_NUM < 90500
+#ifdef __GNUC__
+#define pg_attribute_printf(f,a) __attribute__((format(printf, f, a)))
+#else
+#define pg_attribute_printf(f,a)
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,7 +46,7 @@ extern void	Exception_featureNotSupported(const char* requestedFeature, const ch
 extern void Exception_throw(int errCode, const char* errMessage, ...)
 /* This extension allows gcc to check the format string for consistency with
    the supplied arguments. */
-__attribute__((format(printf, 2, 3)));
+pg_attribute_printf(2, 3);
 
 /*
  * Like ereport(ERROR, ...) but this method will raise a Java IllegalArgumentException and
@@ -49,7 +57,7 @@ __attribute__((format(printf, 2, 3)));
 extern void Exception_throwIllegalArgument(const char* errMessage, ...)
 /* This extension allows gcc to check the format string for consistency with
    the supplied arguments. */
-__attribute__((format(printf, 1, 2)));
+pg_attribute_printf(1, 2);
 
 /*
  * Like ereport(ERROR, ...) but this method will raise a Java SQLException and
