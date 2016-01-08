@@ -18,7 +18,8 @@
  */
 
 DROP TABLE IF EXISTS @extschema@.loadpath;
-CREATE TABLE @extschema@.loadpath(s) AS SELECT CAST('MODULE_PATHNAME' AS text);
+CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
+SELECT CAST('MODULE_PATHNAME' AS text), true;
 LOAD 'MODULE_PATHNAME';
 DROP TABLE @extschema@.loadpath;
 

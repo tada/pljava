@@ -74,6 +74,8 @@ static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
 
+static bool extensionExNihilo = false;
+
 static void checkLoadPath( bool *livecheck);
 static void getExtensionLoadPath();
 
@@ -175,6 +177,8 @@ static void checkLoadPath( bool *livecheck)
 static void getExtensionLoadPath()
 {
 	MemoryContext curr;
+	Datum dtm;
+	bool isnull;
 
 	/*
 	 * Check whether sqlj.loadpath exists before querying it. I would more
@@ -190,12 +194,18 @@ static void getExtensionLoadPath()
 	SPI_connect();
 	curr = CurrentMemoryContext;
 	if ( SPI_OK_SELECT == SPI_execute(
-		"SELECT s FROM sqlj.loadpath", true, 1) && 1 == SPI_processed )
+		"SELECT path, exnihilo FROM sqlj.loadpath", true, 1)
+		&& 1 == SPI_processed )
 	{
 		MemoryContextSwitchTo(TopMemoryContext);
 		pljavaLoadPath = (char const *)SPI_getvalue(
 			SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
 		MemoryContextSwitchTo(curr);
+		dtm = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 2,
+			&isnull);
+		if ( isnull )
+			elog(ERROR, "defect in CREATE EXTENSION script");
+		extensionExNihilo = DatumGetBool(dtm);
 	}
 	SPI_finish();
 }
@@ -318,8 +328,10 @@ void InstallHelper_groundwork()
 	PG_TRY();
 	{
 		jstring pljlp = String_createJavaStringFromNTS(pljavaLoadPath);
-		JNI_callStaticObjectMethod(
-			s_InstallHelper_class, s_InstallHelper_groundwork, pljlp);
+		JNI_callStaticVoidMethod(
+			s_InstallHelper_class, s_InstallHelper_groundwork, pljlp,
+			pljavaLoadingAsExtension ? JNI_TRUE : JNI_FALSE,
+			extensionExNihilo ? JNI_TRUE : JNI_FALSE);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -340,5 +352,5 @@ void InstallHelper_initialize()
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
-		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;)V");
+		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;ZZ)V");
 }

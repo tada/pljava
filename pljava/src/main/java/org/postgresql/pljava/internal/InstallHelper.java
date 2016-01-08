@@ -95,7 +95,8 @@ public class InstallHelper
 		return sb.toString();
 	}
 
-	public static void groundwork( String module_pathname)
+	public static void groundwork(
+		String module_pathname, boolean asExtension, boolean exNihilo)
 	throws SQLException, ParseException
 	{
 		Connection c = null;
@@ -106,9 +107,19 @@ public class InstallHelper
 			s = c.createStatement();
 
 			schema(c, s);
+
+			SchemaVariant sv = recognizeSchema(c, s);
+
+			if ( null == sv )
+				throw new SQLNonTransientException(
+				"Failed to recognize schema of PL/Java installation", "55000");
+			if ( asExtension && exNihilo && SchemaVariant.EMPTY != sv )
+				throw new SQLNonTransientException(
+				"sqlj schema not empty for CREATE EXTENSION pljava", "55000");
+
 			handlers(c, s, module_pathname);
 			languages(c, s);
-			deployment(c, s);
+			deployment(c, s, sv);
 		}
 		finally
 		{
@@ -194,15 +205,13 @@ public class InstallHelper
 	 * to the currently expected schema already seem to be there. If an earlier
 	 * schema variant is detected, attempt to migrate to the current one.
 	 */
-	private static void deployment( Connection c, Statement s)
+	private static void deployment( Connection c, Statement s, SchemaVariant sv)
 	throws SQLException, ParseException
 	{
-		SchemaVariant sv = recognizeSchema( c);
-
 		if ( currentSchema == sv )
 			return; // assume (optimistically) that means there's nothing to do
 
-		if ( null != sv )
+		if ( SchemaVariant.EMPTY != sv )
 		{
 			currentSchema.migrateFrom( sv, c, s);
 			return;
@@ -220,11 +229,13 @@ public class InstallHelper
 	 * correct result if the schema actually is any of those, but does no
 	 * further verification. So, a known SchemaVariant could be returned for a
 	 * messed up schema that never appeared in the git history, if it happened
-	 * to match on the tested parts; likewise, a null return may not necessarily
-	 * mean nothing is there, only that whatever is there didn't match the
-	 * tests for any known variant.
+	 * to match on the tested parts. The variant EMPTY is returned if nothing is
+	 * in the schema (based on a direct query of pg_depend, which ought to be
+	 * reliable) except an entry for the extension if applicable. A null return
+	 * indicates that whatever is there didn't match the tests for any known
+	 * variant.
 	 */
-	private static SchemaVariant recognizeSchema( Connection c)
+	private static SchemaVariant recognizeSchema( Connection c, Statement s)
 	throws SQLException
 	{
 		DatabaseMetaData md = c.getMetaData();
@@ -280,6 +291,29 @@ public class InstallHelper
 		rs.close();
 		if ( seen )
 			return SchemaVariant.UNREL20040120;
+
+		rs = s.executeQuery( "SELECT count(*) " +
+			"FROM pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
+			"WHERE refclassid = 'pg_catalog.pg_namespace'::regclass " +
+			"AND refobjid = n.oid AND nspname = 'sqlj' " +
+			"AND deptype = 'n' " +
+			"AND NOT EXISTS ( " +
+			"	SELECT 1 FROM " +
+			"	pg_catalog.pg_class sqc JOIN pg_catalog.pg_namespace sqn " +
+			"	ON relnamespace = sqn.oid " +
+			"	WHERE " +
+			"		nspname = 'pg_catalog' AND relname = 'pg_extension' " +
+			"		AND classid = sqc.oid " +
+			"	OR " +
+			"		nspname = 'sqlj' AND relname = 'loadpath'" +
+			"		AND classid = 'pg_catalog.pg_class'::regclass " +
+			"		AND objid = sqc.oid)");
+		if ( rs.next() && 0 == rs.getInt(1) )
+		{
+			rs.close();
+			return SchemaVariant.EMPTY;
+		}
+		rs.close();
 
 		return null;
 	}
@@ -340,7 +374,8 @@ public class InstallHelper
 		REL_1_1_0      ("039db412fa91a23b67ceb8d90d30bc540fef7c5d"),
 		REL_1_0_0      ("94e23ba02b55e8008a935fcf3e397db0adb4671b"),
 		UNREL20040121  ("67eea979bcd4575f285c30c581fd0d674c13c1fa"),
-		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7");
+		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
+		EMPTY          (null);
 
 		String sha;
 		SchemaVariant( String sha)
