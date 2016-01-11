@@ -156,6 +156,7 @@ static enum initstage initstage = IS_FORMLESS_VOID;
 static void *libjvm_handle;
 static bool jvmStartedAtLeastOnce = false;
 static bool alteredSettingsWereNeeded = false;
+static bool loadAsExtensionFailed = false;
 static bool seenVisualVMName;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 
@@ -259,6 +260,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source)
 #define ASSIGNRETURN(thing) return (thing)
 #define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
+#define ASSIGNRETURNIFNXACT(thing) \
+	if (pljavaViableXact()) ; else return (thing)
 #define ASSIGNSTRINGHOOK(name) \
 	static const char * \
 	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
@@ -272,6 +275,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, void *extra)
 #define ASSIGNRETURN(thing)
 #define ASSIGNRETURNIFCHECK(thing)
+#define ASSIGNRETURNIFNXACT(thing) if (pljavaViableXact()) ; else return
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
@@ -282,6 +286,7 @@ ASSIGNSTRINGHOOK(libjvm_location)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_CAND_JVMOPENED )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -294,6 +299,7 @@ ASSIGNSTRINGHOOK(vmoptions)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -306,6 +312,7 @@ ASSIGNSTRINGHOOK(classpath)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -318,6 +325,7 @@ ASSIGNHOOK(enabled, bool)
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_PLJAVA_ENABLED )
 	{
 		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(true);
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(true);
@@ -549,6 +557,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_COMPLETE;
 
 	case IS_COMPLETE:
+		pljavaLoadingAsExtension = false;
 		if ( alteredSettingsWereNeeded )
 		{
 			/* Use this StringInfoData to conditionally construct part of the
@@ -585,6 +594,21 @@ static void initsequencer(enum initstage is, bool tolerant)
 						? PG_GETCONFIGOPTION("config_file")
 						: "postgresql.conf"))));
 #undef MOREHINT
+			if ( loadAsExtensionFailed )
+			{
+				ereport(NOTICE, (errmsg(
+					"PL/Java load successful after failed CREATE EXTENSION"),
+					errdetail(
+					"PL/Java is now installed, but not as an extension."),
+					errhint(
+					"To correct that, either COMMIT or ROLLBACK, make sure "
+					"the working settings are saved, exit this session, and "
+					"in a new session, either: "
+					"1. if committed, run "
+					"\"CREATE EXTENSION pljava FROM unpackaged\", or 2. "
+					"if rolled back, simply \"CREATE EXTENSION pljava\" again."
+					)));
+			}
 		}
 		return;
 
@@ -599,7 +623,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 	}
 
 check_tolerant:
-	if ( !tolerant ) {
+	if ( pljavaLoadingAsExtension )
+	{
+		tolerant = false;
+		loadAsExtensionFailed = true;
+		pljavaLoadingAsExtension = false;
+	}
+	if ( !tolerant )
+	{
 		ereport(ERROR, (
 			errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 			errmsg(
@@ -694,7 +725,7 @@ void _PG_init()
 {
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
-	pljavaCheckLoadPath();
+	pljavaCheckExtension( NULL);
 	initsequencer( initstage, true);
 }
 
@@ -732,6 +763,11 @@ static void initPLJavaClasses(void)
 		"_clearFunctionCache",
 		"()V",
 		Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache
+		},
+		{
+		"_isCreatingExtension",
+		"()Z",
+		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
 		},
 		{ 0, 0, 0 }
 	};
@@ -1557,4 +1593,17 @@ Java_org_postgresql_pljava_internal_Backend__1clearFunctionCache(JNIEnv* env, jc
 	BEGIN_NATIVE_NO_ERRCHECK
 	Function_clearFunctionCache();
 	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _isCreatingExtension
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, jclass cls)
+{
+	bool inExtension = false;
+	pljavaCheckExtension( &inExtension);
+	return inExtension ? JNI_TRUE : JNI_FALSE;
 }

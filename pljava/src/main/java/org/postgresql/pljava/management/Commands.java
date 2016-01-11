@@ -25,6 +25,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.Statement;
@@ -1112,6 +1113,11 @@ public class Commands
 	private static void installJar(String urlString, String jarName,
 		boolean deploy, byte[] image) throws SQLException
 	{
+		if ( Backend.isCreatingExtension() )
+			throw new SQLFeatureNotSupportedException(
+				"A jar cannot (yet) be installed as an extension in its " +
+				"own right.", "0A000");
+
 		assertJarName(jarName);
 
 		if(getJarId(jarName, null) >= 0)

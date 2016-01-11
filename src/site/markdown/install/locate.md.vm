@@ -20,41 +20,47 @@ may help in finding them.
 [bld]: ../build/build.html
 [inst]: install.html
 
-$h2 The packaged tar or zip file
+$h2 The packaged jar file
 
-The `pljava-packaging` subproject builds a single `.tar.gz` or `.zip` file
-(depending on the platform where the build is done). Relative to the
-root of the build tree, it is found at
+The `pljava-packaging` subproject builds a single `.jar` file.
+At one time, it was in the business of trying to decide whether Windows,
+Unix, or Mac users would like `.zip` or `.tar.gz` files better, but if you
+are planning to use PL/Java then you certainly have Java around, and can
+work with a `.jar` file no matter what.
 
-`pljava-packaging/target/pljava-${pgversion}-${naraol}.tar.gz` (or `.zip`)
+Relative to the root of the build tree, the jar file is found at
+
+`pljava-packaging/target/pljava-${pgversion}-${naraol}.jar`
 
 where `${pgversion}` resembles `pg9.4` and `${naraol}` is an
 *architecture-os-linker* triple, for example `amd64-Linux-gpp`
 or `amd64-Windows-msvc`. It contains these things:
 
-`pljava/pljava.jar`
+`pljava/pkglibdir/libpljava-\${project.version}.so` (or `.dll`, etc.)
+: The architecture-dependent, native library portion of the PL/Java
+    implementation (more below). The name might end in `.so` or `.dll`
+    or `.bundle` or something else, and might or might not start with `lib`.
+
+`pljava/sharedir/pljava/pljava-\${project.version}.jar`
 : The architecture-independent, Java portion of the PL/Java implementation
     (more below).
 
-`pljava/pljava.so` (or `.dll`, etc.)
-: The architecture-dependent, native library portion of the PL/Java
-    implementation (more below).
-
-`pljava/examples.jar`
+`pljava/sharedir/pljava/pljava-examples-\${project.version}.jar`
 : A set of [examples demonstrating PL/Java usage][examples], usable also
     as rudimentary tests.
 
-`pljava/docs.tar`
-: A collection of historical-interest and design documents from the origins
-    of PL/Java.
+`pljava/sharedir/extension/pljava.control`
+: The file that tells `CREATE EXTENSION` what's what.
 
-`pljava/install.sql`, `pljava/uninstall.sql`
-: _Deprecated_ In normal circumstances, these are no longer needed to install
-    or uninstall PL/Java.
+`pljava/sharedir/pljava/pljava--*.sql`
+: Various files scripting what `CREATE EXTENSION` or
+    `ALTER EXTENSION ... UPDATE` really do.
 
-`pljava/deploy.jar`
-: _Deprecated_ In normal circumstances, this tool is no longer needed to install
-    or uninstall PL/Java.
+It could happen that future versions add more files in the jar before
+updating this page. Also, every jar file has a `MANIFEST.MF`, and this
+file also contains a `JarX.class` to make it self-extracting; these are
+not otherwise important to PL/Java. See the [installation page][inst]
+for how to control the self-extraction.
 
 [examples]: ../examples/examples.html
 
@@ -63,7 +69,7 @@ locations, then complete the [installation][inst].
 
 $h2 Naming the built files directly
 
-When the only purpose is to quickly check the built PL/Java, it is faster
+When the only purpose is to quickly check the built PL/Java, it may be faster
 not to extract files from the packaged archive into some other location,
 but simply to `SET` the `pljava.*` variables to point to the files right
 where they were generated in the build tree.

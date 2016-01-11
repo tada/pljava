@@ -242,6 +242,14 @@ public class Backend
 		}
 	}
 
+	public static boolean isCreatingExtension()
+	{
+		synchronized(THREADLOCK)
+		{
+			return _isCreatingExtension();
+		}
+	}
+
 	/**
 	 * Called when the JVM is first booted and then everytime a switch
 	 * is made between calling a trusted function versus an untrusted
@@ -282,4 +290,5 @@ public class Backend
 	private native static int  _getStatementCacheSize();
 	private native static void _log(int logLevel, String str);
 	private native static void _clearFunctionCache();
+	private native static boolean _isCreatingExtension();
 }

@@ -15,18 +15,25 @@
 #else
 #include <access/htup.h>
 #endif
+#include <access/xact.h>
 #include <catalog/pg_language.h>
 #include <catalog/pg_proc.h>
+#if PG_VERSION_NUM >= 90100
+#include <commands/extension.h>
+#endif
 #include <commands/portalcmds.h>
+#include <executor/spi.h>
 #include <miscadmin.h>
 #include <libpq/libpq-be.h>
 #include <tcop/pquery.h>
 #include <utils/builtins.h>
+#include <utils/lsyscache.h>
 #include <utils/memutils.h>
 #include <utils/syscache.h>
 
-#ifndef SearchSysCache1
+#if PG_VERSION_NUM < 90000
 #define SearchSysCache1(cid, k1) SearchSysCache(cid, k1, 0, 0, 0)
+#define GetSysCacheOid1(cid, k1) GetSysCacheOid(cid, k1, 0, 0, 0)
 #endif
 
 #include "pljava/InstallHelper.h"
@@ -44,6 +51,19 @@
 #define CppAsString2(x) CppAsString(x)
 #endif
 
+/*
+ * Before 9.1, there was no creating_extension. Before 9.5, it did not have
+ * PGDLLIMPORT and so was not visible in Windows. In either case, just define
+ * it to be false, but also define CREATING_EXTENSION_HACK if on Windows and
+ * it needs to be tested for in some roundabout way.
+ */
+#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
+#define creating_extension false
+#if PG_VERSION_NUM >= 90100
+#define CREATING_EXTENSION_HACK
+#endif
+#endif
+
 #ifndef PLJAVA_SO_VERSION
 #error "PLJAVA_SO_VERSION needs to be defined to compile this file."
 #else
@@ -54,23 +74,66 @@ static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
 
+static bool extensionExNihilo = false;
+
+static void checkLoadPath( bool *livecheck);
+static void getExtensionLoadPath();
+
 char const *pljavaLoadPath = NULL;
+
+bool pljavaLoadingAsExtension = false;
 
 Oid pljavaTrustedOid = InvalidOid;
 
 Oid pljavaUntrustedOid = InvalidOid;
+
+bool pljavaViableXact()
+{
+	return IsTransactionState() && 'E' != TransactionBlockStatusCode();
+}
 
 char *pljavaDbName()
 {
 	return MyProcPort->database_name;
 }
 
-void pljavaCheckLoadPath()
+void pljavaCheckExtension( bool *livecheck)
+{
+	if ( ! creating_extension )
+	{
+		checkLoadPath( livecheck);
+		return;
+	}
+	if ( NULL != livecheck )
+	{
+		*livecheck = true;
+		return;
+	}
+	getExtensionLoadPath();
+	if ( NULL != pljavaLoadPath )
+		pljavaLoadingAsExtension = true;
+}
+
+/*
+ * As for pljavaCheckExtension, livecheck == null when called from _PG_init
+ * (when the real questions are whether PL/Java itself is being loaded, from
+ * what path, and whether or not as an extension). When livecheck is not null,
+ * PL/Java is already alive and the caller wants to know if an extension is
+ * being created for some other reason. That wouldn't even involve this
+ * function, except for the need to work around creating_extension visibility
+ * on Windows. So if livecheck isn't null, this function only needs to proceed
+ * as far as the CREATING_EXTENSION_HACK and then return.
+ */
+static void checkLoadPath( bool *livecheck)
 {
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
 
+#ifndef CREATING_EXTENSION_HACK
+	if ( NULL != livecheck )
+		return;
+#endif
 	if ( NULL == ActivePortal )
 		return;
 	l = ActivePortal->stmts;
@@ -85,6 +148,21 @@ void pljavaCheckLoadPath()
 		return;
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
+#ifdef CREATING_EXTENSION_HACK
+		if ( T_CreateExtensionStmt == nodeTag(ut) )
+		{
+			if ( NULL != livecheck )
+			{
+				*livecheck = true;
+				return;
+			}
+			getExtensionLoadPath();
+			if ( NULL != pljavaLoadPath )
+				pljavaLoadingAsExtension = true;
+		}
+#endif
+		return;
+	if ( NULL != livecheck )
 		return;
 	ls = (LoadStmt *)ut;
 	if ( NULL == ls->filename )
@@ -94,6 +172,42 @@ void pljavaCheckLoadPath()
 	}
 	pljavaLoadPath =
 		(char const *)MemoryContextStrdup( TopMemoryContext, ls->filename);
+}
+
+static void getExtensionLoadPath()
+{
+	MemoryContext curr;
+	Datum dtm;
+	bool isnull;
+
+	/*
+	 * Check whether sqlj.loadpath exists before querying it. I would more
+	 * happily just PG_CATCH() the error and compare to ERRCODE_UNDEFINED_TABLE
+	 * but what's required to make that work right is "not terribly well
+	 * documented, but the exception-block handling in plpgsql provides a
+	 * working model" and that code is a lot more fiddly than you would guess.
+	 */
+	if ( InvalidOid == get_relname_relid("loadpath",
+		GetSysCacheOid1(NAMESPACENAME, CStringGetDatum("sqlj"))) )
+		return;
+
+	SPI_connect();
+	curr = CurrentMemoryContext;
+	if ( SPI_OK_SELECT == SPI_execute(
+		"SELECT path, exnihilo FROM sqlj.loadpath", true, 1)
+		&& 1 == SPI_processed )
+	{
+		MemoryContextSwitchTo(TopMemoryContext);
+		pljavaLoadPath = (char const *)SPI_getvalue(
+			SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+		MemoryContextSwitchTo(curr);
+		dtm = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 2,
+			&isnull);
+		if ( isnull )
+			elog(ERROR, "defect in CREATE EXTENSION script");
+		extensionExNihilo = DatumGetBool(dtm);
+	}
+	SPI_finish();
 }
 
 char *pljavaFnOidToLibPath(Oid myOid)
@@ -214,8 +328,10 @@ void InstallHelper_groundwork()
 	PG_TRY();
 	{
 		jstring pljlp = String_createJavaStringFromNTS(pljavaLoadPath);
-		JNI_callStaticObjectMethod(
-			s_InstallHelper_class, s_InstallHelper_groundwork, pljlp);
+		JNI_callStaticVoidMethod(
+			s_InstallHelper_class, s_InstallHelper_groundwork, pljlp,
+			pljavaLoadingAsExtension ? JNI_TRUE : JNI_FALSE,
+			extensionExNihilo ? JNI_TRUE : JNI_FALSE);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -236,5 +352,5 @@ void InstallHelper_initialize()
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
-		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;)V");
+		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;ZZ)V");
 }

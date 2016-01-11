@@ -36,10 +36,22 @@
 	</dependencies>
 
 	<properties>
-		<sharedsuffix>so</sharedsuffix>
-		<distrotype>targz</distrotype>
+		<module.pathname>libpljava-so-${project.version}</module.pathname>
 	</properties>
+
 	<profiles>
+		<profile>
+			<id>osx</id>
+			<activation>
+				<os>
+					<name>mac os x</name>
+				</os>
+			</activation>
+			<properties>
+				<module.pathname>libpljava-so-${project.version}.bundle</module.pathname>
+			</properties>
+		</profile>
+
 		<profile>
 			<id>windows</id>
 			<activation>
@@ -48,18 +60,61 @@
 				</os>
 			</activation>
 			<properties>
-				<sharedsuffix>dll</sharedsuffix>
-				<distrotype>zip</distrotype>
+				<module.pathname>pljava-so-${project.version}</module.pathname>
 			</properties>
 		</profile>
 	</profiles>
 
 	<build>
+		<resources>
+			<resource>
+				<directory>${basedir}/src/main/resources</directory>
+				<filtering>true</filtering>
+			</resource>
+		</resources>
+
 		<plugins>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>2.7</version>
+				<executions>
+					<execution>
+						<id>pljava extension files</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>resources</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>compile the jar extractor</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-antrun-plugin</artifactId>
 				<version>1.7</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.apache.ant</groupId>
+						<artifactId>ant</artifactId>
+						<version>[1.8.3,)</version>
+					</dependency>
+				</dependencies>
 				<executions>
 					<execution>
 						<id>pljava package distribution</id>
@@ -69,12 +124,13 @@
 						</goals>
 						<configuration>
 							<target>
-								<ant target="package-${distrotype}" dir="${project.basedir}"/>
+								<ant target="package" dir="${project.basedir}"/>
 							</target>
 						</configuration>
 					</execution>
 				</executions>
 			</plugin>
+
 		</plugins>
 	</build>
 </project>
