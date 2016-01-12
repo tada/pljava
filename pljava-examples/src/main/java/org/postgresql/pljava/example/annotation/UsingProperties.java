@@ -68,7 +68,7 @@ public class UsingProperties implements ResultSetProvider
 		return true;
 	}
 
-	@Function( complexType = "javatest._properties")
+	@Function( type = "javatest._properties")
 	public static ResultSetProvider propertyExampleAnno()
 	throws SQLException
 	{

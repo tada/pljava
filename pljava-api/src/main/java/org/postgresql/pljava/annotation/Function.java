@@ -53,22 +53,25 @@ public @interface Function
 	 * The <a href=
 'http://www.postgresql.org/docs/current/static/xfunc-volatility.html'>volatility
 category</a>
-	 * of the function.
+	 * describing the presence or absence of side-effects constraining what
+	 * the optimizer can safely do with the function.
 	 */
-	enum Type { IMMUTABLE, STABLE, VOLATILE };
+	enum Effects { IMMUTABLE, STABLE, VOLATILE };
 
 	/**
-	 * Whether the function only needs restricted capabilities and can
-	 * run in the "trusted" language instance, or requires an unrestricted
-	 * environment and has to run in an "untrusted" language instance.
+	 * Whether the function only needs limited capabilities and can
+	 * run in the "trusted" language sandbox, or has to be unsandboxed
+	 * and run in an "untrusted" language instance.
 	 */
-	enum Trust { RESTRICTED, UNRESTRICTED };
+	enum Trust { SANDBOXED, UNSANDBOXED };
 
 	/**
 	 * The element type in case the annotated function returns a
-	 * {@link org.postgresql.pljava.ResultSetProvider ResultSetProvider}.
+	 * {@link org.postgresql.pljava.ResultSetProvider ResultSetProvider},
+	 * or can be used to specify the return type of any function if the
+	 * compiler hasn't inferred it correctly.
 	 */
-	String complexType() default "";
+	String type() default "";
 
 	/**
 	 * The name of the function. This is optional. The default is
@@ -117,9 +120,7 @@ category</a>
 	Security security() default Security.INVOKER;
 	
 	/**
-	 * What the query optimizer is allowed to assume about this function
-	 * (this element has nothing to do with the data type returned by the
-	 * function; see complexType for that).
+	 * What the query optimizer is allowed to assume about this function.
 	 *
 	 * IMMUTABLE describes a pure function whose return will always be the same
 	 * for the same parameter values, with no side effects and no dependency on
@@ -129,14 +130,14 @@ category</a>
 	 * a function with side effects or about whose result the optimizer cannot
 	 * make any safe assumptions.
 	 */
-	Type type() default Type.VOLATILE;
+	Effects effects() default Effects.VOLATILE;
 	
 	/**
-	 * Whether the function will run in the RESTRICTED ("trusted") version
-	 * of the language, or requires UNRESTRICTED access and must be defined
+	 * Whether the function will run in the SANDBOXED ("trusted") version
+	 * of the language, or requires UNSANDBOXED access and must be defined
 	 * in the "untrusted" language instance.
 	 */
-	Trust trust() default Trust.RESTRICTED;
+	Trust trust() default Trust.SANDBOXED;
 	
 	/**
 	 * Whether the function can be safely pushed inside the evaluation of views

@@ -18,7 +18,7 @@ import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.Trigger;
-import static org.postgresql.pljava.annotation.Trigger.When.*;
+import static org.postgresql.pljava.annotation.Trigger.Called.*;
 import static org.postgresql.pljava.annotation.Trigger.Event.*;
 import static org.postgresql.pljava.annotation.Function.Security.*;
 
@@ -42,8 +42,8 @@ public class Triggers
 		schema = "javatest",
 		security = INVOKER,
 		triggers = {
-			@Trigger(when = BEFORE, table = "foobar_1", events = { INSERT } ),
-			@Trigger(when = BEFORE, table = "foobar_2", events = { INSERT } )
+			@Trigger(called = BEFORE, table = "foobar_1", events = { INSERT } ),
+			@Trigger(called = BEFORE, table = "foobar_2", events = { INSERT } )
 		})
 
 	public static void insertUsername(TriggerData td)

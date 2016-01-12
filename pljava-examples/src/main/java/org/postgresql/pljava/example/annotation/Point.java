@@ -26,7 +26,7 @@ import org.postgresql.pljava.annotation.SQLType;
 public class Point implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
-	@Function(schema="javatest", complexType="point",
+	@Function(schema="javatest", type="point",
 		onNullInput=Function.OnNullInput.RETURNS_NULL)
 	public static Point logAndReturn(@SQLType("point") Point cpl) {
 		s_logger.info(cpl.getSQLTypeName() + cpl);

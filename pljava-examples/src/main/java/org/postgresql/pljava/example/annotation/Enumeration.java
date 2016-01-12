@@ -40,7 +40,7 @@ import org.postgresql.pljava.annotation.Function;
 })
 public class Enumeration
 {
-	@Function(requires="mood type", provides="textToMood", complexType="mood")
+	@Function(requires="mood type", provides="textToMood", type="mood")
 	public static String textToMood(String s)
 	{
 		return s;
@@ -50,7 +50,7 @@ public class Enumeration
 	{
 		return s;
 	}
-	@Function(requires="mood type", provides="textsToMoods", complexType="mood")
+	@Function(requires="mood type", provides="textsToMoods", type="mood")
 	public static Iterator<String> textsToMoods(String[] ss)
 	{
 		return Arrays.asList(ss).iterator();
