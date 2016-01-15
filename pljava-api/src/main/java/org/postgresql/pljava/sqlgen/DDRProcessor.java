@@ -725,7 +725,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		int i = 0;
 		for ( AnnotationValue av : vs )
 		{
-			Object v = av.getValue();
+			Object v = getValue( av);
 			if ( isEnum )
 				v = Enum.valueOf( k.asSubclass( Enum.class),
 					((VariableElement)v).getSimpleName().toString());
@@ -839,18 +839,26 @@ hunt:	for ( ExecutableElement ee : ees )
 			AnnotationValue  av = me.getValue();
 			boolean isExplicit = explicit.containsKey( k);
 			String name = k.getSimpleName().toString();
-			Object v = av.getValue();
 			Class<? extends Annotation> kl = inst.getClass();
 			try
 			{
+				Object v = getValue( av);
 				kl.getMethod( // let setter for foo() be setFoo()
 					"set"+name.substring( 0, 1).toUpperCase() +
 						name.substring( 1),
 					Object.class, boolean.class, Element.class)
 					.invoke(inst, v, isExplicit, e);
 			}
+			catch (AnnotationValueException ave)
+			{
+				msg( Kind.ERROR, e, am,
+					"unresolved value for annotation member \"%s\"" +
+					" (check for missing/misspelled import, etc.)",
+					name);
+			}
 			catch (NoSuchMethodException nsme)
 			{
+				Object v = getValue( av);
 				try
 				{
 					Field f = kl.getField( "_"+name);
@@ -2214,7 +2222,30 @@ hunt:	for ( ExecutableElement ee : ees )
 	// expression intended to match SQL types that are arrays
 	static final Pattern arrayish =
 		Pattern.compile( "(?si:(?:\\[\\s*\\d*\\s*\\]|ARRAY)\\s*)$");
+
+	/**
+	 * Work around bizarre javac behavior that silently supplies an Error
+	 * class in place of an attribute value for glaringly obvious source errors,
+	 * instead of reporting them.
+	 * @param av AnnotationValue to extract the value from
+	 * @return The result of getValue unless {@code av} is an error placeholder
+	 */
+	static Object getValue( AnnotationValue av)
+	{
+		if ( "com.sun.tools.javac.code.Attribute.Error".equals(
+			av.getClass().getCanonicalName()) )
+			throw new AnnotationValueException();
+		return av.getValue();
+	}
 }
+
+/**
+ * Exception thrown when an expected annotation value is a compiler-internal
+ * Error class instead, which happens in some javac versions when the annotation
+ * value wasn't resolved because of a source error the compiler really should
+ * have reported.
+ */
+class AnnotationValueException extends RuntimeException { }
 
 /**
  * A code snippet. May contain zero, one, or more complete SQL commands for
