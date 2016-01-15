@@ -1,0 +1,90 @@
+# Release notes
+
+#set($h2 = '##')
+#set($h3 = '###')
+#set($gborgbug = 'http://web.archive.org/web/20061208113236/http://gborg.postgresql.org/project/pljava/bugs/bugupdate.php?')
+
+$h2 PL/Java 1.3.0 (18 June 2006)
+
+This release is about type mapping and the creation of new types in PL/Java. An
+extensive effort has gone into making the PL/Java type system extremely
+flexible. Not only can you map arbitrary SQL data types to java classes. You can
+also create new scalar types completely in Java. Read about the Changes in
+version 1.3.
+
+$h3 Changes
+
+* A much improved type mapping system that will allow you to:
+
+    * [Map any SQL type to a Java class][maptype]
+    * [Create a Scalar UDT in Java][scalarudt]
+    * [Map array and pseudo types][deftypemap]
+
+[maptype]: https://github.com/tada/pljava/wiki/Mapping-an-sql-type-to-a-java-class
+[scalarudt]: https://github.com/tada/pljava/wiki/Creating-a-scalar-udt-in-java
+[deftypemap]: https://github.com/tada/pljava/wiki/Default-type-mapping
+
+* Get the OID for a given relation ([feature request 1319][1319])
+* Jar manifest included in the SQLJ Jar repository
+    ([feature request 1525][1525])
+
+$h3 Fixed bugs
+
+[Reconnect needed for jar manipulation to take effect][1531]
+[Backends hang with test suite][1504]
+[Keeps crashing while making a call to a function][1560]
+[Memory Leak in Statement.executeUpdate][1556]
+[jarowner incorrect after dump and reload][1506]
+[Missing JAR manifest][1525]
+[TZ adjustments for Date are incorrect][1547]
+[Functions returning sets leaks memory][1542]
+[drop lib prefix][1423]
+["oid" column is not available in trigger's NEW/OLD ResultSet][1317]
+[fails to run with GCJ, too][1480]
+[Compile failure with 8.1.4][1558]
+[fails to build with GCJ][1479]
+[Record returning function cannot be called with different structures within one session][1440]
+[Cannot map function with complex return type to method that uses non primitive arguments][1551]
+[Get OID for given relation][1319]
+
+[1531]: ${gborgbug}1531
+[1504]: ${gborgbug}1504
+[1560]: ${gborgbug}1560
+[1556]: ${gborgbug}1556
+[1506]: ${gborgbug}1506
+[1525]: ${gborgbug}1525
+[1547]: ${gborgbug}1547
+[1542]: ${gborgbug}1542
+[1423]: ${gborgbug}1423
+[1317]: ${gborgbug}1317
+[1480]: ${gborgbug}1480
+[1558]: ${gborgbug}1558
+[1479]: ${gborgbug}1479
+[1440]: ${gborgbug}1440
+[1551]: ${gborgbug}1551
+[1319]: ${gborgbug}1319
+
+$h2 PL/Java 1.2.0 (20 Nov 2005)
+
+The PL/Java 1.2.0 release is primarily targeted at the new PostgreSQL 8.1 but
+full support for 8.0.x is maintained. New features include support IN/OUT
+parameters, improved meta-data handling, and better memory management.
+
+$h2 PL/Java 1.1.0 (14 Apr 2005)
+
+PL/Java 1.1.0 includes a lot of new features such as `DatabaseMetaData`,
+`ResultSetMetaData`, language handlers for both trusted and untrusted language,
+additional semantics for functions returning `SETOF`, and simple ObjectPooling.
+
+$h2 PL/Java 1.0.1 (07 Feb 2005)
+
+This release resolves a couple of important security issues. The most important
+one is perhaps that PL/Java now is a trusted language. See [Security][] for more
+info. Filip Hrbek, now member of the PL/Java project, contributed what was
+needed to make this happen.
+
+[Security]: https://github.com/tada/pljava/wiki/Security
+
+$h2 PL/Java 1.0.0 (23 Jan 2005)
+
+Today, after a long period of fine tuning, PL/Java 1.0.0 was finally released.
