@@ -37,14 +37,16 @@ import org.postgresql.pljava.annotation.Function;
  * do not match as seen in SQL.
  */
 @SQLActions({
-	@SQLAction(provides="postgresql9_0plus", install=
+	@SQLAction(provides="postgresql_unicodetest", install=
 "   select case " +
 "    when 90000 <= cast(current_setting('server_version_num') as integer) " +
-"    then set_config('pljava.implementors', 'postgresql9_0plus,' || " +
+"    and 'UTF8' = current_setting('server_encoding') " +
+"    then set_config('pljava.implementors', 'postgresql_unicodetest,' || " +
 "    current_setting('pljava.implementors'), true) " +
 "   end"
 	),
-	@SQLAction(requires="unicodetest fn", implementor="postgresql9_0plus",
+	@SQLAction(requires="unicodetest fn",
+	implementor="postgresql_unicodetest",
 	install=
 "   with " +
 "    usable_codepoints ( cp ) as ( " +
