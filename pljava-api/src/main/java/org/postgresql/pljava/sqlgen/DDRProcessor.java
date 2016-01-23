@@ -866,7 +866,19 @@ hunt:	for ( ExecutableElement ee : ees )
 					if ( ! isExplicit  &&  null != f.get( inst) )
 						continue;
 					if ( fkl.isArray() )
-						f.set( inst, avToArray( v, fkl.getComponentType()));
+					{
+						try {
+							f.set( inst, avToArray( v, fkl.getComponentType()));
+						}
+						catch (AnnotationValueException ave)
+						{
+							msg( Kind.ERROR, e, am,
+							"unresolved value for an element of annotation" +
+							" member \"%s\" (check for missing/misspelled" +
+							" import, etc.)",
+							name);
+						}
+					}
 					else if ( fkl.isEnum() )
 						f.set( inst, Enum.valueOf( fkl.asSubclass( Enum.class),
 							((VariableElement)v).getSimpleName().toString()));
