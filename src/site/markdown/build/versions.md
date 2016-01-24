@@ -37,3 +37,6 @@ The current aim is to avoid deliberately breaking compatibility back
 to 8.2. (A former commercial fork of PostgreSQL 8.2 recently returned
 to the open-source fold with a *really* old version of PL/Java, so
 the aim is that the current PL/Java should be a possible upgrade there.)
+
+More current PostgreSQL versions, naturally, are the focus of development
+and receive more attention in testing.
