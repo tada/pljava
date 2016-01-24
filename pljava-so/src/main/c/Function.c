@@ -562,7 +562,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, schemaName);
 	JNI_deleteLocalRef(schemaName);
 
-	elog(DEBUG1, "Loading class %s", info->className);
+	elog(DEBUG2, "Loading class %s", info->className);
 	className = String_createJavaStringFromNTS(info->className);
 
 	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, className);
@@ -592,7 +592,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 	initStringInfo(&sign);
 	buildSignature(self, &sign, self->func.nonudt.returnType, false);
 
-	elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
+	elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
 	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
 
 	if(self->func.nonudt.method == 0)
@@ -601,7 +601,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 		Type altType = 0;
 		Type realRetType = self->func.nonudt.returnType;
 
-		elog(DEBUG1, "Method %s.%s %s not found", info->className, info->methodName, origSign);
+		elog(DEBUG2, "Method %s.%s %s not found", info->className, info->methodName, origSign);
 
 		if(Type_isPrimitive(self->func.nonudt.returnType))
 		{
@@ -631,7 +631,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			initStringInfo(&sign);
 			buildSignature(self, &sign, altType, true);
 
-			elog(DEBUG1, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
+			elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
 			self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
 	
 			if(self->func.nonudt.method != 0)

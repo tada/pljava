@@ -159,7 +159,7 @@ void Exception_throw_ERROR(const char* funcName)
 		ex = JNI_newObject(ServerException_class, ServerException_init, ed);
 		currentInvocation->errorOccured = true;
 
-		elog(DEBUG1, "Exception in function %s", funcName);
+		elog(DEBUG2, "Exception in function %s", funcName);
 
 		JNI_deleteLocalRef(ed);
 		JNI_throw(ex);

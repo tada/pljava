@@ -121,7 +121,7 @@ char* stack_base_ptr;
 		_STACK_BASE_SET; \
 		saveMainThreadId = mainThreadId; \
 		mainThreadId = threadId; \
-		elog(DEBUG1, "Set stack base for thread %lx", mainThreadId); \
+		elog(DEBUG2, "Set stack base for thread %lx", mainThreadId); \
 	}
 
 #define STACK_BASE_POP() \
@@ -129,7 +129,7 @@ char* stack_base_ptr;
 	{ \
 		_STACK_BASE_RESTORE; \
 		mainThreadId = saveMainThreadId; \
-		elog(DEBUG1, "Restored stack base for thread %lx", mainThreadId); \
+		elog(DEBUG2, "Restored stack base for thread %lx", mainThreadId); \
 	}
 
 /* NOTE!
