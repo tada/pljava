@@ -63,6 +63,12 @@ extern Oid pljavaTrustedOid, pljavaUntrustedOid;
 extern char *pljavaDbName();
 
 /*
+ * Return the name of the cluster if it has been set (only possible in 9.5+),
+ * or an empty string, never NULL.
+ */
+extern char const *pljavaClusterName();
+
+/*
  * Construct a default for pljava.classpath ($sharedir/pljava/pljava-$VER.jar)
  * in pathbuf (which must have length at least MAXPGPATH), and return pathbuf,
  * or NULL if the constructed path would not fit.

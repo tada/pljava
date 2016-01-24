@@ -44,7 +44,7 @@ public class InstallHelper
 	}
 
 	public static String hello(
-		String nativeVer, String user, String dbname,
+		String nativeVer, String user, String dbname, String clustername,
 		String datadir, String libdir, String sharedir, String etcdir)
 	{
 		String implVersion =
@@ -58,6 +58,8 @@ public class InstallHelper
 		System.setProperty( "user.name", user);
 		setPropertyIfNull( "java.awt.headless", "true");
 		setPropertyIfNull( "org.postgresql.database", dbname);
+		if ( null != clustername )
+			setPropertyIfNull( "org.postgresql.cluster", clustername);
 		setPropertyIfNull( "org.postgresql.datadir", datadir);
 		setPropertyIfNull( "org.postgresql.libdir", libdir);
 		setPropertyIfNull( "org.postgresql.sharedir", sharedir);

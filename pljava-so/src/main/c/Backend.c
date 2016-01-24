@@ -1115,10 +1115,15 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 
 static void JVMOptList_addVisualVMName(JVMOptList* jol)
 {
+	char const *clustername = pljavaClusterName();
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendStringInfo(&buf, "%sPL/Java:%d:%s",
-		visualVMprefix, MyProcPid, pljavaDbName());
+	if ( '\0' == *clustername )
+		appendStringInfo(&buf, "%sPL/Java:%d:%s",
+			visualVMprefix, MyProcPid, pljavaDbName());
+	else
+		appendStringInfo(&buf, "%sPL/Java:%s:%d:%s",
+			visualVMprefix, clustername, MyProcPid, pljavaDbName());
 	JVMOptList_add(jol, buf.data, 0, false);
 }
 
@@ -1285,7 +1290,7 @@ static void registerGUCOptions(void)
 		NULL, /* extended description */
 		&vmoptions,
 		#if PG_VERSION_NUM >= 80400
-			"-XX:+DisableAttachMechanism", /* boot value */
+			NULL, /* boot value */
 		#endif
 		PGC_SUSET,
 		#if PG_VERSION_NUM >= 80400
