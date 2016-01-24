@@ -212,6 +212,7 @@ public class InstallHelper
 				"COMMENT ON LANGUAGE java IS '" +
 				"Trusted/sandboxed language for routines and types in " +
 				"Java; http://tada.github.io/pljava/'");
+			s.execute("REVOKE USAGE ON LANGUAGE java FROM PUBLIC");
 			c.releaseSavepoint(p);
 		}
 		catch ( SQLException sqle )

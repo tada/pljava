@@ -15,6 +15,7 @@ After completing the [build][bld]:
     java -jar pljava-packaging/target/pljava-pgX.Y-arch-os-link.jar
     psql
     CREATE EXTENSION pljava;
+    GRANT USAGE ON LANGUAGE java TO ...; -- see "Usage permission" below
 
 where *pgX.Y* represents the PostgreSQL version, and *arch*, *os*, and
 *link* are ... wait, you're impatient, just look in the directory, you'll
@@ -187,6 +188,25 @@ with active older PL/Java versions will not be disrupted by the altered schema
 as long as the transaction remains open, *but they may block for the duration,
 so whatever testing will be done within the transaction should be done quickly
 if that could be an issue*.
+
+$h2 Usage permission
+
+Installation of PL/Java creates two "languages", `java` and `javau`.
+Functions that specify `LANGUAGE javau` can be created only by superusers,
+and are subject to very few restrictions at runtime. Functions that specify
+`LANGUAGE java` can be created by any user or role that has been granted
+`USAGE` permission `ON LANGUAGE java`. They run under a security manager that
+denies access to the host filesystem.
+
+PostgreSQL, by default, would grant `USAGE` to `PUBLIC` on the `java` language,
+but PL/Java takes a more conservative approach on a new installation.
+In keeping with the principle of least privilege,
+selective access can then be granted to those users or roles that will be
+expected to install Java functions. Usage may be explicitly granted to `PUBLIC`
+if a site prefers that traditional policy.
+
+In a repeat or upgrade installation (the language `java` already exists),
+no change will be made to the access permissions granted on it.
 
 $h2 Special topics
 
