@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; The examples built with PL/Java</title>
+    <title>PostgreSQL PL/Java &#x2013; Building with a 32-bit Java Development Kit</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -105,55 +105,13 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>The examples built with PL/Java</h1>
-<p>The PL/Java source includes a number of <a class="externalLink" href="https://github.com/tada/pljava/tree/master//pljava-examples/src/main/java/org/postgresql/pljava/example">examples</a> that are built into a jar that can be installed in the same way as a jar of your own PL/Java functions and types.</p>
-<p>You can extract <tt>examples.jar</tt> from the <a href="../install/locate.html">packaged archive</a>, or use the direct path to where it was built: relative to the build root, <tt>pljava-examples/target/pljava-examples-${project.version}.jar</tt>, with <tt>${project.version}</tt> expanded the obvious way, for example <tt>1.5.0-SNAPSHOT</tt>.</p>
-<div class="section">
-<h2><a name="Loading_the_examples"></a>Loading the examples</h2>
-<p>Assuming you are connected to a database where PL/Java has been successfully loaded, use the <tt>sqlj.install_jar</tt> function, which takes three parameters. The first is a URL to the jar file to be loaded. The simplest case would be a <tt>file:</tt> URL giving a path on the PostgreSQL server host to the jar file, with permissions set so the backend can read it. Other forms of URL are also accepted, so <tt>install_jar</tt> could retrieve a jar from the web, for example.</p>
-<p>The second parameter is a short name to identify the jar within PL/Java, and the third is a boolean controlling whether to execute the <a class="externalLink" href="https://github.com/tada/pljava/wiki/Sql-deployment-descriptor">deployment descriptor</a> included in the jar as part of installing it.</p>
-<p>Therefore:</p>
+        <h1>Building with a 32-bit Java Development Kit</h1>
+<p>When building with 32-bit Java, the following environment variable setting before running Maven will reportedly prevent a stack overflow error during the build:</p>
 
 <div class="source">
 <div class="source">
-<pre>SELECT sqlj.install_jar(
-  'file://'
-  '/buildroot/pljava-examples/target/pljava-examples-1.5.0-SNAPSHOT.jar',
-  'examples', true);
+<pre>MAVEN_OPTS=-Xss1024k
 </pre></div></div>
-<p>will install the <tt>examples.jar</tt> file (assuming the build was done in <tt>/buildroot</tt>), giving it the identifier <tt>examples</tt> and executing the deployment descriptor.</p>
-<p>A typical deployment descriptor will merely declare functions or types provided by the jar, create tables they rely on, etc. The <tt>examples.jar</tt> deployment descriptor goes farther, and calls several functions provided as test cases, so this use of <tt>install_jar</tt> may take a few extra seconds and produce some test-related output. (To see <i>successful</i> test-related output, be sure to set <tt>client_min_messages</tt> to a level at least as detailed as <tt>INFO</tt> before invoking <tt>install_jar</tt>.)</p></div>
-<div class="section">
-<h2><a name="Trying_the_examples"></a>Trying the examples</h2>
-<p>While the deployment descriptor itself runs some of the examples, once the jar is installed, they are all available for you to run, as functions in the <tt>javatest</tt> schema.</p>
-<p>First, be sure the <tt>javatest</tt> schema is on your <tt>search_path</tt>:</p>
-
-<div class="source">
-<div class="source">
-<pre>SHOW search_path;
-</pre></div></div>
-<p>It will be, after <tt>install_jar</tt> returns (though that is arguably a bug and could change), but that will not persist into new sessions.</p>
-<p>Make sure that the Java classpath for that schema includes the ID for this jar:</p>
-
-<div class="source">
-<div class="source">
-<pre>SELECT sqlj.get_classpath('javatest');
-</pre></div></div>
-<p>If it does not, set the classpath:</p>
-
-<div class="source">
-<div class="source">
-<pre>SELECT sqlj.set_classpath('javatest', 'examples');
-</pre></div></div>
-<p>Then use some example function:</p>
-
-<div class="source">
-<div class="source">
-<pre> SELECT javatest.java_addone(3);
- java_addone 
--------------
-           4
-</pre></div></div></div>
       </div>
     </div>
     <div class="clear">
