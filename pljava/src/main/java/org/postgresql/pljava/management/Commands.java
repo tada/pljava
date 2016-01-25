@@ -257,6 +257,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		jarOwner    NAME NOT NULL," +
 "		jarManifest TEXT" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_repository IS" +
+"	'Information on jars loaded by PL/Java, one row per jar.'",
 "	GRANT SELECT ON sqlj.jar_repository TO public",
 
 "	CREATE TABLE sqlj.jar_entry(" +
@@ -267,6 +269,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		entryImage  BYTEA NOT NULL," +
 "		UNIQUE(jarId, entryName)" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_entry IS" +
+"	'Name and content of each entry in every jar loaded by PL/Java.'",
 "	GRANT SELECT ON sqlj.jar_entry TO public",
 
 "	CREATE TABLE sqlj.jar_descriptor(" +
@@ -275,6 +279,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		PRIMARY KEY (jarId, ordinal)," +
 "		entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_descriptor IS" +
+"	'Associates each jar with zero-or-more deployment descriptors (a row " +
+	"for each), with ordinal indicating their order of mention in the " +
+	"manifest.'",
 "	GRANT SELECT ON sqlj.jar_descriptor TO public",
 
 "	CREATE TABLE sqlj.classpath_entry(" +
@@ -284,6 +292,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 "		PRIMARY KEY(schemaName, ordinal)" +
 "	)",
+"	COMMENT ON TABLE sqlj.classpath_entry IS" +
+"	'Associates each schema with zero-or-more jars (a row " +
+	"for each), with ordinal indicating their order of precedence in the " +
+	"classpath.'",
 "	GRANT SELECT ON sqlj.classpath_entry TO public",
 
 "	CREATE TABLE sqlj.typemap_entry(" +
@@ -291,6 +303,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		javaName    VARCHAR(200) NOT NULL," +
 "		sqlName     NAME NOT NULL" +
 "	)",
+"	COMMENT ON TABLE sqlj.typemap_entry IS" +
+"	'A row for each SQL type <-> Java type custom mapping.'",
 "	GRANT SELECT ON sqlj.typemap_entry TO public"
 }, remove={
 "	DROP TABLE sqlj.typemap_entry",
