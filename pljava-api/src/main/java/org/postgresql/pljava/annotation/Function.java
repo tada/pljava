@@ -196,4 +196,11 @@ category</a>
 	 * emit code not wrapped in an {@code <implementor block>}.
 	 */
 	String implementor() default "";
+
+	/**
+	 * A comment to be associated with the SQL function. If left to default,
+	 * and the Java function has a doc comment, its first sentence will be used.
+	 * If an empty string is explicitly given, no comment will be set.
+	 */
+	String comment() default "";
 }

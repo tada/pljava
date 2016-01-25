@@ -91,4 +91,11 @@ public @interface Trigger
 	 * as a target of the update command.
 	 */
 	String[] columns() default {};
+
+	/**
+	 * A comment to be associated with the trigger. If left to default,
+	 * and the Java function has a doc comment, its first sentence will be used.
+	 * If an empty string is explicitly given, no comment will be set.
+	 */
+	String comment() default "";
 }

@@ -100,4 +100,11 @@ public @interface MappedUDT
 	 * PostgreSQL type.
 	 */
 	String[] structure() default {};
+
+	/**
+	 * A comment to be associated with the type. If left to default,
+	 * and the Java class has a doc comment, its first sentence will be used.
+	 * If an empty string is explicitly given, no comment will be set.
+	 */
+	String comment() default "";
 }

@@ -30,6 +30,8 @@ import java.sql.SQLOutput;
 import java.sql.Time;
 import java.sql.Timestamp;
 
+import java.text.BreakIterator;
+
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -759,6 +761,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String implementor() { return _implementor; }
 
 		String _implementor = defaultImplementor;
+		String _comment;
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
@@ -777,6 +780,39 @@ hunt:	for ( ExecutableElement ee : ees )
 			System.arraycopy( req, 0, newreq, 0, req.length);
 			newreq[req.length] = imp;
 			return newreq;
+		}
+
+		public String comment() { return _comment; }
+
+		public void setComment( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+			{
+				_comment = (String)o;
+				if ( "".equals( _comment) )
+					_comment = null;
+			}
+			else
+				_comment = ((Commentable)this).derivedComment( e);
+		}
+
+		public String derivedComment( Element e)
+		{
+			String dc = elmu.getDocComment( e);
+			if ( null == dc )
+				return null;
+			return firstSentence( dc);
+		}
+
+		public String firstSentence( String s)
+		{
+			BreakIterator bi = BreakIterator.getSentenceInstance( loca);
+			bi.setText( s);
+			int start = bi.first();
+			int end = bi.next();
+			if ( BreakIterator.DONE == end )
+				return null;
+			return s.substring( start, end).trim();
 		}
 	}
 
@@ -976,7 +1012,7 @@ hunt:	for ( ExecutableElement ee : ees )
 	
 	class TriggerImpl
 	extends AbstractAnnotationImpl
-	implements Trigger, Snippet
+	implements Trigger, Snippet, Commentable
 	{
 		public String[] arguments() { return _arguments; }
 		public Event[]     events() { return _events; }
@@ -1093,7 +1129,18 @@ hunt:	for ( ExecutableElement ee : ees )
 					sb.append( ',');
 			}
 			sb.append( ')');
-			return new String[] { sb.toString() };
+
+			String comm = comment();
+			if ( null == comm )
+				return new String[] { sb.toString() };
+
+			return new String[] {
+				sb.toString(),
+				"COMMENT ON TRIGGER " + name() + " ON " +
+				( "".equals( schema()) ? "" : ( schema() + '.' ) ) + table() +
+				"\nIS " +
+				DDRWriter.eQuote( comm)
+			};
 		}
 		
 		public String[] undeployStrings()
@@ -1109,7 +1156,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	class FunctionImpl
 	extends AbstractAnnotationImpl
-	implements Function, Snippet
+	implements Function, Snippet, Commentable
 	{
 		public String             type() { return _type; }
 		public String             name() { return _name; }
@@ -1338,8 +1385,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public String[] deployStrings()
 		{
-			String[] rslt = new String [ 1 + triggers().length ];
-			// relies on each trigger's deployStrings() having length == 1
+			ArrayList<String> al = new ArrayList<String>();
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
 			appendNameAndParams( sb, true);
@@ -1381,13 +1427,23 @@ hunt:	for ( ExecutableElement ee : ees )
 			sb.append( "\tAS '");
 			appendAS( sb);
 			sb.append( '\'');
-			rslt [ 0 ] = sb.toString();
+			al.add( sb.toString());
+
+			String comm = comment();
+			if ( null != comm )
+			{
+				sb.setLength( 0);
+				sb.append( "COMMENT ON FUNCTION ");
+				appendNameAndParams( sb, false);
+				sb.append( "\nIS ");
+				sb.append( DDRWriter.eQuote( comm));
+				al.add( sb.toString());
+			}
 			
-			int i = 1;
 			for ( Trigger t : triggers() )
 				for ( String s : ((TriggerImpl)t).deployStrings() )
-					rslt [ i++ ] = s;
-			return rslt;
+					al.add( s);
+			return al.toArray( new String [ al.size() ]);
 		}
 		
 		public String[] undeployStrings()
@@ -1539,11 +1595,19 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			return ui.implementor();
 		}
+
+		public String derivedComment( Element e)
+		{
+			String comm = super.derivedComment( e);
+			if ( null != comm )
+				return comm;
+			return id.name() + " method for type " + ui.qname;
+		}
 	}
 
 	abstract class AbstractUDTImpl
 	extends AbstractAnnotationImpl
-	implements Snippet
+	implements Snippet, Commentable
 	{
 		public String       name() { return _name; }
 		public String     schema() { return _schema; }
@@ -1589,6 +1653,15 @@ hunt:	for ( ExecutableElement ee : ees )
 				qname = _name;
 			else
 				qname = _schema + "." + _name;
+		}
+
+		protected void addComment( ArrayList<String> al)
+		{
+			String comm = comment();
+			if ( null == comm )
+				return;
+			al.add( "COMMENT ON TYPE " + qname + "\nIS " +
+				DDRWriter.eQuote( comm));
 		}
 	}
 
@@ -1637,6 +1710,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			al.add( "SELECT sqlj.add_type_mapping(" +
 				DDRWriter.eQuote( qname) + ", " +
 				DDRWriter.eQuote( tclass.toString()) + ')');
+			addComment( al);
 			return al.toArray( new String [ al.size() ]);
 		}
 
@@ -1881,6 +1955,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( ",\n\tCOLLATABLE = true");
 
 			al.add( sb.append( "\n)").toString());
+			addComment( al);
 			return al.toArray( new String [ al.size() ]);
 		}
 
@@ -2306,6 +2381,13 @@ interface Snippet
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
 	public boolean characterize();
+}
+
+interface Commentable
+{
+	public String comment();
+	public void setComment( Object o, boolean explicit, Element e);
+	public String derivedComment( Element e);
 }
 
 /**
