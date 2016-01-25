@@ -161,10 +161,19 @@ public class InstallHelper
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
 			" ON FUNCTION sqlj.java_call_handler() FROM public");
-		s.execute(
-			"COMMENT ON FUNCTION sqlj.java_call_handler() IS '" +
-			"Function-call handler for PL/Java''s trusted/sandboxed " +
-			"language.'");
+		ResultSet rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.java_call_handler()' AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		boolean noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION sqlj.java_call_handler() IS '" +
+				"Function-call handler for PL/Java''s trusted/sandboxed " +
+				"language.'");
 
 		s.execute(
 			"CREATE OR REPLACE FUNCTION sqlj.javau_call_handler()" +
@@ -173,10 +182,19 @@ public class InstallHelper
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
 			" ON FUNCTION sqlj.javau_call_handler() FROM public");
-		s.execute(
-			"COMMENT ON FUNCTION sqlj.javau_call_handler() IS '" +
-			"Function-call handler for PL/Java''s untrusted/unsandboxed " +
-			"language.'");
+		rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.javau_call_handler()' AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION sqlj.javau_call_handler() IS '" +
+				"Function-call handler for PL/Java''s untrusted/unsandboxed " +
+				"language.'");
 	}
 
 	private static void languages( Connection c, Statement s)
