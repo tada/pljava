@@ -485,7 +485,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		jvmStartedAtLeastOnce = true;
-		elog(DEBUG1, "successfully created Java virtual machine");
+		elog(DEBUG2, "successfully created Java virtual machine");
 		initstage = IS_JAVAVM_STARTED;
 
 	case IS_JAVAVM_STARTED:
@@ -774,10 +774,10 @@ static void initPLJavaClasses(void)
 
 	Exception_initialize();
 
-	elog(DEBUG1, "checking for a PL/Java Backend class on the given classpath");
+	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
 	s_Backend_class = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Backend");
-	elog(DEBUG1, "successfully loaded Backend class");
+	elog(DEBUG2, "successfully loaded Backend class");
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
@@ -1031,7 +1031,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		Invocation_pushInvocation(&ctx, false);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
-			elog(DEBUG1,
+			elog(DEBUG2,
 				"needed to forcibly shut down the Java virtual machine");
 			s_javaVM = 0;
 			return;
@@ -1045,7 +1045,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		enable_sig_alarm(5000, false);
 #endif
 
-		elog(DEBUG1, "shutting down the Java virtual machine");
+		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 
 #if PG_VERSION_NUM >= 90300
@@ -1057,10 +1057,10 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 #else
 		Invocation_pushInvocation(&ctx, false);
-		elog(DEBUG1, "shutting down the Java virtual machine");
+		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
-		elog(DEBUG1, "done shutting down the Java virtual machine");
+		elog(DEBUG2, "done shutting down the Java virtual machine");
 		s_javaVM = 0;
 		currentInvocation = 0;
 	}
@@ -1110,7 +1110,7 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	if ( 0 == strncmp(optString, visualVMprefix, sizeof visualVMprefix - 1) )
 		seenVisualVMName = true;
 
-	elog(DEBUG1, "Added JVM option string \"%s\"", optString);		
+	elog(DEBUG2, "Added JVM option string \"%s\"", optString);
 }
 
 static void JVMOptList_addVisualVMName(JVMOptList* jol)
@@ -1227,7 +1227,7 @@ static void checkIntTimeType(void)
 	const char* idt = PG_GETCONFIGOPTION("integer_datetimes");
 
 	integerDateTimes = (strcmp(idt, "on") == 0);
-	elog(DEBUG1, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
+	elog(DEBUG2, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
 }
 
 static jint initializeJavaVM(JVMOptList *optList)
@@ -1247,7 +1247,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 	vm_args.version  = JNI_VERSION_1_4;
 	vm_args.ignoreUnrecognized = JNI_FALSE;
 
-	elog(DEBUG1, "creating Java virtual machine");
+	elog(DEBUG2, "creating Java virtual machine");
 
 	jstat = JNI_createVM(&s_javaVM, &vm_args);
 

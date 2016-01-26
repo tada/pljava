@@ -155,11 +155,11 @@ static void checkLoadPath( bool *livecheck)
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
-		elog(DEBUG1, "ActivePortal lists %d statements", list_length( l));
+		elog(DEBUG2, "ActivePortal lists %d statements", list_length( l));
 	ut = (Node *)linitial(l);
 	if ( NULL == ut )
 	{
-		elog(DEBUG1, "got null for first statement from ActivePortal");
+		elog(DEBUG2, "got null for first statement from ActivePortal");
 		return;
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
@@ -182,7 +182,7 @@ static void checkLoadPath( bool *livecheck)
 	ls = (LoadStmt *)ut;
 	if ( NULL == ls->filename )
 	{
-		elog(DEBUG1, "got null for a LOAD statement's filename");
+		elog(DEBUG2, "got null for a LOAD statement's filename");
 		return;
 	}
 	pljavaLoadPath =
