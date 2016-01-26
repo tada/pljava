@@ -330,6 +330,38 @@ Range types
 : Listeners for these events cannot be registered and the events will not
     be delivered.
 
+$h4 Imperfect integration with PostgreSQL dependency tracking
+
+In a dump/restore, manual intervention can be needed if the users/roles
+recorded as owners of jars are missing or have been renamed. A current
+[thread on `pgsql-hackers`][ownhack] should yield a better solution for
+a future release.
+
+[ownhack]: http://www.postgresql.org/message-id/56783412.6090005@anastigmatix.net
+
+$h4 Quirk if deployment descriptor loads classes from same jar
+
+The `install_jar` function installs a jar, optionally reading deployment
+descriptors from the jar and executing the install actions they contain.
+It is possible for those actions to load classes from the jar just installed.
+(This would be unlikely if the install actions are limited to typical setup,
+function/operator/datatype creation, but likely, if the install actions also
+include basic function tests, or if the setup requirements are more
+interesting.)
+
+If, for any class in the jar, the first attempt to load that class is made
+while resolving a function declared `STABLE` or `IMMUTABLE`, a
+`ClassNotFoundException` results. The cause is PostgreSQL's normal treatment of
+a `STABLE` or `IMMUTABLE` function, which relies on a snapshot from the start of
+the `install_jar` query, when the jar was not yet installed. A workaround is to
+ensure that the install actions cause each needed class to be loaded, such as
+by calling a `VOLATILE` function it supplies, before calling one that is
+`STABLE` or `IMMUTABLE`. (One could even write install actions to declare a
+needed function `VOLATILE` before the first call and then redeclare it.)
+
+This issue should be resolved as part of a broader rework of class loading
+in a future PL/Java release.
+
 $h4 Partial implementation of JDBC 4 and later
 
 The changes to make PL/Java build under Java SE 6 and later, with version 4.0
