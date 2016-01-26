@@ -332,6 +332,8 @@ char *InstallHelper_hello()
 	JNI_deleteLocalRef(nativeVer);
 	JNI_deleteLocalRef(user);
 	JNI_deleteLocalRef(dbname);
+	if ( NULL != clustername )
+		JNI_deleteLocalRef(clustername);
 	JNI_deleteLocalRef(ddir);
 	JNI_deleteLocalRef(ldir);
 	JNI_deleteLocalRef(sdir);
