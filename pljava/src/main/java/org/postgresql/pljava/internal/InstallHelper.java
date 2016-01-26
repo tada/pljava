@@ -138,6 +138,10 @@ public class InstallHelper
 		{
 			p = c.setSavepoint();
 			s.execute("CREATE SCHEMA sqlj");
+			s.execute("COMMENT ON SCHEMA sqlj IS '"+
+			"Schema for objects pertaining to PL/Java, as specified by " +
+			"\"SQL/JRT\" part 13 of the SQL standard, Java Routines and Types.'"
+			);
 			s.execute("GRANT USAGE ON SCHEMA sqlj TO public");
 			c.releaseSavepoint(p);
 		}
@@ -159,6 +163,19 @@ public class InstallHelper
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
 			" ON FUNCTION sqlj.java_call_handler() FROM public");
+		ResultSet rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.java_call_handler()' AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		boolean noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION sqlj.java_call_handler() IS '" +
+				"Function-call handler for PL/Java''s trusted/sandboxed " +
+				"language.'");
 
 		s.execute(
 			"CREATE OR REPLACE FUNCTION sqlj.javau_call_handler()" +
@@ -167,6 +184,19 @@ public class InstallHelper
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
 			" ON FUNCTION sqlj.javau_call_handler() FROM public");
+		rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.javau_call_handler()' AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION sqlj.javau_call_handler() IS '" +
+				"Function-call handler for PL/Java''s untrusted/unsandboxed " +
+				"language.'");
 	}
 
 	private static void languages( Connection c, Statement s)
@@ -178,6 +208,10 @@ public class InstallHelper
 			p = c.setSavepoint();
 			s.execute(
 				"CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
+			s.execute(
+				"COMMENT ON LANGUAGE java IS '" +
+				"Trusted/sandboxed language for routines and types in " +
+				"Java; http://tada.github.io/pljava/'");
 			c.releaseSavepoint(p);
 		}
 		catch ( SQLException sqle )
@@ -186,11 +220,16 @@ public class InstallHelper
 			if ( ! "42710".equals(sqle.getSQLState()) )
 				throw sqle;
 		}
+
 		try
 		{
 			p = c.setSavepoint();
 			s.execute(
 				"CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler");
+			s.execute(
+				"COMMENT ON LANGUAGE javau IS '" +
+				"Untrusted/unsandboxed language for routines and types in " +
+				"Java; http://tada.github.io/pljava/'");
 			c.releaseSavepoint(p);
 		}
 		catch ( SQLException sqle )

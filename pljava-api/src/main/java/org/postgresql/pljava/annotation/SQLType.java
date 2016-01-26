@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -24,7 +24,7 @@ import java.lang.annotation.Target;
  * automatically mapped type, and/or to supply an SQL default value.
  *
  * This annotation cannot be used to supply the SQL declaration's return type,
- * but {@link Function#complexType @Function(complexType=...)} can.
+ * but {@link Function#type @Function(type=...)} can.
  *
  * @author Thomas Hallgren - pre-Java6 version
  * @author Chapman Flack (Purdue Mathematics) - updated to Java6, added SQLType

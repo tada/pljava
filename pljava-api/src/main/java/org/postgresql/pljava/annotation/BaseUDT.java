@@ -125,6 +125,13 @@ public @interface BaseUDT
 	String implementor() default "";
 
 	/**
+	 * A comment to be associated with the type. If left to default,
+	 * and the Java class has a doc comment, its first sentence will be used.
+	 * If an empty string is explicitly given, no comment will be set.
+	 */
+	String comment() default "";
+
+	/**
 	 * Name, possibly schema-qualified, of a function to parse type-modifier
 	 * strings for this type. Such a function may be implemented in any language
 	 * as long as it can accept a single {@code cstring[]} parameter and return

@@ -257,6 +257,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		jarOwner    NAME NOT NULL," +
 "		jarManifest TEXT" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_repository IS" +
+"	'Information on jars loaded by PL/Java, one row per jar.'",
 "	GRANT SELECT ON sqlj.jar_repository TO public",
 
 "	CREATE TABLE sqlj.jar_entry(" +
@@ -267,6 +269,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		entryImage  BYTEA NOT NULL," +
 "		UNIQUE(jarId, entryName)" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_entry IS" +
+"	'Name and content of each entry in every jar loaded by PL/Java.'",
 "	GRANT SELECT ON sqlj.jar_entry TO public",
 
 "	CREATE TABLE sqlj.jar_descriptor(" +
@@ -275,6 +279,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		PRIMARY KEY (jarId, ordinal)," +
 "		entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
 "	)",
+"	COMMENT ON TABLE sqlj.jar_descriptor IS" +
+"	'Associates each jar with zero-or-more deployment descriptors (a row " +
+	"for each), with ordinal indicating their order of mention in the " +
+	"manifest.'",
 "	GRANT SELECT ON sqlj.jar_descriptor TO public",
 
 "	CREATE TABLE sqlj.classpath_entry(" +
@@ -284,6 +292,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 "		PRIMARY KEY(schemaName, ordinal)" +
 "	)",
+"	COMMENT ON TABLE sqlj.classpath_entry IS" +
+"	'Associates each schema with zero-or-more jars (a row " +
+	"for each), with ordinal indicating their order of precedence in the " +
+	"classpath.'",
 "	GRANT SELECT ON sqlj.classpath_entry TO public",
 
 "	CREATE TABLE sqlj.typemap_entry(" +
@@ -291,6 +303,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		javaName    VARCHAR(200) NOT NULL," +
 "		sqlName     NAME NOT NULL" +
 "	)",
+"	COMMENT ON TABLE sqlj.typemap_entry IS" +
+"	'A row for each SQL type <-> Java type custom mapping.'",
 "	GRANT SELECT ON sqlj.typemap_entry TO public"
 }, remove={
 "	DROP TABLE sqlj.typemap_entry",
@@ -490,7 +504,7 @@ public class Commands
 	 * @param sqlTypeName The name of the SQL type. The name can be
 	 *            qualified with a schema (namespace). If the schema is omitted,
 	 *            it will be resolved according to the current setting of the
-	 *            <code>search_path</code>.
+	 *            {@code search_path}.
 	 * @param javaClassName The name of the class. The class must be found in
 	 *            the classpath in effect for the current schema
 	 * @throws SQLException
@@ -535,7 +549,7 @@ public class Commands
 	 * @param sqlTypeName The name of the SQL type. The name can be
 	 *            qualified with a schema (namespace). If the schema is omitted,
 	 *            it will be resolved according to the current setting of the
-	 *            <code>search_path</code>.
+	 *            {@code search_path}.
 	 * @throws SQLException
 	 */
 	@Function(schema="sqlj", name="drop_type_mapping", security=DEFINER)
@@ -559,11 +573,11 @@ public class Commands
 
 	/**
 	 * Return the classpath that has been defined for the schema named
-	 * <code>schemaName</code> This method is exposed in SQL as
-	 * <code>sqlj.get_classpath(VARCHAR)</code>.
+	 * {@code schemaName}. This method is exposed in SQL as
+	 * {@code sqlj.get_classpath(VARCHAR)}.
 	 * 
 	 * @param schemaName Name of the schema for which this path is valid.
-	 * @return The defined classpath or <code>null</code> if this schema has
+	 * @return The defined classpath or {@code null} if this schema has
 	 *         no classpath.
 	 * @throws SQLException
 	 */
@@ -615,15 +629,15 @@ public class Commands
 
 	/**
 	 * Installs a new Jar in the database jar repository under name
-	 * <code>jarName</code>. Once installed classpaths can be defined that
+	 * {@code jarName}. Once installed classpaths can be defined that
 	 * refrences this jar. This method is exposed in SQL as
-	 * <code>sqlj.install_jar(BYTEA, VARCHAR, BOOLEAN)</code>.
+	 * {@code sqlj.install_jar(BYTEA, VARCHAR, BOOLEAN)}.
 	 * 
 	 * @param image The byte array that constitutes the jar content.
 	 * @param jarName The name by which the system will refer to this jar.
 	 * @param deploy If set, execute install commands found in the deployment
 	 *            descriptor.
-	 * @throws SQLException if the <code>jarName</code> contains characters
+	 * @throws SQLException if the {@code jarName} contains characters
 	 *             that are invalid or if the named jar already exists in the
 	 *             system.
 	 * @see #setClassPath
@@ -638,15 +652,15 @@ public class Commands
 
 	/**
 	 * Installs a new Jar in the database jar repository under name
-	 * <code>jarName</code>. Once installed classpaths can be defined that
+	 * {@code jarName}. Once installed classpaths can be defined that
 	 * refrences this jar. This method is exposed in SQL as
-	 * <code>sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
+	 * {@code sqlj.install_jar(VARCHAR, VARCHAR, BOOLEAN)}.
 	 * 
 	 * @param urlString The location of the jar that will be installed.
 	 * @param jarName The name by which the system will refer to this jar.
 	 * @param deploy If set, execute install commands found in the deployment
 	 *            descriptor.
-	 * @throws SQLException if the <code>jarName</code> contains characters
+	 * @throws SQLException if the {@code jarName} contains characters
 	 *             that are invalid or if the named jar already exists in the
 	 *             system.
 	 * @see #setClassPath
@@ -659,10 +673,10 @@ public class Commands
 	}
 
 	/**
-	 * Removes the jar named <code>jarName</code> from the database jar
+	 * Removes the jar named {@code jarName} from the database jar
 	 * repository. Class path entries that references this jar will also be
 	 * removed (just the entry, not the whole path). This method is exposed in
-	 * SQL as <code>sqlj.remove_jar(VARCHAR, BOOLEAN)</code>.
+	 * SQL as {@code sqlj.remove_jar(VARCHAR, BOOLEAN)}.
 	 * 
 	 * @param jarName The name by which the system referes this jar.
 	 * @param undeploy If set, execute remove commands found in the deployment
@@ -707,9 +721,9 @@ public class Commands
 	}
 
 	/**
-	 * Replaces the image of jar named <code>jarName</code> in the database
-	 * jar repository. This method is exposed in SQL as <code>
-	 * sqlj.replace_jar(BYTEA, VARCHAR, BOOLEAN)</code>.
+	 * Replaces the image of jar named {@code jarName} in the database
+	 * jar repository. This method is exposed in SQL as
+	 * {@code sqlj.replace_jar(BYTEA, VARCHAR, BOOLEAN)}.
 	 * 
 	 * @param jarImage The byte array that constitutes the jar content.
 	 * @param jarName The name by which the system referes this jar.
@@ -727,9 +741,9 @@ public class Commands
 	}
 
 	/**
-	 * Replaces the image of jar named <code>jarName</code> in the database
-	 * jar repository. This method is exposed in SQL as <code>
-	 * sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN)</code>.
+	 * Replaces the image of jar named {@code jarName} in the database
+	 * jar repository. This method is exposed in SQL as
+	 * {@code sqlj.replace_jar(VARCHAR, VARCHAR, BOOLEAN)}.
 	 * 
 	 * @param urlString The location of the jar that will be installed.
 	 * @param jarName The name by which the system referes this jar.
@@ -747,9 +761,9 @@ public class Commands
 
 	/**
 	 * Define the class path to use for Java functions, triggers, and procedures
-	 * that are created in the schema named <code>schemaName</code> This
+	 * that are created in the schema named {@code schemaName}. This
 	 * method is exposed in SQL as
-	 * <code>sqlj.set_classpath(VARCHAR, VARCHAR)</code>.
+	 * {@code sqlj.set_classpath(VARCHAR, VARCHAR)}.
 	 * 
 	 * @param schemaName Name of the schema for which this path is valid.
 	 * @param path Colon separated list of names. Each name must denote the name
