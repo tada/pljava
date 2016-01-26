@@ -37,6 +37,7 @@
 #endif
 
 #include "pljava/InstallHelper.h"
+#include "pljava/Backend.h"
 #include "pljava/Function.h"
 #include "pljava/Invocation.h"
 #include "pljava/JNICalls.h"
@@ -95,6 +96,20 @@ bool pljavaViableXact()
 char *pljavaDbName()
 {
 	return MyProcPort->database_name;
+}
+
+char const *pljavaClusterName()
+{
+	/*
+	 * If PostgreSQL isn't at least 9.5, there can't BE a cluster name, and if
+	 * it is, then there's always one (even if it is an empty string), so
+	 * PG_GETCONFIGOPTION is safe.
+	 */
+#if PG_VERSION_NUM < 90500
+	return "";
+#else
+	return PG_GETCONFIGOPTION("cluster_name");
+#endif
 }
 
 void pljavaCheckExtension( bool *livecheck)
@@ -281,17 +296,24 @@ char *InstallHelper_hello()
 	jstring nativeVer;
 	jstring user;
 	jstring dbname;
+	jstring clustername;
 	jstring ddir;
 	jstring ldir;
 	jstring sdir;
 	jstring edir;
 	jstring greeting;
 	char *greetingC;
+	char const *clusternameC = pljavaClusterName();
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
 	user = String_createJavaStringFromNTS(MyProcPort->user_name);
 	dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
+	if ( '\0' == *clusternameC )
+		clustername = NULL;
+	else
+		clustername = String_createJavaStringFromNTS(clusternameC);
+
 	ddir = String_createJavaStringFromNTS(DataDir);
 
 	get_pkglib_path(my_exec_path, pathbuf);
@@ -305,11 +327,13 @@ char *InstallHelper_hello()
 
 	greeting = JNI_callStaticObjectMethod(
 		s_InstallHelper_class, s_InstallHelper_hello,
-		nativeVer, user, dbname, ddir, ldir, sdir, edir);
+		nativeVer, user, dbname, clustername, ddir, ldir, sdir, edir);
 
 	JNI_deleteLocalRef(nativeVer);
 	JNI_deleteLocalRef(user);
 	JNI_deleteLocalRef(dbname);
+	if ( NULL != clustername )
+		JNI_deleteLocalRef(clustername);
 	JNI_deleteLocalRef(ddir);
 	JNI_deleteLocalRef(ldir);
 	JNI_deleteLocalRef(sdir);
@@ -350,7 +374,7 @@ void InstallHelper_initialize()
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;)Ljava/lang/String;");
+		"Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
 		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;ZZ)V");
 }

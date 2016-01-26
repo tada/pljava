@@ -76,21 +76,19 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     `pljava.vmoptions`. The exact quoting and encoding rules for this variable
     may be adjusted in a future PL/Java version.
 
-    The default value for this variable is `-XX:+DisableAttachMechanism`
-    so that [Java Management Extensions][jmx] tools such as
-    [`jvisualvm`][jvvm] are prevented by default from attaching to the
-    process. If you set any explicit value for `pljava.vmoptions`, you should
-    include `-XX:+DisableAttachMechanism` if you wish to prevent such tools
-    from attaching. If you intend to use the advanced features of such tools
-    (such as code profiling in VisualVM), then simply set any value for
-    `pljava.vmoptions` that does not contain `-XX:+DisableAttachMechanism`.
-    You may also need to do so if you are using a non-Oracle Java runtime
-    and it rejects that option as unknown.
+    You can include `-XX:+DisableAttachMechanism` among the options if you
+    prefer to prevent [Java Management Extensions][jmx] tools such as
+    [`jvisualvm`][jvvm] from attaching to the process even from the server host
+    itself (by default, such tools can connect if running on the server host as
+    a superuser, or the operating system user running the postmaster). That
+    will, of course, prevent you from using the advanced features of such tools,
+    such as code profiling in VisualVM.
 
     Even with attachment disabled, a tool such as VisualVM can display some
-    basic information about PL/Java processes (as long as it runs as the same
-    operating system user as the `postmaster`), including the arguments,
-    system properties, class and thread counts, and overall heap usage.
+    basic information about PL/Java processes (as long as it runs on the server
+    host, as a superuser or the same operating system user as the `postmaster`),
+    including the arguments, system properties, class and thread counts, and
+    overall heap usage.
 
 [pre92]: ../install/prepg92.html
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
