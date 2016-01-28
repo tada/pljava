@@ -326,7 +326,7 @@ Event triggers
 Range types
 : No predefined mappings for range types are provided.
 
-`PRE_PREPARE` and `PRE_COMMIT` transaction callbacks, `PRE_COMMIT` subtransaction callbacks
+`PRE_PREPARE`, `PRE_COMMIT`, `PARALLEL_ABORT`, `PARALLEL_PRE_COMMIT`, and `PARALLEL_COMMIT` transaction callbacks, `PRE_COMMIT` subtransaction callbacks
 : Listeners for these events cannot be registered and the events will not
     be delivered.
 
