@@ -178,6 +178,22 @@ Be sure to read these additional sections if:
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
 
+$h2 Troubleshooting the installation
+
+$h3 Puzzling error message from `CREATE EXTENSION`
+
+For PL/Java, `CREATE EXTENSION` (which works in PostgreSQL 9.1 and later) is a
+wrapper around installation via `LOAD` (which works in all versions PL/Java
+supports). A quirk of this arrangement is that PostgreSQL treats `LOAD` as a
+no-op if the library has once been loaded in the same session, so you may not be
+able to try `CREATE EXTENSION pljava` repeatedly in one session if something
+went wrong the first time.
+
+The error reported for later tries within a session may be puzzling, such as
+that the function `sqlj.get_classpath` or `sqlj.java_call_handler` does not
+exist, or some object does not belong to the extension. The solution is simple,
+though: just retry in a new session (in `psql`, `\c` makes that easy).
+
 $h2 More background and special considerations
 
 These last sections cover a little more of what happens under the hood.
