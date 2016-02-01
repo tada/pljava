@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 
@@ -17,6 +21,12 @@
 
 static jclass    s_LargeObject_class;
 static jmethodID s_LargeObject_init;
+
+#if PG_VERSION_NUM < 90300
+#define OFFSETNARROWCAST (int)
+#else
+#define OFFSETNARROWCAST
+#endif
 
 /*
  * org.postgresql.pljava.type.LargeObject type.
@@ -80,6 +90,11 @@ void LargeObject_initialize(void)
 		"_tell",
 	  	"(J)J",
 	  	Java_org_postgresql_pljava_internal_LargeObject__1tell
+		},
+		{
+		"_truncate",
+		"(JJ)V",
+		Java_org_postgresql_pljava_internal_LargeObject__1truncate
 		},
 		{
 		"_read",
@@ -243,7 +258,7 @@ Java_org_postgresql_pljava_internal_LargeObject__1length(JNIEnv* env, jclass cls
 			 */
 			LargeObjectDesc lod;
 			memcpy(&lod, self, sizeof(LargeObjectDesc));
-			result = (jlong)inv_seek(&lod, 0, SEEK_END);
+			result = (jlong)inv_seek(&lod, OFFSETNARROWCAST 0L, SEEK_END);
 		}
 		PG_CATCH();
 		{
@@ -270,7 +285,7 @@ Java_org_postgresql_pljava_internal_LargeObject__1seek(JNIEnv* env, jclass cls, 
 		BEGIN_NATIVE
 		PG_TRY();
 		{
-			result = (jlong)inv_seek(self, (int)pos, (int)whence);
+			result = (jlong)inv_seek(self, OFFSETNARROWCAST pos, (int)whence);
 		}
 		PG_CATCH();
 		{
@@ -307,6 +322,35 @@ Java_org_postgresql_pljava_internal_LargeObject__1tell(JNIEnv* env, jclass cls, 
 		END_NATIVE
 	}
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_LargeObject
+ * Method:    _truncate
+ * Signature: (JJ)V
+ */
+JNIEXPORT void JNICALL Java_org_postgresql_pljava_internal_LargeObject__1truncate
+  (JNIEnv *env, jclass cls, jlong _this, jlong pos)
+{
+#if PG_VERSION_NUM < 80300
+	Exception_featureNotSupported("truncate() for large object", "8.3");
+#else
+	LargeObjectDesc* self = Invocation_getWrappedPointer(_this);
+	if(self != 0)
+	{
+		BEGIN_NATIVE
+		PG_TRY();
+		{
+			inv_truncate(self, OFFSETNARROWCAST pos);
+		}
+		PG_CATCH();
+		{
+			Exception_throw_ERROR("inv_truncate");
+		}
+		PG_END_TRY();
+		END_NATIVE
+	}
+#endif
 }
 
 /*
