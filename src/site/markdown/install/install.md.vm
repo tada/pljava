@@ -20,6 +20,11 @@ where *pgX.Y* represents the PostgreSQL version, and *arch*, *os*, and
 *link* are ... wait, you're impatient, just look in the directory, you'll
 see the jar file there.
 
+*Upgrading an older PL/Java installation? Use
+`CREATE EXTENSION pljava FROM unpackaged;` after reading
+__Upgrade installations__
+below*.
+
 *Not running PostgreSQL 9.1 or higher? Use
 `LOAD 'libpljava-so-${project.version}';` instead of the `CREATE EXTENSION`
 command. (It works in later versions too, if you prefer it to
@@ -165,6 +170,23 @@ database needs them.
 
 For PostgreSQL releases [earlier than 9.2][pre92], the configuration file is
 the _only_ way to make your settings persistent.
+
+$h2 Upgrade installations
+
+PL/Java performs an upgrade installation if there is already an `sqlj` schema
+with tables that match a known PL/Java schema from version 1.3.0 or later. It
+will convert, preserving data, to the current schema if necessary.
+
+*Remember that PL/Java runs independently
+in each database session where it is in use. Older PL/Java versions active in
+other sessions can be disrupted by the schema change.*
+
+A trial installation of a PL/Java update can be done in a transaction, and
+rolled back if desired, leaving the schema as it was. Any concurrent sessions
+with active older PL/Java versions will not be disrupted by the altered schema
+as long as the transaction remains open, *but they may block for the duration,
+so whatever testing will be done within the transaction should be done quickly
+if that could be an issue*.
 
 $h2 Special topics
 

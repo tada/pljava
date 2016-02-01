@@ -67,8 +67,22 @@ Please review any of the following that apply to your situation:
 
 ## Obtaining PL/Java sources
 
-The best way to obtain up-to-date PL/Java sources is to have [git][] installed
-and `clone` the PL/Java GitHub repository, using either of these commands:
+### Sources for a specific release
+
+Obtain source for a specific PL/Java release from the
+[Releases page on GitHub][ghrp], archived in your choice of `zip` or `tar.gz`
+format.
+
+If you have `git`, you can also obtain specific-release source by cloning
+the repository and checking out the tag that identifies the release.
+
+[ghrp]: https://github.com/tada/pljava/releases
+
+### Current development sources
+
+The best way to obtain up-to-date development PL/Java sources is to have
+[git][] installed and `clone` the PL/Java GitHub repository, using either of
+these commands:
 
     git clone https://github.com/tada/pljava.git
     git clone ssh://git@github.com/tada/pljava.git
@@ -76,6 +90,9 @@ and `clone` the PL/Java GitHub repository, using either of these commands:
 The second only works if you have a GitHub account, but has the advantage
 of being faster if you do `git pull` later on to stay in sync with updated
 sources.
+
+From a clone, you can also build specific released versions, by first
+using `git checkout` with the tag that identifies the release.
 
 [git]: https://git-scm.com/
 
