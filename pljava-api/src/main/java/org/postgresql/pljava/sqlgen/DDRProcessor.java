@@ -1362,6 +1362,17 @@ hunt:	for ( ExecutableElement ee : ees )
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
 
+			/*
+			 * Report any unmappable types now that could appear in
+			 * deployStrings (return type or parameter types) ... so that the
+			 * error messages won't be missing the source location, as they can
+			 * with javac 7 throwing away symbol tables between rounds.
+			 * Because the logic in deployStrings determining what to call
+			 * getSQLType on is a bit fiddly, the simplest way to make all those
+			 * calls here is just ... call deployStrings.
+			 */
+			deployStrings();
+
 			_requires = augmentRequires( _requires, implementor());
 
 			for ( Trigger t : triggers() )
