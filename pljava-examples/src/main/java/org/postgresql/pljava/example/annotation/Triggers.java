@@ -17,21 +17,29 @@ import java.sql.SQLException;
 import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.Trigger;
 import static org.postgresql.pljava.annotation.Trigger.Called.*;
 import static org.postgresql.pljava.annotation.Trigger.Event.*;
 import static org.postgresql.pljava.annotation.Function.Security.*;
 
-@SQLAction(
-	provides = "foobar tables",
-	install = {
-		"CREATE TABLE javatest.foobar_1 ( username text, stuff text )",
-		"CREATE TABLE javatest.foobar_2 ( username text, value numeric )"
-	},
-	remove = {
-		"DROP TABLE javatest.foobar_2",
-		"DROP TABLE javatest.foobar_1"
-	})
+@SQLActions({
+	@SQLAction(
+		provides = "foobar tables",
+		install = {
+			"CREATE TABLE javatest.foobar_1 ( username text, stuff text )",
+			"CREATE TABLE javatest.foobar_2 ( username text, value numeric )"
+		},
+		remove = {
+			"DROP TABLE javatest.foobar_2",
+			"DROP TABLE javatest.foobar_1"
+		}
+	),
+	@SQLAction(
+		requires = "foobar triggers",
+		install = "INSERT INTO javatest.foobar_2(value) VALUES (42)"
+	)
+})
 public class Triggers
 {
 	/**
@@ -39,6 +47,7 @@ public class Triggers
 	 */
 	@Function(
 		requires = "foobar tables",
+		provides = "foobar triggers",
 		schema = "javatest",
 		security = INVOKER,
 		triggers = {
