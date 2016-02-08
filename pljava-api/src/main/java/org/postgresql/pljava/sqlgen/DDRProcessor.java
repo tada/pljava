@@ -1380,7 +1380,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					"Somehow this method got enclosed by something other " +
 					"than a class");
 			sb.append( e.toString()).append( '.');
-			sb.append( func.toString());
+			sb.append( trigger ? func.getSimpleName() : func.toString());
 		}
 
 		public String[] deployStrings()
