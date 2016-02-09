@@ -329,6 +329,32 @@ class DDRProcessorImpl
 	{
 		snippets.put( new SnippetsKey( o, s.getClass()), s);
 	}
+
+	/**
+	 * Queue on which snippets are entered in preparation for topological
+	 * ordering. Has to be an instance field because populating the queue
+	 * (which involves invoking the snippets' characterize methods) cannot
+	 * be left to generateDescriptor, which runs in the final round. This is
+	 * (AFAICT) another workaround for javac 7's behavior of throwing away
+	 * symbol tables between rounds; when characterize was invoked in
+	 * generateDescriptor, any errors reported were being shown with no source
+	 * location info, because it had been thrown away.
+	 */
+	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<Vertex<Snippet>>();
+
+	/**
+	 * Map from each arbitrary provides/requires label to the snippet
+	 * that 'provides' it. Has to be out here as an instance field for the
+	 * same reason {@code snippetQueue} does.
+	 */
+	Map<String, Vertex<Snippet>> provider =
+		new HashMap<String, Vertex<Snippet>>();
+
+	/**
+	 * Set of provides/requires labels for which at least one consumer has
+	 * been seen. An instance field for the same reason as {@code provider}.
+	 */
+	Set<String> consumer = new HashSet<String>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -390,12 +416,41 @@ class DDRProcessorImpl
 
 		tmpr.workAroundJava7Breakage(); // perhaps it will be fixed in Java 9?
 
-		if ( re.processingOver() && ! re.errorRaised() )
+		if ( ! re.processingOver() )
+			defensiveEarlyCharacterize();
+		else if ( ! re.errorRaised() )
 			generateDescriptor();
 
 		return willClaim;
 	}
-	
+
+	/**
+	 * Iterate over collected snippets, characterize them, and enter them
+	 * (if no error) in the data structures for topological ordering. Was
+	 * originally the first part of {@code generateDescriptor}, but that is
+	 * run in the final round, which is too late for javac 7 anyway, which
+	 * throws symbol tables away between rounds. Any errors reported from
+	 * characterize were being shown without source locations, because the
+	 * information was gone. This may now be run more than once, so the
+	 * {@code snippets} map is cleared before returning.
+	 */
+	void defensiveEarlyCharacterize()
+	{
+		for ( Snippet snip : snippets.values() )
+		{
+			if ( ! snip.characterize() )
+				continue;
+			Vertex<Snippet> v = new Vertex<Snippet>( snip);
+			snippetQueue.add( v);
+			for ( String s : snip.provides() )
+				if ( null != provider.put( s, v) )
+					msg( Kind.ERROR, "tag %s has more than one provider", s);
+			for ( String s : snip.requires() )
+				consumer.add( s);
+		}
+		snippets.clear();
+	}
+
 	/**
 	 * Arrange the collected snippets into a workable sequence (nothing with
 	 * requires="X" can come before whatever has provides="X"), then create
@@ -403,29 +458,9 @@ class DDRProcessorImpl
 	 */
 	void generateDescriptor()
 	{
-		Queue<Vertex<Snippet>> vs =	new LinkedList<Vertex<Snippet>>();
-		Map<String, Vertex<Snippet>> provider =
-			new HashMap<String, Vertex<Snippet>>();
-		Set<String> consumer = new HashSet<String>();
 		boolean errorRaised = false;
 
-		for ( Snippet snip : snippets.values() )
-		{
-			if ( ! snip.characterize() )
-				continue;
-			Vertex<Snippet> v = new Vertex<Snippet>( snip);
-			vs.add( v);
-			for ( String s : snip.provides() )
-				if ( null != provider.put( s, v) )
-				{
-					msg( Kind.ERROR, "tag %s has more than one provider", s);
-					errorRaised = true;
-				}
-			for ( String s : snip.requires() )
-				consumer.add( s);
-		}
-		
-		for ( Vertex<Snippet> v : vs )
+		for ( Vertex<Snippet> v : snippetQueue )
 			for ( String s : v.payload.requires() )
 			{
 				Vertex<Snippet> p = provider.get( s);
@@ -453,10 +488,11 @@ class DDRProcessorImpl
 		if ( errorRaised )
 			return;
 
-		Snippet[] snips = new Snippet [ vs.size() ];
+		Snippet[] snips = new Snippet [ snippetQueue.size() ];
 
 		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
-		for ( Iterator<Vertex<Snippet>> it = vs.iterator() ; it.hasNext() ; )
+		for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator() ;
+				it.hasNext() ; )
 		{
 			Vertex<Snippet> v = it.next();
 			if ( 0 == v.indegree )
@@ -472,11 +508,11 @@ queuerunning: for ( int i = 0 ; ; )
 			{
 				Vertex<Snippet> v = q.remove();
 				snips[i++] = v.payload;
-				v.use( q, vs);
+				v.use( q, snippetQueue);
 				for ( String p : v.payload.provides() )
 					consumer.remove(p);
 			}
-			if ( vs.isEmpty() )
+			if ( snippetQueue.isEmpty() )
 				break; // all done
 			/*
 			 * There are snippets remaining to output but they all have
@@ -487,7 +523,8 @@ queuerunning: for ( int i = 0 ; ; )
 			 * be "providing" that tag anyway), so set one such snippet free
 			 * and see how much farther we get.
 			 */
-			for ( Iterator<Vertex<Snippet>> it = vs.iterator(); it.hasNext(); )
+			for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator();
+					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
 				if ( 1 < v.indegree  ||  null == v.payload.implementor() )
@@ -562,9 +599,23 @@ queuerunning: for ( int i = 0 ; ; )
 	 */
 	void processUDT( Element e, UDTKind k)
 	{
-		if ( ! ElementKind.CLASS.equals( e.getKind()) )
+		/*
+		 * The allowed target type for the UDT annotations is TYPE, which can
+		 * be a class, interface (including annotation type) or enum, of which
+		 * only CLASS is valid here. If it is anything else, just return, as
+		 * that can only mean a source error prevented the compiler making sense
+		 * of it, and the compiler will have its own messages about that.
+		 */
+		switch ( e.getKind() )
 		{
-			msg( Kind.ERROR, e, "A pljava UDT must be a class");
+			case CLASS:
+				break;
+			case ANNOTATION_TYPE:
+			case ENUM:
+			case INTERFACE:
+				msg( Kind.ERROR, e, "A pljava UDT must be a class");
+			default:
+				return;
 		}
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
@@ -672,6 +723,16 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	void processFunction( Element e)
 	{
+		/*
+		 * METHOD is the only target type allowed for the Function annotation,
+		 * so the only way for e to be anything else is if some source error has
+		 * prevented the compiler making sense of it. In that case just return
+		 * silently on the assumption that the compiler will have its own
+		 * message about the true problem.
+		 */
+		if ( ! ElementKind.METHOD.equals( e.getKind()) )
+			return;
+
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
 		{
@@ -1325,6 +1386,17 @@ hunt:	for ( ExecutableElement ee : ees )
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
 
+			/*
+			 * Report any unmappable types now that could appear in
+			 * deployStrings (return type or parameter types) ... so that the
+			 * error messages won't be missing the source location, as they can
+			 * with javac 7 throwing away symbol tables between rounds.
+			 * Because the logic in deployStrings determining what to call
+			 * getSQLType on is a bit fiddly, the simplest way to make all those
+			 * calls here is just ... call deployStrings.
+			 */
+			deployStrings();
+
 			_requires = augmentRequires( _requires, implementor());
 
 			for ( Trigger t : triggers() )
@@ -1836,10 +1908,12 @@ hunt:	for ( ExecutableElement ee : ees )
 					"A pljava UDT must have a public static " +
 					"parse(String,String) method that returns the UDT");
 			}
-
-			in = new BaseUDTFunctionImpl(
-				this, tclass, BaseUDTFunctionID.INPUT);
-			putSnippet( staticParse, in);
+			else
+			{
+				in = new BaseUDTFunctionImpl(
+					this, tclass, BaseUDTFunctionID.INPUT);
+				putSnippet( staticParse, in);
+			}
 
 			out = new BaseUDTFunctionImpl(
 				this, tclass, BaseUDTFunctionID.OUTPUT);
