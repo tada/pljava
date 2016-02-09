@@ -13,6 +13,27 @@ that Maven will use in the build.
 
 [jdk8osx]: https://docs.oracle.com/javase/8/docs/technotes/guides/install/mac_jdk.html
 
+$h2 El Capitan does not ship OpenSSL headers
+
+As discussed [here][abotch]. On El Capitan, OpenSSL will have to be built,
+or installed from [MacPorts][mp] or [Homebrew][hb].
+
+If PostgreSQL itself was installed from MacPorts or Homebrew,
+current package listings for both systems suggest that OpenSSL _should have_
+been installed as a dependency. That should be checked if PL/Java fails
+to compile.
+
+[abotch]: http://www.postgresql.org/message-id/flat/77FB2321-9210-4AD4-B7FC-67623A5838F0@justatheory.com
+[mp]: https://www.macports.org/index.php
+[hb]: http://brew.sh/
+
+Homebrew, it seems, will install the OpenSSL headers, but in a nonstandard
+place. If so, for now, edit `pljava-so/pom.xml`, find the `<c>` compiler
+`<includePaths>` section, and add another `<includePath>` for the nonstandard
+location of the OpenSSL headers. See [issue 94][isu94] for more.
+
+[isu94]: https://github.com/tada/pljava/issues/94
+
 $h2 Note the PL/Java shared object name
 
 On OS X, the shared object file that results from the build will have a name
@@ -46,3 +67,12 @@ then you will probably set `pljava.libjvm_location` so:
 
     SET pljava.libjvm_location TO
     '/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre/lib/server/libjvm.dylib`;
+
+$h2 Troubleshooting the build
+
+On OS X, it seems the `-Pwnosign` Maven build option does not succeed in
+suppressing the many useless sign-conversion warnings, so if the build does
+fail, it can be difficult to find the real problem because of so many
+surrounding messages. One technique is to direct the `mvn -X -Dnar.cores=1 clean
+install` output into a file, then search that file for the strings `fatal error`
+or `error generated`.
