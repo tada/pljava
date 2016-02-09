@@ -599,9 +599,23 @@ queuerunning: for ( int i = 0 ; ; )
 	 */
 	void processUDT( Element e, UDTKind k)
 	{
-		if ( ! ElementKind.CLASS.equals( e.getKind()) )
+		/*
+		 * The allowed target type for the UDT annotations is TYPE, which can
+		 * be a class, interface (including annotation type) or enum, of which
+		 * only CLASS is valid here. If it is anything else, just return, as
+		 * that can only mean a source error prevented the compiler making sense
+		 * of it, and the compiler will have its own messages about that.
+		 */
+		switch ( e.getKind() )
 		{
-			msg( Kind.ERROR, e, "A pljava UDT must be a class");
+			case CLASS:
+				break;
+			case ANNOTATION_TYPE:
+			case ENUM:
+			case INTERFACE:
+				msg( Kind.ERROR, e, "A pljava UDT must be a class");
+			default:
+				return;
 		}
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
@@ -709,6 +723,16 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	void processFunction( Element e)
 	{
+		/*
+		 * METHOD is the only target type allowed for the Function annotation,
+		 * so the only way for e to be anything else is if some source error has
+		 * prevented the compiler making sense of it. In that case just return
+		 * silently on the assumption that the compiler will have its own
+		 * message about the true problem.
+		 */
+		if ( ! ElementKind.METHOD.equals( e.getKind()) )
+			return;
+
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
 		{
