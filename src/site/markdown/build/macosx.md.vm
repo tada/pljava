@@ -1,5 +1,6 @@
 # Building on Mac OS X
 #set($h2 = '##')
+#set($h3 = '###')
 
 Given the Unix heritage of Mac OS X, the PL/Java
 [build instructions](build.html) apply with few differences.
@@ -59,16 +60,22 @@ installing Oracle's Java to enable it for additional task types.
 **Nothing of the sort is needed for PL/Java**, because PL/Java does not use
 the Apple Java framework to locate the Java runtime. Instead, you simply
 set PostgreSQL's `pljava.libjvm_location` variable to identify the exact
-`libjvm.dylib` that PL/Java will use.
+Java dynamic library that PL/Java will use.
 
 For example, if the `mvn -v` shows "Java home" to be  
 `/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre`  
 then you will probably set `pljava.libjvm_location` so:
 
     SET pljava.libjvm_location TO
-    '/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre/lib/server/libjvm.dylib`;
+    '/Library/Java/JavaVirtualMachines/jdk1.8.0_65.jdk/Contents/Home/jre/lib/jli/libjli.dylib`;
+
+Note that on Mac OS X, the variable should point to a `libjli.dylib` file if it
+is available (Java 7 and later), not to a `libjvm.dylib` as you would otherwise
+expect. See `No Java runtime present` below for details.
 
 $h2 Troubleshooting the build
+
+$h3 Aggressive compiler warnings
 
 On OS X, it seems the `-Pwnosign` Maven build option does not succeed in
 suppressing the many useless sign-conversion warnings, so if the build does
@@ -76,3 +83,23 @@ fail, it can be difficult to find the real problem because of so many
 surrounding messages. One technique is to direct the `mvn -X -Dnar.cores=1 clean
 install` output into a file, then search that file for the strings `fatal error`
 or `error generated`.
+
+$h2 Troubleshooting installation
+
+$h3 `No Java runtime present, requesting install` or `Java SE 6` download dialog
+
+In Java 7 and later, there should be a `libjli.dylib` as well as a
+`libjvm.dylib`. The recommended setting for `pljava.libjvm_location`
+(despite the name!) is the path to the `libjli.dylib` file.
+
+If it points to the `libjvm.dylib` file as you would naturally expect,
+loading of PL/Java may cause the backend process to exit with a
+`No Java runtime present, requesting install` message, or a graphical
+dialog proposing to download and install Java 6.
+
+![OS X dialog proposing to download Java SE 6](../images/osxj6i.png)
+
+See [OS X El Capitan "Java 6" dialog when ... referencing Java 8][isu96] for
+background.
+
+[isu96]: https://github.com/tada/pljava/issues/96
