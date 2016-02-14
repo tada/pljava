@@ -263,6 +263,8 @@ jos.close();
 				includes="**/*pljava-so*"/>
 			<binary dir="../pljava/target" includes="pljava*.jar"
 				prefix="pljava/sharedir/pljava/"/>
+			<binary dir="../pljava-api/target" includes="pljava-api*.jar"
+				prefix="pljava/sharedir/pljava/"/>
 			<binary dir="../pljava-examples/target"
 				includes="pljava-examples*.jar"
 				prefix="pljava/sharedir/pljava/"/>
