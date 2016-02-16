@@ -11,30 +11,29 @@ DROP TABLE IF EXISTS @extschema@.loadpath;
 CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
 SELECT CAST('MODULE_PATHNAME' AS text), false;
 LOAD 'MODULE_PATHNAME';
-DROP TABLE @extschema@.loadpath;
 
 /*
- Why the DROP / ADD?  When faced with a LOAD command, PostgreSQL only does it
+ Why the CREATE / DROP?  When faced with a LOAD command, PostgreSQL only does it
  if the library has not been loaded already in the session (as could have
  happened if, for example, a PL/Java function has already been called). If the
  LOAD was skipped, there could still be an old-layout schema, because the
  migration only happens in an actual LOAD.  To avoid confusion later, it's
- helpful to fail fast in that case. DROPping the call handlers accomplishes
- that, because the LOAD action always CREATE-OR-REPLACEs them (to be sure they
- refer to the latest native library), which means they will already be gathered
- into the extension, provided the LOAD actions actually ran. If not, the DROPs
- will fail.
+ helpful to fail fast in that case. The loadpath table should have been dropped
+ by the LOAD actions, so the re-CREATE/DROP here will incur a (cryptic, but
+ dependable) error if those actions didn't happen.
  
  The error messages will not shed much light on the real problem, but at least
  will indicate that there is a problem. The solution is simply to exit the
  session and repeat the CREATE EXTENSION in a new session where PL/Java has not
  been loaded yet.
  */
+CREATE TABLE @extschema@.loadpath();
+DROP TABLE @extschema@.loadpath;
 
-ALTER EXTENSION pljava DROP FUNCTION sqlj.java_call_handler();
-ALTER EXTENSION pljava  ADD FUNCTION sqlj.java_call_handler();
-ALTER EXTENSION pljava DROP FUNCTION sqlj.javau_call_handler();
-ALTER EXTENSION pljava  ADD FUNCTION sqlj.javau_call_handler();
+/*
+ The language-hander functions do not need to be explicitly added, because the
+ LOAD actions always CREATE OR REPLACE them, which makes them extension members.
+ */
 
 ALTER EXTENSION pljava ADD LANGUAGE java;
 ALTER EXTENSION pljava ADD LANGUAGE javau;

@@ -21,7 +21,6 @@ DROP TABLE IF EXISTS @extschema@.loadpath;
 CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
 SELECT CAST('MODULE_PATHNAME' AS text), true;
 LOAD 'MODULE_PATHNAME';
-DROP TABLE @extschema@.loadpath;
 
 /*
  Ok, the LOAD succeeded, so everything happened ... unless ... the same
@@ -29,19 +28,18 @@ DROP TABLE @extschema@.loadpath;
  That would be an unusual case, but confusing if it happened, because
  PostgreSQL turns LOAD into a (successful) no-op in that case, meaning
  CREATE EXTENSION might appear to succeed without really completing.
- To fail fast in that case, execute some command that needs PL/Java to work.
- It may still give a bewildering error message on failure ("function
- sqlj.get_classpath(unknown) does not exist" hardly sheds any light on the
- real problem, but at least it detects that there is a problem). The result
- goes nowhere; CREATE EXTENSION sends any SELECT output from scripts to the
- bit bucket.
+ To fail fast in that case, expect that the LOAD actions should have
+ dropped the 'loadpath' table already, and just re-create and re-drop it here,
+ to incur a (cryptic, but dependable) error if it is still around because the
+ work didn't happen.
 
  The solution to a problem detected here is simply to close the session,
  and be sure to execute 'CREATE EXTENSION pljava' in a new session (new
  at least in the sense that Java hasn't been used in it yet).
  */
 
-SELECT sqlj.get_classpath('public');
+CREATE TABLE @extschema@.loadpath();
+DROP TABLE @extschema@.loadpath;
 
 /*
  All of these tables in sqlj are created empty by PL/Java itself, and
