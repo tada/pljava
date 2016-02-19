@@ -105,6 +105,9 @@
 							</c>
 							<linker>
 								<name>g++</name>
+								<options>
+									<option>-Wl,--export-all-symbols</option>
+								</options>
 								<libs combine.children='append'>
 									<lib>
 										<name>postgres</name>
