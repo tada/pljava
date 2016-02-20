@@ -137,14 +137,21 @@ static void JVMOptList_addVisualVMName(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static void checkIntTimeType(void);
 static char* getClassPath(const char*);
-static void pljavaStatementCancelHandler(int);
-static void pljavaDieHandler(int);
-static void pljavaQuickDieHandler(int);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
 static void reLogWithChangedLevel(int);
+
+#ifndef WIN32
+#define USE_PLJAVA_SIGHANDLERS
+#endif
+
+#ifdef USE_PLJAVA_SIGHANDLERS
+static void pljavaStatementCancelHandler(int);
+static void pljavaDieHandler(int);
+static void pljavaQuickDieHandler(int);
+#endif
 
 enum initstage
 {
@@ -501,7 +508,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_JAVAVM_STARTED;
 
 	case IS_JAVAVM_STARTED:
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 		pqsignal(SIGINT,  pljavaStatementCancelHandler);
 		pqsignal(SIGTERM, pljavaDieHandler);
 		pqsignal(SIGQUIT, pljavaQuickDieHandler);
@@ -554,7 +561,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errhint("The most common reason is that \"pljava.classpath\" "
 					"needs to be set, naming the proper \"pljava.jar\" file.")
 					));
-			_destroyJavaVM(0, 0); /* which undoes the sighandlers, btw */
+			_destroyJavaVM(0, 0);
 			goto check_tolerant;
 		}
 
@@ -968,7 +975,7 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 
 static void pljavaStatementCancelHandler(int signum)
 {
@@ -1032,7 +1039,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		Invocation ctx;
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 
 #if PG_VERSION_NUM >= 90300
 		TimeoutId tid;
