@@ -482,10 +482,12 @@ static void initsequencer(enum initstage is, bool tolerant)
 		if( JNI_OK != JNIresult )
 		{
 			initstage = IS_MISC_ONCE_DONE; /* optList has been freed */
+			StaticAssertStmt(sizeof(jint) <= sizeof(long int),
+				"jint wider than long int?!");
 			ereport(WARNING,
 				(errmsg("failed to create Java virtual machine"),
-				 errdetail("JNI_CreateJavaVM returned an error code: %d",
-					JNIresult),
+				 errdetail("JNI_CreateJavaVM returned an error code: %ld",
+					(long int)JNIresult),
 				 jvmStartedAtLeastOnce ?
 					errhint("Because an earlier attempt during this session "
 					"did start a VM before failing, this probably means your "
