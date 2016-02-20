@@ -60,12 +60,22 @@ PG_MODULE_MAGIC;
  * 844ed5d in November 2010) was that "dllexport and dllwrap don't work well
  * together." There are records as far back as 2002 anyway
  * (e.g. http://lists.gnu.org/archive/html/libtool/2002-09/msg00069.html)
- * calling dllwrap deprecated, and PL/Java's Maven build certainly doesn't
- * use it, I don't know what it would do if it did, and at the moment I have
- * no one to test Windows builds using any toolchain other than MSVC anyway.
- * It seems too brittle to rely on whatever PGDLLEXPORT might happen to mean
- * across PG versions, and wiser for the moment to cleanly define something
- * here, for the all of three symbols that need it.
+ * calling dllwrap deprecated, PL/Java's Maven build certainly doesn't
+ * use it, and I don't know what it would do if it did. It seems too brittle
+ * to rely on whatever PGDLLEXPORT might happen to mean across PG versions,
+ * and wiser for the moment to cleanly define something here, for the all of
+ * three(*) symbols that need it.
+ *
+ * The only case where it expands to anything is when building with Microsoft
+ * Visual Studio. When building with other toolchains it just goes away, even
+ * on Windows when building with MinGW (the only other Windows toolchain
+ * tested). MinGW can work either way: selectively exporting things based on
+ * a __declspec, or with the --export-all-symbols linker option so everything
+ * is visible, as on a *n*x platform. PL/Java could in theory choose either
+ * approach, but for one detail: there is a (*)fourth symbol that needs to be
+ * exported. PG_MODULE_MAGIC defines one, and being a PostgreSQL-supplied macro,
+ * it uses PGDLLEXPORT, which expands to nothing for MinGW (in recent PG
+ * versions anyway), forcing --export-all-symbols as the answer for MinGW.
  */
 #ifdef _MSC_VER
 #define PLJAVADLLEXPORT __declspec (dllexport)
