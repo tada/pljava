@@ -11,7 +11,7 @@ To do that, continue with the [installation instructions][inst].
 [mvn]: https://maven.apache.org/
 [java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
 
-There are prerequisites, of course:
+## Software Prerequisites
 
 0. You need the C compiling and linking tools for your platform.
     On many platforms that means `gcc` and `g++`, and your normal search
@@ -62,6 +62,7 @@ Please review any of the following that apply to your situation:
 * [Version compatibility](versions.html)
 * Building [with a 32-bit Java development kit](jdk32.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
+    | [with MinGW-w64](mingw64.html)
 * Building on [Mac OS X](macosx.html)
 * Building on [FreeBSD](freebsd.html)
 
