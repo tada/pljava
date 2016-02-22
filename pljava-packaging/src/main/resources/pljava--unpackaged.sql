@@ -9,8 +9,8 @@
 
 DROP TABLE IF EXISTS @extschema@.loadpath;
 CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
-SELECT CAST('MODULE_PATHNAME' AS text), false;
-LOAD 'MODULE_PATHNAME';
+SELECT CAST('${module.pathname}' AS text), false;
+LOAD '${module.pathname}';
 
 /*
  Why the CREATE / DROP?  When faced with a LOAD command, PostgreSQL only does it

@@ -19,8 +19,8 @@
 
 DROP TABLE IF EXISTS @extschema@.loadpath;
 CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
-SELECT CAST('MODULE_PATHNAME' AS text), true;
-LOAD 'MODULE_PATHNAME';
+SELECT CAST('${module.pathname}' AS text), true;
+LOAD '${module.pathname}';
 
 /*
  Ok, the LOAD succeeded, so everything happened ... unless ... the same
