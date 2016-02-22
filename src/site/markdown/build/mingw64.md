@@ -1,7 +1,7 @@
 # Building for Microsoft Windows using MinGW-w64
 
 If your PostgreSQL server was built using [MinGW-w64][] (which you can
-check by running `pg_config` and looking for `mingw`, then you can build
+check by running `pg_config` and looking for `mingw`), then you can build
 PL/Java using the same toolchain. PL/Java has been successfully built
 on Windows using MinGW-w64 and [MSYS2][], with a 64-bit PostgreSQL build
 and a 64-bit Java development kit (JDK).
@@ -20,9 +20,10 @@ command
 
     pacman -S mingw-w64-x86_64-gcc
 
-Other prerequisites can be installed similarly. All of the test commands
-shown for the **software prerequisites** in the [build instructions][bld]
-should succeed and report the versions that you intend to use.
+Other prerequisites can be installed similarly. You should make sure that
+all of the test commands shown for the **software prerequisites** in the
+[build instructions][bld] succeed, and the versions they report are
+the versions that you intend to use.
 
 ## Building PL/Java
 
