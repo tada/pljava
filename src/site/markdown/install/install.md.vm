@@ -189,6 +189,32 @@ as long as the transaction remains open, *but they may block for the duration,
 so whatever testing will be done within the transaction should be done quickly
 if that could be an issue*.
 
+$h3 Upgrading, outside the extension framework
+
+On PostgreSQL pre-9.1, or whenever PL/Java has not been installed
+with `CREATE EXTENSION`, it can be updated with a `LOAD` command just
+as in a fresh installation. This must be done in a fresh session (in
+which nothing has caused PL/Java to load since establishing the connection).
+
+$h3 Upgrading, within the extension framework
+
+On PostgreSQL 9.1 or later where PL/Java has been installed with
+`CREATE EXTENSION`, it can be updated with
+[`ALTER EXTENSION pljava UPDATE`][aeu], as long as
+`SELECT * FROM pg_extension_update_paths('pljava')` shows a one-step path
+from the version currently installed to the version desired.
+
+[aeu]: http://www.postgresql.org/docs/current/static/sql-alterextension.html
+
+As with the `LOAD` method, an `ALTER EXTENSION ... UPDATE` must be done
+in a fresh session, before anything has loaded PL/Java; this also precludes
+an update with a multi-step path in a single command, but the intent is to
+always provide a one-step path between _released_ versions.
+
+If you will be following development (`SNAPSHOT`) versions, the installation
+method using `LOAD` may be simpler, as updates between snapshots with the
+same version string make no sense to the extension framework.
+
 $h2 Usage permission
 
 Installation of PL/Java creates two "languages", `java` and `javau`.
@@ -232,8 +258,7 @@ able to try `CREATE EXTENSION pljava` repeatedly in one session if something
 went wrong the first time.
 
 The error reported for later tries within a session may be puzzling, such as
-that the function `sqlj.get_classpath` or `sqlj.java_call_handler` does not
-exist, or some object does not belong to the extension. The solution is simple,
+that the relation `loadpath` already exists. The solution is simple,
 though: just retry in a new session (in `psql`, `\c` makes that easy).
 
 $h2 More background and special considerations

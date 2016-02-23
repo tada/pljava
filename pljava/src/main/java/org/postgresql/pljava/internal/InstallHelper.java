@@ -122,6 +122,19 @@ public class InstallHelper
 			handlers(c, s, module_pathname);
 			languages(c, s);
 			deployment(c, s, sv);
+
+			if ( asExtension )
+				/*
+				 * Extension scripts (which create this table before issuing a
+				 * LOAD command) need a way to confirm something happened (it
+				 * won't, if the library was already loaded in the same
+				 * session). As simple confirmation, drop the table here.
+				 * Although a simple SQL script can't raise arbitrary errors,
+				 * it can certainly confirm this table is gone by trying to
+				 * create it again, which will cause a (cryptic, but reliable)
+				 * error if this code didn't execute.
+				 */
+				s.execute("DROP TABLE sqlj.loadpath");
 		}
 		finally
 		{
