@@ -18,6 +18,12 @@ code from Java annotations, and many significant fixes.
 
 $h3 Security
 
+[CVE-2016-0766][], a privilege escalation requiring an authenticated
+PostgreSQL connection, is closed by installing PL/Java 1.5.0 (including
+prereleases) or by updating PostgreSQL itself to at least 9.5.1, 9.4.6,
+9.3.11, 9.2.15, 9.1.20. Vulnerable systems are only those running both
+an older PL/Java and an older PostgreSQL.
+
 This release brings a policy change to a more secure-by-default posture,
 where the ability to create functions in `LANGUAGE java` is no longer
 automatically granted to `public`, but can be selectively granted to roles
@@ -31,6 +37,7 @@ updating to 1.5.0, with `REVOKE USAGE ON LANGUAGE java FROM public;` followed by
 explicit `GRANT` commands for the users/roles expected to create Java
 functions.
 
+[CVE-2016-0766]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0766
 [CVE-2016-0768]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0768
 
 $h3 Version compatibility
@@ -46,9 +53,10 @@ $h3 Build procedures
 Since 2013, PL/Java has been hosted [on GitHub][ghpljava] and built
 using [Apache Maven][mvn]. See the new [build instructions][bld] for details.
 
-All reported build issues for MS Windows using Microsoft Visual Studio, and for
+All reported build issues for MS Windows using Microsoft Visual Studio or
+MinGW-w64, and for
 Mac OS X, have been resolved, with new platform-specific build documentation
-for [Windows MSVC][msvcbld] and [OS X][osxbld].
+for [Windows MSVC][msvcbld], [Windows MinGW-w64][mgwbld], and [OS X][osxbld].
 
 The build produces a redistributable installation archive usable with
 the version of PostgreSQL built against and the same operating system,
@@ -59,6 +67,7 @@ all PL/Java installations will have Java available.
 [mvn]: http://maven.apache.org/
 [bld]: build/build.html
 [msvcbld]: build/buildmsvc.html
+[mgwbld]: build/mingw64.html
 [osxbld]: build/macosx.html
 
 $h3 Installation procedures
@@ -263,6 +272,17 @@ $h3 Enhancement requests addressed
 
 $h3 Bugs fixed
 
+$h4 Since 1.5.0-BETA1
+
+* [Generate SQL for trigger function with no parameters][gh92]
+* [openssl/ssl.h needed on osx el-capitan (latest 10.11.3)/postgres 9.5][gh94]
+    (documented)
+* [Source location missing for some annotation errors][gh95]
+* [OS X El Capitan "Java 6" dialog when loading ... Java 8][gh96]
+* pljava-api jar missing from installation jar
+
+$h4 In 1.5.0-BETA1
+
 * [SPIPreparedStatement.setObject() fails with Types.BIT][1011119]
 * [SSLSocketFactory throws IOException on Linux][1011095]
 * [PL/Java fails to compile with -Werror=format-security][1011181]
@@ -311,6 +331,10 @@ $h3 Bugs fixed
 [gh63]: ${ghbug}63
 [gh64]: ${ghbug}64
 [gh71]: ${ghbug}71
+[gh92]: ${ghbug}92
+[gh94]: ${ghbug}94
+[gh95]: ${ghbug}95
+[gh96]: ${ghbug}96
 
 $h3 Updated PostgreSQL APIs tracked
 
@@ -460,6 +484,7 @@ Kenneth Olson,
 Johann Oskarsson,
 Thomas G. Peters,
 Srivatsan Ramanujam,
+Igal Sapir,
 Jeff Shaw,
 Rakesh Vidyadharan,
 `grunjol`,
