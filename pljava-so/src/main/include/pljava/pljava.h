@@ -36,9 +36,14 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 
 /*
  * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
+ * Likewise for StaticAssertStmt.
  */
 #ifndef AssertVariableIsOfType
 #define AssertVariableIsOfType(varname, typename)
+#endif
+
+#ifndef StaticAssertStmt
+#define StaticAseertStmt(condition, errmessage)
 #endif
 
 
@@ -112,7 +117,7 @@ char* stack_base_ptr;
 #endif
 
 #define STACK_BASE_VARS \
-	long  saveMainThreadId = 0; \
+	jlong saveMainThreadId = 0; \
 	_STACK_BASE_TYPE saveStackBasePtr;
 
 #define STACK_BASE_PUSH(threadId) \
@@ -121,7 +126,8 @@ char* stack_base_ptr;
 		_STACK_BASE_SET; \
 		saveMainThreadId = mainThreadId; \
 		mainThreadId = threadId; \
-		elog(DEBUG2, "Set stack base for thread %lx", mainThreadId); \
+		elog(DEBUG2, "Set stack base for thread " UINT64_FORMAT, \
+			(uint64)mainThreadId); \
 	}
 
 #define STACK_BASE_POP() \
@@ -129,7 +135,8 @@ char* stack_base_ptr;
 	{ \
 		_STACK_BASE_RESTORE; \
 		mainThreadId = saveMainThreadId; \
-		elog(DEBUG2, "Restored stack base for thread %lx", mainThreadId); \
+		elog(DEBUG2, "Restored stack base for thread " UINT64_FORMAT, \
+			(uint64)mainThreadId); \
 	}
 
 /* NOTE!

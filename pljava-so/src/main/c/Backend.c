@@ -60,12 +60,22 @@ PG_MODULE_MAGIC;
  * 844ed5d in November 2010) was that "dllexport and dllwrap don't work well
  * together." There are records as far back as 2002 anyway
  * (e.g. http://lists.gnu.org/archive/html/libtool/2002-09/msg00069.html)
- * calling dllwrap deprecated, and PL/Java's Maven build certainly doesn't
- * use it, I don't know what it would do if it did, and at the moment I have
- * no one to test Windows builds using any toolchain other than MSVC anyway.
- * It seems too brittle to rely on whatever PGDLLEXPORT might happen to mean
- * across PG versions, and wiser for the moment to cleanly define something
- * here, for the all of three symbols that need it.
+ * calling dllwrap deprecated, PL/Java's Maven build certainly doesn't
+ * use it, and I don't know what it would do if it did. It seems too brittle
+ * to rely on whatever PGDLLEXPORT might happen to mean across PG versions,
+ * and wiser for the moment to cleanly define something here, for the all of
+ * three(*) symbols that need it.
+ *
+ * The only case where it expands to anything is when building with Microsoft
+ * Visual Studio. When building with other toolchains it just goes away, even
+ * on Windows when building with MinGW (the only other Windows toolchain
+ * tested). MinGW can work either way: selectively exporting things based on
+ * a __declspec, or with the --export-all-symbols linker option so everything
+ * is visible, as on a *n*x platform. PL/Java could in theory choose either
+ * approach, but for one detail: there is a (*)fourth symbol that needs to be
+ * exported. PG_MODULE_MAGIC defines one, and being a PostgreSQL-supplied macro,
+ * it uses PGDLLEXPORT, which expands to nothing for MinGW (in recent PG
+ * versions anyway), forcing --export-all-symbols as the answer for MinGW.
  */
 #ifdef _MSC_VER
 #define PLJAVADLLEXPORT __declspec (dllexport)
@@ -127,14 +137,21 @@ static void JVMOptList_addVisualVMName(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static void checkIntTimeType(void);
 static char* getClassPath(const char*);
-static void pljavaStatementCancelHandler(int);
-static void pljavaDieHandler(int);
-static void pljavaQuickDieHandler(int);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
 static void reLogWithChangedLevel(int);
+
+#ifndef WIN32
+#define USE_PLJAVA_SIGHANDLERS
+#endif
+
+#ifdef USE_PLJAVA_SIGHANDLERS
+static void pljavaStatementCancelHandler(int);
+static void pljavaDieHandler(int);
+static void pljavaQuickDieHandler(int);
+#endif
 
 enum initstage
 {
@@ -472,10 +489,12 @@ static void initsequencer(enum initstage is, bool tolerant)
 		if( JNI_OK != JNIresult )
 		{
 			initstage = IS_MISC_ONCE_DONE; /* optList has been freed */
+			StaticAssertStmt(sizeof(jint) <= sizeof(long int),
+				"jint wider than long int?!");
 			ereport(WARNING,
 				(errmsg("failed to create Java virtual machine"),
-				 errdetail("JNI_CreateJavaVM returned an error code: %d",
-					JNIresult),
+				 errdetail("JNI_CreateJavaVM returned an error code: %ld",
+					(long int)JNIresult),
 				 jvmStartedAtLeastOnce ?
 					errhint("Because an earlier attempt during this session "
 					"did start a VM before failing, this probably means your "
@@ -489,7 +508,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_JAVAVM_STARTED;
 
 	case IS_JAVAVM_STARTED:
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 		pqsignal(SIGINT,  pljavaStatementCancelHandler);
 		pqsignal(SIGTERM, pljavaDieHandler);
 		pqsignal(SIGQUIT, pljavaQuickDieHandler);
@@ -542,7 +561,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errhint("The most common reason is that \"pljava.classpath\" "
 					"needs to be set, naming the proper \"pljava.jar\" file.")
 					));
-			_destroyJavaVM(0, 0); /* which undoes the sighandlers, btw */
+			_destroyJavaVM(0, 0);
 			goto check_tolerant;
 		}
 
@@ -956,7 +975,7 @@ static char* getClassPath(const char* prefix)
 	return path;
 }
 
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 
 static void pljavaStatementCancelHandler(int signum)
 {
@@ -1020,7 +1039,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 	if(s_javaVM != 0)
 	{
 		Invocation ctx;
-#if !defined(WIN32)
+#ifdef USE_PLJAVA_SIGHANDLERS
 
 #if PG_VERSION_NUM >= 90300
 		TimeoutId tid;

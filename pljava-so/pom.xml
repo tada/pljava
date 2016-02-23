@@ -84,6 +84,45 @@
 		</profile>
 
 		<profile>
+			<id>compiler-mingw64</id>
+			<activation>
+				<property>
+					<name>env.MSYSTEM</name>
+					<value>MINGW64</value>
+				</property>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<c>
+								<includePaths combine.children='append'>
+									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
+									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
+								</includePaths>
+							</c>
+							<linker>
+								<name>g++</name>
+								<options>
+									<option>-Wl,--export-all-symbols</option>
+								</options>
+								<libs combine.children='append'>
+									<lib>
+										<name>postgres</name>
+										<type>shared</type>
+										<directory>${PGSQL_PKGLIBDIR}</directory>
+									</lib>
+								</libs>
+							</linker>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
 			<id>wnosign</id>
 			<build>
 				<plugins>
