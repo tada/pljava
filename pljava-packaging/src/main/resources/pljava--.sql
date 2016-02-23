@@ -15,11 +15,15 @@
  being loaded as an extension itself (via this script), and the case where
  it is simply being awakened during the creation of some other extension
  (CREATE EXTENSION foo where foo is something implemented using PL/Java).
+
+ This script template can be used for any pljava--foo--bar.sql upgrade script
+ where there has been no schema change between foo and bar, or even if there
+ has but it requires no fiddling with pg_extension_config_dump.
  */
 
 DROP TABLE IF EXISTS @extschema@.loadpath;
 CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
-SELECT CAST('${module.pathname}' AS text), true;
+SELECT CAST('${module.pathname}' AS text), false;
 LOAD '${module.pathname}';
 
 /*
@@ -40,18 +44,3 @@ LOAD '${module.pathname}';
 
 CREATE TABLE @extschema@.loadpath();
 DROP TABLE @extschema@.loadpath;
-
-/*
- All of these tables in sqlj are created empty by PL/Java itself, and
- the contents are things later loaded by the user, so configure them to
- be dumped. XXX Future work: loaded jars could be extensions themselves,
- so these tables should be extended to record when that's the case, and the
- config_dump calls should have WHERE clauses to avoid dumping rows that
- would be supplied naturally by recreating those extensions.
- */
-
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_repository', '');
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_entry', '');
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.jar_descriptor', '');
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.classpath_entry', '');
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.typemap_entry', '');
