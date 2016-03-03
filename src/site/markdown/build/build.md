@@ -65,6 +65,7 @@ Please review any of the following that apply to your situation:
     | [with MinGW-w64](mingw64.html)
 * Building on [Mac OS X](macosx.html)
 * Building on [FreeBSD](freebsd.html)
+* Building on [Ubuntu](ubuntu.html)
 
 ## Obtaining PL/Java sources
 
