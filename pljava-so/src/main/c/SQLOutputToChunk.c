@@ -14,17 +14,28 @@
 static jclass    s_SQLOutputToChunk_class;
 static jmethodID s_SQLOutputToChunk_init;
 static jmethodID s_SQLOutputToChunk_close;
+static jmethodID s_Buffer_position;
 
 jobject SQLOutputToChunk_create(StringInfo data)
 {
+	jobject dbb;
 	Ptr2Long p2l;
 	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = data;
-	return JNI_newObject(s_SQLOutputToChunk_class, s_SQLOutputToChunk_init, p2l.longVal);
+	dbb = JNI_newDirectByteBuffer(data->data, data->maxlen);
+	if ( 0 < data->len )
+		JNI_callObjectMethodLocked(dbb, s_Buffer_position, data->len);
+	return JNI_newObject(s_SQLOutputToChunk_class, s_SQLOutputToChunk_init,
+		p2l.longVal, dbb);
 }
 
 void SQLOutputToChunk_close(jobject stream)
 {
+	/*
+	 * The close method calls ensureCapacity(0), so thanks to _ensureCapacity
+	 * below, on return the StringInfo len is correct and the contents are
+	 * NUL terminated, (re-)establishing the StringInfo invariant.
+	 */
 	JNI_callVoidMethod(stream, s_SQLOutputToChunk_close);
 }
 
@@ -33,23 +44,25 @@ void SQLOutputToChunk_close(jobject stream)
 extern void SQLOutputToChunk_initialize(void);
 void SQLOutputToChunk_initialize(void)
 {
+	jclass Buffer_class;
+
 	JNINativeMethod methods[] = {
 		{
-		"_writeByte",
-	  	"(JI)V",
-	  	Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1writeByte
-		},
-		{
-		"_writeBytes",
-	  	"(J[BI)V",
-	  	Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1writeBytes
+		"_ensureCapacity",
+		"(JLjava/nio/ByteBuffer;II)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1ensureCapacity
 		},
 		{ 0, 0, 0 }};
 
 	s_SQLOutputToChunk_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLOutputToChunk"));
 	PgObject_registerNatives2(s_SQLOutputToChunk_class, methods);
-	s_SQLOutputToChunk_init = PgObject_getJavaMethod(s_SQLOutputToChunk_class, "<init>", "(J)V");
+	s_SQLOutputToChunk_init = PgObject_getJavaMethod(s_SQLOutputToChunk_class,
+		"<init>", "(JLjava/nio/ByteBuffer;)V");
 	s_SQLOutputToChunk_close = PgObject_getJavaMethod(s_SQLOutputToChunk_class, "close", "()V");
+
+	Buffer_class = PgObject_getJavaClass("java/nio/Buffer");
+	s_Buffer_position = PgObject_getJavaMethod(Buffer_class, "position",
+		"(I)Ljava/nio/Buffer;");
 }
 
 /****************************************
@@ -58,45 +71,42 @@ void SQLOutputToChunk_initialize(void)
 
 /*
  * Class:     org_postgresql_pljava_jdbc_SQLOutputToChunk
- * Method:    _writeByte
- * Signature: (JI)V
+ * Method:    _ensureCapacity
+ * Signature: (JLjava/nio/ByteBuffer;II)Ljava/nio/ByteBuffer;
  */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1writeByte(JNIEnv* env, jclass cls, jlong _this, jint b)
+JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1ensureCapacity
+  (JNIEnv *env, jclass cls, jlong hdl, jobject bb, jint pos, jint needed)
 {
 	Ptr2Long p2l;
-	unsigned char byte = (unsigned char)b;
-	p2l.longVal = _this;
+	StringInfo str;
+	char *oldp;
+	int oldmax;
 
 	BEGIN_NATIVE
-	appendBinaryStringInfo((StringInfo)p2l.ptrVal, (char*)&byte, 1);
+	p2l.ptrVal = (void *)0; /* ensure that the rest is zeroed out */
+	p2l.longVal = hdl;
+	str = (StringInfo)p2l.ptrVal;
+	str->len = pos;
+	oldp = str->data;
+	oldmax = str->maxlen;
+	enlargeStringInfo(str, needed);
+	/*
+	 * The StringInfo functions maintain an invariant that the contents are
+	 * NUL-terminated. That is *not* assured in general while Java pokes at it
+	 * via the ByteBuffer, but is restored here at every call to _ensureCapacity
+	 * (of which one is guaranteed to happen at close). Because room for a NUL
+	 * is always arranged by enlargeStringInfo, there is room for this even if
+	 * zero was passed for 'needed', as happens when closing.
+	 */
+	str->data[pos] = '\0';
+	if ( oldp == str->data && oldmax == str->maxlen )
+		goto done;
+	bb = JNI_newDirectByteBuffer(str->data, str->maxlen);
+	if ( NULL == bb )
+		goto done;
+	if ( 0 < pos )
+		JNI_callObjectMethodLocked(bb, s_Buffer_position, pos);
+done:
 	END_NATIVE
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_MemoryChunkInputStream
- * Method:    _readBytes
- * Signature: (JI[BII)V
- */
-#define BYTE_BUF_SIZE 1024
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1writeBytes(JNIEnv* env, jclass cls, jlong _this, jbyteArray ba, jint len)
-{
-	Ptr2Long p2l;
-	jbyte buffer[BYTE_BUF_SIZE];
-	int off = 0;
-	p2l.longVal = _this;
-
-	BEGIN_NATIVE
-	while(len > 0)
-	{
-		int copySize = len;
-		if(copySize > BYTE_BUF_SIZE)
-			copySize = BYTE_BUF_SIZE;
-		JNI_getByteArrayRegion(ba, off, copySize, buffer);
-		appendBinaryStringInfo((StringInfo)p2l.ptrVal, (const char*)buffer, copySize);
-		off += copySize;
-		len -= copySize;
-	}
-	END_NATIVE
+	return bb;
 }

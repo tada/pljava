@@ -105,9 +105,10 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		jobject outputStream;
 		StringInfoData buffer;
 		bool passByValue = Type_isByValue((Type)self);
-		MemoryContext currCtx = Invocation_switchToUpperContext();
 
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		initStringInfo(&buffer);
+		MemoryContextSwitchTo(currCtx); /* buffer remembers its context */
 
 		if(dataLen < 0)
 			/*
@@ -115,11 +116,12 @@ static Datum coerceScalarObject(UDT self, jobject value)
 			 * a varlena
 			 */
 			appendBinaryStringInfo(&buffer, (char*)&dataLen, sizeof(int32));
+		else
+			enlargeStringInfo(&buffer, dataLen);
 
 		outputStream = SQLOutputToChunk_create(&buffer);
 		JNI_callVoidMethod(value, self->writeSQL, outputStream);
 		SQLOutputToChunk_close(outputStream);
-		MemoryContextSwitchTo(currCtx);
 
 		if(dataLen < 0)
 		{
