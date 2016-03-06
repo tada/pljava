@@ -72,7 +72,7 @@ public class VarlenaUDTTest implements SQLData {
 				stream.readByte();
 			}
 			catch ( SQLException sqle ) {
-				if ( "Unexpected EOF on data input".equals( sqle.getMessage()) )
+				if ( "22P03".equals( sqle.getSQLState()) )
 					break;
 				throw sqle;
 			}
