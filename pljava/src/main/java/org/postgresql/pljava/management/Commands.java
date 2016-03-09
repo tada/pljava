@@ -917,7 +917,7 @@ public class Commands
 	 * Throws an exception if the given name cannot be used as the name of a
 	 * jar.
 	 * 
-	 * @param jarName The naem to check.
+	 * @param jarName The name to check.
 	 * @throws IOException
 	 */
 	private static void assertJarName(String jarName) throws SQLException
@@ -1089,8 +1089,9 @@ public class Commands
 	/**
 	 * Returns the primary key identifier for the given Jar.
 	 * 
-	 * @param conn The connection to use for the query.
 	 * @param jarName The name of the jar.
+	 * @param ownerRet a caller-supplied array in which the jar's owner will
+	 *	be returned.
 	 * @return The primary key value of the given jar or <code>-1</code> if no
 	 *         such jar is found.
 	 * @throws SQLException
@@ -1115,7 +1116,6 @@ public class Commands
 	/**
 	 * Returns the Oid for the given Schema.
 	 * 
-	 * @param conn The connection to use for the query.
 	 * @param schemaName The name of the schema.
 	 * @return The Oid of the given schema or <code>null</code> if no such
 	 *         schema is found.
