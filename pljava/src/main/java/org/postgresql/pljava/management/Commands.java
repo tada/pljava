@@ -507,7 +507,8 @@ public class Commands
 	 *            {@code search_path}.
 	 * @param javaClassName The name of the class. The class must be found in
 	 *            the classpath in effect for the current schema
-	 * @throws SQLException
+	 * @throws SQLException if the type or class cannot be found, or if the
+	 *            invoking user does not own the type.
 	 */
 	@Function(schema="sqlj", name="add_type_mapping", security=DEFINER)
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
@@ -522,7 +523,7 @@ public class Commands
 				throw new SQLException("Class " + javaClassName
 					+ " does not implement java.sql.SQLData");
 
-			sqlTypeName = getFullSqlName(sqlTypeName);
+			sqlTypeName = getFullSqlNameOwned(sqlTypeName);
 			stmt = SQLUtils
 				.getDefaultConnection()
 				.prepareStatement(
@@ -550,7 +551,8 @@ public class Commands
 	 *            qualified with a schema (namespace). If the schema is omitted,
 	 *            it will be resolved according to the current setting of the
 	 *            {@code search_path}.
-	 * @throws SQLException
+	 * @throws SQLException if the type cannot be found, or if the
+	 *            invoking user does not own the type.
 	 */
 	@Function(schema="sqlj", name="drop_type_mapping", security=DEFINER)
 	public static void dropTypeMapping(String sqlTypeName) throws SQLException
@@ -558,7 +560,7 @@ public class Commands
 		PreparedStatement stmt = null;
 		try
 		{
-			sqlTypeName = getFullSqlName(sqlTypeName);
+			sqlTypeName = getFullSqlNameOwned(sqlTypeName);
 			stmt = SQLUtils.getDefaultConnection().prepareStatement(
 				"DELETE FROM sqlj.typemap_entry WHERE sqlName = ?");
 			stmt.setString(1, sqlTypeName);
@@ -1017,25 +1019,40 @@ public class Commands
 		}
 	}
 
-	private static String getFullSqlName(String sqlTypeName)
+	/*
+	 * In addition to resolving the type name to a fully qualified one, also
+	 * make sure the current (outer) user is, or is granted, the type's owning
+	 * role.
+	 */
+	private static String getFullSqlNameOwned(String sqlTypeName)
 	throws SQLException
 	{
 		Oid typeId = Oid.forTypeName(sqlTypeName);
 		s_logger.info("Type id = " + typeId.toString());
 
+		AclId invoker = AclId.getOuterUser();
+
 		ResultSet rs = null;
 		PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"SELECT n.nspname, t.typname FROM pg_type t, pg_namespace n"
+				"SELECT n.nspname, t.typname,"
+					+ " pg_catalog.pg_has_role(?, t.typowner, 'USAGE')"
+					+ " FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n"
 					+ " WHERE t.oid = ? AND n.oid = t.typnamespace");
 
 		try
 		{
-			stmt.setObject(1, typeId);
+			stmt.setObject(1, invoker);
+			stmt.setObject(2, typeId);
 			rs = stmt.executeQuery();
 			if(!rs.next())
 				throw new SQLException("Unable to obtain type info for "
 					+ typeId);
+
+			if ( ! rs.getBoolean(3) )
+				throw new SQLSyntaxErrorException( // yeah, for 42501, really
+					"Permission denied. Only superuser or type's owner " +
+					"may add or drop a type mapping.", "42501");
 
 			return rs.getString(1) + '.' + rs.getString(2);
 		}
@@ -1108,7 +1125,8 @@ public class Commands
 	{
 		ResultSet rs = null;
 		PreparedStatement stmt = SQLUtils.getDefaultConnection()
-			.prepareStatement("SELECT oid FROM pg_namespace WHERE nspname = ?");
+			.prepareStatement(
+				"SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = ?");
 		try
 		{
 			stmt.setString(1, schemaName);
