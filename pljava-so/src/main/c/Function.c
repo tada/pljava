@@ -8,6 +8,7 @@
  */
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
+#include "pljava/InstallHelper.h"
 #include "pljava/Invocation.h"
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
@@ -343,6 +344,9 @@ static void parseUDT(ParseResult info, char* bp, char* ep)
 	info->isUDT = true;
 }
 
+/*
+ * Zeros info before setting any of its fields.
+ */
 static void parseFunction(ParseResult info, HeapTuple procTup)
 {
 	/* The user's function definition must be the fully
@@ -353,6 +357,7 @@ static void parseFunction(ParseResult info, HeapTuple procTup)
 	char* ep;
 	char* bp = getAS(procTup, &ep);
 
+	memset(info, 0, sizeof(ParseResultData));
 	info->buffer = bp;
 
 	/* The AS clause can have two formats
@@ -494,6 +499,41 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 	ReleaseSysCache(typeTup);
 }
 
+static jclass Function_loadClass(jstring schemaName, char const *className);
+
+Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
+{
+	ParseResultData info;
+	HeapTuple procTup;
+	Form_pg_proc procStruct;
+	Type t = NULL;
+	jstring schemaName;
+	jclass clazz;
+
+	if (   ! InstallHelper_isPLJavaFunction(typeStruct->typinput)
+		|| ! InstallHelper_isPLJavaFunction(typeStruct->typoutput)
+		|| ! InstallHelper_isPLJavaFunction(typeStruct->typreceive)
+		|| ! InstallHelper_isPLJavaFunction(typeStruct->typsend) )
+		return NULL;
+
+	/* typinput as good as any, all four had better be in same class */
+	procTup = PgObject_getValidTuple(PROCOID, typeStruct->typinput, "function");
+	parseFunction(&info, procTup);
+	if ( ! info.isUDT )
+		goto finally;
+
+	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
+	schemaName = getSchemaName(procStruct->pronamespace);
+	clazz = Function_loadClass(schemaName, info.className);
+	JNI_deleteLocalRef(schemaName);
+	t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
+
+finally:
+	pfree(info.buffer);
+	ReleaseSysCache(procTup);
+	return t;
+}
+
 static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
 {
 	Oid* paramOids;
@@ -538,8 +578,6 @@ static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc pr
 static void Function_init(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
 {
 	StringInfoData sign;
-	jobject loader;
-	jstring className;
 
 	/* Get the ClassLoader for the schema that this function belongs to
 	 */
@@ -557,20 +595,9 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 
 	currentInvocation->function = self;
 
-	/* Get the ClassLoader for the schema that this function belongs to
-	 */
-	loader = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getSchemaLoader, schemaName);
+	self->clazz = Function_loadClass(schemaName, info->className);
+
 	JNI_deleteLocalRef(schemaName);
-
-	elog(DEBUG2, "Loading class %s", info->className);
-	className = String_createJavaStringFromNTS(info->className);
-
-	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, className);
-	JNI_deleteLocalRef(loader);
-	JNI_deleteLocalRef(className);
-
-	self->clazz = (jclass)JNI_newGlobalRef(tmp);
-	JNI_deleteLocalRef(tmp);
 
 	if(self->isUDT)
 	{
@@ -646,13 +673,38 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 	pfree(sign.data);
 }
 
+/*
+ * Return a global ref to the loaded class.
+ */
+static jclass Function_loadClass(jstring schemaName, char const *className)
+{
+	jobject tmp;
+	jobject loader;
+	jstring classJstr;
+	jclass clazz;
+	/* Get the ClassLoader for the schema that this function belongs to
+	 */
+	loader = JNI_callStaticObjectMethod(s_Loader_class,
+		s_Loader_getSchemaLoader, schemaName);
+
+	elog(DEBUG2, "Loading class %s", className);
+	classJstr = String_createJavaStringFromNTS(className);
+
+	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, classJstr);
+	JNI_deleteLocalRef(loader);
+	JNI_deleteLocalRef(classJstr);
+
+	clazz = (jclass)JNI_newGlobalRef(tmp);
+	JNI_deleteLocalRef(tmp);
+	return clazz;
+}
+
 static Function Function_create(PG_FUNCTION_ARGS)
 {
 	ParseResultData info;
 	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
 	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
 
-	memset(&info, 0, sizeof(ParseResultData));
 	parseFunction(&info, procTup);
 	Function_init(self, &info, (Form_pg_proc)GETSTRUCT(procTup), fcinfo);
 

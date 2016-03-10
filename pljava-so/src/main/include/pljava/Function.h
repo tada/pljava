@@ -49,6 +49,8 @@ extern void Function_clearFunctionCache(void);
  */
 extern Function Function_getFunction(PG_FUNCTION_ARGS);
 
+extern Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct);
+
 /*
  * Invoke a function, i.e. coerce the parameters, call the java method, and
  * coerce the return value back to a Datum.
