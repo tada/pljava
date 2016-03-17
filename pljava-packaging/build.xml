@@ -196,9 +196,9 @@ function storeset(fileset, jos) {
    application/javascript (hardcoded here, you weren't thinking of using
    a different script language anyway).
  */
-var pathresolver = self.text.trim() + ''; /* ensure js string not java string */
+var pathresolver = self.text.trim();
 if ( !(null === pathresolver || '' == pathresolver) ) {
-	pathresolver = pathresolver.replace(/["\\]/g, "\\$&");
+	pathresolver = new String(pathresolver).replace(/["\\]/g, "\\$&");
 	pathresolver = pathresolver.replace(/\r\n?|\n/g, '"/"');
 	pathresolver = '"' + pathresolver + '"';
 	mainsect.putValue('_JarX_PathResolver',

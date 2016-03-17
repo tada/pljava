@@ -341,7 +341,7 @@ commands should be used.
 
 ```sql
 # select sqlj.install_jar(
-  'file:///home/me/proj/target/proj-0.0.1-SNAPSHOT.jar', 'myjar', true);
+  'file:/home/me/proj/target/proj-0.0.1-SNAPSHOT.jar', 'myjar', true);
  install_jar 
 -------------
  

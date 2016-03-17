@@ -242,10 +242,12 @@ Be sure to read these additional sections if:
 * You are installing to [a PostgreSQL release earlier than 9.2][pre92]
 * You are installing on [a system using SELinux][selinux]
 * You are installing on [Mac OS X][osx]
+* You are installing on [Ubuntu][ubu] and the self-extracting jar won't work
 
 [pre92]: prepg92.html
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
+[ubu]: ../build/ubuntu.html
 
 $h2 Troubleshooting the installation
 
