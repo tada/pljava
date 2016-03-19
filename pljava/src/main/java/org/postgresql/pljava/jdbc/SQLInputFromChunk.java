@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.sql.Array;
@@ -59,9 +60,44 @@ public class SQLInputFromChunk implements SQLInput
 	/* get rid of this once no longer supporting back to Java 6 */
 	private static final Charset UTF8 = Charset.forName("UTF-8");
 
-	public SQLInputFromChunk(ByteBuffer bb)
+	private static ByteOrder scalarOrder;
+	private static ByteOrder mirrorOrder;
+
+	public SQLInputFromChunk(ByteBuffer bb, boolean isJavaBasedScalar)
+		throws SQLException
 	{
 		m_bb = bb;
+		if ( isJavaBasedScalar )
+		{
+			if ( null == scalarOrder )
+				scalarOrder = getOrder(true);
+			m_bb.order(scalarOrder);
+		}
+		else
+		{
+			if ( null == mirrorOrder )
+				mirrorOrder = getOrder(false);
+			m_bb.order(mirrorOrder);
+		}
+	}
+
+	private ByteOrder getOrder(boolean isJavaBasedScalar) throws SQLException
+	{
+		ByteOrder result;
+		String key = "org.postgresql.pljava.udt.byteorder."
+			+ ( isJavaBasedScalar ? "scalar" : "mirror" ) + ".p2j";
+		String val = System.getProperty(key);
+		if ( "big_endian".equals(val) )
+			result = ByteOrder.BIG_ENDIAN;
+		else if ( "little_endian".equals(val) )
+			result = ByteOrder.LITTLE_ENDIAN;
+		else if ( "native".equals(val) )
+			result = ByteOrder.nativeOrder();
+		else
+			throw new SQLNonTransientException(
+				"System property " + key +
+				" must be big_endian, little_endian, or native", "F0000");
+		return result;
 	}
 
 	@Override

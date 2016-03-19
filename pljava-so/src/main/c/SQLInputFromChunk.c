@@ -17,12 +17,13 @@ static jclass    s_SQLInputFromChunk_class;
 static jmethodID s_SQLInputFromChunk_init;
 static jmethodID s_SQLInputFromChunk_close;
 
-jobject SQLInputFromChunk_create(void* data, size_t sz)
+jobject SQLInputFromChunk_create(void* data, size_t sz, bool isJavaBasedScalar)
 {
 	jobject dbb;
 	dbb = JNI_newDirectByteBuffer(data, sz);
 	return
-		JNI_newObject(s_SQLInputFromChunk_class, s_SQLInputFromChunk_init, dbb);
+		JNI_newObject(s_SQLInputFromChunk_class, s_SQLInputFromChunk_init, dbb,
+		isJavaBasedScalar ? JNI_TRUE : JNI_FALSE);
 }
 
 void SQLInputFromChunk_close(jobject stream)
@@ -37,6 +38,6 @@ void SQLInputFromChunk_initialize(void)
 {
 	s_SQLInputFromChunk_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLInputFromChunk"));
 	s_SQLInputFromChunk_init = PgObject_getJavaMethod(s_SQLInputFromChunk_class,
-		"<init>", "(Ljava/nio/ByteBuffer;)V");
+		"<init>", "(Ljava/nio/ByteBuffer;Z)V");
 	s_SQLInputFromChunk_close = PgObject_getJavaMethod(s_SQLInputFromChunk_class, "close", "()V");
 }

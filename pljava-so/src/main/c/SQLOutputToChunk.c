@@ -16,7 +16,7 @@ static jmethodID s_SQLOutputToChunk_init;
 static jmethodID s_SQLOutputToChunk_close;
 static jmethodID s_Buffer_position;
 
-jobject SQLOutputToChunk_create(StringInfo data)
+jobject SQLOutputToChunk_create(StringInfo data, bool isJavaBasedScalar)
 {
 	jobject dbb;
 	Ptr2Long p2l;
@@ -26,7 +26,7 @@ jobject SQLOutputToChunk_create(StringInfo data)
 	if ( 0 < data->len )
 		JNI_callObjectMethodLocked(dbb, s_Buffer_position, data->len);
 	return JNI_newObject(s_SQLOutputToChunk_class, s_SQLOutputToChunk_init,
-		p2l.longVal, dbb);
+		p2l.longVal, dbb, isJavaBasedScalar ? JNI_TRUE : JNI_FALSE);
 }
 
 void SQLOutputToChunk_close(jobject stream)
@@ -57,7 +57,7 @@ void SQLOutputToChunk_initialize(void)
 	s_SQLOutputToChunk_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLOutputToChunk"));
 	PgObject_registerNatives2(s_SQLOutputToChunk_class, methods);
 	s_SQLOutputToChunk_init = PgObject_getJavaMethod(s_SQLOutputToChunk_class,
-		"<init>", "(JLjava/nio/ByteBuffer;)V");
+		"<init>", "(JLjava/nio/ByteBuffer;Z)V");
 	s_SQLOutputToChunk_close = PgObject_getJavaMethod(s_SQLOutputToChunk_class, "close", "()V");
 
 	Buffer_class = PgObject_getJavaClass("java/nio/Buffer");

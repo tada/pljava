@@ -1,0 +1,102 @@
+# Setting byte order in PL/Java 1.5.0 and later
+
+#set($h2 = '##')
+#set($h3 = '###')
+
+The byte order of the system where PostgreSQL is running is a detail mostly
+invisible in PL/Java, but there are two capabilities of PL/Java where it can
+matter:
+
+Mirrored types
+: PL/Java allows associating a Java class with any *existing* PostgreSQL type
+    that does not have a predefined JDBC or PL/Java mapping. The existing type
+    can be either a composite type (a tuple of typed values) or a base type.
+    For a base type, the Java class must be written with knowledge of how
+    PostgreSQL lays out the stored form of the data. The [`Point` example][pt]
+    illustrates a mirrored type. *If PL/Java uses a different byte order than
+    the underlying system, mirrored types will be visibly broken, having
+    different values seen in PostgreSQL and in Java.*
+
+Base types
+: New PostgreSQL base types can be defined with PL/Java. The
+    [`ComplexScalar` example][cps] illustrates a PL/Java-defined base type.
+    With a base type, differences between PL/Java byte order and that of the
+    underlying system are less noticeable (because nothing but PL/Java ever
+    touches the type's representation). However, in a database with existing
+    data stored as PL/Java base types, *changing* PL/Java's byte order will
+    render the data visibly bogus.
+
+*In older PL/Java versions up to and including `1.5.0-BETA2`, byte order was
+always big-endian regardless of the underlying system.* That means that on
+little-endian hardware (which is very common), PL/Java _mirrored types_ will
+have been noticeably broken, and probably seldom used. Base types may have seen
+more use, and existing databases may have data stored in PL/Java base types
+using big-endian order.
+
+*Beginning with PL/Java 1.5.0, byte order is selectable, and has different
+defaults for base types and mirrored types.* For *base* types, the default
+remains big-endian, to minimize disruption if a database has legacy data
+stored that way, and to preserve the binary send/receive/`COPY` format for
+those types. For *mirrored* types, the default is changed to native
+(that is, the same as the underlying system),
+because nothing else makes much sense for a mirrored type.
+
+At present, all PL/Java base types implicitly have a send/receive/`COPY`
+binary format reflecting their internal stored format, and are not able to
+use their `send` and `receive` function slots to define a custom format for
+binary transfer. Because the [binary `COPY` format documentation][bincop]
+specifies network byte order (that is, big-endian), there are no plans to change
+the default stored form from `big_endian` for base types, until some future
+release decouples the stored representation from that for binary transfer.
+
+[bincop]: http://www.postgresql.org/docs/8.2/static/sql-copy.html#AEN46503
+
+In some future release, the default byte order for base types may change,
+and a site with stored data in PL/Java base types will then need to apply a
+migration step to the existing data (or keep the big-endian byte order by
+explicitly selecting it instead of the default). Methods to migrate existing
+data are covered below.
+
+$h2 How to configure PL/Java byte order
+
+The byte order is set with Java system properties, which can be specified
+with the `-D` option within the PostgreSQL configuration setting
+`pljava.vmoptions`. For example, to set `native` byte order for all uses:
+
+    SET pljava.vmoptions TO '-Dorg.postgresql.pljava.udt.byteorder=native`;
+
+The allowable values are `big_endian`, `little_endian`, and `native`.
+
+More-specific properties are available to set the byte order for specific
+uses, and more-specific ones override less-specific ones:
+
+    org.postgresql.pljava.udt.byteorder.scalar
+    org.postgresql.pljava.udt.byteorder.mirror
+
+Again, for release 1.5.0, the defaults are `big_endian` for `scalar` and
+`native` for `mirror`.
+
+Even these more-specific properties are still shortcuts, and only work at the
+time of starting the Java VM. After the VM is running, these properties do not
+exist, setting them has no effect, and the only properties that matter are
+four even more specific ones that set the `scalar` and `mirror` byte ordering
+for both directions of conversion. What possible use that could have is the
+subject of the next section.
+
+$h3 Migration of existing data
+
+While there is no need for a migration step as long as the base type byte order
+remains big-endian, and there will be no change to that default until a future
+PL/Java release, workable migration approaches are covered here in advance.
+
+A simple migration approach will be to do a (non-binary) dump (with PL/Java
+still configured for big-endian order), change PL/Java's configuration to use
+native order, and reload the data.
+
+It is also possible, with a careful procedure and making use of the ability to
+set byte order independently for conversion from PostgreSQL to Java objects
+and the reverse direction, to do the migration with `UPDATE`. This method is
+covered on the [byte-order migration page](byteordermigrate.html).
+
+[pt]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Point.java
+[cps]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/ComplexScalar.java

@@ -21,6 +21,7 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
@@ -69,10 +70,46 @@ public class SQLOutputToChunk implements SQLOutput
 	private long m_handle;
 	private ByteBuffer m_bb;
 
-	public SQLOutputToChunk(long handle, ByteBuffer bb)
+	private static ByteOrder scalarOrder;
+	private static ByteOrder mirrorOrder;
+
+	public SQLOutputToChunk(long handle, ByteBuffer bb,
+		boolean isJavaBasedScalar)
+		throws SQLException
 	{
 		m_handle = handle;
 		m_bb = bb;
+		if ( isJavaBasedScalar )
+		{
+			if ( null == scalarOrder )
+				scalarOrder = getOrder(true);
+			m_bb.order(scalarOrder);
+		}
+		else
+		{
+			if ( null == mirrorOrder )
+				mirrorOrder = getOrder(false);
+			m_bb.order(mirrorOrder);
+		}
+	}
+
+	private ByteOrder getOrder(boolean isJavaBasedScalar) throws SQLException
+	{
+		ByteOrder result;
+		String key = "org.postgresql.pljava.udt.byteorder."
+			+ ( isJavaBasedScalar ? "scalar" : "mirror" ) + ".j2p";
+		String val = System.getProperty(key);
+		if ( "big_endian".equals(val) )
+			result = ByteOrder.BIG_ENDIAN;
+		else if ( "little_endian".equals(val) )
+			result = ByteOrder.LITTLE_ENDIAN;
+		else if ( "native".equals(val) )
+			result = ByteOrder.nativeOrder();
+		else
+			throw new SQLNonTransientException(
+				"System property " + key +
+				" must be big_endian, little_endian, or native", "F0000");
+		return result;
 	}
 
 	@Override
@@ -457,7 +494,10 @@ public class SQLOutputToChunk implements SQLOutput
 		{
 			if(m_handle == 0)
 				throw new SQLException("Stream is closed");
+			ByteBuffer oldbb = m_bb;
 			m_bb = _ensureCapacity(m_handle, m_bb, m_bb.position(), c);
+			if ( m_bb != oldbb )
+				m_bb.order(oldbb.order());
 		}
 	}
 
