@@ -197,6 +197,38 @@ Datum _UDT_coerceObject(Type self, jobject value)
 	return result;
 }
 
+/*
+ * Fail openly rather than mysteriously if an INPUT or RECEIVE function is
+ * called with a non-default typmod. It seems possible that, aside from COPY
+ * operations, that doesn't happen much, and values are usually produced as if
+ * with no typmod, then fed through a typmod application cast. So even
+ * without this implemented, there may be usable typmod capability except for
+ * COPY.
+ */
+static void noTypmodYet(UDT udt, PG_FUNCTION_ARGS)
+{
+	Oid toid;
+	int mod;
+
+	if ( 3 > PG_NARGS() )
+		return;
+
+	toid = PG_GETARG_OID(1);
+	mod  = PG_GETARG_INT32(2);
+
+	if ( -1 != mod )
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg(
+				"PL/Java UDT with non-default type modifier not yet supported")
+			));
+
+	if ( Type_getOid((Type)udt) != toid )
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unexpected type Oid %d passed to PL/Java UDT", toid)));
+}
+
 Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 {
 	jstring jstr;
@@ -207,6 +239,8 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 		ereport(ERROR, (
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
+	noTypmodYet(udt, fcinfo);
 
 	txt = PG_GETARG_CSTRING(0);
 
@@ -263,6 +297,8 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 		ereport(ERROR, (
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
+	noTypmodYet(udt, fcinfo);
 
 	if(dataLen == -1)
 		return bytearecv(fcinfo);
