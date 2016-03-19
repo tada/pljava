@@ -186,7 +186,7 @@ static void checkLoadPath( bool *livecheck)
 		return;
 	}
 	pljavaLoadPath =
-		(char const *)MemoryContextStrdup( TopMemoryContext, ls->filename);
+		(char const *)MemoryContextStrdup(TopMemoryContext, ls->filename);
 }
 
 static void getExtensionLoadPath()
@@ -225,43 +225,127 @@ static void getExtensionLoadPath()
 	SPI_finish();
 }
 
-char *pljavaFnOidToLibPath(Oid myOid)
+/*
+ * Given the Oid of a function believed to be implemented with PL/Java, return
+ * the dynamic library path of its language's function-call-handler function
+ * (which will of course be PL/Java's library path, if the original belief was
+ * correct) ... or NULL if the original belief can't be sustained.
+ *
+ * If a string is returned, it has been palloc'd in the current context.
+ */
+char *pljavaFnOidToLibPath(Oid fnOid)
 {
 	bool isnull;
-	char *result;
-	HeapTuple myPT = SearchSysCache1(PROCOID, ObjectIdGetDatum(myOid));
-	Form_pg_proc myPS;
+	HeapTuple procTup;
+	Form_pg_proc procStruct;
 	Oid langId;
 	HeapTuple langTup;
-	Form_pg_language langSt;
+	Form_pg_language langStruct;
 	Oid handlerOid;
-	HeapTuple handlerPT;
 	Datum probinattr;
 	char *probinstring;
 
-	if (!HeapTupleIsValid(myPT))
-		elog(ERROR, "cache lookup failed for function %u", myOid);
-	myPS = (Form_pg_proc) GETSTRUCT(myPT);
-	langId = myPS->prolang;
-	ReleaseSysCache(myPT);
+	/*
+	 * It is proposed that fnOid refers to a function implemented with PL/Java.
+	 */
+	procTup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fnOid));
+	if (!HeapTupleIsValid(procTup))
+		elog(ERROR, "cache lookup failed for function %u", fnOid);
+	procStruct = (Form_pg_proc) GETSTRUCT(procTup);
+	langId = procStruct->prolang;
+	ReleaseSysCache(procTup);
+	/*
+	 * The langId just obtained (if the proposition is proved correct by
+	 * surviving the further steps below) is a langId for PL/Java. It could
+	 * be cached to simplify later checks. Not today.
+	 */
+	if ( langId == INTERNALlanguageId || langId == ClanguageId
+		|| langId == SQLlanguageId )
+		return NULL; /* these can be eliminated without searching syscache. */
+
+	/*
+	 * So far so good ... the function thought to be done in PL/Java has at
+	 * least not turned out to be internal, or C, or SQL. So, next, look up its
+	 * language, and get the Oid for its function call handler.
+	 */
 	langTup = SearchSysCache1(LANGOID, ObjectIdGetDatum(langId));
 	if (!HeapTupleIsValid(langTup))
 		elog(ERROR, "cache lookup failed for language %u", langId);
-	langSt = (Form_pg_language) GETSTRUCT(langTup);
-	handlerOid = langSt->lanplcallfoid;
+	langStruct = (Form_pg_language) GETSTRUCT(langTup);
+	handlerOid = langStruct->lanplcallfoid;
 	ReleaseSysCache(langTup);
-	handlerPT =
-		SearchSysCache1(PROCOID, ObjectIdGetDatum(handlerOid));
-	if (!HeapTupleIsValid(handlerPT))
+	/*
+	 * PL/Java has certainly got a function call handler, so if this language
+	 * hasn't, PL/Java it's not.
+	 */
+	if ( InvalidOid == handlerOid )
+		return NULL;
+
+	/*
+	 * Da capo al coda ... handlerOid is another function to be looked up.
+	 */
+	procTup = SearchSysCache1(PROCOID, ObjectIdGetDatum(handlerOid));
+	if (!HeapTupleIsValid(procTup))
 		elog(ERROR, "cache lookup failed for function %u", handlerOid);
+	procStruct = (Form_pg_proc) GETSTRUCT(procTup);
+	/*
+	 * If the call handler's not a C function, this isn't PL/Java....
+	 */
+	if ( ClanguageId != procStruct->prolang )
+		return NULL;
+
+	/*
+	 * Now that the handler is known to be a C function, it should have a
+	 * probinattr containing the name of its dynamic library.
+	 */
 	probinattr =
-		SysCacheGetAttr(PROCOID, handlerPT, Anum_pg_proc_probin, &isnull);
+		SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_probin, &isnull);
 	if ( isnull )
 		elog(ERROR, "null probin for C function %u", handlerOid);
-	probinstring = TextDatumGetCString(probinattr);
-	result = pstrdup( probinstring);
-	pfree(probinstring);
-	ReleaseSysCache(handlerPT);
+	probinstring = /* TextDatumGetCString(probinattr); */
+		DatumGetCString(DirectFunctionCall1(textout, probinattr)); /*archaic*/
+	ReleaseSysCache(procTup);
+
+	/*
+	 * About this result: if the caller was initialization code passing a fnOid
+	 * known to refer to PL/Java (because it was the function occasioning the
+	 * call), then this string can be saved as the dynamic library name for
+	 * PL/Java. Otherwise, it is the library name for whatever language is used
+	 * by the fnOid passed in, and can be compared to such a saved value to
+	 * determine whether that is a PL/Java function or not.
+	 */
+	return probinstring;
+}
+
+bool InstallHelper_isPLJavaFunction(Oid fn)
+{
+	char *itsPath;
+	char *pljPath;
+	bool result = false;
+
+	itsPath = pljavaFnOidToLibPath(fn);
+	if ( NULL == itsPath )
+		return false;
+
+	if ( NULL == pljavaLoadPath )
+	{
+		pljPath = NULL;
+		if ( InvalidOid != pljavaTrustedOid )
+			pljPath = pljavaFnOidToLibPath(pljavaTrustedOid);
+		if ( NULL == pljPath && InvalidOid != pljavaUntrustedOid )
+			pljPath = pljavaFnOidToLibPath(pljavaUntrustedOid);
+		if ( NULL == pljPath )
+		{
+			elog(WARNING, "unable to determine PL/Java's load path");
+			goto finally;
+		}
+		pljavaLoadPath =
+			(char const *)MemoryContextStrdup(TopMemoryContext, pljPath);
+		pfree(pljPath);
+	}
+	result = 0 == strcmp(itsPath, pljavaLoadPath);
+finally:
+	pfree(itsPath);
 	return result;
 }
 

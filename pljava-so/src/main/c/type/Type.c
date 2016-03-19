@@ -21,6 +21,7 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/UDT.h"
+#include "pljava/Function.h"
 #include "pljava/Invocation.h"
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
@@ -551,10 +552,19 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	ce = (CacheEntry)HashMap_getByOid(s_obtainerByOid, typeId);
 	if(ce == 0)
+	{
+		type = Function_checkTypeUDT(typeId, typeStruct);
+		if ( 0 != type )
+			goto finally;
 		/*
 		 * Default to String and standard textin/textout coersion.
+		 * Note: if the AS spec includes a Java signature, and the corresponding
+		 * Java type is not String, that will trigger a call to
+		 * Type_fromJavaType to see if a mapping is registered that way. If not,
+		 * *that* function reports 'No java type mapping installed for "%s"'.
 		 */
 		type = String_obtain(typeId);
+	}
 	else
 	{
 		type = ce->type;

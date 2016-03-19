@@ -26,6 +26,8 @@
 			 href='install/install.html'/>
 			<item name='User guide'
 			 href='use/use.html'/>
+			<item name='Developer notes'
+			 href='develop/develop.html'/>
 		</menu>
 		<menu name='Release Information' inherit='top'>
 			<item name='Release notes'

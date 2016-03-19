@@ -1463,16 +1463,16 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation ctx;
 	Datum retval = 0;
 
+	/*
+	 * Just in case it could be helpful in offering diagnostics later, hang
+	 * on to an Oid that is known to refer to PL/Java (because it got here).
+	 * It's cheap, and can be followed back to the right language and
+	 * handler function entries later if needed.
+	 */
+	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid)
+		= fcinfo->flinfo->fn_oid;
 	if ( IS_COMPLETE != initstage )
 	{
-		/*
-		 * Just in case it could be helpful in offering diagnostics later, hang
-		 * on to an Oid that is known to refer to PL/Java (because it got here).
-		 * It's cheap, and can be followed back to the right language and
-		 * handler function entries later if needed.
-		 */
-		*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid)
-			= fcinfo->flinfo->fn_oid;
 		initsequencer( initstage, false);
 
 		/* Force initial setting

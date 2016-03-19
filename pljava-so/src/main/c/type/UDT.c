@@ -30,6 +30,7 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 	jobject result;
 	int32 dataLen = Type_getLength((Type)self);
 	jclass javaClass = Type_getJavaClass((Type)self);
+	bool isJavaBasedScalar = 0 != self->toString;
 
 	if(dataLen == -2)
 	{
@@ -73,7 +74,8 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 		}
 		result = JNI_newObject(javaClass, self->init);
 
-		inputStream = SQLInputFromChunk_create(data, dataLen);
+		inputStream = SQLInputFromChunk_create(data, dataLen,
+			isJavaBasedScalar);
 		JNI_callVoidMethod(result, self->readSQL, inputStream, self->sqlTypeName);
 		SQLInputFromChunk_close(inputStream);
 	}
@@ -93,6 +95,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
 	int32 dataLen = Type_getLength((Type)self);
+	bool isJavaBasedScalar = 0 != self->toString;
 	if(dataLen == -2)
 	{
 		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
@@ -105,9 +108,10 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		jobject outputStream;
 		StringInfoData buffer;
 		bool passByValue = Type_isByValue((Type)self);
-		MemoryContext currCtx = Invocation_switchToUpperContext();
 
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		initStringInfo(&buffer);
+		MemoryContextSwitchTo(currCtx); /* buffer remembers its context */
 
 		if(dataLen < 0)
 			/*
@@ -115,11 +119,12 @@ static Datum coerceScalarObject(UDT self, jobject value)
 			 * a varlena
 			 */
 			appendBinaryStringInfo(&buffer, (char*)&dataLen, sizeof(int32));
+		else
+			enlargeStringInfo(&buffer, dataLen);
 
-		outputStream = SQLOutputToChunk_create(&buffer);
+		outputStream = SQLOutputToChunk_create(&buffer, isJavaBasedScalar);
 		JNI_callVoidMethod(value, self->writeSQL, outputStream);
 		SQLOutputToChunk_close(outputStream);
-		MemoryContextSwitchTo(currCtx);
 
 		if(dataLen < 0)
 		{

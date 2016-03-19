@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,17 +20,50 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
-@MappedUDT(name="point")
+import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
+import static
+	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
+
+@SQLAction(requires={"point mirror type", "point assertHasValues"}, install=
+		"SELECT javatest.assertHasValues(CAST('(1,2)' AS point), 1, 2)"
+)
+@MappedUDT(name="point", provides="point mirror type")
 public class Point implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
-	@Function(schema="javatest", type="point",
-		onNullInput=Function.OnNullInput.RETURNS_NULL)
-	public static Point logAndReturn(@SQLType("point") Point cpl) {
-		s_logger.info(cpl.getSQLTypeName() + cpl);
-		return cpl;
+	/**
+	 * Return the same 'point' passed in, logging its contents at level INFO.
+	 * @param pt any instance of the type this UDT mirrors
+	 * @return the same instance passed in
+	 */
+	@Function(schema="javatest", type="point", requires="point mirror type",
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	public static Point logAndReturn(@SQLType("point") Point pt) {
+		s_logger.info(pt.getSQLTypeName() + pt);
+		return pt;
+	}
+
+	/**
+	 * Assert a 'point' has given x and y values, to test that its
+	 * representation in Java corresponds to what PostgreSQL sees.
+	 * @param pt an instance of this UDT
+	 * @param x the x value it should have
+	 * @param y the y value it should have
+	 * @throws SQLException if the values do not match
+	 */
+	@Function(schema="javatest",
+		requires="point mirror type", provides="point assertHasValues",
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	public static void assertHasValues(
+		@SQLType("point") Point pt,
+		double x, double y)
+		throws SQLException
+	{
+		if ( pt.m_x != x  ||  pt.m_y != y )
+			throw new SQLException("assertHasValues fails");
 	}
 
 	private double m_x;
