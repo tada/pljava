@@ -43,7 +43,7 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #endif
 
 #ifndef StaticAssertStmt
-#define StaticAseertStmt(condition, errmessage)
+#define StaticAssertStmt(condition, errmessage)
 #endif
 
 
