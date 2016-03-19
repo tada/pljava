@@ -401,7 +401,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errmsg("Java virtual machine not yet loaded"),
 				errdetail("location of libjvm is not configured"),
 				errhint("SET pljava.libjvm_location TO the correct "
-						"path to the libjvm (.so or .dll, etc.)")));
+						"path to the jvm library (libjvm.so or jvm.dll, etc.)")));
 			goto check_tolerant;
 		}
 		initstage = IS_CAND_JVMLOCATION;
@@ -428,7 +428,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errmsg("Java virtual machine not yet loaded"),
 				errdetail("%s", (char *)pg_dlerror()),
 				errhint("SET pljava.libjvm_location TO the correct "
-						"path to the libjvm (.so or .dll, etc.)")));
+						"path to the jvm library (libjvm.so or jvm.dll, etc.)")));
 			goto check_tolerant;
 		}
 		initstage = IS_CAND_JVMOPENED;
