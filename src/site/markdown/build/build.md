@@ -11,6 +11,10 @@ To do that, continue with the [installation instructions][inst].
 [mvn]: https://maven.apache.org/
 [java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
 
+**In case of build difficulties:**
+
+There is a "troubleshooting the build" section at the end of this page.
+
 ## Software Prerequisites
 
 0. You need the C compiling and linking tools for your platform.
@@ -182,6 +186,12 @@ Maven repository; you can then declare it like any other Maven
 dependency when [building your own projects that _use_ PL/Java][jproj].
 
 ### Troubleshooting the build
+
+*Note: in addition to this section, there is a [build tips wiki page][btwp],
+which may be updated between releases of this document to collect tips for
+build issues that are commonly asked about.*
+
+[btwp]: https://github.com/tada/pljava/wiki/Build-tips
 
 If something fails, two tricks may be helpful. The C compilation may produce
 a lot of nuisance warnings, because the Maven plugin driving it enables many
