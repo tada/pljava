@@ -30,7 +30,7 @@ struct UDT_
 	struct Type_ Type_extension;
 
 	jstring   sqlTypeName;
-	TupleDesc tupleDesc;
+	bool      hasTupleDesc;
 	jmethodID init;
 	jmethodID parse;
 	jmethodID toString;
