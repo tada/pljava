@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; PL/Java configuration variable reference</title>
+    <title>PostgreSQL PL/Java &#x2013; PL/Java developer notes</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -60,8 +60,8 @@
                           <a href="../use/use.html" title="User guide">User guide</a>
             </li>
                   <li class="none">
-                          <a href="../develop/develop.html" title="Developer notes">Developer notes</a>
-            </li>
+            <strong>Developer notes</strong>
+          </li>
           </ul>
                        <h5>Release Information</h5>
                   <ul>
@@ -108,33 +108,13 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>PL/Java configuration variable reference</h1>
-<p>These PostgreSQL configuration variables can influence PL/Java&#x2019;s operation:</p>
+        <h1>PL/Java developer notes</h1>
+<p>This documentation section is for detailed, under-the-hood notes about PL/Java&#x2019;s implementation. They will be most often of interest to those developing PL/Java itself, but may also be useful when a deeper understanding of some PL/Java behavior is needed.</p>
 
-<dl>
-<dt><tt>dynamic_library_path</tt></dt>
-<dd>Although strictly not a PL/Java variable, <tt>dynamic_library_path</tt> influences where the PL/Java native code object (<tt>.so</tt>, <tt>.dll</tt>, <tt>.bundle</tt>, etc.) can be found, if the full path is not given to the <tt>LOAD</tt> command.</dd>
-<dt><tt>server_encoding</tt></dt>
-<dd>Another non-PL/Java variable, this affects all text/character strings exchanged between PostgreSQL and Java. <tt>UTF8</tt> as the database and server encoding is <i>strongly</i> recommended. If a different encoding is used, it should be any of the available <i>fully defined</i> character encodings. In particular, the PostgreSQL pseudo-encoding <tt>SQL_ASCII</tt> (which means &#x201c;characters within ASCII are ASCII, others are no-one-knows-what&#x201d;) will <i>not</i> work well with PL/Java, raising exceptions whenever strings contain non-ASCII characters. (PL/Java can still be used in such a database, but the application code needs to know what it&#x2019;s doing and use the right conversion functions where needed.)</dd>
-<dt><tt>pljava.classpath</tt></dt>
-<dd>The class path to be passed to the Java application class loader. There must be at least one (and usually only one) entry, the PL/Java jar file itself. To determine the proper setting, see <a href="../install/locate.html">finding the files produced by a PL/Java build</a>.</dd>
-<dt><tt>pljava.debug</tt></dt>
-<dd>A boolean variable that, if set <tt>on</tt>, stops the process on first entry to PL/Java before the Java virtual machine is started. The process cannot proceed until a debugger is attached and used to set the static <tt>Backend.c</tt> variable <tt>pljavaDebug</tt> to zero. This may be useful for debugging PL/Java problems only seen in the context of some larger application that can&#x2019;t be stepped through.</dd>
-<dt><tt>pljava.enable</tt></dt>
-<dd>Setting this variable <tt>off</tt> prevents PL/Java startup from completing, until the variable is later set <tt>on</tt>. It can be useful when <a href="../install/prepg92.html">installing PL/Java on PostgreSQL versions before 9.2</a>.</dd>
-<dt><tt>pljava.implementors</tt></dt>
-<dd>A list of &#x201c;implementor names&#x201d; that PL/Java will recognize when processing <a class="externalLink" href="https://github.com/tada/pljava/wiki/Sql-deployment-descriptor">deployment descriptors</a> inside a jar file being installed or removed. Deployment descriptors can contain commands with no implementor name, which will be executed always, or with an implementor name, executed only on a system recognizing that name. By default, this list contains only the entry <tt>postgresql</tt>. A deployment descriptor that contains commands with other implementor names can achieve a rudimentary kind of conditional execution if earlier commands adjust this list of names.</dd>
-<dt><tt>pljava.libjvm_location</tt></dt>
-<dd>Used by PL/Java to load the Java runtime. The full path to a <tt>libjvm</tt> shared object (filename typically ending with <tt>.so</tt>, <tt>.dll</tt>, or <tt>.dylib</tt>). To determine the proper setting, see <a href="../install/locatejvm.html">finding the <tt>libjvm</tt> library</a>.</dd>
-<dt><tt>pljava.release_lingering_savepoints</tt></dt>
-<dd>How the return from a PL/Java function will treat any savepoints created within it that have not been explicitly either released (the savepoint analog of &#x201c;committed&#x201d;) or rolled back. If <tt>off</tt> (the default), they will be rolled back. If <tt>on</tt>, they will be released/committed. If possible, rather than setting this variable <tt>on</tt>, it would be safer to fix the function to release its own savepoints when appropriate.</dd>
-<dt><tt>pljava.statement_cache_size</tt></dt>
-<dd>The number of most-recently-prepared statements PL/Java will keep open.</dd>
-<dt><tt>pljava.vmoptions</tt></dt>
-<dd>
-<p>Any options to be passed to the Java runtime, in the same form as the documented options for the <tt>java</tt> command (<a class="externalLink" href="https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html">windows</a>, <a class="externalLink" href="https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html">Unix family</a>). The string is split on whitespace unless found between single or double quotes. A backslash treats the following character literally, but the backslash itself remains in the string, so not all values can be expressed with these rules. If the server encoding is not <tt>UTF8</tt>, only ASCII characters should be used in <tt>pljava.vmoptions</tt>. The exact quoting and encoding rules for this variable may be adjusted in a future PL/Java version.</p>
-<p>Some important settings can be made here, and are described on the <a href="../install/vmoptions.html">VM options page</a>.</p></dd>
-</dl>
+<ul>
+  
+<li><a href="coercion.html">Passing of data types between PostgreSQL and Java</a></li>
+</ul>
       </div>
     </div>
     <div class="clear">

@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; Using PL/Java with SELinux</title>
+    <title>PostgreSQL PL/Java &#x2013; Setting byte order in PL/Java 1.5.0 and later</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -108,67 +108,42 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>Using PL/Java with SELinux</h1>
-<p>These notes were made running PostgreSQL and PL/Java on a Red Hat system, but should be applicable&#x2013;with possible changes to details&#x2013;on other systems running SELinux.</p>
-<p>Anything that gets run by <tt>postgres</tt> itself runs under a special SELinux context with type <tt>postgresql_t</tt> that severely limits things it can do. This is generally good.</p>
-<div class="section">
-<h2><a name="File_contexts"></a>File contexts</h2>
-<p>SELinux may prevent it from opening important files, such as <tt>libpljava-[version].so</tt> or <tt>pljava-[version].jar</tt>, depending on the SELinux contexts set on those files. The contexts can be listed using <tt>ls -Z</tt>.</p>
-<p>The exact SELinux rules being applied, and the file contexts they would allow, can be different. For example, a <tt>.so</tt> file is considered executable and triggers one kind of rule, while to SELinux a <tt>.jar</tt> file is just an ordinary file that Java is trying to open.</p>
-<p>Whether a failure is being caused by SELinux can be determined by searching the system log for <tt>avc: denied</tt> messages. If that is the problem, it can be solved in more than one way. For example:</p>
+        <h1>Setting byte order in PL/Java 1.5.0 and later</h1>
+<p>The byte order of the system where PostgreSQL is running is a detail mostly invisible in PL/Java, but there are two capabilities of PL/Java where it can matter:</p>
 
-<ul>
-  
-<li>Search the system&#x2019;s existing SELinux policy (using <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/apol-rule-search.png">apol</a> or <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/sesearch-help.png">sesearch</a>, perhaps) to find the rules that apply to what the program is trying to do, and what target contexts <i>would be</i> allowed, then use <a class="externalLink" href="http://www.gnu.org/software/coreutils/manual/html_node/chcon-invocation.html">chcon</a> to set one of those contexts on the file in question. For example, on a Red Hat box, changing the context type on <tt>libpljava-[version].so</tt> to <tt>lib_t</tt> and on <tt>pljava-[version].jar</tt> to <tt>usr_t</tt> did the trick.</li>
-  
-<li>Write and load a new <a class="externalLink" href="http://docs.fedoraproject.org/en-US/Fedora/13/html/SELinux_FAQ/index.html#faq-entry-whatare-policy-modules">SELinux policy module</a> with rules that allow the needed operations.</li>
-</ul></div>
+<dl>
+<dt>Mirrored types</dt>
+<dd>PL/Java allows associating a Java class with any <i>existing</i> PostgreSQL type that does not have a predefined JDBC or PL/Java mapping. The existing type can be either a composite type (a tuple of typed values) or a base type. For a base type, the Java class must be written with knowledge of how PostgreSQL lays out the stored form of the data. The <a class="externalLink" href="https://github.com/tada/pljava/tree/master//pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Point.java"><tt>Point</tt> example</a> illustrates a mirrored type. <i>If PL/Java uses a different byte order than the underlying system, mirrored types will be visibly broken, having different values seen in PostgreSQL and in Java.</i></dd>
+<dt>Base types</dt>
+<dd>New PostgreSQL base types can be defined with PL/Java. The <a class="externalLink" href="https://github.com/tada/pljava/tree/master//pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/ComplexScalar.java"><tt>ComplexScalar</tt> example</a> illustrates a PL/Java-defined base type. With a base type, differences between PL/Java byte order and that of the underlying system are less noticeable (because nothing but PL/Java ever touches the type&#x2019;s representation). However, in a database with existing data stored as PL/Java base types, <i>changing</i> PL/Java&#x2019;s byte order will render the data visibly bogus.</dd>
+</dl>
+<p><i>In older PL/Java versions up to and including <tt>1.5.0-BETA2</tt>, byte order was always big-endian regardless of the underlying system.</i> That means that on little-endian hardware (which is very common), PL/Java <i>mirrored types</i> will have been noticeably broken, and probably seldom used. Base types may have seen more use, and existing databases may have data stored in PL/Java base types using big-endian order.</p>
+<p><i>Beginning with PL/Java 1.5.0, byte order is selectable, and has different defaults for base types and mirrored types.</i> For <i>base</i> types, the default remains big-endian, to minimize disruption if a database has legacy data stored that way, and to preserve the binary send/receive/<tt>COPY</tt> format for those types. For <i>mirrored</i> types, the default is changed to native (that is, the same as the underlying system), because nothing else makes much sense for a mirrored type.</p>
+<p>At present, all PL/Java base types implicitly have a send/receive/<tt>COPY</tt> binary format reflecting their internal stored format, and are not able to use their <tt>send</tt> and <tt>receive</tt> function slots to define a custom format for binary transfer. Because the <a class="externalLink" href="http://www.postgresql.org/docs/8.2/static/sql-copy.html#AEN46503">binary <tt>COPY</tt> format documentation</a> specifies network byte order (that is, big-endian), there are no plans to change the default stored form from <tt>big_endian</tt> for base types, until some future release decouples the stored representation from that for binary transfer.</p>
+<p>In some future release, the default byte order for base types may change, and a site with stored data in PL/Java base types will then need to apply a migration step to the existing data (or keep the big-endian byte order by explicitly selecting it instead of the default). Methods to migrate existing data are covered below.</p>
 <div class="section">
-<h2><a name="Issues_requiring_policy_modules"></a>Issues requiring policy modules</h2>
-<p>Something in the JVM uses the <tt>sched_get{param,priority,scheduler}</tt> system calls, so a process of type <tt>postgresql_t</tt> has to be given the <tt>getsched</tt> SELinux permission. Also, for SSL connections to work, access to the <tt>random_device</tt> needs to be allowed. Both of these rules can be added in a policy module:</p>
+<h2><a name="How_to_configure_PLJava_byte_order"></a>How to configure PL/Java byte order</h2>
+<p>The byte order is set with Java system properties, which can be specified with the <tt>-D</tt> option within the PostgreSQL configuration setting <tt>pljava.vmoptions</tt>. For example, to set <tt>native</tt> byte order for all uses:</p>
 
 <div class="source">
 <div class="source">
-<pre>policy_module(mod-pljava, 1.0)
-
-require {
-    type postgresql_t;
-    type random_device_t;
-}
-
-allow postgresql_t postgresql_t : process { getsched };
-allow postgresql_t random_device_t : chr_file { getattr };
+<pre>SET pljava.vmoptions TO '-Dorg.postgresql.pljava.udt.byteorder=native`;
 </pre></div></div>
-<p>If that is placed in a file <tt>pljava.te</tt> then</p>
+<p>The allowable values are <tt>big_endian</tt>, <tt>little_endian</tt>, and <tt>native</tt>.</p>
+<p>More-specific properties are available to set the byte order for specific uses, and more-specific ones override less-specific ones:</p>
 
 <div class="source">
 <div class="source">
-<pre>make -f /usr/share/selinux/devel/Makefile
-semodule -i pljava.pp
+<pre>org.postgresql.pljava.udt.byteorder.scalar
+org.postgresql.pljava.udt.byteorder.mirror
 </pre></div></div>
-<p>will build and install it.</p>
-<p>As another example, suppose a PL/Java function needs to make an <tt>ssh</tt> connection to a remote host. In the default policy, nothing running as <tt>postgresql_t</tt> is allowed to connect network sockets to remote <tt>ssh</tt> ports. Again, a policy module can do the trick:</p>
-
-<div class="source">
-<div class="source">
-<pre>policy_module(mod-pgsql-ssh, 1.0)
-
-require {
-    type postgresql_t;
-    type ssh_port_t;
-}
-
-allow postgresql_t ssh_port_t : tcp_socket { name_connect };
-</pre></div></div>
-<p>As it stands, this is quite broad, and would allow connections to the <tt>ssh</tt> port at <i>any</i> remote address, exactly what the SELinux policy was trying to prevent. It is reportedly possible (if fiddly) to allow only connecting to the <tt>ssh</tt> port on the <i>intended</i> remote machine, using the right <a class="externalLink" href="http://serverfault.com/questions/366922/selinux-limit-httpd-outbound-connections-by-address-and-port">melange of SELinux and iptables</a>.</p>
+<p>Again, for release 1.5.0, the defaults are <tt>big_endian</tt> for <tt>scalar</tt> and <tt>native</tt> for <tt>mirror</tt>.</p>
+<p>Even these more-specific properties are still shortcuts, and only work at the time of starting the Java VM. After the VM is running, these properties do not exist, setting them has no effect, and the only properties that matter are four even more specific ones that set the <tt>scalar</tt> and <tt>mirror</tt> byte ordering for both directions of conversion. What possible use that could have is the subject of the next section.</p>
 <div class="section">
-<h3><a name="avc:_denied__execstack_"></a>avc: denied { execstack }</h3>
-<p>At one time, log messages saying <tt>avc: denied { execstack }</tt> might be seen, because Sun had released a Java distribution with a <tt>libjvm.so</tt> with the <tt>execstack</tt> attribute missing entirely, which SELinux interprets to mean that the library <i>might</i> need to execute code on the stack, even if it doesn&#x2019;t really.</p>
-<p>If seen, the problem can be confirmed by running <tt>execstack -q</tt> (<a class="externalLink" href="http://man7.org/linux/man-pages/man8/execstack.8.html">manual page</a>) on the <tt>libjvm.so</tt> file and seeing that it has no <tt>execstack</tt> attribute.</p>
-<p>Recent Java distributions have properly included the attribute, set to false, so SELinux knows the JVM will not need to execute code on the stack. Therefore, the best resolution to the issue is to upgrade to a JDK distribution that is not missing the attribute.</p></div></div>
-<div class="section">
-<h2><a name="How_to_break_things"></a>How to break things</h2>
-<p>One of the best ways to cause a PL/Java installation to stop working, after being trouble-free for ages, is to replace or update one of the files it depends on, and forget to reapply the needed SELinux context to the file.</p></div>
+<h3><a name="Migration_of_existing_data"></a>Migration of existing data</h3>
+<p>While there is no need for a migration step as long as the base type byte order remains big-endian, and there will be no change to that default until a future PL/Java release, workable migration approaches are covered here in advance.</p>
+<p>A simple migration approach will be to do a (non-binary) dump (with PL/Java still configured for big-endian order), change PL/Java&#x2019;s configuration to use native order, and reload the data.</p>
+<p>It is also possible, with a careful procedure and making use of the ability to set byte order independently for conversion from PostgreSQL to Java objects and the reverse direction, to do the migration with <tt>UPDATE</tt>. This method is covered on the <a href="byteordermigrate.html">byte-order migration page</a>.</p></div></div>
       </div>
     </div>
     <div class="clear">
