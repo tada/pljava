@@ -37,8 +37,18 @@ updating to 1.5.0, with `REVOKE USAGE ON LANGUAGE java FROM public;` followed by
 explicit `GRANT` commands for the users/roles expected to create Java
 functions.
 
+[CVE-2016-2192][], in which an authenticated user can alter type mappings
+without owning the types involved. Exploitability is limited by other
+permissions, but if type mapping is a feature being used at a site, one
+can interfere with proper operation of code that relies on it. A mitigation
+is simply to `REVOKE EXECUTE ... FROM PUBLIC` on the `sqlj.add_type_mapping`
+and `sqlj.drop_type_mapping` functions, and grant the privilege only to
+selected users or roles. As of 1.5.0, these functions require the invoker
+to be superuser or own the type being mapped.
+
 [CVE-2016-0766]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0766
 [CVE-2016-0768]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0768
+[CVE-2016-2192]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-2192
 
 $h3 Version compatibility
 
@@ -107,6 +117,18 @@ so such a test transaction should be kept short*.
 [ins]: install/install.html
 
 $h3 Changes
+
+$h4 Behavior of `readSQL` and `writeSQL` for base and mirror user-defined types
+
+In the course of fixing [issue #98][gh98], the actual behavior of
+`readSQL` and `writeSQL` with base or mirror types, which had not
+previously been documented, [now is](develop/coercion.html), along with
+other details of PL/Java's type coercion rules found only in the code.
+Because machine byte order was responsible for issue #98, it now (a) is
+selectable, and (b) has different, appropriate, defaults for mirror UDTs
+(which need to match PostgreSQL's order) and for base UDTs (which must
+stay big-endian because of how binary `COPY` is specified).
+A [new documentation section](use/byteorder.html) explains in detail.
 
 $h4 `USAGE` to `PUBLIC` no longer default for `java` language
 
@@ -264,15 +286,26 @@ $h3 Enhancement requests addressed
 * [Installation of pljava on postgresql servers][gh9]
 * [Find an alternative way to install the pljava.so in `/usr/lib`][gh6]
 * [Provide database migration][gh12]
+* [Support types with type modifiers][1011140] (partial: see [example][typmex])
 
 [1011112]: ${pgffeat}1011112
+[1011140]: ${pgffeat}1011140
 [gh9]: ${ghbug}9
 [gh6]: ${ghbug}6
 [gh12]: ${ghbug}12
 
+[typmex]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/IntWithMod.java
+
 $h3 Bugs fixed
 
-$h4 Since 1.5.0-BETA1
+$h4 Since 1.5.0-BETA2
+
+* [Bogus mirror-UDT values on little-endian hardware][gh98]
+* [Base UDT not registered if first access isn't in/out/send/recv][gh99]
+* `TupleDesc` leak warnings with composite UDTs
+* also added regression test from [1010962][] report
+
+$h4 In 1.5.0-BETA2
 
 * [Generate SQL for trigger function with no parameters][gh92]
 * [openssl/ssl.h needed on osx el-capitan (latest 10.11.3)/postgres 9.5][gh94]
@@ -335,6 +368,8 @@ $h4 In 1.5.0-BETA1
 [gh94]: ${ghbug}94
 [gh95]: ${ghbug}95
 [gh96]: ${ghbug}96
+[gh98]: ${ghbug}98
+[gh99]: ${ghbug}99
 
 $h3 Updated PostgreSQL APIs tracked
 
@@ -465,12 +500,20 @@ This area may see considerable change in a future release.
 
 [tol]: https://github.com/tada/pljava/wiki/Thoughts-on-logging
 
+$h4 Types with type modifiers and `COPY`
+
+Although it is possible to create a PL/Java user-defined type that accepts
+a type modifier (see the [example][typmex]), such a type will not yet be
+handled by SQL `COPY` or any other operation that requires the `input` or
+`receive` function to handle the modifier. This is left for a future release.
+
 $h3 Credits
 
 PL/Java 1.5.0 owes its being to original creator Thomas Hallgren and
 many contributors:
 
 Daniel Blanch Bataller,
+Peter Brewer,
 Frank Broda,
 Chapman Flack,
 Marty Frasier,
