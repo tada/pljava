@@ -1,26 +1,29 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 TADA AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include "pljava/SQLInputFromChunk.h"
-
-#include "org_postgresql_pljava_jdbc_SQLInputFromChunk.h"
 
 static jclass    s_SQLInputFromChunk_class;
 static jmethodID s_SQLInputFromChunk_init;
 static jmethodID s_SQLInputFromChunk_close;
 
-jobject SQLInputFromChunk_create(void* data, size_t sz)
+jobject SQLInputFromChunk_create(void* data, size_t sz, bool isJavaBasedScalar)
 {
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = data;
-	return JNI_newObject(s_SQLInputFromChunk_class, s_SQLInputFromChunk_init, p2l.longVal, (jint)sz);
+	jobject dbb;
+	dbb = JNI_newDirectByteBuffer(data, sz);
+	return
+		JNI_newObject(s_SQLInputFromChunk_class, s_SQLInputFromChunk_init, dbb,
+		isJavaBasedScalar ? JNI_TRUE : JNI_FALSE);
 }
 
 void SQLInputFromChunk_close(jobject stream)
@@ -33,56 +36,8 @@ void SQLInputFromChunk_close(jobject stream)
 extern void SQLInputFromChunk_initialize(void);
 void SQLInputFromChunk_initialize(void)
 {
-	JNINativeMethod methods[] = {
-		{
-		"_readByte",
-	  	"(JI)I",
-	  	Java_org_postgresql_pljava_jdbc_SQLInputFromChunk__1readByte
-		},
-		{
-		"_readBytes",
-	  	"(JI[BI)V",
-	  	Java_org_postgresql_pljava_jdbc_SQLInputFromChunk__1readBytes
-		},
-		{ 0, 0, 0 }};
-
 	s_SQLInputFromChunk_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLInputFromChunk"));
-	PgObject_registerNatives2(s_SQLInputFromChunk_class, methods);
-	s_SQLInputFromChunk_init = PgObject_getJavaMethod(s_SQLInputFromChunk_class, "<init>", "(JI)V");
+	s_SQLInputFromChunk_init = PgObject_getJavaMethod(s_SQLInputFromChunk_class,
+		"<init>", "(Ljava/nio/ByteBuffer;Z)V");
 	s_SQLInputFromChunk_close = PgObject_getJavaMethod(s_SQLInputFromChunk_class, "close", "()V");
-}
-
-/****************************************
- * JNI methods
- ****************************************/
- 
-/*
- * Class:     org_postgresql_pljava_jdbc_SQLInputFromChunk
- * Method:    _readByte
- * Signature: (JI)I
- */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_jdbc_SQLInputFromChunk__1readByte(JNIEnv* env, jclass cls, jlong _this, jint pos)
-{
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-
-	/* Bounds checking has already been made */
-	return (jint)((unsigned char*)p2l.ptrVal)[pos];
-}
-
-/*
- * Class:     org_postgresql_pljava_jdbc_SQLInputFromChunk
- * Method:    _readBytes
- * Signature: (JI[BI)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_SQLInputFromChunk__1readBytes(JNIEnv* env, jclass cls, jlong _this, jint pos, jbyteArray ba, jint len)
-{
-	BEGIN_NATIVE
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	/* Bounds checking has already been made */
-	JNI_setByteArrayRegion(ba, 0, len, ((jbyte*)p2l.ptrVal) + pos);
-	END_NATIVE
 }

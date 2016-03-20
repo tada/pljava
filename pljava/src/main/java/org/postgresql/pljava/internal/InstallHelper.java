@@ -73,6 +73,36 @@ public class InstallHelper
 		 */
 		setPropertyIfNull( "sqlj.defaultconnection", "jdbc:default:connection");
 
+		/*
+		 * Set the org.postgresql.pljava.udt.byteorder.{scalar,mirror}.{p2j,j2p}
+		 * properties. For shorthand, defaults can be given in shorter property
+		 * keys org.postgresql.pljava.udt.byteorder.{scalar,mirror} or even just
+		 * org.postgresql.pljava.udt.byteorder for an overall default. These
+		 * shorter keys are then removed from the system properties.
+		 */
+		String orderKey = "org.postgresql.pljava.udt.byteorder";
+		String orderAll = System.getProperty(orderKey);
+		String orderScalar = System.getProperty(orderKey + ".scalar");
+		String orderMirror = System.getProperty(orderKey + ".mirror");
+
+		if ( null == orderScalar )
+			orderScalar = null != orderAll ? orderAll : "big_endian";
+		if ( null == orderMirror )
+			orderMirror = null != orderAll ? orderAll : "native";
+
+		setPropertyIfNull(orderKey + ".scalar.p2j", orderScalar);
+		setPropertyIfNull(orderKey + ".scalar.j2p", orderScalar);
+
+		setPropertyIfNull(orderKey + ".mirror.p2j", orderMirror);
+		setPropertyIfNull(orderKey + ".mirror.j2p", orderMirror);
+
+		System.clearProperty(orderKey);
+		System.clearProperty(orderKey + ".scalar");
+		System.clearProperty(orderKey + ".mirror");
+
+		/*
+		 * Construct the strings announcing the versions in use.
+		 */
 		String jreName = System.getProperty( "java.runtime.name");
 		String jreVer = System.getProperty( "java.runtime.version");
 
@@ -379,11 +409,11 @@ public class InstallHelper
 	 * up to date.
 	 */
 	private static final SchemaVariant currentSchema =
-		SchemaVariant.REL_1_5_0_BETA2;
+		SchemaVariant.REL_1_5_0_BETA3;
 
 	private enum SchemaVariant
 	{
-		REL_1_5_0_BETA2 ("c51cffa34acd5a228325143ec29563174891a873")
+		REL_1_5_0_BETA3 ("c51cffa34acd5a228325143ec29563174891a873")
 		{
 			@Override
 			void migrateFrom( SchemaVariant sv, Connection c, Statement s)
@@ -432,6 +462,7 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
+		static final SchemaVariant REL_1_5_0_BETA2 = REL_1_5_0_BETA3;
 		static final SchemaVariant REL_1_5_0_BETA1 = REL_1_5_0_BETA2;
 		static final SchemaVariant UNREL20130301b = REL_1_5_0_BETA1;
 

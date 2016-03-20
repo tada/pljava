@@ -23,7 +23,8 @@ extern "C" {
  *
  ***********************************************************************/
 
-jobject SQLInputFromChunk_create(void* data, size_t dataSize);
+jobject SQLInputFromChunk_create(void* data, size_t dataSize,
+	bool isJavaBasedScalar);
 void SQLInputFromChunk_close(jobject input);
 
 #ifdef __cplusplus

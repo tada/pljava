@@ -1536,9 +1536,9 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "cstring", null),
+		INPUT( "in", "cstring, oid, integer", null),
 		OUTPUT( "out", null, "cstring"),
-		RECEIVE( "recv", "internal", null),
+		RECEIVE( "recv", "internal, oid, integer", null),
 		SEND( "send", null, "bytea");
 		BaseUDTFunctionID( String suffix, String param, String ret)
 		{

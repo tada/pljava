@@ -24,7 +24,7 @@ extern "C" {
  ***********************************************************************/
 #include <lib/stringinfo.h>
 
-jobject SQLOutputToChunk_create(StringInfo buffer);
+jobject SQLOutputToChunk_create(StringInfo buffer, bool isJavaBasedScalar);
 void SQLOutputToChunk_close(jobject output);
 
 #ifdef __cplusplus

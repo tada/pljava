@@ -9,6 +9,7 @@
 #include <postgres.h>
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
+#include <utils/typcache.h>
 #include <libpq/pqformat.h>
 #include <funcapi.h>
 
@@ -30,6 +31,7 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 	jobject result;
 	int32 dataLen = Type_getLength((Type)self);
 	jclass javaClass = Type_getJavaClass((Type)self);
+	bool isJavaBasedScalar = 0 != self->toString;
 
 	if(dataLen == -2)
 	{
@@ -73,7 +75,8 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 		}
 		result = JNI_newObject(javaClass, self->init);
 
-		inputStream = SQLInputFromChunk_create(data, dataLen);
+		inputStream = SQLInputFromChunk_create(data, dataLen,
+			isJavaBasedScalar);
 		JNI_callVoidMethod(result, self->readSQL, inputStream, self->sqlTypeName);
 		SQLInputFromChunk_close(inputStream);
 	}
@@ -83,7 +86,11 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 static jobject coerceTupleDatum(UDT udt, Datum arg)
 {
 	jobject result = JNI_newObject(Type_getJavaClass((Type)udt), udt->init);
-	jobject inputStream = SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), udt->tupleDesc);
+	Oid typeId = ((Type)udt)->typeId;
+	TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+	jobject inputStream =
+		SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), tupleDesc);
+	ReleaseTupleDesc(tupleDesc);
 	JNI_callVoidMethod(result, udt->readSQL, inputStream, udt->sqlTypeName);
 	JNI_deleteLocalRef(inputStream);
 	return result;
@@ -93,6 +100,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
 	int32 dataLen = Type_getLength((Type)self);
+	bool isJavaBasedScalar = 0 != self->toString;
 	if(dataLen == -2)
 	{
 		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
@@ -105,9 +113,10 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		jobject outputStream;
 		StringInfoData buffer;
 		bool passByValue = Type_isByValue((Type)self);
-		MemoryContext currCtx = Invocation_switchToUpperContext();
 
+		MemoryContext currCtx = Invocation_switchToUpperContext();
 		initStringInfo(&buffer);
+		MemoryContextSwitchTo(currCtx); /* buffer remembers its context */
 
 		if(dataLen < 0)
 			/*
@@ -115,11 +124,12 @@ static Datum coerceScalarObject(UDT self, jobject value)
 			 * a varlena
 			 */
 			appendBinaryStringInfo(&buffer, (char*)&dataLen, sizeof(int32));
+		else
+			enlargeStringInfo(&buffer, dataLen);
 
-		outputStream = SQLOutputToChunk_create(&buffer);
+		outputStream = SQLOutputToChunk_create(&buffer, isJavaBasedScalar);
 		JNI_callVoidMethod(value, self->writeSQL, outputStream);
 		SQLOutputToChunk_close(outputStream);
-		MemoryContextSwitchTo(currCtx);
 
 		if(dataLen < 0)
 		{
@@ -161,7 +171,10 @@ static Datum coerceTupleObject(UDT self, jobject value)
 	if(value != 0)
 	{
 		HeapTuple tuple;
-		jobject sqlOutput = SQLOutputToTuple_create(self->tupleDesc);
+		Oid typeId = ((Type)self)->typeId;
+		TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+		jobject sqlOutput = SQLOutputToTuple_create(tupleDesc);
+		ReleaseTupleDesc(tupleDesc);
 		JNI_callVoidMethod(value, self->writeSQL, sqlOutput);
 		tuple = SQLOutputToTuple_getTuple(sqlOutput);
 		if(tuple != 0)
@@ -192,6 +205,38 @@ Datum _UDT_coerceObject(Type self, jobject value)
 	return result;
 }
 
+/*
+ * Fail openly rather than mysteriously if an INPUT or RECEIVE function is
+ * called with a non-default typmod. It seems possible that, aside from COPY
+ * operations, that doesn't happen much, and values are usually produced as if
+ * with no typmod, then fed through a typmod application cast. So even
+ * without this implemented, there may be usable typmod capability except for
+ * COPY.
+ */
+static void noTypmodYet(UDT udt, PG_FUNCTION_ARGS)
+{
+	Oid toid;
+	int mod;
+
+	if ( 3 > PG_NARGS() )
+		return;
+
+	toid = PG_GETARG_OID(1);
+	mod  = PG_GETARG_INT32(2);
+
+	if ( -1 != mod )
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg(
+				"PL/Java UDT with non-default type modifier not yet supported")
+			));
+
+	if ( Type_getOid((Type)udt) != toid )
+		ereport(ERROR, (
+			errcode(ERRCODE_INTERNAL_ERROR),
+			errmsg("Unexpected type Oid %d passed to PL/Java UDT", toid)));
+}
+
 Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 {
 	jstring jstr;
@@ -202,6 +247,8 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 		ereport(ERROR, (
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+
+	noTypmodYet(udt, fcinfo);
 
 	txt = PG_GETARG_CSTRING(0);
 
@@ -259,6 +306,8 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
 
+	noTypmodYet(udt, fcinfo);
+
 	if(dataLen == -1)
 		return bytearecv(fcinfo);
 
@@ -294,12 +343,12 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 
 bool UDT_isScalar(UDT udt)
 {
-	return udt->tupleDesc == 0;
+	return ! udt->hasTupleDesc;
 }
 
 /* Make this datatype available to the postgres system.
  */
-UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td, bool isJavaBasedScalar)
+UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTupleDesc, bool isJavaBasedScalar)
 {
 	jstring jcn;
 	MemoryContext currCtx;
@@ -410,7 +459,7 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td,
 		udt->parse = 0;
 	}
 
-	udt->tupleDesc = td;
+	udt->hasTupleDesc = hasTupleDesc;
 	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
 	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
 	Type_registerType(className, (Type)udt);

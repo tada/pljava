@@ -43,7 +43,7 @@ Therefore:
 
 ```sql
 SELECT sqlj.install_jar(
-  'file://'
+  'file:'
   '/buildroot/pljava-examples/target/pljava-examples-${project.version}.jar',
   'examples', true);
 ```

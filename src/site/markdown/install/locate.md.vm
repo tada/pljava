@@ -19,6 +19,7 @@ may help in finding them.
 
 [bld]: ../build/build.html
 [inst]: install.html
+[use]: ../use/use.html
 
 $h2 The packaged jar file
 
@@ -44,6 +45,11 @@ or `amd64-Windows-msvc`. It contains these things:
 `pljava/sharedir/pljava/pljava-\${project.version}.jar`
 : The architecture-independent, Java portion of the PL/Java implementation
     (more below).
+
+`pljava/sharedir/pljava/pljava-api-\${project.version}.jar`
+: The jar file that should be named on the `javac` classpath when compiling
+    code for PL/Java (see "How to compile against the PL/Java API" in the
+    [user guide][use]).
 
 `pljava/sharedir/pljava/pljava-examples-\${project.version}.jar`
 : A set of [examples demonstrating PL/Java usage][examples], usable also

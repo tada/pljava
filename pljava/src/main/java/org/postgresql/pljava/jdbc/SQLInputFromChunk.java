@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2016 TADA AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -16,6 +20,10 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -24,7 +32,9 @@ import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLDataException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLInput;
 import java.sql.SQLXML;
 import java.sql.Time;
@@ -45,200 +55,281 @@ import org.postgresql.pljava.internal.Backend;
  */
 public class SQLInputFromChunk implements SQLInput
 {
-	private static final byte[] s_byteBuffer = new byte[8];
+	private ByteBuffer m_bb;
 
-	private final int m_chunkSize;
+	/* get rid of this once no longer supporting back to Java 6 */
+	private static final Charset UTF8 = Charset.forName("UTF-8");
 
-	private int m_position;
+	private static ByteOrder scalarOrder;
+	private static ByteOrder mirrorOrder;
 
-	private long m_handle;
-
-	public SQLInputFromChunk(long handle, int chunkSize)
+	public SQLInputFromChunk(ByteBuffer bb, boolean isJavaBasedScalar)
+		throws SQLException
 	{
-		m_handle = handle;
-		m_chunkSize = chunkSize;
-		m_position = 0;
+		m_bb = bb;
+		if ( isJavaBasedScalar )
+		{
+			if ( null == scalarOrder )
+				scalarOrder = getOrder(true);
+			m_bb.order(scalarOrder);
+		}
+		else
+		{
+			if ( null == mirrorOrder )
+				mirrorOrder = getOrder(false);
+			m_bb.order(mirrorOrder);
+		}
 	}
 
+	private ByteOrder getOrder(boolean isJavaBasedScalar) throws SQLException
+	{
+		ByteOrder result;
+		String key = "org.postgresql.pljava.udt.byteorder."
+			+ ( isJavaBasedScalar ? "scalar" : "mirror" ) + ".p2j";
+		String val = System.getProperty(key);
+		if ( "big_endian".equals(val) )
+			result = ByteOrder.BIG_ENDIAN;
+		else if ( "little_endian".equals(val) )
+			result = ByteOrder.LITTLE_ENDIAN;
+		else if ( "native".equals(val) )
+			result = ByteOrder.nativeOrder();
+		else
+			throw new SQLNonTransientException(
+				"System property " + key +
+				" must be big_endian, little_endian, or native", "F0000");
+		return result;
+	}
+
+	@Override
 	public Array readArray() throws SQLException
 	{
-		throw new UnsupportedOperationException("readArray");
+		throw unsupportedOperationException("readArray");
 	}
 
+	@Override
 	public InputStream readAsciiStream() throws SQLException
 	{
-		throw new UnsupportedOperationException("readAsciiStream");
+		throw unsupportedOperationException("readAsciiStream");
 	}
 
+	@Override
 	public BigDecimal readBigDecimal() throws SQLException
 	{
 		return new BigDecimal(this.readString());
 	}
 
+	@Override
 	public InputStream readBinaryStream() throws SQLException
 	{
 		return new ByteArrayInputStream(this.readBytes());
 	}
 
+	@Override
 	public Blob readBlob() throws SQLException
 	{
-		throw new UnsupportedOperationException("readBlob");
+		throw unsupportedOperationException("readBlob");
 	}
 
+	@Override
 	public boolean readBoolean() throws SQLException
 	{
-		int c = this.read();
-		if(c < 0)
-		    throw new SQLException("Unexpected EOF on data input");
-		return c != 0;
-	}
-
-	public byte readByte() throws SQLException
-	{
-		int c = this.read();
-		if(c < 0)
-		    throw new SQLException("Unexpected EOF on data input");
-		return (byte)c;
-	}
-
-	public byte[] readBytes() throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
+		try
 		{
-			if(m_handle == 0)
-				throw new SQLException("Stream is closed");
-
-			if(m_chunkSize - m_position < 2)
-			    throw new SQLException("Unexpected EOF on data input");
-			_readBytes(m_handle, m_position, s_byteBuffer, 2);
-			m_position += 2;
-
-		    int len = ((s_byteBuffer[0] & 0xff) <<  8) | (s_byteBuffer[1] & 0xff);
-		    byte[] buffer = new byte[len];
-		    if(len > 0)
-		    {
-		    	_readBytes(m_handle, m_position, buffer, len);
-		    	m_position += len;
-		    }
-			return buffer;
+			return 0 != m_bb.get();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
+	public byte readByte() throws SQLException
+	{
+		try
+		{
+			return m_bb.get();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
+	}
+
+	@Override
+	public byte[] readBytes() throws SQLException
+	{
+		try
+		{
+			int len = m_bb.getShort() & 0xffff;
+		    byte[] buffer = new byte[len];
+			m_bb.get(buffer);
+			return buffer;
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
+	}
+
+	@Override
 	public Reader readCharacterStream() throws SQLException
 	{
 		return new StringReader(this.readString());
 	}
 
+	@Override
 	public Clob readClob() throws SQLException
 	{
-		throw new UnsupportedOperationException("readClob");
+		throw unsupportedOperationException("readClob");
 	}
 
+	@Override
 	public Date readDate() throws SQLException
 	{
-		return new Date(this.readLong());
+		try
+		{
+			return new Date(m_bb.getLong());
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
 	}
 
+	@Override
 	public double readDouble() throws SQLException
 	{
-		return Double.longBitsToDouble(this.readLong());
+		try
+		{
+			return m_bb.getDouble();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
 	}
 
+	@Override
 	public float readFloat() throws SQLException
 	{
-		return Float.intBitsToFloat(readInt());
+		try
+		{
+			return m_bb.getFloat();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
 	}
 
+	@Override
 	public int readInt() throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		try
 		{
-			if(m_chunkSize - m_position < 4)
-			    throw new SQLException("Unexpected EOF on data input");
-			_readBytes(m_handle, m_position, s_byteBuffer, 4);
-			m_position += 4;
-	        return	((s_byteBuffer[0] & 0xff) << 24) |
-		            ((s_byteBuffer[1] & 0xff) << 16) |
-		            ((s_byteBuffer[2] & 0xff) <<  8) |
-		             (s_byteBuffer[3] & 0xff);
+			return m_bb.getInt();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
 	public long readLong() throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		try
 		{
-			if(m_chunkSize - m_position < 8)
-			    throw new SQLException("Unexpected EOF on data input");
-			_readBytes(m_handle, m_position, s_byteBuffer, 8);
-			m_position += 8;
-	        return	((long)(s_byteBuffer[0] & 0xff) << 56) |
-		            ((long)(s_byteBuffer[1] & 0xff) << 48) |
-		            ((long)(s_byteBuffer[2] & 0xff) << 40) |
-		            ((long)(s_byteBuffer[3] & 0xff) << 32) |
-	        		((long)(s_byteBuffer[4] & 0xff) << 24) |
-		            	((s_byteBuffer[5] & 0xff) << 16) |
-		            	((s_byteBuffer[6] & 0xff) <<  8) |
-		            	 (s_byteBuffer[7] & 0xff);
+			return m_bb.getLong();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
 	public Object readObject() throws SQLException
 	{
-		throw new UnsupportedOperationException("readObject");
+		throw unsupportedOperationException("readObject");
 	}
 
+	@Override
 	public Ref readRef() throws SQLException
 	{
-		throw new UnsupportedOperationException("readRef");
+		throw unsupportedOperationException("readRef");
 	}
 
+	@Override
 	public short readShort() throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		try
 		{
-			if(m_chunkSize - m_position < 2)
-			    throw new SQLException("Unexpected EOF on data input");
-			_readBytes(m_handle, m_position, s_byteBuffer, 2);
-			m_position += 2;
-	        return (short)(((s_byteBuffer[0] & 0xff) <<  8) | (s_byteBuffer[1] & 0xff));
+			return m_bb.getShort();
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
 	public String readString() throws SQLException
 	{
 		try
 		{
-			return new String(this.readBytes(), "UTF8");
+			int len = m_bb.getShort() & 0xffff;
+			ByteBuffer bytes = (ByteBuffer)m_bb.slice().limit(len);
+			m_bb.position(m_bb.position() + len);
+			return UTF8.newDecoder().decode(bytes).toString();
 		}
-		catch(UnsupportedEncodingException e)
+		catch ( Exception e )
 		{
-			throw new SQLException("UTF8 encoding not supported by JVM");
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
 	public Time readTime() throws SQLException
 	{
-		return new Time(this.readLong());
+		try
+		{
+			return new Time(m_bb.getLong());
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
 	}
 
+	@Override
 	public Timestamp readTimestamp() throws SQLException
 	{
-		return new Timestamp(this.readLong());
+		try
+		{
+			return new Timestamp(m_bb.getLong());
+		}
+		catch ( Exception e )
+		{
+			throw badRepresentation(e);
+		}
 	}
 
+	@Override
 	public URL readURL() throws SQLException
 	{
 		try
 		{
 			return new URL(this.readString());
 		}
-		catch(MalformedURLException e)
+		catch( Exception e )
 		{
-			throw new SQLException(e.getMessage());
+			throw badRepresentation(e);
 		}
 	}
 
+	@Override
 	public boolean wasNull() throws SQLException
 	{
 		return false;
@@ -246,75 +337,54 @@ public class SQLInputFromChunk implements SQLInput
 
 	void close()
 	{
-		m_handle = 0;
+		m_bb = null;
 	}
 
-	private int read() throws SQLException
+	private SQLException badRepresentation(Throwable e)
 	{
-		if(m_position < m_chunkSize)
-		{
-			synchronized(Backend.THREADLOCK)
-			{
-				if(m_handle == 0)
-					throw new SQLException("Stream is closed");
-				return _readByte(m_handle, m_position++);
-			}
-		}
-		return -1;
+		if ( e instanceof NullPointerException )
+			return new SQLNonTransientException(
+				"attempted read from SQLInput after closing it", "55000", e);
+		return new SQLDataException(
+			"Could not read binary representation of user-defined type",
+			"22P03", e);
+	}
+
+	private SQLException unsupportedOperationException(String op)
+	{
+		return new SQLFeatureNotSupportedException(
+			this.getClass() + "." + op + "() not implemented yet.", "0A000");
 	}
 
 	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
+	@Override
 	public RowId readRowId()
                 throws SQLException
 	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".readRowId() not implemented yet.",
-			  "0A000" );
+		throw unsupportedOperationException("readRowId");
 	}
 
+	@Override
 	public SQLXML readSQLXML()
 		throws SQLException
 	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".readSQLXML() not implemented yet.",
-			  "0A000" );
+		throw unsupportedOperationException("readSQLXML");
 	}
 
+	@Override
 	public String readNString()
 		throws SQLException
 	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".readNString() not implemented yet.",
-			  "0A000" );
-		
+		throw unsupportedOperationException("readNString");
 	}
 	
+	@Override
 	public NClob readNClob()
 	       throws SQLException
 	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".readNClob() not implemented yet.",
-		  "0A000" );
-		
+		throw unsupportedOperationException("readNClob");
 	}
-
-	// ************************************************************
-	// End of non-implementation of JDBC 4 methods.
-	// ************************************************************
-
-
-	private static native int _readByte(long handle, 
-					    int position);
-
-	private static native void _readBytes(long handle, 
-					      int position, 
-					      byte[] dest, 
-					      int len);
 }

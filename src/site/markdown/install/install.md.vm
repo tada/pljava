@@ -85,6 +85,11 @@ you will have to become patient, and read the rest of this page.
 **You will most probably have to set `pljava.libjvm_location`.** See the
 next section.
 
+**It is useful to consider `pljava.vmoptions`.** See the
+[VM options page][vmop].
+
+[vmop]: vmoptions.html
+
 *One last small thing the extractor does, that won't automatically happen if
 you extract with other tools, is make sure the text files have the right
 line-ending style for your system. Everything will still work, and there
@@ -115,6 +120,12 @@ things right on the first try, you might set them after, too.) For example:
     PL/Java to use. See [locating libjvm][jvmloc] for help finding it.
     Then set this variable to the full pathname, including the filename
     and extension.
+
+`pljava.vmoptions`
+: While it should not be necessary to set these before seeing the first signs
+    of life from PL/Java, there are useful options to consider setting here
+    before calling the installation complete. Some are described on the
+    [VM options page][vmop].
 
 `pljava.classpath`
 : There is probably no need to set this variable unless installation locations
@@ -242,10 +253,12 @@ Be sure to read these additional sections if:
 * You are installing to [a PostgreSQL release earlier than 9.2][pre92]
 * You are installing on [a system using SELinux][selinux]
 * You are installing on [Mac OS X][osx]
+* You are installing on [Ubuntu][ubu] and the self-extracting jar won't work
 
 [pre92]: prepg92.html
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
+[ubu]: ../build/ubuntu.html
 
 $h2 Troubleshooting the installation
 

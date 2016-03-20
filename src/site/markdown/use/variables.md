@@ -76,19 +76,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     `pljava.vmoptions`. The exact quoting and encoding rules for this variable
     may be adjusted in a future PL/Java version.
 
-    You can include `-XX:+DisableAttachMechanism` among the options if you
-    prefer to prevent [Java Management Extensions][jmx] tools such as
-    [`jvisualvm`][jvvm] from attaching to the process even from the server host
-    itself (by default, such tools can connect if running on the server host as
-    a superuser, or the operating system user running the postmaster). That
-    will, of course, prevent you from using the advanced features of such tools,
-    such as code profiling in VisualVM.
-
-    Even with attachment disabled, a tool such as VisualVM can display some
-    basic information about PL/Java processes (as long as it runs on the server
-    host, as a superuser or the same operating system user as the `postmaster`),
-    including the arguments, system properties, class and thread counts, and
-    overall heap usage.
+    Some important settings can be made here, and are described on the
+    [VM options page][vmop].
 
 [pre92]: ../install/prepg92.html
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
@@ -97,3 +86,4 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [jvvm]: http://docs.oracle.com/javase/8/docs/technotes/guides/visualvm/
 [jow]: https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html
 [jou]: https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html
+[vmop]: ../install/vmoptions.html

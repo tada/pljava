@@ -146,9 +146,14 @@ public class Backend
 				if(perm.getActions().indexOf("write") >= 0)
 				{
 					// We never allow this to be changed.
+					// As for UDT byteorder, the classes that use it only check
+					// once so it would be misleading to allow runtime changes;
+					// use pljava.vmoptions to provide an initial value.
 					//
 					String propName = perm.getName();
-					if(propName.equals("java.home"))
+					if ( propName.equals("java.home") || propName.matches(
+						"org\\.postgresql\\.pljava\\.udt\\.byteorder(?:\\..*)?")
+					)
 						throw new SecurityException();
 				}
 			}

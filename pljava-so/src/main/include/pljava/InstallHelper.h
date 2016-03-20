@@ -52,10 +52,15 @@ extern bool pljavaLoadingAsExtension;
  * Another way of getting the library path: if invoked by the fmgr before
  * initialization is complete, save the last function Oid seen (trusted or
  * untrusted) ... can be used later to get the library path if needed.
+ * isPLJavaFunction can use the stashed information to determine whether an
+ * arbitrary function Oid is a function built on PL/Java, without relying on
+ * assumptions about the language name, etc.
  */
 extern char *pljavaFnOidToLibPath(Oid fn);
 
 extern Oid pljavaTrustedOid, pljavaUntrustedOid;
+
+extern bool InstallHelper_isPLJavaFunction(Oid fn);
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.

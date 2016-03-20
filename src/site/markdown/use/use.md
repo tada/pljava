@@ -45,3 +45,14 @@ PL/Java will work most seamlessly when the server encoding in PostgreSQL is
 [uwik]: https://github.com/tada/pljava/wiki/User-guide
 [examples]: ../examples/examples.html
 [charsets]: charsets.html
+
+### Byte-order issues
+
+PL/Java is free of byte-order issues except when using its features for building
+user-defined types in Java. At sites with no current or planned use of
+those features, this section does not require attention.
+
+The 1.5.0 release of PL/Java begins a transition affecting the byte-order
+defaults, which will be completed in a future release. No immediate action is
+recommended; there is a [byte-order page](byteorder.html) for more on the topic
+and an advance notice of an expected future migration step.

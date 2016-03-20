@@ -64,6 +64,14 @@ the plaform) and a JAR file. PostgreSQL must be configured to know where these
 are, in addition to the native library for the Java runtime itself. The
 [installation guide][install] has details.
 
+### Installation from a prebuilt package
+
+There may be a prebuilt distribution available for your platform.
+You can check for that on the [wiki prebuilt packages page][wpbpp],
+which can be kept up to date with known available packages.
+
+[wpbpp]: https://github.com/tada/pljava/wiki/Prebuilt-packages
+
 ## Moving PL/Java forward
 
 The [Contribution Guide][cguide] describes how to contribute to PL/Java\'s
