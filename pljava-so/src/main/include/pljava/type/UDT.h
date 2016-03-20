@@ -33,7 +33,7 @@ extern Datum UDT_send(UDT udt, PG_FUNCTION_ARGS);
 
 extern bool UDT_isScalar(UDT udt);
 
-extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td, bool isJavaBasedScalar);
+extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTupleDesc, bool isJavaBasedScalar);
 
 typedef Datum (*UDTFunction)(UDT udt, PG_FUNCTION_ARGS);
 

@@ -25,6 +25,9 @@ static jmethodID s_TupleDesc_init;
 
 /*
  * org.postgresql.pljava.TupleDesc type.
+ * This makes a non-reference-counted copy in JavaMemoryContext of the supplied
+ * TupleDesc, which will be freed later when Java code calls the native method
+ * _free(). Therefore the caller is done with its TupleDesc when this returns.
  */
 jobject TupleDesc_create(TupleDesc td)
 {

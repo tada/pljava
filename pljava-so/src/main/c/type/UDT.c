@@ -9,6 +9,7 @@
 #include <postgres.h>
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
+#include <utils/typcache.h>
 #include <libpq/pqformat.h>
 #include <funcapi.h>
 
@@ -85,7 +86,11 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 static jobject coerceTupleDatum(UDT udt, Datum arg)
 {
 	jobject result = JNI_newObject(Type_getJavaClass((Type)udt), udt->init);
-	jobject inputStream = SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), udt->tupleDesc);
+	Oid typeId = ((Type)udt)->typeId;
+	TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+	jobject inputStream =
+		SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg), tupleDesc);
+	ReleaseTupleDesc(tupleDesc);
 	JNI_callVoidMethod(result, udt->readSQL, inputStream, udt->sqlTypeName);
 	JNI_deleteLocalRef(inputStream);
 	return result;
@@ -166,7 +171,10 @@ static Datum coerceTupleObject(UDT self, jobject value)
 	if(value != 0)
 	{
 		HeapTuple tuple;
-		jobject sqlOutput = SQLOutputToTuple_create(self->tupleDesc);
+		Oid typeId = ((Type)self)->typeId;
+		TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+		jobject sqlOutput = SQLOutputToTuple_create(tupleDesc);
+		ReleaseTupleDesc(tupleDesc);
 		JNI_callVoidMethod(value, self->writeSQL, sqlOutput);
 		tuple = SQLOutputToTuple_getTuple(sqlOutput);
 		if(tuple != 0)
@@ -335,12 +343,12 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 
 bool UDT_isScalar(UDT udt)
 {
-	return udt->tupleDesc == 0;
+	return ! udt->hasTupleDesc;
 }
 
 /* Make this datatype available to the postgres system.
  */
-UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td, bool isJavaBasedScalar)
+UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTupleDesc, bool isJavaBasedScalar)
 {
 	jstring jcn;
 	MemoryContext currCtx;
@@ -451,7 +459,7 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, TupleDesc td,
 		udt->parse = 0;
 	}
 
-	udt->tupleDesc = td;
+	udt->hasTupleDesc = hasTupleDesc;
 	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
 	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
 	Type_registerType(className, (Type)udt);
