@@ -45,7 +45,7 @@ public interface Lexicals {
 	/** A complete regular identifier as allowed by ISO.
 	 */
 	Pattern ISO_REGULAR_IDENTIFIER = Pattern.compile(String.format(
-		"%1$s%2$s*",
+		"%1$s%2$s*+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		ISO_REGULAR_IDENTIFIER_PART.pattern()
 	));
@@ -73,7 +73,7 @@ public interface Lexicals {
 	/** A complete regular identifier as allowed by PostgreSQL (PG 7.4 -).
 	 */
 	Pattern PG_REGULAR_IDENTIFIER = Pattern.compile(String.format(
-		"%1$s%2$s*",
+		"%1$s%2$s*+",
 		PG_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_PART.pattern()
 	));
@@ -87,7 +87,7 @@ public interface Lexicals {
 	/** A regular identifier that satisfies both ISO and PostgreSQL rules.
 	 */
 	Pattern ISO_AND_PG_REGULAR_IDENTIFIER = Pattern.compile(String.format(
-		"(?:(?=%1$s)%2$s)(?:(?=%3$s)%4$s)*",
+		"(?:(?=%1$s)%2$s)(?:(?=%3$s)%4$s)*+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_START.pattern(),
 		ISO_REGULAR_IDENTIFIER_PART.pattern(),
@@ -109,7 +109,7 @@ public interface Lexicals {
 	 * identifier rules to recognize identifiers in deployment descriptors.
 	 */
 	Pattern ISO_PG_JAVA_IDENTIFIER = Pattern.compile(String.format(
-		"(?:(?=%1$s)(?=\\p{%5$sStart})%2$s)(?:(?=%3$s)(?=\\p{%5$sPart})%4$s)*",
+		"(?:(?=%1$s)(?=\\p{%5$sStart})%2$s)(?:(?=%3$s)(?=\\p{%5$sPart})%4$s)*+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_START.pattern(),
 		ISO_REGULAR_IDENTIFIER_PART.pattern(),

@@ -205,7 +205,7 @@ public class DDRWriter
 	}
 
 	static final Pattern checker = Pattern.compile(
-		"^(?s:\\\\.|[^;'\"]|'(?:\\\\.|[^'])*'|\"(?:\\\\.|[^\"])*\")*$");
+		"(?s:\\\\.|[^;'\"]|'(?:\\\\.|[^'])*+'|\"(?:\\\\.|[^\"])*+\")*+");
 
 	static final String checkMsg =
 		"%s command contains unquoted ; or unbalanced '/\": %s";
