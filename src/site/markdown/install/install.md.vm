@@ -13,6 +13,11 @@ $h2 For the impatient
 After completing the [build][bld]:
 
     java -jar pljava-packaging/target/pljava-pgX.Y-arch-os-link.jar
+
+       (run the above with sufficient privilege to write in the PostgreSQL
+        installation directories, or read further for how to install in
+	    non-standard places)
+
     psql
     CREATE EXTENSION pljava;
     GRANT USAGE ON LANGUAGE java TO ...; -- see "Usage permission" below
