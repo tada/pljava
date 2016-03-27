@@ -7,8 +7,11 @@
  up the member objects according to the current schema version.
  */
 
-DROP TABLE IF EXISTS @extschema@.loadpath;
-CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
+DROP TABLE IF EXISTS
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session";
+CREATE TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session"
+(path, exnihilo) AS
 SELECT CAST('${module.pathname}' AS text), false;
 LOAD '${module.pathname}';
 
@@ -20,15 +23,18 @@ LOAD '${module.pathname}';
  migration only happens in an actual LOAD.  To avoid confusion later, it's
  helpful to fail fast in that case. The loadpath table should have been dropped
  by the LOAD actions, so the re-CREATE/DROP here will incur a (cryptic, but
- dependable) error if those actions didn't happen.
+ dependable) error if those actions didn't happen. The error message will
+ include the table name, which is why the table name is phrased as an error
+ message.
  
- The error messages will not shed much light on the real problem, but at least
- will indicate that there is a problem. The solution is simply to exit the
+ The solution to a problem detected here is simply to exit the
  session and repeat the CREATE EXTENSION in a new session where PL/Java has not
  been loaded yet.
  */
-CREATE TABLE @extschema@.loadpath();
-DROP TABLE @extschema@.loadpath;
+CREATE TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session"();
+DROP TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session";
 
 /*
  The language-hander functions do not need to be explicitly added, because the

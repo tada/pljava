@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientException;
@@ -128,7 +129,8 @@ public class InstallHelper
 	}
 
 	public static void groundwork(
-		String module_pathname, boolean asExtension, boolean exNihilo)
+		String module_pathname, String loadpath_tbl, String loadpath_tbl_quoted,
+		boolean asExtension, boolean exNihilo)
 	throws SQLException, ParseException
 	{
 		Connection c = null;
@@ -140,7 +142,7 @@ public class InstallHelper
 
 			schema(c, s);
 
-			SchemaVariant sv = recognizeSchema(c, s);
+			SchemaVariant sv = recognizeSchema(c, s, loadpath_tbl);
 
 			if ( null == sv )
 				throw new SQLNonTransientException(
@@ -164,7 +166,7 @@ public class InstallHelper
 				 * create it again, which will cause a (cryptic, but reliable)
 				 * error if this code didn't execute.
 				 */
-				s.execute("DROP TABLE sqlj.loadpath");
+				s.execute("DROP TABLE sqlj." + loadpath_tbl_quoted);
 		}
 		finally
 		{
@@ -320,7 +322,8 @@ public class InstallHelper
 	 * indicates that whatever is there didn't match the tests for any known
 	 * variant.
 	 */
-	private static SchemaVariant recognizeSchema( Connection c, Statement s)
+	private static SchemaVariant recognizeSchema(
+		Connection c, Statement s, String loadpath_tbl)
 	throws SQLException
 	{
 		DatabaseMetaData md = c.getMetaData();
@@ -377,7 +380,7 @@ public class InstallHelper
 		if ( seen )
 			return SchemaVariant.UNREL20040120;
 
-		rs = s.executeQuery( "SELECT count(*) " +
+		PreparedStatement ps = c.prepareStatement( "SELECT count(*) " +
 			"FROM pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
 			"WHERE refclassid = 'pg_catalog.pg_namespace'::regclass " +
 			"AND refobjid = n.oid AND nspname = 'sqlj' " +
@@ -390,15 +393,19 @@ public class InstallHelper
 			"		nspname = 'pg_catalog' AND relname = 'pg_extension' " +
 			"		AND classid = sqc.oid " +
 			"	OR " +
-			"		nspname = 'sqlj' AND relname = 'loadpath'" +
+			"		nspname = 'sqlj' AND relname = ?" +
 			"		AND classid = 'pg_catalog.pg_class'::regclass " +
 			"		AND objid = sqc.oid)");
+		ps.setString(1, loadpath_tbl);
+		rs = ps.executeQuery();
 		if ( rs.next() && 0 == rs.getInt(1) )
 		{
 			rs.close();
+			ps.close();
 			return SchemaVariant.EMPTY;
 		}
 		rs.close();
+		ps.close();
 
 		return null;
 	}
