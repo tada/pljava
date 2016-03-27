@@ -64,7 +64,6 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
-* Building [with a 32-bit Java development kit](jdk32.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
     | [with MinGW-w64](mingw64.html)
 * Building on [Mac OS X](macosx.html)
@@ -213,7 +212,3 @@ The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
     mvn  -X  -Pwnosign  -Dnar.cores=1  clean  install
-
-If the build is using a 32-bit Java development kit and a stack overflow
-is reported, add `-Xss1024k` to `MAVEN_OPTS` as described in
-[building with a 32-bit Java development kit](jdk32.html).
