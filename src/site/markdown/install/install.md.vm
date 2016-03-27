@@ -275,6 +275,15 @@ The error reported for later tries within a session may be puzzling, such as
 that the relation `loadpath` already exists. The solution is simple,
 though: just retry in a new session (in `psql`, `\c` makes that easy).
 
+$h3 Undefined symbol errors at `LOAD` or `CREATE EXTENSION` time
+
+If PL/Java loading fails with undefined-symbol errors that seem to refer to
+common system libraries (`libldap`, for example), see
+[Building PL/Java with a `RUNPATH`](../build/runpath.html).
+
+In case of errors that seem to refer to symbols of PostgreSQL itself,
+see [this page](../build/linkpglibs.html).
+
 $h2 More background and special considerations
 
 These last sections cover a little more of what happens under the hood.
