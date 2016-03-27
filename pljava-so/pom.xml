@@ -19,6 +19,62 @@
 	</properties>
 
 	<profiles>
+		<!-- I still have an inner voice telling me it should never (well,
+			hardly ever) be necessary to mention these PostgreSQL libraries
+			during the PL/Java link, and on any platform where it isn't
+			necessary, it is better not to. Leaving them unresolved should
+			allow them to be resolved within the backend process itself, where
+			the correct versions will be found, whereas if they are seen at
+			link time and DT_NEEDED entries are made for them, the runtime
+			linker may pull in *wrong* versions if there are links in the system
+			library locations to a different, default-selected PG version.
+
+			However, they were put here by someone, so were probably needed on
+			some platform for some reason, so it would be reckless to take them
+			out completely. Here they are as a profile. If you can build without
+			activating this profile and nothing goes wrong, profit. Otherwise,
+			add -Plinkpglibs on the command line and see if that helps. If it
+			does, please report your platform and configuration so we know
+			where these are actually needed. If it doesn't help, the trouble
+			is somewhere else.
+
+			This profile is placed first to avoid changing the resulting
+			library order when another profile that adds to libraries (like
+			compiler-mingw64) are also active.
+			-->
+		<profile>
+			<id>linkpglibs</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<linker>
+								<libs combine.children='append'>
+									<lib>
+										<name>ecpg</name>
+										<type>shared</type>
+										<directory>${PGSQL_LIBDIR}</directory>
+									</lib>
+									<lib>
+										<name>pgtypes</name>
+										<type>shared</type>
+										<directory>${PGSQL_LIBDIR}</directory>
+									</lib>
+									<lib>
+										<name>pq</name>
+										<type>shared</type>
+										<directory>${PGSQL_LIBDIR}</directory>
+									</lib>
+								</libs>
+							</linker>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
 		<profile>
 			<id>osx</id>
 			<activation>
@@ -33,7 +89,7 @@
 						<artifactId>nar-maven-plugin</artifactId>
 						<configuration>
 							<linker>
-								<options>
+								<options combine.children='append'>
 									<option>-bundle_loader</option>
 									<option>${PGSQL_BINDIR}/postgres</option>
 								</options>
@@ -105,7 +161,7 @@
 							</c>
 							<linker>
 								<name>g++</name>
-								<options>
+								<options combine.children='append'>
 									<option>-Wl,--export-all-symbols</option>
 								</options>
 								<libs combine.children='append'>
@@ -129,13 +185,47 @@
 					<plugin>
 						<groupId>com.github.maven-nar</groupId>
 						<artifactId>nar-maven-plugin</artifactId>
-							<configuration>
-								<c>
-									<options>
-										<option>-Wno-sign-conversion</option>
-									</options>
-								</c>
-							</configuration>
+						<configuration>
+							<c>
+								<options>
+									<option>-Wno-sign-conversion</option>
+								</options>
+							</c>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- If the pljava.so must include a RUNPATH for the runtime linker,
+			activate this profile by setting -Dpgsql.runpath to the needed path.
+			If the prefix for the option is something other than -Wl,-rpath=
+			then also set -Dpgsql.runpathpfx to the necessary prefix (including
+			the = if there is one). If this scheme is not flexible enough to
+			accommodate your linker, then you may as well just edit this file
+			and add the right linker options directly. -->
+		<profile>
+			<id>needsrunpath</id>
+			<activation>
+				<property>
+					<name>pgsql.runpath</name>
+				</property>
+			</activation>
+			<properties>
+				<pgsql.runpathpfx>-Wl,-rpath=</pgsql.runpathpfx>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<linker>
+								<options combine.children='append'>
+									<option>${pgsql.runpathpfx}${pgsql.runpath}</option>
+								</options>
+							</linker>
+						</configuration>
 					</plugin>
 				</plugins>
 			</build>
@@ -246,25 +336,8 @@
 						</includePaths>
 					</c>
 
-					<!-- Defines linker flags "-ljvm -L.../server" -->
+					<!-- Options/extra libs/etc. for the linker go here. -->
 					<linker>
-						<libs>
-							<lib>
-								<name>ecpg</name>
-								<type>shared</type>
-								<directory>${PGSQL_LIBDIR}</directory>
-							</lib>
-							<lib>
-								<name>pgtypes</name>
-								<type>shared</type>
-								<directory>${PGSQL_LIBDIR}</directory>
-							</lib>
-							<lib>
-								<name>pq</name>
-								<type>shared</type>
-								<directory>${PGSQL_LIBDIR}</directory>
-							</lib>
-						</libs>
 					</linker>
 
 					<!-- Builds a *.so library. -->

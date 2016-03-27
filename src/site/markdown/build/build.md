@@ -70,6 +70,11 @@ Please review any of the following that apply to your situation:
 * Building on [Ubuntu](ubuntu.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
     | [with MinGW-w64](mingw64.html)
+* Building on an EnterpriseDB PostgreSQL distribution that bundles system
+    libraries, or other situations where
+    [a linker runpath](runpath.html) can help
+* Building on a platform that
+    [requires PostgreSQL libraries at link time](linkpglibs.html)
 
 ## Obtaining PL/Java sources
 
