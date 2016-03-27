@@ -60,8 +60,11 @@
 			<string value="${PGSQL_VER}" />
 			<filterchain>
 				<tokenfilter>
-					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$" replace="\.99" flags="si" />
-					<containsregex pattern="[^\d]*(\d+)\.(\d+)\.(\d+)$" replace="pg\1.\2" />
+					<replaceregex pattern="devel.*|alpha.*|beta.*|rc.*$"
+						replace="\.99" flags="si" />
+					<containsregex
+						pattern="^[^\d]*+(\d++)\.(\d++)\.(\d++).*$"
+						replace="pg\1.\2" />
 				</tokenfilter>
 			</filterchain>
 		</loadresource>
