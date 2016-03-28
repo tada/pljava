@@ -19,6 +19,11 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.ResultSetProvider;
 
+/**
+ * Example implementing {@code ResultSetProvider} to provide a function that
+ * generates and returns a lot of rows (caller passes the desired row count)
+ * each containing the row number, a random integer, and a timestamp.
+ */
 public class HugeResultSet implements ResultSetProvider {
 	public static ResultSetProvider executeSelect(int rowCount)
 			throws SQLException {

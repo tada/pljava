@@ -15,9 +15,13 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 
+/**
+ * Provides a {@link #createTempFile createTempFile} function, expected to fail
+ * if it is declared with the <em>trusted</em> {@code java} language.
+ */
 public class Security {
 	/**
-	 * The following method should fail if the language in use is untrusted.
+	 * The following method should fail if the language in use is trusted.
 	 * 
 	 * @return The name of a created temporary file.
 	 * @throws SQLException

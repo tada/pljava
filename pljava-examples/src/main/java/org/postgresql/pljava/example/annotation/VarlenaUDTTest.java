@@ -20,7 +20,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.BaseUDT;
 
 /**
- * A User Defined Type with varlena storage, tesing github issue 52.
+ * A User Defined Type with varlena storage, testing github issue 52.
  *
  * This looks from SQL like an integer type, but is stored in <em>unary</em>:
  * the integer value <em>n</em> is represented by <em>n</em> {@code a}
