@@ -23,6 +23,10 @@ import static org.postgresql.pljava.annotation.Trigger.Called.*;
 import static org.postgresql.pljava.annotation.Trigger.Event.*;
 import static org.postgresql.pljava.annotation.Function.Security.*;
 
+/**
+ * Example creating a couple of tables, and a function to be called when
+ * triggered by insertion into either table.
+ */
 @SQLActions({
 	@SQLAction(
 		provides = "foobar tables",
