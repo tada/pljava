@@ -20,6 +20,12 @@ import java.sql.SQLException;
 
 import org.postgresql.pljava.ResultSetProvider;
 
+/**
+ * Example using {@code ResultSetProvider} to return 100 rows of two
+ * {@code bytea} columns each, which should be equal in each row, one being
+ * set by {@link java.sql.ResultSet#updateBinaryStream updateBinaryStream}
+ * and the other by {@link java.sql.ResultSet#updateBytes updateBytes}.
+ */
 public class BinaryColumnTest implements ResultSetProvider {
 	public static ResultSetProvider getBinaryPairs() {
 		return new BinaryColumnTest();

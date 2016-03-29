@@ -26,6 +26,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Provides a {@link #callMetaDataMethod callMetaData} function taking a string
+ * that supplies the name of, and arguments to, any {@code ResultSet}-returning
+ * {@link DatabaseMetaData} method, and returns a single-column {@code varchar}
+ * result, the first row a header, then one for each {@code ResultSet} row,
+ * semicolons delimiting the original columns.
  * @author Filip Hrbek
  */
 public class MetaDataTest {

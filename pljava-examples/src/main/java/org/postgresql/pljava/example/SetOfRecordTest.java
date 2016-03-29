@@ -19,6 +19,11 @@ import java.sql.SQLException;
 
 import org.postgresql.pljava.ResultSetHandle;
 
+/**
+ * Example implementing the {@code ResultSetHandle} interface, to return
+ * the {@link ResultSet} from any SQL {@code SELECT} query passed as a string
+ * to the {@link #executeSelect executeSelect} function.
+ */
 public class SetOfRecordTest implements ResultSetHandle {
 	public static ResultSetHandle executeSelect(String selectSQL)
 			throws SQLException {

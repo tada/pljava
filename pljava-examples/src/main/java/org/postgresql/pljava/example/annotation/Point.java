@@ -27,6 +27,13 @@ import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
 import static
 	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
 
+/**
+ * Example of a "mirrored UDT": a user-defined type that exposes to Java the
+ * internal representation of an existing (but not SQL-standard) PostgreSQL
+ * type. Naturally, the author of this type has to know (from the PostgreSQL
+ * source) that a {@code Point} is stored as two {@code float8}s, {@code x}
+ * first and then {@code y}.
+ */
 @SQLAction(requires={"point mirror type", "point assertHasValues"}, install=
 		"SELECT javatest.assertHasValues(CAST('(1,2)' AS point), 1, 2)"
 )

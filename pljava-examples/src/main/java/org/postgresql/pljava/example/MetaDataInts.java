@@ -27,6 +27,8 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.ResultSetProvider;
 
 /**
+ * Example returning (varchar,int) rows, one for each int-valued
+ * attribute in the JDBC {@link DatabaseMetaData}.
  * @author Filip Hrbek
  */
 public class MetaDataInts implements ResultSetProvider {

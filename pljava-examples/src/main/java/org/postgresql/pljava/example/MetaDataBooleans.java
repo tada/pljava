@@ -26,6 +26,8 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.ResultSetProvider;
 
 /**
+ * Example returning (varchar,boolean) rows, one for each boolean-valued
+ * attribute in the JDBC {@link DatabaseMetaData}.
  * @author Filip Hrbek
  */
 public class MetaDataBooleans implements ResultSetProvider {
