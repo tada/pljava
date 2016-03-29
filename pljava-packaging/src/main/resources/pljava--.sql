@@ -21,8 +21,11 @@
  has but it requires no fiddling with pg_extension_config_dump.
  */
 
-DROP TABLE IF EXISTS @extschema@.loadpath;
-CREATE TABLE @extschema@.loadpath(path, exnihilo) AS
+DROP TABLE IF EXISTS
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session";
+CREATE TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session"
+(path, exnihilo) AS
 SELECT CAST('${module.pathname}' AS text), false;
 LOAD '${module.pathname}';
 
@@ -35,12 +38,15 @@ LOAD '${module.pathname}';
  To fail fast in that case, expect that the LOAD actions should have
  dropped the 'loadpath' table already, and just re-create and re-drop it here,
  to incur a (cryptic, but dependable) error if it is still around because the
- work didn't happen.
+ work didn't happen. The error message will include the table name, which is
+ why the table name is phrased as an error message.
 
  The solution to a problem detected here is simply to close the session,
  and be sure to execute 'CREATE EXTENSION pljava' in a new session (new
  at least in the sense that Java hasn't been used in it yet).
  */
 
-CREATE TABLE @extschema@.loadpath();
-DROP TABLE @extschema@.loadpath;
+CREATE TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session"();
+DROP TABLE
+@extschema@."see doc: do CREATE EXTENSION PLJAVA in new session";
