@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; Using PL/Java with SELinux</title>
+    <title>PostgreSQL PL/Java &#x2013; Build situations that may need a linker runpath</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -108,67 +108,57 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>Using PL/Java with SELinux</h1>
-<p>These notes were made running PostgreSQL and PL/Java on a Red Hat system, but should be applicable&#x2013;with possible changes to details&#x2013;on other systems running SELinux.</p>
-<p>Anything that gets run by <tt>postgres</tt> itself runs under a special SELinux context with type <tt>postgresql_t</tt> that severely limits things it can do. This is generally good.</p>
+        <h1>Build situations that may need a linker <tt>runpath</tt></h1>
+<p>In older PL/Java versions, it was common to build PL/Java with a <tt>RUNPATH</tt> embedded by the linker, so that it could find the Java library at run time. The configuration variable <tt>pljava.libjvm_location</tt> now takes care of locating Java, and in <i>most</i> cases, there is no longer any need to pass the linker a run path.</p>
+<p>There are some exceptions, however, where it may still be useful to build PL/Java with a <tt>RUNPATH</tt> that matches the <tt>pg_config --libdir</tt> output.</p>
 <div class="section">
-<h2><a name="File_contexts"></a>File contexts</h2>
-<p>SELinux may prevent it from opening important files, such as <tt>libpljava-[version].so</tt> or <tt>pljava-[version].jar</tt>, depending on the SELinux contexts set on those files. The contexts can be listed using <tt>ls -Z</tt>.</p>
-<p>The exact SELinux rules being applied, and the file contexts they would allow, can be different. For example, a <tt>.so</tt> file is considered executable and triggers one kind of rule, while to SELinux a <tt>.jar</tt> file is just an ordinary file that Java is trying to open.</p>
-<p>Whether a failure is being caused by SELinux can be determined by searching the system log for <tt>avc: denied</tt> messages. If that is the problem, it can be solved in more than one way. For example:</p>
-
-<ul>
-  
-<li>Search the system&#x2019;s existing SELinux policy (using <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/apol-rule-search.png">apol</a> or <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/sesearch-help.png">sesearch</a>, perhaps) to find the rules that apply to what the program is trying to do, and what target contexts <i>would be</i> allowed, then use <a class="externalLink" href="http://www.gnu.org/software/coreutils/manual/html_node/chcon-invocation.html">chcon</a> to set one of those contexts on the file in question. For example, on a Red Hat box, changing the context type on <tt>libpljava-[version].so</tt> to <tt>lib_t</tt> and on <tt>pljava-[version].jar</tt> to <tt>usr_t</tt> did the trick.</li>
-  
-<li>Write and load a new <a class="externalLink" href="http://docs.fedoraproject.org/en-US/Fedora/13/html/SELinux_FAQ/index.html#faq-entry-whatare-policy-modules">SELinux policy module</a> with rules that allow the needed operations.</li>
-</ul></div>
-<div class="section">
-<h2><a name="Issues_requiring_policy_modules"></a>Issues requiring policy modules</h2>
-<p>Something in the JVM uses the <tt>sched_get{param,priority,scheduler}</tt> system calls, so a process of type <tt>postgresql_t</tt> has to be given the <tt>getsched</tt> SELinux permission. Also, for SSL connections to work, access to the <tt>random_device</tt> needs to be allowed. Both of these rules can be added in a policy module:</p>
+<h2><a name="EnterpriseDB_PostgreSQL_distributions_that_bundle_system_libraries"></a>EnterpriseDB PostgreSQL distributions that bundle system libraries</h2>
+<p>EnterpriseDB&#x2019;s pre-built distributions of PostgreSQL may include not only PostgreSQL&#x2019;s own libraries in the <tt>pg_config --libdir</tt> directory, but also specific versions of common system libraries. You are in this situation if you run <tt>ldd postgres</tt> and the list includes common system libraries like <tt>libxml2</tt>, <tt>libssl</tt>, <tt>libcrypto</tt>, <tt>libcom_err</tt>, <tt>libldap</tt>, etc., but shows them found in PostgreSQL&#x2019;s <tt>libdir</tt> instead of the standard system location, as in this example:</p>
 
 <div class="source">
 <div class="source">
-<pre>policy_module(mod-pljava, 1.0)
-
-require {
-    type postgresql_t;
-    type random_device_t;
-}
-
-allow postgresql_t postgresql_t : process { getsched };
-allow postgresql_t random_device_t : chr_file { getattr };
+<pre>$ ldd /u/pgsql/95/bin/postgres
+...
+libldap-2.4.so.2 =&gt; /u/pgsql/95/bin/../lib/libldap-2.4.so.2
+...
 </pre></div></div>
-<p>If that is placed in a file <tt>pljava.te</tt> then</p>
+<p>In this case, if PL/Java is not built with a <tt>RUNPATH</tt>, it might find the system-provided versions of these standard libraries at run time, instead of the ones that came from EnterpriseDB. Signs of a problem include failure to load PL/Java, reporting <tt>undefined symbol</tt> errors <i>against standard system libraries</i>:</p>
 
 <div class="source">
 <div class="source">
-<pre>make -f /usr/share/selinux/devel/Makefile
-semodule -i pljava.pp
+<pre>=# CREATE EXTENSION pljava;
+ERROR: could not load library ...:
+/lib64/libldap_r-2.4.so.2: undefined symbol: ber_sockbuf_io_udp
 </pre></div></div>
-<p>will build and install it.</p>
-<p>As another example, suppose a PL/Java function needs to make an <tt>ssh</tt> connection to a remote host. In the default policy, nothing running as <tt>postgresql_t</tt> is allowed to connect network sockets to remote <tt>ssh</tt> ports. Again, a policy module can do the trick:</p>
+<p>If this is your situation, you can find the PostgreSQL <tt>libdir</tt> by running <tt>pg_config --libdir</tt>, and build PL/Java with a <tt>RUNPATH</tt> naming the same directory, as described below. <i>Note that if you do this, you lose the ability to install your built PL/Java on several systems with different PostgreSQL installed locations</i>.</p></div>
+<div class="section">
+<h2><a name="Building_PLJava_with_a_RUNPATH"></a>Building PL/Java with a <tt>RUNPATH</tt></h2>
+<p>You can specify a <tt>RUNPATH</tt> by defining the <tt>pgsql.runpath</tt> property on the Maven command line. For example, if <tt>pg_config --libdir</tt> outputs <tt>/usr/lib/postgresql</tt>, add this to the <tt>mvn</tt> command:</p>
 
 <div class="source">
 <div class="source">
-<pre>policy_module(mod-pgsql-ssh, 1.0)
-
-require {
-    type postgresql_t;
-    type ssh_port_t;
-}
-
-allow postgresql_t ssh_port_t : tcp_socket { name_connect };
+<pre>-Dpgsql.runpath=/usr/lib/postgresql
 </pre></div></div>
-<p>As it stands, this is quite broad, and would allow connections to the <tt>ssh</tt> port at <i>any</i> remote address, exactly what the SELinux policy was trying to prevent. It is reportedly possible (if fiddly) to allow only connecting to the <tt>ssh</tt> port on the <i>intended</i> remote machine, using the right <a class="externalLink" href="http://serverfault.com/questions/366922/selinux-limit-httpd-outbound-connections-by-address-and-port">melange of SELinux and iptables</a>.</p>
+<p>By default, this produces a linker option <tt>-Wl,-rpath=/usr/lib/postgresql</tt> which is the expected form for GNU linkers. If a different prefix is needed for your linker, it can be given as the <tt>pgsql.runpathpfx</tt> property:</p>
+
+<div class="source">
+<div class="source">
+<pre>-Dpgsql.runpath=/usr/lib/postgresql -Dpgsql.runpathpfx=-Xfoo=
+</pre></div></div>
+<p>would place <tt>-Xfoo=/usr/lib/postgresql</tt> on the linker command line.</p>
+<p>If these two properties are not flexible enough to produce the right options for your linker, you can directly add whatever options are necessary by editing <tt>pljava-so/pom.xml</tt>.</p>
+<p><i>Note that building PL/Java with a <tt>RUNPATH</tt> forfeits the ability to use the the built PL/Java on several systems with different PostgreSQL installed locations</i>.</p></div>
 <div class="section">
-<h3><a name="avc:_denied__execstack_"></a>avc: denied { execstack }</h3>
-<p>At one time, log messages saying <tt>avc: denied { execstack }</tt> might be seen, because Sun had released a Java distribution with a <tt>libjvm.so</tt> with the <tt>execstack</tt> attribute missing entirely, which SELinux interprets to mean that the library <i>might</i> need to execute code on the stack, even if it doesn&#x2019;t really.</p>
-<p>If seen, the problem can be confirmed by running <tt>execstack -q</tt> (<a class="externalLink" href="http://man7.org/linux/man-pages/man8/execstack.8.html">manual page</a>) on the <tt>libjvm.so</tt> file and seeing that it has no <tt>execstack</tt> attribute.</p>
-<p>Recent Java distributions have properly included the attribute, set to false, so SELinux knows the JVM will not need to execute code on the stack. Therefore, the best resolution to the issue is to upgrade to a JDK distribution that is not missing the attribute.</p></div></div>
+<h2><a name="Solving_the_same_problem_without_rebuilding_anything"></a>Solving the same problem without rebuilding anything</h2>
+<p>If you have a situation where PL/Java is finding different libraries than came with PostgreSQL, but practical considerations weigh against rebuilding PL/Java (or you prefer to be able to use the same built PL/Java on several systems with different PostgreSQL installed locations), you can edit whatever script starts your PostgreSQL server to add an environment variable (<tt>LD_LIBRARY_PATH</tt> on Linux and typical Unices) to the server&#x2019;s environment, which all backend sessions will inherit. The variable should include the value shown by <tt>pg_config --libdir</tt>.</p>
+<p>A restart of the server is needed for such a change to take effect.</p>
+<p>Other platform-specific options for solving the same problem, such as <tt>ldconfig</tt> on Linux, may be available. Before there was <tt>pljava.libjvm_location</tt>, it used to be common to have to know these tricks. Now it should be uncommon, but in rare cases can still be useful.</p></div>
 <div class="section">
-<h2><a name="How_to_break_things"></a>How to break things</h2>
-<p>One of the best ways to cause a PL/Java installation to stop working, after being trouble-free for ages, is to replace or update one of the files it depends on, and forget to reapply the needed SELinux context to the file.</p></div>
+<h2><a name="Other_situations_where_a_RUNPATH_may_be_needed"></a>Other situations where a RUNPATH may be needed</h2>
+<p>On a system where several versions of PostgreSQL are installed, and one of them has been made the default, there may be entries in the standard system library directories that point to PostgreSQL-specific libraries (like <tt>libpgtypes</tt>, <tt>libpq</tt>, <tt>libecpg</tt>) <i>for the version selected as default</i>.</p>
+<p>It is possible that when you load PL/Java into one of the non-default PostgreSQL installations, it will find the wrong versions of those libraries by looking in the system locations first.</p>
+<p><i>This should only be possible if, for some reason, you needed the <tt>-Plinkpglibs</tt> option when building PL/Java.</i> Without that option, those PostgreSQL-specific libraries should be resolved within the PostgreSQL backend itself, where the correct versions will be found.</p>
+<p>If your platform requires you to use <tt>-Plinkpglibs</tt>, and a problem with the wrong library versions being found at run time results, it also can be solved by explicitly using the <tt>pg_config --libdir</tt> value from the appropriate PostgreSQL version, using any of the methods described above.</p></div>
       </div>
     </div>
     <div class="clear">

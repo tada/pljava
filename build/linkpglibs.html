@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; Using PL/Java with SELinux</title>
+    <title>PostgreSQL PL/Java &#x2013; Including pgtypes, pq, ecpg libraries at link time</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -108,67 +108,20 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>Using PL/Java with SELinux</h1>
-<p>These notes were made running PostgreSQL and PL/Java on a Red Hat system, but should be applicable&#x2013;with possible changes to details&#x2013;on other systems running SELinux.</p>
-<p>Anything that gets run by <tt>postgres</tt> itself runs under a special SELinux context with type <tt>postgresql_t</tt> that severely limits things it can do. This is generally good.</p>
-<div class="section">
-<h2><a name="File_contexts"></a>File contexts</h2>
-<p>SELinux may prevent it from opening important files, such as <tt>libpljava-[version].so</tt> or <tt>pljava-[version].jar</tt>, depending on the SELinux contexts set on those files. The contexts can be listed using <tt>ls -Z</tt>.</p>
-<p>The exact SELinux rules being applied, and the file contexts they would allow, can be different. For example, a <tt>.so</tt> file is considered executable and triggers one kind of rule, while to SELinux a <tt>.jar</tt> file is just an ordinary file that Java is trying to open.</p>
-<p>Whether a failure is being caused by SELinux can be determined by searching the system log for <tt>avc: denied</tt> messages. If that is the problem, it can be solved in more than one way. For example:</p>
-
-<ul>
-  
-<li>Search the system&#x2019;s existing SELinux policy (using <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/apol-rule-search.png">apol</a> or <a class="externalLink" href="https://raw.githubusercontent.com/wiki/TresysTechnology/setools3/files/images/setools-3.3/sesearch-help.png">sesearch</a>, perhaps) to find the rules that apply to what the program is trying to do, and what target contexts <i>would be</i> allowed, then use <a class="externalLink" href="http://www.gnu.org/software/coreutils/manual/html_node/chcon-invocation.html">chcon</a> to set one of those contexts on the file in question. For example, on a Red Hat box, changing the context type on <tt>libpljava-[version].so</tt> to <tt>lib_t</tt> and on <tt>pljava-[version].jar</tt> to <tt>usr_t</tt> did the trick.</li>
-  
-<li>Write and load a new <a class="externalLink" href="http://docs.fedoraproject.org/en-US/Fedora/13/html/SELinux_FAQ/index.html#faq-entry-whatare-policy-modules">SELinux policy module</a> with rules that allow the needed operations.</li>
-</ul></div>
-<div class="section">
-<h2><a name="Issues_requiring_policy_modules"></a>Issues requiring policy modules</h2>
-<p>Something in the JVM uses the <tt>sched_get{param,priority,scheduler}</tt> system calls, so a process of type <tt>postgresql_t</tt> has to be given the <tt>getsched</tt> SELinux permission. Also, for SSL connections to work, access to the <tt>random_device</tt> needs to be allowed. Both of these rules can be added in a policy module:</p>
+        <h1>Including <tt>pgtypes</tt>, <tt>pq</tt>, <tt>ecpg</tt> libraries at link time</h1>
+<p>The PL/Java build process has, for some time, explicitly included these three PostgreSQL libraries when linking PL/Java. In many cases this is unnecessary and, in fact, better avoided. Leaving these out at link time eliminates the chance of certain run-time library version mismatches.</p>
+<p>However, there may be some platforms where these libraries must be included in the link. If you have a failing build, especially if the failure involves undefined symbol errors, try the build again, adding</p>
 
 <div class="source">
 <div class="source">
-<pre>policy_module(mod-pljava, 1.0)
-
-require {
-    type postgresql_t;
-    type random_device_t;
-}
-
-allow postgresql_t postgresql_t : process { getsched };
-allow postgresql_t random_device_t : chr_file { getattr };
+<pre>-Plinkpglibs
 </pre></div></div>
-<p>If that is placed in a file <tt>pljava.te</tt> then</p>
-
-<div class="source">
-<div class="source">
-<pre>make -f /usr/share/selinux/devel/Makefile
-semodule -i pljava.pp
-</pre></div></div>
-<p>will build and install it.</p>
-<p>As another example, suppose a PL/Java function needs to make an <tt>ssh</tt> connection to a remote host. In the default policy, nothing running as <tt>postgresql_t</tt> is allowed to connect network sockets to remote <tt>ssh</tt> ports. Again, a policy module can do the trick:</p>
-
-<div class="source">
-<div class="source">
-<pre>policy_module(mod-pgsql-ssh, 1.0)
-
-require {
-    type postgresql_t;
-    type ssh_port_t;
-}
-
-allow postgresql_t ssh_port_t : tcp_socket { name_connect };
-</pre></div></div>
-<p>As it stands, this is quite broad, and would allow connections to the <tt>ssh</tt> port at <i>any</i> remote address, exactly what the SELinux policy was trying to prevent. It is reportedly possible (if fiddly) to allow only connecting to the <tt>ssh</tt> port on the <i>intended</i> remote machine, using the right <a class="externalLink" href="http://serverfault.com/questions/366922/selinux-limit-httpd-outbound-connections-by-address-and-port">melange of SELinux and iptables</a>.</p>
+<p>on the <tt>mvn</tt> command line. If that helps, please report your platform and configuration so we know which platforms require it.</p>
+<p>If it doesn&#x2019;t help, the problem lies somewhere else.</p>
 <div class="section">
-<h3><a name="avc:_denied__execstack_"></a>avc: denied { execstack }</h3>
-<p>At one time, log messages saying <tt>avc: denied { execstack }</tt> might be seen, because Sun had released a Java distribution with a <tt>libjvm.so</tt> with the <tt>execstack</tt> attribute missing entirely, which SELinux interprets to mean that the library <i>might</i> need to execute code on the stack, even if it doesn&#x2019;t really.</p>
-<p>If seen, the problem can be confirmed by running <tt>execstack -q</tt> (<a class="externalLink" href="http://man7.org/linux/man-pages/man8/execstack.8.html">manual page</a>) on the <tt>libjvm.so</tt> file and seeing that it has no <tt>execstack</tt> attribute.</p>
-<p>Recent Java distributions have properly included the attribute, set to false, so SELinux knows the JVM will not need to execute code on the stack. Therefore, the best resolution to the issue is to upgrade to a JDK distribution that is not missing the attribute.</p></div></div>
-<div class="section">
-<h2><a name="How_to_break_things"></a>How to break things</h2>
-<p>One of the best ways to cause a PL/Java installation to stop working, after being trouble-free for ages, is to replace or update one of the files it depends on, and forget to reapply the needed SELinux context to the file.</p></div>
+<h2><a name="Library_version_mismatches_when_using_-Plinkpglibs"></a>Library version mismatches when using <tt>-Plinkpglibs</tt></h2>
+<p>If you must use this option when building, and you will use PL/Java on a system where several PostgreSQL versions are installed and one has been marked as the system default, it is possible to see version-mismatch problems where PL/Java running in one of the non-default PostgreSQL versions will have found the libraries from the default version.</p>
+<p>That problem and its solutions are described near the end of the <a href="runpath.html">Building PL/Java with a <tt>RUNPATH</tt></a> page.</p></div>
       </div>
     </div>
     <div class="clear">
