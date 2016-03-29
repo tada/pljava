@@ -416,11 +416,11 @@ public class InstallHelper
 	 * up to date.
 	 */
 	private static final SchemaVariant currentSchema =
-		SchemaVariant.REL_1_5_0_BETA3;
+		SchemaVariant.REL_1_5_0;
 
 	private enum SchemaVariant
 	{
-		REL_1_5_0_BETA3 ("c51cffa34acd5a228325143ec29563174891a873")
+		REL_1_5_0 ("c51cffa34acd5a228325143ec29563174891a873")
 		{
 			@Override
 			void migrateFrom( SchemaVariant sv, Connection c, Statement s)
@@ -469,6 +469,7 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
+		static final SchemaVariant REL_1_5_0_BETA3 = REL_1_5_0;
 		static final SchemaVariant REL_1_5_0_BETA2 = REL_1_5_0_BETA3;
 		static final SchemaVariant REL_1_5_0_BETA1 = REL_1_5_0_BETA2;
 		static final SchemaVariant UNREL20130301b = REL_1_5_0_BETA1;
