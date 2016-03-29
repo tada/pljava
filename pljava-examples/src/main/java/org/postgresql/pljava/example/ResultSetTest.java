@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 /**
+ * Provides a {@link #executeSelect function} that takes any SQL {@code SELECT}
+ * query as a string, executes it, and returns the {@code ResultSet} produced
+ * as a single string column, the first row being a header, then one per row
+ * of the {@code ResultSet}, semicolons delimiting the original columns.
  * @author Filip Hrbek
  */
 public class ResultSetTest {

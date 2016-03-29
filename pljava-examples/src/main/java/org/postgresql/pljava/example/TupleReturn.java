@@ -18,6 +18,7 @@ import java.sql.Timestamp;
 import org.postgresql.pljava.ResultSetProvider;
 
 /**
+ * Illustrates various methods of returning composite values.
  * @author Thomas Hallgren
  */
 public class TupleReturn implements ResultSetProvider {

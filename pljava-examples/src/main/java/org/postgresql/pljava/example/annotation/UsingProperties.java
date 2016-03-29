@@ -27,6 +27,9 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.ResultSetProvider;
 
 /**
+ * An example that retrieves a {@code Properties} resource, and returns
+ * (key,value) rows from it by implementing the {@code ResultSetProvider}
+ * interface.
  * @author Thomas Hallgren
  */
 public class UsingProperties implements ResultSetProvider
@@ -68,6 +71,10 @@ public class UsingProperties implements ResultSetProvider
 		return true;
 	}
 
+	/**
+	 * Return the contents of the {@code example.properties} resource,
+	 * one (key,value) row per entry.
+	 */
 	@Function( type = "javatest._properties")
 	public static ResultSetProvider propertyExampleAnno()
 	throws SQLException

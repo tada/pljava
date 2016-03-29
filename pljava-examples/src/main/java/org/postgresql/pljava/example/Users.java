@@ -18,6 +18,11 @@ import java.sql.Statement;
 
 import org.postgresql.pljava.ResultSetHandle;
 
+/**
+ * Uses the {@code ResultSetHandle} interface to implement two functions,
+ * {@link #listNonSupers listNonSupers} and {@link #listSupers listSupers},
+ * returning the corresponding subsets of rows from {@code pg_user}.
+ */
 public class Users implements ResultSetHandle {
 	public static ResultSetHandle listNonSupers() {
 		return new Users("usesuper = false");

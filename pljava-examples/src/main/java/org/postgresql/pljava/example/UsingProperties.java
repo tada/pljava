@@ -25,6 +25,9 @@ import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.SessionManager;
 
 /**
+ * Illustrates use of the {@code ResultSetProvider} interface to return
+ * (key,value) rows from the {@code example.properties} file, also making use
+ * of PL/Java's {@code ObjectPool} facility.
  * @author Thomas Hallgren
  */
 public class UsingProperties implements ResultSetProvider, PooledObject {

@@ -14,6 +14,11 @@ package org.postgresql.pljava.example;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Provides a function to log, at the specified level, a specified message.
+ * The level is a {@link java.util.logging.Level} name, not a PostgreSQL
+ * level name.
+ */
 public class LoggerTest {
 	public static void logMessage(String logLevel, String message) {
 		Logger.getAnonymousLogger().log(Level.parse(logLevel), message);

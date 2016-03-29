@@ -15,6 +15,10 @@ import java.lang.reflect.Array;
 import java.sql.SQLException;
 import java.util.logging.Logger;
 
+/**
+ * Provides example methods to illustrate the polymorphic types {@code any},
+ * {@code anyarray}, and {@code anyelement}.
+ */
 public class AnyTest {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 

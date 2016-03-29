@@ -64,12 +64,17 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
-* Building [with a 32-bit Java development kit](jdk32.html)
+* Building on [FreeBSD](freebsd.html)
+* Building on [Mac OS X](macosx.html)
+* Building on [Solaris](solaris.html)
+* Building on [Ubuntu](ubuntu.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
     | [with MinGW-w64](mingw64.html)
-* Building on [Mac OS X](macosx.html)
-* Building on [FreeBSD](freebsd.html)
-* Building on [Ubuntu](ubuntu.html)
+* Building on an EnterpriseDB PostgreSQL distribution that bundles system
+    libraries, or other situations where
+    [a linker runpath](runpath.html) can help
+* Building on a platform that
+    [requires PostgreSQL libraries at link time](linkpglibs.html)
 
 ## Obtaining PL/Java sources
 
@@ -193,10 +198,37 @@ build issues that are commonly asked about.*
 
 [btwp]: https://github.com/tada/pljava/wiki/Build-tips
 
-If something fails, two tricks may be helpful. The C compilation may produce
-a lot of nuisance warnings, because the Maven plugin driving it enables many
-types of warning that would be impractical to fix. With many warnings it may
-be difficult to pick out messages that matter.
+#### Not all `[ERROR]`s are errors
+
+In the part of the build that compiles the native code, you may see lines of
+output starting with `[ERROR]`, but the build completes and shows success for
+all subprojects.
+
+Maven is capturing output from the C compiler and adding a tag at the front of
+each line. If the line from the C compiler contains the string `warning:` then
+Maven adds a `[WARNING]` tag at the front of the line; otherwise it adds
+`[ERROR]`. That is how Maven can turn a multiple-line warning, like
+
+```
+type/String.c: In function 'String_createJavaString':
+type/String.c:132:43: warning: conversion to 'jlong' from 'Size' may change
+                      the sign of the result [-Wsign-conversion]
+   bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
+                                           ^
+```
+
+(where only the second line contains `warning:`) into what looks like one
+`[WARNING]` and several `[ERROR]`s.
+
+If the compiler reports any actual errors, the build will fail.
+
+#### Disable nuisance warnings where possible
+
+The Maven plugin that drives the C compiler enables, by default, many
+types of warning that would be impractical to fix. Those can clutter the
+output (especially with Maven tagging them with `[ERROR]`) so that if the
+build does fail because of an actual error, it is difficult to read back
+through the `[ERROR]`s that were not errors, to find the one that was.
 
 If the compiler is `gcc`, an extra option `-Pwnosign` can be given on the
 `mvn` command line, and will suppress the most voluminous and least useful
@@ -204,16 +236,23 @@ warnings. It adds the compiler option `-Wno-sign-conversion` which might not
 be understood by other compilers, so may not have the intended effect if the
 compiler is not `gcc`.
 
+#### Compile with a single core, for clarity of messages
+
 On a machine with many cores, messages from several compilation threads may be
 intermingled in the output so that related messages are hard to identify.
 The option `-Dnar.cores=1` will force the messages into a sequential order
 (and has little effect on the speed of a PL/Java build).
+
+#### Capture the output of `mvn -X`
 
 The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
     mvn  -X  -Pwnosign  -Dnar.cores=1  clean  install
 
-If the build is using a 32-bit Java development kit and a stack overflow
-is reported, add `-Xss1024k` to `MAVEN_OPTS` as described in
-[building with a 32-bit Java development kit](jdk32.html).
+#### Avoid capturing the first run of Maven
+
+On the first run, Maven will produce a lot of output while downloading all
+of the dependencies needed to complete the build. It is better, if the build
+fails, to simply run Maven again and capture the output of that run, which
+will not include all of the downloading activity.

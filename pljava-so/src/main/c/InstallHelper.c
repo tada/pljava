@@ -71,6 +71,14 @@
 #define SO_VERSION_STRING CppAsString2(PLJAVA_SO_VERSION)
 #endif
 
+/*
+ * The name of the table the extension scripts will create to pass information
+ * here. The table name is phrased as an error message because it will appear
+ * in one, if installation did not happen because the library had already been
+ * loaded.
+ */
+#define LOADPATH_TBL_NAME "see doc: do CREATE EXTENSION PLJAVA in new session"
+
 static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
@@ -194,6 +202,7 @@ static void getExtensionLoadPath()
 	MemoryContext curr;
 	Datum dtm;
 	bool isnull;
+	StringInfoData buf;
 
 	/*
 	 * Check whether sqlj.loadpath exists before querying it. I would more
@@ -202,15 +211,16 @@ static void getExtensionLoadPath()
 	 * documented, but the exception-block handling in plpgsql provides a
 	 * working model" and that code is a lot more fiddly than you would guess.
 	 */
-	if ( InvalidOid == get_relname_relid("loadpath",
+	if ( InvalidOid == get_relname_relid(LOADPATH_TBL_NAME,
 		GetSysCacheOid1(NAMESPACENAME, CStringGetDatum("sqlj"))) )
 		return;
 
 	SPI_connect();
 	curr = CurrentMemoryContext;
-	if ( SPI_OK_SELECT == SPI_execute(
-		"SELECT path, exnihilo FROM sqlj.loadpath", true, 1)
-		&& 1 == SPI_processed )
+	initStringInfo(&buf);
+	appendStringInfo(&buf, "SELECT path, exnihilo FROM sqlj.%s",
+		quote_identifier(LOADPATH_TBL_NAME));
+	if ( SPI_OK_SELECT == SPI_execute(buf.data,	true, 1) && 1 == SPI_processed )
 	{
 		MemoryContextSwitchTo(TopMemoryContext);
 		pljavaLoadPath = (char const *)SPI_getvalue(
@@ -435,11 +445,21 @@ void InstallHelper_groundwork()
 	ctx.function = Function_INIT_WRITER;
 	PG_TRY();
 	{
+		char const *lpt = LOADPATH_TBL_NAME;
+		char const *lptq = quote_identifier(lpt);
 		jstring pljlp = String_createJavaStringFromNTS(pljavaLoadPath);
+		jstring jlpt = String_createJavaStringFromNTS(lpt);
+		jstring jlptq = String_createJavaStringFromNTS(lptq);
+		if ( lptq != lpt )
+			pfree((void *)lptq);
 		JNI_callStaticVoidMethod(
-			s_InstallHelper_class, s_InstallHelper_groundwork, pljlp,
+			s_InstallHelper_class, s_InstallHelper_groundwork,
+			pljlp, jlpt, jlptq,
 			pljavaLoadingAsExtension ? JNI_TRUE : JNI_FALSE,
 			extensionExNihilo ? JNI_TRUE : JNI_FALSE);
+		JNI_deleteLocalRef(pljlp);
+		JNI_deleteLocalRef(jlpt);
+		JNI_deleteLocalRef(jlptq);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -460,5 +480,6 @@ void InstallHelper_initialize()
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
-		s_InstallHelper_class, "groundwork", "(Ljava/lang/String;ZZ)V");
+		s_InstallHelper_class, "groundwork",
+		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V");
 }

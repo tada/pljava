@@ -16,6 +16,10 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
+/**
+ * Provides a {@link #createIterator function} producing as many rows as
+ * requested, each with a random int.
+ */
 public class RandomInts implements Iterator<Integer> {
 	public static Iterator<Integer> createIterator(int rowCount)
 			throws SQLException {

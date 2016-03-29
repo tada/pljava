@@ -50,6 +50,11 @@ likely to be problematic.
     an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
     should be a bunch of `*.h` files there.
 
+0. OpenSSL headers: if using an EnterpriseDB PostgreSQL build older than 9.3,
+    these will be missing. They can be obtained from a 9.3 or later
+    EDB PostgreSQL build by copying the `include/openssl` directory and
+    its contents.
+
 0. You will need to install [Maven][mvn] and add it to your PATH so that
 
         mvn --version
@@ -168,8 +173,10 @@ to [try out PL/Java in PostgreSQL][inst].
 ### I know PostgreSQL and PGXS. Explain Maven!
 
 If Maven is unfamiliar, please see the "Explain Maven!" section on the
-[main build page](build.html), which covers most of the subject. However,
+[main build page][mbp], which covers most of the subject. However,
 there are some Windows-specific details:
+
+[mbp]: build.html
 
 * The Maven project has an extra page on [Windows prerequisites][wprq].
 * They don't very clearly document the location of your Maven settings file
@@ -232,3 +239,6 @@ The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
     mvn  -X  -Dnar.cores=1  clean  install
+
+There is a more comprehensive "troubleshooting the build" section
+on the [main build page][mbp].

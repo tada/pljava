@@ -18,11 +18,23 @@ code from Java annotations, and many significant fixes.
 
 $h3 Security
 
+Several security issues are addressed in this release. Sites already
+using PL/Java are encouraged to update to 1.5.0. For several of the
+issues below, practical measures are described to mitigate risk until
+an update can be completed.
+
 [CVE-2016-0766][], a privilege escalation requiring an authenticated
 PostgreSQL connection, is closed by installing PL/Java 1.5.0 (including
 prereleases) or by updating PostgreSQL itself to at least 9.5.1, 9.4.6,
 9.3.11, 9.2.15, 9.1.20. Vulnerable systems are only those running both
 an older PL/Java and an older PostgreSQL.
+
+[CVE-2016-0767][], in which an authenticated PostgreSQL user with USAGE
+permission on the `public` schema may alter the `public` schema classpath,
+is closed by release 1.5.0 (including prereleases). If updating to 1.5.0
+must be delayed, risk can be mitigated by revoking public `EXECUTE` permission
+on `sqlj.set_classpath` and granting it selectively to responsible users or
+roles.
 
 This release brings a policy change to a more secure-by-default posture,
 where the ability to create functions in `LANGUAGE java` is no longer
@@ -47,6 +59,7 @@ selected users or roles. As of 1.5.0, these functions require the invoker
 to be superuser or own the type being mapped.
 
 [CVE-2016-0766]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0766
+[CVE-2016-0767]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0767
 [CVE-2016-0768]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0768
 [CVE-2016-2192]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-2192
 
@@ -54,19 +67,23 @@ $h3 Version compatibility
 
 PL/Java 1.5.0 can be built against recent PostgreSQL versions including 9.5,
 using Java SE 8, 7, or 6. See [version compatibility][versions] for more
-detail. OpenJDK is well supported. Support for GCJ has been dropped.
+detail. OpenJDK is well supported. Support for GCJ has been dropped; features
+of modern Java VMs that are useful to minimize footprint and startup time,
+such as class-data sharing, are now more deeply covered
+[in the installation docs][vmopts].
 
 [versions]: build/versions.html
+[vmopts]: install/vmoptions.html
 
 $h3 Build procedures
 
 Since 2013, PL/Java has been hosted [on GitHub][ghpljava] and built
 using [Apache Maven][mvn]. See the new [build instructions][bld] for details.
 
-All reported build issues for MS Windows using Microsoft Visual Studio or
-MinGW-w64, and for
-Mac OS X, have been resolved, with new platform-specific build documentation
-for [Windows MSVC][msvcbld], [Windows MinGW-w64][mgwbld], and [OS X][osxbld].
+Reported build issues for specific platforms have been resolved,
+with new platform-specific build documentation
+for [OS X][osxbld], [Solaris][solbld], [Ubuntu][ububld],
+[Windows MSVC][msvcbld], and [Windows MinGW-w64][mgwbld].
 
 The build produces a redistributable installation archive usable with
 the version of PostgreSQL built against and the same operating system,
@@ -79,6 +96,8 @@ all PL/Java installations will have Java available.
 [msvcbld]: build/buildmsvc.html
 [mgwbld]: build/mingw64.html
 [osxbld]: build/macosx.html
+[solbld]: build/solaris.html
+[ububld]: build/ubuntu.html
 
 $h3 Installation procedures
 
@@ -287,18 +306,28 @@ $h3 Enhancement requests addressed
 * [Find an alternative way to install the pljava.so in `/usr/lib`][gh6]
 * [Provide database migration][gh12]
 * [Support types with type modifiers][1011140] (partial: see [example][typmex])
+* [Build process: accommodate Solaris 10][gh102]
 
 [1011112]: ${pgffeat}1011112
 [1011140]: ${pgffeat}1011140
 [gh9]: ${ghbug}9
 [gh6]: ${ghbug}6
 [gh12]: ${ghbug}12
+[gh102]: ${ghbug}102
 
 [typmex]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/IntWithMod.java
 
 $h3 Bugs fixed
 
-$h4 Since 1.5.0-BETA2
+$h4 Since 1.5.0-BETA3
+
+* [Build process: accept variation in PostgreSQL version string][gh101]
+* [Build process: accommodate PostgreSQL built with private libraries][gh103]
+* Clarified message when `CREATE EXTENSION` fails because new session needed
+* Reduced stack usage in SQL generator
+    (small-memory build no longer needs `-Xss`)
+
+$h4 In 1.5.0-BETA3
 
 * [Bogus mirror-UDT values on little-endian hardware][gh98]
 * [Base UDT not registered if first access isn't in/out/send/recv][gh99]
@@ -370,6 +399,8 @@ $h4 In 1.5.0-BETA1
 [gh96]: ${ghbug}96
 [gh98]: ${ghbug}98
 [gh99]: ${ghbug}99
+[gh101]: ${ghbug}101
+[gh103]: ${ghbug}103
 
 $h3 Updated PostgreSQL APIs tracked
 
@@ -521,6 +552,7 @@ Bear Giles,
 Christian Hammers,
 Hal Hildebrand,
 Robert M. Lefkowitz,
+Eugenie V. Lyzenko,
 Dos Moonen,
 Asif Naeem,
 Kenneth Olson,

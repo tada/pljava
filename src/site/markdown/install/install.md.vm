@@ -13,6 +13,11 @@ $h2 For the impatient
 After completing the [build][bld]:
 
     java -jar pljava-packaging/target/pljava-pgX.Y-arch-os-link.jar
+
+       (run the above with sufficient privilege to write in the PostgreSQL
+        installation directories, or read further for how to install in
+	    non-standard places)
+
     psql
     CREATE EXTENSION pljava;
     GRANT USAGE ON LANGUAGE java TO ...; -- see "Usage permission" below
@@ -264,16 +269,28 @@ $h2 Troubleshooting the installation
 
 $h3 Puzzling error message from `CREATE EXTENSION`
 
+    ERROR:  relation "see doc: do CREATE EXTENSION PLJAVA in new session"
+    already exists
+
 For PL/Java, `CREATE EXTENSION` (which works in PostgreSQL 9.1 and later) is a
 wrapper around installation via `LOAD` (which works in all versions PL/Java
 supports). A quirk of this arrangement is that PostgreSQL treats `LOAD` as a
-no-op if the library has once been loaded in the same session, so you may not be
-able to try `CREATE EXTENSION pljava` repeatedly in one session if something
-went wrong the first time.
+no-op for the remainder of a session once the library has been loaded, so
+`CREATE EXTENSION pljava` works in a *fresh* session, but not in one where
+PL/Java's native code is already in place.
 
-The error reported for later tries within a session may be puzzling, such as
-that the relation `loadpath` already exists. The solution is simple,
-though: just retry in a new session (in `psql`, `\c` makes that easy).
+In that case, you see the above message about a strangely but meaningfully
+named table. The solution is simple: just retry in a new session
+(in `psql`, `\c` makes that easy).
+
+$h3 Undefined symbol errors at `LOAD` or `CREATE EXTENSION` time
+
+If PL/Java loading fails with undefined-symbol errors that seem to refer to
+common system libraries (`libldap`, for example), see
+[Building PL/Java with a `RUNPATH`](../build/runpath.html).
+
+In case of errors that seem to refer to symbols of PostgreSQL itself,
+see [this page](../build/linkpglibs.html).
 
 $h2 More background and special considerations
 
