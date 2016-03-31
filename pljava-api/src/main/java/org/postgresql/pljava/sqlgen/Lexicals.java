@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -45,7 +45,7 @@ public interface Lexicals {
 	/** A complete regular identifier as allowed by ISO.
 	 */
 	Pattern ISO_REGULAR_IDENTIFIER = Pattern.compile(String.format(
-		"%1$s%2$s*+",
+		"%1$s%2$s{0,127}+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		ISO_REGULAR_IDENTIFIER_PART.pattern()
 	));
@@ -55,6 +55,54 @@ public interface Lexicals {
 	Pattern ISO_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
 		"(%1$s)", ISO_REGULAR_IDENTIFIER.pattern()
 	));
+
+	/** A complete delimited identifier as allowed by ISO. As it happens, this
+	 * is also the form PostgreSQL uses for elements of a LIST_QUOTE-typed GUC.
+	 */
+	Pattern ISO_DELIMITED_IDENTIFIER = Pattern.compile(
+		"\"(?:[^\"]|\"\"){1,128}+\""
+	);
+
+	/** An ISO delimited identifier with a single capturing group that captures
+	 * the content (which still needs to have "" replaced with " throughout).
+	 * The capturing group is named {@code xd}.
+	 */
+	Pattern ISO_DELIMITED_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+		"\"(?<xd>(?:[^\"]|\"\"){1,128}+)\""
+	));
+
+	/** The escape-specifier part of a Unicode delimited identifier or string.
+	 * The escape character itself is in the capturing group named {@code uec}.
+	 * The group can be absent, in which case \ should be used as the uec.
+	 */
+	Pattern ISO_UNICODE_ESCAPE_SPECIFIER = Pattern.compile(
+		"(?:\\p{IsWhite_Space}*+[Uu][Ee][Ss][Cc][Aa][Pp][Ee]"+
+		"\\p{IsWhite_Space}*+'(?<uec>[^0-9A-Fa-f+'\"\\p{IsWhite_Space}])')?+"
+	);
+
+	/** A Unicode delimited identifier. The body is in capturing group
+	 * {@code xui} and the escape character in group {@code uec}. The body
+	 * still needs to have "" replaced with ", and {@code Unicode escape value}s
+	 * decoded and replaced, and then it has to be verified to be no longer
+	 * than 128 codepoints.
+	 */
+	Pattern ISO_UNICODE_IDENTIFIER = Pattern.compile(String.format(
+		"[Uu]&\"(?<xui>[^\"]++)\"%1$s",
+		ISO_UNICODE_ESCAPE_SPECIFIER.pattern()
+	));
+
+	/** A compilable pattern to match a {@code Unicode escape value}.
+	 * A match should have one of three named capturing groups. If {@code cev},
+	 * substitute the {@code uec} itself. If {@code u4d} or {@code u6d},
+	 * substitute the codepoint represented by the hex digits. A match with none
+	 * of those capturing groups indicates an ill-formed string.
+	 *<p>
+	 * Maka a Pattern from this by supplying the right {@code uec}, so:
+	 * {@code Pattern.compile(String.format(ISO_UNICODE_REPLACER,
+	 *   Pattern.quote(uec)));}
+	 */
+	String ISO_UNICODE_REPLACER =
+		"%1$s(?:(?<cev>%1$s)|(?<u4d>[0-9A-Fa-f]{4})|\\+(?<u6d>[0-9A-Fa-f]{6}))";
 
 	/** Allowed as the first character of a regular identifier by PostgreSQL
 	 * (PG 7.4 -).
@@ -95,11 +143,25 @@ public interface Lexicals {
 	));
 
 	/** A regular identifier that satisfies both ISO and PostgreSQL rules,
-	 * in a single capturing group.
+	 * in a single capturing group named {@code i}.
 	 */
 	Pattern ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(
-		String.format( "(%1$s)", ISO_AND_PG_REGULAR_IDENTIFIER.pattern())
+		String.format( "(?<i>%1$s)", ISO_AND_PG_REGULAR_IDENTIFIER.pattern())
 	);
+
+	/** Pattern that matches any identifier valid by both ISO and PG rules,
+	 * with the presence of named capturing groups indicating which kind it is:
+	 * {@code i} for a regular identifier, {@code xd} for a delimited identifier
+	 * (still needing "" replaced with "), or {@code xui} (with or without an
+	 * explicit {@code uec} for a Unicode identifier (still needing "" to " and
+	 * decoding of {@code Unicode escape value}s).
+	 */
+	Pattern ISO_AND_PG_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+		"%1$s|(?:%2$s)|(?:%3$s)",
+		ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING.pattern(),
+		ISO_DELIMITED_IDENTIFIER.pattern(),
+		ISO_UNICODE_IDENTIFIER.pattern()
+	));
 
 	/** An identifier by ISO SQL, PostgreSQL, <em>and</em> Java (not SQL at all)
 	 * rules. (Not called {@code REGULAR} because Java allows no other form of
