@@ -440,13 +440,13 @@ public class Commands
 	}
 
 	private final static Pattern ddrSection = Pattern.compile(
-	    "(?<=[\\r\\n])Name: ((?:.|(?:\\r\\n?|\\n) )+)(?:(?:\\r\\n?|\\n))" +
-		"(?:[^\\r\\n]+(?:\\r\\n?|\\n)(?![\\r\\n]))*" +
-		"SQLJDeploymentDescriptor: (?:(?:\\r\\n?|\\r) )*TRUE(?!\\S)",
+	    "(?<=[\\r\\n])Name: ((?:.|(?:\\r\\n?+|\\n) )++)(?:(?:\\r\\n?+|\\n))" +
+		"(?:[^\\r\\n]++(?:\\r\\n?+|\\n)(?![\\r\\n]))*" +
+		"SQLJDeploymentDescriptor: (?:(?:\\r\\n?+|\\r) )*+TRUE(?!\\S)",
 		Pattern.CASE_INSENSITIVE
 	);
 
-	private final static Pattern mfCont = Pattern.compile( "(?:\\r\\n?|\\n) ");
+	private final static Pattern mfCont = Pattern.compile( "(?:\\r\\n?+|\\n) ");
 
 	/**
 	 * Read and return a manifest, rewinding the buffered input stream.

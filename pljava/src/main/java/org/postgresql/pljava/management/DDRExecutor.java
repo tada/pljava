@@ -79,7 +79,7 @@ public abstract class DDRExecutor
 	 * whitespace) indicates whether to parse more.
 	 */
 	private static final Pattern settingsRx = Pattern.compile(String.format(
-		"\\G(%1$s)(,\\s*)?", ISO_PG_JAVA_IDENTIFIER
+		"\\G(%1$s)(,\\s*+)?+", ISO_PG_JAVA_IDENTIFIER
 	));
 
 	/**

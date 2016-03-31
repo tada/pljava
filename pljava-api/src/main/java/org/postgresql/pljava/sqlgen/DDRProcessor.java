@@ -2382,7 +2382,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	// expression intended to match SQL types that are arrays
 	static final Pattern arrayish =
-		Pattern.compile( "(?si:(?:\\[\\s*\\d*\\s*\\]|ARRAY)\\s*)$");
+		Pattern.compile( "(?si:(?:\\[\\s*+\\d*+\\s*+\\]|ARRAY)\\s*+)$");
 
 	/**
 	 * Work around bizarre javac behavior that silently supplies an Error
