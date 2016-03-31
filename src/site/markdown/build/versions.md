@@ -1,11 +1,11 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of November 2015, the following version constraints are known.
+As of March 2016, the following version constraints are known.
 
 ## Java
 
-No version of Java before 1.6 ("Java 6") is supported. The PL/Java code
-makes use of Java features first appearing in Java 6.
+No version of Java before 1.7 ("Java 7") is supported. The PL/Java code
+makes use of Java features first appearing in Java 7.
 
 As for later versions of Java, backward compatibility in the language is
 generally good. The most likely problem areas with a new Java version will
