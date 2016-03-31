@@ -24,11 +24,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
-			<artifactId>pljava-deploy</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-examples</artifactId>
 			<version>${project.version}</version>
 		</dependency>
