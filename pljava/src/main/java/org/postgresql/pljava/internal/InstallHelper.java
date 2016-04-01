@@ -12,6 +12,8 @@
 package org.postgresql.pljava.internal;
 
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -24,6 +26,7 @@ import java.sql.Statement;
 import java.text.ParseException;
 import java.util.Scanner;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.sql.Types.VARCHAR;
 
 import org.postgresql.pljava.jdbc.SQLUtils;
@@ -131,15 +134,11 @@ public class InstallHelper
 	public static void groundwork(
 		String module_pathname, String loadpath_tbl, String loadpath_tbl_quoted,
 		boolean asExtension, boolean exNihilo)
-	throws SQLException, ParseException
+	throws SQLException, ParseException, IOException
 	{
-		Connection c = null;
-		Statement s = null;
-		try
+		try(Connection c = SQLUtils.getDefaultConnection();
+			Statement s = c.createStatement())
 		{
-			c = SQLUtils.getDefaultConnection();
-			s = c.createStatement();
-
 			schema(c, s);
 
 			SchemaVariant sv = recognizeSchema(c, s, loadpath_tbl);
@@ -167,11 +166,6 @@ public class InstallHelper
 				 * error if this code didn't execute.
 				 */
 				s.execute("DROP TABLE sqlj." + loadpath_tbl_quoted);
-		}
-		finally
-		{
-			SQLUtils.close(s);
-			SQLUtils.close(c);
 		}
 	}
 
@@ -293,7 +287,7 @@ public class InstallHelper
 	 * schema variant is detected, attempt to migrate to the current one.
 	 */
 	private static void deployment( Connection c, Statement s, SchemaVariant sv)
-	throws SQLException, ParseException
+	throws SQLException, ParseException, IOException
 	{
 		if ( currentSchema == sv )
 			return; // assume (optimistically) that means there's nothing to do
@@ -304,9 +298,19 @@ public class InstallHelper
 			return;
 		}
 
-		InputStream is = InstallHelper.class.getResourceAsStream("/pljava.ddr");
-		String raw = new Scanner(is, "utf-8").useDelimiter("\\A").next();
-		SQLDeploymentDescriptor sdd = new SQLDeploymentDescriptor(raw);
+		StringBuilder sb;
+		try(InputStream is =
+				InstallHelper.class.getResourceAsStream("/pljava.ddr");
+			InputStreamReader isr =
+				new InputStreamReader(is, UTF_8.newDecoder()))
+		{
+			sb = new StringBuilder();
+			char[] buf = new char[512];
+			for ( int got; -1 != (got = isr.read(buf)); )
+				sb.append(buf, 0, got);
+		}
+		SQLDeploymentDescriptor sdd =
+			new SQLDeploymentDescriptor(sb.toString());
 		sdd.install(c);
 	}
 

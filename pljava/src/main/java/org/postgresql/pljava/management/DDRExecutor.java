@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -79,7 +79,7 @@ public abstract class DDRExecutor
 	 * whitespace) indicates whether to parse more.
 	 */
 	private static final Pattern settingsRx = Pattern.compile(String.format(
-		"\\G(%1$s)(,\\s*)?", ISO_PG_JAVA_IDENTIFIER
+		"\\G(%1$s)(,\\s*+)?+", ISO_PG_JAVA_IDENTIFIER
 	));
 
 	/**
@@ -123,7 +123,7 @@ public abstract class DDRExecutor
 	private static String[] implementors() throws SQLException
 	{
 		String settingString = Backend.getConfigOption( "pljava.implementors");
-		ArrayList<String> al = new ArrayList<String>();
+		ArrayList<String> al = new ArrayList<>();
 		Matcher m = settingsRx.matcher( settingString);
 		while ( m.find() )
 		{

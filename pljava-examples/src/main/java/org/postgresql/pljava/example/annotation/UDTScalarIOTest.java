@@ -25,7 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
@@ -96,7 +96,7 @@ public class UDTScalarIOTest implements SQLData
 			s_gedicht = s_gedicht + s_gedicht + s_gedicht; // x3
 			s_gedicht = s_gedicht + s_gedicht + s_gedicht; // x9
 
-			ByteBuffer bb = Charset.forName("UTF-8").newEncoder().encode(
+			ByteBuffer bb = UTF_8.newEncoder().encode(
 				CharBuffer.wrap(s_gedicht));
 			s_utfgedicht = new byte[bb.limit()];
 			bb.get(s_utfgedicht);

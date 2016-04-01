@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2009, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -993,12 +998,14 @@ public class SPIConnection implements Connection
 		  "0A000" );
 	}
 
-       public void setClientInfo(String name, String value) throws SQLClientInfoException
-       {
-               Map<String, ClientInfoStatus> failures = new HashMap<String, ClientInfoStatus>();
-               failures.put(name, ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
-               throw new SQLClientInfoException("ClientInfo property not supported.", failures);
-       }
+	public void setClientInfo(String name, String value)
+	throws SQLClientInfoException
+	{
+		Map<String, ClientInfoStatus> failures = new HashMap<>();
+		failures.put(name, ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
+		throw new SQLClientInfoException(
+			"ClientInfo property not supported.", failures);
+	}
 
 
 	public void setClientInfo(Properties properties) 
@@ -1007,13 +1014,14 @@ public class SPIConnection implements Connection
 		if (properties == null || properties.size() == 0)
 			return;
 
-		Map<String, ClientInfoStatus> failures = new HashMap<String, ClientInfoStatus>();
+		Map<String, ClientInfoStatus> failures = new HashMap<>();
 
 		Iterator<String> i = properties.stringPropertyNames().iterator();
 		while (i.hasNext()) {
 			failures.put(i.next(), ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
 		}
-		throw new SQLClientInfoException("ClientInfo property not supported.", failures);
+		throw new SQLClientInfoException(
+			"ClientInfo property not supported.", failures);
 	}
 
 	public String getClientInfo(String name) throws SQLException

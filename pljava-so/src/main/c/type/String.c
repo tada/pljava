@@ -380,16 +380,16 @@ static void String_initialize_codec()
 	jmethodID string_intern = PgObject_getJavaMethod(s_String_class,
 		"intern", "()Ljava/lang/String;");
 	jstring empty = JNI_newStringUTF( "");
-	jstring u8Name = JNI_newStringUTF( "UTF-8");
-	jclass charset_class = PgObject_getJavaClass("java/nio/charset/Charset");
-	jmethodID charset_forName = PgObject_getStaticJavaMethod(charset_class,
-		"forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
+	jclass scharset_class =
+		PgObject_getJavaClass("java/nio/charset/StandardCharsets");
+	jfieldID scharset_UTF_8 = PgObject_getStaticJavaField(scharset_class,
+		"UTF_8", "Ljava/nio/charset/Charset;");
+	jobject u8cs = JNI_getStaticObjectField(scharset_class, scharset_UTF_8);
+	jclass charset_class = JNI_getObjectClass(u8cs);
 	jmethodID charset_newDecoder = PgObject_getJavaMethod(charset_class,
 		"newDecoder", "()Ljava/nio/charset/CharsetDecoder;");
 	jmethodID charset_newEncoder = PgObject_getJavaMethod(charset_class,
 		"newEncoder", "()Ljava/nio/charset/CharsetEncoder;");
-	jobject u8cs = JNI_callStaticObjectMethod(charset_class, charset_forName,
-		u8Name);
 	jclass decoder_class =
 		PgObject_getJavaClass("java/nio/charset/CharsetDecoder");
 	jclass encoder_class =

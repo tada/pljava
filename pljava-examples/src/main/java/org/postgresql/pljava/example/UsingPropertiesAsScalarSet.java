@@ -30,7 +30,7 @@ import java.util.Iterator;
 public class UsingPropertiesAsScalarSet {
 	public static Iterator<String> getProperties() throws SQLException {
 		StringBuffer bld = new StringBuffer();
-		ArrayList<String> list = new ArrayList<String>();
+		ArrayList<String> list = new ArrayList<>();
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
 		Statement stmt = conn.createStatement();

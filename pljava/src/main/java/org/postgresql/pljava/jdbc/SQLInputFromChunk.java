@@ -22,7 +22,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
 import java.sql.Array;
 import java.sql.Blob;
@@ -56,9 +56,6 @@ import org.postgresql.pljava.internal.Backend;
 public class SQLInputFromChunk implements SQLInput
 {
 	private ByteBuffer m_bb;
-
-	/* get rid of this once no longer supporting back to Java 6 */
-	private static final Charset UTF8 = Charset.forName("UTF-8");
 
 	private static ByteOrder scalarOrder;
 	private static ByteOrder mirrorOrder;
@@ -282,7 +279,7 @@ public class SQLInputFromChunk implements SQLInput
 			int len = m_bb.getShort() & 0xffff;
 			ByteBuffer bytes = (ByteBuffer)m_bb.slice().limit(len);
 			m_bb.position(m_bb.position() + len);
-			return UTF8.newDecoder().decode(bytes).toString();
+			return UTF_8.newDecoder().decode(bytes).toString();
 		}
 		catch ( Exception e )
 		{
