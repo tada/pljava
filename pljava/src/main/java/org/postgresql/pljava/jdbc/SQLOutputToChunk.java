@@ -23,7 +23,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.CharBuffer;
-import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
 import java.nio.charset.MalformedInputException;
@@ -63,9 +63,6 @@ import org.postgresql.pljava.internal.Backend;
 public class SQLOutputToChunk implements SQLOutput
 {
 	private static final byte[] s_byteBuffer = new byte[8];
-
-	/* get rid of this once no longer supporting back to Java 6 */
-	private static final Charset UTF8 = Charset.forName("UTF-8");
 
 	private long m_handle;
 	private ByteBuffer m_bb;
@@ -193,7 +190,7 @@ public class SQLOutputToChunk implements SQLOutput
 	{
 		ByteBuffer bb = ByteBuffer.allocate(65535);
 		CharBuffer cb = CharBuffer.allocate(1024);
-		CharsetEncoder enc = UTF8.newEncoder();
+		CharsetEncoder enc = UTF_8.newEncoder();
 		CoderResult cr;
 
 		try
@@ -331,7 +328,7 @@ public class SQLOutputToChunk implements SQLOutput
 		CharBuffer cb = CharBuffer.wrap(value);
 		try
 		{
-			CharsetEncoder enc = UTF8.newEncoder();
+			CharsetEncoder enc = UTF_8.newEncoder();
 			ByteBuffer bb = enc.encode(cb);
 			int len = bb.limit();
 			if ( 65535 < len )

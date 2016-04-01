@@ -18,12 +18,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
+import java.nio.ByteBuffer;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.CharacterCodingException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
+import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientException;
@@ -482,8 +484,7 @@ public class Commands
 			if ( "META-INF/MANIFEST.MF".equals( ze.getName()) )
 			{
 				StringBuilder sb = new StringBuilder();
-				// I'll take my chances on a required charset not being there!
-				CharsetDecoder u8 = Charset.forName( "UTF-8").newDecoder();
+				CharsetDecoder u8 = UTF_8.newDecoder();
 				InputStreamReader isr = new InputStreamReader( zis, u8);
 				char[] b = new char[512];
 				for ( int got; -1 != (got = isr.read(b)); )
@@ -993,20 +994,19 @@ public class Commands
 				new ArrayList<SQLDeploymentDescriptor>();
 			while(rs.next())
 			{
-				byte[] bytes = rs.getBytes(1);
+				ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));
 				// According to the SQLJ standard, this entry must be
 				// UTF8 encoded.
 				//
-				sdds.add(
-					new SQLDeploymentDescriptor(new String(bytes, "UTF8")));
+				sdds.add( new SQLDeploymentDescriptor(
+					UTF_8.newDecoder().decode(bytes).toString()));
 			}
 			return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 		}
-		catch(UnsupportedEncodingException e)
+		catch(CharacterCodingException e)
 		{
-			// Excuse me? No UTF8 encoding?
-			//
-			throw new SQLException("JVM does not support UTF8!!");
+			throw new SQLDataException(
+				"deployment descriptor is not well-formed UTF-8", "22021", e);
 		}
 		catch(ParseException e)
 		{
