@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -318,7 +318,7 @@ class DDRProcessorImpl
 	 * one round), keyed by the object for which each snippet has been
 	 * generated.
 	 */
-	Map<SnippetsKey, Snippet> snippets = new HashMap<SnippetsKey, Snippet>();
+	Map<SnippetsKey, Snippet> snippets = new HashMap<>();
 
 	<S extends Snippet> S getSnippet(Object o, Class<S> c)
 	{
@@ -340,21 +340,20 @@ class DDRProcessorImpl
 	 * generateDescriptor, any errors reported were being shown with no source
 	 * location info, because it had been thrown away.
 	 */
-	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<Vertex<Snippet>>();
+	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<>();
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
 	 * same reason {@code snippetQueue} does.
 	 */
-	Map<String, Vertex<Snippet>> provider =
-		new HashMap<String, Vertex<Snippet>>();
+	Map<String, Vertex<Snippet>> provider = new HashMap<>();
 
 	/**
 	 * Set of provides/requires labels for which at least one consumer has
 	 * been seen. An instance field for the same reason as {@code provider}.
 	 */
-	Set<String> consumer = new HashSet<String>();
+	Set<String> consumer = new HashSet<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -440,7 +439,7 @@ class DDRProcessorImpl
 		{
 			if ( ! snip.characterize() )
 				continue;
-			Vertex<Snippet> v = new Vertex<Snippet>( snip);
+			Vertex<Snippet> v = new Vertex<>( snip);
 			snippetQueue.add( v);
 			for ( String s : snip.provides() )
 				if ( null != provider.put( s, v) )
@@ -490,7 +489,7 @@ class DDRProcessorImpl
 
 		Snippet[] snips = new Snippet [ snippetQueue.size() ];
 
-		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> q = new LinkedList<>();
 		for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator() ;
 				it.hasNext() ; )
 		{
@@ -1329,7 +1328,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			else if ( typu.isAssignable( typu.erasure( ret), TY_ITERATOR) )
 			{
 				setof = true;
-				List<TypeMirror> pending = new LinkedList<TypeMirror>();
+				List<TypeMirror> pending = new LinkedList<>();
 				pending.add( ret);
 				while ( ! pending.isEmpty() )
 				{
@@ -1457,7 +1456,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public String[] deployStrings()
 		{
-			ArrayList<String> al = new ArrayList<String>();
+			ArrayList<String> al = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
 			appendNameAndParams( sb, true);
@@ -1767,7 +1766,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public String[] deployStrings()
 		{
-			ArrayList<String> al = new ArrayList<String>();
+			ArrayList<String> al = new ArrayList<>();
 			if ( null != structure() )
 			{
 				StringBuilder sb = new StringBuilder();
@@ -1788,7 +1787,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public String[] undeployStrings()
 		{
-			ArrayList<String> al = new ArrayList<String>();
+			ArrayList<String> al = new ArrayList<>();
 			al.add( "SELECT sqlj.drop_type_mapping(" +
 				DDRWriter.eQuote( qname) + ')');
 			if ( null != structure() )
@@ -1966,7 +1965,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public String[] deployStrings()
 		{
-			ArrayList<String> al = new ArrayList<String>();
+			ArrayList<String> al = new ArrayList<>();
 			al.add( "CREATE TYPE " + qname);
 
 			al.addAll( Arrays.asList( in.deployStrings()));
@@ -2052,7 +2051,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		TypeMapper()
 		{
-			protoMappings = new ArrayList<Map.Entry<Class<?>, String>>();
+			protoMappings = new ArrayList<>();
 
 			// Primitives
 			//
@@ -2122,12 +2121,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<Class<?>, String>>> vs =
-				new ArrayList<Vertex<Map.Entry<Class<?>, String>>>(
+			List<Vertex<Map.Entry<Class<?>, String>>> vs = new ArrayList<>(
 					protoMappings.size());
 
 			for ( Map.Entry<Class<?>, String> me : protoMappings )
-				vs.add( new Vertex<Map.Entry<Class<?>, String>>( me));
+				vs.add( new Vertex<>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
@@ -2148,14 +2146,12 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
-			Queue<Vertex<Map.Entry<Class<?>, String>>> q =
-				new LinkedList<Vertex<Map.Entry<Class<?>, String>>>();
+			Queue<Vertex<Map.Entry<Class<?>, String>>> q = new LinkedList<>();
 			for ( Vertex<Map.Entry<Class<?>, String>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
-			finalMappings = new ArrayList<Map.Entry<TypeMirror, String>>(
-				protoMappings.size());
+			finalMappings = new ArrayList<>( protoMappings.size());
 			protoMappings.clear();
 
 			while ( ! q.isEmpty() )
@@ -2477,7 +2473,7 @@ class Vertex<P>
 	{
 		this.payload = payload;
 		indegree = 0;
-		adj = new ArrayList<Vertex<P>>();
+		adj = new ArrayList<>();
 	}
 	
 	void precede( Vertex<P> v)

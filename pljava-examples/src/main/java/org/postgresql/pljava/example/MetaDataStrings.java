@@ -64,8 +64,8 @@ public class MetaDataStrings implements ResultSetProvider {
 		Class<?> returntype;
 		Object[] args = new Object[0];
 		String result = null;
-		ArrayList<String> mn = new ArrayList<String>();
-		ArrayList<String> mr = new ArrayList<String>();
+		ArrayList<String> mn = new ArrayList<>();
+		ArrayList<String> mr = new ArrayList<>();
 
 		for (int i = 0; i < m.length; i++) {
 			prototype = m[i].getParameterTypes();

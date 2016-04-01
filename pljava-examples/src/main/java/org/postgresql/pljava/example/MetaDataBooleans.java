@@ -64,8 +64,8 @@ public class MetaDataBooleans implements ResultSetProvider {
 		Class<?> returntype;
 		Object[] args = new Object[0];
 		Boolean result = null;
-		ArrayList<String> mn = new ArrayList<String>();
-		ArrayList<Boolean> mr = new ArrayList<Boolean>();
+		ArrayList<String> mn = new ArrayList<>();
+		ArrayList<Boolean> mr = new ArrayList<>();
 
 		for (int i = 0; i < m.length; i++) {
 			prototype = m[i].getParameterTypes();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -958,8 +958,7 @@ public class Commands
 		{
 			stmt.setInt(1, jarId);
 			rs = stmt.executeQuery();
-			ArrayList<SQLDeploymentDescriptor> sdds =
-				new ArrayList<SQLDeploymentDescriptor>();
+			ArrayList<SQLDeploymentDescriptor> sdds = new ArrayList<>();
 			while(rs.next())
 			{
 				ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));

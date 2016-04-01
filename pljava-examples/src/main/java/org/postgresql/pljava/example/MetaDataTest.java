@@ -49,7 +49,7 @@ public class MetaDataTest {
 				.getConnection("jdbc:default:connection");
 		DatabaseMetaData md = conn.getMetaData();
 		ResultSet rs;
-		m_results = new ArrayList<String>();
+		m_results = new ArrayList<>();
 		StringBuffer result;
 
 		parseMethodCall(methodCall);
@@ -136,8 +136,8 @@ public class MetaDataTest {
 			String paramString;
 			String auxParamString;
 			String param;
-			ArrayList<Object> objects = new ArrayList<Object>();
-			ArrayList<Class<?>> types = new ArrayList<Class<?>>();
+			ArrayList<Object> objects = new ArrayList<>();
+			ArrayList<Class<?>> types = new ArrayList<>();
 
 			if (m.matches()) {
 				m_methodName = m.group(1);
@@ -182,7 +182,7 @@ public class MetaDataTest {
 								.compile("^\\s*\"((?:[^\\\\\"]|\\\\.)*)\"\\s*(?:,|$)(.*)$");
 						Matcher marr;
 						String auxParamArr = param.trim();
-						ArrayList<String> strList = new ArrayList<String>();
+						ArrayList<String> strList = new ArrayList<>();
 
 						while (!auxParamArr.equals("")) {
 							marr = parr.matcher(auxParamArr);
@@ -238,7 +238,7 @@ public class MetaDataTest {
 								.compile("^\\s*(\\d+)\\s*(?:,|$)(.*)$");
 						Matcher marr;
 						String auxParamArr = param.trim();
-						ArrayList<Integer> intList = new ArrayList<Integer>();
+						ArrayList<Integer> intList = new ArrayList<>();
 
 						while (!auxParamArr.equals("")) {
 							marr = parr.matcher(auxParamArr);

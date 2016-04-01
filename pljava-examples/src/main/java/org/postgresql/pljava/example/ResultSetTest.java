@@ -42,7 +42,7 @@ public class ResultSetTest {
 	public ResultSetTest(String selectSQL) throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
-		m_results = new ArrayList<String>();
+		m_results = new ArrayList<>();
 		StringBuffer result;
 
 		Statement stmt = conn.createStatement();

@@ -65,8 +65,8 @@ public class MetaDataInts implements ResultSetProvider {
 		Class<?> returntype;
 		Object[] args = new Object[0];
 		Integer result = null;
-		ArrayList<String> mn = new ArrayList<String>();
-		ArrayList<Integer> mr = new ArrayList<Integer>();
+		ArrayList<String> mn = new ArrayList<>();
+		ArrayList<Integer> mr = new ArrayList<>();
 
 		for (int i = 0; i < m.length; i++) {
 			prototype = m[i].getParameterTypes();
