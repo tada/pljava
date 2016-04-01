@@ -515,8 +515,10 @@ public class Commands
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
 	throws SQLException
 	{
-		PreparedStatement stmt = null;
-		try
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			.prepareStatement(
+				"INSERT INTO sqlj.typemap_entry(javaName, sqlName)" +
+				" VALUES(?,?)"))
 		{
 			ClassLoader loader = Loader.getCurrentLoader();
 			Class cls = loader.loadClass(javaClassName);
@@ -525,10 +527,6 @@ public class Commands
 					+ " does not implement java.sql.SQLData");
 
 			sqlTypeName = getFullSqlNameOwned(sqlTypeName);
-			stmt = SQLUtils
-				.getDefaultConnection()
-				.prepareStatement(
-					"INSERT INTO sqlj.typemap_entry(javaName, sqlName) VALUES(?,?)");
 			stmt.setString(1, javaClassName);
 			stmt.setString(2, sqlTypeName);
 			stmt.executeUpdate();
@@ -537,10 +535,6 @@ public class Commands
 		{
 			throw new SQLException(
 				"No such class: " + javaClassName, "46103", e);
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 		Loader.clearSchemaLoaders();
 	}
@@ -558,18 +552,13 @@ public class Commands
 	@Function(schema="sqlj", name="drop_type_mapping", security=DEFINER)
 	public static void dropTypeMapping(String sqlTypeName) throws SQLException
 	{
-		PreparedStatement stmt = null;
-		try
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			.prepareStatement(
+				"DELETE FROM sqlj.typemap_entry WHERE sqlName = ?"))
 		{
 			sqlTypeName = getFullSqlNameOwned(sqlTypeName);
-			stmt = SQLUtils.getDefaultConnection().prepareStatement(
-				"DELETE FROM sqlj.typemap_entry WHERE sqlName = ?");
 			stmt.setString(1, sqlTypeName);
 			stmt.executeUpdate();
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 		Loader.clearSchemaLoaders();
 	}
@@ -587,39 +576,31 @@ public class Commands
 	@Function(schema="sqlj", name="get_classpath", security=DEFINER)
 	public static String getClassPath(String schemaName) throws SQLException
 	{
-		ResultSet rs = null;
-		PreparedStatement stmt = null;
-		try
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			.prepareStatement(
+				"SELECT r.jarName"+
+				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c"+
+				" ON r.jarId = c.jarId"+
+				" WHERE c.schemaName = ? ORDER BY c.ordinal"))
 		{
 			if(schemaName == null || schemaName.length() == 0)
 				schemaName = "public";
 			else
 				schemaName = schemaName.toLowerCase();
-
-			stmt = SQLUtils
-				.getDefaultConnection()
-				.prepareStatement(
-					"SELECT r.jarName"
-						+ " FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c ON r.jarId = c.jarId"
-						+ " WHERE c.schemaName = ? ORDER BY c.ordinal");
-
 			stmt.setString(1, schemaName);
-			rs = stmt.executeQuery();
 			StringBuffer buf = null;
-			while(rs.next())
+			try(ResultSet rs = stmt.executeQuery())
 			{
-				if(buf == null)
-					buf = new StringBuffer();
-				else
-					buf.append(':');
-				buf.append(rs.getString(1));
+				while(rs.next())
+				{
+					if(buf == null)
+						buf = new StringBuffer();
+					else
+						buf.append(':');
+					buf.append(rs.getString(1));
+				}
 			}
 			return (buf == null) ? null : buf.toString();
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -802,7 +783,6 @@ public class Commands
 					"the target schema in order to set the classpath", "42501");
 		}
 
-		PreparedStatement stmt;
 		ArrayList entries = null;
 		if(path != null && path.length() > 0)
 		{
@@ -810,9 +790,9 @@ public class Commands
 			// valid jar
 			//
 			entries = new ArrayList();
-			stmt = SQLUtils.getDefaultConnection().prepareStatement(
-				"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?");
-			try
+			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+				.prepareStatement(
+					"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?"))
 			{
 				for(;;)
 				{
@@ -836,35 +816,27 @@ public class Commands
 						break;
 				}
 			}
-			finally
-			{
-				SQLUtils.close(stmt);
-			}
 		}
 
 		// Delete the old classpath
 		//
-		stmt = SQLUtils.getDefaultConnection().prepareStatement(
-			"DELETE FROM sqlj.classpath_entry WHERE schemaName = ?");
-		try
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			.prepareStatement(
+				"DELETE FROM sqlj.classpath_entry WHERE schemaName = ?"))
 		{
 			stmt.setString(1, schemaName);
 			stmt.executeUpdate();
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 
 		if(entries != null)
 		{
 			// Insert the new path.
 			//
-			stmt = SQLUtils
-				.getDefaultConnection()
+			;
+			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 				.prepareStatement(
-					"INSERT INTO sqlj.classpath_entry(schemaName, ordinal, jarId) VALUES(?, ?, ?)");
-			try
+					"INSERT INTO sqlj.classpath_entry("+
+					" schemaName, ordinal, jarId) VALUES(?, ?, ?)"))
 			{
 				int top = entries.size();
 				for(int idx = 0; idx < top; ++idx)
@@ -875,10 +847,6 @@ public class Commands
 					stmt.setInt(3, jarId);
 					stmt.executeUpdate();
 				}
-			}
-			finally
-			{
-				SQLUtils.close(stmt);
 			}
 		}
 		Loader.clearSchemaLoaders();
@@ -1032,34 +1000,28 @@ public class Commands
 
 		AclId invoker = AclId.getOuterUser();
 
-		ResultSet rs = null;
-		PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT n.nspname, t.typname,"
 					+ " pg_catalog.pg_has_role(?, t.typowner, 'USAGE')"
 					+ " FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n"
-					+ " WHERE t.oid = ? AND n.oid = t.typnamespace");
-
-		try
+					+ " WHERE t.oid = ? AND n.oid = t.typnamespace"))
 		{
 			stmt.setObject(1, invoker);
 			stmt.setObject(2, typeId);
-			rs = stmt.executeQuery();
-			if(!rs.next())
-				throw new SQLException("Unable to obtain type info for "
-					+ typeId);
+			try(ResultSet rs = stmt.executeQuery())
+			{
+				if(!rs.next())
+					throw new SQLException("Unable to obtain type info for "
+						+ typeId);
 
-			if ( ! rs.getBoolean(3) )
-				throw new SQLSyntaxErrorException( // yeah, for 42501, really
-					"Permission denied. Only superuser or type's owner " +
-					"may add or drop a type mapping.", "42501");
+				if ( ! rs.getBoolean(3) )
+					throw new SQLSyntaxErrorException( // yes, for 42501, really
+						"Permission denied. Only superuser or type's owner " +
+						"may add or drop a type mapping.", "42501");
 
-			return rs.getString(1) + '.' + rs.getString(2);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
+				return rs.getString(1) + '.' + rs.getString(2);
+			}
 		}
 	}
 
@@ -1067,8 +1029,7 @@ public class Commands
 		AclId[] ownerRet) throws SQLException
 	{
 		stmt.setString(1, jarName);
-		ResultSet rs = stmt.executeQuery();
-		try
+		try(ResultSet rs = stmt.executeQuery())
 		{
 			if(!rs.next())
 				return -1;
@@ -1079,10 +1040,6 @@ public class Commands
 				ownerRet[0] = AclId.fromName(ownerName);
 			}
 			return id;
-		}
-		finally
-		{
-			SQLUtils.close(rs);
 		}
 	}
 
@@ -1099,17 +1056,12 @@ public class Commands
 	private static int getJarId(String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"SELECT jarId, jarOwner FROM sqlj.jar_repository WHERE jarName = ?");
-		try
+				"SELECT jarId, jarOwner FROM sqlj.jar_repository"+
+				" WHERE jarName = ?"))
 		{
 			return getJarId(stmt, jarName, ownerRet);
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -1123,22 +1075,17 @@ public class Commands
 	 */
 	private static Oid getSchemaId(String schemaName) throws SQLException
 	{
-		ResultSet rs = null;
-		PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = ?");
-		try
+				"SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = ?"))
 		{
 			stmt.setString(1, schemaName);
-			rs = stmt.executeQuery();
-			if(!rs.next())
-				return null;
-			return (Oid)rs.getObject(1);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
+			try(ResultSet rs = stmt.executeQuery())
+			{
+				if(!rs.next())
+					return null;
+				return (Oid)rs.getObject(1);
+			}
 		}
 	}
 

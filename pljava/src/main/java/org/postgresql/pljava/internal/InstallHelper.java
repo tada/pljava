@@ -136,13 +136,9 @@ public class InstallHelper
 		boolean asExtension, boolean exNihilo)
 	throws SQLException, ParseException, IOException
 	{
-		Connection c = null;
-		Statement s = null;
-		try
+		try(Connection c = SQLUtils.getDefaultConnection();
+			Statement s = c.createStatement())
 		{
-			c = SQLUtils.getDefaultConnection();
-			s = c.createStatement();
-
 			schema(c, s);
 
 			SchemaVariant sv = recognizeSchema(c, s, loadpath_tbl);
@@ -170,11 +166,6 @@ public class InstallHelper
 				 * error if this code didn't execute.
 				 */
 				s.execute("DROP TABLE sqlj." + loadpath_tbl_quoted);
-		}
-		finally
-		{
-			SQLUtils.close(s);
-			SQLUtils.close(c);
 		}
 	}
 
