@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.sqlgen;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -27,24 +28,26 @@ import java.util.regex.Pattern;
  * present. Of course backend code such as {@code SQLDeploymentDescriptor}
  * can also refer to these.
  */
-public interface Lexicals {
+public abstract class Lexicals {
 
 	/** Allowed as the first character of a regular identifier by ISO.
 	 */
-	Pattern ISO_REGULAR_IDENTIFIER_START = Pattern.compile(
+	public static final Pattern ISO_REGULAR_IDENTIFIER_START = Pattern.compile(
 		"[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}]"
 	);
 
 	/** Allowed as any non-first character of a regular identifier by ISO.
 	 */
-	Pattern ISO_REGULAR_IDENTIFIER_PART = Pattern.compile(String.format(
+	public static final Pattern ISO_REGULAR_IDENTIFIER_PART =
+	Pattern.compile(String.format(
 		"[\\xb7\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}\\p{Cf}%1$s]",
 		ISO_REGULAR_IDENTIFIER_START.pattern()
 	));
 
 	/** A complete regular identifier as allowed by ISO.
 	 */
-	Pattern ISO_REGULAR_IDENTIFIER = Pattern.compile(String.format(
+	public static final Pattern ISO_REGULAR_IDENTIFIER =
+	Pattern.compile(String.format(
 		"%1$s%2$s{0,127}+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		ISO_REGULAR_IDENTIFIER_PART.pattern()
@@ -52,14 +55,15 @@ public interface Lexicals {
 
 	/** A complete ISO regular identifier in a single capturing group.
 	 */
-	Pattern ISO_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+	public static final Pattern ISO_REGULAR_IDENTIFIER_CAPTURING =
+	Pattern.compile(String.format(
 		"(%1$s)", ISO_REGULAR_IDENTIFIER.pattern()
 	));
 
 	/** A complete delimited identifier as allowed by ISO. As it happens, this
 	 * is also the form PostgreSQL uses for elements of a LIST_QUOTE-typed GUC.
 	 */
-	Pattern ISO_DELIMITED_IDENTIFIER = Pattern.compile(
+	public static final Pattern ISO_DELIMITED_IDENTIFIER = Pattern.compile(
 		"\"(?:[^\"]|\"\"){1,128}+\""
 	);
 
@@ -67,7 +71,8 @@ public interface Lexicals {
 	 * the content (which still needs to have "" replaced with " throughout).
 	 * The capturing group is named {@code xd}.
 	 */
-	Pattern ISO_DELIMITED_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+	public static final Pattern ISO_DELIMITED_IDENTIFIER_CAPTURING =
+	Pattern.compile(String.format(
 		"\"(?<xd>(?:[^\"]|\"\"){1,128}+)\""
 	));
 
@@ -75,7 +80,8 @@ public interface Lexicals {
 	 * The escape character itself is in the capturing group named {@code uec}.
 	 * The group can be absent, in which case \ should be used as the uec.
 	 */
-	Pattern ISO_UNICODE_ESCAPE_SPECIFIER = Pattern.compile(
+	public static final Pattern ISO_UNICODE_ESCAPE_SPECIFIER =
+	Pattern.compile(
 		"(?:\\p{IsWhite_Space}*+[Uu][Ee][Ss][Cc][Aa][Pp][Ee]"+
 		"\\p{IsWhite_Space}*+'(?<uec>[^0-9A-Fa-f+'\"\\p{IsWhite_Space}])')?+"
 	);
@@ -86,8 +92,9 @@ public interface Lexicals {
 	 * decoded and replaced, and then it has to be verified to be no longer
 	 * than 128 codepoints.
 	 */
-	Pattern ISO_UNICODE_IDENTIFIER = Pattern.compile(String.format(
-		"[Uu]&\"(?<xui>[^\"]++)\"%1$s",
+	public static final Pattern ISO_UNICODE_IDENTIFIER =
+	Pattern.compile(String.format(
+		"[Uu]&\"(?<xui>(?:[^\"]|\"\")++)\"%1$s",
 		ISO_UNICODE_ESCAPE_SPECIFIER.pattern()
 	));
 
@@ -101,26 +108,28 @@ public interface Lexicals {
 	 * {@code Pattern.compile(String.format(ISO_UNICODE_REPLACER,
 	 *   Pattern.quote(uec)));}
 	 */
-	String ISO_UNICODE_REPLACER =
+	public static final String ISO_UNICODE_REPLACER =
 		"%1$s(?:(?<cev>%1$s)|(?<u4d>[0-9A-Fa-f]{4})|\\+(?<u6d>[0-9A-Fa-f]{6}))";
 
 	/** Allowed as the first character of a regular identifier by PostgreSQL
 	 * (PG 7.4 -).
 	 */
-	Pattern PG_REGULAR_IDENTIFIER_START = Pattern.compile(
+	public static final Pattern PG_REGULAR_IDENTIFIER_START = Pattern.compile(
 		"[A-Za-z\\P{ASCII}_]" // hasn't seen a change since PG 7.4
 	);
 
 	/** Allowed as any non-first character of a regular identifier by PostgreSQL
 	 * (PG 7.4 -).
 	 */
-	Pattern PG_REGULAR_IDENTIFIER_PART = Pattern.compile(String.format(
+	public static final Pattern PG_REGULAR_IDENTIFIER_PART =
+	Pattern.compile(String.format(
 		"[0-9$%1$s]", PG_REGULAR_IDENTIFIER_START.pattern()
 	));
 
 	/** A complete regular identifier as allowed by PostgreSQL (PG 7.4 -).
 	 */
-	Pattern PG_REGULAR_IDENTIFIER = Pattern.compile(String.format(
+	public static final Pattern PG_REGULAR_IDENTIFIER =
+	Pattern.compile(String.format(
 		"%1$s%2$s*+",
 		PG_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_PART.pattern()
@@ -128,13 +137,15 @@ public interface Lexicals {
 
 	/** A complete PostgreSQL regular identifier in a single capturing group.
 	 */
-	Pattern PG_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+	public static final Pattern PG_REGULAR_IDENTIFIER_CAPTURING =
+	Pattern.compile(String.format(
 		"(%1$s)", PG_REGULAR_IDENTIFIER.pattern()
 	));
 
 	/** A regular identifier that satisfies both ISO and PostgreSQL rules.
 	 */
-	Pattern ISO_AND_PG_REGULAR_IDENTIFIER = Pattern.compile(String.format(
+	public static final Pattern ISO_AND_PG_REGULAR_IDENTIFIER =
+	Pattern.compile(String.format(
 		"(?:(?=%1$s)%2$s)(?:(?=%3$s)%4$s)*+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_START.pattern(),
@@ -145,7 +156,8 @@ public interface Lexicals {
 	/** A regular identifier that satisfies both ISO and PostgreSQL rules,
 	 * in a single capturing group named {@code i}.
 	 */
-	Pattern ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(
+	public static final Pattern ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING =
+	Pattern.compile(
 		String.format( "(?<i>%1$s)", ISO_AND_PG_REGULAR_IDENTIFIER.pattern())
 	);
 
@@ -156,10 +168,11 @@ public interface Lexicals {
 	 * explicit {@code uec} for a Unicode identifier (still needing "" to " and
 	 * decoding of {@code Unicode escape value}s).
 	 */
-	Pattern ISO_AND_PG_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
+	public static final Pattern ISO_AND_PG_IDENTIFIER_CAPTURING =
+	Pattern.compile(String.format(
 		"%1$s|(?:%2$s)|(?:%3$s)",
 		ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING.pattern(),
-		ISO_DELIMITED_IDENTIFIER.pattern(),
+		ISO_DELIMITED_IDENTIFIER_CAPTURING.pattern(),
 		ISO_UNICODE_IDENTIFIER.pattern()
 	));
 
@@ -170,7 +183,8 @@ public interface Lexicals {
 	 * PL/Java might load, because through 1.4.3 PL/Java used the Java
 	 * identifier rules to recognize identifiers in deployment descriptors.
 	 */
-	Pattern ISO_PG_JAVA_IDENTIFIER = Pattern.compile(String.format(
+	public static final Pattern ISO_PG_JAVA_IDENTIFIER =
+	Pattern.compile(String.format(
 		"(?:(?=%1$s)(?=\\p{%5$sStart})%2$s)(?:(?=%3$s)(?=\\p{%5$sPart})%4$s)*+",
 		ISO_REGULAR_IDENTIFIER_START.pattern(),
 		PG_REGULAR_IDENTIFIER_START.pattern(),
@@ -178,4 +192,50 @@ public interface Lexicals {
 		PG_REGULAR_IDENTIFIER_PART.pattern(),
 		"javaJavaIdentifier"
 	));
+
+	/**
+	 * Return an identifier, given a {@code Matcher} that has matched an
+	 * ISO_AND_PG_IDENTIFIER_CAPTURING. Will determine from the matching named
+	 * groups which type of identifier it was, process the matched sequence
+	 * appropriately, and return it.
+	 * @param m A {@code Matcher} known to have matched an identifier.
+	 * @return the recovered identifier string.
+	 */
+	public static String identifierFrom(Matcher m)
+	{
+		String s = m.group("i");
+		if ( null != s )
+			return s;
+		s = m.group("xd");
+		if ( null != s )
+			return s.replace("\"\"", "\"");
+		s = m.group("xui");
+		if ( null == s )
+			return null; // XXX?
+		s = s.replace("\"\"", "\"");
+		String uec = m.group("uec");
+		if ( null == uec )
+			uec = "\\";
+		int uecp = uec.codePointAt(0);
+		Matcher replacer =
+			Pattern.compile(
+				String.format(ISO_UNICODE_REPLACER, Pattern.quote(uec)))
+				.matcher(s);
+		StringBuffer sb = new StringBuffer();
+		while ( replacer.find() )
+		{
+			replacer.appendReplacement(sb, "");
+			int cp;
+			String uev = replacer.group("u4d");
+			if ( null == uev )
+				uev = replacer.group("u6d");
+			if ( null != uev )
+				cp = Integer.parseInt(uev, 16);
+			else
+				cp = uecp;
+			// XXX check validity
+			sb.appendCodePoint(cp);
+		}
+		return replacer.appendTail(sb).toString();
+	}
 }
