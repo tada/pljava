@@ -114,8 +114,9 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Returns a default connection instance. It is the callers responsability
-	 * to close this instance.
+	 * Returns a default connection instance. It is normally the caller's
+	 * responsibility to close this instance, but as {@code close} is a no-op
+	 * for this connection, that isn't critical.
 	 */
 	public static Connection getDefault()
 	throws SQLException

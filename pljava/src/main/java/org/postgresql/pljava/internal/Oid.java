@@ -21,20 +21,6 @@ public class Oid extends Number
 	private static final HashMap s_class2typeId = new HashMap();
 
 	private static final HashMap s_typeId2class = new HashMap();
-	static
-	{
-		try
-		{
-			// Ensure that the SPI JDBC driver is loaded and registered
-			// with the java.sql.DriverManager.
-			//
-			Class.forName("org.postgresql.pljava.jdbc.SPIDriver");
-		}
-		catch(ClassNotFoundException e)
-		{
-			throw new ExceptionInInitializerError(e);
-		}
-	}
 
 	/**
 	 * Finds the PostgreSQL well known Oid for the given class.
