@@ -14,17 +14,12 @@ package org.postgresql.pljava.management;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-import java.util.ArrayList;
-
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-
 import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 
 import org.postgresql.pljava.internal.Backend;
 
-import static org.postgresql.pljava.sqlgen.Lexicals.ISO_PG_JAVA_IDENTIFIER;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 /**
  * Abstract class for executing one deployment descriptor {@code <command>}
@@ -74,14 +69,6 @@ public abstract class DDRExecutor
 
 	private static final DDRExecutor NOOP = new Noop();
 
-	/*
-	 * Capture group 1 is an identifier. Presence/absence of group 2 (comma-
-	 * whitespace) indicates whether to parse more.
-	 */
-	private static final Pattern settingsRx = Pattern.compile(String.format(
-		"\\G(%1$s)(,\\s*+)?+", ISO_PG_JAVA_IDENTIFIER
-	));
-
 	/**
 	 * Execute the command {@code sql} using the connection {@code conn},
 	 * according to whatever meaning of "execute" the target {@code DDRExecutor}
@@ -105,35 +92,20 @@ public abstract class DDRExecutor
 	 * an unadorned {@code <SQL statement>} instead of an
 	 * {@code <implementor block>}.
 	 */
-	public static DDRExecutor forImplementor( String name)
+	public static DDRExecutor forImplementor( Identifier name)
 	throws SQLException
 	{
 		if ( null == name )
 			return PLAIN;
 
-		String[] imps = implementors();
+		Iterable<Identifier> imps =
+			Backend.getListConfigOption( "pljava.implementors");
 
-		for ( String i : imps )
-			if ( name.equalsIgnoreCase( i) )
+		for ( Identifier i : imps )
+			if ( name.equals( i) )
 				return PLAIN;
 
 		return NOOP;
-	}
-
-	private static String[] implementors() throws SQLException
-	{
-		String settingString = Backend.getConfigOption( "pljava.implementors");
-		ArrayList<String> al = new ArrayList<>();
-		Matcher m = settingsRx.matcher( settingString);
-		while ( m.find() )
-		{
-			al.add( m.group( 1));
-			if ( -1 != m.start( 2) )
-				continue;
-			if ( m.hitEnd() )
-				return al.toArray( new String [ al.size() ]);
-		}
-		throw new SQLException("Failed to parse current pljava.implementors");
 	}
 
 	static class Noop extends DDRExecutor
