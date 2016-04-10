@@ -17,6 +17,13 @@ import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.ISO_AND_PG_IDENTIFIER_CAPTURING;
 
 /**
  * This class deals with parsing and executing the deployment descriptor as
@@ -102,6 +109,12 @@ public class SQLDeploymentDescriptor
 
 	private int m_position = 0;
 
+	private static final Pattern s_beginImpl = Pattern.compile(String.format(
+		"^(?i:BEGIN)\\s++(?:%1$s)\\s*+", ISO_AND_PG_IDENTIFIER_CAPTURING));
+
+	private static final Pattern s_endImpl = Pattern.compile(String.format(
+		"(?<!\\w)(?i:END)\\s++(?:%1$s)$", ISO_AND_PG_IDENTIFIER_CAPTURING));
+
 	/**
 	 * Parses the deployment descriptor <code>descImage</code> into a series of
 	 * {@code Command} objects each having an SQL command and, if present, an
@@ -168,7 +181,7 @@ public class SQLDeploymentDescriptor
 	{
 		m_logger.entering("org.postgresql.pljava.management.SQLDeploymentDescriptor", "readDescriptor");
 		if(!"SQLACTIONS".equals(this.readIdentifier()))
-			throw this.parseError("Excpected keyword 'SQLActions'");
+			throw this.parseError("Expected keyword 'SQLActions'");
 
 		this.readToken('[');
 		this.readToken(']');
@@ -217,38 +230,29 @@ public class SQLDeploymentDescriptor
 			// <implementor block> ::=
 			//	BEGIN <implementor name> <SQL token>... END <implementor name>
 			//
-			// If it is, and if the implementor name corresponds to the one
-			// defined for this deployment, then extract the SQL token stream.
+			// If it is, keep track of the <implementor name> with the cmd.
 			//
-			String implementorName;
-			int top = cmd.length();
-			if(top >= 15
-			&& "BEGIN ".equalsIgnoreCase(cmd.substring(0, 6))
-			&& Character.isJavaIdentifierStart(cmd.charAt(6)))
+			Identifier implementorName = null;
+			if(cmd.length() >= 15)
 			{
-				int pos;
-				for(pos = 7; pos < top; ++pos)
-					if(!Character.isJavaIdentifierPart(cmd.charAt(pos)))
-						break;
-
-				if(cmd.charAt(pos) != ' ')
-					throw this.parseError(
-						"Expected whitespace after <implementor name>");
-
-				implementorName = cmd.substring(6, pos);
-				int iLen = implementorName.length();
-
-				int endNamePos = top - iLen;
-				int endPos = endNamePos - 4;
-				if(!implementorName.equalsIgnoreCase(cmd.substring(endNamePos))
-				|| !"END ".equalsIgnoreCase(cmd.substring(endPos, endNamePos)))
-					throw this.parseError(
-						"Implementor block must end with END <implementor name>");
-
-				cmd = cmd.substring(pos+1, endPos);
+				Matcher m = s_beginImpl.matcher(cmd);
+				if ( m.find() )
+				{
+					Identifier begIdent = identifierFrom(m);
+					int pos = m.end();
+					m = s_endImpl.matcher(cmd);
+					if ( ! m.find(pos) )
+						throw this.parseError(
+							"BEGIN <implementor name> without matching END");
+					Identifier endIdent = identifierFrom(m);
+					if ( ! endIdent.equals(begIdent) )
+						throw this.parseError(String.format(
+							"BEGIN \"%1$s\" and END \"%2$s\" do not match",
+							begIdent, endIdent));
+					implementorName = begIdent;
+					cmd = cmd.substring(pos, m.start());
+				}
 			}
-			else
-				implementorName = null;
 
 			commands.add(new Command(cmd.trim(), implementorName));
 
@@ -515,7 +519,7 @@ class Command
 	/** The sql to execute (if this command is not suppressed). Never null.
 	 */
 	final String sql;
-	private  final String tag;
+	private final Identifier tag;
 
 	/**
 	 * Execute this {@code Command} using a {@code DDRExecutor} chosen
@@ -527,7 +531,7 @@ class Command
 		ddre.execute( sql, conn);
 	}
 
-	Command(String sql, String tag)
+	Command(String sql, Identifier tag)
 	{
 		this.sql = sql.trim();
 		this.tag = tag;

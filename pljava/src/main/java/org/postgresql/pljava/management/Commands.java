@@ -977,7 +977,9 @@ public class Commands
 		}
 		catch(ParseException e)
 		{
-			throw new SQLException(e.getMessage() + " at " + e.getErrorOffset());
+			throw new SQLSyntaxErrorException(String.format(
+				"%1$s at %2$s", e.getMessage(), e.getErrorOffset()),
+				"42601", e);
 		}
 		finally
 		{

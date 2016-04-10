@@ -20,12 +20,22 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.security.Permission;
 import java.sql.SQLException;
+import java.sql.SQLDataException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.PropertyPermission;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.postgresql.pljava.management.Commands;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.ISO_AND_PG_IDENTIFIER_CAPTURING;
 
 /**
  * Provides access to some useful routines in the PostgreSQL server.
@@ -39,6 +49,9 @@ public class Backend
 	public static final Object THREADLOCK = new Object();
 
 	private static Session s_session;
+
+	private static final Pattern s_gucList = Pattern.compile(String.format(
+		"\\G(?:%1$s)(?<more>,\\s*+)?+", ISO_AND_PG_IDENTIFIER_CAPTURING));
 
 	public static synchronized Session getSession()
 	{
@@ -59,6 +72,25 @@ public class Backend
 		{
 			return _getConfigOption(key);
 		}
+	}
+
+	public static List<Identifier> getListConfigOption(String key)
+	throws SQLException
+	{
+		final Matcher m = s_gucList.matcher(getConfigOption(key));
+		ArrayList<Identifier> al = new ArrayList<>();
+		while ( m.find() )
+		{
+			al.add(identifierFrom(m));
+			if ( null != m.group("more") )
+				continue;
+			if ( ! m.hitEnd() )
+				throw new SQLDataException(String.format(
+					"configuration option \"%1$s\" improper list syntax",
+					key), "22P02");
+		}
+		al.trimToSize();
+		return Collections.unmodifiableList(al);
 	}
 
 	/**
