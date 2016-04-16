@@ -12,10 +12,15 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.ResultSet;
+import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
 {
@@ -24,7 +29,9 @@ public class Function
 		boolean calledAsTrigger)
 	throws SQLException
 	{
-		Matcher m = parse(procTup);
+		Matcher info = parse(procTup);
+
+		init(info, procTup, schemaName, calledAsTrigger);
 		return null;
 	}
 
@@ -48,6 +55,45 @@ public class Function
 		System.err.println("----");
 		return m;
 	}
+
+	private static void init(
+		Matcher info, ResultSet procTup, String schemaName,
+		boolean calledAsTrigger)
+		throws SQLException
+	{
+		Map<Oid,Class<? extends SQLData>> nonudtTypeMap = null;
+		String className = info.group("udtcls");
+		boolean isUDT = (null != className);
+
+		if ( ! isUDT )
+		{
+			className = info.group("cls");
+			nonudtTypeMap = Loader.getTypeMap(schemaName);
+		}
+
+		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
+
+		Class<?> clazz = loadClass(schemaName, className);
+	}
+
+	private static Class<?> loadClass(String schemaName, String className)
+	throws SQLException
+	{
+		try
+		{
+			return Loader.getSchemaLoader(schemaName).loadClass(className);
+		}
+		catch ( ClassNotFoundException e )
+		{
+			throw new SQLNonTransientException(
+				"No such class: " + className, "46103", e);
+		}
+	}
+
+	/*
+		int numParams = procTup.getInt("pronargs");
+		boolean isMultiCall = procTup.getBoolean("proretset");
+	*/
 
 	private static void say(Matcher m, String grpname)
 	{
