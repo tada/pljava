@@ -557,7 +557,7 @@ finally:
 	return t;
 }
 
-static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
+static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct)
 {
 	Oid* paramOids;
 	MemoryContext ctx = GetMemoryChunkContext(self);
@@ -646,7 +646,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 	}
 	else
 	{
-		setupFunctionParams(self, info, procStruct, fcinfo);
+		setupFunctionParams(self, info, procStruct);
 	}
 
 
