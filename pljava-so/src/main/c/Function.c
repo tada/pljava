@@ -182,7 +182,8 @@ void Function_initialize(void)
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
-		"(Ljava/sql/ResultSet;Ljava/lang/String;)Ljava/lang/Object;");
+		"(Ljava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
+		"Ljava/lang/Object;");
 
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 
@@ -764,7 +765,9 @@ static Function Function_create(PG_FUNCTION_ARGS)
 #endif
 
 	JNI_callStaticVoidMethod(s_Function_class, s_Function_create,
-		Type_coerceDatum(s_pgproc_Type, d), lname);
+		Type_coerceDatum(s_pgproc_Type, d), lname,
+		getSchemaName(procStruct->pronamespace),
+		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
 	pfree((void *)d);
 	ReleaseSysCache(langTup);
 

@@ -19,7 +19,9 @@ import java.util.regex.Pattern;
 
 public class Function
 {
-	public static Object create(ResultSet procTup, String langName)
+	public static Object create(
+		ResultSet procTup, String langName, String schemaName,
+		boolean calledAsTrigger)
 	throws SQLException
 	{
 		Matcher m = parse(procTup);
