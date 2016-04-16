@@ -206,6 +206,18 @@ static void buildSignature(Function self, StringInfo sign, Type retType, bool al
 	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
 }
 
+/*
+ * Called for a nonUDT function *after* nonudt.paramTypes and nonudt.returnType
+ * have been set (using Type_fromOid and the Oids from the SQL declaration);
+ * dfltIds are those same Oids, and paramDecl is the Java signature. This
+ * function compares (textually) the Java type names from the Java signature
+ * to Type_getJavaTypeName over the already chosen nonudt.paramTypes and, where
+ * they differ, will replace the already chosen entry with a Type from the
+ * Java type name (if it claims to replace the type originally chosen), or
+ * a coercer type between the two. It does not concern itself with return types
+ * of ordinary functions, but does, in the case represented by lastIsOut, where
+ * there is an extra entry paramTypes[numParams] representing an OUT type.
+ */
 static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 {
 	char c;
