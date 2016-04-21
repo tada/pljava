@@ -39,6 +39,15 @@
 
 #define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
 
+#if 90305<=PG_VERSION_NUM || \
+	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
+	90114<=PG_VERSION_NUM && PG_VERSION_NUM<90200 || \
+	90018<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
+	80422<=PG_VERSION_NUM && PG_VERSION_NUM<90000
+#else
+#error "Need fallback for heap_copy_tuple_as_datum"
+#endif
+
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jclass s_Function_class;
@@ -46,6 +55,7 @@ static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_Loader_getTypeMap;
 static jmethodID s_ClassLoader_loadClass;
 static jmethodID s_Function_create;
+static jmethodID s_Function_getClassIfUDT;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
 
@@ -138,18 +148,6 @@ static struct Function_ s_initWriter;
 
 Function Function_INIT_WRITER = &s_initWriter;
 
-typedef struct ParseResultData
-{
-	char* buffer;	/* The buffer to pfree once we are done */
-	const char* returnType;
-	const char* className;
-	const char* methodName;
-	const char* parameters;
-	bool isUDT;
-} ParseResultData;
-
-typedef ParseResultData *ParseResult;
-
 static HashMap s_funcMap = 0;
 
 static jclass s_Loader_class;
@@ -204,6 +202,10 @@ void Function_initialize(void)
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
 		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
 		"Ljava/lang/String;");
+	s_Function_getClassIfUDT = PgObject_getStaticJavaMethod(s_Function_class,
+		"getClassIfUDT",
+		"(Ljava/sql/ResultSet;Ljava/lang/String;)"
+		"Ljava/lang/Class;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
 
@@ -228,168 +230,6 @@ static void buildSignature(Function self, StringInfo sign, Type retType, bool al
 	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
 }
 
-static char* getAS(HeapTuple procTup, char** epHolder)
-{
-	char c;
-	char* cp1;
-	char* cp2;
-	char* bp;
-	bool  atStart = true;
-	bool  passedFirst = false;
-	bool  isNull = false;
-	Datum tmp = SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_prosrc, &isNull);
-	if(isNull)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("'AS' clause of Java function cannot be NULL")));
-	}
-
-	bp = pstrdup(DatumGetCString(DirectFunctionCall1(textout, tmp)));
-
-	/* Strip all whitespace except the first one if it occures after
-	 * some alpha numeric characers and before some other alpha numeric
-	 * characters. We insert a '=' when that happens since it delimits
-	 * the return value from the method name.
-	 */
-	cp1 = cp2 = bp;
-	while((c = *cp1++) != 0)
-	{
-		if(isspace(c))
-		{
-			if(atStart || passedFirst)
-				continue;
-
-			while((c = *cp1++) != 0)
-				if(!isspace(c))
-					break;
-
-			if(c == 0)
-				break;
-
-			if(isalpha(c))
-				*cp2++ = '=';
-			passedFirst = true;
-		}
-		atStart = false;
-		if(!isalnum(c))
-			passedFirst = true;
-		*cp2++ = c;
-	}
-	*cp2 = 0;
-	*epHolder = cp2;
-	return bp;
-}
-
-static void parseUDT(ParseResult info, char* bp, char* ep)
-{
-	char* ip = ep - 1;
-	while(ip > bp && *ip != ']')
-		--ip;
-
-	if(ip == bp)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Missing ending ']' in UDT declaration")));
-	}
-	*ip = 0; /* Terminate class name */
-	info->className = bp;
-	info->methodName = ip + 1;
-	info->isUDT = true;
-}
-
-/*
- * Zeros info before setting any of its fields.
- */
-static void parseFunction(ParseResult info, HeapTuple procTup)
-{
-	/* The user's function definition must be the fully
-	 * qualified name of a java method short of parameter
-	 * signature.
-	 */
-	char* ip;
-	char* ep;
-	char* bp = getAS(procTup, &ep);
-
-	memset(info, 0, sizeof(ParseResultData));
-	info->buffer = bp;
-
-	/* The AS clause can have two formats
-	 *
-	 * <class name> "." <method name> [ "(" <parameter decl> ["," <parameter decl> ... ] ")" ]
-	 *   or
-	 * "UDT" "[" <class name> "]" <UDT function type>
-	 * where <UDT function type> is one of "input", "output", "receive" or "send"
-	 */
-	if(ep - bp >= 4 && strncasecmp(bp, "udt[", 4) == 0)
-	{
-		parseUDT(info, bp + 4, ep);
-		return;
-	}
-
-	info->isUDT = false;
-
-	/* Scan backwards from ep.
-	 */
-	ip = ep - 1;
-	if(*ip == ')')
-	{
-		/* We have an explicit parameter type declaration
-		 */
-		*ip-- = 0;
-		while(ip > bp && *ip != '(')
-			--ip;
-
-		if(ip == bp)
-		{
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("Unbalanced parenthesis")));
-		}
-
-		info->parameters = ip + 1;
-		*ip-- = 0;
-	}
-
-	/* Find last '.' occurrence.
-	*/
-	while(ip > bp && *ip != '.')
-		--ip;
-
-	if(ip == bp)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Did not find <fully qualified class>.<method name>")));
-	}
-	info->methodName = ip + 1;
-	*ip = 0;
-	
-	/* Check if we have a return type declaration
-	 */
-	while(--ip > bp)
-	{
-		if(*ip == '=')
-		{
-			info->className = ip + 1;
-			*ip = 0;
-			break;
-		}
-	}
-
-	if(info->className != 0)
-		info->returnType = bp;
-	else
-		info->className = bp;
-
-	elog(DEBUG3, "className = '%s', methodName = '%s', parameters = '%s', returnType = '%s'",
-		info->className == 0 ? "null" : info->className,
-		info->methodName == 0 ? "null" : info->methodName,
-		info->parameters == 0 ? "null" : info->parameters,
-		info->returnType == 0 ? "null" : info->returnType);
-}
-
 static jstring getSchemaName(int namespaceOid)
 {
 	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, namespaceOid, "namespace");
@@ -399,13 +239,10 @@ static jstring getSchemaName(int namespaceOid)
 	return schemaName;
 }
 
-static jclass Function_loadClass(
-	jstring schemaName, char const *className, jweak *loaderref);
-
 Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 {
-	ParseResultData info;
 	HeapTuple procTup;
+	Datum d;
 	Form_pg_proc procStruct;
 	Type t = NULL;
 	jstring schemaName;
@@ -419,19 +256,23 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 
 	/* typinput as good as any, all four had better be in same class */
 	procTup = PgObject_getValidTuple(PROCOID, typeStruct->typinput, "function");
-	parseFunction(&info, procTup);
-	if ( ! info.isUDT )
-		goto finally;
 
 	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 	schemaName = getSchemaName(procStruct->pronamespace);
-	clazz = Function_loadClass(schemaName, info.className, NULL);
-	JNI_deleteLocalRef(schemaName);
-	t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
 
-finally:
-	pfree(info.buffer);
+	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+
+	clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
+		schemaName);
+
+	pfree((void *)d);
+	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(procTup);
+
+	if ( NULL != clazz )
+		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
+
 	return t;
 }
 
@@ -502,38 +343,6 @@ static void Function_getMethodID(Function self, jstring methodNameJ)
 	pfree(methodName);
 }
 
-/*
- * Return a global ref to the loaded class. Store a weak global ref to the
- * initiating loader at *loaderref if non-null.
- */
-static jclass Function_loadClass(
-	jstring schemaName, char const *className, jweak *loaderref)
-{
-	jobject tmp;
-	jobject loader;
-	jstring classJstr;
-	jclass clazz;
-	/* Get the ClassLoader for the schema that this function belongs to
-	 */
-	loader = JNI_callStaticObjectMethod(s_Loader_class,
-		s_Loader_getSchemaLoader, schemaName);
-
-	elog(DEBUG2, "Loading class %s", className);
-	classJstr = String_createJavaStringFromNTS(className);
-
-	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, classJstr);
-
-	if ( NULL != loaderref )
-		*loaderref = JNI_newWeakGlobalRef(loader);
-
-	JNI_deleteLocalRef(loader);
-	JNI_deleteLocalRef(classJstr);
-
-	clazz = (jclass)JNI_newGlobalRef(tmp);
-	JNI_deleteLocalRef(tmp);
-	return clazz;
-}
-
 static Function Function_create(PG_FUNCTION_ARGS)
 {
 	Function self =
@@ -545,28 +354,23 @@ static Function Function_create(PG_FUNCTION_ARGS)
 		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
 	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
 	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
+	jstring schemaName;
 	Ptr2Long p2l;
+	Datum d;
 	jstring methodName;
 
 	p2l.longVal = 0;
 	p2l.ptrVal = (void *)self;
 
-#if 90305<=PG_VERSION_NUM || \
-	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
-	90114<=PG_VERSION_NUM && PG_VERSION_NUM<90200 || \
-	90018<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
-	80422<=PG_VERSION_NUM && PG_VERSION_NUM<90000
-	Datum d = heap_copy_tuple_as_datum(procTup,
-		Type_getTupleDesc(s_pgproc_Type, 0));
-#else
-#error "Need fallback for heap_copy_tuple_as_datum"
-#endif
+	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
+	schemaName = getSchemaName(procStruct->pronamespace);
 	methodName = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
 		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
-		getSchemaName(procStruct->pronamespace),
+		schemaName,
 		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
 	pfree((void *)d);
+	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(lngTup);
 	ReleaseSysCache(procTup);
 

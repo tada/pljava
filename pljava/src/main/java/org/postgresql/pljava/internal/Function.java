@@ -28,6 +28,17 @@ import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
 {
+	public static Class<? extends SQLData> getClassIfUDT(
+		ResultSet procTup, String schemaName)
+	throws SQLException
+	{
+		Matcher info = parse(procTup);
+		String className = info.group("udtcls");
+		if ( null == className )
+			return null;
+		return loadClass(schemaName, className).asSubclass(SQLData.class);
+	}
+
 	public static String create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger)
