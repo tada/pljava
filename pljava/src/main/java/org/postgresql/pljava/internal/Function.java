@@ -170,6 +170,40 @@ public class Function
 		if ( null != explicitSignature )
 			parseParameters( wrappedPtr, resolvedTypes, explicitSignature,
 				isMultiCall, returnTypeIsOutputParameter);
+
+		/* As in the original C setupFunctionParams, if an explicit Java return
+		 * type is included in the AS string, now compare it to the previously
+		 * resolved return type and adapt if they are different, like what
+		 * happened just above in parseParameters for the parameters. A close
+		 * look at parseParameters shows it can *also* have adjusted the return
+		 * type ... that happens in the case where a composite value is returned
+		 * using an appended OUT parameter and the actual function's return
+		 * type is boolean. If that happened, the resolved type examined here
+		 * will be the one parseParameters just put in - the actual type of the
+		 * appended parameter - and if an explicit return type was also given
+		 * in AS, that work just done will be overwritten by this to come.
+		 * The case is probably one that has never come up in practice; it's
+		 * probably not useful, but at the moment I am trying to duplicate the
+		 * original behavior.
+		 */
+
+		String explicitReturnType = info.group("ret");
+		if ( null != explicitReturnType )
+		{
+			String resolvedReturnType = resolvedTypes[resolvedTypes.length - 1];
+			if ( ! explicitReturnType.equals(resolvedReturnType) )
+			{
+				/* Once again overload the reconcileTypes native method with a
+				 * very slightly different behavior, this one keyed by index -2.
+				 * In this case, its explicitTypes parameter will be a one-
+				 * element array containing only the return type ... and the
+				 * coercer, if needed, will be constructed with getCoerceOut
+				 * instead of getCoerceIn.
+				 */
+				doInPG(() -> _reconcileTypes(wrappedPtr, resolvedTypes,
+					new String[] { explicitReturnType }, -2));
+			}
+		}
 	}
 
 	private static void parseParameters(

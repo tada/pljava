@@ -1208,8 +1208,17 @@ JNIEXPORT void JNICALL
 	 * reconciling the return type instead of a parameter type. This is
 	 * a bit convoluted in order to reproduce the behavior of the
 	 * original C parseParameters. The explicit return type is at numParams.
+	 * OR ... the Java code will pass -2 in a *different* case of adapting the
+	 * return type, which in this case is the only element in a length-one
+	 * explicitTypes array ... and in this case a coercer, if needed, will be
+	 * built with getCoerceOut instead of getCoerceIn. (The use of getCoerceIn
+	 * for the -1 case seems unconvincing; it is a faithful copy of what the
+	 * C parseParameters did, but applying it to the return type may have been
+	 * an oversight.) The resolvedTypes array in this case is still full length,
+	 * and the resulting return type name still goes at the end of it.
 	 */
-	bool actOnReturnType = ( -1 == index );
+	bool actOnReturnType = ( -1 == index ||  -2 == index );
+	bool coerceOutAndSingleton = ( -2 == index );
 
 	p2l.longVal = wrappedPtr;
 	self = (Function)p2l.ptrVal;
@@ -1229,13 +1238,21 @@ JNIEXPORT void JNICALL
 			typeId = Type_getOid(origType);
 		}
 
-		javaName =
-			String_createNTS(JNI_getObjectArrayElement(explicitTypes, index));
+		javaNameString = JNI_getObjectArrayElement(explicitTypes,
+			coerceOutAndSingleton ? 0 : index);
+
+		javaName = String_createNTS(javaNameString);
 
 		replType = Type_fromJavaType(typeId, javaName);
 		pfree(javaName);
+
 		if ( ! Type_canReplaceType(replType, origType) )
-			replType = Type_getCoerceIn(replType, origType);
+		{
+			if ( coerceOutAndSingleton )
+				replType = Type_getCoerceOut(replType, origType);
+			else
+				replType = Type_getCoerceIn(replType, origType);
+		}
 
 		if ( actOnReturnType )
 			self->func.nonudt.returnType = replType;
@@ -1244,6 +1261,7 @@ JNIEXPORT void JNICALL
 
 		javaNameString =
 			String_createJavaStringFromNTS(Type_getJavaTypeName(replType));
+
 		JNI_setObjectArrayElement(resolvedTypes, index, javaNameString);
 	}
 	PG_CATCH();
