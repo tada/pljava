@@ -28,15 +28,14 @@ import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
 {
-	public static Object create(
+	public static String create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger)
 	throws SQLException
 	{
 		Matcher info = parse(procTup);
 
-		init(wrappedPtr, info, procTup, schemaName, calledAsTrigger);
-		return null;
+		return init(wrappedPtr, info, procTup, schemaName, calledAsTrigger);
 	}
 
 	private static Matcher parse(ResultSet procTup) throws SQLException
@@ -45,22 +44,13 @@ public class Function
 
 		Matcher m = specForms.matcher(spec);
 		if ( ! m.matches() )
-		{
-			System.err.println("huh? " + spec);
-			return null;
-		}
+			throw new SQLSyntaxErrorException(
+				"cannot parse AS string", "42601");
 
-		say(m, "udtcls");
-		say(m, "udtfun");
-		say(m, "ret");
-		say(m, "cls");
-		say(m, "meth");
-		say(m, "sig");
-		System.err.println("----");
 		return m;
 	}
 
-	private static void init(
+	private static String init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger)
 		throws SQLException
@@ -82,7 +72,7 @@ public class Function
 		if ( isUDT )
 		{
 			setupUDT(wrappedPtr, info, procTup, clazz, readOnly);
-			return;
+			return null;
 		}
 
 		if ( calledAsTrigger )
@@ -96,6 +86,7 @@ public class Function
 				clazz, readOnly, typeMap);
 		}
 
+		return info.group("meth");
 		/* to do: build signature ... look up method ... store that. */
 	}
 
@@ -266,14 +257,6 @@ public class Function
 	}
 
 
-	private static void say(Matcher m, String grpname)
-	{
-		String s = m.group(grpname);
-		if ( null != s )
-			System.err.println(grpname+": "+s);
-	}
-
-
 	private static String getAS(ResultSet procTup) throws SQLException
 	{
 		String spec = procTup.getString("prosrc"); // has NOT NULL constraint
@@ -344,8 +327,6 @@ public class Function
 		if ( null != returnTypeIsOutParameter )
 			returnTypeIsOutParameter[0] = rtiop;
 
-		System.err.println(java.util.Arrays.toString(outJTypes));
-
 		return outJTypes;
 	}
 
@@ -361,6 +342,4 @@ public class Function
 
 	private static native void _reconcileTypes(
 		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);
-
-public static void main(String[] args) { }
 }

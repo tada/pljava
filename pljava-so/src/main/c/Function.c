@@ -203,7 +203,7 @@ void Function_initialize(void)
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
 		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
-		"Ljava/lang/Object;");
+		"Ljava/lang/String;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
 
@@ -226,110 +226,6 @@ static void buildSignature(Function self, StringInfo sign, Type retType, bool al
 
 	appendStringInfoChar(sign, ')');
 	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
-}
-
-/*
- * Called for a nonUDT function *after* nonudt.paramTypes and nonudt.returnType
- * have been set (using Type_fromOid and the Oids from the SQL declaration);
- * dfltIds are those same Oids, and paramDecl is the Java signature. This
- * function compares (textually) the Java type names from the Java signature
- * to Type_getJavaTypeName over the already chosen nonudt.paramTypes and, where
- * they differ, will replace the already chosen entry with a Type from the
- * Java type name (if it claims to replace the type originally chosen), or
- * a coercer type between the two. It does not concern itself with return types
- * of ordinary functions, but does, in the case represented by lastIsOut, where
- * there is an extra entry paramTypes[numParams] representing an OUT type.
- * Note: dfltIds and nonudt.paramTypes are both null if nonudt.numParams is
- * zero, which is ok because neither will be dereferenced in that case.
- */
-static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
-{
-	char c;
-	int idx = 0;
-	int top = self->func.nonudt.numParams;
-	bool lastIsOut = !self->func.nonudt.isMultiCall
-					&& Type_isOutParameter(self->func.nonudt.returnType);
-	StringInfoData sign;
-	Type deflt;
-	const char* jtName;
-	bool gotone = false;
-	for( ; ; ++ paramDecl )
-	{
-		c = *paramDecl;
-		/* all whitespace has already been stripped by getAS() */
-
-		if ( '\0' != c  &&  ',' != c )
-		{
-			if ( ! gotone ) /* first character of a param type has been seen. */
-			{
-				if(idx >= top)
-				{
-					if(!(lastIsOut && idx == top))
-						ereport(ERROR, (
-							errcode(ERRCODE_SYNTAX_ERROR),
-							errmsg("AS (Java): expected %d parameter types, "
-							       "found more", top)));
-				}
-				gotone = true;
-				initStringInfo(&sign);
-			}
-			appendStringInfoChar(&sign, c);
-			continue;
-		}
-
-		if ( ! gotone )
-		{
-			if ( '\0' == c )
-				break;
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("AS (Java): expected parameter type, found comma")));
-		}
-
-		/* so, got one. */
-		deflt = (idx == top)
-			? self->func.nonudt.returnType : self->func.nonudt.paramTypes[idx];
-		jtName = Type_getJavaTypeName(deflt);
-		if ( strcmp(jtName, sign.data) != 0 )
-		{
-			Oid did;
-			Type repl;
-			if(idx == top)
-				/*
-				 * Last parameter is the OUT parameter. It has no corresponding
-				 * entry in the dfltIds array.
-				 */
-				did = InvalidOid;
-			else
-				did = dfltIds[idx];
-
-			repl = Type_fromJavaType(did, sign.data);
-			if(!Type_canReplaceType(repl, deflt))
-				repl = Type_getCoerceIn(repl, deflt);
-
-			if(idx == top)
-				self->func.nonudt.returnType = repl;
-			else
-				self->func.nonudt.paramTypes[idx] = repl;
-		}
-		pfree(sign.data);
-
-		++idx;
-		if ( '\0' == c )
-			break;
-		gotone = false;
-	}
-
-    /*
-     * We are done.
-     */
-    if(lastIsOut)
-		++top;
-    if(idx != top)
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("AS (Java): expected %d parameter types, found fewer",
-				top)));
 }
 
 static char* getAS(HeapTuple procTup, char** epHolder)
@@ -503,61 +399,6 @@ static jstring getSchemaName(int namespaceOid)
 	return schemaName;
 }
 
-static void setupTriggerParams(Function self, ParseResult info)
-{
-	if(info->parameters != 0)
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Triggers can not have a java parameter declaration")));
-
-	self->func.nonudt.returnType = Type_fromJavaType(InvalidOid, "void");
-
-	/* Parameters are not used when calling triggers.
-		*/
-	self->func.nonudt.numParams  = 1;
-	self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(GetMemoryChunkContext(self), sizeof(Type));
-	self->func.nonudt.paramTypes[0] = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.TriggerData");
-}
-
-static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
-{
-	Oid udtId = 0;
-	HeapTuple typeTup;
-	Form_pg_type pgType;
-
-	if(strcasecmp("input", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_input;
-		udtId = procStruct->prorettype;
-	}
-	else if(strcasecmp("output", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_output;
-		udtId = PARAM_OIDS(procStruct)[0];
-	}
-	else if(strcasecmp("receive", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_receive;
-		udtId = procStruct->prorettype;
-	}
-	else if(strcasecmp("send", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_send;
-		udtId = PARAM_OIDS(procStruct)[0];
-	}
-	else
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Unknown UDT function %s", info->methodName)));
-	}
-
-	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
-	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->func.udt.udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
-	ReleaseSysCache(typeTup);
-}
-
 static jclass Function_loadClass(
 	jstring schemaName, char const *className, jweak *loaderref);
 
@@ -594,104 +435,17 @@ finally:
 	return t;
 }
 
-static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct)
+static void Function_getMethodID(Function self, jstring methodNameJ)
 {
-	Oid* paramOids;
-	MemoryContext ctx = GetMemoryChunkContext(self);
-	int32 top = (int32)procStruct->pronargs;;
-
-	self->func.nonudt.numParams = top;
-	self->func.nonudt.isMultiCall = procStruct->proretset;
-	self->func.nonudt.returnType = Type_fromOid(procStruct->prorettype, self->func.nonudt.typeMap);
-
-	if(top > 0)
-	{
-		int idx;
-		paramOids = PARAM_OIDS(procStruct);
-		self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
-
-		for(idx = 0; idx < top; ++idx)
-			self->func.nonudt.paramTypes[idx] = Type_fromOid(paramOids[idx], self->func.nonudt.typeMap);
-	}
-	else
-	{
-		self->func.nonudt.paramTypes = 0;
-		paramOids = 0;
-	}
-
-	if(info->parameters != 0)
-		parseParameters(self, paramOids, info->parameters);
-
-	if(info->returnType != 0)
-	{
-		const char* jtName = Type_getJavaTypeName(self->func.nonudt.returnType);
-		if(strcmp(jtName, info->returnType) != 0)
-		{
-			Type repl = Type_fromJavaType(Type_getOid(self->func.nonudt.returnType), info->returnType);
-			if(!Type_canReplaceType(repl, self->func.nonudt.returnType))
-				repl = Type_getCoerceOut(repl, self->func.nonudt.returnType);
-			self->func.nonudt.returnType = repl;
-		}
-	}
-}
-
-static void Function_init(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
-{
+	char *className = PgObject_getClassName(self->clazz);
+	char *methodName = String_createNTS(methodNameJ);
 	StringInfoData sign;
-
-	/* Get the name of the schema that this function belongs to
-	 */
-	jstring schemaName = getSchemaName(procStruct->pronamespace);
-
-	self->isUDT = info->isUDT;
-	if ( ! self->isUDT )
-	{
-		/* Install the type map for the current schema. This must be done ASAP
-		 * since many other functions (including obtaining the loader) depends
-		 * on it.
-		 */
-		jobject tmp = JNI_callStaticObjectMethod(s_Loader_class,
-			s_Loader_getTypeMap, schemaName);
-		self->func.nonudt.typeMap = JNI_newGlobalRef(tmp);
-		JNI_deleteLocalRef(tmp);
-	}
-
-	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
-
-	/*
-	 * This will be set down in Function_getFunction in every case, but
-	 * redundantly setting it here provides more diagnostic info if method
-	 * resolution doesn't go smoothly.
-	 */
-	currentInvocation->function = self;
-
-	self->clazz = Function_loadClass(
-		schemaName, info->className, &(self->schemaLoader));
-
-	JNI_deleteLocalRef(schemaName);
-
-	if(self->isUDT)
-	{
-		setupUDT(self, info, procStruct);
-		return;
-	}
-
-	if(CALLED_AS_TRIGGER(fcinfo))
-	{
-		self->func.nonudt.typeMap = 0;
-		setupTriggerParams(self, info);
-	}
-	else
-	{
-		setupFunctionParams(self, info, procStruct);
-	}
-
-
 	initStringInfo(&sign);
 	buildSignature(self, &sign, self->func.nonudt.returnType, false);
 
-	elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
+	elog(DEBUG2, "Obtaining method %s.%s %s", className, methodName, sign.data);
+	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz,
+		methodName, sign.data);
 
 	if(self->func.nonudt.method == 0)
 	{
@@ -699,7 +453,7 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 		Type altType = 0;
 		Type realRetType = self->func.nonudt.returnType;
 
-		elog(DEBUG2, "Method %s.%s %s not found", info->className, info->methodName, origSign);
+		elog(DEBUG2, "Method %s.%s %s not found", className, methodName, origSign);
 
 		if(Type_isPrimitive(self->func.nonudt.returnType))
 		{
@@ -729,19 +483,23 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 			initStringInfo(&sign);
 			buildSignature(self, &sign, altType, true);
 
-			elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-			self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
+			elog(DEBUG2, "Obtaining method %s.%s %s", className, methodName, sign.data);
+			self->func.nonudt.method =
+				JNI_getStaticMethodIDOrNull(self->clazz, methodName, sign.data);
 	
 			if(self->func.nonudt.method != 0)
 				self->func.nonudt.returnType = realRetType;
 		}
 		if(self->func.nonudt.method == 0)
-			PgObject_throwMemberError(self->clazz, info->methodName, origSign, true, true);
+			PgObject_throwMemberError(self->clazz, methodName, origSign,
+				true, true);
 
 		if(sign.data != origSign)
 			pfree(origSign);
 	}
 	pfree(sign.data);
+	pfree(className);
+	pfree(methodName);
 }
 
 /*
@@ -778,10 +536,7 @@ static jclass Function_loadClass(
 
 static Function Function_create(PG_FUNCTION_ARGS)
 {
-	ParseResultData info;
 	Function self =
-		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
-	Function self2 =
 		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
 	HeapTuple procTup =
 		PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
@@ -791,9 +546,10 @@ static Function Function_create(PG_FUNCTION_ARGS)
 	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
 	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
 	Ptr2Long p2l;
+	jstring methodName;
 
 	p2l.longVal = 0;
-	p2l.ptrVal = (void *)self2;
+	p2l.ptrVal = (void *)self;
 
 #if 90305<=PG_VERSION_NUM || \
 	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
@@ -806,30 +562,20 @@ static Function Function_create(PG_FUNCTION_ARGS)
 #error "Need fallback for heap_copy_tuple_as_datum"
 #endif
 
-	JNI_callStaticVoidMethod(s_Function_class, s_Function_create,
+	methodName = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
 		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
 		getSchemaName(procStruct->pronamespace),
 		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
 	pfree((void *)d);
 	ReleaseSysCache(lngTup);
+	ReleaseSysCache(procTup);
 
-	fprintf(stderr, "isUDT: %s\n", self2->isUDT ? "t" : "f");
-	if ( ! self2->isUDT )
+	if ( NULL != methodName )
 	{
-		int i;
-		fprintf(stderr, "isMultiCall: %s\n", self2->func.nonudt.isMultiCall ? "t" : "f");
-		fprintf(stderr, "returnType: %s\n",
-			Type_getJavaTypeName(self2->func.nonudt.returnType));
-		for ( i = 0 ; i < self2->func.nonudt.numParams ; ++ i )
-			fprintf(stderr, "paramType[%d]: %s\n", i,
-				Type_getJavaTypeName(self2->func.nonudt.paramTypes[i]));
+		Function_getMethodID(self, methodName);
+		JNI_deleteLocalRef(methodName);
 	}
 
-	parseFunction(&info, procTup);
-	Function_init(self, &info, procStruct, fcinfo);
-
-	pfree(info.buffer);
-	ReleaseSysCache(procTup);
 	return self;
 }
 
