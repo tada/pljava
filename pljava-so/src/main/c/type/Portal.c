@@ -106,7 +106,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_getPortalPos",
-	  	"(J)I",
+		"(J)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1getPortalPos
 		},
 		{
@@ -135,11 +135,6 @@ void Portal_initialize(void)
 	  	Java_org_postgresql_pljava_internal_Portal__1isAtStart
 		},
 		{
-		"_isPosOverflow",
-	  	"(J)Z",
-	  	Java_org_postgresql_pljava_internal_Portal__1isPosOverflow
-		},
-		{
 		"_move",
 		"(JJZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1move
@@ -161,17 +156,17 @@ void Portal_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _getPortalPos
- * Signature: (J)I
+ * Signature: (J)J
  */
-JNIEXPORT jint JNICALL
+JNIEXPORT jlong JNICALL
 Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass clazz, jlong _this)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		Ptr2Long p2l;
 		p2l.longVal = _this;
-		result = (jint)((Portal)p2l.ptrVal)->portalPos;
+		result = (jlong)((Portal)p2l.ptrVal)->portalPos;
 	}
 	return result;
 }
@@ -319,24 +314,6 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jclass clazz, 
 		Ptr2Long p2l;
 		p2l.longVal = _this;
 		result = (jboolean)((Portal)p2l.ptrVal)->atEnd;
-	}
-	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_Portal
- * Method:    _isPosOverflow
- * Signature: (J)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jclass clazz, jlong _this)
-{
-	jboolean result = JNI_FALSE;
-	if(_this != 0)
-	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->posOverflow;
 	}
 	return result;
 }

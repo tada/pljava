@@ -53,12 +53,17 @@ public class Portal
 	 * Returns the value of the <code>portalPos</code> attribute.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int getPortalPos()
+	public long getPortalPos()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getPortalPos(m_pointer);
+			long pos = _getPortalPos(m_pointer);
+			if ( pos < 0 )
+				throw new ArithmeticException(
+					"portal position too large to report " +
+					"in a Java signed long");
+			return pos;
 		}
 	}
 
@@ -126,19 +131,6 @@ public class Portal
 	}
 
 	/**
-	 * Returns the value of the <code>posOverflow</code> attribute.
-	 * @throws SQLException if the handle to the native structur is stale.
-	 */
-	public boolean isPosOverflow()
-	throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isPosOverflow(m_pointer);
-		}
-	}
-
-	/**
 	 * Checks if the portal is still active. I can be closed either explicitly
 	 * using the {@link #close()} mehtod or implicitly due to a pop of invocation
 	 * context.
@@ -173,7 +165,7 @@ public class Portal
 	private static native String _getName(long pointer)
 	throws SQLException;
 
-	private static native int _getPortalPos(long pointer)
+	private static native long _getPortalPos(long pointer)
 	throws SQLException;
 
 	private static native TupleDesc _getTupleDesc(long pointer)
@@ -188,9 +180,6 @@ public class Portal
 	throws SQLException;
 
 	private static native boolean _isAtStart(long pointer)
-	throws SQLException;
-	
-	private static native boolean _isPosOverflow(long pointer)
 	throws SQLException;
 
 	private static native long _move(long pointer, long threadId, boolean forward, long count)
