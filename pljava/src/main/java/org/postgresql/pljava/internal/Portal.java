@@ -83,12 +83,19 @@ public class Portal
 	 * @return The actual number of fetched rows.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int fetch(boolean forward, int count)
+	public long fetch(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _fetch(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
+			long fetched =
+				_fetch(m_pointer,
+					System.identityHashCode(Thread.currentThread()),
+					forward, count);
+			if ( fetched < 0 )
+				throw new ArithmeticException(
+					"fetched too many rows to report in a Java signed long");
+			return fetched;
 		}
 	}
 
@@ -145,15 +152,21 @@ public class Portal
 	 * Performs an <code>SPI_cursor_move</code>.
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
-	 * @return The value of the global variable <code>SPI_result</code>.
+	 * @return The actual number of rows moved.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int move(boolean forward, int count)
+	public long move(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _move(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
+			long moved = _move(m_pointer,
+				System.identityHashCode(Thread.currentThread()),
+				forward, count);
+			if ( moved < 0 )
+				throw new ArithmeticException(
+					"moved too many rows to report in a Java signed long");
+			return moved;
 		}
 	}
 
@@ -166,7 +179,7 @@ public class Portal
 	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private static native int _fetch(long pointer, long threadId, boolean forward, int count)
+	private static native long _fetch(long pointer, long threadId, boolean forward, long count)
 	throws SQLException;
 
 	private static native void _close(long pointer);
@@ -180,6 +193,6 @@ public class Portal
 	private static native boolean _isPosOverflow(long pointer)
 	throws SQLException;
 
-	private static native int _move(long pointer, long threadId, boolean forward, int count)
+	private static native long _move(long pointer, long threadId, boolean forward, long count)
 	throws SQLException;
 }

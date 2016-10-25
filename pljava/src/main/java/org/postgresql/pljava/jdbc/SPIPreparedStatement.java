@@ -389,10 +389,10 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		return new SPIParameterMetaData(this.getSqlTypes());
 	}
 
-	protected int executeBatchEntry(Object batchEntry)
+	protected long executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		int ret = SUCCESS_NO_INFO;
+		long ret = SUCCESS_NO_INFO;
 		Object batchParams[] = (Object[])batchEntry;
 		Object batchValues = batchParams[0];
 		Object batchSqlTypes = batchParams[1];
@@ -422,7 +422,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			this.getResultSet().close();
 		else
 		{
-			int updCount = this.getUpdateCount();
+			long updCount = this.getUpdateCount();
 			if(updCount >= 0)
 				ret = updCount;
 		}

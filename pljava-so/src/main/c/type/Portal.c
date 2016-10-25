@@ -116,7 +116,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_fetch",
-	  	"(JJZI)I",
+		"(JJZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1fetch
 		},
 		{
@@ -141,7 +141,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_move",
-	  	"(JJZI)I",
+		"(JJZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1move
 		},
 		{ 0, 0, 0 }
@@ -179,12 +179,12 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _fetch
- * Signature: (JJZI)I
+ * Signature: (JJZJ)J
  */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
@@ -195,8 +195,9 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		p2l.longVal = _this;
 		PG_TRY();
 		{
-			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE, (int)count);
-			result = (jint)SPI_processed;
+			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE,
+				(long)count);
+			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();
 		{
@@ -343,12 +344,12 @@ Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jclass c
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _move
- * Signature: (JJZI)I
+ * Signature: (JJZJ)J
  */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
@@ -359,8 +360,8 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 		p2l.longVal = _this;
 		PG_TRY();
 		{
-			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (int)count);
-			result = (jint)SPI_processed;
+			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (long)count);
+			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();
 		{

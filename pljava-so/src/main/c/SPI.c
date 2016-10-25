@@ -32,7 +32,7 @@ void SPI_initialize(void)
 		},
 		{
 		"_getProcessed",
-		"()I",
+		"()J",
 		Java_org_postgresql_pljava_internal_SPI__1getProcessed
 		},
 		{
@@ -97,12 +97,12 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong th
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _getProcessed
- * Signature: ()I
+ * Signature: ()J
  */
-JNIEXPORT jint JNICALL
+JNIEXPORT jlong JNICALL
 Java_org_postgresql_pljava_internal_SPI__1getProcessed(JNIEnv* env, jclass cls)
 {
-	return (jint)SPI_processed;
+	return (jlong)SPI_processed;
 }
 
 /*

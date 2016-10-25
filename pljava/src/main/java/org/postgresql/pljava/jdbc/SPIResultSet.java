@@ -29,7 +29,7 @@ public class SPIResultSet extends ResultSetBase
 	private final SPIStatement m_statement;
 	private final Portal    m_portal;
 	private final TupleDesc m_tupleDesc;
-	private final int       m_maxRows;
+	private final long      m_maxRows;
 
 	private Tuple m_currentRow;
 	private Tuple m_nextRow;
@@ -37,7 +37,7 @@ public class SPIResultSet extends ResultSetBase
 	private TupleTable m_table;
 	private int m_tableRow;
 
-	SPIResultSet(SPIStatement statement, Portal portal, int maxRows)
+	SPIResultSet(SPIStatement statement, Portal portal, long maxRows)
 	throws SQLException
 	{
 		super(statement.getFetchSize());
@@ -119,7 +119,7 @@ public class SPIResultSet extends ResultSetBase
 			if(portal.isAtEnd())
 				return null;
 
-			int mx;
+			long mx;
 			int fetchSize = this.getFetchSize();
 			if(m_maxRows > 0)
 			{
@@ -134,7 +134,7 @@ public class SPIResultSet extends ResultSetBase
 
 			try
 			{
-				int result = portal.fetch(true, mx);
+				long result = portal.fetch(true, mx);
 				if(result > 0)
 					m_table = SPI.getTupTable(m_tupleDesc);
 				m_tableRow = -1;

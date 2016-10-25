@@ -64,11 +64,15 @@ public class SPI
 	/**
 	 * Returns the value of the global variable <code>SPI_processed</code>.
 	 */
-	public static int getProcessed()
+	public static long getProcessed()
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getProcessed();
+			long count = _getProcessed();
+			if ( count < 0 )
+				throw new ArithmeticException(
+					"too many rows processed to count in a Java signed long");
+			return count;
 		}
 	}
 
@@ -172,7 +176,7 @@ public class SPI
 	}
 
 	private native static int _exec(long threadId, String command, int rowCount);
-	private native static int _getProcessed();
+	private native static long _getProcessed();
 	private native static int _getResult();
 	private native static void _freeTupTable();
 	private native static TupleTable _getTupTable(TupleDesc known);

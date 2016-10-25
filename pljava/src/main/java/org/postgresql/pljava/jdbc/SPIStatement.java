@@ -35,7 +35,7 @@ public class SPIStatement implements Statement
 	private int       m_fetchSize      = 1000;
 	private int       m_maxRows        = 0;
 	private ResultSet m_resultSet      = null;
-	private int       m_updateCount    = 0;
+	private long      m_updateCount    = 0;
 	private ArrayList m_batch          = null;
 	private boolean   m_closed         = false;
 
@@ -179,7 +179,23 @@ public class SPIStatement implements Statement
 		int numBatches = (m_batch == null) ? 0 : m_batch.size();
 		int[] result = new int[numBatches];
 		for(int idx = 0; idx < numBatches; ++idx)
+		{
+			long count = this.executeBatchEntry(m_batch.get(idx));
+			result[idx] = (count > Integer.MAX_VALUE)
+				? SUCCESS_NO_INFO : (int)count;
+		}
+		return result;
+	}
+
+	public long[] executeLargeBatch()
+	throws SQLException
+	{
+		int numBatches = (m_batch == null) ? 0 : m_batch.size();
+		long[] result = new long[numBatches];
+		for(int idx = 0; idx < numBatches; ++idx)
+		{
 			result[idx] = this.executeBatchEntry(m_batch.get(idx));
+		}
 		return result;
 	}
 
@@ -314,6 +330,15 @@ public class SPIStatement implements Statement
 	public int getUpdateCount()
 	throws SQLException
 	{
+		if ( m_updateCount > Integer.MAX_VALUE )
+			throw new ArithmeticException(
+				"too many rows updated to report in a Java signed int");
+		return (int)m_updateCount;
+	}
+
+	public long getLargeUpdateCount()
+	throws SQLException
+	{
 		return m_updateCount;
 	}
 
@@ -384,10 +409,10 @@ public class SPIStatement implements Statement
 		m_batch.add(batch);
 	}
 
-	protected int executeBatchEntry(Object batchEntry)
+	protected long executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		int ret = SUCCESS_NO_INFO;
+		long ret = SUCCESS_NO_INFO;
 		if(this.execute(m_connection.nativeSQL((String)batchEntry)))
 			this.getResultSet().close();
 		else if(m_updateCount >= 0)
