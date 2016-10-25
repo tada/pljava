@@ -415,7 +415,8 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	hasRow = Type_hasNextSRF(self, ctxData->rowProducer, ctxData->rowCollector, (jint)context->call_cntr);
+	hasRow = Type_hasNextSRF(self, ctxData->rowProducer, ctxData->rowCollector,
+		(jlong)context->call_cntr);
 
 	ctxData->hasConnected = currentInvocation->hasConnected;
 	ctxData->invocation   = currentInvocation->invocation;
@@ -629,7 +630,7 @@ static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return 0;
 }
 
-static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jint callCounter)
+static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
 {
 	return (JNI_callBooleanMethod(rowProducer, s_Iterator_hasNext) == JNI_TRUE);
 }
@@ -656,7 +657,7 @@ jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return self->typeClass->getSRFCollector(self, fcinfo);
 }
 
-bool Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jint callCounter)
+bool Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
 {
 	return self->typeClass->hasNextSRF(self, rowProducer, rowCollector, callCounter);
 }

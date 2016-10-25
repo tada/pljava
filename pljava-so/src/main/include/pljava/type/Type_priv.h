@@ -102,7 +102,7 @@ struct TypeClass_
 
 	jobject (*getSRFProducer)(Type self, jclass clazz, jmethodID method, jvalue* args);
 	jobject (*getSRFCollector)(Type self, PG_FUNCTION_ARGS);
-	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jint counter);
+	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jlong counter);
 	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
 	void (*closeSRF)(Type self, jobject producer);
 	const char* (*getJNISignature)(Type self);

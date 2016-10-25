@@ -54,6 +54,16 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include "access/htup_details.h"
 #endif
 
+/*
+ * PG_*_{MIN,MAX} macros (which happen, conveniently, to match Java's datatypes
+ * (the signed ones, anyway), appear in PG 9.5. Could test for them directly,
+ * but explicit version conditionals may be easier to find and prune when the
+ * back-compatibility horizon passes them. Here are only the ones being used.
+ */
+#if PG_VERSION_NUM < 90500
+#define PG_INT32_MAX    (0x7FFFFFFF)
+#endif
+
 
 /* The errorOccured will be set when a call from Java into one of the
  * backend functions results in a elog that causes a longjmp (Levels >= ERROR)

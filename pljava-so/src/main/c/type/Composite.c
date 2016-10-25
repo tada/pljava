@@ -133,15 +133,20 @@ static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return tmp2;
 }
 
-static bool _Composite_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jint callCounter)
+static bool _Composite_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
 {
 	/* Obtain next row using the RowCollector as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
+	if ( callCounter > PG_INT32_MAX )
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("the ResultSetProvider cannot return more than "
+					"INT32_MAX rows")));
 	return (JNI_callBooleanMethod(rowProducer,
 			s_ResultSetProvider_assignRowValues,
 			rowCollector,
-			callCounter) == JNI_TRUE);
+			(jint)callCounter) == JNI_TRUE);
 }
 
 static Datum _Composite_nextSRF(Type self, jobject rowProducer, jobject rowCollector)

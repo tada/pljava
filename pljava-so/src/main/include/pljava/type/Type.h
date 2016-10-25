@@ -215,7 +215,7 @@ extern jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS);
 /*
  * Called to determine if the producer will produce another row.
  */
-extern bool Type_hasNextSRF(Type self, jobject producer, jobject collector, jint counter);
+extern bool Type_hasNextSRF(Type self, jobject producer, jobject collector, jlong counter);
 
 /*
  * Converts the next row into a Datum of the expected type.
