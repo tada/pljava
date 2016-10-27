@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2009, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB - Thomas Hallgren
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <miscadmin.h>
@@ -177,6 +180,18 @@ static bool loadAsExtensionFailed = false;
 static bool seenVisualVMName;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 
+/*
+ * In a background worker, _PG_init may be called very early, before much of
+ * the state needed during PL/Java initialization has even been set up. When
+ * that case is detected, initsequencer needs to go just as far as
+ * IS_GUCS_REGISTERED and then bail. The GUC assign hooks may then also be
+ * invoked as GUC values get copied from the lead process; they also need to
+ * return quickly (accomplished by checking this flag in ASSIGNRETURNIFNXACT).
+ * Further initialization is thus deferred until the first actual call arrives
+ * at the call handler, which resets this flag and rejoins the initsequencer.
+ */
+static bool deferInitInBGW = false;
+
 static void initsequencer(enum initstage is, bool tolerant);
 
 #if PG_VERSION_NUM >= 90100
@@ -278,7 +293,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNRETURN(thing) return (thing)
 #define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
 #define ASSIGNRETURNIFNXACT(thing) \
-	if (pljavaViableXact()) ; else return (thing)
+	if (! deferInitInBGW && pljavaViableXact()) ; else return (thing)
 #define ASSIGNSTRINGHOOK(name) \
 	static const char * \
 	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
@@ -292,7 +307,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	CppConcat(assign_,name)(type newval, void *extra)
 #define ASSIGNRETURN(thing)
 #define ASSIGNRETURNIFCHECK(thing)
-#define ASSIGNRETURNIFNXACT(thing) if (pljavaViableXact()) ; else return
+#define ASSIGNRETURNIFNXACT(thing) \
+	if (! deferInitInBGW && pljavaViableXact()) ; else return
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
@@ -302,8 +318,8 @@ ASSIGNSTRINGHOOK(libjvm_location)
 	libjvmlocation = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_CAND_JVMOPENED )
 	{
-		alteredSettingsWereNeeded = true;
 		ASSIGNRETURNIFNXACT(newval);
+		alteredSettingsWereNeeded = true;
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -315,8 +331,8 @@ ASSIGNSTRINGHOOK(vmoptions)
 	vmoptions = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
-		alteredSettingsWereNeeded = true;
 		ASSIGNRETURNIFNXACT(newval);
+		alteredSettingsWereNeeded = true;
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -328,8 +344,8 @@ ASSIGNSTRINGHOOK(classpath)
 	classpath = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
-		alteredSettingsWereNeeded = true;
 		ASSIGNRETURNIFNXACT(newval);
+		alteredSettingsWereNeeded = true;
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(newval);
@@ -341,8 +357,8 @@ ASSIGNHOOK(enabled, bool)
 	pljavaEnabled = newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_PLJAVA_ENABLED )
 	{
-		alteredSettingsWereNeeded = true;
 		ASSIGNRETURNIFNXACT(true);
+		alteredSettingsWereNeeded = true;
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(true);
@@ -393,6 +409,8 @@ static void initsequencer(enum initstage is, bool tolerant)
 	case IS_FORMLESS_VOID:
 		registerGUCOptions();
 		initstage = IS_GUCS_REGISTERED;
+		if ( deferInitInBGW )
+			return;
 
 	case IS_GUCS_REGISTERED:
 		if ( NULL == libjvmlocation )
@@ -744,7 +762,10 @@ void _PG_init()
 {
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
-	pljavaCheckExtension( NULL);
+	if ( InstallHelper_inBackgroundWorker() )
+		deferInitInBGW = true;
+	else
+		pljavaCheckExtension( NULL);
 	initsequencer( initstage, true);
 }
 
@@ -1473,6 +1494,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		= fcinfo->flinfo->fn_oid;
 	if ( IS_COMPLETE != initstage )
 	{
+		deferInitInBGW = false;
 		initsequencer( initstage, false);
 
 		/* Force initial setting
