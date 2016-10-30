@@ -1,8 +1,9 @@
 # PL/Java in parallel query or background worker
 
-PL/Java can be used in some [background worker processes][bgworker] as
-introduced in PostgreSQL 9.3, and in [parallel queries][parq], from
-PostgreSQL 9.6, with some restrictions.
+With some restrictions, PL/Java can be used in [parallel queries][parq], from
+PostgreSQL 9.6, and in some [background worker processes][bgworker] (as
+introduced in PostgreSQL 9.3, though 9.5 or later is needed for support
+in PL/Java).
 
 [bgworker]: https://www.postgresql.org/docs/current/static/bgworker.html
 [parq]: https://www.postgresql.org/docs/current/static/parallel-query.html

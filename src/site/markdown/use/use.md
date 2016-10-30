@@ -37,7 +37,8 @@ internal PL/Java classes that may change from release to release.
 
 ### Parallel query
 
-PostgreSQL 9.3 introduced [background worker processes][bgworker],
+PostgreSQL 9.3 introduced [background worker processes][bgworker]
+(though at least PostgreSQL 9.5 is needed for support in PL/Java),
 and PostgreSQL 9.6 introduced [parallel query][parq].
 
 For details on PL/Java in a background worker or parallel query, see

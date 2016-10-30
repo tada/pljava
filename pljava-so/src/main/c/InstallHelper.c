@@ -149,10 +149,11 @@ char *pljavaDbName()
 static char *origUserName()
 {
 #ifdef BGW_HAS_NO_MYPROCPORT
-	char *shortlived;
-	static char *longlived;
 	if ( IsBackgroundWorker )
 	{
+#if PG_VERSION_NUM >= 90500
+		char *shortlived;
+		static char *longlived;
 		if ( NULL == longlived )
 		{
 			shortlived = GetUserNameFromId(GetAuthenticatedUserId(), false);
@@ -160,6 +161,14 @@ static char *origUserName()
 			pfree(shortlived);
 		}
 		return longlived;
+#else
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg("PL/Java in a background worker not supported "
+				"in this PostgreSQL version"),
+			errhint("PostgreSQL 9.5 is the first version to support "
+				"PL/Java in a background worker.")));
+#endif
 	}
 #endif
 	return MyProcPort->user_name;
