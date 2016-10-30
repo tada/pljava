@@ -150,16 +150,17 @@ category</a>
 	/** 
 	 * Whether the function is UNSAFE to use in any parallel query plan at all
 	 * (the default), or avoids all disqualifying operations and so is SAFE to
-	 * execute anywhere in a parallel plan, or, by avoiding some such
+	 * execute anywhere in a parallel plan, or, by avoiding <em>some</em> such
 	 * operations, may appear in parallel plans but RESTRICTED to execute only
 	 * on the parallel group leader. The operations that must be considered are
 	 * set out in <a href=
 'https://www.postgresql.org/docs/current/static/parallel-safety.html#PARALLEL-LABELING'
 >Parallel Labeling for Functions and Aggregates</a> in the PostgreSQL docs.
-	 * PL/Java itself can perform such operations internally; a thorough code
-	 * audit would be needed to learn when, if ever, a PL/Java function could
-	 * appropriately be declared anything but the default UNSAFE.
-	 *
+	 *<p>
+	 * For much more on the practicalities of parallel query and PL/Java,
+	 * please see <a href=
+'../../../../../../use/parallel.html'>the users' guide</a>.
+	 *<p>
 	 * Appeared in 9.6.
 	 */
 	Parallel parallel() default Parallel.UNSAFE;

@@ -35,6 +35,17 @@ internal PL/Java classes that may change from release to release.
 
 ## Special topics
 
+### Parallel query
+
+PostgreSQL 9.3 introduced [background worker processes][bgworker],
+and PostgreSQL 9.6 introduced [parallel query][parq].
+
+For details on PL/Java in a background worker or parallel query, see
+[PL/Java in parallel query](parallel.html).
+
+[bgworker]: https://www.postgresql.org/docs/current/static/bgworker.html
+[parq]: https://www.postgresql.org/docs/current/static/parallel-query.html
+
 ### Character-set encodings
 
 PL/Java will work most seamlessly when the server encoding in PostgreSQL is
