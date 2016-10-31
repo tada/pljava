@@ -64,6 +64,8 @@ extern bool InstallHelper_isPLJavaFunction(Oid fn);
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.
+ * In a background worker, there's no MyProcPort, and the name is found another
+ * way and strdup'd in TopMemoryContext, it'll keep, don't bother freeing it.
  */
 extern char *pljavaDbName();
 
@@ -102,6 +104,15 @@ extern char const *InstallHelper_defaultClassPath(char *);
  * recognize the ABORT_PENDING cases.
  */
 extern bool pljavaViableXact();
+
+/*
+ * Backend's initsequencer needs to know whether it's being called in a 9.3+
+ * background worker process (the init sequence has to change). That should be
+ * a simple test of IsBackgroundWorker except (wouldn't you know) for more
+ * version-specific Windows visibility issues, so the ugly details are in
+ * InstallHelper, and Backend just asks this nice function.
+ */
+extern bool InstallHelper_inBackgroundWorker();
 
 extern char *InstallHelper_hello();
 

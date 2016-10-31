@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -29,7 +35,7 @@ public class SPIResultSet extends ResultSetBase
 	private final SPIStatement m_statement;
 	private final Portal    m_portal;
 	private final TupleDesc m_tupleDesc;
-	private final int       m_maxRows;
+	private final long      m_maxRows;
 
 	private Tuple m_currentRow;
 	private Tuple m_nextRow;
@@ -37,7 +43,7 @@ public class SPIResultSet extends ResultSetBase
 	private TupleTable m_table;
 	private int m_tableRow;
 
-	SPIResultSet(SPIStatement statement, Portal portal, int maxRows)
+	SPIResultSet(SPIStatement statement, Portal portal, long maxRows)
 	throws SQLException
 	{
 		super(statement.getFetchSize());
@@ -119,7 +125,7 @@ public class SPIResultSet extends ResultSetBase
 			if(portal.isAtEnd())
 				return null;
 
-			int mx;
+			long mx;
 			int fetchSize = this.getFetchSize();
 			if(m_maxRows > 0)
 			{
@@ -134,7 +140,7 @@ public class SPIResultSet extends ResultSetBase
 
 			try
 			{
-				int result = portal.fetch(true, mx);
+				long result = portal.fetch(true, mx);
 				if(result > 0)
 					m_table = SPI.getTupTable(m_tupleDesc);
 				m_tableRow = -1;

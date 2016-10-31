@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2007, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -389,10 +394,10 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		return new SPIParameterMetaData(this.getSqlTypes());
 	}
 
-	protected int executeBatchEntry(Object batchEntry)
+	protected long executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		int ret = SUCCESS_NO_INFO;
+		long ret = SUCCESS_NO_INFO;
 		Object batchParams[] = (Object[])batchEntry;
 		Object batchValues = batchParams[0];
 		Object batchSqlTypes = batchParams[1];
@@ -422,7 +427,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			this.getResultSet().close();
 		else
 		{
-			int updCount = this.getUpdateCount();
+			long updCount = this.getUpdateCount();
 			if(updCount >= 0)
 				ret = updCount;
 		}

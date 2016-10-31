@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <executor/spi.h>
@@ -218,11 +222,11 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 		TupleDesc self = (TupleDesc)p2l.ptrVal;
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
-		char*  nulls   = palloc(count);
+		bool*  nulls   = palloc(count * sizeof(bool));
 		jobject typeMap = Invocation_getTypeMap();
 
 		memset(values, 0,  count * sizeof(Datum));
-		memset(nulls, 'n', count);	/* all values null initially */
+		memset(nulls, true, count * sizeof(bool));/*all values null initially*/
 	
 		for(idx = 0; idx < count; ++idx)
 		{
@@ -231,12 +235,12 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 			{
 				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1), typeMap);
 				values[idx] = Type_coerceObject(type, value);
-				nulls[idx] = ' ';
+				nulls[idx] = false;
 			}
 		}
 
 		curr = MemoryContextSwitchTo(JavaMemoryContext);
-		tuple = heap_formtuple(self, values, nulls);
+		tuple = heap_form_tuple(self, values, nulls);
 		result = Tuple_internalCreate(tuple, false);
 		MemoryContextSwitchTo(curr);
 		pfree(values);

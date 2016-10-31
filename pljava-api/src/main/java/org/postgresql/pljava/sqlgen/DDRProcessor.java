@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1226,6 +1226,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Security       security() { return _security; }
 		public Effects         effects() { return _effects; }
 		public Trust             trust() { return _trust; }
+		public Parallel       parallel() { return _parallel; }
 		public boolean       leakproof() { return _leakproof; }
 		public int                cost() { return _cost; }
 		public int                rows() { return _rows; }
@@ -1243,6 +1244,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Security    _security;
 		public Effects     _effects;
 		public Trust       _trust;
+		public Parallel    _parallel;
 		public Boolean     _leakproof;
 		int                _cost;
 		int                _rows;
@@ -1490,6 +1492,8 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( "\tRETURNS NULL ON NULL INPUT\n");
 			if ( Security.DEFINER.equals( security()) )
 				sb.append( "\tSECURITY DEFINER\n");
+			if ( ! Parallel.UNSAFE.equals( parallel()) )
+				sb.append( "\tPARALLEL ").append( parallel()).append( '\n');
 			if ( -1 != cost() )
 				sb.append( "\tCOST ").append( cost()).append( '\n');
 			if ( -1 != rows() )
@@ -1583,6 +1587,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			_security = Security.INVOKER;
 			_effects = Effects.VOLATILE;
 			_trust = Trust.SANDBOXED;
+			_parallel = Parallel.UNSAFE;
 			_leakproof = false;
 			_settings = new String[0];
 			_triggers = new Trigger[0];

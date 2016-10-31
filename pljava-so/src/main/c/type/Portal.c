@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2008, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <commands/portalcmds.h>
@@ -106,7 +109,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_getPortalPos",
-	  	"(J)I",
+		"(J)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1getPortalPos
 		},
 		{
@@ -116,7 +119,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_fetch",
-	  	"(JJZI)I",
+		"(JJZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1fetch
 		},
 		{
@@ -135,13 +138,8 @@ void Portal_initialize(void)
 	  	Java_org_postgresql_pljava_internal_Portal__1isAtStart
 		},
 		{
-		"_isPosOverflow",
-	  	"(J)Z",
-	  	Java_org_postgresql_pljava_internal_Portal__1isPosOverflow
-		},
-		{
 		"_move",
-	  	"(JJZI)I",
+		"(JJZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1move
 		},
 		{ 0, 0, 0 }
@@ -161,17 +159,17 @@ void Portal_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _getPortalPos
- * Signature: (J)I
+ * Signature: (J)J
  */
-JNIEXPORT jint JNICALL
+JNIEXPORT jlong JNICALL
 Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass clazz, jlong _this)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		Ptr2Long p2l;
 		p2l.longVal = _this;
-		result = (jint)((Portal)p2l.ptrVal)->portalPos;
+		result = (jlong)((Portal)p2l.ptrVal)->portalPos;
 	}
 	return result;
 }
@@ -179,12 +177,12 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _fetch
- * Signature: (JJZI)I
+ * Signature: (JJZJ)J
  */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
@@ -195,8 +193,9 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		p2l.longVal = _this;
 		PG_TRY();
 		{
-			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE, (int)count);
-			result = (jint)SPI_processed;
+			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE,
+				(long)count);
+			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();
 		{
@@ -324,31 +323,13 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jclass clazz, 
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
- * Method:    _isPosOverflow
- * Signature: (J)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_internal_Portal__1isPosOverflow(JNIEnv* env, jclass clazz, jlong _this)
-{
-	jboolean result = JNI_FALSE;
-	if(_this != 0)
-	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->posOverflow;
-	}
-	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _move
- * Signature: (JJZI)I
+ * Signature: (JJZJ)J
  */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jint count)
+JNIEXPORT jlong JNICALL
+Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
 {
-	jint result = 0;
+	jlong result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
@@ -359,8 +340,8 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 		p2l.longVal = _this;
 		PG_TRY();
 		{
-			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (int)count);
-			result = (jint)SPI_processed;
+			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (long)count);
+			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();
 		{

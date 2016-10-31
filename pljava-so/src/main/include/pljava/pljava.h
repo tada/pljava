@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #ifndef __pljava_pljava_h
 #define __pljava_pljava_h
@@ -52,6 +56,16 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  */
 #if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
+#endif
+
+/*
+ * PG_*_{MIN,MAX} macros (which happen, conveniently, to match Java's datatypes
+ * (the signed ones, anyway), appear in PG 9.5. Could test for them directly,
+ * but explicit version conditionals may be easier to find and prune when the
+ * back-compatibility horizon passes them. Here are only the ones being used.
+ */
+#if PG_VERSION_NUM < 90500
+#define PG_INT32_MAX    (0x7FFFFFFF)
 #endif
 
 

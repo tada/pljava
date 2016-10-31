@@ -65,6 +65,28 @@
 #endif
 #endif
 
+/*
+ * Before 9.3, there was no IsBackgroundWorker. As of 9.6.1 it still does not
+ * have PGDLLIMPORT, but MyBgworkerEntry != NULL can be used in MSVC instead.
+ * However, until 9.3.3, even that did not have PGDLLIMPORT, and there's not
+ * much to be done about it. BackgroundWorkerness won't be detected in MSVC
+ * for 9.3.0 through 9.3.2.
+ *
+ * One thing it's needed for is to avoid dereferencing MyProcPort in a
+ * background worker, where it's not set. Define BGW_HAS_NO_MYPROCPORT if that
+ * has to be (and can be) checked.
+ */
+#if PG_VERSION_NUM < 90300  ||  defined(_MSC_VER) && PG_VERSION_NUM < 90303
+#define IsBackgroundWorker false
+#else
+#define BGW_HAS_NO_MYPROCPORT
+#include <commands/dbcommands.h>
+#if defined(_MSC_VER)
+#include <postmaster/bgworker.h>
+#define IsBackgroundWorker (MyBgworkerEntry != NULL)
+#endif
+#endif
+
 #ifndef PLJAVA_SO_VERSION
 #error "PLJAVA_SO_VERSION needs to be defined to compile this file."
 #else
@@ -87,6 +109,7 @@ static bool extensionExNihilo = false;
 
 static void checkLoadPath( bool *livecheck);
 static void getExtensionLoadPath();
+static char *origUserName();
 
 char const *pljavaLoadPath = NULL;
 
@@ -103,7 +126,52 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
+#ifdef BGW_HAS_NO_MYPROCPORT
+	char *shortlived;
+	static char *longlived;
+	if ( IsBackgroundWorker )
+	{
+		if ( NULL == longlived )
+		{
+			shortlived = get_database_name(MyDatabaseId);
+			if ( NULL != shortlived )
+			{
+				longlived = MemoryContextStrdup(TopMemoryContext, shortlived);
+				pfree(shortlived);
+			}
+		}
+		return longlived;
+	}
+#endif
 	return MyProcPort->database_name;
+}
+
+static char *origUserName()
+{
+#ifdef BGW_HAS_NO_MYPROCPORT
+	if ( IsBackgroundWorker )
+	{
+#if PG_VERSION_NUM >= 90500
+		char *shortlived;
+		static char *longlived;
+		if ( NULL == longlived )
+		{
+			shortlived = GetUserNameFromId(GetAuthenticatedUserId(), false);
+			longlived = MemoryContextStrdup(TopMemoryContext, shortlived);
+			pfree(shortlived);
+		}
+		return longlived;
+#else
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg("PL/Java in a background worker not supported "
+				"in this PostgreSQL version"),
+			errhint("PostgreSQL 9.5 is the first version to support "
+				"PL/Java in a background worker.")));
+#endif
+	}
+#endif
+	return MyProcPort->user_name;
 }
 
 char const *pljavaClusterName()
@@ -327,6 +395,11 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 	return probinstring;
 }
 
+bool InstallHelper_inBackgroundWorker()
+{
+	return IsBackgroundWorker;
+}
+
 bool InstallHelper_isPLJavaFunction(Oid fn)
 {
 	char *itsPath;
@@ -401,8 +474,8 @@ char *InstallHelper_hello()
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
-	user = String_createJavaStringFromNTS(MyProcPort->user_name);
-	dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
+	user = String_createJavaStringFromNTS(origUserName());
+	dbname = String_createJavaStringFromNTS(pljavaDbName());
 	if ( '\0' == *clusternameC )
 		clustername = NULL;
 	else
