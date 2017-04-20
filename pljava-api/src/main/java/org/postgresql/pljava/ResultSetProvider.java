@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2017 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -33,7 +33,8 @@ public interface ResultSetProvider
 	 * is a {@code SingleRowWriter}
 	 * writer instance that is used for capturing the data for the row.
 	 * @param receiver Receiver of values for the given row.
-	 * @param currentRow Row number. First call will have row number 0.
+	 * @param currentRow Row number, zero on the first call, incremented by one
+	 * on each subsequent call.
 	 * @return <code>true</code> if a new row was provided, <code>false</code>
 	 * if not (end of data).
 	 * @throws SQLException
