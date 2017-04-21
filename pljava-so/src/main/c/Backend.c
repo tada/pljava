@@ -189,8 +189,10 @@ static char const visualVMprefix[] = "-Dvisualvm.display.name=";
  * return quickly (accomplished by checking this flag in ASSIGNRETURNIFNXACT).
  * Further initialization is thus deferred until the first actual call arrives
  * at the call handler, which resets this flag and rejoins the initsequencer.
+ * The same lazy approach needs to be followed during a pg_upgrade (which test-
+ * loads libraries, thus calling _PG_init). This flag is set for either case.
  */
-static bool deferInitInBGW = false;
+static bool deferInit = false;
 
 static void initsequencer(enum initstage is, bool tolerant);
 
@@ -293,7 +295,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNRETURN(thing) return (thing)
 #define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
 #define ASSIGNRETURNIFNXACT(thing) \
-	if (! deferInitInBGW && pljavaViableXact()) ; else return (thing)
+	if (! deferInit && pljavaViableXact()) ; else return (thing)
 #define ASSIGNSTRINGHOOK(name) \
 	static const char * \
 	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
@@ -308,7 +310,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNRETURN(thing)
 #define ASSIGNRETURNIFCHECK(thing)
 #define ASSIGNRETURNIFNXACT(thing) \
-	if (! deferInitInBGW && pljavaViableXact()) ; else return
+	if (! deferInit && pljavaViableXact()) ; else return
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
@@ -409,7 +411,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 	case IS_FORMLESS_VOID:
 		registerGUCOptions();
 		initstage = IS_GUCS_REGISTERED;
-		if ( deferInitInBGW )
+		if ( deferInit )
 			return;
 
 	case IS_GUCS_REGISTERED:
@@ -762,8 +764,8 @@ void _PG_init()
 {
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
-	if ( InstallHelper_inBackgroundWorker() )
-		deferInitInBGW = true;
+	if ( InstallHelper_shouldDeferInit() )
+		deferInit = true;
 	else
 		pljavaCheckExtension( NULL);
 	initsequencer( initstage, true);
@@ -1494,7 +1496,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 		= fcinfo->flinfo->fn_oid;
 	if ( IS_COMPLETE != initstage )
 	{
-		deferInitInBGW = false;
+		deferInit = false;
 		initsequencer( initstage, false);
 
 		/* Force initial setting
