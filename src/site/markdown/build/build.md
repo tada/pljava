@@ -130,6 +130,12 @@ to [try out PL/Java in PostgreSQL][inst].
 
 [inst]: ../install/install.html
 
+### PostgreSQL version to build against
+
+If several versions of PostgreSQL are installed on the build host, select
+the one to be built for by adding the full path of its `pg_config` executable
+with `-Dpgsql.pgconfig=` on the `mvn` command line.
+
 ### I know PostgreSQL and PGXS. Explain Maven!
 
 [Maven][mvn] is a widely used tool for building and maintaining projects in
