@@ -107,12 +107,13 @@ extern bool pljavaViableXact();
 
 /*
  * Backend's initsequencer needs to know whether it's being called in a 9.3+
- * background worker process (the init sequence has to change). That should be
- * a simple test of IsBackgroundWorker except (wouldn't you know) for more
+ * background worker process, or during a pg_upgrade (in either case, the
+ * init sequence needs to be lazier). Those should both be simple tests of
+ * IsBackgroundWorker or IsBinaryUpgrade, except (wouldn't you know) for more
  * version-specific Windows visibility issues, so the ugly details are in
  * InstallHelper, and Backend just asks this nice function.
  */
-extern bool InstallHelper_inBackgroundWorker();
+extern bool InstallHelper_shouldDeferInit();
 
 extern char *InstallHelper_hello();
 

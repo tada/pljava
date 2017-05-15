@@ -143,7 +143,7 @@ things right on the first try, you might set them after, too.) For example:
 
 [sqjij]: https://github.com/tada/pljava/wiki/SQL-functions
 
-Those two are not the only PL/Java configuration variables there are,
+Those three are not the only PL/Java configuration variables there are,
 but it is unlikely you would have to change any others before installation
 succeeds. For the rest, there is a [configuration variable reference][varref]
 page.
@@ -195,42 +195,10 @@ PL/Java performs an upgrade installation if there is already an `sqlj` schema
 with tables that match a known PL/Java schema from version 1.3.0 or later. It
 will convert, preserving data, to the current schema if necessary.
 
-*Remember that PL/Java runs independently
-in each database session where it is in use. Older PL/Java versions active in
-other sessions can be disrupted by the schema change.*
+A database cluster using PL/Java can be binary-upgraded using `pg_upgrade`
+when certain requirements are met.
 
-A trial installation of a PL/Java update can be done in a transaction, and
-rolled back if desired, leaving the schema as it was. Any concurrent sessions
-with active older PL/Java versions will not be disrupted by the altered schema
-as long as the transaction remains open, *but they may block for the duration,
-so whatever testing will be done within the transaction should be done quickly
-if that could be an issue*.
-
-$h3 Upgrading, outside the extension framework
-
-On PostgreSQL pre-9.1, or whenever PL/Java has not been installed
-with `CREATE EXTENSION`, it can be updated with a `LOAD` command just
-as in a fresh installation. This must be done in a fresh session (in
-which nothing has caused PL/Java to load since establishing the connection).
-
-$h3 Upgrading, within the extension framework
-
-On PostgreSQL 9.1 or later where PL/Java has been installed with
-`CREATE EXTENSION`, it can be updated with
-[`ALTER EXTENSION pljava UPDATE`][aeu], as long as
-`SELECT * FROM pg_extension_update_paths('pljava')` shows a one-step path
-from the version currently installed to the version desired.
-
-[aeu]: http://www.postgresql.org/docs/current/static/sql-alterextension.html
-
-As with the `LOAD` method, an `ALTER EXTENSION ... UPDATE` must be done
-in a fresh session, before anything has loaded PL/Java; this also precludes
-an update with a multi-step path in a single command, but the intent is to
-always provide a one-step path between _released_ versions.
-
-If you will be following development (`SNAPSHOT`) versions, the installation
-method using `LOAD` may be simpler, as updates between snapshots with the
-same version string make no sense to the extension framework.
+For more on both procedures, see [Upgrading](upgrade.html).
 
 $h2 Usage permission
 

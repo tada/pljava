@@ -66,6 +66,16 @@
 #endif
 
 /*
+ * Before 9.1, there was no IsBinaryUpgrade. Before 9.5, it did not have
+ * PGDLLIMPORT and so was not visible in Windows. In either case, just define
+ * it to be false; Windows users may have trouble using pg_upgrade to versions
+ * earlier than 9.5, but with the current version being 9.6 that should be rare.
+ */
+#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
+#define IsBinaryUpgrade false
+#endif
+
+/*
  * Before 9.3, there was no IsBackgroundWorker. As of 9.6.1 it still does not
  * have PGDLLIMPORT, but MyBgworkerEntry != NULL can be used in MSVC instead.
  * However, until 9.3.3, even that did not have PGDLLIMPORT, and there's not
@@ -395,9 +405,9 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 	return probinstring;
 }
 
-bool InstallHelper_inBackgroundWorker()
+bool InstallHelper_shouldDeferInit()
 {
-	return IsBackgroundWorker;
+	return IsBackgroundWorker || IsBinaryUpgrade;
 }
 
 bool InstallHelper_isPLJavaFunction(Oid fn)
