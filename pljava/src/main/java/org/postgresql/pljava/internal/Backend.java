@@ -266,8 +266,8 @@ public class Backend
 		try
 		{
 			Logger log = Logger.getAnonymousLogger();
-			if(log.isLoggable(Level.FINE))
-				log.fine("Using SecurityManager for " + (trusted ? "trusted" : "untrusted") + " language");
+			if(log.isLoggable(Level.FINER))
+				log.finer("Using SecurityManager for " + (trusted ? "trusted" : "untrusted") + " language");
 			System.setSecurityManager(trusted ? s_trustedSecurityManager : s_untrustedSecurityManager);
 		}
 		finally
