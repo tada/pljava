@@ -19,6 +19,25 @@ import java.lang.annotation.Target;
 /**
  * Annotation, only used in {@link Function#triggers @Function(triggers=...)},
  * to specify what trigger(s) the function will be called for.
+ *<p>
+ * Transition tables ({@link #tableOld} and {@link #tableNew}) appear in
+ * PostgreSQL 10. If a trigger is declared with
+ * {@code tableOld="oo", tableNew="nn"}, then the trigger function can query
+ * {@code oo} and {@code nn} as if they are actual tables with the same
+ * columns as the table responsible for the trigger, and containing the affected
+ * rows before and after the changes. Only an AFTER trigger can have transition
+ * tables. An UPDATE will populate both tables. INSERT will not populate the
+ * old table, and DELETE will not populate the new table. It is an error to
+ * specify either table if {@code events} does not include at least one event
+ * that could populate that table. As long as at least one such event is
+ * included, the table can be specified, and will simply have no rows if the
+ * trigger is invoked for an event that does not populate it.
+ *<p>
+ * In an after-statement trigger, the transition tables include all rows
+ * affected by the statement. In an after-row trigger, the same is true:
+ * after-row triggers are all queued until the statement completes, and then
+ * the function will be invoked for each row that was affected, but will see
+ * the complete transition tables on each invocation.
  * @author Thomas Hallgren
  */
 @Target({}) @Retention(RetentionPolicy.CLASS)
@@ -91,6 +110,26 @@ public @interface Trigger
 	 * as a target of the update command.
 	 */
 	String[] columns() default {};
+
+	/**
+	 * Name to refer to "before" table of affected rows. Only usable in an AFTER
+	 * trigger whose {@code events} include UPDATE or DELETE. The trigger
+	 * function can issue queries as if a table by this name exists and contains
+	 * all rows affected by the event, in their prior state. (If the trigger is
+	 * called for an event other than UPDATE or DELETE, the function can still
+	 * query a table by this name, which will appear to be empty.)
+	 */
+	String tableOld() default "";
+
+	/**
+	 * Name to refer to "after" table of affected rows. Only usable in an AFTER
+	 * trigger whose {@code events} include UPDATE or INSERT. The trigger
+	 * function can issue queries as if a table by this name exists and contains
+	 * all rows affected by the event, in their new state. (If the trigger is
+	 * called for an event other than UPDATE or INSERT, the function can still
+	 * query a table by this name, which will appear to be empty.)
+	 */
+	String tableNew() default "";
 
 	/**
 	 * A comment to be associated with the trigger. If left to default,
