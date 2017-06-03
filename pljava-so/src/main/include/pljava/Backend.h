@@ -21,7 +21,9 @@ extern "C" {
  * 
  * @author Thomas Hallgren
  *****************************************************************/
+#if PG_VERSION_NUM < 100000
 extern bool integerDateTimes;
+#endif
 
 void Backend_setJavaSecurity(bool trusted);
 
