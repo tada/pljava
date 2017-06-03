@@ -230,6 +230,36 @@
 				</plugins>
 			</build>
 		</profile>
+
+		<!-- When building a package for a known distro, if there is a good
+			default to use for pljava.libjvm_location in that distro, a
+			downstream package maintainer is encouraged to set that default
+			on the mvn command line with -Dpljava.libjvmdefault=<full path>
+			so that users on that distro can have PL/Java work right out of
+			the box. -->
+		<profile>
+			<id>haslibjvmdefault</id>
+			<activation>
+				<property>
+					<name>pljava.libjvmdefault</name>
+				</property>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<c>
+								<defines combine.children='append'>
+									<define>PLJAVA_LIBJVMDEFAULT=${pljava.libjvmdefault}</define>
+								</defines>
+							</c>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 	<build>

@@ -1320,7 +1320,11 @@ static void registerGUCOptions(void)
 		NULL, /* extended description */
 		&libjvmlocation,
 		#if PG_VERSION_NUM >= 80400
-			"libjvm",
+			#ifdef PLJAVA_LIBJVMDEFAULT
+				CppAsString2(PLJAVA_LIBJVMDEFAULT),
+			#else
+				"libjvm",
+			#endif
 		#endif
 		PGC_SUSET,
 		#if PG_VERSION_NUM >= 80400
