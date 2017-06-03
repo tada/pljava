@@ -838,11 +838,15 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	jvalue arg;
 	Datum  ret;
 
-	arg.l = TriggerData_create((TriggerData*)fcinfo->context);
+	TriggerData *td = (TriggerData*)fcinfo->context;
+	arg.l = TriggerData_create(td);
 	if(arg.l == 0)
 		return 0;
 
 	currentInvocation->function = self;
+#if PG_VERSION_NUM >= 100000
+	currentInvocation->triggerData = td;
+#endif
 	Type_invoke(self->func.nonudt.returnType, self->clazz, self->func.nonudt.method, &arg, fcinfo);
 
 	fcinfo->isnull = false;

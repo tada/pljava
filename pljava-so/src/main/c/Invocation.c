@@ -83,9 +83,20 @@ void Invocation_initialize(void)
 
 void Invocation_assertConnect(void)
 {
+	int rslt;
 	if(!currentInvocation->hasConnected)
 	{
-		SPI_connect();
+		rslt = SPI_connect();
+		if ( SPI_OK_CONNECT != rslt )
+			elog(ERROR, "SPI_register_trigger_data returned %d", rslt);
+#if PG_VERSION_NUM >= 100000
+		if ( NULL != currentInvocation->triggerData )
+		{
+			rslt = SPI_register_trigger_data(currentInvocation->triggerData);
+			if ( SPI_OK_TD_REGISTER != rslt )
+				elog(WARNING, "SPI_register_trigger_data returned %d", rslt);
+		}
+#endif
 		currentInvocation->hasConnected = true;
 	}
 }
@@ -116,6 +127,9 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->inExprContextCB = false;
 	ctx->previous        = 0;
 	ctx->callLocals      = 0;
+#if PG_VERSION_NUM >= 100000
+	ctx->triggerData     = 0;
+#endif
 	currentInvocation    = ctx;
 	++s_callLevel;
 }
@@ -138,6 +152,9 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->inExprContextCB = false;
 	ctx->previous        = currentInvocation;
 	ctx->callLocals      = 0;
+#if PG_VERSION_NUM >= 100000
+	ctx->triggerData     = 0;
+#endif
 	currentInvocation   = ctx;
 	Backend_setJavaSecurity(trusted);
 	++s_callLevel;
