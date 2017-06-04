@@ -31,6 +31,7 @@ static jlong msecsAtMidnight(void)
 	return INT64CONST(1000) * (jlong)(now * 86400);
 }
 
+#if PG_VERSION_NUM < 100000
 static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 {
 	jlong mSecs;
@@ -42,6 +43,7 @@ static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs + msecsAtMidnight());
 	return result;
 }
+#endif
 
 static jvalue Time_coerceDatumTZ_id(Type self, int64 t, bool tzAdjust)
 {
@@ -62,11 +64,13 @@ static jlong Time_getMillisecsToday(Type self, jobject jt, bool tzAdjust)
 	return mSecs;
 }
 
+#if PG_VERSION_NUM < 100000
 static double Time_coerceObjectTZ_dd(Type self, jobject jt, bool tzAdjust)
 {
 	jlong mSecs = Time_getMillisecsToday(self, jt, tzAdjust);
 	return ((double)mSecs) / 1000.0; /* Convert to seconds */
 }
+#endif
 
 static int64 Time_coerceObjectTZ_id(Type self, jobject jt, bool tzAdjust)
 {
@@ -76,16 +80,22 @@ static int64 Time_coerceObjectTZ_id(Type self, jobject jt, bool tzAdjust)
 
 static jvalue _Time_coerceDatum(Type self, Datum arg)
 {
-	return integerDateTimes
-		? Time_coerceDatumTZ_id(self, DatumGetInt64(arg), true)
-		: Time_coerceDatumTZ_dd(self, DatumGetFloat8(arg), true);
+	return
+#if PG_VERSION_NUM < 100000
+		(!integerDateTimes) ?
+		Time_coerceDatumTZ_dd(self, DatumGetFloat8(arg), true) :
+#endif
+		Time_coerceDatumTZ_id(self, DatumGetInt64(arg), true);
 }
 
 static Datum _Time_coerceObject(Type self, jobject time)
 {
-	return integerDateTimes
-		? Int64GetDatum(Time_coerceObjectTZ_id(self, time, true))
-		: Float8GetDatum(Time_coerceObjectTZ_dd(self, time, true));
+	return
+#if PG_VERSION_NUM < 100000
+		(!integerDateTimes) ?
+		Float8GetDatum(Time_coerceObjectTZ_dd(self, time, true)) :
+#endif
+		Int64GetDatum(Time_coerceObjectTZ_id(self, time, true));
 }
 
 /* 
@@ -96,17 +106,19 @@ static Datum _Time_coerceObject(Type self, jobject time)
 static jvalue _Timetz_coerceDatum(Type self, Datum arg)
 {
 	jvalue val;
-	if(integerDateTimes)
-	{
-		TimeTzADT_id* tza = (TimeTzADT_id*)DatumGetPointer(arg);
-		int64 t = tza->time + (int64)tza->zone * 1000000; /* Convert to UTC */
-		val = Time_coerceDatumTZ_id(self, t, false);
-	}
-	else
+#if PG_VERSION_NUM < 100000
+	if(!integerDateTimes)
 	{
 		TimeTzADT_dd* tza = (TimeTzADT_dd*)DatumGetPointer(arg);
 		double t = tza->time + tza->zone; /* Convert to UTC */
 		val = Time_coerceDatumTZ_dd(self, t, false);
+	}
+	else
+#endif
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)DatumGetPointer(arg);
+		int64 t = tza->time + (int64)tza->zone * 1000000; /* Convert to UTC */
+		val = Time_coerceDatumTZ_id(self, t, false);
 	}
 	return val;
 }
@@ -114,20 +126,22 @@ static jvalue _Timetz_coerceDatum(Type self, Datum arg)
 static Datum _Timetz_coerceObject(Type self, jobject time)
 {
 	Datum datum;
-	if(integerDateTimes)
-	{
-		TimeTzADT_id* tza = (TimeTzADT_id*)palloc(sizeof(TimeTzADT_id));
-		tza->time = Time_coerceObjectTZ_id(self, time, false);
-		tza->zone = Timestamp_getCurrentTimeZone();
-		tza->time -= (int64)tza->zone * 1000000; /* Convert UTC to local time */
-		datum = PointerGetDatum(tza);
-	}
-	else
+#if PG_VERSION_NUM < 100000
+	if(!integerDateTimes)
 	{
 		TimeTzADT_dd* tza = (TimeTzADT_dd*)palloc(sizeof(TimeTzADT_dd));
 		tza->time = Time_coerceObjectTZ_dd(self, time, false);
 		tza->zone = Timestamp_getCurrentTimeZone();
 		tza->time -= tza->zone; /* Convert UTC to local time */
+		datum = PointerGetDatum(tza);
+	}
+	else
+#endif
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)palloc(sizeof(TimeTzADT_id));
+		tza->time = Time_coerceObjectTZ_id(self, time, false);
+		tza->zone = Timestamp_getCurrentTimeZone();
+		tza->time -= (int64)tza->zone * 1000000; /* Convert UTC to local time */
 		datum = PointerGetDatum(tza);
 	}
 	return datum;

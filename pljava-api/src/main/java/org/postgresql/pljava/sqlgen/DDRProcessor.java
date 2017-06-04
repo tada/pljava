@@ -1084,6 +1084,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Called      called() { return _called; }
 		public String        when() { return _when; }
 		public String[]   columns() { return _columns; }
+		public String    tableOld() { return _tableOld; }
+		public String    tableNew() { return _tableNew; }
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
@@ -1098,9 +1100,14 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Called   _called;
 		public String   _when;
 		public String[] _columns;
+		public String   _tableOld;
+		public String   _tableNew;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
+
+		boolean refOld;
+		boolean refNew;
 		
 		TriggerImpl( FunctionImpl f, AnnotationMirror am)
 		{
@@ -1139,6 +1146,33 @@ hunt:	for ( ExecutableElement ee : ees )
 				"Column list is meaningless unless UPDATE is a trigger event");
 			}
 
+			refOld = ! "".equals( _tableOld);
+			refNew = ! "".equals( _tableNew);
+
+			if ( ( refOld || refNew ) )
+			{
+				if ( ! Called.AFTER.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+					"Only AFTER triggers can reference OLD TABLE or NEW TABLE");
+				boolean badOld = refOld;
+				boolean badNew = refNew;
+				for ( Event e : _events )
+				{
+					switch ( e )
+					{
+						case INSERT:          badNew = false; break;
+						case UPDATE: badOld = badNew = false; break;
+						case DELETE: badOld =          false; break;
+					}
+				}
+				if ( badOld )
+					msg( Kind.ERROR, func.func, origin,
+		 "Trigger must be callable on UPDATE or DELETE to reference OLD TABLE");
+				if ( badNew )
+					msg( Kind.ERROR, func.func, origin,
+		 "Trigger must be callable on UPDATE or INSERT to reference NEW TABLE");
+			}
+
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
 			return false;
@@ -1175,7 +1209,16 @@ hunt:	for ( ExecutableElement ee : ees )
 			sb.append( "\n\tON ");
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
-			sb.append( table()).append( "\n\tFOR EACH ");
+			sb.append( table());
+			if ( refOld || refNew )
+			{
+				sb.append( "\n\tREFERENCING");
+				if ( refOld )
+					sb.append( " OLD TABLE AS ").append( _tableOld);
+				if ( refNew )
+					sb.append( " NEW TABLE AS ").append( _tableNew);
+			}
+			sb.append( "\n\tFOR EACH ");
 			sb.append( scope().toString());
 			if ( ! "".equals( _when) )
 				sb.append( "\n\tWHEN ").append( _when); 

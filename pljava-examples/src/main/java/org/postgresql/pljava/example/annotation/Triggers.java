@@ -12,7 +12,11 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Function;
@@ -21,11 +25,15 @@ import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.Trigger;
 import static org.postgresql.pljava.annotation.Trigger.Called.*;
 import static org.postgresql.pljava.annotation.Trigger.Event.*;
+import static org.postgresql.pljava.annotation.Trigger.Scope.*;
 import static org.postgresql.pljava.annotation.Function.Security.*;
+
+import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
 /**
  * Example creating a couple of tables, and a function to be called when
- * triggered by insertion into either table.
+ * triggered by insertion into either table. In PostgreSQL 10 or later,
+ * also create a function and trigger that uses transition tables.
  */
 @SQLActions({
 	@SQLAction(
@@ -39,9 +47,21 @@ import static org.postgresql.pljava.annotation.Function.Security.*;
 			"DROP TABLE javatest.foobar_1"
 		}
 	),
+	@SQLAction(provides="postgresql_transitiontables", install=
+"   select case " +
+"    when 100000 <= cast(current_setting('server_version_num') as integer) " +
+"    then set_config('pljava.implementors', 'postgresql_transitiontables,' " +
+"    || current_setting('pljava.implementors'), true) " +
+"   end"
+	),
 	@SQLAction(
 		requires = "foobar triggers",
+		provides = "foobar2_42",
 		install = "INSERT INTO javatest.foobar_2(value) VALUES (42)"
+	),
+	@SQLAction(
+		requires = { "transition triggers", "foobar2_42" },
+		install = "UPDATE javatest.foobar_2 SET value = 43 WHERE value = 42"
 	)
 })
 public class Triggers
@@ -56,11 +76,47 @@ public class Triggers
 		security = INVOKER,
 		triggers = {
 			@Trigger(called = BEFORE, table = "foobar_1", events = { INSERT } ),
-			@Trigger(called = BEFORE, table = "foobar_2", events = { INSERT } )
+			@Trigger(called = BEFORE, scope = ROW, table = "foobar_2",
+					 events = { INSERT } )
 		})
 
 	public static void insertUsername(TriggerData td)
 	throws SQLException
 	{
+		ResultSet nrs = td.getNew();
+		nrs.updateString( "username", "bob");
+	}
+
+	/**
+	 * Examine old and new rows in reponse to a trigger.
+	 * Transition tables first became available in PostgreSQL 10.
+	 */
+	@Function(
+		implementor = "postgresql_transitiontables",
+		requires = "foobar tables",
+		provides = "transition triggers",
+		schema = "javatest",
+		security = INVOKER,
+		triggers = {
+			@Trigger(called = AFTER, table = "foobar_2", events = { UPDATE },
+			         tableOld = "oldrows", tableNew = "newrows" )
+		})
+
+	public static void examineRows(TriggerData td)
+	throws SQLException
+	{
+		Connection co = DriverManager.getConnection("jdbc:default:connection");
+		Statement st = co.createStatement();
+		ResultSet rs = st.executeQuery(
+			"SELECT o.value, n.value" +
+			" FROM oldrows o FULL JOIN newrows n USING (username)");
+		rs.next();
+		int oval = rs.getInt(1);
+		int nval = rs.getInt(2);
+		if ( 42 == oval && 43 == nval )
+			logMessage( "INFO", "trigger transition table test ok");
+		else
+			logMessage( "WARNING", String.format(
+				"trigger transition table oval %d nval %d", oval, nval));
 	}
 }

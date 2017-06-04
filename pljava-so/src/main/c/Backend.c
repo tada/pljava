@@ -106,7 +106,10 @@ static bool  pljavaEnabled;
 static bool  s_currentTrust;
 static int   s_javaLogLevel;
 
+#if PG_VERSION_NUM < 100000
 bool integerDateTimes = false;
+static void checkIntTimeType(void);
+#endif
 
 extern void Invocation_initialize(void);
 extern void Exception_initialize(void);
@@ -138,7 +141,6 @@ static void JVMOptList_delete(JVMOptList*);
 static void JVMOptList_add(JVMOptList*, const char*, void*, bool);
 static void JVMOptList_addVisualVMName(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
-static void checkIntTimeType(void);
 static char* getClassPath(const char*);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
@@ -478,7 +480,9 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_CREATEVM_SYM_FOUND:
 		s_javaLogLevel = INFO;
+#if PG_VERSION_NUM < 100000
 		checkIntTimeType();
+#endif
 		HashMap_initialize(); /* creates things in TopMemoryContext */
 #ifdef PLJAVA_DEBUG
 		/* Hard setting for debug. Don't forget to recompile...
@@ -1264,6 +1268,7 @@ static void initJavaSession(void)
 	}
 }
 
+#if PG_VERSION_NUM < 100000
 static void checkIntTimeType(void)
 {
 	const char* idt = PG_GETCONFIGOPTION("integer_datetimes");
@@ -1271,6 +1276,7 @@ static void checkIntTimeType(void)
 	integerDateTimes = (strcmp(idt, "on") == 0);
 	elog(DEBUG2, integerDateTimes ? "Using integer_datetimes" : "Not using integer_datetimes");
 }
+#endif
 
 static jint initializeJavaVM(JVMOptList *optList)
 {

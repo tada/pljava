@@ -64,6 +64,7 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 	return result;
 }
 
+#if PG_VERSION_NUM < 100000
 static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 {
 	jlong mSecs;
@@ -84,12 +85,15 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;
 }
+#endif
 
 static jvalue Timestamp_coerceDatumTZ(Type self, Datum arg, bool tzAdjust)
 {
-	return integerDateTimes
-		? Timestamp_coerceDatumTZ_id(self, arg, tzAdjust)
-		: Timestamp_coerceDatumTZ_dd(self, arg, tzAdjust);
+	return
+#if PG_VERSION_NUM < 100000
+		(!integerDateTimes) ? Timestamp_coerceDatumTZ_dd(self, arg, tzAdjust) :
+#endif
+		Timestamp_coerceDatumTZ_id(self, arg, tzAdjust);
 }
 
 static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
@@ -106,6 +110,7 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	return Int64GetDatum(ts);
 }
 
+#if PG_VERSION_NUM < 100000
 static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 {
 	double ts;
@@ -119,12 +124,15 @@ static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 		ts -= Timestamp_getTimeZone_dd(ts); /* Adjust from UTC to local time */
 	return Float8GetDatum(ts);
 }
+#endif
 
 static Datum Timestamp_coerceObjectTZ(Type self, jobject jts, bool tzAdjust)
 {
-	return integerDateTimes
-		? Timestamp_coerceObjectTZ_id(self, jts, tzAdjust)
-		: Timestamp_coerceObjectTZ_dd(self, jts, tzAdjust);
+	return
+#if PG_VERSION_NUM < 100000
+		(!integerDateTimes) ? Timestamp_coerceObjectTZ_dd(self, jts, tzAdjust) :
+#endif
+		Timestamp_coerceObjectTZ_id(self, jts, tzAdjust);
 }
 
 static jvalue _Timestamp_coerceDatum(Type self, Datum arg)
@@ -179,11 +187,13 @@ int32 Timestamp_getTimeZone_id(int64 dt)
 	return Timestamp_getTimeZone(
 		(dt / INT64CONST(1000000) + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
 }
+#if PG_VERSION_NUM < 100000
 int32 Timestamp_getTimeZone_dd(double dt)
 {
 	return Timestamp_getTimeZone(
 		(pg_time_t)rint(dt + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
 }
+#endif
 
 int32 Timestamp_getCurrentTimeZone(void)
 {
