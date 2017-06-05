@@ -212,12 +212,12 @@ public class Loader extends ClassLoader
 		if(typesForSchema != null)
 			return typesForSchema;
 
-		s_logger.fine("Creating typeMappings for schema " + schema);
+		s_logger.finer("Creating typeMappings for schema " + schema);
 		typesForSchema = new HashMap()
 		{
 			public Object get(Object key)
 			{
-				s_logger.fine("Obtaining type mapping for OID " + key + " for schema " + schema);
+				s_logger.finer("Obtaining type mapping for OID " + key + " for schema " + schema);
 				return super.get(key);
 			}
 		};
@@ -239,7 +239,7 @@ public class Loader extends ClassLoader
 					
 					Oid typeOid = Oid.forTypeName(sqlName);
 					typesForSchema.put(typeOid, cls);
-					s_logger.fine("Adding type mapping for OID " + typeOid + " -> class " + cls.getName() + " for schema " + schema);
+					s_logger.finer("Adding type mapping for OID " + typeOid + " -> class " + cls.getName() + " for schema " + schema);
 				}
 				catch(ClassNotFoundException e)
 				{

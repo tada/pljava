@@ -110,7 +110,7 @@ public class Invocation
 					while(--idx >= 0)
 					{
 						PreparedStatement stmt = (PreparedStatement)m_preparedStatements.get(idx);
-						w.fine("Closed: " + stmt);
+						w.finer("Closed: " + stmt);
 						stmt.close();
 					}
 				}
