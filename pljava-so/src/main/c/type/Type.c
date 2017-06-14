@@ -721,7 +721,6 @@ extern void Timestamp_initialize(void);
 extern void Oid_initialize(void);
 extern void AclId_initialize(void);
 extern void ErrorData_initialize(void);
-extern void LargeObject_initialize(void);
 
 extern void String_initialize(void);
 extern void byte_array_initialize(void);
@@ -766,7 +765,6 @@ void Type_initialize(void)
 	Oid_initialize();
 	AclId_initialize();
 	ErrorData_initialize();
-	LargeObject_initialize();
 
 	byte_array_initialize();
 
