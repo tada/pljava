@@ -149,6 +149,15 @@ cost in wall time to do the compiles on one core.
 
 [notgoingthere]: https://www.postgresql.org/message-id/19039.1496353285%40sss.pgh.pa.us
 
+## Patching PL/Java
+
+If your packaging project requires patches to PL/Java, and not simply the
+passing of options at build or packaging time as described on this page,
+please [open an issue][issue] so that the possibility of addressing your
+need without patching can be discussed.
+
+[issue]: https://github.com/tada/pljava/issues
+
 ## Confirming the build
 
 A full build also produces a `pljava-examples` jar, containing many examples
