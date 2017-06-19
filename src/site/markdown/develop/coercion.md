@@ -152,6 +152,11 @@ if necessary, so these rules are equivalent to the first two in the
 "parameters and return values" case. However, see "additional JDBC coercions"
 below.
 
+JDBC defines some `setObject` and `setNull` methods on `PreparedStatement`
+that must be passed a `java.sql.Types` constant. The JDBC constant will be
+mapped to a PostgreSQL type OID through a fixed mapping coded in
+`Oid_forSqlType`.
+
 ### Values read or written through the JDBC `ResultSet` interface
 
 This case includes not only results from SPI queries made in Java, but
