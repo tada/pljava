@@ -348,14 +348,24 @@ If the `pljava-\${project.version}.jar` file is placed in the default location
 (typically a `pljava` subdirectory of the PostgreSQL "share" directory), then
 `pljava.classpath` will not need to be set.
 
+The self-extracting jar file produced by the build, assuming it is run with
+adequate permission, will extract the files into appropriate locations
+determined by querying `pg_config` on the target system. If that system
+may have more than one PostgreSQL installation and you wish to control
+which one the files get installed into, pass the full path to that
+installation's `pg_config` executable with `-Dpgconfig=` on that
+`java -jar ...` command line. (In more difficult cases, each category
+of file location, such as `pgconfig.sharedir`, can be separately overridden
+on the command line.)
+
 **If you are a distribution maintainer** packaging PL/Java for a certain
 platform, and you know or control that platform's conventions for where
-the Java `libjvm` should be found, or where PostgreSQL extension files
-(architecture-dependent and -independent) should go, please build your
-PL/Java package with those locations as the defaults for the corresponding
-PL/Java variables, and with the built files in those locations.
-
-_Todo: add maven build options usable by distro spinners to set those defaults._
+the Java `libjvm` should be found, please supply that full path on the `mvn`
+command line with `-Dpljava.libjvmdefault=` to make it the default for
+`pljava.libjvm_location`, so users on that platform can see a working PL/Java
+with no need to set that variable in the usual case. That tip and more are
+covered
+in [packaging PL/Java for a software distribution](../build/package.html).
 
 $h3 PostgreSQL superuser with access as user running postgres
 

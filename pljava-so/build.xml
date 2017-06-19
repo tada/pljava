@@ -38,22 +38,23 @@
 
 	<target name="pg_config" depends="configure_msvc_options">
 		<!-- First gather all values from the pg_config executable. -->
-		<exec executable="pg_config" outputproperty="PGSQL_BINDIR">
+		<exec executable="${pgsql.pgconfig}" outputproperty="PGSQL_BINDIR">
 			<arg line="--bindir"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_PKGLIBDIR">
+		<exec executable="${pgsql.pgconfig}" outputproperty="PGSQL_PKGLIBDIR">
 			<arg line="--pkglibdir"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_LIBDIR">
+		<exec executable="${pgsql.pgconfig}" outputproperty="PGSQL_LIBDIR">
 			<arg line="--libdir"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR">
+		<exec executable="${pgsql.pgconfig}" outputproperty="PGSQL_INCLUDEDIR">
 			<arg line="--includedir"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_INCLUDEDIR-SERVER">
+		<exec executable="${pgsql.pgconfig}"
+			outputproperty="PGSQL_INCLUDEDIR-SERVER">
 			<arg line="--includedir-server"/>
 		</exec>
-		<exec executable="pg_config" outputproperty="PGSQL_VER">
+		<exec executable="${pgsql.pgconfig}" outputproperty="PGSQL_VER">
 			<arg line="--version"/>
 		</exec>
 		<loadresource property="PGSQL_VER_CLASSIFIER">

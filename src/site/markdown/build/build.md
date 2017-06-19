@@ -75,6 +75,8 @@ Please review any of the following that apply to your situation:
     [a linker runpath](runpath.html) can help
 * Building on a platform that
     [requires PostgreSQL libraries at link time](linkpglibs.html)
+* Building if you are
+    [making a package for a software distribution](package.html)
 
 ## Obtaining PL/Java sources
 
@@ -129,6 +131,12 @@ A successful `mvn clean install` should produce output like this near the end:
 to [try out PL/Java in PostgreSQL][inst].
 
 [inst]: ../install/install.html
+
+### PostgreSQL version to build against
+
+If several versions of PostgreSQL are installed on the build host, select
+the one to be built for by adding the full path of its `pg_config` executable
+with `-Dpgsql.pgconfig=` on the `mvn` command line.
 
 ### I know PostgreSQL and PGXS. Explain Maven!
 
