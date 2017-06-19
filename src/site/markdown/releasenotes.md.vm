@@ -9,6 +9,130 @@
 #set($pgffeat = 'http://pgfoundry.org/tracker/?func=detail&amp;atid=337&amp;group_id=1000038&amp;aid=')
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 
+$h2 PL/Java 1.5.1
+
+This release chiefly adds support for PostgreSQL 9.6 and 10 (beta),
+and plays more nicely with `pg_upgrade`. With PostgreSQL 9.6 support
+comes the ability to declare functions
+`PARALLEL { UNSAFE | RESTRICTED | SAFE }`, and with PG 10 support,
+transition tables are available to triggers.
+
+$h3 Security
+
+1.5.1 removes the code at issue in [CVE-2016-0768][], which pertained to
+PostgreSQL large objects, but had never been documented or exposed as API.
+
+This is not expected to break any existing code at all, based on further
+review showing the code in question had also been simply broken, since 2006,
+with no reported issues in that time. That discovery would support an argument
+for downgrading the severity of the reported vulnerability, but with no need
+to keep that code around, it is more satisfying to remove it entirely.
+
+Developers wishing to manipulate large objects in PL/Java are able to do so
+using the SPI JDBC interface and the large-object SQL functions already
+available in every PostgreSQL version PL/Java currently supports.
+
+$h3 Changes
+
+$h4 PostgreSQL 9.6 and parallel query
+
+A function in PL/Java can now be [annotated][apianno]
+`parallel={UNSAFE | RESTRICTED | SAFE}`, with `UNSAFE` the default.
+A new [user guide section][ugparqry] explains the possibilities and
+tradeoffs. (Good cases for marking a PL/Java function `SAFE` may be
+rare, as pushing such a function into multiple background processes
+will require them all to start JVMs. But if a practical application
+arises, PostgreSQL's `parallel_setup_cost` can be tuned to help the
+planner make good plans.)
+
+Although `RESTRICTED` and `SAFE` Java functions work in simple tests,
+there has been no exhaustive audit of the code to ensure that PL/Java's
+internal workings never violate the behavior constraints on such functions.
+The support should be considered experimental, and could be a fruitful
+area for beta testing.
+
+[ugparqry]: use/parallel.html
+
+$h4 Tuple counts widened to 64 bits with PostgreSQL 9.6
+
+To accommodate the possibility of more than two billion tuples in a single
+operation, the SPI implementation of the JDBC `Statement` interface now
+provides the JDK 8-specified `executeLargeBatch` and `getLargeUpdateCount`
+methods defined to return `long` counts. The original `executeBatch` and
+`getUpdateCount` methods remain but, obviously, cannot return counts that
+exceed `INT_MAX`. In case the count is too large, `getUpdateCount` will throw
+an `ArithmeticException`; `executeBatch` will store `SUCCESS_NO_INFO` for
+any statement in the batch that affected too many tuples to report.
+
+For now, a `ResultSetProvider` cannot be used to return more than `INT_MAX`
+tuples, but will check that condition and throw an error to ensure predictable
+behavior.
+
+$h4 `pg_upgrade`
+
+PL/Java should be upgraded to 1.5.1 in a database cluster, before that
+cluster is binary-upgraded to a newer PostgreSQL version using `pg_upgrade`.
+A new [Upgrading][upgrading] installation-guide section centralizes information
+on both upgrading PL/Java in a database, and upgrading a database with PL/Java
+in it.
+
+[upgrading]: install/upgrade.html
+
+$h4 PostgreSQL 10 and trigger transition tables
+
+A trigger [annotation][apianno] can now specify `tableOld="`_name1_`"` or
+`tableNew="`_name2_`"`, or both, and the PL/Java function servicing the
+trigger can do SPI JDBC queries and see the transition table(s) under the
+given name(s). The [triggers example code][extrig] has been extended with
+a demonstration.
+
+[extrig]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java
+
+$h4 Conveniences for downstream package maintainers
+
+The `mvn` command to build PL/Java will now accept an option to provide
+a useful default for `pljava.libjvm_location`, when building a package for
+a particular software environment where the likely path to Java is known.
+
+The `mvn` command will also accept an option to specify, by the path to
+the `pg_config` executable, the PostgreSQL version to build against, in
+case multiple versions exist on the build host. This was already possible
+by manipulating `PATH` ahead of running `mvn`, but the option makes it more
+explicit.
+
+A new [packaging section][packaging] in the build guide documents those
+and a number of considerations for making a PL/Java package.
+
+[packaging]: build/package.html
+
+$h3 Bugs fixed
+
+* [Add support for PostgreSQL 9.6](${ghbug}108)
+* [Clarify documentation of ResultSetProvider](${ghbug}115)
+* [`pg_upgrade` (upgrade failure from 9.5 to 9.6)](${ghbug}117)
+
+$h3 Updated PostgreSQL APIs tracked
+
+* `heap_form_tuple`
+* 64-bit `SPI_processed`
+* 64-bit `Portal->portalPos`
+* 64-bit `FuncCallContext.call_cntr`
+* 64-bit `SPITupleTable.alloced` and `.free`
+* `IsBackgroundWorker`
+* `IsBinaryUpgrade`
+* `SPI_register_trigger_data`
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.5.0
 
 This, the first PL/Java numbered release since 1.4.3 in 2011, combines
@@ -570,7 +694,14 @@ Periods in PL/Java's development have been sponsored by EnterpriseDB.
 In the 1.5.0 release cycle, multiple iterations of testing effort
 have been generously contributed by Kilobe Systems and by Pegasystems, Inc.
 
-$h2 Earlier releases
+## From this point on, the entries were reconstructed from old notes at the
+## same time as the 1.5.0 notes were drafted, and they use a finer level of
+## heading. So restore the 'real' values of the heading variables from here
+## to the end of the file.
+#set($h2 = '##')
+#set($h3 = '###')
+#set($h4 = '####')
+#set($h5 = '#####')
 
 $h3 PL/Java 1.4.3 (15 September 2011)
 
