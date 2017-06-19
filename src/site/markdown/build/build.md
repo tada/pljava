@@ -75,6 +75,8 @@ Please review any of the following that apply to your situation:
     [a linker runpath](runpath.html) can help
 * Building on a platform that
     [requires PostgreSQL libraries at link time](linkpglibs.html)
+* Building if you are
+    [making a package for a software distribution](package.html)
 
 ## Obtaining PL/Java sources
 

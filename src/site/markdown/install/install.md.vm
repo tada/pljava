@@ -363,7 +363,9 @@ platform, and you know or control that platform's conventions for where
 the Java `libjvm` should be found, please supply that full path on the `mvn`
 command line with `-Dpljava.libjvmdefault=` to make it the default for
 `pljava.libjvm_location`, so users on that platform can see a working PL/Java
-with no need to set that variable in the usual case.
+with no need to set that variable in the usual case. That tip and more are
+covered
+in [packaging PL/Java for a software distribution](../build/package.html).
 
 $h3 PostgreSQL superuser with access as user running postgres
 
