@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PostgreSQL PL/Java &#x2013; Finding the Java Runtime Environment libjvm library</title>
+    <title>PostgreSQL PL/Java &#x2013; Upgrading</title>
     <style type="text/css" media="all">
       @import url("../css/maven-base.css");
       @import url("../css/maven-theme.css");
@@ -57,8 +57,8 @@
                           <a href="../install/install.html" title="Installing into PostgreSQL">Installing into PostgreSQL</a>
             </li>
                   <li class="none">
-                          <a href="../install/upgrade.html" title="Upgrading">Upgrading</a>
-            </li>
+            <strong>Upgrading</strong>
+          </li>
                   <li class="none">
                           <a href="../build/package.html" title="Packaging PL/Java">Packaging PL/Java</a>
             </li>
@@ -114,21 +114,41 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <h1>Finding the Java Runtime Environment <tt>libjvm</tt> library</h1>
-<p>PL/Java <a href="install.html">installation</a> requires knowing the filesystem paths to some items produced by the <a href="../build/build.html">build</a>, and also to the <tt>libjvm</tt> (or just <tt>jvm</tt> on some platforms, like Windows) shared object for the Java Runtime Environment that is to be used.</p>
-<p>To find that object can be a bit of an exercise, because of the variety of locations and naming schemes for the Java runtime on different platforms. It may be simplest to do a filesystem search for the name <tt>libjvm.*</tt> under the Java home directory (which is reported by <tt>mvn -v</tt> assuming the JRE that you used for running Maven is the one you intend to use at run time).</p>
-<p>The filename extension may be <tt>.so</tt> on many systems, <tt>.dylib</tt> on Mac OS X (see the <a href="../build/macosx.html">Mac OS X build notes</a> for more about OS X), or <tt>.dll</tt> on Windows. As Windows also leaves off the <tt>lib</tt> in front, on that platform you would look for <tt>jvm.dll</tt>.</p>
-<p>If a tool such as Linux <tt>strace</tt> is available to see what files are opened by a process, this works:</p>
-
-<div class="source">
-<div class="source">
-<pre>strace -e open java 2&gt;&amp;1 | grep libjvm
-</pre></div></div>
+        <h1>Upgrading</h1>
 <div class="section">
-<h2><a name="Using_a_less-specific_path"></a>Using a less-specific path</h2>
-<p>The methods above may find the <tt>libjvm</tt> object on a very specific path (for example, including the JRE vendor, major, minor, version, and patch numbers). If that exact path is used to <tt>SET pljava.libjvm_location</tt> in PostgreSQL, PL/Java will stop working as soon as the next Java patch is applied.</p>
-<p>Typical OS distributions will also provide some less specific, alias paths to the Java runtime environment. On Linux, for example, there may be a <tt>/usr/lib/jvm</tt> directory with entries using only the major and minor Java version that are symbolic links to the fully specified JRE. By using such an alias instead of the absolutely specific Java path, you can avoid headaches when Java is updated.</p>
-<p>By the same token, the directory of aliases may contain a completely generic one like <tt>jre</tt>, linked to whichever Java version is considered current. Using an alias that is too generic could possibly invite headaches if the default Java version is ever changed to one your PL/Java modules were not written for (or PL/Java itself was not built for).</p></div>
+<h2><a name="Upgrading_the_PLJava_version_in_a_database"></a>Upgrading the PL/Java version in a database</h2>
+<p>PL/Java performs an upgrade installation if there is already an <tt>sqlj</tt> schema with tables that match a known PL/Java schema from version 1.3.0 or later. It will convert, preserving data, to the current schema if necessary.</p>
+<p><i>Remember that PL/Java runs independently in each database session where it is in use. Older PL/Java versions active in other sessions can be disrupted by the schema change.</i></p>
+<p>A trial installation of a PL/Java update can be done in a transaction, and rolled back if desired, leaving the schema as it was. Any concurrent sessions with active older PL/Java versions will not be disrupted by the altered schema as long as the transaction remains open, <i>but they may block for the duration, so whatever testing will be done within the transaction should be done quickly if that could be an issue</i>.</p>
+<div class="section">
+<h3><a name="Upgrading_outside_the_extension_framework"></a>Upgrading, outside the extension framework</h3>
+<p>On PostgreSQL pre-9.1, or whenever PL/Java has not been installed with <tt>CREATE EXTENSION</tt>, it can be updated with a <tt>LOAD</tt> command just as in a fresh installation. This must be done in a fresh session (in which nothing has caused PL/Java to load since establishing the connection).</p></div>
+<div class="section">
+<h3><a name="Upgrading_within_the_extension_framework"></a>Upgrading, within the extension framework</h3>
+<p>On PostgreSQL 9.1 or later where PL/Java has been installed with <tt>CREATE EXTENSION</tt>, it can be updated with <a class="externalLink" href="http://www.postgresql.org/docs/current/static/sql-alterextension.html"><tt>ALTER EXTENSION pljava UPDATE</tt></a>, as long as <tt>SELECT * FROM pg_extension_update_paths('pljava')</tt> shows a one-step path from the version currently installed to the version desired.</p>
+<p>As with the <tt>LOAD</tt> method, an <tt>ALTER EXTENSION ... UPDATE</tt> must be done in a fresh session, before anything has loaded PL/Java; this also precludes an update with a multi-step path in a single command, but the intent is to always provide a one-step path between <i>released</i> versions.</p>
+<p>If you will be following development (<tt>SNAPSHOT</tt>) versions, the installation method using <tt>LOAD</tt> may be simpler, as updates between snapshots with the same version string make no sense to the extension framework.</p></div></div>
+<div class="section">
+<h2><a name="Upgrading_the_PostgreSQL_major_version_with_PLJava_in_use"></a>Upgrading the PostgreSQL major version with PL/Java in use</h2>
+<div class="section">
+<h3><a name="Binary_upgrading_with_pg_upgrade"></a>Binary upgrading with <tt>pg_upgrade</tt></h3>
+<p>Using the <a class="externalLink" href="https://www.postgresql.org/docs/current/static/pgupgrade.html"><tt>pg_upgrade</tt></a> tool <a class="externalLink" href="https://www.postgresql.org/docs/9.0/static/release-9-0.html#AEN103668">contributed to PostgreSQL in 9.0</a>, an entire PostgreSQL cluster can be upgraded to a later major version in a more direct process than the dump to SQL and reload formerly required. The binary upgrade is possible as long as the cluster and databases meet certain requirements, which should be studied in the <a class="externalLink" href="https://www.postgresql.org/docs/current/static/pgupgrade.html"><tt>pg_upgrade</tt> manual page</a> version for the PostgreSQL release being upgraded <i>to</i>.</p>
+<p>PL/Java adds a few additional considerations:</p>
+
+<ul>
+  
+<li>
+<p><tt>pg_upgrade</tt> will check in advance that every loadable module used in the old cluster can be loaded in the new cluster, but the schema and data will be copied over by <tt>pg_upgrade</tt> itself. That means that a PL/Java build for the new PostgreSQL version must be <i>installed in the directory structure</i> for the new cluster before running <tt>pg_upgrade</tt>, but <i>not</i> installed into any databases (the new cluster should not have had any non-system objects created yet).</p></li>
+  
+<li>
+<p>In the steps of <a href="install.html">Installing PL/Java</a>, that means that the self-extracting <tt>java -jar ...</tt> command must have been run (or the equivalent package-installation command, if you are getting PL/Java through a packaging system for your OS), but no <tt>CREATE EXTENSION</tt> or <tt>LOAD</tt> command should have been run to configure it in any database. If using the extracting jar, to be sure of installing it to the right cluster, add <tt>-Dpgconfig=</tt><i>pgconfigpath</i> at the end, where <i>pgconfigpath</i> is the full path to the <i>new</i> cluster&#x2019;s <tt>pg_config</tt> executable.</p></li>
+  
+<li>
+<p>PL/Java releases before 1.5.1 were not aware of <tt>pg_upgrade</tt> operation. To avoid possible errors during the upgrade involving OID or object clashes, the PL/Java release installed for the new cluster should be 1.5.1 or later.</p></li>
+  
+<li>
+<p>When <tt>pg_upgrade</tt> tests that all needed modules are present, it expects the names to match. The PL/Java module name includes the PL/Java version, so the versions installed in the old and new clusters should be the same. Given that 1.5.1 or later should be installed in the new cluster, if any databases in the old cluster are using an older PL/Java version, PL/Java should be upgraded in each (as described at the top of this page) before running <tt>pg_upgrade</tt>. To be sure of installing a newer PL/Java build into the old cluster, if using the extracting jar, add <tt>-Dpgconfig=</tt><i>oldpgconfigpath</i> at the end of the <tt>java -jar ...</tt> command line, with <i>oldpgconfigpath</i> the full path to the old cluster&#x2019;s <tt>pg_config</tt> executable.</p></li>
+</ul></div></div>
       </div>
     </div>
     <div class="clear">
