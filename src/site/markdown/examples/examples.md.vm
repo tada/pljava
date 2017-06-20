@@ -58,7 +58,7 @@ descriptor goes farther, and calls several functions provided as test cases,
 so this use of `install_jar` may take a few extra seconds and produce some
 test-related output. (To see _successful_ test-related output, be sure to
 set `client_min_messages` to a level at least as detailed as `INFO` before
-invoking `install_jar`.)
+the session's first use of PL/Java.)
 
 $h2 Trying the examples
 

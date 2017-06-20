@@ -88,6 +88,16 @@ a demonstration.
 
 [extrig]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java
 
+$h4 Logging from Java
+
+The way the Java logging system has historically been plumbed to PostgreSQL's,
+as described in [issue 125](${ghbug}125), can be perplexing both because it
+is unaffected by later changes to the PostgreSQL settings after PL/Java is
+loaded in the session, and because it has honored only `log_min_messages`
+and ignored `client_min_messages`. The second part is easy to fix, so in
+1.5.1 the threshold where Java discards messages on the fast path is
+determined by the finer of `log_min_messages` and `client_min_messages`.
+
 $h4 Conveniences for downstream package maintainers
 
 The `mvn` command to build PL/Java will now accept an option to provide
@@ -110,6 +120,7 @@ $h3 Bugs fixed
 * [Add support for PostgreSQL 9.6](${ghbug}108)
 * [Clarify documentation of ResultSetProvider](${ghbug}115)
 * [`pg_upgrade` (upgrade failure from 9.5 to 9.6)](${ghbug}117)
+* [Java logging should honor `client_min_messages` too](${ghbug}125)
 
 $h3 Updated PostgreSQL APIs tracked
 

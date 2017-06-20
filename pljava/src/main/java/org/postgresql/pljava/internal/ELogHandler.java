@@ -149,11 +149,15 @@ public class ELogHandler extends Handler
 		// during JVM initialization and before the native method is
 		// registered).
 		//
-		String pgLevel = Backend.getConfigOption("log_min_messages");
-		Level level = Level.ALL;
-		if(pgLevel != null)
+		String[] options = { "log_min_messages", "client_min_messages" };
+		Level finestLevel = null;
+		for ( String option : options )
 		{	
+			String pgLevel = Backend.getConfigOption(option);
+			if ( null == pgLevel )
+				continue;
 			pgLevel = pgLevel.toLowerCase().trim();
+			Level level = null;
 			if(pgLevel.equals("panic") || pgLevel.equals("fatal"))
 				level = Level.OFF;
 			else if(pgLevel.equals("error"))
@@ -170,8 +174,15 @@ public class ELogHandler extends Handler
 				level = Level.FINER;
 			else if(pgLevel.equals("debug3") || pgLevel.equals("debug4") || pgLevel.equals("debug5"))
 				level = Level.FINEST;
+			if ( null == level )
+				continue;
+			if ( null == finestLevel
+				|| finestLevel.intValue() > level.intValue() )
+				finestLevel = level;
 		}
-		return level;
+		if ( null == finestLevel )
+			finestLevel = Level.ALL;
+		return finestLevel;
 	}
 
 	// Private method to configure an ELogHandler
