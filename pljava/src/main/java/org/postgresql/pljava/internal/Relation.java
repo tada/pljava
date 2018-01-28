@@ -67,9 +67,16 @@ public class Relation extends JavaWrapper
 	}
 
 	/**
-	 * Creates a new <code>Tuple</code> by substituting new values for selected columns
-	 * copying the columns of the original <code>Tuple</code> at other positions. The
-	 * original <code>Tuple</code> is not modified.<br>
+	 * Creates a new {@code Tuple} by substituting new values for selected
+	 * columns copying the columns of the original {@code Tuple} at other
+	 * positions. The original {@code Tuple} is not modified.
+	 *<p>
+	 * Note: starting with PostgreSQL 10, this method can fail if SPI is not
+	 * connected; it is the <em>caller's</em> responsibility in PG 10 and up
+	 * to ensure that SPI is connected <em>and</em> that a longer-lived memory
+	 * context than SPI's has been selected, if the caller wants the result of
+	 * this call to survive {@code SPI_finish}.
+	 *
 	 * @param original The tuple that serves as the source.
 	 * @param fieldNumbers An array of one based indexes denoting the positions that
 	 * are to receive modified values.

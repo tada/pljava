@@ -846,6 +846,12 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	currentInvocation->function = self;
 #if PG_VERSION_NUM >= 100000
 	currentInvocation->triggerData = td;
+	/* Also starting in PG 10, Invocation_assertConnect must be called before
+	 * the getTriggerReturnTuple below. That could be done right here, but at
+	 * the risk of changing the memory context from what the invoked trigger
+	 * function expects. More cautiously, add the assertConnect later, after
+	 * the trigger function has returned.
+	 */
 #endif
 	Type_invoke(self->func.nonudt.returnType, self->clazz, self->func.nonudt.method, &arg, fcinfo);
 
@@ -854,11 +860,21 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		ret = 0;
 	else
 	{
-		/* A new Tuple may or may not be created here. If it is, ensure that
-		 * it is created in the upper SPI context.
+		/* A new Tuple may or may not be created here. Ensure that, if it is,
+		 * it is created in the upper context (even after connecting SPI, should
+		 * that be necessary).
 		 */
+#if PG_VERSION_NUM >= 100000
+		/* If the invoked trigger function didn't connect SPI, do that here
+		 * (getTriggerReturnTuple now needs it), but there will be no need to
+		 * register the triggerData in that case.
+		 */
+		currentInvocation->triggerData = NULL;
+		Invocation_assertConnect();
+#endif
 		MemoryContext currCtx = Invocation_switchToUpperContext();
-		ret = PointerGetDatum(TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
+		ret = PointerGetDatum(
+				TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.
