@@ -88,13 +88,15 @@ void Invocation_assertConnect(void)
 	{
 		rslt = SPI_connect();
 		if ( SPI_OK_CONNECT != rslt )
-			elog(ERROR, "SPI_register_trigger_data returned %d", rslt);
+			elog(ERROR, "SPI_register_trigger_data returned %s",
+						SPI_result_code_string(rslt));
 #if PG_VERSION_NUM >= 100000
 		if ( NULL != currentInvocation->triggerData )
 		{
 			rslt = SPI_register_trigger_data(currentInvocation->triggerData);
 			if ( SPI_OK_TD_REGISTER != rslt )
-				elog(WARNING, "SPI_register_trigger_data returned %d", rslt);
+				elog(WARNING, "SPI_register_trigger_data returned %s",
+							  SPI_result_code_string(rslt));
 		}
 #endif
 		currentInvocation->hasConnected = true;
