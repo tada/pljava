@@ -77,6 +77,7 @@ Please review any of the following that apply to your situation:
     [requires PostgreSQL libraries at link time](linkpglibs.html)
 * Building if you are
     [making a package for a software distribution](package.html)
+* Building [with debugging or optimization options](debugopt.html)
 
 ## Obtaining PL/Java sources
 

@@ -361,6 +361,8 @@
 							<includePath>${basedir}/src/main/include/</includePath>
 							<includePath>${basedir}/target/nar/javah-include/</includePath>
 						</includePaths>
+						<debug>${so.debug}</debug>
+						<optimize>${so.optimize}</optimize>
 					</c>
 
 					<!-- Options/extra libs/etc. for the linker go here. -->
