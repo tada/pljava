@@ -48,6 +48,11 @@ public @interface Trigger
 	 */
 	enum Called { BEFORE, AFTER, INSTEAD_OF };
 
+    /**
+     * Constraint trigger options. NOT_CONSTRAINT, IMMEDIATE  (Is PostgreSQL default for deferrable), INITIALLY_IMMEDIATE, INITIALLY_DEFERRED
+     */
+    enum Constraint { NOT_CONSTRAINT, IMMEDIATE, INITIALLY_IMMEDIATE, INITIALLY_DEFERRED };
+	
 	/**
 	 * Types of event that can occasion a trigger.
 	 */
@@ -64,11 +69,30 @@ public @interface Trigger
 	 */
 	String[] arguments() default {};
 
+    /**
+     * Constraint trigger options.
+     */
+    Constraint constraint() default Constraint.NOT_CONSTRAINT;
+	
 	/**
 	 * The event(s) that will trigger the call.
 	 */
 	Event[] events();
 
+    /**
+     * The schema name of another table referenced by the constraint.<BR> 
+     * This option is used for foreign-key constraints and is not recommended for general use.<BR> 
+     * This can only be specified for constraint triggers.
+     */
+    String fromSchema() default "";
+
+    /**
+     * The (possibly schema-qualified) name of another table referenced by the constraint.<BR> 
+     * This option is used for foreign-key constraints and is not recommended for general use.<BR> 
+     * This can only be specified for constraint triggers.
+     */
+    String fromTable() default "";
+    
 	/**
 	 * Name of the trigger. If not set, the name will
 	 * be generated.
