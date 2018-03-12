@@ -1075,33 +1075,39 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractAnnotationImpl
 	implements Trigger, Snippet, Commentable
 	{
-		public String[] arguments() { return _arguments; }
-		public Event[]     events() { return _events; }
-		public String        name() { return _name; }
-		public String      schema() { return _schema; }
-		public String       table() { return _table; }
-		public Scope        scope() { return _scope; }
-		public Called      called() { return _called; }
-		public String        when() { return _when; }
-		public String[]   columns() { return _columns; }
-		public String    tableOld() { return _tableOld; }
-		public String    tableNew() { return _tableNew; }
+		public String[]    arguments() { return _arguments; }
+        public Constraint constraint() { return _constraint; }
+        public Event[]        events() { return _events; }
+        public String     fromSchema() { return _fromSchema; }
+        public String      fromTable() { return _fromTable; }
+		public String           name() { return _name; }
+		public String         schema() { return _schema; }
+		public String          table() { return _table; }
+		public Scope           scope() { return _scope; }
+		public Called         called() { return _called; }
+		public String           when() { return _when; }
+		public String[]      columns() { return _columns; }
+		public String       tableOld() { return _tableOld; }
+		public String       tableNew() { return _tableNew; }
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
 		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
-		public String[] _arguments;
-		public Event[]  _events;
-		public String   _name;
-		public String   _schema;
-		public String  	_table;
-		public Scope    _scope;
-		public Called   _called;
-		public String   _when;
-		public String[] _columns;
-		public String   _tableOld;
-		public String   _tableNew;
+		public String[]   _arguments;
+		public Constraint _constraint;
+		public Event[]    _events;
+        public String     _fromSchema;
+        public String     _fromTable;
+		public String     _name;
+		public String     _schema;
+		public String  	  _table;
+		public Scope      _scope;
+		public Called     _called;
+		public String     _when;
+		public String[]   _columns;
+		public String     _tableOld;
+		public String     _tableNew;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
@@ -1181,7 +1187,11 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[] deployStrings()
 		{
 			StringBuilder sb = new StringBuilder();
-			sb.append( "CREATE TRIGGER ").append( name()).append( "\n\t");
+            sb.append("CREATE ");
+            if (Constraint.NOT_CONSTRAINT != constraint()) {
+                sb.append("CONSTRAINT ");
+            }
+            sb.append("TRIGGER ").append(name()).append("\n\t");
 			switch ( called() )
 			{
 				case BEFORE:	 sb.append( "BEFORE "	 ); break;
@@ -1210,7 +1220,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
 			sb.append( table());
-			if ( refOld || refNew )
+            if (!"".equals(fromSchema()) || !"".equals(fromTable())) {
+                sb.append("\n\t FROM ");
+                if (!"".equals(fromSchema()))
+                    sb.append(fromSchema()).append('.');
+                sb.append(table());
+            }
+            if ( refOld || refNew )
 			{
 				sb.append( "\n\tREFERENCING");
 				if ( refOld )
@@ -1218,6 +1234,21 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( refNew )
 					sb.append( " NEW TABLE AS ").append( _tableNew);
 			}
+            Constraint constraint = constraint();
+            if (Constraint.NOT_CONSTRAINT != constraint) {
+                sb.append("\n\t");
+                switch (constraint) {
+                case INITIALLY_IMMEDIATE:
+                    sb.append("NOT DEFERRABLE INITIALLY IMMEDIATE");
+                    break;
+                case INITIALLY_DEFERRED:
+                    sb.append("DEFERRABLE INITIALLY DEFERRED");
+                    break;
+                default:
+                    sb.append("DEFERRABLE");
+                    break;
+                }
+            }            
 			sb.append( "\n\tFOR EACH ");
 			sb.append( scope().toString());
 			if ( ! "".equals( _when) )
