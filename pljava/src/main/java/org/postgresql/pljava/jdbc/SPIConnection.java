@@ -422,7 +422,7 @@ public class SPIConnection implements Connection
 				//
 				if(inQuote == c)
 					inQuote = 0;
-				else
+				else if(inQuote == 0)
 					inQuote = c;
 				break;
 			
