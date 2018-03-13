@@ -1076,10 +1076,10 @@ hunt:	for ( ExecutableElement ee : ees )
 	implements Trigger, Snippet, Commentable
 	{
 		public String[]    arguments() { return _arguments; }
-        public Constraint constraint() { return _constraint; }
-        public Event[]        events() { return _events; }
-        public String     fromSchema() { return _fromSchema; }
-        public String      fromTable() { return _fromTable; }
+		public Constraint constraint() { return _constraint; }
+		public Event[]        events() { return _events; }
+		public String     fromSchema() { return _fromSchema; }
+		public String           from() { return _from; }
 		public String           name() { return _name; }
 		public String         schema() { return _schema; }
 		public String          table() { return _table; }
@@ -1097,8 +1097,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[]   _arguments;
 		public Constraint _constraint;
 		public Event[]    _events;
-        public String     _fromSchema;
-        public String     _fromTable;
+		public String     _fromSchema;
+		public String     _from;
 		public String     _name;
 		public String     _schema;
 		public String  	  _table;
@@ -1114,6 +1114,22 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		boolean refOld;
 		boolean refNew;
+		boolean isConstraint = false;
+
+		/* The only values of the Constraint enum are those applicable to
+		 * constraint triggers. To determine whether this IS a constraint
+		 * trigger or not, use the 'explicit' parameter to distinguish whether
+		 * the 'constraint' attribute was or wasn't seen in the annotation.
+		 */
+		public void setConstraint( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+			{
+				isConstraint = true;
+				_constraint = Constraint.valueOf(
+					((VariableElement)o).getSimpleName().toString());
+			}
+		}
 		
 		TriggerImpl( FunctionImpl f, AnnotationMirror am)
 		{
@@ -1179,6 +1195,28 @@ hunt:	for ( ExecutableElement ee : ees )
 		 "Trigger must be callable on UPDATE or INSERT to reference NEW TABLE");
 			}
 
+			if ( isConstraint )
+			{
+				if ( ! Called.AFTER.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be an AFTER trigger");
+				if ( ! Scope.ROW.equals( _scope) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be FOR EACH ROW");
+				if ( "".equals( _from) && ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"To use fromSchema, specify a table name with from");
+			}
+			else
+			{
+				if ( ! "".equals( _from) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'from'");
+				if ( ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'fromSchema'");
+			}
+
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
 			return false;
@@ -1188,9 +1226,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			StringBuilder sb = new StringBuilder();
             sb.append("CREATE ");
-            if (Constraint.NOT_CONSTRAINT != constraint()) {
-                sb.append("CONSTRAINT ");
-            }
+			if ( isConstraint )
+			{
+				sb.append("CONSTRAINT ");
+			}
             sb.append("TRIGGER ").append(name()).append("\n\t");
 			switch ( called() )
 			{
@@ -1220,12 +1259,28 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
 			sb.append( table());
-            if (!"".equals(fromSchema()) || !"".equals(fromTable())) {
-                sb.append("\n\t FROM ");
-                if (!"".equals(fromSchema()))
-                    sb.append(fromSchema()).append('.');
-                sb.append(table());
-            }
+			if ( ! "".equals( from()) )
+			{
+				sb.append("\n\tFROM ");
+				if ( ! "".equals( fromSchema()) )
+					sb.append( fromSchema()).append( '.');
+				sb.append( from());
+			}
+			if ( isConstraint ) {
+				sb.append("\n\t");
+				switch ( _constraint )
+				{
+					case NOT_DEFERRABLE:
+						sb.append("NOT DEFERRABLE");
+						break;
+					case INITIALLY_IMMEDIATE:
+						sb.append("DEFERRABLE INITIALLY IMMEDIATE");
+						break;
+					case INITIALLY_DEFERRED:
+						sb.append("DEFERRABLE INITIALLY DEFERRED");
+						break;
+				}
+			}            
             if ( refOld || refNew )
 			{
 				sb.append( "\n\tREFERENCING");
@@ -1234,21 +1289,6 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( refNew )
 					sb.append( " NEW TABLE AS ").append( _tableNew);
 			}
-            Constraint constraint = constraint();
-            if (Constraint.NOT_CONSTRAINT != constraint) {
-                sb.append("\n\t");
-                switch (constraint) {
-                case INITIALLY_IMMEDIATE:
-                    sb.append("NOT DEFERRABLE INITIALLY IMMEDIATE");
-                    break;
-                case INITIALLY_DEFERRED:
-                    sb.append("DEFERRABLE INITIALLY DEFERRED");
-                    break;
-                default:
-                    sb.append("DEFERRABLE");
-                    break;
-                }
-            }            
 			sb.append( "\n\tFOR EACH ");
 			sb.append( scope().toString());
 			if ( ! "".equals( _when) )

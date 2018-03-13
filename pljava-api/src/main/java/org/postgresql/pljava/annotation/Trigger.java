@@ -48,10 +48,13 @@ public @interface Trigger
 	 */
 	enum Called { BEFORE, AFTER, INSTEAD_OF };
 
-    /**
-     * Constraint trigger options. NOT_CONSTRAINT, IMMEDIATE  (Is PostgreSQL default for deferrable), INITIALLY_IMMEDIATE, INITIALLY_DEFERRED
-     */
-    enum Constraint { NOT_CONSTRAINT, IMMEDIATE, INITIALLY_IMMEDIATE, INITIALLY_DEFERRED };
+	/**
+	 * Deferrability (only applies to constraint triggers).
+	 * {@code NOT_DEFERRABLE} if the constraint trigger is not deferrable
+	 * at all; otherwise, the trigger is deferrable and this value indicates
+	 * whether initially deferred or not.
+	 */
+	enum Constraint { NOT_DEFERRABLE, INITIALLY_IMMEDIATE, INITIALLY_DEFERRED };
 	
 	/**
 	 * Types of event that can occasion a trigger.
@@ -69,29 +72,39 @@ public @interface Trigger
 	 */
 	String[] arguments() default {};
 
-    /**
-     * Constraint trigger options.
-     */
-    Constraint constraint() default Constraint.NOT_CONSTRAINT;
+	/**
+	 * Only for a constraint trigger, whether it is deferrable and, if so,
+	 * initially immediate or deferred. To create a constraint trigger that is
+	 * not deferrable, this attribute must be explicitly given with the value
+	 * {@code NOT_DEFERRABLE}; leaving it to default is not the same. When this
+	 * attribute is not specified, a normal trigger, not a constraint trigger,
+	 * is created.
+	 *<p>
+	 * A constraint trigger must have {@code called=AFTER} and
+	 * {@code scope=ROW}.
+	 */
+	Constraint constraint() default Constraint.NOT_DEFERRABLE;
 	
 	/**
 	 * The event(s) that will trigger the call.
 	 */
 	Event[] events();
 
-    /**
-     * The schema name of another table referenced by the constraint.<BR> 
-     * This option is used for foreign-key constraints and is not recommended for general use.<BR> 
-     * This can only be specified for constraint triggers.
-     */
-    String fromSchema() default "";
+	/**
+	 * The name of another table referenced by the constraint.
+	 * This option is used for foreign-key constraints and is not recommended
+	 * for general use. This can only be specified for constraint triggers.
+	 * If the name should be schema-qualified, use
+	 * {@link #fromSchema() fromSchema} to specify the schema.
+	 */
+	String from() default "";
 
-    /**
-     * The (possibly schema-qualified) name of another table referenced by the constraint.<BR> 
-     * This option is used for foreign-key constraints and is not recommended for general use.<BR> 
-     * This can only be specified for constraint triggers.
-     */
-    String fromTable() default "";
+	/**
+	 * The schema containing another table referenced by the constraint.
+	 * This can only be specified for constraint triggers, and only to name the
+	 * schema for a table named with {@link #from() from}.
+	 */
+	String fromSchema() default "";
     
 	/**
 	 * Name of the trigger. If not set, the name will
