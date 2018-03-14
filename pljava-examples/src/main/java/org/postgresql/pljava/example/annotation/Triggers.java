@@ -63,6 +63,15 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
 		requires = { "transition triggers", "foobar2_42" },
 		install = "UPDATE javatest.foobar_2 SET value = 43 WHERE value = 42"
 	)
+	/*
+	 * Note for another day: this would seem an excellent place to add a
+	 * regression test for github issue #134 (make sure invocations of a
+	 * trigger do not fail with SPI_ERROR_UNCONNECTED). However, any test
+	 * here that runs from the deployment descriptor will be running when
+	 * SPI is already connected, so a regression would not be caught.
+	 * A proper test for it will have to wait for a proper testing harness
+	 * invoking tests from outside PL/Java itself.
+	 */
 })
 public class Triggers
 {

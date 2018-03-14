@@ -31,6 +31,9 @@ extern jobject TriggerData_create(TriggerData* triggerData);
 
 /*
  * Obtains the returned Tuple after trigger has been processed.
+ * Note: starting with PG 10, it is the caller's responsibility to ensure SPI
+ * is connected (and that a longer-lived memory context than SPI's is selected,
+ * if the caller wants the result to survive SPI_finish).
  */
 extern HeapTuple TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull);
 

@@ -90,6 +90,12 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	 * <code>new</code> and returns the native pointer of new tuple. This
 	 * method is called automatically by the trigger handler and should not
 	 * be called in any other way.
+	 *<p>
+	 * Note: starting with PostgreSQL 10, this method can fail if SPI is not
+	 * connected; it is the <em>caller's</em> responsibility in PG 10 and up
+	 * to ensure that SPI is connected <em>and</em> that a longer-lived memory
+	 * context than SPI's has been selected, if the caller wants the result of
+	 * this call to survive {@code SPI_finish}.
 	 * 
 	 * @return The modified tuple, or if no modifications have been made, the
 	 *         original tuple.
