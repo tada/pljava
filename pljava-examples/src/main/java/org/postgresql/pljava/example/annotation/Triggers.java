@@ -92,7 +92,10 @@ public class Triggers
 	public static void insertUsername(TriggerData td)
 	throws SQLException
 	{
-		ResultSet nrs = td.getNew();
+		ResultSet nrs = td.getNew(); // expect NPE in a DELETE/STATEMENT trigger
+		String col2asString = nrs.getString(2);
+		if ( "43".equals(col2asString) )
+			td.suppress();
 		nrs.updateString( "username", "bob");
 	}
 

@@ -9,6 +9,7 @@ package org.postgresql.pljava.internal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.jdbc.TriggerResultSet;
 
 /**
@@ -23,10 +24,23 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	private TriggerResultSet m_new = null;
 	private Tuple m_newTuple;
 	private Tuple m_triggerTuple;
+	private boolean m_suppress = false;
 
 	TriggerData(long pointer)
 	{
 		super(pointer);
+	}
+
+	@Override
+	public void suppress() throws SQLException
+	{
+		if ( isFiredForStatement() )
+			throw new TriggerException(this,
+				"Attempt to suppress operation in a STATEMENT trigger");
+		if ( isFiredAfter() )
+			throw new TriggerException(this,
+				"Attempt to suppress operation in an AFTER trigger");
+		m_suppress = true;
 	}
 
 	/**
@@ -102,10 +116,11 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	 */
 	public long getTriggerReturnTuple() throws SQLException
 	{
-		if(this.isFiredForStatement() || this.isFiredAfter())
+		if(this.isFiredForStatement() || this.isFiredAfter() || m_suppress)
 			//
-			// Only triggers fired before each row can have a return
-			// value.
+			// Only triggers fired for each row, and not AFTER, can have a
+			// nonzero return value. If such a trigger does return zero, it
+			// tells PostgreSQL to silently suppress the row operation involved.
 			//
 			return 0;
 
