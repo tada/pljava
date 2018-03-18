@@ -1075,39 +1075,61 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractAnnotationImpl
 	implements Trigger, Snippet, Commentable
 	{
-		public String[] arguments() { return _arguments; }
-		public Event[]     events() { return _events; }
-		public String        name() { return _name; }
-		public String      schema() { return _schema; }
-		public String       table() { return _table; }
-		public Scope        scope() { return _scope; }
-		public Called      called() { return _called; }
-		public String        when() { return _when; }
-		public String[]   columns() { return _columns; }
-		public String    tableOld() { return _tableOld; }
-		public String    tableNew() { return _tableNew; }
+		public String[]    arguments() { return _arguments; }
+		public Constraint constraint() { return _constraint; }
+		public Event[]        events() { return _events; }
+		public String     fromSchema() { return _fromSchema; }
+		public String           from() { return _from; }
+		public String           name() { return _name; }
+		public String         schema() { return _schema; }
+		public String          table() { return _table; }
+		public Scope           scope() { return _scope; }
+		public Called         called() { return _called; }
+		public String           when() { return _when; }
+		public String[]      columns() { return _columns; }
+		public String       tableOld() { return _tableOld; }
+		public String       tableNew() { return _tableNew; }
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
 		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
-		public String[] _arguments;
-		public Event[]  _events;
-		public String   _name;
-		public String   _schema;
-		public String  	_table;
-		public Scope    _scope;
-		public Called   _called;
-		public String   _when;
-		public String[] _columns;
-		public String   _tableOld;
-		public String   _tableNew;
+		public String[]   _arguments;
+		public Constraint _constraint;
+		public Event[]    _events;
+		public String     _fromSchema;
+		public String     _from;
+		public String     _name;
+		public String     _schema;
+		public String  	  _table;
+		public Scope      _scope;
+		public Called     _called;
+		public String     _when;
+		public String[]   _columns;
+		public String     _tableOld;
+		public String     _tableNew;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
 
 		boolean refOld;
 		boolean refNew;
+		boolean isConstraint = false;
+
+		/* The only values of the Constraint enum are those applicable to
+		 * constraint triggers. To determine whether this IS a constraint
+		 * trigger or not, use the 'explicit' parameter to distinguish whether
+		 * the 'constraint' attribute was or wasn't seen in the annotation.
+		 */
+		public void setConstraint( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+			{
+				isConstraint = true;
+				_constraint = Constraint.valueOf(
+					((VariableElement)o).getSimpleName().toString());
+			}
+		}
 		
 		TriggerImpl( FunctionImpl f, AnnotationMirror am)
 		{
@@ -1173,6 +1195,28 @@ hunt:	for ( ExecutableElement ee : ees )
 		 "Trigger must be callable on UPDATE or INSERT to reference NEW TABLE");
 			}
 
+			if ( isConstraint )
+			{
+				if ( ! Called.AFTER.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be an AFTER trigger");
+				if ( ! Scope.ROW.equals( _scope) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be FOR EACH ROW");
+				if ( "".equals( _from) && ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"To use fromSchema, specify a table name with from");
+			}
+			else
+			{
+				if ( ! "".equals( _from) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'from'");
+				if ( ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'fromSchema'");
+			}
+
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
 			return false;
@@ -1181,7 +1225,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[] deployStrings()
 		{
 			StringBuilder sb = new StringBuilder();
-			sb.append( "CREATE TRIGGER ").append( name()).append( "\n\t");
+            sb.append("CREATE ");
+			if ( isConstraint )
+			{
+				sb.append("CONSTRAINT ");
+			}
+            sb.append("TRIGGER ").append(name()).append("\n\t");
 			switch ( called() )
 			{
 				case BEFORE:	 sb.append( "BEFORE "	 ); break;
@@ -1210,7 +1259,29 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
 			sb.append( table());
-			if ( refOld || refNew )
+			if ( ! "".equals( from()) )
+			{
+				sb.append("\n\tFROM ");
+				if ( ! "".equals( fromSchema()) )
+					sb.append( fromSchema()).append( '.');
+				sb.append( from());
+			}
+			if ( isConstraint ) {
+				sb.append("\n\t");
+				switch ( _constraint )
+				{
+					case NOT_DEFERRABLE:
+						sb.append("NOT DEFERRABLE");
+						break;
+					case INITIALLY_IMMEDIATE:
+						sb.append("DEFERRABLE INITIALLY IMMEDIATE");
+						break;
+					case INITIALLY_DEFERRED:
+						sb.append("DEFERRABLE INITIALLY DEFERRED");
+						break;
+				}
+			}            
+            if ( refOld || refNew )
 			{
 				sb.append( "\n\tREFERENCING");
 				if ( refOld )
