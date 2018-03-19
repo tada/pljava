@@ -11,7 +11,7 @@
 
 $h2 PL/Java 1.5.1
 
-This release chiefly adds support for PostgreSQL 9.6 and 10 (beta),
+This release chiefly adds support for PostgreSQL 9.6 and 10,
 and plays more nicely with `pg_upgrade`. With PostgreSQL 9.6 support
 comes the ability to declare functions
 `PARALLEL { UNSAFE | RESTRICTED | SAFE }`, and with PG 10 support,
@@ -78,6 +78,31 @@ in it.
 
 [upgrading]: install/upgrade.html
 
+$h4 Suppressing row operations from triggers
+
+In PostgreSQL, a `BEFORE ROW` trigger is able to allow the proposed row
+operation, allow it with modified values, or silently suppress the operation
+for that row. Way back in PL/Java 1.1.0, the way to produce the 'suppress'
+outcome was for the trigger method to throw an exception. Since PL/Java 1.2.0,
+however, an exception thrown in a trigger method is used to signal an error
+to PostgreSQL, and there has not been a way to suppress the row operation.
+
+The `TriggerData` interface now has a [`suppress`][tgsuppress] method that
+the trigger can invoke to suppress the operation for the row.
+
+[tgsuppress]: pljava-api/apidocs/index.html?org/postgresql/pljava/TriggerData.html#suppress()
+
+$h4 Constraint triggers
+
+New attributes in the `@Trigger` annotation allow the SQL generator to
+create constraint triggers (a type of trigger that can be created with SQL
+since PostgreSQL 9.1). Such triggers will be delivered by the PL/Java runtime
+(to indicate that a constraint would be violated, a constraint trigger
+method should throw an informative exception). However, the trigger method
+will have access, through the `TriggerData` interface, only to the properties
+common to ordinary triggers; methods on that interface to retrieve properties
+specific to constraint triggers have not been added for this release.
+
 $h4 PostgreSQL 10 and trigger transition tables
 
 A trigger [annotation][apianno] can now specify `tableOld="`_name1_`"` or
@@ -117,6 +142,15 @@ and a number of considerations for making a PL/Java package.
 
 $h3 Bugs fixed
 
+$h4 Since 1.5.1-BETA1
+
+* [PostgreSQL 10: SPI_modifytuple failed with SPI_ERROR_UNCONNECTED](${ghbug}134)
+* [SPIConnection prepareStatement doesn't recognize all parameters](${ghbug}136)
+* [Annotations don't support CREATE CONSTRAINT TRIGGER](${ghbug}138)
+* [Ordinary (non-constraint) trigger has no way to suppress operation](${ghbug}142)
+
+$h4 In 1.5.1-BETA1
+
 * [Add support for PostgreSQL 9.6](${ghbug}108)
 * [Clarify documentation of ResultSetProvider](${ghbug}115)
 * [`pg_upgrade` (upgrade failure from 9.5 to 9.6)](${ghbug}117)
@@ -132,6 +166,7 @@ $h3 Updated PostgreSQL APIs tracked
 * `IsBackgroundWorker`
 * `IsBinaryUpgrade`
 * `SPI_register_trigger_data`
+* `SPI` without `SPI_push`/`SPI_pop`
 
 $h2 Earlier releases
 
