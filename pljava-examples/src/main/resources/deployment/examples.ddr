@@ -343,11 +343,6 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.ResultSetTest.executeSelect'
 			LANGUAGE java;
 
-		CREATE FUNCTION javatest.executeSelectToRecords(varchar)
-			RETURNS SETOF RECORD
-			AS 'org.postgresql.pljava.example.SetOfRecordTest.executeSelect'
-			LANGUAGE java;
-
 		CREATE FUNCTION javatest.countNulls(record)
 			RETURNS int
 			AS 'org.postgresql.pljava.example.Parameters.countNulls'

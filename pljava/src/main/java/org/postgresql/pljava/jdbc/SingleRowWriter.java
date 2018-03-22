@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -106,8 +111,8 @@ public class SingleRowWriter extends SingleRowResultSet
 	throws SQLException
 	{
 		int top = m_values.length;
-		for(int idx = 0; idx < top; ++idx)
-			m_values[idx] = rs.getObject(idx+1);
+		for(int idx = 1; idx <= top; ++idx)
+			updateObject(idx, rs.getObject(idx));
 	}
 
 	/**
