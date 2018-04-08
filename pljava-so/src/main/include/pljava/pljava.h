@@ -64,7 +64,6 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  * to the original value of Warn_restart) must be made.
  */
 extern jlong mainThreadId;
-extern bool pljavaEntryFence(JNIEnv* env);
 extern JNIEnv* currentJNIEnv;
 extern MemoryContext JavaMemoryContext;
 
@@ -164,14 +163,6 @@ typedef union
 {
 	void*  ptrVal;
 	jlong  longVal; /* 64 bit quantity */
-	struct
-	{
-		/* Used when calculating pointer hash in systems where
-		 * a pointer is 64 bit
-		 */
-		uint32 intVal_1;
-		uint32 intVal_2;
-	} x64;
 } Ptr2Long;
 
 struct Invocation_;
