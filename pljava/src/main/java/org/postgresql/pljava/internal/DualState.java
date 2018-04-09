@@ -301,4 +301,90 @@ public abstract class DualState<T> extends WeakReference<T>
 			}
 		}
 	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code pfree} of a single pointer.
+	 */
+	public static abstract class SinglePfree<T> extends DualState<T>
+	{
+		private volatile long m_pointer;
+
+		protected SinglePfree(
+			Key cookie, T referent, long resourceOwner, long pfreeTarget)
+		{
+			super(cookie, referent, resourceOwner);
+			m_pointer = pfreeTarget;
+		}
+
+		/**
+		 * For this class, the native state is valid whenever the wrapped
+		 * pointer is not null.
+		 */
+		@Override
+		protected boolean nativeStateIsValid()
+		{
+			return 0 != m_pointer;
+		}
+
+		/**
+		 * When the native state is released, the wrapped pointer is nulled
+		 * to indicate the state is no longer valid; no {@code pfree} call is
+		 * made, on the assumption that the resource owner's release will be
+		 * followed by wholesale release of the containing memory context
+		 * anyway.
+		 */
+		@Override
+		protected void nativeStateReleased()
+		{
+			m_pointer = 0;
+		}
+
+		/**
+		 * When the Java state is released, the wrapped pointer is nulled to
+		 * indicate the state is no longer valid, <em>and</em> a {@code pfree}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 *<p>
+		 * This overrides the inherited default, which would have removed this
+		 * instance from the live instances collection. Users of this class
+		 * should not call this method directly, but simply call
+		 * {@link #enqueue enqueue}, and let the reclamation happen when the
+		 * queue is processed.
+		 */
+		@Override
+		protected void javaStateReleased()
+		{
+			synchronized(Backend.THREADLOCK)
+			{
+				long p = m_pointer;
+				m_pointer = 0;
+				if ( 0 != p )
+					_pfree(p);
+			}
+		}
+
+		/**
+		 * This override simply calls
+		 * {@link #javaStateReleased javaStateReleased}, so there is no
+		 * difference in the effect of the Java object being explicitly
+		 * released, or found unreachable by the garbage collector.
+		 */
+		@Override
+		protected void javaStateUnreachable()
+		{
+			javaStateReleased();
+		}
+
+		/**
+		 * Allows a subclass to obtain the wrapped pointer value.
+		 */
+		protected long getPointer() throws SQLException
+		{
+			assertNativeStateIsValid();
+			return m_pointer;
+		}
+
+		private native void _pfree(long pointer);
+	}
 }
