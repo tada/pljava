@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2017 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -23,6 +23,11 @@ import java.sql.SQLException;
  * it should just return {@link ResultSetHandle} instead. Functions that
  * return <code>SET OF</code> a simple type should simply return an
  * {@link java.util.Iterator Iterator}.
+ *<p>
+ * For a function declared to return {@code SETOF RECORD} rather than a specific
+ * complex type known in advance, the {@code receiver} argument to
+ * {@link #assignRowValues(ResultSet,int) assignRowValues} can be queried to
+ * learn the number, names, and types of columns expected by the caller.
  * @author Thomas Hallgren
  */
 public interface ResultSetProvider
@@ -31,11 +36,19 @@ public interface ResultSetProvider
 	 * This method is called once for each row that should be returned from
 	 * a procedure that returns a set of rows. The receiver
 	 * is a {@code SingleRowWriter}
-	 * writer instance that is used for capturing the data for the row.
+	 * instance that is used for capturing the data for the row.
+	 *<p>
+	 * If the return type is {@code RECORD} rather than a specific complex type,
+	 * SQL requires a column definition list to follow any use of the function
+	 * in a query. The {@link ResultSet#getMetaData() ResultSetMetaData}
+	 * of {@code receiver} can be used here to learn the number, names,
+	 * and types of the columns expected by the caller. (It can also be used in
+	 * the case of a specific complex type, but in that case the names and types
+	 * are probably already known.)
 	 * @param receiver Receiver of values for the given row.
 	 * @param currentRow Row number, zero on the first call, incremented by one
 	 * on each subsequent call.
-	 * @return <code>true</code> if a new row was provided, <code>false</code>
+	 * @return {@code true} if a new row was provided, {@code false}
 	 * if not (end of data).
 	 * @throws SQLException
 	 */
