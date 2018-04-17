@@ -1312,7 +1312,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 
 static void registerGUCOptions(void)
 {
-	char pathbuf[MAXPGPATH];
+	static char pathbuf[MAXPGPATH];
 
 	DefineCustomStringVariable(
 		"pljava.libjvm_location",
