@@ -12,6 +12,7 @@
  */
 
 #include "org_postgresql_pljava_internal_DualState_SinglePfree.h"
+#include "org_postgresql_pljava_internal_DualState_SingleMemContextDelete.h"
 #include "pljava/DualState.h"
 
 #include "pljava/PgObject.h"
@@ -48,12 +49,22 @@ void pljava_DualState_initialize(void)
 	jclass clazz;
 	jmethodID ctor;
 
-	JNINativeMethod methods[] =
+	JNINativeMethod singlePfreeMethods[] =
 	{
 		{
 		"_pfree",
 		"(J)V",
 		Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree
+		},
+		{ 0, 0, 0 }
+	};
+
+	JNINativeMethod singleMemContextDeleteMethods[] =
+	{
+		{
+		"_memContextDelete",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memContextDelete
 		},
 		{ 0, 0, 0 }
 	};
@@ -73,7 +84,12 @@ void pljava_DualState_initialize(void)
 
 	clazz = (jclass)PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState$SinglePfree");
-	PgObject_registerNatives2(clazz, methods);
+	PgObject_registerNatives2(clazz, singlePfreeMethods);
+	JNI_deleteLocalRef(clazz);
+
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleMemContextDelete");
+	PgObject_registerNatives2(clazz, singleMemContextDeleteMethods);
 	JNI_deleteLocalRef(clazz);
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
@@ -123,5 +139,23 @@ Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree(
 	Ptr2Long p2l;
 	p2l.longVal = pointer;
 	pfree(p2l.ptrVal);
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleMemContextDelete
+ * Method:    _memContextDelete
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memContextDelete(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	MemoryContextDelete(p2l.ptrVal);
 	END_NATIVE
 }

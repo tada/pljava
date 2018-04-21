@@ -400,4 +400,105 @@ public abstract class DualState<T> extends WeakReference<T>
 
 		private native void _pfree(long pointer);
 	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code MemoryContextDelete} of a single context.
+	 *<p>
+	 * This class may get called at the {@code nativeStateReleased) entry, not
+	 * only if the native state is actually being released, but if it is being
+	 * 'claimed' by native code for its own purposes. The effect is the same
+	 * as far as Java is concerned; the object is no longer accessible, and the
+	 * native code is responsible for whatever happens to it next.
+	 */
+	public static abstract class SingleMemContextDelete<T> extends DualState<T>
+	{
+		private volatile long m_context;
+
+		protected SingleMemContextDelete(
+			Key cookie, T referent, long resourceOwner, long memoryContext)
+		{
+			super(cookie, referent, resourceOwner);
+			m_context = memoryContext;
+		}
+
+		@Override
+		public String toString()
+		{
+			return String.format("%s MemoryContextDelete(%x)", super.toString(),
+								 m_context);
+		}
+
+		/**
+		 * For this class, the native state is valid whenever the wrapped
+		 * context pointer is not null.
+		 */
+		@Override
+		protected boolean nativeStateIsValid()
+		{
+			return 0 != m_context;
+		}
+
+		/**
+		 * When the native state is released, the wrapped pointer is nulled
+		 * to indicate the state is no longer valid. No
+		 * {@code MemoryContextDelete} call is
+		 * made; this is important, as the native code may have other plans for
+		 * the memory context, such as to relink it under a different parent
+		 * context, etc.
+		 */
+		@Override
+		protected void nativeStateReleased()
+		{
+			m_context = 0;
+		}
+
+		/**
+		 * When the Java state is released, the wrapped pointer is nulled to
+		 * indicate the state is no longer valid, <em>and</em> a
+		 * {@code MemoryContextDelete}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its parent context.
+		 *<p>
+		 * This overrides the inherited default, which would have removed this
+		 * instance from the live instances collection. Users of this class
+		 * should not call this method directly, but simply call
+		 * {@link #enqueue enqueue}, and let the reclamation happen when the
+		 * queue is processed.
+		 */
+		@Override
+		protected void javaStateReleased()
+		{
+			synchronized(Backend.THREADLOCK)
+			{
+				long p = m_context;
+				m_context = 0;
+				if ( 0 != p )
+					_memContextDelete(p);
+			}
+		}
+
+		/**
+		 * This override simply calls
+		 * {@link #javaStateReleased javaStateReleased}, so there is no
+		 * difference in the effect of the Java object being explicitly
+		 * released, or found unreachable by the garbage collector.
+		 */
+		@Override
+		protected void javaStateUnreachable()
+		{
+			javaStateReleased();
+		}
+
+		/**
+		 * Allows a subclass to obtain the wrapped pointer value.
+		 */
+		protected long getMemoryContext() throws SQLException
+		{
+			assertNativeStateIsValid();
+			return m_context;
+		}
+
+		private native void _memContextDelete(long pointer);
+	}
 }
