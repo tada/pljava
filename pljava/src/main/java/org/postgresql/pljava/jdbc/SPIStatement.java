@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -432,6 +432,35 @@ public class SPIStatement implements Statement
 	}
 
 	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    return iface.isInstance(this);
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    if ( iface.isInstance(this) )
+			return iface.cast(this);
+		throw new SQLFeatureNotSupportedException
+		( this.getClass().getSimpleName()
+		  + " does not wrap " + iface.getName(),
+		  "0A000" );
+	}
+
+	public boolean isCloseOnCompletion() throws SQLException
+	{
+		return false;
+	}
+
+	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
@@ -462,35 +491,12 @@ public class SPIStatement implements Statement
 		  "0A000" );
 	}
 
-	public boolean isWrapperFor(Class<?> iface)
-	throws SQLException
+	public void closeOnCompletion() throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".isWrapperFor( Class<?> ) not implemented yet.",
-		  "0A000" );
-	}
-
-	public <T> T unwrap(Class<T> iface)
-	throws SQLException
-	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".unwrapClass( Class<T> ) not implemented yet.",
-		  "0A000" );
-	}
-
-  public void closeOnCompletion() throws SQLException
-  {
 	    throw new SQLFeatureNotSupportedException
 		( this.getClass()
 		  + ".closeOneCompletion() not implemented yet.",
 		  "0A000" );
-  }
-
-  public boolean isCloseOnCompletion() throws SQLException
-  {
-    return false;
-  }
+	}
 }
 

@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2009, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -1034,24 +1039,11 @@ public class SPIConnection implements Connection
             };
 
 	// ************************************************************
-	// Non-implementation of JDBC 4 methods.
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
 	// ************************************************************
-
-	@Override
-	public Struct createStruct( String typeName, Object[] attributes )
-		throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException(
-			"SPIConnection.createStruct( String, Object[] ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public Array createArrayOf(String typeName, Object[] elements)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException(
-			"SPIConnection.createArrayOf( String, Object[] ) not implemented yet.", "0A000" );
-	}
 
 	@Override
 	public boolean isValid( int timeout )
@@ -1062,51 +1054,30 @@ public class SPIConnection implements Connection
 	}
 
 	@Override
-	public SQLXML createSQLXML()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createSQLXML() not implemented yet.",
-			"0A000" );
-	}
-	@Override
-	public NClob createNClob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createNClob() not implemented yet.",
-			"0A000" );
-	}
-	@Override
-	public Blob createBlob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createBlob() not implemented yet.",
-			"0A000" );
-	}
-	@Override
-	public Clob createClob()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createClob() not implemented yet.",
-			"0A000" );
-	}
-
 	public boolean isWrapperFor(Class<?> iface)
 	throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".isWrapperFor( Class<?> ) not implemented yet.",
-		  "0A000" );
+	    return iface.isInstance(this);
 	}
 
+	@Override
 	public <T> T unwrap(Class<T> iface)
 	throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".unwrapClass( Class<?> ) not implemented yet.",
+	    if ( iface.isInstance(this) )
+			return iface.cast(this);
+		throw new SQLFeatureNotSupportedException
+		( this.getClass().getSimpleName()
+		  + " does not wrap " + iface.getName(),
 		  "0A000" );
 	}
+
+	/*
+	 * These ClientInfo implementations behave as if there are no known
+	 * ClientInfo properties, which is an allowable implementation. However,
+	 * there is a PostgreSQL notion corresponding to ApplicationName, so a
+	 * later extension of these to recognize that property would not be amiss.
+	 */
 
 	@Override
 	public void setClientInfo(String name, String value) throws SQLClientInfoException
@@ -1146,6 +1117,58 @@ public class SPIConnection implements Connection
 			_clientInfo = new Properties();
 		}
 		return _clientInfo;
+	}
+
+	// ************************************************************
+	// Non-implementation of JDBC 4 methods.
+	// ************************************************************
+
+	@Override
+	public Struct createStruct( String typeName, Object[] attributes )
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.createStruct( String, Object[] ) not implemented yet.", "0A000" );
+	}
+
+	@Override
+	public Array createArrayOf(String typeName, Object[] elements)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException(
+			"SPIConnection.createArrayOf( String, Object[] ) not implemented yet.", "0A000" );
+	}
+
+	@Override
+	public SQLXML createSQLXML()
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( "SPIConnection.createSQLXML() not implemented yet.",
+			"0A000" );
+	}
+
+	@Override
+	public NClob createNClob()
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( "SPIConnection.createNClob() not implemented yet.",
+			"0A000" );
+	}
+
+	@Override
+	public Blob createBlob()
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( "SPIConnection.createBlob() not implemented yet.",
+			"0A000" );
+	}
+
+	@Override
+	public Clob createClob()
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( "SPIConnection.createClob() not implemented yet.",
+			"0A000" );
 	}
 
 	// ************************************************************
