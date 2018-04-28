@@ -47,6 +47,8 @@ import javax.xml.transform.stax.StAXSource;
 import javax.xml.transform.dom.DOMSource;
 
 import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamReader;
@@ -271,12 +273,18 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 						new StreamSource(is));
 
 				if ( sourceClass.isAssignableFrom(SAXSource.class) )
+				{
+					XMLReader xr = XMLReaderFactory.createXMLReader();
+					xr.setFeature("http://xml.org/sax/features/namespaces",
+								  true);
 					return sourceClass.cast(
-						new SAXSource(new InputSource(is)));
+						new SAXSource(xr, new InputSource(is)));
+				}
 
 				if ( sourceClass.isAssignableFrom(StAXSource.class) )
 				{
 					XMLInputFactory xif = XMLInputFactory.newFactory();
+					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 					XMLStreamReader xsr =
 						xif.createXMLStreamReader(is);
 					return sourceClass.cast(new StAXSource(xsr));
@@ -286,6 +294,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				{
 					DocumentBuilderFactory dbf =
 						DocumentBuilderFactory.newInstance();
+					dbf.setNamespaceAware(true);
 					DocumentBuilder db = dbf.newDocumentBuilder();
 					return sourceClass.cast(new DOMSource(db.parse(is)));
 				}
