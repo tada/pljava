@@ -2200,6 +2200,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(Timestamp.class, "timestamp");
 			this.addMap(Time.class, "time");
 			this.addMap(java.sql.Date.class, "date");
+			this.addMap(java.sql.SQLXML.class, "xml");
 			this.addMap(BigInteger.class, "numeric");
 			this.addMap(BigDecimal.class, "numeric");
 			this.addMap(ResultSet.class, "record");
