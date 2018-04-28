@@ -231,6 +231,13 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 	}
 
+	@Override
+	public String toString()
+	{
+		return String.format("DualState owner:%x %s", m_resourceOwner,
+			nativeStateIsValid() ? "fresh" : "stale");
+	}
+
 	/**
 	 * Called only from native code by the {@code ResourceOwner} callback when a
 	 * resource owner is being released. Must identify the live instances that
@@ -315,6 +322,12 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			super(cookie, referent, resourceOwner);
 			m_pointer = pfreeTarget;
+		}
+
+		@Override
+		public String toString()
+		{
+			return String.format("%s pfree(%x)", super.toString(), m_pointer);
 		}
 
 		/**
