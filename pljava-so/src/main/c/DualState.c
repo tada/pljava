@@ -16,6 +16,12 @@
 
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
+
+/*
+ * Includes for objects dependent on DualState, so they can be initialized here
+ */
+#include "pljava/VarlenaWrapper.h"
+
 static jclass s_DualState_class;
 
 static jmethodID s_DualState_resourceOwnerRelease;
@@ -71,6 +77,11 @@ void pljava_DualState_initialize(void)
 	JNI_deleteLocalRef(clazz);
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
+
+	/*
+	 * Call initialize() methods of known classes built upon DualState.
+	 */
+	pljava_VarlenaWrapper_initialize();
 }
 
 static void resourceReleaseCB(ResourceReleasePhase phase,
