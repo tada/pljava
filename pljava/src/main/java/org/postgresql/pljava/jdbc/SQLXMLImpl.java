@@ -89,13 +89,21 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 
 import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamWriter;
+import javax.xml.stream.XMLEventWriter;
 
 /* ... for SQLXMLImpl.SAXResultAdapter */
 
 import javax.xml.transform.Transformer;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.XMLFilterImpl;
+
+/* ... for SQLXMLImpl.StAXResultAdapter */
+
+import javax.xml.namespace.NamespaceContext;
+import javax.xml.stream.XMLEventReader;
+import javax.xml.stream.events.XMLEvent;
+
+import javax.xml.stream.XMLStreamException;
 
 public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 {
@@ -551,9 +559,10 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				if ( resultClass.isAssignableFrom(StAXResult.class) )
 				{
 					XMLOutputFactory xof = XMLOutputFactory.newFactory();
-					XMLStreamWriter xsw = xof.createXMLStreamWriter(
-						new DeclCheckedOutputStream(os, m_serverCS),
-						m_serverCS.name());
+					os = new DeclCheckedOutputStream(os, m_serverCS);
+					XMLEventWriter xsw = xof.createXMLEventWriter(
+						os, m_serverCS.name());
+					xsw = new StAXResultAdapter(xsw, os);
 					return resultClass.cast(new StAXResult(xsw));
 				}
 
@@ -812,6 +821,113 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 		public Transformer getTransformer()
 		{
 			return m_th.getTransformer();
+		}
+	}
+
+	/**
+	 * Class to wrap a StAX {@code XMLEventWriter} and hook the
+	 * {@code endDocument} event to also close the underlying output stream,
+	 * making the {@code SQLXML} object ready to use for storing or returning
+	 * the value.
+	 */
+	static class StAXResultAdapter implements XMLEventWriter
+	{
+		/*
+		 * TODO: it seems there is a practical difference between the
+		 * XMLEventWriter and XMLStreamWriter APIs, as the former cannot
+		 * distinguish between self-closed empty elements and the start-and-end
+		 * tag form, while the latter can. This should probably be replaced
+		 * by a class that implements XMLStreamWriter; that's just more tedious
+		 * and longwinded, with so many more methods to implement.
+		 */
+		private XMLEventWriter m_xew;
+		private OutputStream m_os;
+
+		StAXResultAdapter(XMLEventWriter xew, OutputStream os)
+		{
+			m_xew = xew;
+			m_os = os;
+		}
+
+		@Override
+		public void flush() throws XMLStreamException
+		{
+			m_xew.flush();
+		}
+
+		@Override
+		public void close() throws XMLStreamException
+		{
+			m_xew.close();
+		}
+
+		/**
+		 * Version of {@code add} that also closes the underlying stream after
+		 * handling an {@code endDocument} event.
+		 *<p>
+		 * Note it does <em>not</em> call this class's own <em>close</em>; a
+		 * calling transformer may emit a warning if that is done.
+		 */
+		@Override
+		public void add(XMLEvent event) throws XMLStreamException
+		{
+			m_xew.add(event);
+			if ( ! event.isEndDocument() )
+				return;
+			try
+			{
+				m_os.close();
+			}
+			catch (   Exception ioe )
+			{
+				throw new XMLStreamException(
+					"Failure closing SQLXML StAXResult", ioe);
+			}
+		}
+
+		/**
+		 * Include a whole content fragment by supplying another reader.
+		 * That is passed directly to the underlying class, so the
+		 * {@code endDocument} event ending that content will not close
+		 * the stream.
+		 */
+		@Override
+		public void add(XMLEventReader reader) throws XMLStreamException
+		{
+			m_xew.add(reader);
+		}
+
+		@Override
+		public String getPrefix(String uri) throws XMLStreamException
+		{
+			return m_xew.getPrefix(uri);
+		}
+
+		@Override
+		public void setPrefix(String prefix, String uri)
+		throws XMLStreamException
+		{
+			m_xew.setPrefix(prefix, uri);
+		}
+
+		@Override
+		public void setDefaultNamespace(String uri)
+		throws XMLStreamException
+		{
+			m_xew.setDefaultNamespace(uri);
+		}
+
+		@Override
+		public void setNamespaceContext(NamespaceContext context)
+		throws XMLStreamException
+		{
+			m_xew.setNamespaceContext(context);
+		}
+
+		@Override
+		public NamespaceContext getNamespaceContext()
+		{
+			return m_xew.getNamespaceContext();
 		}
 	}
 
