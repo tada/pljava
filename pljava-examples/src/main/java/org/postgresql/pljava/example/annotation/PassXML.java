@@ -17,9 +17,12 @@ import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.io.Writer;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -170,11 +173,55 @@ public class PassXML
 			throw new SQLException("XML transformation failed", te);
 		}
 
-		if ( 3 == howout )
+		/*
+		 * Before a SQLXML object that has been written to can be used by
+		 * PostgreSQL (returned as a function result, plugged in as a prepared
+		 * statement parameter or into a ResultSet, etc.), the method used for
+		 * writing it must be "closed" to ensure the writing is complete.
+		 *  If it is set with setString(), nothing more is needed; setString
+		 * obviously sets the whole value at once. Any OutputStream or Writer
+		 * obtained from setBinaryStream() or setCharacterStream(), or from
+		 * setResult(StreamResult.class), has to be explicitly closed (a
+		 * Transformer does not close its Result when the transformation is
+		 * complete!). Those are cases 1, 2, and 4 here.
+		 *  Cases 5 (SAXResult) and 6 (StAXResult) need no special attention;
+		 * though the Transformer does not close them, the ones returned by
+		 * this SQLXML implementation are set up to close themselves when the
+		 * endDocument event is written.
+		 */
+		switch ( howout )
 		{
+		case 1:
+		case 2:
+		case 4:
+			StreamResult sr = (StreamResult)rlt;
+			OutputStream os = sr.getOutputStream();
+			Writer w = sr.getWriter();
+			try
+			{
+				if ( null != os )
+					os.close();
+				if ( null != w )
+					w.close();
+			}
+			catch ( IOException ioe )
+			{
+				throw new SQLException(
+					"Failure closing SQLXML result", "XX000");
+			}
+			break;
+		case 3:
+			/*
+			 * This case is just here as a roundabout way to test setString.
+			 * There is no StringResult.class, so to keep case 3 parallel to
+			 * the others, sxToSource returned a StreamResult over a
+			 * StringWriter; here, we retrieve the string from that, and test
+			 * setString().
+			 */
 			StringWriter sw = (StringWriter)((StreamResult)rlt).getWriter();
 			String s = sw.toString();
 			rx.setString(s);
+			break;
 		}
 
 		return rx;
