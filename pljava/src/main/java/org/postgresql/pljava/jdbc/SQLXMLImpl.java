@@ -71,6 +71,24 @@ import java.util.Arrays;
 
 import java.sql.SQLDataException;
 
+/* ... for SQLXMLImpl.Writable */
+
+import java.io.FilterOutputStream;
+import java.io.OutputStreamWriter;
+
+import static javax.xml.transform.OutputKeys.ENCODING;
+
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.sax.SAXResult;
+import javax.xml.transform.stax.StAXResult;
+import javax.xml.transform.dom.DOMResult;
+
+import javax.xml.transform.sax.SAXTransformerFactory;
+import javax.xml.transform.sax.TransformerHandler;
+
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
+
 public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 {
 	protected AtomicReference<V> m_backing;
@@ -381,6 +399,265 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			InputStream pfx =
 				new ByteArrayInputStream(probe.prefix(m_serverCS));
 			return new SequenceInputStream(pfx, is);
+		}
+	}
+
+	static class Writable extends SQLXMLImpl<VarlenaWrapper.Output>
+	{
+		private AtomicBoolean m_writable = new AtomicBoolean(true);
+		private Charset m_serverCS = implServerCharset();
+
+		private Writable(VarlenaWrapper.Output vwo) throws SQLException
+		{
+			super(vwo);
+			if ( null == m_serverCS )
+			{
+				try
+				{
+					vwo.free();
+				}
+				catch ( IOException ioe ) { }
+				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
+					"Charset found to match server encoding; perhaps set " +
+					"org.postgresql.server.encoding system property to a " +
+					"valid Java charset name for the same encoding?", "0A000");
+			}
+		}
+
+		private OutputStream backingAndClearWritable()
+		throws SQLException
+		{
+			OutputStream backing = backingIfNotFreed();
+			return m_writable.getAndSet(false) ? backing : null;
+		}
+
+		@Override
+		public void free() throws SQLException
+		{
+			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
+			if ( null == vwo )
+				return;
+			try
+			{
+				vwo.free();
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public OutputStream setBinaryStream() throws SQLException
+		{
+			OutputStream os = backingAndClearWritable();
+			if ( null == os )
+				return super.setBinaryStream();
+			try
+			{
+				return new DeclCheckedOutputStream(os, m_serverCS);
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public Writer setCharacterStream() throws SQLException
+		{
+			OutputStream os = backingAndClearWritable();
+			if ( null == os )
+				return super.setCharacterStream();
+			try
+			{
+				os = new DeclCheckedOutputStream(os, m_serverCS);
+				return new OutputStreamWriter(os, m_serverCS.newEncoder());
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public void setString(String value) throws SQLException
+		{
+			OutputStream os = backingAndClearWritable();
+			if ( null == os )
+				super.setString(value);
+			try
+			{
+				os = new DeclCheckedOutputStream(os, m_serverCS);
+				Writer w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+				w.write(value);
+				w.close();
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public <T extends Result> T setResult(Class<T> resultClass)
+		throws SQLException
+		{
+			OutputStream os = backingAndClearWritable();
+			if ( null == os )
+				return super.setResult(resultClass);
+
+			if ( null == resultClass || Result.class == resultClass )
+				resultClass = (Class<T>)StreamResult.class; // trust me on this
+
+			try
+			{
+				if ( resultClass.isAssignableFrom(StreamResult.class) )
+					return resultClass.cast(
+						new StreamResult(new DeclCheckedOutputStream(
+							os, m_serverCS)));
+
+				if ( resultClass.isAssignableFrom(SAXResult.class) )
+				{
+					SAXTransformerFactory saxtf = (SAXTransformerFactory)
+						SAXTransformerFactory.newInstance();
+					TransformerHandler th = saxtf.newTransformerHandler();
+					th.getTransformer().setOutputProperty(
+						ENCODING, m_serverCS.name());
+					th.setResult(new StreamResult(new DeclCheckedOutputStream(
+										os, m_serverCS)));
+					return resultClass.cast(new SAXResult(th));
+				}
+
+				if ( resultClass.isAssignableFrom(StAXResult.class) )
+				{
+					XMLOutputFactory xof = XMLOutputFactory.newFactory();
+					XMLStreamWriter xsw = xof.createXMLStreamWriter(
+						new DeclCheckedOutputStream(os, m_serverCS),
+						m_serverCS.name());
+					return resultClass.cast(new StAXResult(xsw));
+				}
+
+				if ( resultClass.isAssignableFrom(DOMResult.class) )
+				{
+					/* leave this grody case to be implemented later */
+				}
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+
+			throw new SQLFeatureNotSupportedException(
+				"No support for SQLXML.setResult(" +
+				resultClass.getName() + ".class)", "0A000");
+		}
+	}
+
+	static class DeclCheckedOutputStream extends FilterOutputStream
+	{
+		private Charset m_serverCS;
+		private DeclProbe m_probe;
+
+		private DeclCheckedOutputStream(OutputStream os, Charset cs)
+		throws IOException
+		{
+			super(os);
+			os.write(new byte[0]); // is the VarlenaWrapper.Output still alive?
+			m_serverCS = cs;
+			m_probe = new DeclProbe();
+		}
+
+		@Override
+		public void write(int b) throws IOException
+		{
+			synchronized ( out )
+			{
+				if ( null == m_probe )
+				{
+					out.write(b);
+					return;
+				}
+				try
+				{
+					if ( ! m_probe.take((byte)(b & 0xff)) )
+						check();
+				}
+				catch ( SQLException sqe )
+				{
+					throw normalizedException(sqe);
+				}
+			}
+		}
+
+		@Override
+		public void write(byte[] b, int off, int len) throws IOException
+		{
+			synchronized ( out )
+			{
+				if ( null != m_probe )
+				{
+					try
+					{
+						while ( 0 < len -- )
+						{
+							if ( ! m_probe.take(b[off ++]) )
+								break;
+						}
+						check();
+					}
+					catch ( SQLException sqe )
+					{
+						throw normalizedException(sqe);
+					}
+				}
+				out.write(b, off, len);
+			}
+		}
+
+		@Override
+		public void flush() throws IOException
+		{
+		}
+
+		@Override
+		public void close() throws IOException
+		{
+			synchronized ( out )
+			{
+				try
+				{
+					check();
+				}
+				catch ( SQLException sqe )
+				{
+					throw normalizedException(sqe);
+				}
+				out.close();
+			}
+		}
+
+		private void check() throws IOException, SQLException
+		{
+			if ( null == m_probe )
+				return;
+			m_probe.checkEncoding(m_serverCS, false);
+			byte[] prefix = m_probe.prefix(m_serverCS);
+			m_probe = null; // Do not check more than once.
+			out.write(prefix);
+		}
+
+		/**
+		 * Wrap other checked exceptions in IOException for methods specified to
+		 * throw only that.
+		 */
+		private IOException normalizedException(Exception e)
+		{
+			if ( e instanceof IOException )
+				return (IOException)e;
+			if ( e instanceof RuntimeException )
+				throw (RuntimeException)e;
+			return new IOException("Malformed XML", e);
 		}
 	}
 
@@ -848,6 +1125,58 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				m_readaheadStart, parseResult.length - m_readaheadStart);
 
 			return baos.toByteArray();
+		}
+
+		/**
+		 * Throw an exception if a decl was matched and specified an encoding
+		 * that isn't the server encoding, or if a decl was malformed, or if
+		 * strict is specified, no encoding was declared, and the server
+		 * encoding is not UTF-8.
+		 * @param serverCharset The encoding used by the server; any encoding
+		 * specified in the stream must resolve (possibly as an alias) to this
+		 * encoding.
+		 * @param strict if true, a decl may only be absent, or lack encoding
+		 * information, if the server charset is UTF-8. If false, the check
+		 * passes regardless of server encoding if the stream contains no decl
+		 * or the decl does not declare an encoding.
+		 */
+		void checkEncoding(Charset serverCharset, boolean strict)
+		throws SQLException
+		{
+			if ( State.MATCHED == m_state )
+			{
+				if ( m_encodingEnd > m_encodingStart )
+				{
+					byte[] parseResult = m_save.toByteArray();
+					/*
+					 * The assumption that the serverCharset can be used in
+					 * constructing this String rests again on all supported
+					 * server charsets matching on the characters used in decls.
+					 */
+					String encName = new String(parseResult,
+						m_encodingStart, m_encodingEnd - m_encodingStart,
+						serverCharset);
+					try
+					{
+						Charset cs = Charset.forName(encName);
+						if ( serverCharset.equals(cs) )
+							return;
+					}
+					catch ( IllegalArgumentException iae ) { }
+					throw new SQLDataException(
+						"XML declares character set \"" + encName +
+						"\" which does not match server encoding", "2200N");
+				}
+			}
+			else if ( State.UNMATCHED != m_state )
+				throw new SQLDataException(
+					"XML begins with an incomplete declaration", "2200N");
+
+			if ( ! strict  ||  "UTF-8".equals(serverCharset.name()) )
+				return;
+			throw new SQLDataException(
+				"XML does not declare a character set, and server encoding " +
+				"is not UTF-8", "2200N");
 		}
 	}
 }

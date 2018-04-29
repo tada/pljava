@@ -16,6 +16,8 @@
 
 static jclass    s_SQLXML_Readable_class;
 static jmethodID s_SQLXML_Readable_init;
+static jclass    s_SQLXML_Writable_class;
+static jmethodID s_SQLXML_Writable_init;
 
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 {
@@ -49,4 +51,9 @@ void pljava_SQLXMLImpl_initialize(void)
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable"));
 	s_SQLXML_Readable_init = PgObject_getJavaMethod(s_SQLXML_Readable_class,
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;)V");
+
+	s_SQLXML_Writable_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/jdbc/SQLXMLImpl$Writable"));
+	s_SQLXML_Writable_init = PgObject_getJavaMethod(s_SQLXML_Writable_class,
+		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;)V");
 }
