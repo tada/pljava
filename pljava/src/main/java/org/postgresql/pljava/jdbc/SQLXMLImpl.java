@@ -91,6 +91,12 @@ import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamWriter;
 
+/* ... for SQLXMLImpl.SAXResultAdapter */
+
+import javax.xml.transform.Transformer;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.XMLFilterImpl;
+
 public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 {
 	protected AtomicReference<V> m_backing;
@@ -536,8 +542,9 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					TransformerHandler th = saxtf.newTransformerHandler();
 					th.getTransformer().setOutputProperty(
 						ENCODING, m_serverCS.name());
-					th.setResult(new StreamResult(new DeclCheckedOutputStream(
-										os, m_serverCS)));
+					os = new DeclCheckedOutputStream(os, m_serverCS);
+					th.setResult(new StreamResult(os));
+					th = SAXResultAdapter.newInstance(th, os);
 					return resultClass.cast(new SAXResult(th));
 				}
 
@@ -681,6 +688,130 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			if ( e instanceof RuntimeException )
 				throw (RuntimeException)e;
 			return new IOException("Malformed XML", e);
+		}
+	}
+
+	/**
+	 * Class to wrap a SAX {@code TransformerHandler} and hook the
+	 * {@code endDocument} callback to also close the underlying output stream,
+	 * making the {@code SQLXML} object ready to use for storing or returning
+	 * the value.
+	 */
+	static class SAXResultAdapter
+		extends XMLFilterImpl implements TransformerHandler
+	{
+		private OutputStream m_os;
+		private TransformerHandler m_th;
+		private SAXResultAdapter(TransformerHandler th, OutputStream os)
+		{
+			m_os = os;
+			m_th = th;
+			setContentHandler(th);
+			setDTDHandler(th);
+		}
+
+		static TransformerHandler newInstance(
+				TransformerHandler th, OutputStream os)
+		{
+			return new SAXResultAdapter(th, os);
+		}
+
+		/**
+		 * Version of {@code endDocument} that also closes the underlying
+		 * stream.
+		 */
+		@Override
+		public void endDocument() throws SAXException
+		{
+			super.endDocument();
+			try
+			{
+				m_os.close();
+			}
+			catch ( IOException ioe )
+			{
+				throw new SAXException("Failure closing SQLXML SAXResult", ioe);
+			}
+			m_os = null;
+		}
+
+		/*
+		 * XMLFilterImpl provides default pass-through methods for most of the
+		 * superinterfaces of TransformerHandler, but not for those of
+		 * LexicalHandler, so here goes.
+		 */
+
+		@Override
+		public void startDTD(String name, String publicId, String systemId)
+		throws SAXException
+		{
+			m_th.startDTD(name, publicId, systemId);
+		}
+
+		@Override
+		public void endDTD()
+		throws SAXException
+		{
+			m_th.endDTD();
+		}
+
+		@Override
+		public void startEntity(String name)
+		throws SAXException
+		{
+			m_th.startEntity(name);
+		}
+
+		@Override
+		public void endEntity(String name)
+		throws SAXException
+		{
+			m_th.endEntity(name);
+		}
+
+		@Override
+		public void startCDATA()
+		throws SAXException
+		{
+			m_th.startCDATA();
+		}
+
+		@Override
+		public void endCDATA()
+		throws SAXException
+		{
+			m_th.endCDATA();
+		}
+
+		@Override
+		public void comment(char[] ch, int start, int length)
+		throws SAXException
+		{
+			m_th.comment(ch, start, length);
+		}
+
+		@Override
+		public void setResult(Result result)
+		{
+			throw new IllegalArgumentException("Result already set");
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			m_th.setSystemId(systemId);
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			return m_th.getSystemId();
+		}
+
+		@Override
+		public Transformer getTransformer()
+		{
+			return m_th.getTransformer();
 		}
 	}
 
