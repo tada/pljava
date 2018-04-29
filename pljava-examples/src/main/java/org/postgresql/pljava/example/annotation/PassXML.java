@@ -11,6 +11,8 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLXML;
@@ -31,8 +33,11 @@ import javax.xml.transform.TransformerFactory;
 
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
+import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stax.StAXResult;
 import javax.xml.transform.stax.StAXSource;
 
 import org.postgresql.pljava.annotation.Function;
@@ -46,25 +51,26 @@ public class PassXML
 	static Map<String,Templates> s_tpls = new HashMap<String,Templates>();
 
 	/**
-	 * Echo an XML parameter back as a string, exercising seven different ways
-	 * (how => 1-7) of reading an SQLXML object.
+	 * Echo an XML parameter back, exercising seven different ways
+	 * (howin => 1-7) of reading an SQLXML object, and six (howout => 1-6)
+	 * of returning one.
 	 *<p>
-	 * If how => 0, the XML parameter is simply saved in a static. It can be
+	 * If howin => 0, the XML parameter is simply saved in a static. It can be
 	 * read in a subsequent call with sx => null, but only in the same
 	 * transaction.
 	 */
 	@Function(schema="javatest")
-	public static String echoXMLParameter(SQLXML sx, int how)
+	public static SQLXML echoXMLParameter(SQLXML sx, int howin, int howout)
 	throws SQLException
 	{
 		if ( null == sx )
 			sx = s_sx;
-		if ( 0 == how )
+		if ( 0 == howin )
 		{
 			s_sx = sx;
-			return "(saved)";
+			return null;
 		}
-		return echoSQLXML(sx, how);
+		return echoSQLXML(sx, howin, howout);
 	}
 
 	/**
@@ -123,19 +129,36 @@ public class PassXML
 			case  1: return new StreamSource(sx.getBinaryStream());
 			case  2: return new StreamSource(sx.getCharacterStream());
 			case  3: return new StreamSource(new StringReader(sx.getString()));
-			case  4: return     sx.getSource(DOMSource.class);
+			case  4: return     sx.getSource(StreamSource.class);
 			case  5: return     sx.getSource(SAXSource.class);
 			case  6: return     sx.getSource(StAXSource.class);
-			case  7: return     sx.getSource(StreamSource.class);
+			case  7: return     sx.getSource(DOMSource.class);
 			default: throw new SQLDataException("how should be 1-7", "22003");
 		}
 	}
 
-	private static String echoSQLXML(SQLXML sx, int how) throws SQLException
+	private static Result sxToResult(SQLXML sx, int how) throws SQLException
 	{
-		Source src = sxToSource(sx, how);
-		StringWriter sw = new StringWriter();
-		Result rlt = new StreamResult(sw);
+		switch ( how )
+		{
+			case  1: return new StreamResult(sx.setBinaryStream());
+			case  2: return new StreamResult(sx.setCharacterStream());
+			case  3: return new StreamResult(new StringWriter());
+			case  4: return     sx.setResult(StreamResult.class);
+			case  5: return     sx.setResult(SAXResult.class);
+			case  6: return     sx.setResult(StAXResult.class);
+			case  7: return     sx.setResult(DOMResult.class);
+			default: throw new SQLDataException("how should be 1-7", "22003");
+		}
+	}
+
+	private static SQLXML echoSQLXML(SQLXML sx, int howin, int howout)
+	throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML rx = c.createSQLXML();
+		Source src = sxToSource(sx, howin);
+		Result rlt = sxToResult(rx, howout);
 
 		try
 		{
@@ -147,6 +170,13 @@ public class PassXML
 			throw new SQLException("XML transformation failed", te);
 		}
 
-		return sw.toString();
+		if ( 3 == howout )
+		{
+			StringWriter sw = (StringWriter)((StreamResult)rlt).getWriter();
+			String s = sw.toString();
+			rx.setString(s);
+		}
+
+		return rx;
 	}
 }
