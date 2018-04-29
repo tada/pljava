@@ -103,14 +103,15 @@ public class PassXML
 	}
 
 	@Function(schema="javatest")
-	public static String transformXML(
-		String transformName, SQLXML source, int how)
+	public static SQLXML transformXML(
+		String transformName, SQLXML source, int howin, int howout)
 	throws SQLException
 	{
 		Templates tpl = s_tpls.get(transformName);
-		Source src = sxToSource(source, how);
-		StringWriter sw = new StringWriter();
-		Result rlt = new StreamResult(sw);
+		Source src = sxToSource(source, howin);
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML result = c.createSQLXML();
+		Result rlt = sxToResult(result, howout);
 
 		try
 		{
@@ -122,37 +123,7 @@ public class PassXML
 			throw new SQLException("XML transformation failed", te);
 		}
 
-		return sw.toString();
-	}
-
-	private static Source sxToSource(SQLXML sx, int how) throws SQLException
-	{
-		switch ( how )
-		{
-			case  1: return new StreamSource(sx.getBinaryStream());
-			case  2: return new StreamSource(sx.getCharacterStream());
-			case  3: return new StreamSource(new StringReader(sx.getString()));
-			case  4: return     sx.getSource(StreamSource.class);
-			case  5: return     sx.getSource(SAXSource.class);
-			case  6: return     sx.getSource(StAXSource.class);
-			case  7: return     sx.getSource(DOMSource.class);
-			default: throw new SQLDataException("how should be 1-7", "22003");
-		}
-	}
-
-	private static Result sxToResult(SQLXML sx, int how) throws SQLException
-	{
-		switch ( how )
-		{
-			case  1: return new StreamResult(sx.setBinaryStream());
-			case  2: return new StreamResult(sx.setCharacterStream());
-			case  3: return new StreamResult(new StringWriter());
-			case  4: return     sx.setResult(StreamResult.class);
-			case  5: return     sx.setResult(SAXResult.class);
-			case  6: return     sx.setResult(StAXResult.class);
-			case  7: return     sx.setResult(DOMResult.class);
-			default: throw new SQLDataException("how should be 1-7", "22003");
-		}
+		return ensureClosed(rlt, result, howout);
 	}
 
 	private static SQLXML echoSQLXML(SQLXML sx, int howin, int howout)
@@ -173,28 +144,104 @@ public class PassXML
 			throw new SQLException("XML transformation failed", te);
 		}
 
-		/*
-		 * Before a SQLXML object that has been written to can be used by
-		 * PostgreSQL (returned as a function result, plugged in as a prepared
-		 * statement parameter or into a ResultSet, etc.), the method used for
-		 * writing it must be "closed" to ensure the writing is complete.
-		 *  If it is set with setString(), nothing more is needed; setString
-		 * obviously sets the whole value at once. Any OutputStream or Writer
-		 * obtained from setBinaryStream() or setCharacterStream(), or from
-		 * setResult(StreamResult.class), has to be explicitly closed (a
-		 * Transformer does not close its Result when the transformation is
-		 * complete!). Those are cases 1, 2, and 4 here.
-		 *  Cases 5 (SAXResult) and 6 (StAXResult) need no special attention;
-		 * though the Transformer does not close them, the ones returned by
-		 * this SQLXML implementation are set up to close themselves when the
-		 * endDocument event is written.
-		 */
-		switch ( howout )
+		return ensureClosed(rlt, rx, howout);
+	}
+
+	private static Source sxToSource(SQLXML sx, int how) throws SQLException
+	{
+		switch ( how )
+		{
+			case  1: return new StreamSource(sx.getBinaryStream());
+			case  2: return new StreamSource(sx.getCharacterStream());
+			case  3: return new StreamSource(new StringReader(sx.getString()));
+			case  4: return     sx.getSource(StreamSource.class);
+			case  5: return     sx.getSource(SAXSource.class);
+			case  6: return     sx.getSource(StAXSource.class);
+			case  7: return     sx.getSource(DOMSource.class);
+			default: throw new SQLDataException("how should be 1-7", "22003");
+		}
+	}
+
+	/**
+	 * Return some instance of {@code Result} for writing an {@code SQLXML}
+	 * object, depending on the parameter {@code how}.
+	 *<p>
+	 * Note that this method always returns a {@code Result}, even for cases
+	 * 1 and 2 (obtaining writable streams directly from the {@code SQLXML}
+	 * object; this method wraps them in {@code Result}), and case 3
+	 * ({@code setString}; this method creates a {@code StringWriter} and
+	 * returns it wrapped in a {@code Result}.
+	 *<p>
+	 * In case 3, it will be necessary, after writing, to get the {@code String}
+	 * from the {@code StringWriter}, and call {@code setString} with it.
+	 */
+	private static Result sxToResult(SQLXML sx, int how) throws SQLException
+	{
+		switch ( how )
+		{
+			case  1: return new StreamResult(sx.setBinaryStream());
+			case  2: return new StreamResult(sx.setCharacterStream());
+			case  3: return new StreamResult(new StringWriter());
+			case  4: return     sx.setResult(StreamResult.class);
+			case  5: return     sx.setResult(SAXResult.class);
+			case  6: return     sx.setResult(StAXResult.class);
+			case  7: return     sx.setResult(DOMResult.class);
+			default: throw new SQLDataException("how should be 1-7", "22003");
+		}
+	}
+
+	/**
+	 * Ensure the closing of whatever method was used to add content to
+	 * an {@code SQLXML} object.
+	 *<p>
+	 * Before a {@code SQLXML} object that has been written to can be used by
+	 * PostgreSQL (returned as a function result, plugged in as a prepared
+	 * statement parameter or into a {@code ResultSet}, etc.), the method used
+	 * for writing it must be "closed" to ensure the writing is complete.
+	 *<p>
+	 * If it is set with {@link SQLXML#setString setString}, nothing more is
+	 * needed; {@code setString} obviously sets the whole value at once. Any
+	 * {@code OutputStream} or {@code Writer} obtained from
+	 * {@link SQLXML#setBinaryStream setBinaryStream} or
+	 * {@link SQLXML#setCharacterStream setCharacterStream}, or from
+	 * {@link SQLXML#setResult setResult}{@code (StreamResult.class)}, has to be
+	 * explicitly closed (a {@link Transformer} does not close its
+	 * {@link Result} when the transformation is complete!).
+	 * Those are cases 1, 2, and 4 here.
+	 *<p>
+	 * Cases 5 ({@code SAXResult}) and 6 ({@code StAXResult}) need no special
+	 * attention; though the {@code Transformer} does not close them, the ones
+	 * returned by this {@code SQLXML} implementation are set up to close
+	 * themselves when the {@code endDocument} event is written.
+	 *<p>
+	 * Case 3 (test of {@code setString} is handled specially here. As this
+	 * class allows testing of all techniques for writing the {@code SQLXML}
+	 * object, and most of those involve a {@code Result}, case 3 is handled
+	 * by also constructing a {@code Result} over a {@link StringWriter} and
+	 * having the content written into that; this method then extracts the
+	 * content from the {@code StringWriter} and passes it to {@code setString}.
+	 * For cases 1 and 2, likewise, the stream obtained with
+	 * {@code getBinaryStream} or {@code getCharacterStream} has been wrapped in
+	 * a {@code Result} for generality in this example.
+	 *<p>
+	 * A typical application will not need the generality seen here; it
+	 * will usually know which technique it is using to write the {@code SQLXML}
+	 * object, and only needs to know how to close that if it needs closing.
+	 * @param r The {@code Result} onto which writing was done.
+	 * @param sx The {@code SQLXML} object being written.
+	 * @param how The integer used in this example class to select which method
+	 * of writing the {@code SQLXML} object was to be tested.
+	 * @return The {@code SQLXML} object {@code sx}, because why not?
+	 */
+	public static SQLXML ensureClosed(Result r, SQLXML sx, int how)
+	throws SQLException
+	{
+		switch ( how )
 		{
 		case 1:
 		case 2:
 		case 4:
-			StreamResult sr = (StreamResult)rlt;
+			StreamResult sr = (StreamResult)r;
 			OutputStream os = sr.getOutputStream();
 			Writer w = sr.getWriter();
 			try
@@ -211,19 +258,11 @@ public class PassXML
 			}
 			break;
 		case 3:
-			/*
-			 * This case is just here as a roundabout way to test setString.
-			 * There is no StringResult.class, so to keep case 3 parallel to
-			 * the others, sxToSource returned a StreamResult over a
-			 * StringWriter; here, we retrieve the string from that, and test
-			 * setString().
-			 */
-			StringWriter sw = (StringWriter)((StreamResult)rlt).getWriter();
+			StringWriter sw = (StringWriter)((StreamResult)r).getWriter();
 			String s = sw.toString();
-			rx.setString(s);
+			sx.setString(s);
 			break;
 		}
-
-		return rx;
+		return sx;
 	}
 }
