@@ -12,6 +12,7 @@
 package org.postgresql.pljava.internal;
 
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -100,6 +101,21 @@ public class InstallHelper
 		System.clearProperty(orderKey);
 		System.clearProperty(orderKey + ".scalar");
 		System.clearProperty(orderKey + ".mirror");
+
+		String encodingKey = "org.postgresql.server.encoding";
+		String encName = System.getProperty(encodingKey);
+		if ( null == encName )
+			encName = Backend.getConfigOption( "server_encoding");
+		try
+		{
+			Charset cs = Charset.forName(encName);
+			org.postgresql.pljava.internal.Session.s_serverCharset = cs; // poke
+			System.setProperty(encodingKey, cs.name());
+		}
+		catch ( IllegalArgumentException iae )
+		{
+			System.clearProperty(encodingKey);
+		}
 
 		/*
 		 * Construct the strings announcing the versions in use.

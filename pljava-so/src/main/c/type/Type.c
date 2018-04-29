@@ -736,6 +736,8 @@ extern void TupleTable_initialize(void);
 
 extern void Composite_initialize(void);
 
+extern void pljava_SQLXMLImpl_initialize(void);
+
 extern void Type_initialize(void);
 void Type_initialize(void)
 {
@@ -778,6 +780,7 @@ void Type_initialize(void)
 	TupleTable_initialize();
 
 	Composite_initialize();
+	pljava_SQLXMLImpl_initialize();
 
 	s_Map_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Map"));
 	s_Map_get = PgObject_getJavaMethod(s_Map_class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");
