@@ -31,6 +31,8 @@ import java.io.IOException;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.postgresql.pljava.internal.Backend;
+
 import java.sql.SQLNonTransientException;
 
 /* ... for SQLXMLImpl.Readable */
@@ -211,6 +213,16 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			"Exception in XML processing, not otherwise provided for",
 			"XX000", e);
 	}
+
+	static SQLXML newWritable()
+	{
+		synchronized ( Backend.THREADLOCK )
+		{
+			return _newWritable();
+		}
+	}
+
+	private static native SQLXML _newWritable();
 
 	static class Readable extends SQLXMLImpl<InputStream>
 	{

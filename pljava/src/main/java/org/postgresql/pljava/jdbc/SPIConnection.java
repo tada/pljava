@@ -1119,6 +1119,13 @@ public class SPIConnection implements Connection
 		return _clientInfo;
 	}
 
+	@Override
+	public SQLXML createSQLXML()
+	throws SQLException
+	{
+		return SQLXMLImpl.newWritable();
+	}
+
 	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
@@ -1137,14 +1144,6 @@ public class SPIConnection implements Connection
 	{
 		throw new SQLFeatureNotSupportedException(
 			"SPIConnection.createArrayOf( String, Object[] ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public SQLXML createSQLXML()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createSQLXML() not implemented yet.",
-			"0A000" );
 	}
 
 	@Override

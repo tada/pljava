@@ -11,6 +11,8 @@
  */
 #include <postgres.h>
 
+#include "org_postgresql_pljava_jdbc_SQLXMLImpl.h"
+
 #include "pljava/type/Type_priv.h"
 #include "pljava/VarlenaWrapper.h"
 
@@ -44,6 +46,17 @@ static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 extern void pljava_SQLXMLImpl_initialize(void);
 void pljava_SQLXMLImpl_initialize(void)
 {
+	jclass clazz;
+	JNINativeMethod methods[] =
+	{
+		{
+		"_newWritable",
+		"()Ljava/sql/SQLXML;",
+		Java_org_postgresql_pljava_jdbc_SQLXMLImpl__1newWritable
+		},
+		{ 0, 0, 0 }
+	};
+
 	TypeClass cls = TypeClass_alloc("type.SQLXML");
 	cls->JNISignature = "Ljava/sql/SQLXML;";
 	cls->javaTypeName = "java.sql.SQLXML";
@@ -62,4 +75,28 @@ void pljava_SQLXMLImpl_initialize(void)
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;)V");
 	s_SQLXML_Writable_adopt = PgObject_getJavaMethod(s_SQLXML_Writable_class,
 		"adopt", "()Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;");
+
+	clazz = PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLXMLImpl");
+	PgObject_registerNatives2(clazz, methods);
+	JNI_deleteLocalRef(clazz);
+}
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_SQLXMLImpl
+ * Method:    _newWritable
+ * Signature: ()Ljava/sql/SQLXML;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_jdbc_SQLXMLImpl__1newWritable
+	(JNIEnv *env, jclass sqlxml_class)
+{
+	jobject sqlxml;
+	jobject vwo;
+	BEGIN_NATIVE
+	vwo = pljava_VarlenaWrapper_Output(
+			TopTransactionContext, TopTransactionResourceOwner);
+	sqlxml = JNI_newObjectLocked(
+			s_SQLXML_Writable_class, s_SQLXML_Writable_init, vwo);
+	END_NATIVE
+	return sqlxml;
 }
