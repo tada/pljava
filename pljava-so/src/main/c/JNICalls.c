@@ -321,6 +321,25 @@ jlong JNI_callLongMethodV(jobject object, jmethodID methodID, va_list args)
 	return result;
 }
 
+jlong JNI_callLongMethodLocked(jobject object, jmethodID methodID, ...)
+{
+	jlong result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callLongMethodLockedV(object, methodID, args);
+	va_end(args);
+	return result;
+}
+
+jlong JNI_callLongMethodLockedV(jobject object, jmethodID methodID, va_list args)
+{
+	jlong result;
+	BEGIN_CALL_MONITOR_HELD
+	result = (*env)->CallLongMethodV(env, object, methodID, args);
+	END_CALL_MONITOR_HELD
+	return result;
+}
+
 jshort JNI_callShortMethod(jobject object, jmethodID methodID, ...)
 {
 	jshort result;

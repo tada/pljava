@@ -24,6 +24,10 @@ extern "C" {
 extern jobject pljava_VarlenaWrapper_Input(
 	Datum d, MemoryContext mc, ResourceOwner ro);
 
+extern jobject pljava_VarlenaWrapper_Output(MemoryContext mc, ResourceOwner ro);
+
+extern Datum pljava_VarlenaWrapper_Output_adopt(jobject vlos);
+
 extern void pljava_VarlenaWrapper_initialize(void);
 
 #ifdef __cplusplus

@@ -13,6 +13,7 @@ package org.postgresql.pljava.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 import java.nio.ByteBuffer;
 
@@ -161,6 +162,208 @@ public interface VarlenaWrapper
 				m_buf = null;
 				super.javaStateReleased();
 			}
+		}
+	}
+
+	/**
+	 * A class by which Java writes the content of a varlena as an OutputStream.
+	 *
+	 * Associated with a {@code ResourceOwner} to bound the lifetime of
+	 * the native reference; the chosen resource owner must be one that will be
+	 * released no later than the memory context containing the varlena.
+	 */
+	public class Output extends OutputStream
+	{
+		private State m_state;
+		private boolean m_open = true;
+
+		/**
+		 * Construct a {@code VarlenaWrapper.Output}.
+		 * @param cookie Capability held by native code.
+		 * @param resourceOwner Resource owner whose release will indicate that
+		 * the underlying varlena is no longer valid.
+		 * @param context Pointer to memory context containing the underlying
+		 * varlena; subject to {@code MemoryContextDelete} if Java code frees or
+		 * reclaims this object.
+		 * @param varlenaPtr Pointer value to the underlying varlena.
+		 * @param buf Writable direct {@code ByteBuffer} constructed over (an
+		 * initial region of) the varlena's data bytes.
+		 */
+		private Output(DualState.Key cookie, long resourceOwner,
+			long context, long varlenaPtr, ByteBuffer buf)
+		{
+			m_state = new State(
+				cookie, this, resourceOwner, context, varlenaPtr, buf);
+		}
+
+		/**
+		 * Return a ByteBuffer to write into.
+		 *<p>
+		 * It will be the existing buffer if it has any remaining capacity to
+		 * write into (even if it is less than desiredCapacity), otherwise a new
+		 * buffer allocated with desiredCapacity as a hint (it may still be
+		 * smaller than the hint, or larger). Call with desiredCapacity zero to
+		 * indicate that writing is finished and make the varlena available for
+		 * native code to adopt.
+		 */
+		private ByteBuffer buf(int desiredCapacity) throws IOException
+		{
+			if ( ! m_open )
+				throw new IOException("Write on closed VarlenaWrapper.Output");
+			try
+			{
+				ByteBuffer buf = m_state.buffer();
+				if ( 0 < buf.remaining()  &&  0 < desiredCapacity )
+					return buf;
+				return m_state.nextBuffer(desiredCapacity);
+			}
+			catch ( SQLException sqe )
+			{
+				throw new IOException("Write on varlena failed", sqe);
+			}
+		}
+
+		@Override
+		public void write(int b) throws IOException
+		{
+			synchronized ( m_state )
+			{
+				ByteBuffer dst = buf(1);
+				dst.put((byte)(b & 0xff));
+			}
+		}
+
+		@Override
+		public void write(byte[] b, int off, int len) throws IOException
+		{
+			synchronized ( m_state )
+			{
+				while ( 0 < len )
+				{
+					ByteBuffer dst = buf(len);
+					int can = dst.remaining();
+					if ( can > len )
+						can = len;
+					dst.put(b, off, can);
+					off += can;
+					len -= can;
+				}
+			}
+		}
+
+		@Override
+		public void close() throws IOException
+		{
+			synchronized ( m_state )
+			{
+				if ( ! m_open )
+					return;
+				buf(0);
+				m_open = false;
+			}
+		}
+
+		/**
+		 * Actually free a {@code VarlenaWrapper.Output}.
+		 *<p>
+		 * {@code close()} does not do so, because the typical use of this class
+		 * is to write to an instance, close it, then let some native code adopt
+		 * it. If it turns out one won't be adopted and must be freed, use this
+		 * method.
+		 */
+		public void free() throws IOException
+		{
+			close();
+			m_state.javaStateReleased();
+		}
+
+		/*
+		 * Called only from native code to retrieve the varlena after writing.
+		 */
+		private long adopt() throws SQLException
+		{
+			synchronized ( m_state )
+			{
+				if ( m_open )
+					throw new SQLException(
+						"Writing of VarlenaWrapper.Output not yet complete",
+						"55000");
+				return m_state.adopt();
+			}
+		}
+
+
+
+		private static class State
+		extends DualState.SingleMemContextDelete<Output>
+		{
+			private ByteBuffer m_buf;
+			private long m_varlena;
+
+			private State(
+				DualState.Key cookie, Output vr,
+				long resourceOwner,	long memContext, long varlenaPtr,
+				ByteBuffer buf)
+			{
+				super(cookie, vr, resourceOwner, memContext);
+				m_varlena = varlenaPtr;
+				m_buf = buf;
+			}
+
+			private ByteBuffer buffer() throws SQLException
+			{
+				assertNativeStateIsValid();
+				return m_buf;
+			}
+
+			private ByteBuffer nextBuffer(int desiredCapacity)
+			throws SQLException
+			{
+				assertNativeStateIsValid();
+				if ( 0 < m_buf.remaining()  &&  0 < desiredCapacity )
+					throw new SQLException(
+						"VarlenaWrapper.Output buffer management error",
+						"XX000");
+				synchronized ( Backend.THREADLOCK )
+				{
+					m_buf =	_nextBuffer(m_varlena, m_buf.position(),
+								desiredCapacity);
+				}
+				return m_buf;
+			}
+
+			private long adopt() throws SQLException
+			{
+				assertNativeStateIsValid();
+				long varlena = m_varlena;
+				nativeStateReleased();
+				return varlena;
+			}
+
+			@Override
+			public String toString()
+			{
+				return String.format("%s VarlenaWrapper.Output (%x) %s",
+					super.toString(), m_varlena,
+					String.valueOf(m_buf).replace("java.nio.", ""));
+			}
+
+			@Override
+			protected void nativeStateReleased()
+			{
+				m_buf = null;
+				super.nativeStateReleased();
+			}
+
+			@Override
+			protected void javaStateReleased()
+			{
+				m_buf = null;
+				super.javaStateReleased();
+			}
+
+			private native ByteBuffer _nextBuffer(
+				long varlenaPtr, int currentBufPosition, int desiredCapacity);
 		}
 	}
 }

@@ -79,6 +79,8 @@ extern void         JNI_callStaticVoidMethodLocked(jclass clazz, jmethodID metho
 extern void         JNI_callStaticVoidMethodLockedV(jclass clazz, jmethodID methodID, va_list args);
 extern jint         JNI_callIntMethodLocked(jobject object, jmethodID methodID, ...);
 extern jint         JNI_callIntMethodLockedV(jobject object, jmethodID methodID, va_list args);
+extern jlong        JNI_callLongMethodLocked(jobject object, jmethodID methodID, ...);
+extern jlong        JNI_callLongMethodLockedV(jobject object, jmethodID methodID, va_list args);
 extern void         JNI_callVoidMethodLocked(jobject object, jmethodID methodID, ...);
 extern void         JNI_callVoidMethodLockedV(jobject object, jmethodID methodID, va_list args);
 extern jobject      JNI_newObjectLocked(jclass clazz, jmethodID ctor, ...);
