@@ -800,14 +800,29 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 		public void startEntity(String name)
 		throws SAXException
 		{
-			m_th.startEntity(name);
+			/*
+			 * For the time being, do NOT pass through startEntity/endEntity.
+			 * When we are the result of a transform using the JRE-bundled
+			 * Transformer implementation, we may get called by a class
+			 * com.sun.org.apache.xml.internal.serializer.ToXMLSAXHandler
+			 * that overrides startEntity and gives us those, but neglects to
+			 * override endEntity and never gives us those, leaving our
+			 * serializer thinking it's stuck in an entity forever. (Insert
+			 * Java bug number here if assigned.) Can revisit later if a fixed
+			 * Java version is known, or could use a simple test to check for
+			 * presence of the bug.
+			 */
+			//m_th.startEntity(name);
 		}
 
 		@Override
 		public void endEntity(String name)
 		throws SAXException
 		{
-			m_th.endEntity(name);
+			/*
+			 * See startEntity.
+			 */
+			// m_th.endEntity(name);
 		}
 
 		@Override
