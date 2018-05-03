@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import java.nio.ByteBuffer;
+import java.nio.InvalidMarkException;
 
 import java.sql.SQLException;
 
@@ -127,6 +128,53 @@ public interface VarlenaWrapper
 				m_open = false;
 				m_state.enqueue();
 			}
+		}
+
+		@Override
+		public void mark(int readlimit)
+		{
+			synchronized ( m_state )
+			{
+				if ( ! m_open )
+					return;
+				try
+				{
+					buf().mark();
+				}
+				catch ( IOException e )
+				{
+					/*
+					 * The contract is for mark to throw no checked exception.
+					 * An exception caught here would mean the state's no longer
+					 * live, which will be signaled to the caller if another,
+					 * throwing, method is then called. If not, no harm no foul.
+					 */
+				}
+			}
+		}
+
+		@Override
+		public void reset() throws IOException
+		{
+			synchronized ( m_state )
+			{
+				if ( ! m_open )
+					return;
+				try
+				{
+					buf().reset();
+				}
+				catch ( InvalidMarkException e )
+				{
+					throw new IOException("reset attempted when mark not set");
+				}
+			}
+		}
+
+		@Override
+		public boolean markSupported()
+		{
+			return true;
 		}
 
 
