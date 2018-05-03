@@ -337,7 +337,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				return super.getSource(sourceClass);
 
 			if ( null == sourceClass || Source.class == sourceClass )
-				sourceClass = (Class<T>)StreamSource.class; // trust me on this
+				sourceClass = (Class<T>)SAXSource.class; // trust me on this
 
 			try
 			{
@@ -537,7 +537,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				return super.setResult(resultClass);
 
 			if ( null == resultClass || Result.class == resultClass )
-				resultClass = (Class<T>)StreamResult.class; // trust me on this
+				resultClass = (Class<T>)SAXResult.class; // trust me on this
 
 			try
 			{
