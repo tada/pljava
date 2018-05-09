@@ -59,6 +59,8 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import static javax.xml.stream.XMLStreamConstants.CDATA;
+import static javax.xml.stream.XMLStreamConstants.CHARACTERS;
 import static javax.xml.stream.XMLStreamConstants.COMMENT;
 import static javax.xml.stream.XMLStreamConstants.DTD;
 import static javax.xml.stream.XMLStreamConstants.PROCESSING_INSTRUCTION;
@@ -107,11 +109,14 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.XMLFilterImpl;
 
-/* ... for SQLXMLImpl.StAXResultAdapter */
+/* ... for SQLXMLImpl.StAXResultAdapter and .StAXUnwrapFilter */
+
+import java.util.NoSuchElementException;
 
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
+import javax.xml.stream.util.StreamReaderDelegate;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -373,6 +378,8 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					XMLStreamReader xsr =
 						xif.createXMLStreamReader(
 							correctedDeclStream(is, false));
+					if ( m_wrapped )
+						xsr = new StAXUnwrapFilter(xsr);
 					return sourceClass.cast(new StAXSource(xsr));
 				}
 
@@ -1063,6 +1070,121 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 		public Transformer getTransformer()
 		{
 			return m_th.getTransformer();
+		}
+	}
+
+	/**
+	 * Class to wrap an {@code XMLStreamReader} and pass all of the parse events
+	 * except the outermost ("document root") element, in effect producing
+	 * {@code XML(CONTENT)} when the underlying stream has had a synthetic
+	 * root element wrapped around it to satisfy a JRE-bundled parser that
+	 * only accepts {@code XML(DOCUMENT)}.
+	 *<p>
+	 * The result may be surprising to code consuming the StAX stream, depending
+	 * on what it expects; testing has shown the JRE-bundled identity
+	 * transformer does not faithfully reproduce such input (though, oddly, the
+	 * 'same' identity transformer reading the 'same' content through the
+	 * {@code SAXUnwrapFilter} does). Code that will be expected to handle
+	 * {@code XML(CONTENT)} and not just {@code XML(DOCUMENT)} using this
+	 * interface should be tested for correct behavior.
+	 */
+	static class StAXUnwrapFilter extends StreamReaderDelegate
+	{
+		private boolean m_hasPeeked;
+		private int m_nestLevel = 0;
+
+		StAXUnwrapFilter(XMLStreamReader reader)
+		{
+			super(reader);
+		}
+
+		@Override
+		public boolean hasNext() throws XMLStreamException
+		{
+			if ( m_hasPeeked )
+				return true;
+			if ( ! super.hasNext() )
+				return false;
+			int evt = super.next();
+
+			if ( START_ELEMENT == evt )
+			{
+				if ( 0 < m_nestLevel++ )
+				{
+					m_hasPeeked = true;
+					return true;
+				}
+				if ( ! super.hasNext() )
+					return false;
+				evt = super.next();
+			}
+
+			/*
+			 * If the above if() matched, we saw a START_ELEMENT, and if it
+			 * wasn't the hidden one, we returned and are not here. If the if()
+			 * matched and we're here, it was the hidden one, and we are looking
+			 * at the next event. It could also be a START_ELEMENT, but it can't
+			 * be the hidden one, so needs no special treatment other than to
+			 * increment nestLevel. It could be an END_ELEMENT, checked next.
+			 */
+
+			if ( START_ELEMENT == evt )
+				++ m_nestLevel;
+			else if ( END_ELEMENT == evt )
+			{
+				if ( 0 < --m_nestLevel )
+				{
+					m_hasPeeked = true;
+					return true;
+				}
+				if ( ! super.hasNext() )
+					return false;
+				evt = super.next();
+			}
+
+			/*
+			 * If the above if() matched, we saw an END_ELEMENT, and if it
+			 * wasn't the hidden one, we returned and are not here. If the if()
+			 * matched and we're here, it was the hidden one, and we are looking
+			 * at the next event. It can't really be an END_ELEMENT (the hidden
+			 * one had better be the last one) at all, much less the hidden one.
+			 * It also can't really be a START_ELEMENT. So, no more bookkeeping,
+			 * other than to set hasPeeked.
+			 */
+
+			m_hasPeeked = true;
+			return true;
+		}
+
+		@Override
+		public int next() throws XMLStreamException
+		{
+			if ( ! hasNext() )
+				throw new NoSuchElementException();
+			m_hasPeeked = false;
+			return getEventType();
+		}
+
+		@Override
+		public int nextTag() throws XMLStreamException
+		{
+			int evt;
+			while ( true )
+			{
+				if ( ! hasNext() )
+					throw new NoSuchElementException();
+				evt = next();
+				if ( ( CHARACTERS == evt || CDATA == evt ) && isWhiteSpace() )
+					continue;
+				if ( SPACE != evt && PROCESSING_INSTRUCTION != evt
+					&& COMMENT != evt )
+					break;
+			}
+			/* if NoSuchElement wasn't thrown, evt is definitely assigned */
+			if ( START_ELEMENT != evt && END_ELEMENT != evt )
+				throw new XMLStreamException(
+					"expected start or end tag", getLocation());
+			return evt;
 		}
 	}
 
