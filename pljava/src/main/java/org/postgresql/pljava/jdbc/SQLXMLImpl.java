@@ -58,6 +58,13 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import static javax.xml.stream.XMLStreamConstants.COMMENT;
+import static javax.xml.stream.XMLStreamConstants.DTD;
+import static javax.xml.stream.XMLStreamConstants.PROCESSING_INSTRUCTION;
+import static javax.xml.stream.XMLStreamConstants.SPACE;
+import static javax.xml.stream.XMLStreamConstants.START_DOCUMENT;
+import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
+
 import static org.postgresql.pljava.internal.Session.implServerCharset;
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
@@ -67,7 +74,6 @@ import java.sql.SQLFeatureNotSupportedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.SequenceInputStream;
 
 import java.util.Arrays;
 
@@ -244,6 +250,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 	{
 		private AtomicBoolean m_readable = new AtomicBoolean(true);
 		private Charset m_serverCS = implServerCharset();
+		private boolean m_wrapped = false;
 
 		private Readable(VarlenaWrapper.Input vwi) throws SQLException
 		{
@@ -276,7 +283,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				return super.getBinaryStream();
 			try
 			{
-				return correctedDeclStream(is);
+				return correctedDeclStream(is, true);
 			}
 			catch ( IOException e )
 			{
@@ -292,7 +299,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				return super.getCharacterStream();
 			try
 			{
-				is = correctedDeclStream(is);
+				is = correctedDeclStream(is, true);
 				return new InputStreamReader(is, m_serverCS.newDecoder());
 			}
 			catch ( IOException e )
@@ -312,7 +319,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			StringBuilder sb = new StringBuilder();
 			try
 			{
-				is = correctedDeclStream(is);
+				is = correctedDeclStream(is, true);
 				Reader r = new InputStreamReader(is, m_serverCS.newDecoder());
 				while ( -1 != r.read(cb) )
 				{
@@ -343,7 +350,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			{
 				if ( sourceClass.isAssignableFrom(StreamSource.class) )
 					return sourceClass.cast(
-						new StreamSource(correctedDeclStream(is)));
+						new StreamSource(correctedDeclStream(is, true)));
 
 				if ( sourceClass.isAssignableFrom(SAXSource.class) )
 				{
@@ -352,7 +359,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 								  true);
 					return sourceClass.cast(
 						new SAXSource(xr,
-							new InputSource(correctedDeclStream(is))));
+							new InputSource(correctedDeclStream(is, false))));
 				}
 
 				if ( sourceClass.isAssignableFrom(StAXSource.class) )
@@ -360,7 +367,8 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					XMLInputFactory xif = XMLInputFactory.newFactory();
 					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 					XMLStreamReader xsr =
-						xif.createXMLStreamReader(correctedDeclStream(is));
+						xif.createXMLStreamReader(
+							correctedDeclStream(is, false));
 					return sourceClass.cast(new StAXSource(xsr));
 				}
 
@@ -370,7 +378,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 						DocumentBuilderFactory.newInstance();
 					dbf.setNamespaceAware(true);
 					DocumentBuilder db = dbf.newDocumentBuilder();
-					is = correctedDeclStream(is);
+					is = correctedDeclStream(is, false);
 					return sourceClass.cast(new DOMSource(db.parse(is)));
 				}
 			}
@@ -391,11 +399,41 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 		 * The current stored form in PG for the XML type is a character string
 		 * in server encoding, which may or may not still include a declaration
 		 * left over from an input or cast operation, which declaration may or
-		 * may not be correct (about the encoding, anyway).
+		 * may not be correct (about the encoding, anyway). Nothing is stored
+		 * to distinguish whether the value is of the {@code DOCUMENT} or
+		 * {@code CONTENT} form, to determine which requires a full reparse in
+		 * the general case.
+		 *<p>
+		 * This method only peeks at early parse events in the stream, to see
+		 * if a {@code DOCTYPE} is present (must be {@code DOCUMENT}, or there
+		 * is any other content before the first element (cannot be
+		 * {@code DOCUMENT}). The input will not have a synthetic root element
+		 * wrapped around it if a {@code DOCTYPE} is present, as that would
+		 * break validation; otherwise (whether the check concluded it can't be
+		 * {@code DOCUMENT}, or was simply inconclusive}, a synthetic wrapper
+		 * will be added, as it will not break anything.
+		 *<p>
+		 * As a side effect, this method sets {@code m_wrapped} tp {@code true}
+		 * if it applies a wrapper element. When returning a type of
+		 * {@code Source} that presents parsed results, it will be configured
+		 * to present them with the wrapper element filtered out.
+		 *<p>
+		 * However, when using the API that exposes the serialized form
+		 * directly ({@code getBinaryStream}, {@code getCharacterStream},
+		 * {@code getString}), this method is passed {@code true} for
+		 * {@code neverWrap}, and no wrapping is done. The application code must
+		 * then handle the possibility that the stream may fail to parse as a
+		 * {@code DOCUMENT}. (The JDBC spec gives no guidance in this area.)
+		 * @param neverWrap When {@code true}, suppresses the wrapping described
+		 * above.
 		 * @return An InputStream with its original decl, if any, replaced with
-		 * a new one known to be correct, or none if the defaults are correct.
+		 * a new one known to be correct, or none if the defaults are correct,
+		 * and with the remaining content wrapped in a synthetic root element,
+		 * unless the input is known early (by having a {@code DOCTYPE}) not to
+		 * need one.
 		 */
-		private InputStream correctedDeclStream(InputStream is)
+		private InputStream correctedDeclStream(
+			InputStream is, boolean neverWrap)
 		throws IOException, SQLException
 		{
 			byte[] buf = new byte[40];
@@ -424,9 +462,112 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			 * providing the expected input-stream behavior, but the underlying
 			 * resources don't have to stick around for that.
 			 */
-			InputStream pfx =
-				new ByteArrayInputStream(probe.prefix(m_serverCS));
-			return new SequenceInputStream(pfx, is);
+			byte[] pfx = probe.prefix(m_serverCS);
+			int raLen = probe.readaheadLength();
+			int raOff = pfx.length - raLen;
+			InputStream pfis = new ByteArrayInputStream(pfx, 0, raOff);
+			InputStream rais = new ByteArrayInputStream(pfx, raOff, raLen);
+			InputStream msis = new MarkableSequenceInputStream(pfis, rais, is);
+
+			if ( neverWrap  ||  ! useWrappingElement(msis) )
+				return msis;
+
+			m_wrapped = true;
+			InputStream elemStart = new ByteArrayInputStream(
+				"<pljava-content-wrap>".getBytes(m_serverCS));
+			InputStream elemEnd = new ByteArrayInputStream(
+				"</pljava-content-wrap>".getBytes(m_serverCS));
+			msis = new MarkableSequenceInputStream(
+				pfis, elemStart, rais, is, elemEnd);
+			return msis;
+		}
+
+		/**
+		 * Check (incompletely!) whether an {@code InputStream} is in XML
+		 * {@code DOCUMENT} form (which Java XML parsers will accept) or
+		 * {@code CONTENT} form, (which they won't, unless enclosed in a
+		 * wrapping element).
+		 *<p>
+		 * Proceed by requiring the input stream to support {@code mark} and
+		 * {@code reset}, marking it, creating a StAX parser, and pulling some
+		 * initial parse events.
+		 *<p>
+		 * A possible {@code START_DOCUMENT} along with possible {@code SPACE},
+		 * {@code COMMENT}, and {@code PROCESSING_INSTRUCTION} events could
+		 * allowably begin either the {@code DOCUMENT} or the {@code CONTENT}
+		 * form.
+		 *<p>
+		 * If a {@code DTD} is seen, the input must be in {@code DOCUMENT} form,
+		 * and <em>must not</em> have a wrapper element added.
+		 *<p>
+		 * If anything else is seen before the first {@code START_ELEMENT}, the
+		 * input must be in {@code CONTENT} form, and <em>must</em> have
+		 * a wrapper element added.
+		 *<p>
+		 * If a {@code START_ELEMENT} is seen before either of those conclusions
+		 * can be reached, this check is inconclusive. The conclusive check
+		 * would be to finish parsing that element to see what, if anything,
+		 * follows it. But that would often amount to parsing the whole stream
+		 * just to determine how to parse it. Instead, just return @code true}
+		 * anyway, as without a DTD, the wrapping trick is usable and won't
+		 * break anything, even if it may not be necessary.
+		 * @param is An {@code InputStream} that must be markable, will be
+		 * marked on entry, and reset upon return.
+		 * @return {@code true} if a wrapping element should be used.
+		 */
+		private boolean useWrappingElement(InputStream is) throws IOException
+		{
+			is.mark(Integer.MAX_VALUE);
+			XMLInputFactory xif = XMLInputFactory.newFactory();
+			xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+
+			boolean mustBeDocument = false;
+			boolean cantBeDocument = false;
+
+			XMLStreamReader xsr = null;
+			try
+			{
+				xsr = xif.createXMLStreamReader(is);
+				while ( xsr.hasNext() )
+				{
+					int evt = xsr.next();
+
+					if ( COMMENT == evt || PROCESSING_INSTRUCTION == evt
+						|| SPACE == evt || START_DOCUMENT == evt )
+						continue;
+
+					if ( DTD == evt )
+					{
+						mustBeDocument = true;
+						break;
+					}
+
+					if ( START_ELEMENT == evt ) // could be DOCUMENT or CONTENT
+						break;
+
+					cantBeDocument = true;
+					break;
+				}
+			}
+			catch ( XMLStreamException e )
+			{
+				cantBeDocument = true;
+			}
+
+			if ( null != xsr )
+			{
+				try
+				{
+					xsr.close();
+				}
+				catch ( XMLStreamException e )
+				{
+				}
+			}
+			is.reset();
+			is.mark(0); // relax any reset-buffer requirement
+
+			return ! mustBeDocument;
 		}
 	}
 
@@ -1442,6 +1583,15 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				m_readaheadStart, parseResult.length - m_readaheadStart);
 
 			return baos.toByteArray();
+		}
+
+		/**
+		 * Return the number of bytes at the end of the {@code prefix} result
+		 * that represent readahead, rather than being part of the decl.
+		 */
+		int readaheadLength()
+		{
+			return m_save.size() - m_readaheadStart;
 		}
 
 		/**
