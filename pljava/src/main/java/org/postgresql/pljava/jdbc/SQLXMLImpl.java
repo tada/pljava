@@ -100,9 +100,10 @@ import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLEventWriter;
 
-/* ... for SQLXMLImpl.SAXResultAdapter */
+/* ... for SQLXMLImpl.SAXResultAdapter and .SAXUnwrapFilter */
 
 import javax.xml.transform.Transformer;
+import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.XMLFilterImpl;
 
@@ -358,9 +359,11 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					XMLReader xr = XMLReaderFactory.createXMLReader();
 					xr.setFeature("http://xml.org/sax/features/namespaces",
 								  true);
+					is = correctedDeclStream(is, false);
+					if ( m_wrapped )
+						xr = new SAXUnwrapFilter(xr);
 					return sourceClass.cast(
-						new SAXSource(xr,
-							new InputSource(correctedDeclStream(is, false))));
+						new SAXSource(xr, new InputSource(is)));
 				}
 
 				if ( sourceClass.isAssignableFrom(StAXSource.class) )
@@ -882,6 +885,45 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			if ( e instanceof RuntimeException )
 				throw (RuntimeException)e;
 			return new IOException("Malformed XML", e);
+		}
+	}
+
+	/**
+	 * Class to wrap an {@code XMLReader} and pass all of the parse events
+	 * except the outermost ("document root") element, in effect producing
+	 * {@code XML(CONTENT)} when the underlying stream has had a synthetic
+	 * root element wrapped around it to satisfy a JRE-bundled parser that
+	 * only accepts {@code XML(DOCUMENT)}.
+	 *<p>
+	 * The result may be surprising to code consuming the SAX stream, depending
+	 * on what it expects, but testing has showed the JRE-bundled identity
+	 * transformer, at least, to accept the input and faithfully reproduce the
+	 * non-document content.
+	 */
+	static class SAXUnwrapFilter extends XMLFilterImpl
+	{
+		private int m_nestLevel = 0;
+
+		SAXUnwrapFilter(XMLReader parent)
+		{
+			super(parent);
+		}
+
+		@Override
+		public void startElement(
+			String uri, String localName, String qName, Attributes atts)
+			throws SAXException
+		{
+			if ( 0 < m_nestLevel++ )
+				super.startElement(uri, localName, qName, atts);
+		}
+
+		@Override
+		public void endElement(String uri, String localName, String qName)
+			throws SAXException
+		{
+			if ( 0 < --m_nestLevel )
+				super.endElement(uri, localName, qName);
 		}
 	}
 
