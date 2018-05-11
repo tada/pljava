@@ -15,6 +15,7 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
+#include "pljava/DualState.h"
 
 #define LOCAL_FRAME_SIZE 128
 
@@ -173,6 +174,11 @@ void Invocation_popInvocation(bool wasException)
 			JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
+
+	/*
+	 * Check for any DualState objects that became unreachable and can be freed.
+	 */
+	pljava_DualState_cleanEnqueuedInstances();
 
 	if(currentInvocation->hasConnected)
 		SPI_finish();

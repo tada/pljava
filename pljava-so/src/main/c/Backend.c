@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include "org_postgresql_pljava_internal_Backend.h"
+#include "pljava/DualState.h"
 #include "pljava/Invocation.h"
 #include "pljava/InstallHelper.h"
 #include "pljava/Function.h"
@@ -832,6 +833,7 @@ static void initPLJavaClasses(void)
 	Invocation_initialize();
 	Exception_initialize2();
 	SPI_initialize();
+	pljava_DualState_initialize();
 	Type_initialize();
 	Function_initialize();
 	Session_initialize();
