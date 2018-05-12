@@ -27,6 +27,9 @@ import java.io.Writer;
 import java.util.Map;
 import java.util.HashMap;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
@@ -45,6 +48,9 @@ import javax.xml.transform.stax.StAXSource;
 
 import org.postgresql.pljava.annotation.Function;
 
+/**
+ * Class illustrating use of {@link SQLXML} to operate on XML data.
+ */
 public class PassXML
 {
 	static SQLXML s_sx;
@@ -55,7 +61,7 @@ public class PassXML
 
 	/**
 	 * Echo an XML parameter back, exercising seven different ways
-	 * (howin => 1-7) of reading an SQLXML object, and six (howout => 1-6)
+	 * (howin => 1-7) of reading an SQLXML object, and seven (howout => 1-7)
 	 * of returning one.
 	 *<p>
 	 * If howin => 0, the XML parameter is simply saved in a static. It can be
@@ -102,6 +108,10 @@ public class PassXML
 		}
 	}
 
+	/**
+	 * Transform some XML according to a named transform prepared with
+	 * {@code prepareXMLTransform}.
+	 */
 	@Function(schema="javatest")
 	public static SQLXML transformXML(
 		String transformName, SQLXML source, int howin, int howout)
@@ -185,7 +195,10 @@ public class PassXML
 			case  4: return     sx.setResult(StreamResult.class);
 			case  5: return     sx.setResult(SAXResult.class);
 			case  6: return     sx.setResult(StAXResult.class);
-			case  7: return     sx.setResult(DOMResult.class);
+			case  7:
+				DOMResult r = sx.setResult(DOMResult.class);
+				allowFragment(r); // else it'll accept only DOCUMENT form
+				return r;
 			default: throw new SQLDataException("how should be 1-7", "22003");
 		}
 	}
@@ -264,5 +277,38 @@ public class PassXML
 			break;
 		}
 		return sx;
+	}
+
+	/**
+	 * Configure a {@code DOMResult} to accept {@code CONTENT} (a/k/a
+	 * document fragment), not only the more restrictive {@code DOCUMENT}.
+	 *<p>
+	 * The other forms of {@code Result} that can be requested will happily
+	 * accept {@code XML(CONTENT)} and not just {@code XML(DOCUMENT)}.
+	 * The {@code DOMResult} is pickier, however: if you first call
+	 * {@link DOMResult#setNode setNode} with a {@code DocumentFragment}, it
+	 * will accept either form, but if you leave the node unset when passing the
+	 * {@code DOMResult} to a transformer, the transformer will default to
+	 * putting a {@code Document} node there, and then it will not accept a
+	 * fragment.
+	 *<p>
+	 * If you need to handle fragments, this method illustrates how to pre-load
+	 * the {@code DOMResult} with an empty {@code DocumentFragment}. Note that
+	 * if you use some XML processing package that supplies its own classes
+	 * implementing DOM nodes, you may need to use a {@code DocumentFragment}
+	 * instance obtained from that package.
+	 */
+	public static void allowFragment(DOMResult r) throws SQLException
+	{
+		try
+		{
+			r.setNode(DocumentBuilderFactory.newInstance()
+				.newDocumentBuilder().newDocument()
+					.createDocumentFragment());
+		}
+		catch ( ParserConfigurationException pce )
+		{
+			throw new SQLException("Failed initializing DOMResult", pce);
+		}
 	}
 }

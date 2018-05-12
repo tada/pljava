@@ -79,6 +79,8 @@ import java.io.FilterOutputStream;
 import java.io.OutputStreamWriter;
 
 import static javax.xml.transform.OutputKeys.ENCODING;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
 
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.sax.SAXResult;
@@ -432,6 +434,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 	{
 		private AtomicBoolean m_writable = new AtomicBoolean(true);
 		private Charset m_serverCS = implServerCharset();
+		private DOMResult m_domResult;
 
 		private Writable(VarlenaWrapper.Output vwo) throws SQLException
 		{
@@ -568,7 +571,7 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 
 				if ( resultClass.isAssignableFrom(DOMResult.class) )
 				{
-					/* leave this grody case to be implemented later */
+					return resultClass.cast(m_domResult = new DOMResult());
 				}
 			}
 			catch ( Exception e )
@@ -581,6 +584,30 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				resultClass.getName() + ".class)", "0A000");
 		}
 
+		/**
+		 * Serialize a {@code DOMResult} to an {@code OutputStream}
+		 * <em>and close it</em>.
+		 */
+		private void serializeDOM(DOMResult r, OutputStream os)
+		throws SQLException
+		{
+			DOMSource src = new DOMSource(r.getNode());
+			try
+			{
+				TransformerFactory tf = TransformerFactory.newInstance();
+				Transformer t = tf.newTransformer();
+				t.setOutputProperty(ENCODING, m_serverCS.name());
+				os = new DeclCheckedOutputStream(os, m_serverCS);
+				StreamResult rlt = new StreamResult(os);
+				t.transform(src, rlt);
+				os.close();
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
 		private VarlenaWrapper.Output adopt() throws SQLException
 		{
 			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
@@ -589,6 +616,11 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					"Writable SQLXML object has not been written yet", "55000");
 			if ( null == vwo )
 				backingIfNotFreed(); /* shorthand way to throw the exception */
+			if ( null != m_domResult )
+			{
+				serializeDOM(m_domResult, vwo);
+				m_domResult = null;
+			}
 			return vwo;
 		}
 	}
