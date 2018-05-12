@@ -68,6 +68,12 @@ import static javax.xml.stream.XMLStreamConstants.SPACE;
 import static javax.xml.stream.XMLStreamConstants.START_DOCUMENT;
 import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.Text;
+
 import static org.postgresql.pljava.internal.Session.implServerCharset;
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
@@ -390,7 +396,10 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 					dbf.setNamespaceAware(true);
 					DocumentBuilder db = dbf.newDocumentBuilder();
 					is = correctedDeclStream(is, false);
-					return sourceClass.cast(new DOMSource(db.parse(is)));
+					DOMSource ds = new DOMSource(db.parse(is));
+					if ( m_wrapped )
+						domUnwrap(ds);
+					return sourceClass.cast(ds);
 				}
 			}
 			catch ( Exception e )
@@ -590,6 +599,75 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			is.mark(0); // relax any reset-buffer requirement
 
 			return ! mustBeDocument;
+		}
+
+		/**
+		 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
+		 * root element in case it had the form of {@code XML(CONTENT)}.
+		 *<p>
+		 * Because the wrapping is applied pessimistically (it is done whenever
+		 * a quick preparse did not conclusively prove the input was
+		 * {@code DOCUMENT}), repeat the check here, where it requires only
+		 * traversing one list of immediate DOM node children. Produce a
+		 * {@code Document} node if possible, a {@code DocumentFragment} only if
+		 * the tree really does not have {@code DOCUMENT} form.
+		 * @param ds A {@code DOMSource} produced by parsing wrapped input.
+		 * The parse result will be retrieved using {@code getNode()}, then
+		 * replaced using {@code setNode()} with the unwrapped result, either a
+		 * {@code Document} or a {@code DocumentFragment} node.
+		 */
+		private void domUnwrap(DOMSource ds)
+		{
+			Document d = (Document)ds.getNode();
+			Element wrapper = d.getDocumentElement();
+			/*
+			 * Wrapping isn't done if the input has a DTD, so if we are here,
+			 * the input does not have a DTD, and the null, null, null parameter
+			 * list for createDocument is appropriate.
+			 */
+			Document newDoc =
+				d.getImplementation().createDocument(null, null, null);
+			DocumentFragment docFrag = newDoc.createDocumentFragment();
+			boolean isDocument = true;
+			boolean seenElement = false;
+			for ( Node n = wrapper.getFirstChild(), next = null;
+				  null != n; n = next )
+			{
+				/*
+				 * Grab the next sibling early, before the adoptNode() below,
+				 * because that will unlink this node from its source Document,
+				 * clearing its nextSibling link.
+				 */
+				next = n.getNextSibling();
+
+				switch ( n.getNodeType() )
+				{
+				case Node.ELEMENT_NODE:
+					if ( seenElement )
+						isDocument = false;
+					seenElement = true;
+					break;
+				case Node.COMMENT_NODE:
+				case Node.PROCESSING_INSTRUCTION_NODE:
+					break;
+				case Node.TEXT_NODE:
+					if ( ! ((Text)n).isElementContentWhitespace() )
+						isDocument = false;
+					break;
+				default:
+					isDocument = false;
+				}
+
+				docFrag.appendChild(newDoc.adoptNode(n));
+			}
+
+			if ( isDocument )
+			{
+				newDoc.appendChild(docFrag);
+				ds.setNode(newDoc);
+			}
+			else
+				ds.setNode(docFrag);
 		}
 	}
 
