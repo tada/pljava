@@ -18,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.SQLXML;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
@@ -155,6 +156,81 @@ public class PassXML
 		}
 
 		return ensureClosed(rlt, rx, howout);
+	}
+
+	/**
+	 * Echo the XML parameter back, using lower-level manipulations than
+	 * {@code echoXMLParameter}.
+	 *<p>
+	 * This illustrates how the simple use of {@code t.transform(src,rlt)}
+	 * in {@code echoSQLXML} substitutes for a lot of fiddly case-by-case code
+	 * (and not all the cases are even covered here!), but when coding for a
+	 * specific case, all the generality of {@code transform} may not be needed.
+	 * It can be interesting to compare memory use when XML values are large.
+	 */
+	@Function(schema="javatest")
+	public static SQLXML lowLevelXMLEcho(SQLXML sx, int how)
+	throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML rx = c.createSQLXML();
+
+		try
+		{
+			switch ( how )
+			{
+			case 1:
+				InputStream is = sx.getBinaryStream();
+				OutputStream os = rx.setBinaryStream();
+				shovelBytes(is, os);
+				break;
+			case 2:
+				Reader r = sx.getCharacterStream();
+				Writer w = rx.setCharacterStream();
+				shovelChars(r, w);
+				break;
+			case 3:
+				rx.setString(sx.getString());
+				break;
+			case 4:
+				StreamSource ss = sx.getSource(StreamSource.class);
+				StreamResult sr = rx.setResult(StreamResult.class);
+				is = ss.getInputStream();
+				r  = ss.getReader();
+				os = sr.getOutputStream();
+				w  = sr.getWriter();
+				if ( null != is  &&  null != os )
+				{
+					shovelBytes(is, os);
+					break;
+				}
+				if ( null != r  &&  null != r )
+				{
+					shovelChars(r, w);
+					break;
+				}
+				throw new SQLDataException(
+					"Unimplemented combination of StreamSource/StreamResult");
+			case 5:
+			case 6:
+				throw new SQLDataException(
+					"Unimplemented lowlevel SAX or StAX echo");
+			case 7:
+				DOMSource ds = sx.getSource(DOMSource.class);
+				DOMResult dr = rx.setResult(DOMResult.class);
+				dr.setNode(ds.getNode());
+				break;
+			default:
+				throw new SQLDataException(
+					"how must be 1-7 for lowLevelXMLEcho", "22003");
+			}
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(
+				"IOException in lowLevelXMLEcho", "58030", e);
+		}
+		return rx;
 	}
 
 	private static Source sxToSource(SQLXML sx, int how) throws SQLException
@@ -310,5 +386,27 @@ public class PassXML
 		{
 			throw new SQLException("Failed initializing DOMResult", pce);
 		}
+	}
+
+	private static void shovelBytes(InputStream is, OutputStream os)
+	throws IOException
+	{
+		byte[] b = new byte[8192];
+		int got;
+		while ( -1 != (got = is.read(b)) )
+			os.write(b, 0, got);
+		is.close();
+		os.close();
+	}
+
+	private static void shovelChars(Reader r, Writer w)
+	throws IOException
+	{
+		char[] b = new char[8192];
+		int got;
+		while ( -1 != (got = r.read(b)) )
+			w.write(b, 0, got);
+		r.close();
+		w.close();
 	}
 }
