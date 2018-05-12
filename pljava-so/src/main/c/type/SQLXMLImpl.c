@@ -18,6 +18,7 @@ static jclass    s_SQLXML_Readable_class;
 static jmethodID s_SQLXML_Readable_init;
 static jclass    s_SQLXML_Writable_class;
 static jmethodID s_SQLXML_Writable_init;
+static jmethodID s_SQLXML_Writable_adopt;
 
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 {
@@ -32,7 +33,10 @@ static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 
 static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 {
-	return 0; /* haven't got that direction yet */
+	jobject vwo = JNI_callObjectMethodLocked(sqlxml, s_SQLXML_Writable_adopt);
+	Datum d = pljava_VarlenaWrapper_Output_adopt(vwo);
+	JNI_deleteLocalRef(vwo);
+	return TransferExpandedObject(d, CurrentMemoryContext);
 }
 
 /* Make this datatype available to the postgres system.
@@ -56,4 +60,6 @@ void pljava_SQLXMLImpl_initialize(void)
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Writable"));
 	s_SQLXML_Writable_init = PgObject_getJavaMethod(s_SQLXML_Writable_class,
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;)V");
+	s_SQLXML_Writable_adopt = PgObject_getJavaMethod(s_SQLXML_Writable_class,
+		"adopt", "()Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;");
 }

@@ -552,6 +552,17 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 				"No support for SQLXML.setResult(" +
 				resultClass.getName() + ".class)", "0A000");
 		}
+
+		private VarlenaWrapper.Output adopt() throws SQLException
+		{
+			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
+			if ( m_writable.get() )
+				throw new SQLNonTransientException(
+					"Writable SQLXML object has not been written yet", "55000");
+			if ( null == vwo )
+				backingIfNotFreed(); /* shorthand way to throw the exception */
+			return vwo;
+		}
 	}
 
 	static class DeclCheckedOutputStream extends FilterOutputStream
