@@ -37,6 +37,7 @@ import java.sql.SQLNonTransientException;
 
 /* ... for SQLXMLImpl.Readable */
 
+import java.io.FilterInputStream;
 import java.io.InputStreamReader;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
@@ -524,10 +525,21 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			boolean mustBeDocument = false;
 			boolean cantBeDocument = false;
 
+			/*
+			 * The XMLStreamReader may actually close the input stream if it
+			 * reaches the end skipping only whitespace. That is probably a bug;
+			 * in any case, protect the original input stream from being closed.
+			 */
+			InputStream tmpis = new FilterInputStream(is)
+			{
+				@Override
+				public void close() throws IOException { }
+			};
+
 			XMLStreamReader xsr = null;
 			try
 			{
-				xsr = xif.createXMLStreamReader(is);
+				xsr = xif.createXMLStreamReader(tmpis);
 				while ( xsr.hasNext() )
 				{
 					int evt = xsr.next();
