@@ -20,13 +20,15 @@
 
 #define INITIALSIZE 1024
 
+static jclass s_VarlenaWrapper_class;
+static jmethodID s_VarlenaWrapper_adopt;
+
 static jclass s_VarlenaWrapper_Input_class;
 static jclass s_VarlenaWrapper_Output_class;
 
 static jmethodID s_VarlenaWrapper_Input_init;
 
 static jmethodID s_VarlenaWrapper_Output_init;
-static jmethodID s_VarlenaWrapper_Output_adopt;
 
 /*
  * For VarlenaWrapper.Output, define a dead-simple "expanded object" format
@@ -70,35 +72,44 @@ typedef struct ExpandedVarlenaOutputStreamHeader
  * of an existing Datum d, which must be a varlena type (assumed, not checked
  * here).
  *
- * The datum will be copied (detoasting if need be) into the memory context mc,
+ * The datum will be copied (detoasting if need be) into a memory context with
+ * parent as its parent, so it can be efficiently reparented later if adopted,
  * and the VarlenaWrapper will be associated with the ResourceOwner ro, which
- * determines its lifespan. The ResourceOwner needs to be one that will be
- * released no later than the memory context itself.
+ * determines its lifespan (if not adopted). The ResourceOwner needs to be one
+ * that will be released no later than the memory context itself.
  */
-jobject pljava_VarlenaWrapper_Input(Datum d, MemoryContext mc, ResourceOwner ro)
+jobject pljava_VarlenaWrapper_Input(
+	Datum d, MemoryContext parent, ResourceOwner ro)
 {
 	jobject vr;
 	jobject dbb;
+	MemoryContext mc;
 	MemoryContext prevcxt;
 	struct varlena *copy;
 	Ptr2Long p2lro;
+	Ptr2Long p2lcxt;
 	Ptr2Long p2ldatum;
+
+	mc = AllocSetContextCreate(parent, "PL/Java VarlenaWrapper.Input",
+		 ALLOCSET_START_SMALL_SIZES);
 
 	prevcxt = MemoryContextSwitchTo(mc);
 	copy = PG_DETOAST_DATUM_COPY(d);
 	MemoryContextSwitchTo(prevcxt);
 
 	p2lro.longVal = 0L;
+	p2lcxt.longVal = 0L;
 	p2ldatum.longVal = 0L;
 
 	p2lro.ptrVal = ro;
+	p2lcxt.ptrVal = mc;
 	p2ldatum.ptrVal = copy;
 
 	dbb = JNI_newDirectByteBuffer(VARDATA(copy), VARSIZE_ANY_EXHDR(copy));
 
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
 		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
-		p2lro.longVal, p2ldatum.longVal, dbb);
+		p2lro.longVal, p2lcxt.longVal, p2ldatum.longVal, dbb);
 	JNI_deleteLocalRef(dbb);
 
 	return vr;
@@ -168,14 +179,15 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 }
 
 /*
- * Adopt a VarlenaWrapper.Output after Java code has written and closed it.
- * The wrapper will no longer be accessible from Java.
+ * Adopt a VarlenaWrapper (if Output, after Java code has written and closed it)
+ * and leave it no longer accessible from Java.
  */
-Datum pljava_VarlenaWrapper_Output_adopt(jobject vlos)
+Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 {
 	Ptr2Long p2l;
 
-	p2l.longVal = JNI_callLongMethodLocked(vlos, s_VarlenaWrapper_Output_adopt);
+	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
+					pljava_DualState_key());
 	return PointerGetDatum(p2l.ptrVal);
 }
 
@@ -219,6 +231,9 @@ void pljava_VarlenaWrapper_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	s_VarlenaWrapper_class =
+		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+			"org/postgresql/pljava/internal/VarlenaWrapper"));
 	s_VarlenaWrapper_Input_class =
 		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper$Input"));
@@ -229,15 +244,16 @@ void pljava_VarlenaWrapper_initialize(void)
 	s_VarlenaWrapper_Input_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Input_class, "<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJLjava/nio/ByteBuffer;)V");
+		"JJJLjava/nio/ByteBuffer;)V");
 
 	s_VarlenaWrapper_Output_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Output_class, "<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;"
 		"JJJLjava/nio/ByteBuffer;)V");
 
-	s_VarlenaWrapper_Output_adopt = PgObject_getJavaMethod(
-		s_VarlenaWrapper_Output_class, "adopt", "()J");
+	s_VarlenaWrapper_adopt = PgObject_getJavaMethod(
+		s_VarlenaWrapper_class, "adopt",
+		"(Lorg/postgresql/pljava/internal/DualState$Key;)J");
 
 	clazz = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper$Output$State"));

@@ -16,11 +16,12 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/VarlenaWrapper.h"
 
+static jclass    s_SQLXML_class;
+static jmethodID s_SQLXML_adopt;
 static jclass    s_SQLXML_Readable_class;
 static jmethodID s_SQLXML_Readable_init;
 static jclass    s_SQLXML_Writable_class;
 static jmethodID s_SQLXML_Writable_init;
-static jmethodID s_SQLXML_Writable_adopt;
 
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 {
@@ -35,10 +36,14 @@ static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 
 static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 {
-	jobject vwo = JNI_callObjectMethodLocked(sqlxml, s_SQLXML_Writable_adopt);
-	Datum d = pljava_VarlenaWrapper_Output_adopt(vwo);
-	JNI_deleteLocalRef(vwo);
-	return TransferExpandedObject(d, CurrentMemoryContext);
+	jobject vw = JNI_callObjectMethodLocked(sqlxml, s_SQLXML_adopt);
+	Datum d = pljava_VarlenaWrapper_adopt(vw);
+	JNI_deleteLocalRef(vw);
+	if ( VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)) )
+		return TransferExpandedObject(d, CurrentMemoryContext);
+	MemoryContextSetParent(
+		GetMemoryChunkContext(DatumGetPointer(d)), CurrentMemoryContext);
+	return d;
 }
 
 /* Make this datatype available to the postgres system.
@@ -64,6 +69,11 @@ void pljava_SQLXMLImpl_initialize(void)
 	cls->coerceObject = _SQLXML_coerceObject;
 	Type_registerType("java.sql.SQLXML", TypeClass_allocInstance(cls, XMLOID));
 
+	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/jdbc/SQLXMLImpl"));
+	s_SQLXML_adopt = PgObject_getJavaMethod(s_SQLXML_class,
+		"adopt", "()Lorg/postgresql/pljava/internal/VarlenaWrapper;");
+
 	s_SQLXML_Readable_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable"));
 	s_SQLXML_Readable_init = PgObject_getJavaMethod(s_SQLXML_Readable_class,
@@ -73,8 +83,6 @@ void pljava_SQLXMLImpl_initialize(void)
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Writable"));
 	s_SQLXML_Writable_init = PgObject_getJavaMethod(s_SQLXML_Writable_class,
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;)V");
-	s_SQLXML_Writable_adopt = PgObject_getJavaMethod(s_SQLXML_Writable_class,
-		"adopt", "()Lorg/postgresql/pljava/internal/VarlenaWrapper$Output;");
 
 	clazz = PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLXMLImpl");
 	PgObject_registerNatives2(clazz, methods);

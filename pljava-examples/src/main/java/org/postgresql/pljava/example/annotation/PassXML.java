@@ -84,6 +84,16 @@ public class PassXML
 	}
 
 	/**
+	 * "Echo" an XML parameter not by creating a new writable {@code SQLXML}
+	 * object at all, but simply returning the passed-in readable one untouched.
+	 */
+	@Function(schema="javatest")
+	public static SQLXML bounceXMLParameter(SQLXML sx) throws SQLException
+	{
+		return sx;
+	}
+
+	/**
 	 * Precompile an XSL transform {@code source} and save it (for the
 	 * current session) as {@code name}.
 	 *<p>

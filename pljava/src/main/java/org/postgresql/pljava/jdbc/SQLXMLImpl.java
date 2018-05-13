@@ -26,7 +26,6 @@ import java.sql.SQLException;
 
 /* ... for SQLXMLImpl */
 
-import java.io.Closeable;
 import java.io.IOException;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -126,7 +125,7 @@ import javax.xml.stream.util.StreamReaderDelegate;
 
 import javax.xml.stream.XMLStreamException;
 
-public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
+public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
 	protected AtomicReference<V> m_backing;
 
@@ -257,9 +256,11 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 		}
 	}
 
+	protected abstract VarlenaWrapper adopt() throws SQLException;
+
 	private static native SQLXML _newWritable();
 
-	static class Readable extends SQLXMLImpl<InputStream>
+	static class Readable extends SQLXMLImpl<VarlenaWrapper.Input>
 	{
 		private AtomicBoolean m_readable = new AtomicBoolean(true);
 		private Charset m_serverCS = implServerCharset();
@@ -410,6 +411,18 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			throw new SQLFeatureNotSupportedException(
 				"No support for SQLXML.getSource(" +
 				sourceClass.getName() + ".class)", "0A000");
+		}
+
+		@Override
+		protected VarlenaWrapper adopt() throws SQLException
+		{
+			VarlenaWrapper vw = m_backing.getAndSet(null);
+			if ( ! m_readable.get() )
+				throw new SQLNonTransientException(
+					"SQLXML object has already been read from", "55000");
+			if ( null == vw )
+				backingIfNotFreed(); /* shorthand way to throw the exception */
+			return vw;
 		}
 
 		/**
@@ -849,7 +862,8 @@ public abstract class SQLXMLImpl<V extends Closeable> implements SQLXML
 			}
 		}
 
-		private VarlenaWrapper.Output adopt() throws SQLException
+		@Override
+		protected VarlenaWrapper adopt() throws SQLException
 		{
 			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
 			if ( m_writable.get() )

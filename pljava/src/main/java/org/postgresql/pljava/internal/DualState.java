@@ -103,6 +103,13 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private final long m_resourceOwner;
 
+	protected static void checkCookie(Key cookie)
+	{
+		if ( ! Key.class.isInstance(cookie) )
+			throw new UnsupportedOperationException(
+				"Operation on DualState instance without cookie");
+	}
+
 	/**
 	 * Construct a {@code DualState} instance with a reference to the Java
 	 * object whose state it represents.
@@ -123,9 +130,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	{
 		super(referent, s_releasedInstances);
 
-		if ( ! (cookie instanceof Key) )
-			throw new UnsupportedOperationException(
-				"Constructing DualState instance without cookie");
+		checkCookie(cookie);
 
 		m_resourceOwner = resourceOwner;
 		s_liveInstances.add(this);

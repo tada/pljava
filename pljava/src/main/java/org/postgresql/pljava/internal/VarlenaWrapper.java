@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,8 +21,26 @@ import java.nio.InvalidMarkException;
 
 import java.sql.SQLException;
 
-public interface VarlenaWrapper
+/**
+ * Interface that wraps a PostgreSQL native variable-length ("varlena") datum;
+ * implementing classes present an existing one to Java as a readable
+ * {@code InputStream}, or allow a new one to be constructed by presenting a
+ * writable {@code OutputStream}.
+ *<p>
+ * Common to both is a single method {@link #adopt adopt()}, allowing native
+ * code to reassert control over the varlena (for the writable variety, after
+ * Java code has written and closed it), after which it is no longer accessible
+ * from Java.
+ */
+public interface VarlenaWrapper extends Closeable
 {
+	/**
+	 * Return the varlena address to native code and dissociate the varlena
+	 * from Java.
+	 * @param cookie Capability held by native code.
+	 */
+	long adopt(DualState.Key cookie) throws SQLException;
+
 	/**
 	 * A class by which Java reads the content of a varlena as an InputStream.
 	 *
@@ -29,7 +48,7 @@ public interface VarlenaWrapper
 	 * the native reference; the chosen resource owner must be one that will be
 	 * released no later than the memory context containing the varlena.
 	 */
-	public static class Input extends InputStream
+	public static class Input extends InputStream implements VarlenaWrapper
 	{
 		private State m_state;
 		private boolean m_open = true;
@@ -39,16 +58,18 @@ public interface VarlenaWrapper
 		 * @param cookie Capability held by native code.
 		 * @param resourceOwner Resource owner whose release will indicate that the
 		 * underlying varlena is no longer valid.
+		 * @param context Memory context in which the varlena is allocated.
 		 * @param varlenaPtr Pointer value to the underlying varlena, to be
 		 * {@code pfree}d when Java code closes or reclaims this object.
 		 * @param buf Readable direct {@code ByteBuffer} constructed over the
 		 * varlena's data bytes.
 		 */
 		private Input(DualState.Key cookie, long resourceOwner,
-			long varlenaPtr, ByteBuffer buf)
+			long context, long varlenaPtr, ByteBuffer buf)
 		{
 			m_state = new State(
-				cookie, this, resourceOwner, varlenaPtr, buf.asReadOnlyBuffer());
+				cookie, this, resourceOwner,
+				context, varlenaPtr, buf.asReadOnlyBuffer());
 		}
 
 		private ByteBuffer buf() throws IOException
@@ -177,17 +198,33 @@ public interface VarlenaWrapper
 			return true;
 		}
 
+		@Override
+		public long adopt(DualState.Key cookie) throws SQLException
+		{
+			synchronized ( m_state )
+			{
+				if ( ! m_open )
+					throw new SQLException(
+						"Cannot adopt VarlenaWrapper.Input after it is closed",
+						"55000");
+				return m_state.adopt(cookie);
+			}
+		}
 
 
-		private static class State extends DualState.SinglePfree<Input>
+
+		private static class State
+		extends DualState.SingleMemContextDelete<Input>
 		{
 			private ByteBuffer m_buf;
+			private long m_varlena;
 
 			private State(
 				DualState.Key cookie, Input vr, long resourceOwner,
-				long varlenaPtr, ByteBuffer buf)
+				long memContext, long varlenaPtr, ByteBuffer buf)
 			{
-				super(cookie, vr, resourceOwner, varlenaPtr);
+				super(cookie, vr, resourceOwner, memContext);
+				m_varlena = varlenaPtr;
 				m_buf = buf;
 			}
 
@@ -195,6 +232,15 @@ public interface VarlenaWrapper
 			{
 				assertNativeStateIsValid();
 				return m_buf;
+			}
+
+			private long adopt(DualState.Key cookie) throws SQLException
+			{
+				checkCookie(cookie);
+				assertNativeStateIsValid();
+				long varlena = m_varlena;
+				nativeStateReleased();
+				return varlena;
 			}
 
 			@Override
@@ -220,7 +266,7 @@ public interface VarlenaWrapper
 	 * the native reference; the chosen resource owner must be one that will be
 	 * released no later than the memory context containing the varlena.
 	 */
-	public class Output extends OutputStream
+	public class Output extends OutputStream implements VarlenaWrapper
 	{
 		private State m_state;
 		private boolean m_open = true;
@@ -325,10 +371,8 @@ public interface VarlenaWrapper
 			m_state.javaStateReleased();
 		}
 
-		/*
-		 * Called only from native code to retrieve the varlena after writing.
-		 */
-		private long adopt() throws SQLException
+		@Override
+		public long adopt(DualState.Key cookie) throws SQLException
 		{
 			synchronized ( m_state )
 			{
@@ -336,7 +380,7 @@ public interface VarlenaWrapper
 					throw new SQLException(
 						"Writing of VarlenaWrapper.Output not yet complete",
 						"55000");
-				return m_state.adopt();
+				return m_state.adopt(cookie);
 			}
 		}
 
@@ -380,8 +424,9 @@ public interface VarlenaWrapper
 				return m_buf;
 			}
 
-			private long adopt() throws SQLException
+			private long adopt(DualState.Key cookie) throws SQLException
 			{
+				checkCookie(cookie);
 				assertNativeStateIsValid();
 				long varlena = m_varlena;
 				nativeStateReleased();

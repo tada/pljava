@@ -26,7 +26,7 @@ extern jobject pljava_VarlenaWrapper_Input(
 
 extern jobject pljava_VarlenaWrapper_Output(MemoryContext mc, ResourceOwner ro);
 
-extern Datum pljava_VarlenaWrapper_Output_adopt(jobject vlos);
+extern Datum pljava_VarlenaWrapper_adopt(jobject vlos);
 
 extern void pljava_VarlenaWrapper_initialize(void);
 
