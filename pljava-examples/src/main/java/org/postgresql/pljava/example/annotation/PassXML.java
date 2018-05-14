@@ -15,18 +15,24 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
+import java.sql.SQLData;
+import java.sql.SQLInput;
+import java.sql.SQLOutput;
 import java.sql.SQLXML;
+import java.sql.Statement;
 import java.sql.Types;
 
-import java.io.IOException;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
+
+import java.io.IOException;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -38,8 +44,9 @@ import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
+
+import javax.xml.transform.TransformerException;
 
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
@@ -51,11 +58,18 @@ import javax.xml.transform.stax.StAXResult;
 import javax.xml.transform.stax.StAXSource;
 
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.MappedUDT;
 
 /**
  * Class illustrating use of {@link SQLXML} to operate on XML data.
+ *<p>
+ * This class also serves as the mapping class for a composite type
+ * {@code javatest.onexml}, the better to verify that {@link SQLData}
+ * input/output works too. That's why it has to implement SQLData.
  */
-public class PassXML
+@MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
+           comment="A composite type mapped by the PassXML example class")
+public class PassXML implements SQLData
 {
 	static SQLXML s_sx;
 
@@ -442,5 +456,45 @@ public class PassXML
 			w.write(b, 0, got);
 		r.close();
 		w.close();
+	}
+
+	/*
+	 * Required to serve as a MappedUDT:
+	 */
+	public PassXML() { }
+
+	private String m_typeName;
+	private SQLXML m_value;
+
+	@Override
+	public String getSQLTypeName() { return m_typeName; }
+
+	@Override
+	public void readSQL(SQLInput stream, String typeName) throws SQLException
+	{
+		m_typeName = typeName;
+		m_value = (SQLXML) stream.readObject();
+	}
+
+	@Override
+	public void writeSQL(SQLOutput stream) throws SQLException
+	{
+		stream.writeSQLXML(m_value); // this is not expected to work yet
+	}
+
+	/*
+	 * Test the MappedUDT (in one direction anyway).
+	 */
+	@Function(schema="javatest")
+	public static SQLXML xmlFromComposite() throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		Statement s = c.createStatement();
+		ResultSet r = s.executeQuery(
+			"SELECT CAST(ROW(XMLELEMENT(NAME a)) AS javatest.onexml)");
+		r.next();
+		PassXML obj = r.getObject(1, PassXML.class);
+		s.close();
+		return obj.m_value;
 	}
 }
