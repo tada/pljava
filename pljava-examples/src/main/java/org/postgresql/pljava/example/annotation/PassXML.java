@@ -479,7 +479,7 @@ public class PassXML implements SQLData
 	@Override
 	public void writeSQL(SQLOutput stream) throws SQLException
 	{
-		stream.writeSQLXML(m_value); // this is not expected to work yet
+		stream.writeSQLXML(m_value);
 	}
 
 	/*
@@ -489,12 +489,18 @@ public class PassXML implements SQLData
 	public static SQLXML xmlFromComposite() throws SQLException
 	{
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
-		Statement s = c.createStatement();
-		ResultSet r = s.executeQuery(
-			"SELECT CAST(ROW(XMLELEMENT(NAME a)) AS javatest.onexml)");
+		PreparedStatement ps =
+			c.prepareStatement("SELECT CAST(? AS javatest.onexml)");
+		SQLXML x = c.createSQLXML();
+		x.setString("<a/>");
+		PassXML obj = new PassXML();
+		obj.m_value = x;
+		obj.m_typeName = "javatest.onexml";
+		ps.setObject(1, obj);
+		ResultSet r = ps.executeQuery();
 		r.next();
-		PassXML obj = r.getObject(1, PassXML.class);
-		s.close();
+		obj = r.getObject(1, PassXML.class);
+		ps.close();
 		return obj.m_value;
 	}
 }
