@@ -393,6 +393,30 @@ public abstract class AbstractResultSet implements ResultSet
 		  "0A000" );
 	}
 
+	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
+	throws SQLException
+	{
+		updateObject(columnIndex, xmlObject);
+	}
+
+	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
+	throws SQLException
+	{
+		updateObject(columnLabel, xmlObject);
+	}
+
+	public SQLXML getSQLXML(int columnIndex)
+	throws SQLException
+	{
+		return (SQLXML)getObject(columnIndex);
+	}
+
+	public SQLXML getSQLXML(String columnLabel)
+	throws SQLException
+	{
+		return (SQLXML)getObject(columnLabel);
+	}
+
 	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
@@ -664,36 +688,6 @@ public abstract class AbstractResultSet implements ResultSet
 		throw new SQLFeatureNotSupportedException( this.getClass() +
 			".getNString( String ) not implemented yet.", 
 							   "0A000" );
-	}
-
-	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateSQLXML( int, SQLXML ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateSQLXML( String, SQLXML ) not implemented yet.",
-							   "0A000" );
-	}
-
-	public SQLXML getSQLXML(int columnIndex)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getSQLXML( int ) not implemented yet.", "0A000" );
-	}
-
-	public SQLXML getSQLXML(String columnLabel)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getSQLXML( String ) not implemented yet.", "0A000" );
 	}
 
 	public NClob getNClob(String columnLabel)

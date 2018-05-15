@@ -199,6 +199,20 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	{
 		return SPIConnection.basicCoersion(valueClass, this.readObject());
 	}
+
+	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	public SQLXML readSQLXML()
+		throws SQLException
+	{
+		return (SQLXML)this.readValue(SQLXML.class);
+	}
+
 	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
@@ -210,15 +224,6 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 		throw new SQLFeatureNotSupportedException
 			( this.getClass()
 			  + ".readRowId() not implemented yet.",
-			  "0A000" );
-	}
-
-	public SQLXML readSQLXML()
-		throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".readSQLXML() not implemented yet.",
 			  "0A000" );
 	}
 
