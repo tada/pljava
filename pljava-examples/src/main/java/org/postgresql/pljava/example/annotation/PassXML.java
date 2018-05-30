@@ -13,9 +13,12 @@ package org.postgresql.pljava.example.annotation;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import java.sql.Types;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -241,6 +244,27 @@ public class PassXML
 				"IOException in lowLevelXMLEcho", "58030", e);
 		}
 		return rx;
+	}
+
+	/**
+	 * Create some XML, pass it to a {@code SELECT ?} prepared statement,
+	 * retrieve it from the result set, and return it via the out-parameter
+	 * result set of this {@code RECORD}-returning function.
+	 */
+	@Function(schema="javatest", type="RECORD")
+	public static boolean xmlInStmtAndRS(ResultSet out) throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML x = c.createSQLXML();
+		x.setString("<a/>");
+		PreparedStatement ps = c.prepareStatement("SELECT ?");
+		ps.setObject(1, x, Types.SQLXML);
+		ResultSet rs = ps.executeQuery();
+		rs.next();
+		x = rs.getObject(1, SQLXML.class);
+		ps.close();
+		out.updateObject(1, x);
+		return true;
 	}
 
 	private static Source sxToSource(SQLXML sx, int how) throws SQLException

@@ -168,22 +168,6 @@ public abstract class AbstractResultSet implements ResultSet
 		return this.getObject(this.findColumn(columnName), map);
 	}
 
-  public <T> T getObject(int columnIndex, Class<T> type)
-	throws SQLException
-	{
-		final Object obj = getObject( columnIndex );
-    if ( obj.getClass().equals( type ) ) return (T) obj;
-    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
-	}
-
-  public <T> T getObject(String columnName, Class<T> type)
-	throws SQLException
-	{
-		final Object obj = getObject( columnName );
-    if ( obj.getClass().equals( type ) ) return (T) obj;
-    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
-	}
-
 	public Ref getRef(String columnName)
 	throws SQLException
 	{
@@ -769,5 +753,32 @@ public abstract class AbstractResultSet implements ResultSet
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
 			".getRowId( String ) not implemented yet.", "0A000" );
+	}
+
+	// ************************************************************
+	// Implementation of JDBC 4.1 methods. These are half-baked at
+	// the moment: the type parameter isn't able to /influence/
+	// what type is returned, but only to fail if what gets
+	// returned by default isn't that.
+	// ************************************************************
+
+	public <T> T getObject(int columnIndex, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnIndex );
+		if ( type.isInstance(obj) )
+			return type.cast(obj);
+		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
+			" to " + type );
+	}
+
+	public <T> T getObject(String columnName, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnName );
+		if ( type.isInstance(obj) )
+			return type.cast(obj);
+		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
+			" to " + type );
 	}
 }

@@ -110,14 +110,18 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_STRUCT:
 		case java_sql_Types_ARRAY:
 		case java_sql_Types_REF:
+			typeId = InvalidOid;	/* Not yet mapped */
+			break;
 
 		/* JDBC 4.0 - present in Java 6 and later, no need to conditionalize */
+		case java_sql_Types_SQLXML:
+			typeId = XMLOID;
+			break;
 		case java_sql_Types_ROWID:
 		case java_sql_Types_NCHAR:
 		case java_sql_Types_NVARCHAR:
 		case java_sql_Types_LONGNVARCHAR:
 		case java_sql_Types_NCLOB:
-		case java_sql_Types_SQLXML:
 
 		/* JDBC 4.2 - conditionalize until only Java 8 and later supported */
 #ifdef	java_sql_Types_REF_CURSOR
