@@ -157,6 +157,8 @@ The `G1` collector, favored as `ConcMarkSweep`'s replacement, uses slightly
 more space to work, while `Parallel` and `ParallelOld` will occupy more than
 double the space of any of these.
 
+[gcchoice]: https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/collectors.html
+
 ### Plausible settings
 
 The optimal memory settings and garbage collector for a specific PL/Java
