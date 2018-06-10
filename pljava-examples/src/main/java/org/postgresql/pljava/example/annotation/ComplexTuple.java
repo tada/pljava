@@ -12,6 +12,10 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
 import java.sql.SQLInput;
@@ -31,9 +35,12 @@ import static
  * Complex (re and im parts are doubles) implemented in Java as a mapped UDT.
  */
 @SQLAction(requires={
-	"complextuple type", "complextuple assertHasValues"}, install=
+	"complextuple type", "complextuple assertHasValues",
+	"complextuple setParameter"}, install={
 		"SELECT javatest.assertHasValues(" +
-		" CAST('(1,2)' AS javatest.complextuple), 1, 2)"
+		" CAST('(1,2)' AS javatest.complextuple), 1, 2)",
+		"SELECT javatest.setParameter()"
+	}
 )
 @MappedUDT(schema="javatest", name="complextuple", provides="complextuple type",
 structure={
@@ -77,6 +84,30 @@ public class ComplexTuple implements SQLData {
 	{
 		if ( cpl.m_x != re  ||  cpl.m_y != im )
 			throw new SQLException("assertHasValues fails");
+	}
+
+	/**
+	 * Pass a 'complextuple' UDT as a parameter to a PreparedStatement
+	 * that returns it, and verify that it makes the trip intact.
+	 */
+	@Function(schema="javatest",
+		requires="complextuple type", provides="complextuple setParameter",
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	public static void setParameter() throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement ps =
+			c.prepareStatement("SELECT CAST(? AS javatest.complextuple)");
+		ComplexTuple ct = new ComplexTuple();
+		ct.m_x = 1.5;
+		ct.m_y = 2.5;
+		ct.m_typeName = "javatest.complextuple";
+		ps.setObject(1, ct);
+		ResultSet rs = ps.executeQuery();
+		rs.next();
+		ct = (ComplexTuple)rs.getObject(1);
+		ps.close();
+		assertHasValues(ct, 1.5, 2.5);
 	}
 
 	private double m_x;
