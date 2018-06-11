@@ -15,6 +15,11 @@
 			<artifactId>pljava-api</artifactId>
 			<version>${project.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>net.sf.saxon</groupId>
+			<artifactId>Saxon-HE</artifactId>
+			<version>9.8.0-12</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
