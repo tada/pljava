@@ -2362,6 +2362,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
+			boolean row = false;
 			String rslt = null;
 			
 			String[] defaults = null;
@@ -2387,9 +2388,13 @@ hunt:	for ( ExecutableElement ee : ees )
 					// only for bytea[] should this ever still be an array
 				}
 			}
+
+			if ( ! array  &&  typu.isSameType( tm, TY_RESULTSET) )
+				row = true;
 			
 			if ( null != rslt )
-				return typeWithDefault( rslt, array, defaults, withDefault);
+				return typeWithDefault(
+					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
 				return "void"; // can't be a parameter type so no defaults apply
@@ -2449,7 +2454,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( array )
 				rslt += "[]";
 			
-			return typeWithDefault( rslt, array, defaults, withDefault);
+			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
 		}
 		
 		/**
@@ -2462,29 +2467,42 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * cases of simple literals and even anything that can be computed as
 		 * a Java String constant expression (e.g. ""+Math.PI).
 		 *
+		 * @param e Annotated element (chiefly for use as a location hint in
+		 * diagnostic messages).
 		 * @param rslt The bare SQL type string already determined
 		 * @param array Whether the Java type was determined to be an array
+		 * @param row Whether the Java type was ResultSet, indicating an SQL
+		 * record or row type.
 		 * @param defaults Array (null if not present) of default value strings
 		 * @param withDefault Whether to append the default information to the
 		 * type.
 		 */
 		String typeWithDefault(
-			String rslt, boolean array, String[] defaults, boolean withDefault)
+			Element e, String rslt, boolean array, boolean row,
+			String[] defaults, boolean withDefault)
 		{
 			if ( null == defaults || ! withDefault )
 				return rslt;
 			
 			int n = defaults.length;
-			if ( n != 1 )
+			if ( row )
+			{
+				assert ! array;
+				if ( n > 0 && rslt.equalsIgnoreCase("record") )
+					msg( Kind.ERROR, e,
+						"Only supported default for unknown RECORD type is {}");
+			}
+			else if ( n != 1 )
 				array = true;
 			else if ( ! array )
 				array = arrayish.matcher( rslt).matches();
 			
 			StringBuilder sb = new StringBuilder( rslt);
-			sb.append( " DEFAULT CAST(");
+			sb.append( " DEFAULT ");
+			sb.append( row ? "ROW(" : "CAST(");
 			if ( array )
 				sb.append( "ARRAY[");
-			if ( n != 1 )
+			if ( n > 1 )
 				sb.append( "\n\t");
 			for ( String s : defaults )
 			{
@@ -2494,7 +2512,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			if ( array )
 				sb.append( ']');
-			sb.append( " AS ").append( rslt).append( ')');
+			if ( ! row )
+				sb.append( " AS ").append( rslt);
+			sb.append( ')');
 			return sb.toString();
 		}
 	}

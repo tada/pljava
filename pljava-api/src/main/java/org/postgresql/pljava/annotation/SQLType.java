@@ -41,13 +41,22 @@ public @interface SQLType
 	String value() default "";
 	
 	/**
-	 * Default value for the parameter. Parameters of array type can have
+	 * Default value for the parameter. Parameters of row or array type can have
 	 * defaults too, so this element accepts an array. For a scalar type,
 	 * just supply one value. Values given here go into the descriptor file
 	 * as properly-escaped string literals explicitly cast to the parameter
 	 * type, which covers the typical case of defaults that are simple
 	 * literals or can be computed as Java String-typed constant expressions
 	 * (e.g. ""+Math.PI) and ensures the parsability of the descriptor file.
+	 *<p>
+	 * For a row type of unknown structure (PostgreSQL type {@code RECORD}), the
+	 * only default that can be specified is {@code {}}, which can be useful for
+	 * functions that use a {@code RECORD} parameter to accept an arbitrary
+	 * sequence of named, typed parameters from the caller. For a named row type
+	 * (not {@code RECORD}), an array of nonzero length will be accepted. It
+	 * needs to match the number and order of components of the row type (which
+	 * cannot be checked at compile time, but will cause the deployment
+	 * descriptor code to fail at jar install time if it does not).
 	 */
 	String[] defaultValue() default {};
 	
