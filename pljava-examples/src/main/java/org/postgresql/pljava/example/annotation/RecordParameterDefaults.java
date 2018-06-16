@@ -42,13 +42,6 @@ import org.postgresql.pljava.annotation.SQLType;
 			"DROP TYPE javatest.paramtypeinfo"
 		}
 	),
-	@SQLAction(
-		requires = "foobar tables", // created in Triggers.java
-		install = {
-		},
-		remove = {
-		}
-	),
 })
 public class RecordParameterDefaults implements ResultSetProvider
 {
