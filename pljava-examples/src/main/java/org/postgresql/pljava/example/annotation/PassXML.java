@@ -60,6 +60,8 @@ import javax.xml.transform.stax.StAXSource;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 
+import static org.postgresql.pljava.example.LoggerTest.logMessage;
+
 /**
  * Class illustrating use of {@link SQLXML} to operate on XML data.
  *<p>
@@ -275,6 +277,9 @@ public class PassXML implements SQLData
 		ps.setObject(1, x, Types.SQLXML);
 		ResultSet rs = ps.executeQuery();
 		rs.next();
+		if ( Types.SQLXML != rs.getMetaData().getColumnType(1) )
+			logMessage("WARNING",
+				"ResultSetMetaData.getColumnType() misreports SQLXML");
 		x = rs.getObject(1, SQLXML.class);
 		ps.close();
 		out.updateObject(1, x);

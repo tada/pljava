@@ -742,16 +742,16 @@ public class SPIConnection implements Connection
 
 	/**
 	 * Convert a PostgreSQL type name to a {@link Types} integer, using the
-	 * {@code JDBC3_TYPE_NAMES}/{@code JDBC_TYPE_NUMBERS} arrays; used in
-	 * {@link DatabaseMetaData} and {@link ResultSetMetaData}.
+	 * {@code JDBC_TYPE_NAMES}/{@code JDBC_TYPE_NUMBERS} arrays; used in
+	 * two places in {@link DatabaseMetaData}.
 	 */
     public int getSQLType(String pgTypeName)
     {
         if (pgTypeName == null)
             return Types.OTHER;
 
-        for (int i = 0;i < JDBC3_TYPE_NAMES.length;i++)
-            if (pgTypeName.equals(JDBC3_TYPE_NAMES[i]))
+        for (int i = 0;i < JDBC_TYPE_NAMES.length;i++)
+            if (pgTypeName.equals(JDBC_TYPE_NAMES[i]))
                 return JDBC_TYPE_NUMBERS[i];
 
         return Types.OTHER;
@@ -760,7 +760,14 @@ public class SPIConnection implements Connection
 	/**
 	 * This returns the {@link Types} type for a PG type oid, by mapping it
 	 * to a name using {@link #getPGType} and then to the result via
-	 * {@link #getSQLType(String)}.
+	 * {@link #getSQLType(String)}; used in {@link ResultSetMetaData} and
+	 * five places in {@link DatabaseMetaData}.
+	 *<p>
+	 * This method is a bit goofy, as it first maps from Oid to type name, and
+	 * then from name to JDBC type, all to accomplish the inverse of the JDBC
+	 * type / Oid mapping that already exists in Oid.c, and so the mapping
+	 * arrays in this file have to be updated in sync with that. Look into
+	 * future consolidation....
      *
      * @param oid PostgreSQL type oid
      * @return the java.sql.Types type
@@ -983,10 +990,13 @@ public class SPIConnection implements Connection
      * They default automatically to Types.OTHER
      *
      * Note: This must be in the same order as below.
+	 *
+	 * These arrays are not only used by getSQLType() in this file, but also
+	 * directly accessed by getUDTs() in DatabaseMetaData.
      *
      * Tip: keep these grouped together by the Types. value
      */
-    public static final String JDBC3_TYPE_NAMES[] = {
+    public static final String JDBC_TYPE_NAMES[] = {
                 "int2",
                 "int4", "oid",
                 "int8",
@@ -1002,6 +1012,7 @@ public class SPIConnection implements Connection
                 "date",
                 "time", "timetz",
                 "abstime", "timestamp", "timestamptz",
+				"xml",
                 "_bool", "_char", "_int2", "_int4", "_text",
                 "_oid", "_varchar", "_int8", "_float4", "_float8",
                 "_abstime", "_date", "_time", "_timestamp", "_numeric",
@@ -1032,6 +1043,7 @@ public class SPIConnection implements Connection
                 Types.DATE,
                 Types.TIME, Types.TIME,
                 Types.TIMESTAMP, Types.TIMESTAMP, Types.TIMESTAMP,
+				Types.SQLXML,
                 Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
                 Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
                 Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,

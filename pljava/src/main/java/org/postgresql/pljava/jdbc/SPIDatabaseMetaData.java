@@ -2996,7 +2996,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ " end as data_type, pg_catalog.obj_description(t.oid, 'pg_type')  "
 			+ "as remarks, CASE WHEN t.typtype = 'd' then  (select CASE";
 
-		for(int i = 0; i < SPIConnection.JDBC3_TYPE_NAMES.length; i++)
+		for(int i = 0; i < SPIConnection.JDBC_TYPE_NAMES.length; i++)
 		{
 			sql += " when typname = '" + SPIConnection.JDBC_TYPE_NUMBERS[i]
 				+ "' then " + SPIConnection.JDBC_TYPE_NUMBERS[i];
