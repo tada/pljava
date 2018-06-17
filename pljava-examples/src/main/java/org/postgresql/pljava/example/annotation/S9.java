@@ -32,14 +32,20 @@ import java.sql.SQLDataException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 
 import javax.xml.transform.stream.StreamSource;
 
+import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
 
 import net.sf.saxon.query.QueryResult;
@@ -71,6 +77,7 @@ import net.sf.saxon.value.Base64BinaryValue;
 import net.sf.saxon.value.HexBinaryValue;
 
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 
 /**
@@ -134,8 +141,6 @@ public class S9
 {
 	private S9() { }
 
-	/** For verifying clauses "the <identifier> shall be an XML 1.1 NCName." */
-	static final Pattern s_NCName_pattern;
 	static final Connection s_dbc;
 	static final Processor s_s9p = new Processor(false);
 	static final ItemTypeFactory s_itf = new ItemTypeFactory(s_s9p);
@@ -145,18 +150,6 @@ public class S9
 
 	static
 	{
-		// https://www.w3.org/TR/2006/REC-xml11-20060816/#NT-NameStartChar
-		String noColonNameStartChar = "A-Z" + "_" + "a-z" +
-			"\\x{C0}-\\x{D6}" + "\\x{D8}-\\x{F6}" + "\\x{F8}-\\x{2FF}" +
-			"\\x{370}-\\x{37D}" + "\\x{37F}-\\x{1FFF}"+	"\\x{200C}-\\x{200D}" +
-			"\\x{2070}-\\x{218F}" + "\\x{2C00}-\\x{2FEF}" +
-			"\\x{3001}-\\x{D7FF}" + "\\x{F900}-\\x{FDCF}" +
-			"\\x{FDF0}-\\x{FFFD}" + "\\x{10000}-\\x{EFFFF}";
-		s_NCName_pattern = Pattern.compile(
-			"[" + noColonNameStartChar + "]"+
-			"[" + "-.0-9\\x{B7}\\x{0300}-\\x{036F}\\x{203F}-\\x{2040}" +
-			noColonNameStartChar + "]*+");
-
 		try
 		{
 			s_dbc =	DriverManager.getConnection("jdbc:default:connection");
@@ -173,6 +166,8 @@ public class S9
 	 * @param expression An XQuery expression. Must not be {@code null} (in the
 	 * SQL standard {@code XMLQUERY} syntax, it is not even allowed to be an
 	 * expression at all, only a string literal).
+	 * @param nullOnEmpty pass {@code true} to get a null return in place of
+	 * an empty sequence, or {@code false} to just get the empty sequence.
 	 * @param passing A row value whose columns will be supplied to the query
 	 * as parameters. Columns with names (typically supplied with {@code AS})
 	 * appear as predeclared external variables with matching names (in no
@@ -187,8 +182,6 @@ public class S9
 	 * always work, while {@code AS "."} will.) JDBC uppercases all column
 	 * names, so any uses of the corresponding variables in the query must have
 	 * the names in upper case.
-	 * @param nullOnEmpty pass {@code true} to get a null return in place of
-	 * an empty sequence, or {@code false} to just get the empty sequence.
 	 */
 	@Function(
 		schema="javatest",
@@ -196,12 +189,38 @@ public class S9
 		settings="IntervalStyle TO iso_8601"
 	)
 	public static SQLXML xq_ret_content(
-		String expression, ResultSet passing, boolean nullOnEmpty)
+		String expression, Boolean nullOnEmpty,
+		@SQLType(defaultValue={}) ResultSet passing)
 		throws SQLException
 	{
+		if ( null == nullOnEmpty )
+			throw new SQLDataException(
+				"XMLQUERY nullOnEmpty may not be null", "22004");
+
 		try
 		{
-			return _xq_ret_content(expression, passing, nullOnEmpty);
+			XdmValue x1 = xmlquery_internal(
+				expression, new BindingsFromResultSet(passing));
+
+			SequenceIterator x1s = x1.getUnderlyingValue().iterate();
+			if ( nullOnEmpty.booleanValue() )
+			{
+				if ( 0 == ( SequenceIterator.LOOKAHEAD & x1s.getProperties() ) )
+					throw new SQLException(
+					"nullOnEmpty requested and result sequence lacks lookahead",
+						"XX000");
+				if ( ! ((LookaheadIterator)x1s).hasNext() )
+				{
+					x1s.close();
+					return null;
+				}
+			}
+
+			SQLXML rsx = s_dbc.createSQLXML();
+			QueryResult.serializeSequence(
+				x1s, s_s9p.getUnderlyingConfiguration(), rsx.setResult(null),
+				new Properties());
+			return rsx;
 		}
 		catch ( SaxonApiException e )
 		{
@@ -213,8 +232,8 @@ public class S9
 		}
 	}
 
-	private static SQLXML _xq_ret_content(
-		String expression, ResultSet passing, boolean nullOnEmpty)
+	private static XdmValue xmlquery_internal(
+		String expression, Binding.Assemblage passing)
 		throws SQLException, SaxonApiException, XPathException
 	{
 		/*
@@ -228,9 +247,7 @@ public class S9
 		/*
 		 * Get an XQueryCompiler with the static context properly set up.
 		 */
-		Map<String,Integer> nameToIdx = new HashMap<String,Integer>();
-		XQueryCompiler xqc =
-			createStaticContextWithPassedTypes(passing, nameToIdx);
+		XQueryCompiler xqc = createStaticContextWithPassedTypes(passing);
 
 		XQueryExecutable xqx = xqc.compile(expression);
 
@@ -245,13 +262,13 @@ public class S9
 		/*
 		 * Is there or is there not a context item?
 		 */
-		if ( ! nameToIdx.containsKey(null) )
+		if ( null == passing.contextItem() )
 		{
 			/* "... there is no context item in XDC." */
 		}
 		else
 		{
-			Object cve = passing.getObject(nameToIdx.remove(null));
+			Object cve = passing.contextItem().valueJDBC();
 			if ( null == cve )
 				return null;
 			XdmValue ci;
@@ -276,35 +293,19 @@ public class S9
 
 		/*
 		 * For each <XML query variable> XQV:
-		 * (the ResultSetMetaData is only needed here in a quick'n'dirty
-		 * workaround of the difficulty of retrieving the already-computed
-		 * static types of the variables. sigh.)
 		 */
-		ResultSetMetaData rsmd = passing.getMetaData();
-		for ( Map.Entry<String,Integer> e : nameToIdx.entrySet() )
+		for ( Binding.Parameter p : passing )
 		{
-			String name = e.getKey();
-			int i = e.getValue();
-			Object v = passing.getObject(i);
+			String name = p.name();
+			Object v = p.valueJDBC();
 			XdmValue vv;
 			if ( null == v )
 				vv = XdmEmptySequence.getInstance();
 			else if ( v instanceof SQLXML ) // XXX support SEQUENCE someday
 				vv = dBuilder.build(((SQLXML)v).getSource(null));
 			else
-			{
-				/*
-				 * The SequenceType that was determined for the variable has
-				 * been set in the (below s9api, underlying) static query
-				 * context, but there's no easy way to retrieve it from there
-				 * (it is of an underlying, non-s9api class). The method to
-				 * determineXQueryFormalType isn't very costly in this
-				 * implementation (as it doesn't bother generating the Schema
-				 * snippets), so for now, quick 'n' dirty, just do it again.
-				 */
-				ItemType it = determineXQueryFormalType(rsmd, i).getItemType();
-				vv = xmlCastAsSequence(v, XMLBinary.HEX, it);
-			}
+				vv = xmlCastAsSequence(
+					v, XMLBinary.HEX, p.typeXS().getItemType());
 			xqe.setExternalVariable(new QName(name), vv);
 		}
 
@@ -312,26 +313,7 @@ public class S9
 		 * For now, punt on whether the <XQuery expression> is evaluated
 		 * with XML 1.1 or 1.0 lexical rules....  XXX
 		 */
-		 XdmValue x1 = xqe.evaluate();
-		 SequenceIterator x1s = x1.getUnderlyingValue().iterate();
-		 if ( nullOnEmpty )
-		 {
-			if ( 0 == ( SequenceIterator.LOOKAHEAD & x1s.getProperties() ) )
-				throw new SQLException(
-					"nullOnEmpty requested and result sequence lacks lookahead",
-					"XX000");
-			if ( ! ((LookaheadIterator)x1s).hasNext() )
-			{
-				x1s.close();
-				return null;
-			}
-		 }
-
-		SQLXML rsx = s_dbc.createSQLXML();
-		QueryResult.serializeSequence(
-			x1s, s_s9p.getUnderlyingConfiguration(), rsx.setResult(null),
-			new Properties());
-		return rsx;
+		return xqe.evaluate();
 	}
 
 	/**
@@ -345,50 +327,14 @@ public class S9
 	 * with the null key.
 	 */
 	private static XQueryCompiler createStaticContextWithPassedTypes(
-		ResultSet pt, Map<String,Integer> nameToIndex)
+		Binding.Assemblage pt)
 		throws SQLException, XPathException
 	{
-		ResultSetMetaData rsmd = pt.getMetaData();
-		int nParams = rsmd.getColumnCount();
-
-		/*
-		 * Apply syntax rules to the names.
-		 */
-		Matcher ncName = s_NCName_pattern.matcher("");
-		int contextItemIdx = 0;
-
-		for ( int i = 1; i <= nParams; ++i )
-		{
-			String label = rsmd.getColumnLabel(i);
-			if ( "?COLUMN?".equals(label)  ||  ".".equals(label) )
-			{
-				if ( 0 != contextItemIdx )
-				throw new SQLSyntaxErrorException(
-					"Context item supplied more than once (at " +
-					contextItemIdx + " and " + i + ')', "42712");
-				contextItemIdx = i;
-				continue;
-			}
-			if ( ! ncName.reset(label).matches() )
-				throw new SQLSyntaxErrorException(
-					"Not an XML NCname: \"" + label + '"', "42602");
-			Integer was = nameToIndex.put(label, i);
-			if ( null != was )
-				throw new SQLSyntaxErrorException(
-					"Name \"" + label + "\" duplicated at positions " + was +
-					" and " + i, "42712");
-		}
-
-		/*
-		 * Apply syntax rules to the parameter types. This includes (it's weird
-		 * what SQL standards call 'syntax') adding their names and static types
-		 * to the static context.
-		 */
 		XQueryCompiler xqc = s_s9p.newXQueryCompiler();
 		xqc.declareNamespace(
 			"sqlxml", "http://standards.iso.org/iso9075/2003/sqlxml");
 		// https://sourceforge.net/p/saxon/mailman/message/20318550/ :
-		xqc.declareNamespace("xdt", "http://www.w3.org/2001/XMLSchema");
+		xqc.declareNamespace("xdt", W3C_XML_SCHEMA_NS_URI);
 
 		/*
 		 * This business of predeclaring global external named variables
@@ -398,13 +344,12 @@ public class S9
 		 */
 		StaticQueryContext sqc = xqc.getUnderlyingStaticContext();
 
-		for ( Map.Entry<String,Integer> e : nameToIndex.entrySet() )
+		for ( Binding.Parameter p : pt )
 		{
-			String name = e.getKey();
-			int i = e.getValue();
-			int ct = rsmd.getColumnType(i);
+			String name = p.name();
+			int ct = p.typeJDBC();
 			assertCanCastAsXmlSequence(ct, name);
-			SequenceType st = determineXQueryFormalType(rsmd, i);
+			SequenceType st = p.typeXS();
 			sqc.declareGlobalVariable(
 				new QName(name).getStructuredQName(),
 				st.getUnderlyingSequenceType(), null, true);
@@ -413,13 +358,12 @@ public class S9
 		/*
 		 * Apply syntax rules to the context item, if any.
 		 */
-		if ( 0 != contextItemIdx )
+		Binding.ContextItem ci = pt.contextItem();
+		if ( null != ci )
 		{
-			nameToIndex.put(null, contextItemIdx);
-			int ct = rsmd.getColumnType(contextItemIdx);
+			int ct = ci.typeJDBC();
 			assertCanCastAsXmlSequence(ct, "(context item)");
-			ItemType it = determineXQueryFormalTypeContextItem(
-				rsmd, contextItemIdx);
+			ItemType it = ci.typeXS();
 			xqc.setRequiredContextItemType(it);
 		}
 
@@ -448,26 +392,10 @@ public class S9
 	}
 
 	private static SequenceType determineXQueryFormalType(
-		ResultSetMetaData rsmd, int columnIndex)
+		Binding b, boolean forContextItem)
 		throws SQLException
 	{
-		return determineXQueryFormalType(rsmd, columnIndex, false);
-	}
-
-	private static ItemType determineXQueryFormalTypeContextItem(
-		ResultSetMetaData rsmd, int columnIndex)
-		throws SQLException
-	{
-		SequenceType st = determineXQueryFormalType(rsmd, columnIndex, true);
-		assert OccurrenceIndicator.ONE == st.getOccurrenceIndicator();
-		return st.getItemType();
-	}
-
-	private static SequenceType determineXQueryFormalType(
-		ResultSetMetaData rsmd, int columnIndex, boolean forContextItem)
-		throws SQLException
-	{
-		int sd = rsmd.getColumnType(columnIndex);
+		int sd = b.typeJDBC();
 		OccurrenceIndicator suffix;
 		/*
 		 * The SQL/XML standard uses a formal type notation straight out of
@@ -492,7 +420,7 @@ public class S9
 		 * Go through the motions of checking isNullable, though PL/Java's JDBC
 		 * currently hardcodes columnNullableUnknown. Maybe someday it won't.
 		 */
-		else if ( columnNoNulls == rsmd.isNullable(columnIndex) )
+		else if ( b.knownNonNull() )
 			suffix = OccurrenceIndicator.ONE;
 		else
 			suffix = OccurrenceIndicator.ZERO_OR_ONE;
@@ -517,7 +445,7 @@ public class S9
 		else // it ain't XML, it's some SQL type
 		{
 			ItemType xmlt = mapSQLDataTypeToXMLSchemaDataType(
-				sd, rsmd, columnIndex, XMLBinary.HEX, Nulls.ABSENT);
+				b, XMLBinary.HEX, Nulls.ABSENT);
 			// ItemType pt = xmlt.getUnderlyingItemType().getPrimitiveType()
 			//  .somehowGetFromUnderlyingPTBackToS9apiPT() - ugh, the hard part
 			/*
@@ -540,8 +468,7 @@ public class S9
 	}
 
 	private static ItemType mapSQLDataTypeToXMLSchemaDataType(
-		int sd, ResultSetMetaData rsmd, int columnIndex,
-		XMLBinary xmlbinary, Nulls nulls)
+		Binding b, XMLBinary xmlbinary, Nulls nulls)
 		throws SQLException
 	{
 		/*
@@ -565,7 +492,7 @@ public class S9
 		 * produces some different results; that work may have been done from
 		 * an earlier version of the standard).
 		 */
-		switch ( sd )
+		switch ( b.typeJDBC() )
 		{
 		case Types.CHAR:
 		case Types.VARCHAR:
@@ -585,7 +512,7 @@ public class S9
 			 * though PL/Java's getScale currently hardcodes a -1 return.
 			 * Maybe someday it won't.
 			 */
-			int scale = rsmd.getScale(columnIndex);
+			int scale = b.scale();
 			return 0 == scale ? ItemType.INTEGER : ItemType.DECIMAL;
 
 		case Types.INTEGER:
@@ -640,7 +567,7 @@ public class S9
 		// isn't, isn't supported just now.
 		}
 
-		String typeName = rsmd.getColumnTypeName(columnIndex);
+		String typeName = b.typePG();
 		if ( "interval".equals(typeName) )
 		{
 			/*
@@ -791,5 +718,250 @@ public class S9
 		throw new SQLNonTransientException(String.format(
 			"Mapping SQL value to XML type \"%s\" not supported", xst),
 			"0N000");
+	}
+
+	static class Binding
+	{
+		String typePG() throws SQLException
+		{
+			if ( null != m_typePG )
+				return m_typePG;
+			return m_typePG = implTypePG();
+		}
+
+		int typeJDBC() throws SQLException
+		{
+			if ( null != m_typeJDBC )
+				return m_typeJDBC;
+			return m_typeJDBC = implTypeJDBC();
+		}
+
+		Object valueJDBC() throws SQLException
+		{
+			if ( m_valueJDBCValid )
+				return m_valueJDBC;
+			return setValueJDBC(implValueJDBC());
+		}
+
+		boolean knownNonNull() throws SQLException
+		{
+			if ( null != m_knownNonNull )
+				return m_knownNonNull;
+			return m_knownNonNull = implKnownNonNull();
+		}
+
+		int scale() throws SQLException
+		{
+			if ( null != m_scale )
+				return m_scale;
+			return m_scale = implScale();
+		}
+
+		static class ContextItem extends Binding
+		{
+			ItemType typeXS() throws SQLException
+			{
+				if ( null != m_typeXS )
+					return m_typeXS;
+				SequenceType st = implTypeXS(true);
+				assert OccurrenceIndicator.ONE == st.getOccurrenceIndicator();
+				return m_typeXS = st.getItemType();
+			}
+
+			protected ItemType m_typeXS;
+		}
+
+		static class Parameter extends Binding
+		{
+			String name()
+			{
+				return m_name;
+			}
+
+			SequenceType typeXS() throws SQLException
+			{
+				if ( null != m_typeXS )
+					return m_typeXS;
+				return m_typeXS = implTypeXS(false);
+			}
+
+			protected SequenceType m_typeXS;
+
+			private final String m_name;
+
+			protected Parameter(String name) throws SQLException
+			{
+				if ( ! isValidNCName(name) )
+					throw new SQLSyntaxErrorException(
+						"Not an XML NCname: \"" + name + '"', "42602");
+				m_name = name;
+			}
+		}
+
+		protected String m_typePG;
+		protected Integer m_typeJDBC;
+		protected Boolean m_knownNonNull;
+		protected Integer m_scale;
+		private Object m_valueJDBC;
+		private boolean m_valueJDBCValid;
+		protected Object setValueJDBC(Object v)
+		{
+			m_valueJDBCValid = true;
+			return m_valueJDBC = v;
+		}
+
+		protected String implTypePG() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"typePG() on synthetic binding");
+		}
+
+		protected int implTypeJDBC() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"typeJDBC() on synthetic binding");
+		}
+
+		protected boolean implKnownNonNull() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"knownNonNull() on synthetic binding");
+		}
+
+		protected int implScale() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"scale() on synthetic binding");
+		}
+
+		protected Object implValueJDBC() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"valueJDBC() on synthetic binding");
+		}
+
+		protected SequenceType implTypeXS(boolean forContextItem)
+		throws SQLException
+		{
+			return determineXQueryFormalType(this, forContextItem);
+		}
+
+		static class Assemblage implements Iterable<Parameter>
+		{
+			ContextItem contextItem() { return m_contextItem; }
+
+			@Override
+			public Iterator<Parameter> iterator()
+			{
+				return m_params.iterator();
+			}
+
+			protected ContextItem m_contextItem;
+			protected Collection<Parameter> m_params = Collections.emptyList();
+		}
+	}
+
+	static class BindingsFromResultSet extends Binding.Assemblage
+	{
+		BindingsFromResultSet(ResultSet rs) throws SQLException
+		{
+			m_resultSet = rs;
+			m_rsmd = rs.getMetaData();
+
+			int nParams = m_rsmd.getColumnCount();
+			ContextItem contextItem = null;
+			Map<String,Binding.Parameter> n2b =
+				new HashMap<String,Binding.Parameter>();
+
+			for ( int i = 1; i <= nParams; ++i )
+			{
+				String label = m_rsmd.getColumnLabel(i);
+				if ( "?COLUMN?".equals(label)  ||  ".".equals(label) )
+				{
+					if ( null != contextItem )
+					throw new SQLSyntaxErrorException(
+						"Context item supplied more than once (at " +
+						contextItem.m_idx + " and " + i + ')', "42712");
+					contextItem = new ContextItem(i);
+					continue;
+				}
+
+				Parameter was =
+					(Parameter)n2b.put(label, new Parameter(label, i));
+				if ( null != was )
+					throw new SQLSyntaxErrorException(
+						"Name \"" + label + "\" duplicated at positions " +
+						was.m_idx +	" and " + i, "42712");
+			}
+
+			m_contextItem = contextItem;
+			m_params = n2b.values();
+		}
+
+		private ResultSet m_resultSet;
+		private ResultSetMetaData m_rsmd;
+
+		class ContextItem extends Binding.ContextItem
+		{
+			final int m_idx;
+
+			ContextItem(int index) { m_idx = index; }
+
+			protected String implTypePG() throws SQLException
+			{
+				return m_rsmd.getColumnTypeName(m_idx);
+			}
+
+			protected int implTypeJDBC() throws SQLException
+			{
+				return m_rsmd.getColumnType(m_idx);
+			}
+
+			protected int implScale() throws SQLException
+			{
+				return m_rsmd.getScale(m_idx);
+			}
+
+			protected Object implValueJDBC() throws SQLException
+			{
+				return m_resultSet.getObject(m_idx);
+			}
+		}
+
+		class Parameter extends Binding.Parameter
+		{
+			final int m_idx;
+
+			Parameter(String name, int index) throws SQLException
+			{
+				super(name);
+				m_idx = index;
+			}
+
+			protected String implTypePG() throws SQLException
+			{
+				return m_rsmd.getColumnTypeName(m_idx);
+			}
+
+			protected int implTypeJDBC() throws SQLException
+			{
+				return m_rsmd.getColumnType(m_idx);
+			}
+
+			protected boolean implKnownNonNull() throws SQLException
+			{
+				return columnNoNulls == m_rsmd.isNullable(m_idx);
+			}
+
+			protected int implScale() throws SQLException
+			{
+				return m_rsmd.getScale(m_idx);
+			}
+
+			protected Object implValueJDBC() throws SQLException
+			{
+				return m_resultSet.getObject(m_idx);
+			}
+		}
 	}
 }
