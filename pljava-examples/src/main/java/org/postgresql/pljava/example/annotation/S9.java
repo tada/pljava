@@ -42,6 +42,10 @@ import java.util.NoSuchElementException;
 import java.util.Properties;
 
 import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
+import static javax.xml.XMLConstants.XML_NS_URI;
+import static javax.xml.XMLConstants.XML_NS_PREFIX;
+import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
+import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 
 import javax.xml.transform.stream.StreamSource;
 
@@ -182,6 +186,12 @@ public class S9
 	 * always work, while {@code AS "."} will.) JDBC uppercases all column
 	 * names, so any uses of the corresponding variables in the query must have
 	 * the names in upper case.
+	 * @param namespaces An even-length String array where, of each pair of
+	 * consecutive entries, the first is a namespace prefix and the second is
+	 * to URI to which to bind it. The zero-length prefix sets the default
+	 * element and type namespace; if the prefix has zero length, the URI may
+	 * also have zero length, to declare that unprefixed elements are in no
+	 * namespace.
 	 */
 	@Function(
 		schema="javatest",
@@ -190,7 +200,8 @@ public class S9
 	)
 	public static SQLXML xq_ret_content(
 		String expression, Boolean nullOnEmpty,
-		@SQLType(defaultValue={}) ResultSet passing)
+		@SQLType(defaultValue={}) ResultSet passing,
+		@SQLType(defaultValue={}) String[] namespaces)
 		throws SQLException
 	{
 		if ( null == nullOnEmpty )
@@ -199,8 +210,9 @@ public class S9
 
 		try
 		{
-			XdmValue x1 = xmlquery_internal(
-				expression, new BindingsFromResultSet(passing));
+			XdmValue x1 = xmlquery_internal(expression,
+				new BindingsFromResultSet(passing),
+				namespaceBindings(namespaces));
 
 			SequenceIterator x1s = x1.getUnderlyingValue().iterate();
 			if ( nullOnEmpty.booleanValue() )
@@ -233,7 +245,8 @@ public class S9
 	}
 
 	private static XdmValue xmlquery_internal(
-		String expression, Binding.Assemblage passing)
+		String expression, Binding.Assemblage passing,
+		Iterable<Map.Entry<String,String>> namespaces)
 		throws SQLException, SaxonApiException, XPathException
 	{
 		/*
@@ -247,7 +260,8 @@ public class S9
 		/*
 		 * Get an XQueryCompiler with the static context properly set up.
 		 */
-		XQueryCompiler xqc = createStaticContextWithPassedTypes(passing);
+		XQueryCompiler xqc = createStaticContextWithPassedTypes(
+			passing, namespaces);
 
 		XQueryExecutable xqx = xqc.compile(expression);
 
@@ -327,7 +341,7 @@ public class S9
 	 * with the null key.
 	 */
 	private static XQueryCompiler createStaticContextWithPassedTypes(
-		Binding.Assemblage pt)
+		Binding.Assemblage pt, Iterable<Map.Entry<String,String>> namespaces)
 		throws SQLException, XPathException
 	{
 		XQueryCompiler xqc = s_s9p.newXQueryCompiler();
@@ -335,6 +349,9 @@ public class S9
 			"sqlxml", "http://standards.iso.org/iso9075/2003/sqlxml");
 		// https://sourceforge.net/p/saxon/mailman/message/20318550/ :
 		xqc.declareNamespace("xdt", W3C_XML_SCHEMA_NS_URI);
+
+		for ( Map.Entry<String,String> e : namespaces )
+			xqc.declareNamespace(e.getKey(), e.getValue());
 
 		/*
 		 * This business of predeclaring global external named variables
@@ -718,6 +735,54 @@ public class S9
 		throw new SQLNonTransientException(String.format(
 			"Mapping SQL value to XML type \"%s\" not supported", xst),
 			"0N000");
+	}
+
+	static Iterable<Map.Entry<String,String>> namespaceBindings(String[] nbs)
+	throws SQLException
+	{
+		if ( 1 == nbs.length % 2 )
+			throw new SQLSyntaxErrorException(
+				"Namespace binding array must have even length", "42000");
+		Map<String,String> m = new HashMap<String,String>();
+
+		for ( int i = 0; i < nbs.length; i += 2 )
+		{
+			String prefix = nbs[i];
+			String uri = nbs[1 + i];
+
+			if ( null == prefix  ||  null == uri )
+				throw new SQLSyntaxErrorException(
+					"Namespace binding array elements must not be null",
+					"42000");
+
+			if ( ! "".equals(prefix) )
+			{
+				if ( ! isValidNCName(prefix) )
+					throw new SQLSyntaxErrorException(
+						"Not an XML NCname: \"" + prefix + '"', "42602");
+				if ( XML_NS_PREFIX.equals(prefix)
+					|| XMLNS_ATTRIBUTE.equals(prefix) )
+					throw new SQLSyntaxErrorException(
+						"Namespace prefix may not be xml or xmlns", "42939");
+				if ( XML_NS_URI.equals(uri)
+					|| XMLNS_ATTRIBUTE_NS_URI.equals(uri) )
+					throw new SQLSyntaxErrorException(
+						"Namespace URI has a disallowed value", "42P17");
+				if ( "".equals(uri) )
+					throw new SQLSyntaxErrorException(
+						"URI for non-default namespace may not be zero-length",
+						"42P17");
+			}
+
+			String was = m.put(prefix.intern(), uri.intern());
+
+			if ( null != was )
+				throw new SQLSyntaxErrorException(
+					"Namespace prefix \"" + prefix + "\" multiply bound (" +
+					"to \"" + was + "\" and \"" + uri + "\")", "42712");
+		}
+
+		return Collections.unmodifiableSet(m.entrySet());
 	}
 
 	static class Binding
