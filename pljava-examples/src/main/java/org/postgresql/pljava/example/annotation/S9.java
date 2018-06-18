@@ -32,6 +32,7 @@ import java.sql.SQLDataException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
+import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,8 +56,6 @@ import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
 
-import net.sf.saxon.tree.iter.LookaheadIterator;
-
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.ItemType;
 import net.sf.saxon.s9api.ItemTypeFactory;
@@ -64,11 +63,14 @@ import net.sf.saxon.s9api.OccurrenceIndicator;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.QName;
 import net.sf.saxon.s9api.SequenceType;
+import static net.sf.saxon.s9api.SequenceType.makeSequenceType;
 import net.sf.saxon.s9api.XdmAtomicValue;
 import static net.sf.saxon.s9api.XdmAtomicValue.makeAtomicValue;
 import net.sf.saxon.s9api.XdmEmptySequence;
+import net.sf.saxon.s9api.XdmItem;
 import static net.sf.saxon.s9api.XdmNodeKind.DOCUMENT;
 import net.sf.saxon.s9api.XdmValue;
+import net.sf.saxon.s9api.XdmSequenceIterator;
 import net.sf.saxon.s9api.XQueryCompiler;
 import net.sf.saxon.s9api.XQueryEvaluator;
 import net.sf.saxon.s9api.XQueryExecutable;
@@ -77,8 +79,12 @@ import net.sf.saxon.s9api.SaxonApiException;
 
 import net.sf.saxon.trans.XPathException;
 
+import net.sf.saxon.tree.iter.LookaheadIterator;
+
 import net.sf.saxon.value.Base64BinaryValue;
 import net.sf.saxon.value.HexBinaryValue;
+
+import org.postgresql.pljava.ResultSetProvider;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLType;
@@ -120,9 +126,9 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * rewritten as this call to the {@link #xq_ret_content xq_ret_content} method:
  *<pre>
  * SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $NAME]',
- *                                passing, nullOnEmpty => false)
+ *                                PASSING => p, nullOnEmpty => false)
  * FROM catalog_as_xml,
- * LATERAL (SELECT x AS ".", 'numeric_avg' AS NAME) AS passing;
+ * LATERAL (SELECT x AS ".", 'numeric_avg' AS NAME) AS p;
  *</pre>
  *<p>
  * In the rewritten form, the type of value returned is determined by which
@@ -139,11 +145,53 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * provides no way for {@code BY REF} semantics to be implemented, so everything
  * happening here happens {@code BY VALUE} implicitly, and does not need to be
  * specified.
+ *<p>
+ * The function {@link #xmltable xmltable} here implements (much of) the
+ * standard function of the same name. Because it is the same name, it has to
+ * be either schema-qualified or double-quoted in a call to avoid confusion
+ * with the reserved word. A rewritten form of the <a href=
+'https://www.postgresql.org/docs/10/static/functions-xml.html#FUNCTIONS-XML-PROCESSING-XMLTABLE'
+>first example in the PostgreSQL manual</a> could be:
+ *<pre>
+ * SELECT xmltable.*
+ * FROM
+ *	xmldata,
+ *
+ *	LATERAL (SELECT data AS ".", 'not specified'::text AS DPREMIER) AS p,
+ *
+ *	"xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
+ *	 'xs:int(@id)', null, 'string(COUNTRY_NAME)',
+ *	 'string(COUNTRY_ID)', 'xs:double(SIZE[@unit eq "sq_km"])',
+ *	 'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
+ *	 'let $e := zero-or-one(PREMIER_NAME)/string()
+ *	  return if ( empty($e) )then $DPREMIER else $e'
+ *	]) AS "xmltable" (
+ *	 id int, ordinality int, "COUNTRY_NAME" text, country_id text,
+ *	 size_sq_km float, size_other text, premier_name text
+ *	);
+ *</pre>
+ *<p>
+ * The explicit casts and {@code zero-or-one} will not be needed once the
+ * full automatic casting rules (for now only partially implemented) are
+ * in place.
  * @author Chapman Flack
  */
-public class S9
+public class S9 implements ResultSetProvider
 {
-	private S9() { }
+	private S9(
+		XdmSequenceIterator xsi,
+		XQueryEvaluator[] columnXQEs,
+		SequenceType[] columnStaticTypes)
+	{
+		m_sequenceIterator = xsi;
+		m_columnXQEs = columnXQEs;
+		m_columnStaticTypes = columnStaticTypes;
+	}
+
+	final XdmSequenceIterator m_sequenceIterator;
+	final XQueryEvaluator[] m_columnXQEs;
+	final SequenceType[] m_columnStaticTypes;
+	Binding.Assemblage m_outBindings;
 
 	static final Connection s_dbc;
 	static final Processor s_s9p = new Processor(false);
@@ -204,15 +252,35 @@ public class S9
 		@SQLType(defaultValue={}) String[] namespaces)
 		throws SQLException
 	{
+		/*
+		 * The expression itself may not be null (in the standard, it isn't
+		 * even allowed to be dynamic, and can only be a string literal!).
+		 */
+		if ( null == expression )
+			throw new SQLDataException(
+				"XMLQUERY expression may not be null", "22004");
+
 		if ( null == nullOnEmpty )
 			throw new SQLDataException(
 				"XMLQUERY nullOnEmpty may not be null", "22004");
 
+		Binding.Assemblage bindings = new BindingsFromResultSet(passing);
+
 		try
 		{
-			XdmValue x1 = xmlquery_internal(expression,
-				new BindingsFromResultSet(passing),
-				namespaceBindings(namespaces));
+			XQueryCompiler xqc = createStaticContextWithPassedTypes(
+				bindings, namespaceBindings(namespaces));
+
+			XQueryEvaluator xqe = xqc.compile(expression).load();
+
+			if ( storePassedValuesInDynamicContext(xqe, bindings, true) )
+				return null;
+
+			/*
+			 * For now, punt on whether the <XQuery expression> is evaluated
+			 * with XML 1.1 or 1.0 lexical rules....  XXX
+			 */
+			XdmValue x1 = xqe.evaluate();
 
 			SequenceIterator x1s = x1.getUnderlyingValue().iterate();
 			if ( nullOnEmpty.booleanValue() )
@@ -244,39 +312,241 @@ public class S9
 		}
 	}
 
-	private static XdmValue xmlquery_internal(
-		String expression, Binding.Assemblage passing,
-		Iterable<Map.Entry<String,String>> namespaces)
-		throws SQLException, SaxonApiException, XPathException
+	/**
+	 * An implementation of (much of) XMLTABLE, using genuine XML Query.
+	 *<p>
+	 * The {@code columns} array must supply a valid XML Query expression for
+	 * every column in the column definition list that follows the call of this
+	 * function in SQL, except that the column for ordinality, if wanted, is
+	 * identified by a {@code null} entry in {@code columns}. Syntax sugar in
+	 * the standard allows an omitted column expression to imply an element test
+	 * for an element with the same name as the column; that doesn't work here.
+	 *<p>
+	 * For now, this implementation lacks the ability to specify defaults for
+	 * when a column expression produces an empty sequence. It is possible to
+	 * do defaults explicitly by rewriting a query expression <em>expr</em> as
+	 * {@code let $e := }<em>expr</em>{@code return if(empty($e))then $D else $e}
+	 * and supplying the default <em>D</em> as another query parameter, though
+	 * such defaults will be evaluated only once when {@code xmltable} is called
+	 * and will not be able to refer to other values in an output row.
+	 *<p>
+	 * Output columns of XML type are not yet supported.
+	 * @param rows The single XQuery expression whose result sequence generates
+	 * the rows of the resulting table. Must not be null.
+	 * @param columns Array of XQuery expressions, exactly as many as result
+	 * columns in the column definition list that follows the SQL call to this
+	 * function. This array must not be null. It is allowed for one element (and
+	 * no more than one) to be null, marking the corresponding column to be
+	 * "FOR ORDINALITY" (the column must be of integer, or, ahem, "exact numeric
+	 * with scale zero", type).
+	 * @param passing A row value whose columns will be supplied to the query
+	 * as parameters, just as described for
+	 * {@link #xq_ret_content xq_ret_content()}. If a context item is supplied,
+	 * it is the context item for the {@code rows} query (the {@code columns}
+	 * queries get their context item from the {@code rows} query's result). Any
+	 * named parameters supplied here are available both in the {@code rows}
+	 * expression and (though this goes beyond the standard) in every expression
+	 * of {@code columns}, with their values unchanging from row to row.
+	 * @param namespaces An even-length String array where, of each pair of
+	 * consecutive entries, the first is a namespace prefix and the second is
+	 * to URI to which to bind it, just as described for
+	 * {@link #xq_ret_content xq_ret_content()}.
+	 */
+	@Function(
+		schema="javatest",
+		onNullInput=CALLED,
+		settings="IntervalStyle TO iso_8601"
+	)
+	public static ResultSetProvider xmltable(
+		String rows, String[] columns,
+		@SQLType(defaultValue={}) ResultSet passing,
+		@SQLType(defaultValue={}) String[] namespaces)
+		throws SQLException
 	{
-		/*
-		 * The expression itself may not be null (in the standard, it isn't
-		 * even allowed to be dynamic, and can only be a string literal!).
-		 */
-		if ( null == expression )
+		if ( null == rows )
 			throw new SQLDataException(
-				"XMLQUERY expression may not be null", "22004");
+				"XMLTABLE row expression may not be null", "22004");
 
-		/*
-		 * Get an XQueryCompiler with the static context properly set up.
-		 */
-		XQueryCompiler xqc = createStaticContextWithPassedTypes(
-			passing, namespaces);
+		if ( null == columns )
+			throw new SQLDataException(
+				"XMLTABLE columns expression array may not be null", "22004");
 
-		XQueryExecutable xqx = xqc.compile(expression);
+		Binding.Assemblage rowBindings = new BindingsFromResultSet(passing);
 
-		/*
-		 * This method implements the RETURNING CONTENT case.
-		 *
-		 * Now for the General Rules.
-		 */
-		XQueryEvaluator xqe = xqx.load();
+		Iterable<Map.Entry<String,String>> namespacepairs =
+			namespaceBindings(namespaces);
+
+		XQueryEvaluator[] columnXQEs = new XQueryEvaluator[ columns.length ];
+		SequenceType[] columnStaticTypes = new SequenceType[ columns.length ];
+
+		try
+		{
+			XQueryCompiler rowXQC = createStaticContextWithPassedTypes(
+				rowBindings, namespacepairs);
+
+			XQueryExecutable rowXQX = rowXQC.compile(rows);
+
+			Binding.Assemblage columnBindings =
+				new BindingsFromXQX(rowXQX, rowBindings);
+
+			XQueryCompiler columnXQC = createStaticContextWithPassedTypes(
+				columnBindings, namespacepairs);
+
+			boolean ordinalitySeen = false;
+			for ( int i = 0; i < columns.length; ++ i )
+			{
+				String expr = columns[i];
+				if ( null == expr )
+				{
+					if ( ordinalitySeen )
+						throw new SQLSyntaxErrorException(
+							"No more than one column expression may be null " +
+							"(=> \"for ordinality\")", "42611");
+					ordinalitySeen = true;
+					continue;
+				}
+				XQueryExecutable columnXQX = columnXQC.compile(expr);
+				columnStaticTypes[i] = makeSequenceType(
+					columnXQX.getResultItemType(),
+					columnXQX.getResultCardinality());
+				columnXQEs[i] = columnXQX.load();
+				storePassedValuesInDynamicContext(
+					columnXQEs[i], columnBindings, false);
+			}
+
+			XQueryEvaluator rowXQE = rowXQX.load();
+			XdmSequenceIterator rowIterator;
+			if ( storePassedValuesInDynamicContext(rowXQE, rowBindings, true) )
+				rowIterator = XdmEmptySequence.getInstance().iterator();
+			else
+				rowIterator = rowXQE.iterator();
+			return new S9(rowIterator, columnXQEs, columnStaticTypes);
+		}
+		catch ( SaxonApiException e )
+		{
+			throw new SQLException(e.getMessage(), "10000", e);
+		}
+		catch ( XPathException e )
+		{
+			throw new SQLException(e.getMessage(), "10000", e);
+		}
+	}
+
+	@Override
+	public void close()
+	{
+		m_sequenceIterator.close();
+	}
+
+	@Override
+	public boolean assignRowValues(ResultSet receive, int currentRow)
+	throws SQLException
+	{
+		if ( 0 == currentRow )
+			m_outBindings = new BindingsFromResultSet(receive, m_columnXQEs);
+
+		if ( ! m_sequenceIterator.hasNext() )
+			return false;
+
+		++ currentRow; // for use as 1-based ordinality column
+
+		XdmItem it = m_sequenceIterator.next();
+
+		int i = 0;
+		for ( Binding.Parameter p : m_outBindings )
+		{
+			XQueryEvaluator xqe = m_columnXQEs [ i ];
+			SequenceType staticType = m_columnStaticTypes [ i++ ];
+
+			if ( null == xqe )
+			{
+				receive.updateInt( i, currentRow);
+				continue;
+			}
+
+			xqe.setContextItem(it);
+
+			try
+			{
+				XdmValue x1 = xqe.evaluate();
+
+				/*
+				 * The fully general rules, outlining how x1 gets from here to
+				 * the end goal of a value of the SQL result column, are a
+				 * real caution. They begin by pumping x1 through all the
+				 * effects of XMLDOCUMENT( ... RETURNING CONTENT) (text nodes
+				 * built from atomic values, errors raised for attribute nodes,
+				 * everything wrapped in a document node, etc.,) and then
+				 * hitting that on the head with XMLCAST. In the case where the
+				 * SQL result column has a non-XML type, that starts right off
+				 * by document-node unwrapping followed by atomization (you get
+				 * your dog back, you get your truck back, you get your wife
+				 * back, only now as lexical strings with types all erased
+				 * to xs:untypedAtomic), and finally (ring a little bell here)
+				 * putting those through XML Query "cast as" to the XQuery type
+				 * determined according to the output column SQL type, and then
+				 * converting and stashing that value into the result column.
+				 *
+				 * In cases where the XQuery compiler was statically certain
+				 * the result will be exactly one, or zero-or-one, atomic value,
+				 * it seems sensible to skip right ahead to the little ringing
+				 * bell ... both for efficiency's sake, and because it gets a
+				 * very useful subset of XMLTABLE working before all that other
+				 * jazz is in place.
+				 */
+				if ( staticType.getOccurrenceIndicator().allowsMany()
+					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(
+						staticType.getItemType()) )
+					throw new UnsupportedOperationException(
+						"The fully general rules for returning XMLTABLE " +
+						"output are not yet implemented (column " + i + ").");
+
+				/*
+				 * The value is statically known to be atomic and either exactly
+				 * one or zero-or-one. May as well just use size() to see if
+				 * it's empty.
+				 */
+				if ( 0 == x1.size() )
+				{
+					receive.updateNull(i); // XXX Handle defaults some day
+					continue;
+				}
+				XdmAtomicValue av = (XdmAtomicValue)x1.itemAt(0);
+				xmlCastAsNonXML(av, p, receive, i);
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Store the values of any passed parameters and/or context item into the
+	 * dynamic context, returning true if the overall query should
+	 * short-circuit and return null.
+	 *<p>
+	 * The specification requires the overall query to return null if a
+	 * context item is specified in the bindings and its value is null.
+	 * @param xqe XQuery evaluator into which to store the values.
+	 * @param passing The bindings whose values should be installed.
+	 * @param setContextItem True to handle the context item, if present in the
+	 * bindings. False to skip any processing of the context item, in cases
+	 * where the caller will handle that.
+	 * @return True if the overall query's return should be null, false if the
+	 * query should proceed to evaluation.
+	 */
+	private static boolean storePassedValuesInDynamicContext(
+		XQueryEvaluator xqe, Binding.Assemblage passing, boolean setContextItem)
+		throws SQLException, SaxonApiException
+	{
 		DocumentBuilder dBuilder = s_s9p.newDocumentBuilder();
 
 		/*
 		 * Is there or is there not a context item?
 		 */
-		if ( null == passing.contextItem() )
+		if ( ! setContextItem  ||  null == passing.contextItem() )
 		{
 			/* "... there is no context item in XDC." */
 		}
@@ -284,13 +554,13 @@ public class S9
 		{
 			Object cve = passing.contextItem().valueJDBC();
 			if ( null == cve )
-				return null;
+				return true;
 			XdmValue ci;
 			if ( cve instanceof SQLXML ) // XXX support SEQUENCE input someday
 				ci = dBuilder.build(((SQLXML)cve).getSource(null));
 			else
 				ci = xmlCastAsSequence(
-					cve, XMLBinary.HEX, xqc.getRequiredContextItemType());
+					cve, XMLBinary.HEX, passing.contextItem().typeXS());
 			switch ( ci.size() )
 			{
 			case 0:
@@ -323,11 +593,7 @@ public class S9
 			xqe.setExternalVariable(new QName(name), vv);
 		}
 
-		/*
-		 * For now, punt on whether the <XQuery expression> is evaluated
-		 * with XML 1.1 or 1.0 lexical rules....  XXX
-		 */
-		return xqe.evaluate();
+		return false;
 	}
 
 	/**
@@ -480,7 +746,7 @@ public class S9
 			it = xmlt;
 		}
 
-		SequenceType xftn = SequenceType.makeSequenceType(it, suffix);
+		SequenceType xftn = makeSequenceType(it, suffix);
 		return xftn;
 	}
 
@@ -497,7 +763,7 @@ public class S9
 		 * and our painstakingly specified derived type is replaced with
 		 * the primitive type we based it on. That simplifies a lot. :)
 		 * For now, forget the derived XML Schema declarations, and just
-		 * return the primitive types thwy would be based on.
+		 * return the primitive types they would be based on.
 		 *
 		 * The need for the nulls parameter vanishes if no XML Schema snippets
 		 * are to be generated.
@@ -685,6 +951,74 @@ public class S9
 		}
 	}
 
+	/**
+	 * Handle the case of XMLCAST to a non-XML target type when the cast operand
+	 * is already a single atomic value.
+	 * @param av The atomic operand value
+	 * @param p The parameter binding, recording the needed type information
+	 * @param rs ResultSet into which the value will be stored
+	 * @param col Index of the result column
+	 */
+	private static void xmlCastAsNonXML(
+		XdmAtomicValue av, Binding.Parameter p, ResultSet rs, int col)
+		throws SQLException
+	{
+		XdmAtomicValue bv;
+		ItemType xt = p.typeXS().getItemType();
+		if ( xt.matches(av) ) // perhaps we can skip one bout of casting
+			bv = av;
+		else
+			throw new UnsupportedOperationException(
+				"Casting AV to BV is not yet implemented (column " + col + ")");
+
+		if ( ItemType.STRING.subsumes(xt) )
+			rs.updateString(col, bv.getStringValue());
+
+		else if ( ItemType.HEX_BINARY.subsumes(xt) )
+			rs.updateBytes(col,
+				((HexBinaryValue)bv.getUnderlyingValue()).getBinaryValue());
+		else if ( ItemType.BASE64_BINARY.subsumes(xt) )
+			rs.updateBytes(col,
+				((Base64BinaryValue)bv.getUnderlyingValue()).getBinaryValue());
+
+		else if ( ItemType.DECIMAL.subsumes(xt) )
+			rs.updateObject(col, bv.getValue());
+
+		/*
+		 * The standard calls for throwing "data exception - numeric value out
+		 * of range" rather than forwarding a float or double inf, -inf, or nan
+		 * to SQL, but PostgreSQL supports those values, and these conversions
+		 * preserve them.
+		 */
+		else if ( ItemType.FLOAT.subsumes(xt) )
+			rs.updateObject(col, bv.getValue());
+		else if ( ItemType.DOUBLE.subsumes(xt) )
+			rs.updateObject(col, bv.getValue());
+
+		else if ( ItemType.DATE.subsumes(xt) ) // try it, see what goes wrong
+			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.DATE_TIME.subsumes(xt) ) // likewise (no tz case)
+			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.DATE_TIME_STAMP.subsumes(xt) ) // likewise (tz case)
+			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.TIME.subsumes(xt) ) // no handy tz/notz distinction
+			rs.updateString(col, bv.getStringValue());
+
+		else if ( ItemType.YEAR_MONTH_DURATION.subsumes(xt) )
+			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.DAY_TIME_DURATION.subsumes(xt) )
+			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.DURATION.subsumes(xt) ) // need this case for now
+			rs.updateString(col, bv.getStringValue());
+
+		else if ( ItemType.BOOLEAN.subsumes(xt) )
+			rs.updateObject(col, bv.getValue());
+		else
+			throw new SQLNonTransientException(String.format(
+				"Mapping XML type \"%s\" to SQL value not supported", xt),
+				"0N000");
+	}
+
 	private static XdmAtomicValue mapJDBCofSQLvalueToXdmAtomicValue(
 		Object dv, XMLBinary encoding, ItemType xst)
 		throws SQLException, SaxonApiException
@@ -751,9 +1085,9 @@ public class S9
 			String uri = nbs[1 + i];
 
 			if ( null == prefix  ||  null == uri )
-				throw new SQLSyntaxErrorException(
+				throw new SQLDataException(
 					"Namespace binding array elements must not be null",
-					"42000");
+					"22004");
 
 			if ( ! "".equals(prefix) )
 			{
@@ -854,9 +1188,20 @@ public class S9
 
 			private final String m_name;
 
-			protected Parameter(String name) throws SQLException
+			/**
+			 * @param name The SQL name of the parameter
+			 * @param isInput True if this is an input parameter from SQL to the
+			 * XML query context, or false if it describes a result (as in the
+			 * ouput of XMLTABLE). If an input parameter, the name must be a
+			 * valid NCName; for an output parameter, the name doesn't matter
+			 * and isn't checked.
+			 * @throws SQLException if the name of an input parameter isn't a
+			 * valid NCName.
+			 */
+			protected Parameter(String name, boolean isInput)
+			throws SQLException
 			{
-				if ( ! isValidNCName(name) )
+				if ( isInput  &&  ! isValidNCName(name) )
 					throw new SQLSyntaxErrorException(
 						"Not an XML NCname: \"" + name + '"', "42602");
 				m_name = name;
@@ -928,6 +1273,16 @@ public class S9
 
 	static class BindingsFromResultSet extends Binding.Assemblage
 	{
+		/**
+		 * Construct the bindings from a ResultSet representing input parameters
+		 * to an XML query.
+		 * @param rs ResultSet representing the input parameters. Column names
+		 * "." and "?COLUMN?" are treated specially, and used to supply the
+		 * query's context item; every other column name must be a valid NCName,
+		 * and neither any named parameter nor the context item may be mentioned
+		 * more than once.
+		 * @throws SQLException if names are duplicated or invalid.
+		 */
 		BindingsFromResultSet(ResultSet rs) throws SQLException
 		{
 			m_resultSet = rs;
@@ -952,7 +1307,7 @@ public class S9
 				}
 
 				Parameter was =
-					(Parameter)n2b.put(label, new Parameter(label, i));
+					(Parameter)n2b.put(label, new Parameter(label, i, true));
 				if ( null != was )
 					throw new SQLSyntaxErrorException(
 						"Name \"" + label + "\" duplicated at positions " +
@@ -961,6 +1316,63 @@ public class S9
 
 			m_contextItem = contextItem;
 			m_params = n2b.values();
+		}
+
+		/**
+		 * Construct the bindings from a ResultSet representing output
+		 * parameters (as from XMLTABLE).
+		 * @param rs ResultSet representing the result parameters. Names have
+		 * no particular significance and are not subject to any checks.
+		 * @param exprs Compiled evaluators for the supplied column expressions.
+		 * The number of these must match the number of columns in {@code rs}.
+		 * One of these (and no more than one; the caller will have enforced
+		 * that) is allowed to be null, making the corresponding column
+		 * "FOR ORDINALITY". An ordinality column will be checked to ensure it
+		 * has an SQL type that is (ahem) "exact numeric with scale 0 (zero)."
+		 * @throws SQLException if numbers of columns and expressions don't
+		 * match, or there is an ordinality column and its type is not suitable.
+		 */
+		BindingsFromResultSet(ResultSet rs, XQueryEvaluator[] exprs)
+		throws SQLException
+		{
+			m_resultSet = rs;
+			m_rsmd = rs.getMetaData();
+
+			int nParams = m_rsmd.getColumnCount();
+			if ( nParams != exprs.length )
+				throw new SQLSyntaxErrorException(
+					"Not as many supplied column expressions as output columns",
+					"42611");
+
+			Binding.Parameter[] ps = new Binding.Parameter[ nParams ];
+
+			for ( int i = 1; i <= nParams; ++i )
+			{
+				String label = m_rsmd.getColumnLabel(i);
+				Parameter p = new Parameter(label, i, false);
+				ps [ i - 1 ] = p;
+				if ( null == exprs [ i - 1 ] )
+				{
+					switch ( p.typeJDBC() )
+					{
+					case Types.INTEGER:
+					case Types.SMALLINT:
+					case Types.BIGINT:
+						break;
+					case Types.NUMERIC:
+					case Types.DECIMAL:
+						int scale = p.scale();
+						if ( 0 == scale  ||  -1 == scale )
+							break;
+					default:
+						throw new SQLSyntaxErrorException(
+							"Column FOR ORDINALITY must have an exact numeric" +
+							" type with scale zero.", "42611");
+					}
+				}
+			}
+
+			m_params = asList(ps);
 		}
 
 		private ResultSet m_resultSet;
@@ -997,9 +1409,10 @@ public class S9
 		{
 			final int m_idx;
 
-			Parameter(String name, int index) throws SQLException
+			Parameter(String name, int index, boolean isInput)
+			throws SQLException
 			{
-				super(name);
+				super(name, isInput);
 				m_idx = index;
 			}
 
@@ -1026,6 +1439,42 @@ public class S9
 			protected Object implValueJDBC() throws SQLException
 			{
 				return m_resultSet.getObject(m_idx);
+			}
+		}
+	}
+
+	static class BindingsFromXQX extends Binding.Assemblage
+	{
+		/**
+		 * Construct a new assemblage of bindings for the static context of an
+		 * XMLTABLE column expression. It will have the same named-parameter
+		 * bindings passed to the row expression, but the static type of the
+		 * context item will be the result type of the row expression. The
+		 * {@code ContextItem} in this assemblage will have no associated value;
+		 * the caller is responsible for retrieving that from the row evaluator
+		 * and storing it in the column expression context every iteration.
+		 * @param xqx The result of compiling the row expression; its
+		 * compiler-determined static result type will be used as the static
+		 * context item type.
+		 * @param params The bindings supplied to the row expression. Its named
+		 * parameters will be copied as the named parameters here.
+		 */
+		BindingsFromXQX(XQueryExecutable xqx, Binding.Assemblage params)
+		{
+			m_params = params.m_params;
+			m_contextItem = new ContextItem(xqx.getResultItemType());
+		}
+
+		static class ContextItem extends Binding.ContextItem
+		{
+			ContextItem(ItemType it)
+			{
+				m_typeXS = it;
+			}
+
+			protected int implTypeJDBC() throws SQLException
+			{
+				return Types.OTHER; // anything canCastAsXmlSequence won't toss
 			}
 		}
 	}
