@@ -42,6 +42,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Properties;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 import static javax.xml.XMLConstants.XML_NS_URI;
 import static javax.xml.XMLConstants.XML_NS_PREFIX;
@@ -197,6 +200,9 @@ public class S9 implements ResultSetProvider
 	static final Processor s_s9p = new Processor(false);
 	static final ItemTypeFactory s_itf = new ItemTypeFactory(s_s9p);
 
+	static final Pattern s_intervalSigns;
+	static final Pattern s_intervalSignSite;
+
 	enum XMLBinary { HEX, BASE64 };
 	enum Nulls { ABSENT, NIL };
 
@@ -205,6 +211,27 @@ public class S9 implements ResultSetProvider
 		try
 		{
 			s_dbc =	DriverManager.getConnection("jdbc:default:connection");
+
+			/*
+			 * XML Schema thinks an ISO 8601 duration must have no sign
+			 * anywhere but at the very beginning before the P. PostgreSQL
+			 * thinks that's the one place a sign must never be, and instead
+			 * it should appear in front of every numeric field. (It will
+			 * accept input where the signs vary, but not produce such output.)
+			 * So, here's a regex with a capturing group for a leading -, and
+			 * one for any field-leading -, and one for the absence of a field-
+			 * leading -. Any PostgreSQL or XS duration ought to match overall,
+			 * but the capturing group matches should be either (f,f,t) or
+			 * (f,t,f) for a PostgreSQL duration, or either (f,f,t) or (t,f,t)
+			 * for an XS duration.
+			 */
+			s_intervalSigns = Pattern.compile(
+			"(-)?+(?:[PYMWDTH](?:(?:(-)|())\\d++)?+)++(?:(?:[.,]\\d*+)?+S)?+");
+			/*
+			 * To convert from the leading-sign form, need to find every spot
+			 * where a digit follows a [PYMWDTH] to insert a - there.
+			 */
+			s_intervalSignSite = Pattern.compile("(?<=[PYMWDTH])(?=\\d)");
 		}
 		catch ( SQLException e )
 		{
@@ -1005,11 +1032,11 @@ public class S9 implements ResultSetProvider
 			rs.updateString(col, bv.getStringValue());
 
 		else if ( ItemType.YEAR_MONTH_DURATION.subsumes(xt) )
-			rs.updateString(col, bv.getStringValue());
+			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
 		else if ( ItemType.DAY_TIME_DURATION.subsumes(xt) )
-			rs.updateString(col, bv.getStringValue());
+			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
 		else if ( ItemType.DURATION.subsumes(xt) ) // need this case for now
-			rs.updateString(col, bv.getStringValue());
+			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
 
 		else if ( ItemType.BOOLEAN.subsumes(xt) )
 			rs.updateObject(col, bv.getValue());
@@ -1064,11 +1091,34 @@ public class S9 implements ResultSetProvider
 				((Timestamp)dv).toString().replace(' ', 'T'), xst);
 
 		if ( ItemType.DURATION.equals(xst) )
-			return new XdmAtomicValue((String)dv, xst);
+			return new XdmAtomicValue(toggleIntervalRepr((String)dv), xst);
 
 		throw new SQLNonTransientException(String.format(
 			"Mapping SQL value to XML type \"%s\" not supported", xst),
 			"0N000");
+	}
+
+	/*
+	 * Toggle the lexical representation of an interval/duration between the
+	 * form PostgreSQL likes and the form XML Schema likes. Only negative values
+	 * are affected. Positive values are returned unchanged, as are those that
+	 * don't fit any expected form; those will probably be reported as malformed
+	 * by whatever tries to consume them.
+	 */
+	static String toggleIntervalRepr(String lex)
+	{
+		Matcher m = s_intervalSigns.matcher(lex);
+		if ( ! m.matches() )
+			return lex; // it's weird, just don't touch it
+		if ( -1 == m.start(1) )
+		{
+			if ( -1 != m.start(2)  &&  -1 == m.start(3) ) // it's PG negative
+				return '-' + lex.replace("-", "");        // make it XS negative
+		}
+		else if ( -1 == m.start(2)  &&  -1 != m.start(3) )// it's XS negative
+			return m.usePattern(s_intervalSignSite)       // make it PG negative
+				.reset(lex.substring(1)).replaceAll("-");
+		return lex; // it's either positive, or weird, just don't touch it
 	}
 
 	static Iterable<Map.Entry<String,String>> namespaceBindings(String[] nbs)
