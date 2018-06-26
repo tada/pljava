@@ -1,12 +1,16 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2007, 2008, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB
+ *   Thomas Hallgren
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <utils/nabstime.h>
@@ -46,7 +50,7 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 	jvalue result;
 	int64 ts = DatumGetInt64(arg);
 
-	/* Expect number of microseconds since 01 Jan 2000. Separate out a positive
+	/* Expect number of microseconds since 01 Jan 2000. Tease out a non-negative
 	 * sub-second microseconds value (whether this C compiler's signed %
 	 * has trunc or floor behavior).
 	 */
@@ -106,9 +110,10 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
 	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
 	/*
-	 * getNanos() should have supplied positive nSecs, whether mSecs is positive
-	 * or negative. So mSecs needs to be floor()ed to a multiple of 1000 ms,
-	 * whether this C compiler does signed integer division with floor or trunc.
+	 * getNanos() should have supplied non-negative nSecs, whether mSecs is
+	 * positive or negative. So mSecs needs to be floor()ed to a multiple of
+	 * 1000 ms, whether this C compiler does signed integer division with floor
+	 * or trunc.
 	 */
 	mSecs -= ((mSecs % 1000) + 1000) % 1000;
 	mSecs -= ((jlong)EPOCH_DIFF) * 1000L;
