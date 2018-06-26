@@ -1,12 +1,16 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2007, 2008, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB
+ *   Thomas Hallgren
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <utils/nabstime.h>
@@ -45,15 +49,19 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 {
 	jvalue result;
 	int64 ts = DatumGetInt64(arg);
-	int   tz = Timestamp_getTimeZone_id(ts);
 
-	/* Expect number of microseconds since 01 Jan 2000
+	/* Expect number of microseconds since 01 Jan 2000. Tease out a non-negative
+	 * sub-second microseconds value (whether this C compiler's signed %
+	 * has trunc or floor behavior).
 	 */
-	jlong mSecs = ts / 1000; /* Convert to millisecs */
-	jint  uSecs = (jint)(ts % 1000000); /* preserve microsecs */
+	jint  uSecs = (jint)(((ts % 1000000) + 1000000) % 1000000);
+	jlong mSecs = (ts - uSecs) / 1000; /* Convert to millisecs */
 
 	if(tzAdjust)
+	{
+		int tz = Timestamp_getTimeZone_id(ts);
 		mSecs += tz * 1000; /* Adjust from local time to UTC */
+	}
 
 	/* Adjust for diff between Postgres and Java (Unix) */
 	mSecs += ((jlong)EPOCH_DIFF) * 1000L;
@@ -101,6 +109,13 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	int64 ts;
 	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
 	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
+	/*
+	 * getNanos() should have supplied non-negative nSecs, whether mSecs is
+	 * positive or negative. So mSecs needs to be floor()ed to a multiple of
+	 * 1000 ms, whether this C compiler does signed integer division with floor
+	 * or trunc.
+	 */
+	mSecs -= ((mSecs % 1000) + 1000) % 1000;
 	mSecs -= ((jlong)EPOCH_DIFF) * 1000L;
 	ts  = mSecs * 1000L; /* Convert millisecs to microsecs */
 	if(nSecs != 0)
@@ -167,7 +182,12 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 
 static int32 Timestamp_getTimeZone(pg_time_t time)
 {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && ( \
+	100000<=PG_VERSION_NUM && PG_VERSION_NUM<102000 || \
+	 90600<=PG_VERSION_NUM && PG_VERSION_NUM< 90607 || \
+	 90500<=PG_VERSION_NUM && PG_VERSION_NUM< 90511 || \
+	 90400<=PG_VERSION_NUM && PG_VERSION_NUM< 90416 || \
+	PG_VERSION_NUM < 90321 )
 	/* This is gross, but pg_tzset has a cache, so not as gross as you think.
 	 * There is some renewed interest on pgsql-hackers to find a good answer for
 	 * the MSVC PGDLLIMPORT nonsense, so this may not have to stay gross.
