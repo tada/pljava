@@ -25,6 +25,7 @@ import java.sql.SQLException;
 import java.sql.SQLDataException;
 
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.SQLAction;
 
 /**
  * A class to simplify testing of PL/Java's mappings between PostgreSQL and
@@ -81,6 +82,33 @@ import org.postgresql.pljava.annotation.Function;
  *  roundtrip(p) AS r(roundtripped timestamptz);
  *</pre>
  */
+@SQLAction(requires = "TypeRoundTripper.roundTrip", install = {
+"	SELECT	"+
+"		CASE WHEN every(orig = roundtripped)	"+
+"		THEN javatest.logmessage('INFO', 'timestamp roundtrip passes')	"+
+"		ELSE javatest.logmessage('WARNING', 'timestamp roundtrip fails')"+
+"		END	"+
+"	FROM	"+
+"		(values	"+
+"			(timestamp '2017-08-21 18:25:29.900005'),	"+
+"			(timestamp '1970-03-07 17:37:49.300009'),	"+
+"			(timestamp '1919-05-29 13:08:33.600001')	"+
+"		) as p(orig),	"+
+"		roundtrip(p) as r(roundtripped timestamp)	",
+
+"	SELECT	"+
+"		CASE WHEN every(orig = roundtripped)	"+
+"		THEN javatest.logmessage('INFO', 'timestamptz roundtrip passes')	"+
+"		ELSE javatest.logmessage('WARNING', 'timestamptz roundtrip fails')	"+
+"		END	"+
+"	FROM	"+
+"		(values	"+
+"			(timestamptz '2017-08-21 18:25:29.900005Z'),	"+
+"			(timestamptz '1970-03-07 17:37:49.300009Z'),	"+
+"			(timestamptz '1919-05-29 13:08:33.600001Z')	"+
+"		) as p(orig),	"+
+"		roundtrip(p) as r(roundtripped timestamptz)	",
+})
 public class TypeRoundTripper
 {
 	private TypeRoundTripper() { }
@@ -102,7 +130,8 @@ public class TypeRoundTripper
 	 */
 	@Function(
 		schema = "javatest",
-		type = "RECORD"
+		type = "RECORD",
+		provides = "TypeRoundTripper.roundTrip"
 		)
 	public static boolean roundTrip(ResultSet in, ResultSet out)
 	throws SQLException
