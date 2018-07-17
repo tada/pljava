@@ -2291,12 +2291,19 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 				else
 				{
-					TypeElement te =
-						elmu.getTypeElement( k.getName());
-					if ( null == te ) // can't find it -> not used in code?
+					String cname = k.getCanonicalName();
+					if ( null == cname )
 					{
 						msg( Kind.WARNING,
-							"Found no TypeElement for %s", k.getName());
+							"Cannot register type mapping for class %s" +
+							"that lacks a canonical name", k.getName());
+						continue;
+					}
+					TypeElement te = elmu.getTypeElement( cname);
+					if ( null == te )
+					{
+						msg( Kind.WARNING,
+							"Found no TypeElement for %s", cname);
 						continue; // hope it wasn't one we'll need!
 					}
 					ktm = te.asType();
