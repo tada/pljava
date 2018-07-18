@@ -106,13 +106,7 @@ public class Parameters {
 	}
 
 	static void log(String msg) {
-		// GCJ has a somewhat serious bug (reported)
-		//
-		if ("GNU libgcj".equals(System.getProperty("java.vm.name"))) {
-			System.out.print("INFO: ");
-			System.out.println(msg);
-		} else
-			Logger.getAnonymousLogger().info(msg);
+		Logger.getAnonymousLogger().info(msg);
 	}
 
 	@Function(schema = "javatest", effects = IMMUTABLE)
