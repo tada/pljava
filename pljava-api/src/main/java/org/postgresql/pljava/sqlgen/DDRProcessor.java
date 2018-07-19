@@ -2282,29 +2282,45 @@ hunt:	for ( ExecutableElement ee : ees )
 				Vertex<Map.Entry<Class<?>, String>> v = q.remove();
 				v.use( q);
 				Class<?> k = v.payload.getKey();
-				TypeMirror ktm;
-				if ( k.isPrimitive() )
-				{
-					TypeKind tk = 
-						TypeKind.valueOf( k.getName().toUpperCase());
-					ktm = typu.getPrimitiveType( tk);
-				}
-				else
-				{
-					TypeElement te =
-						elmu.getTypeElement( k.getName());
-					if ( null == te ) // can't find it -> not used in code?
-					{
-						msg( Kind.WARNING,
-							"Found no TypeElement for %s", k.getName());
-						continue; // hope it wasn't one we'll need!
-					}
-					ktm = te.asType();
-				}
+				TypeMirror ktm = typeMirrorFromClass( k);
+				if ( null == ktm )
+					continue; // typeMirrorFromClass already emitted warning
 				finalMappings.add(
 					new AbstractMap.SimpleImmutableEntry<TypeMirror, String>(
 						ktm, v.payload.getValue()));
 			}
+		}
+
+		private TypeMirror typeMirrorFromClass( Class<?> k)
+		{
+			if ( k.isArray() )
+			{
+				TypeMirror ctm = typeMirrorFromClass( k.getComponentType());
+				return typu.getArrayType( ctm);
+			}
+
+			if ( k.isPrimitive() )
+			{
+				TypeKind tk = TypeKind.valueOf( k.getName().toUpperCase());
+				return typu.getPrimitiveType( tk);
+			}
+
+			String cname = k.getCanonicalName();
+			if ( null == cname )
+			{
+				msg( Kind.WARNING,
+					"Cannot register type mapping for class %s" +
+					"that lacks a canonical name", k.getName());
+				return null;
+			}
+
+			TypeElement te = elmu.getTypeElement( cname);
+			if ( null == te )
+			{
+				msg( Kind.WARNING, "Found no TypeElement for %s", cname);
+				return null; // hope it wasn't one we'll need!
+			}
+			return te.asType();
 		}
 
 		/**
