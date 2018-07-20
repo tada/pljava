@@ -40,6 +40,7 @@ import org.postgresql.pljava.annotation.SQLAction;
  * requested output column must have its name (case-insensitively) and type
  * drawn from this table:
  *<table>
+ *<caption>Items the roundTrip function can return</caption>
  *<thead>
  *<tr>
  *<th>Column name</th><th>Column type</th><th>What is returned</th>

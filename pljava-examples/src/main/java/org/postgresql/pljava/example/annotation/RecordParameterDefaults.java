@@ -57,7 +57,7 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 *</pre>
 	 * or as:
 	 *<pre>
-	 * SELECT (paramDefaultsRecord(params => s)).*
+	 * SELECT (paramDefaultsRecord(params =&gt; s)).*
 	 * FROM (SELECT 42 AS a, '42' AS b, 42.0 AS c) AS s;
 	 *</pre>
 	 */
@@ -81,7 +81,7 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 *<pre>
 	 * SELECT paramDefaultsNamedRow();
 	 *
-	 * SELECT paramDefaultsNamedRow(userWithNum => ('fred', 3.14));
+	 * SELECT paramDefaultsNamedRow(userWithNum =&gt; ('fred', 3.14));
 	 *</pre>
 	 */
 	@Function(
