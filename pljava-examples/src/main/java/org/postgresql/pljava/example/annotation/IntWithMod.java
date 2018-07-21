@@ -156,11 +156,10 @@ public class IntWithMod implements SQLData {
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodapply",
 		requires="IntWithMod type", provides="IntWithMod modApply",
-		type="javatest.IntWithMod", effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static IntWithMod modApply(
-		@SQLType("javatest.IntWithMod") IntWithMod iwm,
-		int mod, boolean explicit) throws SQLException {
-
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	public static IntWithMod modApply(IntWithMod iwm, int mod, boolean explicit)
+		throws SQLException
+	{
 		if ( -1 == mod )
 			return iwm;
 		if ( (iwm.m_value & 1) != mod )

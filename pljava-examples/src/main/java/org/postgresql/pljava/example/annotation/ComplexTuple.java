@@ -25,7 +25,6 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
 import static
@@ -58,9 +57,8 @@ public class ComplexTuple implements SQLData {
 	 */
 	@Function(schema="javatest", name="logcomplex",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL,
-		type="javatest.complextuple", requires="complextuple type")
-	public static ComplexTuple logAndReturn(
-		@SQLType("javatest.complextuple") ComplexTuple cpl) {
+		requires="complextuple type")
+	public static ComplexTuple logAndReturn(ComplexTuple cpl) {
 		s_logger.info(cpl.getSQLTypeName() + "(" + cpl.m_x + ", " + cpl.m_y
 				+ ")");
 		return cpl;
@@ -77,9 +75,7 @@ public class ComplexTuple implements SQLData {
 	@Function(schema="javatest",
 		requires="complextuple type", provides="complextuple assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static void assertHasValues(
-		@SQLType("javatest.complextuple") ComplexTuple cpl,
-		double re, double im)
+	public static void assertHasValues(ComplexTuple cpl, double re, double im)
 		throws SQLException
 	{
 		if ( cpl.m_x != re  ||  cpl.m_y != im )
