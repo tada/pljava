@@ -675,6 +675,7 @@ queuerunning: for ( int i = 0 ; ; )
 				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
 					populateAnnotationImpl( mu, e, am);
 			}
+			mu.registerMapping();
 			break;
 		}
 	}
@@ -1844,6 +1845,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				qname = _name;
 			else
 				qname = _schema + "." + _name;
+
+			if ( ! tmpr.mappingsFrozen() )
+				tmpr.addMap( tclass.asType(), qname);
 		}
 
 		protected void addComment( ArrayList<String> al)
@@ -1875,10 +1879,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			super( e);
 		}
 
-		public boolean characterize()
+		public void registerMapping()
 		{
 			setQname();
+		}
 
+		public boolean characterize()
+		{
 			_requires = augmentRequires( _requires, implementor());
 
 			return true;
@@ -2166,12 +2173,12 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<Class<?>, String>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, String>> protoMappings;
 		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
 
 		TypeMapper()
 		{
-			protoMappings = new ArrayList<Map.Entry<Class<?>, String>>();
+			protoMappings = new ArrayList<Map.Entry<TypeMirror, String>>();
 
 			// Primitives
 			//
@@ -2208,6 +2215,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(byte[].class, "bytea");
 		}
 
+		private boolean mappingsFrozen()
+		{
+			return null != finalMappings;
+		}
+
 		/*
 		 * What worked in Java 6 was to keep a list of Class<?> -> sqltype
 		 * mappings, and get TypeMirrors from the Classes at the time of trying
@@ -2234,60 +2246,54 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		private void workAroundJava7Breakage()
 		{
-			if ( null != finalMappings )
+			if ( mappingsFrozen() )
 				return; // after the first round, it's too late!
 
 			// Need to check more specific types before those they are
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<Class<?>, String>>> vs =
-				new ArrayList<Vertex<Map.Entry<Class<?>, String>>>(
+			List<Vertex<Map.Entry<TypeMirror, String>>> vs =
+				new ArrayList<Vertex<Map.Entry<TypeMirror, String>>>(
 					protoMappings.size());
 
-			for ( Map.Entry<Class<?>, String> me : protoMappings )
-				vs.add( new Vertex<Map.Entry<Class<?>, String>>( me));
+			for ( Map.Entry<TypeMirror, String> me : protoMappings )
+				vs.add( new Vertex<Map.Entry<TypeMirror, String>>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
-				Vertex<Map.Entry<Class<?>, String>> vi = vs.get( i);
-				Class<?> ci = vi.payload.getKey();
+				Vertex<Map.Entry<TypeMirror, String>> vi = vs.get( i);
+				TypeMirror ci = vi.payload.getKey();
 				for ( int j = i; j --> 0; )
 				{
-					Vertex<Map.Entry<Class<?>, String>> vj = vs.get( j);
-					Class<?> cj = vj.payload.getKey();
-					boolean oij = ci.isAssignableFrom( cj);
-					boolean oji = cj.isAssignableFrom( ci);
+					Vertex<Map.Entry<TypeMirror, String>> vj = vs.get( j);
+					TypeMirror cj = vj.payload.getKey();
+					boolean oij = typu.isAssignable( ci, cj);
+					boolean oji = typu.isAssignable( cj, ci);
 					if ( oji == oij )
 						continue; // no precedence constraint between these two
 					if ( oij )
-						vj.precede( vi);
-					else
 						vi.precede( vj);
+					else
+						vj.precede( vi);
 				}
 			}
 
-			Queue<Vertex<Map.Entry<Class<?>, String>>> q =
-				new LinkedList<Vertex<Map.Entry<Class<?>, String>>>();
-			for ( Vertex<Map.Entry<Class<?>, String>> v : vs )
+			Queue<Vertex<Map.Entry<TypeMirror, String>>> q =
+				new LinkedList<Vertex<Map.Entry<TypeMirror, String>>>();
+			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
-			finalMappings = new ArrayList<Map.Entry<TypeMirror, String>>(
-				protoMappings.size());
 			protoMappings.clear();
+			finalMappings = protoMappings;
+			protoMappings = null;
 
 			while ( ! q.isEmpty() )
 			{
-				Vertex<Map.Entry<Class<?>, String>> v = q.remove();
+				Vertex<Map.Entry<TypeMirror, String>> v = q.remove();
 				v.use( q);
-				Class<?> k = v.payload.getKey();
-				TypeMirror ktm = typeMirrorFromClass( k);
-				if ( null == ktm )
-					continue; // typeMirrorFromClass already emitted warning
-				finalMappings.add(
-					new AbstractMap.SimpleImmutableEntry<TypeMirror, String>(
-						ktm, v.payload.getValue()));
+				finalMappings.add( v.payload);
 			}
 		}
 
@@ -2331,15 +2337,28 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			if ( null != finalMappings )
+			addMap( typeMirrorFromClass( k), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class (represented as a TypeMirror)
+		 * to an SQL type.
+		 *
+		 * @param tm TypeMirror representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMap(TypeMirror tm, String v)
+		{
+			if ( mappingsFrozen() )
 			{
 				msg( Kind.ERROR,
 					"addMap(%s, %s)\n" +
-					"called after workAroundJava7Breakage", k.getName(), v);
+					"called after workAroundJava7Breakage", tm.toString(), v);
 				return;
 			}
 			protoMappings.add(
-				new AbstractMap.SimpleImmutableEntry<Class<?>, String>( k, v));
+				new AbstractMap.SimpleImmutableEntry<TypeMirror, String>( tm, v)
+			);
 		}
 
 		/**
@@ -2602,10 +2621,12 @@ interface Snippet
 	 */
 	public String[] requires();
 	/**
-	 * Method to be called on the final round, after all annotations'
+	 * Method to be called after all annotations'
 	 * element/value pairs have been filled in, to compute any additional
 	 * information derived from those values before deployStrings() or
-	 * undeployStrings() can be called.
+	 * undeployStrings() can be called. May also check for and report semantic
+	 * errors that are not easily checked earlier while populating the
+	 * element/value pairs.
 	 * @return true if this Snippet is standalone and should be scheduled and
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
@@ -2628,6 +2649,11 @@ class Vertex<P>
 	int indegree;
 	List<Vertex<P>> adj;
 	
+	/**
+	 * Construct a new vertex with the supplied payload, indegree zero, and an
+	 * empty out-adjacency list.
+	 * @param payload Object to be associated with this vertex.
+	 */
 	Vertex( P payload)
 	{
 		this.payload = payload;
@@ -2635,12 +2661,22 @@ class Vertex<P>
 		adj = new ArrayList<Vertex<P>>();
 	}
 	
+	/**
+	 * Record that this vertex must precede the specified vertex.
+	 * @param v a Vertex that this Vertex must precede.
+	 */
 	void precede( Vertex<P> v)
 	{
 		++ v.indegree;
 		adj.add( v);
 	}
 	
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list, and add to the supplied queue any of those whose
+	 * indegree becomes zero.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 */
 	void use( Collection<Vertex<P>> q)
 	{
 		for ( Vertex<P> v : adj )
@@ -2648,6 +2684,14 @@ class Vertex<P>
 				q.add( v);
 	}
 
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list; any of those whose indegree becomes zero should be
+	 * both added to the ready queue {@code q} and removed from the collection
+	 * {@code vs}.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 * @param vs A collection of vertices not yet ready.
+	 */
 	void use( Collection<Vertex<P>> q, Collection<Vertex<P>> vs)
 	{
 		for ( Vertex<P> v : adj )
