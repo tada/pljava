@@ -59,11 +59,11 @@ void JavaWrapper_initialize(void)
 	PgObject_registerNatives2(s_JavaWrapper_class, methods);
 	s_JavaWrapper_m_pointer = PgObject_getJavaField(s_JavaWrapper_class, "m_pointer", "J");
 
-	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
-									 "PL/Java",
-									 ALLOCSET_DEFAULT_MINSIZE,
-									 ALLOCSET_DEFAULT_INITSIZE,
-									 ALLOCSET_DEFAULT_MAXSIZE);
+	JavaMemoryContext = AllocSetContextCreateExtended(TopMemoryContext,
+                                                    "PL/Java",
+                                                    ALLOCSET_DEFAULT_MINSIZE,
+                                                    ALLOCSET_DEFAULT_INITSIZE,
+                                                    ALLOCSET_DEFAULT_MAXSIZE);
 }
 
 /*
