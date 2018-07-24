@@ -402,9 +402,7 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 
 		ctxData->rowContext = AllocSetContextCreate(context->multi_call_memory_ctx,
 								  "PL/Java row context",
-								  ALLOCSET_DEFAULT_MINSIZE,
-								  ALLOCSET_DEFAULT_INITSIZE,
-								  ALLOCSET_DEFAULT_MAXSIZE);
+								  ALLOCSET_DEFAULT_SIZES);
 
 		/* Register callback to be called when the function ends
 		 */
