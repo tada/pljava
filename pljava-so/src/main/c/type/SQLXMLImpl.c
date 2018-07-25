@@ -39,10 +39,17 @@ static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 	jobject vw = JNI_callObjectMethodLocked(sqlxml, s_SQLXML_adopt);
 	Datum d = pljava_VarlenaWrapper_adopt(vw);
 	JNI_deleteLocalRef(vw);
+#if PG_VERSION_NUM >= 90500
 	if ( VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)) )
 		return TransferExpandedObject(d, CurrentMemoryContext);
+#endif
+#if PG_VERSION_NUM >= 90200
 	MemoryContextSetParent(
 		GetMemoryChunkContext(DatumGetPointer(d)), CurrentMemoryContext);
+#else
+	if ( CurrentMemoryContext != GetMemoryChunkContext(DatumGetPointer(d)) )
+		d = PointerGetDatum(PG_DETOAST_DATUM_COPY(d));
+#endif
 	return d;
 }
 

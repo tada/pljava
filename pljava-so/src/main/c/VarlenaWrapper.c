@@ -18,6 +18,11 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 
+#if PG_VERSION_NUM < 80300
+#define VARSIZE_ANY_EXHDR(PTR) (VARSIZE(PTR) - VARHDRSZ)
+#define SET_VARSIZE(PTR, len) VARATT_SIZEP(PTR) = len & VARATT_MASK_SIZE
+#endif
+
 #define INITIALSIZE 1024
 
 static jclass s_VarlenaWrapper_class;
@@ -40,6 +45,37 @@ static jmethodID s_VarlenaWrapper_Output_init;
  * form, it will use these 'methods' to flatten it, and that's when the one
  * final reallocation and copy will happen.
  */
+
+#if PG_VERSION_NUM < 90500
+/*
+ * There aren't 'expanded' varlenas yet. Copy some defs (in simplified form)
+ * and pretend there are.
+ */
+typedef struct ExpandedObjectHeader ExpandedObjectHeader;
+
+typedef Size (*EOM_get_flat_size_method) (ExpandedObjectHeader *eohptr);
+typedef void (*EOM_flatten_into_method) (ExpandedObjectHeader *eohptr,
+										  void *result, Size allocated_size);
+
+typedef struct ExpandedObjectMethods
+{
+	EOM_get_flat_size_method get_flat_size;
+	EOM_flatten_into_method flatten_into;
+} ExpandedObjectMethods;
+
+struct ExpandedObjectHeader
+{
+	int32 magic;
+	MemoryContext eoh_context;
+};
+
+#define EOH_init_header(eohptr, methods, obj_context) \
+	do {(eohptr)->magic = -1; (eohptr)->eoh_context = (obj_context);} while (0)
+
+#define EOHPGetRWDatum(eohptr) (eohptr)
+#define DatumGetEOHP(d) (d)
+#endif
+
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr);
 static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 		void *result, Size allocated_size);
@@ -180,15 +216,34 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 
 /*
  * Adopt a VarlenaWrapper (if Output, after Java code has written and closed it)
- * and leave it no longer accessible from Java.
+ * and leave it no longer accessible from Java. It may be an 'expanded' datum,
+ * in PG 9.5+ where there are such things. Otherwise, it will be an ordinary
+ * flat one (the ersatz 'expanded' form used internally here then being only an
+ * implementation detail, not exposed to the caller); its memory context is
+ * unchanged.
  */
 Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 {
 	Ptr2Long p2l;
+#if PG_VERSION_NUM < 90500
+	ExpandedObjectHeader *eohptr;
+	Size final_size;
+	void *final_result;
+#endif
 
 	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
 					pljava_DualState_key());
+#if PG_VERSION_NUM >= 90500
 	return PointerGetDatum(p2l.ptrVal);
+#else
+	eohptr = p2l.ptrVal;
+	if ( -1 != eohptr->magic )
+		return PointerGetDatum(eohptr);
+	final_size = VOS_get_flat_size(eohptr);
+	final_result = MemoryContextAlloc(eohptr->eoh_context, final_size);
+	VOS_flatten_into(eohptr, final_result, final_size);
+	return PointerGetDatum(final_result);
+#endif
 }
 
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr)
@@ -204,6 +259,9 @@ static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 	ExpandedVarlenaOutputStreamHeader *evosh =
 		(ExpandedVarlenaOutputStreamHeader *)eohptr;
 	ExpandedVarlenaOutputStreamNode *node = evosh->tail;
+#if PG_VERSION_NUM < 90500
+	ExpandedVarlenaOutputStreamNode *next;
+#endif
 
 	Assert(allocated_size == evosh->total_size);
 	SET_VARSIZE(result, allocated_size);
@@ -216,6 +274,25 @@ static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 		result = (char *)result + node->size;
 	}
 	while ( node != evosh->tail );
+
+#if PG_VERSION_NUM < 90500
+	/*
+	 * It's been flattened into the same context; the original nodes can be
+	 * freed so the 2x memory usage doesn't last longer than necessary. Freeing
+	 * them retail isn't ideal, but this is back-compatibility code. Remember
+	 * the first one wasn't a separate allocation.
+	 */
+	 node = node->next; /* this is the head, the one that can't be pfreed */
+	 evosh->tail = node; /* tail is now head, the non-pfreeable node */
+	 node = node->next;
+	 while ( node != evosh->tail )
+	 {
+		next = node->next;
+		pfree(node);
+		node = next;
+	 }
+	 pfree(evosh);
+#endif
 }
 
 void pljava_VarlenaWrapper_initialize(void)
