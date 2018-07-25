@@ -114,7 +114,7 @@ public abstract class DDRExecutor
 		String[] imps = implementors();
 
 		for ( String i : imps )
-			if ( name.equalsIgnoreCase( i) )
+			if ( name.equalsIgnoreCase( i ) )
 				return PLAIN;
 
 		return NOOP;
@@ -124,14 +124,14 @@ public abstract class DDRExecutor
 	{
 		String settingString = Backend.getConfigOption( "pljava.implementors");
 		ArrayList<String> al = new ArrayList<String>();
-		Matcher m = settingsRx.matcher( settingString);
+		Matcher m = settingsRx.matcher( settingString );
 		while ( m.find() )
 		{
-			al.add( m.group( 1));
-			if ( -1 != m.start( 2) )
+			al.add( m.group( 1 ) );
+			if ( -1 != m.start( 2 ) )
 				continue;
 			if ( m.hitEnd() )
-				return al.toArray( new String [ al.size() ]);
+				return al.toArray( new String [ al.size() ] );
 		}
 		throw new SQLException("Failed to parse current pljava.implementors");
 	}
