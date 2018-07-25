@@ -19,6 +19,15 @@
  */
 
 /*
+ * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
+ * 8.4, this fallback will not be needed. Used in InstallHelper and Backend,
+ * both of which include this file.
+ */
+#ifndef CppAsString2
+#define CppAsString2(x) CppAsString(x)
+#endif
+
+/*
  * The path from which this library is being loaded, which is surprisingly
  * tricky to find (and wouldn't be, if PostgreSQL called _PG_init functions
  * with the path of the library being loaded!). Set by pljavaCheckExtension().

@@ -45,14 +45,6 @@
 #include "pljava/type/String.h"
 
 /*
- * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
- * 8.4, this fallback will not be needed.
- */
-#ifndef CppAsString2
-#define CppAsString2(x) CppAsString(x)
-#endif
-
-/*
  * Before 9.1, there was no creating_extension. Before 9.5, it did not have
  * PGDLLIMPORT and so was not visible in Windows. In either case, just define
  * it to be false, but also define CREATING_EXTENSION_HACK if on Windows and
