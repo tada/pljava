@@ -29,6 +29,9 @@
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
 #include <utils/memutils.h>
+#if PG_VERSION_NUM >= 80400
+#include <utils/snapmgr.h>
+#endif
 #include <utils/syscache.h>
 
 #if PG_VERSION_NUM < 90000
@@ -516,8 +519,20 @@ char *InstallHelper_hello()
 void InstallHelper_groundwork()
 {
 	Invocation ctx;
+	bool snapshot_set = false;
 	Invocation_pushInvocation(&ctx, false);
 	ctx.function = Function_INIT_WRITER;
+#if PG_VERSION_NUM >= 80400
+	if ( ! ActiveSnapshotSet() )
+	{
+		PushActiveSnapshot(GetTransactionSnapshot());
+#else
+	if ( NULL == ActiveSnapshot )
+	{
+		ActiveSnapshot = CopySnapshot(GetTransactionSnapshot());
+#endif
+		snapshot_set = true;
+	}
 	PG_TRY();
 	{
 		char const *lpt = LOADPATH_TBL_NAME;
@@ -535,10 +550,26 @@ void InstallHelper_groundwork()
 		JNI_deleteLocalRef(pljlp);
 		JNI_deleteLocalRef(jlpt);
 		JNI_deleteLocalRef(jlptq);
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
 	}

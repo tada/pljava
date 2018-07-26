@@ -46,7 +46,7 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 							CoercionContext ccontext, Oid *funcid)
 {
 	if ( find_coercion_pathway(targetTypeId, sourceTypeId, ccontext, funcid) )
-		return *funcId != InvalidOid ?
+		return *funcid != InvalidOid ?
 			COERCION_PATH_FUNC : COERCION_PATH_RELABELTYPE;
 	else
 		return COERCION_PATH_NONE;
