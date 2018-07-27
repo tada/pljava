@@ -115,7 +115,11 @@ Oid Oid_forSqlType(int sqlType)
 
 		/* JDBC 4.0 - present in Java 6 and later, no need to conditionalize */
 		case java_sql_Types_SQLXML:
+#ifdef	XMLOID					/* but PG can have been built without libxml */
 			typeId = XMLOID;
+#else
+			typeId = InvalidOid;
+#endif
 			break;
 		case java_sql_Types_ROWID:
 		case java_sql_Types_NCHAR:

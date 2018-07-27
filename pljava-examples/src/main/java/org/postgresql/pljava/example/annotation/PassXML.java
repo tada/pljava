@@ -59,6 +59,7 @@ import javax.xml.transform.stax.StAXSource;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLAction;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
@@ -68,8 +69,18 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * This class also serves as the mapping class for a composite type
  * {@code javatest.onexml}, the better to verify that {@link SQLData}
  * input/output works too. That's why it has to implement SQLData.
+ *<p>
+ * Everything mentioning the type XML here needs a conditional implementor tag
+ * in case of being loaded into a PostgreSQL instance built without that type.
  */
+@SQLAction(provides="postgresql_xml", install=
+	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+	" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
+		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")
 public class PassXML implements SQLData
 {
@@ -88,7 +99,7 @@ public class PassXML implements SQLData
 	 * read in a subsequent call with sx => null, but only in the same
 	 * transaction.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML echoXMLParameter(SQLXML sx, int howin, int howout)
 	throws SQLException
 	{
@@ -106,7 +117,7 @@ public class PassXML implements SQLData
 	 * "Echo" an XML parameter not by creating a new writable {@code SQLXML}
 	 * object at all, but simply returning the passed-in readable one untouched.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML bounceXMLParameter(SQLXML sx) throws SQLException
 	{
 		return sx;
@@ -124,7 +135,8 @@ public class PassXML implements SQLData
 	 * {@link Function.Trust.UNSANDBOXED Trust.UNSANDBOXED}, at least for the
 	 * XSLTC transform compiler in newer JREs.
 	 */
-	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED)
+	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED,
+			  implementor="postgresql_xml")
 	public static void prepareXMLTransform(String name, SQLXML source, int how)
 	throws SQLException
 	{
@@ -142,7 +154,7 @@ public class PassXML implements SQLData
 	 * Transform some XML according to a named transform prepared with
 	 * {@code prepareXMLTransform}.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML transformXML(
 		String transformName, SQLXML source, int howin, int howout)
 	throws SQLException
@@ -197,7 +209,7 @@ public class PassXML implements SQLData
 	 * specific case, all the generality of {@code transform} may not be needed.
 	 * It can be interesting to compare memory use when XML values are large.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML lowLevelXMLEcho(SQLXML sx, int how)
 	throws SQLException
 	{
@@ -490,7 +502,7 @@ public class PassXML implements SQLData
 	/*
 	 * Test the MappedUDT (in one direction anyway).
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML xmlFromComposite() throws SQLException
 	{
 		Connection c = DriverManager.getConnection("jdbc:default:connection");

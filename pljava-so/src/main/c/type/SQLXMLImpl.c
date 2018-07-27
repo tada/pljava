@@ -23,6 +23,21 @@ static jmethodID s_SQLXML_Readable_init;
 static jclass    s_SQLXML_Writable_class;
 static jmethodID s_SQLXML_Writable_init;
 
+/*
+ * It is possible to install PL/Java in a PostgreSQL instance that was built
+ * without libxml and the native XML data type. It could even be useful for
+ * SQLXML to be usable in those circumstances, so the canReplaceType method
+ * will return true if the native type is text. (An exact match on TEXTOID is
+ * required, for now at least, because over in String.c, canReplaceType answers
+ * true for any native type that has text in/out conversions, and we do NOT want
+ * SQLXML to willy/nilly expose the internals of just any of those.
+ */
+static bool _SQLXML_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls  ||  Type_getOid(other) == TEXTOID;
+}
+
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
@@ -72,9 +87,19 @@ void pljava_SQLXMLImpl_initialize(void)
 	TypeClass cls = TypeClass_alloc("type.SQLXML");
 	cls->JNISignature = "Ljava/sql/SQLXML;";
 	cls->javaTypeName = "java.sql.SQLXML";
+	cls->canReplaceType = _SQLXML_canReplaceType;
 	cls->coerceDatum  = _SQLXML_coerceDatum;
 	cls->coerceObject = _SQLXML_coerceObject;
-	Type_registerType("java.sql.SQLXML", TypeClass_allocInstance(cls, XMLOID));
+	Type_registerType(
+		"java.sql.SQLXML",
+		TypeClass_allocInstance(
+			cls,
+#ifdef XMLOID		/* it is possible to build PG without libxml */
+			XMLOID
+#else
+			InvalidOid
+#endif
+	));
 
 	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl"));
