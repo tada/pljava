@@ -225,6 +225,11 @@ static void checkLoadPath( bool *livecheck)
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
+#if PG_VERSION_NUM >= 80300
+	PlannedStmt *ps;
+#else
+	Query *ps;
+#endif
 
 #ifndef CREATING_EXTENSION_HACK
 	if ( NULL != livecheck )
@@ -232,7 +237,12 @@ static void checkLoadPath( bool *livecheck)
 #endif
 	if ( NULL == ActivePortal )
 		return;
-	l = ActivePortal->stmts;
+	l = ActivePortal->
+#if PG_VERSION_NUM >= 80300
+		stmts;
+#else
+		parseTrees;
+#endif
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
@@ -242,6 +252,28 @@ static void checkLoadPath( bool *livecheck)
 	{
 		elog(DEBUG2, "got null for first statement from ActivePortal");
 		return;
+	}
+#if PG_VERSION_NUM >= 80300
+	if ( T_PlannedStmt == nodeTag(ut) )
+	{
+		ps = (PlannedStmt *)ut;
+#else
+	if ( T_Query == nodeTag(ut) )
+	{
+		ps = (Query *)ut;
+#endif
+		if ( CMD_UTILITY != ps->commandType )
+		{
+			elog(DEBUG2, "ActivePortal has PlannedStmt command type %u",
+				 ps->commandType);
+			return;
+		}
+		ut = ps->utilityStmt;
+		if ( NULL == ut )
+		{
+			elog(DEBUG2, "got null for utilityStmt from PlannedStmt");
+			return;
+		}
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
 #ifdef CREATING_EXTENSION_HACK
