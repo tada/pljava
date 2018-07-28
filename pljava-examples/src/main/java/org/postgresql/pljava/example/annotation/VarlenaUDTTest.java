@@ -27,8 +27,11 @@ import org.postgresql.pljava.annotation.BaseUDT;
  * characters. That makes it easy to test how big a value gets correctly stored
  * and retrieved. It should be about a GB, but in issue 52 was failing at 32768
  * because of a narrowing assignment in the native code.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(requires="varlena UDT", install=
+@SQLAction(requires="varlena UDT", implementor="postgresql_ge_80300", install=
 "  SELECT CASE v::text = v::javatest.VarlenaUDTTest::text " +
 "   WHEN true THEN javatest.logmessage('INFO', 'works for ' || v) " +
 "   ELSE javatest.logmessage('WARNING', 'fails for ' || v) " +
