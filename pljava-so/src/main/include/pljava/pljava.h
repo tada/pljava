@@ -50,6 +50,20 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #define StaticAssertStmt(condition, errmessage)
 #endif
 
+/*
+ * AllocSetContextCreate sprouted these macros for common combinations of
+ * size parameters in PG 9.6. It becomes /necessary/ to use them in PG 11
+ * when using AllocSetContextCreate (which becomes a macro in that version)
+ * and not the (new in that version) AllocSetContextCreateExtended.
+ */
+#if PG_VERSION_NUM < 90600
+#define ALLOCSET_DEFAULT_SIZES \
+	ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
+#define ALLOCSET_SMALL_SIZES \
+	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE
+#define ALLOCSET_START_SMALL_SIZES \
+	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
+#endif
 
 /*
  * GETSTRUCT require "access/htup_details.h" to be included in PG9.3

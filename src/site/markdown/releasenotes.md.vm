@@ -167,6 +167,8 @@ $h3 Updated PostgreSQL APIs tracked
 * `IsBinaryUpgrade`
 * `SPI_register_trigger_data`
 * `SPI` without `SPI_push`/`SPI_pop`
+* `AllocSetContextCreate`
+* `DefineCustom...Variable` (no `GUC_LIST_QUOTE` in extensions)
 
 $h2 Earlier releases
 

@@ -46,7 +46,11 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     only on a system recognizing that name. By default, this list contains only
     the entry `postgresql`. A deployment descriptor that contains commands with
     other implementor names can achieve a rudimentary kind of conditional
-    execution if earlier commands adjust this list of names.
+    execution if earlier commands adjust this list of names. _Commas separate
+    elements of this list. Elements that are not regular identifiers need to be
+    surrounded by double-quotes; prior to PostgreSQL 11, that syntax can be used
+    directly in a `SET` command, while in 11 and after, such a value needs to be
+    a (single-quoted) string explicitly containing the double quotes._
 
 `pljava.libjvm_location`
 : Used by PL/Java to load the Java runtime. The full path to a `libjvm` shared

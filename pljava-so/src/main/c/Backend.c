@@ -1457,7 +1457,11 @@ static void registerGUCOptions(void)
 		#endif
 		PGC_USERSET,
 		#if PG_VERSION_NUM >= 80400
-			GUC_LIST_INPUT | GUC_LIST_QUOTE,
+			GUC_LIST_INPUT
+			#if PG_VERSION_NUM < 110000
+				| GUC_LIST_QUOTE
+			#endif
+			,
 		#endif
 		#if PG_VERSION_NUM >= 90100
 			NULL, /* check hook */
