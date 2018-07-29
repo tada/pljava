@@ -340,21 +340,16 @@ class DDRProcessorImpl
 	 * generateDescriptor, any errors reported were being shown with no source
 	 * location info, because it had been thrown away.
 	 */
-	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<Vertex<Snippet>>();
+	List<VertexPair<Snippet>> snippetVPairs =
+		new ArrayList<VertexPair<Snippet>>();
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
 	 * same reason {@code snippetQueue} does.
 	 */
-	Map<String, Vertex<Snippet>> provider =
-		new HashMap<String, Vertex<Snippet>>();
-
-	/**
-	 * Set of provides/requires labels for which at least one consumer has
-	 * been seen. An instance field for the same reason as {@code provider}.
-	 */
-	Set<String> consumer = new HashSet<String>();
+	Map<String, VertexPair<Snippet>> provider =
+		new HashMap<String, VertexPair<Snippet>>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -440,13 +435,11 @@ class DDRProcessorImpl
 		{
 			if ( ! snip.characterize() )
 				continue;
-			Vertex<Snippet> v = new Vertex<Snippet>( snip);
-			snippetQueue.add( v);
+			VertexPair<Snippet> v = new VertexPair<Snippet>( snip);
+			snippetVPairs.add( v);
 			for ( String s : snip.provides() )
 				if ( null != provider.put( s, v) )
 					msg( Kind.ERROR, "tag %s has more than one provider", s);
-			for ( String s : snip.requires() )
-				consumer.add( s);
 		}
 		snippets.clear();
 	}
@@ -459,23 +452,64 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
+		Set<String> fwdConsumers = new HashSet<String>();
+		Set<String> revConsumers = new HashSet<String>();
 
-		for ( Vertex<Snippet> v : snippetQueue )
-			for ( String s : v.payload.requires() )
+		for ( VertexPair<Snippet> v : snippetVPairs )
+		{
+			VertexPair<Snippet> p;
+
+			/*
+			 * First handle the implicit requires(implementor()). This is unlike
+			 * the typical provides/requires relationship, in that it does not
+			 * reverse when generating the 'remove' actions. Conditions that
+			 * determined what got installed must also be evaluated early and
+			 * determine what gets removed.
+			 */
+			String imp = v.payload().implementor();
+			if ( null != imp )
 			{
-				Vertex<Snippet> p = provider.get( s);
+				fwdConsumers.add( imp);
+				revConsumers.add( imp);
+
+				p = provider.get( imp);
 				if ( null != p )
-					p.precede( v);
-				else if ( s == v.payload.implementor() ) // yes == if from impl
+				{
+					p.fwd.precede( v.fwd);
+					p.rev.precede( v.rev);
+
+					/*
+					 * A snippet providing an implementor tag probably has no
+					 * undeployStrings, because its deployStrings should be used
+					 * on both occasions; if so, replace it with a proxy that
+					 * returns deployStrings for undeployStrings.
+					 */
+					if ( 0 == p.rev.payload.undeployStrings().length )
+						p.rev.payload = new ImpProvider( p.rev.payload);
+				}
+				else if ( ! defaultImplementor.equals( imp) )
 				{
 					/*
-					 * It's the implicit requires(implementor()). Bump the
-					 * indegree anyway so the snippet won't be emitted until
-					 * the cycle breaker code (see below) sets it free after
-					 * any others that can be handled first.
+					 * Don't insist that every implementor tag have a provider
+					 * somewhere in the code. Perhaps the environment will
+					 * provide it at load time. If this is not the default
+					 * implementor, bump the relying vertices' indegree anyway
+					 * so the snippet won't be emitted until the cycle-breaker
+					 * code (see below) sets it free after any others that
+					 * can be handled first.
 					 */
-					if ( ! defaultImplementor.equals( s) )
-						++ v.indegree;
+					 ++ v.fwd.indegree;
+					 ++ v.rev.indegree;
+				}
+			}
+			for ( String s : v.payload().requires() )
+			{
+				fwdConsumers.add( s);
+				p = provider.get( s);
+				if ( null != p )
+				{
+					p.fwd.precede( v.fwd);
+					v.rev.precede( p.rev); // these relationships do reverse
 				}
 				else
 				{
@@ -484,35 +518,75 @@ class DDRProcessorImpl
 					errorRaised = true;
 				}
 			}
+			for ( String s : v.payload().requires() )
+				revConsumers.add( s);
+		}
 
 		if ( errorRaised )
 			return;
 
-		Snippet[] snips = new Snippet [ snippetQueue.size() ];
+		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> revBlocked = new LinkedList<Vertex<Snippet>>();
+
+		Queue<Vertex<Snippet>> fwdReady = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> revReady = new LinkedList<Vertex<Snippet>>();
 
 		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
-		for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator() ;
-				it.hasNext() ; )
+
+		for ( VertexPair<Snippet> vp : snippetVPairs )
 		{
-			Vertex<Snippet> v = it.next();
+			Vertex<Snippet> v = vp.fwd;
 			if ( 0 == v.indegree )
-			{
-				q.add( v);
-				it.remove();
-			}
+				fwdReady.add( v);
+			else
+				fwdBlocked.add( v);
+			v = vp.rev;
+			if ( 0 == v.indegree )
+				revReady.add( v);
+			else
+				revBlocked.add( v);
 		}
 
-queuerunning: for ( int i = 0 ; ; )
+		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers);
+		Snippet[] revSnips = order( revReady, revBlocked, revConsumers);
+
+		if ( null == fwdSnips  ||  null == revSnips )
+			return; // error already reported
+		
+		try
 		{
-			while ( ! q.isEmpty() )
+			DDRWriter.emit( fwdSnips, revSnips, this);
+		}
+		catch ( IOException ioe )
+		{
+			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
+		}
+	}
+
+	/**
+	 * Given a Snippet DAG, either the forward or reverse one, return the
+	 * snippets in a workable order.
+	 * @return Array of snippets in order, or null if no suitable order could
+	 * be found.
+	 */
+	Snippet[] order(
+		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
+		Set<String> consumer)
+	{
+		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+
+queuerunning:
+		for ( int i = 0 ; ; )
+		{
+			while ( ! ready.isEmpty() )
 			{
-				Vertex<Snippet> v = q.remove();
+				Vertex<Snippet> v = ready.remove();
 				snips[i++] = v.payload;
-				v.use( q, snippetQueue);
+				v.use( ready, blocked);
 				for ( String p : v.payload.provides() )
 					consumer.remove(p);
 			}
-			if ( snippetQueue.isEmpty() )
+			if ( blocked.isEmpty() )
 				break; // all done
 			/*
 			 * There are snippets remaining to output but they all have
@@ -523,7 +597,7 @@ queuerunning: for ( int i = 0 ; ; )
 			 * be "providing" that tag anyway), so set one such snippet free
 			 * and see how much farther we get.
 			 */
-			for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator();
+			for ( Iterator<Vertex<Snippet>> it = blocked.iterator();
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
@@ -533,7 +607,7 @@ queuerunning: for ( int i = 0 ; ; )
 					continue;
 				-- v.indegree;
 				it.remove();
-				q.add( v);
+				ready.add( v);
 				continue queuerunning;
 			}
 			/*
@@ -541,17 +615,9 @@ queuerunning: for ( int i = 0 ; ; )
 			 */
 			for ( String s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
-			return;
+			return null;
 		}
-		
-		try
-		{
-			DDRWriter.emit( snips, this);
-		}
-		catch ( IOException ioe )
-		{
-			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
-		}
+		return snips;
 	}
 	
 	/**
@@ -831,19 +897,6 @@ hunt:	for ( ExecutableElement ee : ees )
 				_implementor = "".equals( o) ? null : (String)o;
 		}
 
-		/**
-		 * Use from characterize() in any subclass implementing Snippet.
-		 */
-		protected String[] augmentRequires( String req[], String imp)
-		{
-			if ( null == imp )
-				return req;
-			String[] newreq = new String [ 1 + req.length ];
-			System.arraycopy( req, 0, newreq, 0, req.length);
-			newreq[req.length] = imp;
-			return newreq;
-		}
-
 		public String comment() { return _comment; }
 
 		public void setComment( Object o, boolean explicit, Element e)
@@ -1067,7 +1120,6 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
-			_requires = augmentRequires( _requires, implementor());
 			return true;
 		}
 	}
@@ -1514,8 +1566,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			 */
 			deployStrings();
 
-			_requires = augmentRequires( _requires, implementor());
-
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
 			return true;
@@ -1886,8 +1936,6 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
-			_requires = augmentRequires( _requires, implementor());
-
 			return true;
 		}
 
@@ -2084,8 +2132,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( 32 > category() || category() > 126 )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
-
-			_requires = augmentRequires( _requires, implementor());
 
 			return true;
 		}
@@ -2701,4 +2747,43 @@ class Vertex<P>
 				q.add( v);
 			}
 	}
+}
+
+/**
+ * A pair of Vertex instances for the same payload, for use when two directions
+ * of topological ordering must be computed.
+ */
+class VertexPair<P>
+{
+	Vertex<P> fwd;
+	Vertex<P> rev;
+
+	VertexPair( P payload)
+	{
+		fwd = new Vertex( payload);
+		rev = new Vertex( payload);
+	}
+
+	P payload()
+	{
+		return rev.payload;
+	}
+}
+
+/**
+ * Proxy a snippet that 'provides' an implementor tag and has no
+ * undeployStrings, returning its deployStrings in their place.
+ */
+class ImpProvider implements Snippet
+{
+	Snippet s;
+
+	ImpProvider( Snippet s) { this.s = s; }
+
+	@Override public String       implementor() { return s.implementor(); }
+	@Override public String[]   deployStrings() { return s.deployStrings(); }
+	@Override public String[] undeployStrings() { return s.deployStrings(); }
+	@Override public String[]        provides() { return s.provides(); }
+	@Override public String[]        requires() { return s.requires(); }
+	@Override public boolean     characterize() { return s.characterize(); }
 }
