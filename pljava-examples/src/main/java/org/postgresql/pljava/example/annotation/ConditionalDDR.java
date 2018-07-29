@@ -46,6 +46,18 @@ import org.postgresql.pljava.annotation.SQLActions;
  * placed as late in the generated DDR as other dependencies allow, in case
  * something in the preceding actions will be setting those implementor tags.
  * <p>
+ * The implicit {@code requires} derived from an {@code implementor} is also
+ * special in another way: it does not have its sense reversed when generating
+ * the "undeploy" actions of the deployment descriptor. Ordinary requirements
+ * do, so the dependent objects get dropped before the things they depend on.
+ * But the code for setting a conditional implementor tag has to be placed
+ * ahead of the uses of the tag, whether deploying or undeploying.
+ * <p>
+ * An {@code SQLAction} setting an implementor tag does not need to have any
+ * {@code remove=} actions. If it does not (the usual case), its
+ * {@code install=} actions will be used in both sections of the deployment
+ * descriptor.
+ * <p>
  * This example adds {@code LifeIsGood} ahead of the prior content of
  * {@code pljava.implementors}. Simply replacing the value would stop the
  * default implementor PostgreSQL being recognized, probably not what's wanted.
