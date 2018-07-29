@@ -63,6 +63,10 @@ import org.postgresql.pljava.annotation.SQLActions;
  * default implementor PostgreSQL being recognized, probably not what's wanted.
  * The final {@code true} argument to {@code set_config} makes the setting
  * local, so it is reverted when the transaction completes.
+ * <p>
+ * In addition to the goodness-of-life examples, this file also generates
+ * several statements setting PostgreSQL-version-based implementor tags that
+ * are relied on by various other examples in this directory.
  */
 @SQLActions({
 	@SQLAction(provides={"LifeIsGood","LifeIsNotGood"}, install=
@@ -81,6 +85,54 @@ import org.postgresql.pljava.annotation.SQLActions;
 
 	@SQLAction(implementor="LifeIsNotGood", install=
 		"SELECT javatest.logmessage('WARNING', 'This should not be executed')"
-	)
+	),
+
+	@SQLAction(provides="postgresql_ge_80300", install=
+		"SELECT CASE WHEN" +
+		" 80300 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_80300,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(provides="postgresql_ge_80400", install=
+		"SELECT CASE WHEN" +
+		" 80400 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_80400,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(provides="postgresql_ge_90000", install=
+		"SELECT CASE WHEN" +
+		" 90000 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_90000,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(provides="postgresql_ge_90100", install=
+		"SELECT CASE WHEN" +
+		" 90100 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_90100,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(provides="postgresql_ge_90300", install=
+		"SELECT CASE WHEN" +
+		" 90300 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_90300,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(provides="postgresql_ge_100000", install=
+		"SELECT CASE WHEN" +
+		" 100000 <= CAST(current_setting('server_version_num') AS integer)" +
+		" THEN set_config('pljava.implementors', 'postgresql_ge_100000,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
 })
 public class ConditionalDDR { }

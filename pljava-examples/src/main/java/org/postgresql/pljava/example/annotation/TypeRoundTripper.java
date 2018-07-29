@@ -82,34 +82,40 @@ import org.postgresql.pljava.annotation.SQLAction;
  *  (VALUES (timestamptz '2017-08-21 18:25:29.900005Z')) AS p(orig),
  *  roundtrip(p) AS r(roundtripped timestamptz);
  *</pre>
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(requires = "TypeRoundTripper.roundTrip", install = {
-"	SELECT	"+
-"		CASE WHEN every(orig = roundtripped)	"+
-"		THEN javatest.logmessage('INFO', 'timestamp roundtrip passes')	"+
-"		ELSE javatest.logmessage('WARNING', 'timestamp roundtrip fails')"+
-"		END	"+
-"	FROM	"+
-"		(values	"+
-"			(timestamp '2017-08-21 18:25:29.900005'),	"+
-"			(timestamp '1970-03-07 17:37:49.300009'),	"+
-"			(timestamp '1919-05-29 13:08:33.600001')	"+
-"		) as p(orig),	"+
-"		roundtrip(p) as r(roundtripped timestamp)	",
+@SQLAction(implementor = "postgresql_ge_90300", // funcs see earlier FROM items
+	requires = "TypeRoundTripper.roundTrip",
+	install = {
+	" SELECT" +
+	"  CASE WHEN every(orig = roundtripped)" +
+	"  THEN javatest.logmessage('INFO', 'timestamp roundtrip passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'timestamp roundtrip fails')" +
+	"  END" +
+	" FROM" +
+	"  (VALUES" +
+	"   (timestamp '2017-08-21 18:25:29.900005')," +
+	"   (timestamp '1970-03-07 17:37:49.300009')," +
+	"   (timestamp '1919-05-29 13:08:33.600001')" +
+	"  ) AS p(orig)," +
+	"  roundtrip(p) AS r(roundtripped timestamp)",
 
-"	SELECT	"+
-"		CASE WHEN every(orig = roundtripped)	"+
-"		THEN javatest.logmessage('INFO', 'timestamptz roundtrip passes')	"+
-"		ELSE javatest.logmessage('WARNING', 'timestamptz roundtrip fails')	"+
-"		END	"+
-"	FROM	"+
-"		(values	"+
-"			(timestamptz '2017-08-21 18:25:29.900005Z'),	"+
-"			(timestamptz '1970-03-07 17:37:49.300009Z'),	"+
-"			(timestamptz '1919-05-29 13:08:33.600001Z')	"+
-"		) as p(orig),	"+
-"		roundtrip(p) as r(roundtripped timestamptz)	",
-})
+	" SELECT" +
+	"  CASE WHEN every(orig = roundtripped)" +
+	"  THEN javatest.logmessage('INFO', 'timestamptz roundtrip passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'timestamptz roundtrip fails')" +
+	"  END" +
+	" FROM" +
+	"  (VALUES" +
+	"   (timestamptz '2017-08-21 18:25:29.900005Z')," +
+	"   (timestamptz '1970-03-07 17:37:49.300009Z')," +
+	"   (timestamptz '1919-05-29 13:08:33.600001Z')" +
+	"  ) AS p(orig)," +
+	"  roundtrip(p) AS r(roundtripped timestamptz)",
+	}
+)
 public class TypeRoundTripper
 {
 	private TypeRoundTripper() { }

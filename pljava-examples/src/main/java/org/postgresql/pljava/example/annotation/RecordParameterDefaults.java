@@ -29,19 +29,22 @@ import org.postgresql.pljava.annotation.SQLType;
  * function.
  *<p>
  * Also tests the proper DDR generation of defaults for such parameters.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example.
  */
 @SQLActions({
 	@SQLAction(
 		provides = "paramtypeinfo type", // created in Triggers.java
 		install = {
 			"CREATE TYPE javatest.paramtypeinfo AS (" +
-			"name text, pgtypename text, javaclass text, tostring text" +
+			" name text, pgtypename text, javaclass text, tostring text" +
 			")"
 		},
 		remove = {
 			"DROP TYPE javatest.paramtypeinfo"
 		}
-	),
+	)
 })
 public class RecordParameterDefaults implements ResultSetProvider
 {
@@ -64,6 +67,7 @@ public class RecordParameterDefaults implements ResultSetProvider
 	@Function(
 		requires = "paramtypeinfo type",
 		schema = "javatest",
+		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
 		type = "javatest.paramtypeinfo"
 		)
 	public static ResultSetProvider paramDefaultsRecord(
@@ -86,6 +90,7 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 */
 	@Function(
 		requires = "foobar tables", // created in Triggers.java
+		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
 		schema = "javatest"
 		)
 	public static String paramDefaultsNamedRow(
