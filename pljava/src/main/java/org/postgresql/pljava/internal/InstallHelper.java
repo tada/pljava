@@ -45,7 +45,8 @@ public class InstallHelper
 	}
 
 	public static String hello(
-		String nativeVer, String user, String dbname, String clustername,
+		String nativeVer, String serverBuiltVer, String serverRunningVer,
+		String user, String dbname, String clustername,
 		String datadir, String libdir, String sharedir, String etcdir)
 	{
 		String implVersion =
@@ -120,6 +121,8 @@ public class InstallHelper
 		StringBuilder sb = new StringBuilder();
 		sb.append( "PL/Java native code (").append( nativeVer).append( ")\n");
 		sb.append( "PL/Java common code (").append( implVersion).append( ")\n");
+		sb.append( "Built for (").append( serverBuiltVer).append( ")\n");
+		sb.append( "Loaded in (").append( serverRunningVer).append( ")\n");
 		sb.append( jreName).append( " (").append( jreVer).append( ")\n");
 		sb.append( vmName).append( " (").append( vmVer);
 		if ( null != vmInfo )

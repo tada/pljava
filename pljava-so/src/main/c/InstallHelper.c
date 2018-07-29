@@ -498,6 +498,10 @@ char *InstallHelper_hello()
 	char pathbuf[MAXPGPATH];
 	Invocation ctx;
 	jstring nativeVer;
+	jstring serverBuiltVer;
+	jstring serverRunningVer;
+	FunctionCallInfoData fcinfo;
+	text *runningVer;
 	jstring user;
 	jstring dbname;
 	jstring clustername;
@@ -511,6 +515,17 @@ char *InstallHelper_hello()
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
+	serverBuiltVer = String_createJavaStringFromNTS(PG_VERSION_STR);
+
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
+#if PG_VERSION_NUM >= 90100
+	InvalidOid, /* collation */
+#endif
+	NULL, NULL);
+	runningVer = DatumGetTextP(pgsql_version(&fcinfo));
+	serverRunningVer = String_createJavaString(runningVer);
+	pfree(runningVer);
+
 	user = String_createJavaStringFromNTS(origUserName());
 	dbname = String_createJavaStringFromNTS(pljavaDbName());
 	if ( '\0' == *clusternameC )
@@ -531,9 +546,13 @@ char *InstallHelper_hello()
 
 	greeting = JNI_callStaticObjectMethod(
 		s_InstallHelper_class, s_InstallHelper_hello,
-		nativeVer, user, dbname, clustername, ddir, ldir, sdir, edir);
+		nativeVer, serverBuiltVer, serverRunningVer,
+		user, dbname, clustername,
+		ddir, ldir, sdir, edir);
 
 	JNI_deleteLocalRef(nativeVer);
+	JNI_deleteLocalRef(serverBuiltVer);
+	JNI_deleteLocalRef(serverRunningVer);
 	JNI_deleteLocalRef(user);
 	JNI_deleteLocalRef(dbname);
 	if ( NULL != clustername )
@@ -616,7 +635,8 @@ void InstallHelper_initialize()
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
 		s_InstallHelper_class, "groundwork",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V");
