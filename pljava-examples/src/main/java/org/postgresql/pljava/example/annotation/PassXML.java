@@ -93,11 +93,11 @@ public class PassXML implements SQLData
 
 	/**
 	 * Echo an XML parameter back, exercising seven different ways
-	 * (howin => 1-7) of reading an SQLXML object, and seven (howout => 1-7)
-	 * of returning one.
+	 * (howin =&gt; 1-7) of reading an SQLXML object, and seven
+	 * (howout =&gt; 1-7) of returning one.
 	 *<p>
-	 * If howin => 0, the XML parameter is simply saved in a static. It can be
-	 * read in a subsequent call with sx => null, but only in the same
+	 * If howin =&gt; 0, the XML parameter is simply saved in a static. It can
+	 * be read in a subsequent call with sx =&gt; null, but only in the same
 	 * transaction.
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml")
@@ -158,8 +158,8 @@ public class PassXML implements SQLData
 	 * the {@code SQLXML} object to the XSL processor.
 	 *<p>
 	 * Preparing a transform with
-	 * {@link TransformerFactoory.newTemplates newTemplates()} seems to require
-	 * {@link Function.Trust.UNSANDBOXED Trust.UNSANDBOXED}, at least for the
+	 * {@link TransformerFactory#newTemplates newTemplates()} seems to require
+	 * {@link Function.Trust#UNSANDBOXED Trust.UNSANDBOXED}, at least for the
 	 * XSLTC transform compiler in newer JREs.
 	 */
 	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED,
@@ -502,8 +502,42 @@ public class PassXML implements SQLData
 		w.close();
 	}
 
+	/**
+	 * Test the MappedUDT (in one direction anyway).
+	 *<p>
+	 * Creates a {@code PassXML} object, the Java class that maps the
+	 * {@code javatest.onexml} composite type, which has one member, of XML
+	 * type. Stores a {@code SQLXML} value in that field of the {@code PassXML}
+	 * object, and passes that to an SQL query that expects and returns
+	 * {@code javatest.onexml}. Retrieves the XML from the value field of the
+	 * {@code PassXML} object created to map the result of the query.
+	 * @return The original XML value, if all goes well.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML xmlFromComposite() throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement ps =
+			c.prepareStatement("SELECT CAST(? AS javatest.onexml)");
+		SQLXML x = c.createSQLXML();
+		x.setString("<a/>");
+		PassXML obj = new PassXML();
+		obj.m_value = x;
+		obj.m_typeName = "javatest.onexml";
+		ps.setObject(1, obj);
+		ResultSet r = ps.executeQuery();
+		r.next();
+		obj = r.getObject(1, PassXML.class);
+		ps.close();
+		return obj.m_value;
+	}
+
 	/*
 	 * Required to serve as a MappedUDT:
+	 */
+	/**
+	 * No-arg constructor required of objects that will implement
+	 * {@link SQLData}.
 	 */
 	public PassXML() { }
 
@@ -524,27 +558,5 @@ public class PassXML implements SQLData
 	public void writeSQL(SQLOutput stream) throws SQLException
 	{
 		stream.writeSQLXML(m_value);
-	}
-
-	/*
-	 * Test the MappedUDT (in one direction anyway).
-	 */
-	@Function(schema="javatest", implementor="postgresql_xml")
-	public static SQLXML xmlFromComposite() throws SQLException
-	{
-		Connection c = DriverManager.getConnection("jdbc:default:connection");
-		PreparedStatement ps =
-			c.prepareStatement("SELECT CAST(? AS javatest.onexml)");
-		SQLXML x = c.createSQLXML();
-		x.setString("<a/>");
-		PassXML obj = new PassXML();
-		obj.m_value = x;
-		obj.m_typeName = "javatest.onexml";
-		ps.setObject(1, obj);
-		ResultSet r = ps.executeQuery();
-		r.next();
-		obj = r.getObject(1, PassXML.class);
-		ps.close();
-		return obj.m_value;
 	}
 }

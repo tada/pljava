@@ -27,7 +27,7 @@ import java.sql.SQLException;
  * {@code InputStream}, or allow a new one to be constructed by presenting a
  * writable {@code OutputStream}.
  *<p>
- * Common to both is a single method {@link #adopt adopt()}, allowing native
+ * Common to both is a method {@link #adopt adopt()}, allowing native
  * code to reassert control over the varlena (for the writable variety, after
  * Java code has written and closed it), after which it is no longer accessible
  * from Java.
@@ -40,6 +40,25 @@ public interface VarlenaWrapper extends Closeable
 	 * @param cookie Capability held by native code.
 	 */
 	long adopt(DualState.Key cookie) throws SQLException;
+
+	/**
+	 * Return a string describing this object in a way useful for debugging,
+	 * prefixed with the name (abbreviated for comfort) of the class of the
+	 * object passed in (the normal Java {@code toString()} method should pass
+	 * {@code this}).
+	 *<p>
+	 * Subclasses or consumers are encouraged to call this method and append
+	 * further details specific to the subclass or consumer. The convention
+	 * should be that the recursion will stop at some class that will actually
+	 * construct the abbreviated class name of {@code o} and use it to prefix
+	 * the returned value.
+	 * @param o An object whose class name (possibly abbreviated) should be used
+	 * to prefix the returned string.
+	 * @return Description of this object.
+	 */
+	String toString(Object o);
+
+
 
 	/**
 	 * A class by which Java reads the content of a varlena as an InputStream.
@@ -192,6 +211,10 @@ public interface VarlenaWrapper extends Closeable
 			}
 		}
 
+		/**
+		 * Return {@code true}; this class does support {@code mark} and
+		 * {@code reset}.
+		 */
 		@Override
 		public boolean markSupported()
 		{
@@ -209,6 +232,19 @@ public interface VarlenaWrapper extends Closeable
 						"55000");
 				return m_state.adopt(cookie);
 			}
+		}
+
+		@Override
+		public String toString()
+		{
+			return toString(this);
+		}
+		
+		@Override
+		public String toString(Object o)
+		{
+			return String.format("%s %s", m_state.toString(o),
+				m_open ? "open" : "closed");
 		}
 
 
@@ -255,6 +291,14 @@ public interface VarlenaWrapper extends Closeable
 			{
 				m_buf = null;
 				super.javaStateReleased();
+			}
+
+			@Override
+			public String toString(Object o)
+			{
+				return String.format("%s varlena:%x %s",
+					super.toString(o), m_varlena,
+					String.valueOf(m_buf).replace("java.nio.", ""));
 			}
 		}
 	}
@@ -384,6 +428,19 @@ public interface VarlenaWrapper extends Closeable
 			}
 		}
 
+		@Override
+		public String toString()
+		{
+			return toString(this);
+		}
+
+		@Override
+		public String toString(Object o)
+		{
+			return String.format("%s %s", m_state.toString(o),
+				m_open ? "open" : "closed");
+		}
+
 
 
 		private static class State
@@ -434,10 +491,10 @@ public interface VarlenaWrapper extends Closeable
 			}
 
 			@Override
-			public String toString()
+			public String toString(Object o)
 			{
-				return String.format("%s VarlenaWrapper.Output (%x) %s",
-					super.toString(), m_varlena,
+				return String.format("%s varlena:%x %s",
+					super.toString(o), m_varlena,
 					String.valueOf(m_buf).replace("java.nio.", ""));
 			}
 

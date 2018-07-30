@@ -258,7 +258,43 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	protected abstract VarlenaWrapper adopt() throws SQLException;
 
+	/**
+	 * Return a description of this object useful for debugging (not the raw
+	 * XML content).
+	 */
+	@Override
+	public String toString()
+	{
+		return toString(this);
+	}
+
+	/**
+	 * Return information about this object useful for debugging, prefixed with
+	 * a possibly shortened form of the class name of the passed object
+	 * {@code o}; the normal Java {@code toString()} will pass {@code this}.
+	 *<p>
+	 * Subclasses are encouraged to override, call the super method and append
+	 * subclass-specific detail.
+	 * @param o Object whose class name should be used to prefix the returned
+	 * string. Passing {@code null} is the same as passing {@code this}.
+	 * @return Description of this object for debugging convenience.
+	 */
+	protected String toString(Object o)
+	{
+		if ( null == o )
+			o = this;
+		V backing = m_backing.get();
+		if ( null != backing )
+			return backing.toString(o);
+		Class<?> c = o.getClass();
+		String cn = c.getCanonicalName();
+		int pnl = c.getPackage().getName().length();
+		return cn.substring(1 + pnl) + " defunct";
+	}
+
 	private static native SQLXML _newWritable();
+
+
 
 	static class Readable extends SQLXMLImpl<VarlenaWrapper.Input>
 	{
@@ -423,6 +459,14 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( null == vw )
 				backingIfNotFreed(); /* shorthand way to throw the exception */
 			return vw;
+		}
+
+		@Override
+		protected String toString(Object o)
+		{
+			return String.format("%s %sreadable %swrapped",
+				super.toString(o), m_readable.get() ? "" : "not ",
+				m_wrapped ? "" : "not ");
 		}
 
 		/**
@@ -684,6 +728,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
+
+
 	static class Writable extends SQLXMLImpl<VarlenaWrapper.Output>
 	{
 		private AtomicBoolean m_writable = new AtomicBoolean(true);
@@ -877,6 +923,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				m_domResult = null;
 			}
 			return vwo;
+		}
+
+		@Override
+		protected String toString(Object o)
+		{
+			return String.format("%s %swritable", super.toString(o),
+				m_writable.get() ? "" : "not ");
 		}
 	}
 
