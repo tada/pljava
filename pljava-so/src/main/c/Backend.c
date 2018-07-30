@@ -1090,7 +1090,6 @@ static void _destroyJavaVM(int status, Datum dummy)
 		}
 
 #if PG_VERSION_NUM >= 90300
-		InitializeTimeouts();           /* establishes SIGALRM handler */
 		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
 #else
 		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
