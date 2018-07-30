@@ -60,6 +60,7 @@ import javax.xml.transform.stax.StAXSource;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
@@ -111,6 +112,32 @@ public class PassXML implements SQLData
 			return null;
 		}
 		return echoSQLXML(sx, howin, howout);
+	}
+
+	/**
+	 * Echo an XML parameter back, but with parameter and return types of
+	 * PostgreSQL {@code text}.
+	 *<p>
+	 * The other version of this method needs a conditional implementor tag
+	 * because it cannot be declared in a PostgreSQL instance that was built
+	 * without [@code libxml} support and the PostgreSQL {@code XML} type.
+	 * But this version can, simply by mapping the {@code SQLXML} parameter
+	 * and return types to the SQL {@code text} type. The Java code is no
+	 * different.
+	 *<p>
+	 * Note that it's possible for both declarations to coexist in PostgreSQL
+	 * (because as far as it is concerned, their signatures are different), but
+	 * these two Java methods cannot have the same name (because they differ
+	 * only in annotations, not in the declared Java types). So, this one needs
+	 * a slightly tweaked name, and a {@code name} attribute in the annotation
+	 * so PostgreSQL sees the right name.
+	 */
+	@Function(schema="javatest", name="echoXMLParameter", type="text")
+	public static SQLXML echoXMLParameter_(
+		@SQLType("text") SQLXML sx, int howin, int howout)
+	throws SQLException
+	{
+		return echoXMLParameter(sx, howin, howout);
 	}
 
 	/**

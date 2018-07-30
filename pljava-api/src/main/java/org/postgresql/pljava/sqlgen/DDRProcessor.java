@@ -1613,6 +1613,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendAS( StringBuilder sb)
 		{
+			if ( ! ( complexViaInOut || setof || trigger ) )
+				sb.append( func.getReturnType()).append( '=');
 			Element e = func.getEnclosingElement();
 			if ( ! e.getKind().equals( ElementKind.CLASS) )
 				msg( Kind.ERROR, func,
