@@ -22,13 +22,17 @@ import org.postgresql.pljava.annotation.Function;
 /**
  * Confirms the mapping of PG enum and Java String, and arrays of each, as
  * parameter and return types.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example. PostgreSQL before 8.3
+ * did not have enum types.
  */
 @SQLActions({
-	@SQLAction(provides="mood type",
+	@SQLAction(provides="mood type", implementor="postgresql_ge_80300",
 		install="CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
 		remove="DROP TYPE mood"
 	),
-	@SQLAction(
+	@SQLAction(implementor="postgresql_ge_80300",
 		requires={"textToMood", "moodToText", "textsToMoods", "moodsToTexts"},
 		install={
 			"SELECT textToMood('happy')",
@@ -40,22 +44,26 @@ import org.postgresql.pljava.annotation.Function;
 })
 public class Enumeration
 {
-	@Function(requires="mood type", provides="textToMood", type="mood")
+	@Function(requires="mood type", provides="textToMood", type="mood",
+			  implementor="postgresql_ge_80300")
 	public static String textToMood(String s)
 	{
 		return s;
 	}
-	@Function(requires="mood type", provides="moodToText")
+	@Function(requires="mood type", provides="moodToText",
+			  implementor="postgresql_ge_80300")
 	public static String moodToText(@SQLType("mood")String s)
 	{
 		return s;
 	}
-	@Function(requires="mood type", provides="textsToMoods", type="mood")
+	@Function(requires="mood type", provides="textsToMoods", type="mood",
+			  implementor="postgresql_ge_80300")
 	public static Iterator<String> textsToMoods(String[] ss)
 	{
 		return Arrays.asList(ss).iterator();
 	}
-	@Function(requires="mood type", provides="moodsToTexts")
+	@Function(requires="mood type", provides="moodsToTexts",
+			  implementor="postgresql_ge_80300")
 	public static Iterator<String> moodsToTexts(@SQLType("mood[]")String[] ss)
 	{
 		return Arrays.asList(ss).iterator();

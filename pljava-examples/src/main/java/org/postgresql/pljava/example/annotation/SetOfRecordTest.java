@@ -26,8 +26,13 @@ import org.postgresql.pljava.annotation.SQLAction;
  * Example implementing the {@code ResultSetHandle} interface, to return
  * the {@link ResultSet} from any SQL {@code SELECT} query passed as a string
  * to the {@link #executeSelect executeSelect} function.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example. Before PostgreSQL 8.4,
+ * there was no {@code =} or {@code DISTINCT FROM} operator between row types.
  */
-@SQLAction(requires="selecttorecords fn", install=
+@SQLAction(requires="selecttorecords fn", implementor="postgresql_ge_80400",
+install=
 " SELECT " +
 "  CASE WHEN r IS DISTINCT FROM ROW('Foo'::varchar, 1::integer, 1.5::float, " +
 "       23.67::decimal(8,2), '2005-06-01'::date, '20:56'::time, " +

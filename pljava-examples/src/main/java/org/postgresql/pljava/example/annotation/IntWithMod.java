@@ -51,8 +51,15 @@ import static
  *<p>
  * Certainly, it would be less tedious with some more annotation support and
  * autogeneration of the ordering dependencies that are now added by hand here.
+ *<p>
+ * Most of this must be suppressed (using conditional implementor tags) if the
+ * PostgreSQL instance is older than 8.3, because it won't have the cstring[]
+ * type, so the typeModifierInput function can't be declared, and so neither
+ * can the type, or functions that accept or return it. See the
+ * {@link ConditionalDDR} example for where the implementor tag is set up.
  */
 @SQLAction(requires={"IntWithMod type", "IntWithMod modApply"},
+	implementor="postgresql_ge_80300",
 	remove="DROP CAST (javatest.IntWithMod AS javatest.IntWithMod)",
 	install={
 		"CREATE CAST (javatest.IntWithMod AS javatest.IntWithMod)" +
@@ -64,6 +71,7 @@ import static
 	}
 )
 @BaseUDT(schema="javatest", provides="IntWithMod type",
+	implementor="postgresql_ge_80300",
 	requires={"IntWithMod modIn", "IntWithMod modOut"},
 	typeModifierInput="javatest.intwithmod_typmodin",
 	typeModifierOutput="javatest.intwithmod_typmodout",
@@ -121,7 +129,7 @@ public class IntWithMod implements SQLData {
 	 * "even" or "odd". The modifier value is 0 for even or 1 for odd.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodin",
-		provides="IntWithMod modIn",
+		provides="IntWithMod modIn", implementor="postgresql_ge_80300",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static int modIn(@SQLType("cstring[]") String[] toks)
 		throws SQLException {
@@ -155,12 +163,12 @@ public class IntWithMod implements SQLData {
 	 * Function backing the type-modifier application cast for IntWithMod type.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodapply",
+		implementor="postgresql_ge_80300",
 		requires="IntWithMod type", provides="IntWithMod modApply",
-		type="javatest.IntWithMod", effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static IntWithMod modApply(
-		@SQLType("javatest.IntWithMod") IntWithMod iwm,
-		int mod, boolean explicit) throws SQLException {
-
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	public static IntWithMod modApply(IntWithMod iwm, int mod, boolean explicit)
+		throws SQLException
+	{
 		if ( -1 == mod )
 			return iwm;
 		if ( (iwm.m_value & 1) != mod )

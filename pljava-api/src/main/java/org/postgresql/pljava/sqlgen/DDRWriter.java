@@ -36,16 +36,25 @@ public class DDRWriter
 {
 	/**
 	 * Generate the deployment descriptor file.
+	 *<p>
+	 * Important: it is <em>assumed</em> that {@code fwdSnips} and
+	 * {@code revSnips} contain exactly the same snippets and differ only in
+	 * their ordering.
 	 *
-	 * @param snips Code snippets to include in the file, in a workable order
-	 * for the install actions group. The remove actions group will be generated
-	 * by processing this array in reverse order.
+	 * @param fwdSnips Code snippets to include in the file, in a workable order
+	 * for the install actions group.
+	 * @param revSnips The same snippets in a workable order for the remove
+	 * actions group. Not necessarily simply fwdSnips back to front, as the
+	 * implied dependencies on implementor tags have the same sense for both
+	 * install and remove: the tag conditions have to be evaluated before the
+	 * snippets that depend on them.
 	 * @param p Reference to the calling object, used to obtain the Filer
 	 * object and desired output file name, and for diagnostic messages.
 	 */
-	static void emit( Snippet[] snips, DDRProcessorImpl p) throws IOException
+	static void emit( Snippet[] fwdSnips, Snippet[] revSnips,
+		DDRProcessorImpl p) throws IOException
 	{
-		if ( ! ensureLexable( snips, p) )
+		if ( ! ensureLexable( fwdSnips, p) ) // assume same members as revSnips!
 			return;
 
 		Writer w =
@@ -53,15 +62,15 @@ public class DDRWriter
 
 		w.write( "SQLActions[]={\n\"BEGIN INSTALL\n");
 		
-		for ( Snippet snip : snips )
+		for ( Snippet snip : fwdSnips )
 			for ( String s : snip.deployStrings() )
 				writeCommand( w, s, snip.implementor());
 
 		w.write( "END INSTALL\",\n\"BEGIN REMOVE\n");
 		
-		for ( int i = snips.length; i --> 0; )
-			for ( String s : snips[i].undeployStrings() )
-				writeCommand( w, s, snips[i].implementor());
+		for ( Snippet snip : revSnips )
+			for ( String s : snip.undeployStrings() )
+				writeCommand( w, s, snip.implementor());
 
 		w.write( "END REMOVE\"\n}\n");
 		

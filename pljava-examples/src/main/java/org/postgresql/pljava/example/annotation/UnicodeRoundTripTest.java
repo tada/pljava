@@ -35,15 +35,18 @@ import org.postgresql.pljava.annotation.Function;
  * calls this function on each (1k array, 1k string) pair, and counts a failure
  * if {@code matched} is false or the original and returned arrays or strings
  * do not match as seen in SQL.
+ * <p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example, and also sets its own.
  */
 @SQLActions({
-	@SQLAction(provides="postgresql_unicodetest", install=
-"   select case " +
-"    when 90000 <= cast(current_setting('server_version_num') as integer) " +
-"    and 'UTF8' = current_setting('server_encoding') " +
-"    then set_config('pljava.implementors', 'postgresql_unicodetest,' || " +
-"    current_setting('pljava.implementors'), true) " +
-"   end"
+	@SQLAction(provides="postgresql_unicodetest",
+		implementor="postgresql_ge_90000", install=
+		"SELECT CASE" +
+		" WHEN 'UTF8' = current_setting('server_encoding')" +
+		" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
 	),
 	@SQLAction(requires="unicodetest fn",
 	implementor="postgresql_unicodetest",
@@ -77,9 +80,9 @@ import org.postgresql.pljava.annotation.Function;
 "    ) " +
 "   select " +
 "    case when n_failing_groups > 0 then " +
-"     javatest.logmessage('WARNING', format( " +
-"      '%s 1k codepoint ranges had mismatches, first is block starting 0x%s', " +
-"      n_failing_groups, to_hex(1024 * first_failing_group))) " +
+"     javatest.logmessage('WARNING', n_failing_groups || " +
+"      ' 1k codepoint ranges had mismatches, first is block starting 0x' || " +
+"      to_hex(1024 * first_failing_group)) " +
 "    else " +
 "     javatest.logmessage('INFO', " +
 "        'all Unicode codepoint ranges roundtripped successfully.') " +

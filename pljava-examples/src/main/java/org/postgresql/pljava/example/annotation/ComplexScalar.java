@@ -23,7 +23,6 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.BaseUDT;
 
 import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
@@ -51,11 +50,10 @@ public class ComplexScalar implements SQLData {
 	 * @param cpl any instance of this UDT
 	 * @return the same instance passed in
 	 */
-	@Function(requires="scalar complex type", type="javatest.complex",
+	@Function(requires="scalar complex type",
 		schema="javatest", name="logcomplex", effects=IMMUTABLE,
 		onNullInput=RETURNS_NULL)
-	public static ComplexScalar logAndReturn(
-		@SQLType("javatest.complex") ComplexScalar cpl) {
+	public static ComplexScalar logAndReturn(ComplexScalar cpl) {
 		s_logger.info(cpl.getSQLTypeName() + cpl);
 		return cpl;
 	}
@@ -71,8 +69,7 @@ public class ComplexScalar implements SQLData {
 	@Function(schema="javatest",
 		requires="scalar complex type", provides="complex assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static void assertHasValues(
-		@SQLType("javatest.complex") ComplexScalar cpl, double re, double im)
+	public static void assertHasValues(ComplexScalar cpl, double re, double im)
 		throws SQLException
 	{
 		if ( cpl.m_x != re  ||  cpl.m_y != im )

@@ -36,6 +36,10 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * Example creating a couple of tables, and a function to be called when
  * triggered by insertion into either table. In PostgreSQL 10 or later,
  * also create a function and trigger that uses transition tables.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example. Constraint triggers
+ * appear in PG 9.1, transition tables in PG 10.
  */
 @SQLActions({
 	@SQLAction(
@@ -48,20 +52,6 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
 			"DROP TABLE javatest.foobar_2",
 			"DROP TABLE javatest.foobar_1"
 		}
-	),
-	@SQLAction(provides="postgresql_transitiontables", install=
-"   select case " +
-"    when 100000 <= cast(current_setting('server_version_num') as integer) " +
-"    then set_config('pljava.implementors', 'postgresql_transitiontables,' " +
-"    || current_setting('pljava.implementors'), true) " +
-"   end"
-	),
-	@SQLAction(provides="postgresql_constrainttriggers", install=
-"   select case " +
-"    when 90100 <= cast(current_setting('server_version_num') as integer) " +
-"    then set_config('pljava.implementors', 'postgresql_constrainttriggers,' " +
-"    || current_setting('pljava.implementors'), true) " +
-"   end"
 	),
 	@SQLAction(
 		requires = "constraint triggers",
@@ -117,7 +107,7 @@ public class Triggers
 	 * Transition tables first became available in PostgreSQL 10.
 	 */
 	@Function(
-		implementor = "postgresql_transitiontables",
+		implementor = "postgresql_ge_100000",
 		requires = "foobar tables",
 		provides = "transition triggers",
 		schema = "javatest",
@@ -150,7 +140,7 @@ public class Triggers
 	 * Constraint triggers first became available in PostgreSQL 9.1.
 	 */
 	@Function(
-		implementor = "postgresql_constrainttriggers",
+		implementor = "postgresql_ge_90100",
 		requires = "foobar tables",
 		provides = "constraint triggers",
 		schema = "javatest",

@@ -46,7 +46,7 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 							CoercionContext ccontext, Oid *funcid)
 {
 	if ( find_coercion_pathway(targetTypeId, sourceTypeId, ccontext, funcid) )
-		return *funcId != InvalidOid ?
+		return *funcid != InvalidOid ?
 			COERCION_PATH_FUNC : COERCION_PATH_RELABELTYPE;
 	else
 		return COERCION_PATH_NONE;
@@ -402,9 +402,7 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 
 		ctxData->rowContext = AllocSetContextCreate(context->multi_call_memory_ctx,
 								  "PL/Java row context",
-								  ALLOCSET_DEFAULT_MINSIZE,
-								  ALLOCSET_DEFAULT_INITSIZE,
-								  ALLOCSET_DEFAULT_MAXSIZE);
+								  ALLOCSET_DEFAULT_SIZES);
 
 		/* Register callback to be called when the function ends
 		 */
