@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,6 +18,7 @@
 
 #include "org_postgresql_pljava_internal_Portal.h"
 #include "pljava/Backend.h"
+#include "pljava/DualState.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/HashMap.h"
@@ -189,6 +190,16 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		Ptr2Long p2l;
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(threadId)
+
+		/*
+		 * One call to cleanEnqueued... is made in Invocation_popInvocation,
+		 * when any PL/Java function returns to PostgreSQL. But what of a
+		 * PL/Java function that loops through a lot of data before returning?
+		 * It could be important to call cleanEnqueued... from some other
+		 * strategically-chosen places, and this seems a good one. We get here
+		 * every fetchSize (default 1000? See SPIStatement) rows retrieved.
+		 */
+		pljava_DualState_cleanEnqueuedInstances();
 
 		p2l.longVal = _this;
 		PG_TRY();
