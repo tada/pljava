@@ -17,7 +17,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import java.nio.ByteBuffer;
-import java.nio.InvalidMarkException;
 
 import java.sql.SQLException;
 
@@ -67,11 +66,9 @@ public interface VarlenaWrapper extends Closeable
 	 * the native reference; the chosen resource owner must be one that will be
 	 * released no later than the memory context containing the varlena.
 	 */
-	public static class Input extends InputStream implements VarlenaWrapper
+	public static class Input
+	extends ByteBufferInputStream implements VarlenaWrapper
 	{
-		private State m_state;
-		private boolean m_open = true;
-
 		/**
 		 * Construct a {@code VarlenaWrapper.Input}.
 		 * @param cookie Capability held by native code.
@@ -91,13 +88,14 @@ public interface VarlenaWrapper extends Closeable
 				context, varlenaPtr, buf.asReadOnlyBuffer());
 		}
 
-		private ByteBuffer buf() throws IOException
+		@Override
+		protected ByteBuffer buffer() throws IOException
 		{
 			if ( ! m_open )
 				throw new IOException("Read from closed VarlenaWrapper");
 			try
 			{
-				return m_state.buffer();
+				return ((State)m_state).buffer();
 			}
 			catch ( SQLException sqe )
 			{
@@ -106,119 +104,13 @@ public interface VarlenaWrapper extends Closeable
 		}
 
 		@Override
-		public int read() throws IOException
-		{
-			synchronized ( m_state )
-			{
-				ByteBuffer src = buf();
-				if ( 0 < src.remaining() )
-					return src.get();
-				return -1;
-			}
-		}
-
-		@Override
-		public int read(byte[] b, int off, int len) throws IOException
-		{
-			synchronized ( m_state )
-			{
-				ByteBuffer src = buf();
-				int has = src.remaining();
-				if ( len > has )
-				{
-					if ( 0 == has )
-						return -1;
-					len = has;
-				}
-				src.get(b, off, len);
-				return len;
-			}
-		}
-
-		@Override
-		public long skip(long n) throws IOException
-		{
-			synchronized ( m_state )
-			{
-				ByteBuffer src = buf();
-				int has = src.remaining();
-				if ( n > has )
-					n = has;
-				src.position(src.position() + (int)n);
-				return n;
-			}
-		}
-
-		@Override
-		public int available() throws IOException
-		{
-			synchronized ( m_state )
-			{
-				return buf().remaining();
-			}
-		}
-
-		@Override
 		public void close() throws IOException
 		{
 			synchronized ( m_state )
 			{
-				if ( ! m_open )
-					return;
-				m_open = false;
-				m_state.enqueue();
+				super.close();
+				((State)m_state).enqueue();
 			}
-		}
-
-		@Override
-		public void mark(int readlimit)
-		{
-			synchronized ( m_state )
-			{
-				if ( ! m_open )
-					return;
-				try
-				{
-					buf().mark();
-				}
-				catch ( IOException e )
-				{
-					/*
-					 * The contract is for mark to throw no checked exception.
-					 * An exception caught here would mean the state's no longer
-					 * live, which will be signaled to the caller if another,
-					 * throwing, method is then called. If not, no harm no foul.
-					 */
-				}
-			}
-		}
-
-		@Override
-		public void reset() throws IOException
-		{
-			synchronized ( m_state )
-			{
-				if ( ! m_open )
-					return;
-				try
-				{
-					buf().reset();
-				}
-				catch ( InvalidMarkException e )
-				{
-					throw new IOException("reset attempted when mark not set");
-				}
-			}
-		}
-
-		/**
-		 * Return {@code true}; this class does support {@code mark} and
-		 * {@code reset}.
-		 */
-		@Override
-		public boolean markSupported()
-		{
-			return true;
 		}
 
 		@Override
@@ -230,7 +122,7 @@ public interface VarlenaWrapper extends Closeable
 					throw new SQLException(
 						"Cannot adopt VarlenaWrapper.Input after it is closed",
 						"55000");
-				return m_state.adopt(cookie);
+				return ((State)m_state).adopt(cookie);
 			}
 		}
 
@@ -243,7 +135,7 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public String toString(Object o)
 		{
-			return String.format("%s %s", m_state.toString(o),
+			return String.format("%s %s", ((State)m_state).toString(o),
 				m_open ? "open" : "closed");
 		}
 

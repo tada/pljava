@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.MarkableSequenceInputStream;
 
 import java.sql.SQLNonTransientException;
 

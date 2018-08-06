@@ -1,4 +1,4 @@
-package org.postgresql.pljava.jdbc;
+package org.postgresql.pljava.internal;
 
 import java.io.InputStream;
 import java.io.SequenceInputStream;
