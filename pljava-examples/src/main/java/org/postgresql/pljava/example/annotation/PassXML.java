@@ -60,6 +60,7 @@ import javax.xml.transform.stax.StAXSource;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
@@ -74,12 +75,47 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * Everything mentioning the type XML here needs a conditional implementor tag
  * in case of being loaded into a PostgreSQL instance built without that type.
  */
-@SQLAction(provides="postgresql_xml", install=
-	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-	" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
+@SQLActions({
+	@SQLAction(provides="postgresql_xml", install=
+		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+		" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(implementor="postgresql_ge_80400", provides="postgresql_xml_cte",
+		install=
+		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+		" THEN set_config('pljava.implementors', 'postgresql_xml_cte,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(implementor="postgresql_xml_cte", requires="echoXMLParameter",
+		install=
+		"WITH" +
+		" s(how) AS (SELECT generate_series(1, 7))," +
+		" t(x) AS (" +
+		"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
+		" )," +
+		" r(howin, howout, isdoc) AS (" +
+		"  SELECT" +
+		"   i.how, o.how," +
+		"   javatest.echoxmlparameter(x, i.how, o.how) IS DOCUMENT" +
+		"  FROM" +
+		"   t, s AS i, s AS o" +
+		"  WHERE" +
+		"   NOT (i.how = 6 and o.how = 7)" + // 6->7 unreliable in some JREs
+		" ) " +
+		"SELECT" +
+		" CASE WHEN every(isdoc)" +
+		"  THEN javatest.logmessage('INFO', 'SQLXML echos succeeded')" +
+		"  ELSE javatest.logmessage('WARNING', 'SQLXML echos had problems')" +
+		" END " +
+		"FROM" +
+		" r"
+	)
+})
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
 		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")
@@ -100,7 +136,8 @@ public class PassXML implements SQLData
 	 * be read in a subsequent call with sx =&gt; null, but only in the same
 	 * transaction.
 	 */
-	@Function(schema="javatest", implementor="postgresql_xml")
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="echoXMLParameter")
 	public static SQLXML echoXMLParameter(SQLXML sx, int howin, int howout)
 	throws SQLException
 	{
@@ -302,6 +339,16 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
+	 */
+	@Function(schema="javatest", name="lowLevelXMLEcho", type="text")
+	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how)
+	throws SQLException
+	{
+		return lowLevelXMLEcho(sx, how);
+	}
+
+	/**
 	 * Create some XML, pass it to a {@code SELECT ?} prepared statement,
 	 * retrieve it from the result set, and return it via the out-parameter
 	 * result set of this {@code RECORD}-returning function.
@@ -323,6 +370,25 @@ public class PassXML implements SQLData
 		ps.close();
 		out.updateObject(1, x);
 		return true;
+	}
+
+	/**
+	 * Create and leave some number of SQLXML objects unclosed, unused, and
+	 * unreferenced, as a test of reclamation.
+	 * @param howmany Number of SQLXML instances to create.
+	 * @param how If nonzero, the flavor of writing to request on the object
+	 * before abandoning it; if zero, it is left in its initial, writable state.
+	 */
+	@Function(schema="javatest")
+	public static void unclosedSQLXML(int howmany, int how) throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		while ( howmany --> 0 )
+		{
+			SQLXML sx = c.createSQLXML();
+			if ( 0 < how )
+				sxToResult(sx, how);
+		}
 	}
 
 	private static Source sxToSource(SQLXML sx, int how) throws SQLException
