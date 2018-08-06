@@ -20,6 +20,20 @@ import java.nio.ByteBuffer;
 
 import java.sql.SQLException;
 
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Interface that wraps a PostgreSQL native variable-length ("varlena") datum;
  * implementing classes present an existing one to Java as a readable
@@ -227,6 +241,28 @@ public interface VarlenaWrapper extends Closeable
 		}
 
 		/**
+		 * Set the {@link Verifier Verifier} to be used on content written to
+		 * this varlena.
+		 *<p>
+		 * A verifier must be set, either to {@link Verifier.NoOp NoOp} or a
+		 * datatype-specific subclass of {@link Verifier.Base Base}, before
+		 * writing can succeed.
+		 *<p>
+		 * On construction, no verifier is set, so the datatype-specific code
+		 * can determine whether the {@code NoOp} or a specific verifier will be
+		 * needed. This method can only be called once, so that this class could
+		 * then be exposed to client code as an {@code OutputStream} without
+		 * allowing the verifier to be changed.
+		 */
+		public void setVerifier(Verifier v) throws IOException
+		{
+			if ( ! m_open )
+				throw new IOException(
+					"I/O operation on closed VarlenaWrapper.Output");
+			m_state.setVerifier(v);
+		}
+
+		/**
 		 * Return a ByteBuffer to write into.
 		 *<p>
 		 * It will be the existing buffer if it has any remaining capacity to
@@ -242,10 +278,7 @@ public interface VarlenaWrapper extends Closeable
 				throw new IOException("Write on closed VarlenaWrapper.Output");
 			try
 			{
-				ByteBuffer buf = m_state.buffer();
-				if ( 0 < buf.remaining()  &&  0 < desiredCapacity )
-					return buf;
-				return m_state.nextBuffer(desiredCapacity);
+				return m_state.buffer(desiredCapacity);
 			}
 			catch ( SQLException sqe )
 			{
@@ -291,6 +324,10 @@ public interface VarlenaWrapper extends Closeable
 				buf(0);
 				m_open = false;
 			}
+			/*
+			 * Outside of synchronized block to avoid deadlock with verifier.
+			 */
+			m_state.verify();
 		}
 
 		/**
@@ -340,6 +377,7 @@ public interface VarlenaWrapper extends Closeable
 		{
 			private ByteBuffer m_buf;
 			private long m_varlena;
+			private Verifier m_verifier;
 
 			private State(
 				DualState.Key cookie, Output vr,
@@ -351,25 +389,20 @@ public interface VarlenaWrapper extends Closeable
 				m_buf = buf;
 			}
 
-			private ByteBuffer buffer() throws SQLException
-			{
-				assertNativeStateIsValid();
-				return m_buf;
-			}
-
-			private ByteBuffer nextBuffer(int desiredCapacity)
-			throws SQLException
+			private ByteBuffer buffer(int desiredCapacity) throws SQLException
 			{
 				assertNativeStateIsValid();
 				if ( 0 < m_buf.remaining()  &&  0 < desiredCapacity )
-					throw new SQLException(
-						"VarlenaWrapper.Output buffer management error",
-						"XX000");
+					return m_buf;
+				ByteBuffer filledBuf = m_buf;
 				synchronized ( Backend.THREADLOCK )
 				{
 					m_buf =	_nextBuffer(m_varlena, m_buf.position(),
 								desiredCapacity);
 				}
+				m_verifier.update(this, filledBuf);
+				if ( 0 == desiredCapacity )
+					m_verifier.update(MarkableSequenceInputStream.NO_MORE);
 				return m_buf;
 			}
 
@@ -380,6 +413,45 @@ public interface VarlenaWrapper extends Closeable
 				long varlena = m_varlena;
 				nativeStateReleased();
 				return varlena;
+			}
+
+			private void setVerifier(Verifier v)
+			{
+				if ( null != m_verifier )
+					throw new IllegalStateException(
+						"setVerifier when already set");
+				if ( null == v )
+					throw new NullPointerException("Null Verifier parameter");
+				m_verifier = v.schedule();
+			}
+
+			private void cancelVerifier()
+			{
+				try
+				{
+					m_verifier.cancel();
+				}
+				catch ( Exception e )
+				{
+				}
+			}
+
+			/*
+			 * Caller must NOT be in synchronized block, to make sure verifier
+			 * thread can complete.
+			 */
+			private void verify() throws IOException // because called in close
+			{
+				try
+				{
+					m_verifier.finish();
+				}
+				catch ( SQLException e )
+				{
+					throw new IOException(
+						"Variable-length PostgreSQL data written failed " +
+						"verification", e);
+				}
 			}
 
 			@Override
@@ -394,6 +466,7 @@ public interface VarlenaWrapper extends Closeable
 			protected void nativeStateReleased()
 			{
 				m_buf = null;
+				cancelVerifier();
 				super.nativeStateReleased();
 			}
 
@@ -401,11 +474,413 @@ public interface VarlenaWrapper extends Closeable
 			protected void javaStateReleased()
 			{
 				m_buf = null;
+				cancelVerifier();
 				super.javaStateReleased();
 			}
 
 			private native ByteBuffer _nextBuffer(
 				long varlenaPtr, int currentBufPosition, int desiredCapacity);
+		}
+	}
+
+	/**
+	 * A {@code Verifier} verifies the proper form of content written to a
+	 * {@code VarlenaWrapper.Output}.
+	 *<p>
+	 * This is necessary only when the correctness of the written stream may be
+	 * doubtful, as when an API spec requires exposing a method for client code
+	 * to write arbitrary bytes. If a type implementation exposes only
+	 * type-appropriate operations to client code, and always controls the byte
+	 * stream written to the varlena, the {@code NoOp} verifier can be used.
+	 *<p>
+	 * {@code Verifier} itself cannot be instantiated or extended, except by its
+	 * two immediate subclasses, {@link NoOp NoOp} and {@link Base Base}.
+	 * Type-specific verifiers must extend {@code Base}. Exactly one instance of
+	 * {@code NoOp}, {@link NoOp#INSTANCE NoOp.INSTANCE}, exists.
+	 *<p>
+	 * A type-specific verifier must supply a {@link #verify} method that reads
+	 * its input stream argument (which may be assumed to support
+	 * {@link InputStream#mark mark} and {@link InputStream#reset reset}
+	 * efficiently), and complete normally if the full stream is a complete and
+	 * well-formed representation of the type. Otherwise, it must throw an
+	 * exception.
+	 *<p>
+	 * In use, a verifier is instantiated and {@link #schedule schedule()}d,
+	 * which sets the {@code verify} method running in a separate thread.
+	 * <em>The {@code verify} method must not interact with PostgreSQL.</em>
+	 * The varlena wrapper code then passes buffers to it via {@link #update
+	 * update()} as they are filled. A final call to {@link #finish}, in the
+	 * thread interacting with PostgreSQL, waits for the verify task to
+	 * complete and then rethrows the exception, if it threw one. It is possible
+	 * to {@link #cancel} a {@code Verifier}.
+	 *<p>
+	 * As an optimization, all those methods are no-ops in the {@code NoOp}
+	 * class; no other thread is used, and no work is done. The {@code Base}
+	 * class, unextended, also serves as a verifier that accepts anything, but
+	 * goes through all the motions to do it.
+	 */
+	public static abstract class Verifier implements Callable<Void>
+	{
+		private final BlockingQueue<InputStream> m_queue;
+		private final AtomicReference<CountDownLatch> m_latch;
+		private volatile Future<Void> m_future;
+
+		/*
+		 * The design of Java's FutureTask strikes me as bizarre. One might
+		 * think that the most natural way to use it for a task that does a
+		 * certain thing and returns a result would be to extend it, override
+		 * a particular method to do that thing, and submit it, ending up with
+		 * one object that serves both as the task to be run and the Future.
+		 * And that seems to be the exact design approach that its API
+		 * /precludes/, because its only available constructors require passing
+		 * a Runnable or Callable /that is some other object/.
+		 *
+		 * Can the constructor create a Callable that simply calls back to the
+		 * verify method of this object, and pass that callable to the
+		 * FutureTask constructor? No, because referring to 'this' before the
+		 * supertype constructor has been called is a compile-time error.
+		 *
+		 * I really want one Verifier object that has all of: the verify()
+		 * method being run in the executor, the update() method used to feed it
+		 * stuff, and the Future-inspired methods for dealing with its status
+		 * and result. And the only way I am seeing to get there is to have it
+		 * submit() itself (in the schedule method) and then hold a reference to
+		 * the Future created for it in that operation. Then it can have some
+		 * Future-inspired methods that are more or less proxies to the methods
+		 * on the Future itself, but then those have to deal with the chance
+		 * that the Future reference hasn't been stored yet, so another whole
+		 * synchronization puzzle crops up around the convenient synchronization
+		 * tool. :(
+		 *
+		 * So, this method returns the Future, if we have it yet, or throws an
+		 * IllegalStateException if we shouldn't have it yet because schedule()
+		 * hasn't been called (or hasn't installed the latch yet; it's races all
+		 * the way down), or waits for the latch and /then/ returns the Future.
+		 */
+		private Future<Void> future() throws SQLException
+		{
+			Future<Void> f = m_future;
+			if ( null != f )
+				return f;
+			CountDownLatch cll = m_latch.get();
+			if ( null == cll )
+				throw new IllegalStateException("Verifier not yet scheduled");
+			try
+			{
+				cll.await();
+			}
+			catch ( InterruptedException e )
+			{
+				throw new SQLException("Waiting thread interrupted", e);
+			}
+			return m_future;
+		}
+
+		/*
+		 * Private constructor. The nested class NoOp can call it passing nulls.
+		 */
+		private Verifier(
+			BlockingQueue<InputStream> queue,
+			AtomicReference<CountDownLatch> latch)
+		{
+			m_queue = queue;
+			m_latch = latch;
+		}
+
+		/*
+		 * The nested class Base can call this one. Otherwise it's private,
+		 * so no other direct subclasses are possible.
+		 */
+		private Verifier()
+		{
+			this(new LinkedBlockingQueue<InputStream>(),
+				 new AtomicReference<CountDownLatch>());
+		}
+
+		protected void verify(InputStream is) throws Exception
+		{
+			do
+			{
+				is.skip(Long.MAX_VALUE);
+			}
+			while ( -1 != is.read() );
+		}
+
+		@Override
+		public final Void call() throws Exception
+		{
+			InputStream is = null;
+			try
+			{
+				is = new MarkableSequenceInputStream(m_queue);
+				verify(is);
+			}
+			finally
+			{
+				if ( null != is )
+					is.close();
+			}
+			return null;
+		}
+
+		/**
+		 * A Verifier that accepts any content, cheaply.
+		 */
+		public static final class NoOp extends Verifier
+		{
+			private NoOp() { super(null, null); }
+
+			public static final Verifier INSTANCE = new NoOp();
+
+			public Verifier schedule()
+			{
+				return this;
+			}
+
+			public void update(InputStream is) throws SQLException
+			{
+			}
+
+			public void update(Output.State state, ByteBuffer bb)
+			throws SQLException
+			{
+			}
+
+			public void finish() throws SQLException
+			{
+			}
+
+			public void cancel() throws SQLException
+			{
+			}
+		}
+
+		/**
+		 * Verifier to be extended to verify byte streams for specific types.
+		 *<p>
+		 * A subclass should override {@link verify} with a method that reads
+		 * the InputStream and throws an exception unless the entire stream was
+		 * successfully read and represented a well-formed instance of the type.
+		 */
+		public static class Base extends Verifier
+		{
+			protected Base() { }
+
+			@Override
+			public final Verifier schedule()
+			{
+				return super.schedule();
+			}
+
+			@Override
+			public final void update(InputStream is) throws SQLException
+			{
+				super.update(is);
+			}
+
+			public final void update(Output.State state, ByteBuffer bb)
+			throws SQLException
+			{
+				super.update(state, bb);
+			}
+
+			@Override
+			public final void finish() throws SQLException
+			{
+				super.finish();
+			}
+
+			@Override
+			public final void cancel() throws SQLException
+			{
+				super.cancel();
+			}
+		}
+
+		/**
+		 * Set up the {@link #verify verify} method to be executed
+		 * in another thread.
+		 * @return This {@code Verifier} object.
+		 */
+		public Verifier schedule()
+		{
+			CountDownLatch cll = new CountDownLatch(1);
+			if ( m_latch.compareAndSet(null, cll) )
+			{
+				m_future = LazyExecutorService.INSTANCE.submit(this);
+				cll.countDown();
+			}
+			return this;
+		}
+
+		/**
+		 * Send the next {@code InputStream} of content to be verified.
+		 *<p>
+		 * It is assumed, but <em>not checked here</em>, that any
+		 * {@code InputStream} supplied to this method supports
+		 * {@link InputStream#mark mark} and {@link InputStream#reset reset}
+		 * efficiently.
+		 *<p>
+		 * If the verifier has already thrown an exception, it will be rethrown
+		 * here in the current thread.
+		 * @param is InputStream representing the next range of bytes to be
+		 * verified.
+		 * @throws SQLException if a verification error has already been
+		 * detected, the verifier has been cancelled, etc.
+		 */
+		public void update(InputStream is) throws SQLException
+		{
+			Future<Void> f = future();
+			if ( f.isDone() )
+			{
+				finish();
+				throw new SQLException("Verifier finished prematurely");
+			}
+			try
+			{
+				m_queue.put(is);
+			}
+			catch ( InterruptedException e )
+			{
+				f.cancel(true);
+				throw (CancellationException)
+					new CancellationException("Waiting thread interrupted")
+						.initCause(e);
+			}
+		}
+
+		/**
+		 * Convenience method that calls {@link ByteBuffer#flip flip()} on a
+		 * byte buffer, wraps it in a {@link BufferWrapper BufferWrapper}, and
+		 * passes it to {@link update(InputStream)}.
+		 *<p>
+		 * Note that the {@link NoOp NoOp} version of this method does none of
+		 * that; in particular, the byte buffer will not have been flipped. This
+		 * should not be a problem, as the thread passing the buffer to this
+		 * method had better make no further use of it anyway.
+		 * @param state The state object protecting the native memory.
+		 * @param bb Byte buffer containing next range of content to verify.
+		 * @throws SQLException if a verification error has already been
+		 * detected, the verifier has been cancelled, etc.
+		 */
+		public void update(Output.State state, ByteBuffer bb)
+		throws SQLException
+		{
+			bb.flip();
+			update(new BufferWrapper(state, bb));
+		}
+
+		/**
+		 * Cancel this verifier.
+		 */
+		public void cancel() throws SQLException
+		{
+			Future<Void> f = future();
+			f.cancel(true);
+		}
+
+		/**
+		 * Wait for the verify task and rethrow any exception it might
+		 * have thrown.
+		 * @throws SQLException any exception thrown by the verify method, or
+		 * for unexpected conditions such as interruption while waiting.
+		 */
+		public void finish() throws SQLException
+		{
+			Future<Void> f = future();
+
+			try
+			{
+				f.get();
+			}
+			catch ( InterruptedException inte )
+			{
+				f.cancel(true);
+				throw (CancellationException)
+					new CancellationException("Waiting thread interrupted")
+						.initCause(inte);
+			}
+			catch ( ExecutionException exce )
+			{
+				Throwable t = exce.getCause();
+				if ( t instanceof SQLException )
+					throw (SQLException) t;
+				if ( t instanceof RuntimeException )
+					throw (RuntimeException) t;
+				throw new SQLException(
+					"Exception verifying variable-length data, not " +
+					"otherwise provided for", "XX000");
+			}
+
+			if ( ! m_queue.isEmpty() )
+				throw new SQLException("Verifier finished prematurely");
+		}
+
+		/**
+		 * Lazy holder for a singleton instance of a thread-pool
+		 * {@link ExecutorService}.
+		 *<p>
+		 * If it ever happens later that other PL/Java components could have use
+		 * for a thread pool, this could certainly be moved out of
+		 * {@code VarlenaWrapper} to a more common place.
+		 */
+		static class LazyExecutorService
+		{
+			static final ExecutorService INSTANCE;
+
+			static
+			{
+				final ThreadFactory dflttf = Executors.defaultThreadFactory();
+				ThreadFactory daemtf = new ThreadFactory()
+				{
+					@Override
+					public Thread newThread(Runnable r)
+					{
+						Thread t = dflttf.newThread(r);
+						if ( null != t )
+						{
+							t.setDaemon(true);
+							t.setName(
+								"varlenaVerify-" + t.getName().substring(5));
+						}
+						return t;
+					}
+				};
+				INSTANCE = Executors.newCachedThreadPool(daemtf);
+			}
+		}
+
+		/**
+		 * {@link ByteBufferInputStream ByteBufferInputStream} subclass that
+		 * wraps a {@code ByteBuffer} and the {@link Output.State Output.State}
+		 * that protects it.
+		 */
+		static class BufferWrapper extends ByteBufferInputStream
+		{
+			private ByteBuffer m_buf;
+
+			BufferWrapper(Output.State state, ByteBuffer buf)
+			{
+				m_state = state;
+				m_buf = buf;
+			}
+
+			@Override
+			protected ByteBuffer buffer() throws IOException
+			{
+				if ( ! m_open )
+					throw new IOException(
+						"I/O operation on closed VarlenaWrapper.Verifier");
+				try
+				{
+					((Output.State)m_state).assertNativeStateIsValid();
+				}
+				catch ( SQLException e )
+				{
+					throw new IOException(e.getMessage(), e);
+				}
+				return m_buf;
+			}
 		}
 	}
 }
