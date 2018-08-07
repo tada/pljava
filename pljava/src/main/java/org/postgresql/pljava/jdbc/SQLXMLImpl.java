@@ -250,6 +250,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			"XX000", e);
 	}
 
+	/**
+	 * Create a new, initially empty and writable, SQLXML instance, whose
+	 * backing memory will in a transaction-scoped PostgreSQL memory context.
+	 */
 	static SQLXML newWritable()
 	{
 		synchronized ( Backend.THREADLOCK )
@@ -258,7 +262,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
-	protected abstract VarlenaWrapper adopt() throws SQLException;
+	/**
+	 * Native code calls this method to claim complete control over the
+	 * underlying {@code VarlenaWrapper} and dissociate it from Java.
+	 * @param oid The PostgreSQL type ID the native code is expecting;
+	 * see Readable.adopt for why that can matter.
+	 * @return The underlying {@code VarlenaWrapper} (which has its own
+	 * {@code adopt} method the native code will call next.
+	 * @throws SQLException if this {@code SQLXML} instance is not in the
+	 * proper state to be adoptable.
+	 */
+	protected abstract VarlenaWrapper adopt(int oid) throws SQLException;
 
 	/**
 	 * Return a description of this object useful for debugging (not the raw
@@ -499,10 +513,22 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private AtomicBoolean m_readable = new AtomicBoolean(true);
 		private Charset m_serverCS = implServerCharset();
 		private boolean m_wrapped = false;
+		private final int m_pgTypeID;
 
-		private Readable(VarlenaWrapper.Input vwi) throws SQLException
+		/**
+		 * Create a readable instance, when called by native code (the
+		 * constructor is otherwise private, after all), passing an initialized
+		 * {@code VarlenaWrapper} and the PostgreSQL type ID from which it has
+		 * been created.
+		 * @param vwi The already-created wrapper for reading the varlena from
+		 * native memory.
+		 * @param oid The PostgreSQL type ID from which this instance is being
+		 * created (for why it matters, see {@code adopt}).
+		 */
+		private Readable(VarlenaWrapper.Input vwi, int oid) throws SQLException
 		{
 			super(vwi);
+			m_pgTypeID = oid;
 			if ( null == m_serverCS )
 			{
 				try
@@ -647,15 +673,43 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				sourceClass.getName() + ".class)", "0A000");
 		}
 
+		/**
+		 * {@inheritDoc}
+		 *<p>
+		 * This is the <em>readable</em> subclass, most typically used for data
+		 * coming from PostgreSQL to Java. The only circumstance in which it can
+		 * be {@code adopt}ed is if the Java code has left it untouched, and
+		 * simply returned it from a function, or used it directly as a query
+		 * parameter.
+		 *<p>
+		 * That is a very efficient handoff with no superfluous copying of data.
+		 * However, the backend is able to associate {@code SQLXML} instances
+		 * with more than one PostgreSQL data type (as of this writing, it will
+		 * allow XML or text, so that this API is usable in Java even if the
+		 * PostgreSQL instance was not built with the XML type, or if, for some
+		 * other reason, it is useful to apply Java XML processing to values in
+		 * the database as text, without the overhead of a PG cast).
+		 *<p>
+		 * It would break type safety to allow a {@code SQLXML} instance created
+		 * from text (on which PostgreSQL does not impose any particular syntax)
+		 * to be directly assigned to a PostgreSQL XML type without verifying
+		 * that it is XML. For generality, the verification will be done here
+		 * whenever the PostgreSQL oid at {@code adopt} time differs from the
+		 * one saved at creation. Doing the verification is noticeably slower
+		 * than not doing it, but that fast case has to be reserved for when
+		 * there is no funny business with the PostgreSQL types.
+		 */
 		@Override
-		protected VarlenaWrapper adopt() throws SQLException
+		protected VarlenaWrapper adopt(int oid) throws SQLException
 		{
-			VarlenaWrapper vw = m_backing.getAndSet(null);
+			VarlenaWrapper.Input vw = m_backing.getAndSet(null);
 			if ( ! m_readable.get() )
 				throw new SQLNonTransientException(
 					"SQLXML object has already been read from", "55000");
 			if ( null == vw )
 				backingIfNotFreed(); /* shorthand way to throw the exception */
+			if ( m_pgTypeID != oid )
+				vw.verify(new Verifier());
 			return vw;
 		}
 
@@ -946,7 +1000,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		protected VarlenaWrapper adopt() throws SQLException
+		protected VarlenaWrapper adopt(int oid) throws SQLException
 		{
 			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
 			if ( m_writable.get() )
@@ -968,24 +1022,24 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return String.format("%s %swritable", super.toString(o),
 				m_writable.get() ? "" : "not ");
 		}
+	}
 
-		static class Verifier extends VarlenaWrapper.Verifier.Base
+	static class Verifier extends VarlenaWrapper.Verifier.Base
+	{
+		@Override
+		protected void verify(InputStream is) throws Exception
 		{
-			@Override
-			protected void verify(InputStream is) throws Exception
-			{
-				boolean[] wrapped = { false };
-				XMLReader xr = XMLReaderFactory.createXMLReader();
-				xr.setFeature("http://xml.org/sax/features/namespaces", true);
-				is = correctedDeclStream(
-					is, false, implServerCharset(), wrapped);
-				/*
-				 * What does an XMLReader do if no handlers have been set for
-				 * content events? Parses everything and discards the events.
-				 * Just what you'd want for a verifier.
-				 */
-				xr.parse(new InputSource(is));
-			}
+			boolean[] wrapped = { false };
+			XMLReader xr = XMLReaderFactory.createXMLReader();
+			xr.setFeature("http://xml.org/sax/features/namespaces", true);
+			is = correctedDeclStream(
+				is, false, implServerCharset(), wrapped);
+			/*
+			 * What does an XMLReader do if no handlers have been set for
+			 * content events? Parses everything and discards the events.
+			 * Just what you'd want for a verifier.
+			 */
+			xr.parse(new InputSource(is));
 		}
 	}
 

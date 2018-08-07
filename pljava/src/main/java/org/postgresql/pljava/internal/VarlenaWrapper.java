@@ -12,9 +12,11 @@
 package org.postgresql.pljava.internal;
 
 import java.io.Closeable;
-import java.io.IOException;
+import java.io.FilterInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+
+import java.io.IOException;
 
 import java.nio.ByteBuffer;
 
@@ -100,6 +102,54 @@ public interface VarlenaWrapper extends Closeable
 			m_state = new State(
 				cookie, this, resourceOwner,
 				context, varlenaPtr, buf.asReadOnlyBuffer());
+		}
+
+		/**
+		 * Apply a {@code Verifier} to the input data.
+		 *<p>
+		 * This should only be necessary if the input wrapper is being used
+		 * directly as an output item, and needs verification that it conforms
+		 * to the format of the target type.
+		 *<p>
+		 * The current position must be at the beginning of the stream. The
+		 * verifier must leave it at the end to confirm the entire stream was
+		 * examined. There should be no need to reset the position here, as the
+		 * only anticipated use is during an {@code adopt}, and the native code
+		 * will only care about the varlena's address.
+		 */
+		public void verify(Verifier v) throws SQLException
+		{
+			try
+			{
+				ByteBuffer buf = buffer();
+				if ( 0 != buf.position() )
+					throw new SQLException(
+						"Variable-length input data to be verified " +
+						" not positioned at start",
+						"55000");
+				InputStream dontCloseMe = new FilterInputStream(this)
+				{
+					@Override
+					public void close() throws IOException { }
+				};
+				v.verify(dontCloseMe);
+				if ( 0 != buf.remaining() )
+					throw new SQLException("Verifier finished prematurely");
+			}
+			catch ( SQLException sqe )
+			{
+				throw sqe;
+			}
+			catch ( RuntimeException rte )
+			{
+				throw rte;
+			}
+			catch ( Exception e )
+			{
+				throw new SQLException(
+					"Error verifying variable-length input data, " +
+					"not otherwise provided for", "XX000", e);
+			}
 		}
 
 		@Override
@@ -809,7 +859,7 @@ public interface VarlenaWrapper extends Closeable
 					throw (RuntimeException) t;
 				throw new SQLException(
 					"Exception verifying variable-length data, not " +
-					"otherwise provided for", "XX000");
+					"otherwise provided for", "XX000", exce);
 			}
 
 			if ( ! m_queue.isEmpty() )

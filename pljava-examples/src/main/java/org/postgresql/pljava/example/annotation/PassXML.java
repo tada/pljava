@@ -188,6 +188,36 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Just like {@link bounceXMLParameter} but with parameter and return typed
+	 * as {@code text}, and so usable on a PostgreSQL instance lacking the XML
+	 * type.
+	 */
+	@Function(schema="javatest", type="text", name="bounceXMLParameter")
+	public static SQLXML bounceXMLParameter_(@SQLType("text") SQLXML sx)
+	throws SQLException
+	{
+		return sx;
+	}
+
+	/**
+	 * Just like {@link bounceXMLParameter} but with the parameter typed as
+	 * {@code text} and the return type left as XML, so functions as a cast.
+	 *<p>
+	 * Slower than the other cases, because it must verify that the input really
+	 * is XML before blindly calling it a PostgreSQL XML type. But the speed
+	 * compares respectably to PostgreSQL's own CAST(text AS xml), at least for
+	 * larger values; I am seeing Java pull ahead right around 32kB of XML data
+	 * and beat PG by a factor of 2 or better at sizes of 1 or 2 MB.
+	 * Unsurprisingly, PG has the clear advantage when values are very short.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML castTextXML(@SQLType("text") SQLXML sx)
+	throws SQLException
+	{
+		return sx;
+	}
+
+	/**
 	 * Precompile an XSL transform {@code source} and save it (for the
 	 * current session) as {@code name}.
 	 *<p>

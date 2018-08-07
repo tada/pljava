@@ -32,6 +32,14 @@ static jobject   s_OidOid;
 jobject Oid_create(Oid oid)
 {
 	jobject joid;
+	/*
+	 * This is a natural place to have a StaticAssertStmt making sure the
+	 * ubiquitous PG type 'Oid' fits in a jint. If it is ever removed from here
+	 * or this code goes away, it should go someplace else. If it ever produces
+	 * an error, don't assume the only things that need fixing will be in this
+	 * file or nearby....
+	 */
+	StaticAssertStmt(sizeof(Oid) <= sizeof(jint), "Oid wider than jint?!");
 	if(OidIsValid(oid))
 		joid = JNI_newObject(s_Oid_class, s_Oid_init, oid);
 	else
