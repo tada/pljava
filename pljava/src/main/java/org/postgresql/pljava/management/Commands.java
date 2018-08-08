@@ -51,7 +51,6 @@ import org.postgresql.pljava.sqlj.Loader;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
@@ -645,8 +644,7 @@ public class Commands
 	 * @see #setClassPath
 	 */
 	@Function(schema="sqlj", name="install_jar", security=DEFINER)
-	public static void installJar(
-		@SQLType("bytea") byte[] image, String jarName, boolean deploy)
+	public static void installJar(byte[] image, String jarName, boolean deploy)
 	throws SQLException
 	{
 		installJar("streamed byte image", jarName, deploy, image);
@@ -735,8 +733,7 @@ public class Commands
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
 	@Function(schema="sqlj", name="replace_jar", security=DEFINER)
-	public static void replaceJar(
-		@SQLType("bytea") byte[] jarImage, String jarName,
+	public static void replaceJar(byte[] jarImage, String jarName,
 		boolean redeploy) throws SQLException
 	{
 		replaceJar("streamed byte image", jarName, redeploy, jarImage);
