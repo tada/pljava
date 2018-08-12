@@ -14,8 +14,13 @@
 #include <postgres.h>
 #include <access/tuptoaster.h>
 #include <utils/datum.h>
+
+#if PG_VERSION_NUM >= 80400
 #include <utils/snapshot.h>
 #include <utils/snapmgr.h>
+#else
+#define RegisterSnapshotOnOwner(s,o) NULL
+#endif
 
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Input_State.h"
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Output_State.h"
@@ -25,9 +30,40 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 
+#if PG_VERSION_NUM < 90600
+#define GetOldestSnapshot() NULL
+#endif
+
+#if PG_VERSION_NUM < 90400
+/*
+ * There aren't 'indirect' varlenas yet, IS_EXTERNAL_ONDISK is just IS_EXTERNAL,
+ * and VARATT_EXTERNAL_GET_POINTER is private inside tuptoaster.c; copy it here.
+ */
+#define VARATT_IS_EXTERNAL_ONDISK VARATT_IS_EXTERNAL
+#define VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr) \
+do { \
+	varattrib_1b_e *attre = (varattrib_1b_e *) (attr); \
+	memcpy(&(toast_pointer), VARDATA_EXTERNAL(attre), sizeof(toast_pointer)); \
+} while (0)
+#endif
+
 #if PG_VERSION_NUM < 80300
+#define VARSIZE_ANY(PTR) VARSIZE(PTR)
 #define VARSIZE_ANY_EXHDR(PTR) (VARSIZE(PTR) - VARHDRSZ)
 #define SET_VARSIZE(PTR, len) VARATT_SIZEP(PTR) = len & VARATT_MASK_SIZE
+struct varatt_external
+{
+	int32 va_extsize; /* the only piece used here */
+};
+#undef VARATT_EXTERNAL_GET_POINTER
+#define VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr) \
+do { \
+	(toast_pointer).va_extsize = \
+		((varattrib *)(attr))->va_content.va_external.va_extsize; \
+} while (0)
+#define _VL_TYPE varattrib *
+#else
+#define _VL_TYPE struct varlena *
 #endif
 
 #define INITIALSIZE 1024
@@ -83,6 +119,7 @@ struct ExpandedObjectHeader
 
 #define EOHPGetRWDatum(eohptr) (eohptr)
 #define DatumGetEOHP(d) (d)
+#define VARATT_IS_EXTERNAL_EXPANDED(attr) false
 #endif
 
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr);
@@ -130,7 +167,7 @@ jobject pljava_VarlenaWrapper_Input(
 	jobject dbb;
 	MemoryContext mc;
 	MemoryContext prevcxt;
-	struct varlena *vl;
+	_VL_TYPE vl;
 	Ptr2Long p2lro;
 	Ptr2Long p2lcxt;
 	Ptr2Long p2lpin;
@@ -139,14 +176,17 @@ jobject pljava_VarlenaWrapper_Input(
 	Size actual;
 	Snapshot pin = NULL;
 
-	vl = (struct varlena *) DatumGetPointer(d);
+	vl = (_VL_TYPE) DatumGetPointer(d);
+
+#if PG_VERSION_NUM >= 90400
 	if ( VARATT_IS_EXTERNAL_INDIRECT(vl) ) /* at most once; can't be nested */
 	{
 		struct varatt_indirect redirect;
 		VARATT_EXTERNAL_GET_POINTER(redirect, vl);
-		vl = (struct varlena *)redirect.pointer;
+		vl = (_VL_TYPE)redirect.pointer;
 		d = PointerGetDatum(vl);
 	}
+#endif
 
 	parked = VARSIZE_ANY(vl);
 	actual = toast_raw_datum_size(d) - VARHDRSZ;
@@ -164,17 +204,32 @@ jobject pljava_VarlenaWrapper_Input(
 	{
 		pin = GetOldestSnapshot();
 		if ( NULL == pin )
-			goto justDetoastEagerly;
+		{
+			/*
+			 * Unable to register a snapshot and just park the tiny pointer.
+			 * If it points to compressed data, can still park that rather than
+			 * fully detoasting.
+			 */
+			struct varatt_external toast_pointer;
+			VARATT_EXTERNAL_GET_POINTER(toast_pointer, vl);
+			parked = toast_pointer.va_extsize + VARHDRSZ;
+			if ( (actual >> 1) < parked ) /* not compressed enough to bother */
+				goto justDetoastEagerly;
+			vl = heap_tuple_fetch_attr(vl); /* fetch without decompressing */
+			d = PointerGetDatum(vl);
+			dbb = NULL;
+			goto constructResult;
+		}
 		pin = RegisterSnapshotOnOwner(pin, ro);
 	}
 
 /* parkAndDetoastLazily: */
-	vl = (struct varlena *) DatumGetPointer(datumCopy(d, false, -1));
+	vl = (_VL_TYPE) DatumGetPointer(datumCopy(d, false, -1));
 	dbb = NULL;
 	goto constructResult;
 
 justDetoastEagerly:
-	vl = PG_DETOAST_DATUM_COPY(d);
+	vl = (_VL_TYPE) PG_DETOAST_DATUM_COPY(d);
 	parked = actual + VARHDRSZ;
 	dbb = JNI_newDirectByteBuffer(VARDATA(vl), actual);
 
@@ -429,6 +484,7 @@ JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unregisterSnapshot
   (JNIEnv *env, jobject _this, jlong snapshot, jlong ro)
 {
+#if PG_VERSION_NUM >= 80400
 	BEGIN_NATIVE_NO_ERRCHECK
 	Ptr2Long p2lsnap;
 	Ptr2Long p2lro;
@@ -436,6 +492,7 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unreg
 	p2lro.longVal = ro;
 	UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
 	END_NATIVE
+#endif
 }
 
 /*
@@ -449,10 +506,12 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 {
 	Ptr2Long p2lvl;
 	Ptr2Long p2lcxt;
+#if PG_VERSION_NUM >= 80400
 	Ptr2Long p2lsnap;
 	Ptr2Long p2lro;
+#endif
 	Ptr2Long p2ldetoasted;
-	struct varlena *detoasted;
+	_VL_TYPE detoasted;
 	MemoryContext prevcxt;
 	jobject dbb;
 
@@ -460,12 +519,14 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 
 	p2lvl.longVal = vl;
 	p2lcxt.longVal = cxt;
+#if PG_VERSION_NUM >= 80400
 	p2lsnap.longVal = snap;
 	p2lro.longVal = resOwner;
+#endif
 
 	prevcxt = MemoryContextSwitchTo((MemoryContext)p2lcxt.ptrVal);
 
-	detoasted = PG_DETOAST_DATUM_COPY(PointerGetDatum(p2lvl.ptrVal));
+	detoasted = (_VL_TYPE) PG_DETOAST_DATUM_COPY(PointerGetDatum(p2lvl.ptrVal));
 	p2ldetoasted.longVal = 0L;
 	p2ldetoasted.ptrVal = detoasted;
 
@@ -475,8 +536,10 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 		s_VarlenaWrapper_Input_State_varlena, p2ldetoasted.longVal);
 	pfree(p2lvl.ptrVal);
 
+#if PG_VERSION_NUM >= 80400
 	if ( 0 != snap )
 		UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
+#endif
 
 	dbb = JNI_newDirectByteBuffer(
 		VARDATA(detoasted), VARSIZE_ANY_EXHDR(detoasted));
@@ -505,14 +568,14 @@ JNIEXPORT jlong JNICALL Java_org_postgresql_pljava_internal_VarlenaWrapper_00024
 	Ptr2Long p2lvl;
 	Ptr2Long p2lcxt;
 	MemoryContext prevcxt;
-	struct varlena *fetched;
+	_VL_TYPE fetched;
 
 	BEGIN_NATIVE_NO_ERRCHECK;
 	p2lvl.longVal = varlena;
 	p2lcxt.longVal = memContext;
 
 	prevcxt = MemoryContextSwitchTo((MemoryContext) p2lcxt.ptrVal);
-	fetched = heap_tuple_fetch_attr((struct varlena *)p2lvl.ptrVal);
+	fetched = heap_tuple_fetch_attr((_VL_TYPE) p2lvl.ptrVal);
 	pfree(p2lvl.ptrVal);
 	p2lvl.longVal = 0L;
 	p2lvl.ptrVal = fetched;
