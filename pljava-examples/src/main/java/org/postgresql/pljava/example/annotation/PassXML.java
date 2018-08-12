@@ -379,6 +379,16 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Low-level XML echo where the Java parameter and return type are String.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml", type="xml")
+	public static String lowLevelXMLEcho(@SQLType("xml") String x)
+	throws SQLException
+	{
+		return x;
+	}
+
+	/**
 	 * Create some XML, pass it to a {@code SELECT ?} prepared statement,
 	 * retrieve it from the result set, and return it via the out-parameter
 	 * result set of this {@code RECORD}-returning function.
