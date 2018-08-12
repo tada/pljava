@@ -11,6 +11,13 @@
  *   Chapman Flack
  */
 
+#include <postgres.h>
+#include <access/tuptoaster.h>
+#include <utils/datum.h>
+#include <utils/snapshot.h>
+#include <utils/snapmgr.h>
+
+#include "org_postgresql_pljava_internal_VarlenaWrapper_Input_State.h"
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Output_State.h"
 #include "pljava/VarlenaWrapper.h"
 #include "pljava/DualState.h"
@@ -34,6 +41,8 @@ static jclass s_VarlenaWrapper_Output_class;
 static jmethodID s_VarlenaWrapper_Input_init;
 
 static jmethodID s_VarlenaWrapper_Output_init;
+
+static jfieldID  s_VarlenaWrapper_Input_State_varlena;
 
 /*
  * For VarlenaWrapper.Output, define a dead-simple "expanded object" format
@@ -121,32 +130,74 @@ jobject pljava_VarlenaWrapper_Input(
 	jobject dbb;
 	MemoryContext mc;
 	MemoryContext prevcxt;
-	struct varlena *copy;
+	struct varlena *vl;
 	Ptr2Long p2lro;
 	Ptr2Long p2lcxt;
+	Ptr2Long p2lpin;
 	Ptr2Long p2ldatum;
+	Size parked;
+	Size actual;
+	Snapshot pin = NULL;
+
+	vl = (struct varlena *) DatumGetPointer(d);
+	if ( VARATT_IS_EXTERNAL_INDIRECT(vl) ) /* at most once; can't be nested */
+	{
+		struct varatt_indirect redirect;
+		VARATT_EXTERNAL_GET_POINTER(redirect, vl);
+		vl = (struct varlena *)redirect.pointer;
+		d = PointerGetDatum(vl);
+	}
+
+	parked = VARSIZE_ANY(vl);
+	actual = toast_raw_datum_size(d) - VARHDRSZ;
 
 	mc = AllocSetContextCreate(parent, "PL/Java VarlenaWrapper.Input",
 		 ALLOCSET_START_SMALL_SIZES);
 
 	prevcxt = MemoryContextSwitchTo(mc);
-	copy = PG_DETOAST_DATUM_COPY(d);
+
+	if ( actual < 4096  ||  (actual >> 1) < parked )
+		goto justDetoastEagerly;
+	if ( VARATT_IS_EXTERNAL_EXPANDED(vl) )
+		goto justDetoastEagerly;
+	if ( VARATT_IS_EXTERNAL_ONDISK(vl) )
+	{
+		pin = GetOldestSnapshot();
+		if ( NULL == pin )
+			goto justDetoastEagerly;
+		pin = RegisterSnapshotOnOwner(pin, ro);
+	}
+
+/* parkAndDetoastLazily: */
+	vl = (struct varlena *) DatumGetPointer(datumCopy(d, false, -1));
+	dbb = NULL;
+	goto constructResult;
+
+justDetoastEagerly:
+	vl = PG_DETOAST_DATUM_COPY(d);
+	parked = actual + VARHDRSZ;
+	dbb = JNI_newDirectByteBuffer(VARDATA(vl), actual);
+
+constructResult:
 	MemoryContextSwitchTo(prevcxt);
 
 	p2lro.longVal = 0L;
 	p2lcxt.longVal = 0L;
+	p2lpin.longVal = 0L;
 	p2ldatum.longVal = 0L;
 
 	p2lro.ptrVal = ro;
 	p2lcxt.ptrVal = mc;
-	p2ldatum.ptrVal = copy;
-
-	dbb = JNI_newDirectByteBuffer(VARDATA(copy), VARSIZE_ANY_EXHDR(copy));
+	p2lpin.ptrVal = pin;
+	p2ldatum.ptrVal = vl;
 
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
 		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
-		p2lro.longVal, p2lcxt.longVal, p2ldatum.longVal, dbb);
-	JNI_deleteLocalRef(dbb);
+		p2lro.longVal, p2lcxt.longVal, p2lpin.longVal, p2ldatum.longVal,
+		parked, actual, dbb);
+
+	if ( NULL != dbb )
+		JNI_deleteLocalRef(dbb);
 
 	return vr;
 }
@@ -298,7 +349,26 @@ static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 void pljava_VarlenaWrapper_initialize(void)
 {
 	jclass clazz;
-	JNINativeMethod methods[] =
+	JNINativeMethod methodsIn[] =
+	{
+		{
+		"_unregisterSnapshot",
+		"(JJ)V",
+		Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unregisterSnapshot
+		},
+		{
+		"_detoast",
+		"(JJJJ)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoast
+		},
+		{
+		"_fetch",
+		"(JJ)J",
+		Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1fetch
+		},
+		{ 0, 0, 0 }
+	};
+	JNINativeMethod methodsOut[] =
 	{
 		{
 		"_nextBuffer",
@@ -321,7 +391,7 @@ void pljava_VarlenaWrapper_initialize(void)
 	s_VarlenaWrapper_Input_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Input_class, "<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJJLjava/nio/ByteBuffer;)V");
+		"JJJJJJLjava/nio/ByteBuffer;)V");
 
 	s_VarlenaWrapper_Output_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Output_class, "<init>",
@@ -333,9 +403,123 @@ void pljava_VarlenaWrapper_initialize(void)
 		"(Lorg/postgresql/pljava/internal/DualState$Key;)J");
 
 	clazz = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
-			"org/postgresql/pljava/internal/VarlenaWrapper$Output$State"));
-	PgObject_registerNatives2(clazz, methods);
+			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State"));
+
+	PgObject_registerNatives2(clazz, methodsIn);
+
+	s_VarlenaWrapper_Input_State_varlena = PgObject_getJavaField(
+		clazz, "m_varlena", "J");
+
 	JNI_deleteLocalRef(clazz);
+
+	clazz = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+			"org/postgresql/pljava/internal/VarlenaWrapper$Output$State"));
+
+	PgObject_registerNatives2(clazz, methodsOut);
+
+	JNI_deleteLocalRef(clazz);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_VarlenaWrapper_Input_State
+ * Method:    _unregisterSnapshot
+ * Signature: (JJ)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unregisterSnapshot
+  (JNIEnv *env, jobject _this, jlong snapshot, jlong ro)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2lsnap;
+	Ptr2Long p2lro;
+	p2lsnap.longVal = snapshot;
+	p2lro.longVal = ro;
+	UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
+	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_VarlenaWrapper_Input_State
+ * Method:    _detoast
+ * Signature: (JJJJ)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoast
+  (JNIEnv *env, jobject _this, jlong vl, jlong cxt, jlong snap, jlong resOwner)
+{
+	Ptr2Long p2lvl;
+	Ptr2Long p2lcxt;
+	Ptr2Long p2lsnap;
+	Ptr2Long p2lro;
+	Ptr2Long p2ldetoasted;
+	struct varlena *detoasted;
+	MemoryContext prevcxt;
+	jobject dbb;
+
+	BEGIN_NATIVE_NO_ERRCHECK
+
+	p2lvl.longVal = vl;
+	p2lcxt.longVal = cxt;
+	p2lsnap.longVal = snap;
+	p2lro.longVal = resOwner;
+
+	prevcxt = MemoryContextSwitchTo((MemoryContext)p2lcxt.ptrVal);
+
+	detoasted = PG_DETOAST_DATUM_COPY(PointerGetDatum(p2lvl.ptrVal));
+	p2ldetoasted.longVal = 0L;
+	p2ldetoasted.ptrVal = detoasted;
+
+	MemoryContextSwitchTo(prevcxt);
+
+	JNI_setLongField(_this,
+		s_VarlenaWrapper_Input_State_varlena, p2ldetoasted.longVal);
+	pfree(p2lvl.ptrVal);
+
+	if ( 0 != snap )
+		UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
+
+	dbb = JNI_newDirectByteBuffer(
+		VARDATA(detoasted), VARSIZE_ANY_EXHDR(detoasted));
+
+	END_NATIVE
+
+	return dbb;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_VarlenaWrapper_Input_State
+ * Method:    _fetch
+ * Signature: (JJ)J
+ *
+ * Assumption: this is only called when a snapshot has been registered (meaning
+ * the varlena is EXTERNAL_ONDISK) and the snapshot is soon to be unregistered.
+ * All that's needed is to 'fetch' the representation from disk, in case the
+ * toast rows could be subject to vacuuming after the snapshot is unregistered.
+ * A fetch is not a full detoast; if what's fetched is compressed, it stays
+ * compressed. This method does not need to unregister the snapshot, as that
+ * will happen soon anyway. It does pfree the toast pointer.
+ */
+JNIEXPORT jlong JNICALL Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1fetch
+  (JNIEnv *env, jobject _this, jlong varlena, jlong memContext)
+{
+	Ptr2Long p2lvl;
+	Ptr2Long p2lcxt;
+	MemoryContext prevcxt;
+	struct varlena *fetched;
+
+	BEGIN_NATIVE_NO_ERRCHECK;
+	p2lvl.longVal = varlena;
+	p2lcxt.longVal = memContext;
+
+	prevcxt = MemoryContextSwitchTo((MemoryContext) p2lcxt.ptrVal);
+	fetched = heap_tuple_fetch_attr((struct varlena *)p2lvl.ptrVal);
+	pfree(p2lvl.ptrVal);
+	p2lvl.longVal = 0L;
+	p2lvl.ptrVal = fetched;
+	MemoryContextSwitchTo(prevcxt);
+
+	END_NATIVE;
+	return p2lvl.longVal;
 }
 
 /*

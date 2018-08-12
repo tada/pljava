@@ -101,7 +101,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * Pointer value of the {@code ResourceOwner} this instance belongs to,
 	 * if any.
 	 */
-	private final long m_resourceOwner;
+	protected final long m_resourceOwner;
 
 	/**
 	 * Check that a cookie is valid, throwing an unchecked exception otherwise.
@@ -291,6 +291,13 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @param resourceOwner Pointer value identifying the resource owner being
 	 * released. Calls can be received for resource owners to which no instances
 	 * here have been registered.
+	 *<p>
+	 * Some state subclasses may have their nativeStateReleased methods called
+	 * from Java code, when it is clear the native state is no longer needed in
+	 * Java. That doesn't remove the state instance from s_liveInstances though,
+	 * so it will still eventually be seen by this loop and efficiently removed
+	 * by the iterator. Hence the nativeStateIsValid test, to avoid invoking
+	 * nativeStateReleased more than once.
 	 */
 	private static void resourceOwnerRelease(long resourceOwner)
 	{
@@ -303,7 +310,8 @@ public abstract class DualState<T> extends WeakReference<T>
 				i.remove();
 				synchronized ( s )
 				{
-					s.nativeStateReleased();
+					if ( s.nativeStateIsValid() )
+						s.nativeStateReleased();
 				}
 			}
 		}

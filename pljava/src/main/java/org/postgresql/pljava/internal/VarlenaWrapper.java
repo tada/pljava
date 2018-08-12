@@ -85,23 +85,36 @@ public interface VarlenaWrapper extends Closeable
 	public static class Input
 	extends ByteBufferInputStream implements VarlenaWrapper
 	{
+		private long m_parkedSize;
+		private long m_bufferSize;
+
 		/**
 		 * Construct a {@code VarlenaWrapper.Input}.
 		 * @param cookie Capability held by native code.
 		 * @param resourceOwner Resource owner whose release will indicate that the
 		 * underlying varlena is no longer valid.
 		 * @param context Memory context in which the varlena is allocated.
+		 * @param snapshot A snapshot that has been registered in case the
+		 * parked varlena is TOASTed on disk, to keep the toast tuples from
+		 * being vacuumed away.
 		 * @param varlenaPtr Pointer value to the underlying varlena, to be
 		 * {@code pfree}d when Java code closes or reclaims this object.
+		 * @param parkedSize Size occupied by this datum in memory while it is
+		 * "parked", that is, before the first call to a reading method.
+		 * @param bufferSize Size that is or will be occupied by the detoasted
+		 * content once a reading method has been called.
 		 * @param buf Readable direct {@code ByteBuffer} constructed over the
 		 * varlena's data bytes.
 		 */
 		private Input(DualState.Key cookie, long resourceOwner,
-			long context, long varlenaPtr, ByteBuffer buf)
+			long context, long snapshot, long varlenaPtr,
+			long parkedSize, long bufferSize, ByteBuffer buf)
 		{
+			m_parkedSize = parkedSize;
+			m_bufferSize = bufferSize;
 			m_state = new State(
 				cookie, this, resourceOwner,
-				context, varlenaPtr, buf.asReadOnlyBuffer());
+				context, snapshot, varlenaPtr, buf);
 		}
 
 		/**
@@ -199,7 +212,8 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public String toString(Object o)
 		{
-			return String.format("%s %s", ((State)m_state).toString(o),
+			return String.format("%s parked:%d buffer:%d %s",
+				((State)m_state).toString(o), m_parkedSize, m_bufferSize,
 				m_open ? "open" : "closed");
 		}
 
@@ -209,27 +223,46 @@ public interface VarlenaWrapper extends Closeable
 		extends DualState.SingleMemContextDelete<Input>
 		{
 			private ByteBuffer m_buf;
+			private long m_snapshot;
 			private long m_varlena;
 
 			private State(
 				DualState.Key cookie, Input vr, long resourceOwner,
-				long memContext, long varlenaPtr, ByteBuffer buf)
+				long memContext, long snapshot, long varlenaPtr, ByteBuffer buf)
 			{
 				super(cookie, vr, resourceOwner, memContext);
+				m_snapshot = snapshot;
 				m_varlena = varlenaPtr;
-				m_buf = buf;
+				m_buf = null == buf ? buf : buf.asReadOnlyBuffer();
 			}
 
 			private ByteBuffer buffer() throws SQLException
 			{
-				assertNativeStateIsValid();
+				long ctx = getMemoryContext();
+				if ( null == m_buf )
+				{
+					synchronized ( Backend.THREADLOCK )
+					{
+						m_buf = _detoast(
+							m_varlena, ctx, m_snapshot, m_resourceOwner)
+								.asReadOnlyBuffer();
+						m_snapshot = 0;
+					}
+				}
 				return m_buf;
 			}
 
 			private long adopt(DualState.Key cookie) throws SQLException
 			{
 				checkCookie(cookie);
-				assertNativeStateIsValid();
+				long ctx = getMemoryContext();
+				if ( 0 != m_snapshot ) /* fetch now, before snapshot released */
+				{
+					synchronized ( Backend.THREADLOCK )
+					{
+						m_varlena = _fetch(m_varlena, ctx);
+					}
+				}
 				long varlena = m_varlena;
 				nativeStateReleased();
 				return varlena;
@@ -238,24 +271,77 @@ public interface VarlenaWrapper extends Closeable
 			@Override
 			protected void nativeStateReleased()
 			{
+				synchronized ( Backend.THREADLOCK )
+				{
+					super.nativeStateReleased();
+					/*
+					 * You might not expect to have to explicitly unregister a
+					 * snapshot from the resource owner that is at this very
+					 * moment being released, and will happily unregister the
+					 * snapshot itself in the course of so doing. Ah, but it
+					 * also happily logs a warning when it does that, so we need
+					 * to have our toys picked up before it gets the chance.
+					 */
+					if ( 0 != m_snapshot )
+						_unregisterSnapshot(m_snapshot, m_resourceOwner);
+					m_snapshot = 0;
+				}
 				m_buf = null;
-				super.nativeStateReleased();
 			}
 
 			@Override
 			protected void javaStateReleased()
 			{
+				synchronized ( Backend.THREADLOCK )
+				{
+					super.javaStateReleased();
+					if ( 0 != m_snapshot )
+						_unregisterSnapshot(m_snapshot, m_resourceOwner);
+					m_snapshot = 0;
+				}
 				m_buf = null;
-				super.javaStateReleased();
 			}
 
 			@Override
 			public String toString(Object o)
 			{
-				return String.format("%s varlena:%x %s",
-					super.toString(o), m_varlena,
+				return String.format("%s snap:%x varlena:%x %s",
+					super.toString(o), m_snapshot, m_varlena,
 					String.valueOf(m_buf).replace("java.nio.", ""));
 			}
+
+			/**
+			 * Unregister a snapshot we've been holding.
+			 */
+			private native void
+				_unregisterSnapshot(long snap, long resOwner);
+
+			/**
+			 * Detoast the parked value; called when a method needing to read it
+			 * has been invoked.
+			 *<p>
+			 * Detoast the passed {@code varlena} into the same
+			 * {@code memContext}, {@code pfree} the original, update the
+			 * {@code m_varlena} instance field to point to the detoasted copy,
+			 * and return a direct byte buffer that windows it.
+			 *<p>
+			 * If {@code snapshot} is nonzero, unregister the snapshot from the
+			 * resource owner. The caller may rely on this happening, and
+			 * confidently set {@code m_snapshot} to zero after this call.
+			 */
+			private native ByteBuffer _detoast(
+				long varlena, long memContext, long snapshot, long resOwner);
+
+			/**
+			 * Merely fetch a parked value, when it does not need to be fully
+			 * detoasted and readable, but simply retrieved from its TOAST rows
+			 * before loss of the snapshot that may be protecting them from
+			 * VACUUM. The original value is {@code pfree}d.
+			 *<p>
+			 * The result may still have an 'extended' (for example, compressed)
+			 * form.
+			 */
+			private native long _fetch(long varlena, long memContext);
 		}
 	}
 
