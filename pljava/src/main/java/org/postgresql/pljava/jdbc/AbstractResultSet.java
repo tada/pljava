@@ -36,8 +36,8 @@ import java.util.Calendar;
 import java.util.Map;
 
 /**
- * The <code>AbstractResultSet</code> serves as a base class for implementations
- * of the{@link java.sql.ResultSet} interface. All calls using columnNames are
+ * The {@code AbstractResultSet} serves as a base class for implementations
+ * of the {@link java.sql.ResultSet} interface. All calls using columnNames are
  * translated into the corresponding call with index position computed using
  * a call to {@link java.sql.ResultSet#findColumn(String) findColumn}.
  *
@@ -45,18 +45,26 @@ import java.util.Map;
  */
 public abstract class AbstractResultSet implements ResultSet
 {
+	// ************************************************************
+	// Pre-JDBC 4
+	// Getters-by-columnName mapped to getters-by-columnIndex
+	// ************************************************************
+
+	@Override
 	public Array getArray(String columnName)
 	throws SQLException
 	{
 		return this.getArray(this.findColumn(columnName));
 	}
 
+	@Override
 	public InputStream getAsciiStream(String columnName)
 	throws SQLException
 	{
 		return this.getAsciiStream(this.findColumn(columnName));
 	}
 
+	@Override
 	public BigDecimal getBigDecimal(String columnName)
 	throws SQLException
 	{
@@ -66,166 +74,161 @@ public abstract class AbstractResultSet implements ResultSet
 	/**
 	 * @deprecated
 	 */
+	@Override
 	public BigDecimal getBigDecimal(String columnName, int scale)
 	throws SQLException
 	{
 		return this.getBigDecimal(this.findColumn(columnName), scale);
 	}
 
+	@Override
 	public InputStream getBinaryStream(String columnName)
 	throws SQLException
 	{
 		return this.getBinaryStream(this.findColumn(columnName));
 	}
 
+	@Override
 	public Blob getBlob(String columnName)
 	throws SQLException
 	{
 		return this.getBlob(this.findColumn(columnName));
 	}
 
+	@Override
 	public boolean getBoolean(String columnName)
 	throws SQLException
 	{
 		return this.getBoolean(this.findColumn(columnName));
 	}
 
+	@Override
 	public byte getByte(String columnName)
 	throws SQLException
 	{
 		return this.getByte(this.findColumn(columnName));
 	}
 
+	@Override
 	public byte[] getBytes(String columnName)
 	throws SQLException
 	{
 		return this.getBytes(this.findColumn(columnName));
 	}
 
+	@Override
 	public Reader getCharacterStream(String columnName)
 	throws SQLException
 	{
 		return this.getCharacterStream(this.findColumn(columnName));
 	}
 
+	@Override
 	public Clob getClob(String columnName)
 	throws SQLException
 	{
 		return this.getClob(this.findColumn(columnName));
 	}
 
-	public String getCursorName()
-	throws SQLException
-	{
-		return null;
-	}
-
+	@Override
 	public Date getDate(String columnName)
 	throws SQLException
 	{
 		return this.getDate(this.findColumn(columnName));
 	}
 
+	@Override
 	public Date getDate(String columnName, Calendar cal)
 	throws SQLException
 	{
 		return this.getDate(this.findColumn(columnName), cal);
 	}
 
+	@Override
 	public double getDouble(String columnName)
 	throws SQLException
 	{
 		return this.getDouble(this.findColumn(columnName));
 	}
 
+	@Override
 	public float getFloat(String columnName)
 	throws SQLException
 	{
 		return this.getFloat(this.findColumn(columnName));
 	}
 
+	@Override
 	public int getInt(String columnName)
 	throws SQLException
 	{
 		return this.getInt(this.findColumn(columnName));
 	}
 
+	@Override
 	public long getLong(String columnName)
 	throws SQLException
 	{
 		return this.getLong(this.findColumn(columnName));
 	}
 
+	@Override
 	public Object getObject(String columnName)
 	throws SQLException
 	{
 		return this.getObject(this.findColumn(columnName));
 	}
 
+	@Override
 	public Object getObject(String columnName, Map map)
 	throws SQLException
 	{
 		return this.getObject(this.findColumn(columnName), map);
 	}
 
-  public <T> T getObject(int columnIndex, Class<T> type)
-	throws SQLException
-	{
-		final Object obj = getObject( columnIndex );
-    if ( obj.getClass().equals( type ) ) return (T) obj;
-    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
-	}
-
-  public <T> T getObject(String columnName, Class<T> type)
-	throws SQLException
-	{
-		final Object obj = getObject( columnName );
-    if ( obj.getClass().equals( type ) ) return (T) obj;
-    throw new SQLException( "Cannot convert " + obj.getClass().getName() + " to " + type );
-	}
-
+	@Override
 	public Ref getRef(String columnName)
 	throws SQLException
 	{
 		return this.getRef(this.findColumn(columnName));
 	}
 
+	@Override
 	public short getShort(String columnName)
 	throws SQLException
 	{
 		return this.getShort(this.findColumn(columnName));
 	}
 
-    public Statement getStatement()
-    throws SQLException
-    {
-        return null;
-    }
-
+	@Override
 	public String getString(String columnName)
 	throws SQLException
 	{
 		return this.getString(this.findColumn(columnName));
 	}
 
+	@Override
 	public Time getTime(String columnName)
 	throws SQLException
 	{
 		return this.getTime(this.findColumn(columnName));
 	}
 
+	@Override
 	public Time getTime(String columnName, Calendar cal)
 	throws SQLException
 	{
 		return this.getTime(this.findColumn(columnName), cal);
 	}
 
+	@Override
 	public Timestamp getTimestamp(String columnName)
 	throws SQLException
 	{
 		return this.getTimestamp(this.findColumn(columnName));
 	}
 
+	@Override
 	public Timestamp getTimestamp(String columnName, Calendar cal)
 	throws SQLException
 	{
@@ -235,154 +238,210 @@ public abstract class AbstractResultSet implements ResultSet
 	/**
 	 * @deprecated
 	 */
+	@Override
 	public InputStream getUnicodeStream(String columnName)
 	throws SQLException
 	{
 		return this.getUnicodeStream(this.findColumn(columnName));
 	}
 
+	@Override
 	public URL getURL(String columnName)
 	throws SQLException
 	{
 		return this.getURL(this.findColumn(columnName));
 	}
 
+	// ************************************************************
+	// Pre-JDBC 4
+	// Updaters-by-columnName mapped to updaters-by-columnIndex
+	// ************************************************************
+
+	@Override
 	public void updateArray(String columnName, Array x)
 	throws SQLException
 	{
 		this.updateArray(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateAsciiStream(String columnName, InputStream x, int length)
 	throws SQLException
 	{
 		this.updateAsciiStream(this.findColumn(columnName), x, length);
 	}
 
+	@Override
 	public void updateBigDecimal(String columnName, BigDecimal x)
 	throws SQLException
 	{
 		this.updateBigDecimal(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateBinaryStream(String columnName, InputStream x, int length)
 	throws SQLException
 	{
 		this.updateBinaryStream(this.findColumn(columnName), x, length);
 	}
 
+	@Override
 	public void updateBlob(String columnName, Blob x)
 	throws SQLException
 	{
 		this.updateBlob(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateBoolean(String columnName, boolean x)
 	throws SQLException
 	{
 		this.updateBoolean(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateByte(String columnName, byte x)
 	throws SQLException
 	{
 		this.updateByte(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateBytes(String columnName, byte x[])
 	throws SQLException
 	{
 		this.updateBytes(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateCharacterStream(String columnName, Reader x, int length)
 	throws SQLException
 	{
 		this.updateCharacterStream(this.findColumn(columnName), x, length);
 	}
 
+	@Override
 	public void updateClob(String columnName, Clob x)
 	throws SQLException
 	{
 		this.updateClob(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateDate(String columnName, Date x)
 	throws SQLException
 	{
 		this.updateDate(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateDouble(String columnName, double x)
 	throws SQLException
 	{
 		this.updateDouble(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateFloat(String columnName, float x)
 	throws SQLException
 	{
 		this.updateFloat(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateInt(String columnName, int x)
 	throws SQLException
 	{
 		this.updateInt(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateLong(String columnName, long x)
 	throws SQLException
 	{
 		this.updateLong(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateNull(String columnName)
 	throws SQLException
 	{
 		this.updateNull(this.findColumn(columnName));
 	}
 
+	@Override
 	public void updateObject(String columnName, Object x)
 	throws SQLException
 	{
 		this.updateObject(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateObject(String columnName, Object x, int scale)
 	throws SQLException
 	{
 		this.updateObject(this.findColumn(columnName), x, scale);
 	}
 
+	@Override
 	public void updateRef(String columnName, Ref x)
 	throws SQLException
 	{
 		this.updateRef(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateShort(String columnName, short x)
 	throws SQLException
 	{
 		this.updateShort(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateString(String columnName, String x)
 	throws SQLException
 	{
 		this.updateString(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateTime(String columnName, Time x)
 	throws SQLException
 	{
 		this.updateTime(this.findColumn(columnName), x);
 	}
 
+	@Override
 	public void updateTimestamp(String columnName, Timestamp x)
 	throws SQLException
 	{
 		this.updateTimestamp(this.findColumn(columnName), x);
+	}
+
+	// ************************************************************
+	// Pre-JDBC 4
+	// Trivial default implementations for some methods inquiring
+	// ResultSet status.
+	// ************************************************************
+
+	/**
+	 * Returns null if not overridden in a subclass.
+	 */
+	@Override
+	public String getCursorName()
+	throws SQLException
+	{
+		return null;
+	}
+
+	/**
+	 * Returns null if not overridden in a subclass.
+	 */
+	@Override
+	public Statement getStatement()
+	throws SQLException
+	{
+		return null;
 	}
 
 	// ************************************************************
@@ -392,16 +451,18 @@ public abstract class AbstractResultSet implements ResultSet
 	// long as that's an allowed behavior by the JDBC spec.
 	// ************************************************************
 
+	@Override
 	public boolean isWrapperFor(Class<?> iface)
 	throws SQLException
 	{
-	    return iface.isInstance(this);
+		return iface.isInstance(this);
 	}
 
+	@Override
 	public <T> T unwrap(Class<T> iface)
 	throws SQLException
 	{
-	    if ( iface.isInstance(this) )
+		if ( iface.isInstance(this) )
 			return iface.cast(this);
 		throw new SQLFeatureNotSupportedException
 		( this.getClass().getSimpleName()
@@ -413,6 +474,7 @@ public abstract class AbstractResultSet implements ResultSet
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
+	@Override
 	public void updateNClob(int columnIndex, NClob nClob)
 	throws SQLException
 	{
@@ -421,6 +483,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNClob(String columnLabel, NClob nClob)
 	throws SQLException
 	{
@@ -429,6 +492,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNClob(int columnIndex, Reader reader)
 	throws SQLException
 	{
@@ -437,6 +501,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNClob(int columnIndex, Reader reader, long length)
 	throws SQLException
 	{
@@ -445,6 +510,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNClob(String columnLabel, Reader reader)
 	throws SQLException
 	{
@@ -453,6 +519,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNClob(String columnLabel, Reader reader, long length)
 	throws SQLException
 	{
@@ -461,6 +528,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateClob(int columnIndex, Reader reader)
 	throws SQLException
 	{
@@ -468,6 +536,8 @@ public abstract class AbstractResultSet implements ResultSet
 			".updateClob( int, Reader ) not implemented yet.", 
 							   "0A000" );
 	}
+
+	@Override
 	public void updateClob(int columnIndex, Reader reader, long length)
 	throws SQLException
 	{
@@ -476,6 +546,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateClob(String columnLabel, Reader reader)
 	throws SQLException
 	{
@@ -484,6 +555,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateClob(String columnLabel, Reader reader, long length)
 	throws SQLException
 	{
@@ -492,6 +564,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBlob(int columnIndex, InputStream inputStream)
 	throws SQLException
 	{
@@ -500,6 +573,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBlob(int columnIndex, InputStream inputStream, long length)
 	throws SQLException
 	{
@@ -508,7 +582,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
-
+	@Override
 	public void updateBlob(String columnLabel, InputStream inputStream)
 	throws SQLException
 	{
@@ -517,6 +591,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBlob(String columnLabel, InputStream inputStream, long length)
 	throws SQLException
 	{
@@ -525,6 +600,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateCharacterStream(int columnIndex, Reader x)
 	throws SQLException
 	{
@@ -533,6 +609,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateCharacterStream(int columnIndex, Reader x, long length)
 	throws SQLException
 	{
@@ -541,6 +618,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateCharacterStream(String ColumnLabel, Reader x)
 	throws SQLException
 	{
@@ -549,6 +627,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateCharacterStream(String ColumnLabel, Reader x, long length)
 	throws SQLException
 	{
@@ -557,7 +636,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
-
+	@Override
 	public void updateBinaryStream(String columnLabel, InputStream x)
 	throws SQLException
 	{
@@ -566,6 +645,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBinaryStream(String columnLabel, InputStream x, long length)
 	throws SQLException
 	{
@@ -574,6 +654,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBinaryStream(int columnIndex, InputStream x)
 	throws SQLException
 	{
@@ -582,6 +663,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateBinaryStream(int columnIndex, InputStream x, long length)
 	throws SQLException
 	{
@@ -590,6 +672,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateAsciiStream(String columnLabel, InputStream x)
 	throws SQLException
 	{
@@ -597,6 +680,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".updateAsciiStream( String, InputStream ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public void updateAsciiStream(String columnLabel, InputStream x, long length)
 	throws SQLException
 	{
@@ -604,6 +688,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".updateAsciiStream( String, InputStream, long ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public void updateAsciiStream(int columnIndex, InputStream x)
 	throws SQLException
 	{
@@ -612,6 +697,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateAsciiStream(int columnIndex, InputStream x, long length)
 	throws SQLException
 	{
@@ -620,6 +706,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNCharacterStream(String columnLabel, Reader reader)
 	throws SQLException
 	{
@@ -628,6 +715,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNCharacterStream(String columnLabel, Reader reader, long length)
 	throws SQLException
 	{
@@ -636,6 +724,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNCharacterStream(int columnIndex, Reader reader)
 	throws SQLException
 	{
@@ -644,6 +733,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNCharacterStream(int columnIndex, Reader reader, long length)
 	throws SQLException
 	{
@@ -652,6 +742,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public Reader getNCharacterStream(String columnLabel)
 	throws SQLException
 	{
@@ -660,6 +751,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public Reader getNCharacterStream(int columnIndex)
 	throws SQLException
 	{
@@ -667,6 +759,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".gett( int ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public String getNString(int columnIndex)
 	throws SQLException
 	{
@@ -674,6 +767,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".getNString( int ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public String getNString(String columnLabel)
 	throws SQLException
 	{
@@ -682,6 +776,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
 	throws SQLException
 	{
@@ -690,6 +785,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
 	throws SQLException
 	{
@@ -698,6 +794,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public SQLXML getSQLXML(int columnIndex)
 	throws SQLException
 	{
@@ -705,6 +802,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".getSQLXML( int ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public SQLXML getSQLXML(String columnLabel)
 	throws SQLException
 	{
@@ -712,12 +810,15 @@ public abstract class AbstractResultSet implements ResultSet
 			".getSQLXML( String ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public NClob getNClob(String columnLabel)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
 			".getNClob( String ) not implemented yet.", "0A000" );
 	}
+
+	@Override
 	public NClob getNClob(int columnIndex)
 	throws SQLException
 	{
@@ -725,6 +826,7 @@ public abstract class AbstractResultSet implements ResultSet
 			".getNClob( int ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public void updateNString(String columnLabel, String nString)
 	throws SQLException
 	{
@@ -733,6 +835,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateNString(int columnIndex, String nString)
 	throws SQLException
 	{
@@ -741,6 +844,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateRowId(int columnIndex, RowId x)
 	throws SQLException
 	{
@@ -749,6 +853,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public void updateRowId(String columnLabel, RowId x)
 	throws SQLException
 	{
@@ -757,6 +862,7 @@ public abstract class AbstractResultSet implements ResultSet
 							   "0A000" );
 	}
 
+	@Override
 	public RowId getRowId(int columnIndex)
 	throws SQLException
 	{
@@ -764,10 +870,39 @@ public abstract class AbstractResultSet implements ResultSet
 			"getRowId( int ) not implemented yet.", "0A000" );
 	}
 
+	@Override
 	public RowId getRowId(String columnLabel)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
 			".getRowId( String ) not implemented yet.", "0A000" );
+	}
+
+	// ************************************************************
+	// Implementation of JDBC 4.1 methods. These are half-baked at
+	// the moment: the type parameter isn't able to /influence/
+	// what type is returned, but only to fail if what gets
+	// returned by default isn't that.
+	// Add @Override to these once Java back horizon advances to 7.
+	// ************************************************************
+
+	public <T> T getObject(int columnIndex, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnIndex );
+		if ( type.isInstance(obj) )
+			return type.cast(obj);
+		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
+			" to " + type );
+	}
+
+	public <T> T getObject(String columnName, Class<T> type)
+	throws SQLException
+	{
+		final Object obj = getObject( columnName );
+		if ( type.isInstance(obj) )
+			return type.cast(obj);
+		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
+			" to " + type );
 	}
 }
