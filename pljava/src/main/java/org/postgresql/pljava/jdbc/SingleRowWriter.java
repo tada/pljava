@@ -27,6 +27,10 @@ import org.postgresql.pljava.internal.TupleDesc;
 /**
  * A single row, updateable ResultSet, specially made for functions and
  * procedures that returns complex types or sets.
+ *<p>
+ * A {@link TupleDesc} must be passed to the constructor. After values have
+ * been written, the native pointer to a formed {@link Tuple} can be retrieved
+ * using {@link #getTupleAndClear}.
  *
  * @author Thomas Hallgren
  */
@@ -36,6 +40,10 @@ public class SingleRowWriter extends SingleRowResultSet
 	private final Object[] m_values;
 	private Tuple m_tuple;
 
+	/**
+	 * Construct a {@code SingleRowWriter} given a descriptor of the tuple
+	 * structure it should produce.
+	 */
 	public SingleRowWriter(TupleDesc tupleDesc)
 	throws SQLException
 	{
@@ -43,6 +51,11 @@ public class SingleRowWriter extends SingleRowResultSet
 		m_values = new Object[tupleDesc.size()];
 	}
 
+	/**
+	 * Returns the value most recently written in the current tuple at the
+	 * specified index, or {@code null} if none has been written.
+	 */
+	@Override // defined in ObjectRresultSet
 	protected Object getObjectValue(int columnIndex)
 	throws SQLException
 	{
@@ -55,6 +68,7 @@ public class SingleRowWriter extends SingleRowResultSet
 	 * Returns <code>true</code> if the row contains any non <code>null</code>
 	 * values since all values of the row are <code>null</code> initially.
 	 */
+	@Override
 	public boolean rowUpdated()
 	throws SQLException
 	{
@@ -65,6 +79,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		return false;
 	}
 
+	@Override
 	public void updateObject(int columnIndex, Object x)
 	throws SQLException
 	{
@@ -91,6 +106,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		m_values[columnIndex-1] = x;
 	}
 
+	@Override
 	public void cancelRowUpdates()
 	throws SQLException
 	{
@@ -100,6 +116,7 @@ public class SingleRowWriter extends SingleRowResultSet
 	/**
 	 * Cancels all changes but doesn't really close the set.
 	 */
+	@Override
 	public void close()
 	throws SQLException
 	{
@@ -137,6 +154,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		return m_tuple.getNativePointer();
 	}
 
+	@Override // defined in SingleRowResultSet
 	protected final TupleDesc getTupleDesc()
 	{
 		return m_tupleDesc;
@@ -146,6 +164,7 @@ public class SingleRowWriter extends SingleRowResultSet
 	// Implementation of JDBC 4 methods.
 	// ************************************************************
 
+	@Override
 	public boolean isClosed()
 		throws SQLException
 	{

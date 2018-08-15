@@ -108,7 +108,7 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 	}
 
 	/**
-	 * Will always return <code>false</code> since a <code>SingleRowWriter
+	 * Will always return <code>false</code> since a <code>SingleRowResultSet
 	 * </code> starts on the one and only row.
 	 */
 	public boolean isBeforeFirst() throws SQLException
@@ -234,7 +234,7 @@ public abstract class SingleRowResultSet extends ObjectResultSet
 	}
 
 	/**
-	 * This feature is not supported on a <code>SingleRowWriter</code>.
+	 * This feature is not supported on a <code>SingleRowResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
 	public void moveToInsertRow()
