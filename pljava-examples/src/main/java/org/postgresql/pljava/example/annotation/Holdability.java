@@ -18,7 +18,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.postgresql.pljava.ResultSetHandle;
+
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.SQLAction;
 
 /**
  * Demonstrate holdability of ResultSets (test for issue 168).
@@ -33,6 +35,17 @@ import org.postgresql.pljava.annotation.Function;
  * always exist, with more rows than the default connection {@code fetchSize},
  * to ensure the stashed {@code ResultSet} has work to do.
  */
+@SQLAction(requires={"Holdability.stash", "Holdability.unstash"}, install={
+
+	"SELECT javatest.stashResultSet()",
+
+	"SELECT " +
+	" CASE" +
+	"  WHEN 1000 < count(*) THEN javatest.logmessage('INFO', 'Holdability OK')"+
+	"  ELSE javatest.logmessage('WARNING', 'Holdability suspicious')" +
+	" END" +
+	" FROM javatest.unstashResultSet()"
+})
 public class Holdability implements ResultSetHandle
 {
 	private static Holdability s_stash;
@@ -54,7 +67,7 @@ public class Holdability implements ResultSetHandle
 	 * This must be called in an open, multiple-statement (non-auto) transaction
 	 * to have any useful effect.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", provides="Holdability.stash")
 	public static void stashResultSet() throws SQLException
 	{
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
@@ -68,7 +81,11 @@ public class Holdability implements ResultSetHandle
 	 * Return the results stashed earlier in the same transaction by
 	 * {@code stashResultSet}.
 	 */
-	@Function(schema="javatest", type="pg_catalog.pg_description")
+	@Function(
+		schema="javatest",
+		type="pg_catalog.pg_description",
+		provides="Holdability.unstash"
+	)
 	public static ResultSetHandle unstashResultSet() throws SQLException
 	{
 		return s_stash;

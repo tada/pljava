@@ -152,15 +152,6 @@ public class SingleRowWriter extends SingleRowResultSet
 		return m_tuple == null;
 	}
 
-	/**
-	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors
-	 * are actually closed when a function returns to SQL.
-	 */
-	public int getHoldability()
-	{
-		return ResultSet.CLOSE_CURSORS_AT_COMMIT;
-	}
-
 	// ************************************************************
 	// End of implementation of JDBC 4 methods.
 	// ************************************************************

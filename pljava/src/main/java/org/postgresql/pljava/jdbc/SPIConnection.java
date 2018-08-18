@@ -148,8 +148,7 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
-	 * closed when a function returns to SQL.
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}.
 	 */
 	@Override
 	public int getHoldability()
