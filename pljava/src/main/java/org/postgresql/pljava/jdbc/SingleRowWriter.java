@@ -56,7 +56,7 @@ public class SingleRowWriter extends SingleRowResultSet
 	 * specified index, or {@code null} if none has been written.
 	 */
 	@Override // defined in ObjectRresultSet
-	protected Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
 		if(columnIndex < 1)

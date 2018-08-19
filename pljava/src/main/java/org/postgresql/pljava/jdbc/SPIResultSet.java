@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -205,13 +205,14 @@ public class SPIResultSet extends ResultSetBase
 	}
 
 	/**
-	 * Implemented over {@link Tuple#getObject Tuple.getObject(TupleDesc,int)}.
+	 * Implemented over
+	 * {@link Tuple#getObject Tuple.getObject(TupleDesc,int,Class)}.
 	 */
 	@Override // defined in ObjectResultSet
-	protected Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
-		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex);
+		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex, type);
 	}
 
 	/**

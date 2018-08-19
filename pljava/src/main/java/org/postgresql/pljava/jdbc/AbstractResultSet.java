@@ -879,30 +879,13 @@ public abstract class AbstractResultSet implements ResultSet
 	}
 
 	// ************************************************************
-	// Implementation of JDBC 4.1 methods. These are half-baked at
-	// the moment: the type parameter isn't able to /influence/
-	// what type is returned, but only to fail if what gets
-	// returned by default isn't that.
-	// Add @Override to these once Java back horizon advances to 7.
+	// Implementation of JDBC 4.1 methods.
+	// Add @Override here once Java back horizon advances to 7.
 	// ************************************************************
-
-	public <T> T getObject(int columnIndex, Class<T> type)
-	throws SQLException
-	{
-		final Object obj = getObject( columnIndex );
-		if ( type.isInstance(obj) )
-			return type.cast(obj);
-		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
-			" to " + type );
-	}
 
 	public <T> T getObject(String columnName, Class<T> type)
 	throws SQLException
 	{
-		final Object obj = getObject( columnName );
-		if ( type.isInstance(obj) )
-			return type.cast(obj);
-		throw new SQLException( "Cannot convert " + obj.getClass().getName() +
-			" to " + type );
+		return this.getObject(this.findColumn(columnName), type);
 	}
 }

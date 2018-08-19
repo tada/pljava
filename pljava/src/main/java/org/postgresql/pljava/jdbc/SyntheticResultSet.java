@@ -8,6 +8,7 @@
  *
  * Contributors:
  *   Filip Hrbek
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -94,9 +95,12 @@ public class SyntheticResultSet extends ResultSetBase
 	/**
 	 * Returns exactly the object that was supplied at {@code columnIndex}
 	 * (less one) in the current row.
+	 *<p>
+	 * Ignores the {@code type} argument and returns whatever object is there.
+	 * If it is not what the caller needed, let the caller complain.
 	 */
 	@Override // defined in ObjectResultSet
-	protected Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
         return getCurrentRow()[columnIndex-1];

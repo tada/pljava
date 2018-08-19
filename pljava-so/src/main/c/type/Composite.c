@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -267,7 +267,7 @@ void Composite_initialize(void)
 	{
 		{
 		"_getObject",
-	  	"(JJI)Ljava/lang/Object;",
+		"(JJILjava/lang/Class;)Ljava/lang/Object;",
 	  	Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject
 		},
 		{
@@ -329,10 +329,10 @@ Java_org_postgresql_pljava_jdbc_SingleRowReader__1free(JNIEnv* env, jobject _thi
 /*
  * Class:     org_postgresql_pljava_jdbc_SingleRowReader
  * Method:    _getObject
- * Signature: (JJI)Ljava/lang/Object;
+ * Signature: (JJILjava/lang/Class;)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo)
+Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo, jclass rqcls)
 {
-	return HeapTupleHeader_getObject(env, hth, jtd, attrNo);
+	return HeapTupleHeader_getObject(env, hth, jtd, attrNo, rqcls);
 }

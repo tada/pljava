@@ -64,12 +64,13 @@ public class SingleRowReader extends SingleRowResultSet
 	}
 
 	@Override // defined in ObjectResultSet
-	protected Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getObject(m_pointer, m_tupleDesc.getNativePointer(), columnIndex);
+			return _getObject(
+				m_pointer, m_tupleDesc.getNativePointer(), columnIndex, type);
 		}
 	}
 
@@ -185,8 +186,14 @@ public class SingleRowReader extends SingleRowResultSet
 		return m_tupleDesc;
 	}
 
+	/*
+	 * Looking for the implementation of the following JNI methods?
+	 * Look in type/Composite.c
+	 */
+
 	protected native void _free(long pointer);
 
-	private static native Object _getObject(long pointer, long tupleDescPointer, int index)
+	private static native Object _getObject(
+		long pointer, long tupleDescPointer, int index, Class<?> type)
 	throws SQLException;
 }

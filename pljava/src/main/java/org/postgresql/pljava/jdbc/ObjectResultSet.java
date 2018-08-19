@@ -626,6 +626,27 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	// ************************************************************
+	// JDBC 4.1
+	// Getter-by-columnIndex
+	// Add @Override here once Java back horizon advances to 7.
+	// ************************************************************
+
+	/**
+	 * Implemented over {@link #getObjectValue(int,Class) getObjectValue}.
+	 * Final because it records {@code wasNull} for use by other methods.
+	 */
+	public final <T> T getObject(int columnIndex, Class<T> type)
+	throws SQLException
+	{
+		Object value = this.getObjectValue(columnIndex, type);
+		m_wasNull = (value == null);
+		if ( type.isInstance(value) )
+			return type.cast(value);
+		throw new SQLException("Cannot convert " + value.getClass().getName() +
+			" to " + type.getName());
+	}
+
+	// ************************************************************
 	// Implementation methods
 	// ************************************************************
 
@@ -663,8 +684,8 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getObjectValue}, complains if {@code typeMap}
-	 * is non-null.
+	 * Implemented over {@link #getObjectValue(int)}, complains if
+	 * {@code typeMap} is non-null.
 	 */
 	protected Object getObjectValue(int columnIndex, Map typeMap)
 	throws SQLException
@@ -676,8 +697,27 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Primary method for subclass to override to retrieve a value.
+	 * Implemented over {@link #getObjectValue(int,Class)}, passing null for
+	 * the class.
+	 *<p>
+	 * To preserve back-compatible behavior in the 1.5.x branch, this is still
+	 * what ends up getting called in all cases that do not explicitly use the
+	 * JDBC 4.1 new {@link #getObject(int,Class)}.
 	 */
-	protected abstract Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex)
+	throws SQLException
+	{
+		return getObjectValue(columnIndex, (Class<?>)null);
+	}
+
+	/**
+	 * Primary method for subclass to override to retrieve a value.
+	 *<p>
+	 * The signature does not constrain this to return an object of the
+	 * requested class, so it can still be used as before by methods that may do
+	 * additional coercions. When called by {@link #getObject(int,Class)}, that
+	 * caller enforces the class of the result.
+	 */
+	protected abstract Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException;
 }

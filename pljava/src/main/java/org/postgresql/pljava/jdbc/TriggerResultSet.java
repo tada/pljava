@@ -133,12 +133,15 @@ public class TriggerResultSet extends SingleRowResultSet
 
 	/**
 	 * If the value has not been changed, forwards to
-	 * {@link Tuple#getObject(TupleDesc,int) Tuple.getObject}, with the usual
-	 * behavior for type coercion; if it has been changed, returns the exact
-	 * object that was supplied with the change.
+	 * {@link Tuple#getObject(TupleDesc,int,Class) Tuple.getObject}, with the
+	 * usual behavior for type coercion; if it has been changed, returns the
+	 * exact object that was supplied with the change.
+	 *<p>
+	 * When the caller is the JDBC 4.1 {@link #getObject(int,Class)}, the caller
+	 * will check and complain if the returned object is not of the right class.
 	 */
 	@Override // defined in ObjectResultSet
-	protected Object getObjectValue(int columnIndex)
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
 		// Check if this value has been changed.
@@ -151,7 +154,7 @@ public class TriggerResultSet extends SingleRowResultSet
 				if(columnIndex == ((Integer)changes.get(idx)).intValue())
 					return changes.get(idx + 1);
 		}
-		return m_tuple.getObject(this.getTupleDesc(), columnIndex);
+		return m_tuple.getObject(this.getTupleDesc(), columnIndex, type);
 	}
 
 	@Override // defined in SingleRowResultSet

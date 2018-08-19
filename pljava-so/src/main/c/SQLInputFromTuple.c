@@ -81,5 +81,5 @@ Java_org_postgresql_pljava_jdbc_SQLInputFromTuple__1free(JNIEnv* env, jobject _t
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_jdbc_SQLInputFromTuple__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo)
 {
-	return HeapTupleHeader_getObject(env, hth, jtd, attrNo);
+	return HeapTupleHeader_getObject(env, hth, jtd, attrNo, NULL);
 }
