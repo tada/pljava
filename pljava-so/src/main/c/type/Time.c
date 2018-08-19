@@ -45,9 +45,11 @@ static TypeClass s_OffsetTimeClass;
  * The following statics are specific to Java 8 +, and will be initialized
  * only on demand (pre-8 application code will have no way to demand them).
  */
+static Type      s_LocalTimeInstance;
 static jclass    s_LocalTime_class;
 static jmethodID s_LocalTime_ofNanoOfDay;
 static jmethodID s_LocalTime_toNanoOfDay;
+static Type      s_OffsetTimeInstance;
 static jclass    s_OffsetTime_class;
 static jmethodID s_OffsetTime_of;
 static jmethodID s_OffsetTime_toLocalTime;
@@ -91,8 +93,7 @@ static Datum _LocalTime_coerceObject(Type self, jobject time)
 
 static Type _LocalTime_obtain(Oid typeId)
 {
-	static Type instance = NULL;
-	if ( NULL == instance )
+	if ( NULL == s_LocalTimeInstance )
 	{
 		s_LocalTime_class = JNI_newGlobalRef(PgObject_getJavaClass(
 			"java/time/LocalTime"));
@@ -101,9 +102,118 @@ static Type _LocalTime_obtain(Oid typeId)
 		s_LocalTime_toNanoOfDay = PgObject_getJavaMethod(s_LocalTime_class,
 			"toNanoOfDay", "()J");
 
-		instance = TypeClass_allocInstance(s_LocalTimeClass, TIMEOID);
+		s_LocalTimeInstance =
+			TypeClass_allocInstance(s_LocalTimeClass, TIMEOID);
 	}
-	return instance;
+	return s_LocalTimeInstance;
+}
+
+/*
+ * This only answers true for (same class or) TIMETZOID.
+ * The obtainer (below) only needs to construct and remember one instance.
+ */
+static bool _OffsetTime_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls  ||  Type_getOid(other) == TIMETZOID;
+}
+
+static jvalue _OffsetTime_coerceDatum(Type self, Datum arg)
+{
+	jvalue localTime;
+	jobject zoneOffset;
+	int32 offsetSecs;
+	jvalue result;
+
+#if PG_VERSION_NUM < 100000
+	if ( !integerDateTimes )
+	{
+		TimeTzADT_dd* tza = (TimeTzADT_dd*)DatumGetPointer(arg);
+		localTime =
+			Type_coerceDatum(s_LocalTimeInstance, Float8GetDatum(tza->time));
+		offsetSecs = tza->zone;
+	}
+	else
+#endif
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)DatumGetPointer(arg);
+		localTime =
+			Type_coerceDatum(s_LocalTimeInstance, Int64GetDatum(tza->time));
+		offsetSecs = tza->zone;
+	}
+
+	zoneOffset = JNI_callStaticObjectMethod(s_ZoneOffset_class,
+		s_ZoneOffset_ofTotalSeconds, - offsetSecs); /* PG/Java signs differ */
+
+	result.l = JNI_callStaticObjectMethod(
+		s_OffsetTime_class, s_OffsetTime_of, localTime.l, zoneOffset);
+
+	JNI_deleteLocalRef(localTime.l);
+	JNI_deleteLocalRef(zoneOffset);
+
+	return result;
+}
+
+static Datum _OffsetTime_coerceObject(Type self, jobject time)
+{
+	jobject localTime = JNI_callObjectMethod(time, s_OffsetTime_toLocalTime);
+	jobject zoneOffset = JNI_callObjectMethod(time, s_OffsetTime_getOffset);
+	jint offsetSecs =
+		- /* PG/Java signs differ */
+		JNI_callIntMethod(zoneOffset, s_ZoneOffset_getTotalSeconds);
+	Datum result;
+
+#if PG_VERSION_NUM < 100000
+	if ( !integerDateTimes )
+	{
+		TimeTzADT_dd* tza = (TimeTzADT_dd*)palloc(sizeof(TimeTzADT_dd));
+		tza->zone = offsetSecs;
+		tza->time =
+			DatumGetFloat8(Type_coerceObject(s_LocalTimeInstance, localTime));
+		result = PointerGetDatum(tza);
+	}
+	else
+#endif
+	{
+		TimeTzADT_id* tza = (TimeTzADT_id*)palloc(sizeof(TimeTzADT_id));
+		tza->zone = offsetSecs;
+		tza->time =
+			DatumGetInt64(Type_coerceObject(s_LocalTimeInstance, localTime));
+		result = PointerGetDatum(tza);
+	}
+
+	JNI_deleteLocalRef(localTime);
+	JNI_deleteLocalRef(zoneOffset);
+	return result;
+}
+
+static Type _OffsetTime_obtain(Oid typeId)
+{
+	if ( NULL == s_OffsetTimeInstance )
+	{
+		_LocalTime_obtain(TIMEOID); /* Make sure LocalTime statics are there */
+
+		s_OffsetTime_class = JNI_newGlobalRef(PgObject_getJavaClass(
+			"java/time/OffsetTime"));
+		s_OffsetTime_of = PgObject_getStaticJavaMethod(s_OffsetTime_class, "of",
+			"(Ljava/time/LocalTime;Ljava/time/ZoneOffset;)"
+			"Ljava/time/OffsetTime;");
+		s_OffsetTime_toLocalTime = PgObject_getJavaMethod(s_OffsetTime_class,
+			"toLocalTime", "()Ljava/time/LocalTime;");
+		s_OffsetTime_getOffset = PgObject_getJavaMethod(s_OffsetTime_class,
+			"getOffset", "()Ljava/time/ZoneOffset;");
+
+		s_ZoneOffset_class = JNI_newGlobalRef(PgObject_getJavaClass(
+			"java/time/ZoneOffset"));
+		s_ZoneOffset_ofTotalSeconds = PgObject_getStaticJavaMethod(
+			s_ZoneOffset_class, "ofTotalSeconds", "(I)Ljava/time/ZoneOffset;");
+		s_ZoneOffset_getTotalSeconds = PgObject_getJavaMethod(
+			s_ZoneOffset_class, "getTotalSeconds", "()I");
+
+		s_OffsetTimeInstance =
+			TypeClass_allocInstance(s_OffsetTimeClass, TIMETZOID);
+	}
+	return s_OffsetTimeInstance;
 }
 
 static jlong msecsAtMidnight(void)
@@ -258,4 +368,13 @@ void Time_initialize(void)
 	cls->canReplaceType = _LocalTime_canReplaceType;
 	s_LocalTimeClass  = cls;
 	Type_registerType2(InvalidOid, "java.time.LocalTime", _LocalTime_obtain);
+
+	cls = TypeClass_alloc("type.OffsetTime");
+	cls->JNISignature = "Ljava/time/OffsetTime;";
+	cls->javaTypeName = "java.time.OffsetTime";
+	cls->coerceDatum  = _OffsetTime_coerceDatum;
+	cls->coerceObject = _OffsetTime_coerceObject;
+	cls->canReplaceType = _OffsetTime_canReplaceType;
+	s_OffsetTimeClass  = cls;
+	Type_registerType2(InvalidOid, "java.time.OffsetTime", _OffsetTime_obtain);
 }
