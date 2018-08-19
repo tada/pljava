@@ -3344,7 +3344,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public boolean supportsResultSetHoldability(int holdability)
 	throws SQLException
 	{
-		return true;
+		return ResultSet.CLOSE_CURSORS_AT_COMMIT == holdability;
 	}
 
 	/**
@@ -3359,7 +3359,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public int getResultSetHoldability() throws SQLException
 	{
-		return ResultSet.HOLD_CURSORS_OVER_COMMIT;
+		return ResultSet.CLOSE_CURSORS_AT_COMMIT;
 	}
 
 	/**

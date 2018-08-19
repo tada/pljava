@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2005-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Filip Hrbek
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -167,8 +172,7 @@ abstract class ResultSetBase extends ReadOnlyResultSet
 	}
 
 	/**
-	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors
-	 * are actually closed when a function returns to SQL.
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}.
 	 */
 	public int getHoldability()
 		throws SQLException
