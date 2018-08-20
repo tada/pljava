@@ -1015,28 +1015,54 @@ public class SPIConnection implements Connection
      *
      * Tip: keep these grouped together by the Types. value
      */
-    public static final int JDBC_TYPE_NUMBERS[] =
-    		{
-                Types.SMALLINT,
-                Types.INTEGER, Types.INTEGER,
-                Types.BIGINT,
-                Types.DOUBLE, Types.DOUBLE,
-                Types.NUMERIC,
-                Types.REAL,
-                Types.DOUBLE,
-                Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR,
-                Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
-                Types.BINARY,
-                Types.BOOLEAN,
-                Types.BIT,
-                Types.DATE,
-                Types.TIME, Types.TIME,
-                Types.TIMESTAMP, Types.TIMESTAMP, Types.TIMESTAMP,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY
-            };
+    public static final int JDBC_TYPE_NUMBERS[];
+
+	static
+	{
+		/*
+		 * Try to get the JDBC 4.2 / Java 8 TIME*ZONE types reflectively.
+		 * Once the Java back horizon advances to 8, just do this the easy way.
+		 */
+		int ttz  = Types.TIME;       // Use these values
+		int tstz = Types.TIMESTAMP;  //         pre-Java 8
+		try
+		{
+			ttz =
+				Types.class.getField("TIME_WITH_TIMEZONE")
+					.getInt(Types.class);
+			tstz =
+				Types.class.getField("TIMESTAMP_WITH_TIMEZONE")
+					.getInt(Types.class);
+		}
+		catch ( NoSuchFieldException nsfe ) { } // ok, not running in Java 8
+		catch ( IllegalAccessException iae )
+		{
+			throw new ExceptionInInitializerError(iae);
+		}
+
+		JDBC_TYPE_NUMBERS = new int[]
+		{
+			Types.SMALLINT,
+			Types.INTEGER, Types.INTEGER,
+			Types.BIGINT,
+			Types.DOUBLE, Types.DOUBLE,
+			Types.NUMERIC,
+			Types.REAL,
+			Types.DOUBLE,
+			Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,
+			Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
+			Types.BINARY,
+			Types.BOOLEAN,
+			Types.BIT,
+			Types.DATE,
+			Types.TIME, ttz,
+			Types.TIMESTAMP, Types.TIMESTAMP, tstz,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY
+        };
+	}
 
 	// ************************************************************
 	// Implementation of JDBC 4 methods. Methods go here if they
