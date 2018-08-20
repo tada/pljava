@@ -26,6 +26,7 @@ import java.sql.SQLDataException;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
 
 /**
  * A class to simplify testing of PL/Java's mappings between PostgreSQL and
@@ -128,6 +129,9 @@ public class TypeRoundTripper
 	 * must have text/varchar type, while ROUNDTRIPPED must match the type of
 	 * the input column).
 	 * @param in The input row value (required to have exactly one column).
+	 * @param classname Name of class to be explicitly requested (JDBC 4.1
+	 * feature) from {@code getObject}; pass an empty string (the default) to
+	 * make no such explicit request.
 	 * @param out The output row (supplied by PL/Java, representing the column
 	 * definition list that follows the call of this function in SQL).
 	 * @throws SQLException if {@code in} does not have exactly one column, if
@@ -138,13 +142,28 @@ public class TypeRoundTripper
 	@Function(
 		schema = "javatest",
 		type = "RECORD",
-		provides = "TypeRoundTripper.roundTrip"
+		provides = "TypeRoundTripper.roundTrip",
+		implementor = "postgresql_ge_80400" // supports function param DEFAULTs
 		)
-	public static boolean roundTrip(ResultSet in, ResultSet out)
+	public static boolean roundTrip(
+		ResultSet in, @SQLType(defaultValue="") String classname, ResultSet out)
 	throws SQLException
 	{
 		ResultSetMetaData inmd = in.getMetaData();
 		ResultSetMetaData outmd = out.getMetaData();
+
+		Class<?> clazz = null;
+		if ( ! "".equals(classname) )
+		{
+			try
+			{
+				clazz = Class.forName(classname);
+			}
+			catch ( ClassNotFoundException cnfe )
+			{
+				throw new SQLException(cnfe.getMessage(), cnfe);
+			}
+		}
 
 		if ( 1 != inmd.getColumnCount() )
 			throw new SQLDataException(
@@ -158,7 +177,7 @@ public class TypeRoundTripper
 
 		String inTypePG = inmd.getColumnTypeName(1);
 		int inTypeJDBC = inmd.getColumnType(1);
-		Object val = in.getObject(1);
+		Object val = (null == clazz) ? in.getObject(1) : in.getObject(1, clazz);
 
 		for ( int i = 1; i <= outcols; ++ i )
 		{
@@ -200,7 +219,8 @@ public class TypeRoundTripper
 			else
 				throw new SQLDataException(
 					"Output column label \""+ what + "\" should be one of: " +
-					"TYPEPG, TYPEJDBC, CLASSJDBC, CLASS, TOSTRING, VALUE",
+					"TYPEPG, TYPEJDBC, CLASSJDBC, CLASS, TOSTRING, " +
+					"ROUNDTRIPPED",
 					"22000");
 		}
 
