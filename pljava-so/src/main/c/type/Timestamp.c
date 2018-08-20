@@ -86,6 +86,9 @@ static jmethodID s_OffsetDateTime_toEpochSecond;
 static jmethodID s_OffsetDateTime_getNano;
 static jobject   s_ZoneOffset_UTC;
 
+static Type _LocalDateTime_obtain(Oid);
+static Type _OffsetDateTime_obtain(Oid);
+
 /*
  * This only answers true for (same class or) TIMESTAMPOID.
  * The obtainer (below) only needs to construct and remember one instance.
@@ -133,24 +136,7 @@ static Datum _LocalDateTime_coerceObject(Type self, jobject timestamp)
 {
 	jobject offsetDateTime = JNI_callObjectMethod(timestamp,
 		s_LocalDateTime_atOffset, s_ZoneOffset_UTC);
-	jlong epochSec = JNI_callLongMethod(
-		offsetDateTime, s_OffsetDateTime_toEpochSecond) - EPOCH_DIFF;
-	jint nanos = JNI_callIntMethod(
-		offsetDateTime, s_OffsetDateTime_getNano);
-	Datum result;
-
-#if PG_VERSION_NUM < 100000
-	if ( !integerDateTimes )
-	{
-		double secs = (double)epochSec + ((double)nanos)/1e9;
-		result = Float8GetDatum(secs);
-	}
-	else
-#endif
-	{
-		result = Int64GetDatum(1000000L * epochSec + nanos / 1000);
-	}
-
+	Datum result = Type_coerceObject(s_OffsetDateTimeInstance, offsetDateTime);
 	JNI_deleteLocalRef(offsetDateTime);
 	return result;
 }
@@ -181,15 +167,73 @@ static Type _LocalDateTime_obtain(Oid typeId)
 		s_OffsetDateTime_getNano = PgObject_getJavaMethod(
 			s_OffsetDateTime_class, "getNano", "()I");
 
-		/*
-		 * Haven't initialized s_OffsetDateTime_of, but _OffsetDateTime_obtain
-		 * will.
-		 */
-
 		s_LocalDateTimeInstance =
 			TypeClass_allocInstance(s_LocalDateTimeClass, TIMESTAMPOID);
+
+		if ( NULL == s_OffsetDateTimeInstance )
+			_OffsetDateTime_obtain(TIMESTAMPTZOID);
 	}
 	return s_LocalDateTimeInstance;
+}
+
+/*
+ * This only answers true for (same class or) TIMESTAMPTZOID.
+ * The obtainer (below) only needs to construct and remember one instance.
+ */
+static bool _OffsetDateTime_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls  ||  Type_getOid(other) == TIMESTAMPTZOID;
+}
+
+static jvalue _OffsetDateTime_coerceDatum(Type self, Datum arg)
+{
+	jvalue localDateTime = Type_coerceDatum(s_LocalDateTimeInstance, arg);
+	jvalue result;
+	result.l = JNI_callStaticObjectMethod(s_OffsetDateTime_class,
+		s_OffsetDateTime_of, localDateTime.l, s_ZoneOffset_UTC);
+	JNI_deleteLocalRef(localDateTime.l);
+	return result;
+}
+
+static Datum _OffsetDateTime_coerceObject(Type self, jobject timestamp)
+{
+	jlong epochSec = JNI_callLongMethod(
+		timestamp, s_OffsetDateTime_toEpochSecond) - EPOCH_DIFF;
+	jint nanos = JNI_callIntMethod(timestamp, s_OffsetDateTime_getNano);
+	Datum result;
+
+#if PG_VERSION_NUM < 100000
+	if ( !integerDateTimes )
+	{
+		double secs = (double)epochSec + ((double)nanos)/1e9;
+		result = Float8GetDatum(secs);
+	}
+	else
+#endif
+	{
+		result = Int64GetDatum(1000000L * epochSec + nanos / 1000);
+	}
+
+	return result;
+}
+
+static Type _OffsetDateTime_obtain(Oid typeId)
+{
+	if ( NULL == s_OffsetDateTimeInstance )
+	{
+		s_OffsetDateTimeInstance =
+			TypeClass_allocInstance(s_OffsetDateTimeClass, TIMESTAMPTZOID);
+
+		if ( NULL == s_LocalDateTimeInstance )
+			_LocalDateTime_obtain(TIMESTAMPOID);
+
+		s_OffsetDateTime_of = PgObject_getStaticJavaMethod(
+			s_OffsetDateTime_class, "of",
+			"(Ljava/time/LocalDateTime;Ljava/time/ZoneOffset;)"
+			"Ljava/time/OffsetDateTime;");
+	}
+	return s_OffsetDateTimeInstance;
 }
 
 static bool _Timestamp_canReplaceType(Type self, Type other)
@@ -410,4 +454,14 @@ void Timestamp_initialize(void)
 	s_LocalDateTimeClass  = cls;
 	Type_registerType2(InvalidOid, "java.time.LocalDateTime",
 		_LocalDateTime_obtain);
+
+	cls = TypeClass_alloc("type.OffsetDateTime");
+	cls->JNISignature = "Ljava/time/OffsetDateTime;";
+	cls->javaTypeName = "java.time.OffsetDateTime";
+	cls->coerceDatum  = _OffsetDateTime_coerceDatum;
+	cls->coerceObject = _OffsetDateTime_coerceObject;
+	cls->canReplaceType = _OffsetDateTime_canReplaceType;
+	s_OffsetDateTimeClass  = cls;
+	Type_registerType2(InvalidOid, "java.time.OffsetDateTime",
+		_OffsetDateTime_obtain);
 }
