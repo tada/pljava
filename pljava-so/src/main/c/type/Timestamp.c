@@ -23,12 +23,42 @@
 #define EPOCH_DIFF (((uint32)86400) * (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE))
 
 /*
- * Timestamp type. Postgres will pass (and expect in return) a local timestamp.
- * Java on the other hand has no object that represents local time (localization
- * is added when the object is converted to/from readable form). Hence, all
- * postgres timestamps must be converted from local time to UTC when passed as
- * a parameter to a Java method and all Java Timestamps must be converted from UTC
- * to localtime when returned to postgres.
+ * Types timestamp and timestamptz. This compilation unit supplies code for both
+ * PostgreSQL types. The legacy JDBC mapping for both is to java.sql.Timestamp,
+ * which holds an implicit timezone offset and therefore can't be an equally
+ * good fit for both.
+ *
+ * Java 8 and JDBC 4.2 introduce java.time.LocalDateTime and
+ * java.time.OffsetDateTime, which more directly fit PG's timestamp and
+ * timestamptz, respectively. For compatibility reasons, the legacy behavior of
+ * getObject (with no Class parameter) is unchanged, and still returns the data
+ * weirdly shoehorned into java.sql.Timestamp. But Java 8 application code can
+ * and should use the form of getObject with a Class parameter to request
+ * java.time.LocalDateTime or java.time.OffsetDateTime, as appropriate.
+ *
+ * Note that it is somewhat misleading for PostgreSQL to call one of these types
+ * TIMESTAMP WITH TIME ZONE. The stored form does not, in fact, include a time
+ * zone (and this is in contrast to TIME WITH TIME ZONE, which does). Instead,
+ * what PostgreSQL means by TIMESTAMP WITH TIMEZONE is that a zone can be given
+ * (or inferred from the session) when a value is input, and used to adjust the
+ * value to UTC, and, likewise, the stored UTC value can be output converted to
+ * a given (or implicit) zone offset. Meanwhile, a TIMESTAMP WITHOUT TIME ZONE
+ * is just stored as the number of seconds from epoch that would make a clock
+ * on UTC show the same date and time as the value input.
+ *
+ * When producing a java.time.LocalDateTime from a timestamp and vice versa,
+ * the conversion is just what you would think. When producing an OffsetDateTime
+ * from a timestamptz, the OffsetDateTime will always have offset zero from UTC.
+ * That's what the stored PostgreSQL data represents; to produce anything else
+ * would be lying. When receiving an OffsetDateTime into PostgreSQL, of course
+ * any zone offset it contains will be used to adjust the value to UTC for
+ * storage.
+ *
+ * The legacy behavior when mapping timestamp and timestamptz to
+ * java.sql.Timestamp is that a timestamptz is converted in both directions
+ * without alteration, and a (local!) timestamp is *adjusted as if to UTC from
+ * the current session's implicit timezone* (and vice versa when receiving
+ * a value). Weird or not, that's how PL/Java has always done it.
  */
 static jclass    s_Timestamp_class;
 static jmethodID s_Timestamp_init;
@@ -38,6 +68,129 @@ static jmethodID s_Timestamp_setNanos;
 
 static TypeClass s_TimestampClass;
 static TypeClass s_TimestamptzClass;
+
+static TypeClass s_LocalDateTimeClass;
+static TypeClass s_OffsetDateTimeClass;
+/*
+ * The following statics are specific to Java 8 +, and will be initialized
+ * only on demand (pre-8 application code will have no way to demand them).
+ */
+static Type      s_LocalDateTimeInstance;
+static jclass    s_LocalDateTime_class;
+static jmethodID s_LocalDateTime_ofEpochSecond;
+static jmethodID s_LocalDateTime_atOffset;
+static Type      s_OffsetDateTimeInstance;
+static jclass    s_OffsetDateTime_class;
+static jmethodID s_OffsetDateTime_of;
+static jmethodID s_OffsetDateTime_toEpochSecond;
+static jmethodID s_OffsetDateTime_getNano;
+static jobject   s_ZoneOffset_UTC;
+
+/*
+ * This only answers true for (same class or) TIMESTAMPOID.
+ * The obtainer (below) only needs to construct and remember one instance.
+ */
+static bool _LocalDateTime_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls  ||  Type_getOid(other) == TIMESTAMPOID;
+}
+
+static jvalue _LocalDateTime_coerceDatum(Type self, Datum arg)
+{
+	jlong micros;
+	jint  onlyMicros;
+	jlong secs;
+	jvalue result;
+#if PG_VERSION_NUM < 100000
+	if ( !integerDateTimes )
+	{
+		/* 1e6 = 64 * 15625. *64 is a radix point shift, no precision loss */
+		double shiftedFracSecs = DatumGetFloat8(arg) * 64;
+		int64 shiftedSecs = (int64)floor(shiftedFracSecs);
+		shiftedFracSecs -= (double)shiftedSecs;
+		micros = (jlong)(15625*shiftedSecs);
+		micros += ((jlong)floor(31250. * shiftedFracSecs) + 1) / 2;
+	}
+	else
+#endif
+	{
+		micros = DatumGetInt64(arg);
+	}
+	/* Expect number of microseconds since 01 Jan 2000. Tease out a non-negative
+	 * sub-second microseconds value (whether this C compiler's signed %
+	 * has trunc or floor behavior).
+	 */
+	onlyMicros = (jint)(((micros % 1000000) + 1000000) % 1000000);
+	secs = EPOCH_DIFF + (micros - onlyMicros) / 1000000;
+	result.l = JNI_callStaticObjectMethod(s_LocalDateTime_class,
+		s_LocalDateTime_ofEpochSecond,
+		secs, 1000 * onlyMicros, s_ZoneOffset_UTC);
+	return result;
+}
+
+static Datum _LocalDateTime_coerceObject(Type self, jobject timestamp)
+{
+	jobject offsetDateTime = JNI_callObjectMethod(timestamp,
+		s_LocalDateTime_atOffset, s_ZoneOffset_UTC);
+	jlong epochSec = JNI_callLongMethod(
+		offsetDateTime, s_OffsetDateTime_toEpochSecond) - EPOCH_DIFF;
+	jint nanos = JNI_callIntMethod(
+		offsetDateTime, s_OffsetDateTime_getNano);
+	Datum result;
+
+#if PG_VERSION_NUM < 100000
+	if ( !integerDateTimes )
+	{
+		double secs = (double)epochSec + ((double)nanos)/1e9;
+		result = Float8GetDatum(secs);
+	}
+	else
+#endif
+	{
+		result = Int64GetDatum(1000000L * epochSec + nanos / 1000);
+	}
+
+	JNI_deleteLocalRef(offsetDateTime);
+	return result;
+}
+
+static Type _LocalDateTime_obtain(Oid typeId)
+{
+	if ( NULL == s_LocalDateTimeInstance )
+	{
+		jclass zoneOffsetCls = PgObject_getJavaClass("java/time/ZoneOffset");
+		jfieldID fldUTC = PgObject_getStaticJavaField(
+			zoneOffsetCls, "UTC", "Ljava/time/ZoneOffset;");
+		s_ZoneOffset_UTC = JNI_newGlobalRef(JNI_getStaticObjectField(
+			zoneOffsetCls, fldUTC));
+		JNI_deleteLocalRef(zoneOffsetCls);
+
+		s_LocalDateTime_class = JNI_newGlobalRef(PgObject_getJavaClass(
+			"java/time/LocalDateTime"));
+		s_LocalDateTime_ofEpochSecond = PgObject_getStaticJavaMethod(
+			s_LocalDateTime_class, "ofEpochSecond",
+			"(JILjava/time/ZoneOffset;)Ljava/time/LocalDateTime;");
+		s_LocalDateTime_atOffset = PgObject_getJavaMethod(s_LocalDateTime_class,
+			"atOffset", "(Ljava/time/ZoneOffset;)Ljava/time/OffsetDateTime;");
+
+		s_OffsetDateTime_class = JNI_newGlobalRef(PgObject_getJavaClass(
+			"java/time/OffsetDateTime"));
+		s_OffsetDateTime_toEpochSecond = PgObject_getJavaMethod(
+			s_OffsetDateTime_class, "toEpochSecond", "()J");
+		s_OffsetDateTime_getNano = PgObject_getJavaMethod(
+			s_OffsetDateTime_class, "getNano", "()I");
+
+		/*
+		 * Haven't initialized s_OffsetDateTime_of, but _OffsetDateTime_obtain
+		 * will.
+		 */
+
+		s_LocalDateTimeInstance =
+			TypeClass_allocInstance(s_LocalDateTimeClass, TIMESTAMPOID);
+	}
+	return s_LocalDateTimeInstance;
+}
 
 static bool _Timestamp_canReplaceType(Type self, Type other)
 {
@@ -247,4 +400,14 @@ void Timestamp_initialize(void)
 	cls->coerceObject   = _Timestamptz_coerceObject;
 	Type_registerType("java.sql.Timestamp", TypeClass_allocInstance(cls, TIMESTAMPTZOID));
 	s_TimestamptzClass = cls;
+
+	cls = TypeClass_alloc("type.LocalDateTime");
+	cls->JNISignature = "Ljava/time/LocalDateTime;";
+	cls->javaTypeName = "java.time.LocalDateTime";
+	cls->coerceDatum  = _LocalDateTime_coerceDatum;
+	cls->coerceObject = _LocalDateTime_coerceObject;
+	cls->canReplaceType = _LocalDateTime_canReplaceType;
+	s_LocalDateTimeClass  = cls;
+	Type_registerType2(InvalidOid, "java.time.LocalDateTime",
+		_LocalDateTime_obtain);
 }
