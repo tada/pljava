@@ -742,7 +742,7 @@ public class SPIConnection implements Connection
 
 	/**
 	 * Convert a PostgreSQL type name to a {@link Types} integer, using the
-	 * {@code JDBC3_TYPE_NAMES}/{@code JDBC_TYPE_NUMBERS} arrays; used in
+	 * {@code JDBC_TYPE_NAMES}/{@code JDBC_TYPE_NUMBERS} arrays; used in
 	 * {@link DatabaseMetaData} and {@link ResultSetMetaData}.
 	 */
     public int getSQLType(String pgTypeName)
@@ -750,8 +750,8 @@ public class SPIConnection implements Connection
         if (pgTypeName == null)
             return Types.OTHER;
 
-        for (int i = 0;i < JDBC3_TYPE_NAMES.length;i++)
-            if (pgTypeName.equals(JDBC3_TYPE_NAMES[i]))
+        for (int i = 0;i < JDBC_TYPE_NAMES.length;i++)
+            if (pgTypeName.equals(JDBC_TYPE_NAMES[i]))
                 return JDBC_TYPE_NUMBERS[i];
 
         return Types.OTHER;
@@ -986,7 +986,7 @@ public class SPIConnection implements Connection
      *
      * Tip: keep these grouped together by the Types. value
      */
-    public static final String JDBC3_TYPE_NAMES[] = {
+    public static final String JDBC_TYPE_NAMES[] = {
                 "int2",
                 "int4", "oid",
                 "int8",
