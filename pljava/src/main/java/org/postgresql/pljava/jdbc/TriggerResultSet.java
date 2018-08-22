@@ -126,7 +126,9 @@ public class TriggerResultSet extends SingleRowResultSet
 		for(int idx = 0; idx < top; ++idx)
 		{	
 			indexes[idx] = ((Integer)changes.get(vIdx++)).intValue();
-			values[idx] = changes.get(vIdx++);
+			Object v = changes.get(vIdx++);
+			TypeBridge<?>.Holder vAlt = TypeBridge.wrap(v);
+			values[idx] = null == vAlt ? v : vAlt;
 		}
 		return new Object[] { m_tuple, indexes, values };
 	}

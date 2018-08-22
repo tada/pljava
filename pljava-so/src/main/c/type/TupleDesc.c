@@ -239,7 +239,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 			if(value != 0)
 			{
 				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1), typeMap);
-				values[idx] = Type_coerceObject(type, value);
+				values[idx] = Type_coerceObjectBridged(type, value);
 				nulls[idx] = false;
 			}
 		}

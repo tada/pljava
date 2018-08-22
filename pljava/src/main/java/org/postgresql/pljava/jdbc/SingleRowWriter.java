@@ -90,7 +90,8 @@ public class SingleRowWriter extends SingleRowResultSet
 			m_values[columnIndex-1] = x;
 
 		Class c = m_tupleDesc.getColumnClass(columnIndex);
-		if(!c.isInstance(x)
+		TypeBridge<?>.Holder xAlt = TypeBridge.wrap(x);
+		if(null == xAlt  &&  !c.isInstance(x)
 		&& !(c == byte[].class && (x instanceof BlobValue)))
 		{
 			if(Number.class.isAssignableFrom(c))
@@ -103,7 +104,7 @@ public class SingleRowWriter extends SingleRowResultSet
 			else
 				x = SPIConnection.basicCoersion(c, x);
 		}
-		m_values[columnIndex-1] = x;
+		m_values[columnIndex-1] = null == xAlt ? x : xAlt;
 	}
 
 	@Override

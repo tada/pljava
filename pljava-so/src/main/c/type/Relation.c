@@ -235,7 +235,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 				type = Type_fromOid(typeId, typeMap);
 				value = JNI_getObjectArrayElement(_values, idx);
 				if(value != 0)
-					values[idx] = Type_coerceObject(type, value);
+					values[idx] = Type_coerceObjectBridged(type, value);
 				else
 				{
 					if(nulls == 0)
