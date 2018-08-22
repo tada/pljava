@@ -79,9 +79,19 @@ extern jvalue Type_coerceDatumAs(Type self, Datum datum, jclass rqcls);
 
 /*
  * Translate a given Object into a Datum accorging to the type represented
- * by this instance.
+ * by this instance. The caller must be certain that 'object' is an instance
+ * of a Java type expected by the coercer for this TypeClass.
  */
 extern Datum Type_coerceObject(Type self, jobject object);
+
+/*
+ * Translate a given Object into a Datum accorging to the type represented
+ * by this instance. The object may be an instance of TypeBridge.Holder holding
+ * an object of an alternate Java class than what the coercer for this TypeClass
+ * expects. Otherwise, it must be an object of the expected class, just as for
+ * Type_coerceObject.
+ */
+extern Datum Type_coerceObjectBridged(Type self, jobject object);
 
 /*
  * Return a Type based on a Postgres Oid. Creates a new type if
