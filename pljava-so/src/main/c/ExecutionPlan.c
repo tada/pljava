@@ -89,7 +89,7 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{
-				values[idx] = Type_coerceObject(type, value);
+				values[idx] = Type_coerceObjectBridged(type, value);
 				JNI_deleteLocalRef(value);
 			}
 			else
