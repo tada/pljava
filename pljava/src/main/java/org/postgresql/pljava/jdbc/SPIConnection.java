@@ -1025,20 +1025,20 @@ public class SPIConnection implements Connection
 		 */
 		int ttz  = Types.TIME;       // Use these values
 		int tstz = Types.TIMESTAMP;  //         pre-Java 8
-		try
-		{
-			ttz =
-				Types.class.getField("TIME_WITH_TIMEZONE")
-					.getInt(Types.class);
-			tstz =
-				Types.class.getField("TIMESTAMP_WITH_TIMEZONE")
-					.getInt(Types.class);
-		}
-		catch ( NoSuchFieldException nsfe ) { } // ok, not running in Java 8
-		catch ( IllegalAccessException iae )
-		{
-			throw new ExceptionInInitializerError(iae);
-		}
+//		try    COMMENTED OUT FOR BACK-COMPATIBILITY REASONS IN PL/JAVA 1.5.x
+//		{
+//			ttz =
+//				Types.class.getField("TIME_WITH_TIMEZONE")
+//					.getInt(Types.class);
+//			tstz =
+//				Types.class.getField("TIMESTAMP_WITH_TIMEZONE")
+//					.getInt(Types.class);
+//		}
+//		catch ( NoSuchFieldException nsfe ) { } // ok, not running in Java 8
+//		catch ( IllegalAccessException iae )
+//		{
+//			throw new ExceptionInInitializerError(iae);
+//		}
 
 		JDBC_TYPE_NUMBERS = new int[]
 		{
