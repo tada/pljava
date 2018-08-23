@@ -16,6 +16,9 @@ import java.lang.reflect.Modifier;
 import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
 
+import java.sql.Connection;
+import static java.sql.DriverManager.getConnection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
@@ -132,6 +135,10 @@ public class TypeRoundTripper
 	 * @param classname Name of class to be explicitly requested (JDBC 4.1
 	 * feature) from {@code getObject}; pass an empty string (the default) to
 	 * make no such explicit request.
+	 * @param prepare Whether the object retrieved from {@code in} should be
+	 * passed as a parameter to an identity {@code PreparedStatement} and the
+	 * result of that be returned. If false (the default), the value from
+	 * {@code in} is simply forwarded directly to {@code out}.
 	 * @param out The output row (supplied by PL/Java, representing the column
 	 * definition list that follows the call of this function in SQL).
 	 * @throws SQLException if {@code in} does not have exactly one column, if
@@ -146,7 +153,8 @@ public class TypeRoundTripper
 		implementor = "postgresql_ge_80400" // supports function param DEFAULTs
 		)
 	public static boolean roundTrip(
-		ResultSet in, @SQLType(defaultValue="") String classname, ResultSet out)
+		ResultSet in, @SQLType(defaultValue="") String classname,
+		@SQLType(defaultValue="false") boolean prepare, ResultSet out)
 	throws SQLException
 	{
 		ResultSetMetaData inmd = in.getMetaData();
@@ -178,6 +186,19 @@ public class TypeRoundTripper
 		String inTypePG = inmd.getColumnTypeName(1);
 		int inTypeJDBC = inmd.getColumnType(1);
 		Object val = (null == clazz) ? in.getObject(1) : in.getObject(1, clazz);
+
+		if ( prepare )
+		{
+			Connection c = getConnection("jdbc:default:connection");
+			PreparedStatement ps = c.prepareStatement("SELECT ?");
+			ps.setObject(1, val);
+			ResultSet rs = ps.executeQuery();
+			rs.next();
+			val = (null == clazz) ? rs.getObject(1) : rs.getObject(1, clazz);
+			rs.close();
+			ps.close();
+			c.close();
+		}
 
 		for ( int i = 1; i <= outcols; ++ i )
 		{

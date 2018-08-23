@@ -99,7 +99,18 @@ import org.postgresql.pljava.annotation.SQLActions;
 		"   (timestamptz '1919-05-29 13:08:33.600001Z')" +
 		"  ) AS p(orig)," +
 		"  javatest.roundtrip(p, 'java.time.OffsetDateTime')" +
-		"  AS r(roundtripped timestamptz)"
+		"  AS r(roundtripped timestamptz)",
+
+		" SELECT" +
+		"  CASE WHEN every(orig = roundtripped)" +
+		"  THEN javatest.logmessage('INFO', 'OffsetTime as stmt param passes')"+
+		"  ELSE javatest.logmessage(" +
+		"         'WARNING','java.time.OffsetTime as stmt param fails')"+
+		"  END" +
+		" FROM" +
+		"  (SELECT current_time::timetz) AS p(orig)," +
+		"  javatest.roundtrip(p, 'java.time.OffsetTime', true)" +
+		"  AS r(roundtripped timetz)"
 	})
 })
 public class JDBC42_21
