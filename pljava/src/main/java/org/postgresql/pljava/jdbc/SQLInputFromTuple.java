@@ -352,7 +352,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 					++m_index, type);
 			}
 			m_wasNull = v == null;
-			if ( type.isInstance(v) )
+			if ( m_wasNull  ||  type.isInstance(v) )
 				return type.cast(v);
 			throw new SQLException("Cannot convert " + v.getClass().getName() +
 				" to " + type.getName());

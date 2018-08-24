@@ -640,7 +640,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	{
 		Object value = this.getObjectValue(columnIndex, type);
 		m_wasNull = (value == null);
-		if ( type.isInstance(value) )
+		if ( m_wasNull  ||  type.isInstance(value) )
 			return type.cast(value);
 		throw new SQLException("Cannot convert " + value.getClass().getName() +
 			" to " + type.getName());
