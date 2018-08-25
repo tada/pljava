@@ -109,7 +109,7 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 
 import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLEventWriter;
+import javax.xml.stream.XMLStreamWriter;
 
 /* ... for SQLXMLImpl.SAXResultAdapter and .SAXUnwrapFilter */
 
@@ -954,7 +954,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				{
 					XMLOutputFactory xof = XMLOutputFactory.newFactory();
 					os = new DeclCheckedOutputStream(os, m_serverCS);
-					XMLEventWriter xsw = xof.createXMLEventWriter(
+					XMLStreamWriter xsw = xof.createXMLStreamWriter(
 						os, m_serverCS.name());
 					xsw = new StAXResultAdapter(xsw, os);
 					return resultClass.cast(new StAXResult(xsw));
@@ -1444,109 +1444,250 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	/**
-	 * Class to wrap a StAX {@code XMLEventWriter} and hook the
-	 * {@code endDocument} event to also close the underlying output stream,
+	 * Class to wrap a StAX {@code XMLStreamWriter} and hook the method
+	 * {@code writeEndDocument} to also close the underlying output stream,
 	 * making the {@code SQLXML} object ready to use for storing or returning
 	 * the value.
 	 */
-	static class StAXResultAdapter implements XMLEventWriter
+	static class StAXResultAdapter implements XMLStreamWriter
 	{
-		/*
-		 * TODO: it seems there is a practical difference between the
-		 * XMLEventWriter and XMLStreamWriter APIs, as the former cannot
-		 * distinguish between self-closed empty elements and the start-and-end
-		 * tag form, while the latter can. This should probably be replaced
-		 * by a class that implements XMLStreamWriter; that's just more tedious
-		 * and longwinded, with so many more methods to implement.
-		 */
-		private XMLEventWriter m_xew;
+		private XMLStreamWriter m_xsw;
 		private OutputStream m_os;
 
-		StAXResultAdapter(XMLEventWriter xew, OutputStream os)
+		StAXResultAdapter(XMLStreamWriter xsw, OutputStream os)
 		{
-			m_xew = xew;
+			m_xsw = xsw;
 			m_os = os;
 		}
 
 		@Override
-		public void flush() throws XMLStreamException
+		public void writeStartElement(String localName)
+			throws XMLStreamException
 		{
-			m_xew.flush();
+			m_xsw.writeStartElement(localName);
 		}
 
 		@Override
-		public void close() throws XMLStreamException
+		public void writeStartElement(String namespaceURI, String localName)
+			throws XMLStreamException
 		{
-			m_xew.close();
+			m_xsw.writeStartElement(namespaceURI, localName);
+		}
+
+		@Override
+		public void writeStartElement(
+			String prefix, String localName, String namespaceURI)
+			throws XMLStreamException
+		{
+			m_xsw.writeStartElement(prefix, namespaceURI, localName);
+		}
+
+		@Override
+		public void writeEmptyElement(String namespaceURI, String localName)
+			throws XMLStreamException
+		{
+			m_xsw.writeEmptyElement(namespaceURI, localName);
+		}
+
+		@Override
+		public void writeEmptyElement(
+			String prefix, String localName, String namespaceURI)
+			throws XMLStreamException
+		{
+			m_xsw.writeEmptyElement(prefix, namespaceURI, localName);
+		}
+
+		@Override
+		public void writeEmptyElement(String localName)
+			throws XMLStreamException
+		{
+			m_xsw.writeEmptyElement(localName);
+		}
+
+		@Override
+		public void writeEndElement() throws XMLStreamException
+		{
+			m_xsw.writeEndElement();
 		}
 
 		/**
-		 * Version of {@code add} that also closes the underlying stream after
-		 * handling an {@code endDocument} event.
+		 * Version of {@code writeEndDocument} that also closes the underlying
+		 * stream.
 		 *<p>
 		 * Note it does <em>not</em> call this class's own <em>close</em>; a
 		 * calling transformer may emit a warning if that is done.
 		 */
 		@Override
-		public void add(XMLEvent event) throws XMLStreamException
+		public void writeEndDocument() throws XMLStreamException
 		{
-			m_xew.add(event);
-			if ( ! event.isEndDocument() )
-				return;
+			m_xsw.writeEndDocument();
+
 			try
 			{
 				m_os.close();
 			}
-			catch (   Exception ioe )
+			catch ( Exception ioe )
 			{
 				throw new XMLStreamException(
 					"Failure closing SQLXML StAXResult", ioe);
 			}
 		}
 
-		/**
-		 * Include a whole content fragment by supplying another reader.
-		 * That is passed directly to the underlying class, so the
-		 * {@code endDocument} event ending that content will not close
-		 * the stream.
-		 */
 		@Override
-		public void add(XMLEventReader reader) throws XMLStreamException
+		public void close() throws XMLStreamException
 		{
-			m_xew.add(reader);
+			m_xsw.close();
+		}
+
+		@Override
+		public void flush() throws XMLStreamException
+		{
+			m_xsw.flush();
+		}
+
+		@Override
+		public void writeAttribute(String localName, String value)
+			throws XMLStreamException
+		{
+			m_xsw.writeAttribute(localName, value);
+		}
+
+		@Override
+		public void writeAttribute(
+			String prefix, String namespaceURI, String localName, String value)
+			throws XMLStreamException
+		{
+			m_xsw.writeAttribute(prefix, namespaceURI, localName, value);
+		}
+
+		@Override
+		public void writeAttribute(
+			String namespaceURI, String localName, String value)
+			throws XMLStreamException
+		{
+			m_xsw.writeAttribute(namespaceURI, localName, value);
+		}
+
+		@Override
+		public void writeNamespace(String prefix, String namespaceURI)
+			throws XMLStreamException
+		{
+			m_xsw.writeNamespace(prefix, namespaceURI);
+		}
+
+		@Override
+		public void writeDefaultNamespace(String namespaceURI)
+			throws XMLStreamException
+		{
+			m_xsw.writeDefaultNamespace(namespaceURI);
+		}
+
+		@Override
+		public void writeComment(String data) throws XMLStreamException
+		{
+			m_xsw.writeComment(data);
+		}
+
+		@Override
+		public void writeProcessingInstruction(String target)
+			throws XMLStreamException
+		{
+			m_xsw.writeProcessingInstruction(target);
+		}
+
+		@Override
+		public void writeProcessingInstruction(String target, String data)
+			throws XMLStreamException
+		{
+			m_xsw.writeProcessingInstruction(target, data);
+		}
+
+		@Override
+		public void writeCData(String data) throws XMLStreamException
+		{
+			m_xsw.writeCData(data);
+		}
+
+		@Override
+		public void writeDTD(String dtd) throws XMLStreamException
+		{
+			m_xsw.writeDTD(dtd);
+		}
+
+		@Override
+		public void writeEntityRef(String name) throws XMLStreamException
+		{
+			m_xsw.writeEntityRef(name);
+		}
+
+		@Override
+		public void writeStartDocument() throws XMLStreamException
+		{
+			m_xsw.writeStartDocument();
+		}
+
+		@Override
+		public void writeStartDocument(String version) throws XMLStreamException
+		{
+			m_xsw.writeStartDocument(version);
+		}
+
+		@Override
+		public void writeStartDocument(String encoding, String version)
+			throws XMLStreamException
+		{
+			m_xsw.writeStartDocument(encoding, version);
+		}
+
+		@Override
+		public void writeCharacters(String text) throws XMLStreamException
+		{
+			m_xsw.writeCharacters(text);
+		}
+
+		@Override
+		public void writeCharacters(char[] text, int start, int len)
+			throws XMLStreamException
+		{
+			m_xsw.writeCharacters(text, start,  len);
 		}
 
 		@Override
 		public String getPrefix(String uri) throws XMLStreamException
 		{
-			return m_xew.getPrefix(uri);
+			return m_xsw.getPrefix(uri);
 		}
 
 		@Override
 		public void setPrefix(String prefix, String uri)
-		throws XMLStreamException
+			throws XMLStreamException
 		{
-			m_xew.setPrefix(prefix, uri);
+			m_xsw.setPrefix(prefix, uri);
 		}
 
 		@Override
-		public void setDefaultNamespace(String uri)
-		throws XMLStreamException
+		public void setDefaultNamespace(String uri) throws XMLStreamException
 		{
-			m_xew.setDefaultNamespace(uri);
+			m_xsw.setDefaultNamespace(uri);
 		}
 
 		@Override
 		public void setNamespaceContext(NamespaceContext context)
-		throws XMLStreamException
+			throws XMLStreamException
 		{
-			m_xew.setNamespaceContext(context);
+			m_xsw.setNamespaceContext(context);
 		}
 
 		@Override
 		public NamespaceContext getNamespaceContext()
 		{
-			return m_xew.getNamespaceContext();
+			return m_xsw.getNamespaceContext();
+		}
+
+		@Override
+		public Object getProperty(String name) throws IllegalArgumentException
+		{
+			return m_xsw.getProperty(name);
 		}
 	}
 
