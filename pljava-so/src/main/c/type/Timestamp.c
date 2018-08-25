@@ -101,34 +101,31 @@ static bool _LocalDateTime_canReplaceType(Type self, Type other)
 
 static jvalue _LocalDateTime_coerceDatum(Type self, Datum arg)
 {
-	jlong micros;
 	jint  onlyMicros;
 	jlong secs;
 	jvalue result;
 #if PG_VERSION_NUM < 100000
 	if ( !integerDateTimes )
 	{
-		/* 1e6 = 64 * 15625. *64 is a radix point shift, no precision loss */
-		double shiftedFracSecs = DatumGetFloat8(arg) * 64;
-		int64 shiftedSecs = (int64)floor(shiftedFracSecs);
-		shiftedFracSecs -= (double)shiftedSecs;
-		micros = (jlong)(15625*shiftedSecs);
-		micros += ((jlong)floor(31250. * shiftedFracSecs) + 1) / 2;
+		double fracSecs = DatumGetFloat8(arg);
+		secs = (jlong)floor(fracSecs);
+		fracSecs -= (double)secs;
+		onlyMicros = ((jint)floor(2e6 * fracSecs) + 1) / 2;
 	}
 	else
 #endif
 	{
-		micros = DatumGetInt64(arg);
+		int64 micros = DatumGetInt64(arg);
+		/* Expect number of microseconds since 01 Jan 2000. Tease out a
+		 * non-negative sub-second microseconds value (whether this C compiler's
+		 * signed % has trunc or floor behavior).
+		 */
+		onlyMicros = (jint)(((micros % 1000000) + 1000000) % 1000000);
+		secs = (micros - onlyMicros) / 1000000;
 	}
-	/* Expect number of microseconds since 01 Jan 2000. Tease out a non-negative
-	 * sub-second microseconds value (whether this C compiler's signed %
-	 * has trunc or floor behavior).
-	 */
-	onlyMicros = (jint)(((micros % 1000000) + 1000000) % 1000000);
-	secs = EPOCH_DIFF + (micros - onlyMicros) / 1000000;
 	result.l = JNI_callStaticObjectMethod(s_LocalDateTime_class,
 		s_LocalDateTime_ofEpochSecond,
-		secs, 1000 * onlyMicros, s_ZoneOffset_UTC);
+		EPOCH_DIFF + secs, 1000 * onlyMicros, s_ZoneOffset_UTC);
 	return result;
 }
 
@@ -272,7 +269,7 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 #if PG_VERSION_NUM < 100000
 static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 {
-	jlong mSecs;
+	jlong secs;
 	jint  uSecs;
 	jvalue result;
 	double ts = DatumGetFloat8(arg);
@@ -283,9 +280,9 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 	if(tzAdjust)
 		ts += tz; /* Adjust from local time to UTC */
 	ts += EPOCH_DIFF; /* Adjust for diff between Postgres and Java (Unix) */
-	mSecs = (jlong) floor(ts * 1000.0); /* Convert to millisecs */
-	uSecs = (jint) ((ts - floor(ts)) * 1000000.0); /* Preserve microsecs */
-	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
+	secs = (jlong) floor(ts); /* Take just the secs */
+	uSecs = (((jint) ((ts - secs) * 2e6)) + 1) / 2; /* Preserve microsecs */
+	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, secs * 1000);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;
@@ -328,6 +325,13 @@ static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 	double ts;
 	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
 	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
+	/*
+	 * getNanos() should have supplied non-negative nSecs, whether mSecs is
+	 * positive or negative. So mSecs needs to be floor()ed to a multiple of
+	 * 1000 ms, whether this C compiler does signed integer division with floor
+	 * or trunc.
+	 */
+	mSecs -= ((mSecs % 1000) + 1000) % 1000;
 	ts = ((double)mSecs) / 1000.0; /* Convert to seconds */
 	ts -= EPOCH_DIFF;
 	if(nSecs != 0)
