@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -39,6 +44,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	/**
 	 * Cancel all changes made to the Tuple.
 	 */
+	@Override
 	public void cancelRowUpdates()
 	throws SQLException
 	{
@@ -48,6 +54,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	/**
 	 * Cancels all changes but doesn't really close the set.
 	 */
+	@Override
 	public void close()
 	throws SQLException
 	{
@@ -58,6 +65,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	 * Returns the concurrency for this ResultSet.
 	 * @see java.sql.ResultSet#getConcurrency
 	 */
+	@Override
 	public int getConcurrency() throws SQLException
 	{
 		return m_readOnly ? CONCUR_READ_ONLY : CONCUR_UPDATABLE;
@@ -66,6 +74,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	/**
 	 * Returns <code>true</code> if this row has been updated.
 	 */
+	@Override
 	public boolean rowUpdated()
 	throws SQLException
 	{
@@ -75,6 +84,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	/**
 	 * Store this change for later use
 	 */
+	@Override
 	public void updateObject(int columnIndex, Object x)
 	throws SQLException
 	{
@@ -90,12 +100,14 @@ public class TriggerResultSet extends SingleRowResultSet
 
 	
 	/**
-	 * Return a 2 element array describing the changes that has been made to
-	 * the contained Tuple. The first element is an <code>int[]</code> containing
-	 * the index of each changed value. The second element is an <code>Object[]
-	 * </code> with containing the corresponding values.
+	 * Return a 3 element array describing the changes that have been made to
+	 * the contained Tuple. The first element the original Tuple, the second
+	 * an {@code int[]} containing
+	 * the index of each changed value, and the third an {@code Object[]}
+	 * containing the corresponding values.
 	 * 
-	 * @return The 2 element array or <code>null</code> if no change has been made.
+	 * @return The 3 element array or <code>null</code> if no change has
+	 * been made.
 	 */
 	public Object[] getChangeIndexesAndValues()
 	{
@@ -114,12 +126,24 @@ public class TriggerResultSet extends SingleRowResultSet
 		for(int idx = 0; idx < top; ++idx)
 		{	
 			indexes[idx] = ((Integer)changes.get(vIdx++)).intValue();
-			values[idx] = changes.get(vIdx++);
+			Object v = changes.get(vIdx++);
+			TypeBridge<?>.Holder vAlt = TypeBridge.wrap(v);
+			values[idx] = null == vAlt ? v : vAlt;
 		}
 		return new Object[] { m_tuple, indexes, values };
 	}
 
-	protected Object getObjectValue(int columnIndex)
+	/**
+	 * If the value has not been changed, forwards to
+	 * {@link Tuple#getObject(TupleDesc,int,Class) Tuple.getObject}, with the
+	 * usual behavior for type coercion; if it has been changed, returns the
+	 * exact object that was supplied with the change.
+	 *<p>
+	 * When the caller is the JDBC 4.1 {@link #getObject(int,Class)}, the caller
+	 * will check and complain if the returned object is not of the right class.
+	 */
+	@Override // defined in ObjectResultSet
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
 		// Check if this value has been changed.
@@ -132,9 +156,10 @@ public class TriggerResultSet extends SingleRowResultSet
 				if(columnIndex == ((Integer)changes.get(idx)).intValue())
 					return changes.get(idx + 1);
 		}
-		return m_tuple.getObject(this.getTupleDesc(), columnIndex);
+		return m_tuple.getObject(this.getTupleDesc(), columnIndex, type);
 	}
 
+	@Override // defined in SingleRowResultSet
 	protected final TupleDesc getTupleDesc()
 	{
 		return m_tupleDesc;
@@ -146,6 +171,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	// ************************************************************
 
 	
+	@Override
 	public boolean isClosed()
 		throws SQLException
 	{

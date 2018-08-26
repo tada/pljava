@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -77,6 +77,11 @@ typedef CacheEntryData* CacheEntry;
 static jclass s_Iterator_class;
 static jmethodID s_Iterator_hasNext;
 static jmethodID s_Iterator_next;
+
+static jclass s_TypeBridge_Holder_class;
+static jmethodID s_TypeBridge_Holder_className;
+static jmethodID s_TypeBridge_Holder_defaultOid;
+static jmethodID s_TypeBridge_Holder_payload;
 
 /* Structure used in multi function calls (calls returning
  * SETOF <composite type>)
@@ -221,9 +226,48 @@ jvalue Type_coerceDatum(Type self, Datum value)
 	return self->typeClass->coerceDatum(self, value);
 }
 
+jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
+{
+	jstring rqcname;
+	char *rqcname0;
+	Type rqtype;
+
+	if ( NULL == rqcls  ||  Type_getJavaClass(self) == rqcls )
+		return Type_coerceDatum(self, value);
+
+	rqcname = JNI_callObjectMethod(rqcls, Class_getName);
+	rqcname0 = String_createNTS(rqcname);
+	JNI_deleteLocalRef(rqcname);
+	rqtype = Type_fromJavaType(self->typeId, rqcname0);
+	pfree(rqcname0);
+	if ( Type_canReplaceType(rqtype, self) )
+		return Type_coerceDatum(rqtype, value);
+	return Type_coerceDatum(self, value);
+}
+
 Datum Type_coerceObject(Type self, jobject object)
 {
 	return self->typeClass->coerceObject(self, object);
+}
+
+Datum Type_coerceObjectBridged(Type self, jobject object)
+{
+	jstring rqcname;
+	char *rqcname0;
+	Type rqtype;
+
+	if ( JNI_FALSE == JNI_isInstanceOf(object, s_TypeBridge_Holder_class) )
+		return Type_coerceObject(self, object);
+
+	rqcname = JNI_callObjectMethod(object, s_TypeBridge_Holder_className);
+	rqcname0 = String_createNTS(rqcname);
+	JNI_deleteLocalRef(rqcname);
+	rqtype = Type_fromJavaType(self->typeId, rqcname0);
+	pfree(rqcname0);
+	if ( ! Type_canReplaceType(rqtype, self) )
+		elog(ERROR, "type bridge failure");
+	object = JNI_callObjectMethod(object, s_TypeBridge_Holder_payload);
+	return Type_coerceObject(rqtype, object);
 }
 
 char Type_getAlign(Type self)
@@ -697,6 +741,43 @@ TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return 0;	/* Keep compiler happy */
 }
 
+static void addTypeBridge(jclass c, jmethodID m, char const *cName, Oid oid)
+{
+	jstring jcn = String_createJavaStringFromNTS(cName);
+	JNI_callStaticObjectMethodLocked(c, m, jcn, oid);
+	JNI_deleteLocalRef(jcn);
+}
+
+static void initializeTypeBridges()
+{
+	jclass cls;
+	jmethodID ofClass;
+	jmethodID ofInterface;
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/TypeBridge");
+	ofClass = PgObject_getStaticJavaMethod(cls, "ofClass",
+		"(Ljava/lang/String;I)Lorg/postgresql/pljava/jdbc/TypeBridge;");
+	ofInterface = PgObject_getStaticJavaMethod(cls, "ofInterface",
+		"(Ljava/lang/String;I)Lorg/postgresql/pljava/jdbc/TypeBridge;");
+
+	addTypeBridge(cls, ofClass, "java.time.LocalDate", DATEOID);
+	addTypeBridge(cls, ofClass, "java.time.LocalDateTime", TIMESTAMPOID);
+	addTypeBridge(cls, ofClass, "java.time.LocalTime", TIMEOID);
+	addTypeBridge(cls, ofClass, "java.time.OffsetDateTime", TIMESTAMPTZOID);
+	addTypeBridge(cls, ofClass, "java.time.OffsetTime", TIMETZOID);
+
+	JNI_deleteLocalRef(cls);
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/TypeBridge$Holder");
+	s_TypeBridge_Holder_class = JNI_newGlobalRef(cls);
+	s_TypeBridge_Holder_className = PgObject_getJavaMethod(cls, "className",
+		"()Ljava/lang/String;");
+	s_TypeBridge_Holder_defaultOid = PgObject_getJavaMethod(cls, "defaultOid",
+		"()I");
+	s_TypeBridge_Holder_payload = PgObject_getJavaMethod(cls, "payload",
+		"()Ljava/lang/Object;");
+}
+
 /*
  * Shortcuts to initializers of known types
  */
@@ -783,6 +864,8 @@ void Type_initialize(void)
 	s_Iterator_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Iterator"));
 	s_Iterator_hasNext = PgObject_getJavaMethod(s_Iterator_class, "hasNext", "()Z");
 	s_Iterator_next = PgObject_getJavaMethod(s_Iterator_class, "next", "()Ljava/lang/Object;");
+
+	initializeTypeBridges();
 }
 
 /*

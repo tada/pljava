@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -77,7 +83,7 @@ void Tuple_initialize(void)
 	JNINativeMethod methods[] = {
 		{
 		"_getObject",
-	  	"(JJI)Ljava/lang/Object;",
+		"(JJILjava/lang/Class;)Ljava/lang/Object;",
 	  	Java_org_postgresql_pljava_internal_Tuple__1getObject
 		},
 		{
@@ -99,7 +105,7 @@ void Tuple_initialize(void)
 }
 
 jobject
-Tuple_getObject(TupleDesc tupleDesc, HeapTuple tuple, int index)
+Tuple_getObject(TupleDesc tupleDesc, HeapTuple tuple, int index, jclass rqcls)
 {
 	jobject result = 0;
 	PG_TRY();
@@ -110,7 +116,7 @@ Tuple_getObject(TupleDesc tupleDesc, HeapTuple tuple, int index)
 			bool wasNull = false;
 			Datum binVal = SPI_getbinval(tuple, tupleDesc, (int)index, &wasNull);
 			if(!wasNull)
-				result = Type_coerceDatum(type, binVal).l;
+				result = Type_coerceDatumAs(type, binVal, rqcls).l;
 		}
 	}
 	PG_CATCH();
@@ -128,10 +134,10 @@ Tuple_getObject(TupleDesc tupleDesc, HeapTuple tuple, int index)
 /*
  * Class:     org_postgresql_pljava_internal_Tuple
  * Method:    _getObject
- * Signature: (JJI)Ljava/lang/Object;
+ * Signature: (JJILjava/lang/Class;)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jclass cls, jlong _this, jlong _tupleDesc, jint index)
+Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jclass cls, jlong _this, jlong _tupleDesc, jint index, jclass rqcls)
 {
 	jobject result = 0;
 	Ptr2Long p2l;
@@ -140,7 +146,7 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jclass cls, j
 	BEGIN_NATIVE
 	HeapTuple self = (HeapTuple)p2l.ptrVal;
 	p2l.longVal = _tupleDesc;
-	result = Tuple_getObject((TupleDesc)p2l.ptrVal, self, (int)index);
+	result = Tuple_getObject((TupleDesc)p2l.ptrVal, self, (int)index, rqcls);
 	END_NATIVE
 	return result;
 }
