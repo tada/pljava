@@ -89,6 +89,10 @@ static jobject   s_ZoneOffset_UTC;
 static Type _LocalDateTime_obtain(Oid);
 static Type _OffsetDateTime_obtain(Oid);
 
+#if PG_VERSION_NUM < 100000
+static int32 Timestamp_getTimeZone_dd(double dt);
+#endif
+
 /*
  * This only answers true for (same class or) TIMESTAMPOID.
  * The obtainer (below) only needs to construct and remember one instance.
@@ -118,10 +122,14 @@ static jvalue _LocalDateTime_coerceDatum(Type self, Datum arg)
 		int64 micros = DatumGetInt64(arg);
 		/* Expect number of microseconds since 01 Jan 2000. Tease out a
 		 * non-negative sub-second microseconds value (whether this C compiler's
-		 * signed % has trunc or floor behavior).
+		 * signed % has trunc or floor behavior). Factor a 2 out right away to
+		 * avoid wraparound when flooring near the most negative values.
 		 */
-		onlyMicros = (jint)(((micros % 1000000) + 1000000) % 1000000);
-		secs = (micros - onlyMicros) / 1000000;
+		int lowBit = (int)(micros & 1);
+		micros = (micros ^ lowBit) / 2;
+		onlyMicros = (jint)(((micros % 500000) + 500000) % 500000);
+		secs = (micros - onlyMicros) / 500000;
+		onlyMicros = (onlyMicros << 1) | lowBit;
 	}
 	result.l = JNI_callStaticObjectMethod(s_LocalDateTime_class,
 		s_LocalDateTime_ofEpochSecond,
@@ -242,18 +250,24 @@ static bool _Timestamp_canReplaceType(Type self, Type other)
 static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 {
 	jvalue result;
+	jint  uSecs;
+	jlong mSecs;
 	int64 ts = DatumGetInt64(arg);
 
 	/* Expect number of microseconds since 01 Jan 2000. Tease out a non-negative
 	 * sub-second microseconds value (whether this C compiler's signed %
-	 * has trunc or floor behavior).
+	 * has trunc or floor behavior). Factor a 2 out right away to
+	 * avoid wraparound when flooring near the most negative values.
 	 */
-	jint  uSecs = (jint)(((ts % 1000000) + 1000000) % 1000000);
-	jlong mSecs = (ts - uSecs) / 1000; /* Convert to millisecs */
+	int lowBit = (int)(ts & 1);
+	ts = (ts ^ lowBit) / 2;
+	uSecs = (jint)(((ts % 500000) + 500000) % 500000);
+	mSecs = (ts - uSecs) / 500; /* Convert to millisecs */
+	uSecs = (uSecs << 1) | lowBit;
 
 	if(tzAdjust)
 	{
-		int tz = Timestamp_getTimeZone_id(ts);
+		int tz = Timestamp_getTimeZone_id(ts); /* function expects halved ts */
 		mSecs += tz * 1000; /* Adjust from local time to UTC */
 	}
 
@@ -281,7 +295,7 @@ static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 		ts += tz; /* Adjust from local time to UTC */
 	ts += EPOCH_DIFF; /* Adjust for diff between Postgres and Java (Unix) */
 	secs = (jlong) floor(ts); /* Take just the secs */
-	uSecs = (((jint) ((ts - secs) * 2e6)) + 1) / 2; /* Preserve microsecs */
+	uSecs = (((jint) ((ts - (double)secs) * 2e6)) + 1) / 2; /* Preserve usecs */
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, secs * 1000);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
@@ -301,6 +315,7 @@ static jvalue Timestamp_coerceDatumTZ(Type self, Datum arg, bool tzAdjust)
 static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 {
 	int64 ts;
+	int lowBit;
 	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
 	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
 	/*
@@ -311,11 +326,13 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	 */
 	mSecs -= ((mSecs % 1000) + 1000) % 1000;
 	mSecs -= ((jlong)EPOCH_DIFF) * 1000L;
-	ts  = mSecs * 1000L; /* Convert millisecs to microsecs */
-	if(nSecs != 0)
-		ts += nSecs / 1000;	/* Convert nanosecs  to microsecs */
-	if(tzAdjust)
-		ts -= ((jlong)Timestamp_getTimeZone_id(ts)) * 1000000L; /* Adjust from UTC to local time */
+	ts = mSecs * 500L; /* millisecs to microsecs, save a factor of 2 for now */
+	if(tzAdjust) /* Adjust from UTC to local time; function expects halved ts */
+		ts -= ((jlong)Timestamp_getTimeZone_id(ts)) * 500000L;
+	nSecs /= 1000; /* ok, now they are really microsecs */
+	lowBit = nSecs & 1;
+	nSecs >>= 1; /* nSecs >= 0 so >> has a defined C result */
+	ts = 2 * (ts + nSecs) | lowBit;
 	return Int64GetDatum(ts);
 }
 
@@ -381,6 +398,10 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 	return Timestamp_coerceObjectTZ(self, ts, false);
 }
 
+/*
+ * The argument to this function is in seconds from the PostgreSQL epoch, and
+ * the return is a time zone offset in seconds west of Greenwich.
+ */
 static int32 Timestamp_getTimeZone(pg_time_t time)
 {
 #if defined(_MSC_VER) && ( \
@@ -400,17 +421,36 @@ static int32 Timestamp_getTimeZone(pg_time_t time)
 #else
 	struct pg_tm* tx = pg_localtime(&time, session_timezone);
 #endif
+	if ( NULL == tx )
+		ereport(ERROR, (
+			errcode(ERRCODE_DATA_EXCEPTION),
+			errmsg("could not resolve timestamp: %m")
+		));
 	return -(int32)tx->tm_gmtoff;
 }
 
+/*
+ * This is only used here and in Date.c. The caller must know that the argument
+ * is not a PostgreSQL int64 Timestamp, but, rather, one of those divided by 2.
+ */
 int32 Timestamp_getTimeZone_id(int64 dt)
 {
 	return Timestamp_getTimeZone(
-		(dt / INT64CONST(1000000) + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
+		dt / INT64CONST(500000) +
+		(POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400
+	);
 }
 #if PG_VERSION_NUM < 100000
-int32 Timestamp_getTimeZone_dd(double dt)
+static int32 Timestamp_getTimeZone_dd(double dt)
 {
+	if ( TIMESTAMP_NOT_FINITE(dt) )
+	{
+		errno = EOVERFLOW;
+		ereport(ERROR, (
+			errcode(ERRCODE_DATA_EXCEPTION),
+			errmsg("could not resolve timestamp: %m")
+		));
+	}
 	return Timestamp_getTimeZone(
 		(pg_time_t)rint(dt + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
 }

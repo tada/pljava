@@ -78,10 +78,19 @@ import org.postgresql.pljava.annotation.SQLActions;
 		"  ELSE javatest.logmessage('WARNING','java.time.LocalDateTime fails')"+
 		"  END" +
 		" FROM" +
-		"  (VALUES" +
-		"   (timestamp '2017-08-21 18:25:29.900005')," +
-		"   (timestamp '1970-03-07 17:37:49.300009')," +
-		"   (timestamp '1919-05-29 13:08:33.600001')" +
+		"  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +
+		"  LATERAL (" +
+		"   SELECT" +
+		"    value" +
+		"   FROM" +
+		"	 (VALUES" +
+		"	  (true, timestamp '2017-08-21 18:25:29.900005')," +
+		"	  (true, timestamp '1970-03-07 17:37:49.300009')," +
+		"	  (true, timestamp '1919-05-29 13:08:33.600001')," +
+		"	  (idt,  timestamp  'infinity')," +
+		"	  (idt,  timestamp '-infinity')" +
+		"	 ) AS vs(cond, value)" +
+		"   WHERE cond" +
 		"  ) AS p(orig)," +
 		"  javatest.roundtrip(p, 'java.time.LocalDateTime')" +
 		"  AS r(roundtripped timestamp)",
@@ -93,10 +102,19 @@ import org.postgresql.pljava.annotation.SQLActions;
 		"         'WARNING','java.time.OffsetDateTime fails')"+
 		"  END" +
 		" FROM" +
-		"  (VALUES" +
-		"   (timestamptz '2017-08-21 18:25:29.900005Z')," +
-		"   (timestamptz '1970-03-07 17:37:49.300009Z')," +
-		"   (timestamptz '1919-05-29 13:08:33.600001Z')" +
+		"  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +
+		"  LATERAL (" +
+		"   SELECT" +
+		"    value" +
+		"   FROM" +
+		"	 (VALUES" +
+		"	  (true, timestamptz '2017-08-21 18:25:29.900005Z')," +
+		"	  (true, timestamptz '1970-03-07 17:37:49.300009Z')," +
+		"	  (true, timestamptz '1919-05-29 13:08:33.600001Z')," +
+		"	  (idt,  timestamptz  'infinity')," +
+		"	  (idt,  timestamptz '-infinity')" +
+		"	 ) AS vs(cond, value)" +
+		"   WHERE cond" +
 		"  ) AS p(orig)," +
 		"  javatest.roundtrip(p, 'java.time.OffsetDateTime')" +
 		"  AS r(roundtripped timestamptz)",
