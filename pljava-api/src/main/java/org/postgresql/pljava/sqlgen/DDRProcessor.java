@@ -2262,6 +2262,14 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(Object.class, "\"any\"");
 
 			this.addMap(byte[].class, "bytea");
+
+			// (Once Java back horizon advances to 8, do these the easy way.)
+			//
+			this.addMapIfExists("java.time.LocalDate", "date");
+			this.addMapIfExists("java.time.LocalTime", "time");
+			this.addMapIfExists("java.time.OffsetTime", "timetz");
+			this.addMapIfExists("java.time.LocalDateTime", "timestamp");
+			this.addMapIfExists("java.time.OffsetDateTime", "timestamptz");
 		}
 
 		private boolean mappingsFrozen()
@@ -2387,6 +2395,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		void addMap(Class<?> k, String v)
 		{
 			addMap( typeMirrorFromClass( k), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type, if a class
+		 * with the given name exists.
+		 *
+		 * @param k Canonical class name representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMapIfExists(String k, String v)
+		{
+			TypeElement te = elmu.getTypeElement( k);
+			if ( null != te )
+				addMap( te.asType(), v);
 		}
 
 		/**

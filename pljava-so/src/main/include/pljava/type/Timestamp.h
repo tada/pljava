@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -27,13 +33,14 @@ extern "C" {
 extern int Timestamp_getCurrentTimeZone(void);
 
 /*
- * Returns the timezone fo the given Timestamp. Comes in two variants.
- * The int64 variant will be used when PL/Java is used with a backend
- * compiled with integer datetimes. The double variant will be used when
- * this is not the case.
+ * Returns the timezone for the given Timestamp. This is an internal function
+ * and only declared here because Date.c uses it, and always this int64 variant,
+ * regardless of whether the backend was compiled with integer datetimes. The
+ * argument is not a PostgreSQL int64 Timestamp, but rather a PostgreSQL int64
+ * Timestamp divided by two. The result is a time zone offset in seconds west
+ * of Greenwich.
  */
 extern int32 Timestamp_getTimeZone_id(int64 t);
-extern int32 Timestamp_getTimeZone_dd(double t);
 
 #ifdef __cplusplus
 }

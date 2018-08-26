@@ -204,6 +204,7 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		p2l.longVal = _this;
 		PG_TRY();
 		{
+			Invocation_assertConnect();
 			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE,
 				(long)count);
 			result = (jlong)SPI_processed;
@@ -351,6 +352,7 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 		p2l.longVal = _this;
 		PG_TRY();
 		{
+			Invocation_assertConnect();
 			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (long)count);
 			result = (jlong)SPI_processed;
 		}

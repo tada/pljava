@@ -148,8 +148,7 @@ public class SPIConnection implements Connection
 	}
 
 	/**
-	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}. Cursors are actually
-	 * closed when a function returns to SQL.
+	 * Returns {@link ResultSet#CLOSE_CURSORS_AT_COMMIT}.
 	 */
 	@Override
 	public int getHoldability()
@@ -744,7 +743,7 @@ public class SPIConnection implements Connection
 	/**
 	 * Convert a PostgreSQL type name to a {@link Types} integer, using the
 	 * {@code JDBC_TYPE_NAMES}/{@code JDBC_TYPE_NUMBERS} arrays; used in
-	 * two places in {@link DatabaseMetaData}.
+	 * {@link DatabaseMetaData} and {@link ResultSetMetaData}.
 	 */
     public int getSQLType(String pgTypeName)
     {
@@ -1027,29 +1026,57 @@ public class SPIConnection implements Connection
      *
      * Tip: keep these grouped together by the Types. value
      */
-    public static final int JDBC_TYPE_NUMBERS[] =
-    		{
-                Types.SMALLINT,
-                Types.INTEGER, Types.INTEGER,
-                Types.BIGINT,
-                Types.DOUBLE, Types.DOUBLE,
-                Types.NUMERIC,
-                Types.REAL,
-                Types.DOUBLE,
-                Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR, Types.CHAR,
-                Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
-                Types.BINARY,
-                Types.BOOLEAN,
-                Types.BIT,
-                Types.DATE,
-                Types.TIME, Types.TIME,
-                Types.TIMESTAMP, Types.TIMESTAMP, Types.TIMESTAMP,
-				Types.SQLXML,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
-                Types.ARRAY
-            };
+    public static final int JDBC_TYPE_NUMBERS[];
+
+	static
+	{
+		/*
+		 * Try to get the JDBC 4.2 / Java 8 TIME*ZONE types reflectively.
+		 * Once the Java back horizon advances to 8, just do this the easy way.
+		 */
+		int sqx  = Types.OTHER;      // don't just start saying SQLXML in 1.5.1
+		int ttz  = Types.TIME;       // Use these values
+		int tstz = Types.TIMESTAMP;  //         pre-Java 8
+//		try    COMMENTED OUT FOR BACK-COMPATIBILITY REASONS IN PL/JAVA 1.5.x
+//		{
+//			ttz =
+//				Types.class.getField("TIME_WITH_TIMEZONE")
+//					.getInt(Types.class);
+//			tstz =
+//				Types.class.getField("TIMESTAMP_WITH_TIMEZONE")
+//					.getInt(Types.class);
+//		}
+//		catch ( NoSuchFieldException nsfe ) { } // ok, not running in Java 8
+//		catch ( IllegalAccessException iae )
+//		{
+//			throw new ExceptionInInitializerError(iae);
+//		}
+//		sqx = Types.SQLXML;
+
+		JDBC_TYPE_NUMBERS = new int[]
+		{
+			Types.SMALLINT,
+			Types.INTEGER, Types.INTEGER,
+			Types.BIGINT,
+			Types.DOUBLE, Types.DOUBLE,
+			Types.NUMERIC,
+			Types.REAL,
+			Types.DOUBLE,
+			Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,Types.CHAR,
+			Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
+			Types.BINARY,
+			Types.BOOLEAN,
+			Types.BIT,
+			Types.DATE,
+			Types.TIME, ttz,
+			Types.TIMESTAMP, Types.TIMESTAMP, tstz,
+			sqx,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
+			Types.ARRAY
+        };
+	}
 
 	// ************************************************************
 	// Implementation of JDBC 4 methods. Methods go here if they

@@ -1,8 +1,13 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
  */
 package org.postgresql.pljava.jdbc;
 
@@ -11,7 +16,7 @@ import java.sql.SQLException;
 
 
 /**
- * The ReadOnlyResultSet implements all methods that changes the ResultSet
+ * Implements all methods that change the ResultSet
  * in any way as methods that yield an {@link UnsupportedFeatureException}.
  *
  * @author Thomas Hallgren
@@ -21,6 +26,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	/**
 	 * Returns {@link ResultSet#CONCUR_READ_ONLY}.
 	 */
+	@Override
 	public int getConcurrency()
 	throws SQLException
 	{
@@ -31,6 +37,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void cancelRowUpdates()
 	throws SQLException
 	{
@@ -41,6 +48,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void deleteRow()
 	throws SQLException
 	{
@@ -51,6 +59,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void insertRow()
 	throws SQLException
 	{
@@ -61,6 +70,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This is a no-op since the <code>moveToInsertRow()</code> method is
 	 * unsupported.
 	 */
+	@Override
 	public void moveToCurrentRow()
 	throws SQLException
 	{
@@ -70,6 +80,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void moveToInsertRow()
 	throws SQLException
 	{
@@ -80,6 +91,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void updateRow()
 	throws SQLException
 	{
@@ -89,6 +101,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	/**
 	 * Always returns false.
 	 */
+	@Override
 	public boolean rowDeleted()
 	throws SQLException
 	{
@@ -98,6 +111,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	/**
 	 * Always returns false.
 	 */
+	@Override
 	public boolean rowInserted()
 	throws SQLException
 	{
@@ -107,6 +121,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	/**
 	 * Always returns false.
 	 */
+	@Override
 	public boolean rowUpdated()
 	throws SQLException
 	{
@@ -117,6 +132,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void updateObject(int columnIndex, Object x) throws SQLException
 	{
 		throw readOnlyException();
@@ -126,6 +142,7 @@ public abstract class ReadOnlyResultSet extends ObjectResultSet
 	 * This feature is not supported on a <code>ReadOnlyResultSet</code>.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void updateObject(int columnIndex, Object x, int scale)
 	throws SQLException
 	{

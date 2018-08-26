@@ -41,7 +41,12 @@ static Type   _SQLXML_obtain(Oid typeId);
 static bool _SQLXML_canReplaceType(Type self, Type other)
 {
 	TypeClass cls = Type_getClass(other);
-	return Type_getClass(self) == cls  ||  Type_getOid(other) == TEXTOID;
+	return
+		Type_getClass(self) == cls  ||
+#if defined(XMLOID)
+		Type_getOid(other) == XMLOID  ||
+#endif
+		Type_getOid(other) == TEXTOID;
 }
 
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
@@ -96,10 +101,26 @@ static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
  * instance back to PostgreSQL, and ideally only to do so when the Oids at
  * create and adopt time are different, so it cannot make do with the singleton
  * type instance, and needs to use Type_registerType2 with an obtainer.
+ *
+ * The obtainer can, however, cache a single instance per supported oid, of
+ * which there are, so far, only two (one, in PG instances without XML).
  */
 static Type _SQLXML_obtain(Oid typeId)
 {
-	return TypeClass_allocInstance(s_SQLXMLClass, typeId);
+	static Type textInstance;
+	Oid allowedId = TEXTOID;
+	Type *cache = &textInstance;
+#if defined(XMLOID)
+	static Type xmlInstance;
+	if ( TEXTOID != typeId )
+	{
+		allowedId = XMLOID;
+		cache = &xmlInstance;
+	}
+#endif
+	if ( NULL == *cache )
+		*cache = TypeClass_allocInstance(s_SQLXMLClass, allowedId);
+	return *cache;
 }
 
 /* Make this datatype available to the postgres system.
@@ -126,14 +147,7 @@ void pljava_SQLXMLImpl_initialize(void)
 	cls->coerceObject = _SQLXML_coerceObject;
 	s_SQLXMLClass = cls;
 
-	Type_registerType2(
-#ifdef XMLOID		/* it is possible to build PG without libxml */
-			XMLOID
-#else
-			InvalidOid
-#endif
-		, "java.sql.SQLXML", _SQLXML_obtain
-	);
+	Type_registerType2(InvalidOid, "java.sql.SQLXML", _SQLXML_obtain);
 
 	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl"));

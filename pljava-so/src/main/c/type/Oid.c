@@ -134,12 +134,18 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_NVARCHAR:
 		case java_sql_Types_LONGNVARCHAR:
 		case java_sql_Types_NCLOB:
+			typeId = InvalidOid;	/* Not yet mapped */
+			break;
 
 		/* JDBC 4.2 - conditionalize until only Java 8 and later supported */
 #ifdef	java_sql_Types_REF_CURSOR
-		case java_sql_Types_REF_CURSOR:
 		case java_sql_Types_TIME_WITH_TIMEZONE:
+			typeId = TIMETZOID;
+			break;
 		case java_sql_Types_TIMESTAMP_WITH_TIMEZONE:
+			typeId = TIMESTAMPTZOID;
+			break;
+		case java_sql_Types_REF_CURSOR:
 #endif
 		default:
 			typeId = InvalidOid;	/* Not yet mapped */
