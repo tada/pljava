@@ -228,9 +228,14 @@ public class PassXML implements SQLData
 	 * {@link TransformerFactory#newTemplates newTemplates()} seems to require
 	 * {@link Function.Trust#UNSANDBOXED Trust.UNSANDBOXED}, at least for the
 	 * XSLTC transform compiler in newer JREs.
+	 *<p>
+	 * If you wish this <strong>unsandboxed</strong> function to be installed,
+	 * set the PostgreSQL variable {@code pljava.implementors} to a list with
+	 * {@code pg_xml_unsandboxed} as an added entry, before installing the
+	 * examples jar.
 	 */
 	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED,
-			  implementor="postgresql_xml")
+			  implementor="pg_xml_unsandboxed")
 	public static void prepareXMLTransform(String name, SQLXML source, int how)
 	throws SQLException
 	{
