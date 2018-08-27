@@ -766,6 +766,14 @@ static void initializeTypeBridges()
 	addTypeBridge(cls, ofClass, "java.time.OffsetDateTime", TIMESTAMPTZOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetTime", TIMETZOID);
 
+	addTypeBridge(cls, ofInterface, "java.sql.SQLXML",
+#if defined(XMLOID)
+		XMLOID
+#else
+		TEXTOID
+#endif
+	);
+
 	JNI_deleteLocalRef(cls);
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/TypeBridge$Holder");
@@ -815,6 +823,8 @@ extern void TupleTable_initialize(void);
 
 extern void Composite_initialize(void);
 
+extern void pljava_SQLXMLImpl_initialize(void);
+
 extern void Type_initialize(void);
 void Type_initialize(void)
 {
@@ -857,6 +867,7 @@ void Type_initialize(void)
 	TupleTable_initialize();
 
 	Composite_initialize();
+	pljava_SQLXMLImpl_initialize();
 
 	s_Map_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Map"));
 	s_Map_get = PgObject_getJavaMethod(s_Map_class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");

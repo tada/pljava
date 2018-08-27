@@ -760,7 +760,14 @@ public class SPIConnection implements Connection
 	/**
 	 * This returns the {@link Types} type for a PG type oid, by mapping it
 	 * to a name using {@link #getPGType} and then to the result via
-	 * {@link #getSQLType(String)}.
+	 * {@link #getSQLType(String)}; used in {@link ResultSetMetaData} and
+	 * five places in {@link DatabaseMetaData}.
+	 *<p>
+	 * This method is a bit goofy, as it first maps from Oid to type name, and
+	 * then from name to JDBC type, all to accomplish the inverse of the JDBC
+	 * type / Oid mapping that already exists in Oid.c, and so the mapping
+	 * arrays in this file have to be updated in sync with that. Look into
+	 * future consolidation....
      *
      * @param oid PostgreSQL type oid
      * @return the java.sql.Types type
@@ -983,6 +990,9 @@ public class SPIConnection implements Connection
      * They default automatically to Types.OTHER
      *
      * Note: This must be in the same order as below.
+	 *
+	 * These arrays are not only used by getSQLType() in this file, but also
+	 * directly accessed by getUDTs() in DatabaseMetaData.
      *
      * Tip: keep these grouped together by the Types. value
      */
@@ -1002,6 +1012,7 @@ public class SPIConnection implements Connection
                 "date",
                 "time", "timetz",
                 "abstime", "timestamp", "timestamptz",
+				"xml",
                 "_bool", "_char", "_int2", "_int4", "_text",
                 "_oid", "_varchar", "_int8", "_float4", "_float8",
                 "_abstime", "_date", "_time", "_timestamp", "_numeric",
@@ -1023,6 +1034,7 @@ public class SPIConnection implements Connection
 		 * Try to get the JDBC 4.2 / Java 8 TIME*ZONE types reflectively.
 		 * Once the Java back horizon advances to 8, just do this the easy way.
 		 */
+		int sqx  = Types.OTHER;      // don't just start saying SQLXML in 1.5.1
 		int ttz  = Types.TIME;       // Use these values
 		int tstz = Types.TIMESTAMP;  //         pre-Java 8
 //		try    COMMENTED OUT FOR BACK-COMPATIBILITY REASONS IN PL/JAVA 1.5.x
@@ -1039,6 +1051,7 @@ public class SPIConnection implements Connection
 //		{
 //			throw new ExceptionInInitializerError(iae);
 //		}
+//		sqx = Types.SQLXML;
 
 		JDBC_TYPE_NUMBERS = new int[]
 		{
@@ -1057,6 +1070,7 @@ public class SPIConnection implements Connection
 			Types.DATE,
 			Types.TIME, ttz,
 			Types.TIMESTAMP, Types.TIMESTAMP, tstz,
+			sqx,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
@@ -1145,6 +1159,13 @@ public class SPIConnection implements Connection
 		return _clientInfo;
 	}
 
+	@Override
+	public SQLXML createSQLXML()
+	throws SQLException
+	{
+		return SQLXMLImpl.newWritable();
+	}
+
 	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
@@ -1163,14 +1184,6 @@ public class SPIConnection implements Connection
 	{
 		throw new SQLFeatureNotSupportedException(
 			"SPIConnection.createArrayOf( String, Object[] ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public SQLXML createSQLXML()
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( "SPIConnection.createSQLXML() not implemented yet.",
-			"0A000" );
 	}
 
 	@Override

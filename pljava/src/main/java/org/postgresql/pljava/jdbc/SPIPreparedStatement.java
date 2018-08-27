@@ -566,6 +566,20 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	}
 
 	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	@Override
+	public void setSQLXML(int parameterIndex, SQLXML xmlObject)
+		throws SQLException
+	{
+	    setObject(parameterIndex, xmlObject, Types.SQLXML);
+	}
+
+	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
@@ -758,17 +772,6 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  + "implemented yet.",
 			  "0A000" );
 
-	}
-	
-	@Override
-	public void setSQLXML(int parameterIndex,
-               SQLXML xmlObject)
-		throws SQLException
-	{
-	    throw new SQLFeatureNotSupportedException
-		    ( this.getClass()
-		      + ".setSQLXML( int, SQLXML ) not implemented yet.",
-		      "0A000" );
 	}
 
 	@Override

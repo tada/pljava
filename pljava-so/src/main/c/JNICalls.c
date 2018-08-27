@@ -321,6 +321,25 @@ jlong JNI_callLongMethodV(jobject object, jmethodID methodID, va_list args)
 	return result;
 }
 
+jlong JNI_callLongMethodLocked(jobject object, jmethodID methodID, ...)
+{
+	jlong result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callLongMethodLockedV(object, methodID, args);
+	va_end(args);
+	return result;
+}
+
+jlong JNI_callLongMethodLockedV(jobject object, jmethodID methodID, va_list args)
+{
+	jlong result;
+	BEGIN_CALL_MONITOR_HELD
+	result = (*env)->CallLongMethodV(env, object, methodID, args);
+	END_CALL_MONITOR_HELD
+	return result;
+}
+
 jshort JNI_callShortMethod(jobject object, jmethodID methodID, ...)
 {
 	jshort result;
@@ -527,6 +546,21 @@ void JNI_callStaticVoidMethodV(jclass clazz, jmethodID methodID, va_list args)
 	BEGIN_CALL
 	(*env)->CallStaticVoidMethodV(env, clazz, methodID, args);
 	END_CALL
+}
+
+void JNI_callStaticVoidMethodLocked(jclass clazz, jmethodID methodID, ...)
+{
+	va_list args;
+	va_start(args, methodID);
+	JNI_callStaticVoidMethodLockedV(clazz, methodID, args);
+	va_end(args);
+}
+
+void JNI_callStaticVoidMethodLockedV(jclass clazz, jmethodID methodID, va_list args)
+{
+	BEGIN_CALL_MONITOR_HELD
+	(*env)->CallStaticVoidMethodV(env, clazz, methodID, args);
+	END_CALL_MONITOR_HELD
 }
 
 void JNI_callVoidMethod(jobject object, jmethodID methodID, ...)
@@ -1073,6 +1107,25 @@ jobject JNI_newObjectV(jclass clazz, jmethodID ctor, va_list args)
 	BEGIN_CALL
 	result = (*env)->NewObjectV(env, clazz, ctor, args);
 	END_CALL
+	return result;
+}
+
+jobject JNI_newObjectLocked(jclass clazz, jmethodID ctor, ...)
+{
+	jobject result;
+	va_list args;
+	va_start(args, ctor);
+	result = JNI_newObjectLockedV(clazz, ctor, args);
+	va_end(args);
+	return result;
+}
+
+jobject JNI_newObjectLockedV(jclass clazz, jmethodID ctor, va_list args)
+{
+	jobject result;
+	BEGIN_CALL_MONITOR_HELD
+	result = (*env)->NewObjectV(env, clazz, ctor, args);
+	END_CALL_MONITOR_HELD
 	return result;
 }
 

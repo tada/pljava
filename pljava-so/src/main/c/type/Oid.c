@@ -32,6 +32,14 @@ static jobject   s_OidOid;
 jobject Oid_create(Oid oid)
 {
 	jobject joid;
+	/*
+	 * This is a natural place to have a StaticAssertStmt making sure the
+	 * ubiquitous PG type 'Oid' fits in a jint. If it is ever removed from here
+	 * or this code goes away, it should go someplace else. If it ever produces
+	 * an error, don't assume the only things that need fixing will be in this
+	 * file or nearby....
+	 */
+	StaticAssertStmt(sizeof(Oid) <= sizeof(jint), "Oid wider than jint?!");
 	if(OidIsValid(oid))
 		joid = JNI_newObject(s_Oid_class, s_Oid_init, oid);
 	else
@@ -110,14 +118,22 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_STRUCT:
 		case java_sql_Types_ARRAY:
 		case java_sql_Types_REF:
+			typeId = InvalidOid;	/* Not yet mapped */
+			break;
 
 		/* JDBC 4.0 - present in Java 6 and later, no need to conditionalize */
+		case java_sql_Types_SQLXML:
+#ifdef	XMLOID					/* but PG can have been built without libxml */
+			typeId = XMLOID;
+#else
+			typeId = InvalidOid;
+#endif
+			break;
 		case java_sql_Types_ROWID:
 		case java_sql_Types_NCHAR:
 		case java_sql_Types_NVARCHAR:
 		case java_sql_Types_LONGNVARCHAR:
 		case java_sql_Types_NCLOB:
-		case java_sql_Types_SQLXML:
 			typeId = InvalidOid;	/* Not yet mapped */
 			break;
 
