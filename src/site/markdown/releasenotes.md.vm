@@ -8,12 +8,34 @@
 #set($pgfbug = 'http://pgfoundry.org/tracker/?func=detail&amp;atid=334&amp;group_id=1000038&amp;aid=')
 #set($pgffeat = 'http://pgfoundry.org/tracker/?func=detail&amp;atid=337&amp;group_id=1000038&amp;aid=')
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
+#set($ghpull = 'https://github.com/tada/pljava/pull/')
 
 $h2 PL/Java 1.5.1
 
-This release chiefly adds support for PostgreSQL 9.6 and 10,
-and plays more nicely with `pg_upgrade`. With PostgreSQL 9.6 support
-comes the ability to declare functions
+This release adds support for PostgreSQL 9.6, 10, and 11,
+and plays more nicely with `pg_upgrade`. If a PostgreSQL installation
+is to be upgraded using `pg_upgrade`, and is running a version of
+PL/Java before 1.5.1, the PL/Java version should first be upgraded
+in the running PostgreSQL version, and then the PostgreSQL `pg_upgrade`
+can be done.
+
+Significant new functionality includes new datatype mapping support:
+SQL `date`, `time`, and `timestamp` values can be mapped to the new
+Java classes of the `java.time` package in Java 8 and later (JSR 310 /
+JDBC 4.2), which are much more faithful representations of the values
+in SQL. Values of `xml` type can be manipulated efficiently using the
+JDBC 4.0 `SQLXML` API, supporting several different APIs for XML
+processing in Java.
+
+For Java code that does not use the new date/time classes in the
+`java.time` package, some minor conversion inaccuracies (less than
+two seconds) in the older mapping to `java.sql.Timestamp` have been
+corrected.
+
+Queries from PL/Java code now produce `ResultSet`s that are usable to the
+end of the containing transaction, as they had already been claiming to be.
+
+With PostgreSQL 9.6 support comes the ability to declare functions
 `PARALLEL { UNSAFE | RESTRICTED | SAFE }`, and with PG 10 support,
 transition tables are available to triggers.
 
@@ -32,7 +54,161 @@ Developers wishing to manipulate large objects in PL/Java are able to do so
 using the SPI JDBC interface and the large-object SQL functions already
 available in every PostgreSQL version PL/Java currently supports.
 
+$h3 Version compatibility
+
+PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11beta3,
+and older ones back to 8.2, using Java SE 8, 7, or 6. It can _run_ using newer
+Java versions including Java 10 (and is expected to work with Java 11 when that
+is released). PL/Java functions can be written for, and use features of, the
+Java version loaded at run time. See [version compatibility][versions] for more
+detail.
+
+OpenJDK is supported, and can be downloaded in versions using the Hotspot or the
+OpenJ9 JVM. Features of modern Java VMs can drastically reduce memory footprint
+and startup time, in particular class-data sharing. Several choices of Java
+runtime now offer such features: Oracle Java has a simple class data sharing
+feature for the JVM itself, freely usable in all supported versions, and an
+"application class data sharing" feature in Java 8 and later that can also share
+the internal classes of PL/Java, but is a commercial feature requiring a
+license from Oracle. As of Java 10, the same application class sharing feature
+is present in OpenJDK/Hotspot, where it is freely usable without an additional
+license. OpenJDK/OpenJ9 includes a different, and very sophisticated, class
+sharing feature, freely usable from Java 8 onward. More on these features
+can be found [in the installation docs][vmopts].
+
 $h3 Changes
+
+$h4 Typing of parameters in prepared statements
+
+PL/Java currently does not determine the necessary types of `PreparedStatement`
+parameters from the results of PostgreSQL's own type analysis of the query
+(as a network client would, when using PostgreSQL's "extended query" protocol).
+PostgreSQL added the means to do so in SPI only in PostgreSQL 9.0, and a future
+PL/Java major release should use it. However, this release does make two small
+changes to the current behavior.
+
+Without the query analysis results from PostgreSQL, PL/Java tries to type the
+prepared-statement parameters based on the types of values supplied by the
+application Java code. It now has two additional ways to do so:
+
+* If Java code supplies a Java user-defined type (UDT)--that is, an object
+    implementing the `SQLData` interface--PL/Java will now call the `SQLData`
+    method `getSQLTypeName` on that object and use the result to pin down
+    the PostgreSQL type of the parameter. Existing code should already provide
+    this method, but could, in the past, have returned a bogus result without
+    detection, as PL/Java did not use it.
+
+* Java code can use the three-argument form of `setNull` to specify the exact
+    PostgreSQL type for a parameter, and then another method can be used to
+    supply a non-null value for it. If the following non-null value has
+    a default mapping to a different PostgreSQL type, in most cases it will
+    overwrite the type supplied with `setNull` and re-plan the query. That was
+    PL/Java's existing behavior, and was not changed for this minor release.
+    However, the new types introduced in this release--the `java.time` types and
+    `SQLXML`--behave in the way that should become universal in a future major
+    release: the already-supplied PostgreSQL type will be respected, and PL/Java
+    will try to find a usable coercion to it.
+
+$h4 Inaccuracies converting TIMESTAMP and TIMESTAMPTZ
+
+When converting between PostgreSQL values of `timestamp` or `timestamptz` type
+and the pre-Java 8 original JDBC type `java.sql.Timestamp`, there were cases
+where values earlier than 1 January 2000 would produce exceptions rather than
+converting successfully. Those have been fixed.
+
+Also, converting in the other direction, from `java.sql.Timestamp` to a
+PostgreSQL timestamp, an error of up to 1.998 seconds (averaging 0.999)
+could be introduced.
+
+That error has been corrected. If an application has stored Java `Timestamp`s
+and corresponding SQL `timestamp`s generated in the past and requires them
+to match, it could be affected by this change.
+
+$h4 New date/time/timestamp API in Java 8 `java.time` package
+
+The old, and still default, mappings in JDBC from the SQL `date`, `time`, and
+`timestamp` types to `java.sql.Date`, `java.sql.Time`, and `java.sql.Timestamp`,
+were never well suited to represent the PostgreSQL data types. The `Time` and
+`Timestamp` classes were used to map both the with-timezone and without-timezone
+variants of the corresponding SQL types and, clearly, could not represent both
+equally well. These Java classes all contain timezone dependencies, requiring
+the conversion to involve timezone calculations even when converting non-zoned
+SQL types, and making the conversion results for non-zoned types implicitly
+depend on the current PostgreSQL session timezone setting.
+
+Applications are strongly encouraged to adopt Java 8 as a minimum language
+version and use the new-in-Java-8 types in the `java.time` package, which
+eliminate those problems and map the SQL types much more faithfully.
+For PL/Java function parameters and returns, the class in the method declaration
+can simply be changed. For retrieving date/time/timestamp values from a
+`ResultSet` or `SQLInput` object, use the variants of `getObject` / `readObject`
+that take a `Class<?>` parameter. The class to use is:
+
+| PostgreSQL type | `java.time` class |
+|--:|:--|
+|`date`|`LocalDate`|
+|`time without time zone`|`LocalTime`|
+|`time with time zone`|`OffsetTime`|
+|`timestamp without time zone`|`LocalDateTime`|
+|`timestamp with time zone`|`OffsetDateTime`|
+[Correspondence of PostgreSQL date/time types and Java 8 `java.time` classes]
+
+An `OffsetTime` obtained from a PostgreSQL `time with time zone` will have
+the time zone offset that was assigned to the PostgreSQL value.
+An `OffsetDateTime` obtained from a PostgreSQL `timestamp with time zone`
+will always have an offset explicitly zero (UTC), and any `OffsetDateTime`
+created in Java with a different offset will be converted to UTC when presented
+to PostgreSQL. These behaviors accurately reflect the different ways PostgreSQL
+represents these two types. These conversions never depend on the PostgreSQL
+session time zone, which is not necessarily consistent between sessions.
+
+$h4 Newly supported `java.sql.SQLXML` type
+
+PL/Java has not, until now, supported the JDBC 4.0 `SQLXML` type. PL/Java
+functions have been able to work with PostgreSQL XML values by mapping them
+as Java `String`, but that conversion could introduce character encoding issues
+outside the control of the XML APIs, and also has memory implications if an
+application stores, or generates in queries, large XML values. Even if the
+processing to be done in the application could be structured to run in constant
+bounded memory while streaming through the XML, a conversion to `String`
+requires the whole, uncompressed, character-serialized value to be brought into
+the Java heap at once, and any heap-size tuning has to account for that
+worst-case size. The `java.sql.SQLXML` API solves those problems by allowing
+XML manipulation with any of several Java XML APIs with the data remaining in
+PostgreSQL native memory, never brought fully into the Java heap unless that is
+what the application does. Heap sizing can be based on the just the
+application's processing needs.
+
+The `SQLXML` type can take the place of `String` in PL/Java function parameters
+and returns simply by changing their declarations from `String` to `SQLXML`.
+When retrieving XML values from `ResultSet` or `SQLInput` objects, the legacy
+`getObject / readObject` methods will continue to return `String` for existing
+application compatibility, so the specific `getSQLXML / readSQLXML` methods, or
+the forms of `getObject / readObject` with a `Class<?>` parameter and passing
+`SQLXML.class`, must be used. The [PassXML example][exxml] illustrates use of
+the API.
+
+[exxml]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java
+
+$h4 New Java property exposes the PostgreSQL server character-set encoding
+
+A Java system property, `org.postgresql.server.encoding`, is set to the
+canonical name of a supported Java `Charset` that corresponds to PostgreSQL's
+`server_encoding` setting, if one can be found. If the server encoding's name
+is not recognized as any known Java `Charset`, this property will be unset, and
+some functionality, such as the `SQLXML` API, may be limited. If a Java
+`Charset` does exist (or is made available through a `CharsetProvider`) that
+does match the PostgreSQL server encoding, but is not automatically selected
+because of a naming mismatch, the `org.postgresql.server.encoding` property can
+be set (with a `-D` in `pljava.vmoptions`) to select it by name.
+
+$h4 ResultSet holdability
+
+A `ResultSet` obtained from a query done in PL/Java would return the value
+`CLOSE_CURSORS_AT_COMMIT` to a caller of its `getHoldability` method, but in
+reality would become unusable as soon as the PL/Java function creating it
+returned to PostgreSQL. It now remains usable to the end of the transaction,
+as claimed.
 
 $h4 PostgreSQL 9.6 and parallel query
 
@@ -140,14 +316,31 @@ and a number of considerations for making a PL/Java package.
 
 [packaging]: build/package.html
 
+$h3 Enhancement requests addressed
+
+$h4 Since 1.5.1-BETA1
+
+* [java 8 date/time api](${ghbug}137)
+* [Annotations don't support CREATE CONSTRAINT TRIGGER](${ghbug}138)
+* [Let annotations give defaults to row-type parameters](${ghpull}153)
+* [Improve DDR generator on the dont-repeat-yourself dimension for UDT type mapping](${ghpull}159)
+* [Support the JDBC 4.0 SQLXML type](${ghpull}171)
+
 $h3 Bugs fixed
 
 $h4 Since 1.5.1-BETA1
 
 * [PostgreSQL 10: SPI_modifytuple failed with SPI_ERROR_UNCONNECTED](${ghbug}134)
 * [SPIConnection prepareStatement doesn't recognize all parameters](${ghbug}136)
-* [Annotations don't support CREATE CONSTRAINT TRIGGER](${ghbug}138)
 * [Ordinary (non-constraint) trigger has no way to suppress operation](${ghbug}142)
+* [ResultSetHandle and column definition lists](${ghbug}146)
+* [PreparedStatement doesn't get parameter types from PostgreSQL](${ghbug}149)
+    _(partial improvements)_
+* [internal JDBC: inaccuracies converting TIMESTAMP and TIMESTAMPTZ](${ghbug}155)
+* [Missing type mapping for Java return `byte[]`](${ghbug}157)
+* [The REMOVE section of DDR is in wrong order for conditionals](${ghbug}163)
+* [Loading PL/Java reinitializes timeouts in PostgreSQL >= 9.3](${ghbug}166)
+* [JDBC ResultSet.CLOSE_CURSORS_AT_COMMIT reported, but usable life shorter](${ghbug}168)
 
 $h4 In 1.5.1-BETA1
 
