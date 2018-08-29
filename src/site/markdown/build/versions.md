@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of November 2015, the following version constraints are known.
+As of August 2018, the following version constraints are known.
 
 ## Java
 
@@ -10,6 +10,25 @@ makes use of Java features first appearing in Java 6.
 As for later versions of Java, backward compatibility in the language is
 generally good. The most likely problem areas with a new Java version will
 be additions to the JDBC API that PL/Java has not yet implemented.
+
+In the PL/Java 1.5.x series, the build system has not been reworked for
+building with Java 9 or newer. However, PL/Java can be built with Java 8
+and use a newer JVM at run time, simply by setting
+[the `pljava.libjvm_location` variable][jvml] to the newer version's library.
+
+That allows PL/Java to run application code written for the latest Java
+versions, and also to take advantage of recent Java implementation advances
+such as [class data sharing][cds].
+
+PL/Java has been successfully used with [Oracle Java][orj] and with
+[OpenJDK][], which is available with
+[either the Hotspot or the OpenJ9 JVM][hsj9].
+
+[jvml]: ../use/variables.html
+[cds]:  ../install/vmoptions.html#Class_data_sharing
+[orj]: https://www.oracle.com/technetwork/java/javase/downloads/index.html
+[OpenJDK]: https://adoptopenjdk.net/
+[hsj9]: https://www.eclipse.org/openj9/oj9_faq.html
 
 ## Maven
 
@@ -40,3 +59,7 @@ the aim is that the current PL/Java should be a possible upgrade there.)
 
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
+
+PL/Java 1.5.1 has been successfully built and run on at least one platform
+with PostgreSQL versions from 11 (beta3) to 8.2, the latest maintenance
+release for each.

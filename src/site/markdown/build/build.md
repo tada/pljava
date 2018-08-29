@@ -9,7 +9,9 @@ and produce the files you need, but *not* install them into PostgreSQL.
 To do that, continue with the [installation instructions][inst].
 
 [mvn]: https://maven.apache.org/
-[java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[orjava]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[OpenJDK]: https://adoptopenjdk.net/
+[hsj9]: https://www.eclipse.org/openj9/oj9_faq.html
 
 **In case of build difficulties:**
 
@@ -25,13 +27,20 @@ There is a "troubleshooting the build" section at the end of this page.
 
     at the command line, which should tell you the version you have installed.
 
-0. The [Java Development Kit][java] (not just the Java Runtime Environment)
+0. The Java Development Kit (not just the Java Runtime Environment)
     version that you plan to use should be installed, also ideally in your
     search path so that
 
         javac  -version
 
-    just works.
+    just works. [Oracle Java][orjava] or [OpenJDK][] can be used, the latter
+    with [either the Hotspot or the OpenJ9 JVM][hsj9]. It is not necessary to
+    use the same JDK to build PL/Java that will later be used to run it in the
+    database, as long as the one used for building is not newer than that used
+    at run time. In particular, because the build procedure has not been updated
+    for Java 9 and later, PL/Java requires a Java 8, 7, or 6 JDK to build, but
+    can then use a later Java version at run time, and support PL/Java
+    applications using the newer Java features.
 
 0. The PostgreSQL server version that you intend to use should be installed,
     and on your search path so that the command

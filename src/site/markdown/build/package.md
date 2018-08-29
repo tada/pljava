@@ -23,6 +23,12 @@ the exact file this should refer to.
 
 [locatejvm]: ../install/locatejvm.html
 
+Although PL/Java is currently built with a JDK no later than Java 8, it can
+then run in the database with a newer JVM, and support application code that
+uses the newer Java features. While using Java 8 to build a package, you are
+encouraged to set the default `pljava.libjvm_location` to the library of a
+later JRE that is expected to be present on your platform.
+
 ## What kind of a package is this?
 
 Your package may be for a distribution that has formal guidelines for how

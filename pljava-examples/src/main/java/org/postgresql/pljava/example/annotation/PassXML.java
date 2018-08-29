@@ -157,7 +157,7 @@ public class PassXML implements SQLData
 	 *<p>
 	 * The other version of this method needs a conditional implementor tag
 	 * because it cannot be declared in a PostgreSQL instance that was built
-	 * without [@code libxml} support and the PostgreSQL {@code XML} type.
+	 * without {@code libxml} support and the PostgreSQL {@code XML} type.
 	 * But this version can, simply by mapping the {@code SQLXML} parameter
 	 * and return types to the SQL {@code text} type. The Java code is no
 	 * different.

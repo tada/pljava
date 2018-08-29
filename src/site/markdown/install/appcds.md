@@ -1,21 +1,28 @@
-# How to set up application class data sharing
+# How to set up application class data sharing in Hotspot
 
-[Application class data sharing][appcds] is a feature, currently unique
-to the Oracle JVM (8u40 and later) that extends the ordinary Java class
-data sharing feature to also include selected classes from the application
-class path. In PL/Java terms, that means that not only Java's own internal
-classes, but PL/Java's also, can be saved in a preprocessed shared archive
-and quickly mapped when any backend starts PL/Java. For an overview, see
+For the Hotspot JVM, [Application class data sharing][appcds] is a feature,
+first released in the Oracle JVM (8u40 and later) that extends the ordinary
+Java class data sharing feature to also include selected classes from the
+application class path. In PL/Java terms, that means that not only Java's own
+internal classes, but PL/Java's also, can be saved in a preprocessed shared
+archive and quickly mapped when any backend starts PL/Java. For an overview, see
 the [PL/Java VM options page][vmop].
+
+Starting with Java 10, the feature is also available in
+[OpenJDK with Hotspot][OpenJDK]. From Java 8 onward, a different feature
+with the same effect is available in [OpenJDK with OpenJ9][OpenJDK]; that
+feature is covered [on its own page][cdsJ9].
 
 [appcds]: http://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html#app_class_data_sharing
 [vmop]: vmoptions.html
 [bcl]: http://www.oracle.com/technetwork/java/javase/terms/license/index.html
+[OpenJDK]: https://adoptopenjdk.net/
+[cdsJ9]: oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
 
 ## License considerations
 
-For Java 8, application class data sharing is a "commercial feature" in
-Oracle's JVM, and will not work unless `pljava.vmoptions` also contain
+In Oracle Java, application class data sharing is a "commercial feature" first
+released in Java 8, and will not work unless `pljava.vmoptions` also contain
 `-XX:+UnlockCommercialFeatures` , with implications described in the
 "supplemental license terms" of the Oracle
 [binary code license for Java SE][bcl]. The license seems
@@ -25,10 +32,18 @@ negotiating an additional agreement with Oracle if the feature will be used
 purpose." It is available to consider for any application where the
 additional performance margin can be given a price.
 
-Looking ahead, in the source for OpenJDK 9 (`share/vm/runtime/globals.hpp`)
-are promising signs that equivalent functionality will be available there.
+The same feature in OpenJDK with Hotspot is available from Java 10 onward,
+and does not require any additional license or `-XX:+UnlockCommercialFeatures`
+option. The equivalent feature in OpenJDK with OpenJ9,
+[described separately][cdsJ9] is available from Java 8 onward, also with no
+additional license or setup needed.
 
 ## Setup
+
+The setup instructions on this page are for Hotspot, whether in Oracle Java
+or OpenJDK with Hotspot. The two differ only in that, wherever an
+`-XX:+UnlockCommercialFeatures` option is shown in the steps below,
+**it is needed in Oracle Java but not in OpenJDK/Hotspot**.
 
 Setting up PL/Java to use application class data sharing is a three-step
 process. Each step is done by setting a different combination of options
