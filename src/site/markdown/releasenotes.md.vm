@@ -91,8 +91,8 @@ Without the query analysis results from PostgreSQL, PL/Java tries to type the
 prepared-statement parameters based on the types of values supplied by the
 application Java code. It now has two additional ways to do so:
 
-* If Java code supplies a Java user-defined type (UDT)--that is, an object
-    implementing the `SQLData` interface--PL/Java will now call the `SQLData`
+* If Java code supplies a Java user-defined type (UDT)---that is, an object
+    implementing the `SQLData` interface---PL/Java will now call the `SQLData`
     method `getSQLTypeName` on that object and use the result to pin down
     the PostgreSQL type of the parameter. Existing code should already provide
     this method, but could, in the past, have returned a bogus result without
@@ -104,10 +104,10 @@ application Java code. It now has two additional ways to do so:
     a default mapping to a different PostgreSQL type, in most cases it will
     overwrite the type supplied with `setNull` and re-plan the query. That was
     PL/Java's existing behavior, and was not changed for this minor release.
-    However, the new types introduced in this release--the `java.time` types and
-    `SQLXML`--behave in the way that should become universal in a future major
-    release: the already-supplied PostgreSQL type will be respected, and PL/Java
-    will try to find a usable coercion to it.
+    However, the new types introduced in this release---the `java.time` types
+    and `SQLXML`---behave in the way that should become universal in a future
+    major release: the already-supplied PostgreSQL type will be respected, and
+    PL/Java will try to find a usable coercion to it.
 
 $h4 Inaccuracies converting TIMESTAMP and TIMESTAMPTZ
 
@@ -153,14 +153,7 @@ that take a `Class<?>` parameter. The class to use is:
 |`timestamp with time zone`|`OffsetDateTime`|
 [Correspondence of PostgreSQL date/time types and Java 8 `java.time` classes]
 
-An `OffsetTime` obtained from a PostgreSQL `time with time zone` will have
-the time zone offset that was assigned to the PostgreSQL value.
-An `OffsetDateTime` obtained from a PostgreSQL `timestamp with time zone`
-will always have an offset explicitly zero (UTC), and any `OffsetDateTime`
-created in Java with a different offset will be converted to UTC when presented
-to PostgreSQL. These behaviors accurately reflect the different ways PostgreSQL
-represents these two types. These conversions never depend on the PostgreSQL
-session time zone, which is not necessarily consistent between sessions.
+Details on these mappings are [added to the documentation](use/datetime.html).
 
 $h4 Newly supported `java.sql.SQLXML` type
 
@@ -185,10 +178,10 @@ When retrieving XML values from `ResultSet` or `SQLInput` objects, the legacy
 `getObject / readObject` methods will continue to return `String` for existing
 application compatibility, so the specific `getSQLXML / readSQLXML` methods, or
 the forms of `getObject / readObject` with a `Class<?>` parameter and passing
-`SQLXML.class`, must be used. The [PassXML example][exxml] illustrates use of
-the API.
+`SQLXML.class`, must be used. A [documentation page](use/sqlxml.html) has been
+added, and the [PassXML example][exxml] illustrates use of the API.
 
-[exxml]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java
+[exxml]: pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/PassXML.html
 
 $h4 New Java property exposes the PostgreSQL server character-set encoding
 
