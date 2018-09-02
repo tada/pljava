@@ -702,7 +702,7 @@ public class SPIConnection implements Connection
         	return VERSION_NUMBER;
 
         ResultSet rs = createStatement().executeQuery(
-            "SELECT version()");
+            "SELECT pg_catalog.version()");
 
         try
         {

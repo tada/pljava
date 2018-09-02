@@ -90,7 +90,7 @@ public class Loader extends ClassLoader
 		ResultSet rs = null;
 		try
 		{
-			rs = stmt.executeQuery("SELECT current_schema()");
+			rs = stmt.executeQuery("SELECT pg_catalog.current_schema()");
 			if(!rs.next())
 				throw new SQLException("Unable to determine current schema");
 			schema = rs.getString(1);
@@ -132,11 +132,16 @@ public class Loader extends ClassLoader
 			//
 			outer = conn.prepareStatement(
 				"SELECT r.jarId" +
-				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c ON r.jarId = c.jarId" +
-				" WHERE c.schemaName = ? ORDER BY c.ordinal DESC");
+				" FROM" +
+				"  sqlj.jar_repository r" +
+				"  INNER JOIN sqlj.classpath_entry c" +
+				"  ON r.jarId OPERATOR(pg_catalog.=) c.jarId" +
+				" WHERE c.schemaName OPERATOR(pg_catalog.=) ?" +
+				" ORDER BY c.ordinal DESC");
 
 			inner = conn.prepareStatement(
-				"SELECT entryId, entryName FROM sqlj.jar_entry WHERE jarId = ?");
+				"SELECT entryId, entryName FROM sqlj.jar_entry " +
+				"WHERE jarId OPERATOR(pg_catalog.=) ?");
 
 			outer.setString(1, schemaName);
 			ResultSet rs = outer.executeQuery();
@@ -304,7 +309,8 @@ public class Loader extends ClassLoader
 				// for the duration of the loader.
 				//
 				stmt = SQLUtils.getDefaultConnection().prepareStatement(
-					"SELECT entryImage FROM sqlj.jar_entry WHERE entryId = ?");
+					"SELECT entryImage FROM sqlj.jar_entry " +
+					"WHERE entryId OPERATOR(pg_catalog.=) ?");
 
 				stmt.setInt(1, entryId[0]);
 				rs = stmt.executeQuery();
