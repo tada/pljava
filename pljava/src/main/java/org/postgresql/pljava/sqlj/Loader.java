@@ -320,16 +320,26 @@ public class Loader extends ClassLoader
 				rs = stmt.executeQuery();
 				if(rs.next())
 				{
-					byte[] img = rs.getBytes(1);
-					rs.close();
-					rs = null;
+					/*
+					 * PostgreSQL found the entry tuple. It's possible that the
+					 * OpenJ9 class-sharing hook below will find an alternate
+					 * byte[] to use, so defer hauling the real one into Java
+					 * memory from the ResultSet until we know we need it.
+					 */
+					byte[] img = null;
 
 					String ifJ9token = null;
-					Object o = ifJ9findSharedClass(name);
+					Object o = ifJ9findSharedClass(name, entryId[0]);
 					if ( o instanceof byte[] )
 						img = (byte[]) o;
-					else if ( o instanceof String )
-						ifJ9token = (String)o;
+					else
+					{
+						img = rs.getBytes(1);        /* Ok, we need it. */
+						if ( o instanceof String )
+							ifJ9token = (String) o;
+					}
+					rs.close();
+					rs = null;
 
 					Class<?> cls = this.defineClass(name, img, 0, img.length);
 
@@ -411,16 +421,23 @@ public class Loader extends ClassLoader
 	/**
 	 * Find a class definition in the OpenJ9 shared cache (if running under
 	 * OpenJ9, and sharing is enabled, and the class is there).
+	 * @param className name of the class to seek.
+	 * @param tokenSource something passed by the caller from which we can
+	 * generate a token that is sure to be different if the class has been
+	 * updated. For now, just the int entryId, which is sufficient because that
+	 * is a SERIAL column and entries are deleted/reinserted by replace_jar.
+	 * There is just the one caller, so the type and usage of this parameter can
+	 * be changed to whatever is appropriate should the schema evolve.
 	 * @return null if not running under J9 with sharing; a {@code byte[]} if
 	 * the class is found in the shared cache, or a {@code String} token that
 	 * should be passed to {@code ifJ9storeSharedClass} later.
 	 */
-	private Object ifJ9findSharedClass(String className)
+	private Object ifJ9findSharedClass(String className, int tokenSource)
 	{
 		if ( null == m_j9Helper )
 			return null;
 
-		String token = "foo";
+		String token = Integer.toString(tokenSource);
 
 		try
 		{

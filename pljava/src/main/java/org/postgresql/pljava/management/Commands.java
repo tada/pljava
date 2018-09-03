@@ -251,6 +251,15 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * Schema-qualification of a type with a typmod, e.g. pg_catalog.varchar(100),
  * is possible from PostgreSQL 8.3 onward, but not in 8.2. As a compromise, use
  * the two-word CHARACTER VARYING syntax, to evade capture by a user type.
+ *
+ * In this (1.5.0) incarnation of the schema, jar_repository and jar_entry are
+ * both indexed by SERIAL columns. The replace_jar operation is an UPDATE to
+ * jar_repository (so the jar's id is preserved), but deletes and reinserts to
+ * jar_entry (so ALL classes get new ids). This makes the entryId sufficient as
+ * a class-cache token to ensure old cached versions are recognized as invalid
+ * (although at the cost of doing so for *every single class* in a jar even if
+ * many are unchanged). It is used that way in the cache-token construction in
+ * o.p.p.sqlj.Loader, which could need to be revisited if this behavior changes.
  */
 @SQLAction(install={
 "	CREATE TABLE sqlj.jar_repository(" +
