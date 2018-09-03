@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import static java.util.Arrays.sort;
 import java.util.HashMap;
 
 import org.postgresql.pljava.internal.AclId;
@@ -1695,12 +1696,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sql += " AND (false ";
 		for(int i = 0; i < types.length; i++)
 		{
-			HashMap clauses = (HashMap)s_tableTypeClauses.get(types[i]);
-			if(clauses != null)
-			{
-				String clause = (String)clauses.get(useSchemas);
+			String clause = s_tableTypeClauses.get(types[i]);
+			if(clause != null)
 				sql += " OR ( " + clause + " ) ";
-			}
 		}
 		sql += ") ";
 		sql += orderby;
@@ -1708,104 +1706,48 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		return createMetaDataStatement().executeQuery(sql);
 	}
 
-	private static final HashMap s_tableTypeClauses;
+	private static final HashMap<String,String> s_tableTypeClauses;
 	static
 	{
-		s_tableTypeClauses = new HashMap();
-		HashMap ht = new HashMap();
-		s_tableTypeClauses.put("TABLE", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses = new HashMap<String,String>();
+		s_tableTypeClauses.put("TABLE",
 			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
 			"AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' " +
 			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
-			"AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("VIEW", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("VIEW",
 			"c.relkind OPERATOR(pg_catalog.=) 'v' " +
 			"AND n.nspname OPERATOR(pg_catalog.<>) 'pg_catalog' " +
 			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'v' " +
-			"AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("INDEX", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("INDEX",
 			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
 			"AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' " +
 			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
-			"AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SEQUENCE", ht);
-		ht.put("SCHEMAS", "c.relkind OPERATOR(pg_catalog.=) 'S'");
-		ht.put("NOSCHEMAS", "c.relkind OPERATOR(pg_catalog.=) 'S'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TABLE", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("SEQUENCE",
+			"c.relkind OPERATOR(pg_catalog.=) 'S'");
+		s_tableTypeClauses.put("SYSTEM TABLE",
 			"c.relkind OPERATOR(pg_catalog.=) 'r' AND (" +
 			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
 			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema')");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
-			"AND c.relname LIKE 'pg!_%' ESCAPE '!' " +
-			"AND c.relname NOT LIKE 'pg!_toast!_%' ESCAPE '!' " +
-			"AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TOAST TABLE", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("SYSTEM TOAST TABLE",
 			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
 			"AND n.nspname OPERATOR(pg_catalog.=) 'pg_toast'");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
-			"AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TOAST INDEX", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("SYSTEM TOAST INDEX",
 			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
 			"AND n.nspname OPERATOR(pg_catalog.=) 'pg_toast'");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
-			"AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM VIEW", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("SYSTEM VIEW",
 			"c.relkind OPERATOR(pg_catalog.=) 'v' AND (" +
 			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
 			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema') ");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'v' " +
-			"AND c.relname LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM INDEX", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("SYSTEM INDEX",
 			"c.relkind OPERATOR(pg_catalog.=) 'i' AND (" +
 			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
 			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema') ");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
-			"AND c.relname LIKE 'pg!_%' ESCAPE '!' " +
-			"AND c.relname NOT LIKE 'pg!_toast!_%' ESCAPE '!' " +
-			"AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("TEMPORARY TABLE", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("TEMPORARY TABLE",
 			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
 			"AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
-			"AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht = new HashMap();
-		s_tableTypeClauses.put("TEMPORARY INDEX", ht);
-		ht.put("SCHEMAS",
+		s_tableTypeClauses.put("TEMPORARY INDEX",
 			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
 			"AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht.put("NOSCHEMAS",
-			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
-			"AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 	}
 
 	// These are the default tables, used when NULL is passed to getTables
@@ -1851,7 +1793,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public java.sql.ResultSet getTableTypes() throws SQLException
 	{
 		String types[] = (String[])s_tableTypeClauses.keySet().toArray(new String[s_tableTypeClauses.size()]);
-		sortStringArray(types);
+		sort(types);
 
 		ResultSetField f[] = new ResultSetField[1];
 		ArrayList v = new ArrayList();
@@ -2141,7 +2083,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
-			sortStringArray(permNames);
+			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
@@ -2238,7 +2180,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
-			sortStringArray(permNames);
+			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
@@ -2261,22 +2203,6 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		rs.close();
 
 		return createSyntheticResultSet(f, v);
-	}
-
-	private static void sortStringArray(String s[])
-	{
-		for(int i = 0; i < s.length - 1; i++)
-		{
-			for(int j = i + 1; j < s.length; j++)
-			{
-				if(s[i].compareTo(s[j]) > 0)
-				{
-					String tmp = s[i];
-					s[i] = s[j];
-					s[j] = tmp;
-				}
-			}
-		}
 	}
 
 	/**
