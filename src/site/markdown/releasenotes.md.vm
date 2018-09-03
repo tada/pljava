@@ -41,6 +41,18 @@ transition tables are available to triggers.
 
 $h3 Security
 
+$h4 Schema-qualification
+
+PL/Java now more consistently schema-qualifies objects in queries and DDL
+it generates internally, as a measure of defense-in-depth in case the database
+it is installed in has not been [protected][prot1058] from [CVE-2018-1058][].
+
+_No schema-qualification work has been done on the example code._ If the
+examples jar will be installed, it should be in a database that
+[the recommended steps have been taken to secure][prot1058].
+
+$h4 Some large-object code removed
+
 1.5.1 removes the code at issue in [CVE-2016-0768][], which pertained to
 PostgreSQL large objects, but had never been documented or exposed as API.
 
@@ -53,6 +65,9 @@ to keep that code around, it is more satisfying to remove it entirely.
 Developers wishing to manipulate large objects in PL/Java are able to do so
 using the SPI JDBC interface and the large-object SQL functions already
 available in every PostgreSQL version PL/Java currently supports.
+
+[CVE-2018-1058]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1058
+[prot1058]: https://wiki.postgresql.org/wiki/A_Guide_to_CVE-2018-1058:_Protect_Your_Search_Path#Next_Steps:_How_Can_I_Protect_My_Databases.3F
 
 $h3 Version compatibility
 
