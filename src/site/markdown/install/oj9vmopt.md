@@ -105,6 +105,13 @@ older versions automatically. There are [shared classes utilities][shclutil]
 available to monitor utilization of the cache space, and to reset caches if
 needed.
 
+With a dynamic shared cache, OpenJ9 may also continue to refine the shared
+data even for unchanged classes that have already been cached. It does not
+replace the originally cached representations, but over time can add JIT hints
+based on profile data collected in longer-running processes, which can help
+new, shorter-lived processes more quickly reach the same level of optimization
+as key methods are just-in-time recompiled.
+
 ### Java libraries
 
 If your own PL/Java code depends on other Java libraries distributed as
