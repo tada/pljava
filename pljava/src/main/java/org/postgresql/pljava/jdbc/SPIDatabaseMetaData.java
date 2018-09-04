@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import static java.util.Arrays.sort;
 import java.util.HashMap;
 
 import org.postgresql.pljava.internal.AclId;
@@ -67,10 +68,12 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	{
 		if(NAMEDATALEN == 0)
 		{
-			String sql = "SELECT t.typlen FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n" +
-						 " WHERE t.typnamespace=n.oid" +
-						 "   AND t.typname='name'" +
-						 "   AND n.nspname='pg_catalog'";
+			String sql =
+				"SELECT t.typlen" +
+				" FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n" +
+				" WHERE t.typnamespace OPERATOR(pg_catalog.=) n.oid" +
+				"	AND t.typname OPERATOR(pg_catalog.=) 'name'" +
+				"	AND n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'";
 
 			ResultSet rs = m_connection.createStatement().executeQuery(sql);
 			if(!rs.next()){ throw new SQLException(
@@ -102,7 +105,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	}
 
 	/*
-	 * What is the URL for this database? @return the url or null if it cannott
+	 * What is the URL for this database? @return the url or null if it cannot
 	 * be generated @exception SQLException if a database access error occurs
 	 */
 	public String getURL() throws SQLException
@@ -1339,7 +1342,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			//This means that only "visible" schemas are searched.
 			//It was approved to change to *all* schemas.
             //return expr + " " + operator + " ANY (current_schemas(true))";
-			return "1=1";
+			return "1 OPERATOR(pg_catalog.=) 1";
         }
         //schema is specified => search in this schema
 		else if(!"".equals(schema))
@@ -1363,7 +1366,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	private static String resolveSchemaCondition(String expr, String schema)
 	{
-        return resolveSchemaConditionWithOperator(expr, schema, "=");
+        return resolveSchemaConditionWithOperator(
+			expr, schema, "OPERATOR(pg_catalog.=)");
     }
 
 	/**
@@ -1407,10 +1411,15 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				+ java.sql.DatabaseMetaData.procedureReturnsResult
 				+ " AS PROCEDURE_TYPE "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_proc p "
-				+ " LEFT JOIN pg_catalog.pg_description d ON (p.oid=d.objoid) "
-				+ " LEFT JOIN pg_catalog.pg_class c ON (d.classoid=c.oid AND c.relname='pg_proc') "
-				+ " LEFT JOIN pg_catalog.pg_namespace pn ON (c.relnamespace=pn.oid AND pn.nspname='pg_catalog') "
-				+ " WHERE p.pronamespace=n.oid "
+				+ " LEFT JOIN pg_catalog.pg_description d"
+				+ "  ON (p.oid OPERATOR(pg_catalog.=) d.objoid) "
+				+ " LEFT JOIN pg_catalog.pg_class c ON ("
+				+ "  d.classoid OPERATOR(pg_catalog.=) c.oid"
+				+ "  AND c.relname OPERATOR(pg_catalog.=) 'pg_proc') "
+				+ " LEFT JOIN pg_catalog.pg_namespace pn ON ("
+				+ "  c.relnamespace OPERATOR(pg_catalog.=) pn.oid"
+				+ "  AND pn.nspname OPERATOR(pg_catalog.=) 'pg_catalog') "
+				+ " WHERE p.pronamespace OPERATOR(pg_catalog.=) n.oid "
                 + " AND " + resolveSchemaPatternCondition(
                                 "n.nspname", schemaPattern);
 		if(procedureNamePattern != null)
@@ -1482,11 +1491,17 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[12] = new ResultSetField("REMARKS", TypeOid.VARCHAR,
 			getMaxNameLength());
 
-		String sql = "SELECT n.nspname,p.proname,p.prorettype,p.proargtypes, t.typtype::varchar,t.typrelid "
-				+ " FROM pg_catalog.pg_proc p,pg_catalog.pg_namespace n, pg_catalog.pg_type t "
-				+ " WHERE p.pronamespace=n.oid AND p.prorettype=t.oid "
-                + " AND " + resolveSchemaPatternCondition(
-                                "n.nspname", schemaPattern);
+		String sql =
+			"SELECT"
+			+ "  n.nspname, p.proname, p.prorettype, p.proargtypes,"
+			+ "  t.typtype::pg_catalog.varchar, t.typrelid "
+			+ " FROM"
+			+ "  pg_catalog.pg_proc p, pg_catalog.pg_namespace n,"
+			+ "  pg_catalog.pg_type t"
+			+ " WHERE p.pronamespace OPERATOR(pg_catalog.=) n.oid"
+			+ " AND p.prorettype OPERATOR(pg_catalog.=) t.oid "
+            + " AND " + resolveSchemaPatternCondition(
+                            "n.nspname", schemaPattern);
 		if(procedureNamePattern != null)
 		{
 			sql += " AND p.proname LIKE '"
@@ -1607,46 +1622,63 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * should be "%" @param types a list of table types to include; null returns
 	 * all types @return each row is a table description @exception SQLException
 	 * if a database-access error occurs.
+	 *
+	 * September 2018: instead of rewriting all these CASE foo WHEN WHEN WHEN
+	 * structures to avoid the implicit = operator, just cast the WHEN operands
+	 * to the known type ("char") of the proband, as there is sure to be an
+	 * =("char","char") in pg_catalog.
 	 */
 	public java.sql.ResultSet getTables(String catalog, String schemaPattern,
 		String tableNamePattern, String types[]) throws SQLException
 	{
 		String useSchemas = "SCHEMAS";
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, c.relname AS TABLE_NAME, "
-				+ " CASE n.nspname LIKE 'pg!_%' ESCAPE '!' OR n.nspname = 'information_schema' "
+				+ " CASE"
+				+ "  n.nspname LIKE 'pg!_%' ESCAPE '!'"
+				+ "  OR n.nspname OPERATOR(pg_catalog.=) 'information_schema' "
 				+ " WHEN true THEN CASE "
-				+ " WHEN n.nspname = 'pg_catalog' OR n.nspname = 'information_schema' THEN CASE c.relkind "
-				+ "  WHEN 'r' THEN 'SYSTEM TABLE' "
-				+ "  WHEN 'v' THEN 'SYSTEM VIEW' "
-				+ "  WHEN 'i' THEN 'SYSTEM INDEX' "
-				+ "  ELSE NULL "
+				+ "  WHEN"
+				+ "   n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'"
+				+ "   OR n.nspname OPERATOR(pg_catalog.=) 'information_schema'"
+				+ "  THEN CASE c.relkind "
+				+ "   WHEN 'r'::pg_catalog.\"char\" THEN 'SYSTEM TABLE' "
+				+ "   WHEN 'v'::pg_catalog.\"char\" THEN 'SYSTEM VIEW' "
+				+ "   WHEN 'i'::pg_catalog.\"char\" THEN 'SYSTEM INDEX' "
+				+ "   ELSE NULL "
+				+ "   END "
+				+ "  WHEN n.nspname OPERATOR(pg_catalog.=) 'pg_toast'"
+				+ "  THEN CASE c.relkind "
+				+ "   WHEN 'r'::pg_catalog.\"char\" THEN 'SYSTEM TOAST TABLE' "
+				+ "   WHEN 'i'::pg_catalog.\"char\" THEN 'SYSTEM TOAST INDEX' "
+				+ "   ELSE NULL "
+				+ "   END "
+				+ "  ELSE CASE c.relkind "
+				+ "   WHEN 'r'::pg_catalog.\"char\" THEN 'TEMPORARY TABLE' "
+				+ "   WHEN 'i'::pg_catalog.\"char\" THEN 'TEMPORARY INDEX' "
+				+ "   ELSE NULL "
+				+ "   END "
 				+ "  END "
-				+ " WHEN n.nspname = 'pg_toast' THEN CASE c.relkind "
-				+ "  WHEN 'r' THEN 'SYSTEM TOAST TABLE' "
-				+ "  WHEN 'i' THEN 'SYSTEM TOAST INDEX' "
-				+ "  ELSE NULL "
-				+ "  END "
-				+ " ELSE CASE c.relkind "
-				+ "  WHEN 'r' THEN 'TEMPORARY TABLE' "
-				+ "  WHEN 'i' THEN 'TEMPORARY INDEX' "
-				+ "  ELSE NULL "
-				+ "  END "
-				+ " END "
 				+ " WHEN false THEN CASE c.relkind "
-				+ " WHEN 'r' THEN 'TABLE' "
-				+ " WHEN 'i' THEN 'INDEX' "
-				+ " WHEN 'S' THEN 'SEQUENCE' "
-				+ " WHEN 'v' THEN 'VIEW' "
-				+ " ELSE NULL "
-				+ " END "
+				+ "  WHEN 'r'::pg_catalog.\"char\" THEN 'TABLE' "
+				+ "  WHEN 'i'::pg_catalog.\"char\" THEN 'INDEX' "
+				+ "  WHEN 'S'::pg_catalog.\"char\" THEN 'SEQUENCE' "
+				+ "  WHEN 'v'::pg_catalog.\"char\" THEN 'VIEW' "
+				+ "  ELSE NULL "
+				+ "  END "
 				+ " ELSE NULL "
 				+ " END "
 				+ " AS TABLE_TYPE, d.description AS REMARKS "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class c "
-				+ " LEFT JOIN pg_catalog.pg_description d ON (c.oid = d.objoid AND d.objsubid = 0) "
-				+ " LEFT JOIN pg_catalog.pg_class dc ON (d.classoid=dc.oid AND dc.relname='pg_class') "
-				+ " LEFT JOIN pg_catalog.pg_namespace dn ON (dn.oid=dc.relnamespace AND dn.nspname='pg_catalog') "
-				+ " WHERE c.relnamespace = n.oid "
+				+ " LEFT JOIN pg_catalog.pg_description d ON ("
+				+ "  c.oid OPERATOR(pg_catalog.=) d.objoid"
+				+ "  AND d.objsubid OPERATOR(pg_catalog.=) 0) "
+				+ " LEFT JOIN pg_catalog.pg_class dc ON ("
+				+ "  d.classoid OPERATOR(pg_catalog.=) dc.oid"
+				+ "  AND dc.relname OPERATOR(pg_catalog.=) 'pg_class') "
+				+ " LEFT JOIN pg_catalog.pg_namespace dn ON ("
+				+ "  dn.oid OPERATOR(pg_catalog.=) dc.relnamespace"
+				+ "  AND dn.nspname OPERATOR(pg_catalog.=) 'pg_catalog') "
+				+ " WHERE c.relnamespace OPERATOR(pg_catalog.=) n.oid "
                 + " AND " + resolveSchemaPatternCondition(
                                 "n.nspname", schemaPattern);
 		String orderby = " ORDER BY TABLE_TYPE,TABLE_SCHEM,TABLE_NAME ";
@@ -1664,12 +1696,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sql += " AND (false ";
 		for(int i = 0; i < types.length; i++)
 		{
-			HashMap clauses = (HashMap)s_tableTypeClauses.get(types[i]);
-			if(clauses != null)
-			{
-				String clause = (String)clauses.get(useSchemas);
+			String clause = s_tableTypeClauses.get(types[i]);
+			if(clause != null)
 				sql += " OR ( " + clause + " ) ";
-			}
 		}
 		sql += ") ";
 		sql += orderby;
@@ -1677,71 +1706,48 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		return createMetaDataStatement().executeQuery(sql);
 	}
 
-	private static final HashMap s_tableTypeClauses;
+	private static final HashMap<String,String> s_tableTypeClauses;
 	static
 	{
-		s_tableTypeClauses = new HashMap();
-		HashMap ht = new HashMap();
-		s_tableTypeClauses.put("TABLE", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'r' AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' AND n.nspname <> 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("VIEW", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'v' AND n.nspname <> 'pg_catalog' AND n.nspname <> 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'v' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("INDEX", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'i' AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' AND n.nspname <> 'information_schema'");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname NOT LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SEQUENCE", ht);
-		ht.put("SCHEMAS", "c.relkind = 'S'");
-		ht.put("NOSCHEMAS", "c.relkind = 'S'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TABLE", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'r' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema')");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg!_%' ESCAPE '!' AND c.relname NOT LIKE 'pgLIKE 'pg!_toast!_%' ESCAPE '!'toast!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TOAST TABLE", ht);
-		ht.put("SCHEMAS", "c.relkind = 'r' AND n.nspname = 'pg_toast'");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM TOAST INDEX", ht);
-		ht.put("SCHEMAS", "c.relkind = 'i' AND n.nspname = 'pg_toast'");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname LIKE 'pg!_toast!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM VIEW", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'v' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema') ");
-		ht.put("NOSCHEMAS", "c.relkind = 'v' AND c.relname LIKE 'pg!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("SYSTEM INDEX", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'i' AND (n.nspname = 'pg_catalog' OR n.nspname = 'information_schema') ");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'v' AND c.relname LIKE 'pg!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_toast!_%' ESCAPE '!' AND c.relname NOT LIKE 'pg!_temp!_%' ESCAPE '!'");
-		ht = new HashMap();
-		s_tableTypeClauses.put("TEMPORARY TABLE", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'r' AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'r' AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht = new HashMap();
-		s_tableTypeClauses.put("TEMPORARY INDEX", ht);
-		ht.put("SCHEMAS",
-			"c.relkind = 'i' AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
-		ht.put("NOSCHEMAS",
-			"c.relkind = 'i' AND c.relname LIKE 'pg!_temp!_%' ESCAPE '!' ");
+		s_tableTypeClauses = new HashMap<String,String>();
+		s_tableTypeClauses.put("TABLE",
+			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
+			"AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' " +
+			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
+		s_tableTypeClauses.put("VIEW",
+			"c.relkind OPERATOR(pg_catalog.=) 'v' " +
+			"AND n.nspname OPERATOR(pg_catalog.<>) 'pg_catalog' " +
+			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
+		s_tableTypeClauses.put("INDEX",
+			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
+			"AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' " +
+			"AND n.nspname OPERATOR(pg_catalog.<>) 'information_schema'");
+		s_tableTypeClauses.put("SEQUENCE",
+			"c.relkind OPERATOR(pg_catalog.=) 'S'");
+		s_tableTypeClauses.put("SYSTEM TABLE",
+			"c.relkind OPERATOR(pg_catalog.=) 'r' AND (" +
+			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
+			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema')");
+		s_tableTypeClauses.put("SYSTEM TOAST TABLE",
+			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
+			"AND n.nspname OPERATOR(pg_catalog.=) 'pg_toast'");
+		s_tableTypeClauses.put("SYSTEM TOAST INDEX",
+			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
+			"AND n.nspname OPERATOR(pg_catalog.=) 'pg_toast'");
+		s_tableTypeClauses.put("SYSTEM VIEW",
+			"c.relkind OPERATOR(pg_catalog.=) 'v' AND (" +
+			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
+			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema') ");
+		s_tableTypeClauses.put("SYSTEM INDEX",
+			"c.relkind OPERATOR(pg_catalog.=) 'i' AND (" +
+			" n.nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
+			" OR n.nspname OPERATOR(pg_catalog.=) 'information_schema') ");
+		s_tableTypeClauses.put("TEMPORARY TABLE",
+			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
+			"AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
+		s_tableTypeClauses.put("TEMPORARY INDEX",
+			"c.relkind OPERATOR(pg_catalog.=) 'i' " +
+			"AND n.nspname LIKE 'pg!_temp!_%' ESCAPE '!' ");
 	}
 
 	// These are the default tables, used when NULL is passed to getTables
@@ -1757,7 +1763,11 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public java.sql.ResultSet getSchemas() throws SQLException
 	{
-		String sql = "SELECT nspname AS TABLE_SCHEM FROM pg_catalog.pg_namespace WHERE nspname <> 'pg_toast' AND nspname NOT LIKE 'pg!_temp!_%' ESCAPE '!' ORDER BY TABLE_SCHEM";
+		String sql =
+			"SELECT nspname AS TABLE_SCHEM FROM pg_catalog.pg_namespace " +
+			"WHERE nspname  OPERATOR(pg_catalog.<>) 'pg_toast' " +
+			"AND nspname NOT LIKE 'pg!_temp!_%' ESCAPE '!' " +
+			"ORDER BY TABLE_SCHEM";
 		return createMetaDataStatement().executeQuery(sql);
 	}
 
@@ -1783,7 +1793,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public java.sql.ResultSet getTableTypes() throws SQLException
 	{
 		String types[] = (String[])s_tableTypeClauses.keySet().toArray(new String[s_tableTypeClauses.size()]);
-		sortStringArray(types);
+		sort(types);
 
 		ResultSetField f[] = new ResultSetField[1];
 		ArrayList v = new ArrayList();
@@ -1866,17 +1876,29 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[17] = new ResultSetField("IS_NULLABLE", TypeOid.VARCHAR,
 			getMaxNameLength());
 
-		String sql = "SELECT n.nspname,c.relname,a.attname,"
-				+ " a.atttypid as atttypid,a.attnotnull,a.atttypmod,"
-				+ " a.attlen::int4 as attlen,a.attnum,def.adsrc,dsc.description "
+		String sql = "SELECT n.nspname, c.relname, a.attname,"
+				+ " a.atttypid as atttypid, a.attnotnull, a.atttypmod,"
+				+ " a.attlen::pg_catalog.int4 as attlen, a.attnum, def.adsrc,"
+				+ " dsc.description"
 				+ " FROM pg_catalog.pg_namespace n "
-				+ " JOIN pg_catalog.pg_class c ON (c.relnamespace = n.oid) "
-				+ " JOIN pg_catalog.pg_attribute a ON (a.attrelid=c.oid) "
-				+ " LEFT JOIN pg_catalog.pg_attrdef def ON (a.attrelid=def.adrelid AND a.attnum = def.adnum) "
-				+ " LEFT JOIN pg_catalog.pg_description dsc ON (c.oid=dsc.objoid AND a.attnum = dsc.objsubid) "
-				+ " LEFT JOIN pg_catalog.pg_class dc ON (dc.oid=dsc.classoid AND dc.relname='pg_class') "
-				+ " LEFT JOIN pg_catalog.pg_namespace dn ON (dc.relnamespace=dn.oid AND dn.nspname='pg_catalog') "
-				+ " WHERE a.attnum > 0 AND NOT a.attisdropped "
+				+ " JOIN pg_catalog.pg_class c"
+				+ "  ON (c.relnamespace OPERATOR(pg_catalog.=) n.oid) "
+				+ " JOIN pg_catalog.pg_attribute a "
+				+ "  ON (a.attrelid OPERATOR(pg_catalog.=) c.oid) "
+				+ " LEFT JOIN pg_catalog.pg_attrdef def ON ("
+				+ "  a.attrelid OPERATOR(pg_catalog.=) def.adrelid"
+				+ "  AND a.attnum OPERATOR(pg_catalog.=) def.adnum) "
+				+ " LEFT JOIN pg_catalog.pg_description dsc ON ("
+				+ "  c.oid OPERATOR(pg_catalog.=) dsc.objoid"
+				+ "  AND a.attnum OPERATOR(pg_catalog.=) dsc.objsubid) "
+				+ " LEFT JOIN pg_catalog.pg_class dc ON ("
+				+ "  dc.oid OPERATOR(pg_catalog.=) dsc.classoid"
+				+ "  AND dc.relname OPERATOR(pg_catalog.=) 'pg_class') "
+				+ " LEFT JOIN pg_catalog.pg_namespace dn ON ("
+				+ "  dc.relnamespace OPERATOR(pg_catalog.=) dn.oid"
+				+ "  AND dn.nspname OPERATOR(pg_catalog.=) 'pg_catalog') "
+				+ " WHERE a.attnum OPERATOR(pg_catalog.>) 0"
+				+ " AND NOT a.attisdropped "
                 + " AND " + resolveSchemaPatternCondition(
                                 "n.nspname", schemaPattern);
 
@@ -2025,14 +2047,17 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String sql = "SELECT n.nspname,c.relname,u.usename,c.relacl,a.attname "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class c, pg_catalog.pg_user u, pg_catalog.pg_attribute a "
-				+ " WHERE c.relnamespace = n.oid "
-				+ " AND u.usesysid = c.relowner " + " AND c.oid = a.attrelid "
-				+ " AND c.relkind = 'r' "
-				+ " AND a.attnum > 0 AND NOT a.attisdropped "
+				+ " WHERE c.relnamespace OPERATOR(pg_catalog.=) n.oid "
+				+ " AND u.usesysid OPERATOR(pg_catalog.=) c.relowner "
+				+ " AND c.oid OPERATOR(pg_catalog.=) a.attrelid "
+				+ " AND c.relkind OPERATOR(pg_catalog.=) 'r' "
+				+ " AND a.attnum OPERATOR(pg_catalog.>) 0"
+				+ " AND NOT a.attisdropped "
                 + " AND " + resolveSchemaCondition(
                                 "n.nspname", schema);
 
-		sql += " AND c.relname = '" + escapeQuotes(table) + "' ";
+		sql += " AND c.relname OPERATOR(pg_catalog.=) '"
+			+ escapeQuotes(table) + "' ";
 		if(columnNamePattern != null && !"".equals(columnNamePattern))
 		{
 			sql += " AND a.attname LIKE '" + escapeQuotes(columnNamePattern)
@@ -2058,7 +2083,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
-			sortStringArray(permNames);
+			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
@@ -2127,7 +2152,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String sql = "SELECT n.nspname,c.relname,u.usename,c.relacl "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class c, pg_catalog.pg_user u "
 				+ " WHERE c.relnamespace = n.oid "
-				+ " AND u.usesysid = c.relowner " + " AND c.relkind = 'r' "
+				+ " AND u.usesysid OPERATOR(pg_catalog.=) c.relowner "
+				+ " AND c.relkind OPERATOR(pg_catalog.=) 'r' "
                 + " AND " + resolveSchemaPatternCondition(
                                 "n.nspname", schemaPattern);
 
@@ -2154,7 +2180,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
 			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
-			sortStringArray(permNames);
+			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
 				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
@@ -2177,22 +2203,6 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		rs.close();
 
 		return createSyntheticResultSet(f, v);
-	}
-
-	private static void sortStringArray(String s[])
-	{
-		for(int i = 0; i < s.length - 1; i++)
-		{
-			for(int j = i + 1; j < s.length; j++)
-			{
-				if(s[i].compareTo(s[j]) > 0)
-				{
-					String tmp = s[i];
-					s[i] = s[j];
-					s[j] = tmp;
-				}
-			}
-		}
 	}
 
 	/**
@@ -2330,13 +2340,17 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String where = "";
 		String from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_attribute a, pg_catalog.pg_index i ";
-			where = " AND ct.relnamespace = n.oid "
+			where = " AND ct.relnamespace OPERATOR(pg_catalog.=) n.oid "
                   + " AND " + resolveSchemaCondition(
                                   "n.nspname", schema);
 		String sql = "SELECT a.attname, a.atttypid as atttypid " + from
-			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
-			+ " AND a.attrelid=ci.oid AND i.indisprimary "
-			+ " AND ct.relname = '" + escapeQuotes(table) + "' " + where
+			+ " WHERE ct.oid OPERATOR(pg_catalog.=) i.indrelid "
+			+ " AND ci.oid OPERATOR(pg_catalog.=) i.indexrelid "
+			+ " AND a.attrelid OPERATOR(pg_catalog.=) ci.oid"
+			+ " AND i.indisprimary "
+			+ " AND ct.relname OPERATOR(pg_catalog.=) '"
+				+ escapeQuotes(table) + "' "
+			+ where
 			+ " ORDER BY a.attnum ";
 
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
@@ -2439,17 +2453,21 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String where = "";
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, ";
 			from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_attribute a, pg_catalog.pg_index i ";
-			where = " AND ct.relnamespace = n.oid AND " +
+			where = " AND ct.relnamespace OPERATOR(pg_catalog.=) n.oid AND " +
                 resolveSchemaCondition("n.nspname", schema);
 
 		String sql = select + " ct.relname AS TABLE_NAME, "
-			+ " a.attname AS COLUMN_NAME, " + " a.attnum::int2 AS KEY_SEQ, "
+			+ " a.attname AS COLUMN_NAME,"
+			+ " a.attnum::pg_catalog.int2 AS KEY_SEQ, "
 			+ " ci.relname AS PK_NAME " + from
-			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid "
-			+ " AND a.attrelid=ci.oid AND i.indisprimary ";
+			+ " WHERE ct.oid OPERATOR(pg_catalog.=) i.indrelid"
+			+ " AND ci.oid OPERATOR(pg_catalog.=) i.indexrelid "
+			+ " AND a.attrelid OPERATOR(pg_catalog.=) ci.oid"
+			+ " AND i.indisprimary ";
 		if(table != null && !"".equals(table))
 		{
-			sql += " AND ct.relname = '" + escapeQuotes(table) + "' ";
+			sql += " AND ct.relname OPERATOR(pg_catalog.=) '"
+				+ escapeQuotes(table) + "' ";
 		}
 		sql += where + " ORDER BY table_name, pk_name, key_seq";
 
@@ -2505,33 +2523,38 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		 * multiple unique indexes covering the same keys can be created which
 		 * make it difficult to determine the PK_NAME field.
 		 */
-		String sql = "SELECT NULL::text AS PKTABLE_CAT, pkn.nspname AS PKTABLE_SCHEM, pkc.relname AS PKTABLE_NAME, pka.attname AS PKCOLUMN_NAME, "
-			+ "NULL::text AS FKTABLE_CAT, fkn.nspname AS FKTABLE_SCHEM, fkc.relname AS FKTABLE_NAME, fka.attname AS FKCOLUMN_NAME, "
-			+ "pos.n::int2 AS KEY_SEQ, "
+		String sql = "SELECT "
+			+ "NULL::pg_catalog.text AS PKTABLE_CAT, "
+			+ "pkn.nspname AS PKTABLE_SCHEM, pkc.relname AS PKTABLE_NAME, "
+			+ "pka.attname AS PKCOLUMN_NAME, "
+			+ "NULL::pg_catalog.text AS FKTABLE_CAT, "
+			+ "fkn.nspname AS FKTABLE_SCHEM, fkc.relname AS FKTABLE_NAME, "
+			+ "fka.attname AS FKCOLUMN_NAME, "
+			+ "pos.n::pg_catalog.int2 AS KEY_SEQ, "
 			+ "CASE con.confupdtype "
-			+ " WHEN 'c' THEN "
+			+ " WHEN 'c'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyCascade
-			+ " WHEN 'n' THEN "
+			+ " WHEN 'n'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeySetNull
-			+ " WHEN 'd' THEN "
+			+ " WHEN 'd'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeySetDefault
-			+ " WHEN 'r' THEN "
+			+ " WHEN 'r'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyRestrict
-			+ " WHEN 'a' THEN "
+			+ " WHEN 'a'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyNoAction
-			+ " ELSE NULL END::int2 AS UPDATE_RULE, "
+			+ " ELSE NULL END::pg_catalog.int2 AS UPDATE_RULE, "
 			+ "CASE con.confdeltype "
-			+ " WHEN 'c' THEN "
+			+ " WHEN 'c'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyCascade
-			+ " WHEN 'n' THEN "
+			+ " WHEN 'n'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeySetNull
-			+ " WHEN 'd' THEN "
+			+ " WHEN 'd'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeySetDefault
-			+ " WHEN 'r' THEN "
+			+ " WHEN 'r'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyRestrict
-			+ " WHEN 'a' THEN "
+			+ " WHEN 'a'::pg_catalog.\"char\" THEN "
 			+ DatabaseMetaData.importedKeyNoAction
-			+ " ELSE NULL END::int2 AS DELETE_RULE, "
+			+ " ELSE NULL END::pg_catalog.int2 AS DELETE_RULE, "
 			+ "con.conname AS FK_NAME, pkic.relname AS PK_NAME, "
 			+ "CASE "
 			+ " WHEN con.condeferrable AND con.condeferred THEN "
@@ -2540,27 +2563,42 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ DatabaseMetaData.importedKeyInitiallyImmediate
 			+ " ELSE "
 			+ DatabaseMetaData.importedKeyNotDeferrable
-			+ " END::int2 AS DEFERRABILITY "
+			+ " END::pg_catalog.int2 AS DEFERRABILITY "
 			+ " FROM "
 			+ " pg_catalog.pg_namespace pkn, pg_catalog.pg_class pkc, pg_catalog.pg_attribute pka, "
 			+ " pg_catalog.pg_namespace fkn, pg_catalog.pg_class fkc, pg_catalog.pg_attribute fka, "
 			+ " pg_catalog.pg_constraint con, "
 			+ " pg_catalog.generate_series(1, " + getMaxIndexKeys() + ") pos(n), "
 			+ " pg_catalog.pg_depend dep, pg_catalog.pg_class pkic "
-			+ " WHERE pkn.oid = pkc.relnamespace AND pkc.oid = pka.attrelid AND pka.attnum = con.confkey[pos.n] AND con.confrelid = pkc.oid "
-			+ " AND fkn.oid = fkc.relnamespace AND fkc.oid = fka.attrelid AND fka.attnum = con.conkey[pos.n] AND con.conrelid = fkc.oid "
-			+ " AND con.contype = 'f' AND con.oid = dep.objid AND pkic.oid = dep.refobjid AND pkic.relkind = 'i' AND dep.classid = 'pg_constraint'::regclass::oid AND dep.refclassid = 'pg_class'::regclass::oid " +
-             " AND " + resolveSchemaCondition("pkn.nspname", primarySchema) +
-             " AND " + resolveSchemaCondition("fkn.nspname", foreignSchema);
+			+ " WHERE pkn.oid OPERATOR(pg_catalog.=) pkc.relnamespace"
+			+ " AND pkc.oid OPERATOR(pg_catalog.=) pka.attrelid"
+			+ " AND pka.attnum OPERATOR(pg_catalog.=) con.confkey[pos.n]"
+			+ " AND con.confrelid OPERATOR(pg_catalog.=) pkc.oid "
+			+ " AND fkn.oid OPERATOR(pg_catalog.=) fkc.relnamespace"
+			+ " AND fkc.oid OPERATOR(pg_catalog.=) fka.attrelid"
+			+ " AND fka.attnum OPERATOR(pg_catalog.=) con.conkey[pos.n]"
+			+ " AND con.conrelid OPERATOR(pg_catalog.=) fkc.oid "
+			+ " AND con.contype OPERATOR(pg_catalog.=) 'f'"
+			+ " AND con.oid OPERATOR(pg_catalog.=) dep.objid"
+			+ " AND pkic.oid OPERATOR(pg_catalog.=) dep.refobjid"
+			+ " AND pkic.relkind OPERATOR(pg_catalog.=) 'i'"
+			+ " AND dep.classid OPERATOR(pg_catalog.=)"
+				+ " 'pg_constraint'::pg_catalog.regclass::pg_catalog.oid"
+			+ " AND dep.refclassid OPERATOR(pg_catalog.=)"
+				+ " 'pg_class'::pg_catalog.regclass::pg_catalog.oid"
+			+ " AND " + resolveSchemaCondition("pkn.nspname", primarySchema)
+			+ " AND " + resolveSchemaCondition("fkn.nspname", foreignSchema);
 
         if(primaryTable != null && !"".equals(primaryTable))
 		{
-			sql += " AND pkc.relname = '" + escapeQuotes(primaryTable)
+			sql += " AND pkc.relname OPERATOR(pg_catalog.=) '"
+				+ escapeQuotes(primaryTable)
 				+ "' ";
 		}
 		if(foreignTable != null && !"".equals(foreignTable))
 		{
-			sql += " AND fkc.relname = '" + escapeQuotes(foreignTable)
+			sql += " AND fkc.relname OPERATOR(pg_catalog.=) '"
+				+ escapeQuotes(foreignTable)
 				+ "' ";
 		}
 
@@ -2755,7 +2793,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		f[16] = new ResultSetField("SQL_DATETIME_SUB", TypeOid.INT4, 4);
 		f[17] = new ResultSetField("NUM_PREC_RADIX", TypeOid.INT4, 4);
 
-		String sql = "SELECT typname FROM pg_catalog.pg_type where typrelid = 0";
+		String sql =
+			"SELECT typname FROM pg_catalog.pg_type " +
+			"WHERE typrelid OPERATOR(pg_catalog.=) 0";
 
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		// cache some results, this will keep memory useage down, and speed
@@ -2853,7 +2893,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String select = "SELECT NULL AS TABLE_CAT, n.nspname AS TABLE_SCHEM, ";
 		String from = " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class ct, pg_catalog.pg_class ci, pg_catalog.pg_index i, pg_catalog.pg_attribute a, pg_catalog.pg_am am ";
 		String where =
-            " AND n.oid = ct.relnamespace " +
+            " AND n.oid OPERATOR(pg_catalog.=) ct.relnamespace " +
             " AND " + resolveSchemaCondition("n.nspname", schema);
 
 		String sql = select
@@ -2861,22 +2901,27 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			+ " CASE i.indisclustered "
 			+ " WHEN true THEN "
 			+ java.sql.DatabaseMetaData.tableIndexClustered
-			+ " ELSE CASE am.amname "
-			+ " WHEN 'hash' THEN "
+			+ " ELSE CASE"
+			+ " WHEN am.amname OPERATOR(pg_catalog.=) 'hash' THEN "
 			+ java.sql.DatabaseMetaData.tableIndexHashed
 			+ " ELSE "
 			+ java.sql.DatabaseMetaData.tableIndexOther
 			+ " END "
-			+ " END::int2 AS TYPE, "
-			+ " a.attnum::int2 AS ORDINAL_POSITION, "
+			+ " END::pg_catalog.int2 AS TYPE, "
+			+ " a.attnum::pg_catalog.int2 AS ORDINAL_POSITION, "
 			+ " a.attname AS COLUMN_NAME, "
 			+ " NULL AS ASC_OR_DESC, "
 			+ " ci.reltuples AS CARDINALITY, "
 			+ " ci.relpages AS PAGES, "
 			+ " NULL AS FILTER_CONDITION "
 			+ from
-			+ " WHERE ct.oid=i.indrelid AND ci.oid=i.indexrelid AND a.attrelid=ci.oid AND ci.relam=am.oid "
-			+ where + " AND ct.relname = '" + escapeQuotes(tableName) + "' ";
+			+ " WHERE ct.oid OPERATOR(pg_catalog.=) i.indrelid"
+			+ " AND ci.oid OPERATOR(pg_catalog.=) i.indexrelid"
+			+ " AND a.attrelid OPERATOR(pg_catalog.=) ci.oid"
+			+ " AND ci.relam OPERATOR(pg_catalog.=) am.oid "
+			+ where
+			+ " AND ct.relname OPERATOR(pg_catalog.=) '"
+				+ escapeQuotes(tableName) + "' ";
 
 		if(unique)
 		{
@@ -2987,26 +3032,35 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public java.sql.ResultSet getUDTs(String catalog, String schemaPattern,
 		String typeNamePattern, int[] types) throws SQLException
 	{
-		String sql = "select "
-			+ "null as type_cat, n.nspname as type_schem, t.typname as type_name,  null as class_name, "
-			+ "CASE WHEN t.typtype='c' then "
-			+ java.sql.Types.STRUCT
-			+ " else "
-			+ java.sql.Types.DISTINCT
-			+ " end as data_type, pg_catalog.obj_description(t.oid, 'pg_type')  "
-			+ "as remarks, CASE WHEN t.typtype = 'd' then  (select CASE";
+		String sql =
+			"SELECT" +
+			" null AS type_cat, n.nspname AS type_schem," +
+			" t.typname AS type_name, null AS class_name," +
+			" CASE WHEN t.typtype OPERATOR(pg_catalog.=) 'c' THEN " +
+				java.sql.Types.STRUCT +
+			" ELSE " +
+				java.sql.Types.DISTINCT +
+			" END AS data_type," +
+			" pg_catalog.obj_description(t.oid, 'pg_type') AS remarks," +
+			" CASE WHEN t.typtype OPERATOR(pg_catalog.=) 'd' THEN (" +
+			"  select CASE";
 
 		for(int i = 0; i < SPIConnection.JDBC_TYPE_NAMES.length; i++)
 		{
-			sql += " when typname = '" + SPIConnection.JDBC_TYPE_NUMBERS[i]
-				+ "' then " + SPIConnection.JDBC_TYPE_NUMBERS[i];
+			sql += " WHEN typname OPERATOR(pg_catalog.=) '"
+					+ SPIConnection.JDBC_TYPE_NUMBERS[i]
+				+ "' THEN " + SPIConnection.JDBC_TYPE_NUMBERS[i];
 		}
 
-		sql += " else "
+		sql += " ELSE "
 			+ java.sql.Types.OTHER
-			+ " end from pg_type where oid=t.typbasetype) "
-			+ "else null end as base_type "
-			+ "from pg_catalog.pg_type t, pg_catalog.pg_namespace n where t.typnamespace = n.oid and n.nspname != 'pg_catalog' and n.nspname != 'pg_toast'";
+			+ " END"
+			+ " FROM pg_type WHERE oid OPERATOR(pg_catalog.=) t.typbasetype) "
+			+ "ELSE null END AS base_type "
+			+ "FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n "
+			+ "WHERE t.typnamespace OPERATOR(pg_catalog.=) n.oid "
+			+ "AND n.nspname OPERATOR(pg_catalog.<>) 'pg_catalog' "
+			+ "AND n.nspname OPERATOR(pg_catalog.<>) 'pg_toast'";
 
 		String toAdd = "";
 		if(types != null)
@@ -3017,10 +3071,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				switch(types[i])
 				{
 					case java.sql.Types.STRUCT:
-						toAdd += " or t.typtype = 'c'";
+						toAdd += " or t.typtype OPERATOR(pg_catalog.=) 'c'";
 						break;
 					case java.sql.Types.DISTINCT:
-						toAdd += " or t.typtype = 'd'";
+						toAdd += " or t.typtype OPERATOR(pg_catalog.=) 'd'";
 						break;
 				}
 			}
@@ -3028,7 +3082,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		}
 		else
 		{
-			toAdd += " and t.typtype IN ('c','d') ";
+			toAdd +=
+				" AND t.typtype IN " +
+				"('c'::pg_catalog.\"char\", 'd'::pg_catalog.\"char\") ";
 		}
 		// spec says that if typeNamePattern is a fully qualified name
 		// then the schema and catalog are ignored
@@ -3112,7 +3168,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 */
 	public boolean supportsSavepoints() throws SQLException
 	{
-		return this.getDatabaseMajorVersion() >= 8;
+		return true; // PG < 8 no longer supported
 	}
 
 	/**

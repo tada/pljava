@@ -222,7 +222,7 @@ public class InstallHelper
 	{
 		s.execute(
 			"CREATE OR REPLACE FUNCTION sqlj.java_call_handler()" +
-			" RETURNS language_handler" +
+			" RETURNS pg_catalog.language_handler" +
 			" AS " + eQuote(module_path) +
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
@@ -243,7 +243,7 @@ public class InstallHelper
 
 		s.execute(
 			"CREATE OR REPLACE FUNCTION sqlj.javau_call_handler()" +
-			" RETURNS language_handler" +
+			" RETURNS pg_catalog.language_handler" +
 			" AS " + eQuote(module_path) +
 			" LANGUAGE C");
 		s.execute("REVOKE ALL PRIVILEGES" +
@@ -337,7 +337,8 @@ public class InstallHelper
 	 * messed up schema that never appeared in the git history, if it happened
 	 * to match on the tested parts. The variant EMPTY is returned if nothing is
 	 * in the schema (based on a direct query of pg_depend, which ought to be
-	 * reliable) except an entry for the extension if applicable. A null return
+	 * reliable) except an entry for the extension if applicable, or for the
+	 * table temporarily created there during CREATE EXTENSION. A null return
 	 * indicates that whatever is there didn't match the tests for any known
 	 * variant.
 	 */
@@ -401,20 +402,26 @@ public class InstallHelper
 
 		PreparedStatement ps = c.prepareStatement( "SELECT count(*) " +
 			"FROM pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
-			"WHERE refclassid = 'pg_catalog.pg_namespace'::regclass " +
-			"AND refobjid = n.oid AND nspname = 'sqlj' " +
-			"AND deptype = 'n' " +
-			"AND NOT EXISTS ( " +
-			"	SELECT 1 FROM " +
-			"	pg_catalog.pg_class sqc JOIN pg_catalog.pg_namespace sqn " +
-			"	ON relnamespace = sqn.oid " +
-			"	WHERE " +
-			"		nspname = 'pg_catalog' AND relname = 'pg_extension' " +
-			"		AND classid = sqc.oid " +
+			"WHERE" +
+			" refclassid OPERATOR(pg_catalog.=)" +
+			"  'pg_catalog.pg_namespace'::regclass " +
+			" AND refobjid OPERATOR(pg_catalog.=) n.oid" +
+			" AND nspname OPERATOR(pg_catalog.=) 'sqlj' " +
+			" AND deptype OPERATOR(pg_catalog.=) 'n' " +
+			" AND NOT EXISTS ( " +
+			"  SELECT 1 FROM " +
+			"  pg_catalog.pg_class sqc JOIN pg_catalog.pg_namespace sqn " +
+			"  ON relnamespace OPERATOR(pg_catalog.=) sqn.oid " +
+			"  WHERE " +
+			"    nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
+			"    AND relname OPERATOR(pg_catalog.=) 'pg_extension' " +
+			"    AND classid OPERATOR(pg_catalog.=) sqc.oid " +
 			"	OR " +
-			"		nspname = 'sqlj' AND relname = ?" +
-			"		AND classid = 'pg_catalog.pg_class'::regclass " +
-			"		AND objid = sqc.oid)");
+			"    nspname OPERATOR(pg_catalog.=) 'sqlj'" +
+			"    AND relname OPERATOR(pg_catalog.=) ?" +
+			"    AND classid OPERATOR(pg_catalog.=)" +
+			"     'pg_catalog.pg_class'::regclass " +
+			"    AND objid OPERATOR(pg_catalog.=) sqc.oid)");
 		ps.setString(1, loadpath_tbl);
 		rs = ps.executeQuery();
 		if ( rs.next() && 0 == rs.getInt(1) )
@@ -451,7 +458,7 @@ public class InstallHelper
 					s.execute(
 						"CREATE TABLE sqlj.jar_descriptor " +
 						"(jarId, ordinal, entryId) AS SELECT " +
-						"CAST(jarId AS INT), CAST(0 AS INT2), " +
+						"CAST(jarId AS INT), CAST(0 AS pg_catalog.INT2), " +
 						"deploymentDesc FROM sqlj.jar_repository " +
 						"WHERE deploymentDesc IS NOT NULL");
 					s.execute(

@@ -1632,7 +1632,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
-				sb.append( "trigger");
+				sb.append( "pg_catalog.trigger");
 			else
 			{
 				if ( setof )
@@ -1642,7 +1642,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				else if ( null != setofComponent )
 					sb.append( tmpr.getSQLType( setofComponent, func));
 				else if ( setof )
-					sb.append( "RECORD");
+					sb.append( "pg_catalog.RECORD");
 				else
 					sb.append( tmpr.getSQLType( func.getReturnType(), func));
 			}
@@ -1707,10 +1707,10 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "cstring, oid, integer", null),
-		OUTPUT( "out", null, "cstring"),
-		RECEIVE( "recv", "internal, oid, integer", null),
-		SEND( "send", null, "bytea");
+		INPUT( "in", "pg_catalog.cstring, pg_catalog.oid, integer", null),
+		OUTPUT( "out", null, "pg_catalog.cstring"),
+		RECEIVE( "recv", "pg_catalog.internal, pg_catalog.oid, integer", null),
+		SEND( "send", null, "pg_catalog.bytea");
 		BaseUDTFunctionID( String suffix, String param, String ret)
 		{
 			this.suffix = suffix;
@@ -2228,7 +2228,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			protoMappings = new ArrayList<Map.Entry<TypeMirror, String>>();
 
-			// Primitives
+			// Primitives (these need not, indeed cannot, be schema-qualified)
 			//
 			this.addMap(boolean.class, "boolean");
 			this.addMap(Boolean.class, "boolean");
@@ -2249,27 +2249,29 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Known common mappings
 			//
-			this.addMap(Number.class, "numeric");
-			this.addMap(String.class, "varchar");
-			this.addMap(java.util.Date.class, "timestamp");
-			this.addMap(Timestamp.class, "timestamp");
-			this.addMap(Time.class, "time");
-			this.addMap(java.sql.Date.class, "date");
-			this.addMap(java.sql.SQLXML.class, "xml");
-			this.addMap(BigInteger.class, "numeric");
-			this.addMap(BigDecimal.class, "numeric");
-			this.addMap(ResultSet.class, "record");
-			this.addMap(Object.class, "\"any\"");
+			this.addMap(Number.class, "pg_catalog.numeric");
+			this.addMap(String.class, "pg_catalog.varchar");
+			this.addMap(java.util.Date.class, "pg_catalog.timestamp");
+			this.addMap(Timestamp.class, "pg_catalog.timestamp");
+			this.addMap(Time.class, "pg_catalog.time");
+			this.addMap(java.sql.Date.class, "pg_catalog.date");
+			this.addMap(java.sql.SQLXML.class, "pg_catalog.xml");
+			this.addMap(BigInteger.class, "pg_catalog.numeric");
+			this.addMap(BigDecimal.class, "pg_catalog.numeric");
+			this.addMap(ResultSet.class, "pg_catalog.record");
+			this.addMap(Object.class, "pg_catalog.\"any\"");
 
-			this.addMap(byte[].class, "bytea");
+			this.addMap(byte[].class, "pg_catalog.bytea");
 
 			// (Once Java back horizon advances to 8, do these the easy way.)
 			//
-			this.addMapIfExists("java.time.LocalDate", "date");
-			this.addMapIfExists("java.time.LocalTime", "time");
-			this.addMapIfExists("java.time.OffsetTime", "timetz");
-			this.addMapIfExists("java.time.LocalDateTime", "timestamp");
-			this.addMapIfExists("java.time.OffsetDateTime", "timestamptz");
+			this.addMapIfExists("java.time.LocalDate", "pg_catalog.date");
+			this.addMapIfExists("java.time.LocalTime", "pg_catalog.time");
+			this.addMapIfExists("java.time.OffsetTime", "pg_catalog.timetz");
+			this.addMapIfExists("java.time.LocalDateTime",
+				"pg_catalog.timestamp");
+			this.addMapIfExists("java.time.OffsetDateTime",
+				"pg_catalog.timestamptz");
 		}
 
 		private boolean mappingsFrozen()
@@ -2503,7 +2505,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "void"; // can't be a parameter type so no defaults apply
+				return "pg_catalog.void"; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
