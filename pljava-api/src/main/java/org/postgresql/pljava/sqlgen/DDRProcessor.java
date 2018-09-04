@@ -2505,7 +2505,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "void"; // can't be a parameter type so no defaults apply
+				return "pg_catalog.void"; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
