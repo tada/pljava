@@ -9,7 +9,7 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.example.annotation;
+package org.postgresql.pljava.example.saxon;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

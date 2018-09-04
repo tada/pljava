@@ -9,20 +9,52 @@
 	<artifactId>pljava-examples</artifactId>
 	<name>PL/Java examples</name>
 	<description>Examples of Java stored procedures using PL/Java</description>
+
+	<profiles>
+		<profile>
+			<id>saxon-examples</id>
+			<dependencies>
+				<dependency>
+					<groupId>net.sf.saxon</groupId>
+					<artifactId>Saxon-HE</artifactId>
+					<version>[9.8.0-14,)</version>
+				</dependency>
+			</dependencies>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<includes combine.children='append'>
+								<include>org/postgresql/pljava/example/saxon/*.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-api</artifactId>
 			<version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>net.sf.saxon</groupId>
-			<artifactId>Saxon-HE</artifactId>
-			<version>9.8.0-12</version>
-		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>org/postgresql/pljava/example/*.java</include>
+						<include>org/postgresql/pljava/example/annotation/*.java</include>
+					</includes>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
@@ -35,4 +67,15 @@
 			</plugin>
 		</plugins>
 	</build>
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<excludePackageNames>org.postgresql.pljava.example.saxon</excludePackageNames>
+				</configuration>
+			</plugin>
+		</plugins>
+	</reporting>
 </project>
