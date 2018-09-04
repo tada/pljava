@@ -11,21 +11,16 @@
  */
 package org.postgresql.pljava.example.annotation;
 
-import java.io.StringReader;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import static java.sql.ResultSetMetaData.columnNoNulls;
 import java.sql.SQLXML;
 import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.sql.Types;
 
 import java.sql.SQLException;
@@ -33,20 +28,20 @@ import java.sql.SQLDataException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetTime;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
 import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.GregorianCalendar;
-import static java.util.GregorianCalendar.DST_OFFSET;
-import static java.util.GregorianCalendar.ZONE_OFFSET;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Properties;
-import java.util.TimeZone;
-import static java.util.TimeZone.getTimeZone;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,8 +51,6 @@ import static javax.xml.XMLConstants.XML_NS_URI;
 import static javax.xml.XMLConstants.XML_NS_PREFIX;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
-
-import javax.xml.transform.stream.StreamSource;
 
 import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
@@ -90,13 +83,9 @@ import net.sf.saxon.trans.XPathException;
 
 import net.sf.saxon.tree.iter.LookaheadIterator;
 
-import net.sf.saxon.type.BuiltInAtomicType;
-import net.sf.saxon.type.ValidationFailure;
-
 import net.sf.saxon.value.Base64BinaryValue;
-import static net.sf.saxon.value.CalendarValue.NO_TIMEZONE;
-import net.sf.saxon.value.DateTimeValue;
 import net.sf.saxon.value.HexBinaryValue;
+import net.sf.saxon.value.TimeValue;
 
 import org.postgresql.pljava.ResultSetProvider;
 
@@ -227,14 +216,19 @@ public class S9 implements ResultSetProvider
 			 * XML Schema thinks an ISO 8601 duration must have no sign
 			 * anywhere but at the very beginning before the P. PostgreSQL
 			 * thinks that's the one place a sign must never be, and instead
-			 * it should appear in front of every numeric field. (It will
-			 * accept input where the signs vary, but not produce such output.)
+			 * it should appear in front of every numeric field. (PostgreSQL
+			 * accepts input where the signs vary, and there are cases where it
+			 * cannot be normalized away: P1M-1D is a thing, and can't be
+			 * simplified until anchored at a date to know how long the month
+			 * is! The XML Schema type simply can't represent that, so mapping
+			 * of such a value must simply fail, as we'll ensure below.)
 			 * So, here's a regex with a capturing group for a leading -, and
 			 * one for any field-leading -, and one for the absence of a field-
 			 * leading -. Any PostgreSQL or XS duration ought to match overall,
 			 * but the capturing group matches should be either (f,f,t) or
 			 * (f,t,f) for a PostgreSQL duration, or either (f,f,t) or (t,f,t)
-			 * for an XS duration.
+			 * for an XS duration. (f,t,t) would be a PostgreSQL interval with
+			 * mixed signs, and inconvertible.
 			 */
 			s_intervalSigns = Pattern.compile(
 			"(-)?+(?:[PYMWDTH](?:(?:(-)|())\\d++)?+)++(?:(?:[.,]\\d*+)?+S)?+");
@@ -1014,7 +1008,7 @@ public class S9 implements ResultSetProvider
 		XdmAtomicValue bv;
 		ItemType xt = p.typeXS().getItemType();
 		if ( xt.matches(av) ) // perhaps we can skip one bout of casting
-			bv = av;
+			bv = av; // XXX xt==DATE_TIME, av isa DATE_TIME_STAMP gets through
 		else
 			throw new UnsupportedOperationException(
 				"Casting AV to BV is not yet implemented (column " + col + ")");
@@ -1043,14 +1037,17 @@ public class S9 implements ResultSetProvider
 		else if ( ItemType.DOUBLE.subsumes(xt) )
 			rs.updateObject(col, bv.getValue());
 
-		else if ( ItemType.DATE.subsumes(xt) ) // try it, see what goes wrong
-			rs.updateString(col, bv.getStringValue());
+		else if ( ItemType.DATE.subsumes(xt) )
+			rs.updateObject(col, LocalDate.parse(bv.getStringValue()));
 		else if ( ItemType.DATE_TIME_STAMP.subsumes(xt) )
-			rs.updateObject(col, xdmTimestampToJDBC(bv, true));
+			rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
 		else if ( ItemType.DATE_TIME.subsumes(xt) )
-			rs.updateObject(col, xdmTimestampToJDBC(bv, false));
+			rs.updateObject(col, LocalDateTime.parse(bv.getStringValue()));
 		else if ( ItemType.TIME.subsumes(xt) ) // no handy tz/notz distinction
-			rs.updateString(col, bv.getStringValue());
+			rs.updateObject(col,
+				((TimeValue)bv.getUnderlyingValue()).hasTimezone()
+				? OffsetTime.parse(bv.getStringValue())
+				:  LocalTime.parse(bv.getStringValue()));
 
 		else if ( ItemType.YEAR_MONTH_DURATION.subsumes(xt) )
 			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
@@ -1098,16 +1095,16 @@ public class S9 implements ResultSetProvider
 			return new XdmAtomicValue((Boolean)dv);
 
 		if ( ItemType.DATE.equals(xst) )
-			return new XdmAtomicValue(((Date)dv).toString(), xst);
+			return new XdmAtomicValue(dv.toString(), xst);
 
-		if ( ItemType.TIME.equals(xst) ) // XXX with/without tz matters here...
-			return new XdmAtomicValue(((Time)dv).toString(), xst);
+		if ( ItemType.TIME.equals(xst) )
+			return new XdmAtomicValue(dv.toString(), xst);
 
 		if ( ItemType.DATE_TIME.equals(xst) )
-			return jdbcTimestampToXdm(dv, false);
+			return new XdmAtomicValue(dv.toString(), xst);
 
-		if ( ItemType.DATE_TIME_STAMP.equals(xst) ) // XXX here too...
-			return jdbcTimestampToXdm(dv, true);
+		if ( ItemType.DATE_TIME_STAMP.equals(xst) )
+			return new XdmAtomicValue(dv.toString(), xst);
 
 		if ( ItemType.DURATION.equals(xst) )
 			return new XdmAtomicValue(toggleIntervalRepr((String)dv), xst);
@@ -1115,153 +1112,6 @@ public class S9 implements ResultSetProvider
 		throw new SQLNonTransientException(String.format(
 			"Mapping SQL value to XML type \"%s\" not supported", xst),
 			"0N000");
-	}
-
-	/*
-	 * The current (pre-JSR 310) behavior of PL/Java type mapping is to
-	 * unconditionally return a java.sql.Timestamp instance from getObject,
-	 * for both PostgreSQL types timestamp and timestamptz.
-	 *
-	 * In the timestamptz case, the instance directly reflects what PostgreSQL
-	 * has stored, which is the originally-entered value adjusted to zone Z,
-	 * and the most-faithful way to map that to xdm is as a DATE_TIME_STAMP
-	 * with exactly those properties (there is no information available from
-	 * which its original time zone of entry could be reconstructed).
-	 *
-	 * In the non-tz case, PL/Java has done something you might not expect,
-	 * and adjusted the stored value to Z time by assuming it is a local time
-	 * stored in PostgreSQL's current (as of this moment) session_timezone.
-	 * (It does that because there's no such thing as a "local"
-	 * java.sql.Timestamp. When PL/Java's JDBC implementation catches up to
-	 * JSR 310, that'll provide an alternative that does less violence to the
-	 * principle of least astonishment).
-	 *
-	 * Until then, the game here can only be to get PostgreSQL's
-	 * session_timezone and adjust the JDBC value back!
-	 */
-	static XdmAtomicValue jdbcTimestampToXdm(Object v, boolean withTimeZone)
-	throws SQLException, XPathException
-	{
-		Timestamp ts = (Timestamp)v;
-		long millisFromEpoch = ts.getTime();
-		int nanos = ts.getNanos();
-
-		/*
-		 * The fractional second, down to milliseconds, is redundantly
-		 * represented in millisFromEpoch and the high part of nanos. The nanos
-		 * value is always positive, so needs to be (scaled and) subtracted from
-		 * millisFromEpoch, leaving the latter (which is signed) a multiple of
-		 * 1000, so the / 1000 will not have to round.
-		 */
-		long secsFromEpoch = (millisFromEpoch - nanos / 1000000) / 1000;
-
-		DateTimeValue dtv;
-
-		if ( withTimeZone )
-		{
-			dtv = DateTimeValue.fromJavaInstant(secsFromEpoch, nanos);
-			/* fromJavaInstant implicitly assigns a time zone of Z */
-			ValidationFailure vf =
-				dtv.convertToSubType(BuiltInAtomicType.DATE_TIME_STAMP);
-			if ( null != vf )
-				throw vf.makeException();
-		}
-		else
-		{
-			TimeZone tz = getSessionTimeZone();
-			int offsetInMillis = tz.getOffset(millisFromEpoch);
-			secsFromEpoch += offsetInMillis / 1000;
-			// the following line brought to you by OCD
-			nanos += 1000000 * (offsetInMillis % 1000);
-			dtv = DateTimeValue.fromJavaInstant(secsFromEpoch, nanos);
-			dtv = (DateTimeValue)dtv.removeTimezone();
-		}
-
-		return makeAtomicValue(dtv);
-	}
-
-	/*
-	 * Undo what jdbcTimestampToXdm does, for the same variously astonishing
-	 * reasons.
-	 *
-	 * There is an earlier step of the XMLCAST specification that (once it is
-	 * implemented) will lead to surprising results here if the original xdm
-	 * value being cast was with-time-zone but we are casting it to without.
-	 * In that case, it will have been converted to UTC already before its
-	 * timezone was dropped. The without-time-zone case here has to apply
-	 * another "to-UTC" conversion, in this case from the PG session time zone,
-	 * only because the JDBC driver will reverse that conversion. Such a value
-	 * will end up in UTC, as the SQL/XML spec requires for a value that is
-	 * cast from with time zone to without, and so is not really so surprising
-	 * after all. If the value being cast is originally without time zone, that
-	 * earlier step will not have altered it, and what is done here will be
-	 * reversed by the JDBC driver, leaving the value as it appeared in xdm.
-	 *
-	 * In any case, because of that earlier step (once it's been implemented),
-	 * it can be assumed that the value presented here has hasTimezone() if and
-	 * only if withTimeZone is true.
-	 *
-	 * One wrinkle: because DATE_TIME_STAMP is a subtype of DATE_TIME, the
-	 * current test to short-circuit that casting step can actually send us a
-	 * DATE_TIME_STAMP here when expecting a DATE_TIME (withTimeZone false).
-	 * We'll produce (if asserts are disabled ;) the right result if the thing's
-	 * zone is Z, but not in general, so that special case will have to be
-	 * handled when the earlier cast step gets implemented.
-	 */
-	static Object xdmTimestampToJDBC(XdmAtomicValue v, boolean withTimeZone)
-	throws SQLException, XPathException
-	{
-		DateTimeValue dtv = (DateTimeValue)v.getUnderlyingValue();
-		assert dtv.hasTimezone() == withTimeZone;
-
-		GregorianCalendar gc;
-
-		if ( withTimeZone )
-		{
-			dtv = dtv.adjustToUTC(NO_TIMEZONE);
-			gc = dtv.getCalendar();
-		}
-		else
-		{
-			gc = dtv.getCalendar();
-			gc.setTimeZone(getSessionTimeZone());
-			gc.clear(DST_OFFSET);
-			gc.clear(ZONE_OFFSET);
-		}
-
-		long millis = gc.getTimeInMillis();
-		int micros = dtv.getMicrosecond();
-		/*
-		 * The fractional-second part, down to milliseconds, is redundantly
-		 * represented in millis and the high digits of micros. That doesn't
-		 * require special attention, because ts.setNanos() appears to be
-		 * an overwrite.
-		 */
-		Timestamp ts = new Timestamp(millis);
-		ts.setNanos(1000 * micros);
-		return ts;
-	}
-
-	/*
-	 * Current PL/Java behavior is *not* to set Java's implicit time zone to
-	 * match the PostgreSQL session timezone ... but to use it implicitly in the
-	 * course of some value conversions. If we need to know it, we need to ask
-	 * for it. For now, do this in the simplest way, and hope that at least the
-	 * TimeZone class is doing some useful caching....
-	 */
-	static TimeZone getSessionTimeZone() throws SQLException
-	{
-		Statement s = s_dbc.createStatement();
-		try
-		{
-			ResultSet rs = s.executeQuery("SHOW TIME ZONE");
-			rs.next();
-			return getTimeZone(rs.getString(1));
-		}
-		finally
-		{
-			s.close();
-		}
 	}
 
 	/*
@@ -1355,9 +1205,17 @@ public class S9 implements ResultSetProvider
 			 * not yet return those values. As a workaround until it does,
 			 * recheck here using the PG type name string, if TIME or TIMESTAMP
 			 * is the JDBC type that the driver returned.
+			 *
+			 * Also for backward compatibility, the driver still returns
+			 * Types.OTHER for XML, rather than Types.SQLXML. Check and fix that
+			 * here too.
 			 */
 			switch ( tj )
 			{
+			case Types.OTHER:
+				if ( "xml".equals(typePG()) )
+					tj = Types.SQLXML;
+				break;
 			case Types.TIME:
 				if ( "timetz".equals(typePG()) )
 					tj = Types.TIME_WITH_TIMEZONE;
@@ -1375,6 +1233,36 @@ public class S9 implements ResultSetProvider
 		{
 			if ( m_valueJDBCValid )
 				return m_valueJDBC;
+			/*
+			 * When JDBC 4.2 added support for the JSR 310 date/time types, for
+			 * back-compatibility purposes, it did not change what types a plain
+			 * getObject(...) would return for them, which could break existing
+			 * code. Instead, it's necessary to use the form of getObject that
+			 * takes a Class<?>, and ask for the new classes explicitly.
+			 *
+			 * Similarly, PL/Java up through 1.5.0 has always returned a String
+			 * from getObject for a PostgreSQL xml type. Here, the JDBC standard
+			 * provides that a SQLXML object should be returned, and that should
+			 * happen in a future major PL/Java release, but for now, the plain
+			 * getObject will still return String, so it is also necessary to
+			 * ask for the SQLXML type explicitly.
+			 */
+			switch ( typeJDBC() )
+			{
+			case Types.DATE:
+				return setValueJDBC(implValueJDBC(LocalDate.class));
+			case Types.TIME:
+				return setValueJDBC(implValueJDBC(LocalTime.class));
+			case Types.TIME_WITH_TIMEZONE:
+				return setValueJDBC(implValueJDBC(OffsetTime.class));
+			case Types.TIMESTAMP:
+				return setValueJDBC(implValueJDBC(LocalDateTime.class));
+			case Types.TIMESTAMP_WITH_TIMEZONE:
+				return setValueJDBC(implValueJDBC(OffsetDateTime.class));
+			case Types.SQLXML:
+				return setValueJDBC(implValueJDBC(SQLXML.class));
+			default:
+			}
 			return setValueJDBC(implValueJDBC());
 		}
 
@@ -1484,6 +1372,16 @@ public class S9 implements ResultSetProvider
 		{
 			throw new UnsupportedOperationException(
 				"valueJDBC() on synthetic binding");
+		}
+
+		/*
+		 * This implementation just forwards to the type-less version, then
+		 * fails if that did not return the wanted type. Override if a smarter
+		 * behavior is possible.
+		 */
+		protected <T> T implValueJDBC(Class<T> type) throws SQLException
+		{
+			return type.cast(implValueJDBC());
 		}
 
 		protected SequenceType implTypeXS(boolean forContextItem)
@@ -1639,6 +1537,11 @@ public class S9 implements ResultSetProvider
 			{
 				return m_resultSet.getObject(m_idx);
 			}
+
+			protected <T> T implValueJDBC(Class<T> type) throws SQLException
+			{
+				return m_resultSet.getObject(m_idx, type);
+			}
 		}
 
 		class Parameter extends Binding.Parameter
@@ -1676,6 +1579,11 @@ public class S9 implements ResultSetProvider
 			{
 				return m_resultSet.getObject(m_idx);
 			}
+
+			protected <T> T implValueJDBC(Class<T> type) throws SQLException
+			{
+				return m_resultSet.getObject(m_idx, type);
+			}
 		}
 	}
 
@@ -1706,11 +1614,14 @@ public class S9 implements ResultSetProvider
 			ContextItem(ItemType it)
 			{
 				m_typeXS = it;
-			}
-
-			protected int implTypeJDBC() throws SQLException
-			{
-				return Types.OTHER; // anything canCastAsXmlSequence won't toss
+				/*
+				 * There needs to be a dummy JDBC type to return when queried
+				 * for purposes of assertCanCastAsXmlSequence. It can literally
+				 * be any type outside of the few that method rejects. Because
+				 * the XS type is already known, nothing else will need to ask
+				 * for this, or care.
+				 */
+				m_typeJDBC = Types.OTHER;
 			}
 		}
 	}
