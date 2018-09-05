@@ -304,11 +304,29 @@ public class Loader extends ClassLoader
 		int[] entryId = (int[])m_entries.get(path);
 		if(entryId != null)
 		{
+			/*
+			 * Check early whether running on OpenJ9 JVM and the shared cache
+			 * has the class. It is possible this early because the entryId is
+			 * being used to generate the token, and it is known before even
+			 * doing the jar_entry query. It would be possible to use something
+			 * like the row's xmin instead, in which case this test would have
+			 * to be moved after retrieving the row.
+			 *
+			 * ifJ9findSharedClass can only return a byte[], a String, or null.
+			 */
+			Object o = ifJ9findSharedClass(name, entryId[0]);
+			if ( o instanceof byte[] )
+			{
+				byte[] img = (byte[]) o;
+				return defineClass(name, img, 0, img.length);
+			}
+			String ifJ9token = (String) o; // used below when storing class
+
 			PreparedStatement stmt = null;
 			ResultSet rs = null;
 			try
 			{
-				// This code rely heavily on the fact that the connection
+				// This code relies heavily on the fact that the connection
 				// is a singleton and that the prepared statement will live
 				// for the duration of the loader.
 				//
@@ -320,24 +338,7 @@ public class Loader extends ClassLoader
 				rs = stmt.executeQuery();
 				if(rs.next())
 				{
-					/*
-					 * PostgreSQL found the entry tuple. It's possible that the
-					 * OpenJ9 class-sharing hook below will find an alternate
-					 * byte[] to use, so defer hauling the real one into Java
-					 * memory from the ResultSet until we know we need it.
-					 */
-					byte[] img = null;
-
-					String ifJ9token = null;
-					Object o = ifJ9findSharedClass(name, entryId[0]);
-					if ( o instanceof byte[] )
-						img = (byte[]) o;
-					else
-					{
-						img = rs.getBytes(1);        /* Ok, we need it. */
-						if ( o instanceof String )
-							ifJ9token = (String) o;
-					}
+					byte[] img = rs.getBytes(1);
 					rs.close();
 					rs = null;
 
