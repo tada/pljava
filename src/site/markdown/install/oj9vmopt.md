@@ -4,9 +4,15 @@ The OpenJ9 JVM accepts a number of standard options that are the same as
 those accepted by Hotspot, but also many nonstandardized ones that are not.
 A complete list of options it accepts can be found [here][oj9opts].
 
-There is one option likely to benefit _every_ PL/Java configuration:
+There is one option that should be considered for any PL/Java configuration:
 
 * [`-Xquickstart`][xqs]
+
+It can reduce the JVM startup time by doing less JIT compilation and at lower
+optimization levels. On the other hand, if the work to be done in PL/Java is
+substantial enough, the increased run time of the less-optimized code can make
+the overall performance effect net negative. It should be measured under
+expected conditions.
 
 [xqs]: https://www.ibm.com/support/knowledgecenter/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/xquickstart.html
 
@@ -112,6 +118,20 @@ based on profile data collected in longer-running processes, which can help
 new, shorter-lived processes more quickly reach the same level of optimization
 as key methods are just-in-time recompiled.
 
+### Effect of `sqlj.replace_jar`
+
+When PL/Java replaces a jar, the class loaders and cached function mappings
+are reset in the backend that replaced the jar, so subsequent PL/Java function
+calls in that backend will use the new classes.
+
+In other sessions active at the time the jar is replaced, without OpenJ9 class
+sharing, execution will continue with the already-loaded classes, unless/until
+another class needs to be loaded from the old jar, which will fail with a
+`ClassNotFoundException`.
+
+With OpenJ9 class sharing, other sessions may continue executing even as they
+load classes, as long as the old class versions are found in the shared cache.
+
 ### Java libraries
 
 If your own PL/Java code depends on other Java libraries distributed as
@@ -124,8 +144,8 @@ installed in the database are shared, just as those on the system classpath.
 ### Thorough class verification
 
 When using class sharing, consider adding `-Xverify:all` to
-the other VM options, at least while warming a cache that you will then treat
-as `readonly`. Java sometimes applies more relaxed verification to
+the other VM options, perhaps once while warming a cache that you will then
+treat as `readonly`. Java sometimes applies more relaxed verification to
 classes it loads from the system classpath. With class sharing in use, classes
 may be loaded and verified early, then saved in the shared archive for quick
 loading later. In those circumstances, the cost of requesting verification for
