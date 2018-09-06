@@ -220,3 +220,11 @@ collection. In a test using PL/Java to do trivial work (nothing but
 `SELECT sqlj.get_classpath('public')`), the sweet spot comes around
 `-Xms5m` (which seems to end up allocating 6, but completes
 with no GC in my testing).
+
+### Performance tuning tips on the wiki
+
+Between releases of this documentation, breaking news, tips, and metrics
+on PL/Java performance tuning may be shared
+[on the performance-tuning wiki page][ptwp].
+
+[ptwp]: https://github.com/tada/pljava/wiki/Performance-tuning

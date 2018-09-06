@@ -19,6 +19,16 @@ PL/Java before 1.5.1, the PL/Java version should first be upgraded
 in the running PostgreSQL version, and then the PostgreSQL `pg_upgrade`
 can be done.
 
+The documentation is expanded on the topic of shared-memory precompiled
+class cache features, which can substantially improve JVM startup time
+and memory footprint, and are now available across Oracle Java, OpenJDK
+with Hotspot, and OpenJDK with OpenJ9. When running on OpenJ9, PL/Java
+cooperates with the JVM to include even the application's classes
+(those loaded with `install_jar`) in the shared cache, something not
+yet possible with Hotspot. While the advanced sharing feature in Oracle
+Java is still subject to a commercial licensing encumbrance, the equivalent
+(or superior, with OpenJ9) features in OpenJDK are not encumbered.
+
 Significant new functionality includes new datatype mapping support:
 SQL `date`, `time`, and `timestamp` values can be mapped to the new
 Java classes of the `java.time` package in Java 8 and later (JSR 310 /
