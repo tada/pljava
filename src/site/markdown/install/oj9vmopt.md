@@ -162,3 +162,11 @@ If the database is recreated, PL/Java is deinstalled and reinstalled, or
 anything else happens to restart the `SERIAL` sequence, it may be wise to
 destroy any existing OpenJ9 class share, to avoid incorrectly matching
 older cached versions of classes.
+
+### Performance tuning tips on the wiki
+
+Between releases of this documentation, breaking news, tips, and metrics
+on PL/Java performance tuning may be shared
+[on the performance-tuning wiki page][ptwp].
+
+[ptwp]: https://github.com/tada/pljava/wiki/Performance-tuning
