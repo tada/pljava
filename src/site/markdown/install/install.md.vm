@@ -8,6 +8,14 @@
 #set($h2 = '##')
 #set($h3 = '###')
 
+$h2 Selecting a current Java version to use with PL/Java
+
+Having used a Java 8 or earlier JDK to build PL/Java, you will probably want to
+use PL/Java with a newer Java version at run time, so your PL/Java application
+code can use the latest Java features. When you reach the step
+[setting PL/Java configuration variables](#PLJava_configuration_variables),
+the `pljava.libjvm_location` variable will allow you to do that.
+
 $h2 For the impatient
 
 After completing the [build][bld]:
@@ -138,7 +146,7 @@ things right on the first try, you might set them after, too.) For example:
     pathname of the file that is called
     `pljava/sharedir/pljava/pljava-${project.version}.jar` in the installer jar.
     Note: this variable isn't meant to point to the code you develop and
-    use in PL/Java--that's what the [`sqlj.install_jar function`][sqjij]
+    use in PL/Java---that's what the [`sqlj.install_jar function`][sqjij]
     is for.
 
 [sqjij]: https://github.com/tada/pljava/wiki/SQL-functions

@@ -29,6 +29,9 @@
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
 #include <utils/memutils.h>
+#if PG_VERSION_NUM >= 80400
+#include <utils/snapmgr.h>
+#endif
 #include <utils/syscache.h>
 
 #if PG_VERSION_NUM < 90000
@@ -43,14 +46,6 @@
 #include "pljava/JNICalls.h"
 #include "pljava/PgObject.h"
 #include "pljava/type/String.h"
-
-/*
- * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
- * 8.4, this fallback will not be needed.
- */
-#ifndef CppAsString2
-#define CppAsString2(x) CppAsString(x)
-#endif
 
 /*
  * Before 9.1, there was no creating_extension. Before 9.5, it did not have
@@ -230,6 +225,11 @@ static void checkLoadPath( bool *livecheck)
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
+#if PG_VERSION_NUM >= 80300
+	PlannedStmt *ps;
+#else
+	Query *ps;
+#endif
 
 #ifndef CREATING_EXTENSION_HACK
 	if ( NULL != livecheck )
@@ -237,7 +237,12 @@ static void checkLoadPath( bool *livecheck)
 #endif
 	if ( NULL == ActivePortal )
 		return;
-	l = ActivePortal->stmts;
+	l = ActivePortal->
+#if PG_VERSION_NUM >= 80300
+		stmts;
+#else
+		parseTrees;
+#endif
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
@@ -247,6 +252,28 @@ static void checkLoadPath( bool *livecheck)
 	{
 		elog(DEBUG2, "got null for first statement from ActivePortal");
 		return;
+	}
+#if PG_VERSION_NUM >= 80300
+	if ( T_PlannedStmt == nodeTag(ut) )
+	{
+		ps = (PlannedStmt *)ut;
+#else
+	if ( T_Query == nodeTag(ut) )
+	{
+		ps = (Query *)ut;
+#endif
+		if ( CMD_UTILITY != ps->commandType )
+		{
+			elog(DEBUG2, "ActivePortal has PlannedStmt command type %u",
+				 ps->commandType);
+			return;
+		}
+		ut = ps->utilityStmt;
+		if ( NULL == ut )
+		{
+			elog(DEBUG2, "got null for utilityStmt from PlannedStmt");
+			return;
+		}
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
 #ifdef CREATING_EXTENSION_HACK
@@ -471,6 +498,10 @@ char *InstallHelper_hello()
 	char pathbuf[MAXPGPATH];
 	Invocation ctx;
 	jstring nativeVer;
+	jstring serverBuiltVer;
+	jstring serverRunningVer;
+	FunctionCallInfoData fcinfo;
+	text *runningVer;
 	jstring user;
 	jstring dbname;
 	jstring clustername;
@@ -484,6 +515,17 @@ char *InstallHelper_hello()
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
+	serverBuiltVer = String_createJavaStringFromNTS(PG_VERSION_STR);
+
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
+#if PG_VERSION_NUM >= 90100
+	InvalidOid, /* collation */
+#endif
+	NULL, NULL);
+	runningVer = DatumGetTextP(pgsql_version(&fcinfo));
+	serverRunningVer = String_createJavaString(runningVer);
+	pfree(runningVer);
+
 	user = String_createJavaStringFromNTS(origUserName());
 	dbname = String_createJavaStringFromNTS(pljavaDbName());
 	if ( '\0' == *clusternameC )
@@ -504,9 +546,13 @@ char *InstallHelper_hello()
 
 	greeting = JNI_callStaticObjectMethod(
 		s_InstallHelper_class, s_InstallHelper_hello,
-		nativeVer, user, dbname, clustername, ddir, ldir, sdir, edir);
+		nativeVer, serverBuiltVer, serverRunningVer,
+		user, dbname, clustername,
+		ddir, ldir, sdir, edir);
 
 	JNI_deleteLocalRef(nativeVer);
+	JNI_deleteLocalRef(serverBuiltVer);
+	JNI_deleteLocalRef(serverRunningVer);
 	JNI_deleteLocalRef(user);
 	JNI_deleteLocalRef(dbname);
 	if ( NULL != clustername )
@@ -524,8 +570,20 @@ char *InstallHelper_hello()
 void InstallHelper_groundwork()
 {
 	Invocation ctx;
+	bool snapshot_set = false;
 	Invocation_pushInvocation(&ctx, false);
 	ctx.function = Function_INIT_WRITER;
+#if PG_VERSION_NUM >= 80400
+	if ( ! ActiveSnapshotSet() )
+	{
+		PushActiveSnapshot(GetTransactionSnapshot());
+#else
+	if ( NULL == ActiveSnapshot )
+	{
+		ActiveSnapshot = CopySnapshot(GetTransactionSnapshot());
+#endif
+		snapshot_set = true;
+	}
 	PG_TRY();
 	{
 		char const *lpt = LOADPATH_TBL_NAME;
@@ -543,10 +601,26 @@ void InstallHelper_groundwork()
 		JNI_deleteLocalRef(pljlp);
 		JNI_deleteLocalRef(jlpt);
 		JNI_deleteLocalRef(jlptq);
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
 	}
@@ -561,7 +635,8 @@ void InstallHelper_initialize()
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
 		s_InstallHelper_class, "groundwork",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V");

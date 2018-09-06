@@ -195,7 +195,7 @@ other thing PL/Java can do.
     which can then be associated with a Java class using
     [SQLJ.ADD_TYPE_MAPPING][atm]. From outside of Java code, it can be
     manipulated like any PostgreSQL composite type, while to Java code it
-    will be presented as an instance of the associated Java class--a new
+    will be presented as an instance of the associated Java class---a new
     instance at every conversion, however. Java code is provided
     `SQLInput` and `SQLOutput` implementations that retrieve and set the
     typed attributes of the composite. Created by a Java class

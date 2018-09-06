@@ -4,6 +4,9 @@ The PostgreSQL configuration variable `pljava.vmoptions` can be used to
 supply custom options to the Java VM when it is started. Several of these
 options are likely to be worth setting.
 
+If using [the OpenJ9 JVM][hsj9], be sure to look also at the
+[VM options specific to OpenJ9][vmoptJ9].
+
 ## Byte order for PL/Java-implemented user-defined types
 
 PL/Java is free of byte-order issues except when using its features for building
@@ -19,9 +22,17 @@ the topic and an advance notice of an expected future migration step.
 
 Class data sharing is a commonly-supported Java virtual machine feature
 that reduces both VM startup time and memory footprint by having many of
-Java's runtime classes preprocessed into a `classes.jsa` file that can
+Java's runtime classes preprocessed into a file that can
 be quickly memory-mapped into the process at Java startup, and shared
-if there are multiple processes running Java VMs. It is enabled by including
+if there are multiple processes running Java VMs.
+
+How to set it up differs depending on the Java VM in use, Hotspot
+(in [Oracle Java][orjava] or [OpenJDK with Hotspot][OpenJDK]), or OpenJ9
+(an [alternate JVM][hsj9] also available with [OpenJDK][]). The instructions on
+this page are specific to Hotspot. For the corresponding feature in OpenJ9,
+which is worth a good look, see the [class sharing in OpenJ9][cdsJ9] page.
+
+For Hotspot, the class data sharing is enabled by including
 
     -Xshare:on
 
@@ -65,9 +76,10 @@ installed. It can be created with the simple command `java -Xshare:dump`
 
 ### Preloading PL/Java's classes as well as the Java runtime's
 
-The basic class data sharing feature includes only Java's own runtime
-classes in the shared archive. When using Java 8 from Oracle, 8u40 or
-later, an expanded feature called [application class data sharing][appcds]
+In Hotspot, the basic class data sharing feature includes only Java's own
+runtime classes in the shared archive. When using Java 8 from Oracle, 8u40 or
+later, or OpenJDK with Hotspot starting with Java 10, an expanded feature
+called [application class data sharing][appcds]
 is available, with which you can build a shared archive that preloads
 PL/Java's classes as well as Java's own. In rough terms this doubles the
 improvement in startup time seen with basic class data sharing alone,
@@ -75,10 +87,14 @@ for a total improvement (compared to no sharing) of 30 to 35 percent.
 It also allows the memory per backend to be even further
 scaled back, as discussed under "plausible settings" below.
 
+([In OpenJ9][cdsJ9], the basic class sharing feature since Java 8 already
+includes this ability, with no additional setup steps needed.)
+
 #### Licensing considerations
 
 Basic class data sharing is widely available with no restriction, but
-*application class data sharing* is a "commercial feature" exclusive to
+*application class data sharing* [in Oracle Java][orjava] is a
+"commercial feature" that first appeared in
 Oracle Java 8. It will not work unless `pljava.vmoptions` also contain
 `-XX:+UnlockCommercialFeatures` , with implications described in the
 "supplemental license terms" of the Oracle
@@ -89,14 +105,29 @@ negotiating an additional agreement with Oracle if the feature will be used
 purpose." It is available to consider for any application where the
 additional performance margin can be given a price.
 
-Looking ahead to Java 9, there are some promising signs that OpenJDK may have
-an equivalent feature.
+[In OpenJDK (with Hotspot)][OpenJDK], starting in Java 10, the same feature
+is available and set up in the same way, but is freely usable; it does not
+require any additional license, and does not require any
+`-XX:+UnlockCommercialFeatures` to be added to the options.
 
-Here are the [instructions for setting up application class data sharing][iads].
+[In OpenJDK (with OpenJ9)][OpenJDK], the class-sharing feature present from
+Java 8 onward will naturally share PL/Java's classes as well as the Java
+runtime's, with no additional setup steps.
 
+Here are the instructions for
+[setting up application class data sharing in Hotspot][iads].
+
+Here are instructions for [setting up class sharing (including application
+classes!) in OpenJ9][cdsJ9].
+
+[orjava]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[OpenJDK]: https://adoptopenjdk.net/
+[hsj9]: https://www.eclipse.org/openj9/oj9_faq.html
 [appcds]: http://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html#app_class_data_sharing
 [bcl]: http://www.oracle.com/technetwork/java/javase/terms/license/index.html
 [iads]: appcds.html
+[vmoptJ9]: oj9vmopt.html
+[cdsJ9]: oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
 
 ## `-XX:+DisableAttachMechanism`
 
@@ -189,3 +220,11 @@ collection. In a test using PL/Java to do trivial work (nothing but
 `SELECT sqlj.get_classpath('public')`), the sweet spot comes around
 `-Xms5m` (which seems to end up allocating 6, but completes
 with no GC in my testing).
+
+### Performance tuning tips on the wiki
+
+Between releases of this documentation, breaking news, tips, and metrics
+on PL/Java performance tuning may be shared
+[on the performance-tuning wiki page][ptwp].
+
+[ptwp]: https://github.com/tada/pljava/wiki/Performance-tuning

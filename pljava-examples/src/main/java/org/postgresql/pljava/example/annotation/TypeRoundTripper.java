@@ -16,6 +16,9 @@ import java.lang.reflect.Modifier;
 import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
 
+import java.sql.Connection;
+import static java.sql.DriverManager.getConnection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
@@ -26,6 +29,7 @@ import java.sql.SQLDataException;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
 
 /**
  * A class to simplify testing of PL/Java's mappings between PostgreSQL and
@@ -40,6 +44,7 @@ import org.postgresql.pljava.annotation.SQLAction;
  * requested output column must have its name (case-insensitively) and type
  * drawn from this table:
  *<table>
+ *<caption>Items the roundTrip function can return</caption>
  *<thead>
  *<tr>
  *<th>Column name</th><th>Column type</th><th>What is returned</th>
@@ -81,34 +86,40 @@ import org.postgresql.pljava.annotation.SQLAction;
  *  (VALUES (timestamptz '2017-08-21 18:25:29.900005Z')) AS p(orig),
  *  roundtrip(p) AS r(roundtripped timestamptz);
  *</pre>
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(requires = "TypeRoundTripper.roundTrip", install = {
-"	SELECT	"+
-"		CASE WHEN every(orig = roundtripped)	"+
-"		THEN javatest.logmessage('INFO', 'timestamp roundtrip passes')	"+
-"		ELSE javatest.logmessage('WARNING', 'timestamp roundtrip fails')"+
-"		END	"+
-"	FROM	"+
-"		(values	"+
-"			(timestamp '2017-08-21 18:25:29.900005'),	"+
-"			(timestamp '1970-03-07 17:37:49.300009'),	"+
-"			(timestamp '1919-05-29 13:08:33.600001')	"+
-"		) as p(orig),	"+
-"		roundtrip(p) as r(roundtripped timestamp)	",
+@SQLAction(implementor = "postgresql_ge_90300", // funcs see earlier FROM items
+	requires = "TypeRoundTripper.roundTrip",
+	install = {
+	" SELECT" +
+	"  CASE WHEN every(orig = roundtripped)" +
+	"  THEN javatest.logmessage('INFO', 'timestamp roundtrip passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'timestamp roundtrip fails')" +
+	"  END" +
+	" FROM" +
+	"  (VALUES" +
+	"   (timestamp '2017-08-21 18:25:29.900005')," +
+	"   (timestamp '1970-03-07 17:37:49.300009')," +
+	"   (timestamp '1919-05-29 13:08:33.600001')" +
+	"  ) AS p(orig)," +
+	"  roundtrip(p) AS r(roundtripped timestamp)",
 
-"	SELECT	"+
-"		CASE WHEN every(orig = roundtripped)	"+
-"		THEN javatest.logmessage('INFO', 'timestamptz roundtrip passes')	"+
-"		ELSE javatest.logmessage('WARNING', 'timestamptz roundtrip fails')	"+
-"		END	"+
-"	FROM	"+
-"		(values	"+
-"			(timestamptz '2017-08-21 18:25:29.900005Z'),	"+
-"			(timestamptz '1970-03-07 17:37:49.300009Z'),	"+
-"			(timestamptz '1919-05-29 13:08:33.600001Z')	"+
-"		) as p(orig),	"+
-"		roundtrip(p) as r(roundtripped timestamptz)	",
-})
+	" SELECT" +
+	"  CASE WHEN every(orig = roundtripped)" +
+	"  THEN javatest.logmessage('INFO', 'timestamptz roundtrip passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'timestamptz roundtrip fails')" +
+	"  END" +
+	" FROM" +
+	"  (VALUES" +
+	"   (timestamptz '2017-08-21 18:25:29.900005Z')," +
+	"   (timestamptz '1970-03-07 17:37:49.300009Z')," +
+	"   (timestamptz '1919-05-29 13:08:33.600001Z')" +
+	"  ) AS p(orig)," +
+	"  roundtrip(p) AS r(roundtripped timestamptz)",
+	}
+)
 public class TypeRoundTripper
 {
 	private TypeRoundTripper() { }
@@ -121,6 +132,13 @@ public class TypeRoundTripper
 	 * must have text/varchar type, while ROUNDTRIPPED must match the type of
 	 * the input column).
 	 * @param in The input row value (required to have exactly one column).
+	 * @param classname Name of class to be explicitly requested (JDBC 4.1
+	 * feature) from {@code getObject}; pass an empty string (the default) to
+	 * make no such explicit request.
+	 * @param prepare Whether the object retrieved from {@code in} should be
+	 * passed as a parameter to an identity {@code PreparedStatement} and the
+	 * result of that be returned. If false (the default), the value from
+	 * {@code in} is simply forwarded directly to {@code out}.
 	 * @param out The output row (supplied by PL/Java, representing the column
 	 * definition list that follows the call of this function in SQL).
 	 * @throws SQLException if {@code in} does not have exactly one column, if
@@ -131,13 +149,29 @@ public class TypeRoundTripper
 	@Function(
 		schema = "javatest",
 		type = "RECORD",
-		provides = "TypeRoundTripper.roundTrip"
+		provides = "TypeRoundTripper.roundTrip",
+		implementor = "postgresql_ge_80400" // supports function param DEFAULTs
 		)
-	public static boolean roundTrip(ResultSet in, ResultSet out)
+	public static boolean roundTrip(
+		ResultSet in, @SQLType(defaultValue="") String classname,
+		@SQLType(defaultValue="false") boolean prepare, ResultSet out)
 	throws SQLException
 	{
 		ResultSetMetaData inmd = in.getMetaData();
 		ResultSetMetaData outmd = out.getMetaData();
+
+		Class<?> clazz = null;
+		if ( ! "".equals(classname) )
+		{
+			try
+			{
+				clazz = Class.forName(classname);
+			}
+			catch ( ClassNotFoundException cnfe )
+			{
+				throw new SQLException(cnfe.getMessage(), cnfe);
+			}
+		}
 
 		if ( 1 != inmd.getColumnCount() )
 			throw new SQLDataException(
@@ -151,7 +185,20 @@ public class TypeRoundTripper
 
 		String inTypePG = inmd.getColumnTypeName(1);
 		int inTypeJDBC = inmd.getColumnType(1);
-		Object val = in.getObject(1);
+		Object val = (null == clazz) ? in.getObject(1) : in.getObject(1, clazz);
+
+		if ( prepare )
+		{
+			Connection c = getConnection("jdbc:default:connection");
+			PreparedStatement ps = c.prepareStatement("SELECT ?");
+			ps.setObject(1, val);
+			ResultSet rs = ps.executeQuery();
+			rs.next();
+			val = (null == clazz) ? rs.getObject(1) : rs.getObject(1, clazz);
+			rs.close();
+			ps.close();
+			c.close();
+		}
 
 		for ( int i = 1; i <= outcols; ++ i )
 		{
@@ -193,7 +240,8 @@ public class TypeRoundTripper
 			else
 				throw new SQLDataException(
 					"Output column label \""+ what + "\" should be one of: " +
-					"TYPEPG, TYPEJDBC, CLASSJDBC, CLASS, TOSTRING, VALUE",
+					"TYPEPG, TYPEJDBC, CLASSJDBC, CLASS, TOSTRING, " +
+					"ROUNDTRIPPED",
 					"22000");
 		}
 

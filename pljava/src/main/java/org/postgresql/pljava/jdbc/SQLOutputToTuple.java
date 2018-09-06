@@ -252,6 +252,7 @@ public class SQLOutputToTuple implements SQLOutput
 	{
 		if(m_index >= m_values.length)
 			throw new SQLException("Tuple cannot take more values");
-		m_values[m_index++] = value;
+		TypeBridge<?>.Holder vAlt = TypeBridge.wrap(value);
+		m_values[m_index++] = null == vAlt ? value : vAlt;
 	}
 }

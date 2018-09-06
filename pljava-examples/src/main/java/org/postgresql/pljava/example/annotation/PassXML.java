@@ -59,6 +59,9 @@ import javax.xml.transform.stax.StAXSource;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLActions;
+import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
@@ -68,8 +71,53 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * This class also serves as the mapping class for a composite type
  * {@code javatest.onexml}, the better to verify that {@link SQLData}
  * input/output works too. That's why it has to implement SQLData.
+ *<p>
+ * Everything mentioning the type XML here needs a conditional implementor tag
+ * in case of being loaded into a PostgreSQL instance built without that type.
  */
+@SQLActions({
+	@SQLAction(provides="postgresql_xml", install=
+		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+		" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(implementor="postgresql_ge_80400", provides="postgresql_xml_cte",
+		install=
+		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+		" THEN set_config('pljava.implementors', 'postgresql_xml_cte,' || " +
+		" current_setting('pljava.implementors'), true) " +
+		"END"
+	),
+
+	@SQLAction(implementor="postgresql_xml_cte", requires="echoXMLParameter",
+		install=
+		"WITH" +
+		" s(how) AS (SELECT generate_series(1, 7))," +
+		" t(x) AS (" +
+		"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
+		" )," +
+		" r(howin, howout, isdoc) AS (" +
+		"  SELECT" +
+		"   i.how, o.how," +
+		"   javatest.echoxmlparameter(x, i.how, o.how) IS DOCUMENT" +
+		"  FROM" +
+		"   t, s AS i, s AS o" +
+		"  WHERE" +
+		"   NOT (i.how = 6 and o.how = 7)" + // 6->7 unreliable in some JREs
+		" ) " +
+		"SELECT" +
+		" CASE WHEN every(isdoc)" +
+		"  THEN javatest.logmessage('INFO', 'SQLXML echos succeeded')" +
+		"  ELSE javatest.logmessage('WARNING', 'SQLXML echos had problems')" +
+		" END " +
+		"FROM" +
+		" r"
+	)
+})
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
+		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")
 public class PassXML implements SQLData
 {
@@ -81,14 +129,15 @@ public class PassXML implements SQLData
 
 	/**
 	 * Echo an XML parameter back, exercising seven different ways
-	 * (howin => 1-7) of reading an SQLXML object, and seven (howout => 1-7)
-	 * of returning one.
+	 * (howin =&gt; 1-7) of reading an SQLXML object, and seven
+	 * (howout =&gt; 1-7) of returning one.
 	 *<p>
-	 * If howin => 0, the XML parameter is simply saved in a static. It can be
-	 * read in a subsequent call with sx => null, but only in the same
+	 * If howin =&gt; 0, the XML parameter is simply saved in a static. It can
+	 * be read in a subsequent call with sx =&gt; null, but only in the same
 	 * transaction.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="echoXMLParameter")
 	public static SQLXML echoXMLParameter(SQLXML sx, int howin, int howout)
 	throws SQLException
 	{
@@ -103,11 +152,67 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Echo an XML parameter back, but with parameter and return types of
+	 * PostgreSQL {@code text}.
+	 *<p>
+	 * The other version of this method needs a conditional implementor tag
+	 * because it cannot be declared in a PostgreSQL instance that was built
+	 * without {@code libxml} support and the PostgreSQL {@code XML} type.
+	 * But this version can, simply by mapping the {@code SQLXML} parameter
+	 * and return types to the SQL {@code text} type. The Java code is no
+	 * different.
+	 *<p>
+	 * Note that it's possible for both declarations to coexist in PostgreSQL
+	 * (because as far as it is concerned, their signatures are different), but
+	 * these two Java methods cannot have the same name (because they differ
+	 * only in annotations, not in the declared Java types). So, this one needs
+	 * a slightly tweaked name, and a {@code name} attribute in the annotation
+	 * so PostgreSQL sees the right name.
+	 */
+	@Function(schema="javatest", name="echoXMLParameter", type="text")
+	public static SQLXML echoXMLParameter_(
+		@SQLType("text") SQLXML sx, int howin, int howout)
+	throws SQLException
+	{
+		return echoXMLParameter(sx, howin, howout);
+	}
+
+	/**
 	 * "Echo" an XML parameter not by creating a new writable {@code SQLXML}
 	 * object at all, but simply returning the passed-in readable one untouched.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML bounceXMLParameter(SQLXML sx) throws SQLException
+	{
+		return sx;
+	}
+
+	/**
+	 * Just like {@link bounceXMLParameter} but with parameter and return typed
+	 * as {@code text}, and so usable on a PostgreSQL instance lacking the XML
+	 * type.
+	 */
+	@Function(schema="javatest", type="text", name="bounceXMLParameter")
+	public static SQLXML bounceXMLParameter_(@SQLType("text") SQLXML sx)
+	throws SQLException
+	{
+		return sx;
+	}
+
+	/**
+	 * Just like {@link bounceXMLParameter} but with the parameter typed as
+	 * {@code text} and the return type left as XML, so functions as a cast.
+	 *<p>
+	 * Slower than the other cases, because it must verify that the input really
+	 * is XML before blindly calling it a PostgreSQL XML type. But the speed
+	 * compares respectably to PostgreSQL's own CAST(text AS xml), at least for
+	 * larger values; I am seeing Java pull ahead right around 32kB of XML data
+	 * and beat PG by a factor of 2 or better at sizes of 1 or 2 MB.
+	 * Unsurprisingly, PG has the clear advantage when values are very short.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML castTextXML(@SQLType("text") SQLXML sx)
+	throws SQLException
 	{
 		return sx;
 	}
@@ -120,11 +225,17 @@ public class PassXML implements SQLData
 	 * the {@code SQLXML} object to the XSL processor.
 	 *<p>
 	 * Preparing a transform with
-	 * {@link TransformerFactoory.newTemplates newTemplates()} seems to require
-	 * {@link Function.Trust.UNSANDBOXED Trust.UNSANDBOXED}, at least for the
+	 * {@link TransformerFactory#newTemplates newTemplates()} seems to require
+	 * {@link Function.Trust#UNSANDBOXED Trust.UNSANDBOXED}, at least for the
 	 * XSLTC transform compiler in newer JREs.
+	 *<p>
+	 * If you wish this <strong>unsandboxed</strong> function to be installed,
+	 * set the PostgreSQL variable {@code pljava.implementors} to a list with
+	 * {@code pg_xml_unsandboxed} as an added entry, before installing the
+	 * examples jar.
 	 */
-	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED)
+	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED,
+			  implementor="pg_xml_unsandboxed")
 	public static void prepareXMLTransform(String name, SQLXML source, int how)
 	throws SQLException
 	{
@@ -142,7 +253,7 @@ public class PassXML implements SQLData
 	 * Transform some XML according to a named transform prepared with
 	 * {@code prepareXMLTransform}.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML transformXML(
 		String transformName, SQLXML source, int howin, int howout)
 	throws SQLException
@@ -197,7 +308,7 @@ public class PassXML implements SQLData
 	 * specific case, all the generality of {@code transform} may not be needed.
 	 * It can be interesting to compare memory use when XML values are large.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML lowLevelXMLEcho(SQLXML sx, int how)
 	throws SQLException
 	{
@@ -263,6 +374,26 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
+	 */
+	@Function(schema="javatest", name="lowLevelXMLEcho", type="text")
+	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how)
+	throws SQLException
+	{
+		return lowLevelXMLEcho(sx, how);
+	}
+
+	/**
+	 * Low-level XML echo where the Java parameter and return type are String.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml", type="xml")
+	public static String lowLevelXMLEcho(@SQLType("xml") String x)
+	throws SQLException
+	{
+		return x;
+	}
+
+	/**
 	 * Create some XML, pass it to a {@code SELECT ?} prepared statement,
 	 * retrieve it from the result set, and return it via the out-parameter
 	 * result set of this {@code RECORD}-returning function.
@@ -284,6 +415,25 @@ public class PassXML implements SQLData
 		ps.close();
 		out.updateObject(1, x);
 		return true;
+	}
+
+	/**
+	 * Create and leave some number of SQLXML objects unclosed, unused, and
+	 * unreferenced, as a test of reclamation.
+	 * @param howmany Number of SQLXML instances to create.
+	 * @param how If nonzero, the flavor of writing to request on the object
+	 * before abandoning it; if zero, it is left in its initial, writable state.
+	 */
+	@Function(schema="javatest")
+	public static void unclosedSQLXML(int howmany, int how) throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		while ( howmany --> 0 )
+		{
+			SQLXML sx = c.createSQLXML();
+			if ( 0 < how )
+				sxToResult(sx, how);
+		}
 	}
 
 	private static Source sxToSource(SQLXML sx, int how) throws SQLException
@@ -463,8 +613,42 @@ public class PassXML implements SQLData
 		w.close();
 	}
 
+	/**
+	 * Test the MappedUDT (in one direction anyway).
+	 *<p>
+	 * Creates a {@code PassXML} object, the Java class that maps the
+	 * {@code javatest.onexml} composite type, which has one member, of XML
+	 * type. Stores a {@code SQLXML} value in that field of the {@code PassXML}
+	 * object, and passes that to an SQL query that expects and returns
+	 * {@code javatest.onexml}. Retrieves the XML from the value field of the
+	 * {@code PassXML} object created to map the result of the query.
+	 * @return The original XML value, if all goes well.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML xmlFromComposite() throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		PreparedStatement ps =
+			c.prepareStatement("SELECT CAST(? AS javatest.onexml)");
+		SQLXML x = c.createSQLXML();
+		x.setString("<a/>");
+		PassXML obj = new PassXML();
+		obj.m_value = x;
+		obj.m_typeName = "javatest.onexml";
+		ps.setObject(1, obj);
+		ResultSet r = ps.executeQuery();
+		r.next();
+		obj = r.getObject(1, PassXML.class);
+		ps.close();
+		return obj.m_value;
+	}
+
 	/*
 	 * Required to serve as a MappedUDT:
+	 */
+	/**
+	 * No-arg constructor required of objects that will implement
+	 * {@link SQLData}.
 	 */
 	public PassXML() { }
 
@@ -485,27 +669,5 @@ public class PassXML implements SQLData
 	public void writeSQL(SQLOutput stream) throws SQLException
 	{
 		stream.writeSQLXML(m_value);
-	}
-
-	/*
-	 * Test the MappedUDT (in one direction anyway).
-	 */
-	@Function(schema="javatest")
-	public static SQLXML xmlFromComposite() throws SQLException
-	{
-		Connection c = DriverManager.getConnection("jdbc:default:connection");
-		PreparedStatement ps =
-			c.prepareStatement("SELECT CAST(? AS javatest.onexml)");
-		SQLXML x = c.createSQLXML();
-		x.setString("<a/>");
-		PassXML obj = new PassXML();
-		obj.m_value = x;
-		obj.m_typeName = "javatest.onexml";
-		ps.setObject(1, obj);
-		ResultSet r = ps.executeQuery();
-		r.next();
-		obj = r.getObject(1, PassXML.class);
-		ps.close();
-		return obj.m_value;
 	}
 }

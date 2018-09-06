@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -26,6 +31,14 @@ public class SingleRowReader extends SingleRowResultSet
 	private final TupleDesc m_tupleDesc;
 	private final long m_pointer;
 
+	/**
+	 * Construct a {@code SingleRowReader} from a {@code HeapTupleHeader}
+	 * and a {@link TupleDesc TupleDesc}.
+	 * @param pointer Just the native pointer to a PG {@code HeapTupleHeader};
+	 * the Java class of the same name is uninvolved (it's been dead since
+	 * a4f6c9e).
+	 * @param tupleDesc A {@code TupleDesc}; the Java class this time.
+	 */
 	public SingleRowReader(long pointer, TupleDesc tupleDesc)
 	throws SQLException
 	{
@@ -33,10 +46,15 @@ public class SingleRowReader extends SingleRowResultSet
 		m_tupleDesc = tupleDesc;
 	}
 
+	@Override
 	public void close()
 	{
 	}
 
+	/**
+	 * Frees the {@code HeapTupleHeader}.
+	 */
+	@Override
 	public void finalize()
 	{
 		synchronized(Backend.THREADLOCK)
@@ -45,12 +63,14 @@ public class SingleRowReader extends SingleRowResultSet
 		}
 	}
 
-	protected Object getObjectValue(int columnIndex)
+	@Override // defined in ObjectResultSet
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getObject(m_pointer, m_tupleDesc.getNativePointer(), columnIndex);
+			return _getObject(
+				m_pointer, m_tupleDesc.getNativePointer(), columnIndex, type);
 		}
 	}
 
@@ -160,13 +180,20 @@ public class SingleRowReader extends SingleRowResultSet
 	// End of implementation of JDBC 4 methods.
 	// ************************************************************
 
+	@Override // defined in SingleRowResultSet
 	protected final TupleDesc getTupleDesc()
 	{
 		return m_tupleDesc;
 	}
 
+	/*
+	 * Looking for the implementation of the following JNI methods?
+	 * Look in type/Composite.c
+	 */
+
 	protected native void _free(long pointer);
 
-	private static native Object _getObject(long pointer, long tupleDescPointer, int index)
+	private static native Object _getObject(
+		long pointer, long tupleDescPointer, int index, Class<?> type)
 	throws SQLException;
 }

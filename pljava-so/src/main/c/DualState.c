@@ -112,7 +112,16 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 	StaticAssertStmt(sizeof p2l.ptrVal <= sizeof p2l.longVal,
 					 "Pointer will not fit in long on this platform");
 
-	if ( RESOURCE_RELEASE_AFTER_LOCKS != phase )
+	/*
+	 * The way ResourceOwnerRelease is implemented, callbacks to loadable
+	 * modules (like us!) happen /after/ all of the built-in releasey actions
+	 * for a particular phase. So, by looking for RESOURCE_RELEASE_LOCKS here,
+	 * we actually end up executing after all the built-in lock-related stuff
+	 * has been released, but before any of the built-in stuff released in the
+	 * RESOURCE_RELEASE_AFTER_LOCKS phase. Which, at least for the currently
+	 * implemented DualState subclasses, is about the right time.
+	 */
+	if ( RESOURCE_RELEASE_LOCKS != phase )
 		return;
 
 	p2l.longVal = 0L;

@@ -728,7 +728,11 @@ static void reLogWithChangedLevel(int level)
 	FreeErrorData(edata);
 #else
 	if (!errstart(level, edata->filename, edata->lineno,
-				  edata->funcname, NULL))
+				  edata->funcname
+#if PG_VERSION_NUM >= 80400
+				  , NULL
+#endif
+				 ))
 	{
 		FreeErrorData(edata);
 		return;
@@ -739,8 +743,10 @@ static void reLogWithChangedLevel(int level)
 		errmsg("%s", edata->message);
 	if (edata->detail)
 		errdetail("%s", edata->detail);
+#if PG_VERSION_NUM >= 80400
 	if (edata->detail_log)
 		errdetail_log("%s", edata->detail_log);
+#endif
 	if (edata->hint)
 		errhint("%s", edata->hint);
 	if (edata->context)
@@ -1086,7 +1092,6 @@ static void _destroyJavaVM(int status, Datum dummy)
 		}
 
 #if PG_VERSION_NUM >= 90300
-		InitializeTimeouts();           /* establishes SIGALRM handler */
 		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
 #else
 		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
@@ -1312,122 +1317,125 @@ static jint initializeJavaVM(JVMOptList *optList)
 	return jstat;
 }
 
+#if PG_VERSION_NUM >= 80400
+#define GUCBOOTVAL(v) (v),
+#define GUCBOOTASSIGN(a, v)
+#define GUCFLAGS(f) (f),
+#else
+#define GUCBOOTVAL(v)
+#define GUCBOOTASSIGN(a, v) \
+	StaticAssertStmt(NULL != (valueAddr), "NULL valueAddr for GUC"); \
+	*(a) = (v);
+#define GUCFLAGS(f)
+#endif
+
+#if PG_VERSION_NUM >= 90100
+#define GUCCHECK(h) (h),
+#else
+#define GUCCHECK(h)
+#endif
+
+#define BOOL_GUC(name, short_desc, long_desc, valueAddr, bootValue, context, \
+                 flags, check_hook, assign_hook, show_hook) \
+	GUCBOOTASSIGN((valueAddr), (bootValue)) \
+	DefineCustomBoolVariable((name), (short_desc), (long_desc), (valueAddr), \
+		GUCBOOTVAL(bootValue) (context), GUCFLAGS(flags) GUCCHECK(check_hook) \
+		assign_hook, show_hook)
+
+#define INT_GUC(name, short_desc, long_desc, valueAddr, bootValue, minValue, \
+				maxValue, context, flags, check_hook, assign_hook, show_hook) \
+	GUCBOOTASSIGN((valueAddr), (bootValue)) \
+	DefineCustomIntVariable((name), (short_desc), (long_desc), (valueAddr), \
+		GUCBOOTVAL(bootValue) (minValue), (maxValue), (context), \
+		GUCFLAGS(flags) GUCCHECK(check_hook) assign_hook, show_hook)
+
+#define STRING_GUC(name, short_desc, long_desc, valueAddr, bootValue, context, \
+				   flags, check_hook, assign_hook, show_hook) \
+	GUCBOOTASSIGN((char const **)(valueAddr), (bootValue)) \
+	DefineCustomStringVariable((name), (short_desc), (long_desc), (valueAddr), \
+		GUCBOOTVAL(bootValue) (context), GUCFLAGS(flags) GUCCHECK(check_hook) \
+		assign_hook, show_hook)
+
 static void registerGUCOptions(void)
 {
 	static char pathbuf[MAXPGPATH];
 
-	DefineCustomStringVariable(
+	STRING_GUC(
 		"pljava.libjvm_location",
 		"Path to the libjvm (.so, .dll, etc.) file in Java's jre/lib area",
 		NULL, /* extended description */
 		&libjvmlocation,
-		#if PG_VERSION_NUM >= 80400
-			#ifdef PLJAVA_LIBJVMDEFAULT
-				CppAsString2(PLJAVA_LIBJVMDEFAULT),
-			#else
-				"libjvm",
-			#endif
+		#ifdef PLJAVA_LIBJVMDEFAULT
+			CppAsString2(PLJAVA_LIBJVMDEFAULT),
+		#else
+			"libjvm",
 		#endif
 		PGC_SUSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			check_libjvm_location,
-		#endif
+		0,    /* flags */
+		check_libjvm_location,
 		assign_libjvm_location,
 		NULL); /* show hook */
 
-	DefineCustomStringVariable(
+	STRING_GUC(
 		"pljava.vmoptions",
 		"Options sent to the JVM when it is created",
 		NULL, /* extended description */
 		&vmoptions,
-		#if PG_VERSION_NUM >= 80400
-			NULL, /* boot value */
-		#endif
+		NULL, /* boot value */
 		PGC_SUSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			check_vmoptions,
-		#endif
+		0,    /* flags */
+		check_vmoptions,
 		assign_vmoptions,
 		NULL); /* show hook */
 
-	DefineCustomStringVariable(
+	STRING_GUC(
 		"pljava.classpath",
 		"Classpath used by the JVM",
 		NULL, /* extended description */
 		&classpath,
-		#if PG_VERSION_NUM >= 80400
-			InstallHelper_defaultClassPath(pathbuf), /* boot value */
-		#endif
+		InstallHelper_defaultClassPath(pathbuf), /* boot value */
 		PGC_SUSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			check_classpath,
-		#endif
+		0,    /* flags */
+		check_classpath,
 		assign_classpath,
 		NULL); /* show hook */
 
-	DefineCustomBoolVariable(
+	BOOL_GUC(
 		"pljava.debug",
 		"Stop the backend to attach a debugger",
 		NULL, /* extended description */
 		&pljavaDebug,
-		#if PG_VERSION_NUM >= 80400
-			false, /* boot value */
-		#endif
+		false, /* boot value */
 		PGC_USERSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			NULL, /* check hook */
-		#endif
+		0,    /* flags */
+		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
-	DefineCustomIntVariable(
+	INT_GUC(
 		"pljava.statement_cache_size",
 		"Size of the prepared statement MRU cache",
 		NULL, /* extended description */
 		&statementCacheSize,
-		#if PG_VERSION_NUM >= 80400
-			11,   /* boot value */
-		#endif
+		11,   /* boot value */
 		0, 512,   /* min, max values */
 		PGC_USERSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			NULL, /* check hook */
-		#endif
+		0,    /* flags */
+		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
-	DefineCustomBoolVariable(
+	BOOL_GUC(
 		"pljava.release_lingering_savepoints",
 		"If true, lingering savepoints will be released on function exit. "
 		"If false, they will be rolled back",
 		NULL, /* extended description */
 		&pljavaReleaseLingeringSavepoints,
-		#if PG_VERSION_NUM >= 80400
-			false, /* boot value */
-		#endif
+		false, /* boot value */
 		PGC_USERSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			NULL, /* check hook */
-		#endif
+		0,    /* flags */
+		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
-	DefineCustomBoolVariable(
+	BOOL_GUC(
 		"pljava.enable",
 		"If off, the Java virtual machine will not be started until set on.",
 		"This is mostly of use on PostgreSQL versions < 9.2, where option "
@@ -1436,38 +1444,40 @@ static void registerGUCOptions(void)
 		&pljavaEnabled,
 		#if PG_VERSION_NUM >= 90200
 			true,  /* boot value */
-		#elif PG_VERSION_NUM >= 80400
+		#else
 			false, /* boot value */
 		#endif
 		PGC_USERSET,
-		#if PG_VERSION_NUM >= 80400
-			0,    /* flags */
-		#endif
-		#if PG_VERSION_NUM >= 90100
-			check_enabled, /* check hook */
-		#endif
+		0,    /* flags */
+		check_enabled, /* check hook */
 		assign_enabled,
 		NULL); /* show hook */
 
-	DefineCustomStringVariable(
+	STRING_GUC(
 		"pljava.implementors",
 		"Implementor names recognized in deployment descriptors",
 		NULL, /* extended description */
 		&implementors,
-		#if PG_VERSION_NUM >= 80400
-			"postgresql", /* boot value */
-		#endif
+		"postgresql", /* boot value */
 		PGC_USERSET,
-		#if PG_VERSION_NUM >= 80400
-			GUC_LIST_INPUT | GUC_LIST_QUOTE,
+		GUC_LIST_INPUT
+		#if PG_VERSION_NUM < 110000
+			| GUC_LIST_QUOTE
 		#endif
-		#if PG_VERSION_NUM >= 90100
-			NULL, /* check hook */
-		#endif
+		,
+		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
 	EmitWarningsOnPlaceholders("pljava");
 }
+
+#undef GUCBOOTVAL
+#undef GUCBOOTASSIGN
+#undef GUCFLAGS
+#undef GUCCHECK
+#undef BOOL_GUC
+#undef INT_GUC
+#undef STRING_GUC
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 

@@ -340,21 +340,16 @@ class DDRProcessorImpl
 	 * generateDescriptor, any errors reported were being shown with no source
 	 * location info, because it had been thrown away.
 	 */
-	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<Vertex<Snippet>>();
+	List<VertexPair<Snippet>> snippetVPairs =
+		new ArrayList<VertexPair<Snippet>>();
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
 	 * same reason {@code snippetQueue} does.
 	 */
-	Map<String, Vertex<Snippet>> provider =
-		new HashMap<String, Vertex<Snippet>>();
-
-	/**
-	 * Set of provides/requires labels for which at least one consumer has
-	 * been seen. An instance field for the same reason as {@code provider}.
-	 */
-	Set<String> consumer = new HashSet<String>();
+	Map<String, VertexPair<Snippet>> provider =
+		new HashMap<String, VertexPair<Snippet>>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -440,13 +435,11 @@ class DDRProcessorImpl
 		{
 			if ( ! snip.characterize() )
 				continue;
-			Vertex<Snippet> v = new Vertex<Snippet>( snip);
-			snippetQueue.add( v);
+			VertexPair<Snippet> v = new VertexPair<Snippet>( snip);
+			snippetVPairs.add( v);
 			for ( String s : snip.provides() )
 				if ( null != provider.put( s, v) )
 					msg( Kind.ERROR, "tag %s has more than one provider", s);
-			for ( String s : snip.requires() )
-				consumer.add( s);
 		}
 		snippets.clear();
 	}
@@ -459,23 +452,64 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
+		Set<String> fwdConsumers = new HashSet<String>();
+		Set<String> revConsumers = new HashSet<String>();
 
-		for ( Vertex<Snippet> v : snippetQueue )
-			for ( String s : v.payload.requires() )
+		for ( VertexPair<Snippet> v : snippetVPairs )
+		{
+			VertexPair<Snippet> p;
+
+			/*
+			 * First handle the implicit requires(implementor()). This is unlike
+			 * the typical provides/requires relationship, in that it does not
+			 * reverse when generating the 'remove' actions. Conditions that
+			 * determined what got installed must also be evaluated early and
+			 * determine what gets removed.
+			 */
+			String imp = v.payload().implementor();
+			if ( null != imp )
 			{
-				Vertex<Snippet> p = provider.get( s);
+				fwdConsumers.add( imp);
+				revConsumers.add( imp);
+
+				p = provider.get( imp);
 				if ( null != p )
-					p.precede( v);
-				else if ( s == v.payload.implementor() ) // yes == if from impl
+				{
+					p.fwd.precede( v.fwd);
+					p.rev.precede( v.rev);
+
+					/*
+					 * A snippet providing an implementor tag probably has no
+					 * undeployStrings, because its deployStrings should be used
+					 * on both occasions; if so, replace it with a proxy that
+					 * returns deployStrings for undeployStrings.
+					 */
+					if ( 0 == p.rev.payload.undeployStrings().length )
+						p.rev.payload = new ImpProvider( p.rev.payload);
+				}
+				else if ( ! defaultImplementor.equals( imp) )
 				{
 					/*
-					 * It's the implicit requires(implementor()). Bump the
-					 * indegree anyway so the snippet won't be emitted until
-					 * the cycle breaker code (see below) sets it free after
-					 * any others that can be handled first.
+					 * Don't insist that every implementor tag have a provider
+					 * somewhere in the code. Perhaps the environment will
+					 * provide it at load time. If this is not the default
+					 * implementor, bump the relying vertices' indegree anyway
+					 * so the snippet won't be emitted until the cycle-breaker
+					 * code (see below) sets it free after any others that
+					 * can be handled first.
 					 */
-					if ( ! defaultImplementor.equals( s) )
-						++ v.indegree;
+					 ++ v.fwd.indegree;
+					 ++ v.rev.indegree;
+				}
+			}
+			for ( String s : v.payload().requires() )
+			{
+				fwdConsumers.add( s);
+				p = provider.get( s);
+				if ( null != p )
+				{
+					p.fwd.precede( v.fwd);
+					v.rev.precede( p.rev); // these relationships do reverse
 				}
 				else
 				{
@@ -484,35 +518,75 @@ class DDRProcessorImpl
 					errorRaised = true;
 				}
 			}
+			for ( String s : v.payload().requires() )
+				revConsumers.add( s);
+		}
 
 		if ( errorRaised )
 			return;
 
-		Snippet[] snips = new Snippet [ snippetQueue.size() ];
+		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> revBlocked = new LinkedList<Vertex<Snippet>>();
+
+		Queue<Vertex<Snippet>> fwdReady = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> revReady = new LinkedList<Vertex<Snippet>>();
 
 		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
-		for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator() ;
-				it.hasNext() ; )
+
+		for ( VertexPair<Snippet> vp : snippetVPairs )
 		{
-			Vertex<Snippet> v = it.next();
+			Vertex<Snippet> v = vp.fwd;
 			if ( 0 == v.indegree )
-			{
-				q.add( v);
-				it.remove();
-			}
+				fwdReady.add( v);
+			else
+				fwdBlocked.add( v);
+			v = vp.rev;
+			if ( 0 == v.indegree )
+				revReady.add( v);
+			else
+				revBlocked.add( v);
 		}
 
-queuerunning: for ( int i = 0 ; ; )
+		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers);
+		Snippet[] revSnips = order( revReady, revBlocked, revConsumers);
+
+		if ( null == fwdSnips  ||  null == revSnips )
+			return; // error already reported
+		
+		try
 		{
-			while ( ! q.isEmpty() )
+			DDRWriter.emit( fwdSnips, revSnips, this);
+		}
+		catch ( IOException ioe )
+		{
+			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
+		}
+	}
+
+	/**
+	 * Given a Snippet DAG, either the forward or reverse one, return the
+	 * snippets in a workable order.
+	 * @return Array of snippets in order, or null if no suitable order could
+	 * be found.
+	 */
+	Snippet[] order(
+		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
+		Set<String> consumer)
+	{
+		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+
+queuerunning:
+		for ( int i = 0 ; ; )
+		{
+			while ( ! ready.isEmpty() )
 			{
-				Vertex<Snippet> v = q.remove();
+				Vertex<Snippet> v = ready.remove();
 				snips[i++] = v.payload;
-				v.use( q, snippetQueue);
+				v.use( ready, blocked);
 				for ( String p : v.payload.provides() )
 					consumer.remove(p);
 			}
-			if ( snippetQueue.isEmpty() )
+			if ( blocked.isEmpty() )
 				break; // all done
 			/*
 			 * There are snippets remaining to output but they all have
@@ -523,7 +597,7 @@ queuerunning: for ( int i = 0 ; ; )
 			 * be "providing" that tag anyway), so set one such snippet free
 			 * and see how much farther we get.
 			 */
-			for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator();
+			for ( Iterator<Vertex<Snippet>> it = blocked.iterator();
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
@@ -533,7 +607,7 @@ queuerunning: for ( int i = 0 ; ; )
 					continue;
 				-- v.indegree;
 				it.remove();
-				q.add( v);
+				ready.add( v);
 				continue queuerunning;
 			}
 			/*
@@ -541,17 +615,9 @@ queuerunning: for ( int i = 0 ; ; )
 			 */
 			for ( String s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
-			return;
+			return null;
 		}
-		
-		try
-		{
-			DDRWriter.emit( snips, this);
-		}
-		catch ( IOException ioe )
-		{
-			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
-		}
+		return snips;
 	}
 	
 	/**
@@ -675,6 +741,7 @@ queuerunning: for ( int i = 0 ; ; )
 				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
 					populateAnnotationImpl( mu, e, am);
 			}
+			mu.registerMapping();
 			break;
 		}
 	}
@@ -828,19 +895,6 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				_implementor = "".equals( o) ? null : (String)o;
-		}
-
-		/**
-		 * Use from characterize() in any subclass implementing Snippet.
-		 */
-		protected String[] augmentRequires( String req[], String imp)
-		{
-			if ( null == imp )
-				return req;
-			String[] newreq = new String [ 1 + req.length ];
-			System.arraycopy( req, 0, newreq, 0, req.length);
-			newreq[req.length] = imp;
-			return newreq;
 		}
 
 		public String comment() { return _comment; }
@@ -1066,7 +1120,6 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
-			_requires = augmentRequires( _requires, implementor());
 			return true;
 		}
 	}
@@ -1513,8 +1566,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			 */
 			deployStrings();
 
-			_requires = augmentRequires( _requires, implementor());
-
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
 			return true;
@@ -1562,6 +1613,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendAS( StringBuilder sb)
 		{
+			if ( ! ( complexViaInOut || setof || trigger ) )
+				sb.append( func.getReturnType()).append( '=');
 			Element e = func.getEnclosingElement();
 			if ( ! e.getKind().equals( ElementKind.CLASS) )
 				msg( Kind.ERROR, func,
@@ -1579,7 +1632,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
-				sb.append( "trigger");
+				sb.append( "pg_catalog.trigger");
 			else
 			{
 				if ( setof )
@@ -1589,7 +1642,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				else if ( null != setofComponent )
 					sb.append( tmpr.getSQLType( setofComponent, func));
 				else if ( setof )
-					sb.append( "RECORD");
+					sb.append( "pg_catalog.RECORD");
 				else
 					sb.append( tmpr.getSQLType( func.getReturnType(), func));
 			}
@@ -1654,10 +1707,10 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "cstring, oid, integer", null),
-		OUTPUT( "out", null, "cstring"),
-		RECEIVE( "recv", "internal, oid, integer", null),
-		SEND( "send", null, "bytea");
+		INPUT( "in", "pg_catalog.cstring, pg_catalog.oid, integer", null),
+		OUTPUT( "out", null, "pg_catalog.cstring"),
+		RECEIVE( "recv", "pg_catalog.internal, pg_catalog.oid, integer", null),
+		SEND( "send", null, "pg_catalog.bytea");
 		BaseUDTFunctionID( String suffix, String param, String ret)
 		{
 			this.suffix = suffix;
@@ -1844,6 +1897,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				qname = _name;
 			else
 				qname = _schema + "." + _name;
+
+			if ( ! tmpr.mappingsFrozen() )
+				tmpr.addMap( tclass.asType(), qname);
 		}
 
 		protected void addComment( ArrayList<String> al)
@@ -1875,12 +1931,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			super( e);
 		}
 
-		public boolean characterize()
+		public void registerMapping()
 		{
 			setQname();
+		}
 
-			_requires = augmentRequires( _requires, implementor());
-
+		public boolean characterize()
+		{
 			return true;
 		}
 
@@ -2078,8 +2135,6 @@ hunt:	for ( ExecutableElement ee : ees )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
 
-			_requires = augmentRequires( _requires, implementor());
-
 			return true;
 		}
 
@@ -2166,14 +2221,14 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<Class<?>, String>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, String>> protoMappings;
 		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
 
 		TypeMapper()
 		{
-			protoMappings = new ArrayList<Map.Entry<Class<?>, String>>();
+			protoMappings = new ArrayList<Map.Entry<TypeMirror, String>>();
 
-			// Primitives
+			// Primitives (these need not, indeed cannot, be schema-qualified)
 			//
 			this.addMap(boolean.class, "boolean");
 			this.addMap(Boolean.class, "boolean");
@@ -2194,19 +2249,34 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Known common mappings
 			//
-			this.addMap(Number.class, "numeric");
-			this.addMap(String.class, "varchar");
-			this.addMap(java.util.Date.class, "timestamp");
-			this.addMap(Timestamp.class, "timestamp");
-			this.addMap(Time.class, "time");
-			this.addMap(java.sql.Date.class, "date");
-			this.addMap(java.sql.SQLXML.class, "xml");
-			this.addMap(BigInteger.class, "numeric");
-			this.addMap(BigDecimal.class, "numeric");
-			this.addMap(ResultSet.class, "record");
-			this.addMap(Object.class, "\"any\"");
+			this.addMap(Number.class, "pg_catalog.numeric");
+			this.addMap(String.class, "pg_catalog.varchar");
+			this.addMap(java.util.Date.class, "pg_catalog.timestamp");
+			this.addMap(Timestamp.class, "pg_catalog.timestamp");
+			this.addMap(Time.class, "pg_catalog.time");
+			this.addMap(java.sql.Date.class, "pg_catalog.date");
+			this.addMap(java.sql.SQLXML.class, "pg_catalog.xml");
+			this.addMap(BigInteger.class, "pg_catalog.numeric");
+			this.addMap(BigDecimal.class, "pg_catalog.numeric");
+			this.addMap(ResultSet.class, "pg_catalog.record");
+			this.addMap(Object.class, "pg_catalog.\"any\"");
 
-			this.addMap(byte[].class, "bytea");
+			this.addMap(byte[].class, "pg_catalog.bytea");
+
+			// (Once Java back horizon advances to 8, do these the easy way.)
+			//
+			this.addMapIfExists("java.time.LocalDate", "pg_catalog.date");
+			this.addMapIfExists("java.time.LocalTime", "pg_catalog.time");
+			this.addMapIfExists("java.time.OffsetTime", "pg_catalog.timetz");
+			this.addMapIfExists("java.time.LocalDateTime",
+				"pg_catalog.timestamp");
+			this.addMapIfExists("java.time.OffsetDateTime",
+				"pg_catalog.timestamptz");
+		}
+
+		private boolean mappingsFrozen()
+		{
+			return null != finalMappings;
 		}
 
 		/*
@@ -2235,77 +2305,87 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		private void workAroundJava7Breakage()
 		{
-			if ( null != finalMappings )
+			if ( mappingsFrozen() )
 				return; // after the first round, it's too late!
 
 			// Need to check more specific types before those they are
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<Class<?>, String>>> vs =
-				new ArrayList<Vertex<Map.Entry<Class<?>, String>>>(
+			List<Vertex<Map.Entry<TypeMirror, String>>> vs =
+				new ArrayList<Vertex<Map.Entry<TypeMirror, String>>>(
 					protoMappings.size());
 
-			for ( Map.Entry<Class<?>, String> me : protoMappings )
-				vs.add( new Vertex<Map.Entry<Class<?>, String>>( me));
+			for ( Map.Entry<TypeMirror, String> me : protoMappings )
+				vs.add( new Vertex<Map.Entry<TypeMirror, String>>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
-				Vertex<Map.Entry<Class<?>, String>> vi = vs.get( i);
-				Class<?> ci = vi.payload.getKey();
+				Vertex<Map.Entry<TypeMirror, String>> vi = vs.get( i);
+				TypeMirror ci = vi.payload.getKey();
 				for ( int j = i; j --> 0; )
 				{
-					Vertex<Map.Entry<Class<?>, String>> vj = vs.get( j);
-					Class<?> cj = vj.payload.getKey();
-					boolean oij = ci.isAssignableFrom( cj);
-					boolean oji = cj.isAssignableFrom( ci);
+					Vertex<Map.Entry<TypeMirror, String>> vj = vs.get( j);
+					TypeMirror cj = vj.payload.getKey();
+					boolean oij = typu.isAssignable( ci, cj);
+					boolean oji = typu.isAssignable( cj, ci);
 					if ( oji == oij )
 						continue; // no precedence constraint between these two
 					if ( oij )
-						vj.precede( vi);
-					else
 						vi.precede( vj);
+					else
+						vj.precede( vi);
 				}
 			}
 
-			Queue<Vertex<Map.Entry<Class<?>, String>>> q =
-				new LinkedList<Vertex<Map.Entry<Class<?>, String>>>();
-			for ( Vertex<Map.Entry<Class<?>, String>> v : vs )
+			Queue<Vertex<Map.Entry<TypeMirror, String>>> q =
+				new LinkedList<Vertex<Map.Entry<TypeMirror, String>>>();
+			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
-			finalMappings = new ArrayList<Map.Entry<TypeMirror, String>>(
-				protoMappings.size());
 			protoMappings.clear();
+			finalMappings = protoMappings;
+			protoMappings = null;
 
 			while ( ! q.isEmpty() )
 			{
-				Vertex<Map.Entry<Class<?>, String>> v = q.remove();
+				Vertex<Map.Entry<TypeMirror, String>> v = q.remove();
 				v.use( q);
-				Class<?> k = v.payload.getKey();
-				TypeMirror ktm;
-				if ( k.isPrimitive() )
-				{
-					TypeKind tk = 
-						TypeKind.valueOf( k.getName().toUpperCase());
-					ktm = typu.getPrimitiveType( tk);
-				}
-				else
-				{
-					TypeElement te =
-						elmu.getTypeElement( k.getName());
-					if ( null == te ) // can't find it -> not used in code?
-					{
-						msg( Kind.WARNING,
-							"Found no TypeElement for %s", k.getName());
-						continue; // hope it wasn't one we'll need!
-					}
-					ktm = te.asType();
-				}
-				finalMappings.add(
-					new AbstractMap.SimpleImmutableEntry<TypeMirror, String>(
-						ktm, v.payload.getValue()));
+				finalMappings.add( v.payload);
 			}
+		}
+
+		private TypeMirror typeMirrorFromClass( Class<?> k)
+		{
+			if ( k.isArray() )
+			{
+				TypeMirror ctm = typeMirrorFromClass( k.getComponentType());
+				return typu.getArrayType( ctm);
+			}
+
+			if ( k.isPrimitive() )
+			{
+				TypeKind tk = TypeKind.valueOf( k.getName().toUpperCase());
+				return typu.getPrimitiveType( tk);
+			}
+
+			String cname = k.getCanonicalName();
+			if ( null == cname )
+			{
+				msg( Kind.WARNING,
+					"Cannot register type mapping for class %s" +
+					"that lacks a canonical name", k.getName());
+				return null;
+			}
+
+			TypeElement te = elmu.getTypeElement( cname);
+			if ( null == te )
+			{
+				msg( Kind.WARNING, "Found no TypeElement for %s", cname);
+				return null; // hope it wasn't one we'll need!
+			}
+			return te.asType();
 		}
 
 		/**
@@ -2316,15 +2396,42 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			if ( null != finalMappings )
+			addMap( typeMirrorFromClass( k), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type, if a class
+		 * with the given name exists.
+		 *
+		 * @param k Canonical class name representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMapIfExists(String k, String v)
+		{
+			TypeElement te = elmu.getTypeElement( k);
+			if ( null != te )
+				addMap( te.asType(), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class (represented as a TypeMirror)
+		 * to an SQL type.
+		 *
+		 * @param tm TypeMirror representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMap(TypeMirror tm, String v)
+		{
+			if ( mappingsFrozen() )
 			{
 				msg( Kind.ERROR,
 					"addMap(%s, %s)\n" +
-					"called after workAroundJava7Breakage", k.getName(), v);
+					"called after workAroundJava7Breakage", tm.toString(), v);
 				return;
 			}
 			protoMappings.add(
-				new AbstractMap.SimpleImmutableEntry<Class<?>, String>( k, v));
+				new AbstractMap.SimpleImmutableEntry<TypeMirror, String>( tm, v)
+			);
 		}
 
 		/**
@@ -2398,7 +2505,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "void"; // can't be a parameter type so no defaults apply
+				return "pg_catalog.void"; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
@@ -2587,10 +2694,12 @@ interface Snippet
 	 */
 	public String[] requires();
 	/**
-	 * Method to be called on the final round, after all annotations'
+	 * Method to be called after all annotations'
 	 * element/value pairs have been filled in, to compute any additional
 	 * information derived from those values before deployStrings() or
-	 * undeployStrings() can be called.
+	 * undeployStrings() can be called. May also check for and report semantic
+	 * errors that are not easily checked earlier while populating the
+	 * element/value pairs.
 	 * @return true if this Snippet is standalone and should be scheduled and
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
@@ -2613,6 +2722,11 @@ class Vertex<P>
 	int indegree;
 	List<Vertex<P>> adj;
 	
+	/**
+	 * Construct a new vertex with the supplied payload, indegree zero, and an
+	 * empty out-adjacency list.
+	 * @param payload Object to be associated with this vertex.
+	 */
 	Vertex( P payload)
 	{
 		this.payload = payload;
@@ -2620,12 +2734,22 @@ class Vertex<P>
 		adj = new ArrayList<Vertex<P>>();
 	}
 	
+	/**
+	 * Record that this vertex must precede the specified vertex.
+	 * @param v a Vertex that this Vertex must precede.
+	 */
 	void precede( Vertex<P> v)
 	{
 		++ v.indegree;
 		adj.add( v);
 	}
 	
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list, and add to the supplied queue any of those whose
+	 * indegree becomes zero.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 */
 	void use( Collection<Vertex<P>> q)
 	{
 		for ( Vertex<P> v : adj )
@@ -2633,6 +2757,14 @@ class Vertex<P>
 				q.add( v);
 	}
 
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list; any of those whose indegree becomes zero should be
+	 * both added to the ready queue {@code q} and removed from the collection
+	 * {@code vs}.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 * @param vs A collection of vertices not yet ready.
+	 */
 	void use( Collection<Vertex<P>> q, Collection<Vertex<P>> vs)
 	{
 		for ( Vertex<P> v : adj )
@@ -2642,4 +2774,43 @@ class Vertex<P>
 				q.add( v);
 			}
 	}
+}
+
+/**
+ * A pair of Vertex instances for the same payload, for use when two directions
+ * of topological ordering must be computed.
+ */
+class VertexPair<P>
+{
+	Vertex<P> fwd;
+	Vertex<P> rev;
+
+	VertexPair( P payload)
+	{
+		fwd = new Vertex( payload);
+		rev = new Vertex( payload);
+	}
+
+	P payload()
+	{
+		return rev.payload;
+	}
+}
+
+/**
+ * Proxy a snippet that 'provides' an implementor tag and has no
+ * undeployStrings, returning its deployStrings in their place.
+ */
+class ImpProvider implements Snippet
+{
+	Snippet s;
+
+	ImpProvider( Snippet s) { this.s = s; }
+
+	@Override public String       implementor() { return s.implementor(); }
+	@Override public String[]   deployStrings() { return s.deployStrings(); }
+	@Override public String[] undeployStrings() { return s.deployStrings(); }
+	@Override public String[]        provides() { return s.provides(); }
+	@Override public String[]        requires() { return s.requires(); }
+	@Override public boolean     characterize() { return s.characterize(); }
 }

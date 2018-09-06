@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,6 +57,11 @@ jobject TupleDesc_internalCreate(TupleDesc td)
 	return jtd;
 }
 
+/*
+ * Returns NULL if an exception has been thrown for an invalid attribute index
+ * (caller should expeditiously return), otherwise the Type for the column data
+ * (the one representing the boxing Object type, in the primitive case).
+ */
 Type TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 {
 	Type type;
@@ -234,7 +239,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 			if(value != 0)
 			{
 				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1), typeMap);
-				values[idx] = Type_coerceObject(type, value);
+				values[idx] = Type_coerceObjectBridged(type, value);
 				nulls[idx] = false;
 			}
 		}

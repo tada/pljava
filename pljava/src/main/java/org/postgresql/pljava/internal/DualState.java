@@ -101,8 +101,11 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * Pointer value of the {@code ResourceOwner} this instance belongs to,
 	 * if any.
 	 */
-	private final long m_resourceOwner;
+	protected final long m_resourceOwner;
 
+	/**
+	 * Check that a cookie is valid, throwing an unchecked exception otherwise.
+	 */
 	protected static void checkCookie(Key cookie)
 	{
 		if ( ! Key.class.isInstance(cookie) )
@@ -182,7 +185,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * <li>A {@code close} or similar method simply calls
 	 * {@link #enqueue enqueue} instead of this method. This method will be
 	 * called when the queue is processed, the next time native code calls
-	 * {@link #clearEnqueuedInstances clearEnqueuedInstances}. For that case,
+	 * {@link #cleanEnqueuedInstances cleanEnqueuedInstances}. For that case,
 	 * this method should be overridden to do whatever other cleanup is in
 	 * order, but <em>not</em> remove the instance from {@code liveInstances},
 	 * which will have happened just before this method is called.
@@ -236,10 +239,47 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 	}
 
+	/**
+	 * Produce a string describing this state object in a way useful for
+	 * debugging, with such information as the associated {@code ResourceOwner}
+	 * and whether the state is fresh or stale.
+	 *<p>
+	 * This method calls {@link #toString(Object)} passing {@code this}.
+	 * Subclasses are encouraged to override that method with versions that add
+	 * subclass-specific details.
+	 * @return Description of this state object.
+	 */
 	@Override
 	public String toString()
 	{
-		return String.format("DualState owner:%x %s", m_resourceOwner,
+		return toString(this);
+	}
+
+	/**
+	 * Produce a string with such details of this object as might be useful for
+	 * debugging, starting with an abbreviated form of the class name of the
+	 * supplied object.
+	 *<p>
+	 * Subclasses are encouraged to override this and then call it, via super,
+	 * passing the object unchanged, and then append additional
+	 * subclass-specific details to the result.
+	 *<p>
+	 * Because the recursion ends here, this one actually does construct the
+	 * abbreviated form of the class name of the object, and use it at the start
+	 * of the returned string.
+	 * @param o An object whose class name (abbreviated by stripping the package
+	 * prefix) will be used at the start of the string. Passing {@code null} is
+	 * the same as passing {@code this}.
+	 * @return Description of this state object, prefixed with the abbreviated
+	 * class name of the passed object.
+	 */
+	public String toString(Object o)
+	{
+		Class<?> c = (null == o ? this : o).getClass();
+		String cn = c.getCanonicalName();
+		int pnl = c.getPackage().getName().length();
+		return String.format("%s owner:%x %s",
+			cn.substring(1 + pnl), m_resourceOwner,
 			nativeStateIsValid() ? "fresh" : "stale");
 	}
 
@@ -251,6 +291,13 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @param resourceOwner Pointer value identifying the resource owner being
 	 * released. Calls can be received for resource owners to which no instances
 	 * here have been registered.
+	 *<p>
+	 * Some state subclasses may have their nativeStateReleased methods called
+	 * from Java code, when it is clear the native state is no longer needed in
+	 * Java. That doesn't remove the state instance from s_liveInstances though,
+	 * so it will still eventually be seen by this loop and efficiently removed
+	 * by the iterator. Hence the nativeStateIsValid test, to avoid invoking
+	 * nativeStateReleased more than once.
 	 */
 	private static void resourceOwnerRelease(long resourceOwner)
 	{
@@ -263,7 +310,8 @@ public abstract class DualState<T> extends WeakReference<T>
 				i.remove();
 				synchronized ( s )
 				{
-					s.nativeStateReleased();
+					if ( s.nativeStateIsValid() )
+						s.nativeStateReleased();
 				}
 			}
 		}
@@ -330,9 +378,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		@Override
-		public String toString()
+		public String toString(Object o)
 		{
-			return String.format("%s pfree(%x)", super.toString(), m_pointer);
+			return String.format("%s pfree(%x)", super.toString(o), m_pointer);
 		}
 
 		/**
@@ -410,7 +458,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code MemoryContextDelete} of a single context.
 	 *<p>
-	 * This class may get called at the {@code nativeStateReleased) entry, not
+	 * This class may get called at the {@code nativeStateReleased} entry, not
 	 * only if the native state is actually being released, but if it is being
 	 * 'claimed' by native code for its own purposes. The effect is the same
 	 * as far as Java is concerned; the object is no longer accessible, and the
@@ -428,10 +476,10 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		@Override
-		public String toString()
+		public String toString(Object o)
 		{
-			return String.format("%s MemoryContextDelete(%x)", super.toString(),
-								 m_context);
+			return String.format("%s MemoryContextDelete(%x)",
+				super.toString(o), m_context);
 		}
 
 		/**

@@ -1,7 +1,7 @@
 # Using PL/Java with SELinux
 
 These notes were made running PostgreSQL and PL/Java on a Red Hat system,
-but should be applicable--with possible changes to details--on other systems
+but should be applicable---with possible changes to details---on other systems
 running SELinux.
 
 Anything that gets run by `postgres` itself runs under a special SELinux context
