@@ -168,7 +168,7 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  *	 'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
  *	 'let $e := zero-or-one(PREMIER_NAME)/string()
  *	  return if ( empty($e) )then $DPREMIER else $e'
- *	]) AS "xmltable" (
+ *	]) AS (
  *	 id int, ordinality int, "COUNTRY_NAME" text, country_id text,
  *	 size_sq_km float, size_other text, premier_name text
  *	);
