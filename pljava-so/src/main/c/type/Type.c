@@ -139,9 +139,7 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 
 Type Type_getCoerceIn(Type self, Type other)
 {
-	elog(DEBUG2, "Type_getCoerceIn(%s,%s)",
-			 format_type_be(self->typeId),
-			 format_type_be(other->typeId));
+	elog(DEBUG2, "Type_getCoerceIn(%d,%d)", self->typeId, other->typeId);
 	return _getCoerce(self, other, other->typeId, self->typeId,
 		&(self->inCoercions), Coerce_createIn);
 }
@@ -149,9 +147,7 @@ Type Type_getCoerceIn(Type self, Type other)
 
 Type Type_getCoerceOut(Type self, Type other)
 {
-	elog(DEBUG2, "Type_getCoerceOut(%s,%s)",
-			 format_type_be(self->typeId),
-			 format_type_be(other->typeId));
+	elog(DEBUG2, "Type_getCoerceOut(%d,%d)", self->typeId, other->typeId);
 	return _getCoerce(self, other, self->typeId, other->typeId,
 		&(self->outCoercions), Coerce_createOut);
 }
@@ -174,26 +170,23 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 	switch ( cpt )
 	{
 	case COERCION_PATH_NONE:
-		elog(ERROR, "no conversion function from %s to %s",
-			 format_type_be(fromOid),
-			 format_type_be(toOid));
+		elog(ERROR, "no conversion function from (regtype) %d to %d",
+			 fromOid, toOid);
 	case COERCION_PATH_RELABELTYPE:
 		/*
 		 * Binary compatible type. No need for a special coercer.
 		 * Unless ... it's a domain ....
 		 */
 		if ( ! IsBinaryCoercible(fromOid, toOid) && DomainHasConstraints(toOid))
-			elog(WARNING, "disregarding domain constraints of %s",
-				 format_type_be(toOid));
+			elog(WARNING, "disregarding domain constraints of (regtype) %d",
+				 toOid);
 		return self;
 	case COERCION_PATH_COERCEVIAIO:
-		elog(ERROR, "COERCEVIAIO not implemented from %s to %s",
-			 format_type_be(fromOid),
-			 format_type_be(toOid));
+		elog(ERROR, "COERCEVIAIO not implemented from (regtype) %d to %d",
+			 fromOid, toOid);
 	case COERCION_PATH_ARRAYCOERCE:
-		elog(ERROR, "ARRAYCOERCE not implemented from %s to %s",
-			 format_type_be(fromOid),
-			 format_type_be(toOid));
+		elog(ERROR, "ARRAYCOERCE not implemented from (regtype) %d to %d",
+			 fromOid, toOid);
 	case COERCION_PATH_FUNC:
 		break;
 	}
