@@ -32,7 +32,8 @@ example.
 ### Calling XML functions without SQL syntactic sugar
 
 The XML querying and `XMLTABLE` functions built into PostgreSQL get special
-treatment from the SQL parser to give them syntax that is more SQLish.
+treatment from the SQL parser to give them syntax that is more SQLish than
+an ordinary function call.
 
 The functions provided here have to work as ordinary SQL user-defined
 functions, so calls to them can look a bit more verbose when written out
@@ -103,7 +104,7 @@ with the reserved word. A rewritten form of the
        'string(COUNTRY_ID)', 'xs:double(SIZE[@unit eq "sq_km"])',
        'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
        'let $e := zero-or-one(PREMIER_NAME)/string()
-        return if ( empty($e) )then $DPREMIER else $e'
+        return if ( empty($e) ) then $DPREMIER else $e'
       ]) AS (
        id int, ordinality int, "COUNTRY_NAME" text, country_id text,
        size_sq_km float, size_other text, premier_name text
@@ -147,9 +148,11 @@ on the JVM system classpath, so the Saxon jar would have to be installed on
 the filesystem and named in `pljava.classpath` instead of simply installing it
 in PL/Java. It also needs to be stripped of its `jarsigner` metadata, which the
 Hotspot `AppCDS` can't handle. Hotspot `AppCDS` setup
-[instructions are here][appcds].
+[general instructions are here][appcds], and specific details for setting up
+this example for `AppCDS` can be found on the
+[performance-tuning wiki page][ptwp] in the section devoted to it.
 
-A comparison shown on the PL/Java [performance-tuning wiki page][ptwp] appears
+A comparison shown on that performance-tuning page appears
 to give Hotspot a significant advantage for a Saxon-heavy workload, so the more
 complex Hotspot setup may remain worthwhile as long as that comparison holds.
 
