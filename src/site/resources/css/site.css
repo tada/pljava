@@ -1,0 +1,14 @@
+/* You can override this file with your own styles */
+
+div.source {
+  border-left: none;
+  border-right: none;
+  margin: 0;
+  padding: 2px 0;
+}
+
+div.source > div.source {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
