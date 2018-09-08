@@ -116,8 +116,8 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * an XML element representing the declaration of a function with a specified
  * name:
  *<pre>
- * SELECT XMLQUERY('/pg_catalog/pg_proc[proname eq $NAME]'
- *                 PASSING BY VALUE x, 'numeric_avg' AS NAME
+ * SELECT XMLQUERY('/pg_catalog/pg_proc[proname eq $FUNCNAME]'
+ *                 PASSING BY VALUE x, 'numeric_avg' AS FUNCNAME
  *                 RETURNING CONTENT EMPTY ON EMPTY)
  * FROM catalog_as_xml;
  *</pre>
@@ -128,10 +128,10 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * necessarily meeting all the requirements of an XML "DOCUMENT"). It can be
  * rewritten as this call to the {@link #xq_ret_content xq_ret_content} method:
  *<pre>
- * SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $NAME]',
+ * SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $FUNCNAME]',
  *                                PASSING => p, nullOnEmpty => false)
  * FROM catalog_as_xml,
- * LATERAL (SELECT x AS ".", 'numeric_avg' AS NAME) AS p;
+ * LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
  *</pre>
  *<p>
  * In the rewritten form, the type of value returned is determined by which
@@ -139,6 +139,16 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * a separate {@code SELECT} that supplies their values, types, and names (with
  * the context item now given the name ".") and is passed by its alias into the
  * query function.
+ *<p>
+ * Because of an unconditional uppercasing that PL/Java's JDBC driver currently
+ * applies to column names, any parameter names, such as `FUNCNAME` above, must
+ * be spelled in uppercase where used in the XQuery text, or they will not be
+ * recognized. Because the unconditional uppercasing is highly likely to be
+ * dropped in a future PL/Java release, it is wisest until then to use only
+ * parameter names that really are uppercase, both in the XQuery text where they
+ * are used and in the SQL expression that supplies them. In PostgreSQL,
+ * identifiers that are not quoted are _lower_cased, so they must be both
+ * uppercase and quoted, in the SQL syntax, to be truly uppercase.
  *<p>
  * In the standard, parameters and results (of XML types) can be passed
  * {@code BY VALUE} or {@code BY REF}, where the latter means that the same
@@ -160,7 +170,7 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * FROM
  *	xmldata,
  *
- *	LATERAL (SELECT data AS ".", 'not specified'::text AS DPREMIER) AS p,
+ *	LATERAL (SELECT data AS ".", 'not specified'::text AS "DPREMIER") AS p,
  *
  *	"xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
  *	 'xs:int(@id)', null, 'string(COUNTRY_NAME)',
@@ -177,6 +187,10 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * The explicit casts and {@code zero-or-one} will not be needed once the
  * full automatic casting rules (for now only partially implemented) are
  * in place.
+ *<p>
+ * The `DPREMIER` parameter passed from SQL to the XQuery expression is spelled
+ * in uppercase (and also, in the SQL expression supplying it, quoted), for the
+ * reasons explained above for the {@code xq_ret_content} function.
  * @author Chapman Flack
  */
 public class S9 implements ResultSetProvider
@@ -263,9 +277,12 @@ public class S9 implements ResultSetProvider
 	 * context item to be specified with no {@code AS} at all. Beware, though,
 	 * that PostgreSQL likes to invent column names from any function or type
 	 * name that may appear in the value expression, so this shorthand will not
-	 * always work, while {@code AS "."} will.) JDBC uppercases all column
+	 * always work, while {@code AS "."} will.) PL/Java's internal JDBC uppercases all column
 	 * names, so any uses of the corresponding variables in the query must have
-	 * the names in upper case.
+	 * the names in upper case. It is safest to also uppercase their appearances
+	 * in the SQL (for which, in PostgreSQL, they must be quoted), so that the
+	 * JDBC uppercasing is not being relied on. It is likely to be dropped in a
+	 * future PL/Java release.
 	 * @param namespaces An even-length String array where, of each pair of
 	 * consecutive entries, the first is a namespace prefix and the second is
 	 * to URI to which to bind it. The zero-length prefix sets the default

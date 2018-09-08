@@ -54,8 +54,8 @@ element representing the declaration of the function with the name
 `numeric_avg` (if PostgreSQL really had the standard `XMLQUERY` function built
 in):
 
-    SELECT XMLQUERY('/pg_catalog/pg_proc[proname eq $NAME]'
-                    PASSING BY VALUE x, 'numeric_avg' AS NAME
+    SELECT XMLQUERY('/pg_catalog/pg_proc[proname eq $FUNCNAME]'
+                    PASSING BY VALUE x, 'numeric_avg' AS FUNCNAME
                     RETURNING CONTENT EMPTY ON EMPTY)
     FROM catalog_as_xml;
 
@@ -65,16 +65,30 @@ parameter to the given value, then evaluates the query and returns XML
 necessarily meeting all the requirements of an XML "DOCUMENT"). It can be
 rewritten as this call to the `xq_ret_content` method provided here:
 
-    SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $NAME]',
+    SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $FUNCNAME]',
                                    PASSING => p, nullOnEmpty => false)
     FROM catalog_as_xml,
-    LATERAL (SELECT x AS ".", 'numeric_avg' AS NAME) AS p;
+    LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
 
 In the rewritten form, the type of value returned is determined by which
 function is called, and the parameters to pass to the query are moved out to
 a separate `SELECT` that supplies their values, types, and names (with
 the context item now given the name ".") and is passed by its alias into the
 query function.
+
+An alert reader may notice that the example above includes a named parameter,
+`FUNCNAME`, and it is spelled in uppercase in the XQuery expression that uses
+it, and is spelled in uppercase _and quoted_ in the sub-`SELECT` that supplies
+it. The reason is an unconditional `toUppercase()` in PL/Java's internal JDBC
+driver, which is not anything the JDBC standard requires, but has been there
+in PL/Java since 2005. For now, therefore, no matter how a parameter name is
+spelled in the sub-`SELECT`, it must appear in uppercase in the XQuery
+expression using it, or it will not be recognized. A future PL/Java release
+is highly likely to stop forcibly uppercasing the names. At that time, any code
+relying on the uppercasing will break. Therefore, it is wisest, until then, to
+call this function with all parameter names spelled in uppercase both in the
+SQL and in the XQuery text, and on the SQL side that requires quoting the name
+to avoid the conventional lowercasing done by PostgreSQL.
 
 In the standard, parameters and results (of XML types) can be passed
 `BY VALUE` or `BY REF`, where the latter means that the same
@@ -97,7 +111,7 @@ with the reserved word. A rewritten form of the
     FROM
       xmldata,
     
-      LATERAL (SELECT data AS ".", 'not specified'::text AS DPREMIER) AS p,
+      LATERAL (SELECT data AS ".", 'not specified'::text AS "DPREMIER") AS p,
     
       "xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
        'xs:int(@id)', null, 'string(COUNTRY_NAME)',
@@ -121,6 +135,10 @@ the function call, and the column XML Query expressions are supplied as the
 list (there is no defaulting an omitted column expression to an element test
 using the column's name, as there is in the standard function). The array is
 allowed to have one null element, marking that column `FOR ORDINALITY`.
+
+The parameter being passed into the XQuery expressions here, `DPREMIER`, is
+spelled in uppercase (and, on the SQL side, quoted), for the reasons explained
+above for the `XMLQUERY`-like function.
 
 The explicit casts and `zero-or-one` will not be needed once the
 full automatic casting rules (for now only partially implemented) are
