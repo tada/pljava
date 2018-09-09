@@ -9,7 +9,7 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.example.annotation;
+package org.postgresql.pljava.example.jdk7;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;

@@ -9,7 +9,12 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.example.annotation;
+/*
+ * At the moment, this is written so it will compile in jdk6, even though it
+ * won't work before jdk8. It's in the exclude-prior-to-jdk7 package though,
+ * because it has an order dependency on TypeRoundTripper, which is there.
+ */
+package org.postgresql.pljava.example.jdk7;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;

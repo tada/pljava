@@ -411,7 +411,7 @@ public class PassXML implements SQLData
 		if ( Types.SQLXML != rs.getMetaData().getColumnType(1) )
 			logMessage("WARNING",
 				"ResultSetMetaData.getColumnType() misreports SQLXML");
-		x = rs.getObject(1, SQLXML.class);
+		x = rs.getSQLXML(1);
 		ps.close();
 		out.updateObject(1, x);
 		return true;
@@ -638,7 +638,7 @@ public class PassXML implements SQLData
 		ps.setObject(1, obj);
 		ResultSet r = ps.executeQuery();
 		r.next();
-		obj = r.getObject(1, PassXML.class);
+		obj = (PassXML)r.getObject(1);
 		ps.close();
 		return obj.m_value;
 	}

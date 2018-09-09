@@ -882,4 +882,7 @@ public abstract class AbstractResultSet implements ResultSet
 	{
 		return this.getObject(this.findColumn(columnName), type);
 	}
+
+	public abstract <T> T getObject(int columnIndex, Class<T> type)
+	throws SQLException; // placeholder; remove when Java back horizon >= 7
 }
