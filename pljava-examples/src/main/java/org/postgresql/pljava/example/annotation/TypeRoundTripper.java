@@ -204,32 +204,32 @@ public class TypeRoundTripper
 		{
 			String what = outmd.getColumnLabel(i);
 
-			if ( "TYPEPG".equals(what) )
+			if ( "TYPEPG".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
 				out.updateObject(i, inTypePG);
 			}
-			else if ( "TYPEJDBC".equals(what) )
+			else if ( "TYPEJDBC".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
 				out.updateObject(i, typeNameJDBC(inTypeJDBC));
 			}
-			else if ( "CLASSJDBC".equals(what) )
+			else if ( "CLASSJDBC".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
 				out.updateObject(i, inmd.getColumnClassName(1));
 			}
-			else if ( "CLASS".equals(what) )
+			else if ( "CLASS".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
 				out.updateObject(i, val.getClass().getName());
 			}
-			else if ( "TOSTRING".equals(what) )
+			else if ( "TOSTRING".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
 				out.updateObject(i, val.toString());
 			}
-			else if ( "ROUNDTRIPPED".equals(what) )
+			else if ( "ROUNDTRIPPED".equalsIgnoreCase(what) )
 			{
 				if ( ! inTypePG.equals(outmd.getColumnTypeName(i)) )
 					throw new SQLDataException(
