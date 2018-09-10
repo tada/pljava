@@ -20,6 +20,8 @@ import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
 
+import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
+
 /**
  * Exercise new mappings between date/time types and java.time classes
  * (JDBC 4.2 change 21).

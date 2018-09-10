@@ -31,6 +31,8 @@ import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
+import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
+
 /**
  * A class to simplify testing of PL/Java's mappings between PostgreSQL and
  * Java/JDBC types.
