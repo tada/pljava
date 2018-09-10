@@ -206,7 +206,13 @@ the forms of `getObject / readObject` with a `Class<?>` parameter and passing
 `SQLXML.class`, must be used. A [documentation page](use/sqlxml.html) has been
 added, and the [PassXML example][exxml] illustrates use of the API.
 
+A [not-built-by-default new example][exsaxon] (because it depends on Java 8 and
+the Saxon-HE XML-processing library) provides a partial implementation of true
+`XMLQUERY` and `XMLTABLE` functions for PostgreSQL, using the standard-specified
+XML Query language rather than the XPath 1.0 of the native PostgreSQL functions.
+
 [exxml]: pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/PassXML.html
+[exsaxon]: examples/saxon.html
 
 $h4 New Java property exposes the PostgreSQL server character-set encoding
 
