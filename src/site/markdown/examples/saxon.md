@@ -59,7 +59,7 @@ in):
                     RETURNING CONTENT EMPTY ON EMPTY)
     FROM catalog_as_xml;
 
-It binds the 'context item' of the query to `x`, and the `NAME`
+It binds the 'context item' of the query to `x`, and the `FUNCNAME`
 parameter to the given value, then evaluates the query and returns XML
 "CONTENT" (a tree structure with a document node at the root, but not
 necessarily meeting all the requirements of an XML "DOCUMENT"). It can be
