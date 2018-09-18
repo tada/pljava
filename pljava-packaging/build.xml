@@ -354,7 +354,7 @@ if (found) {
     var fsep = properties.getProperty('file.separator');
     var plen = fsep.length() - 1; /* original separator had length 1 */
     plen += prefix.length;
-    computedPath = replacement + computedPath.slice(plen);
+    computedPath = String(replacement + computedPath.slice(plen));
 }
 ]]>
 		</jarxbuild>
