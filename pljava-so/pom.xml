@@ -358,9 +358,13 @@ function quoteStringForC(s)
 }
 
 var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
-var jvmdfltQuoted = quoteStringForC(jvmdflt);
-var mvnProject = project.getReference("maven.project"); // pljava-so
-mvnProject.getProperties().setProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
+if ( null !== jvmdflt )
+{
+	var jvmdfltQuoted = quoteStringForC(jvmdflt);
+	var mvnProject = project.getReference("maven.project"); // pljava-so
+	mvnProject.getProperties()
+		.setProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
+}
 ]]>
 								</script>
 
