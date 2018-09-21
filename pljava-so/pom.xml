@@ -310,8 +310,18 @@
    standard. Group 3 is for other miscellaneous characters that will be given
    hex escapes (and group 4 captures an empty string if the lookahead is also
    a valid hex digit, which quoteStringForC will have to be careful to separate
-   from the hex escape. Only one of groups (1,2,3) will be present at any one
+   from the hex escape). Only one of groups (1,2,3) will be present at any one
    match position.
+   Group 3, for now, only captures control characters (Unicode category Cc);
+   they all have codepoints less than 0xA0, so the \x escape is the right way
+   to emit them. It would be easy to extend the regex to capture other, extended
+   characters (codepoints 0xA0 or higher) that one prefers to render as escapes,
+   but if that is done, the group-3 case in quoteStringForC() then needs to be
+   completed to use \u form (for codepoints 0xA0 or above but less than 0x10000)
+   or \U form for those 0x10000 or above. The \u and \U forms both consume a
+   fixed number (4 or 8) of hex digits, so when generating those, there is no
+   need to pay attention to group 4 or do anything special if a hex digit
+   follows.
  */
 var mustBeQuotedForC =
 	java.util.regex.Pattern.compile(
