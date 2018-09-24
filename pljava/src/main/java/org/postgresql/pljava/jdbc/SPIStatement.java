@@ -30,7 +30,7 @@ import org.postgresql.pljava.internal.SPIException;
  *
  * @author Thomas Hallgren
  */
-public class SPIStatement implements Statement
+public class SPIStatement implements Statement, SPIReadOnlyControl
 {
 	private final SPIConnection m_connection;
 	
@@ -43,6 +43,7 @@ public class SPIStatement implements Statement
 	private long      m_updateCount    = 0;
 	private ArrayList m_batch          = null;
 	private boolean   m_closed         = false;
+	private short     m_readonly_spec  = ExecutionPlan.SPI_READONLY_DEFAULT;
 
 	public SPIStatement(SPIConnection conn)
 	{
@@ -130,14 +131,15 @@ public class SPIStatement implements Statement
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
-			Portal portal = plan.cursorOpen(m_cursorName, paramValues);
+			Portal portal = plan.cursorOpen(
+				m_cursorName, paramValues, m_readonly_spec);
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else
 		{
 			try
 			{
-				plan.execute(paramValues, m_maxRows);
+				plan.execute(paramValues, m_readonly_spec, m_maxRows);
 				m_updateCount = SPI.getProcessed();
 			}
 			finally
@@ -497,6 +499,28 @@ public class SPIStatement implements Statement
 		( this.getClass()
 		  + ".closeOneCompletion() not implemented yet.",
 		  "0A000" );
+	}
+
+	// ************************************************************
+	// Implementation of the SPIReadOnlyControl extended interface
+	// ************************************************************
+
+	@Override
+	public void defaultReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_DEFAULT;
+	}
+
+	@Override
+	public void forceReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_FORCED;
+	}
+
+	@Override
+	public void clearReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_CLEARED;
 	}
 }
 
