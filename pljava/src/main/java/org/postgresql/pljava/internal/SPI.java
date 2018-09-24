@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -50,8 +50,10 @@ public class SPI
 	 * of <code>rowCount</code> of zero is interpreted as no limit, i.e.,
 	 * run to completion.
 	 * @return One of the declared status codes.
+	 * @deprecated This seems never to have been used in git history of project.
 	 */
-	public static int exec(String command, int rowCount)
+	@Deprecated
+	private static int exec(String command, int rowCount)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
@@ -105,7 +107,10 @@ public class SPI
 	}
 
 	/**
-	 * Returns a textual representatio of a result code
+	 * Returns a textual representation of a result code.
+	 */
+	/*
+	 * XXX PG 11 introduces a real SPI_result_code_string function.
 	 */
 	public static String getResultText(int resultCode)
 	{
@@ -181,7 +186,9 @@ public class SPI
 	return s;
 	}
 
+	@Deprecated
 	private native static int _exec(long threadId, String command, int rowCount);
+
 	private native static long _getProcessed();
 	private native static int _getResult();
 	private native static void _freeTupTable();
