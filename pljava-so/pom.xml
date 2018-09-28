@@ -252,7 +252,7 @@
 						<configuration>
 							<c>
 								<defines combine.children='append'>
-									<define>PLJAVA_LIBJVMDEFAULT=${pljava.libjvmdefault}</define>
+									<define>PLJAVA_LIBJVMDEFAULT=${pljava.qlibjvmdefault}</define>
 								</defines>
 							</c>
 						</configuration>
@@ -277,16 +277,22 @@
 	<build>
 		<plugins>
 
-			<!-- Several things that could not be done using Maven plugins. This plugin
-				must be listet FIRST as the pgsql.properties file has to be written before
-				properties-maven-plugin is called, which can apparently also only happen
-				in the "initialize" phase. -->
+			<!-- Several things that could not be done using Maven plugins. This
+				 plugin must be listed FIRST as the pgsql.properties file has to
+				 be written before properties-maven-plugin is called, which can
+				 apparently also only happen in the "initialize" phase.
+				 In addition to generating a bunch of properties based on
+				 pg_config (done by the <ant/> task nested below, which relies
+				 on the external build.xml file), the <script> element given
+				 directly here is used to properly quote pljava.libjvmdefault
+				 as a new property pljava.qlibjvmdefault in the form of a C
+				 string literal, to be passed to the C compiler in a <define>.
+			  -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-antrun-plugin</artifactId>
 				<version>1.7</version>
 				<executions>
-					<!-- Converts pg_config output to "pgsql.properties" -->
 					<execution>
 						<id>pg_config to pgsql.properties</id>
 						<phase>initialize</phase>
@@ -295,6 +301,85 @@
 						</goals>
 						<configuration>
 							<target>
+								<script language='javascript'>
+<![CDATA[
+/* This regex supports a function to wrap a string in the quoting needed for a
+   C string literal. Capturing group 1 captures those special characters that
+   only need a backslash to be added ahead of them. Group 2 captures the
+   characters that have specific backslash-letter escapes defined in the
+   standard. Group 3 is for other miscellaneous characters that will be given
+   hex escapes (and group 4 captures an empty string if the lookahead is also
+   a valid hex digit, which quoteStringForC will have to be careful to separate
+   from the hex escape). Only one of groups (1,2,3) will be present at any one
+   match position.
+   Group 3, for now, only captures control characters (Unicode category Cc);
+   they all have codepoints less than 0xA0, so the \x escape is the right way
+   to emit them. It would be easy to extend the regex to capture other, extended
+   characters (codepoints 0xA0 or higher) that one prefers to render as escapes,
+   but if that is done, the group-3 case in quoteStringForC() then needs to be
+   completed to use \u form (for codepoints 0xA0 or above but less than 0x10000)
+   or \U form for those 0x10000 or above. The \u and \U forms both consume a
+   fixed number (4 or 8) of hex digits, so when generating those, there is no
+   need to pay attention to group 4 or do anything special if a hex digit
+   follows.
+ */
+var mustBeQuotedForC =
+	java.util.regex.Pattern.compile(
+	"([\"\\\\]|(?<=\\?)\\?(?=[=(/)'<!>-]))|" + // (just insert backslash)
+	"([\\a\b\\f\\n\\r\\t\\x0B])|" +            // (use specific escapes)
+	"(\\p{Cc}((?=\\p{XDigit}))?)" // use hex, note whether an XDigit follows
+	);
+
+/* This is the function that will return s wrapped in double quotes and with
+   internal characters escaped where appropriate using the C conventions.
+ */
+function quoteStringForC(s)
+{
+	var m = mustBeQuotedForC.matcher(s);
+	var b = new java.lang.StringBuffer();
+	while ( m.find() )
+	{
+		if ( -1 != m.start(1) ) // things that just need a backslash
+			m.appendReplacement(b, "\\\\$1");
+		else if ( -1 != m.start(2) ) // things with specific escapes
+		{
+			var ec;
+			switch ( String(m.group(2)) ) // switch/case uses ===
+			{
+				case "\x07": ec = 'a'; break;
+				case "\b":   ec = 'b'; break;
+				case "\f":   ec = 'f'; break;
+				case "\n":   ec = 'n'; break;
+				case "\r":   ec = 'r'; break;
+				case "\t":   ec = 't'; break;
+				case "\x0B": ec = 'v'; break;
+			}
+			m.appendReplacement(b, "\\\\" + ec);
+		}
+		else // it's group 3, use hex escaping
+		{
+			m.appendReplacement(b,
+				"\\\\x" + java.lang.Integer.toHexString(
+				m.group(3).codePointAt(0)) +
+				(-1 == m.start(4) ? '' : '""')); // XDigit follows?
+		}
+	}
+	return '"' + m.appendTail(b) + '"';
+}
+
+var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
+if ( null !== jvmdflt )
+{
+	var jvmdfltQuoted = quoteStringForC(jvmdflt);
+	var mvnProject = project.getReference("maven.project"); // pljava-so
+	mvnProject.getProperties()
+		.setProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
+}
+]]>
+								</script>
+
+								<!-- Converts pg_config output
+									 to "pgsql.properties" -->
 								<ant />
 							</target>
 						</configuration>

@@ -1366,7 +1366,7 @@ static void registerGUCOptions(void)
 		NULL, /* extended description */
 		&libjvmlocation,
 		#ifdef PLJAVA_LIBJVMDEFAULT
-			CppAsString2(PLJAVA_LIBJVMDEFAULT),
+			PLJAVA_LIBJVMDEFAULT,
 		#else
 			"libjvm",
 		#endif
