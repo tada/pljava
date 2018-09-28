@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.sqlj;
 
@@ -29,6 +35,33 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.jdbc.SQLUtils;
+
+/*
+ * Import an interface (internal-only, at least for now) that allows overriding
+ * the default derivation of the read_only parameter to SPI query execution
+ * functions. The default behavior follows the recommendation in the SPI docs
+ * to use read_only => true if the currently-executing PL function is declared
+ * IMMUTABLE, and read_only => false otherwise.
+ *
+ * Several queries in this class will use this interface to force read_only to
+ * be false, even though the queries clearly do nothing but reading. The reason
+ * may not be obvious:
+ *
+ * One effect of the read_only parameter in SPI is the selection of the snapshot
+ * used to evaluate the query. When read_only is true, a snapshot from the
+ * beginning of the command is used, which cannot see even the modifications
+ * made in this transaction since that point.
+ *
+ * Where that becomes a problem is during evaluation of a deployment descriptor
+ * as part of install_jar or replace_jar. The command began by loading some new
+ * or changed classes, and is now executing deployment commands, which may very
+ * well need to load those classes. But some of the loading requests may happen
+ * to come through functions that are declared IMMUTABLE (type IO functions, for
+ * example), which, under the default behavior, would mean SPI gets passed
+ * read_only => true and selects a snapshot from before the new classes were
+ * there, and loading fails. That is why read_only is always forced false here.
+ */
+import org.postgresql.pljava.jdbc.SPIReadOnlyControl;
 
 /**
  * @author Thomas Hallgren
@@ -146,6 +179,8 @@ public class Loader extends ClassLoader
 				"SELECT entryId, entryName FROM sqlj.jar_entry " +
 				"WHERE jarId OPERATOR(pg_catalog.=) ?");
 
+			outer.unwrap(SPIReadOnlyControl.class).clearReadOnly();
+			inner.unwrap(SPIReadOnlyControl.class).clearReadOnly();
 			outer.setString(1, schemaName);
 			ResultSet rs = outer.executeQuery();
 			try
@@ -231,6 +266,7 @@ public class Loader extends ClassLoader
 		};
 		ClassLoader loader = Loader.getSchemaLoader(schema);
 		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
+		stmt.unwrap(SPIReadOnlyControl.class).clearReadOnly();
 		ResultSet rs = null;
 		try
 		{
@@ -335,6 +371,7 @@ public class Loader extends ClassLoader
 					"WHERE entryId OPERATOR(pg_catalog.=) ?");
 
 				stmt.setInt(1, entryId[0]);
+				stmt.unwrap(SPIReadOnlyControl.class).clearReadOnly();
 				rs = stmt.executeQuery();
 				if(rs.next())
 				{

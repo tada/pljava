@@ -32,10 +32,8 @@ import static
 /**
  * Complex (re and im parts are doubles) implemented in Java as a scalar UDT.
  */
-@SQLAction(requires={
-	"scalar complex type", "complex assertHasValues", "complexscalar boot fn"
-	}, install={
-		"SELECT javatest.complexscalar()",
+@SQLAction(requires = { "scalar complex type", "complex assertHasValues" },
+	install = {
 		"SELECT javatest.assertHasValues(" +
 		" CAST('(1,2)' AS javatest.complex), 1, 2)"
 	}
@@ -148,24 +146,5 @@ public class ComplexScalar implements SQLData {
 		s_logger.info(m_typeName + " to SQLOutput");
 		stream.writeDouble(m_x);
 		stream.writeDouble(m_y);
-	}
-
-	/**
-	 * A no-op function that forces the ComplexScalar class to be loaded.
-	 * This is only necessary because the deployment-descriptor install
-	 * actions contain a query making use of this type, and PostgreSQL does
-	 * not expect type in/out/send/recv functions to need an updated
-	 * snapshot, so it will try to find this class in the snapshot from
-	 * before the jar was installed, and fail. By providing this function,
-	 * which defaults to volatile so it gets an updated snapshot, and
-	 * calling it first, the class will be found and loaded; once it is
-	 * loaded, the user-defined type operations are able to find it.
-	 * <p>
-	 * Again, this is only an issue when trying to make use of the newly
-	 * loaded UDT from right within the deployment descriptor for the jar.
-	 */
-	@Function(schema="javatest", provides="complexscalar boot fn")
-	public static void ComplexScalar()
-	{
 	}
 }

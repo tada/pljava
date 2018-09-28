@@ -18,6 +18,8 @@ import java.sql.SQLOutput;
 
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.BaseUDT;
+import org.postgresql.pljava.annotation.Function;
+import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
 
 /**
  * A User Defined Type with varlena storage, testing github issue 52.
@@ -46,6 +48,7 @@ public class VarlenaUDTTest implements SQLData {
 
 	public VarlenaUDTTest() { }
 
+	@Function(effects=IMMUTABLE)
 	public static VarlenaUDTTest parse( String s, String typname) {
 		int i = Integer.parseInt( s);
 		VarlenaUDTTest u = new VarlenaUDTTest();
@@ -54,6 +57,7 @@ public class VarlenaUDTTest implements SQLData {
 		return u;
 	}
 
+	@Function(effects=IMMUTABLE)
 	public String toString() {
 		return String.valueOf( apop);
 	}
@@ -62,11 +66,13 @@ public class VarlenaUDTTest implements SQLData {
 		return typname;
 	}
 
+	@Function(effects=IMMUTABLE)
 	public void writeSQL( SQLOutput stream) throws SQLException {
 		for ( int i = 0 ; i < apop ; ++ i )
 			stream.writeByte( (byte)'a');
 	}
 
+	@Function(effects=IMMUTABLE)
 	public void readSQL( SQLInput stream, String typname) throws SQLException {
 		this.typname = typname;
 		int i = 0;

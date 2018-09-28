@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -22,6 +28,11 @@ public class ExecutionPlan
 	static final int INITIAL_CACHE_CAPACITY = 29;
 
 	static final float CACHE_LOAD_FACTOR = 0.75f;
+
+	/* These three values must match those in ExecutionPlan.c */
+	public static final short SPI_READONLY_DEFAULT = 0;
+	public static final short SPI_READONLY_FORCED  = 1;
+	public static final short SPI_READONLY_CLEARED = 2;
 
 	private long m_pointer;
 
@@ -140,16 +151,21 @@ public class ExecutionPlan
 	 * @param cursorName Name of the cursor or <code>null</code> for a system
 	 *            generated name.
 	 * @param parameters Values for the parameters.
+	 * @param read_only One of the values {@code SPI_READONLY_DEFAULT},
+	 *     {@code SPI_READONLY_FORCED}, or {@code SPI_READONLY_CLEARED} (in the
+	 *     default case, the native code will defer to
+	 *     {@code Function_isCurrentReadOnly}.
 	 * @return The <code>Portal</code> that represents the opened cursor.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public Portal cursorOpen(String cursorName, Object[] parameters)
+	public Portal cursorOpen(
+		String cursorName, Object[] parameters, short read_only)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
 			return _cursorOpen(m_pointer, System.identityHashCode(Thread
-				.currentThread()), cursorName, parameters);
+				.currentThread()), cursorName, parameters, read_only);
 		}
 	}
 
@@ -174,18 +190,23 @@ public class ExecutionPlan
 	 * Execute the plan using the internal <code>SPI_execp</code> function.
 	 * 
 	 * @param parameters Values for the parameters.
+	 * @param read_only One of the values {@code SPI_READONLY_DEFAULT},
+	 *     {@code SPI_READONLY_FORCED}, or {@code SPI_READONLY_CLEARED} (in the
+	 *     default case, the native code will defer to
+	 *     {@code Function_isCurrentReadOnly}.
 	 * @param rowCount The maximum number of tuples to create. A value of
 	 *            <code>rowCount</code> of zero is interpreted as no limit,
 	 *            i.e., run to completion.
 	 * @return One of the status codes declared in class {@link SPI}.
 	 * @throws SQLException If the underlying native structure has gone stale.
 	 */
-	public int execute(Object[] parameters, int rowCount) throws SQLException
+	public int execute(Object[] parameters, short read_only, int rowCount)
+	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
 			return _execute(m_pointer, System.identityHashCode(Thread
-				.currentThread()), parameters, rowCount);
+				.currentThread()), parameters, read_only, rowCount);
 		}
 	}
 
@@ -219,13 +240,14 @@ public class ExecutionPlan
 	}
 
 	private static native Portal _cursorOpen(long pointer, long threadId,
-		String cursorName, Object[] parameters) throws SQLException;
+		String cursorName, Object[] parameters, short read_only)
+		throws SQLException;
 
 	private static native boolean _isCursorPlan(long pointer)
 	throws SQLException;
 
 	private static native int _execute(long pointer, long threadId,
-		Object[] parameters, int rowCount) throws SQLException;
+		Object[] parameters, short read_only, int rowCount) throws SQLException;
 
 	private static native long _prepare(long threadId, String statement, Oid[] argTypes)
 	throws SQLException;
