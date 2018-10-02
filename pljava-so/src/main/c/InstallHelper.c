@@ -517,11 +517,14 @@ char *InstallHelper_hello()
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
 	serverBuiltVer = String_createJavaStringFromNTS(PG_VERSION_STR);
 
-	InitFunctionCallInfoData(fcinfo, NULL, 0,
 #if PG_VERSION_NUM >= 90100
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
 	InvalidOid, /* collation */
-#endif
 	NULL, NULL);
+#else
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
+	NULL, NULL);
+#endif
 	runningVer = DatumGetTextP(pgsql_version(&fcinfo));
 	serverRunningVer = String_createJavaString(runningVer);
 	pfree(runningVer);

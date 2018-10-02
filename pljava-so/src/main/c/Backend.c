@@ -1356,6 +1356,22 @@ static jint initializeJavaVM(JVMOptList *optList)
 		GUCBOOTVAL(bootValue) (context), GUCFLAGS(flags) GUCCHECK(check_hook) \
 		assign_hook, show_hook)
 
+#ifndef PLJAVA_LIBJVMDEFAULT
+#define PLJAVA_LIBJVMDEFAULT "libjvm"
+#endif
+
+#if PG_VERSION_NUM >= 90200
+#define PLJAVA_ENABLE_DEFAULT true
+#else
+#define PLJAVA_ENABLE_DEFAULT false
+#endif
+
+#if PG_VERSION_NUM < 110000
+#define PLJAVA_IMPLEMENTOR_FLAGS GUC_LIST_INPUT | GUC_LIST_QUOTE
+#else
+#define PLJAVA_IMPLEMENTOR_FLAGS GUC_LIST_INPUT
+#endif
+
 static void registerGUCOptions(void)
 {
 	static char pathbuf[MAXPGPATH];
@@ -1365,11 +1381,7 @@ static void registerGUCOptions(void)
 		"Path to the libjvm (.so, .dll, etc.) file in Java's jre/lib area",
 		NULL, /* extended description */
 		&libjvmlocation,
-		#ifdef PLJAVA_LIBJVMDEFAULT
-			PLJAVA_LIBJVMDEFAULT,
-		#else
-			"libjvm",
-		#endif
+		PLJAVA_LIBJVMDEFAULT,
 		PGC_SUSET,
 		0,    /* flags */
 		check_libjvm_location,
@@ -1442,11 +1454,7 @@ static void registerGUCOptions(void)
 		"settings changed before LOADing PL/Java may be rejected, so they must "
 		"be made after LOAD, but before the virtual machine is started.",
 		&pljavaEnabled,
-		#if PG_VERSION_NUM >= 90200
-			true,  /* boot value */
-		#else
-			false, /* boot value */
-		#endif
+		PLJAVA_ENABLE_DEFAULT, /* boot value */
 		PGC_USERSET,
 		0,    /* flags */
 		check_enabled, /* check hook */
@@ -1460,11 +1468,7 @@ static void registerGUCOptions(void)
 		&implementors,
 		"postgresql", /* boot value */
 		PGC_USERSET,
-		GUC_LIST_INPUT
-		#if PG_VERSION_NUM < 110000
-			| GUC_LIST_QUOTE
-		#endif
-		,
+		PLJAVA_IMPLEMENTOR_FLAGS,
 		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
@@ -1478,6 +1482,8 @@ static void registerGUCOptions(void)
 #undef BOOL_GUC
 #undef INT_GUC
 #undef STRING_GUC
+#undef PLJAVA_ENABLE_DEFAULT
+#undef PLJAVA_IMPLEMENTOR_FLAGS
 
 static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
