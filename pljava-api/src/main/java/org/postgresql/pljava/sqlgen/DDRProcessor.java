@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
@@ -109,6 +110,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
 @SupportedAnnotationTypes({"org.postgresql.pljava.annotation.*"})
 @SupportedOptions
 ({
+  "ddr.reproducible",    // default true
   "ddr.name.trusted",    // default "java"
   "ddr.name.untrusted",  // default "javaU"
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
@@ -157,6 +159,7 @@ class DDRProcessorImpl
 	// Similarly, the TypeMapper should be easily available to code below.
 	//
 	final TypeMapper          tmpr;
+	final SnippetTiebreaker   snippetTiebreaker;
 
 	// Options obtained from the invocation
 	//	
@@ -164,6 +167,7 @@ class DDRProcessorImpl
 	final String nameUntrusted;
 	final String output;
 	final String defaultImplementor;
+	final boolean reproducible;
 	
 	// Certain known types that need to be recognized in the processed code
 	//
@@ -226,6 +230,14 @@ class DDRProcessorImpl
 			output = optv;
 		else
 			output = "pljava.ddr";
+
+		optv = opts.get( "ddr.reproducible");
+		if ( null != optv )
+			reproducible = Boolean.parseBoolean( optv);
+		else
+			reproducible = true;
+
+		snippetTiebreaker = reproducible ? new SnippetTiebreaker() : null;
 		
 		TY_ITERATOR = typu.getDeclaredType(
 			elmu.getTypeElement( java.util.Iterator.class.getName()));
@@ -528,10 +540,18 @@ class DDRProcessorImpl
 		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<Vertex<Snippet>>();
 		Queue<Vertex<Snippet>> revBlocked = new LinkedList<Vertex<Snippet>>();
 
-		Queue<Vertex<Snippet>> fwdReady = new LinkedList<Vertex<Snippet>>();
-		Queue<Vertex<Snippet>> revReady = new LinkedList<Vertex<Snippet>>();
-
-		Queue<Vertex<Snippet>> q = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> fwdReady;
+		Queue<Vertex<Snippet>> revReady;
+		if ( reproducible )
+		{
+			fwdReady = new PriorityQueue( 11, snippetTiebreaker);
+			revReady = new PriorityQueue( 11, snippetTiebreaker);
+		}
+		else
+		{
+			fwdReady = new LinkedList<Vertex<Snippet>>();
+			revReady = new LinkedList<Vertex<Snippet>>();
+		}
 
 		for ( VertexPair<Snippet> vp : snippetVPairs )
 		{
@@ -574,6 +594,7 @@ class DDRProcessorImpl
 		Set<String> consumer)
 	{
 		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+		Vertex<Snippet> cycleBreaker = null;
 
 queuerunning:
 		for ( int i = 0 ; ; )
@@ -605,10 +626,27 @@ queuerunning:
 					continue;
 				if ( provider.containsKey( v.payload.implementor()) )
 					continue;
-				-- v.indegree;
-				it.remove();
-				ready.add( v);
-				continue queuerunning;
+				if ( reproducible )
+				{
+					if (null == cycleBreaker ||
+						0 < snippetTiebreaker.compare(cycleBreaker, v))
+						cycleBreaker = v;
+				}
+				else
+				{
+					-- v.indegree;
+					it.remove();
+					ready.add( v);
+					continue queuerunning;
+				}
+			}
+			if ( null != cycleBreaker )
+			{
+				blocked.remove( cycleBreaker);
+				-- cycleBreaker.indegree;
+				ready.add( cycleBreaker);
+				cycleBreaker = null;
+				continue;
 			}
 			/*
 			 * Got here? It's a real cycle ... nothing to be done.
@@ -2338,8 +2376,17 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
-			Queue<Vertex<Map.Entry<TypeMirror, String>>> q =
-				new LinkedList<Vertex<Map.Entry<TypeMirror, String>>>();
+			Queue<Vertex<Map.Entry<TypeMirror, String>>> q;
+			if ( reproducible )
+			{
+				q = new PriorityQueue<Vertex<Map.Entry<TypeMirror, String>>>(
+					11, new TypeTiebreaker());
+			}
+			else
+			{
+				q = new LinkedList<Vertex<Map.Entry<TypeMirror, String>>>();
+			}
+
 			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
@@ -2813,4 +2860,52 @@ class ImpProvider implements Snippet
 	@Override public String[]        provides() { return s.provides(); }
 	@Override public String[]        requires() { return s.requires(); }
 	@Override public boolean     characterize() { return s.characterize(); }
+}
+
+class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
+{
+	@Override
+	public int compare( Vertex<Snippet> o1, Vertex<Snippet> o2)
+	{
+		Snippet s1 = o1.payload;
+		Snippet s2 = o2.payload;
+		int diff = s1.implementor().compareTo( s2.implementor());
+		if ( 0 != diff )
+			return diff;
+		String[] ds1 = s1.deployStrings();
+		String[] ds2 = s2.deployStrings();
+		diff = ds1.length - ds2.length;
+		if ( 0 != diff )
+			return diff;
+		for ( int i = 0 ; i < ds1.length ; ++ i )
+		{
+			diff = ds1[i].compareTo( ds2[i]);
+			if ( 0 != diff )
+				return diff;
+		}
+		assert s1 == s2 : "Two distinct Snippets compare equal by tiebreaker";
+		return 0;
+	}
+}
+
+class TypeTiebreaker
+implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
+{
+	@Override
+	public int compare(
+		Vertex<Map.Entry<TypeMirror, String>> o1,
+		Vertex<Map.Entry<TypeMirror, String>> o2)
+	{
+		Map.Entry<TypeMirror, String> m1 = o1.payload;
+		Map.Entry<TypeMirror, String> m2 = o2.payload;
+		int diff = m1.getValue().compareTo( m2.getValue());
+		if ( 0 != diff )
+			return diff;
+		diff = m1.getKey().toString().compareTo( m2.getKey().toString());
+		if ( 0 != diff )
+			return diff;
+		assert
+			m1 == m2 : "Two distinct type mappings compare equal by tiebreaker";
+		return 0;
+	}
 }
