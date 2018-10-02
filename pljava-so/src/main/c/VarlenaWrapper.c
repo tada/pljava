@@ -249,7 +249,7 @@ constructResult:
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
 		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
 		p2lro.longVal, p2lcxt.longVal, p2lpin.longVal, p2ldatum.longVal,
-		parked, actual, dbb);
+		(jlong)parked, (jlong)actual, dbb);
 
 	if ( NULL != dbb )
 		JNI_deleteLocalRef(dbb);
