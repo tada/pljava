@@ -61,5 +61,5 @@ More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
 
 PL/Java 1.5.1 has been successfully built and run on at least one platform
-with PostgreSQL versions from 11 (beta3) to 8.2, the latest maintenance
+with PostgreSQL versions from 11 (beta4) to 8.2, the latest maintenance
 release for each.

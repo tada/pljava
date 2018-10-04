@@ -81,7 +81,7 @@ available in every PostgreSQL version PL/Java currently supports.
 
 $h3 Version compatibility
 
-PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11beta3,
+PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11beta4,
 and older ones back to 8.2, using Java SE 8, 7, or 6. It can _run_ using newer
 Java versions including Java 10 (and is expected to work with Java 11 when that
 is released). PL/Java functions can be written for, and use features of, the
@@ -342,7 +342,11 @@ and a number of considerations for making a PL/Java package.
 
 $h3 Enhancement requests addressed
 
-$h4 Since 1.5.1-BETA1
+$h4 Since 1.5.1-BETA2
+
+* [Add a ddr.reproducible option to SQL generator](${ghbug}186)
+
+$h4 In 1.5.1-BETA2
 
 * [java 8 date/time api](${ghbug}137)
 * [Annotations don't support CREATE CONSTRAINT TRIGGER](${ghbug}138)
@@ -352,7 +356,15 @@ $h4 Since 1.5.1-BETA1
 
 $h3 Bugs fixed
 
-$h4 Since 1.5.1-BETA1
+$h4 Since 1.5.1-BETA2
+
+* [self-install jar ClassCastException (...ConsString to String), some java 6/7 runtimes](${ghbug}179)
+* [i386 libjvm_location gets mangled as .../jre/lib/1/server/libjvm.so](${ghbug}176)
+* [java.lang.ClassNotFoundException installing examples jar](${ghbug}178)
+* [Preprocessor errors building on Windows with MSVC](${ghbug}182)
+* [Saxon example does not build since Saxon 9.9 released](${ghbug}185)
+
+$h4 In 1.5.1-BETA2
 
 * [PostgreSQL 10: SPI_modifytuple failed with SPI_ERROR_UNCONNECTED](${ghbug}134)
 * [SPIConnection prepareStatement doesn't recognize all parameters](${ghbug}136)
@@ -398,7 +410,7 @@ $h2 Earlier releases
 #set($h4 = '#####')
 #set($h5 = '######')
 
-$h2 PL/Java 1.5.0
+$h2 PL/Java 1.5.0 (29 March 2016)
 
 This, the first PL/Java numbered release since 1.4.3 in 2011, combines
 compatibility with the latest PostgreSQL and Java versions with modernized
