@@ -735,7 +735,10 @@ public class JarX {
       }
     }
 
-    tmpf.renameTo( f);
+    if ( ! tmpf.renameTo( f) ) {
+      if ( ! f.delete()  ||  ! tmpf.renameTo( f) )
+        System.err.println( "RENAME FAILED!");
+    }
   }
 
   /**Copy content from an input to an output stream until end.
