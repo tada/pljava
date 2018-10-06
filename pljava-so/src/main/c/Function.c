@@ -61,6 +61,12 @@ struct Function_
 	 */
 	jclass clazz;
 
+	/**
+	 * Weak global reference to the class loader for the schema in which this
+	 * function is declared.
+	 */
+	jweak schemaLoader;
+
 	union
 	{
 		struct
@@ -499,7 +505,8 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 	ReleaseSysCache(typeTup);
 }
 
-static jclass Function_loadClass(jstring schemaName, char const *className);
+static jclass Function_loadClass(
+	jstring schemaName, char const *className, jweak *loaderref);
 
 Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 {
@@ -524,7 +531,7 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 
 	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 	schemaName = getSchemaName(procStruct->pronamespace);
-	clazz = Function_loadClass(schemaName, info.className);
+	clazz = Function_loadClass(schemaName, info.className, NULL);
 	JNI_deleteLocalRef(schemaName);
 	t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
 
@@ -595,7 +602,8 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 
 	currentInvocation->function = self;
 
-	self->clazz = Function_loadClass(schemaName, info->className);
+	self->clazz = Function_loadClass(
+		schemaName, info->className, &(self->schemaLoader));
 
 	JNI_deleteLocalRef(schemaName);
 
@@ -674,9 +682,11 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 }
 
 /*
- * Return a global ref to the loaded class.
+ * Return a global ref to the loaded class. Store a weak global ref to the
+ * initiating loader at *loaderref if non-null.
  */
-static jclass Function_loadClass(jstring schemaName, char const *className)
+static jclass Function_loadClass(
+	jstring schemaName, char const *className, jweak *loaderref)
 {
 	jobject tmp;
 	jobject loader;
@@ -691,6 +701,10 @@ static jclass Function_loadClass(jstring schemaName, char const *className)
 	classJstr = String_createJavaStringFromNTS(className);
 
 	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, classJstr);
+
+	if ( NULL != loaderref )
+		*loaderref = JNI_newWeakGlobalRef(loader);
+
 	JNI_deleteLocalRef(loader);
 	JNI_deleteLocalRef(classJstr);
 
@@ -896,5 +910,21 @@ bool Function_isCurrentReadOnly(void)
 	if (currentInvocation->function == 0)
 		return true;
 	return currentInvocation->function->readOnly;
+}
+
+jobject Function_currentLoader(void)
+{
+	Function f;
+	jweak weakRef;
+
+	if ( NULL == currentInvocation )
+		return NULL;
+	f = currentInvocation->function;
+	if ( NULL == f )
+		return NULL;
+	weakRef = f->schemaLoader;
+	if ( NULL == weakRef )
+		return NULL;
+	return JNI_newLocalRef(weakRef);
 }
 

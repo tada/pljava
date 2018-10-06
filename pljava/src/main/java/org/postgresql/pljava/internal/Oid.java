@@ -149,13 +149,18 @@ public class Oid extends Number
 		if(c == null)
 		{
 			String className;
+			ClassLoader loader;
 			synchronized(Backend.THREADLOCK)
 			{
 				className = _getJavaClassName(m_native);
+				loader = _getCurrentLoader();
 			}
 			try
 			{
-				c = Class.forName(getCanonicalClassName(className, 0));
+				String canonName = getCanonicalClassName(className, 0);
+				if ( null == loader )
+					loader = getClass().getClassLoader();
+				c = Class.forName(canonName, true, loader);
 			}
 			catch(ClassNotFoundException e)
 			{
@@ -246,5 +251,13 @@ public class Oid extends Number
 	private native static Oid _getTypeId();
 
 	private native static String _getJavaClassName(int nativeOid)
+	throws SQLException;
+
+	/**
+	 * Return the (initiating, "schema") ClassLoader of the innermost
+	 * currently-executing PL/Java function, or null if there is none or the
+	 * schema loaders have since been cleared and the loader is gone.
+	 */
+	private native static ClassLoader _getCurrentLoader()
 	throws SQLException;
 }

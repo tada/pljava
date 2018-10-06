@@ -18,6 +18,7 @@
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/Exception.h"
+#include "pljava/Function.h"
 #include "pljava/Invocation.h"
 
 static jclass    s_Oid_class;
@@ -193,6 +194,11 @@ void Oid_initialize(void)
 		"(I)Ljava/lang/String;",
 	  	Java_org_postgresql_pljava_internal_Oid__1getJavaClassName
 		},
+		{
+		"_getCurrentLoader",
+		"()Ljava/lang/ClassLoader;",
+		Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader
+		},
 		{ 0, 0, 0 }};
 
 	jobject tmp;
@@ -301,6 +307,21 @@ Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jclass c
 		Type type = Type_objectTypeFromOid((Oid)oid, Invocation_getTypeMap());
 		result = String_createJavaStringFromNTS(Type_getJavaTypeName(type));
 	}
+	END_NATIVE
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    _getCurrentLoader
+ * Signature: ()Ljava/lang/ClassLoader;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader(JNIEnv *env, jclass cls)
+{
+	jobject result;
+	BEGIN_NATIVE
+	result = Function_currentLoader();
 	END_NATIVE
 	return result;
 }
