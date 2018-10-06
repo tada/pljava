@@ -86,14 +86,14 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
  *  orig = roundtripped AS good, *
  *FROM
  *  (VALUES (timestamptz '2017-08-21 18:25:29.900005Z')) AS p(orig),
- *  roundtrip(p) AS r(roundtripped timestamptz);
+ *  roundtrip(p) AS (roundtripped timestamptz);
  *</pre>
  *<p>
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example.
  */
 @SQLAction(implementor = "postgresql_ge_90300", // funcs see earlier FROM items
-	requires = "TypeRoundTripper.roundTrip",
+	requires = {"TypeRoundTripper.roundTrip", "point mirror type"},
 	install = {
 	" SELECT" +
 	"  CASE WHEN every(orig = roundtripped)" +
@@ -106,7 +106,7 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	"   (timestamp '1970-03-07 17:37:49.300009')," +
 	"   (timestamp '1919-05-29 13:08:33.600001')" +
 	"  ) AS p(orig)," +
-	"  roundtrip(p) AS r(roundtripped timestamp)",
+	"  roundtrip(p) AS (roundtripped timestamp)",
 
 	" SELECT" +
 	"  CASE WHEN every(orig = roundtripped)" +
@@ -119,7 +119,16 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	"   (timestamptz '1970-03-07 17:37:49.300009Z')," +
 	"   (timestamptz '1919-05-29 13:08:33.600001Z')" +
 	"  ) AS p(orig)," +
-	"  roundtrip(p) AS r(roundtripped timestamptz)",
+	"  roundtrip(p) AS (roundtripped timestamptz)",
+
+	" SELECT" +
+	"  CASE WHEN classjdbc = 'org.postgresql.pljava.example.annotation.Point'" +
+	"  THEN javatest.logmessage('INFO', 'issue192 test passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'issue192 test fails')" +
+	"  END" +
+	" FROM" +
+	"  (VALUES (point '0,0')) AS p," +
+	"  roundtrip(p) AS (classjdbc text)",
 	}
 )
 public class TypeRoundTripper
