@@ -148,6 +148,15 @@ of an empty sequence. This lacks, for now, some functionality of the standard
 `XMLTABLE`, where the default expression can refer to other columns of the
 same output row.
 
+#### Syntax in older PostgreSQL versions
+
+The desugared syntax shown above can be used in PostgreSQL versions as old
+as 9.5. In 9.4 and 9.3, the same syntax, but with `=>` replaced by `:=` for
+the named parameters, can be used. The functions remain usable in still
+earlier PostgreSQL versions, but with increasingly convoluted SQL syntax
+needed to call them (before 9.3, for example, there was no `LATERAL` in a
+`SELECT`, a function could not refer to earlier `FROM` items, and so on).
+
 ### Minimizing startup time
 
 Saxon is a large library, and benefits greatly from precompilation into a

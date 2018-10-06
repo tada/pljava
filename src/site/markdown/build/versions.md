@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of August 2018, the following version constraints are known.
+As of October 2018, the following version constraints are known.
 
 ## Java
 
@@ -8,8 +8,11 @@ No version of Java before 1.6 ("Java 6") is supported. The PL/Java code
 makes use of Java features first appearing in Java 6.
 
 As for later versions of Java, backward compatibility in the language is
-generally good. The most likely problem areas with a new Java version will
-be additions to the JDBC API that PL/Java has not yet implemented.
+generally good. Before Java 8, most likely problem areas with a new Java
+version tended to be additions to the JDBC API that PL/Java had not yet
+implemented. Since Java 8, even JDBC additions have not caused problems for
+existing PL/Java code, as they have taken advantage of the default-methods
+feature introduced in that release.
 
 In the PL/Java 1.5.x series, the build system has not been reworked for
 building with Java 9 or newer. However, PL/Java can be built with Java 8

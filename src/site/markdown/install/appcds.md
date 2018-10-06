@@ -18,6 +18,7 @@ feature is covered [on its own page][cdsJ9].
 [bcl]: http://www.oracle.com/technetwork/java/javase/terms/license/index.html
 [OpenJDK]: https://adoptopenjdk.net/
 [cdsJ9]: oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
+[o]: https://blogs.oracle.com/java-platform-group/oracle-jdk-releases-for-java-11-and-later
 
 ## License considerations
 
@@ -34,8 +35,22 @@ additional performance margin can be given a price.
 
 The same feature in OpenJDK with Hotspot is available from Java 10 onward,
 and does not require any additional license or `-XX:+UnlockCommercialFeatures`
-option. The equivalent feature in OpenJDK with OpenJ9,
-[described separately][cdsJ9] is available from Java 8 onward, also with no
+option.
+
+Starting in Java 11, Oracle offers
+[Oracle-branded downloads of both "Oracle JDK" and "Oracle's OpenJDK builds"][o]
+that are "functionally identical aside from some cosmetic and packaging
+differences". "Oracle's OpenJDK builds" may be used for production or
+commercial purposes with no additional licensing, while any such use of
+"Oracle JDK" requires a commercial license. The application class data sharing
+feature is available in both, and no longer requires the
+`-XX:+UnlockCommercialFeatures` option in either case (not in
+"Oracle's OpenJDK builds" because their use is unrestricted, and not in
+"Oracle JDK" because the "commercial feature" is now, effectively, the entire
+JDK).
+
+The equivalent feature in OpenJDK with OpenJ9,
+[described separately][cdsJ9], is available from Java 8 onward, also with no
 additional license or setup needed.
 
 ## Setup
@@ -43,7 +58,8 @@ additional license or setup needed.
 The setup instructions on this page are for Hotspot, whether in Oracle Java
 or OpenJDK with Hotspot. The two differ only in that, wherever an
 `-XX:+UnlockCommercialFeatures` option is shown in the steps below,
-**it is needed in Oracle Java but not in OpenJDK/Hotspot**.
+**it is needed in Oracle Java 8, 9, or 10, but not in OpenJDK/Hotspot, or
+Oracle JDK 11 or later**.
 
 Setting up PL/Java to use application class data sharing is a three-step
 process. Each step is done by setting a different combination of options

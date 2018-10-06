@@ -21,13 +21,21 @@ where the `...` is the path to the JVM library shared object where it
 would be by default on your target platform. See [here][locatejvm] to find
 the exact file this should refer to.
 
-[locatejvm]: ../install/locatejvm.html
-
 Although PL/Java is currently built with a JDK no later than Java 8, it can
 then run in the database with a newer JVM, and support application code that
 uses the newer Java features. While using Java 8 to build a package, you are
 encouraged to set the default `pljava.libjvm_location` to the library of a
 later JRE that is expected to be present on your platform.
+
+**Note:** when building on Windows, the `-Dpljava.libjvmdefault` option is
+likely to produce a failed build or the wrong stored value for the library
+path. A fix for this option on Windows is unlikely (see [issue 190][bug190]);
+if preparing a package for Windows, it will be simplest to use a patch that
+changes the definition of `PLJAVA_LIBJVMDEFAULT` in
+`pljava-so/src/main/c/Backend.c`.
+
+[locatejvm]: ../install/locatejvm.html
+[bug190]: https://github.com/tada/pljava/issues/190
 
 ## What kind of a package is this?
 

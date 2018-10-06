@@ -110,6 +110,17 @@ is available and set up in the same way, but is freely usable; it does not
 require any additional license, and does not require any
 `-XX:+UnlockCommercialFeatures` to be added to the options.
 
+Starting in Java 11, Oracle offers
+[Oracle-branded downloads of both "Oracle JDK" and "Oracle's OpenJDK builds"][o]
+that are "functionally identical aside from some cosmetic and packaging
+differences". "Oracle's OpenJDK builds" may be used for production or
+commercial purposes with no additional licensing, while any such use of
+"Oracle JDK" requires a commercial license. The application class data sharing
+feature is available in both, and no longer requires the
+`-XX:+UnlockCommercialFeatures` in either case (not in "Oracle's OpenJDK builds"
+because their use is unrestricted, and not in "Oracle JDK" because the
+"commercial feature" is now, effectively, the entire JDK).
+
 [In OpenJDK (with OpenJ9)][OpenJDK], the class-sharing feature present from
 Java 8 onward will naturally share PL/Java's classes as well as the Java
 runtime's, with no additional setup steps.
@@ -128,6 +139,7 @@ classes!) in OpenJ9][cdsJ9].
 [iads]: appcds.html
 [vmoptJ9]: oj9vmopt.html
 [cdsJ9]: oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
+[o]: https://blogs.oracle.com/java-platform-group/oracle-jdk-releases-for-java-11-and-later
 
 ## `-XX:+DisableAttachMechanism`
 

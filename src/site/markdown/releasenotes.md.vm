@@ -83,10 +83,9 @@ $h3 Version compatibility
 
 PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11beta4,
 and older ones back to 8.2, using Java SE 8, 7, or 6. It can _run_ using newer
-Java versions including Java 10 (and is expected to work with Java 11 when that
-is released). PL/Java functions can be written for, and use features of, the
-Java version loaded at run time. See [version compatibility][versions] for more
-detail.
+Java versions including Java 11. PL/Java functions can be written for, and use
+features of, the Java version loaded at run time. See
+[version compatibility][versions] for more detail.
 
 OpenJDK is supported, and can be downloaded in versions using the Hotspot or the
 OpenJ9 JVM. Features of modern Java VMs can drastically reduce memory footprint
@@ -363,6 +362,7 @@ $h4 Since 1.5.1-BETA2
 * [java.lang.ClassNotFoundException installing examples jar](${ghbug}178)
 * [Preprocessor errors building on Windows with MSVC](${ghbug}182)
 * [Saxon example does not build since Saxon 9.9 released](${ghbug}185)
+* [Segfault in VarlenaWrapper.Input on 32-bit](${ghbug}177)
 
 $h4 In 1.5.1-BETA2
 

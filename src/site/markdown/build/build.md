@@ -117,6 +117,12 @@ sources.
 From a clone, you can also build specific released versions, by first
 using `git checkout` with the tag that identifies the release.
 
+Building from unreleased, development sources will be of most interest when
+hacking on PL/Java itself. The GitHub "Branches" page can be used to see which
+branch has had the most recent development activity (this will not always be
+the branch named `master`; periods of development can be focused on the branch
+corresponding to current releases).
+
 [git]: https://git-scm.com/
 
 ## The build
