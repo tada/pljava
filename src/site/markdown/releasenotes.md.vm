@@ -363,6 +363,9 @@ $h4 Since 1.5.1-BETA2
 * [Preprocessor errors building on Windows with MSVC](${ghbug}182)
 * [Saxon example does not build since Saxon 9.9 released](${ghbug}185)
 * [Segfault in VarlenaWrapper.Input on 32-bit](${ghbug}177)
+* [Windows: self-install jar silently fails to replace existing files](${ghbug}189)
+* [ERROR: java.sql.SQLException: _some Java class name_](${ghbug}192)
+* [SetOfRecordTest with timestamp column influenced by environment ](${ghbug}195)
 
 $h4 In 1.5.1-BETA2
 
