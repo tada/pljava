@@ -81,7 +81,7 @@ available in every PostgreSQL version PL/Java currently supports.
 
 $h3 Version compatibility
 
-PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11beta4,
+PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11,
 and older ones back to 8.2, using Java SE 8, 7, or 6. It can _run_ using newer
 Java versions including Java 11. PL/Java functions can be written for, and use
 features of, the Java version loaded at run time. See
