@@ -3,13 +3,13 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>PL/Java Deploy &#x2013; Source Repository</title>
+    <title>PostgreSQL PL/Java &#x2013; Building on Linux ppc64le with GNU tools</title>
     <style type="text/css" media="all">
-      @import url("./css/maven-base.css");
-      @import url("./css/maven-theme.css");
-      @import url("./css/site.css");
+      @import url("../css/maven-base.css");
+      @import url("../css/maven-theme.css");
+      @import url("../css/site.css");
     </style>
-    <link rel="stylesheet" href="./css/print.css" type="text/css" media="print" />
+    <link rel="stylesheet" href="../css/print.css" type="text/css" media="print" />
     <meta name="Date-Revision-yyyymmdd" content="20181017" />
     <meta http-equiv="Content-Language" content="en" />
         
@@ -75,49 +75,38 @@
                           <a href="../releasenotes.html" title="Release notes">Release notes</a>
             </li>
           </ul>
+                       <h5>Modules</h5>
+                  <ul>
+                  <li class="none">
+                          <a href="../pljava-api/index.html" title="PL/Java API">PL/Java API</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava/index.html" title="PL/Java backend Java code">PL/Java backend Java code</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava-so/index.html" title="PL/Java backend native code">PL/Java backend native code</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava-deploy/index.html" title="PL/Java Deploy">PL/Java Deploy</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava-ant/index.html" title="PL/Java Ant tasks">PL/Java Ant tasks</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava-examples/index.html" title="PL/Java examples">PL/Java examples</a>
+            </li>
+                  <li class="none">
+                          <a href="../pljava-packaging/index.html" title="PL/Java packaging">PL/Java packaging</a>
+            </li>
+          </ul>
                        <h5>Project Documentation</h5>
                   <ul>
-                                                                                                                                                                                                                                                <li class="expanded">
-                          <a href="project-info.html" title="Project Information">Project Information</a>
-                    <ul>
-                      <li class="none">
-                          <a href="dependency-info.html" title="Dependency Information">Dependency Information</a>
-            </li>
-                      <li class="none">
-                          <a href="distribution-management.html" title="Distribution Management">Distribution Management</a>
-            </li>
-                      <li class="none">
-                          <a href="index.html" title="About">About</a>
-            </li>
-                      <li class="none">
-                          <a href="issue-tracking.html" title="Issue Tracking">Issue Tracking</a>
-            </li>
-                      <li class="none">
-                          <a href="license.html" title="Project License">Project License</a>
-            </li>
-                      <li class="none">
-                          <a href="mail-lists.html" title="Mailing Lists">Mailing Lists</a>
-            </li>
-                      <li class="none">
-                          <a href="plugin-management.html" title="Plugin Management">Plugin Management</a>
-            </li>
-                      <li class="none">
-                          <a href="plugins.html" title="Project Plugins">Project Plugins</a>
-            </li>
-                      <li class="none">
-            <strong>Source Repository</strong>
-          </li>
-                      <li class="none">
-                          <a href="project-summary.html" title="Project Summary">Project Summary</a>
-            </li>
-              </ul>
-        </li>
-                                                                    <li class="collapsed">
-                          <a href="project-reports.html" title="Project Reports">Project Reports</a>
+                                                                                                                                                                                                                                                                          <li class="collapsed">
+                          <a href="../project-info.html" title="Project Information">Project Information</a>
                   </li>
           </ul>
                              <a href="http://maven.apache.org/" title="Built by Maven" class="poweredBy">
-        <img class="poweredBy" alt="Built by Maven" src="./images/logos/maven-feather.png" />
+        <img class="poweredBy" alt="Built by Maven" src="../images/logos/maven-feather.png" />
       </a>
                    
                     
@@ -125,27 +114,13 @@
     </div>
     <div id="bodyColumn">
       <div id="contentBox">
-        <div class="section">
-<h2><a name="Overview"></a>Overview</h2><a name="Overview"></a>
-<p>This project uses <a class="externalLink" href="http://git-scm.com/">Git</a> to manage its source code. Instructions on Git use can be found at <a class="externalLink" href="http://git-scm.com/documentation">http://git-scm.com/documentation</a>.</p></div>
-<div class="section">
-<h2><a name="Web_Browser_Access"></a>Web Browser Access</h2><a name="Web_Browser_Access"></a>
-<p>The following is a link to a browsable version of the source repository:</p>
+        <h1>Building on Linux ppc64le with GNU tools</h1>
+<p>Until the <tt>nar-maven-plugin</tt> upstream has architecture-os-linker entries for <tt>ppc64le.Linux.gpp</tt>, the <tt>pljava-so</tt> project directory contains an extra settings file <tt>aol.ppc64le-linux-gpp.properties</tt>. To use it, add <tt>-Dnar.aolProperties=pljava-so/aol.ppc64le-linux-gpp.properties</tt> to the <tt>mvn</tt> command line:</p>
+
 <div class="source">
-<pre><a class="externalLink" href="https://github.com/tada/pljava/tree/master/pljava-deploy/">https://github.com/tada/pljava/tree/master/pljava-deploy/</a></pre></div></div>
-<div class="section">
-<h2><a name="Anonymous_Access"></a>Anonymous Access</h2><a name="Anonymous_Access"></a>
-<p>The source can be checked out anonymously from Git with this command (See <a class="externalLink" href="http://git-scm.com/docs/git-clone">http://git-scm.com/docs/git-clone</a>):</p>
 <div class="source">
-<pre>$ git clone https://github.com/tada/pljava.git</pre></div></div>
-<div class="section">
-<h2><a name="Developer_Access"></a>Developer Access</h2><a name="Developer_Access"></a>
-<p>Only project developers can access the Git tree via this method (See <a class="externalLink" href="http://git-scm.com/docs/git-clone">http://git-scm.com/docs/git-clone</a>).</p>
-<div class="source">
-<pre>$ git clone ssh://git@github.com/tada/pljava.git</pre></div></div>
-<div class="section">
-<h2><a name="Access_from_Behind_a_Firewall"></a>Access from Behind a Firewall</h2><a name="Access_from_Behind_a_Firewall"></a>
-<p>Refer to the documentation of the SCM used for more information about access behind a firewall.</p></div>
+<pre>mvn -Dnar.aolProperties=pljava-so/aol.ppc64le-linux-gpp.properties clean install
+</pre></div></div>
       </div>
     </div>
     <div class="clear">
