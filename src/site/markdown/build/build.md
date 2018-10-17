@@ -78,6 +78,7 @@ Please review any of the following that apply to your situation:
 * Building on [Mac OS X](macosx.html)
 * Building on [Solaris](solaris.html)
 * Building on [Ubuntu](ubuntu.html)
+* Building on [Linux `ppc64le`](ppc64le-linux-gpp.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
     | [with MinGW-w64](mingw64.html)
 * Building on an EnterpriseDB PostgreSQL distribution that bundles system
