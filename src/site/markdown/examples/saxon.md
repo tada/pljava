@@ -27,7 +27,22 @@ Then use `sqlj.set_classpath` to set a path including both jars (`'ex:saxon'` if
 you used the names suggested above).
 
 This is work-in-progress code, currently incomplete, and for purposes of
-example.
+example. Two known current limitations:
+
+* `XMLTABLE` output columns can have non-XML ("atomic") types only. As a
+    common use of `XMLTABLE` is to process XML and get atomic types out, it
+    should be quite useful even with this limitation. An XML type can be
+    returned, if needed, by using a `text` output column, wrapping the XQuery
+    column expression in `serialize()`, and then applying SQL `XMLPARSE` to
+    the resulting column, at some cost in efficiency.
+
+* `XMLTABLE` column expressions must have the exact XQuery types corresponding
+    to the output columns' SQL types; the automatic casts provided in the spec
+    are not yet implemented. This is no blocker in practice, as any XQuery
+    column expression can be written with an explicit cast to the needed type,
+    which is exactly what the spec's automated behavior would be.
+
+Both of these limitations are intended to be temporary.
 
 ### Calling XML functions without SQL syntactic sugar
 

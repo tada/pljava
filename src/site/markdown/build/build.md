@@ -73,6 +73,7 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
+* [Maven failures when downloading dependencies][protofail]
 * Building on [FreeBSD](freebsd.html)
 * Building on [Mac OS X](macosx.html)
 * Building on [Solaris](solaris.html)
@@ -87,6 +88,8 @@ Please review any of the following that apply to your situation:
 * Building if you are
     [making a package for a software distribution](package.html)
 * Building [with debugging or optimization options](debugopt.html)
+
+[protofail]: versions.html#Maven_failures_when_downloading_dependencies
 
 ## Obtaining PL/Java sources
 

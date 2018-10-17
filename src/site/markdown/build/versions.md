@@ -27,6 +27,15 @@ PL/Java has been successfully used with [Oracle Java][orj] and with
 [OpenJDK][], which is available with
 [either the Hotspot or the OpenJ9 JVM][hsj9].
 
+### Maven failures when downloading dependencies
+
+As of late 2017, important Maven remote repository servers no longer accept
+connections using the encryption protocols available in Java 7 or 6. Although
+PL/Java can still, in principle, be built using those Java versions (if all
+dependencies are already in the build host's local repository), Maven may fail
+to download necessary dependencies unless run with Java 8, which supports the
+newer protocol versions needed to reach the servers.
+
 [jvml]: ../use/variables.html
 [cds]:  ../install/vmoptions.html#Class_data_sharing
 [orj]: https://www.oracle.com/technetwork/java/javase/downloads/index.html
