@@ -1160,7 +1160,7 @@ public class S9 implements ResultSetProvider
 		if ( 1 == nbs.length % 2 )
 			throw new SQLSyntaxErrorException(
 				"Namespace binding array must have even length", "42000");
-		Map<String,String> m = new HashMap<String,String>();
+		Map<String,String> m = new HashMap<>();
 
 		for ( int i = 0; i < nbs.length; i += 2 )
 		{
@@ -1441,8 +1441,7 @@ public class S9 implements ResultSetProvider
 
 			int nParams = m_rsmd.getColumnCount();
 			ContextItem contextItem = null;
-			Map<String,Binding.Parameter> n2b =
-				new HashMap<String,Binding.Parameter>();
+			Map<String,Binding.Parameter> n2b = new HashMap<>();
 
 			for ( int i = 1; i <= nParams; ++i )
 			{

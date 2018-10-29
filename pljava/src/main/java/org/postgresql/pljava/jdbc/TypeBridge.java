@@ -76,8 +76,7 @@ public abstract class TypeBridge<S>
 	 * This can't be checked automatically because the classes in question may
 	 * not yet be loaded, or even available.
 	 */
-	private static List<TypeBridge<?>> m_candidates =
-		new LinkedList<TypeBridge<?>>();
+	private static List<TypeBridge<?>> m_candidates = new LinkedList<>();
 
 	/**
 	 * Return an object wrapped, if it is of any type captured by a known
@@ -120,7 +119,7 @@ public abstract class TypeBridge<S>
 	 */
 	private static <T> TypeBridge<T> ofClass(String cName, int dOid)
 	{
-		return new OfClass<T>(cName, dOid);
+		return new OfClass<>(cName, dOid);
 	}
 
 	/**
@@ -129,7 +128,7 @@ public abstract class TypeBridge<S>
 	 */
 	private static <T> TypeBridge<T> ofInterface(String cName, int dOid)
 	{
-		return new OfInterface<T>(cName, dOid);
+		return new OfInterface<>(cName, dOid);
 	}
 
 	/**
@@ -203,7 +202,7 @@ public abstract class TypeBridge<S>
 		@Override
 		protected boolean virtuallyCaptures(Class<?> c)
 		{
-			List<Class<?>> q = new LinkedList<Class<?>>();
+			List<Class<?>> q = new LinkedList<>();
 			q.add(c);
 
 			while ( 0 < q.size() )

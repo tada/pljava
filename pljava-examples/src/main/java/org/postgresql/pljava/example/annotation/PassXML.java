@@ -125,7 +125,7 @@ public class PassXML implements SQLData
 
 	static TransformerFactory s_tf = TransformerFactory.newInstance();
 
-	static Map<String,Templates> s_tpls = new HashMap<String,Templates>();
+	static Map<String,Templates> s_tpls = new HashMap<>();
 
 	/**
 	 * Echo an XML parameter back, exercising seven different ways

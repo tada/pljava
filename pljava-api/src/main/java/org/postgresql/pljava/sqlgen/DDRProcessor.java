@@ -462,8 +462,8 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
-		Set<String> fwdConsumers = new HashSet<String>();
-		Set<String> revConsumers = new HashSet<String>();
+		Set<String> fwdConsumers = new HashSet<>();
+		Set<String> revConsumers = new HashSet<>();
 
 		for ( VertexPair<Snippet> v : snippetVPairs )
 		{
@@ -535,20 +535,20 @@ class DDRProcessorImpl
 		if ( errorRaised )
 			return;
 
-		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<Vertex<Snippet>>();
-		Queue<Vertex<Snippet>> revBlocked = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<>();
+		Queue<Vertex<Snippet>> revBlocked = new LinkedList<>();
 
 		Queue<Vertex<Snippet>> fwdReady;
 		Queue<Vertex<Snippet>> revReady;
 		if ( reproducible )
 		{
-			fwdReady = new PriorityQueue( 11, snippetTiebreaker);
-			revReady = new PriorityQueue( 11, snippetTiebreaker);
+			fwdReady = new PriorityQueue<>( 11, snippetTiebreaker);
+			revReady = new PriorityQueue<>( 11, snippetTiebreaker);
 		}
 		else
 		{
-			fwdReady = new LinkedList<Vertex<Snippet>>();
-			revReady = new LinkedList<Vertex<Snippet>>();
+			fwdReady = new LinkedList<>();
+			revReady = new LinkedList<>();
 		}
 
 		for ( VertexPair<Snippet> vp : snippetVPairs )
@@ -2352,7 +2352,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					protoMappings.size());
 
 			for ( Map.Entry<TypeMirror, String> me : protoMappings )
-				vs.add( new Vertex<Map.Entry<TypeMirror, String>>( me));
+				vs.add( new Vertex<>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
@@ -2472,9 +2472,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					"called after workAroundJava7Breakage", tm.toString(), v);
 				return;
 			}
-			protoMappings.add(
-				new AbstractMap.SimpleImmutableEntry<TypeMirror, String>( tm, v)
-			);
+			protoMappings.add( new AbstractMap.SimpleImmutableEntry<>( tm, v));
 		}
 
 		/**

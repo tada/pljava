@@ -89,13 +89,13 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * in selected places where it makes sense to do so.
 	 */
 	private static ReferenceQueue<Object> s_releasedInstances =
-		new ReferenceQueue<Object>();
+		new ReferenceQueue<>();
 
 	/**
 	 * All instances are added to this collection upon creation.
 	 */
 	private static Deque<DualState> s_liveInstances =
-		new LinkedBlockingDeque<DualState>();
+		new LinkedBlockingDeque<>();
 
 	/**
 	 * Pointer value of the {@code ResourceOwner} this instance belongs to,

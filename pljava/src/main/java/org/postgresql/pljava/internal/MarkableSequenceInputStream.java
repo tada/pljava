@@ -66,7 +66,7 @@ public class MarkableSequenceInputStream extends InputStream
 	{
 		if ( null == streams )
 			throw new NullPointerException("MarkableSequenceInputStream(null)");
-		LinkedList<InputStream> isl = new LinkedList<InputStream>();
+		LinkedList<InputStream> isl = new LinkedList<>();
 		for ( InputStream s : streams )
 		{
 			if ( null == s )
@@ -90,7 +90,7 @@ public class MarkableSequenceInputStream extends InputStream
 	public MarkableSequenceInputStream(BlockingQueue<InputStream> queue)
 	{
 		m_streams =
-			new FetchingListIterator(
+			new FetchingListIterator<>(
 				new LinkedList<InputStream>(), queue, NO_MORE);
 	}
 

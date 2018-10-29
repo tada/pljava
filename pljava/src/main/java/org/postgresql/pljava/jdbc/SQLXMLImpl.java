@@ -133,7 +133,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	protected SQLXMLImpl(V backing)
 	{
-		m_backing = new AtomicReference<V>(backing);
+		m_backing = new AtomicReference<>(backing);
 	}
 
 	@Override

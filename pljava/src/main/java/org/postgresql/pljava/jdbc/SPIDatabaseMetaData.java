@@ -1709,7 +1709,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	private static final HashMap<String,String> s_tableTypeClauses;
 	static
 	{
-		s_tableTypeClauses = new HashMap<String,String>();
+		s_tableTypeClauses = new HashMap<>();
 		s_tableTypeClauses.put("TABLE",
 			"c.relkind OPERATOR(pg_catalog.=) 'r' " +
 			"AND n.nspname NOT LIKE 'pg!_%' ESCAPE '!' " +
