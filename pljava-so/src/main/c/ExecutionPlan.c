@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -26,6 +32,11 @@
 /* Class 07 - Dynamic SQL Error */
 #define ERRCODE_PARAMETER_COUNT_MISMATCH	MAKE_SQLSTATE('0','7', '0','0','1')
 
+/* These three values must match those in ExecutionPlan.java */
+#define SPI_READONLY_DEFAULT 0
+#define SPI_READONLY_FORCED  1
+#define SPI_READONLY_CLEARED 2
+
 /* Make this datatype available to the postgres system.
  */
 extern void ExecutionPlan_initialize(void);
@@ -35,7 +46,7 @@ void ExecutionPlan_initialize(void)
 	{
 		{
 		"_cursorOpen",
-		"(JJLjava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;",
+		"(JJLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen
 		},
 		{
@@ -45,7 +56,7 @@ void ExecutionPlan_initialize(void)
 		},
 		{
 		"_execute",
-		"(JJ[Ljava/lang/Object;I)I",
+		"(JJ[Ljava/lang/Object;SI)I",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1execute
 		},
 		{
@@ -89,7 +100,7 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{
-				values[idx] = Type_coerceObject(type, value);
+				values[idx] = Type_coerceObjectBridged(type, value);
 				JNI_deleteLocalRef(value);
 			}
 			else
@@ -117,10 +128,10 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _cursorOpen
- * Signature: (JJLjava/lang/String;[Ljava/lang/Object;)Lorg/postgresql/pljava/internal/Portal;
+ * Signature: (JJLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jstring cursorName, jobjectArray jvalues)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jstring cursorName, jobjectArray jvalues, jshort readonly_spec)
 {
 	jobject jportal = 0;
 	if(_this != 0)
@@ -138,12 +149,17 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jcla
 			{
 				Portal portal;
 				char* name = 0;
+				bool read_only;
 				if(cursorName != 0)
 					name = String_createNTS(cursorName);
 
 				Invocation_assertConnect();
+				if ( SPI_READONLY_DEFAULT == readonly_spec )
+					read_only = Function_isCurrentReadOnly();
+				else
+					read_only = (SPI_READONLY_FORCED == readonly_spec);
 				portal = SPI_cursor_open(
-					name, p2l.ptrVal, values, nulls, Function_isCurrentReadOnly());
+					name, p2l.ptrVal, values, nulls, read_only);
 				if(name != 0)
 					pfree(name);
 				if(values != 0)
@@ -198,10 +214,10 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jc
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _execute
- * Signature: (JJ[Ljava/lang/Object;I)V
+ * Signature: (JJ[Ljava/lang/Object;SI)V
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jobjectArray jvalues, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jobjectArray jvalues, jshort readonly_spec, jint count)
 {
 	jint result = 0;
 	if(_this != 0)
@@ -217,9 +233,14 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 			p2l.longVal = _this;
 			if(coerceObjects(p2l.ptrVal, jvalues, &values, &nulls))
 			{
+				bool read_only;
 				Invocation_assertConnect();
+				if ( SPI_READONLY_DEFAULT == readonly_spec )
+					read_only = Function_isCurrentReadOnly();
+				else
+					read_only = (SPI_READONLY_FORCED == readonly_spec);
 				result = (jint)SPI_execute_plan(
-					p2l.ptrVal, values, nulls, Function_isCurrentReadOnly(), (int)count);
+					p2l.ptrVal, values, nulls, read_only, (int)count);
 				if(result < 0)
 					Exception_throwSPI("execute_plan", result);
 

@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <funcapi.h>
@@ -133,15 +137,20 @@ static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return tmp2;
 }
 
-static bool _Composite_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jint callCounter)
+static bool _Composite_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
 {
 	/* Obtain next row using the RowCollector as a parameter to the
 	 * ResultSetProvider.assignRowValues method.
 	 */
+	if ( callCounter > PG_INT32_MAX )
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("the ResultSetProvider cannot return more than "
+					"INT32_MAX rows")));
 	return (JNI_callBooleanMethod(rowProducer,
 			s_ResultSetProvider_assignRowValues,
 			rowCollector,
-			callCounter) == JNI_TRUE);
+			(jint)callCounter) == JNI_TRUE);
 }
 
 static Datum _Composite_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
@@ -258,7 +267,7 @@ void Composite_initialize(void)
 	{
 		{
 		"_getObject",
-	  	"(JJI)Ljava/lang/Object;",
+		"(JJILjava/lang/Class;)Ljava/lang/Object;",
 	  	Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject
 		},
 		{
@@ -320,10 +329,10 @@ Java_org_postgresql_pljava_jdbc_SingleRowReader__1free(JNIEnv* env, jobject _thi
 /*
  * Class:     org_postgresql_pljava_jdbc_SingleRowReader
  * Method:    _getObject
- * Signature: (JJI)Ljava/lang/Object;
+ * Signature: (JJILjava/lang/Class;)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo)
+Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo, jclass rqcls)
 {
-	return HeapTupleHeader_getObject(env, hth, jtd, attrNo);
+	return HeapTupleHeader_getObject(env, hth, jtd, attrNo, rqcls);
 }

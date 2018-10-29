@@ -19,6 +19,15 @@
  */
 
 /*
+ * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
+ * 8.4, this fallback will not be needed. Used in InstallHelper and Backend,
+ * both of which include this file.
+ */
+#ifndef CppAsString2
+#define CppAsString2(x) CppAsString(x)
+#endif
+
+/*
  * The path from which this library is being loaded, which is surprisingly
  * tricky to find (and wouldn't be, if PostgreSQL called _PG_init functions
  * with the path of the library being loaded!). Set by pljavaCheckExtension().
@@ -64,6 +73,8 @@ extern bool InstallHelper_isPLJavaFunction(Oid fn);
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.
+ * In a background worker, there's no MyProcPort, and the name is found another
+ * way and strdup'd in TopMemoryContext, it'll keep, don't bother freeing it.
  */
 extern char *pljavaDbName();
 
@@ -102,6 +113,16 @@ extern char const *InstallHelper_defaultClassPath(char *);
  * recognize the ABORT_PENDING cases.
  */
 extern bool pljavaViableXact();
+
+/*
+ * Backend's initsequencer needs to know whether it's being called in a 9.3+
+ * background worker process, or during a pg_upgrade (in either case, the
+ * init sequence needs to be lazier). Those should both be simple tests of
+ * IsBackgroundWorker or IsBinaryUpgrade, except (wouldn't you know) for more
+ * version-specific Windows visibility issues, so the ugly details are in
+ * InstallHelper, and Backend just asks this nice function.
+ */
+extern bool InstallHelper_shouldDeferInit();
 
 extern char *InstallHelper_hello();
 

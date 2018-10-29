@@ -61,6 +61,12 @@ struct Function_
 	 */
 	jclass clazz;
 
+	/**
+	 * Weak global reference to the class loader for the schema in which this
+	 * function is declared.
+	 */
+	jweak schemaLoader;
+
 	union
 	{
 		struct
@@ -499,7 +505,8 @@ static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
 	ReleaseSysCache(typeTup);
 }
 
-static jclass Function_loadClass(jstring schemaName, char const *className);
+static jclass Function_loadClass(
+	jstring schemaName, char const *className, jweak *loaderref);
 
 Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 {
@@ -524,7 +531,7 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 
 	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 	schemaName = getSchemaName(procStruct->pronamespace);
-	clazz = Function_loadClass(schemaName, info.className);
+	clazz = Function_loadClass(schemaName, info.className, NULL);
 	JNI_deleteLocalRef(schemaName);
 	t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
 
@@ -595,7 +602,8 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 
 	currentInvocation->function = self;
 
-	self->clazz = Function_loadClass(schemaName, info->className);
+	self->clazz = Function_loadClass(
+		schemaName, info->className, &(self->schemaLoader));
 
 	JNI_deleteLocalRef(schemaName);
 
@@ -674,9 +682,11 @@ static void Function_init(Function self, ParseResult info, Form_pg_proc procStru
 }
 
 /*
- * Return a global ref to the loaded class.
+ * Return a global ref to the loaded class. Store a weak global ref to the
+ * initiating loader at *loaderref if non-null.
  */
-static jclass Function_loadClass(jstring schemaName, char const *className)
+static jclass Function_loadClass(
+	jstring schemaName, char const *className, jweak *loaderref)
 {
 	jobject tmp;
 	jobject loader;
@@ -691,6 +701,10 @@ static jclass Function_loadClass(jstring schemaName, char const *className)
 	classJstr = String_createJavaStringFromNTS(className);
 
 	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, classJstr);
+
+	if ( NULL != loaderref )
+		*loaderref = JNI_newWeakGlobalRef(loader);
+
 	JNI_deleteLocalRef(loader);
 	JNI_deleteLocalRef(classJstr);
 
@@ -838,11 +852,21 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	jvalue arg;
 	Datum  ret;
 
-	arg.l = TriggerData_create((TriggerData*)fcinfo->context);
+	TriggerData *td = (TriggerData*)fcinfo->context;
+	arg.l = TriggerData_create(td);
 	if(arg.l == 0)
 		return 0;
 
 	currentInvocation->function = self;
+#if PG_VERSION_NUM >= 100000
+	currentInvocation->triggerData = td;
+	/* Also starting in PG 10, Invocation_assertConnect must be called before
+	 * the getTriggerReturnTuple below. That could be done right here, but at
+	 * the risk of changing the memory context from what the invoked trigger
+	 * function expects. More cautiously, add the assertConnect later, after
+	 * the trigger function has returned.
+	 */
+#endif
 	Type_invoke(self->func.nonudt.returnType, self->clazz, self->func.nonudt.method, &arg, fcinfo);
 
 	fcinfo->isnull = false;
@@ -850,11 +874,21 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		ret = 0;
 	else
 	{
-		/* A new Tuple may or may not be created here. If it is, ensure that
-		 * it is created in the upper SPI context.
+		/* A new Tuple may or may not be created here. Ensure that, if it is,
+		 * it is created in the upper context (even after connecting SPI, should
+		 * that be necessary).
 		 */
+#if PG_VERSION_NUM >= 100000
+		/* If the invoked trigger function didn't connect SPI, do that here
+		 * (getTriggerReturnTuple now needs it), but there will be no need to
+		 * register the triggerData in that case.
+		 */
+		currentInvocation->triggerData = NULL;
+		Invocation_assertConnect();
+#endif
 		MemoryContext currCtx = Invocation_switchToUpperContext();
-		ret = PointerGetDatum(TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
+		ret = PointerGetDatum(
+				TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.
@@ -876,5 +910,21 @@ bool Function_isCurrentReadOnly(void)
 	if (currentInvocation->function == 0)
 		return true;
 	return currentInvocation->function->readOnly;
+}
+
+jobject Function_currentLoader(void)
+{
+	Function f;
+	jweak weakRef;
+
+	if ( NULL == currentInvocation )
+		return NULL;
+	f = currentInvocation->function;
+	if ( NULL == f )
+		return NULL;
+	weakRef = f->schemaLoader;
+	if ( NULL == weakRef )
+		return NULL;
+	return JNI_newLocalRef(weakRef);
 }
 

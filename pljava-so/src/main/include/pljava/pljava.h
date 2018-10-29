@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #ifndef __pljava_pljava_h
 #define __pljava_pljava_h
@@ -46,12 +50,36 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #define StaticAssertStmt(condition, errmessage)
 #endif
 
+/*
+ * AllocSetContextCreate sprouted these macros for common combinations of
+ * size parameters in PG 9.6. It becomes /necessary/ to use them in PG 11
+ * when using AllocSetContextCreate (which becomes a macro in that version)
+ * and not the (new in that version) AllocSetContextCreateExtended.
+ */
+#if PG_VERSION_NUM < 90600
+#define ALLOCSET_DEFAULT_SIZES \
+	ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
+#define ALLOCSET_SMALL_SIZES \
+	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE
+#define ALLOCSET_START_SMALL_SIZES \
+	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
+#endif
 
 /*
  * GETSTRUCT require "access/htup_details.h" to be included in PG9.3
  */
 #if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
+#endif
+
+/*
+ * PG_*_{MIN,MAX} macros (which happen, conveniently, to match Java's datatypes
+ * (the signed ones, anyway), appear in PG 9.5. Could test for them directly,
+ * but explicit version conditionals may be easier to find and prune when the
+ * back-compatibility horizon passes them. Here are only the ones being used.
+ */
+#if PG_VERSION_NUM < 90500
+#define PG_INT32_MAX    (0x7FFFFFFF)
 #endif
 
 

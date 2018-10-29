@@ -1,11 +1,18 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
+import java.sql.SQLData;
 import java.sql.SQLException;
 import java.util.HashMap;
 
@@ -23,13 +30,15 @@ public class Oid extends Number
 	private static final HashMap s_typeId2class = new HashMap();
 
 	/**
-	 * Finds the PostgreSQL well known Oid for the given class.
-	 * @param clazz The class.
+	 * Finds the PostgreSQL well known Oid for the given Java object.
+	 * @param obj The object.
 	 * @return The well known Oid or null if no such Oid could be found.
 	 */
-	public static Oid forJavaClass(Class clazz)
+	public static Oid forJavaObject(Object obj) throws SQLException
 	{
-		return (Oid)s_class2typeId.get(clazz);
+		if ( obj instanceof SQLData )
+			return forTypeName(((SQLData)obj).getSQLTypeName());
+		return (Oid)s_class2typeId.get(obj.getClass());
 	}
 
 	/**
@@ -126,13 +135,18 @@ public class Oid extends Number
 		if(c == null)
 		{
 			String className;
+			ClassLoader loader;
 			synchronized(Backend.THREADLOCK)
 			{
 				className = _getJavaClassName(m_native);
+				loader = _getCurrentLoader();
 			}
 			try
 			{
-				c = Class.forName(getCanonicalClassName(className, 0));
+				String canonName = getCanonicalClassName(className, 0);
+				if ( null == loader )
+					loader = getClass().getClassLoader();
+				c = Class.forName(canonName, true, loader);
 			}
 			catch(ClassNotFoundException e)
 			{
@@ -223,5 +237,13 @@ public class Oid extends Number
 	private native static Oid _getTypeId();
 
 	private native static String _getJavaClassName(int nativeOid)
+	throws SQLException;
+
+	/**
+	 * Return the (initiating, "schema") ClassLoader of the innermost
+	 * currently-executing PL/Java function, or null if there is none or the
+	 * schema loaders have since been cleared and the loader is gone.
+	 */
+	private native static ClassLoader _getCurrentLoader()
 	throws SQLException;
 }

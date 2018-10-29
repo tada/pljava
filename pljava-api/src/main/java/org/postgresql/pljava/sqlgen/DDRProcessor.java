@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
@@ -109,6 +110,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
 @SupportedAnnotationTypes({"org.postgresql.pljava.annotation.*"})
 @SupportedOptions
 ({
+  "ddr.reproducible",    // default true
   "ddr.name.trusted",    // default "java"
   "ddr.name.untrusted",  // default "javaU"
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
@@ -157,6 +159,7 @@ class DDRProcessorImpl
 	// Similarly, the TypeMapper should be easily available to code below.
 	//
 	final TypeMapper          tmpr;
+	final SnippetTiebreaker   snippetTiebreaker;
 
 	// Options obtained from the invocation
 	//	
@@ -164,6 +167,7 @@ class DDRProcessorImpl
 	final String nameUntrusted;
 	final String output;
 	final String defaultImplementor;
+	final boolean reproducible;
 	
 	// Certain known types that need to be recognized in the processed code
 	//
@@ -226,6 +230,14 @@ class DDRProcessorImpl
 			output = optv;
 		else
 			output = "pljava.ddr";
+
+		optv = opts.get( "ddr.reproducible");
+		if ( null != optv )
+			reproducible = Boolean.parseBoolean( optv);
+		else
+			reproducible = true;
+
+		snippetTiebreaker = reproducible ? new SnippetTiebreaker() : null;
 		
 		TY_ITERATOR = typu.getDeclaredType(
 			elmu.getTypeElement( java.util.Iterator.class.getName()));
@@ -340,20 +352,14 @@ class DDRProcessorImpl
 	 * generateDescriptor, any errors reported were being shown with no source
 	 * location info, because it had been thrown away.
 	 */
-	Queue<Vertex<Snippet>> snippetQueue =	new LinkedList<>();
+	List<VertexPair<Snippet>> snippetVPairs = new ArrayList<>();
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
 	 * same reason {@code snippetQueue} does.
 	 */
-	Map<String, Vertex<Snippet>> provider = new HashMap<>();
-
-	/**
-	 * Set of provides/requires labels for which at least one consumer has
-	 * been seen. An instance field for the same reason as {@code provider}.
-	 */
-	Set<String> consumer = new HashSet<>();
+	Map<String, VertexPair<Snippet>> provider = new HashMap<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -439,13 +445,11 @@ class DDRProcessorImpl
 		{
 			if ( ! snip.characterize() )
 				continue;
-			Vertex<Snippet> v = new Vertex<>( snip);
-			snippetQueue.add( v);
+			VertexPair<Snippet> v = new VertexPair<>( snip);
+			snippetVPairs.add( v);
 			for ( String s : snip.provides() )
 				if ( null != provider.put( s, v) )
 					msg( Kind.ERROR, "tag %s has more than one provider", s);
-			for ( String s : snip.requires() )
-				consumer.add( s);
 		}
 		snippets.clear();
 	}
@@ -458,23 +462,64 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
+		Set<String> fwdConsumers = new HashSet<String>();
+		Set<String> revConsumers = new HashSet<String>();
 
-		for ( Vertex<Snippet> v : snippetQueue )
-			for ( String s : v.payload.requires() )
+		for ( VertexPair<Snippet> v : snippetVPairs )
+		{
+			VertexPair<Snippet> p;
+
+			/*
+			 * First handle the implicit requires(implementor()). This is unlike
+			 * the typical provides/requires relationship, in that it does not
+			 * reverse when generating the 'remove' actions. Conditions that
+			 * determined what got installed must also be evaluated early and
+			 * determine what gets removed.
+			 */
+			String imp = v.payload().implementor();
+			if ( null != imp )
 			{
-				Vertex<Snippet> p = provider.get( s);
+				fwdConsumers.add( imp);
+				revConsumers.add( imp);
+
+				p = provider.get( imp);
 				if ( null != p )
-					p.precede( v);
-				else if ( s == v.payload.implementor() ) // yes == if from impl
+				{
+					p.fwd.precede( v.fwd);
+					p.rev.precede( v.rev);
+
+					/*
+					 * A snippet providing an implementor tag probably has no
+					 * undeployStrings, because its deployStrings should be used
+					 * on both occasions; if so, replace it with a proxy that
+					 * returns deployStrings for undeployStrings.
+					 */
+					if ( 0 == p.rev.payload.undeployStrings().length )
+						p.rev.payload = new ImpProvider( p.rev.payload);
+				}
+				else if ( ! defaultImplementor.equals( imp) )
 				{
 					/*
-					 * It's the implicit requires(implementor()). Bump the
-					 * indegree anyway so the snippet won't be emitted until
-					 * the cycle breaker code (see below) sets it free after
-					 * any others that can be handled first.
+					 * Don't insist that every implementor tag have a provider
+					 * somewhere in the code. Perhaps the environment will
+					 * provide it at load time. If this is not the default
+					 * implementor, bump the relying vertices' indegree anyway
+					 * so the snippet won't be emitted until the cycle-breaker
+					 * code (see below) sets it free after any others that
+					 * can be handled first.
 					 */
-					if ( ! defaultImplementor.equals( s) )
-						++ v.indegree;
+					 ++ v.fwd.indegree;
+					 ++ v.rev.indegree;
+				}
+			}
+			for ( String s : v.payload().requires() )
+			{
+				fwdConsumers.add( s);
+				p = provider.get( s);
+				if ( null != p )
+				{
+					p.fwd.precede( v.fwd);
+					v.rev.precede( p.rev); // these relationships do reverse
 				}
 				else
 				{
@@ -483,35 +528,84 @@ class DDRProcessorImpl
 					errorRaised = true;
 				}
 			}
+			for ( String s : v.payload().requires() )
+				revConsumers.add( s);
+		}
 
 		if ( errorRaised )
 			return;
 
-		Snippet[] snips = new Snippet [ snippetQueue.size() ];
+		Queue<Vertex<Snippet>> fwdBlocked = new LinkedList<Vertex<Snippet>>();
+		Queue<Vertex<Snippet>> revBlocked = new LinkedList<Vertex<Snippet>>();
 
-		Queue<Vertex<Snippet>> q = new LinkedList<>();
-		for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator() ;
-				it.hasNext() ; )
+		Queue<Vertex<Snippet>> fwdReady;
+		Queue<Vertex<Snippet>> revReady;
+		if ( reproducible )
 		{
-			Vertex<Snippet> v = it.next();
-			if ( 0 == v.indegree )
-			{
-				q.add( v);
-				it.remove();
-			}
+			fwdReady = new PriorityQueue( 11, snippetTiebreaker);
+			revReady = new PriorityQueue( 11, snippetTiebreaker);
+		}
+		else
+		{
+			fwdReady = new LinkedList<Vertex<Snippet>>();
+			revReady = new LinkedList<Vertex<Snippet>>();
 		}
 
-queuerunning: for ( int i = 0 ; ; )
+		for ( VertexPair<Snippet> vp : snippetVPairs )
 		{
-			while ( ! q.isEmpty() )
+			Vertex<Snippet> v = vp.fwd;
+			if ( 0 == v.indegree )
+				fwdReady.add( v);
+			else
+				fwdBlocked.add( v);
+			v = vp.rev;
+			if ( 0 == v.indegree )
+				revReady.add( v);
+			else
+				revBlocked.add( v);
+		}
+
+		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers);
+		Snippet[] revSnips = order( revReady, revBlocked, revConsumers);
+
+		if ( null == fwdSnips  ||  null == revSnips )
+			return; // error already reported
+
+		try
+		{
+			DDRWriter.emit( fwdSnips, revSnips, this);
+		}
+		catch ( IOException ioe )
+		{
+			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
+		}
+	}
+
+	/**
+	 * Given a Snippet DAG, either the forward or reverse one, return the
+	 * snippets in a workable order.
+	 * @return Array of snippets in order, or null if no suitable order could
+	 * be found.
+	 */
+	Snippet[] order(
+		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
+		Set<String> consumer)
+	{
+		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+		Vertex<Snippet> cycleBreaker = null;
+
+queuerunning:
+		for ( int i = 0 ; ; )
+		{
+			while ( ! ready.isEmpty() )
 			{
-				Vertex<Snippet> v = q.remove();
+				Vertex<Snippet> v = ready.remove();
 				snips[i++] = v.payload;
-				v.use( q, snippetQueue);
+				v.use( ready, blocked);
 				for ( String p : v.payload.provides() )
 					consumer.remove(p);
 			}
-			if ( snippetQueue.isEmpty() )
+			if ( blocked.isEmpty() )
 				break; // all done
 			/*
 			 * There are snippets remaining to output but they all have
@@ -522,7 +616,7 @@ queuerunning: for ( int i = 0 ; ; )
 			 * be "providing" that tag anyway), so set one such snippet free
 			 * and see how much farther we get.
 			 */
-			for ( Iterator<Vertex<Snippet>> it = snippetQueue.iterator();
+			for ( Iterator<Vertex<Snippet>> it = blocked.iterator();
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
@@ -530,27 +624,36 @@ queuerunning: for ( int i = 0 ; ; )
 					continue;
 				if ( provider.containsKey( v.payload.implementor()) )
 					continue;
-				-- v.indegree;
-				it.remove();
-				q.add( v);
-				continue queuerunning;
+				if ( reproducible )
+				{
+					if (null == cycleBreaker ||
+						0 < snippetTiebreaker.compare(cycleBreaker, v))
+						cycleBreaker = v;
+				}
+				else
+				{
+					-- v.indegree;
+					it.remove();
+					ready.add( v);
+					continue queuerunning;
+				}
+			}
+			if ( null != cycleBreaker )
+			{
+				blocked.remove( cycleBreaker);
+				-- cycleBreaker.indegree;
+				ready.add( cycleBreaker);
+				cycleBreaker = null;
+				continue;
 			}
 			/*
 			 * Got here? It's a real cycle ... nothing to be done.
 			 */
 			for ( String s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
-			return;
+			return null;
 		}
-		
-		try
-		{
-			DDRWriter.emit( snips, this);
-		}
-		catch ( IOException ioe )
-		{
-			msg( Kind.ERROR, "while writing %s: %s", output, ioe.getMessage());
-		}
+		return snips;
 	}
 	
 	/**
@@ -674,6 +777,7 @@ queuerunning: for ( int i = 0 ; ; )
 				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
 					populateAnnotationImpl( mu, e, am);
 			}
+			mu.registerMapping();
 			break;
 		}
 	}
@@ -827,19 +931,6 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				_implementor = "".equals( o) ? null : (String)o;
-		}
-
-		/**
-		 * Use from characterize() in any subclass implementing Snippet.
-		 */
-		protected String[] augmentRequires( String req[], String imp)
-		{
-			if ( null == imp )
-				return req;
-			String[] newreq = new String [ 1 + req.length ];
-			System.arraycopy( req, 0, newreq, 0, req.length);
-			newreq[req.length] = imp;
-			return newreq;
 		}
 
 		public String comment() { return _comment; }
@@ -1065,7 +1156,6 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
-			_requires = augmentRequires( _requires, implementor());
 			return true;
 		}
 	}
@@ -1074,32 +1164,61 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractAnnotationImpl
 	implements Trigger, Snippet, Commentable
 	{
-		public String[] arguments() { return _arguments; }
-		public Event[]     events() { return _events; }
-		public String        name() { return _name; }
-		public String      schema() { return _schema; }
-		public String       table() { return _table; }
-		public Scope        scope() { return _scope; }
-		public Called      called() { return _called; }
-		public String        when() { return _when; }
-		public String[]   columns() { return _columns; }
+		public String[]    arguments() { return _arguments; }
+		public Constraint constraint() { return _constraint; }
+		public Event[]        events() { return _events; }
+		public String     fromSchema() { return _fromSchema; }
+		public String           from() { return _from; }
+		public String           name() { return _name; }
+		public String         schema() { return _schema; }
+		public String          table() { return _table; }
+		public Scope           scope() { return _scope; }
+		public Called         called() { return _called; }
+		public String           when() { return _when; }
+		public String[]      columns() { return _columns; }
+		public String       tableOld() { return _tableOld; }
+		public String       tableNew() { return _tableNew; }
 		
 		public String[] provides() { return new String[0]; }
 		public String[] requires() { return new String[0]; }
 		/* Trigger is a Snippet but doesn't directly participate in tsort */
 
-		public String[] _arguments;
-		public Event[]  _events;
-		public String   _name;
-		public String   _schema;
-		public String  	_table;
-		public Scope    _scope;
-		public Called   _called;
-		public String   _when;
-		public String[] _columns;
+		public String[]   _arguments;
+		public Constraint _constraint;
+		public Event[]    _events;
+		public String     _fromSchema;
+		public String     _from;
+		public String     _name;
+		public String     _schema;
+		public String  	  _table;
+		public Scope      _scope;
+		public Called     _called;
+		public String     _when;
+		public String[]   _columns;
+		public String     _tableOld;
+		public String     _tableNew;
 		
 		FunctionImpl func;
 		AnnotationMirror origin;
+
+		boolean refOld;
+		boolean refNew;
+		boolean isConstraint = false;
+
+		/* The only values of the Constraint enum are those applicable to
+		 * constraint triggers. To determine whether this IS a constraint
+		 * trigger or not, use the 'explicit' parameter to distinguish whether
+		 * the 'constraint' attribute was or wasn't seen in the annotation.
+		 */
+		public void setConstraint( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+			{
+				isConstraint = true;
+				_constraint = Constraint.valueOf(
+					((VariableElement)o).getSimpleName().toString());
+			}
+		}
 		
 		TriggerImpl( FunctionImpl f, AnnotationMirror am)
 		{
@@ -1138,6 +1257,55 @@ hunt:	for ( ExecutableElement ee : ees )
 				"Column list is meaningless unless UPDATE is a trigger event");
 			}
 
+			refOld = ! "".equals( _tableOld);
+			refNew = ! "".equals( _tableNew);
+
+			if ( refOld || refNew )
+			{
+				if ( ! Called.AFTER.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+					"Only AFTER triggers can reference OLD TABLE or NEW TABLE");
+				boolean badOld = refOld;
+				boolean badNew = refNew;
+				for ( Event e : _events )
+				{
+					switch ( e )
+					{
+						case INSERT:          badNew = false; break;
+						case UPDATE: badOld = badNew = false; break;
+						case DELETE: badOld =          false; break;
+					}
+				}
+				if ( badOld )
+					msg( Kind.ERROR, func.func, origin,
+		 "Trigger must be callable on UPDATE or DELETE to reference OLD TABLE");
+				if ( badNew )
+					msg( Kind.ERROR, func.func, origin,
+		 "Trigger must be callable on UPDATE or INSERT to reference NEW TABLE");
+			}
+
+			if ( isConstraint )
+			{
+				if ( ! Called.AFTER.equals( _called) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be an AFTER trigger");
+				if ( ! Scope.ROW.equals( _scope) )
+					msg( Kind.ERROR, func.func, origin,
+						"A constraint trigger must be FOR EACH ROW");
+				if ( "".equals( _from) && ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"To use fromSchema, specify a table name with from");
+			}
+			else
+			{
+				if ( ! "".equals( _from) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'from'");
+				if ( ! "".equals( _fromSchema) )
+					msg( Kind.ERROR, func.func, origin,
+						"Only a constraint trigger can use 'fromSchema'");
+			}
+
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
 			return false;
@@ -1146,7 +1314,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[] deployStrings()
 		{
 			StringBuilder sb = new StringBuilder();
-			sb.append( "CREATE TRIGGER ").append( name()).append( "\n\t");
+            sb.append("CREATE ");
+			if ( isConstraint )
+			{
+				sb.append("CONSTRAINT ");
+			}
+            sb.append("TRIGGER ").append(name()).append("\n\t");
 			switch ( called() )
 			{
 				case BEFORE:	 sb.append( "BEFORE "	 ); break;
@@ -1174,7 +1347,38 @@ hunt:	for ( ExecutableElement ee : ees )
 			sb.append( "\n\tON ");
 			if ( ! "".equals( schema()) )
 				sb.append( schema()).append( '.');
-			sb.append( table()).append( "\n\tFOR EACH ");
+			sb.append( table());
+			if ( ! "".equals( from()) )
+			{
+				sb.append("\n\tFROM ");
+				if ( ! "".equals( fromSchema()) )
+					sb.append( fromSchema()).append( '.');
+				sb.append( from());
+			}
+			if ( isConstraint ) {
+				sb.append("\n\t");
+				switch ( _constraint )
+				{
+					case NOT_DEFERRABLE:
+						sb.append("NOT DEFERRABLE");
+						break;
+					case INITIALLY_IMMEDIATE:
+						sb.append("DEFERRABLE INITIALLY IMMEDIATE");
+						break;
+					case INITIALLY_DEFERRED:
+						sb.append("DEFERRABLE INITIALLY DEFERRED");
+						break;
+				}
+			}
+            if ( refOld || refNew )
+			{
+				sb.append( "\n\tREFERENCING");
+				if ( refOld )
+					sb.append( " OLD TABLE AS ").append( _tableOld);
+				if ( refNew )
+					sb.append( " NEW TABLE AS ").append( _tableNew);
+			}
+			sb.append( "\n\tFOR EACH ");
 			sb.append( scope().toString());
 			if ( ! "".equals( _when) )
 				sb.append( "\n\tWHEN ").append( _when); 
@@ -1225,6 +1429,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Security       security() { return _security; }
 		public Effects         effects() { return _effects; }
 		public Trust             trust() { return _trust; }
+		public Parallel       parallel() { return _parallel; }
 		public boolean       leakproof() { return _leakproof; }
 		public int                cost() { return _cost; }
 		public int                rows() { return _rows; }
@@ -1242,6 +1447,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Security    _security;
 		public Effects     _effects;
 		public Trust       _trust;
+		public Parallel    _parallel;
 		public Boolean     _leakproof;
 		int                _cost;
 		int                _rows;
@@ -1396,8 +1602,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			 */
 			deployStrings();
 
-			_requires = augmentRequires( _requires, implementor());
-
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
 			return true;
@@ -1445,6 +1649,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendAS( StringBuilder sb)
 		{
+			if ( ! ( complexViaInOut || setof || trigger ) )
+				sb.append( func.getReturnType()).append( '=');
 			Element e = func.getEnclosingElement();
 			if ( ! e.getKind().equals( ElementKind.CLASS) )
 				msg( Kind.ERROR, func,
@@ -1462,7 +1668,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
-				sb.append( "trigger");
+				sb.append( "pg_catalog.trigger");
 			else
 			{
 				if ( setof )
@@ -1472,7 +1678,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				else if ( null != setofComponent )
 					sb.append( tmpr.getSQLType( setofComponent, func));
 				else if ( setof )
-					sb.append( "RECORD");
+					sb.append( "pg_catalog.RECORD");
 				else
 					sb.append( tmpr.getSQLType( func.getReturnType(), func));
 			}
@@ -1489,6 +1695,8 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( "\tRETURNS NULL ON NULL INPUT\n");
 			if ( Security.DEFINER.equals( security()) )
 				sb.append( "\tSECURITY DEFINER\n");
+			if ( ! Parallel.UNSAFE.equals( parallel()) )
+				sb.append( "\tPARALLEL ").append( parallel()).append( '\n');
 			if ( -1 != cost() )
 				sb.append( "\tCOST ").append( cost()).append( '\n');
 			if ( -1 != rows() )
@@ -1535,10 +1743,10 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "cstring, oid, integer", null),
-		OUTPUT( "out", null, "cstring"),
-		RECEIVE( "recv", "internal, oid, integer", null),
-		SEND( "send", null, "bytea");
+		INPUT( "in", "pg_catalog.cstring, pg_catalog.oid, integer", null),
+		OUTPUT( "out", null, "pg_catalog.cstring"),
+		RECEIVE( "recv", "pg_catalog.internal, pg_catalog.oid, integer", null),
+		SEND( "send", null, "pg_catalog.bytea");
 		BaseUDTFunctionID( String suffix, String param, String ret)
 		{
 			this.suffix = suffix;
@@ -1582,6 +1790,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			_security = Security.INVOKER;
 			_effects = Effects.VOLATILE;
 			_trust = Trust.SANDBOXED;
+			_parallel = Parallel.UNSAFE;
 			_leakproof = false;
 			_settings = new String[0];
 			_triggers = new Trigger[0];
@@ -1724,6 +1933,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				qname = _name;
 			else
 				qname = _schema + "." + _name;
+
+			if ( ! tmpr.mappingsFrozen() )
+				tmpr.addMap( tclass.asType(), qname);
 		}
 
 		protected void addComment( ArrayList<String> al)
@@ -1755,12 +1967,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			super( e);
 		}
 
-		public boolean characterize()
+		public void registerMapping()
 		{
 			setQname();
+		}
 
-			_requires = augmentRequires( _requires, implementor());
-
+		public boolean characterize()
+		{
 			return true;
 		}
 
@@ -1958,8 +2171,6 @@ hunt:	for ( ExecutableElement ee : ees )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
 
-			_requires = augmentRequires( _requires, implementor());
-
 			return true;
 		}
 
@@ -2046,14 +2257,14 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<Class<?>, String>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, String>> protoMappings;
 		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
 
 		TypeMapper()
 		{
 			protoMappings = new ArrayList<>();
 
-			// Primitives
+			// Primitives (these need not, indeed cannot, be schema-qualified)
 			//
 			this.addMap(boolean.class, "boolean");
 			this.addMap(Boolean.class, "boolean");
@@ -2074,18 +2285,34 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Known common mappings
 			//
-			this.addMap(Number.class, "numeric");
-			this.addMap(String.class, "varchar");
-			this.addMap(java.util.Date.class, "timestamp");
-			this.addMap(Timestamp.class, "timestamp");
-			this.addMap(Time.class, "time");
-			this.addMap(java.sql.Date.class, "date");
-			this.addMap(BigInteger.class, "numeric");
-			this.addMap(BigDecimal.class, "numeric");
-			this.addMap(ResultSet.class, "record");
-			this.addMap(Object.class, "\"any\"");
+			this.addMap(Number.class, "pg_catalog.numeric");
+			this.addMap(String.class, "pg_catalog.varchar");
+			this.addMap(java.util.Date.class, "pg_catalog.timestamp");
+			this.addMap(Timestamp.class, "pg_catalog.timestamp");
+			this.addMap(Time.class, "pg_catalog.time");
+			this.addMap(java.sql.Date.class, "pg_catalog.date");
+			this.addMap(java.sql.SQLXML.class, "pg_catalog.xml");
+			this.addMap(BigInteger.class, "pg_catalog.numeric");
+			this.addMap(BigDecimal.class, "pg_catalog.numeric");
+			this.addMap(ResultSet.class, "pg_catalog.record");
+			this.addMap(Object.class, "pg_catalog.\"any\"");
 
-			this.addMap(byte[].class, "bytea");
+			this.addMap(byte[].class, "pg_catalog.bytea");
+
+			// (Once Java back horizon advances to 8, do these the easy way.)
+			//
+			this.addMapIfExists("java.time.LocalDate", "pg_catalog.date");
+			this.addMapIfExists("java.time.LocalTime", "pg_catalog.time");
+			this.addMapIfExists("java.time.OffsetTime", "pg_catalog.timetz");
+			this.addMapIfExists("java.time.LocalDateTime",
+				"pg_catalog.timestamp");
+			this.addMapIfExists("java.time.OffsetDateTime",
+				"pg_catalog.timestamptz");
+		}
+
+		private boolean mappingsFrozen()
+		{
+			return null != finalMappings;
 		}
 
 		/*
@@ -2114,74 +2341,94 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		private void workAroundJava7Breakage()
 		{
-			if ( null != finalMappings )
+			if ( mappingsFrozen() )
 				return; // after the first round, it's too late!
 
 			// Need to check more specific types before those they are
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<Class<?>, String>>> vs = new ArrayList<>(
+			List<Vertex<Map.Entry<TypeMirror, String>>> vs = new ArrayList<>(
 					protoMappings.size());
 
-			for ( Map.Entry<Class<?>, String> me : protoMappings )
-				vs.add( new Vertex<>( me));
+			for ( Map.Entry<TypeMirror, String> me : protoMappings )
+				vs.add( new Vertex<Map.Entry<TypeMirror, String>>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
-				Vertex<Map.Entry<Class<?>, String>> vi = vs.get( i);
-				Class<?> ci = vi.payload.getKey();
+				Vertex<Map.Entry<TypeMirror, String>> vi = vs.get( i);
+				TypeMirror ci = vi.payload.getKey();
 				for ( int j = i; j --> 0; )
 				{
-					Vertex<Map.Entry<Class<?>, String>> vj = vs.get( j);
-					Class<?> cj = vj.payload.getKey();
-					boolean oij = ci.isAssignableFrom( cj);
-					boolean oji = cj.isAssignableFrom( ci);
+					Vertex<Map.Entry<TypeMirror, String>> vj = vs.get( j);
+					TypeMirror cj = vj.payload.getKey();
+					boolean oij = typu.isAssignable( ci, cj);
+					boolean oji = typu.isAssignable( cj, ci);
 					if ( oji == oij )
 						continue; // no precedence constraint between these two
 					if ( oij )
-						vj.precede( vi);
-					else
 						vi.precede( vj);
+					else
+						vj.precede( vi);
 				}
 			}
 
-			Queue<Vertex<Map.Entry<Class<?>, String>>> q = new LinkedList<>();
-			for ( Vertex<Map.Entry<Class<?>, String>> v : vs )
+			Queue<Vertex<Map.Entry<TypeMirror, String>>> q;
+			if ( reproducible )
+			{
+				q = new PriorityQueue<>( 11, new TypeTiebreaker());
+			}
+			else
+			{
+				q = new LinkedList<>();
+			}
+
+			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
-			finalMappings = new ArrayList<>( protoMappings.size());
 			protoMappings.clear();
+			finalMappings = protoMappings;
+			protoMappings = null;
 
 			while ( ! q.isEmpty() )
 			{
-				Vertex<Map.Entry<Class<?>, String>> v = q.remove();
+				Vertex<Map.Entry<TypeMirror, String>> v = q.remove();
 				v.use( q);
-				Class<?> k = v.payload.getKey();
-				TypeMirror ktm;
-				if ( k.isPrimitive() )
-				{
-					TypeKind tk = 
-						TypeKind.valueOf( k.getName().toUpperCase());
-					ktm = typu.getPrimitiveType( tk);
-				}
-				else
-				{
-					TypeElement te =
-						elmu.getTypeElement( k.getName());
-					if ( null == te ) // can't find it -> not used in code?
-					{
-						msg( Kind.WARNING,
-							"Found no TypeElement for %s", k.getName());
-						continue; // hope it wasn't one we'll need!
-					}
-					ktm = te.asType();
-				}
-				finalMappings.add(
-					new AbstractMap.SimpleImmutableEntry<TypeMirror, String>(
-						ktm, v.payload.getValue()));
+				finalMappings.add( v.payload);
 			}
+		}
+
+		private TypeMirror typeMirrorFromClass( Class<?> k)
+		{
+			if ( k.isArray() )
+			{
+				TypeMirror ctm = typeMirrorFromClass( k.getComponentType());
+				return typu.getArrayType( ctm);
+			}
+
+			if ( k.isPrimitive() )
+			{
+				TypeKind tk = TypeKind.valueOf( k.getName().toUpperCase());
+				return typu.getPrimitiveType( tk);
+			}
+
+			String cname = k.getCanonicalName();
+			if ( null == cname )
+			{
+				msg( Kind.WARNING,
+					"Cannot register type mapping for class %s" +
+					"that lacks a canonical name", k.getName());
+				return null;
+			}
+
+			TypeElement te = elmu.getTypeElement( cname);
+			if ( null == te )
+			{
+				msg( Kind.WARNING, "Found no TypeElement for %s", cname);
+				return null; // hope it wasn't one we'll need!
+			}
+			return te.asType();
 		}
 
 		/**
@@ -2192,15 +2439,42 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			if ( null != finalMappings )
+			addMap( typeMirrorFromClass( k), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type, if a class
+		 * with the given name exists.
+		 *
+		 * @param k Canonical class name representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMapIfExists(String k, String v)
+		{
+			TypeElement te = elmu.getTypeElement( k);
+			if ( null != te )
+				addMap( te.asType(), v);
+		}
+
+		/**
+		 * Add a custom mapping from a Java class (represented as a TypeMirror)
+		 * to an SQL type.
+		 *
+		 * @param tm TypeMirror representing the Java type
+		 * @param v String representing the SQL type to be used
+		 */
+		void addMap(TypeMirror tm, String v)
+		{
+			if ( mappingsFrozen() )
 			{
 				msg( Kind.ERROR,
 					"addMap(%s, %s)\n" +
-					"called after workAroundJava7Breakage", k.getName(), v);
+					"called after workAroundJava7Breakage", tm.toString(), v);
 				return;
 			}
 			protoMappings.add(
-				new AbstractMap.SimpleImmutableEntry<Class<?>, String>( k, v));
+				new AbstractMap.SimpleImmutableEntry<TypeMirror, String>( tm, v)
+			);
 		}
 
 		/**
@@ -2239,6 +2513,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
+			boolean row = false;
 			String rslt = null;
 			
 			String[] defaults = null;
@@ -2264,12 +2539,16 @@ hunt:	for ( ExecutableElement ee : ees )
 					// only for bytea[] should this ever still be an array
 				}
 			}
+
+			if ( ! array  &&  typu.isSameType( tm, TY_RESULTSET) )
+				row = true;
 			
 			if ( null != rslt )
-				return typeWithDefault( rslt, array, defaults, withDefault);
+				return typeWithDefault(
+					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "void"; // can't be a parameter type so no defaults apply
+				return "pg_catalog.void"; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
@@ -2326,7 +2605,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( array )
 				rslt += "[]";
 			
-			return typeWithDefault( rslt, array, defaults, withDefault);
+			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
 		}
 		
 		/**
@@ -2339,29 +2618,42 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * cases of simple literals and even anything that can be computed as
 		 * a Java String constant expression (e.g. ""+Math.PI).
 		 *
+		 * @param e Annotated element (chiefly for use as a location hint in
+		 * diagnostic messages).
 		 * @param rslt The bare SQL type string already determined
 		 * @param array Whether the Java type was determined to be an array
+		 * @param row Whether the Java type was ResultSet, indicating an SQL
+		 * record or row type.
 		 * @param defaults Array (null if not present) of default value strings
 		 * @param withDefault Whether to append the default information to the
 		 * type.
 		 */
 		String typeWithDefault(
-			String rslt, boolean array, String[] defaults, boolean withDefault)
+			Element e, String rslt, boolean array, boolean row,
+			String[] defaults, boolean withDefault)
 		{
 			if ( null == defaults || ! withDefault )
 				return rslt;
 			
 			int n = defaults.length;
-			if ( n != 1 )
+			if ( row )
+			{
+				assert ! array;
+				if ( n > 0 && rslt.equalsIgnoreCase("record") )
+					msg( Kind.ERROR, e,
+						"Only supported default for unknown RECORD type is {}");
+			}
+			else if ( n != 1 )
 				array = true;
 			else if ( ! array )
 				array = arrayish.matcher( rslt).matches();
 			
 			StringBuilder sb = new StringBuilder( rslt);
-			sb.append( " DEFAULT CAST(");
+			sb.append( " DEFAULT ");
+			sb.append( row ? "ROW(" : "CAST(");
 			if ( array )
 				sb.append( "ARRAY[");
-			if ( n != 1 )
+			if ( n > 1 )
 				sb.append( "\n\t");
 			for ( String s : defaults )
 			{
@@ -2371,7 +2663,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			if ( array )
 				sb.append( ']');
-			sb.append( " AS ").append( rslt).append( ')');
+			if ( ! row )
+				sb.append( " AS ").append( rslt);
+			sb.append( ')');
 			return sb.toString();
 		}
 	}
@@ -2443,10 +2737,12 @@ interface Snippet
 	 */
 	public String[] requires();
 	/**
-	 * Method to be called on the final round, after all annotations'
+	 * Method to be called after all annotations'
 	 * element/value pairs have been filled in, to compute any additional
 	 * information derived from those values before deployStrings() or
-	 * undeployStrings() can be called.
+	 * undeployStrings() can be called. May also check for and report semantic
+	 * errors that are not easily checked earlier while populating the
+	 * element/value pairs.
 	 * @return true if this Snippet is standalone and should be scheduled and
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
@@ -2469,6 +2765,11 @@ class Vertex<P>
 	int indegree;
 	List<Vertex<P>> adj;
 	
+	/**
+	 * Construct a new vertex with the supplied payload, indegree zero, and an
+	 * empty out-adjacency list.
+	 * @param payload Object to be associated with this vertex.
+	 */
 	Vertex( P payload)
 	{
 		this.payload = payload;
@@ -2476,12 +2777,22 @@ class Vertex<P>
 		adj = new ArrayList<>();
 	}
 	
+	/**
+	 * Record that this vertex must precede the specified vertex.
+	 * @param v a Vertex that this Vertex must precede.
+	 */
 	void precede( Vertex<P> v)
 	{
 		++ v.indegree;
 		adj.add( v);
 	}
 	
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list, and add to the supplied queue any of those whose
+	 * indegree becomes zero.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 */
 	void use( Collection<Vertex<P>> q)
 	{
 		for ( Vertex<P> v : adj )
@@ -2489,6 +2800,14 @@ class Vertex<P>
 				q.add( v);
 	}
 
+	/**
+	 * Record that this vertex has been 'used'. Decrement the indegree of any
+	 * in its adjacency list; any of those whose indegree becomes zero should be
+	 * both added to the ready queue {@code q} and removed from the collection
+	 * {@code vs}.
+	 * @param q A queue of vertices that are ready (have indegree zero).
+	 * @param vs A collection of vertices not yet ready.
+	 */
 	void use( Collection<Vertex<P>> q, Collection<Vertex<P>> vs)
 	{
 		for ( Vertex<P> v : adj )
@@ -2497,5 +2816,92 @@ class Vertex<P>
 				vs.remove( v);
 				q.add( v);
 			}
+	}
+}
+
+/**
+ * A pair of Vertex instances for the same payload, for use when two directions
+ * of topological ordering must be computed.
+ */
+class VertexPair<P>
+{
+	Vertex<P> fwd;
+	Vertex<P> rev;
+
+	VertexPair( P payload)
+	{
+		fwd = new Vertex( payload);
+		rev = new Vertex( payload);
+	}
+
+	P payload()
+	{
+		return rev.payload;
+	}
+}
+
+/**
+ * Proxy a snippet that 'provides' an implementor tag and has no
+ * undeployStrings, returning its deployStrings in their place.
+ */
+class ImpProvider implements Snippet
+{
+	Snippet s;
+
+	ImpProvider( Snippet s) { this.s = s; }
+
+	@Override public String       implementor() { return s.implementor(); }
+	@Override public String[]   deployStrings() { return s.deployStrings(); }
+	@Override public String[] undeployStrings() { return s.deployStrings(); }
+	@Override public String[]        provides() { return s.provides(); }
+	@Override public String[]        requires() { return s.requires(); }
+	@Override public boolean     characterize() { return s.characterize(); }
+}
+
+class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
+{
+	@Override
+	public int compare( Vertex<Snippet> o1, Vertex<Snippet> o2)
+	{
+		Snippet s1 = o1.payload;
+		Snippet s2 = o2.payload;
+		int diff = s1.implementor().compareTo( s2.implementor());
+		if ( 0 != diff )
+			return diff;
+		String[] ds1 = s1.deployStrings();
+		String[] ds2 = s2.deployStrings();
+		diff = ds1.length - ds2.length;
+		if ( 0 != diff )
+			return diff;
+		for ( int i = 0 ; i < ds1.length ; ++ i )
+		{
+			diff = ds1[i].compareTo( ds2[i]);
+			if ( 0 != diff )
+				return diff;
+		}
+		assert s1 == s2 : "Two distinct Snippets compare equal by tiebreaker";
+		return 0;
+	}
+}
+
+class TypeTiebreaker
+implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
+{
+	@Override
+	public int compare(
+		Vertex<Map.Entry<TypeMirror, String>> o1,
+		Vertex<Map.Entry<TypeMirror, String>> o2)
+	{
+		Map.Entry<TypeMirror, String> m1 = o1.payload;
+		Map.Entry<TypeMirror, String> m2 = o2.payload;
+		int diff = m1.getValue().compareTo( m2.getValue());
+		if ( 0 != diff )
+			return diff;
+		diff = m1.getKey().toString().compareTo( m2.getKey().toString());
+		if ( 0 != diff )
+			return diff;
+		assert
+			m1 == m2 : "Two distinct type mappings compare equal by tiebreaker";
+		return 0;
 	}
 }

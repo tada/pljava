@@ -3,106 +3,6 @@ SQLActions[ ] = {
 		CREATE SCHEMA javatest;
 		BEGIN PostgreSQL SET search_path TO javatest,public ENd postgreSQL;
 
-		CREATE FUNCTION javatest.java_getTimestamp()
-			RETURNS timestamp
-			AS 'org.postgresql.pljava.example.Parameters.getTimestamp'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_getTimestamptz()
-			RETURNS timestamptz
-			AS 'org.postgresql.pljava.example.Parameters.getTimestamp'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(date)
-			RETURNS void
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(timetz)
-			RETURNS void
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(timestamptz)
-			RETURNS void
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print("char")
-			RETURNS "char"
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(bytea)
-			RETURNS bytea
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int2)
-			RETURNS int2
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int2[])
-			RETURNS int2[]
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int4)
-			RETURNS int4
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int4[])
-			RETURNS int4[]
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int8)
-			RETURNS int8
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(int8[])
-			RETURNS int8[]
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(real)
-			RETURNS real
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(real[])
-			RETURNS real[]
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(double precision)
-			RETURNS double precision
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.print(double precision[])
-			RETURNS double precision[]
-			AS 'org.postgresql.pljava.example.Parameters.print'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.printObj(int[])
-			RETURNS int[]
-			AS 'org.postgresql.pljava.example.Parameters.print(java.lang.Integer[])'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.java_addOne(int)
-			RETURNS int
-			AS 'org.postgresql.pljava.example.Parameters.addOne(java.lang.Integer)'
-			IMMUTABLE LANGUAGE java;
-
-		CREATE FUNCTION javatest.nullOnEven(int)
-			RETURNS int
-			AS 'org.postgresql.pljava.example.Parameters.nullOnEven'
-			IMMUTABLE LANGUAGE java;
-
 		CREATE FUNCTION javatest.java_getSystemProperty(varchar)
 			RETURNS varchar
 			AS 'java.lang.System.getProperty'
@@ -341,21 +241,6 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.executeSelect(varchar)
 			RETURNS SETOF VARCHAR
 			AS 'org.postgresql.pljava.example.ResultSetTest.executeSelect'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.executeSelectToRecords(varchar)
-			RETURNS SETOF RECORD
-			AS 'org.postgresql.pljava.example.SetOfRecordTest.executeSelect'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.countNulls(record)
-			RETURNS int
-			AS 'org.postgresql.pljava.example.Parameters.countNulls'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.countNulls(int[])
-			RETURNS int
-			AS 'org.postgresql.pljava.example.Parameters.countNulls(java.lang.Integer[])'
 			LANGUAGE java;
 
 		/*

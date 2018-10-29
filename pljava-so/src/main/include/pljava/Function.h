@@ -75,6 +75,13 @@ extern jobject Function_getTypeMap(Function self);
 extern bool Function_isCurrentReadOnly(void);
 
 /*
+ * Return a local reference to the initiating (schema) class loader used to load
+ * the currently-executing function, or NULL if there is no currently-executing
+ * function or the schema loaders have been cleared and that loader is gone.
+ */
+extern jobject Function_currentLoader(void);
+
+/*
  * A nameless Function singleton with the property ! isCurrentReadOnly()
  */
 extern Function Function_INIT_WRITER;

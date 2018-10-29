@@ -10,6 +10,9 @@
 #define __pljava_Invocation_h
 
 #include <postgres.h>
+#if PG_VERSION_NUM >= 100000
+#include <commands/trigger.h>
+#endif
 #include "pljava/pljava.h"
 
 #ifdef __cplusplus
@@ -68,6 +71,15 @@ struct Invocation_
 	 * during this invocation.
 	 */
 	CallLocal*    callLocals;
+
+#if PG_VERSION_NUM >= 100000
+	/**
+	 * TriggerData pointer, if the function is being called as a trigger,
+	 * so it can be passed to SPI_register_trigger_data if the function connects
+	 * to SPI.
+	 */
+	TriggerData*  triggerData;
+#endif
 
 	/**
 	 * The previous call context when nested function calls

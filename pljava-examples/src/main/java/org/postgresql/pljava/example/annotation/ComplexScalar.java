@@ -23,7 +23,6 @@ import java.util.logging.Logger;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.BaseUDT;
 
 import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
@@ -33,10 +32,8 @@ import static
 /**
  * Complex (re and im parts are doubles) implemented in Java as a scalar UDT.
  */
-@SQLAction(requires={
-	"scalar complex type", "complex assertHasValues", "complexscalar boot fn"
-	}, install={
-		"SELECT javatest.complexscalar()",
+@SQLAction(requires = { "scalar complex type", "complex assertHasValues" },
+	install = {
 		"SELECT javatest.assertHasValues(" +
 		" CAST('(1,2)' AS javatest.complex), 1, 2)"
 	}
@@ -51,11 +48,10 @@ public class ComplexScalar implements SQLData {
 	 * @param cpl any instance of this UDT
 	 * @return the same instance passed in
 	 */
-	@Function(requires="scalar complex type", type="javatest.complex",
+	@Function(requires="scalar complex type",
 		schema="javatest", name="logcomplex", effects=IMMUTABLE,
 		onNullInput=RETURNS_NULL)
-	public static ComplexScalar logAndReturn(
-		@SQLType("javatest.complex") ComplexScalar cpl) {
+	public static ComplexScalar logAndReturn(ComplexScalar cpl) {
 		s_logger.info(cpl.getSQLTypeName() + cpl);
 		return cpl;
 	}
@@ -71,8 +67,7 @@ public class ComplexScalar implements SQLData {
 	@Function(schema="javatest",
 		requires="scalar complex type", provides="complex assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static void assertHasValues(
-		@SQLType("javatest.complex") ComplexScalar cpl, double re, double im)
+	public static void assertHasValues(ComplexScalar cpl, double re, double im)
 		throws SQLException
 	{
 		if ( cpl.m_x != re  ||  cpl.m_y != im )
@@ -151,24 +146,5 @@ public class ComplexScalar implements SQLData {
 		s_logger.info(m_typeName + " to SQLOutput");
 		stream.writeDouble(m_x);
 		stream.writeDouble(m_y);
-	}
-
-	/**
-	 * A no-op function that forces the ComplexScalar class to be loaded.
-	 * This is only necessary because the deployment-descriptor install
-	 * actions contain a query making use of this type, and PostgreSQL does
-	 * not expect type in/out/send/recv functions to need an updated
-	 * snapshot, so it will try to find this class in the snapshot from
-	 * before the jar was installed, and fail. By providing this function,
-	 * which defaults to volatile so it gets an updated snapshot, and
-	 * calling it first, the class will be found and loaded; once it is
-	 * loaded, the user-defined type operations are able to find it.
-	 * <p>
-	 * Again, this is only an issue when trying to make use of the newly
-	 * loaded UDT from right within the deployment descriptor for the jar.
-	 */
-	@Function(schema="javatest", provides="complexscalar boot fn")
-	public static void ComplexScalar()
-	{
 	}
 }

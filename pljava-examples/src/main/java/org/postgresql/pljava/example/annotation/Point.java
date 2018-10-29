@@ -21,7 +21,6 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
 import static
@@ -46,9 +45,9 @@ public class Point implements SQLData {
 	 * @param pt any instance of the type this UDT mirrors
 	 * @return the same instance passed in
 	 */
-	@Function(schema="javatest", type="point", requires="point mirror type",
+	@Function(schema="javatest", requires="point mirror type",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static Point logAndReturn(@SQLType("point") Point pt) {
+	public static Point logAndReturn(Point pt) {
 		s_logger.info(pt.getSQLTypeName() + pt);
 		return pt;
 	}
@@ -64,9 +63,7 @@ public class Point implements SQLData {
 	@Function(schema="javatest",
 		requires="point mirror type", provides="point assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static void assertHasValues(
-		@SQLType("point") Point pt,
-		double x, double y)
+	public static void assertHasValues(Point pt, double x, double y)
 		throws SQLException
 	{
 		if ( pt.m_x != x  ||  pt.m_y != y )

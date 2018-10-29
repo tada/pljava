@@ -201,6 +201,19 @@ public class SQLOutputToTuple implements SQLOutput
 	}
 
 	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	public void writeSQLXML(SQLXML x)
+		throws SQLException
+	{
+		this.writeValue(x);
+	}
+
+	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
@@ -230,15 +243,6 @@ public class SQLOutputToTuple implements SQLOutput
 			  + ".writeRowId( RowId ) not implemented yet.",
 			  "0A000" );
 	}
-	
-	public void writeSQLXML(SQLXML x)
-		throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException
-			( this.getClass()
-			  + ".writeSQLXML( SQLXML ) not implemented yet.",
-			  "0A000" );
-	}
 
 	// ************************************************************
 	// End of non-implementation of JDBC 4 methods.
@@ -248,6 +252,7 @@ public class SQLOutputToTuple implements SQLOutput
 	{
 		if(m_index >= m_values.length)
 			throw new SQLException("Tuple cannot take more values");
-		m_values[m_index++] = value;
+		TypeBridge<?>.Holder vAlt = TypeBridge.wrap(value);
+		m_values[m_index++] = null == vAlt ? value : vAlt;
 	}
 }

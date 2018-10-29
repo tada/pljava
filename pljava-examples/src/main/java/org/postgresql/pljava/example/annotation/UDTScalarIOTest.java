@@ -54,9 +54,8 @@ import static
  * supported JDBC data types, which it writes on output, and reads/verifies on
  * input.
  */
-@SQLAction(requires={"udtscalariotest type", "udtscalariotest boot fn"},
-	install={
-		"SELECT javatest.udtscalariotest()", // force class to resolve
+@SQLAction(requires= { "udtscalariotest type" },
+	install = {
 		"SELECT CAST('' AS javatest.udtscalariotest)" // test send/recv
 	})
 @BaseUDT(schema="javatest", provides="udtscalariotest type")
@@ -216,24 +215,5 @@ public class UDTScalarIOTest implements SQLData
 			throw new SQLException("timestamp mismatch");
 		if ( ! s_url.equals(stream.readURL()) )
 			throw new SQLException("url mismatch");
-	}
-
-	/**
-	 * A no-op function that forces the UDTScalarIOTest class to be loaded.
-	 * This is only necessary because the deployment-descriptor install
-	 * actions contain a query making use of this type, and PostgreSQL does
-	 * not expect type in/out/send/recv functions to need an updated
-	 * snapshot, so it will try to find this class in the snapshot from
-	 * before the jar was installed, and fail. By providing this function,
-	 * which defaults to volatile so it gets an updated snapshot, and
-	 * calling it first, the class will be found and loaded; once it is
-	 * loaded, the user-defined type operations are able to find it.
-	 * <p>
-	 * Again, this is only an issue when trying to make use of the newly
-	 * loaded UDT from right within the deployment descriptor for the jar.
-	 */
-	@Function(schema="javatest", provides="udtscalariotest boot fn")
-	public static void udtscalariotest()
-	{
 	}
 }

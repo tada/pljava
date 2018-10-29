@@ -1,14 +1,21 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Filip Hrbek
+ *   Chapman Flack
  */
 
 package org.postgresql.pljava.jdbc;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
@@ -416,4 +423,27 @@ public abstract class AbstractResultSetMetaData implements ResultSetMetaData
 		return m_conn;
 	}
 
+	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    return iface.isInstance(this);
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    if ( iface.isInstance(this) )
+			return iface.cast(this);
+		throw new SQLFeatureNotSupportedException
+		( this.getClass().getSimpleName()
+		  + " does not wrap " + iface.getName(),
+		  "0A000" );
+	}
 }

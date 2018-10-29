@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -29,7 +35,7 @@ public class SPIResultSet extends ResultSetBase
 	private final SPIStatement m_statement;
 	private final Portal    m_portal;
 	private final TupleDesc m_tupleDesc;
-	private final int       m_maxRows;
+	private final long      m_maxRows;
 
 	private Tuple m_currentRow;
 	private Tuple m_nextRow;
@@ -37,7 +43,7 @@ public class SPIResultSet extends ResultSetBase
 	private TupleTable m_table;
 	private int m_tableRow;
 
-	SPIResultSet(SPIStatement statement, Portal portal, int maxRows)
+	SPIResultSet(SPIStatement statement, Portal portal, long maxRows)
 	throws SQLException
 	{
 		super(statement.getFetchSize());
@@ -48,12 +54,7 @@ public class SPIResultSet extends ResultSetBase
 		m_tableRow = -1;
 	}
 
-	public int getFetchDirection()
-	throws SQLException
-	{
-		return FETCH_FORWARD;
-	}
-
+	@Override
 	public void close()
 	throws SQLException
 	{
@@ -69,11 +70,13 @@ public class SPIResultSet extends ResultSetBase
 		}
 	}
 
+	@Override
 	public boolean isLast() throws SQLException
 	{
 		return m_currentRow != null && this.peekNext() == null;
 	}
 
+	@Override
 	public boolean next()
 	throws SQLException
 	{
@@ -84,24 +87,35 @@ public class SPIResultSet extends ResultSetBase
 		return result;
 	}
 
+	/**
+	 * This method does return the name of the portal, but beware of attempting
+	 * positioned update/delete, because rows are read from the portal in
+	 * {@link #getFetchSize} batches.
+	 */
+	@Override
 	public String getCursorName()
 	throws SQLException
 	{
 		return this.getPortal().getName();
 	}
 
+	@Override
 	public int findColumn(String columnName)
 	throws SQLException
 	{
 		return m_tupleDesc.getColumnIndex(columnName);
 	}
 
+	@Override
 	public Statement getStatement()
 	throws SQLException
 	{
 		return m_statement;
 	}
 
+	/**
+	 * Return the {@code Portal} associated with this {@code ResultSet}.
+	 */
 	protected final Portal getPortal()
 	throws SQLException
 	{
@@ -110,6 +124,10 @@ public class SPIResultSet extends ResultSetBase
 		return m_portal;
 	}
 
+	/**
+	 * Get a(nother) table of {@link #getFetchSize} rows from the
+	 * {@link Portal}.
+	 */
 	protected final TupleTable getTupleTable()
 	throws SQLException
 	{
@@ -119,7 +137,7 @@ public class SPIResultSet extends ResultSetBase
 			if(portal.isAtEnd())
 				return null;
 
-			int mx;
+			long mx;
 			int fetchSize = this.getFetchSize();
 			if(m_maxRows > 0)
 			{
@@ -134,7 +152,7 @@ public class SPIResultSet extends ResultSetBase
 
 			try
 			{
-				int result = portal.fetch(true, mx);
+				long result = portal.fetch(true, mx);
 				if(result > 0)
 					m_table = SPI.getTupTable(m_tupleDesc);
 				m_tableRow = -1;
@@ -147,6 +165,9 @@ public class SPIResultSet extends ResultSetBase
 		return m_table;
 	}
 
+	/**
+	 * Return the {@link Tuple} most recently returned by {@link #next}.
+	 */
 	protected final Tuple getCurrentRow()
 	throws SQLException
 	{
@@ -155,6 +176,10 @@ public class SPIResultSet extends ResultSetBase
 		return m_currentRow;
 	}
 
+	/**
+	 * Get another {@link Tuple} from the {@link TupleTable}, refreshing the
+	 * table as needed.
+	 */
 	protected final Tuple peekNext()
 	throws SQLException
 	{
@@ -167,7 +192,7 @@ public class SPIResultSet extends ResultSetBase
 
 		if(m_tableRow >= table.getCount() - 1)
 		{
-			// Current table is exhaused, get the next
+			// Current table is exhausted, get the next
 			// one.
 			//
 			m_table = null;
@@ -179,12 +204,21 @@ public class SPIResultSet extends ResultSetBase
 		return m_nextRow;
 	}
 
-	protected Object getObjectValue(int columnIndex)
+	/**
+	 * Implemented over
+	 * {@link Tuple#getObject Tuple.getObject(TupleDesc,int,Class)}.
+	 */
+	@Override // defined in ObjectResultSet
+	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
-		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex);
+		return this.getCurrentRow().getObject(m_tupleDesc, columnIndex, type);
 	}
 
+	/**
+	 * Returns an {@link SPIResultSetMetaData} instance.
+	 */
+	@Override
 	public ResultSetMetaData getMetaData()
 	throws SQLException
 	{

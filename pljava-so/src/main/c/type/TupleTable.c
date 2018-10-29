@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <executor/spi.h>
@@ -42,17 +46,25 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 jobject TupleTable_create(SPITupleTable* tts, jobject knownTD)
 {
 	jobjectArray tuples;
+	uint64 tupcount;
 	MemoryContext curr;
 
 	if(tts == 0)
 		return 0;
+
+	tupcount = tts->alloced - tts->free;
+	if ( tupcount > PG_INT32_MAX )
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("a PL/Java TupleTable cannot represent more than "
+					"INT32_MAX rows")));
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
 	if(knownTD == 0)
 		knownTD = TupleDesc_internalCreate(tts->tupdesc);
 
-	tuples = Tuple_createArray(tts->vals, (jint)(tts->alloced - tts->free), true);
+	tuples = Tuple_createArray(tts->vals, (jint)tupcount, true);
 	MemoryContextSwitchTo(curr);
 
 	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, knownTD, tuples);

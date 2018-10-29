@@ -35,6 +35,33 @@ internal PL/Java classes that may change from release to release.
 
 ## Special topics
 
+### Choices when mapping data types
+
+#### Date and time types
+
+PostgreSQL `date`, `time`, and `timestamp` types can still be matched to the
+original JDBC `java.sql.Date`, `java.sql.Time`, and `java.sql.Timestamp`,
+but application code is encouraged to move to Java 8 or later and use the
+[new classes in the `java.time` package in Java 8](datetime.html) instead.
+
+#### XML type
+
+PL/Java can map PostgreSQL `xml` data to `java.lang.String`, but there are
+significant advantages to using the
+[JDBC 4.0 `java.sql.SQLXML` type](sqlxml.html) for processing XML.
+
+### Parallel query
+
+PostgreSQL 9.3 introduced [background worker processes][bgworker]
+(though at least PostgreSQL 9.5 is needed for support in PL/Java),
+and PostgreSQL 9.6 introduced [parallel query][parq].
+
+For details on PL/Java in a background worker or parallel query, see
+[PL/Java in parallel query](parallel.html).
+
+[bgworker]: https://www.postgresql.org/docs/current/static/bgworker.html
+[parq]: https://www.postgresql.org/docs/current/static/parallel-query.html
+
 ### Character-set encodings
 
 PL/Java will work most seamlessly when the server encoding in PostgreSQL is

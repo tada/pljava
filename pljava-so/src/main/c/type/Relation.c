@@ -168,6 +168,16 @@ Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jclass 
  * Class:     org_postgresql_pljava_internal_Relation
  * Method:    _modifyTuple
  * Signature: (JJ[I[Ljava/lang/Object;)Lorg/postgresql/internal/pljava/Tuple;
+ *
+ * Note: starting with PostgreSQL 10, SPI_modifytuple must be run with SPI
+ * 'connected'. However, the caller likely wants a result living in a memory
+ * context longer-lived than SPI's. (At present, the only calls of this method
+ * originate in Function_invokeTrigger, which does switchToUpperContext() just
+ * for that reason.) Blindly adding Invocation_assertConnect() here would alter
+ * the behavior of subsequent palloc()s (not just in SPI_modifytuple, but also
+ * in, e.g., Tuple_create). So, given there's only one caller, let it be the
+ * caller's responsibility to ensure SPI is connected AND that a suitable
+ * memory context is selected for the result the caller wants.
  */
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass clazz, jlong _this, jlong _tuple, jintArray _indexes, jobjectArray _values)
@@ -225,7 +235,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 				type = Type_fromOid(typeId, typeMap);
 				value = JNI_getObjectArrayElement(_values, idx);
 				if(value != 0)
-					values[idx] = Type_coerceObject(type, value);
+					values[idx] = Type_coerceObjectBridged(type, value);
 				else
 				{
 					if(nulls == 0)

@@ -53,7 +53,6 @@ import org.postgresql.pljava.sqlj.Loader;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
@@ -250,14 +249,27 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 /*
  * Attention: any evolution of the schema here needs to be reflected in
  * o.p.p.internal.InstallHelper.SchemaVariant and .recognizeSchema().
+ *
+ * Schema-qualification of a type with a typmod, e.g. pg_catalog.varchar(100),
+ * is possible from PostgreSQL 8.3 onward, but not in 8.2. As a compromise, use
+ * the two-word CHARACTER VARYING syntax, to evade capture by a user type.
+ *
+ * In this (1.5.0) incarnation of the schema, jar_repository and jar_entry are
+ * both indexed by SERIAL columns. The replace_jar operation is an UPDATE to
+ * jar_repository (so the jar's id is preserved), but deletes and reinserts to
+ * jar_entry (so ALL classes get new ids). This makes the entryId sufficient as
+ * a class-cache token to ensure old cached versions are recognized as invalid
+ * (although at the cost of doing so for *every single class* in a jar even if
+ * many are unchanged). It is used that way in the cache-token construction in
+ * o.p.p.sqlj.Loader, which could need to be revisited if this behavior changes.
  */
 @SQLAction(install={
 "	CREATE TABLE sqlj.jar_repository(" +
 "		jarId       SERIAL PRIMARY KEY," +
-"		jarName     VARCHAR(100) UNIQUE NOT NULL," +
-"		jarOrigin   VARCHAR(500) NOT NULL," +
-"		jarOwner    NAME NOT NULL," +
-"		jarManifest TEXT" +
+"		jarName     CHARACTER VARYING(100) UNIQUE NOT NULL," +
+"		jarOrigin   CHARACTER VARYING(500) NOT NULL," +
+"		jarOwner    pg_catalog.NAME NOT NULL," +
+"		jarManifest pg_catalog.TEXT" +
 "	)",
 "	COMMENT ON TABLE sqlj.jar_repository IS" +
 "	'Information on jars loaded by PL/Java, one row per jar.'",
@@ -265,10 +277,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 "	CREATE TABLE sqlj.jar_entry(" +
 "		entryId     SERIAL PRIMARY KEY," +
-"		entryName   VARCHAR(200) NOT NULL," +
+"		entryName   CHARACTER VARYING(200) NOT NULL," +
 "		jarId       INT NOT NULL" +
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
-"		entryImage  BYTEA NOT NULL," +
+"		entryImage  pg_catalog.BYTEA NOT NULL," +
 "		UNIQUE(jarId, entryName)" +
 "	)",
 "	COMMENT ON TABLE sqlj.jar_entry IS" +
@@ -277,7 +289,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 "	CREATE TABLE sqlj.jar_descriptor(" +
 "		jarId       INT REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
-"		ordinal     INT2," +
+"		ordinal     pg_catalog.INT2," +
 "		PRIMARY KEY (jarId, ordinal)," +
 "		entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
 "	)",
@@ -288,8 +300,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "	GRANT SELECT ON sqlj.jar_descriptor TO public",
 
 "	CREATE TABLE sqlj.classpath_entry(" +
-"		schemaName  VARCHAR(30) NOT NULL," +
-"		ordinal     INT2 NOT NULL," +
+"		schemaName  CHARACTER VARYING(30) NOT NULL," +
+"		ordinal     pg_catalog.INT2 NOT NULL," +
 "		jarId       INT NOT NULL" +
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 "		PRIMARY KEY(schemaName, ordinal)" +
@@ -302,8 +314,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 "	CREATE TABLE sqlj.typemap_entry(" +
 "		mapId       SERIAL PRIMARY KEY," +
-"		javaName    VARCHAR(200) NOT NULL," +
-"		sqlName     NAME NOT NULL" +
+"		javaName    CHARACTER VARYING(200) NOT NULL," +
+"		sqlName     pg_catalog.NAME NOT NULL" +
 "	)",
 "	COMMENT ON TABLE sqlj.typemap_entry IS" +
 "	'A row for each SQL type <-> Java type custom mapping.'",
@@ -353,7 +365,8 @@ public class Commands
 				PreparedStatement us = SQLUtils
 					.getDefaultConnection()
 					.prepareStatement(
-						"UPDATE sqlj.jar_repository SET jarManifest = ? WHERE jarId = ?");
+						"UPDATE sqlj.jar_repository SET jarManifest = ? " +
+						"WHERE jarId OPERATOR(pg_catalog.=) ?");
 				try
 				{
 					us.setString(1, manifest);
@@ -401,8 +414,9 @@ public class Commands
 				if ( descIdFetchStmt == null )
 					descIdFetchStmt = SQLUtils.getDefaultConnection()
 						.prepareStatement(
-							"SELECT entryId FROM sqlj.jar_entry"
-								+ " WHERE jarId = ? AND entryName = ?");
+							"SELECT entryId FROM sqlj.jar_entry " +
+							"WHERE jarId OPERATOR(pg_catalog.=) ?" +
+							"  AND entryName OPERATOR(pg_catalog.=) ?");
 				descIdFetchStmt.setInt(1, jarId);
 				descIdFetchStmt.setString(2, entryName);
 				rs = descIdFetchStmt.executeQuery();
@@ -442,7 +456,7 @@ public class Commands
 	}
 
 	private final static Pattern ddrSection = Pattern.compile(
-	    "(?<=[\\r\\n])Name: ((?:.|(?:\\r\\n?+|\\n) )++)(?:(?:\\r\\n?+|\\n))" +
+	    "(?<=[\\r\\n])Name: ((?:.|(?:\\r\\n?+|\\n) )++)(?:\\r\\n?+|\\n)" +
 		"(?:[^\\r\\n]++(?:\\r\\n?+|\\n)(?![\\r\\n]))*" +
 		"SQLJDeploymentDescriptor: (?:(?:\\r\\n?+|\\r) )*+TRUE(?!\\S)",
 		Pattern.CASE_INSENSITIVE
@@ -554,7 +568,8 @@ public class Commands
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"DELETE FROM sqlj.typemap_entry WHERE sqlName = ?"))
+				"DELETE FROM sqlj.typemap_entry " +
+				"WHERE sqlName OPERATOR(pg_catalog.=) ?"))
 		{
 			sqlTypeName = getFullSqlNameOwned(sqlTypeName);
 			stmt.setString(1, sqlTypeName);
@@ -578,10 +593,13 @@ public class Commands
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"SELECT r.jarName"+
-				" FROM sqlj.jar_repository r INNER JOIN sqlj.classpath_entry c"+
-				" ON r.jarId = c.jarId"+
-				" WHERE c.schemaName = ? ORDER BY c.ordinal"))
+				"SELECT r.jarName" +
+				" FROM" +
+				"  sqlj.jar_repository r" +
+				"  INNER JOIN sqlj.classpath_entry c" +
+				"  ON r.jarId OPERATOR(pg_catalog.=) c.jarId" +
+				" WHERE c.schemaName OPERATOR(pg_catalog.=) ?" +
+				" ORDER BY c.ordinal"))
 		{
 			if(schemaName == null || schemaName.length() == 0)
 				schemaName = "public";
@@ -627,8 +645,7 @@ public class Commands
 	 * @see #setClassPath
 	 */
 	@Function(schema="sqlj", name="install_jar", security=DEFINER)
-	public static void installJar(
-		@SQLType("bytea") byte[] image, String jarName, boolean deploy)
+	public static void installJar(byte[] image, String jarName, boolean deploy)
 	throws SQLException
 	{
 		installJar("streamed byte image", jarName, deploy, image);
@@ -689,7 +706,9 @@ public class Commands
 
 		PreparedStatement stmt = SQLUtils
 			.getDefaultConnection()
-			.prepareStatement("DELETE FROM sqlj.jar_repository WHERE jarId = ?");
+			.prepareStatement(
+				"DELETE FROM sqlj.jar_repository " +
+				"WHERE jarId OPERATOR(pg_catalog.=) ?");
 		try
 		{
 			stmt.setInt(1, jarId);
@@ -717,8 +736,7 @@ public class Commands
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
 	@Function(schema="sqlj", name="replace_jar", security=DEFINER)
-	public static void replaceJar(
-		@SQLType("bytea") byte[] jarImage, String jarName,
+	public static void replaceJar(byte[] jarImage, String jarName,
 		boolean redeploy) throws SQLException
 	{
 		replaceJar("streamed byte image", jarName, redeploy, jarImage);
@@ -792,7 +810,8 @@ public class Commands
 			entries = new ArrayList();
 			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 				.prepareStatement(
-					"SELECT jarId FROM sqlj.jar_repository WHERE jarName = ?"))
+					"SELECT jarId FROM sqlj.jar_repository " +
+					"WHERE jarName OPERATOR(pg_catalog.=) ?"))
 			{
 				for(;;)
 				{
@@ -822,7 +841,8 @@ public class Commands
 		//
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"DELETE FROM sqlj.classpath_entry WHERE schemaName = ?"))
+				"DELETE FROM sqlj.classpath_entry " +
+				"WHERE schemaName OPERATOR(pg_catalog.=) ?"))
 		{
 			stmt.setString(1, schemaName);
 			stmt.executeUpdate();
@@ -951,8 +971,8 @@ public class Commands
 			.prepareStatement(
 				"SELECT e.entryImage"
 					+ " FROM sqlj.jar_descriptor d INNER JOIN sqlj.jar_entry e"
-					+ "   ON d.entryId = e.entryId"
-					+ " WHERE d.jarId = ?"
+					+ "   ON d.entryId OPERATOR(pg_catalog.=) e.entryId"
+					+ " WHERE d.jarId OPERATOR(pg_catalog.=) ?"
 					+ " ORDER BY d.ordinal");
 		try
 		{
@@ -1006,7 +1026,8 @@ public class Commands
 				"SELECT n.nspname, t.typname,"
 					+ " pg_catalog.pg_has_role(?, t.typowner, 'USAGE')"
 					+ " FROM pg_catalog.pg_type t, pg_catalog.pg_namespace n"
-					+ " WHERE t.oid = ? AND n.oid = t.typnamespace"))
+					+ " WHERE t.oid OPERATOR(pg_catalog.=) ?"
+					+ " AND n.oid OPERATOR(pg_catalog.=) t.typnamespace"))
 		{
 			stmt.setObject(1, invoker);
 			stmt.setObject(2, typeId);
@@ -1060,7 +1081,7 @@ public class Commands
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT jarId, jarOwner FROM sqlj.jar_repository"+
-				" WHERE jarName = ?"))
+				" WHERE jarName OPERATOR(pg_catalog.=) ?"))
 		{
 			return getJarId(stmt, jarName, ownerRet);
 		}
@@ -1078,7 +1099,8 @@ public class Commands
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
-				"SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = ?"))
+				"SELECT oid FROM pg_catalog.pg_namespace " +
+				"WHERE nspname OPERATOR(pg_catalog.=) ?"))
 		{
 			stmt.setString(1, schemaName);
 			try(ResultSet rs = stmt.executeQuery())
@@ -1163,7 +1185,7 @@ public class Commands
 			.prepareStatement(
 				"UPDATE sqlj.jar_repository "
 				+ "SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL "
-				+ "WHERE jarId = ?");
+				+ "WHERE jarId OPERATOR(pg_catalog.=) ?");
 		try
 		{
 			stmt.setString(1, urlString);
@@ -1179,7 +1201,7 @@ public class Commands
 		}
 
 		stmt = SQLUtils.getDefaultConnection().prepareStatement(
-			"DELETE FROM sqlj.jar_entry WHERE jarId = ?");
+			"DELETE FROM sqlj.jar_entry WHERE jarId OPERATOR(pg_catalog.=) ?");
 		try
 		{
 			stmt.setInt(1, jarId);

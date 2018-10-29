@@ -283,6 +283,22 @@ jos.close();
 			  -->
 			<utf8 dir="target/classes" includes="pljava--.sql"
 				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.1--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.1-BETA3--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.1-BETA2--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.1-BETA1--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
 			"pljava/sharedir/pljava/pljava--1.5.0--${project.version}.sql"
 			/>
 			<utf8 dir="target/classes" includes="pljava--.sql"
@@ -346,7 +362,7 @@ if (found) {
     var fsep = properties.getProperty('file.separator');
     var plen = fsep.length() - 1; /* original separator had length 1 */
     plen += prefix.length;
-    computedPath = replacement + computedPath.slice(plen);
+    computedPath = String(replacement + computedPath.slice(plen));
 }
 ]]>
 		</jarxbuild>

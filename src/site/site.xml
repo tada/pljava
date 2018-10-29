@@ -24,6 +24,10 @@
 			 href='build/build.html'/>
 			<item name='Installing into PostgreSQL'
 			 href='install/install.html'/>
+			<item name='Upgrading'
+			 href='install/upgrade.html'/>
+			<item name='Packaging PL/Java'
+			 href='build/package.html'/>
 			<item name='User guide'
 			 href='use/use.html'/>
 			<item name='Developer notes'

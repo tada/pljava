@@ -58,7 +58,7 @@ descriptor goes farther, and calls several functions provided as test cases,
 so this use of `install_jar` may take a few extra seconds and produce some
 test-related output. (To see _successful_ test-related output, be sure to
 set `client_min_messages` to a level at least as detailed as `INFO` before
-invoking `install_jar`.)
+the session's first use of PL/Java.)
 
 $h2 Trying the examples
 
@@ -95,3 +95,29 @@ Then use some example function:
 -------------
            4
 ```
+
+$h2 Optionally-built example code
+
+Some example code is included in source form but not built by default,
+because it assumes a later Java version than PL/Java should require to build,
+or pulls in extra libraries, or both. Optional examples can be built by adding
+corresponding `-P` profile options to the `mvn` command line when building.
+
+$h3 Using the Saxon XML-processing library for true `XMLQUERY` and `XMLTABLE`
+
+In the source directory `org/postgresql/pljava/example/saxon` is example code
+for XML processing functions similar to `XMLQUERY` and `XMLTABLE` but using
+the XQuery language as the SQL/XML standard actually specifies (in contrast
+to the similar functions built into PostgreSQL, which support only XPath,
+and XPath 1.0, at that).
+
+This code is not built by default because it pulls in the sizeable [Saxon-HE][]
+library from Saxonica, and because it requires Java 8.
+
+To include these optional functions when building the examples, be sure to use
+a Java 8 build environment, and add `-Psaxon-examples` to the `mvn` command
+line.
+
+The Saxon example [documentation is here](../examples/saxon.html).
+
+[Saxon-HE]: http://www.saxonica.com/html/products/products.html

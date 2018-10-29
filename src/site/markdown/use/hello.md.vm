@@ -314,16 +314,16 @@ SQLActions[]={
 "BEGIN INSTALL
 BEGIN PostgreSQL
 CREATE OR REPLACE FUNCTION hello(
-	toWhom varchar)
-	RETURNS varchar
+	toWhom pg_catalog.varchar)
+	RETURNS pg_catalog.varchar
 	LANGUAGE java VOLATILE
-	AS 'com.example.proj.Hello.hello(java.lang.String)'
+	AS 'java.lang.String=com.example.proj.Hello.hello(java.lang.String)'
 END PostgreSQL;
 END INSTALL",
 "BEGIN REMOVE
 BEGIN PostgreSQL
 DROP FUNCTION hello(
-	toWhom varchar)
+	toWhom pg_catalog.varchar)
 END PostgreSQL;
 END REMOVE"
 }

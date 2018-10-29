@@ -9,7 +9,9 @@ and produce the files you need, but *not* install them into PostgreSQL.
 To do that, continue with the [installation instructions][inst].
 
 [mvn]: https://maven.apache.org/
-[java]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[orjava]: http://www.oracle.com/technetwork/java/javase/downloads/index.html
+[OpenJDK]: https://adoptopenjdk.net/
+[hsj9]: https://www.eclipse.org/openj9/oj9_faq.html
 
 **In case of build difficulties:**
 
@@ -25,13 +27,20 @@ There is a "troubleshooting the build" section at the end of this page.
 
     at the command line, which should tell you the version you have installed.
 
-0. The [Java Development Kit][java] (not just the Java Runtime Environment)
+0. The Java Development Kit (not just the Java Runtime Environment)
     version that you plan to use should be installed, also ideally in your
     search path so that
 
         javac  -version
 
-    just works.
+    just works. [Oracle Java][orjava] or [OpenJDK][] can be used, the latter
+    with [either the Hotspot or the OpenJ9 JVM][hsj9]. It is not necessary to
+    use the same JDK to build PL/Java that will later be used to run it in the
+    database, as long as the one used for building is not newer than that used
+    at run time. In particular, because the build procedure has not been updated
+    for Java 9 and later, PL/Java requires a Java 8, 7, or 6 JDK to build, but
+    can then use a later Java version at run time, and support PL/Java
+    applications using the newer Java features.
 
 0. The PostgreSQL server version that you intend to use should be installed,
     and on your search path so that the command
@@ -64,10 +73,12 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
+* [Maven failures when downloading dependencies][protofail]
 * Building on [FreeBSD](freebsd.html)
 * Building on [Mac OS X](macosx.html)
 * Building on [Solaris](solaris.html)
 * Building on [Ubuntu](ubuntu.html)
+* Building on [Linux `ppc64le`](ppc64le-linux-gpp.html)
 * Building on Microsoft Windows: [with Visual Studio](buildmsvc.html)
     | [with MinGW-w64](mingw64.html)
 * Building on an EnterpriseDB PostgreSQL distribution that bundles system
@@ -75,6 +86,11 @@ Please review any of the following that apply to your situation:
     [a linker runpath](runpath.html) can help
 * Building on a platform that
     [requires PostgreSQL libraries at link time](linkpglibs.html)
+* Building if you are
+    [making a package for a software distribution](package.html)
+* Building [with debugging or optimization options](debugopt.html)
+
+[protofail]: versions.html#Maven_failures_when_downloading_dependencies
 
 ## Obtaining PL/Java sources
 
@@ -105,6 +121,12 @@ sources.
 From a clone, you can also build specific released versions, by first
 using `git checkout` with the tag that identifies the release.
 
+Building from unreleased, development sources will be of most interest when
+hacking on PL/Java itself. The GitHub "Branches" page can be used to see which
+branch has had the most recent development activity (this will not always be
+the branch named `master`; periods of development can be focused on the branch
+corresponding to current releases).
+
 [git]: https://git-scm.com/
 
 ## The build
@@ -129,6 +151,12 @@ A successful `mvn clean install` should produce output like this near the end:
 to [try out PL/Java in PostgreSQL][inst].
 
 [inst]: ../install/install.html
+
+### PostgreSQL version to build against
+
+If several versions of PostgreSQL are installed on the build host, select
+the one to be built for by adding the full path of its `pg_config` executable
+with `-Dpgsql.pgconfig=` on the `mvn` command line.
 
 ### I know PostgreSQL and PGXS. Explain Maven!
 

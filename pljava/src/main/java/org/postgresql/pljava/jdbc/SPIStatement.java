@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2008, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -25,7 +30,7 @@ import org.postgresql.pljava.internal.SPIException;
  *
  * @author Thomas Hallgren
  */
-public class SPIStatement implements Statement
+public class SPIStatement implements Statement, SPIReadOnlyControl
 {
 	private final SPIConnection m_connection;
 	
@@ -35,9 +40,10 @@ public class SPIStatement implements Statement
 	private int       m_fetchSize      = 1000;
 	private int       m_maxRows        = 0;
 	private ResultSet m_resultSet      = null;
-	private int       m_updateCount    = 0;
+	private long      m_updateCount    = 0;
 	private ArrayList m_batch          = null;
 	private boolean   m_closed         = false;
+	private short     m_readonly_spec  = ExecutionPlan.SPI_READONLY_DEFAULT;
 
 	public SPIStatement(SPIConnection conn)
 	{
@@ -125,14 +131,15 @@ public class SPIStatement implements Statement
 		boolean isResultSet = plan.isCursorPlan();
 		if(isResultSet)
 		{
-			Portal portal = plan.cursorOpen(m_cursorName, paramValues);
+			Portal portal = plan.cursorOpen(
+				m_cursorName, paramValues, m_readonly_spec);
 			m_resultSet = new SPIResultSet(this, portal, m_maxRows);
 		}
 		else
 		{
 			try
 			{
-				plan.execute(paramValues, m_maxRows);
+				plan.execute(paramValues, m_readonly_spec, m_maxRows);
 				m_updateCount = SPI.getProcessed();
 			}
 			finally
@@ -179,7 +186,23 @@ public class SPIStatement implements Statement
 		int numBatches = (m_batch == null) ? 0 : m_batch.size();
 		int[] result = new int[numBatches];
 		for(int idx = 0; idx < numBatches; ++idx)
+		{
+			long count = this.executeBatchEntry(m_batch.get(idx));
+			result[idx] = (count > Integer.MAX_VALUE)
+				? SUCCESS_NO_INFO : (int)count;
+		}
+		return result;
+	}
+
+	public long[] executeLargeBatch()
+	throws SQLException
+	{
+		int numBatches = (m_batch == null) ? 0 : m_batch.size();
+		long[] result = new long[numBatches];
+		for(int idx = 0; idx < numBatches; ++idx)
+		{
 			result[idx] = this.executeBatchEntry(m_batch.get(idx));
+		}
 		return result;
 	}
 
@@ -314,6 +337,15 @@ public class SPIStatement implements Statement
 	public int getUpdateCount()
 	throws SQLException
 	{
+		if ( m_updateCount > Integer.MAX_VALUE )
+			throw new ArithmeticException(
+				"too many rows updated to report in a Java signed int");
+		return (int)m_updateCount;
+	}
+
+	public long getLargeUpdateCount()
+	throws SQLException
+	{
 		return m_updateCount;
 	}
 
@@ -384,10 +416,10 @@ public class SPIStatement implements Statement
 		m_batch.add(batch);
 	}
 
-	protected int executeBatchEntry(Object batchEntry)
+	protected long executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		int ret = SUCCESS_NO_INFO;
+		long ret = SUCCESS_NO_INFO;
 		if(this.execute(m_connection.nativeSQL((String)batchEntry)))
 			this.getResultSet().close();
 		else if(m_updateCount >= 0)
@@ -399,6 +431,35 @@ public class SPIStatement implements Statement
 	{
 		if(rs == m_resultSet)
 			m_resultSet = null;
+	}
+
+	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	public boolean isWrapperFor(Class<?> iface)
+	throws SQLException
+	{
+	    return iface.isInstance(this);
+	}
+
+	public <T> T unwrap(Class<T> iface)
+	throws SQLException
+	{
+	    if ( iface.isInstance(this) )
+			return iface.cast(this);
+		throw new SQLFeatureNotSupportedException
+		( this.getClass().getSimpleName()
+		  + " does not wrap " + iface.getName(),
+		  "0A000" );
+	}
+
+	public boolean isCloseOnCompletion() throws SQLException
+	{
+		return false;
 	}
 
 	// ************************************************************
@@ -432,35 +493,34 @@ public class SPIStatement implements Statement
 		  "0A000" );
 	}
 
-	public boolean isWrapperFor(Class<?> iface)
-	throws SQLException
+	public void closeOnCompletion() throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".isWrapperFor( Class<?> ) not implemented yet.",
-		  "0A000" );
-	}
-
-	public <T> T unwrap(Class<T> iface)
-	throws SQLException
-	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".unwrapClass( Class<T> ) not implemented yet.",
-		  "0A000" );
-	}
-
-  public void closeOnCompletion() throws SQLException
-  {
 	    throw new SQLFeatureNotSupportedException
 		( this.getClass()
 		  + ".closeOneCompletion() not implemented yet.",
 		  "0A000" );
-  }
+	}
 
-  public boolean isCloseOnCompletion() throws SQLException
-  {
-    return false;
-  }
+	// ************************************************************
+	// Implementation of the SPIReadOnlyControl extended interface
+	// ************************************************************
+
+	@Override
+	public void defaultReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_DEFAULT;
+	}
+
+	@Override
+	public void forceReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_FORCED;
+	}
+
+	@Override
+	public void clearReadOnly()
+	{
+		m_readonly_spec = ExecutionPlan.SPI_READONLY_CLEARED;
+	}
 }
 

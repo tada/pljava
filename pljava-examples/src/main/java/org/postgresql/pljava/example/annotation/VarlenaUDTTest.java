@@ -18,6 +18,8 @@ import java.sql.SQLOutput;
 
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.BaseUDT;
+import org.postgresql.pljava.annotation.Function;
+import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
 
 /**
  * A User Defined Type with varlena storage, testing github issue 52.
@@ -27,8 +29,11 @@ import org.postgresql.pljava.annotation.BaseUDT;
  * characters. That makes it easy to test how big a value gets correctly stored
  * and retrieved. It should be about a GB, but in issue 52 was failing at 32768
  * because of a narrowing assignment in the native code.
+ *<p>
+ * This example relies on {@code implementor} tags reflecting the PostgreSQL
+ * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(requires="varlena UDT", install=
+@SQLAction(requires="varlena UDT", implementor="postgresql_ge_80300", install=
 "  SELECT CASE v::text = v::javatest.VarlenaUDTTest::text " +
 "   WHEN true THEN javatest.logmessage('INFO', 'works for ' || v) " +
 "   ELSE javatest.logmessage('WARNING', 'fails for ' || v) " +
@@ -43,6 +48,7 @@ public class VarlenaUDTTest implements SQLData {
 
 	public VarlenaUDTTest() { }
 
+	@Function(effects=IMMUTABLE)
 	public static VarlenaUDTTest parse( String s, String typname) {
 		int i = Integer.parseInt( s);
 		VarlenaUDTTest u = new VarlenaUDTTest();
@@ -51,6 +57,7 @@ public class VarlenaUDTTest implements SQLData {
 		return u;
 	}
 
+	@Function(effects=IMMUTABLE)
 	public String toString() {
 		return String.valueOf( apop);
 	}
@@ -59,11 +66,13 @@ public class VarlenaUDTTest implements SQLData {
 		return typname;
 	}
 
+	@Function(effects=IMMUTABLE)
 	public void writeSQL( SQLOutput stream) throws SQLException {
 		for ( int i = 0 ; i < apop ; ++ i )
 			stream.writeByte( (byte)'a');
 	}
 
+	@Function(effects=IMMUTABLE)
 	public void readSQL( SQLInput stream, String typname) throws SQLException {
 		this.typname = typname;
 		int i = 0;

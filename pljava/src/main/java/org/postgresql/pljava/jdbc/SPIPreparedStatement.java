@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2007, 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -59,6 +64,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		Arrays.fill(m_sqlTypes, Types.NULL);
 	}
 
+	@Override
 	public void close()
 	throws SQLException
 	{
@@ -72,6 +78,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		Invocation.current().forgetStatement(this);
 	}
 
+	@Override
 	public ResultSet executeQuery()
 	throws SQLException
 	{
@@ -79,6 +86,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		return this.getResultSet();
 	}
 
+	@Override
 	public int executeUpdate()
 	throws SQLException
 	{
@@ -86,77 +94,92 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		return this.getUpdateCount();
 	}
 
+	@Override
 	public void setNull(int columnIndex, int sqlType)
 	throws SQLException
 	{
 		this.setObject(columnIndex, null, sqlType);
 	}
 
+	@Override
 	public void setBoolean(int columnIndex, boolean value) throws SQLException
 	{
 		this.setObject(columnIndex, value ? Boolean.TRUE : Boolean.FALSE, Types.BOOLEAN);
 	}
 
+	@Override
 	public void setByte(int columnIndex, byte value) throws SQLException
 	{
 		this.setObject(columnIndex, new Byte(value), Types.TINYINT);
 	}
 
+	@Override
 	public void setShort(int columnIndex, short value) throws SQLException
 	{
 		this.setObject(columnIndex, new Short(value), Types.SMALLINT);
 	}
 
+	@Override
 	public void setInt(int columnIndex, int value) throws SQLException
 	{
 		this.setObject(columnIndex, new Integer(value), Types.INTEGER);
 	}
 
+	@Override
 	public void setLong(int columnIndex, long value) throws SQLException
 	{
 		this.setObject(columnIndex, new Long(value), Types.BIGINT);
 	}
 
+	@Override
 	public void setFloat(int columnIndex, float value) throws SQLException
 	{
 		this.setObject(columnIndex, new Float(value), Types.FLOAT);
 	}
 
+	@Override
 	public void setDouble(int columnIndex, double value) throws SQLException
 	{
 		this.setObject(columnIndex, new Double(value), Types.DOUBLE);
 	}
 
+	@Override
 	public void setBigDecimal(int columnIndex, BigDecimal value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.DECIMAL);
 	}
 
+	@Override
 	public void setString(int columnIndex, String value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.VARCHAR);
 	}
 
+	@Override
 	public void setBytes(int columnIndex, byte[] value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.VARBINARY);
 	}
 
+	@Override
 	public void setDate(int columnIndex, Date value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.DATE);
 	}
 
+	@Override
 	public void setTime(int columnIndex, Time value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.TIME);
 	}
 
+	@Override
 	public void setTimestamp(int columnIndex, Timestamp value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.TIMESTAMP);
 	}
 
+	@Override
 	public void setAsciiStream(int columnIndex, InputStream value, int length) throws SQLException
 	{
 		try
@@ -174,16 +197,19 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	/**
 	 * @deprecated
 	 */
+	@Override
 	public void setUnicodeStream(int columnIndex, InputStream value, int arg2) throws SQLException
 	{
 		throw new UnsupportedFeatureException("PreparedStatement.setUnicodeStream");
 	}
 
+	@Override
 	public void setBinaryStream(int columnIndex, InputStream value, int length) throws SQLException
 	{
 		this.setObject(columnIndex, new BlobValue(value, length), Types.BLOB);
 	}
 
+	@Override
 	public void clearParameters()
 	throws SQLException
 	{
@@ -191,21 +217,38 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		Arrays.fill(m_sqlTypes, Types.NULL);
 	}
 
+	/**
+	 * Implemented on {@link #setObject(int,Object,int)}, discarding scale.
+	 */
+	@Override
 	public void setObject(int columnIndex, Object value, int sqlType, int scale)
 	throws SQLException
 	{
 		this.setObject(columnIndex, value, sqlType);
 	}
 
+	@Override
 	public void setObject(int columnIndex, Object value, int sqlType)
+	throws SQLException
+	{
+		setObject(columnIndex, value, sqlType, TypeBridge.wrap(value));
+	}
+
+	private void setObject(
+		int columnIndex, Object value, int sqlType, TypeBridge<?>.Holder vAlt)
 	throws SQLException
 	{
 		if(columnIndex < 1 || columnIndex > m_sqlTypes.length)
 			throw new SQLException("Illegal parameter index");
 
-		Oid id = (sqlType == Types.OTHER)
-			? Oid.forJavaClass(value.getClass())
-			: Oid.forSqlType(sqlType);
+		Oid id = null;
+
+		if ( null != vAlt )
+			id = new Oid(vAlt.defaultOid());
+		else if ( sqlType != Types.OTHER )
+			id = Oid.forSqlType(sqlType);
+		else
+			id = Oid.forJavaObject(value);
 
 		// Default to String.
 		//
@@ -213,29 +256,70 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			id = Oid.forSqlType(Types.VARCHAR);
 
 		Oid op = m_typeIds[--columnIndex];
+
+		/*
+		 * Coordinate this behavior with the newly-implemented
+		 * setNull(int,int,String), which can have been used to set a specific
+		 * PostgreSQL type oid that is not the default mapping from any JDBC
+		 * type.
+		 *
+		 * If no oid has already been set, unconditionally assign the one just
+		 * chosen above. If the one just chosen matches one already set, do
+		 * nothing. Otherwise, assign the one just chosen and re-prepare, but
+		 * ONLY IF WE HAVE NOT BEEN GIVEN A TYPEBRIDGE.HOLDER. If a Holder is
+		 * supplied, the value is of one of the types newly allowed for 1.5.1;
+		 * it is safe to introduce a different behavior with those, as they had
+		 * no prior behavior to match.
+		 *
+		 * The behavior for the new types is to NOT overwrite whatever PG oid
+		 * may have been already assigned, but to simply pass the Holder and
+		 * hope the native Type implementation knows how to munge the object
+		 * to that PG type. An exception will ensue if it does not.
+		 *
+		 * The ultimate (future major release) way for PreparedStatement
+		 * parameter typing to work will be to rely on the improved SPI from
+		 * PG 9.0 to find out the parameter types PostgreSQL's type inference
+		 * has come up with, and treat assignments here as coercions to those,
+		 * just as for result-set updaters. That will moot most of these goofy
+		 * half-measures here. https://www.postgresql.org/message-id/
+		 * d5ecbef6-88ee-85d8-7cc2-8c8741174f2d%40anastigmatix.net
+		 */
+
 		if(op == null)
 			m_typeIds[columnIndex] = id;
-		else if(!op.equals(id))
+		else if ( null == vAlt  &&  !op.equals(id) )
 		{
 			m_typeIds[columnIndex] = id;
 			
 			// We must re-prepare
 			//
-			if(m_plan != null)
+			if ( m_plan != null )
+			{
 				m_plan.close();
-			m_plan = null;
+				m_plan = null;
+			}
 		}
 		m_sqlTypes[columnIndex] = sqlType;
-		m_values[columnIndex] = value;
+		m_values[columnIndex] = null == vAlt ? value : vAlt;
 	}
 
+	@Override
 	public void setObject(int columnIndex, Object value)
 	throws SQLException
 	{
 		if(value == null)
-			throw new SQLException("Can't assign null unless the SQL type is known");
+			throw new SQLException(
+				"Can't assign null unless the SQL type is known");
 
-		this.setObject(columnIndex, value, SPIConnection.getTypeForClass(value.getClass()));
+		TypeBridge<?>.Holder vAlt = TypeBridge.wrap(value);
+
+		int sqlType;
+		if ( null == vAlt )
+			sqlType = SPIConnection.getTypeForClass(value.getClass());
+		else
+			sqlType = Types.OTHER;
+
+		this.setObject(columnIndex, value, sqlType, vAlt);
 	}
 
 	/**
@@ -254,6 +338,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		return types;
 	}
 
+	@Override
 	public boolean execute()
 	throws SQLException
 	{
@@ -281,6 +366,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throw new UnsupportedFeatureException("Can't execute other statements using a prepared statement");
 	}
 
+	@Override
 	public void addBatch()
 	throws SQLException
 	{
@@ -292,33 +378,39 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	 * The prepared statement cannot have other statements added too it.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public void addBatch(String statement)
 	throws SQLException
 	{
 		throw new UnsupportedFeatureException("Can't add batch statements to a prepared statement");
 	}
 
+	@Override
 	public void setCharacterStream(int columnIndex, Reader value, int length)
 	throws SQLException
 	{
 		this.setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
 	}
 
+	@Override
 	public void setRef(int columnIndex, Ref value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.REF);
 	}
 
+	@Override
 	public void setBlob(int columnIndex, Blob value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.BLOB);
 	}
 
+	@Override
 	public void setClob(int columnIndex, Clob value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.CLOB);
 	}
 
+	@Override
 	public void setArray(int columnIndex, Array value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.ARRAY);
@@ -328,12 +420,14 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	 * ResultSetMetaData is not yet supported.
 	 * @throws SQLException indicating that this feature is not supported.
 	 */
+	@Override
 	public ResultSetMetaData getMetaData()
 	throws SQLException
 	{
 		throw new UnsupportedFeatureException("ResultSet meta data is not yet implemented");
 	}
 
+	@Override
 	public void setDate(int columnIndex, Date value, Calendar cal)
 	throws SQLException
 	{
@@ -342,6 +436,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throw new UnsupportedFeatureException("Setting date using explicit Calendar");
 	}
 
+	@Override
 	public void setTime(int columnIndex, Time value, Calendar cal)
 	throws SQLException
 	{
@@ -350,6 +445,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throw new UnsupportedFeatureException("Setting time using explicit Calendar");
 	}
 
+	@Override
 	public void setTimestamp(int columnIndex, Timestamp value, Calendar cal)
 	throws SQLException
 	{
@@ -358,12 +454,51 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throw new UnsupportedFeatureException("Setting time using explicit Calendar");
 	}
 
+	/**
+	 * This method can (and is the only method that can, until JDBC 4.2 SQLType
+	 * is implemented) assign a specific PostgreSQL type, by name, to a
+	 * PreparedStatement parameter.
+	 *<p>
+	 * However, to avoid a substantial behavior change in a 1.5.x minor release,
+	 * its effect is limited for now. Any subsequent assignment of a non-null
+	 * value for the parameter, using any of the setter methods or
+	 * setObject-accepted classes from pre-JDBC 4.2, will reset the associated
+	 * PostgreSQL type to what would have been assigned according to the JDBC
+	 * {@code sqlType} or the type of the object.
+	 *<p>
+	 * In contrast, setObject with any of the object types newly recognized
+	 * in PL/Java 1.5.1 will not overwrite the PostgreSQL type assigned by this
+	 * method, but will let it stand, on the assumption that the object's native
+	 * to-Datum coercions will include one that applies to the type. If not, an
+	 * exception will result.
+	 *<p>
+	 * The {@code sqlType} supplied here will be remembered, only to be used by
+	 * the somewhat-functionally-impaired {@code ParameterMetaData}
+	 * implementation. It is not checked for compatibility with the supplied
+	 * PostgreSQL {@code typeName} in any way.
+	 */
+	@Override
 	public void setNull(int columnIndex, int sqlType, String typeName)
 	throws SQLException
 	{
-		this.setNull(columnIndex, sqlType);
+		Oid id = Oid.forTypeName(typeName);
+		Oid op = m_typeIds[--columnIndex];
+		if ( null == op )
+			m_typeIds[columnIndex] = id;
+		else if ( !op.equals(id) )
+		{
+			m_typeIds[columnIndex] = id;
+			if ( null != m_plan )
+			{
+				m_plan.close();
+				m_plan = null;
+			}
+		}
+		m_sqlTypes[columnIndex] = sqlType;
+		m_values[columnIndex] = null;
 	}
 
+	@Override
 	public void setURL(int columnIndex, URL value) throws SQLException
 	{
 		this.setObject(columnIndex, value, Types.DATALINK);
@@ -383,16 +518,17 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	 * object based on the supplied values.
 	 * @return The meta data for parameter values.
 	 */
+	@Override
 	public ParameterMetaData getParameterMetaData()
 	throws SQLException
 	{
 		return new SPIParameterMetaData(this.getSqlTypes());
 	}
 
-	protected int executeBatchEntry(Object batchEntry)
+	protected long executeBatchEntry(Object batchEntry)
 	throws SQLException
 	{
-		int ret = SUCCESS_NO_INFO;
+		long ret = SUCCESS_NO_INFO;
 		Object batchParams[] = (Object[])batchEntry;
 		Object batchValues = batchParams[0];
 		Object batchSqlTypes = batchParams[1];
@@ -422,7 +558,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			this.getResultSet().close();
 		else
 		{
-			int updCount = this.getUpdateCount();
+			long updCount = this.getUpdateCount();
 			if(updCount >= 0)
 				ret = updCount;
 		}
@@ -430,9 +566,24 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	}
 
 	// ************************************************************
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
+	// ************************************************************
+
+	@Override
+	public void setSQLXML(int parameterIndex, SQLXML xmlObject)
+		throws SQLException
+	{
+	    setObject(parameterIndex, xmlObject, Types.SQLXML);
+	}
+
+	// ************************************************************
 	// Non-implementation of JDBC 4 methods.
 	// ************************************************************
 
+	@Override
 	public void setNClob(int parameterIndex,
 			     Reader reader)
 		throws SQLException
@@ -444,6 +595,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 
+	@Override
 	public void setNClob(int parameterIndex,
 			     NClob value)
 		throws SQLException
@@ -455,6 +607,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 
+	@Override
 	public void setNClob(int parameterIndex,
 			 Reader reader,long length)
 		throws SQLException
@@ -467,6 +620,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setBlob(int parameterIndex,
 			    InputStream inputStream)
 		throws SQLException
@@ -478,6 +632,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  "0A000" );
 	}
 
+	@Override
 	public void setBlob(int parameterIndex,
 			    InputStream inputStream,long length)
 		throws SQLException
@@ -490,6 +645,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setClob(int parameterIndex,
 			    Reader reader)
 		throws SQLException
@@ -500,6 +656,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  "0A000" );
 
 	}
+
+	@Override
 	public void setClob(int parameterIndex,
 			    Reader reader,long length)
 		throws SQLException
@@ -512,6 +670,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setNCharacterStream(int parameterIndex,
 					Reader value)
 	    throws SQLException
@@ -523,6 +682,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  "0A000" );
 
 	}
+
+	@Override
 	public void setNCharacterStream(int parameterIndex,
 					Reader value,long length)
 		throws SQLException
@@ -535,6 +696,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setCharacterStream(int parameterIndex,
 				       Reader reader)
 		throws SQLException
@@ -547,8 +709,9 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 
+	@Override
 	public void setCharacterStream(int parameterIndex,
-				       Reader reader,long lenght)
+				       Reader reader, long length)
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
@@ -559,6 +722,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setBinaryStream(int parameterIndex,
 				    InputStream x)
 		throws SQLException
@@ -571,8 +735,9 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 
+	@Override
 	public void setBinaryStream(int parameterIndex,
-				    InputStream x,long length)
+				    InputStream x, long length)
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
@@ -583,6 +748,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setAsciiStream(int parameterIndex,
 				   InputStream x)
                     throws SQLException
@@ -595,6 +761,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	}
 	
+	@Override
 	public void setAsciiStream(int parameterIndex,
 				   InputStream x,long length)
 		throws SQLException
@@ -606,17 +773,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  "0A000" );
 
 	}
-	
-	public void setSQLXML(int parameterIndex,
-               SQLXML xmlObject)
-		throws SQLException
-	{
-	    throw new SQLFeatureNotSupportedException
-		    ( this.getClass()
-		      + ".setSQLXML( int, SQLXML ) not implemented yet.",
-		      "0A000" );
-	}
 
+	@Override
 	public void setNString(int parameterIndex,
 			       String value)
                 throws SQLException
@@ -627,6 +785,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			  "0A000" );
 	}
 	
+	@Override
 	public void setRowId(int parameterIndex,
 			     RowId x)
 		throws SQLException

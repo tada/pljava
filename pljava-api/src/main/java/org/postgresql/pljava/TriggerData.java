@@ -29,7 +29,7 @@ public interface TriggerData
 {
 	/**
 	 * Returns the ResultSet that represents the new row. This ResultSet will
-	 * be null for delete triggers and for triggers that was fired for
+	 * be null for delete triggers and for triggers that were fired for
 	 * statement. <br>The returned set will be updateable and positioned on a
 	 * valid row. When the trigger call returns, the trigger manager will see
 	 * the changes that has been made to this row and construct a new tuple
@@ -44,7 +44,7 @@ public interface TriggerData
 
 	/**
 	 * Returns the ResultSet that represents the old row. This ResultSet will
-	 * be null for insert triggers and for triggers that was fired for
+	 * be null for insert triggers and for triggers that were fired for
 	 * statement. <br>The returned set will be read-only and positioned on a
 	 * valid row.
 	 * 
@@ -152,4 +152,12 @@ public interface TriggerData
 	 *             if the contained native buffer has gone stale.
 	 */
 	boolean isFiredByUpdate() throws SQLException;
+
+	/**
+	 * Advise PostgreSQL to silently suppress the operation on this row.
+	 *
+	 * @throws SQLException
+	 *             if called in an {@code AFTER} or a {@code STATEMENT} trigger
+	 */
+	void suppress() throws SQLException;
 }

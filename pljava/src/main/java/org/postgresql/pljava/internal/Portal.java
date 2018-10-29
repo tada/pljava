@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -53,12 +59,17 @@ public class Portal
 	 * Returns the value of the <code>portalPos</code> attribute.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int getPortalPos()
+	public long getPortalPos()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getPortalPos(m_pointer);
+			long pos = _getPortalPos(m_pointer);
+			if ( pos < 0 )
+				throw new ArithmeticException(
+					"portal position too large to report " +
+					"in a Java signed long");
+			return pos;
 		}
 	}
 
@@ -83,12 +94,19 @@ public class Portal
 	 * @return The actual number of fetched rows.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int fetch(boolean forward, int count)
+	public long fetch(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _fetch(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
+			long fetched =
+				_fetch(m_pointer,
+					System.identityHashCode(Thread.currentThread()),
+					forward, count);
+			if ( fetched < 0 )
+				throw new ArithmeticException(
+					"fetched too many rows to report in a Java signed long");
+			return fetched;
 		}
 	}
 
@@ -119,19 +137,6 @@ public class Portal
 	}
 
 	/**
-	 * Returns the value of the <code>posOverflow</code> attribute.
-	 * @throws SQLException if the handle to the native structur is stale.
-	 */
-	public boolean isPosOverflow()
-	throws SQLException
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isPosOverflow(m_pointer);
-		}
-	}
-
-	/**
 	 * Checks if the portal is still active. I can be closed either explicitly
 	 * using the {@link #close()} mehtod or implicitly due to a pop of invocation
 	 * context.
@@ -145,28 +150,34 @@ public class Portal
 	 * Performs an <code>SPI_cursor_move</code>.
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
-	 * @return The value of the global variable <code>SPI_result</code>.
+	 * @return The actual number of rows moved.
 	 * @throws SQLException if the handle to the native structur is stale.
 	 */
-	public int move(boolean forward, int count)
+	public long move(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _move(m_pointer, System.identityHashCode(Thread.currentThread()), forward, count);
+			long moved = _move(m_pointer,
+				System.identityHashCode(Thread.currentThread()),
+				forward, count);
+			if ( moved < 0 )
+				throw new ArithmeticException(
+					"moved too many rows to report in a Java signed long");
+			return moved;
 		}
 	}
 
 	private static native String _getName(long pointer)
 	throws SQLException;
 
-	private static native int _getPortalPos(long pointer)
+	private static native long _getPortalPos(long pointer)
 	throws SQLException;
 
 	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private static native int _fetch(long pointer, long threadId, boolean forward, int count)
+	private static native long _fetch(long pointer, long threadId, boolean forward, long count)
 	throws SQLException;
 
 	private static native void _close(long pointer);
@@ -176,10 +187,7 @@ public class Portal
 
 	private static native boolean _isAtStart(long pointer)
 	throws SQLException;
-	
-	private static native boolean _isPosOverflow(long pointer)
-	throws SQLException;
 
-	private static native int _move(long pointer, long threadId, boolean forward, int count)
+	private static native long _move(long pointer, long threadId, boolean forward, long count)
 	throws SQLException;
 }

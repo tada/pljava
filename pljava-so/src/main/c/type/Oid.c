@@ -18,6 +18,7 @@
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/Exception.h"
+#include "pljava/Function.h"
 #include "pljava/Invocation.h"
 
 static jclass    s_Oid_class;
@@ -32,6 +33,14 @@ static jobject   s_OidOid;
 jobject Oid_create(Oid oid)
 {
 	jobject joid;
+	/*
+	 * This is a natural place to have a StaticAssertStmt making sure the
+	 * ubiquitous PG type 'Oid' fits in a jint. If it is ever removed from here
+	 * or this code goes away, it should go someplace else. If it ever produces
+	 * an error, don't assume the only things that need fixing will be in this
+	 * file or nearby....
+	 */
+	StaticAssertStmt(sizeof(Oid) <= sizeof(jint), "Oid wider than jint?!");
 	if(OidIsValid(oid))
 		joid = JNI_newObject(s_Oid_class, s_Oid_init, oid);
 	else
@@ -103,13 +112,42 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_DATALINK:
 			typeId = TEXTOID;
 			break;
-/*		case java_sql_Types_NULL:
+		case java_sql_Types_NULL:
 		case java_sql_Types_OTHER:
 		case java_sql_Types_JAVA_OBJECT:
 		case java_sql_Types_DISTINCT:
 		case java_sql_Types_STRUCT:
 		case java_sql_Types_ARRAY:
-		case java_sql_Types_REF: */
+		case java_sql_Types_REF:
+			typeId = InvalidOid;	/* Not yet mapped */
+			break;
+
+		/* JDBC 4.0 - present in Java 6 and later, no need to conditionalize */
+		case java_sql_Types_SQLXML:
+#ifdef	XMLOID					/* but PG can have been built without libxml */
+			typeId = XMLOID;
+#else
+			typeId = InvalidOid;
+#endif
+			break;
+		case java_sql_Types_ROWID:
+		case java_sql_Types_NCHAR:
+		case java_sql_Types_NVARCHAR:
+		case java_sql_Types_LONGNVARCHAR:
+		case java_sql_Types_NCLOB:
+			typeId = InvalidOid;	/* Not yet mapped */
+			break;
+
+		/* JDBC 4.2 - conditionalize until only Java 8 and later supported */
+#ifdef	java_sql_Types_REF_CURSOR
+		case java_sql_Types_TIME_WITH_TIMEZONE:
+			typeId = TIMETZOID;
+			break;
+		case java_sql_Types_TIMESTAMP_WITH_TIMEZONE:
+			typeId = TIMESTAMPTZOID;
+			break;
+		case java_sql_Types_REF_CURSOR:
+#endif
 		default:
 			typeId = InvalidOid;	/* Not yet mapped */
 			break;
@@ -155,6 +193,11 @@ void Oid_initialize(void)
 		"_getJavaClassName",
 		"(I)Ljava/lang/String;",
 	  	Java_org_postgresql_pljava_internal_Oid__1getJavaClassName
+		},
+		{
+		"_getCurrentLoader",
+		"()Ljava/lang/ClassLoader;",
+		Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader
 		},
 		{ 0, 0, 0 }};
 
@@ -264,6 +307,21 @@ Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jclass c
 		Type type = Type_objectTypeFromOid((Oid)oid, Invocation_getTypeMap());
 		result = String_createJavaStringFromNTS(Type_getJavaTypeName(type));
 	}
+	END_NATIVE
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Oid
+ * Method:    _getCurrentLoader
+ * Signature: ()Ljava/lang/ClassLoader;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader(JNIEnv *env, jclass cls)
+{
+	jobject result;
+	BEGIN_NATIVE
+	result = Function_currentLoader();
 	END_NATIVE
 	return result;
 }

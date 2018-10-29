@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -44,8 +50,10 @@ public class SPI
 	 * of <code>rowCount</code> of zero is interpreted as no limit, i.e.,
 	 * run to completion.
 	 * @return One of the declared status codes.
+	 * @deprecated This seems never to have been used in git history of project.
 	 */
-	public static int exec(String command, int rowCount)
+	@Deprecated
+	private static int exec(String command, int rowCount)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
@@ -64,11 +72,15 @@ public class SPI
 	/**
 	 * Returns the value of the global variable <code>SPI_processed</code>.
 	 */
-	public static int getProcessed()
+	public static long getProcessed()
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getProcessed();
+			long count = _getProcessed();
+			if ( count < 0 )
+				throw new ArithmeticException(
+					"too many rows processed to count in a Java signed long");
+			return count;
 		}
 	}
 
@@ -95,7 +107,10 @@ public class SPI
 	}
 
 	/**
-	 * Returns a textual representatio of a result code
+	 * Returns a textual representation of a result code.
+	 */
+	/*
+	 * XXX PG 11 introduces a real SPI_result_code_string function.
 	 */
 	public static String getResultText(int resultCode)
 	{
@@ -171,8 +186,10 @@ public class SPI
 	return s;
 	}
 
+	@Deprecated
 	private native static int _exec(long threadId, String command, int rowCount);
-	private native static int _getProcessed();
+
+	private native static long _getProcessed();
 	private native static int _getResult();
 	private native static void _freeTupTable();
 	private native static TupleTable _getTupTable(TupleDesc known);

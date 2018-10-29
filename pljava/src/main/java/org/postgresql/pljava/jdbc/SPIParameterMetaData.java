@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
- * 
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -95,24 +100,26 @@ public class SPIParameterMetaData implements ParameterMetaData
 	}
 
 	// ************************************************************
-	// Non-implementation of JDBC 4 methods.
+	// Implementation of JDBC 4 methods. Methods go here if they
+	// don't throw SQLFeatureNotSupportedException; they can be
+	// considered implemented even if they do nothing useful, as
+	// long as that's an allowed behavior by the JDBC spec.
 	// ************************************************************
 
 	public boolean isWrapperFor(Class<?> iface)
 	throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".isWrapperFor( Class<?> ) not implemented yet.",
-		  "0A000" );
+	    return iface.isInstance(this);
 	}
 
 	public <T> T unwrap(Class<T> iface)
 	throws SQLException
 	{
-	    throw new SQLFeatureNotSupportedException
-		( this.getClass()
-		  + ".unwrapClass( Class<?> ) not implemented yet.",
+	    if ( iface.isInstance(this) )
+			return iface.cast(this);
+		throw new SQLFeatureNotSupportedException
+		( this.getClass().getSimpleName()
+		  + " does not wrap " + iface.getName(),
 		  "0A000" );
 	}
 }

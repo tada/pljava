@@ -73,7 +73,8 @@ class EntryStreamHandler extends URLStreamHandler
 			{
 
 				stmt = SQLUtils.getDefaultConnection().prepareStatement(
-					"SELECT entryName, entryImage FROM sqlj.jar_entry WHERE entryId = ?");
+					"SELECT entryName, entryImage FROM sqlj.jar_entry " +
+					"WHERE entryId OPERATOR(pg_catalog.=) ?");
 				stmt.setInt(1, m_entryId);
 	    		rs = stmt.executeQuery();
 				if(rs.next())

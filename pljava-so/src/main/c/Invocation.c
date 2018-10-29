@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 #include <executor/spi.h>
@@ -15,6 +19,7 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
+#include "pljava/DualState.h"
 
 #define LOCAL_FRAME_SIZE 128
 
@@ -83,9 +88,22 @@ void Invocation_initialize(void)
 
 void Invocation_assertConnect(void)
 {
+	int rslt;
 	if(!currentInvocation->hasConnected)
 	{
-		SPI_connect();
+		rslt = SPI_connect();
+		if ( SPI_OK_CONNECT != rslt )
+			elog(ERROR, "SPI_connect returned %s",
+						SPI_result_code_string(rslt));
+#if PG_VERSION_NUM >= 100000
+		if ( NULL != currentInvocation->triggerData )
+		{
+			rslt = SPI_register_trigger_data(currentInvocation->triggerData);
+			if ( SPI_OK_TD_REGISTER != rslt )
+				elog(WARNING, "SPI_register_trigger_data returned %s",
+							  SPI_result_code_string(rslt));
+		}
+#endif
 		currentInvocation->hasConnected = true;
 	}
 }
@@ -116,6 +134,9 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->inExprContextCB = false;
 	ctx->previous        = 0;
 	ctx->callLocals      = 0;
+#if PG_VERSION_NUM >= 100000
+	ctx->triggerData     = 0;
+#endif
 	currentInvocation    = ctx;
 	++s_callLevel;
 }
@@ -138,6 +159,9 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->inExprContextCB = false;
 	ctx->previous        = currentInvocation;
 	ctx->callLocals      = 0;
+#if PG_VERSION_NUM >= 100000
+	ctx->triggerData     = 0;
+#endif
 	currentInvocation   = ctx;
 	Backend_setJavaSecurity(trusted);
 	++s_callLevel;
@@ -154,6 +178,11 @@ void Invocation_popInvocation(bool wasException)
 			JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
+
+	/*
+	 * Check for any DualState objects that became unreachable and can be freed.
+	 */
+	pljava_DualState_cleanEnqueuedInstances();
 
 	if(currentInvocation->hasConnected)
 		SPI_finish();

@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #ifndef __pljava_type_Type_h
 #define __pljava_type_Type_h
@@ -59,16 +63,35 @@ extern bool Type_isPrimitive(Type self);
 extern bool Type_canReplaceType(Type self, Type type);
 
 /*
- * Translate a given Datum into a jvalue accorging to the type represented
+ * Translate a given Datum into a jvalue according to the type represented
  * by this instance.
  */
 extern jvalue Type_coerceDatum(Type self, Datum datum);
 
 /*
+ * Translate a given Datum into a jvalue, where the type represented
+ * by this instance is derived from the PG type of the datum, and rqcls, if
+ * not NULL, is the Java class wanted by the caller (JDBC 4.1 feature).
+ * Reduces to Type_coerceDatum if rqcls is NULL, or there is no TypeClass that
+ * can replace this Type and produce the requested class.
+ */
+extern jvalue Type_coerceDatumAs(Type self, Datum datum, jclass rqcls);
+
+/*
  * Translate a given Object into a Datum accorging to the type represented
- * by this instance.
+ * by this instance. The caller must be certain that 'object' is an instance
+ * of a Java type expected by the coercer for this TypeClass.
  */
 extern Datum Type_coerceObject(Type self, jobject object);
+
+/*
+ * Translate a given Object into a Datum accorging to the type represented
+ * by this instance. The object may be an instance of TypeBridge.Holder holding
+ * an object of an alternate Java class than what the coercer for this TypeClass
+ * expects. Otherwise, it must be an object of the expected class, just as for
+ * Type_coerceObject.
+ */
+extern Datum Type_coerceObjectBridged(Type self, jobject object);
 
 /*
  * Return a Type based on a Postgres Oid. Creates a new type if
@@ -215,7 +238,7 @@ extern jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS);
 /*
  * Called to determine if the producer will produce another row.
  */
-extern bool Type_hasNextSRF(Type self, jobject producer, jobject collector, jint counter);
+extern bool Type_hasNextSRF(Type self, jobject producer, jobject collector, jlong counter);
 
 /*
  * Converts the next row into a Datum of the expected type.
@@ -233,6 +256,14 @@ extern void Type_closeSRF(Type self, jobject producer);
  * singleton. The only current exception from this is the
  * String since it makes use of functions stored in the
  * Form_pg_type structure.
+ *
+ * In adding JDBC 4.1 support, this is decreed: a TypeObtainer
+ * may return its singleton, if that's what it does, regardless
+ * of whether the Oid stored there matches the one passed to the
+ * obtainer. In other words, it may ignore the typeId argument.
+ * It's often appropriate for the caller to check the returned
+ * type with Type_canReplaceType to determine if it is usable
+ * for the intended purpose.
  */
 typedef Type (*TypeObtainer)(Oid typeId);
 

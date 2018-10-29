@@ -29,6 +29,9 @@
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
 #include <utils/memutils.h>
+#if PG_VERSION_NUM >= 80400
+#include <utils/snapmgr.h>
+#endif
 #include <utils/syscache.h>
 
 #if PG_VERSION_NUM < 90000
@@ -45,14 +48,6 @@
 #include "pljava/type/String.h"
 
 /*
- * CppAsString2 first appears in PG8.4.  Once the compatibility target reaches
- * 8.4, this fallback will not be needed.
- */
-#ifndef CppAsString2
-#define CppAsString2(x) CppAsString(x)
-#endif
-
-/*
  * Before 9.1, there was no creating_extension. Before 9.5, it did not have
  * PGDLLIMPORT and so was not visible in Windows. In either case, just define
  * it to be false, but also define CREATING_EXTENSION_HACK if on Windows and
@@ -62,6 +57,38 @@
 #define creating_extension false
 #if PG_VERSION_NUM >= 90100
 #define CREATING_EXTENSION_HACK
+#endif
+#endif
+
+/*
+ * Before 9.1, there was no IsBinaryUpgrade. Before 9.5, it did not have
+ * PGDLLIMPORT and so was not visible in Windows. In either case, just define
+ * it to be false; Windows users may have trouble using pg_upgrade to versions
+ * earlier than 9.5, but with the current version being 9.6 that should be rare.
+ */
+#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
+#define IsBinaryUpgrade false
+#endif
+
+/*
+ * Before 9.3, there was no IsBackgroundWorker. As of 9.6.1 it still does not
+ * have PGDLLIMPORT, but MyBgworkerEntry != NULL can be used in MSVC instead.
+ * However, until 9.3.3, even that did not have PGDLLIMPORT, and there's not
+ * much to be done about it. BackgroundWorkerness won't be detected in MSVC
+ * for 9.3.0 through 9.3.2.
+ *
+ * One thing it's needed for is to avoid dereferencing MyProcPort in a
+ * background worker, where it's not set. Define BGW_HAS_NO_MYPROCPORT if that
+ * has to be (and can be) checked.
+ */
+#if PG_VERSION_NUM < 90300  ||  defined(_MSC_VER) && PG_VERSION_NUM < 90303
+#define IsBackgroundWorker false
+#else
+#define BGW_HAS_NO_MYPROCPORT
+#include <commands/dbcommands.h>
+#if defined(_MSC_VER)
+#include <postmaster/bgworker.h>
+#define IsBackgroundWorker (MyBgworkerEntry != NULL)
 #endif
 #endif
 
@@ -87,6 +114,7 @@ static bool extensionExNihilo = false;
 
 static void checkLoadPath( bool *livecheck);
 static void getExtensionLoadPath();
+static char *origUserName();
 
 char const *pljavaLoadPath = NULL;
 
@@ -103,7 +131,52 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
+#ifdef BGW_HAS_NO_MYPROCPORT
+	char *shortlived;
+	static char *longlived;
+	if ( IsBackgroundWorker )
+	{
+		if ( NULL == longlived )
+		{
+			shortlived = get_database_name(MyDatabaseId);
+			if ( NULL != shortlived )
+			{
+				longlived = MemoryContextStrdup(TopMemoryContext, shortlived);
+				pfree(shortlived);
+			}
+		}
+		return longlived;
+	}
+#endif
 	return MyProcPort->database_name;
+}
+
+static char *origUserName()
+{
+#ifdef BGW_HAS_NO_MYPROCPORT
+	if ( IsBackgroundWorker )
+	{
+#if PG_VERSION_NUM >= 90500
+		char *shortlived;
+		static char *longlived;
+		if ( NULL == longlived )
+		{
+			shortlived = GetUserNameFromId(GetAuthenticatedUserId(), false);
+			longlived = MemoryContextStrdup(TopMemoryContext, shortlived);
+			pfree(shortlived);
+		}
+		return longlived;
+#else
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg("PL/Java in a background worker not supported "
+				"in this PostgreSQL version"),
+			errhint("PostgreSQL 9.5 is the first version to support "
+				"PL/Java in a background worker.")));
+#endif
+	}
+#endif
+	return MyProcPort->user_name;
 }
 
 char const *pljavaClusterName()
@@ -152,6 +225,11 @@ static void checkLoadPath( bool *livecheck)
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
+#if PG_VERSION_NUM >= 80300
+	PlannedStmt *ps;
+#else
+	Query *ps;
+#endif
 
 #ifndef CREATING_EXTENSION_HACK
 	if ( NULL != livecheck )
@@ -159,7 +237,12 @@ static void checkLoadPath( bool *livecheck)
 #endif
 	if ( NULL == ActivePortal )
 		return;
-	l = ActivePortal->stmts;
+	l = ActivePortal->
+#if PG_VERSION_NUM >= 80300
+		stmts;
+#else
+		parseTrees;
+#endif
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
@@ -169,6 +252,28 @@ static void checkLoadPath( bool *livecheck)
 	{
 		elog(DEBUG2, "got null for first statement from ActivePortal");
 		return;
+	}
+#if PG_VERSION_NUM >= 80300
+	if ( T_PlannedStmt == nodeTag(ut) )
+	{
+		ps = (PlannedStmt *)ut;
+#else
+	if ( T_Query == nodeTag(ut) )
+	{
+		ps = (Query *)ut;
+#endif
+		if ( CMD_UTILITY != ps->commandType )
+		{
+			elog(DEBUG2, "ActivePortal has PlannedStmt command type %u",
+				 ps->commandType);
+			return;
+		}
+		ut = ps->utilityStmt;
+		if ( NULL == ut )
+		{
+			elog(DEBUG2, "got null for utilityStmt from PlannedStmt");
+			return;
+		}
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
 #ifdef CREATING_EXTENSION_HACK
@@ -327,6 +432,11 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 	return probinstring;
 }
 
+bool InstallHelper_shouldDeferInit()
+{
+	return IsBackgroundWorker || IsBinaryUpgrade;
+}
+
 bool InstallHelper_isPLJavaFunction(Oid fn)
 {
 	char *itsPath;
@@ -388,6 +498,10 @@ char *InstallHelper_hello()
 	char pathbuf[MAXPGPATH];
 	Invocation ctx;
 	jstring nativeVer;
+	jstring serverBuiltVer;
+	jstring serverRunningVer;
+	FunctionCallInfoData fcinfo;
+	text *runningVer;
 	jstring user;
 	jstring dbname;
 	jstring clustername;
@@ -401,8 +515,22 @@ char *InstallHelper_hello()
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
-	user = String_createJavaStringFromNTS(MyProcPort->user_name);
-	dbname = String_createJavaStringFromNTS(MyProcPort->database_name);
+	serverBuiltVer = String_createJavaStringFromNTS(PG_VERSION_STR);
+
+#if PG_VERSION_NUM >= 90100
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
+	InvalidOid, /* collation */
+	NULL, NULL);
+#else
+	InitFunctionCallInfoData(fcinfo, NULL, 0,
+	NULL, NULL);
+#endif
+	runningVer = DatumGetTextP(pgsql_version(&fcinfo));
+	serverRunningVer = String_createJavaString(runningVer);
+	pfree(runningVer);
+
+	user = String_createJavaStringFromNTS(origUserName());
+	dbname = String_createJavaStringFromNTS(pljavaDbName());
 	if ( '\0' == *clusternameC )
 		clustername = NULL;
 	else
@@ -421,9 +549,13 @@ char *InstallHelper_hello()
 
 	greeting = JNI_callStaticObjectMethod(
 		s_InstallHelper_class, s_InstallHelper_hello,
-		nativeVer, user, dbname, clustername, ddir, ldir, sdir, edir);
+		nativeVer, serverBuiltVer, serverRunningVer,
+		user, dbname, clustername,
+		ddir, ldir, sdir, edir);
 
 	JNI_deleteLocalRef(nativeVer);
+	JNI_deleteLocalRef(serverBuiltVer);
+	JNI_deleteLocalRef(serverRunningVer);
 	JNI_deleteLocalRef(user);
 	JNI_deleteLocalRef(dbname);
 	if ( NULL != clustername )
@@ -441,8 +573,20 @@ char *InstallHelper_hello()
 void InstallHelper_groundwork()
 {
 	Invocation ctx;
+	bool snapshot_set = false;
 	Invocation_pushInvocation(&ctx, false);
 	ctx.function = Function_INIT_WRITER;
+#if PG_VERSION_NUM >= 80400
+	if ( ! ActiveSnapshotSet() )
+	{
+		PushActiveSnapshot(GetTransactionSnapshot());
+#else
+	if ( NULL == ActiveSnapshot )
+	{
+		ActiveSnapshot = CopySnapshot(GetTransactionSnapshot());
+#endif
+		snapshot_set = true;
+	}
 	PG_TRY();
 	{
 		char const *lpt = LOADPATH_TBL_NAME;
@@ -460,10 +604,26 @@ void InstallHelper_groundwork()
 		JNI_deleteLocalRef(pljlp);
 		JNI_deleteLocalRef(jlpt);
 		JNI_deleteLocalRef(jlptq);
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
+		if ( snapshot_set )
+		{
+#if PG_VERSION_NUM >= 80400
+			PopActiveSnapshot();
+#else
+			ActiveSnapshot = NULL;
+#endif
+		}
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
 	}
@@ -478,7 +638,8 @@ void InstallHelper_initialize()
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
 		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/lang/String;");
 	s_InstallHelper_groundwork = PgObject_getStaticJavaMethod(
 		s_InstallHelper_class, "groundwork",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V");
