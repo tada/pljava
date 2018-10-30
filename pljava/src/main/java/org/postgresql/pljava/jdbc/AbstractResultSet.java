@@ -471,20 +471,6 @@ public abstract class AbstractResultSet implements ResultSet
 	}
 
 	@Override
-	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
-	throws SQLException
-	{
-		updateObject(columnIndex, xmlObject);
-	}
-
-	@Override
-	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
-	throws SQLException
-	{
-		updateObject(columnLabel, xmlObject);
-	}
-
-	@Override
 	public SQLXML getSQLXML(int columnIndex)
 	throws SQLException
 	{
@@ -498,207 +484,93 @@ public abstract class AbstractResultSet implements ResultSet
 		return getObject(columnLabel, SQLXML.class);
 	}
 
+	@Override
+	public void updateSQLXML(int columnIndex, SQLXML xmlObject)
+	throws SQLException
+	{
+		updateObject(columnIndex, xmlObject);
+	}
+
+	@Override
+	public void updateSQLXML(String columnLabel, SQLXML xmlObject)
+	throws SQLException
+	{
+		updateObject(columnLabel, xmlObject);
+	}
+
 	// ************************************************************
-	// Non-implementation of JDBC 4 methods.
+	// Non-implementation of JDBC 4 get methods.
 	// ************************************************************
 
 	@Override
-	public void updateNClob(int columnIndex, NClob nClob)
+	public Reader getNCharacterStream(String columnLabel)
 	throws SQLException
 	{
-		throw new SQLFeatureNotSupportedException( this.getClass() + 
-			".updateNClob( int, NClob ) not implemented yet.", 
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNCharacterStream( String ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public void updateNClob(String columnLabel, NClob nClob)
+	public Reader getNCharacterStream(int columnIndex)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNClob( String, NClob ) not implemented yet.",
+			".gett( int ) not implemented yet.", "0A000" );
+	}
+
+	@Override
+	public NClob getNClob(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNClob( String ) not implemented yet.", "0A000" );
+	}
+
+	@Override
+	public NClob getNClob(int columnIndex)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNClob( int ) not implemented yet.", "0A000" );
+	}
+
+	@Override
+	public String getNString(String columnLabel)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".getNString( String ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public void updateNClob(int columnIndex, Reader reader)
+	public String getNString(int columnIndex)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNClob( int, Reader ) not implemented yet.",
-							   "0A000" );
+			".getNString( int ) not implemented yet.", "0A000" );
 	}
 
 	@Override
-	public void updateNClob(int columnIndex, Reader reader, long length)
+	public RowId getRowId(String columnLabel)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNClob( int, Reader, long ) not implemented yet.",
-							   "0A000" );
+			".getRowId( String ) not implemented yet.", "0A000" );
 	}
 
 	@Override
-	public void updateNClob(String columnLabel, Reader reader)
+	public RowId getRowId(int columnIndex)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNClob( String, Reader ) not implemented yet.",
-							   "0A000" );
+			"getRowId( int ) not implemented yet.", "0A000" );
 	}
 
-	@Override
-	public void updateNClob(String columnLabel, Reader reader, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNClob( String, Reader, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateClob(int columnIndex, Reader reader)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateClob( int, Reader ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateClob(int columnIndex, Reader reader, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateClob( int, Reader, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateClob(String columnLabel, Reader reader)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateClob( String, Reader ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateClob(String columnLabel, Reader reader, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateClob( String, Reader, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBlob(int columnIndex, InputStream inputStream)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBlob( int, InputStream ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBlob(int columnIndex, InputStream inputStream, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBlob( int, InputStream, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBlob(String columnLabel, InputStream inputStream)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBlob( String, InputStream ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBlob(String columnLabel, InputStream inputStream, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBlob( String, InputStream, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateCharacterStream(int columnIndex, Reader x)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateCharacterStream( int, Reader ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateCharacterStream(int columnIndex, Reader x, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateCharacterStream( int, Reader, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateCharacterStream(String ColumnLabel, Reader x)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateCharacterStream( String, Reader ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateCharacterStream(String ColumnLabel, Reader x, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateCharacterStream( String, Reader, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBinaryStream(String columnLabel, InputStream x)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBinaryStream( String, InputStream ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBinaryStream(String columnLabel, InputStream x, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBinaryStream( String, InputStream, long ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBinaryStream(int columnIndex, InputStream x)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBinaryStream( int, InputStream ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateBinaryStream(int columnIndex, InputStream x, long length)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateBinaryStream( int, InputStream, long ) not implemented yet.", 
-							   "0A000" );
-	}
+	// ************************************************************
+	// Non-implementation of JDBC 4 update methods.
+	// ************************************************************
 
 	@Override
 	public void updateAsciiStream(String columnLabel, InputStream x)
@@ -730,7 +602,151 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateAsciiStream( int, InputStream, long ) not implemented yet.", 
+			".updateAsciiStream( int, InputStream, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBinaryStream(String columnLabel, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( String, InputStream ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBinaryStream(String columnLabel, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( String, InputStream, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBinaryStream(int columnIndex, InputStream x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( int, InputStream ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBinaryStream(int columnIndex, InputStream x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBinaryStream( int, InputStream, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBlob(String columnLabel, InputStream inputStream)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( String, InputStream ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBlob(String columnLabel, InputStream inputStream, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( String, InputStream, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBlob(int columnIndex, InputStream inputStream)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( int, InputStream ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateBlob(int columnIndex, InputStream inputStream, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateBlob( int, InputStream, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateCharacterStream(String ColumnLabel, Reader x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( String, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateCharacterStream(String ColumnLabel, Reader x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( String, Reader, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateCharacterStream(int columnIndex, Reader x)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( int, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateCharacterStream(int columnIndex, Reader x, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateCharacterStream( int, Reader, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateClob(String columnLabel, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( String, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateClob(String columnLabel, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( String, Reader, long ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateClob(int columnIndex, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( int, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateClob(int columnIndex, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateClob( int, Reader, long ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -739,7 +755,7 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNCharacterStream( String, Reader ) not implemented yet.", 
+			".updateNCharacterStream( String, Reader ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -748,7 +764,7 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNCharacterStream( String, Reader, long ) not implemented yet.", 
+			".updateNCharacterStream( String, Reader, long ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -757,7 +773,7 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNCharacterStream( int, Reader ) not implemented yet.", 
+			".updateNCharacterStream( int, Reader ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -766,58 +782,62 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNCharaterStream( int, Reader, long] ) not implemented yet.", 
+			".updateNCharaterStream( int, Reader, long] ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public Reader getNCharacterStream(String columnLabel)
+	public void updateNClob(String columnLabel, NClob nClob)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getNCharacterStream( String ) not implemented yet.",
+			".updateNClob( String, NClob ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public Reader getNCharacterStream(int columnIndex)
+	public void updateNClob(String columnLabel, Reader reader)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".gett( int ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public String getNString(int columnIndex)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getNString( int ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public String getNString(String columnLabel)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getNString( String ) not implemented yet.", 
+			".updateNClob( String, Reader ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public NClob getNClob(String columnLabel)
+	public void updateNClob(String columnLabel, Reader reader, long length)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getNClob( String ) not implemented yet.", "0A000" );
+			".updateNClob( String, Reader, long ) not implemented yet.",
+							   "0A000" );
 	}
 
 	@Override
-	public NClob getNClob(int columnIndex)
+	public void updateNClob(int columnIndex, NClob nClob)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getNClob( int ) not implemented yet.", "0A000" );
+			".updateNClob( int, NClob ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateNClob(int columnIndex, Reader reader)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( int, Reader ) not implemented yet.",
+							   "0A000" );
+	}
+
+	@Override
+	public void updateNClob(int columnIndex, Reader reader, long length)
+	throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException( this.getClass() +
+			".updateNClob( int, Reader, long ) not implemented yet.",
+							   "0A000" );
 	}
 
 	@Override
@@ -825,7 +845,7 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNString( String, String ) not implemented yet.", 
+			".updateNString( String, String ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -834,16 +854,7 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateNString( String, Object[] ) not implemented yet.", 
-							   "0A000" );
-	}
-
-	@Override
-	public void updateRowId(int columnIndex, RowId x)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateRowId( int, RowId ) not implemented yet.", 
+			".updateNString( String, Object[] ) not implemented yet.",
 							   "0A000" );
 	}
 
@@ -852,24 +863,17 @@ public abstract class AbstractResultSet implements ResultSet
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".updateRowId( String, RowId ) not implemented yet.", 
+			".updateRowId( String, RowId ) not implemented yet.",
 							   "0A000" );
 	}
 
 	@Override
-	public RowId getRowId(int columnIndex)
+	public void updateRowId(int columnIndex, RowId x)
 	throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException( this.getClass() +
-			"getRowId( int ) not implemented yet.", "0A000" );
-	}
-
-	@Override
-	public RowId getRowId(String columnLabel)
-	throws SQLException
-	{
-		throw new SQLFeatureNotSupportedException( this.getClass() +
-			".getRowId( String ) not implemented yet.", "0A000" );
+			".updateRowId( int, RowId ) not implemented yet.",
+							   "0A000" );
 	}
 
 	// ************************************************************
