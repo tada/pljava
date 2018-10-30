@@ -878,15 +878,12 @@ public abstract class AbstractResultSet implements ResultSet
 
 	// ************************************************************
 	// Implementation of JDBC 4.1 methods.
-	// Add @Override here once Java back horizon advances to 7.
 	// ************************************************************
 
+	@Override
 	public <T> T getObject(String columnName, Class<T> type)
 	throws SQLException
 	{
 		return this.getObject(this.findColumn(columnName), type);
 	}
-
-	public abstract <T> T getObject(int columnIndex, Class<T> type)
-	throws SQLException; // placeholder; remove when Java back horizon >= 7
 }

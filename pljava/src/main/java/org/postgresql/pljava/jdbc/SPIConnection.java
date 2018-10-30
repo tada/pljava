@@ -1218,21 +1218,21 @@ public class SPIConnection implements Connection
 	// Non-implementation of JDBC 4.1 methods.
 	// ************************************************************
 
-	// add @Override once Java 7 is back-support limit
+	@Override
 	public void abort(Executor executor) throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException(
 			"SPIConnection.abort(Executor) not implemented yet.", "0A000" );
 	}
 
-	// add @Override once Java 7 is back-support limit
+	@Override
 	public int getNetworkTimeout() throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException(
 			"SPIConnection.getNetworkTimeout() not implemented yet.", "0A000" );
 	}
 
-	// add @Override once Java 7 is back-support limit
+	@Override
 	public void setNetworkTimeout(Executor executor, int milliseconds)
 		throws SQLException
 	{
@@ -1240,14 +1240,14 @@ public class SPIConnection implements Connection
 			"SPIConnection.setNetworkTimeout(Executor,int) not implemented yet.", "0A000" );
 	}
 
-	// add @Override once Java 7 is back-support limit
+	@Override
 	public String getSchema() throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException(
 			"SPIConnection.getSchema() not implemented yet.", "0A000" );
 	}
 
-	// add @Override once Java 7 is back-support limit
+	@Override
 	public void setSchema(String schema) throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException(

@@ -628,13 +628,13 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	// ************************************************************
 	// JDBC 4.1
 	// Getter-by-columnIndex
-	// Add @Override here once Java back horizon advances to 7.
 	// ************************************************************
 
 	/**
 	 * Implemented over {@link #getObjectValue(int,Class) getObjectValue}.
 	 * Final because it records {@code wasNull} for use by other methods.
 	 */
+	@Override
 	public final <T> T getObject(int columnIndex, Class<T> type)
 	throws SQLException
 	{
