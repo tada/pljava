@@ -95,8 +95,8 @@ static Type _LocalDate_obtain(Oid typeId)
 static jvalue _Date_coerceDatum(Type self, Datum arg)
 {
 	DateADT pgDate = DatumGetDateADT(arg);
-	int64 ts = (int64)pgDate * INT64CONST(86400000000);
-	int   tz = Timestamp_getTimeZone_id(ts);
+	int64 ts = (int64)pgDate * INT64CONST(43200000000);
+	int   tz = Timestamp_getTimeZone_id(ts); /* ts in 2 usec units */
 	
 	jlong date = (jlong)(pgDate + EPOCH_DIFF);
 
@@ -109,8 +109,12 @@ static jvalue _Date_coerceDatum(Type self, Datum arg)
 
 static Datum _Date_coerceObject(Type self, jobject date)
 {
-	jlong milliSecs = JNI_callLongMethod(date, s_Date_getTime) - INT64CONST(86400000) * EPOCH_DIFF;
-	jlong secs = milliSecs / 1000 - Timestamp_getTimeZone_id(milliSecs * 1000);
+	jlong milliSecs =
+		JNI_callLongMethod(date, s_Date_getTime)
+		- INT64CONST(86400000) * EPOCH_DIFF;
+	jlong secs =
+		milliSecs / 1000
+		- Timestamp_getTimeZone_id(milliSecs * 500); /* those 2 usec units */
 	return DateADTGetDatum((DateADT)(secs / 86400));
 }
 
