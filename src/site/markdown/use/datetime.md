@@ -26,6 +26,14 @@ zone`. The conversions of non-zoned values involve a hidden dependency on the
 PostgreSQL session's current setting of `TimeZone`, which can vary from session
 to session at the connecting client's preference.
 
+There are known issues of long standing in PL/Java's conversions to and from
+these types, detailed in [issue #200][issue200]. While these particular issues
+are expected to be fixed in a future PL/Java release, the Java 8 / JDBC 4.2
+mappings described next are the strongly-recommended alternative to the legacy
+mappings, avoiding these issues entirely.
+
+[issue200]: https://github.com/tada/pljava/issues/200
+
 ## Java 8 / JDBC 4.2 date/time mappings
 
 Java 8 introduced the much improved set of date/time classes in the `java.time`

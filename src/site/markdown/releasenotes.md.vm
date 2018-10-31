@@ -10,7 +10,34 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.1
+$h2 PL/Java 1.5.2
+
+A pure bug-fix release, correcting a regression in 1.5.1 that was not caught
+in pre-release testing, and could leave
+[conversions between PostgreSQL `date` and `java.sql.Date`](${ghbug}199) off
+by one day in certain timezones and times of the year.
+
+1.5.1 added support for the newer `java.time` classes from JSR 310 / JDBC 4.2,
+which are [recommended as superior alternatives](use/datetime.html) to the
+older conversions involving `java.sql.Date` and related classes. The new
+versions are superior in part because they do not have hidden timezone
+dependencies.
+
+However, the change to the historical `java.sql.Date` conversion behavior was
+inadvertent, and is fixed in this release.
+
+$h3 Open issues with date/time/timestamp conversions
+
+During preparation of this release, other issues of longer standing were also
+uncovered in the legacy conversions between PG `date`, `time`, and
+`timestamp` classes and the `java.sql` types. They are detailed in
+[issue #200](${ghbug}200). Because they are not regressions but long-established
+behavior, they are left untouched in this release, and will be fixed in
+a future release.
+
+The Java 8 `java.time` conversions are free of these issues as well.
+
+$h2 PL/Java 1.5.1 (17 October 2018)
 
 This release adds support for PostgreSQL 9.6, 10, and 11,
 and plays more nicely with `pg_upgrade`. If a PostgreSQL installation
