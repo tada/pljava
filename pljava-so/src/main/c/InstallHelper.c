@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -34,9 +34,15 @@
 #endif
 #include <utils/syscache.h>
 
-#if PG_VERSION_NUM < 90000
+#if PG_VERSION_NUM >= 120000
+#include <catalog/pg_namespace.h>
+#define GetNamespaceOid(k1) \
+	GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid, k1)
+#elif PG_VERSION_NUM >= 90000
+#define GetNamespaceOid(k1) GetSysCacheOid1(NAMESPACENAME, k1)
+#else
 #define SearchSysCache1(cid, k1) SearchSysCache(cid, k1, 0, 0, 0)
-#define GetSysCacheOid1(cid, k1) GetSysCacheOid(cid, k1, 0, 0, 0)
+#define GetNamespaceOid(k1) GetSysCacheOid(NAMESPACENAME, k1, 0, 0, 0)
 #endif
 
 #include "pljava/InstallHelper.h"
@@ -317,7 +323,7 @@ static void getExtensionLoadPath()
 	 * working model" and that code is a lot more fiddly than you would guess.
 	 */
 	if ( InvalidOid == get_relname_relid(LOADPATH_TBL_NAME,
-		GetSysCacheOid1(NAMESPACENAME, CStringGetDatum("sqlj"))) )
+		GetNamespaceOid(CStringGetDatum("sqlj"))) )
 		return;
 
 	SPI_connect();
