@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -26,7 +26,19 @@
 #include <catalog/catalog.h>
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
-#include <dynloader.h>
+
+#if PG_VERSION_NUM >= 120000
+ #ifdef HAVE_DLOPEN
+ #include <dlfcn.h>
+ #endif
+ #define pg_dlopen(f) dlopen((f), RTLD_NOW | RTLD_GLOBAL)
+ #define pg_dlsym(h,s) dlsym((h), (s))
+ #define pg_dlclose(h) dlclose((h))
+ #define pg_dlerror() dlerror()
+#else
+ #include <dynloader.h>
+#endif
+
 #include <storage/ipc.h>
 #include <storage/proc.h>
 #include <stdio.h>
