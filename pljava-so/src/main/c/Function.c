@@ -800,6 +800,9 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	if(self->isUDT)
 		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
 
+	/* a class loader or other mechanism might have connected already. This
+	 * connection must be dropped since its parent context is wrong.
+	 */
 	if(self->func.nonudt.isMultiCall && SRF_IS_FIRSTCALL())
 		Invocation_assertDisconnect();
 
@@ -816,9 +819,6 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		int32 idx;
 		Type* types = self->func.nonudt.paramTypes;
 
-		/* a class loader or other mechanism might have connected already. This
-		 * connection must be dropped since its parent context is wrong.
-		 */
 		if(Type_isDynamic(invokerType))
 			invokerType = Type_getRealType(invokerType, get_fn_expr_rettype(fcinfo->flinfo), self->func.nonudt.typeMap);
 
