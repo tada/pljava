@@ -55,6 +55,8 @@ grant {
 //
 grant codebase "${org.postgresql.pljava.codesource}" {
 	permission java.lang.RuntimePermission
+		"charsetProvider";
+	permission java.lang.RuntimePermission
 		"createClassLoader";
 	permission java.util.logging.LoggingPermission
 		"control";
