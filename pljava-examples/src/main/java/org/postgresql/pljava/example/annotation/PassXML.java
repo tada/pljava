@@ -40,6 +40,7 @@ import java.util.HashMap;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import static javax.xml.transform.OutputKeys.ENCODING;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
@@ -288,6 +289,13 @@ public class PassXML implements SQLData
 		try
 		{
 			Transformer t = s_tf.newTransformer();
+			/*
+			 * For the non-SAX/StAX/DOM flavors of output, you're responsible
+			 * for setting the Transformer to use the server encoding.
+			 */
+			if ( howout < 5 )
+				t.setOutputProperty(ENCODING,
+					System.getProperty("org.postgresql.server.encoding"));
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )
