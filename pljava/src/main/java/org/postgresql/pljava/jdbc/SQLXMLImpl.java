@@ -642,16 +642,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				{
 					XMLInputFactory xif = XMLInputFactory.newFactory();
 					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-					if ( ! m_serverCS.isRegistered() )
-					{
-						String hack =
-						  "http://apache.org/xml/features/allow-java-encodings";
-						if ( xif.isPropertySupported(hack) )
-							xif.setProperty(hack, Boolean.TRUE);
-					}
 					XMLStreamReader xsr =
 						xif.createXMLStreamReader(
-							correctedDeclStream(is, false));
+							correctedDeclStream(is, false), m_serverCS.name());
 					if ( m_wrapped )
 						xsr = new StAXUnwrapFilter(xsr);
 					return sourceClass.cast(new StAXSource(xsr));
