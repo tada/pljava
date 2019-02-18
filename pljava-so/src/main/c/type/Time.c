@@ -12,7 +12,7 @@
  *
  * @author Thomas Hallgren
  */
-#include <sys/time.h>
+#include <time.h>
 
 #include <postgres.h>
 #include <utils/date.h>
