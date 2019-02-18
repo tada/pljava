@@ -506,7 +506,12 @@ char *InstallHelper_hello()
 	jstring nativeVer;
 	jstring serverBuiltVer;
 	jstring serverRunningVer;
-	FunctionCallInfoData fcinfo;
+#if PG_VERSION_NUM >= 120000
+	FunctionCallInfoBaseData
+#else
+	FunctionCallInfoData
+#endif
+		fcinfo;
 	text *runningVer;
 	jstring user;
 	jstring dbname;
