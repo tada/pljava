@@ -127,7 +127,7 @@ void pljava_TupleDesc_initialize(void)
 	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;JJI)V");
 
-	cls = JavaWrapperClass_alloc("type.TupleDesc");
+	cls = TypeClass_alloc("type.TupleDesc");
 	cls->JNISignature = "Lorg/postgresql/pljava/internal/TupleDesc;";
 	cls->javaTypeName = "org.postgresql.pljava.internal.TupleDesc";
 	cls->coerceDatum  = _TupleDesc_coerceDatum;
