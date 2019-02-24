@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -172,12 +172,22 @@ void Invocation_popInvocation(bool wasException)
 	CallLocal* cl;
 	Invocation* ctx = currentInvocation->previous;
 
+	/*
+	 * If a Java Invocation instance was created and associated with this
+	 * invocation, delete the reference (after calling its onExit method, for
+	 * non-exceptional returns).
+	 */
 	if(currentInvocation->invocation != 0)
 	{
 		if(!wasException)
 			JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
+
+	/*
+	 * Do nativeRelease for any DualState instances scoped to this invocation.
+	 */
+	pljava_DualState_nativeRelease(currentInvocation);
 
 	/*
 	 * Check for any DualState objects that became unreachable and can be freed.

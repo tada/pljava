@@ -21,6 +21,8 @@
 /*
  * Includes for objects dependent on DualState, so they can be initialized here
  */
+#include "pljava/type/SingleRowReader.h"
+#include "pljava/SQLInputFromTuple.h"
 #include "pljava/VarlenaWrapper.h"
 
 static jclass s_DualState_class;
@@ -136,6 +138,8 @@ void pljava_DualState_initialize(void)
 	/*
 	 * Call initialize() methods of known classes built upon DualState.
 	 */
+	pljava_SingleRowReader_initialize();
+	pljava_SQLInputFromTuple_initialize();
 	pljava_VarlenaWrapper_initialize();
 }
 

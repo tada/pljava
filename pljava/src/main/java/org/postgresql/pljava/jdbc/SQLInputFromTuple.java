@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,14 +25,14 @@ import java.sql.Ref;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLInput;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 
 import org.postgresql.pljava.internal.Backend;
-import org.postgresql.pljava.internal.JavaWrapper;
+import org.postgresql.pljava.internal.DualState;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
@@ -42,24 +42,30 @@ import org.postgresql.pljava.internal.TupleDesc;
  *
  * @author Thomas Hallgren
  */
-public class SQLInputFromTuple extends JavaWrapper implements SQLInput
+public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 {
 	private int m_index;
-	private final TupleDesc m_tupleDesc;
-	private boolean m_wasNull;
+	private final int m_columns;
 
 	/**
 	 * Construct an instance, given the (native) pointer to a PG
 	 * {@code HeapTupleHeader}, as well as the TupleDesc (Java object this time)
 	 * describing its structure.
 	 */
-	public SQLInputFromTuple(long heapTupleHeaderPointer, TupleDesc tupleDesc)
+	public SQLInputFromTuple(DualState.Key cookie, long resourceOwner,
+		long heapTupleHeaderPointer, TupleDesc tupleDesc)
 	throws SQLException
 	{
-		super(heapTupleHeaderPointer);
-		m_tupleDesc = tupleDesc;
-		m_index   = 0;
-		m_wasNull = false;
+		super(cookie, resourceOwner, heapTupleHeaderPointer, tupleDesc);
+		m_index = 0;
+		m_columns = tupleDesc.size();
+	}
+
+	protected int nextIndex() throws SQLException
+	{
+		if ( m_index >= m_columns )
+			throw new SQLNonTransientException("Tuple has no more columns");
+		return ++m_index;
 	}
 
 	/**
@@ -209,19 +215,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Object readObject() throws SQLException
 	{
-		if(m_index < m_tupleDesc.size())
-		{
-			Object v;
-			synchronized(Backend.THREADLOCK)
-			{
-				v = _getObject(
-					this.getNativePointer(), m_tupleDesc.getNativePointer(),
-					++m_index, null);
-			}
-			m_wasNull = v == null;
-			return v;
-		}
-		throw new SQLException("Tuple has no more columns");
+		return getObject(nextIndex());
 	}
 
 	/**
@@ -277,12 +271,6 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	public URL readURL() throws SQLException
 	{
 		return (URL)this.readValue(URL.class);
-	}
-
-	@Override
-	public boolean wasNull() throws SQLException
-	{
-		return m_wasNull;
 	}
 
 	// ************************************************************
@@ -345,50 +333,20 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 
 	public <T> T readObject(Class<T> type) throws SQLException
 	{
-		if(m_index < m_tupleDesc.size())
-		{
-			Object v;
-			synchronized(Backend.THREADLOCK)
-			{
-				v = _getObject(
-					this.getNativePointer(), m_tupleDesc.getNativePointer(),
-					++m_index, type);
-			}
-			m_wasNull = v == null;
-			if ( m_wasNull  ||  type.isInstance(v) )
-				return type.cast(v);
-			throw new SQLException("Cannot convert " + v.getClass().getName() +
-				" to " + type.getName());
-		}
-		throw new SQLException("Tuple has no more columns");
+		return getObject(nextIndex(), type);
 	}
 
 	// ************************************************************
-	// Implementation methods.
+	// Implementation methods, over methods of ObjectResultSet.
 	// ************************************************************
 
 	private Number readNumber(Class numberClass) throws SQLException
 	{
-		return SPIConnection.basicNumericCoersion(
-			numberClass, this.readObject());
+		return getNumber(nextIndex(), numberClass);
 	}
 
 	private Object readValue(Class valueClass) throws SQLException
 	{
-		return SPIConnection.basicCoersion(valueClass, this.readObject());
+		return getValue(nextIndex(), valueClass);
 	}
-
-	protected native void _free(long pointer);
-
-	/**
-	 * Underlying method that returns the value of the next attribute.
-	 *<p>
-	 * The signature does not constrain this to return an object of the
-	 * requested class, so it can still be used as before by methods that may do
-	 * additional coercions. When called by {@link #getObject(Class)}, that
-	 * caller enforces the class of the result.
-	 */
-	private static native Object _getObject(
-		long pointer, long tupleDescPointer, int index, Class<?> type)
-	throws SQLException;
 }

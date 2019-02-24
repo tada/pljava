@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -17,6 +17,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.DualState;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
@@ -29,38 +30,54 @@ import org.postgresql.pljava.internal.TupleDesc;
 public class SingleRowReader extends SingleRowResultSet
 {
 	private final TupleDesc m_tupleDesc;
-	private final long m_pointer;
+	private final State m_state;
+
+	private static class State
+	extends DualState.SingleGuardedLong<SingleRowReader>
+	{
+		private State(
+			DualState.Key cookie, SingleRowReader srr, long ro, long hth)
+		{
+			super(cookie, srr, ro, hth);
+		}
+
+		/**
+		 * Return the HeapTupleHeader pointer.
+		 *<p>
+		 * As long as this value is used in instance methods on SingleRowReader
+		 * (or subclasses) and only while they hold Backend.THREADLOCK, it isn't
+		 * necessary to also hold the monitor on this State object. The state
+		 * can't go java-unreachable while an instance method's on the stack,
+		 * and as long as we're on the thread that's in PG, the Invocation that
+		 * state is scoped to can't be popped before we return.
+		 */
+		private long getHeapTupleHeaderPtr() throws SQLException
+		{
+			return getValue();
+		}
+	}
 
 	/**
 	 * Construct a {@code SingleRowReader} from a {@code HeapTupleHeader}
 	 * and a {@link TupleDesc TupleDesc}.
-	 * @param pointer Just the native pointer to a PG {@code HeapTupleHeader};
-	 * the Java class of the same name is uninvolved (it's been dead since
-	 * a4f6c9e).
+	 * @param cookie Capability obtained from native code to construct a
+	 * {@code SingleRowReader} instance.
+	 * @param resourceOwner Value identifying a scope in PostgreSQL during which
+	 * the native state encapsulated here will be valid.
+	 * @param hth Native pointer to a PG {@code HeapTupleHeader}
 	 * @param tupleDesc A {@code TupleDesc}; the Java class this time.
 	 */
-	public SingleRowReader(long pointer, TupleDesc tupleDesc)
+	public SingleRowReader(DualState.Key cookie, long resourceOwner, long hth,
+		TupleDesc tupleDesc)
 	throws SQLException
 	{
-		m_pointer = pointer;
+		m_state = new State(cookie, this, resourceOwner, hth);
 		m_tupleDesc = tupleDesc;
 	}
 
 	@Override
 	public void close()
 	{
-	}
-
-	/**
-	 * Frees the {@code HeapTupleHeader}.
-	 */
-	@Override
-	public void finalize()
-	{
-		synchronized(Backend.THREADLOCK)
-		{
-			_free(m_pointer);
-		}
 	}
 
 	@Override // defined in ObjectResultSet
@@ -70,7 +87,8 @@ public class SingleRowReader extends SingleRowResultSet
 		synchronized(Backend.THREADLOCK)
 		{
 			return _getObject(
-				m_pointer, m_tupleDesc.getNativePointer(), columnIndex, type);
+				m_state.getHeapTupleHeaderPtr(), m_tupleDesc.getNativePointer(),
+				columnIndex, type);
 		}
 	}
 
@@ -185,13 +203,6 @@ public class SingleRowReader extends SingleRowResultSet
 	{
 		return m_tupleDesc;
 	}
-
-	/*
-	 * Looking for the implementation of the following JNI methods?
-	 * Look in type/Composite.c
-	 */
-
-	protected native void _free(long pointer);
 
 	private static native Object _getObject(
 		long pointer, long tupleDescPointer, int index, Class<?> type)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -125,7 +125,6 @@ extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
 extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
-extern void SQLInputFromTuple_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
 
 
@@ -848,7 +847,6 @@ static void initPLJavaClasses(void)
 	SubXactListener_initialize();
 	SQLInputFromChunk_initialize();
 	SQLOutputToChunk_initialize();
-	SQLInputFromTuple_initialize();
 	SQLOutputToTuple_initialize();
 
 	InstallHelper_initialize();
