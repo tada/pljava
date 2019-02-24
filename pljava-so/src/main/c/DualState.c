@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -33,15 +33,54 @@ static jobject s_DualState_key;
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg);
 
+/*
+ * Return a capability that is only expected to be accessible to native code.
+ */
 jobject pljava_DualState_key(void)
 {
 	return s_DualState_key;
 }
 
+/*
+ * Rather than using finalizers (deprecated in recent Java anyway), which can
+ * increase the number of threads needing to interact with PG, DualState objects
+ * will be enqueued on a ReferenceQueue when their referents become unreachable,
+ * and this function should be called from strategically-chosen points in native
+ * code so the thread already interacting with PG will clean the enqueued items.
+ */
 void pljava_DualState_cleanEnqueuedInstances(void)
 {
 	JNI_callStaticVoidMethodLocked(s_DualState_class,
 								   s_DualState_cleanEnqueuedInstances);
+}
+
+/*
+ * Called when the lifespan/scope of a particular PG resource owner is about to
+ * expire, to make the associated DualState objects inaccessible from Java. As
+ * described in DualState.java, the argument will often be a PG ResourceOwner
+ * (when this function is called by resourceReleaseCB), but pointers to other
+ * structures can also be used (such a pointer clearly can't be confused with a
+ * ResourceOwner existing at the same time). In PG 9.5+, it could be a
+ * MemoryContext, with a MemoryContextCallback established to call this
+ * function. For items whose scope is limited to a single PL/Java function
+ * invocation, this can be a pointer to the Invocation.
+ */
+void pljava_DualState_nativeRelease(void *ro)
+{
+	Ptr2Long p2l;
+
+	/*
+	 * This static assertion does not need to be in every file
+	 * that uses Ptr2Long, but it should be somewhere once, so here it is.
+	 */
+	StaticAssertStmt(sizeof p2l.ptrVal <= sizeof p2l.longVal,
+					 "Pointer will not fit in long on this platform");
+
+	p2l.longVal = 0L;
+	p2l.ptrVal = ro;
+	JNI_callStaticVoidMethodLocked(s_DualState_class,
+								   s_DualState_resourceOwnerRelease,
+								   p2l.longVal);
 }
 
 void pljava_DualState_initialize(void)
@@ -103,15 +142,6 @@ void pljava_DualState_initialize(void)
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg)
 {
-	Ptr2Long p2l;
-
-	/*
-	 * This static assertion does not need to be in every file
-	 * that uses Ptr2Long, but it should be somewhere once, so here it is.
-	 */
-	StaticAssertStmt(sizeof p2l.ptrVal <= sizeof p2l.longVal,
-					 "Pointer will not fit in long on this platform");
-
 	/*
 	 * The way ResourceOwnerRelease is implemented, callbacks to loadable
 	 * modules (like us!) happen /after/ all of the built-in releasey actions
@@ -124,11 +154,7 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 	if ( RESOURCE_RELEASE_LOCKS != phase )
 		return;
 
-	p2l.longVal = 0L;
-	p2l.ptrVal = CurrentResourceOwner;
-	JNI_callStaticVoidMethodLocked(s_DualState_class,
-								   s_DualState_resourceOwnerRelease,
-								   p2l.longVal);
+	pljava_DualState_nativeRelease(CurrentResourceOwner);
 }
 
 

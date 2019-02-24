@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,9 +16,9 @@ import java.lang.ref.WeakReference;
 
 import java.sql.SQLException;
 
-import java.util.Deque;
+import java.util.Queue;
 import java.util.Iterator;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Base class for object state with corresponding Java and native components.
@@ -53,6 +53,18 @@ import java.util.concurrent.LinkedBlockingDeque;
  * a PostgreSQL implementation concept introduced in PG 8.0. Instances will be
  * called at their {@link #nativeStateReleased nativeStateReleased} methods
  * when the corresponding {@code ResourceOwner} is released in PostgreSQL.
+ *<p>
+ * However, this class does not require the {@code resourceOwner} parameter to
+ * be, in all cases, a pointer to a PostgreSQL {@code ResourceOwner}. It is
+ * treated simply as an opaque {@code long} value, to be compared to a value
+ * passed at release time (as if in a {@code ResourceOwner} callback). Other
+ * values (such as pointers to other allocated structures, which of course
+ * cannot match any PG {@code ResourceOwner} existing at the same time) can also
+ * be used. In PostgreSQL 9.5 and later, a {@code MemoryContext} could be used,
+ * with its address passed to a {@code MemoryContextCallback} for release. For
+ * state that is scoped to a single invocation of a PL/Java function, the
+ * address of the {@code Invocation} can be used. Such references can be
+ * considered "generalized" resource owners.
  *<p>
  * Instances will be enqueued on a {@link ReferenceQueue} when found by the Java
  * garbage collector to be unreachable. The
@@ -94,8 +106,8 @@ public abstract class DualState<T> extends WeakReference<T>
 	/**
 	 * All instances are added to this collection upon creation.
 	 */
-	private static Deque<DualState> s_liveInstances =
-		new LinkedBlockingDeque<DualState>();
+	private static Queue<DualState> s_liveInstances =
+		new ConcurrentLinkedQueue<DualState>();
 
 	/**
 	 * Pointer value of the {@code ResourceOwner} this instance belongs to,
@@ -359,6 +371,83 @@ public abstract class DualState<T> extends WeakReference<T>
 					throw new IllegalStateException("Duplicate DualState.Key");
 				constructed = true;
 			}
+		}
+	}
+
+	/**
+	 * A {@code DualState} subclass serving only to guard access to a single
+	 * nonzero {@code long} value (typically a native pointer).
+	 *<p>
+	 * Nothing in particular is done to the native resource at the time of
+	 * {@code javaStateReleased} or {@code javaStateUnreachable}; if it is
+	 * subject to reclamation, this class assumes it will be shortly, in the
+	 * normal operation of the native code. This can be appropriate for native
+	 * state that was set up by a native caller for a short lifetime, such as a
+	 * single function invocation.
+	 */
+	public static abstract class SingleGuardedLong<T> extends DualState<T>
+	{
+		private volatile long m_value;
+
+		protected SingleGuardedLong(
+			Key cookie, T referent, long resourceOwner, long guardedLong)
+		{
+			super(cookie, referent, resourceOwner);
+			m_value = guardedLong;
+		}
+
+		@Override
+		public String toString(Object o)
+		{
+			return String.format(
+				"%s GuardedLong(%x)", super.toString(o), m_value);
+		}
+
+		/**
+		 * For this class, the native state is valid whenever the wrapped
+		 * value is not null.
+		 */
+		@Override
+		protected boolean nativeStateIsValid()
+		{
+			return 0 != m_value;
+		}
+
+		/**
+		 * When the native state is released, the wrapped value is zeroed
+		 * to indicate the state is no longer valid; no other action is taken,
+		 * on the assumption that the resource owner's release will be
+		 * followed by wholesale reclamation of the guarded state anyway.
+		 */
+		@Override
+		protected void nativeStateReleased()
+		{
+			m_value = 0;
+		}
+
+		/**
+		 * When the Java state is released, the wrapped pointer is zeroed to
+		 * indicate the state is no longer valid; no other action is taken.
+		 *<p>
+		 * This overrides the inherited default, which would have removed this
+		 * instance from the live instances collection. Users of this class
+		 * should not call this method directly, but simply call
+		 * {@link #enqueue enqueue}, and let the reclamation happen when the
+		 * queue is processed.
+		 */
+		@Override
+		protected void javaStateReleased()
+		{
+			m_value = 0;
+		}
+
+		/**
+		 * Allows a subclass to obtain the wrapped value.
+		 */
+		protected long getValue() throws SQLException
+		{
+			assertNativeStateIsValid();
+			return m_value;
 		}
 	}
 
