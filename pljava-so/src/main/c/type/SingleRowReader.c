@@ -36,9 +36,9 @@ jobject pljava_SingleRowReader_getTupleDesc(HeapTupleHeader ht)
 	TupleDesc tupleDesc =
 	  lookup_rowtype_tupdesc(HeapTupleHeaderGetTypeId(ht),
 				 HeapTupleHeaderGetTypMod(ht));
-	result = TupleDesc_create(tupleDesc);
+	result = pljava_TupleDesc_create(tupleDesc);
 	/*
-	 * TupleDesc_create() creates a copy of the tuple descriptor, so
+	 * pljava_TupleDesc_create() creates a copy of the tuple descriptor, so
 	 * can release this now
 	 */
 	ReleaseTupleDesc(tupleDesc);
@@ -111,7 +111,7 @@ Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass 
 		BEGIN_NATIVE
 		PG_TRY();
 		{
-			Type type = TupleDesc_getColumnType(
+			Type type = pljava_TupleDesc_getColumnType(
 				(TupleDesc) p2ltd.ptrVal, (int) attrNo);
 			if (type != 0)
 			{

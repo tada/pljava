@@ -838,8 +838,8 @@ static void initPLJavaClasses(void)
 	Invocation_initialize();
 	Exception_initialize2();
 	SPI_initialize();
-	pljava_DualState_initialize();
 	Type_initialize();
+	pljava_DualState_initialize();
 	Function_initialize();
 	Session_initialize();
 	PgSavepoint_initialize();

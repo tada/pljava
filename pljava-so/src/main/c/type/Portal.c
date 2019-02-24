@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -254,7 +254,7 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jclass cl
 		BEGIN_NATIVE
 		Ptr2Long p2l;
 		p2l.longVal = _this;
-		result = TupleDesc_create(((Portal)p2l.ptrVal)->tupDesc);
+		result = pljava_TupleDesc_create(((Portal)p2l.ptrVal)->tupDesc);
 		END_NATIVE
 	}
 	return result;

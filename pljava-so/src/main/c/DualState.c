@@ -13,6 +13,7 @@
 
 #include "org_postgresql_pljava_internal_DualState_SinglePfree.h"
 #include "org_postgresql_pljava_internal_DualState_SingleMemContextDelete.h"
+#include "org_postgresql_pljava_internal_DualState_SingleFreeTupleDesc.h"
 #include "pljava/DualState.h"
 
 #include "pljava/PgObject.h"
@@ -22,6 +23,7 @@
  * Includes for objects dependent on DualState, so they can be initialized here
  */
 #include "pljava/type/SingleRowReader.h"
+#include "pljava/type/TupleDesc.h"
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/VarlenaWrapper.h"
 
@@ -110,6 +112,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod singleFreeTupleDescMethods[] =
+	{
+		{
+		"_freeTupleDesc",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleFreeTupleDesc__1freeTupleDesc
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_resourceOwnerRelease = PgObject_getStaticJavaMethod(
@@ -133,6 +145,11 @@ void pljava_DualState_initialize(void)
 	PgObject_registerNatives2(clazz, singleMemContextDeleteMethods);
 	JNI_deleteLocalRef(clazz);
 
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleFreeTupleDesc");
+	PgObject_registerNatives2(clazz, singleFreeTupleDescMethods);
+	JNI_deleteLocalRef(clazz);
+
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 
 	/*
@@ -140,6 +157,7 @@ void pljava_DualState_initialize(void)
 	 */
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
+	pljava_TupleDesc_initialize();
 	pljava_VarlenaWrapper_initialize();
 }
 
@@ -196,5 +214,23 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memC
 	Ptr2Long p2l;
 	p2l.longVal = pointer;
 	MemoryContextDelete(p2l.ptrVal);
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleFreeTupleDesc
+ * Method:    _freeTupleDesc
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleFreeTupleDesc__1freeTupleDesc(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	FreeTupleDesc(p2l.ptrVal);
 	END_NATIVE
 }

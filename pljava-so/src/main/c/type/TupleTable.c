@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -34,7 +34,7 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
-	tupdesc = TupleDesc_internalCreate(tts->tts_tupleDescriptor);
+	tupdesc = pljava_TupleDesc_internalCreate(tts->tts_tupleDescriptor);
 	tuple   = ExecCopySlotTuple(tts);
 	tuples  = Tuple_createArray(&tuple, 1, false);
 
@@ -62,7 +62,7 @@ jobject TupleTable_create(SPITupleTable* tts, jobject knownTD)
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
 	if(knownTD == 0)
-		knownTD = TupleDesc_internalCreate(tts->tupdesc);
+		knownTD = pljava_TupleDesc_internalCreate(tts->tupdesc);
 
 	tuples = Tuple_createArray(tts->vals, (jint)tupcount, true);
 	MemoryContextSwitchTo(curr);

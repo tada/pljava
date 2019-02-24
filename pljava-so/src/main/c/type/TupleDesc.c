@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,7 @@
 
 #include "org_postgresql_pljava_internal_TupleDesc.h"
 #include "pljava/Backend.h"
+#include "pljava/DualState.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/type/Type_priv.h"
@@ -33,19 +34,19 @@ static jmethodID s_TupleDesc_init;
  * TupleDesc, which will be freed later when Java code calls the native method
  * _free(). Therefore the caller is done with its TupleDesc when this returns.
  */
-jobject TupleDesc_create(TupleDesc td)
+jobject pljava_TupleDesc_create(TupleDesc td)
 {
 	jobject jtd = 0;
 	if(td != 0)
 	{
 		MemoryContext curr = MemoryContextSwitchTo(JavaMemoryContext);
-		jtd = TupleDesc_internalCreate(td);
+		jtd = pljava_TupleDesc_internalCreate(td);
 		MemoryContextSwitchTo(curr);
 	}
 	return jtd;
 }
 
-jobject TupleDesc_internalCreate(TupleDesc td)
+jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 {
 	jobject jtd;
 	Ptr2Long tdH;
@@ -53,7 +54,15 @@ jobject TupleDesc_internalCreate(TupleDesc td)
 	td = CreateTupleDescCopyConstr(td);
 	tdH.longVal = 0L; /* ensure that the rest is zeroed out */
 	tdH.ptrVal = td;
-	jtd = JNI_newObject(s_TupleDesc_class, s_TupleDesc_init, tdH.longVal, (jint)td->natts);
+	/*
+	 * Passing NULL as the ResourceOwner means this will never be matched by a
+	 * nativeRelease call; that's appropriate (for now) as the TupleDesc copy is
+	 * being made into JavaMemoryContext, which never gets reset, so only
+	 * unreachability from the Java side will free it.
+	 * XXX what about invalidating if DDL alters the column layout?
+	 */
+	jtd = JNI_newObject(s_TupleDesc_class, s_TupleDesc_init,
+		pljava_DualState_key(), NULL, tdH.longVal, (jint)td->natts);
 	return jtd;
 }
 
@@ -62,7 +71,7 @@ jobject TupleDesc_internalCreate(TupleDesc td)
  * (caller should expeditiously return), otherwise the Type for the column data
  * (the one representing the boxing Object type, in the primitive case).
  */
-Type TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
+Type pljava_TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 {
 	Type type;
 	Oid typeId = SPI_gettypeid(tupleDesc, index);
@@ -80,14 +89,14 @@ Type TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 static jvalue _TupleDesc_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
-	result.l = TupleDesc_create((TupleDesc)DatumGetPointer(arg));
+	result.l = pljava_TupleDesc_create((TupleDesc)DatumGetPointer(arg));
 	return result;
 }
 
 /* Make this datatype available to the postgres system.
  */
-extern void TupleDesc_initialize(void);
-void TupleDesc_initialize(void)
+extern void pljava_TupleDesc_initialize(void);
+void pljava_TupleDesc_initialize(void)
 {
 	TypeClass cls;
 	JNINativeMethod methods[] = {
@@ -111,16 +120,12 @@ void TupleDesc_initialize(void)
 		"(JI)Lorg/postgresql/pljava/internal/Oid;",
 		Java_org_postgresql_pljava_internal_TupleDesc__1getOid
 		},
-		{
-		"_free",
-		"(J)V",
-		Java_org_postgresql_pljava_internal_TupleDesc__1free
-		},
 		{ 0, 0, 0 }};
 
 	s_TupleDesc_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleDesc"));
 	PgObject_registerNatives2(s_TupleDesc_class, methods);
-	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>", "(JI)V");
+	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>",
+		"(Lorg/postgresql/pljava/internal/DualState$Key;JJI)V");
 
 	cls = JavaWrapperClass_alloc("type.TupleDesc");
 	cls->JNISignature = "Lorg/postgresql/pljava/internal/TupleDesc;";
@@ -258,21 +263,6 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 	PG_END_TRY();
 	END_NATIVE
 	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_TupleDesc
- * Method:    _free
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_TupleDesc__1free(JNIEnv* env, jobject _this, jlong pointer)
-{
-	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeTupleDesc((TupleDesc)p2l.ptrVal);
-	END_NATIVE
 }
 
 /*

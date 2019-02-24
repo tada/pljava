@@ -81,7 +81,7 @@ static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* 
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
-	jobject jtd = TupleDesc_create(tupleDesc);
+	jobject jtd = pljava_TupleDesc_create(tupleDesc);
 	jobject singleRowWriter = _createWriter(jtd);
 	int numArgs = fcinfo->nargs;
 	
@@ -128,7 +128,7 @@ static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	if(tupleDesc == 0)
 		ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
-	tmp1 = TupleDesc_create(tupleDesc);
+	tmp1 = pljava_TupleDesc_create(tupleDesc);
 	tmp2 = _createWriter(tmp1);
 	JNI_deleteLocalRef(tmp1);
 	return tmp2;
