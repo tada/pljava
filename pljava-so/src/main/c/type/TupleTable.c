@@ -36,7 +36,7 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 
 	tupdesc = pljava_TupleDesc_internalCreate(tts->tts_tupleDescriptor);
 	tuple   = ExecCopySlotTuple(tts);
-	tuples  = Tuple_createArray(&tuple, 1, false);
+	tuples  = pljava_Tuple_createArray(&tuple, 1, false);
 
 	MemoryContextSwitchTo(curr);
 
@@ -64,7 +64,7 @@ jobject TupleTable_create(SPITupleTable* tts, jobject knownTD)
 	if(knownTD == 0)
 		knownTD = pljava_TupleDesc_internalCreate(tts->tupdesc);
 
-	tuples = Tuple_createArray(tts->vals, (jint)tupcount, true);
+	tuples = pljava_Tuple_createArray(tts->vals, (jint)tupcount, true);
 	MemoryContextSwitchTo(curr);
 
 	return JNI_newObject(s_TupleTable_class, s_TupleTable_init, knownTD, tuples);

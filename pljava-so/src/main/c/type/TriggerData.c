@@ -182,7 +182,7 @@ Java_org_postgresql_pljava_internal_TriggerData__1getTriggerTuple(JNIEnv* env, j
 	if(self != 0)
 	{
 		BEGIN_NATIVE
-		result = Tuple_create(self->tg_trigtuple);
+		result = pljava_Tuple_create(self->tg_trigtuple);
 		END_NATIVE
 	}
 	return result;
@@ -201,7 +201,7 @@ Java_org_postgresql_pljava_internal_TriggerData__1getNewTuple(JNIEnv* env, jclas
 	if(self != 0)
 	{
 		BEGIN_NATIVE
-		result = Tuple_create(self->tg_newtuple);
+		result = pljava_Tuple_create(self->tg_newtuple);
 		END_NATIVE
 	}
 	return result;

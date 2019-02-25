@@ -810,7 +810,6 @@ extern void ExecutionPlan_initialize(void);
 extern void Portal_initialize(void);
 extern void Relation_initialize(void);
 extern void TriggerData_initialize(void);
-extern void Tuple_initialize(void);
 extern void TupleTable_initialize(void);
 
 extern void Composite_initialize(void);
@@ -854,7 +853,6 @@ void Type_initialize(void)
 	Portal_initialize();
 	TriggerData_initialize();
 	Relation_initialize();
-	Tuple_initialize();
 	TupleTable_initialize();
 
 	Composite_initialize();

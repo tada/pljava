@@ -251,7 +251,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 
 		curr = MemoryContextSwitchTo(JavaMemoryContext);
 		tuple = heap_form_tuple(self, values, nulls);
-		result = Tuple_internalCreate(tuple, false);
+		result = pljava_Tuple_internalCreate(tuple, false);
 		MemoryContextSwitchTo(curr);
 		pfree(values);
 		pfree(nulls);

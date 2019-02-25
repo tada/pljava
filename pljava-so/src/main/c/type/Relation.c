@@ -275,7 +275,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 		}
 		PG_END_TRY();
 		if(tuple != 0)
-			result = Tuple_create(tuple);
+			result = pljava_Tuple_create(tuple);
 		END_NATIVE
 	}
 	return result;
