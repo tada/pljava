@@ -91,6 +91,7 @@ extern PLJAVADLLEXPORT void _PG_init(void);
 
 #define LOCAL_REFERENCE_COUNT 128
 
+MemoryContext JavaMemoryContext;
 jlong mainThreadId;
 
 static JavaVM* s_javaVM = 0;
@@ -823,6 +824,10 @@ static void initPLJavaClasses(void)
 		},
 		{ 0, 0, 0 }
 	};
+
+	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
+												"PL/Java",
+												ALLOCSET_DEFAULT_SIZES);
 
 	Exception_initialize();
 

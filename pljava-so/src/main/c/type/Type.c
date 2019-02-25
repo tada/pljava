@@ -804,7 +804,6 @@ extern void AclId_initialize(void);
 extern void String_initialize(void);
 extern void byte_array_initialize(void);
 
-extern void JavaWrapper_initialize(void);
 extern void ExecutionPlan_initialize(void);
 extern void Portal_initialize(void);
 extern void TupleTable_initialize(void);
@@ -844,7 +843,6 @@ void Type_initialize(void)
 
 	byte_array_initialize();
 
-	JavaWrapper_initialize();
 	ExecutionPlan_initialize();
 	Portal_initialize();
 	TupleTable_initialize();

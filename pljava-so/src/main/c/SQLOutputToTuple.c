@@ -13,8 +13,8 @@
  * @author Thomas Hallgren
  */
 #include <postgres.h>
+#include "pljava/type/Type.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/type/JavaWrapper.h"
 #include "pljava/SQLOutputToTuple.h"
 
 static jclass    s_SQLOutputToTuple_class;
