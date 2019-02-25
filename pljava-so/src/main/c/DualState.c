@@ -25,6 +25,7 @@
  */
 #include "pljava/type/Relation.h"
 #include "pljava/type/SingleRowReader.h"
+#include "pljava/type/TriggerData.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/SQLInputFromTuple.h"
@@ -180,6 +181,7 @@ void pljava_DualState_initialize(void)
 	pljava_Relation_initialize();
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
+	pljava_TriggerData_initialize();
 	pljava_TupleDesc_initialize();
 	pljava_Tuple_initialize();
 	pljava_VarlenaWrapper_initialize();

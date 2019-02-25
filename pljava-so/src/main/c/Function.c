@@ -853,7 +853,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	Datum  ret;
 
 	TriggerData *td = (TriggerData*)fcinfo->context;
-	arg.l = TriggerData_create(td);
+	arg.l = pljava_TriggerData_create(td);
 	if(arg.l == 0)
 		return 0;
 
@@ -888,7 +888,8 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 #endif
 		MemoryContext currCtx = Invocation_switchToUpperContext();
 		ret = PointerGetDatum(
-				TriggerData_getTriggerReturnTuple(arg.l, &fcinfo->isnull));
+				pljava_TriggerData_getTriggerReturnTuple(
+					arg.l, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.

@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -17,7 +23,7 @@ import org.postgresql.pljava.jdbc.TriggerResultSet;
  * 
  * @author Thomas Hallgren
  */
-public class TriggerData extends JavaWrapper implements org.postgresql.pljava.TriggerData
+public class TriggerData implements org.postgresql.pljava.TriggerData
 {
 	private Relation m_relation;
 	private TriggerResultSet m_old = null;
@@ -25,10 +31,41 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 	private Tuple m_newTuple;
 	private Tuple m_triggerTuple;
 	private boolean m_suppress = false;
+	private final State m_state;
 
-	TriggerData(long pointer)
+	TriggerData(DualState.Key cookie, long resourceOwner, long pointer)
 	{
-		super(pointer);
+		m_state = new State(cookie, this, resourceOwner, pointer);
+	}
+
+	private static class State
+	extends DualState.SingleGuardedLong<TriggerData>
+	{
+		private State(
+			DualState.Key cookie, TriggerData td, long ro, long hth)
+		{
+			super(cookie, td, ro, hth);
+		}
+
+		/**
+		 * Return the TriggerData pointer.
+		 *<p>
+		 * As long as this value is used in instance methods on TriggerData
+		 * (or subclasses) and only while they hold Backend.THREADLOCK, it isn't
+		 * necessary to also hold the monitor on this State object. The state
+		 * can't go java-unreachable while an instance method's on the stack,
+		 * and as long as we're on the thread that's in PG, the Invocation that
+		 * state is scoped to can't be popped before we return.
+		 */
+		private long getTriggerDataPtr() throws SQLException
+		{
+			return getValue();
+		}
+	}
+
+	private long getNativePointer() throws SQLException
+	{
+		return m_state.getTriggerDataPtr();
 	}
 
 	@Override
@@ -362,7 +399,6 @@ public class TriggerData extends JavaWrapper implements org.postgresql.pljava.Tr
 		}
 	}
 
-	protected native void _free(long pointer);
 	private static native Relation _getRelation(long pointer) throws SQLException;
 	private static native Tuple _getTriggerTuple(long pointer) throws SQLException;
 	private static native Tuple _getNewTuple(long pointer) throws SQLException;
