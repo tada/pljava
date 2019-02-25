@@ -15,6 +15,7 @@
 #include "org_postgresql_pljava_internal_DualState_SingleMemContextDelete.h"
 #include "org_postgresql_pljava_internal_DualState_SingleFreeTupleDesc.h"
 #include "org_postgresql_pljava_internal_DualState_SingleHeapFreeTuple.h"
+#include "org_postgresql_pljava_internal_DualState_SingleFreeErrorData.h"
 #include "pljava/DualState.h"
 
 #include "pljava/PgObject.h"
@@ -23,6 +24,7 @@
 /*
  * Includes for objects dependent on DualState, so they can be initialized here
  */
+#include "pljava/type/ErrorData.h"
 #include "pljava/type/Relation.h"
 #include "pljava/type/SingleRowReader.h"
 #include "pljava/type/TriggerData.h"
@@ -140,6 +142,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod singleFreeErrorDataMethods[] =
+	{
+		{
+		"_freeErrorData",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErrorData
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_resourceOwnerRelease = PgObject_getStaticJavaMethod(
@@ -173,11 +185,17 @@ void pljava_DualState_initialize(void)
 	PgObject_registerNatives2(clazz, singleHeapFreeTupleMethods);
 	JNI_deleteLocalRef(clazz);
 
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleFreeErrorData");
+	PgObject_registerNatives2(clazz, singleFreeErrorDataMethods);
+	JNI_deleteLocalRef(clazz);
+
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 
 	/*
 	 * Call initialize() methods of known classes built upon DualState.
 	 */
+	pljava_ErrorData_initialize();
 	pljava_Relation_initialize();
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
@@ -276,5 +294,23 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleHeapFreeTuple__1heapFre
 	Ptr2Long p2l;
 	p2l.longVal = pointer;
 	heap_freetuple(p2l.ptrVal);
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleFreeErrorData
+ * Method:    _freeErrorData
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErrorData(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	FreeErrorData(p2l.ptrVal);
 	END_NATIVE
 }

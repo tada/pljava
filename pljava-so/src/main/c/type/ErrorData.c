@@ -1,12 +1,19 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
 #include "org_postgresql_pljava_internal_ErrorData.h"
+#include "pljava/DualState.h"
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/ErrorData.h"
@@ -16,7 +23,7 @@ static jclass    s_ErrorData_class;
 static jmethodID s_ErrorData_init;
 static jmethodID s_ErrorData_getNativePointer;
 
-jobject ErrorData_getCurrentError(void)
+jobject pljava_ErrorData_getCurrentError(void)
 {
 	Ptr2Long p2l;
 	jobject jed;
@@ -27,11 +34,18 @@ jobject ErrorData_getCurrentError(void)
 
 	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = errorData;
-	jed = JNI_newObject(s_ErrorData_class, s_ErrorData_init, p2l.longVal);
+	/*
+	 * Passing NULL as the ResourceOwner means this will never be matched by a
+	 * nativeRelease call; that's appropriate (for now) as the ErrorData copy is
+	 * being made into JavaMemoryContext, which never gets reset, so only
+	 * unreachability from the Java side will free it.
+	 */
+	jed = JNI_newObject(s_ErrorData_class, s_ErrorData_init,
+		pljava_DualState_key(), NULL, p2l.longVal);
 	return jed;
 }
 
-ErrorData* ErrorData_getErrorData(jobject jed)
+ErrorData* pljava_ErrorData_getErrorData(jobject jed)
 {	
 	Ptr2Long p2l;
 	p2l.longVal = JNI_callLongMethod(jed, s_ErrorData_getNativePointer);
@@ -40,8 +54,7 @@ ErrorData* ErrorData_getErrorData(jobject jed)
 
 /* Make this datatype available to the postgres system.
  */
-extern void ErrorData_initialize(void);
-void ErrorData_initialize(void)
+void pljava_ErrorData_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{
@@ -134,7 +147,8 @@ void ErrorData_initialize(void)
 
 	s_ErrorData_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ErrorData"));
 	PgObject_registerNatives2(s_ErrorData_class, methods);
-	s_ErrorData_init = PgObject_getJavaMethod(s_ErrorData_class, "<init>", "(J)V");
+	s_ErrorData_init = PgObject_getJavaMethod(s_ErrorData_class, "<init>",
+		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
 	s_ErrorData_getNativePointer = PgObject_getJavaMethod(s_ErrorData_class, "getNativePointer", "()J");
 }
 
