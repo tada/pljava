@@ -23,6 +23,7 @@
 /*
  * Includes for objects dependent on DualState, so they can be initialized here
  */
+#include "pljava/type/Relation.h"
 #include "pljava/type/SingleRowReader.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
@@ -176,6 +177,7 @@ void pljava_DualState_initialize(void)
 	/*
 	 * Call initialize() methods of known classes built upon DualState.
 	 */
+	pljava_Relation_initialize();
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
 	pljava_TupleDesc_initialize();

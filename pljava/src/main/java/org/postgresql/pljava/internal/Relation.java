@@ -14,13 +14,39 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Relation extends JavaWrapper
+public class Relation
 {
 	private TupleDesc m_tupleDesc;
+	private final State m_state;
 
-	Relation(long pointer)
+	Relation(DualState.Key cookie, long resourceOwner, long pointer)
 	{
-		super(pointer);
+		m_state = new State(cookie, this, resourceOwner, pointer);
+	}
+
+	private static class State
+	extends DualState.SingleGuardedLong<Relation>
+	{
+		private State(
+			DualState.Key cookie, Relation r, long ro, long hth)
+		{
+			super(cookie, r, ro, hth);
+		}
+
+		/**
+		 * Return the Relation pointer.
+		 *<p>
+		 * As long as this value is used in instance methods on Relation
+		 * (or subclasses) and only while they hold Backend.THREADLOCK, it isn't
+		 * necessary to also hold the monitor on this State object. The state
+		 * can't go java-unreachable while an instance method's on the stack,
+		 * and as long as we're on the thread that's in PG, the Invocation that
+		 * state is scoped to can't be popped before we return.
+		 */
+		private long getRelationPtr() throws SQLException
+		{
+			return getValue();
+		}
 	}
 
 	/**
@@ -32,7 +58,7 @@ public class Relation extends JavaWrapper
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getName(this.getNativePointer());
+			return _getName(m_state.getRelationPtr());
 		}
 	}
 
@@ -45,7 +71,7 @@ public class Relation extends JavaWrapper
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getSchema(this.getNativePointer());
+			return _getSchema(m_state.getRelationPtr());
 		}
 	}
 
@@ -60,7 +86,7 @@ public class Relation extends JavaWrapper
 		{
 			synchronized(Backend.THREADLOCK)
 			{
-				m_tupleDesc = _getTupleDesc(this.getNativePointer());
+				m_tupleDesc = _getTupleDesc(m_state.getRelationPtr());
 			}
 		}
 		return m_tupleDesc;
@@ -90,11 +116,9 @@ public class Relation extends JavaWrapper
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _modifyTuple(this.getNativePointer(), original.getNativePointer(), fieldNumbers, values);
+			return _modifyTuple(m_state.getRelationPtr(), original.getNativePointer(), fieldNumbers, values);
 		}
 	}
-
-	protected native void _free(long pointer);
 
 	private static native String _getName(long pointer)
 	throws SQLException;

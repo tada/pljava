@@ -808,7 +808,6 @@ extern void byte_array_initialize(void);
 extern void JavaWrapper_initialize(void);
 extern void ExecutionPlan_initialize(void);
 extern void Portal_initialize(void);
-extern void Relation_initialize(void);
 extern void TriggerData_initialize(void);
 extern void TupleTable_initialize(void);
 
@@ -852,7 +851,6 @@ void Type_initialize(void)
 	ExecutionPlan_initialize();
 	Portal_initialize();
 	TriggerData_initialize();
-	Relation_initialize();
 	TupleTable_initialize();
 
 	Composite_initialize();

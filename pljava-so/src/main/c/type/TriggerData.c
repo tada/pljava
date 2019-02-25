@@ -163,7 +163,7 @@ Java_org_postgresql_pljava_internal_TriggerData__1getRelation(JNIEnv* env, jclas
 	if(self != 0)
 	{
 		BEGIN_NATIVE
-		result = Relation_create(self->tg_relation);
+		result = pljava_Relation_create(self->tg_relation);
 		END_NATIVE
 	}
 	return result;
