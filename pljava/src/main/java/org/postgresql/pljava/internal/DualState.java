@@ -20,6 +20,10 @@ import java.util.Queue;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
+import javax.management.ObjectName;
+import javax.management.JMException;
+
 /**
  * Base class for object state with corresponding Java and native components.
  *<p>
@@ -110,6 +114,22 @@ public abstract class DualState<T> extends WeakReference<T>
 		new ConcurrentLinkedQueue<DualState>();
 
 	/**
+	 * Bean to expose DualState allocation/release statistics to JMX management
+	 * tools.
+	 */
+	private static final Statistics s_stats = new Statistics();
+
+	static {
+		try
+		{
+			ObjectName n = new ObjectName(
+				"org.postgresql.pljava:type=DualState,name=Statistics");
+			getPlatformMBeanServer().registerMBean(s_stats, n);
+		}
+		catch ( JMException e ) { }
+	}
+
+	/**
 	 * Pointer value of the {@code ResourceOwner} this instance belongs to,
 	 * if any.
 	 */
@@ -148,7 +168,10 @@ public abstract class DualState<T> extends WeakReference<T>
 		checkCookie(cookie);
 
 		m_resourceOwner = resourceOwner;
+
 		s_liveInstances.add(this);
+
+		s_stats.construct();
 	}
 
 	/**
@@ -313,20 +336,29 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private static void resourceOwnerRelease(long resourceOwner)
 	{
+		long total = 0L, delist = 0L, release = 0L;
+
 		for ( Iterator<DualState> i = s_liveInstances.iterator();
 			  i.hasNext(); )
 		{
+			++ total;
 			DualState s = i.next();
 			if ( s.m_resourceOwner == resourceOwner )
 			{
+				++ delist;
 				i.remove();
 				synchronized ( s )
 				{
 					if ( s.nativeStateIsValid() )
+					{
+						++ release;
 						s.nativeStateReleased();
+					}
 				}
 			}
 		}
+
+		s_stats.resourceOwnerPoll(delist, release, total);
 	}
 
 	/**
@@ -340,19 +372,28 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private static void cleanEnqueuedInstances()
 	{
+		long total = 0L, delist = 0L, release = 0L;
+
 		DualState s;
 		while ( null != (s = (DualState)s_releasedInstances.poll()) )
 		{
-			s_liveInstances.remove(s);
+			++ total;
+			if ( s_liveInstances.remove(s) )
+				++ delist;
 			try
 			{
 				if ( null == s.get() )
 					s.javaStateUnreachable();
 				else
+				{
+					++ release;
 					s.javaStateReleased();
+				}
 			}
 			catch ( Throwable t ) { } /* JDK 9 Cleaner ignores exceptions, so */
 		}
+
+		s_stats.referenceQueueDrain(delist, total - release, release, total);
 	}
 
 	/**
@@ -927,5 +968,72 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		private native void _freeErrorData(long pointer);
+	}
+
+	/**
+	 * Bean exposing some {@code DualState} allocation and lifecycle statistics
+	 * for viewing in a JMX management client.
+	 */
+	public static interface StatisticsMBean
+	{
+		long getEnlisted();
+		long getDelisted();
+		long getJavaUnreachable();
+		long getJavaReleased();
+		long getNativeReleased();
+		long getResourceOwnerPolls();
+		long getResourceOwnerHits();
+		long getResourceOwnerMisses();
+		long getReferenceQueueDrains();
+		long getReferenceQueueDrained();
+	}
+
+	static class Statistics implements StatisticsMBean
+	{
+		public long getEnlisted()              { return enlisted; }
+		public long getDelisted()              { return delisted; }
+		public long getJavaUnreachable()       { return javaUnreachable; }
+		public long getJavaReleased()          { return javaReleased; }
+		public long getNativeReleased()        { return nativeReleased; }
+		public long getResourceOwnerPolls()    { return resourceOwnerPolls; }
+		public long getResourceOwnerHits()     { return resourceOwnerHits; }
+		public long getResourceOwnerMisses()   { return resourceOwnerMisses; }
+		public long getReferenceQueueDrains()  { return referenceQueueDrains; }
+		public long getReferenceQueueDrained() { return referenceQueueDrained; }
+
+		private long enlisted = 0L;
+		private long delisted = 0L;
+		private long javaUnreachable = 0L;
+		private long javaReleased = 0L;
+		private long nativeReleased = 0L;
+		private long resourceOwnerPolls = 0L;
+		private long resourceOwnerHits = 0L;
+		private long resourceOwnerMisses = 0L;
+		private long referenceQueueDrains = 0L;
+		private long referenceQueueDrained = 0L;
+
+		final void construct()
+		{
+			++ enlisted;
+		}
+
+		final void resourceOwnerPoll(long delist, long release, long total)
+		{
+			++ resourceOwnerPolls;
+			resourceOwnerHits += delist;
+			resourceOwnerMisses += total - delist;
+			nativeReleased += release;
+			delisted += delist;
+		}
+
+		final void referenceQueueDrain(
+			long delist, long unreachable, long release, long total)
+		{
+			++ referenceQueueDrains;
+			referenceQueueDrained += total;
+			javaUnreachable += unreachable;
+			javaReleased += release;
+			delisted += delist;
+		}
 	}
 }
