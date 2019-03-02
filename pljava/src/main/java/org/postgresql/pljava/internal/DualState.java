@@ -16,9 +16,9 @@ import java.lang.ref.WeakReference;
 
 import java.sql.SQLException;
 
-import java.util.Queue;
-import java.util.Iterator;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.IdentityHashMap;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 import javax.management.ObjectName;
@@ -48,15 +48,11 @@ import javax.management.JMException;
  * native state.</li>
  * </ul>
  *<p>
- * The introduction of this class represents <em>yet another</em> pattern
- * within PL/Java for objects that combine Java and native state. It is meant
- * to be general (and documented) enough to support future gradual migration of
- * other existing patterns to it.
- *<p>
  * A parameter to the {@code DualState} constructor is a {@code ResourceOwner},
  * a PostgreSQL implementation concept introduced in PG 8.0. Instances will be
  * called at their {@link #nativeStateReleased nativeStateReleased} methods
- * when the corresponding {@code ResourceOwner} is released in PostgreSQL.
+ * when the corresponding {@code ResourceOwner} is released in PostgreSQL, if
+ * they are still reachable in Java.
  *<p>
  * However, this class does not require the {@code resourceOwner} parameter to
  * be, in all cases, a pointer to a PostgreSQL {@code ResourceOwner}. It is
@@ -88,6 +84,77 @@ import javax.management.JMException;
  * {@link #javaStateReleased javaStateReleased} method, which will be called by
  * {@code cleanEnqueuedInstances} if the weak reference is nonnull, indicating
  * the instance was enqueued explicitly rather than by the garbage collector.
+ *<p>
+ * Alternatively, a close action from Java can be handled by calling the
+ * {@code javaStateReleased} method directly, rather than depending on the
+ * reference queue. In that case, the {@code javaStateReleased} method must call
+ * its {@code super} implementation in this class, to take care of removing the
+ * instance from the data structures tracking it here. In contrast, a
+ * {@code javaStateReleased} method that is intended to be called via the
+ * reference queue should <em>not</em> call {@code super}; the reference-queue
+ * processing loop will already have removed the instance from the data
+ * structures before calling the method.
+ *<p>
+ * The convention of calling {@code javaStateReleased} vie the reference queue
+ * is likely to be most often what's wanted, as the method may need to make
+ * native calls to release native state, and processing of the reference queue
+ * will always take place on a thread in the proper state for doing that.
+ *<p>
+ * There are different abstract subclasses of {@code DualState} that wrap
+ * different sorts of PostgreSQL native state, and encapsulate what needs to be
+ * done when such state is released from the Java or native side. Each subclass
+ * needs to provide an appropriately-typed {@code protected} method for
+ * obtaining a reference to the wrapped native state, first verifying that it is
+ * still valid. More such subclasses can be added as needed.
+ *<p>
+ * A client class of {@code DualState} will typically contain a static nested
+ * class that further extends one of these abstract subclasses, and the client
+ * instance will hold a strong reference to an instance of that
+ * {@code DualState} subclass constructed at the same time. The client class
+ * must synchronize on the nested state class instance whenever calling
+ * the methods that check validity or return native state references, and must
+ * hold that monitor for the duration of any activity that depends on that
+ * validity or reference result. A client class may not retain such a
+ * reference after exiting the synchronized section, but must synchronize and
+ * obtain it again when next needed.
+ *<p>
+ * <strong>The data structures used internally in this class to track
+ * created instances through their life cycles are not synchronized or
+ * thread-safe.</strong> The design rests on the following requirements:
+ * <ul>
+ * <li>The structures are only traversed or modified during:
+ *  <ul>
+ *  <li>Instance construction
+ *  <li>Reference queue processing (instances found unreachable by Java's
+ *  garbage collector, or {@code enqueue}d directly as an explicit means of
+ *  release)
+ *  <li>Exit of a resource owner's scope
+ *  <li>Direct call of {@code javaStateReleased} (i.e., not via the reference
+ *  queue).
+ *  </ul>
+ * <li>PL/Java uses synchronization to control which thread is entitled to
+ * interact with PostgreSQL native code. Historically, native access has not
+ * been restricted to only one thread, but to only one thread at a time. A
+ * different thread can obtain the lock to call into PostgreSQL only when the
+ * thread currently holding it has called or returned into Java.
+ * <li>Construction of any {@code DualState} instance is to take place only on
+ * a thread that holds the lock for native access. The requirement to pass any
+ * constructor a {@code DualState.Key} instance, obtainable by native code, is
+ * intended to reinforce that convention. It is not abuse-proof: Java code could
+ * retain a {@code Key} reference and reuse it on a thread without the lock, but
+ * that would be a deliberate coding error.
+ * <li>Reference queue processing takes place only at chosen points where a
+ * thread enters or exits native code, and therefore holds the lock.
+ * <li>Resource-owner callbacks originate in native code, on a thread that holds
+ * the lock.
+ * </ul>
+ *<p>
+ * The above rules protect the data structures from concurrency risks in all
+ * cases except direct calls to {@code javaStateReleased}. In any subclass where
+ * {@code javaStateReleased} is intended to be called directly, the overriding
+ * method must call the {@code super} implementation in this class to remove the
+ * instance from the data structures, and must hold the lock for native access
+ * when it does so (whether or not it has any actual need to call native code).
  */
 public abstract class DualState<T> extends WeakReference<T>
 {
@@ -104,14 +171,39 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * The queue is only processed by a private method called from native code
 	 * in selected places where it makes sense to do so.
 	 */
-	private static ReferenceQueue<Object> s_releasedInstances =
+	private static final ReferenceQueue<Object> s_releasedInstances =
 		new ReferenceQueue<Object>();
 
 	/**
-	 * All instances are added to this collection upon creation.
+	 * All instances in a non-transient native scope are added here upon
+	 * creation, to keep them visible to the garbage collector.
+	 *<p>
+	 * Because they are not in a transient native scope, only the
+	 * {@code javaStateUnreachable} or {@code javaStateReleased} lifecycle
+	 * events can occur, and in either case the object is in hand with no
+	 * searching, and can be removed from this structure in O(1).
 	 */
-	private static Queue<DualState> s_liveInstances =
-		new ConcurrentLinkedQueue<DualState>();
+	private static final IdentityHashMap<DualState,DualState>
+		s_unscopedInstances = new IdentityHashMap<DualState,DualState>();
+
+	/**
+	 * All native-scoped instances are added to this structure upon creation.
+	 *<p>
+	 * The hash map takes a resource owner to the doubly-linked list of
+	 * instances it owns. The list is implemented directly with the two list
+	 * fields here (rather than by a Collections class), so that an instance can
+	 * be unlinked with no searching in the case of {@code javaStateUnreachable}
+	 * or {@code javaStateReleased}, where the instance to be unlinked is
+	 * already at hand. The list head is of a dummy {@code DualState} subclass.
+	 */
+	private static final Map<Long,DualState.ListHead> s_scopedInstances =
+		new HashMap<Long,DualState.ListHead>();
+
+	/** Backward link in per-resource-owner list. */
+	DualState m_prev;
+
+	/** Forward link in per-resource-owner list. */
+	DualState m_next;
 
 	/**
 	 * Bean to expose DualState allocation/release statistics to JMX management
@@ -159,19 +251,48 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @param referent The Java object whose state this instance represents.
 	 * @param resourceOwner Pointer value of the native {@code ResourceOwner}
 	 * whose release callback will indicate that this object's native state is
-	 * no longer valid.
+	 * no longer valid. If zero (a NULL pointer in C), it indicates that the
+	 * state is held in long-lived native memory (such as JavaMemoryContext),
+	 * and can only be released via {@code javaStateUnreachable} or
+	 * {@code javaStateReleased}.
 	 */
 	protected DualState(Key cookie, T referent, long resourceOwner)
 	{
 		super(referent, s_releasedInstances);
 
+		long scoped = 0L;
+
 		checkCookie(cookie);
 
 		m_resourceOwner = resourceOwner;
 
-		s_liveInstances.add(this);
+		if ( 0 != resourceOwner )
+		{
+			scoped = 1L;
+			DualState.ListHead head = s_scopedInstances.get(resourceOwner);
+			if ( null == head )
+			{
+				head = new DualState.ListHead(resourceOwner);
+				s_scopedInstances.put(resourceOwner, head);
+			}
+			m_prev = head;
+			m_next = head.m_next;
+			m_prev.m_next = m_next.m_prev = this;
+		}
+		else
+			s_unscopedInstances.put(this, this);
 
-		s_stats.construct();
+		s_stats.construct(scoped);
+	}
+
+	/**
+	 * Private constructor only for dummy instances to use as the list heads
+	 * for per-resource-owner lists.
+	 */
+	private DualState(T referent, long resourceOwner)
+	{
+		super(referent);
+		m_resourceOwner = resourceOwner;
 	}
 
 	/**
@@ -215,20 +336,45 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * method on the referent object). This can be handled two ways:
 	 *<ul>
 	 * <li>A {@code close} or similar method calls this directly. This instance
-	 * must be removed from the {@code liveInstances} collection. This default
-	 * implementation does so.
+	 * must be removed from the appropriate collection. This default
+	 * implementation does so. Overriding methods can call it as {@code super}
+	 * for that part of the job.
 	 * <li>A {@code close} or similar method simply calls
 	 * {@link #enqueue enqueue} instead of this method. This method will be
 	 * called when the queue is processed, the next time native code calls
 	 * {@link #cleanEnqueuedInstances cleanEnqueuedInstances}. For that case,
 	 * this method should be overridden to do whatever other cleanup is in
-	 * order, but <em>not</em> remove the instance from {@code liveInstances},
+	 * order, but <em>not</em> call {@code super} and <em>not</em> remove the
+	 * instance from the collection here,
 	 * which will have happened just before this method is called.
 	 *</ul>
+	 *<p>
+	 * Convention wisdom would normally favor the first form, handling releases
+	 * directly and not enqueueing things where it can be avoided. For the
+	 * purposes of {@code DualState}, though, the second pattern can be
+	 * advantageous, letting releases be handled via the reference queue,
+	 * because the queue is always processed in a thread able to call into
+	 * PostgreSQL, which instances with native state to be freed will typically
+	 * need to do.
+	 *<p>
+	 * Note: if a state subclass has releases managed by calling {@code enqueue}
+	 * but has not overridden this method, the statistics bean will end up
+	 * double-counting releases for that class.
 	 */
 	protected void javaStateReleased()
 	{
-		s_liveInstances.remove(this);
+		long scoped = 0L, unscoped = 0L;
+
+		if ( 0 != m_resourceOwner )
+		{
+			if ( remove() )
+				scoped = 1L;
+		}
+		else
+			if ( null != s_unscopedInstances.remove(this) )
+				unscoped = 1L;
+
+		s_stats.javaRelease(scoped, unscoped);
 	}
 
 	/**
@@ -336,29 +482,41 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private static void resourceOwnerRelease(long resourceOwner)
 	{
-		long total = 0L, delist = 0L, release = 0L;
+		long total = 0L, release = 0L;
 
-		for ( Iterator<DualState> i = s_liveInstances.iterator();
-			  i.hasNext(); )
+		DualState head = s_scopedInstances.remove(resourceOwner);
+		if ( null == head )
+			return;
+
+		DualState t = head.m_next;
+		head.m_prev = head.m_next = null;
+		for ( DualState s = t ; s != head ; s = t )
 		{
+			t = s.m_next;
+			s.m_prev = s.m_next = null;
 			++ total;
-			DualState s = i.next();
-			if ( s.m_resourceOwner == resourceOwner )
+			if ( null == s.get() ) // Unreachable from Java, no action needed
+				continue;
+			/*
+			 * This synchronized() is part of DualState's contract with clients.
+			 * They are responsible for synchronizing on the state instance
+			 * whenever they obtain the wrapped native state (which is verified
+			 * to still be valid at that time) and to hold that monitor for the
+			 * duration of whatever operation needs access to that state. By
+			 * acquiring the same monitor here, native state is blocked from
+			 * vanishing while it is actively in use.
+			 */
+			synchronized ( s )
 			{
-				++ delist;
-				i.remove();
-				synchronized ( s )
+				if ( s.nativeStateIsValid() )
 				{
-					if ( s.nativeStateIsValid() )
-					{
-						++ release;
-						s.nativeStateReleased();
-					}
+					++ release;
+					s.nativeStateReleased();
 				}
 			}
 		}
 
-		s_stats.resourceOwnerPoll(delist, release, total);
+		s_stats.resourceOwnerPoll(release, total);
 	}
 
 	/**
@@ -372,14 +530,24 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private static void cleanEnqueuedInstances()
 	{
-		long total = 0L, delist = 0L, release = 0L;
+		long total = 0L, delistScoped = 0L, delistUnscoped = 0L, release = 0L;
 
 		DualState s;
 		while ( null != (s = (DualState)s_releasedInstances.poll()) )
 		{
 			++ total;
-			if ( s_liveInstances.remove(s) )
-				++ delist;
+
+			if ( 0 != s.m_resourceOwner )
+			{
+				if ( s.remove() )
+					++ delistScoped;
+			}
+			else
+			{
+				if ( null != s_unscopedInstances.remove(s) )
+					++ delistUnscoped;
+			}
+
 			try
 			{
 				if ( null == s.get() )
@@ -393,7 +561,24 @@ public abstract class DualState<T> extends WeakReference<T>
 			catch ( Throwable t ) { } /* JDK 9 Cleaner ignores exceptions, so */
 		}
 
-		s_stats.referenceQueueDrain(delist, total - release, release, total);
+		s_stats.referenceQueueDrain(
+			delistScoped, delistUnscoped, total - release, release, total);
+	}
+
+	/**
+	 * Remove this instance from the per-resource-owner linked list holding it.
+	 * @return true if this instance was on a list, and has been removed
+	 */
+	private boolean remove()
+	{
+		if ( null == m_prev  ||  null == m_next )
+			return false;
+		if ( this == m_prev.m_next )
+			m_prev.m_next = m_next;
+		if ( this == m_next.m_prev )
+			m_next.m_prev = m_prev;
+		m_prev = m_next = null;
+		return true;
 	}
 
 	/**
@@ -413,6 +598,30 @@ public abstract class DualState<T> extends WeakReference<T>
 				constructed = true;
 			}
 		}
+	}
+
+	/**
+	 * Dummy DualState concrete class whose instances only serve as list
+	 * headers in per-resource-owner lists of instances.
+	 */
+	private static class ListHead extends DualState<String> // because why not?
+	{
+		/**
+		 * Construct a {@code ListHead} instance. As a subclass of
+		 * {@code DualState}, it can't help having a resource owner field, so
+		 * may as well use it to store the resource owner that the list is for,
+		 * in case it's of interest in debugging.
+		 * @param ownr The resource owner
+		 */
+		private ListHead(long ownr)
+		{
+			super("", ownr); // An instance needs some object to be its referent
+			clear();		 // ... but doesn't need it for long!
+			m_prev = m_next = this;
+		}
+
+		protected boolean nativeStateIsValid() { return false; }
+		protected void nativeStateReleased() { }
 	}
 
 	/**
@@ -976,64 +1185,76 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	public static interface StatisticsMBean
 	{
-		long getEnlisted();
-		long getDelisted();
+		long getConstructed();
+		long getEnlistedScoped();
+		long getEnlistedUnscoped();
+		long getDelistedScoped();
+		long getDelistedUnscoped();
 		long getJavaUnreachable();
 		long getJavaReleased();
 		long getNativeReleased();
-		long getResourceOwnerPolls();
-		long getResourceOwnerHits();
-		long getResourceOwnerMisses();
-		long getReferenceQueueDrains();
-		long getReferenceQueueDrained();
+		long getResourceOwnerPasses();
+		long getReferenceQueuePasses();
+		long getReferenceQueueItems();
 	}
 
 	static class Statistics implements StatisticsMBean
 	{
-		public long getEnlisted()              { return enlisted; }
-		public long getDelisted()              { return delisted; }
+		public long getConstructed()           { return constructed; }
+		public long getEnlistedScoped()        { return enlistedScoped; }
+		public long getEnlistedUnscoped()      { return enlistedUnscoped; }
+		public long getDelistedScoped()        { return delistedScoped; }
+		public long getDelistedUnscoped()      { return delistedUnscoped; }
 		public long getJavaUnreachable()       { return javaUnreachable; }
 		public long getJavaReleased()          { return javaReleased; }
 		public long getNativeReleased()        { return nativeReleased; }
-		public long getResourceOwnerPolls()    { return resourceOwnerPolls; }
-		public long getResourceOwnerHits()     { return resourceOwnerHits; }
-		public long getResourceOwnerMisses()   { return resourceOwnerMisses; }
-		public long getReferenceQueueDrains()  { return referenceQueueDrains; }
-		public long getReferenceQueueDrained() { return referenceQueueDrained; }
+		public long getResourceOwnerPasses()   { return resourceOwnerPasses; }
+		public long getReferenceQueuePasses()  { return referenceQueuePasses; }
+		public long getReferenceQueueItems()   { return referenceQueueItems; }
 
-		private long enlisted = 0L;
-		private long delisted = 0L;
+		private long constructed = 0L;
+		private long enlistedScoped = 0L;
+		private long enlistedUnscoped = 0L;
+		private long delistedScoped = 0L;
+		private long delistedUnscoped = 0L;
 		private long javaUnreachable = 0L;
 		private long javaReleased = 0L;
 		private long nativeReleased = 0L;
-		private long resourceOwnerPolls = 0L;
-		private long resourceOwnerHits = 0L;
-		private long resourceOwnerMisses = 0L;
-		private long referenceQueueDrains = 0L;
-		private long referenceQueueDrained = 0L;
+		private long resourceOwnerPasses = 0L;
+		private long referenceQueuePasses = 0L;
+		private long referenceQueueItems = 0L;
 
-		final void construct()
+		final void construct(long scoped)
 		{
-			++ enlisted;
+			++ constructed;
+			enlistedScoped += scoped;
+			enlistedUnscoped += 1L - scoped;
 		}
 
-		final void resourceOwnerPoll(long delist, long release, long total)
+		final void resourceOwnerPoll(long delist, long total)
 		{
-			++ resourceOwnerPolls;
-			resourceOwnerHits += delist;
-			resourceOwnerMisses += total - delist;
-			nativeReleased += release;
-			delisted += delist;
+			++ resourceOwnerPasses;
+			nativeReleased += delist;
+			delistedScoped += total;
+		}
+
+		final void javaRelease(long scoped, long unscoped)
+		{
+			++ javaReleased;
+			delistedScoped += scoped;
+			delistedUnscoped += unscoped;
 		}
 
 		final void referenceQueueDrain(
-			long delist, long unreachable, long release, long total)
+			long delistScoped, long delistUnscoped,
+			long unreachable, long release, long total)
 		{
-			++ referenceQueueDrains;
-			referenceQueueDrained += total;
+			++ referenceQueuePasses;
+			referenceQueueItems += total;
 			javaUnreachable += unreachable;
 			javaReleased += release;
-			delisted += delist;
+			delistedScoped += delistScoped;
+			delistedUnscoped += delistUnscoped;
 		}
 	}
 }
