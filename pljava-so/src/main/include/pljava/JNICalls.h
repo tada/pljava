@@ -61,6 +61,25 @@ extern jmethodID UnsupportedOperationException_init;
 extern jclass    NoSuchMethodError_class;
 
 /*
+ * Method called from Backend.c to set the thread policy. The first parameter
+ * indicates whether to throw an exception if a thread other than the main one
+ * tries to use BEGIN_NATIVE. The second indicates whether JNI calls should try
+ * to release the "threadlock" monitor when calling into Java and reacquire it
+ * on return. If false, the monitor will be held forever, blocking any other
+ * Java thread that tries to use the synchronized native methods. So, the
+ * combinations are:
+ *  false, true: PL/Java's historical behavior: monitor is released/reacquired,
+ *               other threads allowed into PG when the main thread is in Java.
+ *   true, true: Useful for checking whether application code has any other
+ *               threads that try to enter PG; they will incur exceptions.
+ *  true, false: Useful in production if all PG access is known to be done on
+ *               the main thread only; other threads that try will simply block
+ *               (JConsole can show them) rather that incurring exceptions; many
+ *               monitor operations eliminated.
+ */
+extern void pljava_JNI_setThreadPolicy(bool,bool);
+
+/*
  * A few very specialized JNI method-invocation wrappers, that do NOT do
  * one thing all the rest of the method wrappers do. These do NOT release the
  * threadlock before calling the method and reacquire it after the method

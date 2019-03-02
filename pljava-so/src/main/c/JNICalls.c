@@ -25,14 +25,26 @@
 JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
+static JNIEnv* primordialJNIEnv;
+
 static jobject s_threadLock;
+
+static bool s_refuseOtherThreads = false;
+static bool s_doMonitorOps = true;
+
+void pljava_JNI_setThreadPolicy(bool refuseOtherThreads, bool doMonitorOps)
+{
+	s_refuseOtherThreads = refuseOtherThreads;
+	s_doMonitorOps = doMonitorOps;
+}
+
 
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
 #define END_JAVA jniEnv = env; }
 
 #define BEGIN_CALL \
 	BEGIN_JAVA \
-	if((*env)->MonitorExit(env, s_threadLock) < 0) \
+	if(s_doMonitorOps && ((*env)->MonitorExit(env, s_threadLock) < 0)) \
 		elog(ERROR, "Java exit monitor failure");
 
 #define END_CALL endCall(env); }
@@ -108,7 +120,7 @@ static void endCall(JNIEnv* env)
 	if(exh != 0)
 		(*env)->ExceptionClear(env);
 
-	if((*env)->MonitorEnter(env, s_threadLock) < 0)
+	if(s_doMonitorOps && ((*env)->MonitorEnter(env, s_threadLock) < 0))
 		elog(ERROR, "Java enter monitor failure");
 
 	jniEnv = env;
@@ -155,6 +167,15 @@ static void endCallMonitorHeld(JNIEnv* env)
 
 bool beginNativeNoErrCheck(JNIEnv* env)
 {
+	if ( s_refuseOtherThreads  &&  env != primordialJNIEnv )
+	{
+		env = JNI_setEnv(env);
+		Exception_throw(ERRCODE_INTERNAL_ERROR,
+			"Attempt by non-initial thread to enter PostgreSQL from Java");
+		JNI_setEnv(env);
+		return false;
+	}
+
 	if((env = JNI_setEnv(env)) != 0)
 	{
 		/* The backend is *not* awaiting the return of a call to the JVM
@@ -604,7 +625,10 @@ jint JNI_createVM(JavaVM** javaVM, JavaVMInitArgs* vmArgs)
 	JNIEnv* env = 0;
 	jint jstat = pljava_createvm(javaVM, (void **)&env, vmArgs);
 	if(jstat == JNI_OK)
+	{
 		jniEnv = env;
+		primordialJNIEnv = env;
+	}
 	return jstat;
 }
 
