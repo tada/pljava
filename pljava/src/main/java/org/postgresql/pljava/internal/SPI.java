@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,7 +57,7 @@ public class SPI
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _exec(System.identityHashCode(Thread.currentThread()), command, rowCount);
+			return _exec(command, rowCount);
 		}
 	}
 
@@ -187,7 +187,7 @@ public class SPI
 	}
 
 	@Deprecated
-	private native static int _exec(long threadId, String command, int rowCount);
+	private native static int _exec(String command, int rowCount);
 
 	private native static long _getProcessed();
 	private native static int _getResult();

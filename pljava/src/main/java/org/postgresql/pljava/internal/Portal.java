@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -99,10 +99,7 @@ public class Portal
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long fetched =
-				_fetch(m_pointer,
-					System.identityHashCode(Thread.currentThread()),
-					forward, count);
+			long fetched = _fetch(m_pointer, forward, count);
 			if ( fetched < 0 )
 				throw new ArithmeticException(
 					"fetched too many rows to report in a Java signed long");
@@ -158,9 +155,7 @@ public class Portal
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long moved = _move(m_pointer,
-				System.identityHashCode(Thread.currentThread()),
-				forward, count);
+			long moved = _move(m_pointer, forward, count);
 			if ( moved < 0 )
 				throw new ArithmeticException(
 					"moved too many rows to report in a Java signed long");
@@ -177,7 +172,7 @@ public class Portal
 	private static native TupleDesc _getTupleDesc(long pointer)
 	throws SQLException;
 
-	private static native long _fetch(long pointer, long threadId, boolean forward, long count)
+	private static native long _fetch(long pointer, boolean forward, long count)
 	throws SQLException;
 
 	private static native void _close(long pointer);
@@ -188,6 +183,6 @@ public class Portal
 	private static native boolean _isAtStart(long pointer)
 	throws SQLException;
 
-	private static native long _move(long pointer, long threadId, boolean forward, long count)
+	private static native long _move(long pointer, boolean forward, long count)
 	throws SQLException;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -31,7 +31,7 @@ void SPI_initialize(void)
 	JNINativeMethod methods[] = {
 		{
 		"_exec",
-	  	"(JLjava/lang/String;I)I",
+		"(Ljava/lang/String;I)I",
 	  	Java_org_postgresql_pljava_internal_SPI__1exec
 		},
 		{
@@ -65,10 +65,10 @@ void SPI_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _exec
- * Signature: (JLjava/lang/String;I)I
+ * Signature: (Ljava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong threadId, jstring cmd, jint count)
+Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
 	jint result = 0;
 
@@ -77,7 +77,7 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong th
 	if(command != 0)
 	{
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
 			Invocation_assertConnect();

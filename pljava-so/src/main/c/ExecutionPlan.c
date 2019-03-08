@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,7 +46,7 @@ void ExecutionPlan_initialize(void)
 	{
 		{
 		"_cursorOpen",
-		"(JJLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;",
+		"(JLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen
 		},
 		{
@@ -56,12 +56,12 @@ void ExecutionPlan_initialize(void)
 		},
 		{
 		"_execute",
-		"(JJ[Ljava/lang/Object;SI)I",
+		"(J[Ljava/lang/Object;SI)I",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1execute
 		},
 		{
 		"_prepare",
-		"(JLjava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J",
+		"(Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare
 		},
 		{
@@ -128,17 +128,17 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _cursorOpen
- * Signature: (JJLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;
+ * Signature: (JLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jstring cursorName, jobjectArray jvalues, jshort readonly_spec)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jclass clazz, jlong _this, jstring cursorName, jobjectArray jvalues, jshort readonly_spec)
 {
 	jobject jportal = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
 			Ptr2Long p2l;
@@ -214,17 +214,17 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jc
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _execute
- * Signature: (JJ[Ljava/lang/Object;SI)V
+ * Signature: (J[Ljava/lang/Object;SI)V
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jobjectArray jvalues, jshort readonly_spec, jint count)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass clazz, jlong _this, jobjectArray jvalues, jshort readonly_spec, jint count)
 {
 	jint result = 0;
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
 			Ptr2Long p2l;
@@ -264,15 +264,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _prepare
- * Signature: (JLjava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J;
+ * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J;
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jlong threadId, jstring jcmd, jobjectArray paramTypes)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jstring jcmd, jobjectArray paramTypes)
 {
 	jlong result = 0;
 	BEGIN_NATIVE
 	STACK_BASE_VARS
-	STACK_BASE_PUSH(threadId)
+	STACK_BASE_PUSH(env)
 	PG_TRY();
 	{
 		char* cmd;

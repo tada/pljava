@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -164,8 +164,7 @@ public class ExecutionPlan
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _cursorOpen(m_pointer, System.identityHashCode(Thread
-				.currentThread()), cursorName, parameters, read_only);
+			return _cursorOpen(m_pointer, cursorName, parameters, read_only);
 		}
 	}
 
@@ -205,8 +204,7 @@ public class ExecutionPlan
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _execute(m_pointer, System.identityHashCode(Thread
-				.currentThread()), parameters, read_only, rowCount);
+			return _execute(m_pointer, parameters, read_only, rowCount);
 		}
 	}
 
@@ -232,24 +230,23 @@ public class ExecutionPlan
 		{
 			synchronized(Backend.THREADLOCK)
 			{
-				plan = new ExecutionPlan(key, _prepare(
-					System.identityHashCode(Thread.currentThread()), statement, argTypes));
+				plan = new ExecutionPlan(key, _prepare(statement, argTypes));
 			}
 		}
 		return plan;
 	}
 
-	private static native Portal _cursorOpen(long pointer, long threadId,
+	private static native Portal _cursorOpen(long pointer,
 		String cursorName, Object[] parameters, short read_only)
 		throws SQLException;
 
 	private static native boolean _isCursorPlan(long pointer)
 	throws SQLException;
 
-	private static native int _execute(long pointer, long threadId,
+	private static native int _execute(long pointer,
 		Object[] parameters, short read_only, int rowCount) throws SQLException;
 
-	private static native long _prepare(long threadId, String statement, Oid[] argTypes)
+	private static native long _prepare(String statement, Oid[] argTypes)
 	throws SQLException;
 
 	private static native void _invalidate(long pointer);

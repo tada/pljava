@@ -92,7 +92,6 @@ extern PLJAVADLLEXPORT void _PG_init(void);
 #define LOCAL_REFERENCE_COUNT 128
 
 MemoryContext JavaMemoryContext;
-jlong mainThreadId;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
@@ -1320,8 +1319,8 @@ static void addUserJVMOptions(JVMOptList* optList)
 static void initJavaSession(void)
 {
 	jclass sessionClass = PgObject_getJavaClass("org/postgresql/pljava/internal/Session");
-	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()J");
-	mainThreadId = JNI_callStaticLongMethod(sessionClass, init);
+	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()V");
+	JNI_callStaticVoidMethod(sessionClass, init);
 	JNI_deleteLocalRef(sessionClass);
 
 	if(JNI_exceptionCheck())

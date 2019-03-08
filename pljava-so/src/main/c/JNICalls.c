@@ -25,6 +25,8 @@
 JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
+void* mainThreadId; /* declared in pljava.h */
+
 static JNIEnv* primordialJNIEnv;
 
 static jobject s_threadLock;
@@ -628,6 +630,7 @@ jint JNI_createVM(JavaVM** javaVM, JavaVMInitArgs* vmArgs)
 	{
 		jniEnv = env;
 		primordialJNIEnv = env;
+		mainThreadId = env;
 	}
 	return jstat;
 }

@@ -120,7 +120,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_fetch",
-		"(JJZJ)J",
+		"(JZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1fetch
 		},
 		{
@@ -140,7 +140,7 @@ void Portal_initialize(void)
 		},
 		{
 		"_move",
-		"(JJZJ)J",
+		"(JZJ)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1move
 		},
 		{ 0, 0, 0 }
@@ -178,10 +178,10 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _fetch
- * Signature: (JJZJ)J
+ * Signature: (JZJ)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
+Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jlong _this, jboolean forward, jlong count)
 {
 	jlong result = 0;
 	if(_this != 0)
@@ -189,7 +189,7 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		BEGIN_NATIVE
 		Ptr2Long p2l;
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 
 		/*
 		 * One call to cleanEnqueued... is made in Invocation_popInvocation,
@@ -336,10 +336,10 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jclass clazz, 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
  * Method:    _move
- * Signature: (JJZJ)J
+ * Signature: (JZJ)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jlong threadId, jboolean forward, jlong count)
+Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlong _this, jboolean forward, jlong count)
 {
 	jlong result = 0;
 	if(_this != 0)
@@ -347,7 +347,7 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 		BEGIN_NATIVE
 		Ptr2Long p2l;
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 
 		p2l.longVal = _this;
 		PG_TRY();
