@@ -1231,10 +1231,10 @@ public abstract class DualState<T> extends WeakReference<T>
 			enlistedUnscoped += 1L - scoped;
 		}
 
-		final void resourceOwnerPoll(long delist, long total)
+		final void resourceOwnerPoll(long released, long total)
 		{
 			++ resourceOwnerPasses;
-			nativeReleased += delist;
+			nativeReleased += released;
 			delistedScoped += total;
 		}
 

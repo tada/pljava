@@ -423,7 +423,6 @@ ASSIGNENUMHOOK(java_thread_pg_entry)
 	ASSIGNRETURNIFCHECK(ENUMHOOKRET);
 	pljava_JNI_setThreadPolicy( !!(val&1) /*error*/, !(val&2) /*monitorops*/);
 	ASSIGNRETURN(ENUMHOOKRET);
-#undef RETVAL
 }
 
 /*
