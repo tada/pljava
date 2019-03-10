@@ -276,7 +276,7 @@
 		<profile>
 			<id>hasjavah</id>
 			<activation>
-				<jdk>[1.7,10)</jdk>
+				<jdk>[1.8,10)</jdk>
 			</activation>
 			<properties>
 				<javah.include>${basedir}/target/nar/javah-include/</javah.include>
