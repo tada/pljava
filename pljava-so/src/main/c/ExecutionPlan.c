@@ -33,10 +33,12 @@
 /* Class 07 - Dynamic SQL Error */
 #define ERRCODE_PARAMETER_COUNT_MISMATCH	MAKE_SQLSTATE('0','7', '0','0','1')
 
-/* These three values must match those in ExecutionPlan.java */
-#define SPI_READONLY_DEFAULT 0
-#define SPI_READONLY_FORCED  1
-#define SPI_READONLY_CLEARED 2
+#define SPI_READONLY_DEFAULT \
+		org_postgresql_pljava_internal_ExecutionPlan_SPI_READONLY_FORCED
+#define SPI_READONLY_FORCED  \
+		org_postgresql_pljava_internal_ExecutionPlan_SPI_READONLY_FORCED
+#define SPI_READONLY_CLEARED \
+		org_postgresql_pljava_internal_ExecutionPlan_SPI_READONLY_CLEARED
 
 static jclass s_ExecutionPlan_class;
 static jmethodID s_ExecutionPlan_init;
