@@ -46,6 +46,9 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.transform.Source;
+import javax.xml.transform.Result;
+
 import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 import static javax.xml.XMLConstants.XML_NS_URI;
 import static javax.xml.XMLConstants.XML_NS_PREFIX;
@@ -346,8 +349,9 @@ public class S9 implements ResultSetProvider
 			}
 
 			SQLXML rsx = s_dbc.createSQLXML();
+			Result rslt = rsx.setResult(null);
 			QueryResult.serializeSequence(
-				x1s, s_s9p.getUnderlyingConfiguration(), rsx.setResult(null),
+				x1s, s_s9p.getUnderlyingConfiguration(), rslt,
 				new Properties());
 			return rsx;
 		}
@@ -612,7 +616,10 @@ public class S9 implements ResultSetProvider
 				return true;
 			XdmValue ci;
 			if ( cve instanceof SQLXML ) // XXX support SEQUENCE input someday
-				ci = dBuilder.build(((SQLXML)cve).getSource(null));
+			{
+				Source src = ((SQLXML)cve).getSource(null);
+				ci = dBuilder.build(src);
+			}
 			else
 				ci = xmlCastAsSequence(
 					cve, XMLBinary.HEX, passing.contextItem().typeXS());
@@ -641,7 +648,10 @@ public class S9 implements ResultSetProvider
 			if ( null == v )
 				vv = XdmEmptySequence.getInstance();
 			else if ( v instanceof SQLXML ) // XXX support SEQUENCE someday
-				vv = dBuilder.build(((SQLXML)v).getSource(null));
+			{
+				Source src = ((SQLXML)v).getSource(null);
+				vv = dBuilder.build(src);
+			}
 			else
 				vv = xmlCastAsSequence(
 					v, XMLBinary.HEX, p.typeXS().getItemType());
