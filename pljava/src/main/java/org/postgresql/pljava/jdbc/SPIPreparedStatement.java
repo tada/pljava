@@ -75,7 +75,6 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		}
 		this.clearParameters();
 		super.close();
-		Invocation.current().forgetStatement(this);
 	}
 
 	@Override

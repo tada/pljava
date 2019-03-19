@@ -564,7 +564,6 @@ public class SPIConnection implements Connection
 		int[] pcount = new int[] { 0 };
 		sql = this.nativeSQL(sql, pcount);
 		PreparedStatement stmt = new SPIPreparedStatement(this, sql, pcount[0]);
-		Invocation.current().manageStatement(stmt);
 		return stmt;
 	}
 
