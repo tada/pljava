@@ -18,9 +18,9 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URL;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -85,15 +85,8 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeAsciiStream(InputStream value) throws SQLException
 	{
-		try
-		{
-			Reader rdr = new BufferedReader(new InputStreamReader(value, "US-ASCII"));
-			writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
-		}
-		catch(UnsupportedEncodingException e)
-		{
-			throw new SQLException(e.toString());
-		}
+		Reader rdr = new BufferedReader(new InputStreamReader(value, US_ASCII));
+		writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
 	}
 
 	public void writeBigDecimal(BigDecimal value) throws SQLException

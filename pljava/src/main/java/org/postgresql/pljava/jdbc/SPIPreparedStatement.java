@@ -16,9 +16,9 @@ package org.postgresql.pljava.jdbc;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URL;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -181,16 +181,9 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	@Override
 	public void setAsciiStream(int columnIndex, InputStream value, int length) throws SQLException
 	{
-		try
-		{
-			setObject(columnIndex,
-				new ClobValue(new InputStreamReader(value, "US-ASCII"), length),
-				Types.CLOB);
-		}
-		catch(UnsupportedEncodingException e)
-		{
-			throw new SQLException("US-ASCII encoding is not supported by this JVM");
-		}
+		setObject(columnIndex,
+			new ClobValue(new InputStreamReader(value, US_ASCII), length),
+			Types.CLOB);
 	}
 
 	/**

@@ -31,7 +31,7 @@ import java.util.Map;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UnsupportedEncodingException;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 
 /**
@@ -421,16 +421,8 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateAsciiStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		try
-		{
-			updateObject(columnIndex,
-				new ClobValue(new InputStreamReader(x, "US-ASCII"), length));
-		}
-		catch(UnsupportedEncodingException e)
-		{
-			throw new SQLException(
-				"US-ASCII encoding is not supported by this JVM");
-		}
+		updateObject(columnIndex,
+			new ClobValue(new InputStreamReader(x, US_ASCII), length));
 	}
 
 	/**
