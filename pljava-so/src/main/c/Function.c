@@ -17,12 +17,14 @@
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/Iterator.h"
+#include "pljava/type/Composite.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 #include "pljava/type/UDT.h"
 
 #include <catalog/pg_proc.h>
+#include <catalog/pg_language.h>
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
 #include <ctype.h>
@@ -38,10 +40,13 @@
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
+static jclass s_Function_class;
 static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_Loader_getTypeMap;
 static jmethodID s_ClassLoader_loadClass;
+static jmethodID s_Function_create;
 static PgObjectClass s_FunctionClass;
+static Type s_pgproc_Type;
 
 struct Function_
 {
@@ -174,7 +179,14 @@ void Function_initialize(void)
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
+	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function"));
+	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
+		"(Ljava/sql/ResultSet;Ljava/lang/String;)Ljava/lang/Object;");
+
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
+
+	s_pgproc_Type = Composite_obtain(ProcedureRelation_Rowtype_Id);
 }
 
 static void buildSignature(Function self, StringInfo sign, Type retType, bool alt)
@@ -730,11 +742,34 @@ static jclass Function_loadClass(
 static Function Function_create(PG_FUNCTION_ARGS)
 {
 	ParseResultData info;
-	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
-	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
+	Function self =
+		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	HeapTuple procTup =
+		PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
+	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
+	HeapTuple langTup =
+		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
+	Form_pg_language langStruct = (Form_pg_language)GETSTRUCT(langTup);
+	jstring lname = String_createJavaStringFromNTS(NameStr(langStruct->lanname));
+
+#if 90305<=PG_VERSION_NUM || \
+	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
+	90114<=PG_VERSION_NUM && PG_VERSION_NUM<90200 || \
+	90018<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
+	80422<=PG_VERSION_NUM && PG_VERSION_NUM<90000
+	Datum d = heap_copy_tuple_as_datum(procTup,
+		Type_getTupleDesc(s_pgproc_Type, 0));
+#else
+#error "Need fallback for heap_copy_tuple_as_datum"
+#endif
+
+	JNI_callStaticVoidMethod(s_Function_class, s_Function_create,
+		Type_coerceDatum(s_pgproc_Type, d), lname);
+	pfree((void *)d);
+	ReleaseSysCache(langTup);
 
 	parseFunction(&info, procTup);
-	Function_init(self, &info, (Form_pg_proc)GETSTRUCT(procTup), fcinfo);
+	Function_init(self, &info, procStruct, fcinfo);
 
 	pfree(info.buffer);
 	ReleaseSysCache(procTup);
