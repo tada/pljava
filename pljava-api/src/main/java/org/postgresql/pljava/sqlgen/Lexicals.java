@@ -197,14 +197,14 @@ public abstract class Lexicals
 	));
 
 	/**
-	 * Return an Identifier, given a {@code Matcher} that has matched an
+	 * Return an Identifier.Simple, given a {@code Matcher} that has matched an
 	 * ISO_AND_PG_IDENTIFIER_CAPTURING. Will determine from the matching named
 	 * groups which type of identifier it was, process the matched sequence
 	 * appropriately, and return it.
 	 * @param m A {@code Matcher} known to have matched an identifier.
-	 * @return Identifier made from the recovered string.
+	 * @return Identifier.Simple made from the recovered string.
 	 */
-	public static Identifier identifierFrom(Matcher m)
+	public static Identifier.Simple identifierFrom(Matcher m)
 	{
 		String s = m.group("i");
 		if ( null != s )
@@ -260,65 +260,33 @@ public abstract class Lexicals
 	 * server encoding. The recommended encoding, UTF-8, is multibyte, so the
 	 * PostgreSQL rule will be taken to be: only the 26 ASCII letters, always.
 	 */
-	public static class Identifier
+	public static abstract class Identifier
 	{
-		protected final String m_nonFolded;
-
 		/**
-		 * Whether this Identifier case-folds.
-		 * @return true if this Identifier was non-quoted in the source,
-		 * false if it was quoted.
+		 * This Identifier represented as it would be in SQL source.
+		 *<p>
+		 * <em>Note</em>: a more robust approach would be a deparse method
+		 * that is passed the character encoding in which the deparsed
+		 * result will be stored; it should verify that the characters can
+		 * be encoded there, or use the Unicode delimited identifier form
+		 * and escape the ones that cannot.
+		 * @return The identifier, quoted, unless it is folding.
 		 */
-		public boolean folds()
-		{
-			return false;
-		}
+		public abstract String deparse();
 
 		/**
-		 * This Identifier's original spelling.
-		 * @return The spelling as seen in the source, with no case folding.
-		 */
-		public String nonFolded()
-		{
-			return m_nonFolded;
-		}
-
-		/**
-		 * This Identifier as PostgreSQL would case-fold it (or the same as
-		 * nonFolded if this was quoted and does not fold).
-		 * @return The spelling with ASCII letters (only) folded to lowercase,
-		 * if this Identifier folds.
-		 */
-		public String pgFolded()
-		{
-			return m_nonFolded;
-		}
-
-		/**
-		 * This Identifier as ISO SQL would case-fold it (or the same as
-		 * nonFolded if this was quoted and does not fold).
-		 * @return The spelling with lowercase and titlecase letters folded to
-		 * (possibly length-changing) uppercase equivalents,
-		 * if this Identifier folds.
-		 */
-		public String isoFolded()
-		{
-			return m_nonFolded;
-		}
-
-		/**
-		 * Create an Identifier given its original, non-folded spelling,
+		 * Create an Identifier.Simple given its original, non-folded spelling,
 		 * and whether it represents a quoted identifier.
 		 * @param s The exact, internal, non-folded spelling of the identifier
 		 * (unwrapped from any quoting in its external form).
 		 * @param quoted Pass {@code true} if this was parsed from any quoted
 		 * external form, false if non-quoted.
-		 * @return A corresponding Identifier
+		 * @return A corresponding Identifier.Simple
 		 * @throws IllegalArgumentException if {@code quoted} is {@code false}
 		 * but {@code s} cannot be a non-quoted identifier, or {@code s} is
 		 * empty or longer than the ISO SQL maximum 128 codepoints.
 		 */
-		public static Identifier from(String s, boolean quoted)
+		public static Simple from(String s, boolean quoted)
 		{
 			boolean foldable =
 				ISO_AND_PG_REGULAR_IDENTIFIER.matcher(s).matches();
@@ -332,24 +300,7 @@ public abstract class Lexicals
 			}
 			if ( foldable )
 				return new Foldable(s);
-			return new Identifier(s);
-		}
-
-		@Override
-		public String toString()
-		{
-			return m_nonFolded;
-		}
-
-		/**
-		 * For a quoted identifier that could not match any non-quoted one,
-		 * the hash code of its non-folded spelling is good enough. In other
-		 * cases, the code must be derived more carefully.
-		 */
-		@Override
-		public int hashCode()
-		{
-			return m_nonFolded.hashCode();
+			return new Simple(s);
 		}
 
 		@Override
@@ -371,24 +322,97 @@ public abstract class Lexicals
 		 * form, or a quoted one exactly matches either folded form of a
 		 * non-quoted one.
 		 */
-		public boolean equals(Object other, Messager msgr)
-		{
-			if ( ! (other instanceof Identifier) )
-				return false;
-			Identifier oi = (Identifier)other;
-			if ( oi.folds() )
-				return oi.equals(this);
-			return m_nonFolded.equals(oi.nonFolded());
-		}
+		public abstract boolean equals(Object other, Messager msgr);
 
-		protected Identifier(String nonFolded)
+		public static class Simple extends Identifier
 		{
-			m_nonFolded = nonFolded;
-			int cpc = nonFolded.codePointCount(0, nonFolded.length());
-			if ( 0 == cpc || cpc > 128 )
-				throw new IllegalArgumentException(String.format(
-					"identifier empty or longer than 128 codepoints: \"%s\"",
-					nonFolded));
+			protected final String m_nonFolded;
+
+			@Override
+			public String deparse()
+			{
+				return '"' + m_nonFolded.replace("\"", "\"\"") + '"';
+			}
+
+			/**
+			 * Whether this Identifier case-folds.
+			 * @return true if this Identifier was non-quoted in the source,
+			 * false if it was quoted.
+			 */
+			public boolean folds()
+			{
+				return false;
+			}
+
+			/**
+			 * This Identifier's original spelling.
+			 * @return The spelling as seen in the source, with no case folding.
+			 */
+			public String nonFolded()
+			{
+				return m_nonFolded;
+			}
+
+			/**
+			 * This Identifier as PostgreSQL would case-fold it (or the same as
+			 * nonFolded if this was quoted and does not fold).
+			 * @return The spelling with ASCII letters (only) folded to
+			 * lowercase, if this Identifier folds.
+			 */
+			public String pgFolded()
+			{
+				return m_nonFolded;
+			}
+
+			/**
+			 * This Identifier as ISO SQL would case-fold it (or the same as
+			 * nonFolded if this was quoted and does not fold).
+			 * @return The spelling with lowercase and titlecase letters folded
+			 * to (possibly length-changing) uppercase equivalents, if this
+			 * Identifier folds.
+			 */
+			public String isoFolded()
+			{
+				return m_nonFolded;
+			}
+
+			@Override
+			public String toString()
+			{
+				return m_nonFolded;
+			}
+
+			/**
+			 * For a quoted identifier that could not match any non-quoted one,
+			 * the hash code of its non-folded spelling is good enough. In other
+			 * cases, the code must be derived more carefully.
+			 */
+			@Override
+			public int hashCode()
+			{
+				return m_nonFolded.hashCode();
+			}
+
+			@Override
+			public boolean equals(Object other, Messager msgr)
+			{
+				if ( ! (other instanceof Simple) )
+					return false;
+				Simple oi = (Simple)other;
+				if ( oi.folds() )
+					return oi.equals(this);
+				return m_nonFolded.equals(oi.nonFolded());
+			}
+
+			protected Simple(String nonFolded)
+			{
+				m_nonFolded = nonFolded;
+				int cpc = nonFolded.codePointCount(0, nonFolded.length());
+				if ( 0 == cpc || cpc > 128 )
+					throw new IllegalArgumentException(String.format(
+						"identifier empty or longer than 128 codepoints: \"%s\"",
+						nonFolded));
+			}
 		}
 
 		/**
@@ -396,7 +420,7 @@ public abstract class Lexicals
 		 * not case-fold, but satisfies {@code ISO_AND_PG_REGULAR_IDENTIFIER}
 		 * and so could conceivably be matched by a non-quoted identifier.
 		 */
-		static class Foldable extends Identifier
+		static class Foldable extends Simple
 		{
 			private final int m_hashCode;
 
@@ -497,11 +521,17 @@ public abstract class Lexicals
 			}
 
 			@Override
+			public String deparse()
+			{
+				return m_nonFolded;
+			}
+
+			@Override
 			public boolean equals(Object other, Messager msgr)
 			{
-				if ( ! (other instanceof Identifier) )
+				if ( ! (other instanceof Simple) )
 					return false;
-				Identifier oi = (Identifier)other;
+				Simple oi = (Simple)other;
 				boolean eqPG = m_pgFolded.equals(oi.pgFolded());
 				boolean eqISO = m_isoFolded.equals(oi.isoFolded());
 				if ( eqPG != eqISO  &&  oi.folds()  &&  null != msgr )
@@ -534,6 +564,61 @@ public abstract class Lexicals
 				while ( m.find() )
 					m.appendReplacement(sb, m.group().toLowerCase());
 				return m.appendTail(sb).toString();
+			}
+		}
+
+		/**
+		 * Class representing a schema-qualified identifier.
+		 * This is distinct from an Identifier.Simple even when it has no
+		 * qualifier (and would therefore deparse the same way).
+		 */
+		public static class Qualified extends Identifier
+		{
+			private final Simple m_qualifier;
+			private final Simple m_local;
+
+			private Qualified(Simple qualifier, Simple local)
+			{
+				m_qualifier = qualifier;
+				m_local = local;
+			}
+
+			@Override
+			public String deparse()
+			{
+				if ( null == m_qualifier )
+					return m_local.deparse();
+				return m_qualifier.deparse() + "." + m_local.deparse();
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return (null == m_qualifier? 0 : 31 * m_qualifier.hashCode())
+						+ m_local.hashCode();
+			}
+
+			@Override
+			public boolean equals(Object other, Messager msgr)
+			{
+				if ( ! (other instanceof Qualified) )
+					return false;
+				Qualified oi = (Qualified)other;
+
+				return (null == m_qualifier
+						? null == oi.m_qualifier
+						: m_qualifier.equals(oi.m_qualifier, msgr))
+						&& m_local.equals(oi.m_local, msgr);
+			}
+
+			public Simple qualifier()
+			{
+				return m_qualifier;
+			}
+
+			public T local()
+			{
+				return m_local;
 			}
 		}
 	}
