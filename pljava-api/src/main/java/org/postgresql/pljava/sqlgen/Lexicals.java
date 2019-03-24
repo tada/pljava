@@ -13,6 +13,7 @@ package org.postgresql.pljava.sqlgen;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.InputMismatchException;
 
 import javax.annotation.processing.Messager;
 import javax.tools.Diagnostic.Kind;
@@ -195,6 +196,143 @@ public abstract class Lexicals
 		PG_REGULAR_IDENTIFIER_PART.pattern(),
 		"javaJavaIdentifier"
 	));
+
+	/** A newline, in any of the various forms recognized by the Java regex
+	 * engine, letting it handle the details.
+	 */
+	public static final Pattern NEWLINE = Pattern.compile(
+		"(?ms:$(?:(?<!^).|(?<=\\G).){1,2}+)"
+	);
+
+	/** White space <em>except</em> newline, for any Java-recognized newline.
+	 */
+	public static final Pattern WHITESPACE_NO_NEWLINE = Pattern.compile(
+		"(?-s:(?=\\s).)"
+	);
+
+	/** The kind of comment that extends from -- to the end of the line.
+	 * This pattern does not eat the newline (though the ISO production does).
+	 */
+	public static final Pattern SIMPLE_COMMENT = Pattern.compile("(?-s:--.*+)");
+
+	/** Most of the inside of a bracketed comment, defined in an odd way.
+	 * It expects both characters of the /* introducer to have been consumed
+	 * already. This pattern will then eat the whole comment including both
+	 * closing characters <em>if</em> it encounters no nested comment;
+	 * otherwise it will consume everything including the / of the nested
+	 * introducer, but leaving the *, and the {@code <nest>} capturing group
+	 * will be present in the result. That signals the caller to increment the
+	 * nesting level, consume one * and invoke this pattern again. If the nested
+	 * match succeeds (without again setting the {@code <nest>} group), the
+	 * caller should then decrement the nest level and match this pattern again
+	 * to consume the rest of the comment at the original level.
+	 *<p>
+	 * This pattern leaves the * unconsumed upon finding a nested comment
+	 * introducer as a way to end the repetition in the SEPARATOR pattern, as
+	 * nothing the SEPARATOR pattern can match can begin with a *.
+	 */
+	public static final Pattern BRACKETED_COMMENT_INSIDE = Pattern.compile(
+		"(?:(?:[^*/]++|/(?!\\*)|\\*(?!/))*+(?:\\*/|(?<nest>/(?=\\*))))"
+	);
+
+	/** SQL's SEPARATOR, which can include any amount of whitespace, simple
+	 * comments, or bracketed comments. This pattern will consume as much of all
+	 * that as it can in one match. There are two capturing groups that might be
+	 * set in a match result: {@code <nl>} if there was at least one newline
+	 * matched among the whitespace (which needs to be known to get the
+	 * continuation of string literals right), and {@code <nest>} if the
+	 * start of a bracketed comment was encountered.
+	 *<p>
+	 * In the {@code <nest>} case, the / of the comment introducer will have
+	 * been consumed but the * will remain to consume (as described above
+	 * for BRACKETED_COMMENT_INSIDE); the caller will need to increment a nest
+	 * level, consume the *, and match BRACKETED_COMMENT_INSIDE to handle the
+	 * nesting comment. Assuming that completes without another {@code <nest>}
+	 * found, the level should be decremented and BRACKETED_COMMENT_INSIDE
+	 * matched again to match the rest of the outer comment. When that completes
+	 * (without a {@code <nest>}) at the outermost level, this pattern should be
+	 * matched again to mop up any remaining SEPARATOR content.
+	 */
+	public static final Pattern SEPARATOR =
+	Pattern.compile(String.format(
+		"(?:(?:%1$s++|(?<nl>%2$s))++|%3$s|(?<nest>/(?=\\*)))++",
+		WHITESPACE_NO_NEWLINE.pattern(),
+		NEWLINE.pattern(),
+		SIMPLE_COMMENT.pattern()
+	));
+
+	/**
+	 * Consume any SQL SEPARATOR at the beginning of {@code Matcher}
+	 * <em>m</em>'s current region.
+	 *<p>
+	 * The region start is advanced to the character following any separator
+	 * (or not at all, if no separator is found).
+	 *<p>
+	 * The meaning of the return value is altered by the <em>significant</em>
+	 * parameter: when <em>significant</em> is true (meaning the very presence
+	 * or absence of a separator is significant at that point in the grammar),
+	 * the result will be true if any separator was found, false otherwise.
+	 * When <em>significant</em> is false, the result does not reveal whether
+	 * any separator was found, but will be true only if a separator was found
+	 * that includes at least one newline. That information is needed for the
+	 * grammar of string and binary-string literals.
+	 * @param m a {@code Matcher} whose current region should have any separator
+	 * at the beginning consumed. The region start is advanced past any
+	 * separator found. The {@code Pattern} associated with the {@code Matcher}
+	 * may be changed.
+	 * @param significant when true, the result should report whether any
+	 * separator was found or not; when false, the result should report only
+	 * whether a separator containing at least one newline was found, or not.
+	 * @return whether any separator was found, or whether any separator
+	 * containing a newline was found, as selected by <em>significant</em>.
+	 * @throws InputMismatchException if an unclosed /*-style comment is found.
+	 */
+	public static boolean separator(Matcher m, boolean significant)
+	{
+		int state = 0;
+		int level = 0;
+		boolean result = false;
+
+	loop:
+		for ( ;; )
+		{
+			switch ( state )
+			{
+			case 0:
+				m.usePattern(SEPARATOR);
+				if ( ! m.lookingAt() )
+					return result; // leave matcher region alone
+				if ( significant  ||  -1 != m.start("nl") )
+					result = true;
+				if ( -1 != m.start("nest") )
+				{
+					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
+					m.usePattern(BRACKETED_COMMENT_INSIDE);
+					++ level;
+					state = 1;
+					continue;
+				}
+				state = 2; // advance matcher region, then break loop
+				break;
+			case 1:
+				if ( ! m.lookingAt() )
+					throw new InputMismatchException("unclosed comment");
+				if ( -1 != m.start("nest") )
+				{
+					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
+					++ level;
+					continue;
+				}
+				else if ( 0 == -- level )
+					state = 0;
+				break;
+			case 2:
+				break loop;
+			}
+			m.region(m.end(0), m.regionEnd()); // advance past matched portion
+		}
+		return result;
+	}
 
 	/**
 	 * Return an Identifier.Simple, given a {@code Matcher} that has matched an

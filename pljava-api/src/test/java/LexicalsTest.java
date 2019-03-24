@@ -12,6 +12,9 @@
 package org.postgresql.pljava;
 
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import java.util.InputMismatchException;
 
 import junit.framework.TestCase;
 
@@ -20,13 +23,112 @@ import static org.hamcrest.CoreMatchers.*;
 
 import static
 	org.postgresql.pljava.sqlgen.Lexicals.ISO_AND_PG_IDENTIFIER_CAPTURING;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
 import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
+import static org.postgresql.pljava.sqlgen.Lexicals.separator;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 public class LexicalsTest extends TestCase
 {
 	public LexicalsTest(String name) { super(name); }
+
+	public void testSeparator() throws Exception
+	{
+		Pattern allTheRest = Pattern.compile(".*", Pattern.DOTALL);
+
+		Matcher m = SEPARATOR.matcher("no starting separator");
+		assertFalse("separator 0", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("no starting separator", m.group(0));
+
+		m.reset();
+		assertFalse("separator 1", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("no starting separator", m.group(0));
+
+		m.reset(" 	 simple separator");
+		assertTrue("separator 2", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple separator", m.group(0));
+
+		m.reset();
+		assertFalse("separator 3", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple separator", m.group(0));
+
+		m.reset(" 	\n simple separator");
+		assertTrue("separator 4", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple separator", m.group(0));
+
+		m.reset();
+		assertTrue("separator 5", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple separator", m.group(0));
+
+		m.reset(" -- a simple comment\nsimple comment");
+		assertTrue("separator 6", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple comment", m.group(0));
+
+		m.reset();
+		assertTrue("separator 7", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("simple comment", m.group(0));
+
+		m.reset("/* a bracketed comment\n */ bracketed comment");
+		assertTrue("separator 8", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("bracketed comment", m.group(0));
+
+		m.reset();
+		assertFalse("separator 9", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("bracketed comment", m.group(0));
+
+		m.reset("/* a /* nested */ comment\n */ nested comment");
+		assertTrue("separator 10", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("nested comment", m.group(0));
+
+		m.reset();
+		assertFalse("separator 11", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("nested comment", m.group(0));
+
+		m.reset("/* an /* unclosed */ comment\n * / unclosed comment");
+		try
+		{
+			separator(m, true);
+			fail("unclosed comment not detected");
+		}
+		catch ( Exception ex )
+		{
+			assertTrue("separator 12", ex instanceof InputMismatchException);
+		}
+
+		m.reset("/* -- tricky \n */ nested comment");
+		assertTrue("separator 13", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("nested comment", m.group(0));
+
+		m.reset();
+		assertFalse("separator 14", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("nested comment", m.group(0));
+
+		m.reset("-- /* tricky \n */ nested comment");
+		assertTrue("separator 15", separator(m, true));
+		m.usePattern(allTheRest).matches();
+		assertEquals("*/ nested comment", m.group(0));
+
+		m.reset();
+		assertTrue("separator 16", separator(m, false));
+		m.usePattern(allTheRest).matches();
+		assertEquals("*/ nested comment", m.group(0));
+	}
 
 	public void testIdentifierFrom() throws Exception
 	{
