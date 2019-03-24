@@ -466,6 +466,32 @@ public abstract class Lexicals
 		{
 			protected final String m_nonFolded;
 
+			/**
+			 * Create an {@code Identifier.Simple} from a name string found in
+			 * a PostgreSQL system catalog.
+			 *<p>
+			 * There is not an explicit indication in the catalog of whether the
+			 * name was originally quoted. It must have been, however, if it
+			 * does not have the form of a regular identifier, or if it has that
+			 * form but does not match its pgFold-ed form (without quotes, PG
+			 * would have folded it in that case).
+			 * @param s name of the simple identifier, as found in a system
+			 * catalog.
+			 * @return an Identifier.Simple or subclass appropriate to the form
+			 * of the name.
+			 */
+			public static Simple fromCatalog(String s)
+			{
+				if ( PG_REGULAR_IDENTIFIER.matcher(s).matches() )
+				{
+					if ( s.equals(Folding.pgFold(s)) )
+						return new Folding(s);
+					else
+						return new Foldable(s);
+				}
+				return new Simple(s);
+			}
+
 			@Override
 			public String deparse()
 			{
@@ -695,7 +721,7 @@ public abstract class Lexicals
 			 * @param s The non-folded value.
 			 * @return The folded value.
 			 */
-			private String pgFold(String s)
+			private static String pgFold(String s)
 			{
 				Matcher m = s_pgFolded.matcher(s);
 				StringBuffer sb = new StringBuffer();
@@ -714,6 +740,34 @@ public abstract class Lexicals
 		{
 			private final Simple m_qualifier;
 			private final Simple m_local;
+
+			/**
+			 * Create an {@code Identifier.Qualified} from name strings found in
+			 * PostgreSQL system catalogs.
+			 *<p>
+			 * There is not an explicit indication in the catalog of whether a
+			 * name was originally quoted. It must have been, however, if it
+			 * does not have the form of a regular identifier, or if it has that
+			 * form but does not match its pgFold-ed form (without quotes, PG
+			 * would have folded it in that case).
+			 * @param qualifier string with the name of a schema, as found in
+			 * the pg_namespace system catalog.
+			 * @param local string with the local name of an object in that
+			 * schema.
+			 * @return an Identifier.Qualified
+			 * @throws NullPointerException if the local name is null.
+			 */
+			public static Qualified fromCatalog(
+				String qualifier, String local)
+			{
+				if ( null == local )
+					throw new NullPointerException(
+					"local part of an Identifier.Qualified may not be null");
+				Simple localId = Simple.fromCatalog(local);
+				Simple qualId = ( null == qualifier ) ?
+					null : Simple.fromCatalog(qualifier);
+				return new Qualified(qualId, localId);
+			}
 
 			private Qualified(Simple qualifier, Simple local)
 			{
