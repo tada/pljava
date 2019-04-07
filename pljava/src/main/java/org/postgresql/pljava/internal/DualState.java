@@ -23,6 +23,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Queue;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.concurrent.locks.LockSupport.park;
@@ -727,6 +728,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * and throw the associated exception.
 	 * @throws SQLException if the native state or the Java state has been
 	 * released.
+	 * @throws CancellationException if the thread is interrupted while waiting.
 	 */
 	public final void pin() throws SQLException
 	{
@@ -767,7 +769,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * If moving our bit leaves zero under PINNERS_MASK and it's the
 		 * MUTATOR_WANTS case, we promote and unpark the mutator before parking.
 		 */
-		m_waiters.add(Thread.currentThread());
+
+		Thread thr = Thread.currentThread();
+		m_waiters.add(thr);
 		int t;
 		/*
 		 * Top-of-loop invariant, s has either MUTATOR_HOLDS or MUTATOR_WANTS,
@@ -817,9 +821,11 @@ public abstract class DualState<T> extends WeakReference<T>
 		 */
 		for ( ;; t = s )
 		{
-			park(this);
+			if ( ! thr.isInterrupted() )
+				park(this);
 			s = m_state.get();
-			if ( !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
+			if ( thr.isInterrupted()
+				|| !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
 				backoutPinAfterPark(s, t); // does not return
 			if ( !z(s & MUTATOR_HOLDS) ) // can only be a spurious unpark
 				continue;
@@ -951,6 +957,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @param s the most recently fetched state
 	 * @param t prior state from before parking
 	 * @throws SQLException appropriate for the reason this method was called
+	 * @throws CancellationException if the reason was thread interruption
 	 */
 	private void backoutPinAfterPark(int s, int t) throws SQLException
 	{
@@ -1014,6 +1021,10 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * One of the following conditions was the reason this method was
 		 * called, so throw the appropriate exception.
 		 */
+		if ( Thread.interrupted() )
+			throw (CancellationException)
+				new CancellationException("Interrupted waiting for pin")
+					.initCause(new InterruptedException());
 		if ( !z(s & NATIVE_RELEASED) )
 			throw new SQLException(invalidMessage(), invalidSqlState());
 		if ( !z(s & JAVA_RELEASED) )
