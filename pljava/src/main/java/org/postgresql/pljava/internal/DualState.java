@@ -1806,6 +1806,42 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code SPI_freeplan} of a single pointer.
+	 */
+	public static abstract class SingleSPIfreeplan<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleSPIfreeplan(
+			Key cookie, T referent, long resourceOwner, long fpTarget)
+		{
+			super(cookie, referent, resourceOwner, fpTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s SPI_freeplan(%x)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, an
+		 * {@code SPI_freeplan}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_spiFreePlan(guardedLong());
+		}
+
+		private native void _spiFreePlan(long pointer);
+	}
+
+	/**
 	 * Bean exposing some {@code DualState} allocation and lifecycle statistics
 	 * for viewing in a JMX management client.
 	 */

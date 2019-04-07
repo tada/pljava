@@ -17,6 +17,7 @@
 #include <utils/guc.h>
 
 #include "org_postgresql_pljava_internal_ExecutionPlan.h"
+#include "pljava/DualState.h"
 #include "pljava/Invocation.h"
 #include "pljava/Exception.h"
 #include "pljava/Function.h"
@@ -37,10 +38,13 @@
 #define SPI_READONLY_FORCED  1
 #define SPI_READONLY_CLEARED 2
 
+static jclass s_ExecutionPlan_class;
+static jmethodID s_ExecutionPlan_init;
+
 /* Make this datatype available to the postgres system.
  */
-extern void ExecutionPlan_initialize(void);
-void ExecutionPlan_initialize(void)
+extern void pljava_ExecutionPlan_initialize(void);
+void pljava_ExecutionPlan_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{
@@ -61,17 +65,19 @@ void ExecutionPlan_initialize(void)
 		},
 		{
 		"_prepare",
-		"(Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J",
+		"(Ljava/lang/Object;Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)Lorg/postgresql/pljava/internal/ExecutionPlan;",
 		Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare
-		},
-		{
-		"_invalidate",
-		"(J)V",
-		Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate
 		},
 		{ 0, 0, 0 }
 	};
 	PgObject_registerNatives("org/postgresql/pljava/internal/ExecutionPlan", methods);
+
+	s_ExecutionPlan_class = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/ExecutionPlan");
+	s_ExecutionPlan_init = PgObject_getJavaMethod(s_ExecutionPlan_class,
+		"<init>",
+		"(Lorg/postgresql/pljava/internal/DualState$Key;J"
+		"Ljava/lang/Object;J)V");
 }
 
 static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
@@ -131,7 +137,7 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
  * Signature: (JLjava/lang/String;[Ljava/lang/Object;S)Lorg/postgresql/pljava/internal/Portal;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jclass clazz, jlong _this, jstring cursorName, jobjectArray jvalues, jshort readonly_spec)
+Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobject jplan, jlong _this, jstring cursorName, jobjectArray jvalues, jshort readonly_spec)
 {
 	jobject jportal = 0;
 	if(_this != 0)
@@ -167,7 +173,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jcla
 				if(nulls != 0)
 					pfree(nulls);
 			
-				jportal = Portal_create(portal);
+				jportal = pljava_Portal_create(portal, jplan);
 			}
 		}
 		PG_CATCH();
@@ -264,12 +270,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 /*
  * Class:     org_postgresql_pljava_internal_ExecutionPlan
  * Method:    _prepare
- * Signature: (Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)J;
+ * Signature: (Ljava/lang/Object;Ljava/lang/String;[Lorg/postgresql/pljava/internal/Oid;)Lorg/postgresql/pljava/internal/ExecutionPlan;
  */
-JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jstring jcmd, jobjectArray paramTypes)
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jobject key, jstring jcmd, jobjectArray paramTypes)
 {
-	jlong result = 0;
+	jobject result = 0;
+#if PG_VERSION_NUM >= 90200
+	int spi_ret;
+#endif
 	BEGIN_NATIVE
 	STACK_BASE_VARS
 	STACK_BASE_PUSH(env)
@@ -310,9 +319,20 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 			/* Make the plan durable
 			 */
 			p2l.longVal = 0L; /* ensure that the rest is zeroed out */
+#if PG_VERSION_NUM >= 90200
+			spi_ret = SPI_keepplan(ePlan);
+			if ( 0 == spi_ret )
+				p2l.ptrVal = ePlan;
+			else
+				Exception_throwSPI("keepplan", spi_ret);
+#else
 			p2l.ptrVal = SPI_saveplan(ePlan);
-			result = p2l.longVal;
-			SPI_freeplan(ePlan);	/* Get rid of the original, nobody can see it anymore */
+			SPI_freeplan(ePlan); /* Get rid of original, nobody can see it */
+#endif
+			result = JNI_newObjectLocked(
+				s_ExecutionPlan_class, s_ExecutionPlan_init,
+				/* 0L as resource owner as the saved plan isn't transient */
+				pljava_DualState_key(), 0L, key, p2l.longVal);
 		}
 	}
 	PG_CATCH();
@@ -323,33 +343,4 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 	STACK_BASE_POP()
 	END_NATIVE
 	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_ExecutionPlan
- * Method:    _invalidate
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_ExecutionPlan__1invalidate(JNIEnv* env, jclass clazz, jlong _this)
-{
-	/* The plan is not cached as a normal JavaHandle since its made
-	 * persistent.
-	 */
-	if(_this != 0)
-	{
-		BEGIN_NATIVE_NO_ERRCHECK
-		PG_TRY();
-		{
-			Ptr2Long p2l;
-			p2l.longVal = _this;
-			SPI_freeplan(p2l.ptrVal);
-		}
-		PG_CATCH();
-		{
-			Exception_throw_ERROR("SPI_freeplan");
-		}
-		PG_END_TRY();
-		END_NATIVE
-	}
 }

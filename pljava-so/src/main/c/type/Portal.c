@@ -64,7 +64,7 @@ static void _pljavaPortalCleanup(Portal portal)
 /*
  * org.postgresql.pljava.type.Tuple type.
  */
-jobject Portal_create(Portal portal)
+jobject pljava_Portal_create(Portal portal, jobject jplan)
 {
 	jobject jportal = 0;
 	if(portal != 0)
@@ -82,7 +82,8 @@ jobject Portal_create(Portal portal)
 			if(s_originalCleanupProc == 0)
 				s_originalCleanupProc = portal->cleanup;
 
-			jportal = JNI_newObject(s_Portal_class, s_Portal_init, p2l.longVal);
+			jportal = JNI_newObject(
+				s_Portal_class, s_Portal_init, p2l.longVal, jplan);
 			HashMap_putByOpaque(s_portalMap, portal, JNI_newGlobalRef(jportal));
 
 			/*
@@ -148,7 +149,7 @@ void Portal_initialize(void)
 
 	s_Portal_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Portal"));
 	PgObject_registerNatives2(s_Portal_class, methods);
-	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>", "(J)V");
+	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>", "(JLorg/postgresql/pljava/internal/ExecutionPlan;)V");
 	s_Portal_pointer = PgObject_getJavaField(s_Portal_class, "m_pointer", "J");
 	s_portalMap = HashMap_create(13, TopMemoryContext);
 }

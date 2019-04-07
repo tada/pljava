@@ -23,10 +23,17 @@ import java.sql.SQLException;
 public class Portal
 {
 	private long m_pointer;
+	/*
+	 * Hold a reference to the Java ExecutionPlan object as long as we might be
+	 * using it, just to make sure Java unreachability doesn't cause it to
+	 * mop up its native plan state while the portal might still be using it.
+	 */
+	private ExecutionPlan m_plan;
 
-	Portal(long pointer)
+	Portal(long pointer, ExecutionPlan plan)
 	{
 		m_pointer = pointer;
+		m_plan = plan;
 	}
 
 	/**
@@ -39,6 +46,7 @@ public class Portal
 		{
 			_close(m_pointer);
 			m_pointer = 0;
+			m_plan = null;
 		}
 	}
 
@@ -134,9 +142,8 @@ public class Portal
 	}
 
 	/**
-	 * Checks if the portal is still active. I can be closed either explicitly
-	 * using the {@link #close()} mehtod or implicitly due to a pop of invocation
-	 * context.
+	 * Checks if the portal is still active. It can be closed either explicitly
+	 * using the {@link #close()} method or implicitly.
 	 */
 	public boolean isValid()
 	{

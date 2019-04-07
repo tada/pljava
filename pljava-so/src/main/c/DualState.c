@@ -16,15 +16,22 @@
 #include "org_postgresql_pljava_internal_DualState_SingleFreeTupleDesc.h"
 #include "org_postgresql_pljava_internal_DualState_SingleHeapFreeTuple.h"
 #include "org_postgresql_pljava_internal_DualState_SingleFreeErrorData.h"
+#include "org_postgresql_pljava_internal_DualState_SingleSPIfreeplan.h"
 #include "pljava/DualState.h"
 
+#include "pljava/Exception.h"
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
+#include "pljava/SPI.h"
 
 /*
- * Includes for objects dependent on DualState, so they can be initialized here
+ * Includes for objects dependent on DualState, so they can be initialized here.
+ * (If there's a .c file that has no corresponding .h file because there would
+ * be only an ..._initialize method in it and nothing else at all, just declare
+ * its init method here.)
  */
 #include "pljava/type/ErrorData.h"
+extern void pljava_ExecutionPlan_initialize(void);
 #include "pljava/type/Relation.h"
 #include "pljava/type/SingleRowReader.h"
 #include "pljava/type/TriggerData.h"
@@ -152,6 +159,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod singleSPIfreeplanMethods[] =
+	{
+		{
+		"_spiFreePlan",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePlan
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_resourceOwnerRelease = PgObject_getStaticJavaMethod(
@@ -190,12 +207,18 @@ void pljava_DualState_initialize(void)
 	PgObject_registerNatives2(clazz, singleFreeErrorDataMethods);
 	JNI_deleteLocalRef(clazz);
 
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleSPIfreeplan");
+	PgObject_registerNatives2(clazz, singleSPIfreeplanMethods);
+	JNI_deleteLocalRef(clazz);
+
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 
 	/*
 	 * Call initialize() methods of known classes built upon DualState.
 	 */
 	pljava_ErrorData_initialize();
+	pljava_ExecutionPlan_initialize();
 	pljava_Relation_initialize();
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
@@ -312,5 +335,31 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErr
 	Ptr2Long p2l;
 	p2l.longVal = pointer;
 	FreeErrorData(p2l.ptrVal);
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleSPIfreeplan
+ * Method:    _spiFreePlan
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePlan(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	PG_TRY();
+	{
+		SPI_freeplan(p2l.ptrVal);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR("SPI_freeplan");
+	}
+	PG_END_TRY();
 	END_NATIVE
 }
