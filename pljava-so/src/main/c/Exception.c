@@ -163,7 +163,7 @@ void Exception_throw_ERROR(const char* funcName)
 		FlushErrorState();
 	
 		ex = JNI_newObject(ServerException_class, ServerException_init, ed);
-		currentInvocation->errorOccured = true;
+		currentInvocation->errorOccurred = true;
 
 		elog(DEBUG2, "Exception in function %s", funcName);
 

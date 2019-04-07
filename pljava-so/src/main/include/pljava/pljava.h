@@ -82,15 +82,6 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #define PG_INT32_MAX    (0x7FFFFFFF)
 #endif
 
-
-/* The errorOccured will be set when a call from Java into one of the
- * backend functions results in a elog that causes a longjmp (Levels >= ERROR)
- * that was trapped using the PLJAVA_TRY/PLJAVA_CATCH macros.
- * When this happens, all further calls from Java must be blocked since the
- * state of the current transaction is unknown. Further more, once the function
- * that initially called Java finally returns, the intended longjmp (the one
- * to the original value of Warn_restart) must be made.
- */
 extern void* mainThreadId;
 extern bool pljavaEntryFence(JNIEnv* env);
 extern JNIEnv* currentJNIEnv;

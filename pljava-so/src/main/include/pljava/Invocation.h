@@ -67,7 +67,7 @@ struct Invocation_
 	 * be prevented until this flag is reset (by a rollback
 	 * of a savepoint or function exit).
 	 */
-	bool          errorOccured;
+	bool          errorOccurred;
 
 #if PG_VERSION_NUM >= 100000
 	/**

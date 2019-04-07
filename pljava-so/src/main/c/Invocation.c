@@ -107,7 +107,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->trusted         = false;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
-	ctx->errorOccured    = false;
+	ctx->errorOccurred   = false;
 	ctx->inExprContextCB = false;
 	ctx->previous        = 0;
 #if PG_VERSION_NUM >= 100000
@@ -131,7 +131,7 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->trusted         = trusted;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
-	ctx->errorOccured    = false;
+	ctx->errorOccurred   = false;
 	ctx->inExprContextCB = false;
 	ctx->previous        = currentInvocation;
 #if PG_VERSION_NUM >= 100000
@@ -226,7 +226,7 @@ Java_org_postgresql_pljava_jdbc_Invocation__1getCurrent(JNIEnv* env, jclass cls)
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jclass cls)
 {
-	currentInvocation->errorOccured = false;
+	currentInvocation->errorOccurred = false;
 }
 
 /*

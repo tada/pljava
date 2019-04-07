@@ -291,7 +291,7 @@ Java_org_postgresql_pljava_internal_Portal__1close(JNIEnv* env, jclass clazz, jl
 		if(portal->cleanup == _pljavaPortalCleanup)
 			portal->cleanup = s_originalCleanupProc;
 
-		if(!(currentInvocation->errorOccured || currentInvocation->inExprContextCB))
+		if(!(currentInvocation->errorOccurred || currentInvocation->inExprContextCB))
 			SPI_cursor_close(portal);
 		END_NATIVE
 	}

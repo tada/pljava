@@ -202,7 +202,7 @@ bool beginNative(JNIEnv* env)
 		return false;
 	}
 
-	if(currentInvocation->errorOccured)
+	if(currentInvocation->errorOccurred)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the

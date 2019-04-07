@@ -117,7 +117,7 @@ public class ErrorData
 	}
 
 	/**
-	 * Returns The file where the error occured
+	 * Returns The file where the error occurred
 	 */
 	public String getFilename()
 	{
@@ -128,7 +128,7 @@ public class ErrorData
 	}
 
 	/**
-	 * Returns The line where the error occured
+	 * Returns The line where the error occurred
 	 */
 	public int getLineno()
 	{
@@ -139,7 +139,7 @@ public class ErrorData
 	}
 
 	/**
-	 * Returns the name of the function where the error occured
+	 * Returns the name of the function where the error occurred
 	 */
 	public String getFuncname()
 	{
