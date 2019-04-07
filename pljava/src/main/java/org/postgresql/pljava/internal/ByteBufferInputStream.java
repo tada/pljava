@@ -66,6 +66,14 @@ public abstract class ByteBufferInputStream extends InputStream
 		m_open = true;
 	}
 
+	protected void pin() throws IOException
+	{
+	}
+
+	protected void unpin()
+	{
+	}
+
 	/**
 	 * Return the {@link ByteBuffer} being wrapped, or throw an exception if the
 	 * memory windowed by the buffer should no longer be accessed.
@@ -76,59 +84,98 @@ public abstract class ByteBufferInputStream extends InputStream
 	 * It is called everywhere that should happen, so it is the perfect place
 	 * for the test, and allows the implementing class to use a customized
 	 * message in the exception.
+	 *<p>
+	 * All uses of the buffer in this class are preceded by {@code pin()} and
+	 * followed by {@code unpin()} (whose default implementations in this class
+	 * do nothing). If a subclass overrides {@code pin} with a version that
+	 * throws the appropriate exception in either case or both, it is then
+	 * redundant and unnecessary for {@code buffer} to check the same
+	 * conditions.
 	 */
 	protected abstract ByteBuffer buffer() throws IOException;
 
 	@Override
 	public int read() throws IOException
 	{
-		synchronized ( m_state )
+		pin();
+		try
 		{
 			ByteBuffer src = buffer();
-			if ( 0 < src.remaining() )
-				return src.get();
-			return -1;
+			synchronized ( m_state )
+			{
+				if ( 0 < src.remaining() )
+					return src.get();
+				return -1;
+			}
+		}
+		finally
+		{
+			unpin();
 		}
 	}
 
 	@Override
 	public int read(byte[] b, int off, int len) throws IOException
 	{
-		synchronized ( m_state )
+		pin();
+		try
 		{
 			ByteBuffer src = buffer();
-			int has = src.remaining();
-			if ( len > has )
+			synchronized ( m_state )
 			{
-				if ( 0 == has )
-					return -1;
-				len = has;
+				int has = src.remaining();
+				if ( len > has )
+				{
+					if ( 0 == has )
+						return -1;
+					len = has;
+				}
+				src.get(b, off, len);
+				return len;
 			}
-			src.get(b, off, len);
-			return len;
+		}
+		finally
+		{
+			unpin();
 		}
 	}
 
 	@Override
 	public long skip(long n) throws IOException
 	{
-		synchronized ( m_state )
+		pin();
+		try
 		{
 			ByteBuffer src = buffer();
-			int has = src.remaining();
-			if ( n > has )
-				n = has;
-			src.position(src.position() + (int)n);
-			return n;
+			synchronized ( m_state )
+			{
+				int has = src.remaining();
+				if ( n > has )
+					n = has;
+				src.position(src.position() + (int)n);
+				return n;
+			}
+		}
+		finally
+		{
+			unpin();
 		}
 	}
 
 	@Override
 	public int available() throws IOException
 	{
-		synchronized ( m_state )
+		pin();
+		try
 		{
-			return buffer().remaining();
+			synchronized ( m_state )
+			{
+				return buffer().remaining();
+			}
+		}
+		finally
+		{
+			unpin();
 		}
 	}
 
@@ -150,8 +197,11 @@ public abstract class ByteBufferInputStream extends InputStream
 		{
 			if ( ! m_open )
 				return;
+			boolean gotPin = false; // Kludge to get pin() inside the try block
 			try
 			{
+				pin();
+				gotPin = true;
 				buffer().mark();
 			}
 			catch ( IOException e )
@@ -163,6 +213,11 @@ public abstract class ByteBufferInputStream extends InputStream
 				 * throwing, method is then called. If not, no harm no foul.
 				 */
 			}
+			finally
+			{
+				if ( gotPin )
+					unpin();
+			}
 		}
 	}
 
@@ -173,6 +228,7 @@ public abstract class ByteBufferInputStream extends InputStream
 		{
 			if ( ! m_open )
 				return;
+			pin();
 			try
 			{
 				buffer().reset();
@@ -180,6 +236,10 @@ public abstract class ByteBufferInputStream extends InputStream
 			catch ( InvalidMarkException e )
 			{
 				throw new IOException("reset attempted when mark not set");
+			}
+			finally
+			{
+				unpin();
 			}
 		}
 	}

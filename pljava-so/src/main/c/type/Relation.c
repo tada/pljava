@@ -42,7 +42,7 @@ jobject pljava_Relation_create(Relation r)
 	p2lr.longVal = 0L;
 	p2lr.ptrVal = r;
 
-	return JNI_newObject(
+	return JNI_newObjectLocked(
 			s_Relation_class,
 			s_Relation_init,
 			pljava_DualState_key(),

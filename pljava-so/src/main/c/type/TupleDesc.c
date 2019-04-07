@@ -61,7 +61,7 @@ jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 	 * unreachability from the Java side will free it.
 	 * XXX what about invalidating if DDL alters the column layout?
 	 */
-	jtd = JNI_newObject(s_TupleDesc_class, s_TupleDesc_init,
+	jtd = JNI_newObjectLocked(s_TupleDesc_class, s_TupleDesc_init,
 		pljava_DualState_key(), NULL, tdH.longVal, (jint)td->natts);
 	return jtd;
 }

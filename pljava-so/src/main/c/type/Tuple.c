@@ -71,7 +71,7 @@ jobject pljava_Tuple_internalCreate(HeapTuple ht, bool mustCopy)
 	 * unreachability from the Java side will free it.
 	 * XXX? this seems like a lot of tuple copying.
 	 */
-	jht = JNI_newObject(s_Tuple_class, s_Tuple_init,
+	jht = JNI_newObjectLocked(s_Tuple_class, s_Tuple_init,
 		pljava_DualState_key(), NULL, htH.longVal);
 	return jht;
 }

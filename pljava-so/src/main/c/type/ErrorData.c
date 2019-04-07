@@ -40,7 +40,7 @@ jobject pljava_ErrorData_getCurrentError(void)
 	 * being made into JavaMemoryContext, which never gets reset, so only
 	 * unreachability from the Java side will free it.
 	 */
-	jed = JNI_newObject(s_ErrorData_class, s_ErrorData_init,
+	jed = JNI_newObjectLocked(s_ErrorData_class, s_ErrorData_init,
 		pljava_DualState_key(), NULL, p2l.longVal);
 	return jed;
 }
@@ -136,11 +136,6 @@ void pljava_ErrorData_initialize(void)
 		"_getSavedErrno",
 	  	"(J)I",
 	  	Java_org_postgresql_pljava_internal_ErrorData__1getSavedErrno
-		},
-		{
-		"_free",
-	  	"(J)V",
-	  	Java_org_postgresql_pljava_internal_ErrorData__1free
 		},
 		{ 0, 0, 0 }
 	};
@@ -395,19 +390,4 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getSavedE
 	Ptr2Long p2l;
 	p2l.longVal = _this;
 	return (jint)((ErrorData*)p2l.ptrVal)->saved_errno;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_ErrorData
- * Method:    _free
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_ErrorData__1free(JNIEnv* env, jobject _this, jlong pointer)
-{
-	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeErrorData(p2l.ptrVal);
-	END_NATIVE
 }

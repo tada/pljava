@@ -42,17 +42,29 @@ public class ErrorData
 		/**
 		 * Return the ErrorData pointer.
 		 *<p>
-		 * As long as this value is used in instance methods on ErrorData
-		 * (or subclasses, or on something that holds a reference to this
-		 * ErrorData) and only while they hold Backend.THREADLOCK, it isn't
-		 * necessary to also hold the monitor on this State object. The state
-		 * can't go java-unreachable while an instance method's on the stack,
-		 * and as long as we're on the thread that's in PG, the Invocation that
-		 * state is scoped to can't be popped before we return.
+		 * This is a transitional implementation: ideally, each method requiring
+		 * the native state would be moved to this class, and hold the pin for
+		 * as long as the state is being manipulated. Simply returning the
+		 * guarded value out from under the pin, as here, is not great practice,
+		 * but as long as the value is only used in instance methods of
+		 * ErrorData, or subclasses, or something with a strong reference to
+		 * this ErrorData, and only on a thread for which
+		 * {@code Backend.threadMayEnterPG()} is true, disaster will not strike.
+		 * It can't go Java-unreachable while an instance method's on the call
+		 * stack, and the {@code Invocation} marking this state's native scope
+		 * can't be popped before return of any method using the value.
 		 */
 		private long getErrorDataPtr() throws SQLException
 		{
-			return getPointer();
+			pin();
+			try
+			{
+				return guardedLong();
+			}
+			finally
+			{
+				unpin();
+			}
 		}
 	}
 
@@ -264,5 +276,4 @@ public class ErrorData
 	private static native int _getInternalPos(long pointer);
 	private static native String _getInternalQuery(long pointer);
 	private static native int _getSavedErrno(long pointer);	/* errno at entry */
-	protected native void _free(long pointer);
 }

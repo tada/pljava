@@ -59,7 +59,7 @@ jobject pljava_SingleRowReader_create(HeapTupleHeader ht)
 	p2lro.ptrVal = currentInvocation;
 
 	result =
-		JNI_newObject(s_SingleRowReader_class, s_SingleRowReader_init,
+		JNI_newObjectLocked(s_SingleRowReader_class, s_SingleRowReader_init,
 			pljava_DualState_key(), p2lro.longVal, p2lht.longVal, jtd);
 
 	JNI_deleteLocalRef(jtd);

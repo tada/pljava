@@ -36,7 +36,7 @@ jobject pljava_SQLInputFromTuple_create(HeapTupleHeader hth)
 	p2lro.ptrVal = currentInvocation;
 
 	result =
-		JNI_newObject(s_SQLInputFromTuple_class, s_SQLInputFromTuple_init,
+		JNI_newObjectLocked(s_SQLInputFromTuple_class, s_SQLInputFromTuple_init,
 			pljava_DualState_key(), p2lro.longVal, p2lht.longVal, jtd);
 
 	JNI_deleteLocalRef(jtd);

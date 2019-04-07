@@ -39,7 +39,7 @@ jobject pljava_TriggerData_create(TriggerData* triggerData)
 	p2ltd.longVal = 0L;
 	p2ltd.ptrVal = triggerData;
 
-	return JNI_newObject(
+	return JNI_newObjectLocked(
 			s_TriggerData_class,
 			s_TriggerData_init,
 			pljava_DualState_key(),
