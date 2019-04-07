@@ -17,9 +17,11 @@
 #include "org_postgresql_pljava_internal_DualState_SingleHeapFreeTuple.h"
 #include "org_postgresql_pljava_internal_DualState_SingleFreeErrorData.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIfreeplan.h"
+#include "org_postgresql_pljava_internal_DualState_SingleSPIcursorClose.h"
 #include "pljava/DualState.h"
 
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 #include "pljava/SPI.h"
@@ -32,6 +34,7 @@
  */
 #include "pljava/type/ErrorData.h"
 extern void pljava_ExecutionPlan_initialize(void);
+#include "pljava/type/Portal.h"
 #include "pljava/type/Relation.h"
 #include "pljava/type/SingleRowReader.h"
 #include "pljava/type/TriggerData.h"
@@ -169,6 +172,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod singleSPIcursorCloseMethods[] =
+	{
+		{
+		"_spiCursorClose",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCursorClose
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_resourceOwnerRelease = PgObject_getStaticJavaMethod(
@@ -212,6 +225,11 @@ void pljava_DualState_initialize(void)
 	PgObject_registerNatives2(clazz, singleSPIfreeplanMethods);
 	JNI_deleteLocalRef(clazz);
 
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleSPIcursorClose");
+	PgObject_registerNatives2(clazz, singleSPIcursorCloseMethods);
+	JNI_deleteLocalRef(clazz);
+
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 
 	/*
@@ -219,6 +237,7 @@ void pljava_DualState_initialize(void)
 	 */
 	pljava_ErrorData_initialize();
 	pljava_ExecutionPlan_initialize();
+	pljava_Portal_initialize();
 	pljava_Relation_initialize();
 	pljava_SingleRowReader_initialize();
 	pljava_SQLInputFromTuple_initialize();
@@ -359,6 +378,41 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePl
 	PG_CATCH();
 	{
 		Exception_throw_ERROR("SPI_freeplan");
+	}
+	PG_END_TRY();
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleSPIcursorClose
+ * Method:    _spiCursorClose
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCursorClose(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	PG_TRY();
+	{
+		/*
+		 * This code copied from its former location in Portal.c, for reasons
+		 * not really explained there, is different from most of the other
+		 * javaStateReleased actions here, by virtue of being conditional; it
+		 * does nothing if the current Invocation's errorOccurred flag is set,
+		 * or during an end-of-expression-context callback from the executor.
+		 */
+		if ( NULL != currentInvocation && ! currentInvocation->errorOccurred
+			&& ! currentInvocation->inExprContextCB )
+			SPI_cursor_close(p2l.ptrVal);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR("SPI_cursor_close");
 	}
 	PG_END_TRY();
 	END_NATIVE

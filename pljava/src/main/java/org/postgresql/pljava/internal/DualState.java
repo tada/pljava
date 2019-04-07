@@ -1842,6 +1842,55 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code SPI_cursor_close} of a single pointer.
+	 */
+	public static abstract class SingleSPIcursorClose<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleSPIcursorClose(
+			Key cookie, T referent, long resourceOwner, long ccTarget)
+		{
+			super(cookie, referent, resourceOwner, ccTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s SPI_cursor_close(%x)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, an
+		 * {@code SPI_cursor_close}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 *<p>
+		 * For this class (and for reasons that weren't made
+		 * obvious in the original code this reimplements), the native code will
+		 * avoid calling {@code SPI_cursor_close} if the {@code Invocation}'s
+		 * error-occurred flag is set, or during a callback from the executor
+		 * through an {@code ExprContextCallbackFunction}.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_spiCursorClose(guardedLong());
+		}
+
+		/*
+		 * This code copied from its former location in Portal.c, for reasons
+		 * not really explained there, is different from most of the other
+		 * javaStateReleased actions here, by virtue of being conditional; it
+		 * does nothing if the current Invocation's errorOccurred flag is set,
+		 * or during an end-of-expression-context callback from the executor.
+		 */
+		private native void _spiCursorClose(long pointer);
+	}
+
+	/**
 	 * Bean exposing some {@code DualState} allocation and lifecycle statistics
 	 * for viewing in a JMX management client.
 	 */

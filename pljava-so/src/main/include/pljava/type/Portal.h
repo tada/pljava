@@ -23,11 +23,13 @@ extern "C" {
 #include <utils/portal.h>
 
 /*****************************************************************
- * The Portal java class extends the NativeStruct and provides JNI
+ * The Portal java class provides JNI
  * access to some of the attributes of the Portal structure.
  * 
  * @author Thomas Hallgren
  *****************************************************************/
+
+extern void pljava_Portal_initialize();
 
 /*
  * Create the org.postgresql.pljava.Portal instance

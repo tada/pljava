@@ -804,7 +804,6 @@ extern void AclId_initialize(void);
 extern void String_initialize(void);
 extern void byte_array_initialize(void);
 
-extern void Portal_initialize(void);
 extern void TupleTable_initialize(void);
 
 extern void Composite_initialize(void);
@@ -842,7 +841,6 @@ void Type_initialize(void)
 
 	byte_array_initialize();
 
-	Portal_initialize();
 	TupleTable_initialize();
 
 	Composite_initialize();

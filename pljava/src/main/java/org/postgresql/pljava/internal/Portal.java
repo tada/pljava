@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import org.postgresql.pljava.internal.SPI; // for javadoc
+
 import java.sql.SQLException;
 
 /**
@@ -22,7 +24,6 @@ import java.sql.SQLException;
  */
 public class Portal
 {
-	private long m_pointer;
 	/*
 	 * Hold a reference to the Java ExecutionPlan object as long as we might be
 	 * using it, just to make sure Java unreachability doesn't cause it to
@@ -30,10 +31,50 @@ public class Portal
 	 */
 	private ExecutionPlan m_plan;
 
-	Portal(long pointer, ExecutionPlan plan)
+	private final State m_state;
+
+	Portal(DualState.Key cookie, long ro, long pointer, ExecutionPlan plan)
 	{
-		m_pointer = pointer;
+		m_state = new State(cookie, this, ro, pointer);
 		m_plan = plan;
+	}
+
+	private static class State
+	extends DualState.SingleSPIcursorClose<Portal>
+	{
+		private State(
+			DualState.Key cookie, Portal referent, long ro, long portal)
+		{
+			super(cookie, referent, ro, portal);
+		}
+
+		/**
+		 * Return the Portal pointer.
+		 *<p>
+		 * This is a transitional implementation: ideally, each method requiring
+		 * the native state would be moved to this class, and hold the pin for
+		 * as long as the state is being manipulated. Simply returning the
+		 * guarded value out from under the pin, as here, is not great practice,
+		 * but as long as the value is only used in instance methods of
+		 * Portal, or subclasses, or something with a strong reference to
+		 * this Portal, and only on a thread for which
+		 * {@code Backend.threadMayEnterPG()} is true, disaster will not strike.
+		 * It can't go Java-unreachable while a reference is on the call stack,
+		 * and as long as we're on the thread that's in PG, the saved plan won't
+		 * be popped before we return.
+		 */
+		private long getPortalPtr() throws SQLException
+		{
+			pin();
+			try
+			{
+				return guardedLong();
+			}
+			finally
+			{
+				unpin();
+			}
+		}
 	}
 
 	/**
@@ -44,35 +85,34 @@ public class Portal
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			_close(m_pointer);
-			m_pointer = 0;
+			m_state.releaseFromJava();
 			m_plan = null;
 		}
 	}
 
 	/**
 	 * Returns the name of this Portal.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public String getName()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getName(m_pointer);
+			return _getName(m_state.getPortalPtr());
 		}
 	}
 
 	/**
 	 * Returns the value of the <code>portalPos</code> attribute.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public long getPortalPos()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long pos = _getPortalPos(m_pointer);
+			long pos = _getPortalPos(m_state.getPortalPtr());
 			if ( pos < 0 )
 				throw new ArithmeticException(
 					"portal position too large to report " +
@@ -84,30 +124,36 @@ public class Portal
 	/**
 	 * Returns the TupleDesc that describes the row Tuples for this
 	 * Portal.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public TupleDesc getTupleDesc()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _getTupleDesc(m_pointer);
+			return _getTupleDesc(m_state.getPortalPtr());
 		}
 	}
 
 	/**
 	 * Performs an <code>SPI_cursor_fetch</code>.
+	 *<p>
+	 * The fetched rows are parked at the C global {@code SPI_tuptable}; see
+	 * {@link SPI#getTupTable SPI.getTupTable} for retrieving them. (While
+	 * faithful to the way the C API works, this seems a bit odd as a Java API,
+	 * and suggests that calls to this method and then {@code SPI.getTupTable}
+	 * would ideally be done under one acquisition of the PG thread lock.)
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
 	 * @return The actual number of fetched rows.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public long fetch(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long fetched = _fetch(m_pointer, forward, count);
+			long fetched = _fetch(m_state.getPortalPtr(), forward, count);
 			if ( fetched < 0 )
 				throw new ArithmeticException(
 					"fetched too many rows to report in a Java signed long");
@@ -117,37 +163,28 @@ public class Portal
 
 	/**
 	 * Returns the value of the <code>atEnd</code> attribute.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public boolean isAtEnd()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isAtEnd(m_pointer);
+			return _isAtEnd(m_state.getPortalPtr());
 		}
 	}
 
 	/**
 	 * Returns the value of the <code>atStart</code> attribute.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public boolean isAtStart()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			return _isAtStart(m_pointer);
+			return _isAtStart(m_state.getPortalPtr());
 		}
-	}
-
-	/**
-	 * Checks if the portal is still active. It can be closed either explicitly
-	 * using the {@link #close()} method or implicitly.
-	 */
-	public boolean isValid()
-	{
-		return m_pointer != 0;
 	}
 
 	/**
@@ -155,14 +192,14 @@ public class Portal
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
 	 * @return The actual number of rows moved.
-	 * @throws SQLException if the handle to the native structur is stale.
+	 * @throws SQLException if the handle to the native structure is stale.
 	 */
 	public long move(boolean forward, long count)
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long moved = _move(m_pointer, forward, count);
+			long moved = _move(m_state.getPortalPtr(), forward, count);
 			if ( moved < 0 )
 				throw new ArithmeticException(
 					"moved too many rows to report in a Java signed long");
