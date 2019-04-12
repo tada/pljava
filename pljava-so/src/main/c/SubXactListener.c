@@ -30,15 +30,15 @@ static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransacti
 	switch(event)
 	{
 		case SUBXACT_EVENT_START_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class,
+			JNI_callStaticVoidMethodLocked(s_SubXactListener_class,
 				s_SubXactListener_onStart, p2l.longVal, mySubid, parentSubid);
 			break;
 		case SUBXACT_EVENT_COMMIT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class,
+			JNI_callStaticVoidMethodLocked(s_SubXactListener_class,
 				s_SubXactListener_onCommit, p2l.longVal, mySubid, parentSubid);
 			break;
 		case SUBXACT_EVENT_ABORT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class,
+			JNI_callStaticVoidMethodLocked(s_SubXactListener_class,
 				s_SubXactListener_onAbort, p2l.longVal, mySubid, parentSubid);
 	}
 }
