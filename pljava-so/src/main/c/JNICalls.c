@@ -1276,6 +1276,13 @@ void JNI_setLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf
 	END_JAVA
 }
 
+void JNI_setIntField(jobject object, jfieldID field, jint value)
+{
+	BEGIN_JAVA
+	(*env)->SetIntField(env, object, field, value);
+	END_JAVA
+}
+
 void JNI_setLongField(jobject object, jfieldID field, jlong value)
 {
 	BEGIN_JAVA

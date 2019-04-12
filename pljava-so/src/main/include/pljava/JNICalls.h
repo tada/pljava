@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -215,6 +221,7 @@ extern void         JNI_setFloatArrayRegion(jfloatArray array, jsize start, jsiz
 extern void         JNI_setIntArrayRegion(jintArray array, jsize start, jsize len, jint* buf);
 extern void         JNI_setLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf);
 extern void         JNI_setShortArrayRegion(jshortArray array, jsize start, jsize len, jshort* buf);
+extern void         JNI_setIntField(jobject object, jfieldID field, jint value);
 extern void         JNI_setLongField(jobject object, jfieldID field, jlong value);
 extern void         JNI_setObjectArrayElement(jobjectArray array, jsize index, jobject value);
 extern void			JNI_setThreadLock(jobject lockObject);

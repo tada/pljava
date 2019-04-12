@@ -23,8 +23,6 @@
 #include <miscadmin.h>
 #endif
 
-Savepoint* infant = 0;
-
 extern void SPI_initialize(void);
 void SPI_initialize(void)
 {
@@ -153,57 +151,4 @@ Java_org_postgresql_pljava_internal_SPI__1freeTupTable(JNIEnv* env, jclass cls)
 		SPI_tuptable = 0;
 		END_NATIVE
 	}
-}
-
-static void assertXid(SubTransactionId xid)
-{
-	if(xid != GetCurrentSubTransactionId())
-	{
-		/* Oops. Rollback to top level transaction.
-		 */
-		ereport(ERROR, (
-			errcode(ERRCODE_INVALID_TRANSACTION_TERMINATION),
-			errmsg("Subtransaction mismatch at txlevel %d",
-				GetCurrentTransactionNestLevel())));
-	}
-}
-
-Savepoint* SPI_setSavepoint(const char* name)
-{
-	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
-	Invocation_assertConnect();
-	sp->nestingLevel = GetCurrentTransactionNestLevel() + 1;
-	strcpy(sp->name, name);
-	infant = sp;
-	BeginInternalSubTransaction(sp->name);
-	infant = 0;
-	sp->xid = GetCurrentSubTransactionId();
-	return sp;
-}
-
-void SPI_releaseSavepoint(Savepoint* sp)
-{
-	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
-		ReleaseCurrentSubTransaction();
-
-	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
-	{
-		assertXid(sp->xid);
-		ReleaseCurrentSubTransaction();
-	}
-	pfree(sp);
-}
-
-void SPI_rollbackSavepoint(Savepoint* sp)
-{
-	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
-		RollbackAndReleaseCurrentSubTransaction();
-
-	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
-	{
-		assertXid(sp->xid);
-		RollbackAndReleaseCurrentSubTransaction();
-	}
-	SPI_restore_connection();
-	pfree(sp);
 }

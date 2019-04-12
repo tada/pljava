@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
@@ -26,19 +30,16 @@ static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransacti
 	switch(event)
 	{
 		case SUBXACT_EVENT_START_SUB:
-			{
-			Ptr2Long infant2l;
-			infant->xid = mySubid;
-			infant2l.longVal = 0L; /* ensure that the rest is zeroed out */
-			infant2l.ptrVal = infant;
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onStart, p2l.longVal, infant2l.longVal, parentSubid);
-			}
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onStart, p2l.longVal, mySubid, parentSubid);
 			break;
 		case SUBXACT_EVENT_COMMIT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onCommit, p2l.longVal, mySubid, parentSubid);
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onCommit, p2l.longVal, mySubid, parentSubid);
 			break;
 		case SUBXACT_EVENT_ABORT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onAbort, p2l.longVal, mySubid, parentSubid);
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onAbort, p2l.longVal, mySubid, parentSubid);
 	}
 }
 
@@ -63,7 +64,7 @@ void SubXactListener_initialize(void)
 	s_SubXactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/SubXactListener"));
 	s_SubXactListener_onAbort  = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onAbort",  "(JII)V");
 	s_SubXactListener_onCommit = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onCommit", "(JII)V");
-	s_SubXactListener_onStart  = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onStart",  "(JJI)V");
+	s_SubXactListener_onStart  = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onStart",  "(JII)V");
 }
 
 /*

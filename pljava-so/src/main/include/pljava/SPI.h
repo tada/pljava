@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #ifndef __pljava_SPI_h
 #define __pljava_SPI_h
@@ -16,31 +20,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/***********************************************************************
- * Some needed additions to the SPI set of functions.
- * 
- * @author Thomas Hallgren
- *
- ***********************************************************************/
-
-typedef struct
-{
-	SubTransactionId xid;
-	int  nestingLevel;
-	char name[1];
-} Savepoint;
-
-/* infant is set to the savepoint that is being created durin a setSavepoint call.
- * It is used by the onStart callback.
- */
-extern Savepoint* infant;
-
-extern Savepoint* SPI_setSavepoint(const char* name);
-
-extern void SPI_releaseSavepoint(Savepoint* sp);
-
-extern void SPI_rollbackSavepoint(Savepoint* sp);
 
 #ifdef __cplusplus
 } /* end of extern "C" declaration */
