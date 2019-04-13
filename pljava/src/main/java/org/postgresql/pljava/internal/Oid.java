@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,9 +25,12 @@ import java.util.HashMap;
  */
 public class Oid extends Number
 {
-	private static final HashMap s_class2typeId = new HashMap();
+	private static final HashMap<Class<?>,Oid> s_class2typeId =
+		new HashMap<Class<?>,Oid>();
 
-	private static final HashMap s_typeId2class = new HashMap();
+	private static final HashMap<Oid,Class<?>> s_typeId2class =
+		new HashMap<Oid,Class<?>>();
+
 	static
 	{
 		try
@@ -52,7 +55,7 @@ public class Oid extends Number
 	{
 		if ( obj instanceof SQLData )
 			return forTypeName(((SQLData)obj).getSQLTypeName());
-		return (Oid)s_class2typeId.get(obj.getClass());
+		return s_class2typeId.get(obj.getClass());
 	}
 
 	/**
@@ -145,7 +148,7 @@ public class Oid extends Number
 	public Class getJavaClass()
 	throws SQLException
 	{
-		Class c = (Class)s_typeId2class.get(this);
+		Class c = s_typeId2class.get(this);
 		if(c == null)
 		{
 			String className;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -27,9 +27,9 @@ import java.util.HashMap;
  */
 public class SyntheticResultSet extends ResultSetBase
 {
-	private final ResultSetField[] m_fields;
-	private final ArrayList        m_tuples;
-    private final HashMap          m_fieldIndexes;
+	private final ResultSetField[]        m_fields;
+	private final ArrayList<Object[]>     m_tuples;
+	private final HashMap<String,Integer> m_fieldIndexes;
 
 	/**
 	 * Construct a {@code SyntheticResultSet} whose column types are described
@@ -41,7 +41,7 @@ public class SyntheticResultSet extends ResultSetBase
 	 * {@link ResultSetField#canContain canContain} method of the
 	 * {@code ResultSetField} instance at index <em>j</em>.
 	 */
-	SyntheticResultSet(ResultSetField[] fields, ArrayList tuples)
+	SyntheticResultSet(ResultSetField[] fields, ArrayList<Object[]> tuples)
 	throws SQLException
 	{
 		super(tuples.size());
@@ -50,7 +50,7 @@ public class SyntheticResultSet extends ResultSetBase
         m_fieldIndexes = new HashMap();
         int i = m_fields.length;
         while(--i >= 0)
-            m_fieldIndexes.put(m_fields[i].getColumnLabel(), new Integer(i+1));
+            m_fieldIndexes.put(m_fields[i].getColumnLabel(), i+1);
 
 		Object[][] tupleTest = (Object[][]) m_tuples.toArray(new Object[0][]);
 		Object value;
@@ -84,10 +84,10 @@ public class SyntheticResultSet extends ResultSetBase
 	public int findColumn(String columnName)
 	throws SQLException
 	{
-        Integer idx = (Integer)m_fieldIndexes.get(columnName.toUpperCase());
+        Integer idx = m_fieldIndexes.get(columnName.toUpperCase());
         if(idx != null)
         {
-            return idx.intValue();
+            return idx;
         }
         throw new SQLException("No such field: '" + columnName + "'");
 	}
@@ -112,7 +112,7 @@ public class SyntheticResultSet extends ResultSetBase
     	int row = this.getRow();
 		if(row < 1 || row > m_tuples.size())
 			throw new SQLException("ResultSet is not positioned on a valid row");
-		return (Object[])m_tuples.get(row-1);
+		return m_tuples.get(row-1);
 	}
 
 	@Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -73,7 +73,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			m_plan.close();
 			m_plan = null;
 		}
-		this.clearParameters();
+		clearParameters();
 		super.close();
 	}
 
@@ -81,101 +81,101 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public ResultSet executeQuery()
 	throws SQLException
 	{
-		this.execute();
-		return this.getResultSet();
+		execute();
+		return getResultSet();
 	}
 
 	@Override
 	public int executeUpdate()
 	throws SQLException
 	{
-		this.execute();
-		return this.getUpdateCount();
+		execute();
+		return getUpdateCount();
 	}
 
 	@Override
 	public void setNull(int columnIndex, int sqlType)
 	throws SQLException
 	{
-		this.setObject(columnIndex, null, sqlType);
+		setObject(columnIndex, null, sqlType);
 	}
 
 	@Override
 	public void setBoolean(int columnIndex, boolean value) throws SQLException
 	{
-		this.setObject(columnIndex, value ? Boolean.TRUE : Boolean.FALSE, Types.BOOLEAN);
+		setObject(columnIndex, value, Types.BOOLEAN);
 	}
 
 	@Override
 	public void setByte(int columnIndex, byte value) throws SQLException
 	{
-		this.setObject(columnIndex, new Byte(value), Types.TINYINT);
+		setObject(columnIndex, value, Types.TINYINT);
 	}
 
 	@Override
 	public void setShort(int columnIndex, short value) throws SQLException
 	{
-		this.setObject(columnIndex, new Short(value), Types.SMALLINT);
+		setObject(columnIndex, value, Types.SMALLINT);
 	}
 
 	@Override
 	public void setInt(int columnIndex, int value) throws SQLException
 	{
-		this.setObject(columnIndex, new Integer(value), Types.INTEGER);
+		setObject(columnIndex, value, Types.INTEGER);
 	}
 
 	@Override
 	public void setLong(int columnIndex, long value) throws SQLException
 	{
-		this.setObject(columnIndex, new Long(value), Types.BIGINT);
+		setObject(columnIndex, value, Types.BIGINT);
 	}
 
 	@Override
 	public void setFloat(int columnIndex, float value) throws SQLException
 	{
-		this.setObject(columnIndex, new Float(value), Types.FLOAT);
+		setObject(columnIndex, value, Types.FLOAT);
 	}
 
 	@Override
 	public void setDouble(int columnIndex, double value) throws SQLException
 	{
-		this.setObject(columnIndex, new Double(value), Types.DOUBLE);
+		setObject(columnIndex, value, Types.DOUBLE);
 	}
 
 	@Override
 	public void setBigDecimal(int columnIndex, BigDecimal value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.DECIMAL);
+		setObject(columnIndex, value, Types.DECIMAL);
 	}
 
 	@Override
 	public void setString(int columnIndex, String value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.VARCHAR);
+		setObject(columnIndex, value, Types.VARCHAR);
 	}
 
 	@Override
 	public void setBytes(int columnIndex, byte[] value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.VARBINARY);
+		setObject(columnIndex, value, Types.VARBINARY);
 	}
 
 	@Override
 	public void setDate(int columnIndex, Date value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.DATE);
+		setObject(columnIndex, value, Types.DATE);
 	}
 
 	@Override
 	public void setTime(int columnIndex, Time value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.TIME);
+		setObject(columnIndex, value, Types.TIME);
 	}
 
 	@Override
 	public void setTimestamp(int columnIndex, Timestamp value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.TIMESTAMP);
+		setObject(columnIndex, value, Types.TIMESTAMP);
 	}
 
 	@Override
@@ -183,7 +183,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	{
 		try
 		{
-			this.setObject(columnIndex,
+			setObject(columnIndex,
 				new ClobValue(new InputStreamReader(value, "US-ASCII"), length),
 				Types.CLOB);
 		}
@@ -205,7 +205,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	@Override
 	public void setBinaryStream(int columnIndex, InputStream value, int length) throws SQLException
 	{
-		this.setObject(columnIndex, new BlobValue(value, length), Types.BLOB);
+		setObject(columnIndex, new BlobValue(value, length), Types.BLOB);
 	}
 
 	@Override
@@ -223,7 +223,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setObject(int columnIndex, Object value, int sqlType, int scale)
 	throws SQLException
 	{
-		this.setObject(columnIndex, value, sqlType);
+		setObject(columnIndex, value, sqlType);
 	}
 
 	@Override
@@ -318,7 +318,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		else
 			sqlType = Types.OTHER;
 
-		this.setObject(columnIndex, value, sqlType, vAlt);
+		setObject(columnIndex, value, sqlType, vAlt);
 	}
 
 	/**
@@ -350,8 +350,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		if(m_plan == null)
 			m_plan = ExecutionPlan.prepare(m_statement, m_typeIds);
 
-		boolean result = this.executePlan(m_plan, m_values);
-		this.clearParameters(); // Parameters are cleared upon successful completion.
+		boolean result = executePlan(m_plan, m_values);
+		clearParameters(); // Parameters are cleared upon successful completion.
 		return result;
 	}
 
@@ -369,8 +369,8 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void addBatch()
 	throws SQLException
 	{
-		this.internalAddBatch(new Object[]{m_values.clone(), m_sqlTypes.clone(), m_typeIds.clone()});
-		this.clearParameters(); // Parameters are cleared upon successful completion.
+		internalAddBatch(new Object[]{m_values.clone(), m_sqlTypes.clone(), m_typeIds.clone()});
+		clearParameters(); // Parameters are cleared upon successful completion.
 	}
 
 	/**
@@ -388,31 +388,31 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setCharacterStream(int columnIndex, Reader value, int length)
 	throws SQLException
 	{
-		this.setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
+		setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
 	}
 
 	@Override
 	public void setRef(int columnIndex, Ref value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.REF);
+		setObject(columnIndex, value, Types.REF);
 	}
 
 	@Override
 	public void setBlob(int columnIndex, Blob value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.BLOB);
+		setObject(columnIndex, value, Types.BLOB);
 	}
 
 	@Override
 	public void setClob(int columnIndex, Clob value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.CLOB);
+		setObject(columnIndex, value, Types.CLOB);
 	}
 
 	@Override
 	public void setArray(int columnIndex, Array value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.ARRAY);
+		setObject(columnIndex, value, Types.ARRAY);
 	}
 
 	/**
@@ -430,27 +430,30 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setDate(int columnIndex, Date value, Calendar cal)
 	throws SQLException
 	{
-		if(cal == null || cal == Calendar.getInstance())
-			this.setObject(columnIndex, value, Types.DATE);
-		throw new UnsupportedFeatureException("Setting date using explicit Calendar");
+		if(cal != null && cal != Calendar.getInstance())
+			throw new UnsupportedFeatureException(
+				"Setting date using explicit Calendar");
+		setObject(columnIndex, value, Types.DATE);
 	}
 
 	@Override
 	public void setTime(int columnIndex, Time value, Calendar cal)
 	throws SQLException
 	{
-		if(cal == null || cal == Calendar.getInstance())
-			this.setObject(columnIndex, value, Types.TIME);
-		throw new UnsupportedFeatureException("Setting time using explicit Calendar");
+		if(cal != null && cal != Calendar.getInstance())
+			throw new UnsupportedFeatureException(
+				"Setting time using explicit Calendar");
+		setObject(columnIndex, value, Types.TIME);
 	}
 
 	@Override
 	public void setTimestamp(int columnIndex, Timestamp value, Calendar cal)
 	throws SQLException
 	{
-		if(cal == null || cal == Calendar.getInstance())
-			this.setObject(columnIndex, value, Types.TIMESTAMP);
-		throw new UnsupportedFeatureException("Setting time using explicit Calendar");
+		if(cal != null && cal != Calendar.getInstance())
+			throw new UnsupportedFeatureException(
+				"Setting time using explicit Calendar");
+		setObject(columnIndex, value, Types.TIMESTAMP);
 	}
 
 	/**
@@ -500,7 +503,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	@Override
 	public void setURL(int columnIndex, URL value) throws SQLException
 	{
-		this.setObject(columnIndex, value, Types.DATALINK);
+		setObject(columnIndex, value, Types.DATALINK);
 	}
 
 	public String toString()
@@ -521,7 +524,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public ParameterMetaData getParameterMetaData()
 	throws SQLException
 	{
-		return new SPIParameterMetaData(this.getSqlTypes());
+		return new SPIParameterMetaData(getSqlTypes());
 	}
 
 	protected long executeBatchEntry(Object batchEntry)
@@ -553,11 +556,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			}
 		}
 
-		if(this.execute())
-			this.getResultSet().close();
+		if(execute())
+			getResultSet().close();
 		else
 		{
-			long updCount = this.getUpdateCount();
+			long updCount = getUpdateCount();
 			if(updCount >= 0)
 				ret = updCount;
 		}
@@ -588,7 +591,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNClob( int, Reader ) not implemented yet.",
 			  "0A000" );
 
@@ -600,7 +603,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNClob( int, NClob ) not implemented yet.",
 			  "0A000" );
 
@@ -612,7 +615,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNClob( int, Reader, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -625,7 +628,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setBlob( int, InputStream ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -637,7 +640,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setBlob( int, InputStream, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -650,7 +653,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setClob( int, Reader ) not implemented yet.",
 			  "0A000" );
 
@@ -662,7 +665,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setClob( int, Reader, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -675,7 +678,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	    throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNCharacterStream( int, Reader ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -688,7 +691,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNCharacterStream( int, Reader, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -701,7 +704,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setCharacterStream( int, Reader ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -714,7 +717,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setCharacterStream( int, Reader, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -727,7 +730,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setBinaryStream( int, InputStream ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -740,7 +743,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setBinaryStream( int, InputStream, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -753,7 +756,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
                     throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setAsciiStream( int, InputStream ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -766,7 +769,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setAsciiStream( int, InputStream, long ) not "
 			  + "implemented yet.",
 			  "0A000" );
@@ -779,7 +782,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
                 throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setNString( int, String ) not implemented yet.",
 			  "0A000" );
 	}
@@ -790,7 +793,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".setRowId( int, RowId ) not implemented yet.",
 			  "0A000" );
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -95,9 +95,11 @@ public class Loader extends ClassLoader
 	}
 	private static final String PUBLIC_SCHEMA = "public";
 
-	private static final Map s_schemaLoaders = new HashMap();
+	private static final Map<String,ClassLoader>
+		s_schemaLoaders = new HashMap<String,ClassLoader>();
 
-	private static final Map s_typeMap = new HashMap();
+	private static final Map<String,Map<Oid,Class<? extends SQLData>>>
+		s_typeMap = new HashMap<String,Map<Oid,Class<? extends SQLData>>>();
 
 	/**
 	 * Removes all cached schema loaders, functions, and type maps. This
@@ -154,7 +156,7 @@ public class Loader extends ClassLoader
 		else
 			schemaName = schemaName.toLowerCase();
 
-		ClassLoader loader = (ClassLoader)s_schemaLoaders.get(schemaName);
+		ClassLoader loader = s_schemaLoaders.get(schemaName);
 		if(loader != null)
 			return loader;
 
@@ -249,9 +251,12 @@ public class Loader extends ClassLoader
 	 * @param schema The schema
 	 * @return The Map, possibly empty but never <code>null</code>.
 	 */
-	public static Map getTypeMap(final String schema) throws SQLException
+	public static Map<Oid,Class<? extends SQLData>> getTypeMap(
+		final String schema)
+		throws SQLException
 	{
-		Map typesForSchema = (Map)s_typeMap.get(schema);
+		Map<Oid,Class<? extends SQLData>> typesForSchema =
+			s_typeMap.get(schema);
 		if(typesForSchema != null)
 			return typesForSchema;
 
@@ -282,7 +287,7 @@ public class Loader extends ClassLoader
 						throw new SQLException("Class " + javaClassName + " does not implement java.sql.SQLData");
 					
 					Oid typeOid = Oid.forTypeName(sqlName);
-					typesForSchema.put(typeOid, cls);
+					typesForSchema.put(typeOid, cls.asSubclass(SQLData.class));
 					s_logger.finer("Adding type mapping for OID " + typeOid + " -> class " + cls.getName() + " for schema " + schema);
 				}
 				catch(ClassNotFoundException e)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -94,7 +94,7 @@ public class TriggerResultSet extends SingleRowResultSet
 		if(m_tupleChanges == null)
 			m_tupleChanges = new ArrayList();
 
-		m_tupleChanges.add(new Integer(columnIndex));
+		m_tupleChanges.add(columnIndex);
 		m_tupleChanges.add(x);
 	}
 

@@ -88,7 +88,8 @@ public class SPIConnection implements Connection
 	 * which, in turn, is only used for
 	 * {@link PreparedStatement#setObject(int,Object)}.
 	 */
-	private static final HashMap s_sqlType2Class = new HashMap(30);
+	private static final HashMap<Class<?>,Integer> s_class2sqlType =
+		new HashMap<Class<?>,Integer>(30);
 
 	static
 	{
@@ -115,7 +116,7 @@ public class SPIConnection implements Connection
 
 	private static final void addType(Class clazz, int sqlType)
 	{
-		s_sqlType2Class.put(clazz, new Integer(sqlType));
+		s_class2sqlType.put(clazz, sqlType);
 	}
 
 	/**
@@ -127,9 +128,9 @@ public class SPIConnection implements Connection
 		if(c.isArray() && !c.equals(byte[].class))
 			return Types.ARRAY;
 
-		Integer sqt = (Integer)s_sqlType2Class.get(c);
+		Integer sqt = s_class2sqlType.get(c);
 		if(sqt != null)
-			return sqt.intValue();
+			return sqt;
 
 		/*
 		 * This is not a well known JDBC type.
@@ -827,11 +828,11 @@ public class SPIConnection implements Connection
 	 * in {@code ResultSet}s seems a bit suspect, as does its use in UDT input
 	 * but not output with composites.
 	 */
-	static Object basicCoersion(Class cls, Object value)
+	static <T> T basicCoercion(Class<T> cls, Object value)
 	throws SQLException
 	{
 		if(value == null || cls.isInstance(value))
-			return value;
+			return (T)value;
 
 		if(cls == String.class)
 		{
@@ -840,13 +841,13 @@ public class SPIConnection implements Connection
 			|| value instanceof Timestamp
 			|| value instanceof Date
 			|| value instanceof Time)
-				return value.toString();
+				return (T)value.toString();
 		}
 		else if(cls == URL.class && value instanceof String)
 		{
 			try
 			{
-				return new URL((String)value);
+				return (T)new URL((String)value);
 			}
 			catch(MalformedURLException e)
 			{
@@ -870,8 +871,12 @@ public class SPIConnection implements Connection
 	 * the use of the same coercion in both the retrieval and storage direction
 	 * in {@code ResultSet}s seems a bit suspect, as does its use in UDT input
 	 * but not output with composites.
+	 *<p>
+	 * Oddly, this doesn't promise to return a subclass of its {@code cls}
+	 * parameter: if {@code value} is a {@code Number}, it is returned directly
+	 * no matter what {@code cls} was requested.
 	 */
-	static Number basicNumericCoersion(Class cls, Object value)
+	static Number basicNumericCoercion(Class cls, Object value)
 	throws SQLException
 	{
 		if(value == null || value instanceof Number)
@@ -917,14 +922,15 @@ public class SPIConnection implements Connection
 	 * the use of the same coercion in both the retrieval and storage direction
 	 * in {@code ResultSet}s seems a bit suspect.
 	 */
-	static Object basicCalendricalCoersion(Class cls, Object value, Calendar cal)
+	static <T> T basicCalendricalCoercion(
+		Class<T> cls, Object value, Calendar cal)
 	throws SQLException
 	{
 		if(value == null)
-			return value;
+			return null;
 
 		if(cls.isInstance(value))
-			return value;
+			return (T)value;
 
 		if(cls == Timestamp.class)
 		{
@@ -935,17 +941,17 @@ public class SPIConnection implements Connection
 				cal.set(Calendar.MINUTE, 0);
 				cal.set(Calendar.SECOND, 0);
 				cal.set(Calendar.MILLISECOND, 0);
-				return new Timestamp(cal.getTimeInMillis());
+				return (T)new Timestamp(cal.getTimeInMillis());
 			}
 			else if(value instanceof Time)
 			{
 				cal.setTime((Date)value);
 				cal.set(1970, 0, 1);
-				return new Timestamp(cal.getTimeInMillis());
+				return (T)new Timestamp(cal.getTimeInMillis());
 			}
 			else if(value instanceof String)
 			{
-				return Timestamp.valueOf((String)value);
+				return (T)Timestamp.valueOf((String)value);
 			}
 		}
 		else if(cls == Date.class)
@@ -958,11 +964,11 @@ public class SPIConnection implements Connection
 				cal.set(Calendar.MINUTE, 0);
 				cal.set(Calendar.SECOND, 0);
 				cal.set(Calendar.MILLISECOND, 0);
-				return new Date(cal.getTimeInMillis());
+				return (T)new Date(cal.getTimeInMillis());
 			}
 			else if(value instanceof String)
 			{
-				return Date.valueOf((String)value);
+				return (T)Date.valueOf((String)value);
 			}
 		}
 		else if(cls == Time.class)
@@ -972,11 +978,11 @@ public class SPIConnection implements Connection
 				Timestamp ts = (Timestamp)value;
 				cal.setTime(ts);
 				cal.set(1970, 0, 1);
-				return new Time(cal.getTimeInMillis());
+				return (T)new Time(cal.getTimeInMillis());
 			}
 			else if(value instanceof String)
 			{
-				return Time.valueOf((String)value);
+				return (T)Time.valueOf((String)value);
 			}
 		}
 		throw new SQLException("Cannot derive a value of class " +
