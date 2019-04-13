@@ -28,7 +28,11 @@ import org.postgresql.pljava.jdbc.SQLUtils;
 
 /**
  * An instance of this interface reflects the current session. The attribute
- * store is transactional.
+ * store is deprecated. It had interesting transactional behavior until
+ * PL/Java 1.2.0, but since then it has behaved as any (non-null-allowing) Map.
+ * Anyone needing any sort of attribute store with transactional behavior will
+ * need to implement one and use a {@link TransactionListener} to keep it
+ * sync'd.
  *
  * @author Thomas Hallgren
  */
@@ -79,6 +83,16 @@ public class Session implements org.postgresql.pljava.Session
 		SubXactListener.addListener(listener);
 	}
 
+	/**
+	 * Get an attribute from the session's attribute store.
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
+	 */
+	@Override
 	public Object getAttribute(String attributeName)
 	{
 		return m_attributes.get(attributeName);
@@ -108,11 +122,31 @@ public class Session implements org.postgresql.pljava.Session
 	}
 
 
+	/**
+	 * Remove an attribute from the session's attribute store.
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
+	 */
+	@Override
 	public void removeAttribute(String attributeName)
 	{
 		m_attributes.remove(attributeName);
 	}
 
+	/**
+	 * Set an attribute in the session's attribute store.
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
+	 */
+	@Override
 	public void setAttribute(String attributeName, Object value)
 	{
 		m_attributes.put(attributeName, value);

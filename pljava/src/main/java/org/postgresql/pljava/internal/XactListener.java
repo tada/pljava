@@ -1,13 +1,20 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 import org.postgresql.pljava.TransactionListener;
 
@@ -20,26 +27,29 @@ import org.postgresql.pljava.TransactionListener;
  */
 class XactListener
 {
-	private static final HashMap s_listeners = new HashMap();
+	/*
+	 * A non-thread-safe Deque; will be made safe by doing all mutations on the
+	 * PG thread (even though actually calling into PG is necessary only when
+	 * the size changes from 0 to 1 or 1 to 0).
+	 */
+	private static final Deque<TransactionListener> s_listeners =
+		new ArrayDeque<TransactionListener>();
 
-	static void onAbort(long listenerId) throws SQLException
+	static void onAbort() throws SQLException
 	{
-		TransactionListener listener = (TransactionListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
+		for ( TransactionListener listener : s_listeners )
 			listener.onAbort(Backend.getSession());
 	}
 
-	static void onCommit(long listenerId) throws SQLException
+	static void onCommit() throws SQLException
 	{
-		TransactionListener listener = (TransactionListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
+		for ( TransactionListener listener : s_listeners )
 			listener.onCommit(Backend.getSession());
 	}
 
-	static void onPrepare(long listenerId) throws SQLException
+	static void onPrepare() throws SQLException
 	{
-		TransactionListener listener = (TransactionListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
+		for ( TransactionListener listener : s_listeners )
 			listener.onPrepare(Backend.getSession());
 	}
 	
@@ -47,9 +57,11 @@ class XactListener
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.put(new Long(key), listener) != listener)
-				_register(key);
+			if ( s_listeners.contains(listener) )
+				return;
+			s_listeners.push(listener);
+			if( 1 == s_listeners.size() )
+				_register();
 		}
 	}
 	
@@ -57,13 +69,14 @@ class XactListener
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.remove(new Long(key)) == listener)
-				_unregister(key);
+			if ( ! s_listeners.remove(listener) )
+				return;
+			if ( 0 == s_listeners.size() )
+				_unregister();
 		}
 	}
 
-	private static native void _register(long listenerId);
+	private static native void _register();
 
-	private static native void _unregister(long listenerId);
+	private static native void _unregister();
 }
