@@ -37,19 +37,23 @@ class XactListener
 
 	static void onAbort() throws SQLException
 	{
-		for ( TransactionListener listener : s_listeners )
+		// Take a snapshot. Handlers might unregister during event processing
+		for ( TransactionListener listener :
+			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
 			listener.onAbort(Backend.getSession());
 	}
 
 	static void onCommit() throws SQLException
 	{
-		for ( TransactionListener listener : s_listeners )
+		for ( TransactionListener listener :
+			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
 			listener.onCommit(Backend.getSession());
 	}
 
 	static void onPrepare() throws SQLException
 	{
-		for ( TransactionListener listener : s_listeners )
+		for ( TransactionListener listener :
+			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
 			listener.onPrepare(Backend.getSession());
 	}
 	

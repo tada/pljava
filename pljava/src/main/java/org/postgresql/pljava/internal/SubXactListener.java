@@ -33,21 +33,25 @@ class SubXactListener
 	static void onAbort(PgSavepoint sp, PgSavepoint parent)
 	throws SQLException
 	{
-		for ( SavepointListener listener : s_listeners )
+		// Take a snapshot. Handlers might unregister during event processing
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
 			listener.onAbort(Backend.getSession(), sp, parent);
 	}
 
 	static void onCommit(PgSavepoint sp, PgSavepoint parent)
 	throws SQLException
 	{
-		for ( SavepointListener listener : s_listeners )
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
 			listener.onCommit(Backend.getSession(), sp, parent);
 	}
 
 	static void onStart(PgSavepoint sp, PgSavepoint parent)
 	throws SQLException
 	{
-		for ( SavepointListener listener : s_listeners )
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
 			listener.onStart(Backend.getSession(), sp, parent);
 	}
 
