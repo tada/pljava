@@ -13,7 +13,8 @@
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 import org.postgresql.pljava.SavepointListener;
 
@@ -26,36 +27,39 @@ import org.postgresql.pljava.SavepointListener;
  */
 class SubXactListener
 {
-	private static final HashMap s_listeners = new HashMap();
+	private static final Deque<SavepointListener> s_listeners =
+		new ArrayDeque<SavepointListener>();
 
-	static void onAbort(long listenerId, int spId, int parentSpId) throws SQLException
+	static void onAbort(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onAbort(Backend.getSession(), PgSavepoint.forId(spId), PgSavepoint.forId(parentSpId));
+		for ( SavepointListener listener : s_listeners )
+			listener.onAbort(Backend.getSession(), sp, parent);
 	}
 
-	static void onCommit(long listenerId, int spId, int parentSpId) throws SQLException
+	static void onCommit(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onCommit(Backend.getSession(), PgSavepoint.forId(spId), PgSavepoint.forId(parentSpId));
+		for ( SavepointListener listener : s_listeners )
+			listener.onCommit(Backend.getSession(), sp, parent);
 	}
 
-	static void onStart(long listenerId, int spId, int parentSpId) throws SQLException
+	static void onStart(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onStart(Backend.getSession(), PgSavepoint.forId(spId), PgSavepoint.forId(parentSpId));
+		for ( SavepointListener listener : s_listeners )
+			listener.onStart(Backend.getSession(), sp, parent);
 	}
 
 	static void addListener(SavepointListener listener)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.put(new Long(key), listener) != listener)
-				_register(key);
+			if ( s_listeners.contains(listener) )
+				return;
+			s_listeners.push(listener);
+			if( 1 == s_listeners.size() )
+				_register();
 		}
 	}
 
@@ -63,13 +67,14 @@ class SubXactListener
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.remove(new Long(key)) == listener)
-				_unregister(key);
+			if ( ! s_listeners.remove(listener) )
+				return;
+			if ( 0 == s_listeners.size() )
+				_unregister();
 		}
 	}
 
-	private static native void _register(long listenerId);
+	private static native void _register();
 
-	private static native void _unregister(long listenerId);
+	private static native void _unregister();
 }

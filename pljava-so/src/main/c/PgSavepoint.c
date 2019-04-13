@@ -16,16 +16,25 @@
 #include <executor/tuptable.h>
 
 #include "org_postgresql_pljava_internal_PgSavepoint.h"
+#include "pljava/PgSavepoint.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/type/String.h"
 #include "pljava/SPI.h"
 
+static jclass s_PgSavepoint_class;
+static jmethodID s_forId;
 static jfieldID s_nestLevel;
 
 extern void PgSavepoint_initialize(void);
 static void unwind(void (*f)(void), int nestingLevel, int xid);
 static void assertXid(SubTransactionId);
+
+jobject pljava_PgSavepoint_forId(SubTransactionId subId)
+{
+	return JNI_callStaticObjectMethodLocked(s_PgSavepoint_class, s_forId,
+			(jint)subId);
+}
 
 void PgSavepoint_initialize(void)
 {
@@ -54,9 +63,13 @@ void PgSavepoint_initialize(void)
 	PgObject_registerNatives("org/postgresql/pljava/internal/PgSavepoint",
 		methods);
 
-	jclass cls = PgObject_getJavaClass(
+	jclass s_PgSavepoint_class = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/PgSavepoint");
-	s_nestLevel = PgObject_getJavaField(cls, "m_nestLevel", "I");
+	s_forId =
+		PgObject_getStaticJavaMethod(s_PgSavepoint_class, "forId",
+			"(I)Lorg/postgresql/pljava/internal/PgSavepoint;");
+	s_nestLevel =
+		PgObject_getJavaField(s_PgSavepoint_class, "m_nestLevel", "I");
 }
 
 static void unwind(void (*f)(void), jint xid, jint nestingLevel)
