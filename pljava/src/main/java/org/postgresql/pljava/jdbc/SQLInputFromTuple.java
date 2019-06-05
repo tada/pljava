@@ -74,7 +74,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Array readArray() throws SQLException
 	{
-		return (Array)this.readValue(Array.class);
+		return readValue(Array.class);
 	}
 
 	/**
@@ -83,7 +83,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public InputStream readAsciiStream() throws SQLException
 	{
-		Clob c = this.readClob();
+		Clob c = readClob();
 		return (c == null) ? null : c.getAsciiStream();
 	}
 
@@ -93,7 +93,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public BigDecimal readBigDecimal() throws SQLException
 	{
-		return (BigDecimal)this.readValue(BigDecimal.class);
+		return readValue(BigDecimal.class);
 	}
 
 	/**
@@ -102,7 +102,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public InputStream readBinaryStream() throws SQLException
 	{
-		Blob b = this.readBlob();
+		Blob b = readBlob();
 		return (b == null) ? null : b.getBinaryStream();
 	}
 
@@ -112,7 +112,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Blob readBlob() throws SQLException
 	{
-		byte[] bytes = this.readBytes();
+		byte[] bytes = readBytes();
 		return (bytes == null) ? null :  new BlobValue(bytes);
 	}
 
@@ -122,7 +122,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public boolean readBoolean() throws SQLException
 	{
-		Boolean b = (Boolean)this.readValue(Boolean.class);
+		Boolean b = readValue(Boolean.class);
 		return (b == null) ? false : b.booleanValue();
 	}
 
@@ -132,7 +132,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public byte readByte() throws SQLException
 	{
-		Number b = this.readNumber(byte.class);
+		Number b = readNumber(byte.class);
 		return (b == null) ? 0 : b.byteValue();
 	}
 
@@ -142,7 +142,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public byte[] readBytes() throws SQLException
 	{
-		return (byte[])this.readValue(byte[].class);
+		return readValue(byte[].class);
 	}
 
 	/**
@@ -150,7 +150,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	 */
 	public Reader readCharacterStream() throws SQLException
 	{
-		Clob c = this.readClob();
+		Clob c = readClob();
 		return (c == null) ? null : c.getCharacterStream();
 	}
 
@@ -159,7 +159,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	 */
 	public Clob readClob() throws SQLException
 	{
-		String str = this.readString();
+		String str = readString();
 		return (str == null) ? null :  new ClobValue(str);
 	}
 
@@ -169,7 +169,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Date readDate() throws SQLException
 	{
-		return (Date)this.readValue(Date.class);
+		return readValue(Date.class);
 	}
 
 	/**
@@ -178,7 +178,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public double readDouble() throws SQLException
 	{
-		Number d = this.readNumber(double.class);
+		Number d = readNumber(double.class);
 		return (d == null) ? 0 : d.doubleValue();
 	}
 
@@ -188,7 +188,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public float readFloat() throws SQLException
 	{
-		Number f = this.readNumber(float.class);
+		Number f = readNumber(float.class);
 		return (f == null) ? 0 : f.floatValue();
 	}
 
@@ -198,7 +198,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public int readInt() throws SQLException
 	{
-		Number i = this.readNumber(int.class);
+		Number i = readNumber(int.class);
 		return (i == null) ? 0 : i.intValue();
 	}
 
@@ -208,7 +208,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public long readLong() throws SQLException
 	{
-		Number l = this.readNumber(long.class);
+		Number l = readNumber(long.class);
 		return (l == null) ? 0 : l.longValue();
 	}
 
@@ -224,7 +224,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Ref readRef() throws SQLException
 	{
-		return (Ref)this.readValue(Ref.class);
+		return readValue(Ref.class);
 	}
 
 	/**
@@ -233,7 +233,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public short readShort() throws SQLException
 	{
-		Number s = this.readNumber(short.class);
+		Number s = readNumber(short.class);
 		return (s == null) ? 0 : s.shortValue();
 	}
 
@@ -243,7 +243,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public String readString() throws SQLException
 	{
-		return (String)this.readValue(String.class);
+		return readValue(String.class);
 	}
 
 	/**
@@ -252,7 +252,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Time readTime() throws SQLException
 	{
-		return (Time)this.readValue(Time.class);
+		return readValue(Time.class);
 	}
 
 	/**
@@ -261,7 +261,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public Timestamp readTimestamp() throws SQLException
 	{
-		return (Timestamp)this.readValue(Timestamp.class);
+		return readValue(Timestamp.class);
 	}
 
 	/**
@@ -270,7 +270,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	@Override
 	public URL readURL() throws SQLException
 	{
-		return (URL)this.readValue(URL.class);
+		return readValue(URL.class);
 	}
 
 	// ************************************************************
@@ -284,7 +284,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	public SQLXML readSQLXML()
 		throws SQLException
 	{
-		return this.readObject(SQLXML.class);
+		return readObject(SQLXML.class);
 	}
 
 	// ************************************************************
@@ -297,7 +297,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
                 throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readRowId() not implemented yet.",
 			  "0A000" );
 	}
@@ -308,7 +308,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readNString() not implemented yet.",
 			  "0A000" );
 		
@@ -320,7 +320,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	       throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readNClob() not implemented yet.",
 		  "0A000" );
 		
@@ -345,7 +345,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 		return getNumber(nextIndex(), numberClass);
 	}
 
-	private Object readValue(Class valueClass) throws SQLException
+	private <T> T readValue(Class<T> valueClass) throws SQLException
 	{
 		return getValue(nextIndex(), valueClass);
 	}

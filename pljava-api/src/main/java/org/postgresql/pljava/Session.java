@@ -70,7 +70,7 @@ public interface Session
 	 * constructor for one argument of type <code>ObjectPool</code>.
 	 * @return An object pool that pools object of the given class.
 	 */
-	ObjectPool getObjectPool(Class cls);
+	<T extends PooledObject> ObjectPool<T> getObjectPool(Class<T> cls);
 
 	/**
 	 * Return the current <em>effective</em> database user name.

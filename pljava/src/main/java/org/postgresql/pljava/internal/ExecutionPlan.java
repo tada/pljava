@@ -114,8 +114,11 @@ public class ExecutionPlan
 
 	/**
 	 * MRU cache for prepared plans.
+	 * The key type is Object, not PlanKey, because for a statement with no
+	 * parameters, the statement itself is used as the key, rather than
+	 * constructing a PlanKey.
 	 */
-	static final class PlanCache extends LinkedHashMap
+	static final class PlanCache extends LinkedHashMap<Object,ExecutionPlan>
 	{
 		private final int m_cacheSize;
 
@@ -125,12 +128,14 @@ public class ExecutionPlan
 			m_cacheSize = cacheSize;
 		}
 
-		protected boolean removeEldestEntry(Map.Entry eldest)
+		@Override
+		protected boolean removeEldestEntry(
+			Map.Entry<Object,ExecutionPlan> eldest)
 		{
 			if(this.size() <= m_cacheSize)
 				return false;
 
-			ExecutionPlan evicted = (ExecutionPlan)eldest.getValue();
+			ExecutionPlan evicted = eldest.getValue();
 			/*
 			 * See close() below for why 'evicted' is not enqueue()d right here.
 			 */
@@ -181,7 +186,7 @@ public class ExecutionPlan
 		}
 	}
 
-	private static final Map s_planCache;
+	private static final Map<Object,ExecutionPlan> s_planCache;
 
 	private final Object m_key;
 
@@ -205,7 +210,7 @@ public class ExecutionPlan
 	 */
 	public void close()
 	{
-		ExecutionPlan old = (ExecutionPlan)s_planCache.put(m_key, this);
+		ExecutionPlan old = s_planCache.put(m_key, this);
 		/*
 		 * For now, do NOT immediately enqueue() a non-null 'old'. It could
 		 * still be live via a Portal that is still retrieving results. Java
@@ -300,7 +305,7 @@ public class ExecutionPlan
 			? (Object)statement
 			: (Object)new PlanKey(statement, argTypes);
 
-		ExecutionPlan plan = (ExecutionPlan)s_planCache.remove(key);
+		ExecutionPlan plan = s_planCache.remove(key);
 		if(plan == null)
 		{
 			synchronized(Backend.THREADLOCK)

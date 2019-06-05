@@ -95,14 +95,14 @@ public class SingleRowWriter extends SingleRowResultSet
 		&& !(c == byte[].class && (x instanceof BlobValue)))
 		{
 			if(Number.class.isAssignableFrom(c))
-				x = SPIConnection.basicNumericCoersion(c, x);
+				x = SPIConnection.basicNumericCoercion(c, x);
 			else
 			if(Time.class.isAssignableFrom(c)
 			|| Date.class.isAssignableFrom(c)
 			|| Timestamp.class.isAssignableFrom(c))
-				x = SPIConnection.basicCalendricalCoersion(c, x, Calendar.getInstance());
+				x = SPIConnection.basicCalendricalCoercion(c, x, Calendar.getInstance());
 			else
-				x = SPIConnection.basicCoersion(c, x);
+				x = SPIConnection.basicCoercion(c, x);
 		}
 		m_values[columnIndex-1] = null == xAlt ? x : xAlt;
 	}

@@ -21,6 +21,7 @@ import java.sql.Statement;
 import java.util.HashMap;
 
 import org.postgresql.pljava.ObjectPool;
+import org.postgresql.pljava.PooledObject;
 import org.postgresql.pljava.SavepointListener;
 import org.postgresql.pljava.TransactionListener;
 import org.postgresql.pljava.jdbc.SQLUtils;
@@ -98,7 +99,7 @@ public class Session implements org.postgresql.pljava.Session
 		return m_attributes.get(attributeName);
 	}
 
-	public ObjectPool getObjectPool(Class cls)
+	public <T extends PooledObject> ObjectPool<T> getObjectPool(Class<T> cls)
 	{
 		return ObjectPoolImpl.getObjectPool(cls);
 	}
