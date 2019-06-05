@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -19,14 +25,28 @@
 JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
+void* mainThreadId; /* declared in pljava.h */
+
+static JNIEnv* primordialJNIEnv;
+
 static jobject s_threadLock;
+
+static bool s_refuseOtherThreads = false;
+static bool s_doMonitorOps = true;
+
+void pljava_JNI_setThreadPolicy(bool refuseOtherThreads, bool doMonitorOps)
+{
+	s_refuseOtherThreads = refuseOtherThreads;
+	s_doMonitorOps = doMonitorOps;
+}
+
 
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
 #define END_JAVA jniEnv = env; }
 
 #define BEGIN_CALL \
 	BEGIN_JAVA \
-	if((*env)->MonitorExit(env, s_threadLock) < 0) \
+	if(s_doMonitorOps && ((*env)->MonitorExit(env, s_threadLock) < 0)) \
 		elog(ERROR, "Java exit monitor failure");
 
 #define END_CALL endCall(env); }
@@ -102,7 +122,7 @@ static void endCall(JNIEnv* env)
 	if(exh != 0)
 		(*env)->ExceptionClear(env);
 
-	if((*env)->MonitorEnter(env, s_threadLock) < 0)
+	if(s_doMonitorOps && ((*env)->MonitorEnter(env, s_threadLock) < 0))
 		elog(ERROR, "Java enter monitor failure");
 
 	jniEnv = env;
@@ -115,7 +135,7 @@ static void endCall(JNIEnv* env)
 			 */
 			jobject jed = (*env)->CallObjectMethod(env, exh, ServerException_getErrorData);
 			if(jed != 0)
-				ReThrowError(ErrorData_getErrorData(jed));
+				ReThrowError(pljava_ErrorData_getErrorData(jed));
 		}
 		/* There's no return from this call.
 		 */
@@ -139,7 +159,7 @@ static void endCallMonitorHeld(JNIEnv* env)
 			 */
 			jobject jed = (*env)->CallObjectMethod(env, exh, ServerException_getErrorData);
 			if(jed != 0)
-				ReThrowError(ErrorData_getErrorData(jed));
+				ReThrowError(pljava_ErrorData_getErrorData(jed));
 		}
 		/* There's no return from this call.
 		 */
@@ -149,6 +169,15 @@ static void endCallMonitorHeld(JNIEnv* env)
 
 bool beginNativeNoErrCheck(JNIEnv* env)
 {
+	if ( s_refuseOtherThreads  &&  env != primordialJNIEnv )
+	{
+		env = JNI_setEnv(env);
+		Exception_throw(ERRCODE_INTERNAL_ERROR,
+			"Attempt by non-initial thread to enter PostgreSQL from Java");
+		JNI_setEnv(env);
+		return false;
+	}
+
 	if((env = JNI_setEnv(env)) != 0)
 	{
 		/* The backend is *not* awaiting the return of a call to the JVM
@@ -173,7 +202,7 @@ bool beginNative(JNIEnv* env)
 		return false;
 	}
 
-	if(currentInvocation->errorOccured)
+	if(currentInvocation->errorOccurred)
 	{
 		/* An elog with level higher than ERROR was issued. The transaction
 		 * state is unknown. There's no way the JVM is allowed to enter the
@@ -598,7 +627,11 @@ jint JNI_createVM(JavaVM** javaVM, JavaVMInitArgs* vmArgs)
 	JNIEnv* env = 0;
 	jint jstat = pljava_createvm(javaVM, (void **)&env, vmArgs);
 	if(jstat == JNI_OK)
+	{
 		jniEnv = env;
+		primordialJNIEnv = env;
+		mainThreadId = env;
+	}
 	return jstat;
 }
 
@@ -1240,6 +1273,13 @@ void JNI_setLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf
 {
 	BEGIN_JAVA
 	(*env)->SetLongArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
+void JNI_setIntField(jobject object, jfieldID field, jint value)
+{
+	BEGIN_JAVA
+	(*env)->SetIntField(env, object, field, value);
 	END_JAVA
 }
 

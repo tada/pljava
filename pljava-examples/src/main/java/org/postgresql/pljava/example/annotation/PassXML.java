@@ -128,6 +128,21 @@ public class PassXML implements SQLData
 
 	static Map<String,Templates> s_tpls = new HashMap<String,Templates>();
 
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static String inXMLoutString(SQLXML in) throws SQLException
+	{
+		return in.getString();
+	}
+
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML inStringoutXML(String in) throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML result = c.createSQLXML();
+		result.setString(in);
+		return result;
+	}
+
 	/**
 	 * Echo an XML parameter back, exercising seven different ways
 	 * (howin =&gt; 1-7) of reading an SQLXML object, and seven

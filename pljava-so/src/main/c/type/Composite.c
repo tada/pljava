@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,7 +17,7 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Composite.h"
 #include "pljava/type/TupleDesc.h"
-#include "pljava/type/HeapTupleHeader.h"
+#include "pljava/type/SingleRowReader.h"
 #include "pljava/Invocation.h"
 #include "org_postgresql_pljava_jdbc_SingleRowReader.h"
 
@@ -45,9 +45,6 @@ static jmethodID s_ResultSetProvider_close;
 static jclass s_ResultSetHandle_class;
 static jclass s_ResultSetPicker_class;
 static jmethodID s_ResultSetPicker_init;
-
-static jclass s_SingleRowReader_class;
-static jmethodID s_SingleRowReader_init;
 
 static jclass s_SingleRowWriter_class;
 static jmethodID s_SingleRowWriter_init;
@@ -84,7 +81,7 @@ static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* 
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
-	jobject jtd = TupleDesc_create(tupleDesc);
+	jobject jtd = pljava_TupleDesc_create(tupleDesc);
 	jobject singleRowWriter = _createWriter(jtd);
 	int numArgs = fcinfo->nargs;
 	
@@ -131,7 +128,7 @@ static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	if(tupleDesc == 0)
 		ereport(ERROR, (errmsg("Unable to find tuple descriptor")));
 
-	tmp1 = TupleDesc_create(tupleDesc);
+	tmp1 = pljava_TupleDesc_create(tupleDesc);
 	tmp2 = _createWriter(tmp1);
 	JNI_deleteLocalRef(tmp1);
 	return tmp2;
@@ -172,19 +169,14 @@ static void _Composite_closeSRF(Type self, jobject rowProducer)
  */
 static jvalue _Composite_coerceDatum(Type self, Datum arg)
 {
-	jobject tupleDesc;
 	jvalue result;
-	jlong pointer;
 	HeapTupleHeader hth = DatumGetHeapTupleHeader(arg);
 
 	result.l = 0;
 	if(hth == 0)
 		return result;
 
-	tupleDesc = HeapTupleHeader_getTupleDesc(hth);
-	pointer = Invocation_createLocalWrapper(hth);
-	result.l = JNI_newObject(s_SingleRowReader_class, s_SingleRowReader_init, pointer, tupleDesc);
-	JNI_deleteLocalRef(tupleDesc);
+	result.l = pljava_SingleRowReader_create(hth);
 	return result;
 }
 
@@ -263,25 +255,6 @@ Type Composite_obtain(Oid typeId)
 extern void Composite_initialize(void);
 void Composite_initialize(void)
 {
-	JNINativeMethod methods[] =
-	{
-		{
-		"_getObject",
-		"(JJILjava/lang/Class;)Ljava/lang/Object;",
-	  	Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject
-		},
-		{
-		"_free",
-		"(J)V",
-		Java_org_postgresql_pljava_jdbc_SingleRowReader__1free
-		},
-		{ 0, 0, 0 }
-	};
-
-	s_SingleRowReader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowReader"));
-	PgObject_registerNatives2(s_SingleRowReader_class, methods);
-	s_SingleRowReader_init = PgObject_getJavaMethod(s_SingleRowReader_class, "<init>", "(JLorg/postgresql/pljava/internal/TupleDesc;)V");
-
 	s_SingleRowWriter_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowWriter"));
 	s_SingleRowWriter_init = PgObject_getJavaMethod(s_SingleRowWriter_class, "<init>", "(Lorg/postgresql/pljava/internal/TupleDesc;)V");
 	s_SingleRowWriter_getTupleAndClear = PgObject_getJavaMethod(s_SingleRowWriter_class, "getTupleAndClear", "()J");
@@ -309,30 +282,4 @@ void Composite_initialize(void)
 	s_CompositeClass->outParameter    = true;
 
 	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);
-}
-
-/****************************************
- * JNI methods
- ****************************************/
-
-/*
- * Class:     org_postgresql_pljava_jdbc_SingleRowReader
- * Method:    _free
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_SingleRowReader__1free(JNIEnv* env, jobject _this, jlong hth)
-{
-	HeapTupleHeader_free(env, hth);
-}
-
-/*
- * Class:     org_postgresql_pljava_jdbc_SingleRowReader
- * Method:    _getObject
- * Signature: (JJILjava/lang/Class;)Ljava/lang/Object;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass clazz, jlong hth, jlong jtd, jint attrNo, jclass rqcls)
-{
-	return HeapTupleHeader_getObject(env, hth, jtd, attrNo, rqcls);
 }

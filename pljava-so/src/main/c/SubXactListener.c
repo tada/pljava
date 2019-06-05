@@ -1,14 +1,18 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
-#include "pljava/SPI.h"
+#include "pljava/PgSavepoint.h"
 #include "org_postgresql_pljava_internal_SubXactListener.h"
 
 #include <access/xact.h>
@@ -20,25 +24,34 @@ static jmethodID s_SubXactListener_onAbort;
 
 static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransactionId parentSubid, void* arg)
 {
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = arg;
+	/*
+	 * Map the subids to PgSavepoints first - this function upcalls into Java
+	 * without releasing the Backend.THREADLOCK monitor, so the called methods
+	 * can know they're on the PG thread; Backend.threadMayEnterPG() is true.
+	 */
+	jobject     sp = pljava_PgSavepoint_forId(mySubid);
+	jobject parent = pljava_PgSavepoint_forId(parentSubid);
+
+	/*
+	 * These upcalls are made with the monitor released. We are, of course, ON
+	 * the PG thread, but this time with no monitor held to prevent another
+	 * thread from stepping in. These methods should not blindly assert
+	 * Backend.threadMayEnterPG(), as for some java_thread_pg_entry settings it
+	 * won't be true. This is the legacy behavior, so not changed for 1.5.x.
+	 */
 	switch(event)
 	{
 		case SUBXACT_EVENT_START_SUB:
-			{
-			Ptr2Long infant2l;
-			infant->xid = mySubid;
-			infant2l.longVal = 0L; /* ensure that the rest is zeroed out */
-			infant2l.ptrVal = infant;
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onStart, p2l.longVal, infant2l.longVal, parentSubid);
-			}
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onStart, sp, parent);
 			break;
 		case SUBXACT_EVENT_COMMIT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onCommit, p2l.longVal, mySubid, parentSubid);
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onCommit, sp, parent);
 			break;
 		case SUBXACT_EVENT_ABORT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class, s_SubXactListener_onAbort, p2l.longVal, mySubid, parentSubid);
+			JNI_callStaticVoidMethod(s_SubXactListener_class,
+				s_SubXactListener_onAbort, sp, parent);
 	}
 }
 
@@ -48,38 +61,46 @@ void SubXactListener_initialize(void)
 	JNINativeMethod methods[] = {
 		{
 		"_register",
-	  	"(J)V",
+		"()V",
 	  	Java_org_postgresql_pljava_internal_SubXactListener__1register
 		},
 		{
 		"_unregister",
-	  	"(J)V",
+		"()V",
 	  	Java_org_postgresql_pljava_internal_SubXactListener__1unregister
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SubXactListener", methods);
 
 	s_SubXactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/SubXactListener"));
-	s_SubXactListener_onAbort  = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onAbort",  "(JII)V");
-	s_SubXactListener_onCommit = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onCommit", "(JII)V");
-	s_SubXactListener_onStart  = PgObject_getStaticJavaMethod(s_SubXactListener_class, "onStart",  "(JJI)V");
+	s_SubXactListener_onAbort  =
+		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onAbort",
+			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
+			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
+	s_SubXactListener_onCommit =
+		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onCommit",
+			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
+			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
+	s_SubXactListener_onStart  =
+		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onStart",
+			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
+			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_SubXactListener
  * Method:    _register
- * Signature: (J)V
+ * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_SubXactListener__1register(JNIEnv* env, jclass cls, jlong listenerId)
+Java_org_postgresql_pljava_internal_SubXactListener__1register(JNIEnv* env, jclass cls)
 {
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		Ptr2Long p2l;
-		p2l.longVal = listenerId;
-		RegisterSubXactCallback(subXactCB, p2l.ptrVal);
+		RegisterSubXactCallback(subXactCB, NULL);
 	}
 	PG_CATCH();
 	{
@@ -92,17 +113,15 @@ Java_org_postgresql_pljava_internal_SubXactListener__1register(JNIEnv* env, jcla
 /*
  * Class:     org_postgresql_pljava_internal_SubXactListener
  * Method:    _unregister
- * Signature: (J)V
+ * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_SubXactListener__1unregister(JNIEnv* env, jclass cls, jlong listenerId)
+Java_org_postgresql_pljava_internal_SubXactListener__1unregister(JNIEnv* env, jclass cls)
 {
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		Ptr2Long p2l;
-		p2l.longVal = listenerId;
-		UnregisterSubXactCallback(subXactCB, p2l.ptrVal);
+		UnregisterSubXactCallback(subXactCB, NULL);
 	}
 	PG_CATCH();
 	{

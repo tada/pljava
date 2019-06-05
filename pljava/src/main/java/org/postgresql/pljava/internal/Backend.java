@@ -48,6 +48,25 @@ public class Backend
 	}
 
 	/**
+	 * Return true if the current thread may JNI-call into Postgres.
+	 *<p>
+	 * In PL/Java's threading model, only one thread (or only one thread at a
+	 * time, depending on the setting of {@code pljava.java_thread_pg_entry})
+	 * may make calls into the native PostgreSQL code.
+	 *<p>
+	 * <b>Note:</b> The setting {@code pljava.java_thread_pg_entry=error} is an
+	 * exception; under that setting this method will return true for any
+	 * thread that acquires the {@code THREADLOCK} monitor, but any such thread
+	 * that isn't the actual original PG thread will have an exception thrown
+	 * if it calls into PG.
+	 * @return true if the current thread is the one prepared to enter PG.
+	 */
+	public static boolean threadMayEnterPG()
+	{
+		return Thread.holdsLock(THREADLOCK);
+	}
+
+	/**
 	 * Returns the configuration option as read from the Global
 	 * Unified Config package (GUC).
 	 * @param key The name of the option.

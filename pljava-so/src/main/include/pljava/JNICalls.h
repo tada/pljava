@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -59,6 +65,25 @@ extern jclass    UnsupportedOperationException_class;
 extern jmethodID UnsupportedOperationException_init;
 
 extern jclass    NoSuchMethodError_class;
+
+/*
+ * Method called from Backend.c to set the thread policy. The first parameter
+ * indicates whether to throw an exception if a thread other than the main one
+ * tries to use BEGIN_NATIVE. The second indicates whether JNI calls should try
+ * to release the "threadlock" monitor when calling into Java and reacquire it
+ * on return. If false, the monitor will be held forever, blocking any other
+ * Java thread that tries to use the synchronized native methods. So, the
+ * combinations are:
+ *  false, true: PL/Java's historical behavior: monitor is released/reacquired,
+ *               other threads allowed into PG when the main thread is in Java.
+ *   true, true: Useful for checking whether application code has any other
+ *               threads that try to enter PG; they will incur exceptions.
+ *  true, false: Useful in production if all PG access is known to be done on
+ *               the main thread only; other threads that try will simply block
+ *               (JConsole can show them) rather that incurring exceptions; many
+ *               monitor operations eliminated.
+ */
+extern void pljava_JNI_setThreadPolicy(bool,bool);
 
 /*
  * A few very specialized JNI method-invocation wrappers, that do NOT do
@@ -196,6 +221,7 @@ extern void         JNI_setFloatArrayRegion(jfloatArray array, jsize start, jsiz
 extern void         JNI_setIntArrayRegion(jintArray array, jsize start, jsize len, jint* buf);
 extern void         JNI_setLongArrayRegion(jlongArray array, jsize start, jsize len, jlong* buf);
 extern void         JNI_setShortArrayRegion(jshortArray array, jsize start, jsize len, jshort* buf);
+extern void         JNI_setIntField(jobject object, jfieldID field, jint value);
 extern void         JNI_setLongField(jobject object, jfieldID field, jlong value);
 extern void         JNI_setObjectArrayElement(jobjectArray array, jsize index, jobject value);
 extern void			JNI_setThreadLock(jobject lockObject);

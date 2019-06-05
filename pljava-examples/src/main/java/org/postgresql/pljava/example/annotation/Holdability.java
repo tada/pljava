@@ -14,6 +14,7 @@ package org.postgresql.pljava.example.annotation;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -71,9 +72,9 @@ public class Holdability implements ResultSetHandle
 	public static void stashResultSet() throws SQLException
 	{
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
-		Statement s = c.createStatement();
-		ResultSet rs = s.executeQuery(
+		PreparedStatement s = c.prepareStatement(
 			"SELECT * FROM pg_catalog.pg_description");
+		ResultSet rs = s.executeQuery();
 		s_stash = new Holdability(s, rs);
 	}
 

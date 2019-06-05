@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -55,29 +61,6 @@ public class Invocation
 		return m_savepoint;
 	}
 
-	private ArrayList m_preparedStatements;
-
-	final void manageStatement(PreparedStatement statement)
-	{
-		if(m_preparedStatements == null)
-			m_preparedStatements = new ArrayList();
-		m_preparedStatements.add(statement);
-	}
-
-	final void forgetStatement(PreparedStatement statement)
-	{
-		if(m_preparedStatements == null)
-			return;
-
-		int idx = m_preparedStatements.size();
-		while(--idx >= 0)
-			if(m_preparedStatements.get(idx) == statement)
-			{
-				m_preparedStatements.remove(idx);
-				return;
-			}
-	}
-
 	/**
 	 * @param savepoint The savepoint to set.
 	 */
@@ -97,24 +80,6 @@ public class Invocation
 		{
 			if(m_savepoint != null)
 				m_savepoint.onInvocationExit(SPIDriver.getDefault());
-
-			if(m_preparedStatements != null)
-			{
-				int idx = m_preparedStatements.size();
-				if(idx > 0)
-				{
-					Logger w = Logger.getAnonymousLogger();
-					w.warning(
-						"Closing " + idx + " \"forgotten\" statement"
-							+ ((idx > 1) ? "s" : ""));
-					while(--idx >= 0)
-					{
-						PreparedStatement stmt = (PreparedStatement)m_preparedStatements.get(idx);
-						w.finer("Closed: " + stmt);
-						stmt.close();
-					}
-				}
-			}
 		}
 		finally
 		{

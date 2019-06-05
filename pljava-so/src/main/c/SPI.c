@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -23,15 +23,13 @@
 #include <miscadmin.h>
 #endif
 
-Savepoint* infant = 0;
-
 extern void SPI_initialize(void);
 void SPI_initialize(void)
 {
 	JNINativeMethod methods[] = {
 		{
 		"_exec",
-	  	"(JLjava/lang/String;I)I",
+		"(Ljava/lang/String;I)I",
 	  	Java_org_postgresql_pljava_internal_SPI__1exec
 		},
 		{
@@ -65,10 +63,10 @@ void SPI_initialize(void)
 /*
  * Class:     org_postgresql_pljava_internal_SPI
  * Method:    _exec
- * Signature: (JLjava/lang/String;I)I
+ * Signature: (Ljava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong threadId, jstring cmd, jint count)
+Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring cmd, jint count)
 {
 	jint result = 0;
 
@@ -77,7 +75,7 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jlong th
 	if(command != 0)
 	{
 		STACK_BASE_VARS
-		STACK_BASE_PUSH(threadId)
+		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
 			Invocation_assertConnect();
@@ -153,57 +151,4 @@ Java_org_postgresql_pljava_internal_SPI__1freeTupTable(JNIEnv* env, jclass cls)
 		SPI_tuptable = 0;
 		END_NATIVE
 	}
-}
-
-static void assertXid(SubTransactionId xid)
-{
-	if(xid != GetCurrentSubTransactionId())
-	{
-		/* Oops. Rollback to top level transaction.
-		 */
-		ereport(ERROR, (
-			errcode(ERRCODE_INVALID_TRANSACTION_TERMINATION),
-			errmsg("Subtransaction mismatch at txlevel %d",
-				GetCurrentTransactionNestLevel())));
-	}
-}
-
-Savepoint* SPI_setSavepoint(const char* name)
-{
-	Savepoint* sp = (Savepoint*)palloc(sizeof(Savepoint) + strlen(name));
-	Invocation_assertConnect();
-	sp->nestingLevel = GetCurrentTransactionNestLevel() + 1;
-	strcpy(sp->name, name);
-	infant = sp;
-	BeginInternalSubTransaction(sp->name);
-	infant = 0;
-	sp->xid = GetCurrentSubTransactionId();
-	return sp;
-}
-
-void SPI_releaseSavepoint(Savepoint* sp)
-{
-	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
-		ReleaseCurrentSubTransaction();
-
-	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
-	{
-		assertXid(sp->xid);
-		ReleaseCurrentSubTransaction();
-	}
-	pfree(sp);
-}
-
-void SPI_rollbackSavepoint(Savepoint* sp)
-{
-	while(sp->nestingLevel < GetCurrentTransactionNestLevel())
-		RollbackAndReleaseCurrentSubTransaction();
-
-	if(sp->nestingLevel == GetCurrentTransactionNestLevel())
-	{
-		assertXid(sp->xid);
-		RollbackAndReleaseCurrentSubTransaction();
-	}
-	SPI_restore_connection();
-	pfree(sp);
 }

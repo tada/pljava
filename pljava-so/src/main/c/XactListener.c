@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
@@ -19,19 +23,19 @@ static jmethodID s_XactListener_onPrepare;
 
 static void xactCB(XactEvent event, void* arg)
 {
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = arg;
 	switch(event)
 	{
 		case XACT_EVENT_ABORT:
-			JNI_callStaticVoidMethod(s_XactListener_class, s_XactListener_onAbort, p2l.longVal);
+			JNI_callStaticVoidMethod(s_XactListener_class,
+				s_XactListener_onAbort);
 			break;
 		case XACT_EVENT_COMMIT:
-			JNI_callStaticVoidMethod(s_XactListener_class, s_XactListener_onCommit, p2l.longVal);
+			JNI_callStaticVoidMethod(s_XactListener_class,
+				s_XactListener_onCommit);
 			break;
 		case XACT_EVENT_PREPARE:
-			JNI_callStaticVoidMethod(s_XactListener_class, s_XactListener_onPrepare, p2l.longVal);
+			JNI_callStaticVoidMethod(s_XactListener_class,
+				s_XactListener_onPrepare);
 			break;
 	}
 }
@@ -42,38 +46,37 @@ void XactListener_initialize(void)
 	JNINativeMethod methods[] = {
 		{
 		"_register",
-	  	"(J)V",
-	  	Java_org_postgresql_pljava_internal_XactListener__1register
+		"()V",
+		Java_org_postgresql_pljava_internal_XactListener__1register
 		},
 		{
 		"_unregister",
-	  	"(J)V",
-	  	Java_org_postgresql_pljava_internal_XactListener__1unregister
+		"()V",
+		Java_org_postgresql_pljava_internal_XactListener__1unregister
 		},
-		{ 0, 0, 0 }};
+		{ 0, 0, 0 }
+	};
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/XactListener", methods);
 
 	s_XactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/XactListener"));
-	s_XactListener_onAbort = PgObject_getStaticJavaMethod(s_XactListener_class, "onAbort", "(J)V");
-	s_XactListener_onCommit = PgObject_getStaticJavaMethod(s_XactListener_class, "onCommit", "(J)V");
-	s_XactListener_onPrepare = PgObject_getStaticJavaMethod(s_XactListener_class, "onPrepare", "(J)V");
+	s_XactListener_onAbort = PgObject_getStaticJavaMethod(s_XactListener_class, "onAbort", "()V");
+	s_XactListener_onCommit = PgObject_getStaticJavaMethod(s_XactListener_class, "onCommit", "()V");
+	s_XactListener_onPrepare = PgObject_getStaticJavaMethod(s_XactListener_class, "onPrepare", "()V");
 }
 
 /*
  * Class:     org_postgresql_pljava_internal_XactListener
  * Method:    _register
- * Signature: (J)V
+ * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_XactListener__1register(JNIEnv* env, jclass cls, jlong listenerId)
+Java_org_postgresql_pljava_internal_XactListener__1register(JNIEnv* env, jclass cls)
 {
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		Ptr2Long p2l;
-		p2l.longVal = listenerId;
-		RegisterXactCallback(xactCB, p2l.ptrVal);
+		RegisterXactCallback(xactCB, NULL);
 	}
 	PG_CATCH();
 	{
@@ -86,17 +89,15 @@ Java_org_postgresql_pljava_internal_XactListener__1register(JNIEnv* env, jclass 
 /*
  * Class:     org_postgresql_pljava_internal_XactListener
  * Method:    _unregister
- * Signature: (J)V
+ * Signature: ()V
  */
 JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_internal_XactListener__1unregister(JNIEnv* env, jclass cls, jlong listenerId)
+Java_org_postgresql_pljava_internal_XactListener__1unregister(JNIEnv* env, jclass cls)
 {
 	BEGIN_NATIVE
 	PG_TRY();
 	{
-		Ptr2Long p2l;
-		p2l.longVal = listenerId;
-		UnregisterXactCallback(xactCB, p2l.ptrVal);
+		UnregisterXactCallback(xactCB, NULL);
 	}
 	PG_CATCH();
 	{

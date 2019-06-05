@@ -1,13 +1,20 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 import org.postgresql.pljava.SavepointListener;
 
@@ -20,36 +27,43 @@ import org.postgresql.pljava.SavepointListener;
  */
 class SubXactListener
 {
-	private static final HashMap s_listeners = new HashMap();
+	private static final Deque<SavepointListener> s_listeners =
+		new ArrayDeque<SavepointListener>();
 
-	static void onAbort(long listenerId, int spId, int parentSpId) throws SQLException
+	static void onAbort(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onAbort(Backend.getSession(), PgSavepoint.forId(spId), PgSavepoint.forId(parentSpId));
+		// Take a snapshot. Handlers might unregister during event processing
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
+			listener.onAbort(Backend.getSession(), sp, parent);
 	}
 
-	static void onCommit(long listenerId, int spId, int parentSpId) throws SQLException
+	static void onCommit(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onCommit(Backend.getSession(), PgSavepoint.forId(spId), PgSavepoint.forId(parentSpId));
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
+			listener.onCommit(Backend.getSession(), sp, parent);
 	}
 
-	static void onStart(long listenerId, long spPointer, int parentSpId) throws SQLException
+	static void onStart(PgSavepoint sp, PgSavepoint parent)
+	throws SQLException
 	{
-		SavepointListener listener = (SavepointListener)s_listeners.get(new Long(listenerId));
-		if(listener != null)
-			listener.onStart(Backend.getSession(), new PgSavepoint(spPointer), PgSavepoint.forId(parentSpId));
+		for ( SavepointListener listener :
+			s_listeners.toArray(new SavepointListener[s_listeners.size()]) )
+			listener.onStart(Backend.getSession(), sp, parent);
 	}
 
 	static void addListener(SavepointListener listener)
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.put(new Long(key), listener) != listener)
-				_register(key);
+			if ( s_listeners.contains(listener) )
+				return;
+			s_listeners.push(listener);
+			if( 1 == s_listeners.size() )
+				_register();
 		}
 	}
 
@@ -57,13 +71,14 @@ class SubXactListener
 	{
 		synchronized(Backend.THREADLOCK)
 		{
-			long key = System.identityHashCode(listener);
-			if(s_listeners.remove(new Long(key)) == listener)
-				_unregister(key);
+			if ( ! s_listeners.remove(listener) )
+				return;
+			if ( 0 == s_listeners.size() )
+				_unregister();
 		}
 	}
 
-	private static native void _register(long listenerId);
+	private static native void _register();
 
-	private static native void _unregister(long listenerId);
+	private static native void _unregister();
 }

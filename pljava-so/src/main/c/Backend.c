@@ -103,11 +103,15 @@ extern PLJAVADLLEXPORT void _PG_init(void);
 
 #define LOCAL_REFERENCE_COUNT 128
 
-jlong mainThreadId;
+MemoryContext JavaMemoryContext;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
 static jmethodID s_setTrusted;
+
+/*
+ * GUC states
+ */
 static char* libjvmlocation;
 static char* vmoptions;
 static char* classpath;
@@ -116,6 +120,13 @@ static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static bool  pljavaEnabled;
+
+#if PG_VERSION_NUM >= 80400
+static int   java_thread_pg_entry;
+#else
+static char* java_thread_pg_entry;
+#endif
+
 static bool  s_currentTrust;
 static int   s_javaLogLevel;
 
@@ -137,7 +148,6 @@ extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
 extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
-extern void SQLInputFromTuple_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
 
 
@@ -329,6 +339,29 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
+#if PG_VERSION_NUM >= 80400
+#define ASSIGNENUMHOOK(name) ASSIGNHOOK(name,int)
+#define ENUMBOOTVAL(entry) ((entry).val)
+#define ENUMHOOKRET true
+#else
+#define ASSIGNENUMHOOK(name) ASSIGNSTRINGHOOK(name)
+#define ENUMBOOTVAL(entry) ((char *)((entry).name))
+#define ENUMHOOKRET newval
+struct config_enum_entry
+{
+	const char *name;
+	int 		val;
+	bool		hidden;
+};
+#endif
+
+static const struct config_enum_entry java_thread_pg_entry_options[] = {
+	{"allow", 0, false},
+	{"error", 1, false},
+	{"block", 3, false},
+	{NULL, 0, false}
+};
+
 ASSIGNSTRINGHOOK(libjvm_location)
 {
 	ASSIGNRETURNIFCHECK(newval);
@@ -379,6 +412,28 @@ ASSIGNHOOK(enabled, bool)
 		initsequencer( initstage, true);
 	}
 	ASSIGNRETURN(true);
+}
+
+ASSIGNENUMHOOK(java_thread_pg_entry)
+{
+#if PG_VERSION_NUM >= 80400
+	int val = newval;
+#else
+	int val = -1;
+	struct config_enum_entry const *e;
+	for ( e = java_thread_pg_entry_options; NULL != e->name; ++ e )
+	{
+		if ( 0 == strcmp(e->name, newval) )
+		{
+			val = e->val;
+		}
+	}
+	if ( -1 == val )
+		ASSIGNRETURN(NULL);
+#endif
+	ASSIGNRETURNIFCHECK(ENUMHOOKRET);
+	pljava_JNI_setThreadPolicy( !!(val&1) /*error*/, !(val&2) /*monitorops*/);
+	ASSIGNRETURN(ENUMHOOKRET);
 }
 
 /*
@@ -837,6 +892,10 @@ static void initPLJavaClasses(void)
 		{ 0, 0, 0 }
 	};
 
+	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
+												"PL/Java",
+												ALLOCSET_DEFAULT_SIZES);
+
 	Exception_initialize();
 
 	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
@@ -851,8 +910,8 @@ static void initPLJavaClasses(void)
 	Invocation_initialize();
 	Exception_initialize2();
 	SPI_initialize();
-	pljava_DualState_initialize();
 	Type_initialize();
+	pljava_DualState_initialize();
 	Function_initialize();
 	Session_initialize();
 	PgSavepoint_initialize();
@@ -860,7 +919,6 @@ static void initPLJavaClasses(void)
 	SubXactListener_initialize();
 	SQLInputFromChunk_initialize();
 	SQLOutputToChunk_initialize();
-	SQLInputFromTuple_initialize();
 	SQLOutputToTuple_initialize();
 
 	InstallHelper_initialize();
@@ -1273,8 +1331,8 @@ static void addUserJVMOptions(JVMOptList* optList)
 static void initJavaSession(void)
 {
 	jclass sessionClass = PgObject_getJavaClass("org/postgresql/pljava/internal/Session");
-	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()J");
-	mainThreadId = JNI_callStaticLongMethod(sessionClass, init);
+	jmethodID init = PgObject_getStaticJavaMethod(sessionClass, "init", "()V");
+	JNI_callStaticVoidMethod(sessionClass, init);
 	JNI_deleteLocalRef(sessionClass);
 
 	if(JNI_exceptionCheck())
@@ -1339,6 +1397,10 @@ static jint initializeJavaVM(JVMOptList *optList)
 	StaticAssertStmt(NULL != (valueAddr), "NULL valueAddr for GUC"); \
 	*(a) = (v);
 #define GUCFLAGS(f)
+#define DefineCustomEnumVariable(name, short_desc, long_desc, valueAddr, \
+		options, context, assign_hook, show_hook) \
+	DefineCustomStringVariable((name), (short_desc), (long_desc), (valueAddr), \
+		(context), (assign_hook), (show_hook))
 #endif
 
 #if PG_VERSION_NUM >= 90100
@@ -1352,21 +1414,28 @@ static jint initializeJavaVM(JVMOptList *optList)
 	GUCBOOTASSIGN((valueAddr), (bootValue)) \
 	DefineCustomBoolVariable((name), (short_desc), (long_desc), (valueAddr), \
 		GUCBOOTVAL(bootValue) (context), GUCFLAGS(flags) GUCCHECK(check_hook) \
-		assign_hook, show_hook)
+		(assign_hook), (show_hook))
 
 #define INT_GUC(name, short_desc, long_desc, valueAddr, bootValue, minValue, \
 				maxValue, context, flags, check_hook, assign_hook, show_hook) \
 	GUCBOOTASSIGN((valueAddr), (bootValue)) \
 	DefineCustomIntVariable((name), (short_desc), (long_desc), (valueAddr), \
 		GUCBOOTVAL(bootValue) (minValue), (maxValue), (context), \
-		GUCFLAGS(flags) GUCCHECK(check_hook) assign_hook, show_hook)
+		GUCFLAGS(flags) GUCCHECK(check_hook) (assign_hook), (show_hook))
 
 #define STRING_GUC(name, short_desc, long_desc, valueAddr, bootValue, context, \
 				   flags, check_hook, assign_hook, show_hook) \
 	GUCBOOTASSIGN((char const **)(valueAddr), (bootValue)) \
 	DefineCustomStringVariable((name), (short_desc), (long_desc), (valueAddr), \
 		GUCBOOTVAL(bootValue) (context), GUCFLAGS(flags) GUCCHECK(check_hook) \
-		assign_hook, show_hook)
+		(assign_hook), (show_hook))
+
+#define ENUM_GUC(name, short_desc, long_desc, valueAddr, bootValue, options, \
+				 context, flags, check_hook, assign_hook, show_hook) \
+	GUCBOOTASSIGN((valueAddr), (bootValue)) \
+	DefineCustomEnumVariable((name), (short_desc), (long_desc), (valueAddr), \
+		GUCBOOTVAL(bootValue) (options), (context), GUCFLAGS(flags) \
+		GUCCHECK(check_hook) (assign_hook), (show_hook))
 
 #ifndef PLJAVA_LIBJVMDEFAULT
 #define PLJAVA_LIBJVMDEFAULT "libjvm"
@@ -1484,6 +1553,23 @@ static void registerGUCOptions(void)
 		NULL, /* check hook */
 		NULL, NULL); /* assign hook, show hook */
 
+	ENUM_GUC(
+		"pljava.java_thread_pg_entry",
+		"Policy for entry to PG code by Java threads other than the main one",
+		"If 'allow', any Java thread can enter PG while the main thread has "
+		"entered Java. If 'error', any thread other than the main one will "
+		"incur an exception if it tries to enter PG. If 'block', the main "
+		"thread will never release its lock, so any other thread that tries "
+		"to enter PG will indefinitely block.",
+		&java_thread_pg_entry,
+		ENUMBOOTVAL(java_thread_pg_entry_options[0]), /* allow */
+		java_thread_pg_entry_options,
+		PGC_USERSET,
+		0, /* flags */
+		NULL, /* check hook */
+		assign_java_thread_pg_entry,
+		NULL); /* display hook */
+
 	EmitWarningsOnPlaceholders("pljava");
 }
 
@@ -1494,6 +1580,7 @@ static void registerGUCOptions(void)
 #undef BOOL_GUC
 #undef INT_GUC
 #undef STRING_GUC
+#undef ENUM_GUC
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
