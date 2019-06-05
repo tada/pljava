@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2005-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1878,7 +1878,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String sql = "SELECT n.nspname, c.relname, a.attname,"
 				+ " a.atttypid as atttypid, a.attnotnull, a.atttypmod,"
-				+ " a.attlen::pg_catalog.int4 as attlen, a.attnum, def.adsrc,"
+				+ " a.attlen::pg_catalog.int4 as attlen, a.attnum,"
+				+ " pg_catalog.pg_get_expr(def.adbin, c.oid) AS adsrc,"
 				+ " dsc.description"
 				+ " FROM pg_catalog.pg_namespace n "
 				+ " JOIN pg_catalog.pg_class c"

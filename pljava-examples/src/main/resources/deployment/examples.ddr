@@ -20,7 +20,7 @@ SQLActions[ ] = {
 			(
 			name		text,
 			username	text not null
-			) WITH OIDS;
+			);
 
 		CREATE FUNCTION javatest.insert_username()
 			RETURNS trigger

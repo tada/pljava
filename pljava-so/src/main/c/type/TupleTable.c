@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,6 +19,10 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 
+#if PG_VERSION_NUM < 120000
+#define ExecCopySlotHeapTuple(tts) ExecCopySlotTuple((tts))
+#endif
+
 static jclass    s_TupleTable_class;
 static jmethodID s_TupleTable_init;
 
@@ -35,7 +39,7 @@ jobject TupleTable_createFromSlot(TupleTableSlot* tts)
 	curr = MemoryContextSwitchTo(JavaMemoryContext);
 
 	tupdesc = TupleDesc_internalCreate(tts->tts_tupleDescriptor);
-	tuple   = ExecCopySlotTuple(tts);
+	tuple   = ExecCopySlotHeapTuple(tts);
 	tuples  = Tuple_createArray(&tuple, 1, false);
 
 	MemoryContextSwitchTo(curr);
