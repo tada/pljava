@@ -12,7 +12,7 @@
  */
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
-#include "pljava/SPI.h"
+#include "pljava/PgSavepoint.h"
 #include "org_postgresql_pljava_internal_SubXactListener.h"
 
 #include <access/xact.h>
