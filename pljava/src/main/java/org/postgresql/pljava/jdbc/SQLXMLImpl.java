@@ -151,6 +151,11 @@ import org.postgresql.pljava.Adjusting;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 
+/* ... for SQLXMLImpl.Readable.Synthetic */
+
+import org.postgresql.pljava.internal.VarlenaXMLRenderer;
+import static org.postgresql.pljava.jdbc.TypeOid.PGNODETREEOID;
+
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
 	protected AtomicReference<V> m_backing;
@@ -963,6 +968,83 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				InputStream is = toBinaryStream(backing, false);
 				return new AdjustingDOMSource(is, m_wrapped);
+			}
+		}
+
+		static class Synthetic extends Readable<VarlenaXMLRenderer>
+		{
+			private Synthetic(VarlenaWrapper.Input vwi, int oid)
+			throws SQLException
+			{
+				super(xmlRenderer(oid, vwi), oid);
+			}
+
+			private static VarlenaXMLRenderer xmlRenderer(
+				int oid, VarlenaWrapper.Input vwi)
+			throws SQLException
+			{
+				switch ( oid )
+				{
+				case PGNODETREEOID: return new PgNodeTreeAsXML(vwi);
+				default:
+					throw new SQLNonTransientException(
+						"no synthetic SQLXML support for Oid " + oid, "0A000");
+				}
+			}
+
+			@Override
+			protected VarlenaWrapper adopt(int oid) throws SQLException
+			{
+				throw new SQLFeatureNotSupportedException(
+					"adopt() on a synthetic SQLXML not yet supported", "0A000");
+			}
+
+			@Override
+			protected InputStream toBinaryStream(
+				VarlenaXMLRenderer backing, boolean neverWrap)
+			throws SQLException, IOException
+			{
+				throw new SQLFeatureNotSupportedException(
+					"synthetic SQLXML as binary stream not yet supported",
+					"0A000");
+			}
+
+			@Override
+			protected Reader toCharacterStream(
+				VarlenaXMLRenderer backing, boolean neverWrap)
+			throws SQLException, IOException
+			{
+				throw new SQLFeatureNotSupportedException(
+					"synthetic SQLXML as character stream not yet supported",
+					"0A000");
+			}
+
+			@Override
+			protected Adjusting.XML.SAXSource toSAXSource(
+				VarlenaXMLRenderer backing)
+			throws SQLException, SAXException, IOException
+			{
+				return new AdjustingSAXSource(backing, new InputSource());
+			}
+
+			protected Adjusting.XML.StAXSource toStAXSource(
+				VarlenaXMLRenderer backing)
+			throws SQLException, XMLStreamException, IOException
+			{
+				throw new SQLFeatureNotSupportedException(
+					"synthetic SQLXML as StAXSource not yet supported",
+					"0A000");
+			}
+
+			protected Adjusting.XML.DOMSource toDOMSource(
+				VarlenaXMLRenderer backing)
+			throws
+				SQLException, SAXException, IOException,
+				ParserConfigurationException
+			{
+				throw new SQLFeatureNotSupportedException(
+					"synthetic SQLXML as DOMSource not yet supported",
+					"0A000");
 			}
 		}
 	}
@@ -3485,6 +3567,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 							true);
 			if ( wrapped )
 				m_xr = new SAXUnwrapFilter(m_xr);
+		}
+
+		AdjustingSAXSource(XMLReader xr, InputSource is)
+		throws SAXException
+		{
+			m_xr = xr;
+			m_is = is;
 		}
 
 		@Override
