@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.SQLException;
 
 /**
@@ -93,11 +95,9 @@ public class Tuple
 	public Object getObject(TupleDesc tupleDesc, int index, Class<?> type)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getObject(this.getNativePointer(),
-				tupleDesc.getNativePointer(), index, type);
-		}
+		return doInPG(() ->
+			_getObject(this.getNativePointer(),
+				tupleDesc.getNativePointer(), index, type));
 	}
 
 	private static native Object _getObject(

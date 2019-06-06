@@ -13,6 +13,7 @@
 package org.postgresql.pljava.internal;
 
 import org.postgresql.pljava.internal.SPI; // for javadoc
+import static org.postgresql.pljava.internal.Backend.doInPG;
 
 import java.sql.SQLException;
 
@@ -83,11 +84,11 @@ public class Portal
 	 */
 	public void close()
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			m_state.releaseFromJava();
 			m_plan = null;
-		}
+		});
 	}
 
 	/**
@@ -97,10 +98,7 @@ public class Portal
 	public String getName()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getName(m_state.getPortalPtr());
-		}
+		return doInPG(() -> _getName(m_state.getPortalPtr()));
 	}
 
 	/**
@@ -110,15 +108,12 @@ public class Portal
 	public long getPortalPos()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			long pos = _getPortalPos(m_state.getPortalPtr());
-			if ( pos < 0 )
-				throw new ArithmeticException(
-					"portal position too large to report " +
-					"in a Java signed long");
-			return pos;
-		}
+		long pos = doInPG(() -> _getPortalPos(m_state.getPortalPtr()));
+		if ( pos < 0 )
+			throw new ArithmeticException(
+				"portal position too large to report " +
+				"in a Java signed long");
+		return pos;
 	}
 
 	/**
@@ -129,10 +124,7 @@ public class Portal
 	public TupleDesc getTupleDesc()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getTupleDesc(m_state.getPortalPtr());
-		}
+		return doInPG(() -> _getTupleDesc(m_state.getPortalPtr()));
 	}
 
 	/**
@@ -142,7 +134,7 @@ public class Portal
 	 * {@link SPI#getTupTable SPI.getTupTable} for retrieving them. (While
 	 * faithful to the way the C API works, this seems a bit odd as a Java API,
 	 * and suggests that calls to this method and then {@code SPI.getTupTable}
-	 * would ideally be done under one acquisition of the PG thread lock.)
+	 * would ideally be done inside a single {@code doInPG}.)
 	 * @param forward Set to <code>true</code> for forward, <code>false</code> for backward.
 	 * @param count Maximum number of rows to fetch.
 	 * @return The actual number of fetched rows.
@@ -151,14 +143,12 @@ public class Portal
 	public long fetch(boolean forward, long count)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			long fetched = _fetch(m_state.getPortalPtr(), forward, count);
-			if ( fetched < 0 )
-				throw new ArithmeticException(
-					"fetched too many rows to report in a Java signed long");
-			return fetched;
-		}
+		long fetched =
+			doInPG(() -> _fetch(m_state.getPortalPtr(), forward, count));
+		if ( fetched < 0 )
+			throw new ArithmeticException(
+				"fetched too many rows to report in a Java signed long");
+		return fetched;
 	}
 
 	/**
@@ -168,10 +158,7 @@ public class Portal
 	public boolean isAtEnd()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isAtEnd(m_state.getPortalPtr());
-		}
+		return doInPG(() -> _isAtEnd(m_state.getPortalPtr()));
 	}
 
 	/**
@@ -181,10 +168,7 @@ public class Portal
 	public boolean isAtStart()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isAtStart(m_state.getPortalPtr());
-		}
+		return doInPG(() -> _isAtStart(m_state.getPortalPtr()));
 	}
 
 	/**
@@ -197,14 +181,12 @@ public class Portal
 	public long move(boolean forward, long count)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			long moved = _move(m_state.getPortalPtr(), forward, count);
-			if ( moved < 0 )
-				throw new ArithmeticException(
-					"moved too many rows to report in a Java signed long");
-			return moved;
-		}
+		long moved =
+			doInPG(() -> _move(m_state.getPortalPtr(), forward, count));
+		if ( moved < 0 )
+			throw new ArithmeticException(
+				"moved too many rows to report in a Java signed long");
+		return moved;
 	}
 
 	private static native String _getName(long pointer)

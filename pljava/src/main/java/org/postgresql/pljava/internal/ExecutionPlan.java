@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
@@ -240,11 +242,9 @@ public class ExecutionPlan
 		String cursorName, Object[] parameters, short read_only)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _cursorOpen(m_state.getExecutionPlanPtr(),
-				cursorName, parameters, read_only);
-		}
+		return doInPG(() ->
+			_cursorOpen(m_state.getExecutionPlanPtr(),
+				cursorName, parameters, read_only));
 	}
 
 	/**
@@ -258,10 +258,7 @@ public class ExecutionPlan
 	 */
 	public boolean isCursorPlan() throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isCursorPlan(m_state.getExecutionPlanPtr());
-		}
+		return doInPG(() -> _isCursorPlan(m_state.getExecutionPlanPtr()));
 	}
 
 	/**
@@ -281,11 +278,9 @@ public class ExecutionPlan
 	public int execute(Object[] parameters, short read_only, int rowCount)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _execute(m_state.getExecutionPlanPtr(),
-				parameters, read_only, rowCount);
-		}
+		return doInPG(() ->
+			_execute(m_state.getExecutionPlanPtr(),
+				parameters, read_only, rowCount));
 	}
 
 	/**
@@ -307,12 +302,7 @@ public class ExecutionPlan
 
 		ExecutionPlan plan = s_planCache.remove(key);
 		if(plan == null)
-		{
-			synchronized(Backend.THREADLOCK)
-			{
-				plan = _prepare(key, statement, argTypes);
-			}
-		}
+			plan = doInPG(() -> _prepare(key, statement, argTypes));
 		return plan;
 	}
 

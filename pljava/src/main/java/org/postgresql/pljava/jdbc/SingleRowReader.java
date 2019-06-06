@@ -16,7 +16,7 @@ package org.postgresql.pljava.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.postgresql.pljava.internal.Backend;
+import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.DualState;
 import org.postgresql.pljava.internal.TupleDesc;
 
@@ -97,12 +97,9 @@ public class SingleRowReader extends SingleRowResultSet
 	protected Object getObjectValue(int columnIndex, Class<?> type)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getObject(
+		return doInPG(() -> _getObject(
 				m_state.getHeapTupleHeaderPtr(), m_tupleDesc.getNativePointer(),
-				columnIndex, type);
-		}
+				columnIndex, type));
 	}
 
 	/**

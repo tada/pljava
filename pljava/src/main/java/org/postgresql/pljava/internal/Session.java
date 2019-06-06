@@ -26,6 +26,7 @@ import org.postgresql.pljava.SavepointListener;
 import org.postgresql.pljava.TransactionListener;
 import org.postgresql.pljava.jdbc.SQLUtils;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
 
 /**
  * An instance of this interface reflects the current session. The attribute
@@ -183,7 +184,7 @@ public class Session implements org.postgresql.pljava.Session
 	throws SQLException
 	{
 		Statement stmt = conn.createStatement();
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			ResultSet rs = null;
 			AclId outerUser = AclId.getOuterUser();
@@ -207,7 +208,7 @@ public class Session implements org.postgresql.pljava.Session
 				if ( changeSucceeded )
 					_setUser(effectiveUser, wasLocalChange);
 			}
-		}
+		});
 	}
 
 	/**
@@ -219,7 +220,7 @@ public class Session implements org.postgresql.pljava.Session
 	throws SQLException
 	{
 		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
-		synchronized(Backend.THREADLOCK)
+		return doInPG(() ->
 		{
 			ResultSet rs = null;
 			AclId sessionUser = AclId.getSessionUser();
@@ -242,7 +243,7 @@ public class Session implements org.postgresql.pljava.Session
 				if ( changeSucceeded )
 					_setUser(effectiveUser, wasLocalChange);
 			}
-		}
+		});
 	}
 
 	/**
