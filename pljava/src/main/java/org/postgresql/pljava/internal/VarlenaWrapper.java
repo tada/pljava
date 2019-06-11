@@ -34,8 +34,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Interface that wraps a PostgreSQL native variable-length ("varlena") datum;
  * implementing classes present an existing one to Java as a readable
@@ -117,6 +115,35 @@ public interface VarlenaWrapper extends Closeable
 				context, snapshot, varlenaPtr, buf);
 		}
 
+		/*
+		 * Overrides {@code ByteBufferInputStream} method and throws the
+		 * exception type declared there. For other uses of pin in this class
+		 * where SQLException is expected, just use {@code m_state.pin}
+		 * directly,
+		 */
+		@Override
+		protected void pin() throws IOException
+		{
+			try
+			{
+				((State)m_state).pin();
+			}
+			catch ( SQLException e )
+			{
+				throw new IOException(e.getMessage(), e);
+			}
+		}
+
+		/*
+		 * Unpin for use in {@code ByteBufferInputStream} or here; no
+		 * throws-clause difference to blotch things up.
+		 */
+		@Override
+		protected void unpin()
+		{
+			((State)m_state).unpin();
+		}
+
 		/**
 		 * Apply a {@code Verifier} to the input data.
 		 *<p>
@@ -132,22 +159,33 @@ public interface VarlenaWrapper extends Closeable
 		 */
 		public void verify(Verifier v) throws SQLException
 		{
+			/*
+			 * This is only called from some client code's adopt() method, calls
+			 * to which are serialized through Backend.THREADLOCK anyway, so
+			 * holding a pin here for the duration doesn't further limit
+			 * concurrency. Hold m_state's monitor also to block any extraneous
+			 * reading interleaved with the verifier.
+			 */
+			((State)m_state).pin();
 			try
 			{
 				ByteBuffer buf = buffer();
-				if ( 0 != buf.position() )
-					throw new SQLException(
-						"Variable-length input data to be verified " +
-						" not positioned at start",
-						"55000");
-				InputStream dontCloseMe = new FilterInputStream(this)
+				synchronized ( m_state )
 				{
-					@Override
-					public void close() throws IOException { }
-				};
-				v.verify(dontCloseMe);
-				if ( 0 != buf.remaining() )
-					throw new SQLException("Verifier finished prematurely");
+					if ( 0 != buf.position() )
+						throw new SQLException(
+							"Variable-length input data to be verified " +
+							" not positioned at start",
+							"55000");
+					InputStream dontCloseMe = new FilterInputStream(this)
+					{
+						@Override
+						public void close() throws IOException { }
+					};
+					v.verify(dontCloseMe);
+					if ( 0 != buf.remaining() )
+						throw new SQLException("Verifier finished prematurely");
+				}
 			}
 			catch ( SQLException sqe )
 			{
@@ -162,6 +200,10 @@ public interface VarlenaWrapper extends Closeable
 				throw new SQLException(
 					"Error verifying variable-length input data, " +
 					"not otherwise provided for", "XX000", e);
+			}
+			finally
+			{
+				((State)m_state).unpin();
 			}
 		}
 
@@ -183,23 +225,33 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public void close() throws IOException
 		{
-			synchronized ( m_state )
+			pin();
+			try
 			{
 				super.close();
-				((State)m_state).enqueue();
+				((State)m_state).releaseFromJava();
+			}
+			finally
+			{
+				unpin();
 			}
 		}
 
 		@Override
 		public long adopt(DualState.Key cookie) throws SQLException
 		{
-			synchronized ( m_state )
+			((State)m_state).pin();
+			try
 			{
 				if ( ! m_open )
 					throw new SQLException(
 						"Cannot adopt VarlenaWrapper.Input after it is closed",
 						"55000");
 				return ((State)m_state).adopt(cookie);
+			}
+			finally
+			{
+				((State)m_state).unpin();
 			}
 		}
 
@@ -238,67 +290,71 @@ public interface VarlenaWrapper extends Closeable
 
 			private ByteBuffer buffer() throws SQLException
 			{
-				long ctx = getMemoryContext();
-				if ( null == m_buf )
+				pin();
+				try
 				{
+					if ( null != m_buf )
+						return m_buf;
 					synchronized ( Backend.THREADLOCK )
 					{
 						m_buf = _detoast(
-							m_varlena, ctx, m_snapshot, m_resourceOwner)
-								.asReadOnlyBuffer();
+							m_varlena, guardedLong(), m_snapshot,
+							m_resourceOwner).asReadOnlyBuffer();
 						m_snapshot = 0;
 					}
+					return m_buf;
 				}
-				return m_buf;
+				finally
+				{
+					unpin();
+				}
 			}
 
 			private long adopt(DualState.Key cookie) throws SQLException
 			{
-				checkCookie(cookie);
-				long ctx = getMemoryContext();
-				if ( 0 != m_snapshot ) /* fetch now, before snapshot released */
+				adoptionLock(cookie);
+				try
 				{
-					synchronized ( Backend.THREADLOCK )
+					if ( 0 != m_snapshot )
 					{
-						m_varlena = _fetch(m_varlena, ctx);
+						/* fetch, before snapshot released */
+						m_varlena = _fetch(m_varlena, guardedLong());
 					}
+					return m_varlena;
 				}
-				long varlena = m_varlena;
-				nativeStateReleased();
-				return varlena;
+				finally
+				{
+					adoptionUnlock(cookie);
+				}
 			}
 
 			@Override
-			protected void nativeStateReleased()
+			protected void nativeStateReleased(boolean javaStateLive)
 			{
-				synchronized ( Backend.THREADLOCK )
-				{
-					super.nativeStateReleased();
-					/*
-					 * You might not expect to have to explicitly unregister a
-					 * snapshot from the resource owner that is at this very
-					 * moment being released, and will happily unregister the
-					 * snapshot itself in the course of so doing. Ah, but it
-					 * also happily logs a warning when it does that, so we need
-					 * to have our toys picked up before it gets the chance.
-					 */
-					if ( 0 != m_snapshot )
-						_unregisterSnapshot(m_snapshot, m_resourceOwner);
-					m_snapshot = 0;
-				}
+				assert Backend.threadMayEnterPG();
+				super.nativeStateReleased(javaStateLive);
+				/*
+				 * You might not expect to have to explicitly unregister a
+				 * snapshot from the resource owner that is at this very
+				 * moment being released, and will happily unregister the
+				 * snapshot itself in the course of so doing. Ah, but it
+				 * also happily logs a warning when it does that, so we need
+				 * to have our toys picked up before it gets the chance.
+				 */
+				if ( 0 != m_snapshot )
+					_unregisterSnapshot(m_snapshot, m_resourceOwner);
+				m_snapshot = 0;
 				m_buf = null;
 			}
 
 			@Override
-			protected void javaStateReleased()
+			protected void javaStateUnreachable(boolean nativeStateLive)
 			{
-				synchronized ( Backend.THREADLOCK )
-				{
-					super.javaStateReleased();
-					if ( 0 != m_snapshot )
-						_unregisterSnapshot(m_snapshot, m_resourceOwner);
-					m_snapshot = 0;
-				}
+				assert Backend.threadMayEnterPG();
+				super.javaStateUnreachable(nativeStateLive);
+				if ( 0 != m_snapshot )
+					_unregisterSnapshot(m_snapshot, m_resourceOwner);
+				m_snapshot = 0;
 				m_buf = null;
 			}
 
@@ -422,20 +478,43 @@ public interface VarlenaWrapper extends Closeable
 			}
 		}
 
+		/**
+		 * Wrapper around the {@code pin} method of the native state, for sites
+		 * where an {@code IOException} is needed rather than
+		 * {@code SQLException}.
+		 */
+		private void pin() throws IOException
+		{
+			try
+			{
+				m_state.pin();
+			}
+			catch ( SQLException e )
+			{
+				throw new IOException(e.getMessage(), e);
+			}
+		}
+
 		@Override
 		public void write(int b) throws IOException
 		{
-			synchronized ( m_state )
+			pin();
+			try
 			{
 				ByteBuffer dst = buf(1);
 				dst.put((byte)(b & 0xff));
+			}
+			finally
+			{
+				m_state.unpin();
 			}
 		}
 
 		@Override
 		public void write(byte[] b, int off, int len) throws IOException
 		{
-			synchronized ( m_state )
+			pin();
+			try
 			{
 				while ( 0 < len )
 				{
@@ -448,22 +527,28 @@ public interface VarlenaWrapper extends Closeable
 					len -= can;
 				}
 			}
+			finally
+			{
+				m_state.unpin();
+			}
 		}
 
 		@Override
 		public void close() throws IOException
 		{
-			synchronized ( m_state )
+			pin();
+			try
 			{
 				if ( ! m_open )
 					return;
 				buf(0);
 				m_open = false;
+				m_state.verify();
 			}
-			/*
-			 * Outside of synchronized block to avoid deadlock with verifier.
-			 */
-			m_state.verify();
+			finally
+			{
+				m_state.unpin();
+			}
 		}
 
 		/**
@@ -477,19 +562,24 @@ public interface VarlenaWrapper extends Closeable
 		public void free() throws IOException
 		{
 			close();
-			m_state.javaStateReleased();
+			m_state.releaseFromJava();
 		}
 
 		@Override
 		public long adopt(DualState.Key cookie) throws SQLException
 		{
-			synchronized ( m_state )
+			m_state.pin();
+			try
 			{
 				if ( m_open )
 					throw new SQLException(
 						"Writing of VarlenaWrapper.Output not yet complete",
 						"55000");
 				return m_state.adopt(cookie);
+			}
+			finally
+			{
+				m_state.unpin();
 			}
 		}
 
@@ -527,28 +617,47 @@ public interface VarlenaWrapper extends Closeable
 
 			private ByteBuffer buffer(int desiredCapacity) throws SQLException
 			{
-				assertNativeStateIsValid();
-				if ( 0 < m_buf.remaining()  &&  0 < desiredCapacity )
-					return m_buf;
-				ByteBuffer filledBuf = m_buf;
-				synchronized ( Backend.THREADLOCK )
+				pin();
+				try
 				{
-					m_buf =	_nextBuffer(m_varlena, m_buf.position(),
-								desiredCapacity);
+					if ( 0 < m_buf.remaining()  &&  0 < desiredCapacity )
+						return m_buf;
+					ByteBuffer filledBuf = m_buf;
+					synchronized ( Backend.THREADLOCK )
+					{
+						int lstate = lock(true); // true -> upgrade my held pin
+						try
+						{
+							m_buf =	_nextBuffer(m_varlena, m_buf.position(),
+									desiredCapacity);
+						}
+						finally
+						{
+							unlock(lstate);
+						}
+					}
+					m_verifier.update(this, filledBuf);
+					if ( 0 == desiredCapacity )
+						m_verifier.update(MarkableSequenceInputStream.NO_MORE);
+					return m_buf;
 				}
-				m_verifier.update(this, filledBuf);
-				if ( 0 == desiredCapacity )
-					m_verifier.update(MarkableSequenceInputStream.NO_MORE);
-				return m_buf;
+				finally
+				{
+					unpin();
+				}
 			}
 
 			private long adopt(DualState.Key cookie) throws SQLException
 			{
-				checkCookie(cookie);
-				assertNativeStateIsValid();
-				long varlena = m_varlena;
-				nativeStateReleased();
-				return varlena;
+				adoptionLock(cookie);
+				try
+				{
+					return m_varlena;
+				}
+				finally
+				{
+					adoptionUnlock(cookie);
+				}
 			}
 
 			private void setVerifier(Verifier v)
@@ -572,10 +681,6 @@ public interface VarlenaWrapper extends Closeable
 				}
 			}
 
-			/*
-			 * Caller must NOT be in synchronized block, to make sure verifier
-			 * thread can complete.
-			 */
 			private void verify() throws IOException // because called in close
 			{
 				try
@@ -599,19 +704,19 @@ public interface VarlenaWrapper extends Closeable
 			}
 
 			@Override
-			protected void nativeStateReleased()
+			protected void nativeStateReleased(boolean javaStateLive)
 			{
 				m_buf = null;
 				cancelVerifier();
-				super.nativeStateReleased();
+				super.nativeStateReleased(javaStateLive);
 			}
 
 			@Override
-			protected void javaStateReleased()
+			protected void javaStateUnreachable(boolean nativeStateLive)
 			{
 				m_buf = null;
 				cancelVerifier();
-				super.javaStateReleased();
+				super.javaStateUnreachable(nativeStateLive);
 			}
 
 			private native ByteBuffer _nextBuffer(
@@ -658,7 +763,7 @@ public interface VarlenaWrapper extends Closeable
 	public static abstract class Verifier implements Callable<Void>
 	{
 		private final BlockingQueue<InputStream> m_queue;
-		private final AtomicReference<CountDownLatch> m_latch;
+		private final CountDownLatch m_latch;
 		private volatile Future<Void> m_future;
 
 		/*
@@ -688,22 +793,17 @@ public interface VarlenaWrapper extends Closeable
 		 * synchronization puzzle crops up around the convenient synchronization
 		 * tool. :(
 		 *
-		 * So, this method returns the Future, if we have it yet, or throws an
-		 * IllegalStateException if we shouldn't have it yet because schedule()
-		 * hasn't been called (or hasn't installed the latch yet; it's races all
-		 * the way down), or waits for the latch and /then/ returns the Future.
+		 * So, this method returns the Future, if we have it, or waits
+		 * for the latch and /then/ returns the Future.
 		 */
 		private Future<Void> future() throws SQLException
 		{
 			Future<Void> f = m_future;
 			if ( null != f )
 				return f;
-			CountDownLatch cll = m_latch.get();
-			if ( null == cll )
-				throw new IllegalStateException("Verifier not yet scheduled");
 			try
 			{
-				cll.await();
+				m_latch.await();
 			}
 			catch ( InterruptedException e )
 			{
@@ -717,7 +817,7 @@ public interface VarlenaWrapper extends Closeable
 		 */
 		private Verifier(
 			BlockingQueue<InputStream> queue,
-			AtomicReference<CountDownLatch> latch)
+			CountDownLatch latch)
 		{
 			m_queue = queue;
 			m_latch = latch;
@@ -730,7 +830,7 @@ public interface VarlenaWrapper extends Closeable
 		private Verifier()
 		{
 			this(new LinkedBlockingQueue<InputStream>(),
-				 new AtomicReference<CountDownLatch>());
+				 new CountDownLatch(1));
 		}
 
 		protected void verify(InputStream is) throws Exception
@@ -840,11 +940,13 @@ public interface VarlenaWrapper extends Closeable
 		 */
 		public Verifier schedule()
 		{
-			CountDownLatch cll = new CountDownLatch(1);
-			if ( m_latch.compareAndSet(null, cll) )
+			synchronized (m_latch)
 			{
-				m_future = LazyExecutorService.INSTANCE.submit(this);
-				cll.countDown();
+				if ( 1 == m_latch.getCount() )
+				{
+					m_future = LazyExecutorService.INSTANCE.submit(this);
+					m_latch.countDown();
+				}
 			}
 			return this;
 		}
@@ -990,15 +1092,44 @@ public interface VarlenaWrapper extends Closeable
 		 * {@link ByteBufferInputStream ByteBufferInputStream} subclass that
 		 * wraps a {@code ByteBuffer} and the {@link Output.State Output.State}
 		 * that protects it.
+		 *<p>
+		 * {@code BufferWrapper} installs <em>itself</em> as the inherited
+		 * {@code m_state} field, so {@code ByteBufferInputStream}'s methods
+		 * synchronize on it rather than the {@code State} object, for no
+		 * interference with the writing thread. The {@code pin} and
+		 * {@code unpin} methods, of course, forward to those of the
+		 * native state object.
 		 */
-		static class BufferWrapper extends ByteBufferInputStream
+		static class BufferWrapper
+		extends ByteBufferInputStream
 		{
 			private ByteBuffer m_buf;
+			private Output.State m_nativeState;
 
 			BufferWrapper(Output.State state, ByteBuffer buf)
 			{
-				m_state = state;
+				m_state = this;
+				m_nativeState = state;
 				m_buf = buf;
+			}
+
+			@Override
+			protected void pin() throws IOException
+			{
+				try
+				{
+					m_nativeState.pin();
+				}
+				catch ( SQLException e )
+				{
+					throw new IOException(e.getMessage(), e);
+				}
+			}
+
+			@Override
+			protected void unpin()
+			{
+				m_nativeState.unpin();
 			}
 
 			@Override
@@ -1007,14 +1138,9 @@ public interface VarlenaWrapper extends Closeable
 				if ( ! m_open )
 					throw new IOException(
 						"I/O operation on closed VarlenaWrapper.Verifier");
-				try
-				{
-					((Output.State)m_state).assertNativeStateIsValid();
-				}
-				catch ( SQLException e )
-				{
-					throw new IOException(e.getMessage(), e);
-				}
+				/*
+				 * Caller holds a pin already.
+				 */
 				return m_buf;
 			}
 		}

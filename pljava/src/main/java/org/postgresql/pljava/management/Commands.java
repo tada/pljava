@@ -801,13 +801,13 @@ public class Commands
 					"the target schema in order to set the classpath", "42501");
 		}
 
-		ArrayList entries = null;
+		ArrayList<Integer> entries = null;
 		if(path != null && path.length() > 0)
 		{
 			// Collect and verify that all entries in the path represents a
 			// valid jar
 			//
-			entries = new ArrayList();
+			entries = new ArrayList<Integer>();
 			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 				.prepareStatement(
 					"SELECT jarId FROM sqlj.jar_repository " +
@@ -830,7 +830,7 @@ public class Commands
 						throw new SQLNonTransientException(
 							"No such jar: " + jarName, "46102");
 
-					entries.add(new Integer(jarId));
+					entries.add(jarId);
 					if(colon < 0)
 						break;
 				}
@@ -861,7 +861,7 @@ public class Commands
 				int top = entries.size();
 				for(int idx = 0; idx < top; ++idx)
 				{
-					int jarId = ((Integer)entries.get(idx)).intValue();
+					int jarId = entries.get(idx);
 					stmt.setString(1, schemaName);
 					stmt.setInt(2, idx + 1);
 					stmt.setInt(3, jarId);

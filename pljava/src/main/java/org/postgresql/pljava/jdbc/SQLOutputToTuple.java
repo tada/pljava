@@ -1,10 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.jdbc;
 
@@ -75,7 +80,7 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeArray(Array value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeAsciiStream(InputStream value) throws SQLException
@@ -83,7 +88,7 @@ public class SQLOutputToTuple implements SQLOutput
 		try
 		{
 			Reader rdr = new BufferedReader(new InputStreamReader(value, "US-ASCII"));
-			this.writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
+			writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
 		}
 		catch(UnsupportedEncodingException e)
 		{
@@ -93,111 +98,111 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeBigDecimal(BigDecimal value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeBinaryStream(InputStream value) throws SQLException
 	{
 		if(!value.markSupported())
 			value = new BufferedInputStream(value);
-		this.writeBlob(new BlobValue(value, BlobValue.getStreamLength(value)));
+		writeBlob(new BlobValue(value, BlobValue.getStreamLength(value)));
 	}
 
 	public void writeBlob(Blob value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeBoolean(boolean value) throws SQLException
 	{
-		this.writeValue(value ? Boolean.TRUE : Boolean.FALSE);
+		writeValue(value);
 	}
 
 	public void writeByte(byte value) throws SQLException
 	{
-		this.writeValue(new Byte(value));
+		writeValue(value);
 	}
 
 	public void writeBytes(byte[] value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeCharacterStream(Reader value) throws SQLException
 	{
 		if(!value.markSupported())
 			value = new BufferedReader(value);
-		this.writeClob(new ClobValue(value, ClobValue.getReaderLength(value)));
+		writeClob(new ClobValue(value, ClobValue.getReaderLength(value)));
 	}
 
 	public void writeClob(Clob value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeDate(Date value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeDouble(double value) throws SQLException
 	{
-		this.writeValue(new Double(value));
+		writeValue(value);
 	}
 
 	public void writeFloat(float value) throws SQLException
 	{
-		this.writeValue(new Float(value));
+		writeValue(value);
 	}
 
 	public void writeInt(int value) throws SQLException
 	{
-		this.writeValue(new Integer(value));
+		writeValue(value);
 	}
 
 	public void writeLong(long value) throws SQLException
 	{
-		this.writeValue(new Long(value));
+		writeValue(value);
 	}
 
 	public void writeObject(SQLData value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeRef(Ref value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeShort(short value) throws SQLException
 	{
-		this.writeValue(new Short(value));
+		writeValue(value);
 	}
 
 	public void writeString(String value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeStruct(Struct value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeTime(Time value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeTimestamp(Timestamp value) throws SQLException
 	{
-		this.writeValue(value);
+		writeValue(value);
 	}
 
 	public void writeURL(URL value) throws SQLException
 	{
-		this.writeValue(value.toString());
+		writeValue(value.toString());
 	}
 
 	// ************************************************************
@@ -210,7 +215,7 @@ public class SQLOutputToTuple implements SQLOutput
 	public void writeSQLXML(SQLXML x)
 		throws SQLException
 	{
-		this.writeValue(x);
+		writeValue(x);
 	}
 
 	// ************************************************************
@@ -221,7 +226,7 @@ public class SQLOutputToTuple implements SQLOutput
                 throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".writeNClob( NClob ) not implemented yet.",
 			  "0A000" );
 	}
@@ -230,7 +235,7 @@ public class SQLOutputToTuple implements SQLOutput
 		throws SQLException
 		{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".writeNString( String ) not implemented yet.",
 		  "0A000" );
 		}
@@ -239,7 +244,7 @@ public class SQLOutputToTuple implements SQLOutput
                 throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".writeRowId( RowId ) not implemented yet.",
 			  "0A000" );
 	}

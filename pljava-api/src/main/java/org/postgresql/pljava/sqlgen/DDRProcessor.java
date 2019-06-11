@@ -1460,6 +1460,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		boolean setof = false;
 		TypeMirror setofComponent = null;
 		boolean trigger = false;
+		TypeMirror returnTypeMapKey = null;
 
 		FunctionImpl(ExecutableElement e)
 		{
@@ -1514,6 +1515,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			ExecutableType et = (ExecutableType)func.asType();
 			List<? extends TypeMirror> ptms = et.getParameterTypes();
+			List<? extends TypeMirror> typeArgs;
 			int arity = ptms.size();
 
 			if ( ! "".equals( type())
@@ -1531,34 +1533,16 @@ hunt:	for ( ExecutableElement ee : ees )
 					return false;
 				}
 			}
-			else if ( typu.isAssignable( typu.erasure( ret), TY_ITERATOR) )
+			else if ( null != (typeArgs = specialization( ret, TY_ITERATOR)) )
 			{
 				setof = true;
-				List<TypeMirror> pending = new LinkedList<>();
-				pending.add( ret);
-				while ( ! pending.isEmpty() )
+				if ( 1 != typeArgs.size() )
 				{
-					TypeMirror tm = pending.remove( 0);
-					if ( typu.isSameType( typu.erasure( tm), TY_ITERATOR) )
-					{
-						DeclaredType dt = (DeclaredType)tm;
-						List<? extends TypeMirror> typeArgs =
-							dt.getTypeArguments();
-						if ( 1 != typeArgs.size() )
-						{
-							msg( Kind.ERROR, func,
-								"Need one type argument for Iterator " +
-								"return type");
-							return false;
-						}
-						setofComponent = typeArgs.get( 0);
-						break;
-					}
-					else
-					{
-						pending.addAll( typu.directSupertypes( tm));
-					}
+					msg( Kind.ERROR, func,
+						"Need one type argument for Iterator return type");
+					return false;
 				}
+				setofComponent = typeArgs.get( 0);
 				if ( null == setofComponent )
 				{
 					msg( Kind.ERROR, func,
@@ -1581,6 +1565,8 @@ hunt:	for ( ExecutableElement ee : ees )
 					trigger = true;
 				}
 			}
+
+			returnTypeMapKey = ret;
 				
 			if ( ! setof && -1 != rows() )
 				msg( Kind.ERROR, func,
@@ -1650,7 +1636,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		void appendAS( StringBuilder sb)
 		{
 			if ( ! ( complexViaInOut || setof || trigger ) )
-				sb.append( func.getReturnType()).append( '=');
+				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
 			if ( ! e.getKind().equals( ElementKind.CLASS) )
 				msg( Kind.ERROR, func,
@@ -1680,7 +1666,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				else if ( setof )
 					sb.append( "pg_catalog.RECORD");
 				else
-					sb.append( tmpr.getSQLType( func.getReturnType(), func));
+					sb.append( tmpr.getSQLType( returnTypeMapKey, func));
 			}
 			sb.append( "\n\tLANGUAGE ");
 			if ( Trust.SANDBOXED.equals( trust()) )
@@ -1738,6 +1724,39 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, false);
 			rslt [ rslt.length - 1 ] = sb.toString();
 			return rslt;
+		}
+
+		/**
+		 * Test whether the type {@code tm} is, directly or indirectly,
+		 * a specialization of generic type {@code dt}.
+		 * @param tm a type to be checked
+		 * @param dt known generic type to check for
+		 * @return null if {@code tm} does not extend {@code dt}, otherwise the
+		 * list of type arguments with which it specializes {@code dt}
+		 */
+		List<? extends TypeMirror> specialization(
+			TypeMirror tm, DeclaredType dt)
+		{
+			if ( ! typu.isAssignable( typu.erasure( tm), dt) )
+				return null;
+
+			List<TypeMirror> pending = new LinkedList<TypeMirror>();
+			pending.add( tm);
+			while ( ! pending.isEmpty() )
+			{
+				tm = pending.remove( 0);
+				if ( typu.isSameType( typu.erasure( tm), dt) )
+					return ((DeclaredType)tm).getTypeArguments();
+				pending.addAll( typu.directSupertypes( tm));
+			}
+			/*
+			 * This is a can't-happen: tm is assignable to dt but has no
+			 * supertype that's dt? Could throw an AssertionError, but returning
+			 * an empty list will lead the caller to report an error, and that
+			 * will give more information about the location in the source being
+			 * compiled.
+			 */
+			return Collections.emptyList();
 		}
 	}
 

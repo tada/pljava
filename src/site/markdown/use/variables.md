@@ -52,6 +52,30 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     directly in a `SET` command, while in 11 and after, such a value needs to be
     a (single-quoted) string explicitly containing the double quotes._
 
+`pljava.java_thread_pg_entry`
+: A choice of `allow`, `error`, or `block` controlling PL/Java's thread
+    management. Java makes heavy use of threading, while PostgreSQL may not be
+    accessed by multiple threads concurrently. PL/Java's historical behavior is
+    `allow`, which serializes access by Java threads into PostgreSQL, allowing
+    a different Java thread in only when the current one calls or returns into
+    Java. PL/Java formerly made some use of Java object finalizers, which
+    required this approach, as finalizers run in their own thread.
+
+    PL/Java itself no longer requires the ability for any thread to access
+    PostgreSQL other than the original main thread. User code developed for
+    PL/Java, however, may still rely on that ability. To test whether it does,
+    the `error` setting can be used here, and any attempt by a Java thread other
+    than the main one to enter PostgreSQL will incur an exception (and stack
+    trace, written to the server's standard error channel). When confident that
+    there is no code that will need to enter PostgreSQL except on the main
+    thread, the `block` setting can be used. That will eliminate PL/Java's
+    frequent lock acquisitions and releases when the main thread crosses between
+    PostgreSQL and Java, and will simply indefinitely block any other Java
+    thread that attempts to enter PostgreSQL. This is an efficient setting, but
+    can lead to blocked threads or a deadlocked backend if used with code that
+    does attempt to access PG from more than one thread. (A JMX client, like
+    JConsole, can identify the blocked threads, should that occur.)
+
 `pljava.libjvm_location`
 : Used by PL/Java to load the Java runtime. The full path to a `libjvm` shared
     object (filename typically ending with `.so`, `.dll`, or `.dylib`).

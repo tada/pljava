@@ -12,30 +12,29 @@
  *
  * @author Thomas Hallgren
  */
-#ifndef __pljava_ErrorData_h
-#define __pljava_ErrorData_h
+#ifndef __pljava_type_SingleRowReader_h
+#define __pljava_type_SingleRowReader_h
 
+#include "pljava/type/Type.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include <access/htup.h>
+
 /*****************************************************************
- * The ErrorData java class represents the native ErrorData.
+ * The SingleRowReader java class presents a ResultSet view of a
+ * single tuple, represented by a HeapTupleHeader and a TupleDesc
+ * describing its structure.
  * 
- * @author Thomas Hallgren
+ * @author Thomas Hallgren (as HeapTupleHeader.h)
  *****************************************************************/
 
-/*
- * Create the org.postgresql.pljava.internal.ErrorData that represents
- * the current error obtaind from CopyErrorData().
- */
-extern jobject pljava_ErrorData_getCurrentError(void);
+extern void pljava_SingleRowReader_initialize(void);
 
-/*
- * Extract the native ErrorData from a Java ErrorData.
- */
-extern ErrorData* pljava_ErrorData_getErrorData(jobject jerrorData);
-extern void pljava_ErrorData_initialize(void);
+extern jobject pljava_SingleRowReader_getTupleDesc(HeapTupleHeader);
+
+extern jobject pljava_SingleRowReader_create(HeapTupleHeader);
 
 #ifdef __cplusplus
 }

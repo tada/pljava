@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,11 +20,60 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Tuple extends JavaWrapper
+public class Tuple
 {
-	Tuple(long pointer)
+	private final State m_state;
+
+	Tuple(DualState.Key cookie, long resourceOwner, long pointer)
 	{
-		super(pointer);
+		m_state = new State(cookie, this, resourceOwner, pointer);
+	}
+
+	private static class State
+	extends DualState.SingleHeapFreeTuple<Tuple>
+	{
+		private State(
+			DualState.Key cookie, Tuple t, long ro, long ht)
+		{
+			super(cookie, t, ro, ht);
+		}
+
+		/**
+		 * Return the HeapTuple pointer.
+		 *<p>
+		 * This is a transitional implementation: ideally, each method requiring
+		 * the native state would be moved to this class, and hold the pin for
+		 * as long as the state is being manipulated. Simply returning the
+		 * guarded value out from under the pin, as here, is not great practice,
+		 * but as long as the value is only used in instance methods of
+		 * Tuple, or subclasses, or something with a strong reference
+		 * to this Tuple, and only on a thread for which
+		 * {@code Backend.threadMayEnterPG()} is true, disaster will not strike.
+		 * It can't go Java-unreachable while an instance method's on the call
+		 * stack, and the {@code Invocation} marking this state's native scope
+		 * can't be popped before return of any method using the value.
+		 */
+		private long getHeapTuplePtr() throws SQLException
+		{
+			pin();
+			try
+			{
+				return guardedLong();
+			}
+			finally
+			{
+				unpin();
+			}
+		}
+	}
+
+	/**
+	 * Return pointer to native HeapTuple structure as a long; use only while
+	 * a reference to this class is live and the THREADLOCK is held.
+	 */
+	public final long getNativePointer() throws SQLException
+	{
+		return m_state.getHeapTuplePtr();
 	}
 
 	/**
@@ -50,12 +99,6 @@ public class Tuple extends JavaWrapper
 				tupleDesc.getNativePointer(), index, type);
 		}
 	}
-
-	/**
-	 * Calls the backend function heap_freetuple(HeapTuple tuple)
-	 * @param pointer The native pointer to the source HeapTuple
-	 */
-	protected native void _free(long pointer);
 
 	private static native Object _getObject(
 		long pointer, long tupleDescPointer, int index, Class<?> type)

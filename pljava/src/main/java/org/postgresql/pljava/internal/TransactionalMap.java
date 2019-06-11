@@ -15,6 +15,12 @@ import java.util.AbstractSet;
 import java.util.AbstractCollection;
 import java.util.NoSuchElementException;
 
+/*
+ * The smallest quantum of reason for adding an import: to avoid a javadoc error
+ * in a deprecation note.
+ */
+import org.postgresql.pljava.TransactionListener;
+
 /**
  * A TransactionalMap acts as a modifiable front for a backing map. All
  * modifications can be reverted by a call to abort or propagated to
@@ -22,6 +28,13 @@ import java.util.NoSuchElementException;
  * 
  * The map is not synchronized so care should be taken if multiple threads
  * will access the map.
+ *
+ * @deprecated This class (a) isn't exposed in {@code pljava-api}, (b) is only
+ * used to implement the once-transactional attribute map in {@code Session},
+ * and (c) hasn't had transactional behavior even there, since 3ab90e5
+ * (November 2005). Future code needing any kind of store sync'd to PostgreSQL
+ * transactions should implement that behavior with Java's ordinary tools, using
+ * a {@link TransactionListener} to be kept in sync with transactions. 
  *
  * @author Thomas Hallgren
  */

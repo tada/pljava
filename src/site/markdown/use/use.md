@@ -19,8 +19,8 @@ to be in your local Maven repository. If you have built PL/Java from
 source using `mvn clean install`, it will be there already.
 
 If not, an easy way to install the API into your local repository
-is to download the PL/Java source, _change into the `pljava-api`
-directory_, and run `mvn clean install` there. It will quickly build
+is to download the PL/Java source, and run
+`mvn --projects pljava-api clean install` there. It will quickly build
 and install the API jar, without requiring the various build-time
 dependencies needed when all of PL/Java is being built.
 

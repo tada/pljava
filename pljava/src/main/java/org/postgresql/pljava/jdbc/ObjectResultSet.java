@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -98,7 +98,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Array getArray(int columnIndex)
 	throws SQLException
 	{
-		return (Array)this.getValue(columnIndex, Array.class);
+		return getValue(columnIndex, Array.class);
 	}
 
 	/**
@@ -108,7 +108,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public InputStream getAsciiStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = this.getClob(columnIndex);
+		Clob c = getClob(columnIndex);
 		return (c == null) ? null : c.getAsciiStream();
 	}
 
@@ -119,7 +119,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public BigDecimal getBigDecimal(int columnIndex)
 	throws SQLException
 	{
-		return (BigDecimal)this.getValue(columnIndex, BigDecimal.class);
+		return getValue(columnIndex, BigDecimal.class);
 	}
 
 	/**
@@ -140,7 +140,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public InputStream getBinaryStream(int columnIndex)
 	throws SQLException
 	{
-		Blob b = this.getBlob(columnIndex);
+		Blob b = getBlob(columnIndex);
 		return (b == null) ? null : b.getBinaryStream();
 	}
 
@@ -151,7 +151,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Blob getBlob(int columnIndex)
 	throws SQLException
 	{
-		byte[] bytes = this.getBytes(columnIndex);
+		byte[] bytes = getBytes(columnIndex);
 		return (bytes == null) ? null :  new BlobValue(bytes);
 	}
 
@@ -162,7 +162,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public boolean getBoolean(int columnIndex)
 	throws SQLException
 	{
-		Boolean b = (Boolean)this.getValue(columnIndex, Boolean.class);
+		Boolean b = getValue(columnIndex, Boolean.class);
 		return (b == null) ? false : b.booleanValue();
 	}
 
@@ -173,7 +173,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public byte getByte(int columnIndex)
 	throws SQLException
 	{
-		Number b = this.getNumber(columnIndex, byte.class);
+		Number b = getNumber(columnIndex, byte.class);
 		return (b == null) ? 0 : b.byteValue();
 	}
 
@@ -184,7 +184,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public byte[] getBytes(int columnIndex)
 	throws SQLException
 	{
-		return (byte[])this.getValue(columnIndex, byte[].class);
+		return getValue(columnIndex, byte[].class);
 	}
 
 	/**
@@ -194,7 +194,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Reader getCharacterStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = this.getClob(columnIndex);
+		Clob c = getClob(columnIndex);
 		return (c == null) ? null : c.getCharacterStream();
 	}
 
@@ -205,7 +205,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Clob getClob(int columnIndex)
 	throws SQLException
 	{
-		String str = this.getString(columnIndex);
+		String str = getString(columnIndex);
 		return (str == null) ? null :  new ClobValue(str);
 	}
 	
@@ -216,7 +216,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Date getDate(int columnIndex)
 	throws SQLException
 	{
-		return (Date)this.getValue(columnIndex, Date.class);
+		return getValue(columnIndex, Date.class);
 	}
 
 	/**
@@ -226,7 +226,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Date getDate(int columnIndex, Calendar cal)
 	throws SQLException
 	{
-		return (Date)this.getValue(columnIndex, Date.class, cal);
+		return getValue(columnIndex, Date.class, cal);
 	}
 
 	/**
@@ -236,7 +236,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public double getDouble(int columnIndex)
 	throws SQLException
 	{
-		Number d = this.getNumber(columnIndex, double.class);
+		Number d = getNumber(columnIndex, double.class);
 		return (d == null) ? 0 : d.doubleValue();
 	}
 
@@ -247,7 +247,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public float getFloat(int columnIndex)
 	throws SQLException
 	{
-		Number f = this.getNumber(columnIndex, float.class);
+		Number f = getNumber(columnIndex, float.class);
 		return (f == null) ? 0 : f.floatValue();
 	}
 
@@ -258,7 +258,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public int getInt(int columnIndex)
 	throws SQLException
 	{
-		Number i = this.getNumber(columnIndex, int.class);
+		Number i = getNumber(columnIndex, int.class);
 		return (i == null) ? 0 : i.intValue();
 	}
 
@@ -269,7 +269,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public long getLong(int columnIndex)
 	throws SQLException
 	{
-		Number l = this.getNumber(columnIndex, long.class);
+		Number l = getNumber(columnIndex, long.class);
 		return (l == null) ? 0 : l.longValue();
 	}
 
@@ -281,7 +281,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public final Object getObject(int columnIndex)
 	throws SQLException
 	{
-		Object value = this.getObjectValue(columnIndex);
+		Object value = getObjectValue(columnIndex);
 		m_wasNull = (value == null);
 		return value;
 	}
@@ -294,7 +294,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public final Object getObject(int columnIndex, Map map)
 	throws SQLException
 	{
-		Object value = this.getObjectValue(columnIndex, map);
+		Object value = getObjectValue(columnIndex, map);
 		m_wasNull = (value == null);
 		return value;
 	}
@@ -306,7 +306,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Ref getRef(int columnIndex)
 	throws SQLException
 	{
-		return (Ref)this.getValue(columnIndex, Ref.class);
+		return getValue(columnIndex, Ref.class);
 	}
 
 	/**
@@ -316,7 +316,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public short getShort(int columnIndex)
 	throws SQLException
 	{
-		Number s = this.getNumber(columnIndex, short.class);
+		Number s = getNumber(columnIndex, short.class);
 		return (s == null) ? 0 : s.shortValue();
 	}
 
@@ -327,7 +327,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public String getString(int columnIndex)
 	throws SQLException
 	{
-		return (String)this.getValue(columnIndex, String.class);
+		return getValue(columnIndex, String.class);
 	}
 
 	/**
@@ -337,7 +337,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Time getTime(int columnIndex)
 	throws SQLException
 	{
-		return (Time)this.getValue(columnIndex, Time.class);
+		return getValue(columnIndex, Time.class);
 	}
 
 	/**
@@ -347,7 +347,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Time getTime(int columnIndex, Calendar cal)
 	throws SQLException
 	{
-		return (Time)this.getValue(columnIndex, Time.class, cal);
+		return getValue(columnIndex, Time.class, cal);
 	}
 
 	/**
@@ -357,7 +357,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Timestamp getTimestamp(int columnIndex)
 	throws SQLException
 	{
-		return (Timestamp)this.getValue(columnIndex, Timestamp.class);
+		return getValue(columnIndex, Timestamp.class);
 	}
 
 	/**
@@ -367,7 +367,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public Timestamp getTimestamp(int columnIndex, Calendar cal)
 	throws SQLException
 	{
-		return (Timestamp)this.getValue(columnIndex, Timestamp.class, cal);
+		return getValue(columnIndex, Timestamp.class, cal);
 	}
 
 	/**
@@ -386,7 +386,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	@Override
 	public URL getURL(int columnIndex) throws SQLException
 	{
-		return (URL)this.getValue(columnIndex, URL.class);
+		return getValue(columnIndex, URL.class);
 	}
 
 	/**
@@ -410,7 +410,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	@Override
 	public void updateArray(int columnIndex, Array x) throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -423,7 +423,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	{
 		try
 		{
-			this.updateObject(columnIndex,
+			updateObject(columnIndex,
 				new ClobValue(new InputStreamReader(x, "US-ASCII"), length));
 		}
 		catch(UnsupportedEncodingException e)
@@ -440,7 +440,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBigDecimal(int columnIndex, BigDecimal x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -451,7 +451,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBinaryStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		this.updateBlob(columnIndex, (Blob) new BlobValue(x, length));
+		updateBlob(columnIndex, (Blob) new BlobValue(x, length));
 	}
 
 	/**
@@ -461,7 +461,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBlob(int columnIndex, Blob x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -471,7 +471,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBoolean(int columnIndex, boolean x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x ? Boolean.TRUE : Boolean.FALSE);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -481,7 +481,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateByte(int columnIndex, byte x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Byte(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -491,7 +491,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateBytes(int columnIndex, byte[] x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -502,7 +502,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateCharacterStream(int columnIndex, Reader x, int length)
 	throws SQLException
 	{
-		this.updateClob(columnIndex, (Clob) new ClobValue(x, length));
+		updateClob(columnIndex, (Clob) new ClobValue(x, length));
 	}
 
 	/**
@@ -512,7 +512,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateClob(int columnIndex, Clob x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -522,7 +522,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateDate(int columnIndex, Date x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -532,7 +532,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateDouble(int columnIndex, double x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Double(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -542,7 +542,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateFloat(int columnIndex, float x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Float(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -552,7 +552,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateInt(int columnIndex, int x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Integer(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -562,7 +562,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateLong(int columnIndex, long x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Long(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -572,7 +572,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateNull(int columnIndex)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, null);
+		updateObject(columnIndex, null);
 	}
 
 	/**
@@ -582,7 +582,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateRef(int columnIndex, Ref x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -592,7 +592,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateShort(int columnIndex, short x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, new Short(x));
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -602,7 +602,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateString(int columnIndex, String x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -612,7 +612,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateTime(int columnIndex, Time x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	/**
@@ -622,7 +622,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public void updateTimestamp(int columnIndex, Timestamp x)
 	throws SQLException
 	{
-		this.updateObject(columnIndex, x);
+		updateObject(columnIndex, x);
 	}
 
 	// ************************************************************
@@ -638,7 +638,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	public final <T> T getObject(int columnIndex, Class<T> type)
 	throws SQLException
 	{
-		Object value = this.getObjectValue(columnIndex, type);
+		Object value = getObjectValue(columnIndex, type);
 		m_wasNull = (value == null);
 		if ( m_wasNull  ||  type.isInstance(value) )
 			return type.cast(value);
@@ -652,35 +652,35 @@ public abstract class ObjectResultSet extends AbstractResultSet
 
 	/**
 	 * Implemented over {@link #getObjectValue}, tracks {@code wasNull},
-	 * applies {@link SPIConnection#basicNumericCoersion} to {@code cls}.
+	 * applies {@link SPIConnection#basicNumericCoercion} to {@code cls}.
 	 */
 	protected final Number getNumber(int columnIndex, Class cls)
 	throws SQLException
 	{
-		Object value = this.getObjectValue(columnIndex);
+		Object value = getObjectValue(columnIndex);
 		m_wasNull = (value == null);
-		return SPIConnection.basicNumericCoersion(cls, value);
+		return SPIConnection.basicNumericCoercion(cls, value);
 	}
 
 	/**
 	 * Implemented over {@link #getObject},
-	 * applies {@link SPIConnection#basicCoersion} to {@code cls}.
+	 * applies {@link SPIConnection#basicCoercion} to {@code cls}.
 	 */
-	protected final Object getValue(int columnIndex, Class cls)
+	protected final <T> T getValue(int columnIndex, Class<T> cls)
 	throws SQLException
 	{
-		return SPIConnection.basicCoersion(cls, this.getObject(columnIndex));
+		return SPIConnection.basicCoercion(cls, getObject(columnIndex));
 	}
 
 	/**
 	 * Implemented over {@link #getObject},
-	 * applies {@link SPIConnection#basicCalendricalCoersion} to {@code cls}.
+	 * applies {@link SPIConnection#basicCalendricalCoercion} to {@code cls}.
 	 */
-	protected Object getValue(int columnIndex, Class cls, Calendar cal)
+	protected <T> T getValue(int columnIndex, Class<T> cls, Calendar cal)
 	throws SQLException
 	{
-		return SPIConnection.basicCalendricalCoersion(cls,
-			this.getObject(columnIndex), cal);
+		return SPIConnection.basicCalendricalCoercion(cls,
+			getObject(columnIndex), cal);
 	}
 
 	/**
@@ -691,7 +691,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	throws SQLException
 	{
 		if(typeMap == null)
-			return this.getObjectValue(columnIndex);
+			return getObjectValue(columnIndex);
 		throw new UnsupportedFeatureException(
 			"Obtaining values using explicit Map");
 	}

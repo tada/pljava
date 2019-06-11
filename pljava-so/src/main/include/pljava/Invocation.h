@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -18,9 +24,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct CallLocal_;
-typedef struct CallLocal_ CallLocal;
 
 struct Invocation_
 {
@@ -64,13 +67,7 @@ struct Invocation_
 	 * be prevented until this flag is reset (by a rollback
 	 * of a savepoint or function exit).
 	 */
-	bool          errorOccured;
-
-	/**
-	 * List of call local structures that has been wrapped
-	 * during this invocation.
-	 */
-	CallLocal*    callLocals;
+	bool          errorOccurred;
 
 #if PG_VERSION_NUM >= 100000
 	/**
@@ -102,10 +99,6 @@ extern void Invocation_popBootContext(void);
 extern void Invocation_pushInvocation(Invocation* ctx, bool trusted);
 
 extern void Invocation_popInvocation(bool wasException);
-
-extern jlong Invocation_createLocalWrapper(void* pointer);
-extern void* Invocation_getWrappedPointer(jlong wrapper);
-extern void Invocation_freeLocalWrapper(jlong wrapper);
 
 extern jobject Invocation_getTypeMap(void);
 

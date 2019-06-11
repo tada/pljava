@@ -43,6 +43,8 @@ public class SPIResultSet extends ResultSetBase
 	private TupleTable m_table;
 	private int m_tableRow;
 
+	private boolean m_open;
+
 	SPIResultSet(SPIStatement statement, Portal portal, long maxRows)
 	throws SQLException
 	{
@@ -52,14 +54,16 @@ public class SPIResultSet extends ResultSetBase
 		m_maxRows = maxRows;
 		m_tupleDesc = portal.getTupleDesc();
 		m_tableRow = -1;
+		m_open = true;
 	}
 
 	@Override
 	public void close()
 	throws SQLException
 	{
-		if(m_portal.isValid())
+		if(m_open)
 		{
+			m_open = false;
 			m_portal.close();
 			m_statement.resultSetClosed(this);
 			m_table      = null;
@@ -119,7 +123,7 @@ public class SPIResultSet extends ResultSetBase
 	protected final Portal getPortal()
 	throws SQLException
 	{
-		if(!m_portal.isValid())
+		if(!m_open)
 			throw new SQLException("ResultSet is closed");
 		return m_portal;
 	}

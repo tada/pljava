@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -14,15 +20,64 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class TupleDesc extends JavaWrapper
+public class TupleDesc
 {
+	private final State m_state;
 	private final int m_size;
 	private Class[] m_columnClasses;
 
-	TupleDesc(long pointer, int size) throws SQLException
+	TupleDesc(DualState.Key cookie, long resourceOwner, long pointer, int size)
+	throws SQLException
 	{
-		super(pointer);
+		m_state = new State(cookie, this, resourceOwner, pointer);
 		m_size = size;
+	}
+
+	private static class State
+	extends DualState.SingleFreeTupleDesc<TupleDesc>
+	{
+		private State(
+			DualState.Key cookie, TupleDesc td, long ro, long hth)
+		{
+			super(cookie, td, ro, hth);
+		}
+
+		/**
+		 * Return the TupleDesc pointer.
+		 *<p>
+		 * This is a transitional implementation: ideally, each method requiring
+		 * the native state would be moved to this class, and hold the pin for
+		 * as long as the state is being manipulated. Simply returning the
+		 * guarded value out from under the pin, as here, is not great practice,
+		 * but as long as the value is only used in instance methods of
+		 * TupleDesc, or subclasses, or something with a strong reference
+		 * to this TupleDesc, and only on a thread for which
+		 * {@code Backend.threadMayEnterPG()} is true, disaster will not strike.
+		 * It can't go Java-unreachable while an instance method's on the call
+		 * stack, and the {@code Invocation} marking this state's native scope
+		 * can't be popped before return of any method using the value.
+		 */
+		private long getTupleDescPtr() throws SQLException
+		{
+			pin();
+			try
+			{
+				return guardedLong();
+			}
+			finally
+			{
+				unpin();
+			}
+		}
+	}
+
+	/**
+	 * Return pointer to native TupleDesc structure as a long; use only while
+	 * a reference to this class is live and the THREADLOCK is held.
+	 */
+	public final long getNativePointer() throws SQLException
+	{
+		return m_state.getTupleDescPtr();
 	}
 
 	/**
@@ -112,12 +167,6 @@ public class TupleDesc extends JavaWrapper
 			return _getOid(this.getNativePointer(), index);
 		}
 	}
-
-	/**
-	 * Calls the backend function FreeTupleDesc(TupleDesc desc)
-	 * @param pointer The native pointer to the source TupleDesc
-	 */
-	protected native void _free(long pointer);
 
 	private static native String _getColumnName(long _this, int index) throws SQLException;
 	private static native int _getColumnIndex(long _this, String colName) throws SQLException;

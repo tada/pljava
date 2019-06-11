@@ -1,10 +1,19 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
+
+import java.lang.reflect.UndeclaredThrowableException;
+import java.sql.SQLException;
 
 /**
  * The <code>ErrorData</code> correspons to the ErrorData obtained
@@ -12,11 +21,67 @@ package org.postgresql.pljava.internal;
  *
  * @author Thomas Hallgren
  */
-public class ErrorData extends JavaWrapper
+public class ErrorData
 {
-	ErrorData(long pointer)
+	private final State m_state;
+
+	ErrorData(DualState.Key cookie, long resourceOwner, long pointer)
 	{
-		super(pointer);
+		m_state = new State(cookie, this, resourceOwner, pointer);
+	}
+
+	private static class State
+	extends DualState.SingleFreeErrorData<ErrorData>
+	{
+		private State(
+			DualState.Key cookie, ErrorData ed, long ro, long ht)
+		{
+			super(cookie, ed, ro, ht);
+		}
+
+		/**
+		 * Return the ErrorData pointer.
+		 *<p>
+		 * This is a transitional implementation: ideally, each method requiring
+		 * the native state would be moved to this class, and hold the pin for
+		 * as long as the state is being manipulated. Simply returning the
+		 * guarded value out from under the pin, as here, is not great practice,
+		 * but as long as the value is only used in instance methods of
+		 * ErrorData, or subclasses, or something with a strong reference to
+		 * this ErrorData, and only on a thread for which
+		 * {@code Backend.threadMayEnterPG()} is true, disaster will not strike.
+		 * It can't go Java-unreachable while an instance method's on the call
+		 * stack, and the {@code Invocation} marking this state's native scope
+		 * can't be popped before return of any method using the value.
+		 */
+		private long getErrorDataPtr() throws SQLException
+		{
+			pin();
+			try
+			{
+				return guardedLong();
+			}
+			finally
+			{
+				unpin();
+			}
+		}
+	}
+
+	/**
+	 * Return pointer to native ErrorData structure as a long; use only while
+	 * a reference to this class is live and the THREADLOCK is held.
+	 */
+	private final long getNativePointer()
+	{
+		try
+		{
+			return m_state.getErrorDataPtr();
+		}
+		catch ( SQLException e )
+		{
+			throw new UndeclaredThrowableException(e, e.getMessage());
+		}
 	}
 
 	/**
@@ -64,7 +129,7 @@ public class ErrorData extends JavaWrapper
 	}
 
 	/**
-	 * Returns The file where the error occured
+	 * Returns The file where the error occurred
 	 */
 	public String getFilename()
 	{
@@ -75,7 +140,7 @@ public class ErrorData extends JavaWrapper
 	}
 
 	/**
-	 * Returns The line where the error occured
+	 * Returns The line where the error occurred
 	 */
 	public int getLineno()
 	{
@@ -86,7 +151,7 @@ public class ErrorData extends JavaWrapper
 	}
 
 	/**
-	 * Returns the name of the function where the error occured
+	 * Returns the name of the function where the error occurred
 	 */
 	public String getFuncname()
 	{
@@ -211,5 +276,4 @@ public class ErrorData extends JavaWrapper
 	private static native int _getInternalPos(long pointer);
 	private static native String _getInternalQuery(long pointer);
 	private static native int _getSavedErrno(long pointer);	/* errno at entry */
-	protected native void _free(long pointer);
 }

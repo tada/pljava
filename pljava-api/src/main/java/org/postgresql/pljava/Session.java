@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava;
 
@@ -10,13 +16,18 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * A Session maintains transaction coordinated in-memory data. The data
- * added since the last commit will be lost on a transaction rollback, i.e.
- * the Session state is synchronized with the transaction.
+ * A Session brings together some useful methods and data for the current
+ * database session. It provides a set of attributes (a
+ * {@code String} to {@code Object} map. Until PL/Java 1.2.0, its attribute
+ * store had transactional behavior (i.e., the data
+ * added since the last commit would be lost on a transaction rollback, or kept
+ * after a commit), but in 1.2.0 and later, it has not, and has functioned as a
+ * {@code Map} with no awareness of transactions. Java already provides those,
+ * so the attribute-related methods of {@code Session} are now deprecated.
  * 
- * Please note that if nested objects (such as lists and maps) are stored
- * in the session, changes internal to those objects are not subject to
- * the session semantics since the session is unaware of them.
+ * {@code TransactionListeners} and {@code SavepointListeners} are available for
+ * use by any code that needs to synchronize some state with PostgreSQL
+ * transactions.
  * 
  * @author Thomas Hallgren
  */
@@ -40,6 +51,13 @@ public interface Session
 
 	/**
 	 * Obtain an attribute from the current session.
+	 *
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
 	 * @param attributeName The name of the attribute
 	 * @return The value of the attribute
 	 */
@@ -52,7 +70,7 @@ public interface Session
 	 * constructor for one argument of type <code>ObjectPool</code>.
 	 * @return An object pool that pools object of the given class.
 	 */
-	ObjectPool getObjectPool(Class cls);
+	<T extends PooledObject> ObjectPool<T> getObjectPool(Class<T> cls);
 
 	/**
 	 * Return the current <em>effective</em> database user name.
@@ -130,6 +148,13 @@ public interface Session
 	/**
 	 * Remove an attribute previously stored in the session. If
 	 * no attribute is found, nothing happens.
+	 *
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
 	 * @param attributeName The name of the attribute.
 	 */
 	void removeAttribute(String attributeName);
@@ -152,6 +177,13 @@ public interface Session
 
 	/**
 	 * Set an attribute to a value in the current session.
+	 *
+	 * @deprecated {@code Session}'s attribute store once had a special, and
+	 * possibly useful, transactional behavior, but since PL/Java 1.2.0 it has
+	 * lacked that, and offers nothing you don't get with an ordinary
+	 * {@code Map} (that forbids nulls). If some kind of store with
+	 * transactional behavior is needed, it should be implemented in straight
+	 * Java and kept in sync by using a {@link TransactionListener}.
 	 * @param attributeName
 	 * @param value
 	 */

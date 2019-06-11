@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -17,7 +23,7 @@ extern "C" {
 #include <utils/rel.h>
 
 /*******************************************************************
- * The Relation java class extends the NativeStruct and provides JNI
+ * The Relation java class provides JNI
  * access to some of the attributes of the Relation structure.
  * 
  * @author Thomas Hallgren
@@ -26,7 +32,8 @@ extern "C" {
 /*
  * Create an instance of org.postgresql.pljava.Relation
  */
-extern jobject Relation_create(Relation rel);
+extern jobject pljava_Relation_create(Relation rel);
+extern void pljava_Relation_initialize(void);
 
 #ifdef __cplusplus
 }

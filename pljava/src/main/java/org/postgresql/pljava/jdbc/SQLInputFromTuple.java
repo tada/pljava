@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,14 +25,14 @@ import java.sql.Ref;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLInput;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 
 import org.postgresql.pljava.internal.Backend;
-import org.postgresql.pljava.internal.JavaWrapper;
+import org.postgresql.pljava.internal.DualState;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
@@ -42,24 +42,30 @@ import org.postgresql.pljava.internal.TupleDesc;
  *
  * @author Thomas Hallgren
  */
-public class SQLInputFromTuple extends JavaWrapper implements SQLInput
+public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 {
 	private int m_index;
-	private final TupleDesc m_tupleDesc;
-	private boolean m_wasNull;
+	private final int m_columns;
 
 	/**
 	 * Construct an instance, given the (native) pointer to a PG
 	 * {@code HeapTupleHeader}, as well as the TupleDesc (Java object this time)
 	 * describing its structure.
 	 */
-	public SQLInputFromTuple(long heapTupleHeaderPointer, TupleDesc tupleDesc)
+	public SQLInputFromTuple(DualState.Key cookie, long resourceOwner,
+		long heapTupleHeaderPointer, TupleDesc tupleDesc)
 	throws SQLException
 	{
-		super(heapTupleHeaderPointer);
-		m_tupleDesc = tupleDesc;
-		m_index   = 0;
-		m_wasNull = false;
+		super(cookie, resourceOwner, heapTupleHeaderPointer, tupleDesc);
+		m_index = 0;
+		m_columns = tupleDesc.size();
+	}
+
+	protected int nextIndex() throws SQLException
+	{
+		if ( m_index >= m_columns )
+			throw new SQLNonTransientException("Tuple has no more columns");
+		return ++m_index;
 	}
 
 	/**
@@ -68,7 +74,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Array readArray() throws SQLException
 	{
-		return (Array)this.readValue(Array.class);
+		return readValue(Array.class);
 	}
 
 	/**
@@ -77,7 +83,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public InputStream readAsciiStream() throws SQLException
 	{
-		Clob c = this.readClob();
+		Clob c = readClob();
 		return (c == null) ? null : c.getAsciiStream();
 	}
 
@@ -87,7 +93,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public BigDecimal readBigDecimal() throws SQLException
 	{
-		return (BigDecimal)this.readValue(BigDecimal.class);
+		return readValue(BigDecimal.class);
 	}
 
 	/**
@@ -96,7 +102,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public InputStream readBinaryStream() throws SQLException
 	{
-		Blob b = this.readBlob();
+		Blob b = readBlob();
 		return (b == null) ? null : b.getBinaryStream();
 	}
 
@@ -106,7 +112,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Blob readBlob() throws SQLException
 	{
-		byte[] bytes = this.readBytes();
+		byte[] bytes = readBytes();
 		return (bytes == null) ? null :  new BlobValue(bytes);
 	}
 
@@ -116,7 +122,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public boolean readBoolean() throws SQLException
 	{
-		Boolean b = (Boolean)this.readValue(Boolean.class);
+		Boolean b = readValue(Boolean.class);
 		return (b == null) ? false : b.booleanValue();
 	}
 
@@ -126,7 +132,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public byte readByte() throws SQLException
 	{
-		Number b = this.readNumber(byte.class);
+		Number b = readNumber(byte.class);
 		return (b == null) ? 0 : b.byteValue();
 	}
 
@@ -136,7 +142,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public byte[] readBytes() throws SQLException
 	{
-		return (byte[])this.readValue(byte[].class);
+		return readValue(byte[].class);
 	}
 
 	/**
@@ -144,7 +150,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	 */
 	public Reader readCharacterStream() throws SQLException
 	{
-		Clob c = this.readClob();
+		Clob c = readClob();
 		return (c == null) ? null : c.getCharacterStream();
 	}
 
@@ -153,7 +159,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	 */
 	public Clob readClob() throws SQLException
 	{
-		String str = this.readString();
+		String str = readString();
 		return (str == null) ? null :  new ClobValue(str);
 	}
 
@@ -163,7 +169,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Date readDate() throws SQLException
 	{
-		return (Date)this.readValue(Date.class);
+		return readValue(Date.class);
 	}
 
 	/**
@@ -172,7 +178,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public double readDouble() throws SQLException
 	{
-		Number d = this.readNumber(double.class);
+		Number d = readNumber(double.class);
 		return (d == null) ? 0 : d.doubleValue();
 	}
 
@@ -182,7 +188,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public float readFloat() throws SQLException
 	{
-		Number f = this.readNumber(float.class);
+		Number f = readNumber(float.class);
 		return (f == null) ? 0 : f.floatValue();
 	}
 
@@ -192,7 +198,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public int readInt() throws SQLException
 	{
-		Number i = this.readNumber(int.class);
+		Number i = readNumber(int.class);
 		return (i == null) ? 0 : i.intValue();
 	}
 
@@ -202,26 +208,14 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public long readLong() throws SQLException
 	{
-		Number l = this.readNumber(long.class);
+		Number l = readNumber(long.class);
 		return (l == null) ? 0 : l.longValue();
 	}
 
 	@Override
 	public Object readObject() throws SQLException
 	{
-		if(m_index < m_tupleDesc.size())
-		{
-			Object v;
-			synchronized(Backend.THREADLOCK)
-			{
-				v = _getObject(
-					this.getNativePointer(), m_tupleDesc.getNativePointer(),
-					++m_index, null);
-			}
-			m_wasNull = v == null;
-			return v;
-		}
-		throw new SQLException("Tuple has no more columns");
+		return getObject(nextIndex());
 	}
 
 	/**
@@ -230,7 +224,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Ref readRef() throws SQLException
 	{
-		return (Ref)this.readValue(Ref.class);
+		return readValue(Ref.class);
 	}
 
 	/**
@@ -239,7 +233,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public short readShort() throws SQLException
 	{
-		Number s = this.readNumber(short.class);
+		Number s = readNumber(short.class);
 		return (s == null) ? 0 : s.shortValue();
 	}
 
@@ -249,7 +243,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public String readString() throws SQLException
 	{
-		return (String)this.readValue(String.class);
+		return readValue(String.class);
 	}
 
 	/**
@@ -258,7 +252,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Time readTime() throws SQLException
 	{
-		return (Time)this.readValue(Time.class);
+		return readValue(Time.class);
 	}
 
 	/**
@@ -267,7 +261,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public Timestamp readTimestamp() throws SQLException
 	{
-		return (Timestamp)this.readValue(Timestamp.class);
+		return readValue(Timestamp.class);
 	}
 
 	/**
@@ -276,13 +270,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	@Override
 	public URL readURL() throws SQLException
 	{
-		return (URL)this.readValue(URL.class);
-	}
-
-	@Override
-	public boolean wasNull() throws SQLException
-	{
-		return m_wasNull;
+		return readValue(URL.class);
 	}
 
 	// ************************************************************
@@ -296,7 +284,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	public SQLXML readSQLXML()
 		throws SQLException
 	{
-		return this.readObject(SQLXML.class);
+		return readObject(SQLXML.class);
 	}
 
 	// ************************************************************
@@ -309,7 +297,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
                 throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readRowId() not implemented yet.",
 			  "0A000" );
 	}
@@ -320,7 +308,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 		throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readNString() not implemented yet.",
 			  "0A000" );
 		
@@ -332,7 +320,7 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 	       throws SQLException
 	{
 		throw new SQLFeatureNotSupportedException
-			( this.getClass()
+			( getClass()
 			  + ".readNClob() not implemented yet.",
 		  "0A000" );
 		
@@ -345,50 +333,20 @@ public class SQLInputFromTuple extends JavaWrapper implements SQLInput
 
 	public <T> T readObject(Class<T> type) throws SQLException
 	{
-		if(m_index < m_tupleDesc.size())
-		{
-			Object v;
-			synchronized(Backend.THREADLOCK)
-			{
-				v = _getObject(
-					this.getNativePointer(), m_tupleDesc.getNativePointer(),
-					++m_index, type);
-			}
-			m_wasNull = v == null;
-			if ( m_wasNull  ||  type.isInstance(v) )
-				return type.cast(v);
-			throw new SQLException("Cannot convert " + v.getClass().getName() +
-				" to " + type.getName());
-		}
-		throw new SQLException("Tuple has no more columns");
+		return getObject(nextIndex(), type);
 	}
 
 	// ************************************************************
-	// Implementation methods.
+	// Implementation methods, over methods of ObjectResultSet.
 	// ************************************************************
 
 	private Number readNumber(Class numberClass) throws SQLException
 	{
-		return SPIConnection.basicNumericCoersion(
-			numberClass, this.readObject());
+		return getNumber(nextIndex(), numberClass);
 	}
 
-	private Object readValue(Class valueClass) throws SQLException
+	private <T> T readValue(Class<T> valueClass) throws SQLException
 	{
-		return SPIConnection.basicCoersion(valueClass, this.readObject());
+		return getValue(nextIndex(), valueClass);
 	}
-
-	protected native void _free(long pointer);
-
-	/**
-	 * Underlying method that returns the value of the next attribute.
-	 *<p>
-	 * The signature does not constrain this to return an object of the
-	 * requested class, so it can still be used as before by methods that may do
-	 * additional coercions. When called by {@link #getObject(Class)}, that
-	 * caller enforces the class of the result.
-	 */
-	private static native Object _getObject(
-		long pointer, long tupleDescPointer, int index, Class<?> type)
-	throws SQLException;
 }

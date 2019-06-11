@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,6 +25,7 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.SavepointListener;
 import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
+import org.postgresql.pljava.TransactionListener;
 
 /**
  * Some methods used for testing the SPI JDBC driver.
@@ -324,6 +325,39 @@ public class SPIActions {
 			if (delete != null)
 				delete.close();
 			conn.close();
+		}
+	}
+
+	static TransactionListener s_tlstnr;
+
+	public static void registerTransactionListener() throws SQLException
+	{
+		Session currentSession = SessionManager.current();
+		if ( null == s_tlstnr )
+		{
+			s_tlstnr = new XactListener();
+			currentSession.addTransactionListener(s_tlstnr);
+		}
+		else
+		{
+			currentSession.removeTransactionListener(s_tlstnr);
+			s_tlstnr = null;
+		}
+	}
+
+	static class XactListener implements TransactionListener
+	{
+		public void onAbort(Session s)
+		{
+			System.err.println("aborting a transaction");
+		}
+		public void onCommit(Session s)
+		{
+			System.err.println("committing a transaction");
+		}
+		public void onPrepare(Session s)
+		{
+			System.err.println("preparing a transaction");
 		}
 	}
 }

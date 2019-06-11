@@ -40,6 +40,7 @@ import java.util.HashMap;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import static javax.xml.transform.OutputKeys.ENCODING;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
@@ -126,6 +127,21 @@ public class PassXML implements SQLData
 	static TransformerFactory s_tf = TransformerFactory.newInstance();
 
 	static Map<String,Templates> s_tpls = new HashMap<>();
+
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static String inXMLoutString(SQLXML in) throws SQLException
+	{
+		return in.getString();
+	}
+
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static SQLXML inStringoutXML(String in) throws SQLException
+	{
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML result = c.createSQLXML();
+		result.setString(in);
+		return result;
+	}
 
 	/**
 	 * Echo an XML parameter back, exercising seven different ways
@@ -288,6 +304,13 @@ public class PassXML implements SQLData
 		try
 		{
 			Transformer t = s_tf.newTransformer();
+			/*
+			 * For the non-SAX/StAX/DOM flavors of output, you're responsible
+			 * for setting the Transformer to use the server encoding.
+			 */
+			if ( howout < 5 )
+				t.setOutputProperty(ENCODING,
+					System.getProperty("org.postgresql.server.encoding"));
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )

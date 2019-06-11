@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -82,16 +82,7 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #define PG_INT32_MAX    (0x7FFFFFFF)
 #endif
 
-
-/* The errorOccured will be set when a call from Java into one of the
- * backend functions results in a elog that causes a longjmp (Levels >= ERROR)
- * that was trapped using the PLJAVA_TRY/PLJAVA_CATCH macros.
- * When this happens, all further calls from Java must be blocked since the
- * state of the current transaction is unknown. Further more, once the function
- * that initially called Java finally returns, the intended longjmp (the one
- * to the original value of Warn_restart) must be made.
- */
-extern jlong mainThreadId;
+extern void* mainThreadId;
 extern JNIEnv* currentJNIEnv;
 extern MemoryContext JavaMemoryContext;
 
@@ -144,7 +135,7 @@ char* stack_base_ptr;
 #endif
 
 #define STACK_BASE_VARS \
-	jlong saveMainThreadId = 0; \
+	void* saveMainThreadId = 0; \
 	_STACK_BASE_TYPE saveStackBasePtr;
 
 #define STACK_BASE_PUSH(threadId) \
