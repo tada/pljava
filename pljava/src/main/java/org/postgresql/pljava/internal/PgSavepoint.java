@@ -24,7 +24,7 @@ import java.util.logging.Logger;
 public class PgSavepoint implements java.sql.Savepoint
 {
 	private static final WeakHashMap<PgSavepoint,Boolean> s_knownSavepoints =
-		new WeakHashMap<PgSavepoint,Boolean>();
+		new WeakHashMap<>();
 
 	/*
 	 * PostgreSQL allows an internal subtransaction to have a name, though it

@@ -33,7 +33,7 @@ class XactListener
 	 * the size changes from 0 to 1 or 1 to 0).
 	 */
 	private static final Deque<TransactionListener> s_listeners =
-		new ArrayDeque<TransactionListener>();
+		new ArrayDeque<>();
 
 	static void onAbort() throws SQLException
 	{

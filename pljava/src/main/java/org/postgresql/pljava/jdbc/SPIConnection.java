@@ -89,7 +89,7 @@ public class SPIConnection implements Connection
 	 * {@link PreparedStatement#setObject(int,Object)}.
 	 */
 	private static final HashMap<Class<?>,Integer> s_class2sqlType =
-		new HashMap<Class<?>,Integer>(30);
+		new HashMap<>(30);
 
 	static
 	{

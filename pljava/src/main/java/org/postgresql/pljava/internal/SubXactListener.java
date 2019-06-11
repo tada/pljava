@@ -28,7 +28,7 @@ import org.postgresql.pljava.SavepointListener;
 class SubXactListener
 {
 	private static final Deque<SavepointListener> s_listeners =
-		new ArrayDeque<SavepointListener>();
+		new ArrayDeque<>();
 
 	static void onAbort(PgSavepoint sp, PgSavepoint parent)
 	throws SQLException

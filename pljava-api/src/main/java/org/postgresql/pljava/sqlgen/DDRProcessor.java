@@ -1740,7 +1740,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! typu.isAssignable( typu.erasure( tm), dt) )
 				return null;
 
-			List<TypeMirror> pending = new LinkedList<TypeMirror>();
+			List<TypeMirror> pending = new LinkedList<>();
 			pending.add( tm);
 			while ( ! pending.isEmpty() )
 			{

@@ -26,10 +26,10 @@ import java.util.HashMap;
 public class Oid extends Number
 {
 	private static final HashMap<Class<?>,Oid> s_class2typeId =
-		new HashMap<Class<?>,Oid>();
+		new HashMap<>();
 
 	private static final HashMap<Oid,Class<?>> s_typeId2class =
-		new HashMap<Oid,Class<?>>();
+		new HashMap<>();
 
 	/**
 	 * Finds the PostgreSQL well known Oid for the given Java object.

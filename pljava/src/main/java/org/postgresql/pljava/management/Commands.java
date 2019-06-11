@@ -807,7 +807,7 @@ public class Commands
 			// Collect and verify that all entries in the path represents a
 			// valid jar
 			//
-			entries = new ArrayList<Integer>();
+			entries = new ArrayList<>();
 			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 				.prepareStatement(
 					"SELECT jarId FROM sqlj.jar_repository " +

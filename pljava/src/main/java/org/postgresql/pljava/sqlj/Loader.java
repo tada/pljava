@@ -96,10 +96,10 @@ public class Loader extends ClassLoader
 	private static final String PUBLIC_SCHEMA = "public";
 
 	private static final Map<String,ClassLoader>
-		s_schemaLoaders = new HashMap<String,ClassLoader>();
+		s_schemaLoaders = new HashMap<>();
 
 	private static final Map<String,Map<Oid,Class<? extends SQLData>>>
-		s_typeMap = new HashMap<String,Map<Oid,Class<? extends SQLData>>>();
+		s_typeMap = new HashMap<>();
 
 	/**
 	 * Removes all cached schema loaders, functions, and type maps. This

@@ -258,7 +258,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * in selected places where it makes sense to do so.
 	 */
 	private static final ReferenceQueue<Object> s_releasedInstances =
-		new ReferenceQueue<Object>();
+		new ReferenceQueue<>();
 
 	/**
 	 * All instances in a non-transient native scope are added here upon
@@ -270,7 +270,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * searching, and can be removed from this structure in O(1).
 	 */
 	private static final IdentityHashMap<DualState,DualState>
-		s_unscopedInstances = new IdentityHashMap<DualState,DualState>();
+		s_unscopedInstances = new IdentityHashMap<>();
 
 	/**
 	 * All native-scoped instances are added to this structure upon creation.
@@ -283,7 +283,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * already at hand. The list head is of a dummy {@code DualState} subclass.
 	 */
 	private static final Map<Long,DualState.ListHead> s_scopedInstances =
-		new HashMap<Long,DualState.ListHead>();
+		new HashMap<>();
 
 	/** Backward link in per-resource-owner list. */
 	private DualState m_prev;
@@ -349,7 +349,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			@Override
 			protected Deque<PinCount> initialValue()
 			{
-				return new ArrayDeque<PinCount>();
+				return new ArrayDeque<>();
 			}
 
 			/**
@@ -542,7 +542,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		m_resourceOwner = resourceOwner;
 
 		m_state = new AtomicInteger();
-		m_waiters = new ConcurrentLinkedQueue<Thread>();
+		m_waiters = new ConcurrentLinkedQueue<>();
 
 		assert Backend.threadMayEnterPG() : m("DualState construction");
 		/*

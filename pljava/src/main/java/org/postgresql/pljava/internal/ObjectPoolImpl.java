@@ -35,7 +35,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 	private static Class[] s_ctorSignature = { ObjectPool.class };
 	private static PooledObjectHandle s_handlePool;
 	private static final IdentityHashMap<Class<?>,ObjectPoolImpl<?>>
-		s_poolCache = new IdentityHashMap<Class<?>,ObjectPoolImpl<?>>();
+		s_poolCache = new IdentityHashMap<>();
 
 	private final Constructor<T> m_ctor;
 	private PooledObjectHandle<T> m_providerPool;
@@ -153,7 +153,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 		if(handle != null)
 			s_handlePool = handle.m_next;
 		else
-			handle = new PooledObjectHandle<T>();
+			handle = new PooledObjectHandle<>();
 
 		handle.m_instance = instance;
 		handle.m_next = m_providerPool;
