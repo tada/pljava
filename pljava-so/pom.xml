@@ -301,7 +301,9 @@
 						</goals>
 						<configuration>
 							<target>
-								<script language='javascript'>
+								<script
+									language='javascript'
+									classpathref='maven.plugin.classpath'>
 <![CDATA[
 /* This regex supports a function to wrap a string in the quoting needed for a
    C string literal. Capturing group 1 captures those special characters that
@@ -380,7 +382,9 @@ if ( null !== jvmdflt )
 
 								<!-- Converts pg_config output
 									 to "pgsql.properties" -->
-								<ant />
+								<ant>
+									<reference refid='maven.plugin.classpath'/>
+								</ant>
 							</target>
 						</configuration>
 					</execution>
