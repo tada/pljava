@@ -492,6 +492,37 @@ public abstract class Lexicals
 				return new Simple(s);
 			}
 
+			/**
+			 * Create an {@code Identifier.Simple} from a name string supplied
+			 * in Java source, such as an annotation value.
+			 *<p>
+			 * Historically, PL/Java has treated these identifiers as regular
+			 * ones, requiring delimited ones to be represented by adding quotes
+			 * explicitly at start and end, and doubling internal quotes, all
+			 * escaped for Java, naturally. This method accepts either of those
+			 * forms, and will also accept a string that neither qualifies as a
+			 * regular identifier nor starts and ends with quotes. Such a string
+			 * will be treated as if it were a delimited identifier with the
+			 * start/end quotes already stripped and internal ones already
+			 * undoubled.
+			 *<p>
+			 * The SQL Unicode escape syntax is not accepted here. Java already
+			 * has its own Unicode escape syntax, which is what should be used.
+			 * @param s name of the simple identifier, as found in Java source.
+			 * @return an Identifier.Simple or subclass appropriate to the form
+			 * of the name.
+			 */
+			public static Simple fromJava(String s)
+			{
+				boolean quoted = true;
+				Matcher m = ISO_DELIMITED_IDENTIFIER_CAPTURING.matcher(s);
+				if ( m.matches() )
+					s = m.group("xd").replace("\"\"", "\"");
+				else if ( m.usePattern(PG_REGULAR_IDENTIFIER).matches() )
+					return new Folding(s);
+				return Identifier.from(s, true);
+			}
+
 			@Override
 			public String deparse()
 			{

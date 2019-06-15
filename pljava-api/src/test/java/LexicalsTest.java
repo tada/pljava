@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -193,5 +193,35 @@ public class LexicalsTest extends TestCase
 		assertThat("ne2", Baß, not(equalTo(qbass)));
 
 		assertThat("ne3", sab, not(equalTo(SAB)));
+	}
+
+	public void testIdentifierSimpleFrom() throws Exception
+	{
+		Identifier.Simple s1 = Identifier.Simple.fromJava("aB");
+		Identifier.Simple s2 = Identifier.Simple.fromJava("\"ab\"");
+		Identifier.Simple s3 = Identifier.Simple.fromJava("\"A\"\"b\"");
+		Identifier.Simple s4 = Identifier.Simple.fromJava("A\"b");
+
+		Identifier.Simple s5 = Identifier.Simple.fromCatalog("ab");
+		Identifier.Simple s6 = Identifier.Simple.fromCatalog("AB");
+		Identifier.Simple s7 = Identifier.Simple.fromCatalog("A\"b");
+
+		assertEquals("eq1", s1, s2);
+		assertEquals("eq2", s3, s4);
+		assertEquals("eq3", s1, s5);
+		assertEquals("eq4", s2, s5);
+		assertEquals("eq5", s1, s6);
+		assertEquals("eq6", s5, s6);
+		assertEquals("eq7", s3, s7);
+
+		assertThat("ne1", s2, not(equalTo(s6)));
+
+		assertEquals("deparse1", s1.deparse(), "aB");
+		assertEquals("deparse2", s2.deparse(), "\"ab\"");
+		assertEquals("deparse3", s3.deparse(), "\"A\"\"b\"");
+		assertEquals("deparse4", s4.deparse(), "\"A\"\"b\"");
+		assertEquals("deparse5", s5.deparse(), "ab");
+		assertEquals("deparse6", s6.deparse(), "\"AB\"");
+		assertEquals("deparse7", s7.deparse(), "\"A\"\"b\"");
 	}
 }
