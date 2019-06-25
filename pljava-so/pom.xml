@@ -323,6 +323,9 @@
 									<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
 								</includePaths>
 							</c>
+							<java>
+								<include>true</include>
+							</java>
 						</configuration>
 					</plugin>
 				</plugins>
