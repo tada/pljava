@@ -80,7 +80,9 @@
 			</filterchain>
 		</loadresource>
 
-		<script language="javascript"><![CDATA[
+		<script
+			language="javascript"
+			classpathref="maven.plugin.classpath"><![CDATA[
 			var msvc_version = parseInt(project.getProperty('MSVC_VER'));
 			var knows_rint = project.getProperty('KNOWS_MSVC_RINT');
 			if (msvc_version >= 1800  && knows_rint === null) {

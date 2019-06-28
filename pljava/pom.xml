@@ -16,6 +16,29 @@
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
+
+	<profiles>
+		<profile>
+			<id>usejavac-h</id>
+			<activation>
+				<jdk>[10,)</jdk>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<compilerArguments>
+								<h>${basedir}/target/javah-include</h>
+							</compilerArguments>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 	<build>
 		<plugins>
 			<plugin>

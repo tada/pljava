@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of October 2018, the following version constraints are known.
+As of June 2019, the following version constraints are known.
 
 ## Java
 
@@ -14,10 +14,12 @@ implemented. Since Java 8, even JDBC additions have not caused problems for
 existing PL/Java code, as they have taken advantage of the default-methods
 feature introduced in that release.
 
-In the PL/Java 1.5.x series, the build system has not been reworked for
-building with Java 9 or newer. However, PL/Java can be built with Java 8
-and use a newer JVM at run time, simply by setting
-[the `pljava.libjvm_location` variable][jvml] to the newer version's library.
+In the PL/Java 1.5.x series, the build can be done with Java 6 or newer (but
+builds with 6 or 7
+[may be difficult](#Maven_failures_when_downloading_dependencies)).
+Once built, PL/Java is able to use another Java 6 or later JVM at run time,
+simply by setting
+[the `pljava.libjvm_location` variable][jvml] to the desired version's library.
 
 That allows PL/Java to run application code written for the latest Java
 versions, and also to take advantage of recent Java implementation advances
@@ -25,7 +27,13 @@ such as [class data sharing][cds].
 
 PL/Java has been successfully used with [Oracle Java][orj] and with
 [OpenJDK][], which is available with
-[either the Hotspot or the OpenJ9 JVM][hsj9].
+[either the Hotspot or the OpenJ9 JVM][hsj9]. It can also be built and used
+with [GraalVM][].
+
+As of Java 12, the Java compiler can no longer generate code targeting a Java 6
+runtime. If PL/Java is built with Java 12 or newer, it will not run with a JRE
+older than 7. If it is necessary to build a PL/Java that will run on 6, it must
+be built with 11 or earlier.
 
 ### Maven failures when downloading dependencies
 
@@ -41,6 +49,7 @@ newer protocol versions needed to reach the servers.
 [orj]: https://www.oracle.com/technetwork/java/javase/downloads/index.html
 [OpenJDK]: https://adoptopenjdk.net/
 [hsj9]: https://www.eclipse.org/openj9/oj9_faq.html
+[GraalVM]: https://www.graalvm.org/
 
 ## Maven
 
