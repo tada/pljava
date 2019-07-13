@@ -871,10 +871,10 @@ public class S9 implements ResultSetProvider
 		case Types.BIGINT:
 			return ItemType.LONG;
 
-		case Types.FLOAT:
-			assert false; // PG should always report either REAL or DOUBLE
 		case Types.REAL:
 			return ItemType.FLOAT; // could check P, MINEXP, MAXEXP here.
+		case Types.FLOAT:
+			assert false; // PG should always report either REAL or DOUBLE
 		case Types.DOUBLE:
 			return ItemType.DOUBLE;
 
