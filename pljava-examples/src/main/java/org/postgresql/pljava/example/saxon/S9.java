@@ -25,6 +25,7 @@ import java.sql.Types;
 
 import java.sql.SQLException;
 import java.sql.SQLDataException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
@@ -1651,5 +1652,72 @@ public class S9 implements ResultSetProvider
 				m_typeJDBC = Types.OTHER;
 			}
 		}
+	}
+
+	/*
+	 * The XQuery-regular-expression-based functions added in 9075-2:2006.
+	 */
+
+	@Function(schema="javatest")
+	public static boolean like_regex(
+		String value, String pattern, @SQLType(defaultValue="") String flag)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException("like_regex", "0A000");
+	}
+
+	@Function(schema="javatest")
+	public static int occurrences_regex(
+		String pattern,
+		@SQLType(name="\"in\"") String in,
+		@SQLType(defaultValue="") String flag,
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException("occurrences_regex", "0A000");
+	}
+
+	@Function(schema="javatest")
+	public static int position_regex(
+		String pattern,
+		@SQLType(name="\"in\"") String in,
+		@SQLType(defaultValue="") String flag,
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="false") boolean after,
+		@SQLType(defaultValue="1") int occurrence,
+		@SQLType(name="\"group\"", defaultValue="0") int group)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException("position_regex", "0A000");
+	}
+
+	@Function(schema="javatest")
+	public static String substring_regex(
+		String pattern,
+		@SQLType(name="\"in\"") String in,
+		@SQLType(defaultValue="") String flag,
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="1") int occurrence,
+		@SQLType(name="\"group\"", defaultValue="0") int group)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException("substring_regex", "0A000");
+	}
+
+	@Function(schema="javatest")
+	public static String translate_regex(
+		String pattern,
+		@SQLType(name="\"in\"") String in,
+		@SQLType(defaultValue="") String flag,
+		@SQLType(name="\"with\"", defaultValue="") String with,
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="0" /* ALL */) int occurrence)
+		throws SQLException
+	{
+		throw new SQLFeatureNotSupportedException("translate_regex", "0A000");
 	}
 }
