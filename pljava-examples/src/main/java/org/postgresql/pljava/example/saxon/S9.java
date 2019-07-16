@@ -34,6 +34,7 @@ import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import static java.time.ZoneOffset.UTC;
 
 import static java.util.Arrays.asList;
 import java.util.Collection;
@@ -1134,15 +1135,29 @@ public class S9 implements ResultSetProvider
 		else if ( ItemType.DATE.subsumes(xt) )
 			rs.updateObject(col, LocalDate.parse(bv.getStringValue()));
 		else if ( ItemType.DATE_TIME.subsumes(xt) )
-			rs.updateObject(col,
-				((CalendarValue)bv.getUnderlyingValue()).hasTimezone()
-				? OffsetDateTime.parse(bv.getStringValue())
-				:  LocalDateTime.parse(bv.getStringValue()));
+		{
+			if ( ((CalendarValue)bv.getUnderlyingValue()).hasTimezone() )
+				rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
+			else
+			{
+				LocalDateTime jv = LocalDateTime.parse(bv.getStringValue());
+				rs.updateObject(col,
+					Types.TIMESTAMP_WITH_TIMEZONE == p.typeJDBC() ?
+						jv.atOffset(UTC) : jv);
+			}
+		}
 		else if ( ItemType.TIME.subsumes(xt) ) // no handy tz/notz distinction
-			rs.updateObject(col,
-				((CalendarValue)bv.getUnderlyingValue()).hasTimezone()
-				? OffsetTime.parse(bv.getStringValue())
-				:  LocalTime.parse(bv.getStringValue()));
+		{
+			if ( ((CalendarValue)bv.getUnderlyingValue()).hasTimezone() )
+				rs.updateObject(col, OffsetTime.parse(bv.getStringValue()));
+			else
+			{
+				LocalTime jv = LocalTime.parse(bv.getStringValue());
+				rs.updateObject(col,
+					Types.TIME_WITH_TIMEZONE == p.typeJDBC() ?
+						jv.atOffset(UTC) : jv);
+			}
+		}
 
 		else if ( ItemType.YEAR_MONTH_DURATION.subsumes(xt) )
 			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
