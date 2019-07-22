@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -470,7 +470,8 @@ public class S9 implements ResultSetProvider
 			XQueryEvaluator rowXQE = rowXQX.load();
 			XdmSequenceIterator rowIterator;
 			if ( storePassedValuesInDynamicContext(rowXQE, rowBindings, true) )
-				rowIterator = XdmEmptySequence.getInstance().iterator();
+				rowIterator = (XdmSequenceIterator)
+					XdmEmptySequence.getInstance().iterator();
 			else
 				rowIterator = rowXQE.iterator();
 			return new S9(rowIterator, columnXQEs, columnStaticTypes);
@@ -517,10 +518,9 @@ public class S9 implements ResultSetProvider
 				continue;
 			}
 
-			xqe.setContextItem(it);
-
 			try
 			{
+				xqe.setContextItem(it);
 				XdmValue x1 = xqe.evaluate();
 
 				/*
