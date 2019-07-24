@@ -23,6 +23,9 @@
 #include "pljava/type/Time.h"
 #include "pljava/type/Timestamp.h"
 
+#define MSECS_PER_DAY 86400000
+#define uSECS_PER_DAY 86400000000
+
 /*
  * Types time and timetz. This compilation unit supplies code for both
  * PostgreSQL types. The legacy JDBC mapping for both is to java.sql.Time, which
@@ -223,22 +226,16 @@ static Type _OffsetTime_obtain(Oid typeId)
 	return s_OffsetTimeInstance;
 }
 
-static jlong msecsAtMidnight(void)
-{
-	pg_time_t now = (pg_time_t)time(NULL) / 86400;
-	return INT64CONST(1000) * (jlong)(now * 86400);
-}
-
 #if PG_VERSION_NUM < 100000
 static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 {
 	jlong mSecs;
 	jvalue result;
-	if(tzAdjust)
-		t += Timestamp_getCurrentTimeZone();/* Adjust from local time to UTC */
 	t *= 1000.0;						/* Convert to millisecs */
-	mSecs = (jlong)floor(t);
-	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs + msecsAtMidnight());
+	mSecs = (jlong)rint(t);
+	if(tzAdjust)
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_FALSE);
+	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs);
 	return result;
 }
 #endif
@@ -246,10 +243,23 @@ static jvalue Time_coerceDatumTZ_dd(Type self, double t, bool tzAdjust)
 static jvalue Time_coerceDatumTZ_id(Type self, int64 t, bool tzAdjust)
 {
 	jvalue result;
-	jlong mSecs = t / 1000;			/* Convert to millisecs */
+	jlong mSecs;
+	/*
+	 * The incoming t is in microseconds, in some interval microseconds-per-day
+	 * wide that contains zero. But it might not be left-anchored at zero, if
+	 * tzAdjust is false (meaning it came from a time with time zone, and the
+	 * zone offet has been added to it). If tzAdjust is true, it's left-anchored
+	 * now, but might not be when we're done utcMasquerading it. Either way, mod
+	 * it into the range left-anchored at zero before passing it to Java.
+	 *
+	 * That will make it a time in the first day of the Java epoch (1970-Jan-1),
+	 * just the way Java likes it.
+	 */
+	mSecs = ((t / 500) + 1) / 2;			/* Convert to millisecs */
 	if(tzAdjust)
-		mSecs += Timestamp_getCurrentTimeZone() * 1000;/* Adjust from local time to UTC */
-	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs + msecsAtMidnight());
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_FALSE);
+	mSecs = (mSecs + MSECS_PER_DAY) % MSECS_PER_DAY; /* beware signed % */
+	result.l = JNI_newObject(s_Time_class, s_Time_init, mSecs);
 	return result;
 }
 
@@ -257,9 +267,19 @@ static jlong Time_getMillisecsToday(Type self, jobject jt, bool tzAdjust)
 {
 	jlong mSecs = JNI_callLongMethod(jt, s_Time_getTime);
 	if(tzAdjust)
-		mSecs -= ((jlong)Timestamp_getCurrentTimeZone()) * 1000L; /* Adjust from UTC to local time */
-	mSecs %= 86400000; /* Strip everything above 24 hours */
-	return mSecs;
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_TRUE);
+	/*
+	 * Ensure the result is in a day-wide interval left-anchored at zero.
+	 * If !tzAdjust then the caller has its own time zone adjusting to do
+	 * on the result, and has to do its own mod then anyway, which makes it
+	 * tempting to skip this in that case, leaving the caller to do it. But
+	 * without radically refactoring the multiple callers, really, the easiest
+	 * way to avoid various overflow or precision loss concerns (think of the
+	 * !integer_datetimes case) is just to do it here unconditionally. The
+	 * callers with more time zone business to do can then get away with an
+	 * add,mod rather than another full mod,add,mod.
+	 */
+	return ((mSecs % MSECS_PER_DAY) + MSECS_PER_DAY) % MSECS_PER_DAY;
 }
 
 #if PG_VERSION_NUM < 100000
@@ -298,8 +318,9 @@ static Datum _Time_coerceObject(Type self, jobject time)
 
 /* 
  * Time with time zone. Postgres will pass local time and an associated
- * time zone. In the future, we might create a special java object for
- * this. For now, we just convert to UTC and pass a Time object.
+ * time zone. A java.time.OffsetTime is the best representation for this.
+ * But this conversion is to the older JDBC java.sql.Time class, which requires
+ * converting to UTC (and losing the information on the value's original zone).
  */
 static jvalue _Timetz_coerceDatum(Type self, Datum arg)
 {
@@ -321,6 +342,19 @@ static jvalue _Timetz_coerceDatum(Type self, Datum arg)
 	return val;
 }
 
+/*
+ * In the reverse direction, Java is supplying a time in UTC. We have to
+ * explicitly record a zone in the PostgreSQL 'time with time zone' datum.
+ * If this is a round trip of a value that came from PostgreSQL originally,
+ * we've lost track of what its zone was at first, so the choice of zone here
+ * is (regrettably!) arbitrary. UTC would be an obvious choice (as that's just
+ * what we're getting from Java), but PL/Java's long-established practice here
+ * has been to adjust it to the PostgreSQL session time zone instead. It's
+ * possible the original zone was neither of those two choices, but what is one
+ * to do? Ideally: just don't use this conversion! Use java.time.OffsetTime
+ * instead. This one will continue assuming the current session time zone,
+ * as in the past.
+ */
 static Datum _Timetz_coerceObject(Type self, jobject time)
 {
 	Datum datum;
@@ -330,7 +364,8 @@ static Datum _Timetz_coerceObject(Type self, jobject time)
 		TimeTzADT_dd* tza = (TimeTzADT_dd*)palloc(sizeof(TimeTzADT_dd));
 		tza->time = Time_coerceObjectTZ_dd(self, time, false);
 		tza->zone = Timestamp_getCurrentTimeZone();
-		tza->time -= tza->zone; /* Convert UTC to local time */
+		tza->time += 86400.0 - tza->zone; /* Convert UTC to local time */
+		tza->time = fmod(tza->time, 86400.0); /* see getMillisecsToday */
 		datum = PointerGetDatum(tza);
 	}
 	else
@@ -340,6 +375,7 @@ static Datum _Timetz_coerceObject(Type self, jobject time)
 		tza->time = Time_coerceObjectTZ_id(self, time, false);
 		tza->zone = Timestamp_getCurrentTimeZone();
 		tza->time -= (int64)tza->zone * 1000000; /* Convert UTC to local time */
+		tza->time = (tza->time + uSECS_PER_DAY) % uSECS_PER_DAY;
 		datum = PointerGetDatum(tza);
 	}
 	return datum;
