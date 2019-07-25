@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@
 #include "pljava/type/Timestamp.h"
 
 #define EPOCH_DIFF (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE)
+#define MSECS_PER_DAY 86400000
 
 static jclass    s_Date_class;
 static jmethodID s_Date_init;
@@ -95,27 +96,19 @@ static Type _LocalDate_obtain(Oid typeId)
 static jvalue _Date_coerceDatum(Type self, Datum arg)
 {
 	DateADT pgDate = DatumGetDateADT(arg);
-	int64 ts = (int64)pgDate * INT64CONST(43200000000);
-	int   tz = Timestamp_getTimeZone_id(ts); /* ts in 2 usec units */
-	
 	jlong date = (jlong)(pgDate + EPOCH_DIFF);
-
 	jvalue result;
-	date *= 86400L;	// Convert to seconds
-	date += tz;		// Add local timezone
-	result.l = JNI_newObject(s_Date_class, s_Date_init, date * 1000);
+	date *= MSECS_PER_DAY;	// Convert to milliseconds
+	date = Timestamp_utcMasquerade(date, JNI_FALSE);
+	result.l = JNI_newObject(s_Date_class, s_Date_init, date);
 	return result;
 }
 
 static Datum _Date_coerceObject(Type self, jobject date)
 {
-	jlong milliSecs =
-		JNI_callLongMethod(date, s_Date_getTime)
-		- INT64CONST(86400000) * EPOCH_DIFF;
-	jlong secs =
-		milliSecs / 1000
-		- Timestamp_getTimeZone_id(milliSecs * 500); /* those 2 usec units */
-	return DateADTGetDatum((DateADT)(secs / 86400));
+	jlong milliSecs = JNI_callLongMethod(date, s_Date_getTime);
+	milliSecs = Timestamp_utcMasquerade(milliSecs, JNI_TRUE);
+	return DateADTGetDatum((DateADT)(milliSecs / MSECS_PER_DAY - EPOCH_DIFF));
 }
 
 /* Make this datatype available to the postgres system.
