@@ -30,17 +30,7 @@ extern "C" {
 /*
  * Returns the current timezone.
  */
-extern int Timestamp_getCurrentTimeZone(void);
-
-/*
- * Returns the timezone for the given Timestamp. This is an internal function
- * and only declared here because Date.c uses it, and always this int64 variant,
- * regardless of whether the backend was compiled with integer datetimes. The
- * argument is not a PostgreSQL int64 Timestamp, but rather a PostgreSQL int64
- * Timestamp divided by two. The result is a time zone offset in seconds west
- * of Greenwich.
- */
-extern int32 Timestamp_getTimeZone_id(int64 t);
+extern int32 Timestamp_getCurrentTimeZone(void);
 
 /*
  * Calls Java method SPIConnection.utcMasquerade, which see for details.

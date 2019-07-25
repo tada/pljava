@@ -94,10 +94,6 @@ static jobject   s_ZoneOffset_UTC;
 static Type _LocalDateTime_obtain(Oid);
 static Type _OffsetDateTime_obtain(Oid);
 
-#if PG_VERSION_NUM < 100000
-static int32 Timestamp_getTimeZone_dd(double dt);
-#endif
-
 /*
  * This only answers true for (same class or) TIMESTAMPOID.
  * The obtainer (below) only needs to construct and remember one instance.
@@ -270,14 +266,11 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 	mSecs = (ts - uSecs) / 500; /* Convert to millisecs */
 	uSecs = (uSecs << 1) | lowBit;
 
-	if(tzAdjust)
-	{
-		int tz = Timestamp_getTimeZone_id(ts); /* function expects halved ts */
-		mSecs += tz * 1000; /* Adjust from local time to UTC */
-	}
-
 	/* Adjust for diff between Postgres and Java (Unix) */
 	mSecs += ((jlong)EPOCH_DIFF) * 1000L;
+
+	if(tzAdjust)
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_FALSE);
 
 	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
@@ -289,19 +282,20 @@ static jvalue Timestamp_coerceDatumTZ_id(Type self, Datum arg, bool tzAdjust)
 static jvalue Timestamp_coerceDatumTZ_dd(Type self, Datum arg, bool tzAdjust)
 {
 	jlong secs;
+	jlong mSecs;
 	jint  uSecs;
 	jvalue result;
 	double ts = DatumGetFloat8(arg);
-	int    tz = Timestamp_getTimeZone_dd(ts);
 
 	/* Expect <seconds since Jan 01 2000>.<fractions of seconds>
 	 */
-	if(tzAdjust)
-		ts += tz; /* Adjust from local time to UTC */
 	ts += EPOCH_DIFF; /* Adjust for diff between Postgres and Java (Unix) */
 	secs = (jlong) floor(ts); /* Take just the secs */
 	uSecs = (((jint) ((ts - (double)secs) * 2e6)) + 1) / 2; /* Preserve usecs */
-	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, secs * 1000);
+	mSecs = secs * 1000;
+	if(tzAdjust)
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_FALSE);
+	result.l = JNI_newObject(s_Timestamp_class, s_Timestamp_init, mSecs);
 	if(uSecs != 0)
 		JNI_callVoidMethod(result.l, s_Timestamp_setNanos, uSecs * 1000);
 	return result;
@@ -320,7 +314,6 @@ static jvalue Timestamp_coerceDatumTZ(Type self, Datum arg, bool tzAdjust)
 static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 {
 	int64 ts;
-	int lowBit;
 	jlong mSecs = JNI_callLongMethod(jts, s_Timestamp_getTime);
 	jint  nSecs = JNI_callIntMethod(jts, s_Timestamp_getNanos);
 	/*
@@ -330,14 +323,12 @@ static Datum Timestamp_coerceObjectTZ_id(Type self, jobject jts, bool tzAdjust)
 	 * or trunc.
 	 */
 	mSecs -= ((mSecs % 1000) + 1000) % 1000;
+	if(tzAdjust)
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_TRUE);
 	mSecs -= ((jlong)EPOCH_DIFF) * 1000L;
-	ts = mSecs * 500L; /* millisecs to microsecs, save a factor of 2 for now */
-	if(tzAdjust) /* Adjust from UTC to local time; function expects halved ts */
-		ts -= ((jlong)Timestamp_getTimeZone_id(ts)) * 500000L;
+	ts = mSecs * 1000L; /* millisecs to microsecs */
 	nSecs /= 1000; /* ok, now they are really microsecs */
-	lowBit = nSecs & 1;
-	nSecs >>= 1; /* nSecs >= 0 so >> has a defined C result */
-	ts = 2 * (ts + nSecs) | lowBit;
+	ts = ts + nSecs;
 	return Int64GetDatum(ts);
 }
 
@@ -354,12 +345,12 @@ static Datum Timestamp_coerceObjectTZ_dd(Type self, jobject jts, bool tzAdjust)
 	 * or trunc.
 	 */
 	mSecs -= ((mSecs % 1000) + 1000) % 1000;
+	if(tzAdjust)
+		mSecs = Timestamp_utcMasquerade(mSecs, JNI_TRUE);
 	ts = ((double)mSecs) / 1000.0; /* Convert to seconds */
 	ts -= EPOCH_DIFF;
 	if(nSecs != 0)
 		ts += ((double)nSecs) / 1000000000.0;	/* Convert to seconds */
-	if(tzAdjust)
-		ts -= Timestamp_getTimeZone_dd(ts); /* Adjust from UTC to local time */
 	return Float8GetDatum(ts);
 }
 #endif
@@ -440,33 +431,6 @@ static int32 Timestamp_getTimeZone(pg_time_t time)
 		));
 	return -(int32)tx->tm_gmtoff;
 }
-
-/*
- * This is only used here and in Date.c. The caller must know that the argument
- * is not a PostgreSQL int64 Timestamp, but, rather, one of those divided by 2.
- */
-int32 Timestamp_getTimeZone_id(int64 dt)
-{
-	return Timestamp_getTimeZone(
-		dt / INT64CONST(500000) +
-		(POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400
-	);
-}
-#if PG_VERSION_NUM < 100000
-static int32 Timestamp_getTimeZone_dd(double dt)
-{
-	if ( TIMESTAMP_NOT_FINITE(dt) )
-	{
-		errno = EOVERFLOW;
-		ereport(ERROR, (
-			errcode(ERRCODE_DATA_EXCEPTION),
-			errmsg("could not resolve timestamp: %m")
-		));
-	}
-	return Timestamp_getTimeZone(
-		(pg_time_t)rint(dt + (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * 86400));
-}
-#endif
 
 int32 Timestamp_getCurrentTimeZone(void)
 {
