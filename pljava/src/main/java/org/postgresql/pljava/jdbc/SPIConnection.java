@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -987,6 +988,144 @@ public class SPIConnection implements Connection
 		}
 		throw new SQLException("Cannot derive a value of class " +
 			cls.getName() + " from an object of class " + value.getClass().getName());
+	}
+
+	/**
+	 * Masquerade a no-time-zone PostgreSQL type as if it were UTC, for use with
+	 * the {@code java.sql.{Date,Time,Timestamp}} types.
+	 *<p>
+	 * Those types are all implemented over {@code java.util.Date}, for which a
+	 * time zone is always implicit. They can be interconverted freely with
+	 * PostgreSQL types that have time zones. It's the PostgreSQL types without
+	 * time zones that pose the problems. (That is why these {@code java.sql}
+	 * types are not a great fit for the no-time-zone PostgreSQL types, and any
+	 * code that can use the JSR 310 {@code java.time} types introduced in
+	 * Java 8 should definitely use them instead.)
+	 *<p>
+	 * Converting a PostgreSQL no-time-zone type to a {@code java.sql} date/time
+	 * type requires masquerading it as UTC, that is, finding a UTC instant that
+	 * will appear to match PostgreSQL's human-readable rendering of the value,
+	 * when rendered by Java according to the Java runtime's default time zone.
+	 *<p>
+	 * Likewise, when a Java value of {@code java.sql.{Date,Time,Timestamp}}
+	 * type is to be assigned to a no-time-zone PostgreSQL type, it must be
+	 * 'unmasked', which is done by this same method, with {@code unmask} true.
+	 *<p>
+	 * The mask and unmask operations simply move the value by the time zone
+	 * offset between UTC and the Java runtime's default time zone. Time zones
+	 * that observe summer time complicate the picture, because the offset
+	 * depends on the date/time being converted. Specifically, it depends on the
+	 * UTC instant being converted, which {@code TimeZone.getOffset} can look up
+	 * in the zone's rules to determine what offset applies.
+	 *<p>
+	 * Therefore, the {@code unmask} operation is easy. The argument value is in
+	 * UTC, so the correct offset is looked up in one step and the correct
+	 * result is returned.
+	 *<p>
+	 * Not so for the mask operation. In that case, the argument value differs
+	 * from the (unknown) UTC value, by exactly the (unknown) offset. But the
+	 * tricky cases are only twice a year, at the transition points. Most of the
+	 * year, the offset found by looking up the argument value <em>as if</em> it
+	 * were UTC can be used to create a putative UTC value, and will match the
+	 * offset authoritatively looked up for that putative result, which can then
+	 * be returned as the correct result.
+	 *<p>
+	 * If the second offset differs from the first, the value is near a
+	 * transition point, and the two different offsets now seen are both
+	 * candidates for the correct one. A second putative UTC value can be
+	 * constructed using the second choice of offset, and that UTC value used to
+	 * look up the offset a third and final time. If the third offset matches
+	 * the second one, the process has converged, and the latter candidate UTC
+	 * value is the result.
+	 *<p>
+	 * If the third offset does not match the second, it might match the first,
+	 * implying that the process, if continued, would clearly alternate and
+	 * never converge. This reveals that the argument is a time that cannot be
+	 * represented, as it falls in a gap (typically the spring transition to
+	 * summer time). The later result will be returned: the one that falls after
+	 * the transition gap.
+	 *<p>
+	 * That means that this mapping is irredeemably lossy in the neighborhood of
+	 * gap transitions. Times that fall in the gap will not be rendered by Java
+	 * the same as by PostgreSQL, but will be moved to just beyond the gap,
+	 * where for the next hour (or other width of the gap) they will be
+	 * indistinguishable from PostgreSQL values that really do fall in that same
+	 * interval just beyond the gap. This is an inherent limitation of the early
+	 * JDBC decision to use implicitly-zoned classes even to represent no-zone
+	 * values. Again, the JSR 310 {@code java.time} types should be used in
+	 * preference, wherever possible.
+	 *<p>
+	 * One final note: transitions can occur not just through the normal
+	 * operation of summer time rules, but also through politicians changing
+	 * those very rules, which happens less often, but also at less predictable
+	 * times. To allow for that, the code might (vanishingly rarely) test a
+	 * fourth offset before concluding it has pinpointed a gap; see the code
+	 * comments for more.
+	 * @param msecsFromEpoch a time in milliseconds from the Java epoch,
+	 * 1 January 1970 00:00:00 either in UTC (when unmasking), or as a zoneless
+	 * value taken to be in the Java runtime's default zone (when masking).
+	 * @param unmask whether to 'mask' (convert a PostgreSQL value for Java's
+	 * use by finding a UTC instant that corresponds to it), or 'unmask' (the
+	 * reverse operation).
+	 * @return milliseconds from the Java epoch, either in UTC (when masking),
+	 * or in the Java runtime's default time zone (when unmasking).
+	 */
+	static long utcMasquerade(long msecsFromEpoch, boolean unmask)
+	{
+		TimeZone tz = TimeZone.getDefault();
+		int msecOffset1 = tz.getOffset(msecsFromEpoch);
+		if ( unmask  ||  0 == msecOffset1 )
+			return msecsFromEpoch + msecOffset1;
+		/*
+		 * We are in the masking case, with msecOffset1 nonzero. It was a bit of
+		 * a stab in the dark, being calculated from a local time rather than a
+		 * value in UTC, but it gives us our first UTC value to try, and see
+		 * what offset we get from that.
+		 */
+		long firstTry = msecsFromEpoch - msecOffset1;
+		int msecOffset2 = tz.getOffset(firstTry);
+		if ( msecOffset2 == msecOffset1 )
+			return firstTry;
+		long secondTry = msecsFromEpoch - msecOffset2;
+		int msecOffset3 = tz.getOffset(secondTry);
+		if ( msecOffset3 == msecOffset2 )
+			return secondTry;
+		/*
+		 * We may be in a cycle where msecOffset3 == msecOffset1, in which case
+		 * we'll never converge, because our target time falls in a gap. But
+		 * keep in mind that msecOffset1 was a wild stab, computed from the
+		 * wrong end of the UTC<->local conversion. Offset transitions can
+		 * occur not just by summer time rules being triggered but also by
+		 * politicians changing the rules. The difference between our original
+		 * msecsFromEpoch and firstTry could be as much as fourteen hours under
+		 * current rules (eighteen by limits in the code), potentially enough to
+		 * have crossed more than one rule transition (as of this writing, no
+		 * zone has two transitions within 18 hours, but future rules depend on
+		 * future politicians). Therefore, best not to assume that
+		 * offset3 != offset2 implies it must equal offset1. One more test is
+		 * cheap insurance.
+		 *
+		 * If we are in a gap, and msecOffset1 was negative, subtracting it made
+		 * firstTry strictly later than msecsFromEpoch, which means the change
+		 * in offset resulted from a forward crossing of the transition, and
+		 * firstTry is the later result. Otherwise, the subtraction made
+		 * firstTry earlier, the first offset change resulted from a backward
+		 * crossing, and secondTry is the later result.
+		 */
+		if ( msecOffset3 == msecOffset1 )
+			return msecOffset1 < 0 ? firstTry : secondTry;
+		/*
+		 * If we're here (highly unlikely!), one more iteration will allow us to
+		 * follow the same reasoning as above, but based exclusively on values
+		 * computed from the UTC end of the conversion. That should make the
+		 * chance vanishingly small of having hunted across more than one
+		 * transition.
+		 */
+		long thirdTry = msecsFromEpoch - msecOffset3;
+		int msecOffset4 = tz.getOffset(thirdTry);
+		if ( msecOffset4 == msecOffset3 )
+			return thirdTry;
+		return msecOffset2 < 0 ? secondTry : thirdTry;
 	}
 
     /*

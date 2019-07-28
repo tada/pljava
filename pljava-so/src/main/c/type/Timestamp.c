@@ -67,6 +67,10 @@ static jmethodID s_Timestamp_getNanos;
 static jmethodID s_Timestamp_getTime;
 static jmethodID s_Timestamp_setNanos;
 
+/* Home of a static method useful in timezone-munging for the java.sql types */
+static jclass    s_SPIConnection_class;
+static jmethodID s_SPIConnection_utcMasquerade;
+
 static TypeClass s_TimestampClass;
 static TypeClass s_TimestamptzClass;
 
@@ -399,6 +403,13 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 	return Timestamp_coerceObjectTZ(self, ts, false);
 }
 
+jlong Timestamp_utcMasquerade(jlong msecsFromJavaEpoch, jboolean unmask)
+{
+	return JNI_callLongMethod(
+		s_SPIConnection_class, s_SPIConnection_utcMasquerade,
+		msecsFromJavaEpoch, unmask);
+}
+
 /*
  * The argument to this function is in seconds from the PostgreSQL epoch, and
  * the return is a time zone offset in seconds west of Greenwich.
@@ -471,6 +482,11 @@ void Timestamp_initialize(void)
 	s_Timestamp_getNanos = PgObject_getJavaMethod(s_Timestamp_class, "getNanos", "()I");
 	s_Timestamp_getTime  = PgObject_getJavaMethod(s_Timestamp_class, "getTime",  "()J");
 	s_Timestamp_setNanos = PgObject_getJavaMethod(s_Timestamp_class, "setNanos", "(I)V");
+
+	s_SPIConnection_class = JNI_newGlobalRef(
+		PgObject_getJavaClass("org/postgresql/pljava/jdbc/SPIConnection"));
+	s_SPIConnection_utcMasquerade = PgObject_getStaticJavaMethod(
+		s_SPIConnection_class, "utcMasquerade", "(JZ)J");
 
 	cls = TypeClass_alloc("type.Timestamp");
 	cls->JNISignature   = "Ljava/sql/Timestamp;";

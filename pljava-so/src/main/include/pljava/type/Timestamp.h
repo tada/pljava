@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -41,6 +41,11 @@ extern int Timestamp_getCurrentTimeZone(void);
  * of Greenwich.
  */
 extern int32 Timestamp_getTimeZone_id(int64 t);
+
+/*
+ * Calls Java method SPIConnection.utcMasquerade, which see for details.
+ */
+extern jlong Timestamp_utcMasquerade(jlong msecsFromJavaEpoch, jboolean unmask);
 
 #ifdef __cplusplus
 }
