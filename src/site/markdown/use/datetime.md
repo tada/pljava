@@ -118,10 +118,12 @@ the right conversions happen), and passed to the setter methods of prepared
 statements, writable result sets (for triggers or composite-returning
 functions), and `SQLOutput` for UDTs.
 
-Conversions to and from these types never involve the PostgreSQL session time
-zone, which can vary from session to session. Any code developed for PL/Java
-and Java 8 or newer is strongly encouraged to use these types for date/time
-manipulations, for their much better fit to the PostgreSQL types.
+Conversions to and from these types never involve any hidden dependency on a
+time zone setting, whether in PostgreSQL or Java. (After conversion, the time
+zone setting can, as usual, affect how the value is displayed or unpacked as
+fields, but calling code has full control over that.) Any code developed for
+PL/Java and Java 8 or newer is strongly encouraged to use these types for
+date/time manipulations, for their much better fit to the PostgreSQL types.
 
 ### Mapping of time and timestamp with time zone
 
@@ -196,8 +198,8 @@ changes to their time zone rules in the more recent version.
 Time zones are a fairly modern innovation, and each zone in the IANA database
 also includes a _local mean time_ (LMT) for the location, for use with
 timestamps earlier than the first official rule for that zone. The LMT is
-derived from actual longitude, and not confined to round hours or simple
-fractions thereof. For example, in the time zone `America/Indiana/Indianapolis`,
+derived from actual longitude, and not confined to round hours or simple hour
+fractions. For example, in the time zone `America/Indiana/Indianapolis`,
 PostgreSQL will produce this output:
 
     SELECT TIMESTAMP WITH TIME ZONE '1869-05-06 12:00Z';
@@ -253,8 +255,8 @@ _Before_ 1900, it applies a constant offset taken from the non-summer offset
 of _the most recent, currently active rule_, therefore -05 in this example,
 and _not_ the offset (-06) that was actually in force in 1900.
 
-That offset _will_ be delivered for a time that is between 1900 and the next
-rule change in 1918:
+The historically authentic offset _will_ be delivered for a time that is between
+1900 and the next rule change in 1918:
 
     jshell> TimeZone.getTimeZone(zoneid).getOffset(java.time.Instant.parse(
        ...> "1900-01-01T00:00:00Z").toEpochMilli()) / 3600000

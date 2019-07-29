@@ -86,7 +86,6 @@ static jmethodID s_LocalDateTime_ofEpochSecond;
 static jmethodID s_LocalDateTime_atOffset;
 static Type      s_OffsetDateTimeInstance;
 static jclass    s_OffsetDateTime_class;
-static jmethodID s_OffsetDateTime_of;
 static jmethodID s_OffsetDateTime_toEpochSecond;
 static jmethodID s_OffsetDateTime_getNano;
 static jobject   s_ZoneOffset_UTC;
@@ -196,8 +195,8 @@ static jvalue _OffsetDateTime_coerceDatum(Type self, Datum arg)
 {
 	jvalue localDateTime = Type_coerceDatum(s_LocalDateTimeInstance, arg);
 	jvalue result;
-	result.l = JNI_callStaticObjectMethod(s_OffsetDateTime_class,
-		s_OffsetDateTime_of, localDateTime.l, s_ZoneOffset_UTC);
+	result.l = JNI_callObjectMethod(localDateTime.l,
+		s_LocalDateTime_atOffset, s_ZoneOffset_UTC);
 	JNI_deleteLocalRef(localDateTime.l);
 	return result;
 }
@@ -233,11 +232,6 @@ static Type _OffsetDateTime_obtain(Oid typeId)
 
 		if ( NULL == s_LocalDateTimeInstance )
 			_LocalDateTime_obtain(TIMESTAMPOID);
-
-		s_OffsetDateTime_of = PgObject_getStaticJavaMethod(
-			s_OffsetDateTime_class, "of",
-			"(Ljava/time/LocalDateTime;Ljava/time/ZoneOffset;)"
-			"Ljava/time/OffsetDateTime;");
 	}
 	return s_OffsetDateTimeInstance;
 }
