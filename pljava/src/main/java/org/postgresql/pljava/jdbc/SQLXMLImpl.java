@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -126,6 +126,14 @@ import javax.xml.namespace.NamespaceContext;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
+
+/* ... for static adopt() method, doing low-level copies from foreign objects */
+
+import javax.xml.stream.XMLEventWriter;
+
+import org.xml.sax.ContentHandler;
+import org.xml.sax.DTDHandler;
+import org.xml.sax.ext.LexicalHandler;
 
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
@@ -263,7 +271,169 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	/**
-	 * Native code calls this method to claim complete control over the
+	 * Native code calls this static method to take over an SQLXML object
+	 * with its content.
+	 *<p>
+	 * This is a static method because an {@code SQLXML} object presented to
+	 * PostgreSQL need not necessarily be this implementation. If it is, then
+	 * the real {@code adopt} method will be called directly; otherwise, a
+	 * native {@code SQLXML} object has to be created, and the content copied
+	 * to it.
+	 * @param sx The SQLXML object to be adopted.
+	 * @param oid The PostgreSQL type ID the native code is expecting;
+	 * see Readable.adopt for why that can matter.
+	 * @return The underlying {@code VarlenaWrapper} (which has its own
+	 * {@code adopt} method the native code will call next.
+	 * @throws SQLException if this {@code SQLXML} instance is not in the
+	 * proper state to be adoptable.
+	 */
+	private static VarlenaWrapper adopt(SQLXML sx, int oid) throws SQLException
+	{
+		if ( sx instanceof SQLXMLImpl )
+			return ((SQLXMLImpl)sx).adopt(oid);
+
+		/*
+		 * Give the foreign SQLXML implementation its choice of API to provide.
+		 */
+		Source s = sx.getSource(null);
+
+		SQLXML rx = newWritable();
+
+		if ( s instanceof StreamSource )
+		{
+			StreamSource ss = (StreamSource)s;
+			/*
+			 * Foreign implementation also gets its choice whether to supply
+			 * an InputStream or a Reader.
+			 */
+			InputStream is = ss.getInputStream();
+			Reader r  = ss.getReader();
+			if ( null != is )
+			{
+				try
+				{
+					OutputStream os = rx.setBinaryStream();
+					byte[] b = new byte[8192];
+					int got;
+					while ( -1 != (got = is.read(b)) )
+						os.write(b, 0, got);
+					is.close();
+					os.close();
+				}
+				catch ( IOException e )
+				{
+					throw new SQLException(e.getMessage(), "58030", e);
+				}
+			}
+			else if ( null != r )
+			{
+				try
+				{
+					Writer w = rx.setCharacterStream();
+					char[] b = new char[8192];
+					int got;
+					while ( -1 != (got = r.read(b)) )
+						w.write(b, 0, got);
+					r.close();
+					w.close();
+				}
+				catch ( IOException e )
+				{
+					throw new SQLException(e.getMessage(), "58030", e);
+				}
+			}
+			else
+				throw new SQLDataException(
+					"Foreign SQLXML implementation has a broken StreamSource",
+					"22000");
+		}
+		else if ( s instanceof SAXSource )
+		{
+			SAXSource sxs = (SAXSource)s;
+			SAXResult sxr = rx.setResult(SAXResult.class);
+			XMLReader xr  = sxs.getXMLReader();
+			try
+			{
+				if ( null == xr )
+				{
+					xr = XMLReaderFactory.createXMLReader();
+					xr.setFeature("http://xml.org/sax/features/namespaces",
+									true);
+				}
+				ContentHandler ch = sxr.getHandler();
+				xr.setContentHandler(ch);
+				if ( ch instanceof DTDHandler )
+					xr.setDTDHandler((DTDHandler)ch);
+				LexicalHandler lh = sxr.getLexicalHandler();
+				if ( null == lh  &&  ch instanceof LexicalHandler )
+				lh = (LexicalHandler)ch;
+				if ( null != lh )
+					xr.setProperty(
+						"http://xml.org/sax/properties/lexical-handler", lh);
+				xr.parse(sxs.getInputSource());
+			}
+			catch ( SAXException e )
+			{
+				throw new SQLDataException(e.getMessage(), "22000", e);
+			}
+			catch ( IOException e )
+			{
+				throw new SQLException(e.getMessage(), "58030", e);
+			}
+		}
+		else if ( s instanceof StAXSource )
+		{
+			StAXSource sts = (StAXSource)s;
+			StAXResult str = rx.setResult(StAXResult.class);
+			XMLInputFactory  xif = XMLInputFactory .newFactory();
+			xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+			XMLOutputFactory xof = XMLOutputFactory.newFactory();
+			/*
+			 * The Source has either an event reader or a stream reader. Use
+			 * the event reader directly, or create one around the stream
+			 * reader.
+			 */
+			XMLEventReader xer = sts.getXMLEventReader();
+			try
+			{
+				if ( null == xer )
+					xer = xif.createXMLEventReader(sts.getXMLStreamReader());
+				/*
+				 * Were you thinking the above could be simply
+				 * createXMLEventReader(sts) by analogy with the writer below?
+				 * Good thought, but the XMLInputFactory implementation that's
+				 * included in OpenJDK doesn't implement the case where the
+				 * Source argument is a StAXSource! Two lines would do it.
+				 */
+				XMLEventWriter xew = xof.createXMLEventWriter(str);
+				xew.add(xer);
+				xew.close();
+				xer.close();
+			}
+			catch ( XMLStreamException e )
+			{
+				throw new SQLDataException(e.getMessage(), "22000", e);
+			}
+		}
+		else if ( s instanceof DOMSource )
+		{
+			DOMSource ds = (DOMSource)s;
+			DOMResult dr = rx.setResult(DOMResult.class);
+			dr.setNode(ds.getNode());
+		}
+		else
+		{
+			rx.free();
+			throw new SQLDataException(
+				"XML source class " + s.getClass().getName() + " unsupported");
+		}
+
+		sx.free();
+		return ((SQLXMLImpl)rx).adopt(oid);
+	}
+
+	/**
+	 * Allow native code to claim complete control over the
 	 * underlying {@code VarlenaWrapper} and dissociate it from Java.
 	 * @param oid The PostgreSQL type ID the native code is expecting;
 	 * see Readable.adopt for why that can matter.
@@ -1508,7 +1678,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			String prefix, String localName, String namespaceURI)
 			throws XMLStreamException
 		{
-			m_xsw.writeStartElement(prefix, namespaceURI, localName);
+			m_xsw.writeStartElement(prefix, localName, namespaceURI);
 		}
 
 		@Override
@@ -1523,7 +1693,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			String prefix, String localName, String namespaceURI)
 			throws XMLStreamException
 		{
-			m_xsw.writeEmptyElement(prefix, namespaceURI, localName);
+			m_xsw.writeEmptyElement(prefix, localName, namespaceURI);
 		}
 
 		@Override

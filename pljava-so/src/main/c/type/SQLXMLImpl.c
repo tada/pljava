@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -62,8 +62,8 @@ static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 
 static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 {
-	jobject vw = JNI_callObjectMethodLocked(
-		sqlxml, s_SQLXML_adopt, Type_getOid(self));
+	jobject vw = JNI_callStaticObjectMethodLocked(
+		s_SQLXML_class, s_SQLXML_adopt, sqlxml, Type_getOid(self));
 	Datum d = pljava_VarlenaWrapper_adopt(vw);
 	JNI_deleteLocalRef(vw);
 #if PG_VERSION_NUM >= 90500
@@ -151,8 +151,8 @@ void pljava_SQLXMLImpl_initialize(void)
 
 	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl"));
-	s_SQLXML_adopt = PgObject_getJavaMethod(s_SQLXML_class,
-		"adopt", "(I)Lorg/postgresql/pljava/internal/VarlenaWrapper;");
+	s_SQLXML_adopt = PgObject_getStaticJavaMethod(s_SQLXML_class, "adopt",
+		"(Ljava/sql/SQLXML;I)Lorg/postgresql/pljava/internal/VarlenaWrapper;");
 
 	s_SQLXML_Readable_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable"));
