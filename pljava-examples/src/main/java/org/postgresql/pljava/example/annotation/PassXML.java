@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -66,6 +66,23 @@ import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
+/* Imports needed just for the SAX flavor of "low-level XML echo" below */
+
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
+import org.xml.sax.ContentHandler;
+import org.xml.sax.DTDHandler;
+import org.xml.sax.ext.LexicalHandler;
+
+/* Imports needed just for the StAX flavor of "low-level XML echo" below */
+import javax.xml.stream.XMLEventReader;
+import javax.xml.stream.XMLEventWriter;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import org.xml.sax.SAXException;
+
+
 /**
  * Class illustrating use of {@link SQLXML} to operate on XML data.
  *<p>
@@ -112,6 +129,30 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
 		" CASE WHEN every(isdoc)" +
 		"  THEN javatest.logmessage('INFO', 'SQLXML echos succeeded')" +
 		"  ELSE javatest.logmessage('WARNING', 'SQLXML echos had problems')" +
+		" END " +
+		"FROM" +
+		" r"
+	),
+
+	@SQLAction(implementor="postgresql_xml_cte", requires="proxiedXMLEcho",
+		install=
+		"WITH" +
+		" s(how) AS (SELECT unnest('{1,2,4,5,6,7}'::int[]))," +
+		" t(x) AS (" +
+		"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
+		" )," +
+		" r(how, isdoc) AS (" +
+		"  SELECT" +
+		"	how," +
+		"	javatest.proxiedxmlecho(x, how) IS DOCUMENT" +
+		"  FROM" +
+		"	t, s" +
+		" )" +
+		"SELECT" +
+		" CASE WHEN every(isdoc)" +
+		"  THEN javatest.logmessage('INFO', 'proxied SQLXML echos succeeded')" +
+		"  ELSE javatest.logmessage('WARNING'," +
+		"       'proxied SQLXML echos had problems')" +
 		" END " +
 		"FROM" +
 		" r"
@@ -375,9 +416,53 @@ public class PassXML implements SQLData
 				throw new SQLDataException(
 					"Unimplemented combination of StreamSource/StreamResult");
 			case 5:
+				SAXSource sxs = sx.getSource(SAXSource.class);
+				SAXResult sxr = rx.setResult(SAXResult.class);
+				XMLReader xr  = sxs.getXMLReader();
+				if ( null == xr )
+				{
+					xr = XMLReaderFactory.createXMLReader();
+					xr.setFeature("http://xml.org/sax/features/namespaces",
+									true);
+				}
+				ContentHandler ch = sxr.getHandler();
+				xr.setContentHandler(ch);
+				if ( ch instanceof DTDHandler )
+					xr.setDTDHandler((DTDHandler)ch);
+				LexicalHandler lh = sxr.getLexicalHandler();
+				if ( null == lh  &&  ch instanceof LexicalHandler )
+				lh = (LexicalHandler)ch;
+				if ( null != lh )
+					xr.setProperty(
+						"http://xml.org/sax/properties/lexical-handler", lh);
+				xr.parse(sxs.getInputSource());
+				break;
 			case 6:
-				throw new SQLDataException(
-					"Unimplemented lowlevel SAX or StAX echo");
+				StAXSource sts = sx.getSource(StAXSource.class);
+				StAXResult str = rx.setResult(StAXResult.class);
+				XMLInputFactory  xif = XMLInputFactory .newFactory();
+				xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+				XMLOutputFactory xof = XMLOutputFactory.newFactory();
+				/*
+				 * The Source has either an event reader or a stream reader. Use
+				 * the event reader directly, or create one around the stream
+				 * reader.
+				 */
+				XMLEventReader xer = sts.getXMLEventReader();
+				if ( null == xer )
+					xer = xif.createXMLEventReader(sts.getXMLStreamReader());
+				/*
+				 * Were you thinking the above could be simply
+				 * createXMLEventReader(sts) by analogy with the writer below?
+				 * Good thought, but the XMLInputFactory implementation that's
+				 * included in OpenJDK doesn't implement the case where the
+				 * Source argument is a StAXSource! Two lines would do it.
+				 */
+				XMLEventWriter xew = xof.createXMLEventWriter(str);
+				xew.add(xer);
+				xew.close();
+				xer.close();
+				break;
 			case 7:
 				DOMSource ds = sx.getSource(DOMSource.class);
 				DOMResult dr = rx.setResult(DOMResult.class);
@@ -393,7 +478,33 @@ public class PassXML implements SQLData
 			throw new SQLException(
 				"IOException in lowLevelXMLEcho", "58030", e);
 		}
+		catch ( SAXException e )
+		{
+			throw new SQLException(
+				"SAXException in lowLevelXMLEcho", "22000", e);
+		}
+		catch ( XMLStreamException e )
+		{
+			throw new SQLException(
+				"XMLStreamException in lowLevelXMLEcho", "22000", e);
+		}
 		return rx;
+	}
+
+	/**
+	 * Proxy a PL/Java SQLXML source object as if it were of a non-PL/Java
+	 * implementing class, to confirm that it can still be returned successfully
+	 * to PostgreSQL.
+	 * @param sx readable {@code SQLXML} object to proxy
+	 * @param how 1,2,4,5,6,7 determines what subclass of {@code Source} will be
+	 * returned by {@code getSource}.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml",
+	          provides="proxiedXMLEcho")
+	public static SQLXML proxiedXMLEcho(SQLXML sx, int how)
+	throws SQLException
+	{
+		return new SQLXMLProxy(sx, how);
 	}
 
 	/**
@@ -692,5 +803,106 @@ public class PassXML implements SQLData
 	public void writeSQL(SQLOutput stream) throws SQLException
 	{
 		stream.writeSQLXML(m_value);
+	}
+
+	/**
+	 * Class that will proxy methods to another {@code SQLXML} class.
+	 *<p>
+	 * Used for testing the PL/Java can accept input for PostgreSQL from an
+	 * {@code SQLXML} object not of its own implementation (for example, one
+	 * obtained from a different JDBC driver from some other database).
+	 *<p>
+	 * Only the {@code getSource} method is specially treated, to allow
+	 * exercising the various flavors of source.
+	 */
+	public static class SQLXMLProxy implements SQLXML
+	{
+		private SQLXML m_sx;
+		private int m_how;
+
+		public SQLXMLProxy(SQLXML sx, int how)
+		{
+			if ( null == sx )
+				throw new NullPointerException("Null SQLXMLProxy target");
+			if ( 1 > how  ||  how > 7  ||  how == 3 )
+				throw new IllegalArgumentException(
+					"\"how\" must be 1, 2, 4, 5, 6, or 7");
+			m_sx = sx;
+			m_how = how;
+		}
+
+		@Override
+		public void free() throws SQLException { m_sx.free(); }
+
+		@Override
+		public InputStream getBinaryStream() throws SQLException
+		{
+			return m_sx.getBinaryStream();
+		}
+
+		@Override
+		public OutputStream setBinaryStream() throws SQLException
+		{
+			return m_sx.setBinaryStream();
+		}
+
+		@Override
+		public Reader getCharacterStream() throws SQLException
+		{
+			return m_sx.getCharacterStream();
+		}
+
+		@Override
+		public Writer setCharacterStream() throws SQLException
+		{
+			return m_sx.setCharacterStream();
+		}
+
+		@Override
+		public String getString() throws SQLException
+		{
+			return m_sx.getString();
+		}
+
+		@Override
+		public void setString(String value) throws SQLException
+		{
+			m_sx.setString(value);
+		}
+
+		@Override
+		public <T extends Source> T getSource(Class<T> sourceClass)
+		throws SQLException
+		{
+			if ( null == sourceClass )
+			{
+				switch ( m_how )
+				{
+				case 1:
+					return (T)new StreamSource(m_sx.getBinaryStream());
+				case 2:
+					return (T)new StreamSource(m_sx.getCharacterStream());
+				case 4:
+					break; // implementation picks what kind of StreamSource
+				case 5:
+					sourceClass = (Class<T>)SAXSource.class;
+					break;
+				case 6:
+					sourceClass = (Class<T>)StAXSource.class;
+					break;
+				case 7:
+					sourceClass = (Class<T>)DOMSource.class;
+					break;
+				}
+			}
+			return m_sx.getSource(sourceClass);
+		}
+
+		@Override
+		public <T extends Result> T setResult(Class<T> resultClass)
+		throws SQLException
+		{
+			return m_sx.setResult(resultClass);
+		}
 	}
 }
