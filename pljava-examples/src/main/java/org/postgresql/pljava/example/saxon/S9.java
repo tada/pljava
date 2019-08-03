@@ -104,6 +104,12 @@ import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 
+/* For the xmltext function, which only needs plain SAX and not Saxon */
+
+import javax.xml.transform.sax.SAXResult;
+import org.xml.sax.ContentHandler;
+import org.xml.sax.SAXException;
+
 /**
  * Class illustrating use of XQuery with Saxon as the
  * implementation, using its native "s9api".
@@ -324,6 +330,52 @@ public class S9 implements ResultSetProvider
 				}
 			}
 		}
+	}
+
+	/**
+	 * PostgreSQL (as of 12) lacks the XMLTEXT function, so here it is.
+	 *<p>
+	 * As long as PostgreSQL does not have the {@code XML(SEQUENCE)} type,
+	 * this can only be the {@code XMLTEXT(v RETURNING CONTENT)} flavor, which
+	 * does create a text node with {@code v} as its value, but returns the text
+	 * node wrapped in a document node.
+	 *<p>
+	 * This function doesn't actually require Saxon, but otherwise fits in with
+	 * the theme here, implementing missing parts of SQL/XML for PostgreSQL.
+	 * @param sve SQL string value to use in a text node
+	 * @return XML content, the text node wrapped in a document node
+	 */
+	@Function(schema="javatest")
+	public static SQLXML xmltext(String sve) throws SQLException
+	{
+		SQLXML rx = s_dbc.createSQLXML();
+		ContentHandler ch = rx.setResult(SAXResult.class).getHandler();
+
+		try
+		{
+			ch.startDocument();
+			/*
+			 * It seems XMLTEXT() should be such a trivial function to write,
+			 * but already it reveals a subtlety in the SAX API docs. They say
+			 * the third argument to characters() is "the number of characters
+			 * to read from the array" and that follows a long discussion of how
+			 * individual characters can (with code points above U+FFFF) consist
+			 * of more than one Java char value.
+			 *
+			 * And yet, when you try it out (and include some characters above
+			 * U+FFFF in the input), you discover the third argument isn't the
+			 * number of characters, has to be the number of Java char values.
+			 */
+			ch.characters(sve.toCharArray(), 0, sve.length());
+			ch.endDocument();
+		}
+		catch ( SAXException e )
+		{
+			rx.free();
+			throw new SQLException(e.getMessage(), e);
+		}
+
+		return rx;
 	}
 
 	/**
