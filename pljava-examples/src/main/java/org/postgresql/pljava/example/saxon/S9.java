@@ -379,6 +379,91 @@ public class S9 implements ResultSetProvider
 	}
 
 	/**
+	 * An implementation of XMLCAST.
+	 *<p>
+	 * Will be declared to take and return type {@code RECORD}, where each must
+	 * have exactly one component, just because that makes it easy to use
+	 * existing JDBC metadata queries to find out the operand and target SQL
+	 * data types.
+	 *<p>
+	 * Serving suggestion: rewrite this ISO standard expression
+	 *<pre>
+	 * XMLCAST(v AS wantedtype)
+	 *</pre>
+	 * to this idiomatic one:
+	 *<pre>
+	 * (SELECT r FROM (SELECT v) AS o, xmlcast(o) AS (r wantedtype))
+	 *</pre>
+	 * @param operand a one-row, one-column record supplied by the caller, whose
+	 * one typed value is the operand to be cast.
+	 * @param target a one-row, one-column record supplied by PL/Java from the
+	 * {@code AS} clause after the function call, whose one column's type is the
+	 * type to be cast to.
+	 */
+	@Function(
+		schema="javatest",
+		type="pg_catalog.record",
+		onNullInput=CALLED,
+		settings="IntervalStyle TO iso_8601"
+	)
+	public static boolean xmlcast(ResultSet operand, ResultSet target)
+		throws SQLException
+	{
+		// XXX don't forget about base64/hex
+		if ( null == operand )
+			throw new SQLDataException(
+				"xmlcast \"operand\" must be (in this implementation) " +
+				"a non-null row type", "22004");
+		assert null != target : "PL/Java supplied a null output record???";
+
+		if ( 1 != operand.getMetaData().getColumnCount() )
+			throw new SQLDataException(
+				"xmlcast \"operand\" must be a row type with exactly " +
+				"one component", "22000");
+
+		if ( 1 != target.getMetaData().getColumnCount() )
+			throw new SQLDataException(
+				"xmlcast \"target\" must be a row type with exactly " +
+				"one component", "22000");
+
+		Binding.Parameter op =
+			new BindingsFromResultSet(operand).iterator().next();
+
+		Binding.Parameter tg =
+			new BindingsFromResultSet(target, null).iterator().next();
+
+		int sd = op.typeJDBC();
+		int td = tg.typeJDBC();
+
+		int castcase =
+			(Types.SQLXML == sd ? 2 : 0) | (Types.SQLXML == td ? 1 : 0);
+
+		switch ( castcase )
+		{
+		case 0: // neither sd nor td is an XML type
+			throw new SQLSyntaxErrorException(
+				"at least one of xmlcast \"operand\" or \"target\" must " +
+				"be of XML type", "42804");
+		case 3: // both XML
+			/*
+			 * In an implementation closely following the spec, this case would
+			 * be handled in parse analysis and rewritten from an XMLCAST to a
+			 * plain CAST, and this code would never see it. This is a plain
+			 * example function without benefit of a parser that can do that.
+			 * In a DBMS with all the various SQL:2006 XML subtypes, there would
+			 * be nontrivial work to do here, but casting from PostgreSQL's one
+			 * XML type to itself is more of a warm-up exercise.
+			 */
+			target.updateSQLXML(1, operand.getSQLXML(1));
+			return true;
+		default:
+			throw new SQLFeatureNotSupportedException(
+				"cannot yet xmlcast from " + op.typePG() +
+				" to " + tg.typePG(), "0A000");
+		}
+	}
+
+	/**
 	 * A simple example corresponding to {@code XMLQUERY(expression
 	 * PASSING BY VALUE passing RETURNING CONTENT {NULL|EMPTY} ON EMPTY)}.
 	 * @param expression An XQuery expression. Must not be {@code null} (in the
@@ -2075,6 +2160,8 @@ public class S9 implements ResultSetProvider
 		 * that) is allowed to be null, making the corresponding column
 		 * "FOR ORDINALITY". An ordinality column will be checked to ensure it
 		 * has an SQL type that is (ahem) "exact numeric with scale 0 (zero)."
+		 * May be null if this is some other general-purpose output result set,
+		 * not for an XMLTABLE.
 		 * @throws SQLException if numbers of columns and expressions don't
 		 * match, or there is an ordinality column and its type is not suitable.
 		 */
@@ -2085,7 +2172,7 @@ public class S9 implements ResultSetProvider
 			m_rsmd = rs.getMetaData();
 
 			int nParams = m_rsmd.getColumnCount();
-			if ( nParams != exprs.length )
+			if ( null != exprs  &&  nParams != exprs.length )
 				throw new SQLSyntaxErrorException(
 					"Not as many supplied column expressions as output columns",
 					"42611");
@@ -2097,7 +2184,7 @@ public class S9 implements ResultSetProvider
 				String label = m_rsmd.getColumnLabel(i);
 				Parameter p = new Parameter(label, i, false);
 				ps [ i - 1 ] = p;
-				if ( null == exprs [ i - 1 ] )
+				if ( null != exprs  &&  null == exprs [ i - 1 ] )
 				{
 					switch ( p.typeJDBC() )
 					{
