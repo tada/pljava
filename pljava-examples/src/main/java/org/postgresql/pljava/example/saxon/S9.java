@@ -490,11 +490,53 @@ public class S9 implements ResultSetProvider
 				throw new SQLException(e.getMessage(), "10000", e);
 			}
 			return true;
-		default:
-			throw new SQLFeatureNotSupportedException(
-				"cannot yet xmlcast from " + op.typePG() +
-				" to " + tg.typePG(), "0A000");
+		case 2: // XML being cast to something non-XML
+			assertCanCastAsXmlSequence(td, "target");
+			SQLXML sx = operand.getSQLXML(1);
+			if ( null == sx )
+			{
+				target.updateNull(1);
+				return true;
+			}
+			DocumentBuilder dBuilder = s_s9p.newDocumentBuilder();
+			Source source = sx.getSource(null);
+			try
+			{
+				XdmValue xv = dBuilder.build(source);
+				XQueryEvaluator xqe =
+					PredefinedQueryHolders.DocumentWrapUnwrap.INSTANCE.load();
+				xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, xv);
+				xv = xqe.evaluate();
+				XdmSequenceIterator si = (XdmSequenceIterator)xv.iterator();
+				if ( ! si.hasNext() )
+				{
+					target.updateNull(1);
+					return true;
+				}
+				xv = si.next();
+				if ( si.hasNext() )
+				{
+					si.close();
+					throw new XPathException(
+						"Atomized sequence has more than one item", "XPTY0004");
+				}
+				XdmAtomicValue av = (XdmAtomicValue)xv;
+				xmlCastAsNonXML(av, ItemType.UNTYPED_ATOMIC, tg, target, 1);
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			return true;
 		}
+
+		throw new SQLFeatureNotSupportedException(
+			"cannot yet xmlcast from " + op.typePG() +
+			" to " + tg.typePG(), "0A000");
 	}
 
 	/**
