@@ -221,12 +221,14 @@ public class S9 implements ResultSetProvider
 	private S9(
 		XdmSequenceIterator xsi,
 		XQueryEvaluator[] columnXQEs,
-		SequenceType[] columnStaticTypes)
+		SequenceType[] columnStaticTypes,
+		XMLBinary enc)
 	{
 		m_sequenceIterator = xsi;
 		m_columnXQEs = columnXQEs;
 		m_columnStaticTypes = columnStaticTypes;
 		m_atomize = new AtomizingFunction [ columnStaticTypes.length ];
+		m_xmlbinary = enc;
 	}
 
 	final XdmSequenceIterator m_sequenceIterator;
@@ -235,6 +237,7 @@ public class S9 implements ResultSetProvider
 	final SequenceType s_01untypedAtomic = makeSequenceType(
 		ItemType.UNTYPED_ATOMIC, OccurrenceIndicator.ZERO_OR_ONE);
 	final AtomizingFunction[] m_atomize;
+	final XMLBinary m_xmlbinary;
 	Binding.Assemblage m_outBindings;
 	XQueryEvaluator m_documentWrap;
 
@@ -396,8 +399,8 @@ public class S9 implements ResultSetProvider
 	 *</pre>
 	 * @param operand a one-row, one-column record supplied by the caller, whose
 	 * one typed value is the operand to be cast.
-	 * @param hex true if binary SQL values should be hex-encoded in XML; if
-	 * false (the default), values will be encoded in base 64.
+	 * @param base64 true if binary SQL values should be base64-encoded in XML;
+	 * if false (the default), values will be encoded in hex.
 	 * @param target a one-row, one-column record supplied by PL/Java from the
 	 * {@code AS} clause after the function call, whose one column's type is the
 	 * type to be cast to.
@@ -409,7 +412,7 @@ public class S9 implements ResultSetProvider
 		settings="IntervalStyle TO iso_8601"
 	)
 	public static boolean xmlcast(
-		ResultSet operand, @SQLType(defaultValue="false") Boolean hex,
+		ResultSet operand, @SQLType(defaultValue="false") Boolean base64,
 		ResultSet target)
 		throws SQLException
 	{
@@ -418,10 +421,10 @@ public class S9 implements ResultSetProvider
 				"xmlcast \"operand\" must be (in this implementation) " +
 				"a non-null row type", "22004");
 
-		if ( null == hex )
+		if ( null == base64 )
 			throw new SQLDataException(
-				"xmlcast \"hex\" must be true or false, not null", "22004");
-		XMLBinary enc = hex ? XMLBinary.HEX : XMLBinary.BASE64;
+				"xmlcast \"base64\" must be true or false, not null", "22004");
+		XMLBinary enc = base64 ? XMLBinary.BASE64 : XMLBinary.HEX;
 
 		assert null != target : "PL/Java supplied a null output record???";
 
@@ -521,7 +524,8 @@ public class S9 implements ResultSetProvider
 						"Atomized sequence has more than one item", "XPTY0004");
 				}
 				XdmAtomicValue av = (XdmAtomicValue)xv;
-				xmlCastAsNonXML(av, ItemType.UNTYPED_ATOMIC, tg, target, 1);
+				xmlCastAsNonXML(
+					av, ItemType.UNTYPED_ATOMIC, tg, target, 1, enc);
 			}
 			catch ( SaxonApiException e )
 			{
@@ -699,6 +703,8 @@ public class S9 implements ResultSetProvider
 	 * consecutive entries, the first is a namespace prefix and the second is
 	 * to URI to which to bind it, just as described for
 	 * {@link #xq_ret_content xq_ret_content()}.
+	 * @param base64 whether the effective, in-scope 'xmlbinary' setting calls
+	 * for base64 or (the default, false) hexadecimal.
 	 */
 	@Function(
 		schema="javatest",
@@ -708,7 +714,8 @@ public class S9 implements ResultSetProvider
 	public static ResultSetProvider xmltable(
 		String rows, String[] columns,
 		@SQLType(defaultValue={}) ResultSet passing,
-		@SQLType(defaultValue={}) String[] namespaces)
+		@SQLType(defaultValue={}) String[] namespaces,
+		@SQLType(defaultValue="false") Boolean base64)
 		throws SQLException
 	{
 		if ( null == rows )
@@ -718,6 +725,11 @@ public class S9 implements ResultSetProvider
 		if ( null == columns )
 			throw new SQLDataException(
 				"XMLTABLE columns expression array may not be null", "22004");
+
+		if ( null == base64 )
+			throw new SQLDataException(
+				"XMLTABLE base64 parameter may not be null", "22004");
+		XMLBinary enc = base64 ? XMLBinary.BASE64 : XMLBinary.HEX;
 
 		Binding.Assemblage rowBindings = new BindingsFromResultSet(passing);
 
@@ -769,7 +781,7 @@ public class S9 implements ResultSetProvider
 					XdmEmptySequence.getInstance().iterator();
 			else
 				rowIterator = rowXQE.iterator();
-			return new S9(rowIterator, columnXQEs, columnStaticTypes);
+			return new S9(rowIterator, columnXQEs, columnStaticTypes, enc);
 		}
 		catch ( SaxonApiException e )
 		{
@@ -1107,7 +1119,25 @@ public class S9 implements ResultSetProvider
 				 */
 				if ( staticType.getOccurrenceIndicator().allowsMany()
 					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(
-						staticType.getItemType()) )
+						staticType.getItemType())
+					/*
+					 * The following tests may be punctilious to a fault. If we
+					 * have a bare Saxon atomic type of either xs:base64Binary
+					 * or xs:hexBinary type, Saxon will happily and successfully
+					 * convert it to a binary string; but if we have the same
+					 * thing as a less-statically-determinate type that we'll
+					 * put through the atomizer, the conversion will fail unless
+					 * its encoding matches the m_xmlbinary setting. That could
+					 * seem weirdly unpredictable to a user, so we'll just
+					 * (perversely) disallow the optimization (which would
+					 * succeed) in the cases where the specified, unoptimized
+					 * behavior would be to fail.
+					 */
+					|| ItemType.HEX_BINARY.subsumes(staticType.getItemType())
+						&& (XMLBinary.HEX != m_xmlbinary)
+					|| ItemType.BASE64_BINARY.subsumes(staticType.getItemType())
+						&& (XMLBinary.BASE64 != m_xmlbinary)
+				   )
 				{
 					if ( null == atomizer )
 					{
@@ -1196,7 +1226,8 @@ public class S9 implements ResultSetProvider
 					continue;
 				}
 				XdmAtomicValue av = (XdmAtomicValue)x1.itemAt(0);
-				xmlCastAsNonXML(av, staticType.getItemType(), p, receive, i);
+				xmlCastAsNonXML(
+					av, staticType.getItemType(), p, receive, i, m_xmlbinary);
 			}
 			catch ( SaxonApiException e )
 			{
@@ -1368,6 +1399,21 @@ public class S9 implements ResultSetProvider
 				"XMLCAST to XML(SEQUENCE).", "42804");
 	}
 
+	/**
+	 * The "determination of an XQuery formal type notation" algorithm.
+	 *<p>
+	 * This is relied on for parameters and context items passed to
+	 * {@code XMLQUERY} and therefore, {@code XMLTABLE} (and also, in the spec,
+	 * {@code XMLDOCUMENT} and {@code XMLPI}). Note that it does <em>not</em>
+	 * take an {@code XMLBinary} parameter, but rather imposes hexadecimal form
+	 * unconditionally, so in the contexts where this is called, any
+	 * {@code xmlbinary} setting is ignored.
+	 * @param b a {@code Binding} from which the JDBC type can be retrieved
+	 * @param forContextItem whether the type being derived is for a context
+	 * item or (if false) for a named parameter.
+	 * @return a {@code SequenceType} (always a singleton in the
+	 * {@code forContextItem} case)
+	 */
 	private static SequenceType determineXQueryFormalType(
 		Binding b, boolean forContextItem)
 		throws SQLException
@@ -1690,11 +1736,11 @@ public class S9 implements ResultSetProvider
 	 */
 	private static void xmlCastAsNonXML(
 		XdmAtomicValue av, ItemType vt,
-		Binding.Parameter p, ResultSet rs, int col)
+		Binding.Parameter p, ResultSet rs, int col, XMLBinary enc)
 		throws SQLException, XPathException
 	{
 		XdmAtomicValue bv;
-		ItemType xt = p.typeXT().getItemType();
+		ItemType xt = p.typeXT(enc);
 
 		CastingFunction caster = p.atomicCaster(vt, () ->
 		{
@@ -1807,6 +1853,21 @@ public class S9 implements ResultSetProvider
 				"0N000");
 	}
 
+	/**
+	 * Like the "Mapping values of SQL data types to values of XML Schema
+	 * data types" algorithm, except after the SQL values have already been
+	 * converted to Java values according to JDBC rules.
+	 *<p>
+	 * Also, this uses Saxon s9api constructors for the XML Schema values, which
+	 * accept the Java types directly. As a consequence, where the target type
+	 * {@code xst} is {@code xs:hexBinary} or {@code xs:base64Binary}, that type
+	 * will be produced, regardless of the passed {@code encoding}. This might
+	 * not be strictly correct, but is probably safest until an oddity in the
+	 * spec can be clarified: {@code determineXQueryFormalType} will always
+	 * declare {@code xs:hexBinary} as the type for an SQL byte string, and it
+	 * would violate type safety to construct a value here that honors the
+	 * {@code encoding} parameter but isn't of the declared formal type.
+	 */
 	private static XdmAtomicValue mapJDBCofSQLvalueToXdmAtomicValue(
 		Object dv, XMLBinary encoding, ItemType xst)
 		throws SQLException, SaxonApiException, XPathException
@@ -2025,6 +2086,14 @@ public class S9 implements ResultSetProvider
 
 		static class ContextItem extends Binding
 		{
+			/**
+			 * Return the XML Schema type of this input binding for a context
+			 * item.
+			 *<p>
+			 * Because it is based on {@code determinXQueryFormalType}, this
+			 * method is not parameterized by {@code XMLBinary}, and will always
+			 * map a binary-string SQL type to {@code xs:hexBinary}.
+			 */
 			ItemType typeXS() throws SQLException
 			{
 				if ( null != m_typeXS )
@@ -2052,14 +2121,20 @@ public class S9 implements ResultSetProvider
 			}
 
 			/**
-			 * Return the XS type collapsed according to the Syntax Rule
+			 * Return the XML Schema type collapsed according to the Syntax Rule
 			 * deriving {@code XT} for {@code XMLCAST}.
 			 *<p>
 			 * The intent of the rule is unclear, but it involves collapsing
-			 * certain sets of more-specific types into common supertypes, for
-			 * use only in an intermediate step of {@code xmlCastAsNonXML}.
+			 * certain sets of more-specific types that {@code typeXS} might
+			 * return into common supertypes, for use only in an intermediate
+			 * step of {@code xmlCastAsNonXML}. Unlike {@code typeXS}, this
+			 * method must be passed an {@code XMLBinary} parameter reflecting
+			 * the hex/base64 choice currently in scope.
+			 * @param enc whether to use {@code xs:hexBinary} or
+			 * {@code xs:base64Binary} as the XML Schema type corresponding to a
+			 * binary-string SQL type.
 			 */
-			SequenceType typeXT() throws SQLException
+			ItemType typeXT(XMLBinary enc) throws SQLException
 			{
 				throw new UnsupportedOperationException(
 					"typeXT() on synthetic binding");
@@ -2322,7 +2397,7 @@ public class S9 implements ResultSetProvider
 		class Parameter extends Binding.Parameter
 		{
 			final int m_idx;
-			private SequenceType m_typeXT;
+			private ItemType m_typeXT;
 			private CastingFunction m_atomCaster;
 			private ItemType m_lastCastFrom;
 
@@ -2334,18 +2409,15 @@ public class S9 implements ResultSetProvider
 			}
 
 			@Override
-			SequenceType typeXT() throws SQLException
+			ItemType typeXT(XMLBinary enc) throws SQLException
 			{
 				if ( null != m_typeXT )
 					return m_typeXT;
 
-				SequenceType xs = typeXS();
-				OccurrenceIndicator oi = xs.getOccurrenceIndicator();
-				if ( oi.allowsMany() )
-					return m_typeXT = xs;
-				ItemType it = xs.getItemType();
+				ItemType it =
+					mapSQLDataTypeToXMLSchemaDataType(this, enc, Nulls.ABSENT);
 				if ( ! ItemType.ANY_ATOMIC_VALUE.subsumes(it) )
-					return m_typeXT = xs;
+					return m_typeXT = it;
 
 				if ( it.equals(ItemType.INTEGER) )
 				{
@@ -2360,9 +2432,7 @@ public class S9 implements ResultSetProvider
 				else if ( ItemType.DATE_TIME_STAMP.subsumes(it) )
 					it = ItemType.DATE_TIME;
 
-				if ( it != xs.getItemType() )
-					xs = makeSequenceType(it, oi);
-				return m_typeXT = xs;
+				return m_typeXT = it;
 			}
 
 			@Override
