@@ -424,6 +424,15 @@ public class PassXML implements SQLData
 					xr = XMLReaderFactory.createXMLReader();
 					xr.setFeature("http://xml.org/sax/features/namespaces",
 									true);
+					/*
+					 * Important: before copying this example code for another
+					 * use, consider whether the input XML might be untrusted.
+					 * If so, the new XMLReader created here should have several
+					 * features given safe default settings as outlined in the
+					 * OWASP guidelines. (This branch is not reached when sx is
+					 * a PL/Java native SQLXML instance, as xr will be non-null
+					 * and already configured.)
+					 */
 				}
 				ContentHandler ch = sxr.getHandler();
 				xr.setContentHandler(ch);
@@ -440,8 +449,6 @@ public class PassXML implements SQLData
 			case 6:
 				StAXSource sts = sx.getSource(StAXSource.class);
 				StAXResult str = rx.setResult(StAXResult.class);
-				XMLInputFactory  xif = XMLInputFactory .newFactory();
-				xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 				XMLOutputFactory xof = XMLOutputFactory.newFactory();
 				/*
 				 * The Source has either an event reader or a stream reader. Use
@@ -450,7 +457,20 @@ public class PassXML implements SQLData
 				 */
 				XMLEventReader xer = sts.getXMLEventReader();
 				if ( null == xer )
+				{
+					XMLInputFactory  xif = XMLInputFactory .newFactory();
+					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+					/*
+					 * Important: before copying this example code for another
+					 * use, consider whether the input XML might be untrusted.
+					 * If so, the new XMLInputFactory created here should have
+					 * several properties given safe default settings as
+					 * outlined in the OWASP guidelines. (This branch is not
+					 * reached when sx is a PL/Java native SQLXML instance, as
+					 * xer will be non-null and already configured.)
+					 */
 					xer = xif.createXMLEventReader(sts.getXMLStreamReader());
+				}
 				/*
 				 * Were you thinking the above could be simply
 				 * createXMLEventReader(sts) by analogy with the writer below?
