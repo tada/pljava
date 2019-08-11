@@ -31,13 +31,15 @@ import org.postgresql.pljava.TransactionListener;
 import org.postgresql.pljava.annotation.Function;
 import static org.postgresql.pljava.annotation.Function.Effects.*;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLActions;
 
 /**
  * Some methods used for testing the SPI JDBC driver.
  *
  * @author Thomas Hallgren
  */
-@SQLAction(provides="employees tables", install={
+@SQLActions({
+	@SQLAction(provides = "employees tables", install = {
 		"CREATE TABLE javatest.employees1" +
 		" (" +
 		" id     int PRIMARY KEY," +
@@ -53,11 +55,13 @@ import org.postgresql.pljava.annotation.SQLAction;
 		" transferDay date," +
 		" transferTime time" +
 		" )"
-	}, remove={
+		}, remove = {
 		"DROP TABLE javatest.employees2",
 		"DROP TABLE javatest.employees1"
 	}
-)
+	),
+	@SQLAction(requires = "issue228", install = "SELECT javatest.issue228()")
+})
 public class SPIActions {
 	private static final String SP_CHECKSTATE = "sp.checkState";
 
@@ -134,6 +138,16 @@ public class SPIActions {
 			System.out.println(msg);
 		} else
 			Logger.getAnonymousLogger().info(msg);
+	}
+
+	static void warn(String msg) {
+		// GCJ has a somewhat serious bug (reported)
+		//
+		if ("GNU libgcj".equals(System.getProperty("java.vm.name"))) {
+			System.out.print("WARNING: ");
+			System.out.println(msg);
+		} else
+			Logger.getAnonymousLogger().warning(msg);
 	}
 
 	@Function(schema="javatest", effects=IMMUTABLE)
@@ -246,6 +260,65 @@ public class SPIActions {
 		}
 		throw new SQLException(
 				"SAVEPOINT through SQL succeeded. That's bad news!");
+	}
+
+	/**
+	 * Confirm JDBC behavior of Savepoint, in particular that a Savepoint
+	 * rolled back to still exists and can be rolled back to again or released.
+	 */
+	@Function(schema="javatest", provides="issue228")
+	public static void issue228() throws SQLException
+	{
+		boolean ok = true;
+		Connection conn =
+			DriverManager.getConnection("jdbc:default:connection");
+		Statement s = conn.createStatement();
+		try
+		{
+			Savepoint alice = conn.setSavepoint("alice");
+			s.execute("SET LOCAL TIME ZONE 1");
+			Savepoint bob   = conn.setSavepoint("bob");
+			s.execute("SET LOCAL TIME ZONE 2");
+			conn.rollback(bob);
+			s.execute("SET LOCAL TIME ZONE 3");
+			conn.releaseSavepoint(bob);
+			try
+			{
+				conn.rollback(bob);
+				ok = false;
+				warn("Savepoint \"bob\" should be invalid after release");
+			}
+			catch ( SQLException e )
+			{
+				if ( ! "3B001".equals(e.getSQLState()) )
+					throw e;
+			}
+			conn.rollback(alice);
+			bob = conn.setSavepoint("bob");
+			s.execute("SET LOCAL TIME ZONE 4");
+			conn.rollback(alice);
+			try
+			{
+				conn.releaseSavepoint(bob);
+				ok = false;
+				warn(
+					"Savepoint \"bob\" should be invalid after outer rollback");
+			}
+			catch ( SQLException e )
+			{
+				if ( ! "3B001".equals(e.getSQLState()) )
+					throw e;
+			}
+			conn.rollback(alice);
+			s.execute("SET LOCAL TIME ZONE 5");
+			conn.releaseSavepoint(alice);
+		}
+		finally
+		{
+			s.close();
+			if ( ok )
+				log("issue 228 tests ok");
+		}
 	}
 
 	@Function(schema="javatest", effects=IMMUTABLE)
