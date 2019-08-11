@@ -14,6 +14,7 @@ package org.postgresql.pljava.internal;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
 import java.util.Iterator;
 import java.util.WeakHashMap;
 import java.util.logging.Logger;
@@ -23,8 +24,37 @@ import java.util.logging.Logger;
  */
 public class PgSavepoint implements java.sql.Savepoint
 {
+	/*
+	 * Instances that might be live are tracked here in a WeakHashMap. The
+	 * first one created (i.e., outermost) also has a strong reference held by
+	 * the Invocation, so it can be zapped if lingering around at function exit.
+	 * That automatically takes care of any later/inner ones, so it is not as
+	 * critical to track those. Any instance that disappears from this
+	 * WeakHashMap (because the application code has let go of all its live
+	 * references) is an instance we don't have to fuss with. (That can mean,
+	 * though, if any SavepointListeners are registered, and a reportable event
+	 * happens to such a savepoint, listeners will be called with null instead
+	 * of a Savepoint instance. That hasn't been changed, but is now documented
+	 * over at SavepointListener, where it wasn't before.)
+	 *
+	 * Manipulations of this map take place only on the PG thread.
+	 */
 	private static final WeakHashMap<PgSavepoint,Boolean> s_knownSavepoints =
 		new WeakHashMap<PgSavepoint,Boolean>();
+
+	private static void forgetNestLevelsGE(int nestLevel)
+	{
+		assert Backend.threadMayEnterPG();
+		Iterator<PgSavepoint> it = s_knownSavepoints.keySet().iterator();
+		while ( it.hasNext() )
+		{
+			PgSavepoint sp = it.next();
+			if ( sp.m_nestLevel < nestLevel )
+				continue;
+			it.remove();
+			sp.m_nestLevel = 0; // force exception on future attempts to use
+		}
+	}
 
 	/*
 	 * PostgreSQL allows an internal subtransaction to have a name, though it
@@ -46,9 +76,27 @@ public class PgSavepoint implements java.sql.Savepoint
 	 * The nesting level will also have its default value briefly at
 	 * construction, with the real value filled in by _set. Real values will
 	 * be positive, so setting this back to zero can be used to signal
-	 * onInvocationExit that nothing remains to do.
+	 * onInvocationExit that nothing remains to do. Always manipulated and
+	 * checked on "the PG thread".
 	 */
 	private int m_nestLevel;
+
+	/*
+	 * JDBC requires the rollback operation not "use up" the savepoint that is
+	 * rolled back to (though it does discard any that were created after it).
+	 * PL/Java has historically gotten that wrong. Changing that behavior could
+	 * lead to unexpected warnings at function exit, if code written to the
+	 * prior behavior has rolled back to a savepoint and then forgotten it,
+	 * expecting it not to be found unreleased when the function exits.
+	 *
+	 * The behavior at function exit has historically been governed by the
+	 * pljava.release_lingering_savepoints GUC: true => savepoint released,
+	 * false => savepoint rolled back, with a warning either way. To accommodate
+	 * savepoints that are still alive after rollback, a situation that formerly
+	 * did not arise, create a third behavior: if such a 'reborn' savepoint is
+	 * found "lingering" at function exit, it will be silently released.
+	 */
+	private boolean m_reborn = false;
 
 	/*
 	 * A complication arises if a savepoint listener has been registered:
@@ -106,8 +154,10 @@ public class PgSavepoint implements java.sql.Savepoint
 			assert Backend.threadMayEnterPG(); // this only happens on PG thread
 			if ( null != s_nursery ) // can only be the Savepoint being set
 			{
-				s_nursery.m_xactId = savepointId;
-				return s_nursery;
+				PgSavepoint sp = s_nursery;
+				sp.m_xactId = savepointId;
+				s_nursery = null;
+				return sp;
 			}
 			for ( PgSavepoint sp : s_knownSavepoints.keySet() )
 			{
@@ -121,7 +171,7 @@ public class PgSavepoint implements java.sql.Savepoint
 	@Override
 	public int hashCode()
 	{
-		return this.getSavepointId();
+		return System.identityHashCode(this);
 	}
 
 	@Override
@@ -139,24 +189,58 @@ public class PgSavepoint implements java.sql.Savepoint
 	{
 		synchronized(Backend.THREADLOCK)
 		{
+			if ( 0 == m_nestLevel )
+				throw new SQLNonTransientException(
+					"attempt to release savepoint " +
+					(null != m_name ? ('"' + m_name + '"') : m_xactId) +
+					" that is no longer valid", "3B001");
+
 			_release(m_xactId, m_nestLevel);
-			s_knownSavepoints.remove(this);
-			m_nestLevel = 0;
+			forgetNestLevelsGE(m_nestLevel);
 		}
 	}
 
 	/**
 	 * Roll back a savepoint; only to be called by
 	 * {@link Connection#rollback(Savepoint) Connection.rollback}.
+	 *<p>
+	 * JDBC's rollback-to-savepoint operation discards all more-deeply-nested
+	 * savepoints, but not the one that is the target of the rollback. That one
+	 * remains active and can be used again. That behavior matches PostgreSQL's
+	 * SQL-level savepoints, but here it has to be built on top of the
+	 * "internal subtransaction" layer, and made to work the right way.
 	 */
 	public void rollback()
 	throws SQLException
 	{
 		synchronized(Backend.THREADLOCK)
 		{
+			if ( 0 == m_nestLevel )
+				throw new SQLNonTransientException(
+					"attempt to roll back to savepoint " +
+					(null != m_name ? ('"' + m_name + '"') : m_xactId) +
+					" that is no longer valid", "3B001");
+
 			_rollback(m_xactId, m_nestLevel);
-			s_knownSavepoints.remove(this);
-			m_nestLevel = 0;
+
+			/* Forget only more-deeply-nested savepoints, NOT this one */
+			forgetNestLevelsGE(1 + m_nestLevel);
+
+			/*
+			 * The "internal subtransaction" was used up by rolling back. To
+			 * provide the correct JDBC behavior, where a savepoint is not
+			 * used up by a rollback, transparently set a new internal one.
+			 */
+			try
+			{
+				s_nursery = this;
+				m_xactId = _set(m_name);
+				m_reborn = true;
+			}
+			finally
+			{
+				s_nursery = null;
+			}
 		}
 	}
 
@@ -174,26 +258,39 @@ public class PgSavepoint implements java.sql.Savepoint
 		return m_xactId;
 	}
 
-	public void onInvocationExit(Connection conn)
+	public void onInvocationExit(boolean withError)
 	throws SQLException
 	{
+		assert Backend.threadMayEnterPG();
 		if(m_nestLevel == 0)
 			return;
 
 		Logger logger = Logger.getAnonymousLogger();
-		if(Backend.isReleaseLingeringSavepoints())
+		if(!withError && (m_reborn || Backend.isReleaseLingeringSavepoints()))
 		{
-			logger.warning("Releasing savepoint '" + m_xactId +
-				"' since its lifespan exceeds that of the function where " +
-				"it was set");
-			conn.releaseSavepoint(this);
+			if ( ! m_reborn )
+				logger.warning("Releasing savepoint '" + m_xactId +
+					"' since its lifespan exceeds that of the function where " +
+					"it was set");
+			/*
+			 * Perform release directly, not through Connection, which does
+			 * other bookkeeping that's unnecessary on invocation exit.
+			 */
+			_release(m_xactId, m_nestLevel);
+			forgetNestLevelsGE(m_nestLevel);
 		}
 		else
 		{
-			logger.warning("Rolling back to savepoint '" + m_xactId +
-				"' since its lifespan exceeds that of the function where " +
-				"it was set");
-			conn.rollback(this);
+			if ( ! withError  ||  ! m_reborn )
+				logger.warning("Rolling back to savepoint '" + m_xactId +
+					"' since its lifespan exceeds that of the function where " +
+					"it was set");
+			/*
+			 * Perform rollback directly, without Connection's unnecessary
+			 * bookkeeping, and without resurrecting the savepoint this time.
+			 */
+			_rollback(m_xactId, m_nestLevel);
+			forgetNestLevelsGE(m_nestLevel);
 		}
 	}
 

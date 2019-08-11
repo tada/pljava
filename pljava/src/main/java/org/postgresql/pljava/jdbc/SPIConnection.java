@@ -356,7 +356,6 @@ public class SPIConnection implements Connection
 		PgSavepoint sp = (PgSavepoint)savepoint;
 		Invocation.clearErrorCondition();
 		sp.rollback();
-		forgetSavepoint(sp);
 	}
 
 	/**
@@ -680,7 +679,7 @@ public class SPIConnection implements Connection
 	}
 
 	/*
-	 * An implementation factor of releaseSavepoint() and rollback(Savepoint)
+	 * An implementation factor of releaseSavepoint()
 	 * undoing the registration done by rememberSavepoint().
 	 */
 	private static void forgetSavepoint(PgSavepoint sp)
