@@ -8,8 +8,9 @@
  *
  * Contributors:
  *   Tada AB
+ *   Chapman Flack
  */
-package org.postgresql.pljava.example;
+package org.postgresql.pljava.example.annotation;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -27,11 +28,36 @@ import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 import org.postgresql.pljava.TransactionListener;
 
+import org.postgresql.pljava.annotation.Function;
+import static org.postgresql.pljava.annotation.Function.Effects.*;
+import org.postgresql.pljava.annotation.SQLAction;
+
 /**
  * Some methods used for testing the SPI JDBC driver.
- * 
+ *
  * @author Thomas Hallgren
  */
+@SQLAction(provides="employees tables", install={
+		"CREATE TABLE javatest.employees1" +
+		" (" +
+		" id     int PRIMARY KEY," +
+		" name   varchar(200)," +
+		" salary int" +
+		" )",
+
+		"CREATE TABLE javatest.employees2" +
+		" (" +
+		" id		int PRIMARY KEY," +
+		" name	varchar(200)," +
+		" salary	int," +
+		" transferDay date," +
+		" transferTime time" +
+		" )"
+	}, remove={
+		"DROP TABLE javatest.employees2",
+		"DROP TABLE javatest.employees1"
+	}
+)
 public class SPIActions {
 	private static final String SP_CHECKSTATE = "sp.checkState";
 
@@ -40,7 +66,7 @@ public class SPIActions {
 		public void onAbort(Session session, Savepoint savepoint,
 				Savepoint parent) throws SQLException {
 			log("Abort of savepoint " + savepoint.getSavepointId());
-			nextState(session, 3, 4);
+			nextState(session, 3, 0);
 		}
 
 		@Override
@@ -58,6 +84,7 @@ public class SPIActions {
 		}
 	};
 
+	@Function(schema="javatest", effects=STABLE)
 	public static String getDateAsString() throws SQLException {
 		ResultSet rs = null;
 		Statement stmt = null;
@@ -78,6 +105,7 @@ public class SPIActions {
 		}
 	}
 
+	@Function(schema="javatest", effects=STABLE)
 	public static String getTimeAsString() throws SQLException {
 		ResultSet rs = null;
 		Statement stmt = null;
@@ -108,6 +136,7 @@ public class SPIActions {
 			Logger.getAnonymousLogger().info(msg);
 	}
 
+	@Function(schema="javatest", effects=IMMUTABLE)
 	public static int maxFromSetReturnExample(int base, int increment)
 			throws SQLException {
 		int max = Integer.MIN_VALUE;
@@ -139,8 +168,8 @@ public class SPIActions {
 
 	/**
 	 * Test of bug #1556
-	 * 
 	 */
+	@Function(schema="javatest")
 	public static void nestedStatements(int innerCount) throws SQLException {
 		Connection connection = DriverManager
 				.getConnection("jdbc:default:connection");
@@ -183,9 +212,10 @@ public class SPIActions {
 		if (state == null || state.intValue() != expected)
 			throw new SQLException(SP_CHECKSTATE + ": Expected " + expected
 					+ ", got " + state);
-		session.setAttribute(SP_CHECKSTATE, new Integer(next));
+		session.setAttribute(SP_CHECKSTATE, next);
 	}
 
+	@Function(schema="javatest", effects=IMMUTABLE)
 	public static int testSavepointSanity() throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
@@ -194,7 +224,7 @@ public class SPIActions {
 		//
 		log("Attempting to set an anonymous savepoint");
 		Session currentSession = SessionManager.current();
-		currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+		currentSession.setAttribute(SP_CHECKSTATE, 0);
 		currentSession.addSavepointListener(spListener);
 
 		Savepoint sp = conn.setSavepoint();
@@ -209,7 +239,7 @@ public class SPIActions {
 
 			nextState(currentSession, 2, 3);
 			conn.rollback(sp);
-			nextState(currentSession, 4, 5);
+			nextState(currentSession, 1, 5);
 			return 1;
 		} finally {
 			currentSession.removeSavepointListener(spListener);
@@ -218,6 +248,7 @@ public class SPIActions {
 				"SAVEPOINT through SQL succeeded. That's bad news!");
 	}
 
+	@Function(schema="javatest", effects=IMMUTABLE)
 	public static int testTransactionRecovery() throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
@@ -226,7 +257,7 @@ public class SPIActions {
 		//
 		log("Attempting to set an anonymous savepoint");
 		Session currentSession = SessionManager.current();
-		currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+		currentSession.setAttribute(SP_CHECKSTATE, 0);
 		currentSession.addSavepointListener(spListener);
 
 		Statement stmt = conn.createStatement();
@@ -241,11 +272,11 @@ public class SPIActions {
 					+ "by rolling back to anonymous savepoint");
 			nextState(currentSession, 2, 3);
 			conn.rollback(sp);
-			nextState(currentSession, 4, 5);
+			nextState(currentSession, 1, 5);
 			log("Rolled back.");
 			log("Now let's try to execute a correct statement.");
 
-			currentSession.setAttribute(SP_CHECKSTATE, new Integer(0));
+			currentSession.setAttribute(SP_CHECKSTATE, 0);
 			sp = conn.setSavepoint();
 			nextState(currentSession, 1, 2);
 			ResultSet rs = stmt.executeQuery("SELECT 'OK'");
@@ -266,6 +297,7 @@ public class SPIActions {
 		return -1;
 	}
 
+	@Function(schema="javatest", name="transferPeople")
 	public static int transferPeopleWithSalary(int salary) throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
