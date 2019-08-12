@@ -28,6 +28,9 @@ static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransacti
 	 * Map the subids to PgSavepoints first - this function upcalls into Java
 	 * without releasing the Backend.THREADLOCK monitor, so the called methods
 	 * can know they're on the PG thread; Backend.threadMayEnterPG() is true.
+	 * It is important to look up mySubid before parentSubid, as it is possible
+	 * a new PgSavepoint instance is under construction in the 'nursery', and
+	 * will be assigned the first id to be looked up.
 	 */
 	jobject     sp = pljava_PgSavepoint_forId(mySubid);
 	jobject parent = pljava_PgSavepoint_forId(parentSubid);

@@ -73,13 +73,13 @@ public class Invocation
 	 * Called from the backend when the invokation exits. Should
 	 * not be invoked any other way.
 	 */
-	public void onExit()
+	public void onExit(boolean withError)
 	throws SQLException
 	{
 		try
 		{
 			if(m_savepoint != null)
-				m_savepoint.onInvocationExit(SPIDriver.getDefault());
+				m_savepoint.onInvocationExit(withError);
 		}
 		finally
 		{
