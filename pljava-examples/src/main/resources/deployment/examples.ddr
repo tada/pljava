@@ -79,27 +79,6 @@ SQLActions[ ] = {
 			FOR EACH ROW
 			EXECUTE PROCEDURE moddatetime (moddate);
 
-		CREATE TABLE javatest.employees1
-			(
-			id		int PRIMARY KEY,
-			name	varchar(200),	
-			salary	int
-			);
-
-		CREATE TABLE javatest.employees2
-			(
-			id		int PRIMARY KEY,
-			name	varchar(200),
-			salary	int,
-			transferDay date,
-			transferTime time
-			);
-
-		CREATE FUNCTION javatest.transferPeople(int)
-			RETURNS int
-			AS 'org.postgresql.pljava.example.SPIActions.transferPeopleWithSalary'
-			LANGUAGE java;
-
 		CREATE TYPE javatest._testSetReturn
 			AS (base integer, incbase integer, ctime timestamptz);
 
@@ -131,16 +110,6 @@ SQLActions[ ] = {
 		CREATE FUNCTION javatest.hugeNonImmutableResult(int)
 			RETURNS SETOF javatest._testSetReturn
 			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
-			LANGUAGE java;
-
-		CREATE FUNCTION javatest.maxFromSetReturnExample(int, int)
-			RETURNS int
-			AS 'org.postgresql.pljava.example.SPIActions.maxFromSetReturnExample'
-			IMMUTABLE LANGUAGE java;
-
-		CREATE FUNCTION javatest.nestedStatements(int)
-			RETURNS void
-			AS 'org.postgresql.pljava.example.SPIActions.nestedStatements'
 			LANGUAGE java;
 
 		CREATE TYPE javatest._properties
@@ -175,26 +144,6 @@ SQLActions[ ] = {
 			RETURNS SETOF pg_user
 			AS 'org.postgresql.pljava.example.Users.listNonSupers'
 			LANGUAGE java;
-
-		CREATE FUNCTION javatest.testSavepointSanity()
-			RETURNS int
-			AS 'org.postgresql.pljava.example.SPIActions.testSavepointSanity'
-			IMMUTABLE LANGUAGE java;
-
-		CREATE FUNCTION javatest.testTransactionRecovery()
-			RETURNS int
-			AS 'org.postgresql.pljava.example.SPIActions.testTransactionRecovery'
-			IMMUTABLE LANGUAGE java;
-
-		CREATE FUNCTION javatest.getDateAsString()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.SPIActions.getDateAsString'
-			STABLE LANGUAGE java;
-
-		CREATE FUNCTION javatest.getTimeAsString()
-			RETURNS varchar
-			AS 'org.postgresql.pljava.example.SPIActions.getTimeAsString'
-			STABLE LANGUAGE java;
 
 		CREATE FUNCTION javatest.logMessage(varchar, varchar)
 			RETURNS void
