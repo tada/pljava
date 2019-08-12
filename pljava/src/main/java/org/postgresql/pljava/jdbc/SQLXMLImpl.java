@@ -127,6 +127,14 @@ import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
 
+/* ... for Adjusting API for Source / Result */
+
+import java.io.StringReader;
+import javax.xml.parsers.ParserConfigurationException;
+import org.postgresql.pljava.Adjusting;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXNotSupportedException;
+
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
 	protected AtomicReference<V> m_backing;
@@ -231,7 +239,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * Wrap other checked exceptions in SQLException for methods specified to
 	 * throw only that.
 	 */
-	protected SQLException normalizedException(Exception e)
+	static SQLException normalizedException(Exception e)
 	{
 		if ( e instanceof SQLException )
 			return (SQLException) e;
@@ -246,8 +254,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		return new SQLException(
-			"Exception in XML processing, not otherwise provided for",
-			"XX000", e);
+			"Exception in XML processing, not otherwise provided for: "
+			+ e.getMessage(), "XX000", e);
 	}
 
 	/**
@@ -619,6 +627,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			if ( null == sourceClass || Source.class == sourceClass )
 				sourceClass = (Class<T>)SAXSource.class; // trust me on this
+			else if ( Adjusting.XML.Source.class.equals(sourceClass) )
+				sourceClass = (Class<T>)AdjustingSAXSource.class;
 
 			try
 			{
@@ -626,7 +636,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					return sourceClass.cast(
 						new StreamSource(correctedDeclStream(is, true)));
 
-				if ( sourceClass.isAssignableFrom(SAXSource.class) )
+				if ( sourceClass.isAssignableFrom(SAXSource.class)
+					|| sourceClass.isAssignableFrom(AdjustingSAXSource.class) )
 				{
 					XMLReader xr = XMLReaderFactory.createXMLReader();
 					xr.setFeature("http://xml.org/sax/features/namespaces",
@@ -634,33 +645,44 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					is = correctedDeclStream(is, false);
 					if ( m_wrapped )
 						xr = new SAXUnwrapFilter(xr);
-					return sourceClass.cast(
-						new SAXSource(xr, new InputSource(is)));
+					AdjustingSAXSource ss =
+						new AdjustingSAXSource(xr, new InputSource(is));
+					ss.defaults();
+					if ( Adjusting.XML.Source.class
+							.isAssignableFrom(sourceClass) )
+						return sourceClass.cast(ss);
+					return sourceClass.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(StAXSource.class) )
+				if ( sourceClass.isAssignableFrom(StAXSource.class)
+					|| sourceClass.isAssignableFrom(AdjustingStAXSource.class) )
 				{
 					XMLInputFactory xif = XMLInputFactory.newFactory();
 					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-					XMLStreamReader xsr =
-						xif.createXMLStreamReader(
-							correctedDeclStream(is, false), m_serverCS.name());
-					if ( m_wrapped )
-						xsr = new StAXUnwrapFilter(xsr);
-					return sourceClass.cast(new StAXSource(xsr));
+					is = correctedDeclStream(is, false);
+					AdjustingStAXSource ss =
+						new AdjustingStAXSource(xif, is, m_serverCS, m_wrapped);
+					ss.defaults();
+					if ( Adjusting.XML.Source.class
+							.isAssignableFrom(sourceClass) )
+						return sourceClass.cast(ss);
+					return sourceClass.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(DOMSource.class) )
+				if ( sourceClass.isAssignableFrom(DOMSource.class)
+					|| sourceClass.isAssignableFrom(AdjustingDOMSource.class) )
 				{
 					DocumentBuilderFactory dbf =
 						DocumentBuilderFactory.newInstance();
 					dbf.setNamespaceAware(true);
-					DocumentBuilder db = dbf.newDocumentBuilder();
 					is = correctedDeclStream(is, false);
-					DOMSource ds = new DOMSource(db.parse(is));
-					if ( m_wrapped )
-						domUnwrap(ds);
-					return sourceClass.cast(ds);
+					AdjustingDOMSource ds =
+						new AdjustingDOMSource(dbf, is, m_wrapped);
+					ds.defaults();
+					if ( Adjusting.XML.Source.class
+							.isAssignableFrom(sourceClass) )
+						return sourceClass.cast(ds);
+					return sourceClass.cast(ds.get());
 				}
 			}
 			catch ( Exception e )
@@ -736,75 +758,75 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			m_wrapped = wrapped[0];
 			return rslt;
 		}
+	}
 
-		/**
-		 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
-		 * root element in case it had the form of {@code XML(CONTENT)}.
-		 *<p>
-		 * Because the wrapping is applied pessimistically (it is done whenever
-		 * a quick preparse did not conclusively prove the input was
-		 * {@code DOCUMENT}), repeat the check here, where it requires only
-		 * traversing one list of immediate DOM node children. Produce a
-		 * {@code Document} node if possible, a {@code DocumentFragment} only if
-		 * the tree really does not have {@code DOCUMENT} form.
-		 * @param ds A {@code DOMSource} produced by parsing wrapped input.
-		 * The parse result will be retrieved using {@code getNode()}, then
-		 * replaced using {@code setNode()} with the unwrapped result, either a
-		 * {@code Document} or a {@code DocumentFragment} node.
+	/**
+	 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
+	 * root element in case it had the form of {@code XML(CONTENT)}.
+	 *<p>
+	 * Because the wrapping is applied pessimistically (it is done whenever
+	 * a quick preparse did not conclusively prove the input was
+	 * {@code DOCUMENT}), repeat the check here, where it requires only
+	 * traversing one list of immediate DOM node children. Produce a
+	 * {@code Document} node if possible, a {@code DocumentFragment} only if
+	 * the tree really does not have {@code DOCUMENT} form.
+	 * @param ds A {@code DOMSource} produced by parsing wrapped input.
+	 * The parse result will be retrieved using {@code getNode()}, then
+	 * replaced using {@code setNode()} with the unwrapped result, either a
+	 * {@code Document} or a {@code DocumentFragment} node.
+	 */
+	static void domUnwrap(DOMSource ds)
+	{
+		Document d = (Document)ds.getNode();
+		Element wrapper = d.getDocumentElement();
+		/*
+		 * Wrapping isn't done if the input has a DTD, so if we are here,
+		 * the input does not have a DTD, and the null, null, null parameter
+		 * list for createDocument is appropriate.
 		 */
-		private void domUnwrap(DOMSource ds)
+		Document newDoc =
+			d.getImplementation().createDocument(null, null, null);
+		DocumentFragment docFrag = newDoc.createDocumentFragment();
+		boolean isDocument = true;
+		boolean seenElement = false;
+		for ( Node n = wrapper.getFirstChild(), next = null;
+			  null != n; n = next )
 		{
-			Document d = (Document)ds.getNode();
-			Element wrapper = d.getDocumentElement();
 			/*
-			 * Wrapping isn't done if the input has a DTD, so if we are here,
-			 * the input does not have a DTD, and the null, null, null parameter
-			 * list for createDocument is appropriate.
+			 * Grab the next sibling early, before the adoptNode() below,
+			 * because that will unlink this node from its source Document,
+			 * clearing its nextSibling link.
 			 */
-			Document newDoc =
-				d.getImplementation().createDocument(null, null, null);
-			DocumentFragment docFrag = newDoc.createDocumentFragment();
-			boolean isDocument = true;
-			boolean seenElement = false;
-			for ( Node n = wrapper.getFirstChild(), next = null;
-				  null != n; n = next )
-			{
-				/*
-				 * Grab the next sibling early, before the adoptNode() below,
-				 * because that will unlink this node from its source Document,
-				 * clearing its nextSibling link.
-				 */
-				next = n.getNextSibling();
+			next = n.getNextSibling();
 
-				switch ( n.getNodeType() )
-				{
-				case Node.ELEMENT_NODE:
-					if ( seenElement )
-						isDocument = false;
-					seenElement = true;
-					break;
-				case Node.COMMENT_NODE:
-				case Node.PROCESSING_INSTRUCTION_NODE:
-					break;
-				case Node.TEXT_NODE:
-					if ( ! ((Text)n).isElementContentWhitespace() )
-						isDocument = false;
-					break;
-				default:
+			switch ( n.getNodeType() )
+			{
+			case Node.ELEMENT_NODE:
+				if ( seenElement )
 					isDocument = false;
-				}
-
-				docFrag.appendChild(newDoc.adoptNode(n));
+				seenElement = true;
+				break;
+			case Node.COMMENT_NODE:
+			case Node.PROCESSING_INSTRUCTION_NODE:
+				break;
+			case Node.TEXT_NODE:
+				if ( ! ((Text)n).isElementContentWhitespace() )
+					isDocument = false;
+				break;
+			default:
+				isDocument = false;
 			}
 
-			if ( isDocument )
-			{
-				newDoc.appendChild(docFrag);
-				ds.setNode(newDoc);
-			}
-			else
-				ds.setNode(docFrag);
+			docFrag.appendChild(newDoc.adoptNode(n));
 		}
+
+		if ( isDocument )
+		{
+			newDoc.appendChild(docFrag);
+			ds.setNode(newDoc);
+		}
+		else
+			ds.setNode(docFrag);
 	}
 
 
@@ -858,18 +880,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public OutputStream setBinaryStream() throws SQLException
 		{
-			VarlenaWrapper.Output os = backingAndClearWritable();
-			if ( null == os )
+			VarlenaWrapper.Output vwo = backingAndClearWritable();
+			if ( null == vwo )
 				return super.setBinaryStream();
-			try
-			{
-				os.setVerifier(new Verifier());
-				return new DeclCheckedOutputStream(os, m_serverCS);
-			}
-			catch ( IOException e )
-			{
-				throw normalizedException(e);
-			}
+			return new AdjustingStreamResult(vwo, m_serverCS)
+				.defaults().preferBinaryStream().get().getOutputStream();
 		}
 
 		@Override
@@ -878,16 +893,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo = backingAndClearWritable();
 			if ( null == vwo )
 				return super.setCharacterStream();
-			try
-			{
-				vwo.setVerifier(new Verifier());
-				OutputStream os = new DeclCheckedOutputStream(vwo, m_serverCS);
-				return new OutputStreamWriter(os, m_serverCS.newEncoder());
-			}
-			catch ( IOException e )
-			{
-				throw normalizedException(e);
-			}
+			return new AdjustingStreamResult(vwo, m_serverCS)
+				.defaults().preferCharacterStream().get().getWriter();
 		}
 
 		@Override
@@ -898,9 +905,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				super.setString(value);
 			try
 			{
-				vwo.setVerifier(new Verifier());
-				OutputStream os = new DeclCheckedOutputStream(vwo, m_serverCS);
-				Writer w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+				Writer w = new AdjustingStreamResult(vwo, m_serverCS)
+					.defaults().preferCharacterStream().get().getWriter();
 				w.write(value);
 				w.close();
 			}
@@ -920,15 +926,21 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			if ( null == resultClass || Result.class == resultClass )
 				resultClass = (Class<T>)SAXResult.class; // trust me on this
+			else if ( Adjusting.XML.Result.class.equals(resultClass) )
+				resultClass = (Class<T>)AdjustingSAXResult.class;
 
 			try
 			{
-				if ( resultClass.isAssignableFrom(StreamResult.class) )
+				if ( resultClass.isAssignableFrom(StreamResult.class)
+					|| resultClass.isAssignableFrom(AdjustingStreamResult.class)
+				   )
 				{
-					vwo.setVerifier(new Verifier());
-					return resultClass.cast(
-						new StreamResult(new DeclCheckedOutputStream(
-							vwo, m_serverCS)));
+					AdjustingStreamResult sr =
+						new AdjustingStreamResult(vwo, m_serverCS).defaults();
+					if ( Adjusting.XML.Result.class
+							.isAssignableFrom(resultClass) )
+						return resultClass.cast(sr);
+					return resultClass.cast(sr.get());
 				}
 
 				/*
@@ -937,7 +949,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				vwo.setVerifier(VarlenaWrapper.Verifier.NoOp.INSTANCE);
 				OutputStream os = vwo;
 
-				if ( resultClass.isAssignableFrom(SAXResult.class) )
+				if ( resultClass.isAssignableFrom(SAXResult.class)
+					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
 				{
 					SAXTransformerFactory saxtf = (SAXTransformerFactory)
 						SAXTransformerFactory.newInstance();
@@ -947,7 +960,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					th.setResult(new StreamResult(os));
 					th = SAXResultAdapter.newInstance(th, os);
-					return resultClass.cast(new SAXResult(th));
+					SAXResult sr = new SAXResult(th);
+					if ( Adjusting.XML.Result.class
+							.isAssignableFrom(resultClass) )
+						return resultClass.cast(new AdjustingSAXResult(sr));
+					return resultClass.cast(sr);
 				}
 
 				if ( resultClass.isAssignableFrom(StAXResult.class) )
@@ -1026,12 +1043,33 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	static class Verifier extends VarlenaWrapper.Verifier.Base
 	{
+		private XMLReader m_xr;
+
+		Verifier() throws SQLException
+		{
+			try
+			{
+				XMLReader xr = XMLReaderFactory.createXMLReader();
+				xr.setFeature("http://xml.org/sax/features/namespaces", true);
+				m_xr =
+					new AdjustingSAXSource(xr, null)
+						.defaults().get().getXMLReader();
+			}
+			catch ( SAXException e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		Verifier(XMLReader xr)
+		{
+			m_xr = xr;
+		}
+
 		@Override
 		protected void verify(InputStream is) throws Exception
 		{
 			boolean[] wrapped = { false };
-			XMLReader xr = XMLReaderFactory.createXMLReader();
-			xr.setFeature("http://xml.org/sax/features/namespaces", true);
 			is = correctedDeclStream(
 				is, false, implServerCharset(), wrapped);
 			/*
@@ -1039,7 +1077,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			 * content events? Parses everything and discards the events.
 			 * Just what you'd want for a verifier.
 			 */
-			xr.parse(new InputSource(is));
+			m_xr.parse(new InputSource(is));
 		}
 	}
 
@@ -1175,7 +1213,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				return (IOException)e;
 			if ( e instanceof RuntimeException )
 				throw (RuntimeException)e;
-			return new IOException("Malformed XML", e);
+			return new IOException("Malformed XML: " + e.getMessage(), e);
 		}
 	}
 
@@ -1187,7 +1225,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * only accepts {@code XML(DOCUMENT)}.
 	 *<p>
 	 * The result may be surprising to code consuming the SAX stream, depending
-	 * on what it expects, but testing has showed the JRE-bundled identity
+	 * on what it expects, but testing has shown the JRE-bundled identity
 	 * transformer, at least, to accept the input and faithfully reproduce the
 	 * non-document content.
 	 */
@@ -2254,6 +2292,652 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			throw new SQLDataException(
 				"XML does not declare a character set, and server encoding " +
 				"is not UTF-8", "2200N");
+		}
+	}
+
+	static class AdjustingStreamResult implements Adjusting.XML.StreamResult
+	{
+		private VarlenaWrapper.Output m_vwo;
+		private Charset m_serverCS;
+		private AdjustingSAXSource m_verifierSource;
+		private boolean m_preferWriter = false;
+
+		AdjustingStreamResult(VarlenaWrapper.Output vwo, Charset serverCS)
+		throws SQLException
+		{
+			m_vwo = vwo;
+			m_serverCS = serverCS;
+			XMLReader xr;
+			try
+			{
+				xr = XMLReaderFactory.createXMLReader();
+				xr.setFeature("http://xml.org/sax/features/namespaces", true);
+			}
+			catch ( SAXException e )
+			{
+				throw normalizedException(e);
+			}
+			m_verifierSource = new AdjustingSAXSource(xr, null);
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingStreamResult used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingStreamResult used before get()");
+		}
+
+		private AdjustingSAXSource theVerifierSource()
+		{
+			if ( null == m_verifierSource )
+				throw new IllegalStateException(
+					"AdjustingStreamResult too late to adjust after get()");
+			return m_verifierSource;
+		}
+
+		@Override
+		public AdjustingStreamResult preferBinaryStream()
+		{
+			theVerifierSource(); // shorthand error check
+			m_preferWriter = false;
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult preferCharacterStream()
+		{
+			theVerifierSource(); // shorthand error check
+			m_preferWriter = true;
+			return this;
+		}
+
+		@Override
+		public StreamResult get() throws SQLException
+		{
+			if ( null == m_verifierSource )
+				throw new IllegalStateException(
+					"AdjustingStreamResult get() called more than once");
+
+			XMLReader xr = m_verifierSource.get().getXMLReader();
+			OutputStream os;
+			try
+			{
+				m_vwo.setVerifier(new Verifier(xr));
+				os = new DeclCheckedOutputStream(m_vwo, m_serverCS);
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+			StreamResult sr;
+			if ( m_preferWriter )
+				sr = new StreamResult(
+					new OutputStreamWriter(os, m_serverCS.newEncoder()));
+			else
+				sr = new StreamResult(os);
+			m_vwo = null;
+			m_verifierSource = null;
+			m_serverCS = null;
+			return sr;
+		}
+
+		@Override
+		public AdjustingStreamResult allowDTD(boolean v)
+		{
+			theVerifierSource().allowDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult externalGeneralEntities(boolean v)
+		{
+			theVerifierSource().externalGeneralEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult externalParameterEntities(boolean v)
+		{
+			theVerifierSource().externalParameterEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult loadExternalDTD(boolean v)
+		{
+			theVerifierSource().loadExternalDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult xIncludeAware(boolean v)
+		{
+			theVerifierSource().xIncludeAware(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult expandEntityReferences(boolean v)
+		{
+			theVerifierSource().expandEntityReferences(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			theVerifierSource().setFirstSupportedFeature(value, names);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult defaults()
+		{
+			theVerifierSource().defaults();
+			return preferBinaryStream();
+		}
+	}
+
+	static class AdjustingSAXSource implements Adjusting.XML.SAXSource
+	{
+		private XMLReader m_xr;
+		private InputSource m_is;
+
+		AdjustingSAXSource(XMLReader xr, InputSource is)
+		{
+			m_xr = xr;
+			m_is = is;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXSource used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXSource used before get()");
+		}
+
+		private XMLReader theReader()
+		{
+			if ( null == m_xr )
+				throw new IllegalStateException(
+					"AdjustingSAXSource too late to adjust after get()");
+			return m_xr;
+		}
+
+		@Override
+		public SAXSource get()
+		{
+			if ( null == m_xr )
+				throw new IllegalStateException(
+					"AdjustingSAXSource get() called more than once");
+			SAXSource ss = new SAXSource(m_xr, m_is);
+			m_xr = null;
+			m_is = null;
+			return ss;
+		}
+
+		@Override
+		public AdjustingSAXSource allowDTD(boolean v) {
+			return setFirstSupportedFeature( !v,
+				"http://apache.org/xml/features/disallow-doctype-decl",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#disallow-doctype-decl");
+		}
+
+		@Override
+		public AdjustingSAXSource externalGeneralEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-general-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-general-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-general-entities");
+		}
+
+		@Override
+		public AdjustingSAXSource externalParameterEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-parameter-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-parameter-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-parameter-entities");
+		}
+
+		@Override
+		public AdjustingSAXSource loadExternalDTD(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://apache.org/xml/features/" +
+					"nonvalidating/load-external-dtd");
+		}
+
+		@Override
+		public AdjustingSAXSource xIncludeAware(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://apache.org/xml/features/xinclude");
+		}
+
+		@Override
+		public AdjustingSAXSource expandEntityReferences(boolean v)
+		{
+			// not a thing in SAX ?
+			return this;
+		}
+
+		@Override
+		public AdjustingSAXSource setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			XMLReader r = theReader();
+			for ( String name : names )
+			{
+				try
+				{
+					r.setFeature(name, value);
+					break;
+				}
+				catch ( SAXNotRecognizedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+				catch ( SAXNotSupportedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingSAXSource defaults()
+		{
+			return allowDTD(false).externalGeneralEntities(false)
+				.externalParameterEntities(false).loadExternalDTD(false)
+				.xIncludeAware(false).expandEntityReferences(false);
+		}
+	}
+
+	/*
+	 * For the moment, an AdjustingSAXResult doesn't adjust anything at all,
+	 * as a Verifier isn't used when writing through SAX. But it has to be here,
+	 * just because if the client asks only for Adjusting.XML.Result, meaning we
+	 * get to pick, SAX is the flavor we pick.
+	 */
+	static class AdjustingSAXResult implements Adjusting.XML.SAXResult
+	{
+		private SAXResult m_sr;
+
+		AdjustingSAXResult(SAXResult sr)
+		{
+			m_sr = sr;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXResult used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXResult used before get()");
+		}
+
+		private AdjustingSAXResult checkedNoOp()
+		{
+			if ( null == m_sr )
+				throw new IllegalStateException(
+					"AdjustingSAXResult too late to adjust after get()");
+			return this;
+		}
+
+		@Override
+		public SAXResult get() throws SQLException
+		{
+			if ( null == m_sr )
+				throw new IllegalStateException(
+					"AdjustingSAXResult get() called more than once");
+
+			SAXResult sr = m_sr;
+			m_sr = null;
+			return sr;
+		}
+
+		@Override
+		public AdjustingSAXResult allowDTD(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult externalGeneralEntities(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult externalParameterEntities(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult loadExternalDTD(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult xIncludeAware(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult expandEntityReferences(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult defaults()
+		{
+			return checkedNoOp();
+		}
+	}
+
+	static class AdjustingStAXSource implements Adjusting.XML.StAXSource
+	{
+		private XMLInputFactory m_xif;
+		private InputStream m_is;
+		private Charset m_serverCS;
+		private boolean m_wrapped;
+
+		AdjustingStAXSource(XMLInputFactory xif, InputStream is,
+			Charset serverCS, boolean wrapped) throws XMLStreamException
+		{
+			m_xif = xif;
+			m_is = is;
+			m_serverCS = serverCS;
+			m_wrapped = wrapped;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingStAXSource used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingStAXSource used before get()");
+		}
+
+		private XMLInputFactory theFactory()
+		{
+			if ( null == m_xif )
+				throw new IllegalStateException(
+					"AdjustingStAXSource too late to adjust after get()");
+			return m_xif;
+		}
+
+		@Override
+		public StAXSource get() throws SQLException
+		{
+			if ( null == m_xif )
+				throw new IllegalStateException(
+					"AdjustingStAXSource get() called more than once");
+			try
+			{
+				XMLStreamReader xsr = m_xif.createXMLStreamReader(
+					m_is, m_serverCS.name());
+				if ( m_wrapped )
+					xsr = new StAXUnwrapFilter(xsr);
+				m_xif = null; // too late for any more adjustments
+				return new StAXSource(xsr);
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public AdjustingStAXSource allowDTD(boolean v) {
+			return setFirstSupportedFeature( v, XMLInputFactory.SUPPORT_DTD);
+		}
+
+		@Override
+		public AdjustingStAXSource externalGeneralEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES);
+		}
+
+		@Override
+		public AdjustingStAXSource externalParameterEntities(boolean v)
+		{
+			return this;
+		}
+
+		@Override
+		public AdjustingStAXSource loadExternalDTD(boolean v)
+		{
+			return setFirstSupportedFeature( !v,
+				"http://java.sun.com/xml/stream/properties/" +
+					"ignore-external-dtd");
+		}
+
+		@Override
+		public AdjustingStAXSource xIncludeAware(boolean v)
+		{
+			return this;
+		}
+
+		@Override
+		public AdjustingStAXSource expandEntityReferences(boolean v)
+		{
+			return this;
+		}
+
+		@Override
+		public AdjustingStAXSource setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			XMLInputFactory xif = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					xif.setProperty(name, value);
+					break;
+				}
+				catch ( IllegalArgumentException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingStAXSource defaults()
+		{
+			return allowDTD(false).externalGeneralEntities(false)
+				.externalParameterEntities(false).loadExternalDTD(false)
+				.xIncludeAware(false).expandEntityReferences(false);
+		}
+	}
+
+	static class AdjustingDOMSource implements Adjusting.XML.DOMSource
+	{
+		private DocumentBuilderFactory m_dbf;
+		private InputStream m_is;
+		private boolean m_wrapped;
+
+		AdjustingDOMSource(
+			DocumentBuilderFactory dbf, InputStream is, boolean wrapped)
+		{
+			m_dbf = dbf;
+			m_is = is;
+			m_wrapped = wrapped;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingDOMSource used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingDOMSource used before get()");
+		}
+
+		private DocumentBuilderFactory theFactory()
+		{
+			if ( null == m_dbf )
+				throw new IllegalStateException(
+					"AdjustingDOMSource too late to adjust after get()");
+			return m_dbf;
+		}
+
+		@Override
+		public DOMSource get() throws SQLException
+		{
+			if ( null == m_dbf )
+				throw new IllegalStateException(
+					"AdjustingDOMSource get() called more than once");
+			try
+			{
+				DocumentBuilder db = m_dbf.newDocumentBuilder();
+				DOMSource ds = new DOMSource(db.parse(m_is));
+				if ( m_wrapped )
+					domUnwrap(ds);
+				m_dbf = null;
+				m_is = null;
+				return ds;
+			}
+			catch ( Exception e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		@Override
+		public AdjustingDOMSource allowDTD(boolean v)
+		{
+			return setFirstSupportedFeature( !v,
+				"http://apache.org/xml/features/disallow-doctype-decl",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#disallow-doctype-decl");
+		}
+
+		@Override
+		public AdjustingDOMSource externalGeneralEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-general-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-general-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-general-entities");
+		}
+
+		@Override
+		public AdjustingDOMSource externalParameterEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-parameter-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-parameter-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-parameter-entities");
+		}
+
+		@Override
+		public AdjustingDOMSource loadExternalDTD(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://apache.org/xml/features/" +
+					"nonvalidating/load-external-dtd");
+		}
+
+		@Override
+		public AdjustingDOMSource xIncludeAware(boolean v)
+		{
+			theFactory().setXIncludeAware(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource expandEntityReferences(boolean v)
+		{
+			theFactory().setExpandEntityReferences(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			DocumentBuilderFactory dbf = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					dbf.setFeature(name, value);
+					break;
+				}
+				catch ( ParserConfigurationException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource defaults()
+		{
+			return allowDTD(false).externalGeneralEntities(false)
+				.externalParameterEntities(false).loadExternalDTD(false)
+				.xIncludeAware(false).expandEntityReferences(false);
 		}
 	}
 }
