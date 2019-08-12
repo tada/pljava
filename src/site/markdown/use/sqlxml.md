@@ -305,3 +305,54 @@ All of the `SQLXML` behaviors described above also apply in this usage.
 If a _readable_ `SQLXML` instance obtained from a `text` value is directly used
 to set or return a value of PostgreSQL's XML type, the XML-ness of the content
 is verified.
+
+## Extensions to the `java.sql.SQLXML` API
+
+### Extended API to configure XML parsers
+
+Retrieving or verifying the XML content in an `SQLXML` object can involve
+applying an XML parser. The full XML specification includes features that can
+require an XML parser to retrieve external resources or consume unexpected
+amounts of memory. The full feature support may be an asset in an environment
+where the XML content will always be from a known, trusted source, or a
+liability if less is known about the XML content being processed.
+
+The [Open Web Application Security Project][OWASP] (OWASP) advocates for the
+default use of settings that strictly limit the related features of Java XML
+parsers, as outlined in a ["cheat sheet"][cheat] the organization publishes.
+
+However, the recommended defaults really are severely restrictive (for example,
+disabling document-type declarations by default will cause PL/Java's `SQLXML`
+implementation to reject all XML values that contain DTDs). Therefore, there
+must be a simple and clear way for code to selectively adjust the settings, or
+adopting the strictest settings by default would pose an unacceptable burden to
+developers.
+
+The traditional Java way to adjust the XML parser is overwhelmingly fiddly,
+involving `setFeature` or `setProperty` calls that identify the feature to be
+set by passing an arcane URI that might be found in the documentation, or the
+[cheat sheet][cheat], or cargo-culted from some other code base. In some cases,
+the streamlined `SQLXML` API conceals the steps where adjustments would have
+to be applied. With no better way to adjust the parser, it would be an
+unrealistic developer burden to adopt the restrictive defaults and expect the
+developer to relax them.
+
+Therefore, PL/Java has an extension API documented at the
+[org.postgresql.pljava.Adjusting.XML class][adjx]. With the API, it is possible
+to obtain a `Source` object from an `SQLXML` instance `sqx` in either the
+standard or extended way shown in this example for a `SAXSource`:
+
+    SAXSource src = sqx.getSource(SAXSource.class); // OR
+    SAXSource src = sqx.getSource(Adjusting.XML.SAXSource.class)
+                       .allowDTD(true).get();
+
+The first form would obtain a `SAXSource` configured with the restrictive,
+OWASP-recommended defaults, which would reject any content with a DTD. The
+second form would obtain a `SAXSource` configured to allow a DTD in the
+content, with other parser features left at the restrictive defaults.
+
+Complete details can be found [in the API documentation][adjx].
+
+[OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
+[cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
+[adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
