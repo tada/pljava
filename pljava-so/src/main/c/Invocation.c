@@ -59,7 +59,7 @@ void Invocation_initialize(void)
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
 	PgObject_registerNatives2(cls, invocationMethods);
-	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "()V");
+	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "(Z)V");
 	JNI_deleteLocalRef(cls);
 }
 
@@ -148,13 +148,14 @@ void Invocation_popInvocation(bool wasException)
 
 	/*
 	 * If a Java Invocation instance was created and associated with this
-	 * invocation, delete the reference (after calling its onExit method, for
-	 * non-exceptional returns).
+	 * invocation, delete the reference (after calling its onExit method,
+	 * indicating whether the return is exceptional or not).
 	 */
 	if(currentInvocation->invocation != 0)
 	{
-		if(!wasException)
-			JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit);
+		JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit,
+			(wasException || currentInvocation->errorOccurred)
+			? JNI_TRUE : JNI_FALSE);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
 
