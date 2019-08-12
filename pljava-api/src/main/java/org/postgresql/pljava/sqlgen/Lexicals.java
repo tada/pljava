@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,6 +55,13 @@ public interface Lexicals {
 	Pattern ISO_REGULAR_IDENTIFIER_CAPTURING = Pattern.compile(String.format(
 		"(%1$s)", ISO_REGULAR_IDENTIFIER.pattern()
 	));
+
+	/** A complete delimited identifier as allowed by ISO. As it happens, this
+	 * is also the form PostgreSQL uses for elements of a LIST_QUOTE-typed GUC.
+	 */
+	public static final Pattern ISO_DELIMITED_IDENTIFIER = Pattern.compile(
+		"\"(?:[^\"]|\"\"){1,128}+\""
+	);
 
 	/** Allowed as the first character of a regular identifier by PostgreSQL
 	 * (PG 7.4 -).
