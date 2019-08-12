@@ -880,18 +880,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public OutputStream setBinaryStream() throws SQLException
 		{
-			VarlenaWrapper.Output os = backingAndClearWritable();
-			if ( null == os )
+			VarlenaWrapper.Output vwo = backingAndClearWritable();
+			if ( null == vwo )
 				return super.setBinaryStream();
-			try
-			{
-				os.setVerifier(new Verifier());
-				return new DeclCheckedOutputStream(os, m_serverCS);
-			}
-			catch ( IOException e )
-			{
-				throw normalizedException(e);
-			}
+			return new AdjustingStreamResult(vwo, m_serverCS)
+				.defaults().preferBinaryStream().get().getOutputStream();
 		}
 
 		@Override
@@ -900,16 +893,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo = backingAndClearWritable();
 			if ( null == vwo )
 				return super.setCharacterStream();
-			try
-			{
-				vwo.setVerifier(new Verifier());
-				OutputStream os = new DeclCheckedOutputStream(vwo, m_serverCS);
-				return new OutputStreamWriter(os, m_serverCS.newEncoder());
-			}
-			catch ( IOException e )
-			{
-				throw normalizedException(e);
-			}
+			return new AdjustingStreamResult(vwo, m_serverCS)
+				.defaults().preferCharacterStream().get().getWriter();
 		}
 
 		@Override
@@ -920,9 +905,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				super.setString(value);
 			try
 			{
-				vwo.setVerifier(new Verifier());
-				OutputStream os = new DeclCheckedOutputStream(vwo, m_serverCS);
-				Writer w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+				Writer w = new AdjustingStreamResult(vwo, m_serverCS)
+					.defaults().preferCharacterStream().get().getWriter();
 				w.write(value);
 				w.close();
 			}
@@ -942,15 +926,21 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			if ( null == resultClass || Result.class == resultClass )
 				resultClass = (Class<T>)SAXResult.class; // trust me on this
+			else if ( Adjusting.XML.Result.class.equals(resultClass) )
+				resultClass = (Class<T>)AdjustingSAXResult.class;
 
 			try
 			{
-				if ( resultClass.isAssignableFrom(StreamResult.class) )
+				if ( resultClass.isAssignableFrom(StreamResult.class)
+					|| resultClass.isAssignableFrom(AdjustingStreamResult.class)
+				   )
 				{
-					vwo.setVerifier(new Verifier());
-					return resultClass.cast(
-						new StreamResult(new DeclCheckedOutputStream(
-							vwo, m_serverCS)));
+					AdjustingStreamResult sr =
+						new AdjustingStreamResult(vwo, m_serverCS).defaults();
+					if ( Adjusting.XML.Result.class
+							.isAssignableFrom(resultClass) )
+						return resultClass.cast(sr);
+					return resultClass.cast(sr.get());
 				}
 
 				/*
@@ -959,7 +949,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				vwo.setVerifier(VarlenaWrapper.Verifier.NoOp.INSTANCE);
 				OutputStream os = vwo;
 
-				if ( resultClass.isAssignableFrom(SAXResult.class) )
+				if ( resultClass.isAssignableFrom(SAXResult.class)
+					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
 				{
 					SAXTransformerFactory saxtf = (SAXTransformerFactory)
 						SAXTransformerFactory.newInstance();
@@ -969,7 +960,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					th.setResult(new StreamResult(os));
 					th = SAXResultAdapter.newInstance(th, os);
-					return resultClass.cast(new SAXResult(th));
+					SAXResult sr = new SAXResult(th);
+					if ( Adjusting.XML.Result.class
+							.isAssignableFrom(resultClass) )
+						return resultClass.cast(new AdjustingSAXResult(sr));
+					return resultClass.cast(sr);
 				}
 
 				if ( resultClass.isAssignableFrom(StAXResult.class) )
@@ -1048,12 +1043,33 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	static class Verifier extends VarlenaWrapper.Verifier.Base
 	{
+		private XMLReader m_xr;
+
+		Verifier() throws SQLException
+		{
+			try
+			{
+				XMLReader xr = XMLReaderFactory.createXMLReader();
+				xr.setFeature("http://xml.org/sax/features/namespaces", true);
+				m_xr =
+					new AdjustingSAXSource(xr, null)
+						.defaults().get().getXMLReader();
+			}
+			catch ( SAXException e )
+			{
+				throw normalizedException(e);
+			}
+		}
+
+		Verifier(XMLReader xr)
+		{
+			m_xr = xr;
+		}
+
 		@Override
 		protected void verify(InputStream is) throws Exception
 		{
 			boolean[] wrapped = { false };
-			XMLReader xr = XMLReaderFactory.createXMLReader();
-			xr.setFeature("http://xml.org/sax/features/namespaces", true);
 			is = correctedDeclStream(
 				is, false, implServerCharset(), wrapped);
 			/*
@@ -1061,7 +1077,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			 * content events? Parses everything and discards the events.
 			 * Just what you'd want for a verifier.
 			 */
-			xr.parse(new InputSource(is));
+			m_xr.parse(new InputSource(is));
 		}
 	}
 
@@ -1209,7 +1225,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * only accepts {@code XML(DOCUMENT)}.
 	 *<p>
 	 * The result may be surprising to code consuming the SAX stream, depending
-	 * on what it expects, but testing has showed the JRE-bundled identity
+	 * on what it expects, but testing has shown the JRE-bundled identity
 	 * transformer, at least, to accept the input and faithfully reproduce the
 	 * non-document content.
 	 */
@@ -2279,6 +2295,157 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
+	static class AdjustingStreamResult implements Adjusting.XML.StreamResult
+	{
+		private VarlenaWrapper.Output m_vwo;
+		private Charset m_serverCS;
+		private AdjustingSAXSource m_verifierSource;
+		private boolean m_preferWriter = false;
+
+		AdjustingStreamResult(VarlenaWrapper.Output vwo, Charset serverCS)
+		throws SQLException
+		{
+			m_vwo = vwo;
+			m_serverCS = serverCS;
+			XMLReader xr;
+			try
+			{
+				xr = XMLReaderFactory.createXMLReader();
+				xr.setFeature("http://xml.org/sax/features/namespaces", true);
+			}
+			catch ( SAXException e )
+			{
+				throw normalizedException(e);
+			}
+			m_verifierSource = new AdjustingSAXSource(xr, null);
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingStreamResult used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingStreamResult used before get()");
+		}
+
+		private AdjustingSAXSource theVerifierSource()
+		{
+			if ( null == m_verifierSource )
+				throw new IllegalStateException(
+					"AdjustingStreamResult too late to adjust after get()");
+			return m_verifierSource;
+		}
+
+		@Override
+		public AdjustingStreamResult preferBinaryStream()
+		{
+			theVerifierSource(); // shorthand error check
+			m_preferWriter = false;
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult preferCharacterStream()
+		{
+			theVerifierSource(); // shorthand error check
+			m_preferWriter = true;
+			return this;
+		}
+
+		@Override
+		public StreamResult get() throws SQLException
+		{
+			if ( null == m_verifierSource )
+				throw new IllegalStateException(
+					"AdjustingStreamResult get() called more than once");
+
+			XMLReader xr = m_verifierSource.get().getXMLReader();
+			OutputStream os;
+			try
+			{
+				m_vwo.setVerifier(new Verifier(xr));
+				os = new DeclCheckedOutputStream(m_vwo, m_serverCS);
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+			StreamResult sr;
+			if ( m_preferWriter )
+				sr = new StreamResult(
+					new OutputStreamWriter(os, m_serverCS.newEncoder()));
+			else
+				sr = new StreamResult(os);
+			m_vwo = null;
+			m_verifierSource = null;
+			m_serverCS = null;
+			return sr;
+		}
+
+		@Override
+		public AdjustingStreamResult allowDTD(boolean v)
+		{
+			theVerifierSource().allowDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult externalGeneralEntities(boolean v)
+		{
+			theVerifierSource().externalGeneralEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult externalParameterEntities(boolean v)
+		{
+			theVerifierSource().externalParameterEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult loadExternalDTD(boolean v)
+		{
+			theVerifierSource().loadExternalDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult xIncludeAware(boolean v)
+		{
+			theVerifierSource().xIncludeAware(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult expandEntityReferences(boolean v)
+		{
+			theVerifierSource().expandEntityReferences(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			theVerifierSource().setFirstSupportedFeature(value, names);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult defaults()
+		{
+			theVerifierSource().defaults();
+			return preferBinaryStream();
+		}
+	}
+
 	static class AdjustingSAXSource implements Adjusting.XML.SAXSource
 	{
 		private XMLReader m_xr;
@@ -2406,6 +2573,105 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return allowDTD(false).externalGeneralEntities(false)
 				.externalParameterEntities(false).loadExternalDTD(false)
 				.xIncludeAware(false).expandEntityReferences(false);
+		}
+	}
+
+	/*
+	 * For the moment, an AdjustingSAXResult doesn't adjust anything at all,
+	 * as a Verifier isn't used when writing through SAX. But it has to be here,
+	 * just because if the client asks only for Adjusting.XML.Result, meaning we
+	 * get to pick, SAX is the flavor we pick.
+	 */
+	static class AdjustingSAXResult implements Adjusting.XML.SAXResult
+	{
+		private SAXResult m_sr;
+
+		AdjustingSAXResult(SAXResult sr)
+		{
+			m_sr = sr;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXResult used before get()");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new IllegalStateException(
+				"AdjustingSAXResult used before get()");
+		}
+
+		private AdjustingSAXResult checkedNoOp()
+		{
+			if ( null == m_sr )
+				throw new IllegalStateException(
+					"AdjustingSAXResult too late to adjust after get()");
+			return this;
+		}
+
+		@Override
+		public SAXResult get() throws SQLException
+		{
+			if ( null == m_sr )
+				throw new IllegalStateException(
+					"AdjustingSAXResult get() called more than once");
+
+			SAXResult sr = m_sr;
+			m_sr = null;
+			return sr;
+		}
+
+		@Override
+		public AdjustingSAXResult allowDTD(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult externalGeneralEntities(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult externalParameterEntities(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult loadExternalDTD(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult xIncludeAware(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult expandEntityReferences(boolean v)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult defaults()
+		{
+			return checkedNoOp();
 		}
 	}
 

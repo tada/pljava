@@ -242,5 +242,115 @@ public final class Adjusting
 			extends Source<javax.xml.transform.dom.DOMSource>
 		{
 		}
+
+		/**
+		 * Adjusting version of {@code javax.xml.transform.Result}, offering
+		 * mainly the same adjustments as an {@link Source}, chiefly so that
+		 * there is a way to apply those adjustments to any implicitly-created
+		 * parser used to verify the content that will be written to the
+		 * {@code Result}.
+		 *<p>
+		 * Like those of {@link Source}, the adjusting methods are best-effort and do not provide an
+		 * indication of whether the requested adjustment was made. Not all of
+		 * the adjustments are available for all parser implementations or
+		 * versions the Java runtime may supply.
+		 */
+		public interface Result<T extends javax.xml.transform.Result>
+		extends javax.xml.transform.Result
+		{
+			/**
+			 * Return an object of the expected {@code Result} subtype
+			 * reflecting any adjustments made with the other methods.
+			 * @return an implementing object of the expected Result subtype
+			 * @throws SQLException for any reason that {@code getResult} might
+			 * have thrown when supplying the corresponding non-Adjusting
+			 * subtype of Result.
+			 */
+			T get() throws SQLException;
+
+			/** Whether to allow a DTD at all. */
+			Result<T> allowDTD(boolean v);
+
+			/**
+			 * Whether to retrieve external "general" entities (those
+			 * that can be used in the document body) declared in the DTD.
+			 */
+			Result<T> externalGeneralEntities(boolean v);
+
+			/**
+			 * Whether to retrieve external "parameter" entities (those
+			 * declared with a {@code %} and usable only within the DTD)
+			 * declared in the DTD.
+			 */
+			Result<T> externalParameterEntities(boolean v);
+
+			/**
+			 * Whether to retrieve any external DTD subset declared in the DTD.
+			 */
+			Result<T> loadExternalDTD(boolean v);
+
+			/**
+			 * Whether to honor XInclude syntax in the document.
+			 */
+			Result<T> xIncludeAware(boolean v);
+
+			/**
+			 * Whether to expand entity references in the document to their
+			 * declared replacement content.
+			 */
+			Result<T> expandEntityReferences(boolean v);
+
+			/**
+			 * For a feature that may have been identified by more than one URI
+			 * in different parsers or versions, try passing the supplied
+			 * <em>value</em> with each URI from <em>names</em> in order until
+			 * one is not rejected by the underlying parser.
+			 */
+			Result<T> setFirstSupportedFeature(boolean value, String... names);
+
+			/**
+			 * Make a best effort to apply the recommended, restrictive
+			 * defaults from the OWASP cheat sheet, to the extent they are
+			 * supported by the underlying parser, runtime, and version.
+			 *<p>
+			 * Equivalent to:
+			 *<pre>
+			 * allowDTD(false).externalGeneralEntities(false)
+			 * .externalParameterEntities(false).loadExternalDTD(false)
+			 * .xIncludeAware(false).expandEntityReferences(false)
+			 *</pre>
+			 */
+			Result<T> defaults();
+		}
+
+		/**
+		 * Adjusting version of a {@code StreamResult}.
+		 *<p>
+		 * In addition to the adjusting methods inherited from
+		 * {@link Result} (which will apply to any XML parser the implementation
+		 * constructs to verify the content written, otherwise having no
+		 * effect), this interface supplies two methods to influence whether the
+		 * constructed {@code StreamResult} will expect a binary stream or a
+		 * character stream.
+		 */
+		public interface StreamResult
+			extends Result<javax.xml.transform.stream.StreamResult>
+		{
+			StreamResult preferBinaryStream();
+			StreamResult preferCharacterStream();
+		}
+
+		/**
+		 * Adjusting version of a {@code SAXResult}.
+		 *<p>
+		 * The adjusting methods inherited from
+		 * {@link Result} will apply to any XML parser the implementation
+		 * constructs to verify the content written, otherwise having no
+		 * effect.
+		 */
+		public interface SAXResult
+			extends Result<javax.xml.transform.sax.SAXResult>
+		{
+		}
 	}
 }
