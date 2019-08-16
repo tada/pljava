@@ -550,6 +550,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( ! needMore )
 				break;
 		}
+		probe.finish();
 
 		/*
 		 * At this point, for better or worse, the loop is done. There may
@@ -1305,9 +1306,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						while ( 0 < len -- )
 						{
 							if ( ! m_probe.take(b[off ++]) )
+							{
+								check();
 								break;
+							}
 						}
-						check();
 					}
 					catch ( SQLException sqe )
 					{
@@ -1367,6 +1370,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( null == m_probe )
 				return;
+			m_probe.finish();
 			m_probe.checkEncoding(m_serverCS, false);
 			byte[] prefix = m_probe.prefix(null /* not m_serverCS */);
 			m_probe = null; // Do not check more than once.
@@ -1955,7 +1959,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			ENC, EEQ, EQ, EVAL, EVALTAIL,
 			MAYBESA,
 			SA , SEQ, SQ, SVAL, SVALTAIL,
-			TRAILING, END, MATCHED, UNMATCHED, ABANDONED
+			TRAILING, END, MATCHED, UNMATCHED, UNMATCHEDCHAR, ABANDONED
 		};
 		private State m_state = State.START;
 		private int m_idx = 0;
@@ -1982,6 +1986,25 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private int m_versionStart, m_versionEnd;
 		private int m_encodingStart, m_encodingEnd;
 		private int m_readaheadStart;
+		/*
+		 * Contains, if m_state is UNMATCHEDCHAR, a single, non-ASCII char that
+		 * followed whatever ASCII bytes may be saved in m_save.
+		 */
+		private char m_savedChar;
+
+		/* XXX discard once Java back horizon reaches 7 */
+		private static final Charset s_ASCII;
+		static
+		{
+			try
+			{
+				s_ASCII = Charset.forName("US-ASCII");
+			}
+			catch ( IllegalArgumentException e ) // I'll take this chance
+			{
+				throw new ExceptionInInitializerError(e);
+			}
+		}
 
 		/**
 		 * Parse for an initial declaration (XMLDecl or TextDecl) in a stream
@@ -2274,6 +2297,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			case MATCHED:     // no more input needed for a determination;
 			case UNMATCHED:   // whatever more is provided, just buffer it
 				return false; // as readahead
+			case UNMATCHEDCHAR: // can't happen; fall into ABANDONED if it does
 			case ABANDONED:
 			}
 			m_state = State.ABANDONED;
@@ -2285,9 +2309,75 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			throw new SQLDataException(m, "2200N");
 		}
 
+		/**
+		 * Version of {@link take(byte)} for use when input is coming from a
+		 * character stream.
+		 *<p>
+		 * Exploits (again) the assumption that in all encodings of interest,
+		 * the characters in a decl will have the values they have in ASCII, and
+		 * the fact that ASCII characters are all encoded in the low 7 bits
+		 * of chars.
+		 *<p>
+		 * Unlike {@link take(byte)}, this method will not accept further input
+		 * after it has returned {@code false} once. A caller should not mix
+		 * calls to this method and {@link take(byte)}.
+		 * @param c The next char of the stream.
+		 * @return True if more input is needed to fully parse a decl or be sure
+		 * that none is present; false when enough input has been seen.
+		 * @throws SQLDataException If a partial or malformed decl is found.
+		 * @throws IllegalStateException if called again after returning false.
+		 */
+		boolean take(char c) throws SQLException
+		{
+			byte b = (byte)(c & 0x7f);
+			switch ( m_state )
+			{
+			case START:
+				if ( b == c )
+					return take(b);
+				m_savedChar = c;
+				m_state = State.UNMATCHEDCHAR;
+				return false;
+			case ABANDONED:
+			case MATCHED:
+			case UNMATCHED:
+			case UNMATCHEDCHAR:
+				throw new IllegalStateException("too many take(char) calls");
+			default:
+				if ( b == c )
+					return take(b);
+			}
+			return take((byte)-1); // will throw appropriate SQLDataException
+		}
+
 		private boolean isSpace(byte b)
 		{
 			return (0x20 == b) || (0x09 == b) || (0x0D == b) || (0x0A == b);
+		}
+
+		/**
+		 * Call after the last call to {@code take} before examining results.
+		 */
+		void finish() throws SQLException
+		{
+			switch ( m_state )
+			{
+			case ABANDONED:
+			case MATCHED:
+			case UNMATCHED:
+			case UNMATCHEDCHAR:
+				return;
+			case START:
+				if ( 0 == m_idx )
+				{
+					m_state = State.UNMATCHED;
+					return;
+				}
+			/* FALLTHROUGH */
+			default:
+			}
+			throw new SQLDataException(
+				"XML begins with an incomplete declaration", "2200N");
 		}
 
 		/**
@@ -2403,12 +2493,36 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return baos.toByteArray();
 		}
 
+		char[] charPrefix(Charset serverCharset) throws IOException
+		{
+			byte[] bpfx = prefix(serverCharset);
+			char[] cpfx = new char [
+				bpfx.length + (State.UNMATCHEDCHAR == m_state ? 1 : 0) ];
+			int i = 0;
+			/*
+			 * Again the assumption that all supported encodings will match
+			 * ASCII for the characters of the decl.
+			 */
+			for ( byte b : bpfx )
+				cpfx [ i++ ] = (char)(b&0x7f);
+			if ( i < cpfx.length )
+				cpfx [ i ] = m_savedChar;
+			return cpfx;
+		}
+
 		/**
 		 * Return the number of bytes at the end of the {@code prefix} result
 		 * that represent readahead, rather than being part of the decl.
 		 */
 		int readaheadLength()
 		{
+			/*
+			 * If the probing was done as chars, because of the more restrictive
+			 * behavior of take(char), the readahead length can be exactly one,
+			 * only if the state is UNMATCHEDCHAR, and will otherwise be zero.
+			 */
+			if ( State.UNMATCHEDCHAR == m_state )
+				return 1;
 			return m_save.size() - m_readaheadStart;
 		}
 
@@ -2453,15 +2567,26 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						"\" which does not match server encoding", "2200N");
 				}
 			}
-			else if ( State.UNMATCHED != m_state )
-				throw new SQLDataException(
-					"XML begins with an incomplete declaration", "2200N");
 
 			if ( ! strict  ||  "UTF-8".equals(serverCharset.name()) )
 				return;
 			throw new SQLDataException(
 				"XML does not declare a character set, and server encoding " +
 				"is not UTF-8", "2200N");
+		}
+
+		String queryEncoding() throws SQLException
+		{
+			if ( State.MATCHED == m_state )
+			{
+				if ( m_encodingEnd <= m_encodingStart )
+					return null;
+				byte[] parseResult = m_save.toByteArray();
+				return new String(parseResult,
+					m_encodingStart, m_encodingEnd - m_encodingStart,
+					s_ASCII);
+			}
+			return null;
 		}
 	}
 
