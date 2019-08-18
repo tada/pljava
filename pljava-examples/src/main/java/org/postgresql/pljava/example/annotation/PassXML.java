@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLData;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
@@ -368,18 +369,137 @@ public class PassXML implements SQLData
 	 * {@code echoXMLParameter}.
 	 *<p>
 	 * This illustrates how the simple use of {@code t.transform(src,rlt)}
-	 * in {@code echoSQLXML} substitutes for a lot of fiddly case-by-case code
-	 * (and not all the cases are even covered here!), but when coding for a
-	 * specific case, all the generality of {@code transform} may not be needed.
-	 * It can be interesting to compare memory use when XML values are large.
+	 * in {@code echoSQLXML} substitutes for a lot of fiddly case-by-case code,
+	 * but when coding for a specific case, all the generality of {@code
+	 * transform} may not be needed. It can be interesting to compare memory use
+	 * when XML values are large.
+	 *<p>
+	 * This method has been revised to demonstrate, even for low-level
+	 * manipulations, how much fiddliness can now be avoided through use of the
+	 * {@link Adjusting.XML.SourceResult} class, and how to make adjustments to
+	 * parsing restrictions by passing the optional row-typed parameter
+	 * <em>adjust</em>, which defaults to an empty row. For example, passing
+	 *<pre>
+	 * adjust =&gt; (select a from
+	 *            (true as allowdtd, true as expandentityreferences) as a)
+	 *</pre>
+	 * would allow a document that contains an internal DTD subset and uses
+	 * entities defined there.
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml")
-	public static SQLXML lowLevelXMLEcho(SQLXML sx, int how)
+	public static SQLXML lowLevelXMLEcho(
+		SQLXML sx, int how, @SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
 	{
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
 		SQLXML rx = c.createSQLXML();
 
+		if ( null == adjust )
+			return oldSchoolLowLevelEcho(rx, sx, how);
+
+		Adjusting.XML.SourceResult axsr =
+			rx.setResult(Adjusting.XML.SourceResult.class);
+
+		switch ( how )
+		{
+		/*
+		 * The first four cases all present the content as unparsed bytes or
+		 * characters, so there is nothing to adjust on the source side.
+		 */
+		case 1:
+			axsr.set(new StreamSource(sx.getBinaryStream()));
+			break;
+		case 2:
+			axsr.set(new StreamSource(sx.getCharacterStream()));
+			break;
+		case 3:
+			axsr.set(sx.getString());
+			break;
+		case 4:
+			axsr.set(sx.getSource(StreamSource.class));
+			break;
+		/*
+		 * The remaining cases present the content in parsed form, and therefore
+		 * may involve parsers that can be adjusted according to the supplied
+		 * preferences.
+		 */
+		case 5:
+			axsr.set(applyAdjustments(adjust,
+				sx.getSource(Adjusting.XML.SAXSource.class)));
+			break;
+		case 6:
+			axsr.set(applyAdjustments(adjust,
+				sx.getSource(Adjusting.XML.StAXSource.class)));
+			break;
+		case 7:
+			axsr.set(applyAdjustments(adjust,
+				sx.getSource(Adjusting.XML.DOMSource.class)));
+			break;
+		default:
+			throw new SQLDataException(
+				"how must be 1-7 for lowLevelXMLEcho", "22003");
+		}
+
+		/*
+		 * Adjustments can also be applied to the SourceResult itself, where
+		 * they will affect any implicitly-created parser used to verify or
+		 * re-encode the content, if it was supplied in unparsed form.
+		 */
+		return applyAdjustments(adjust, axsr).get().getSQLXML();
+	}
+
+	/**
+	 * Apply adjustments (supplied as a row type with a named column for each
+	 * desired adjustment and its value) to an instance of
+	 * {@link Adjusting.XML.Parsing}.
+	 *<p>
+	 * Column names in the <em>adjust</em> row are case-insensitive versions of
+	 * the method names in {@link Adjusting.XML.Parsing}, and the value of each
+	 * column should be of the appropriate type (at present, boolean for all of
+	 * them).
+	 * @param adjust A row type as described above, possibly of no columns if no
+	 * adjustments are wanted
+	 * @param axp An instance of Adjusting.XML.Parsing
+	 * @return axp, after applying any adjustments
+	 */
+	public static <T extends Adjusting.XML.Parsing<? super T>>
+	T applyAdjustments(ResultSet adjust, T axp)
+	throws SQLException
+	{
+		ResultSetMetaData rsmd = adjust.getMetaData();
+		int n = rsmd.getColumnCount();
+
+		for ( int i = 1; i <= n; ++i )
+		{
+			String k = rsmd.getColumnLabel(i);
+			if ( "allowDTD".equalsIgnoreCase(k) )
+				axp.allowDTD(adjust.getBoolean(i));
+			else if ( "externalGeneralEntities".equalsIgnoreCase(k) )
+				axp.externalGeneralEntities(adjust.getBoolean(i));
+			else if ( "externalParameterEntities".equalsIgnoreCase(k) )
+				axp.externalParameterEntities(adjust.getBoolean(i));
+			else if ( "loadExternalDTD".equalsIgnoreCase(k) )
+				axp.loadExternalDTD(adjust.getBoolean(i));
+			else if ( "xIncludeAware".equalsIgnoreCase(k) )
+				axp.xIncludeAware(adjust.getBoolean(i));
+			else if ( "expandEntityReferences".equalsIgnoreCase(k) )
+				axp.expandEntityReferences(adjust.getBoolean(i));
+			else
+				throw new SQLDataException(
+					"unrecognized name \"" + k + "\" for parser adjustment",
+					"22000");
+		}
+		return axp;
+	}
+
+	/**
+	 * An obsolescent example, showing what was required to copy from one
+	 * {@code SQLXML} object to another, using the various supported APIs,
+	 * without using {@link Adjusting.XML.SourceResult}.
+	 */
+	private static SQLXML oldSchoolLowLevelEcho(SQLXML rx, SQLXML sx, int how)
+	throws SQLException
+	{
 		try
 		{
 			switch ( how )
@@ -533,10 +653,11 @@ public class PassXML implements SQLData
 	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
 	 */
 	@Function(schema="javatest", name="lowLevelXMLEcho", type="text")
-	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how)
+	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how,
+		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
 	{
-		return lowLevelXMLEcho(sx, how);
+		return lowLevelXMLEcho(sx, how, adjust);
 	}
 
 	/**
