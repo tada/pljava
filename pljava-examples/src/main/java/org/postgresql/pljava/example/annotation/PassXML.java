@@ -58,6 +58,7 @@ import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stax.StAXResult;
 import javax.xml.transform.stax.StAXSource;
 
+import org.postgresql.pljava.Adjusting;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -398,23 +399,24 @@ public class PassXML implements SQLData
 				break;
 			case 4:
 				StreamSource ss = sx.getSource(StreamSource.class);
-				StreamResult sr = rx.setResult(StreamResult.class);
+				Adjusting.XML.StreamResult sr =
+					rx.setResult(Adjusting.XML.StreamResult.class);
 				is = ss.getInputStream();
 				r  = ss.getReader();
-				os = sr.getOutputStream();
-				w  = sr.getWriter();
-				if ( null != is  &&  null != os )
+				if ( null != is )
 				{
+					os = sr.preferBinaryStream().get().getOutputStream();
 					shovelBytes(is, os);
 					break;
 				}
-				if ( null != r  &&  null != r )
+				if ( null != r )
 				{
+					w  = sr.preferCharacterStream().get().getWriter();
 					shovelChars(r, w);
 					break;
 				}
 				throw new SQLDataException(
-					"Unimplemented combination of StreamSource/StreamResult");
+					"StreamSource contained neither InputStream nor Reader");
 			case 5:
 				SAXSource sxs = sx.getSource(SAXSource.class);
 				SAXResult sxr = rx.setResult(SAXResult.class);
@@ -903,7 +905,8 @@ public class PassXML implements SQLData
 				case 2:
 					return (T)new StreamSource(m_sx.getCharacterStream());
 				case 4:
-					break; // implementation picks what kind of StreamSource
+					sourceClass = (Class<T>)StreamSource.class;
+					break;
 				case 5:
 					sourceClass = (Class<T>)SAXSource.class;
 					break;
