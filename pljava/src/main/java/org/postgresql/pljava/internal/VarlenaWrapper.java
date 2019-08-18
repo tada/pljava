@@ -577,6 +577,7 @@ public interface VarlenaWrapper extends Closeable
 			{
 				if ( ! m_open )
 					return;
+				m_state.setVerifierIfNone();
 				buf(0);
 				m_open = false;
 				m_state.verify();
@@ -704,6 +705,17 @@ public interface VarlenaWrapper extends Closeable
 				if ( null == v )
 					throw new NullPointerException("Null Verifier parameter");
 				m_verifier = v.schedule();
+			}
+
+			/*
+			 * Only for use in close() in case of early closing before the
+			 * caller has set a verifier; make sure at least the NoOp verifier
+			 * is there.
+			 */
+			private void setVerifierIfNone()
+			{
+				if ( null == m_verifier )
+					m_verifier = Verifier.NoOp.INSTANCE;
 			}
 
 			private void cancelVerifier()

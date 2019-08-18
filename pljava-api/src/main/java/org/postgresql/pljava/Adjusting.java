@@ -13,6 +13,7 @@ package org.postgresql.pljava;
 
 import java.io.Reader;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import javax.xml.stream.XMLStreamReader;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
@@ -122,6 +123,74 @@ public final class Adjusting
 		private XML() { } // no instances
 
 		/**
+		 * Interface with methods to adjust the restrictions on XML parsing
+		 * that are commonly considered when XML content might be from untrusted
+		 * sources.
+		 *<p>
+		 * The adjusting methods are best-effort and do not provide an
+		 * indication of whether the requested adjustment was made. Not all of
+		 * the adjustments are available for all flavors of {@code Source} or
+		 * {@code Result} or for all parser implementations or versions the Java
+		 * runtime may supply.
+		 */
+		public interface Parsing<T extends Parsing<T>>
+		{
+			/** Whether to allow a DTD at all. */
+			T allowDTD(boolean v);
+
+			/**
+			 * Whether to retrieve external "general" entities (those
+			 * that can be used in the document body) declared in the DTD.
+			 */
+			T externalGeneralEntities(boolean v);
+
+			/**
+			 * Whether to retrieve external "parameter" entities (those
+			 * declared with a {@code %} and usable only within the DTD)
+			 * declared in the DTD.
+			 */
+			T externalParameterEntities(boolean v);
+
+			/**
+			 * Whether to retrieve any external DTD subset declared in the DTD.
+			 */
+			T loadExternalDTD(boolean v);
+
+			/**
+			 * Whether to honor XInclude syntax in the document.
+			 */
+			T xIncludeAware(boolean v);
+
+			/**
+			 * Whether to expand entity references in the document to their
+			 * declared replacement content.
+			 */
+			T expandEntityReferences(boolean v);
+
+			/**
+			 * For a feature that may have been identified by more than one URI
+			 * in different parsers or versions, try passing the supplied
+			 * <em>value</em> with each URI from <em>names</em> in order until
+			 * one is not rejected by the underlying parser.
+			 */
+			T setFirstSupportedFeature(boolean value, String... names);
+
+			/**
+			 * Make a best effort to apply the recommended, restrictive
+			 * defaults from the OWASP cheat sheet, to the extent they are
+			 * supported by the underlying parser, runtime, and version.
+			 *<p>
+			 * Equivalent to:
+			 *<pre>
+			 * allowDTD(false).externalGeneralEntities(false)
+			 * .externalParameterEntities(false).loadExternalDTD(false)
+			 * .xIncludeAware(false).expandEntityReferences(false)
+			 *</pre>
+			 */
+			T defaults();
+		}
+
+		/**
 		 * Adjusting version of {@code javax.xml.transform.Source}, allowing
 		 * various parser features to be configured before calling
 		 * {@link #get get()} to obtain the usable {@code Source} object.
@@ -136,14 +205,9 @@ public final class Adjusting
 		 * particular desired type, pass the class literal of one of the
 		 * subtypes {@link SAXSource}, {@link StAXSource}, or {@link DOMSource}.
 		 *<p>
-		 * The {@link #get get()} method can only be called once. The other,
-		 * adjusting methods can only be called before {@code get()}.
-		 *<p>
-		 * The adjusting methods are best-effort and do not provide an
-		 * indication of whether the requested adjustment was made. Not all of
-		 * the adjustments are available for all flavors of {@code Source} or
-		 * for all parser implementations or versions the Java runtime may
-		 * supply.
+		 * The {@link #get get()} method can only be called once. The adjusting
+		 * methods inherited from {@link Parsing} can only be called before
+		 * {@code get()}.
 		 *<p>
 		 * Although this extends {@code javax.xml.transform.Source},
 		 * implementing classes will likely throw exceptions from the
@@ -152,7 +216,7 @@ public final class Adjusting
 		 * object obtained from {@code get()}.
 		 */
 		public interface Source<T extends javax.xml.transform.Source>
-		extends javax.xml.transform.Source
+		extends Parsing<Source<T>>, javax.xml.transform.Source
 		{
 			/**
 			 * Return an object of the expected {@code Source} subtype
@@ -163,60 +227,6 @@ public final class Adjusting
 			 * subtype of Source.
 			 */
 			T get() throws SQLException;
-
-			/** Whether to allow a DTD at all. */
-			Source<T> allowDTD(boolean v);
-
-			/**
-			 * Whether to retrieve external "general" entities (those
-			 * that can be used in the document body) declared in the DTD.
-			 */
-			Source<T> externalGeneralEntities(boolean v);
-
-			/**
-			 * Whether to retrieve external "parameter" entities (those
-			 * declared with a {@code %} and usable only within the DTD)
-			 * declared in the DTD.
-			 */
-			Source<T> externalParameterEntities(boolean v);
-
-			/**
-			 * Whether to retrieve any external DTD subset declared in the DTD.
-			 */
-			Source<T> loadExternalDTD(boolean v);
-
-			/**
-			 * Whether to honor XInclude syntax in the document.
-			 */
-			Source<T> xIncludeAware(boolean v);
-
-			/**
-			 * Whether to expand entity references in the document to their
-			 * declared replacement content.
-			 */
-			Source<T> expandEntityReferences(boolean v);
-
-			/**
-			 * For a feature that may have been identified by more than one URI
-			 * in different parsers or versions, try passing the supplied
-			 * <em>value</em> with each URI from <em>names</em> in order until
-			 * one is not rejected by the underlying parser.
-			 */
-			Source<T> setFirstSupportedFeature(boolean value, String... names);
-
-			/**
-			 * Make a best effort to apply the recommended, restrictive
-			 * defaults from the OWASP cheat sheet, to the extent they are
-			 * supported by the underlying parser, runtime, and version.
-			 *<p>
-			 * Equivalent to:
-			 *<pre>
-			 * allowDTD(false).externalGeneralEntities(false)
-			 * .externalParameterEntities(false).loadExternalDTD(false)
-			 * .xIncludeAware(false).expandEntityReferences(false)
-			 *</pre>
-			 */
-			Source<T> defaults();
 		}
 
 		/**
@@ -245,18 +255,13 @@ public final class Adjusting
 
 		/**
 		 * Adjusting version of {@code javax.xml.transform.Result}, offering
-		 * mainly the same adjustments as an {@link Source}, chiefly so that
+		 * the adjustment methods of {@link Parsing}, chiefly so that
 		 * there is a way to apply those adjustments to any implicitly-created
 		 * parser used to verify the content that will be written to the
 		 * {@code Result}.
-		 *<p>
-		 * Like those of {@link Source}, the adjusting methods are best-effort and do not provide an
-		 * indication of whether the requested adjustment was made. Not all of
-		 * the adjustments are available for all parser implementations or
-		 * versions the Java runtime may supply.
 		 */
 		public interface Result<T extends javax.xml.transform.Result>
-		extends javax.xml.transform.Result
+		extends Parsing<Result<T>>, javax.xml.transform.Result
 		{
 			/**
 			 * Return an object of the expected {@code Result} subtype
@@ -267,60 +272,120 @@ public final class Adjusting
 			 * subtype of Result.
 			 */
 			T get() throws SQLException;
+		}
 
-			/** Whether to allow a DTD at all. */
-			Result<T> allowDTD(boolean v);
-
+		/**
+		 * Specialized {@code Result} type for setting a new PL/Java
+		 * {@code SQLXML} instance's content from an arbitrary {@code Source}
+		 * object of any of the types JDBC requires the {@code SQLXML} type
+		 * to support.
+		 *<p>
+		 * The {@link #set set} method must be called before any of the
+		 * inherited adjustment methods, and the {@link #getSQLXML getSQLXML}
+		 * method only after any adjustments.
+		 *<p>
+		 * This is used transparently when another JDBC driver's {@code SQLXML}
+		 * instance is returned from a PL/Java function, or passed to a
+		 * {@code ResultSet} or {@code PreparedStatement}, to produce the
+		 * PL/Java instance that is ultimately needed. In that case, the source
+		 * {@code SQLXML} instance's {@code getSource} method is passed a null
+		 * {@code sourceClass} argument, allowing the source instance to return
+		 * whichever flavor of {@code Source} it efficiently implements, and
+		 * that will be passed to this interface's {@code set} method.
+		 *<p>
+		 * Through explicit use of this interface, code can adjust the parser
+		 * restrictions that may be applied in the process, in case the defaults
+		 * are too restrictive.
+		 */
+		public interface SourceResult extends Result<SourceResult>
+		{
 			/**
-			 * Whether to retrieve external "general" entities (those
-			 * that can be used in the document body) declared in the DTD.
-			 */
-			Result<T> externalGeneralEntities(boolean v);
-
-			/**
-			 * Whether to retrieve external "parameter" entities (those
-			 * declared with a {@code %} and usable only within the DTD)
-			 * declared in the DTD.
-			 */
-			Result<T> externalParameterEntities(boolean v);
-
-			/**
-			 * Whether to retrieve any external DTD subset declared in the DTD.
-			 */
-			Result<T> loadExternalDTD(boolean v);
-
-			/**
-			 * Whether to honor XInclude syntax in the document.
-			 */
-			Result<T> xIncludeAware(boolean v);
-
-			/**
-			 * Whether to expand entity references in the document to their
-			 * declared replacement content.
-			 */
-			Result<T> expandEntityReferences(boolean v);
-
-			/**
-			 * For a feature that may have been identified by more than one URI
-			 * in different parsers or versions, try passing the supplied
-			 * <em>value</em> with each URI from <em>names</em> in order until
-			 * one is not rejected by the underlying parser.
-			 */
-			Result<T> setFirstSupportedFeature(boolean value, String... names);
-
-			/**
-			 * Make a best effort to apply the recommended, restrictive
-			 * defaults from the OWASP cheat sheet, to the extent they are
-			 * supported by the underlying parser, runtime, and version.
+			 * Supply the {@code Source} instance that is the source of the
+			 * content.
 			 *<p>
-			 * Equivalent to:
-			 *<pre>
-			 * allowDTD(false).externalGeneralEntities(false)
-			 * .externalParameterEntities(false).loadExternalDTD(false)
-			 * .xIncludeAware(false).expandEntityReferences(false)
-			 *</pre>
+			 * This method must be called before any of the inherited adjustment
+			 * methods. The argument may be a {@code StreamSource},
+			 * {@code SAXSource}, {@code StAXSource}, or {@code DOMSource}. If
+			 * it is an instance of {@link Source}, its {@code get} method will
+			 * be called, and must return one of those four supported types.
 			 */
-			Result<T> defaults();
+			SourceResult set(javax.xml.transform.Source source)
+			throws SQLException;
+
+			/**
+			 * Specialization of {@link #set(javax.xml.transform.Source) set}
+			 * for an argument of type {@code StreamSource}.
+			 *<p>
+			 * It may encapsulate either an {@code InputStream} or a {@code
+			 * Reader}. In either case (even for a {@code Reader}), the start
+			 * of the stream will be checked for an encoding declaration and
+			 * compared to PostgreSQL's server encoding. If the encoding
+			 * matches, a direct copy is done. If the encoding does not match
+			 * but the source character set is contained in the server character
+			 * set, a transcoding via Unicode is done. In either case, an XML
+			 * parser is used to verify that the copied content is XML, and the
+			 * parser's restrictions can be adjusted by the methods on this
+			 * interface.
+			 *<p>
+			 * If the source character set is neither the same as nor contained
+			 * in the server's, the content will be parsed to SAX events and
+			 * reserialized into the server encoding, and this parser's
+			 * restrictions can be adjusted by the methods on this interface.
+			 */
+			SourceResult set(javax.xml.transform.stream.StreamSource source)
+			throws SQLException;
+
+			/**
+			 * Specialization of {@link #set(javax.xml.transform.Source) set}
+			 * for an argument of type {@code SAXSource}.
+			 *<p>
+			 * Because the content will be received in an already-parsed form,
+			 * the parser-adjusting methods will have no effect.
+			 */
+			SourceResult set(javax.xml.transform.sax.SAXSource source)
+			throws SQLException;
+
+			/**
+			 * Specialization of {@link #set(javax.xml.transform.Source) set}
+			 * for an argument of type {@code StAXSource}.
+			 *<p>
+			 * Because the content will be received in an already-parsed form,
+			 * the parser-adjusting methods will have no effect.
+			 */
+			SourceResult set(javax.xml.transform.stax.StAXSource source)
+			throws SQLException;
+
+			/**
+			 * Provide the content to be copied in the form of a {@code String}.
+			 *<p>
+			 * An exception from the pattern of {@code Source}-typed arguments,
+			 * this method simplifies retrofitting adjustments into code that
+			 * was using {@code SQLXML}'s {@code setString}. Has the same effect
+			 * as {@link set(javax.xml.transform.stream.StreamSource) set} with
+			 * a {@code StreamSource} wrapping a {@code StringReader} over the
+			 * {@code String}.
+			 */
+			SourceResult set(String source)
+			throws SQLException;
+
+			/**
+			 * Specialization of {@link #set(javax.xml.transform.Source) set}
+			 * for an argument of type {@code DOMSource}.
+			 *<p>
+			 * Because the content will be received in an already-parsed form,
+			 * the parser-adjusting methods will have no effect.
+			 */
+			SourceResult set(javax.xml.transform.dom.DOMSource source)
+			throws SQLException;
+
+			/**
+			 * Return the result {@code SQLXML} instance ready for handing off
+			 * to PostgreSQL.
+			 *<p>
+			 * This method must be called after any of the inherited adjustment
+			 * methods.
+			 */
+			SQLXML getSQLXML() throws SQLException;
 		}
 
 		/**
