@@ -353,6 +353,46 @@ content, with other parser features left at the restrictive defaults.
 
 Complete details can be found [in the API documentation][adjx].
 
+### Extended API to set the content of a PL/Java `SQLXML` instance
+
+When a `SQLXML` instance is returned from a PL/Java function, or passed in to
+a PL/Java `ResultSet` or `PreparedStatement`, it is used directly if it is an
+instance of PL/Java's internal implementation.
+
+However, a PL/Java function might reasonably use another JDBC driver and obtain
+a `SQLXML` instance from a connection to some other database. If such a
+'foreign' `SQLXML` object is returned from a function, or passed to a PL/Java
+`ResultSet` or `PreparedStatement`, its content must first be copied to a new
+instance created by PL/Java's driver. This happens transparently (but implies
+that the 'foreign' instance must be in _readable_ state at the time, and
+afterward will not be).
+
+The transparent copy is made by passing `null` as `sourceClass` to the foreign
+object's `getSource` method, so the foreign object is in control of the type of
+`Source` it will return. PL/Java will copy from a `StreamSource`, `SAXSource`,
+`StAXSource`, or `DOMSource`. In the case of a `StreamSource`, an XML parser
+will be involved, either to verify that the stream is XML, or to parse and
+reserialize it if necessary to adapt its encoding to the server's. The parser
+used by default will have the default, restrictive settings.
+
+To allow adjustment of those settings, the copying operation can be invoked
+explicitly through the `Adjusting.XML.SourceResult` class. For example, when
+_sx_ is a 'foreign' `SQLXML` object, the transparent operation
+
+    return sx;
+
+is equivalent to
+
+    return conn.createSQLXML().setResult(Adjusting.XML.SourceResult.class)
+               .set(sx.getSource(null)).get().getSQLXML();
+
+where _conn_ is the PL/Java JDBC connection named by
+`jdbc:default:connection`. To adjust the parser settings, as usual, adjusting
+methods can be chained after the `set` and before the `get`. The explicit form
+also allows passing a `sourceClass` other than `null` to the foreign object's
+`getSource` method, if there is a reason not to let the foreign object choose
+the type of `Source` to return.
+
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
 [adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
