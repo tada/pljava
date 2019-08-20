@@ -3704,7 +3704,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingStAXSource expandEntityReferences(boolean v)
 		{
-			return this;
+			return setFirstSupportedFeature( v,
+				XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES);
 		}
 
 		@Override
