@@ -26,6 +26,7 @@ import java.sql.Types;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
@@ -69,7 +70,6 @@ import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
 /* Imports needed just for the SAX flavor of "low-level XML echo" below */
-
 import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.XMLReaderFactory;
 import org.xml.sax.ContentHandler;
@@ -83,6 +83,12 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import org.xml.sax.SAXException;
+
+/* Imports needed just for xmlTextNode below (serializing via SAX, StAX, DOM) */
+import org.xml.sax.helpers.AttributesImpl;
+import org.w3c.dom.Document;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 
 
 /**
@@ -650,6 +656,41 @@ public class PassXML implements SQLData
 	}
 
 	/**
+	 * Supply a sequence of bytes to be the exact (encoded) content of an XML
+	 * value, which will be returned; if the encoding is not UTF-8, the value
+	 * should begin with an XML Decl that names the encoding.
+	 *<p>
+	 * Constructs an {@code SQLXML} instance that will return the supplied
+	 * content as a {@code StreamSource} wrapping an {@code InputStream}, or via
+	 * {@code getBinaryStream}, but fail if asked for any other form.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml",
+	          provides="mockedXMLEchoB")
+	public static SQLXML mockedXMLEcho(byte[] bytes)
+	throws SQLException
+	{
+		return new SQLXMLMock(bytes);
+	}
+
+	/**
+	 * Supply a sequence of characters to be the exact (Unicode) content of an
+	 * XML value, which will be returned; if the value begins with an XML Decl
+	 * that names an encoding, the content will be assumed to contain only
+	 * characters representable in that encoding.
+	 *<p>
+	 * Constructs an {@code SQLXML} instance that will return the supplied
+	 * content as a {@code StreamSource} wrapping a {@code Reader}, or via
+	 * {@code getCharacterStream}, but fail if asked for any other form.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml",
+	          provides="mockedXMLEchoC")
+	public static SQLXML mockedXMLEcho(String chars)
+	throws SQLException
+	{
+		return new SQLXMLMock(chars);
+	}
+
+	/**
 	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
 	 */
 	@Function(schema="javatest", name="lowLevelXMLEcho", type="text")
@@ -692,6 +733,102 @@ public class PassXML implements SQLData
 		ps.close();
 		out.updateObject(1, x);
 		return true;
+	}
+
+	/**
+	 * Test serialization into the PostgreSQL server encoding by returning
+	 * a text node, optionally wrapped in an element, containing the supplied
+	 * stuff.
+	 *<p>
+	 * The stuff is supplied as a {@code bytea} and a named <em>encoding</em>,
+	 * so it is easy to supply stuff that isn't in the server encoding and see
+	 * what the serializer does with it.
+	 *<p>
+	 * As of this writing, if the <em>stuff</em>, decoded according to
+	 * <em>encoding</em>, contains characters that are not representable in the
+	 * server encoding, the serializers supplied in the JRE will:
+	 *<ul>
+	 *<li>SAX, DOM: replace the character with a numeric character reference if
+	 * the node is wrapped in an element, but not outside of an element; there,
+	 * PL/Java ensures an {@code UnmappableCharacterException} is thrown, as the
+	 * serializer would otherwise silently lose information by replacing the
+	 * character with a {@code ?}.
+	 *<li>StAX: replace the character with a numeric character reference whether
+	 * wrapped in an element or not (outside of an element, this officially
+	 * violates the letter of the XML spec, but does not lose information, and
+	 * is closer to the spirit of SQL/XML with its {@code XML(CONTENT)} type).
+	 *</ul>
+	 * @param stuff Content to be used in the text node
+	 * @param encoding Name of an encoding; stuff will be decoded to Unicode
+	 * according to this encoding, and then serialized into the server encoding,
+	 * where possible.
+	 * @param how Integer specifying which XML API to test, like every other how
+	 * in this class; here the only valid choices are 5 (SAX), 6 (StAX), or
+	 * 7 (DOM).
+	 * @param inElement True if the text node should be wrapped in an element.
+	 * @return The resulting XML content.
+	 */
+	@Function(schema="javatest")
+	public static SQLXML xmlTextNode(
+		byte[] stuff, String encoding, int how, boolean inElement)
+		throws Exception
+	{
+		if ( 5 > how || how > 7 )
+			throw new SQLDataException(
+				"how must be 5-7 for xmlTextNode", "22003");
+
+		String stuffString = new String(stuff, encoding);
+		Connection c = DriverManager.getConnection("jdbc:default:connection");
+		SQLXML rx = c.createSQLXML();
+
+		switch ( how )
+		{
+		case 5:
+			SAXResult sxr = rx.setResult(SAXResult.class);
+			sxr.getHandler().startDocument();
+			if ( inElement )
+				sxr.getHandler().startElement("", "sax", "sax",
+					new AttributesImpl());
+			sxr.getHandler().characters(
+				stuffString.toCharArray(), 0, stuffString.length());
+			if ( inElement )
+				sxr.getHandler().endElement("", "sax", "sax");
+			sxr.getHandler().endDocument();
+			break;
+		case 6:
+			StAXResult stxr = rx.setResult(StAXResult.class);
+			stxr.getXMLStreamWriter().writeStartDocument();
+			if ( inElement )
+				stxr.getXMLStreamWriter().writeStartElement("", "stax", "");
+			stxr.getXMLStreamWriter().writeCharacters(stuffString);
+			if ( inElement )
+				stxr.getXMLStreamWriter().writeEndElement();
+			stxr.getXMLStreamWriter().writeEndDocument();
+			break;
+		case 7:
+			DOMResult dr = rx.setResult(DOMResult.class);
+			/*
+			 * Why request features XML and Traversal?
+			 * If the only features requested are from the set
+			 * {Core, XML, LS} and maybe XPath, you get a brain-damaged
+			 * DOMImplementation that violates the org.w3c.dom.DOMImplementation
+			 * contract, as createDocument still tries to make a document
+			 * element even when passed null,null,null when, according to the
+			 * contract, it should not. To get the real implementation that
+			 * works, ask for some feature it supports outside of that core set.
+			 * I don't really need Traversal, but by asking for it, I get what
+			 * I do need.
+			 */
+			Document d = DOMImplementationRegistry.newInstance()
+				.getDOMImplementation("XML Traversal")
+				.createDocument(null, null, null);
+			DocumentFragment df = d.createDocumentFragment();
+			( inElement ? df.appendChild(d.createElement("dom")) : df )
+				.appendChild(d.createTextNode(stuffString));
+			dr.setNode(df);
+			break;
+		}
+		return rx;
 	}
 
 	/**
@@ -1047,6 +1184,102 @@ public class PassXML implements SQLData
 		throws SQLException
 		{
 			return m_sx.setResult(resultClass);
+		}
+	}
+
+	/**
+	 * Class that will mock an {@code SQLXML} instance, returning only binary or
+	 * character stream data from a byte array or string supplied at
+	 * construction.
+	 */
+	public static class SQLXMLMock implements SQLXML
+	{
+		private String m_chars;
+		private byte[] m_bytes;
+
+		public SQLXMLMock(String content)
+		{
+			if ( null == content )
+				throw new NullPointerException("Null SQLXMLMock content");
+			m_chars = content;
+		}
+
+		public SQLXMLMock(byte[] content)
+		{
+			if ( null == content )
+				throw new NullPointerException("Null SQLXMLMock content");
+			m_bytes = content;
+		}
+
+		@Override
+		public void free() throws SQLException { }
+
+		@Override
+		public InputStream getBinaryStream() throws SQLException
+		{
+			if ( null != m_bytes )
+				return new ByteArrayInputStream(m_bytes);
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.getBinaryStream");
+		}
+
+		@Override
+		public OutputStream setBinaryStream() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.setBinaryStream");
+		}
+
+		@Override
+		public Reader getCharacterStream() throws SQLException
+		{
+			if ( null != m_chars )
+				return new StringReader(m_chars);
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.getCharacterStream");
+		}
+
+		@Override
+		public Writer setCharacterStream() throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.setCharacterStream");
+		}
+
+		@Override
+		public String getString() throws SQLException
+		{
+			if ( null != m_chars )
+				return m_chars;
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.getString");
+		}
+
+		@Override
+		public void setString(String value) throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.setString");
+		}
+
+		@Override
+		public <T extends Source> T getSource(Class<T> sourceClass)
+		throws SQLException
+		{
+			if ( null != sourceClass && StreamSource.class != sourceClass )
+				throw new UnsupportedOperationException(
+					"SQLXMLMock.getSource(" + sourceClass.getName() + ")");
+			if ( null != m_chars )
+				return (T) new StreamSource(new StringReader(m_chars));
+			return (T) new StreamSource(new ByteArrayInputStream(m_bytes));
+		}
+
+		@Override
+		public <T extends Result> T setResult(Class<T> resultClass)
+		throws SQLException
+		{
+			throw new UnsupportedOperationException(
+				"SQLXMLMock.setResult");
 		}
 	}
 }

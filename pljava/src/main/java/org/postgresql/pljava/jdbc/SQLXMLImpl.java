@@ -1127,6 +1127,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				 */
 				vwo.setVerifier(VarlenaWrapper.Verifier.NoOp.INSTANCE);
 				OutputStream os = vwo;
+				Writer w;
 
 				if ( resultClass.isAssignableFrom(SAXResult.class)
 					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
@@ -1137,8 +1138,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					th.getTransformer().setOutputProperty(
 						ENCODING, m_serverCS.name());
 					os = new DeclCheckedOutputStream(os, m_serverCS);
-					th.setResult(new StreamResult(os));
-					th = SAXResultAdapter.newInstance(th, os);
+					w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+					th.setResult(new StreamResult(w));
+					th = SAXResultAdapter.newInstance(th, w);
 					SAXResult sr = new SAXResult(th);
 					if ( Adjusting.XML.Result.class
 							.isAssignableFrom(resultClass) )
@@ -1185,9 +1187,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				Transformer t = tf.newTransformer();
 				t.setOutputProperty(ENCODING, m_serverCS.name());
 				os = new DeclCheckedOutputStream(os, m_serverCS);
-				StreamResult rlt = new StreamResult(os);
+				Writer w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+				StreamResult rlt = new StreamResult(w);
 				t.transform(src, rlt);
-				os.close();
+				w.close();
 			}
 			catch ( Exception e )
 			{
@@ -1448,20 +1451,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	static class SAXResultAdapter
 		extends XMLFilterImpl implements TransformerHandler
 	{
-		private OutputStream m_os;
+		private Writer m_w;
 		private TransformerHandler m_th;
-		private SAXResultAdapter(TransformerHandler th, OutputStream os)
+		private SAXResultAdapter(TransformerHandler th, Writer w)
 		{
-			m_os = os;
+			m_w = w;
 			m_th = th;
 			setContentHandler(th);
 			setDTDHandler(th);
 		}
 
 		static TransformerHandler newInstance(
-				TransformerHandler th, OutputStream os)
+				TransformerHandler th, Writer w)
 		{
-			return new SAXResultAdapter(th, os);
+			return new SAXResultAdapter(th, w);
 		}
 
 		/**
@@ -1474,13 +1477,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			super.endDocument();
 			try
 			{
-				m_os.close();
+				m_w.close();
 			}
 			catch ( IOException ioe )
 			{
 				throw new SAXException("Failure closing SQLXML SAXResult", ioe);
 			}
-			m_os = null;
+			m_w = null;
 		}
 
 		/*
