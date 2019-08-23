@@ -135,6 +135,7 @@ import java.io.CharArrayReader;
 import java.io.FilterReader;
 
 import javax.xml.stream.XMLEventWriter;
+import javax.xml.stream.util.XMLEventConsumer;
 
 import org.postgresql.pljava.internal.MarkableSequenceReader;
 
@@ -2914,11 +2915,24 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					 * the writer below? Good thought, but the XMLInputFactory
 					 * implementation that's included in OpenJDK doesn't
 					 * implement the case where the Source argument is a
-					 * StAXSource! Two lines would do it.
+					 * StAXSource! Two lines would do it. (And anyway, "the
+					 * writer below" brings hollow, joyless laughter in Java 9
+					 * and later.)
 					 */
-					XMLEventWriter xew = xof.createXMLEventWriter(str);
-					xew.add(xer);
-					xew.close();
+
+					/*
+					 * Bother. If not for a regression in Java 9 and later, this
+					 * would be a simple createXMLEventWriter(str).
+					 * XXX This is not fully general, as str is known to be one
+					 * of our native StAXResults, which (for now!) can only wrap
+					 * a stream writer, never an event writer.
+					 */
+					XMLEventConsumer xec =
+						new XMLEventToStreamConsumer(str.getXMLStreamWriter());
+
+					while ( xer.hasNext() )
+						xec.add(xer.nextEvent());
+
 					xer.close();
 				}
 				catch ( XMLStreamException e )

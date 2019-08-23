@@ -606,6 +606,19 @@ public class PassXML implements SQLData
 				 * included in OpenJDK doesn't implement the case where the
 				 * Source argument is a StAXSource! Two lines would do it.
 				 */
+				/*
+				 * Because of a regression in Java 9 and later, the line below,
+				 * while working in Java 8 and earlier, will produce a
+				 * ClassCastException in Java 9 through (for sure) 12, (almost
+				 * certainly) 13, and on until some future version fixes the
+				 * regression, if ever, if 'str' wraps any XMLStreamWriter
+				 * implementation other than the inaccessible one from the guts
+				 * of the JDK itself. The bug has been reported but (as of this
+				 * writing) is still in the maddening limbo phase of the Java
+				 * bug reporting cycle, where no bug number can refer to it. See
+				 * lowLevelXMLEcho() above for code to do this copy successfully
+				 * using an Adjusting.XML.SourceResult.
+				 */
 				XMLEventWriter xew = xof.createXMLEventWriter(str);
 				xew.add(xer);
 				xew.close();
