@@ -129,10 +129,10 @@ with the reserved word. A rewritten form of the
       LATERAL (SELECT data AS ".", 'not specified'::text AS "DPREMIER") AS p,
     
       "xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
-       'xs:int(@id)', null, 'string(COUNTRY_NAME)',
-       'string(COUNTRY_ID)', 'xs:double(SIZE[@unit eq "sq_km"])',
+       'data(@id)', null, 'COUNTRY_NAME',
+       'COUNTRY_ID', 'SIZE[@unit eq "sq_km"]',
        'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
-       'let $e := zero-or-one(PREMIER_NAME)/string()
+       'let $e := PREMIER_NAME
         return if ( empty($e) ) then $DPREMIER else $e'
       ]) AS (
        id int, ordinality int, "COUNTRY_NAME" text, country_id text,
@@ -155,13 +155,17 @@ The parameter being passed into the XQuery expressions here, `DPREMIER`, is
 spelled in uppercase (and, on the SQL side, quoted), for the reasons explained
 above for the `XMLQUERY`-like function.
 
-The explicit casts and `zero-or-one` will not be needed once the
-full automatic casting rules (for now only partially implemented) are
-in place. The default, as shown, is handled by passing the desired default
-value as a parameter and rewriting the column expression to apply it in place
-of an empty sequence. This lacks, for now, some functionality of the standard
-`XMLTABLE`, where the default expression can refer to other columns of the
-same output row.
+In the first column expression, `@id` is wrapped in `data()` to return the value
+of the attribute, as `@id` by itself would be a bare XML attribute node, outside
+of any XML element. Many implementations (including the XPath-based
+pseudo-XMLTABLE built in to PostgreSQL) will allow a bare attribute node in a
+column expression result, and assume the attribute's value is wanted, but a
+strict interpretation of the spec appears to require raising `err:XPTY0004` in
+that case. So, just use `data()` to wrap any attribute node being returned in
+a column expression.
+
+More on that issue and the spec can be found at "About bare attribute nodes"
+[in the code comments][assignrowvalues].
 
 #### Syntax in older PostgreSQL versions
 
@@ -211,3 +215,4 @@ the encumbrance.
 [j9cds]: ../install/oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
 [Saxon-HE]: http://www.saxonica.com/html/products/products.html
 [ptwp]: https://github.com/tada/pljava/wiki/Performance-tuning
+[assignrowvalues]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#assignRowValues-java.sql.ResultSet-int-
