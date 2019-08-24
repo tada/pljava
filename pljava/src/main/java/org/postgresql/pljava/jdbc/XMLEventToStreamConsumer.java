@@ -15,6 +15,7 @@ import java.util.Iterator;
 
 import javax.xml.namespace.QName;
 
+import javax.xml.stream.Location;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
@@ -33,11 +34,22 @@ import javax.xml.stream.util.XMLEventConsumer;
  * {@code ClassCastException} if passed a {@code StAXResult} wrapping an
  * arbitrary {@code XMLStreamWriter} implementation, which works perfectly
  * up through Java 8. Java 9 breaks it, demanding this soul-crushing workaround.
+ *<p>
+ * Making the best of a bad situation, in reimplementing this, it is possible to
+ * honor the distinction between empty elements and start/end tags with nothing
+ * in between. An {@code XMLStreamWriter} has distinct methods
+ * {@code writeStartElement} and {@code writeEmptyElement}, but the
+ * {@code XMLEventWriter} API offers no obvious way to pass along that
+ * distinction. There is a nonobvious way, though, if the {@code StartElement}
+ * and {@code EndElement} events have parser-supplied {@code Location}s, and
+ * they are equal (and not 'unknown' in all values).
  */
 class XMLEventToStreamConsumer
 implements XMLEventConsumer, XMLStreamConstants
 {
-	private final XMLStreamWriter m_xsw;
+	protected final XMLStreamWriter m_xsw;
+	protected StartElement m_startElement;
+	protected Location m_location;
 
 	/**
 	 * Construct an {@code XMLEventToStreamConsumer} that writes to the
@@ -78,18 +90,30 @@ implements XMLEventConsumer, XMLStreamConstants
 		}
 	}
 
+	protected void addNonEmptyIfCached() throws XMLStreamException
+	{
+		if ( null == m_startElement )
+			return;
+		add(m_startElement, false);
+		m_startElement = null;
+		m_location = null;
+	}
+
 	protected void add(Comment event) throws XMLStreamException
 	{
+		addNonEmptyIfCached();
 		m_xsw.writeComment(event.getText());
 	}
 
 	protected void add(ProcessingInstruction event) throws XMLStreamException
 	{
+		addNonEmptyIfCached();
 		m_xsw.writeProcessingInstruction(event.getTarget(), event.getData());
 	}
 
 	protected void add(Characters event) throws XMLStreamException
 	{
+		addNonEmptyIfCached();
 		String content = event.getData();
 		if ( event.isCData() )
 			m_xsw.writeCData(content);
@@ -99,11 +123,13 @@ implements XMLEventConsumer, XMLStreamConstants
 
 	protected void add(DTD event) throws XMLStreamException
 	{
+		// no element precedes a DTD
 		m_xsw.writeDTD(event.getDocumentTypeDeclaration());
 	}
 
 	protected void add(EntityReference event) throws XMLStreamException
 	{
+		addNonEmptyIfCached();
 		m_xsw.writeEntityRef(event.getName());
 	}
 
@@ -119,14 +145,33 @@ implements XMLEventConsumer, XMLStreamConstants
 
 	protected void add(EndDocument event) throws XMLStreamException
 	{
+		if ( null != m_startElement )
+		{
+			add(m_startElement, true);
+			m_startElement = null;
+			m_location = null;
+		}
 		m_xsw.writeEndDocument();
 	}
 
-	protected void add(StartElement event) throws XMLStreamException
+	protected void add(StartElement event)
+	throws XMLStreamException
+	{
+		addNonEmptyIfCached();
+		m_startElement = event;
+		m_location = event.getLocation();
+	}
+
+	protected void add(StartElement event, boolean empty)
+	throws XMLStreamException
 	{
 		QName qn = event.getName();
-		m_xsw.writeStartElement(
-			qn.getPrefix(), qn.getLocalPart(), qn.getNamespaceURI());
+		if ( empty )
+			m_xsw.writeEmptyElement(
+				qn.getPrefix(), qn.getLocalPart(), qn.getNamespaceURI());
+		else
+			m_xsw.writeStartElement(
+				qn.getPrefix(), qn.getLocalPart(), qn.getNamespaceURI());
 		for ( Namespace n : namespaces(event) )
 			add(n);
 		for ( Attribute a : attributes(event) )
@@ -135,7 +180,14 @@ implements XMLEventConsumer, XMLStreamConstants
 
 	protected void add(EndElement event) throws XMLStreamException
 	{
-		m_xsw.writeEndElement();
+		if ( null == m_startElement )
+			m_xsw.writeEndElement();
+		else
+		{
+			add(m_startElement, locationsEqual(m_location,event.getLocation()));
+			m_startElement = null;
+			m_location = null;
+		}
 	}
 
 	protected void add(Attribute a) throws XMLStreamException
@@ -148,6 +200,35 @@ implements XMLEventConsumer, XMLStreamConstants
 	protected void add(Namespace n) throws XMLStreamException
 	{
 		m_xsw.writeNamespace(n.getPrefix(), n.getNamespaceURI());
+	}
+
+	protected static boolean locationsEqual(Location a, Location b)
+	{
+		if ( null == a  ||  null == b )
+			return false;
+		if ( ! locationIdsEqual(a.getPublicId(), b.getPublicId()) )
+			return false;
+		if ( ! locationIdsEqual(a.getSystemId(), b.getSystemId()) )
+			return false;
+		int aOffset = a.getCharacterOffset();
+		if ( b.getCharacterOffset() != aOffset )
+			return false;
+		int aColumn = a.getColumnNumber();
+		if ( b.getColumnNumber() != aColumn )
+			return false;
+		int aLine = a.getLineNumber();
+		if ( b.getLineNumber() != aLine )
+			return false;
+		return ( -1 != aOffset ) || ( -1 != aColumn && -1 != aLine );
+	}
+
+	private static boolean locationIdsEqual(String a, String b)
+	{
+		if ( a == b )
+			return true;
+		if ( null != a )
+			return a.equals(b);
+		return b.equals(a);
 	}
 
 	/*
