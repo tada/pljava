@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -85,6 +85,7 @@ import java.sql.SQLFeatureNotSupportedException;
 
 /* ... for SQLXMLImpl.DeclProbe */
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 
 import java.util.Arrays;
@@ -126,6 +127,21 @@ import javax.xml.namespace.NamespaceContext;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
+
+/* ... for static adopt() method, doing low-level copies from foreign objects */
+
+import java.io.BufferedReader;
+import java.io.CharArrayReader;
+import java.io.FilterReader;
+
+import javax.xml.stream.XMLEventWriter;
+import javax.xml.stream.util.XMLEventConsumer;
+
+import org.postgresql.pljava.internal.MarkableSequenceReader;
+
+import org.xml.sax.ContentHandler;
+import org.xml.sax.DTDHandler;
+import org.xml.sax.ext.LexicalHandler;
 
 /* ... for Adjusting API for Source / Result */
 
@@ -271,7 +287,70 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	/**
-	 * Native code calls this method to claim complete control over the
+	 * Native code calls this static method to take over an SQLXML object
+	 * with its content.
+	 *<p>
+	 * This is a static method because an {@code SQLXML} object presented to
+	 * PostgreSQL need not necessarily be this implementation. If it is, then
+	 * the real {@code adopt} method will be called directly; otherwise, a
+	 * native {@code SQLXML} object has to be created, and the content copied
+	 * to it.
+	 * @param sx The SQLXML object to be adopted.
+	 * @param oid The PostgreSQL type ID the native code is expecting;
+	 * see Readable.adopt for why that can matter.
+	 * @return The underlying {@code VarlenaWrapper} (which has its own
+	 * {@code adopt} method the native code will call next.
+	 * @throws SQLException if this {@code SQLXML} instance is not in the
+	 * proper state to be adoptable.
+	 */
+	private static VarlenaWrapper adopt(SQLXML sx, int oid) throws SQLException
+	{
+		if ( sx instanceof SQLXMLImpl )
+			return ((SQLXMLImpl)sx).adopt(oid);
+
+		SQLXML rx =
+			newWritable().setResult(Adjusting.XML.SourceResult.class)
+			.set(sx.getSource(null)).getSQLXML();
+
+		sx.free();
+		return ((SQLXMLImpl)rx).adopt(oid);
+	}
+
+	static void saxCopy(SAXSource sxs, SAXResult sxr) throws SQLException
+	{
+		XMLReader xr = sxs.getXMLReader();
+		try
+		{
+			if ( null == xr )
+			{
+				xr = XMLReaderFactory.createXMLReader();
+				xr.setFeature("http://xml.org/sax/features/namespaces",
+								true);
+			}
+			ContentHandler ch = sxr.getHandler();
+			xr.setContentHandler(ch);
+			if ( ch instanceof DTDHandler )
+				xr.setDTDHandler((DTDHandler)ch);
+			LexicalHandler lh = sxr.getLexicalHandler();
+			if ( null == lh  &&  ch instanceof LexicalHandler )
+			lh = (LexicalHandler)ch;
+			if ( null != lh )
+				xr.setProperty(
+					"http://xml.org/sax/properties/lexical-handler", lh);
+			xr.parse(sxs.getInputSource());
+		}
+		catch ( SAXException e )
+		{
+			throw new SQLDataException(e.getMessage(), "22000", e);
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), "58030", e);
+		}
+	}
+
+	/**
+	 * Allow native code to claim complete control over the
 	 * underlying {@code VarlenaWrapper} and dissociate it from Java.
 	 * @param oid The PostgreSQL type ID the native code is expecting;
 	 * see Readable.adopt for why that can matter.
@@ -380,7 +459,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( ! needMore )
 				break;
 		}
+		probe.finish();
 
+		return correctedDeclStream(is, probe, neverWrap, serverCS, wrapping);
+	}
+
+	/**
+	 * Version of {@code correctedDeclStream} for use when a {@code DeclProbe}
+	 * has already been constructed, and early bytes of the stream fed to it.
+	 */
+	static InputStream correctedDeclStream(
+		InputStream is, DeclProbe probe, boolean neverWrap, Charset serverCS,
+		boolean[] wrapping)
+		throws IOException
+	{
 		/*
 		 * At this point, for better or worse, the loop is done. There may
 		 * or may not be more of m_backing left to read; the probe may or may
@@ -399,9 +491,18 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		int raOff = pfx.length - raLen;
 		InputStream pfis = new ByteArrayInputStream(pfx, 0, raOff);
 		InputStream rais = new ByteArrayInputStream(pfx, raOff, raLen);
-		InputStream msis = new MarkableSequenceInputStream(pfis, rais, is);
 
-		if ( neverWrap  ||  ! useWrappingElement(msis) )
+		if ( neverWrap )
+			return new MarkableSequenceInputStream(pfis, rais, is);
+
+		int markLimit = 1048576; // don't assume a markable stream's economical
+		if ( ! is.markSupported() )
+			is = new BufferedInputStream(is);
+		else if ( is instanceof VarlenaWrapper ) // a VarlenaWrapper is, though
+			markLimit = Integer.MAX_VALUE;
+
+		InputStream msis = new MarkableSequenceInputStream(pfis, rais, is);
+		if ( ! useWrappingElement(msis, markLimit) )
 			return msis;
 
 		wrapping[0] = true;
@@ -412,6 +513,31 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		msis = new MarkableSequenceInputStream(
 			pfis, elemStart, rais, is, elemEnd);
 		return msis;
+	}
+
+	static Reader correctedDeclReader(
+		Reader r, DeclProbe probe, Charset impliedCS, boolean[] wrapping)
+		throws IOException
+	{
+		char[] pfx = probe.charPrefix(impliedCS);
+		int raLen = probe.readaheadLength();
+		int raOff = pfx.length - raLen;
+		Reader pfr = new CharArrayReader(pfx, 0, raOff);
+		Reader rar = new CharArrayReader(pfx, raOff, raLen);
+
+		if ( ! r.markSupported() )
+			r = new BufferedReader(r);
+
+		Reader msr = new MarkableSequenceReader(pfr, rar, r);
+		if ( ! useWrappingElement(msr) )
+			return msr;
+
+		wrapping[0] = true;
+		Reader elemStart = new StringReader("<pljava-content-wrap>");
+		Reader elemEnd   = new StringReader("</pljava-content-wrap>");
+		msr = new MarkableSequenceReader(
+			pfr, elemStart, rar, r, elemEnd);
+		return msr;
 	}
 
 	/**
@@ -447,15 +573,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * marked on entry, and reset upon return.
 	 * @return {@code true} if a wrapping element should be used.
 	 */
-	static boolean useWrappingElement(InputStream is)
+	static boolean useWrappingElement(InputStream is, int markLimit)
 	throws IOException
 	{
-		is.mark(Integer.MAX_VALUE);
-		XMLInputFactory xif = XMLInputFactory.newFactory();
-		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-
-		boolean mustBeDocument = false;
-		boolean cantBeDocument = false;
+		is.mark(markLimit);
 
 		/*
 		 * The XMLStreamReader may actually close the input stream if it
@@ -468,10 +589,53 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			public void close() throws IOException { }
 		};
 
+		boolean rslt = useWrappingElement(tmpis, null);
+
+		is.reset();
+		is.mark(0); // relax any reset-buffer requirement
+
+		return rslt;
+	}
+
+	static boolean useWrappingElement(Reader r)
+	throws IOException
+	{
+		r.mark(524288); // don't trust mark-supporting Reader to be economical
+
+		/*
+		 * The XMLStreamReader may actually close the input stream if it
+		 * reaches the end skipping only whitespace. That is probably a bug;
+		 * in any case, protect the original input stream from being closed.
+		 */
+		Reader tmpr = new FilterReader(r)
+		{
+			@Override
+			public void close() throws IOException { }
+		};
+
+		boolean rslt = useWrappingElement(null, tmpr);
+
+		r.reset();
+		r.mark(0); // relax any reset-buffer requirement
+
+		return rslt;
+	}
+
+	private static boolean useWrappingElement(InputStream is, Reader r)
+	throws IOException
+	{
+		boolean mustBeDocument = false;
+		boolean cantBeDocument = false;
+
+		XMLInputFactory xif = XMLInputFactory.newFactory();
+		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 		XMLStreamReader xsr = null;
 		try
 		{
-			xsr = xif.createXMLStreamReader(tmpis);
+			if ( null != is )
+				xsr = xif.createXMLStreamReader(is);
+			else
+				xsr = xif.createXMLStreamReader(r);
 			while ( xsr.hasNext() )
 			{
 				int evt = xsr.next();
@@ -508,8 +672,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 			}
 		}
-		is.reset();
-		is.mark(0); // relax any reset-buffer requirement
 
 		return ! mustBeDocument;
 	}
@@ -639,14 +801,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( sourceClass.isAssignableFrom(SAXSource.class)
 					|| sourceClass.isAssignableFrom(AdjustingSAXSource.class) )
 				{
-					XMLReader xr = XMLReaderFactory.createXMLReader();
-					xr.setFeature("http://xml.org/sax/features/namespaces",
-								  true);
 					is = correctedDeclStream(is, false);
-					if ( m_wrapped )
-						xr = new SAXUnwrapFilter(xr);
 					AdjustingSAXSource ss =
-						new AdjustingSAXSource(xr, new InputSource(is));
+						new AdjustingSAXSource(new InputSource(is), m_wrapped);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
 							.isAssignableFrom(sourceClass) )
@@ -923,7 +1080,19 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo = backingAndClearWritable();
 			if ( null == vwo )
 				return super.setResult(resultClass);
+			return setResult(vwo, resultClass);
+		}
 
+		/*
+		 * Internal version for use in the implementation of
+		 * AdjustingSourceResult, when 'officially' the instance is no longer
+		 * writable (because backingAndClearWritable was called in obtaining the
+		 * AdjustingSourceResult itself).
+		 */
+		private <T extends Result> T setResult(
+			VarlenaWrapper.Output vwo, Class<T> resultClass)
+			throws SQLException
+		{
 			if ( null == resultClass || Result.class == resultClass )
 				resultClass = (Class<T>)SAXResult.class; // trust me on this
 			else if ( Adjusting.XML.Result.class.equals(resultClass) )
@@ -944,10 +1113,22 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				}
 
 				/*
+				 * This special case must defer setting the verifier; a later
+				 * call to this method with a different result class will be
+				 * made, setting it then.
+				 */
+				if ( resultClass.isAssignableFrom(AdjustingSourceResult.class) )
+				{
+					return resultClass.cast(
+						new AdjustingSourceResult(this, m_serverCS));
+				}
+
+				/*
 				 * The remaining cases all can use the NoOp verifier.
 				 */
 				vwo.setVerifier(VarlenaWrapper.Verifier.NoOp.INSTANCE);
 				OutputStream os = vwo;
+				Writer w;
 
 				if ( resultClass.isAssignableFrom(SAXResult.class)
 					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
@@ -958,8 +1139,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					th.getTransformer().setOutputProperty(
 						ENCODING, m_serverCS.name());
 					os = new DeclCheckedOutputStream(os, m_serverCS);
-					th.setResult(new StreamResult(os));
-					th = SAXResultAdapter.newInstance(th, os);
+					w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+					th.setResult(new StreamResult(w));
+					th = SAXResultAdapter.newInstance(th, w);
 					SAXResult sr = new SAXResult(th);
 					if ( Adjusting.XML.Result.class
 							.isAssignableFrom(resultClass) )
@@ -1006,9 +1188,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				Transformer t = tf.newTransformer();
 				t.setOutputProperty(ENCODING, m_serverCS.name());
 				os = new DeclCheckedOutputStream(os, m_serverCS);
-				StreamResult rlt = new StreamResult(os);
+				Writer w = new OutputStreamWriter(os, m_serverCS.newEncoder());
+				StreamResult rlt = new StreamResult(w);
 				t.transform(src, rlt);
-				os.close();
+				w.close();
 			}
 			catch ( Exception e )
 			{
@@ -1049,11 +1232,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			try
 			{
-				XMLReader xr = XMLReaderFactory.createXMLReader();
-				xr.setFeature("http://xml.org/sax/features/namespaces", true);
-				m_xr =
-					new AdjustingSAXSource(xr, null)
-						.defaults().get().getXMLReader();
+				/*
+				 * Safe to pass false for wrapping; whether the input is wrapped
+				 * or not, the verifying parser will have no need to unwrap.
+				 */
+				m_xr = new AdjustingSAXSource(null, false)
+					.defaults().get().getXMLReader();
 			}
 			catch ( SAXException e )
 			{
@@ -1135,9 +1319,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						while ( 0 < len -- )
 						{
 							if ( ! m_probe.take(b[off ++]) )
+							{
+								check();
 								break;
+							}
 						}
-						check();
 					}
 					catch ( SQLException sqe )
 					{
@@ -1197,6 +1383,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( null == m_probe )
 				return;
+			m_probe.finish();
 			m_probe.checkEncoding(m_serverCS, false);
 			byte[] prefix = m_probe.prefix(null /* not m_serverCS */);
 			m_probe = null; // Do not check more than once.
@@ -1265,20 +1452,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	static class SAXResultAdapter
 		extends XMLFilterImpl implements TransformerHandler
 	{
-		private OutputStream m_os;
+		private Writer m_w;
 		private TransformerHandler m_th;
-		private SAXResultAdapter(TransformerHandler th, OutputStream os)
+		private SAXResultAdapter(TransformerHandler th, Writer w)
 		{
-			m_os = os;
+			m_w = w;
 			m_th = th;
 			setContentHandler(th);
 			setDTDHandler(th);
 		}
 
 		static TransformerHandler newInstance(
-				TransformerHandler th, OutputStream os)
+				TransformerHandler th, Writer w)
 		{
-			return new SAXResultAdapter(th, os);
+			return new SAXResultAdapter(th, w);
 		}
 
 		/**
@@ -1291,13 +1478,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			super.endDocument();
 			try
 			{
-				m_os.close();
+				m_w.close();
 			}
 			catch ( IOException ioe )
 			{
 				throw new SAXException("Failure closing SQLXML SAXResult", ioe);
 			}
-			m_os = null;
+			m_w = null;
 		}
 
 		/*
@@ -1546,7 +1733,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			String prefix, String localName, String namespaceURI)
 			throws XMLStreamException
 		{
-			m_xsw.writeStartElement(prefix, namespaceURI, localName);
+			m_xsw.writeStartElement(prefix, localName, namespaceURI);
 		}
 
 		@Override
@@ -1561,7 +1748,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			String prefix, String localName, String namespaceURI)
 			throws XMLStreamException
 		{
-			m_xsw.writeEmptyElement(prefix, namespaceURI, localName);
+			m_xsw.writeEmptyElement(prefix, localName, namespaceURI);
 		}
 
 		@Override
@@ -1785,7 +1972,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			ENC, EEQ, EQ, EVAL, EVALTAIL,
 			MAYBESA,
 			SA , SEQ, SQ, SVAL, SVALTAIL,
-			TRAILING, END, MATCHED, UNMATCHED, ABANDONED
+			TRAILING, END, MATCHED, UNMATCHED, UNMATCHEDCHAR, ABANDONED
 		};
 		private State m_state = State.START;
 		private int m_idx = 0;
@@ -1812,6 +1999,25 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private int m_versionStart, m_versionEnd;
 		private int m_encodingStart, m_encodingEnd;
 		private int m_readaheadStart;
+		/*
+		 * Contains, if m_state is UNMATCHEDCHAR, a single, non-ASCII char that
+		 * followed whatever ASCII bytes may be saved in m_save.
+		 */
+		private char m_savedChar;
+
+		/* XXX discard once Java back horizon reaches 7 */
+		private static final Charset s_ASCII;
+		static
+		{
+			try
+			{
+				s_ASCII = Charset.forName("US-ASCII");
+			}
+			catch ( IllegalArgumentException e ) // I'll take this chance
+			{
+				throw new ExceptionInInitializerError(e);
+			}
+		}
 
 		/**
 		 * Parse for an initial declaration (XMLDecl or TextDecl) in a stream
@@ -2104,6 +2310,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			case MATCHED:     // no more input needed for a determination;
 			case UNMATCHED:   // whatever more is provided, just buffer it
 				return false; // as readahead
+			case UNMATCHEDCHAR: // can't happen; fall into ABANDONED if it does
 			case ABANDONED:
 			}
 			m_state = State.ABANDONED;
@@ -2115,9 +2322,75 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			throw new SQLDataException(m, "2200N");
 		}
 
+		/**
+		 * Version of {@link take(byte)} for use when input is coming from a
+		 * character stream.
+		 *<p>
+		 * Exploits (again) the assumption that in all encodings of interest,
+		 * the characters in a decl will have the values they have in ASCII, and
+		 * the fact that ASCII characters are all encoded in the low 7 bits
+		 * of chars.
+		 *<p>
+		 * Unlike {@link take(byte)}, this method will not accept further input
+		 * after it has returned {@code false} once. A caller should not mix
+		 * calls to this method and {@link take(byte)}.
+		 * @param c The next char of the stream.
+		 * @return True if more input is needed to fully parse a decl or be sure
+		 * that none is present; false when enough input has been seen.
+		 * @throws SQLDataException If a partial or malformed decl is found.
+		 * @throws IllegalStateException if called again after returning false.
+		 */
+		boolean take(char c) throws SQLException
+		{
+			byte b = (byte)(c & 0x7f);
+			switch ( m_state )
+			{
+			case START:
+				if ( b == c )
+					return take(b);
+				m_savedChar = c;
+				m_state = State.UNMATCHEDCHAR;
+				return false;
+			case ABANDONED:
+			case MATCHED:
+			case UNMATCHED:
+			case UNMATCHEDCHAR:
+				throw new IllegalStateException("too many take(char) calls");
+			default:
+				if ( b == c )
+					return take(b);
+			}
+			return take((byte)-1); // will throw appropriate SQLDataException
+		}
+
 		private boolean isSpace(byte b)
 		{
 			return (0x20 == b) || (0x09 == b) || (0x0D == b) || (0x0A == b);
+		}
+
+		/**
+		 * Call after the last call to {@code take} before examining results.
+		 */
+		void finish() throws SQLException
+		{
+			switch ( m_state )
+			{
+			case ABANDONED:
+			case MATCHED:
+			case UNMATCHED:
+			case UNMATCHEDCHAR:
+				return;
+			case START:
+				if ( 0 == m_idx )
+				{
+					m_state = State.UNMATCHED;
+					return;
+				}
+			/* FALLTHROUGH */
+			default:
+			}
+			throw new SQLDataException(
+				"XML begins with an incomplete declaration", "2200N");
 		}
 
 		/**
@@ -2233,12 +2506,36 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return baos.toByteArray();
 		}
 
+		char[] charPrefix(Charset serverCharset) throws IOException
+		{
+			byte[] bpfx = prefix(serverCharset);
+			char[] cpfx = new char [
+				bpfx.length + (State.UNMATCHEDCHAR == m_state ? 1 : 0) ];
+			int i = 0;
+			/*
+			 * Again the assumption that all supported encodings will match
+			 * ASCII for the characters of the decl.
+			 */
+			for ( byte b : bpfx )
+				cpfx [ i++ ] = (char)(b&0x7f);
+			if ( i < cpfx.length )
+				cpfx [ i ] = m_savedChar;
+			return cpfx;
+		}
+
 		/**
 		 * Return the number of bytes at the end of the {@code prefix} result
 		 * that represent readahead, rather than being part of the decl.
 		 */
 		int readaheadLength()
 		{
+			/*
+			 * If the probing was done as chars, because of the more restrictive
+			 * behavior of take(char), the readahead length can be exactly one,
+			 * only if the state is UNMATCHEDCHAR, and will otherwise be zero.
+			 */
+			if ( State.UNMATCHEDCHAR == m_state )
+				return 1;
 			return m_save.size() - m_readaheadStart;
 		}
 
@@ -2283,15 +2580,645 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						"\" which does not match server encoding", "2200N");
 				}
 			}
-			else if ( State.UNMATCHED != m_state )
-				throw new SQLDataException(
-					"XML begins with an incomplete declaration", "2200N");
 
 			if ( ! strict  ||  "UTF-8".equals(serverCharset.name()) )
 				return;
 			throw new SQLDataException(
 				"XML does not declare a character set, and server encoding " +
 				"is not UTF-8", "2200N");
+		}
+
+		String queryEncoding() throws SQLException
+		{
+			if ( State.MATCHED == m_state )
+			{
+				if ( m_encodingEnd <= m_encodingStart )
+					return null;
+				byte[] parseResult = m_save.toByteArray();
+				return new String(parseResult,
+					m_encodingStart, m_encodingEnd - m_encodingStart,
+					s_ASCII);
+			}
+			return null;
+		}
+	}
+
+	/**
+	 * Encapsulation of how to copy from one {@code SQLXML} to another.
+	 *<p>
+	 * In the case of a source {@code SQLXML} object that prefers to present its
+	 * content as a {@code StreamSource}, obtain an instance with
+	 * {@code copierFor}, passing the target {@code SQLXML} instance, the server
+	 * character set and the encoding name peeked from any declaration at the
+	 * front of the source stream. Then supply the {@code DeclProbe} object representing the peeked initial
+	 * content, and the {@code InputStream} or {@code Reader} representing the
+	 * rest of the source content, to the appropriate {@code prepare} method.
+	 * The copy is completed by calling {@link #finish finish}.
+	 *<p>
+	 * Between {@code prepare} and {@code finish}, parser restrictions can be
+	 * adjusted if needed, using the {@link Adjusting.XML.Source} API on the
+	 * object returned by {@link #getAdjustable getAdjustable}.
+	 *<p>
+	 * For the cases of {@code SQLXML} objects that present their content as
+	 * {@code SAXSource}, {@code StAXSource}, or {@code DOMSource}, there are
+	 * no {@code prepare} methods, and {@code getAdjustable} returns a dummy
+	 * object that doesn't adjust anything. When the source presents XML content
+	 * in already-parsed form, there are no parser restrictions to adjust.
+	 */
+	static abstract class XMLCopier
+	{
+		protected Writable m_tgt;
+
+		protected XMLCopier(Writable tgt)
+		{
+			m_tgt = tgt;
+		}
+
+		Adjusting.XML.Source getAdjustable()
+		{
+			return AdjustingSAXSource.Dummy.INSTANCE;
+		}
+
+		static abstract class Stream extends XMLCopier
+		{
+			protected AdjustingSAXSource m_adjustable;
+
+			protected Stream(Writable tgt)
+			{
+				super(tgt);
+			}
+
+			@Override
+			Adjusting.XML.Source getAdjustable()
+			{
+				return m_adjustable;
+			}
+
+			abstract XMLCopier prepare(DeclProbe probe, InputStream is)
+			throws IOException, SQLException;
+
+			abstract XMLCopier prepare(DeclProbe probe, Reader r)
+			throws IOException, SQLException;
+		}
+
+		/**
+		 * Return an {@code XMLCopier} that can copy a stream source that
+		 * declares an encoding name <em>srcCSName</em> to a target whose
+		 * character set is <em>tgtCS</em> (which is here strongly assumed to
+		 * be the PostgreSQL server charset, so will not need to be remembered
+		 * in the created {@code XMLStreamCopier}).
+		 */
+		static Stream copierFor(
+			Writable tgt, Charset tgtCS, String srcCSName)
+			throws SQLException
+		{
+			if ( null == srcCSName )
+				srcCSName = "UTF-8";
+
+			if ( tgtCS.name().equalsIgnoreCase(srcCSName) )
+				return new Direct(tgt);
+
+			Charset srcCS;
+			try
+			{
+				srcCS = Charset.forName(srcCSName);
+			}
+			catch ( IllegalArgumentException e )
+			{
+				throw new SQLDataException(
+					"XML declares unsupported encoding \"" + srcCSName + "\"",
+					"2200N");
+			}
+			if ( tgtCS.equals(srcCS) )
+				return new Direct(tgt);
+			if ( tgtCS.contains(srcCS) )
+				return new Transcoding(tgt, srcCS);
+			return new Transforming(tgt, srcCS);
+		}
+
+		abstract Writable finish() throws IOException, SQLException;
+
+		/**
+		 * Copier usable when source and target encodings are the same.
+		 */
+		static class Direct extends Stream
+		{
+			/* Exactly one of m_is, m_rdr must be non-null */
+			private InputStream m_is;
+			private Reader m_rdr;
+			private DeclProbe m_probe;
+			private AdjustingStreamResult m_asr;
+
+			protected Direct(Writable tgt)
+			{
+				super(tgt);
+			}
+
+			@Override
+			XMLCopier prepare(DeclProbe probe, InputStream is)
+			throws SQLException
+			{
+				m_is = is;
+				return prepare(probe, (Reader)null);
+			}
+
+			@Override
+			XMLCopier prepare(DeclProbe probe, Reader r)
+			throws SQLException
+			{
+				m_rdr = r;
+				m_probe = probe;
+				m_asr = m_tgt.setResult(
+					m_tgt.backingIfNotFreed(),
+					AdjustingStreamResult.class);
+				m_adjustable = m_asr.theVerifierSource();
+				return this;
+			}
+
+			@Override
+			Writable finish() throws IOException, SQLException
+			{
+				if ( null != m_is )
+				{
+					OutputStream os =
+						m_asr.preferBinaryStream().get().getOutputStream();
+					os.write(m_probe.prefix(null));
+					byte[] b = new byte [ 8192 ];
+					int got;
+					while ( -1 != (got = m_is.read(b)) )
+						os.write(b, 0, got);
+					m_is.close();
+					os.close();
+				}
+				else
+				{
+					Writer w = m_asr.preferCharacterStream().get().getWriter();
+					w.write(m_probe.charPrefix(null));
+					char[] b = new char [ 8192 ];
+					int got;
+					while ( -1 != (got = m_rdr.read(b)) )
+						w.write(b, 0, got);
+					m_rdr.close();
+					w.close();
+				}
+				return m_tgt;
+			}
+		}
+
+		/**
+		 * Copier usable when source charset is contained in the target charset.
+		 *<p>
+		 * Charset containment doesn't guarantee encoding equivalence, so the
+		 * stream may have to be transcoded, but there won't be any characters
+		 * unrepresentable in the target encoding that need to be escaped. If
+		 * the source presented a character stream, it is handled just as for
+		 * {@code Direct}; if a binary stream, it is wrapped as a character
+		 * stream and then handled the same way.
+		 */
+		static class Transcoding extends Direct
+		{
+			private Charset m_srcCS;
+
+			Transcoding(Writable tgt, Charset srcCS)
+			{
+				super(tgt);
+				m_srcCS = srcCS;
+			}
+
+			@Override
+			XMLCopier prepare(DeclProbe probe, InputStream is)
+			throws SQLException
+			{
+				return prepare(probe, new InputStreamReader(is, m_srcCS));
+			}
+		}
+
+		/**
+		 * Copier usable when source charset may not be contained in the target
+		 * charset.
+		 *<p>
+		 * The stream has to be parsed and serialized so that any characters
+		 * not representable in the target encoding can be serialized as the
+		 * XML character references.
+		 */
+		static class Transforming extends Stream
+		{
+			private Charset m_srcCS;
+
+			Transforming(Writable tgt, Charset srcCS)
+			{
+				super(tgt);
+				m_srcCS = srcCS;
+			}
+
+			@Override
+			XMLCopier prepare(DeclProbe probe, InputStream is)
+			throws IOException, SQLException
+			{
+				try
+				{
+					boolean[] wrapping = new boolean[] { false };
+					is = correctedDeclStream(
+						is, probe, /* neverWrap */ false, m_srcCS, wrapping);
+					m_adjustable =
+						new AdjustingSAXSource(new InputSource(is), wrapping[0])
+						.defaults();
+				}
+				catch ( SAXException e )
+				{
+					throw normalizedException(e);
+				}
+				return this;
+			}
+
+			@Override
+			XMLCopier prepare(DeclProbe probe, Reader r)
+			throws IOException, SQLException
+			{
+				try
+				{
+					boolean[] wrapping = new boolean[] { false };
+					r = correctedDeclReader(r, probe, m_srcCS, wrapping);
+					m_adjustable =
+						new AdjustingSAXSource(new InputSource(r), wrapping[0])
+						.defaults();
+				}
+				catch ( SAXException e )
+				{
+					throw normalizedException(e);
+				}
+				return this;
+			}
+
+			@Override
+			Writable finish() throws IOException, SQLException
+			{
+				saxCopy(m_adjustable.get(),
+					m_tgt.setResult(
+						m_tgt.backingIfNotFreed(), SAXResult.class));
+				return m_tgt;
+			}
+		}
+
+		static class SAX extends XMLCopier
+		{
+			private SAXSource m_source;
+
+			SAX(Writable tgt, SAXSource src)
+			{
+				super(tgt);
+				m_source = src;
+			}
+
+			@Override
+			Writable finish() throws IOException, SQLException
+			{
+				saxCopy(m_source,
+					m_tgt.setResult(
+						m_tgt.backingIfNotFreed(), SAXResult.class));
+				return m_tgt;
+			}
+		}
+
+		static class StAX extends XMLCopier
+		{
+			private StAXSource m_source;
+
+			StAX(Writable tgt, StAXSource src)
+			{
+				super(tgt);
+				m_source = src;
+			}
+
+			@Override
+			Writable finish() throws IOException, SQLException
+			{
+				StAXResult str = m_tgt.setResult(
+					m_tgt.backingIfNotFreed(), StAXResult.class);
+				XMLInputFactory  xif = XMLInputFactory.newFactory();
+				xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+				XMLOutputFactory xof = XMLOutputFactory.newFactory();
+				/*
+				 * The Source has either an event reader or a stream reader. Use
+				 * the event reader directly, or create one around the stream
+				 * reader.
+				 */
+				XMLEventReader xer = m_source.getXMLEventReader();
+				try
+				{
+					if ( null == xer )
+						xer = xif.createXMLEventReader(
+							m_source.getXMLStreamReader());
+					/*
+					 * Were you thinking the above could be simply
+					 * createXMLEventReader(m_source) by analogy with
+					 * the writer below? Good thought, but the XMLInputFactory
+					 * implementation that's included in OpenJDK doesn't
+					 * implement the case where the Source argument is a
+					 * StAXSource! Two lines would do it. (And anyway, "the
+					 * writer below" brings hollow, joyless laughter in Java 9
+					 * and later.)
+					 */
+
+					/*
+					 * Bother. If not for a regression in Java 9 and later, this
+					 * would be a simple createXMLEventWriter(str).
+					 * XXX This is not fully general, as str is known to be one
+					 * of our native StAXResults, which (for now!) can only wrap
+					 * a stream writer, never an event writer.
+					 */
+					XMLEventConsumer xec =
+						new XMLEventToStreamConsumer(str.getXMLStreamWriter());
+
+					while ( xer.hasNext() )
+						xec.add(xer.nextEvent());
+
+					xer.close();
+				}
+				catch ( XMLStreamException e )
+				{
+					throw new SQLDataException(e.getMessage(), "22000", e);
+				}
+				return m_tgt;
+			}
+		}
+
+		static class DOM extends XMLCopier
+		{
+			private DOMSource m_source;
+
+			DOM(Writable tgt, DOMSource src)
+			{
+				super(tgt);
+				m_source = src;
+			}
+
+			@Override
+			Writable finish() throws IOException, SQLException
+			{
+				DOMResult dr = m_tgt.setResult(
+					m_tgt.backingIfNotFreed(), DOMResult.class);
+				dr.setNode(m_source.getNode());
+				return m_tgt;
+			}
+		}
+	}
+
+	static class AdjustingSourceResult implements Adjusting.XML.SourceResult
+	{
+		private Writable m_result;
+		private Charset m_serverCS;
+		private XMLCopier m_copier;
+
+		AdjustingSourceResult(Writable result, Charset serverCS)
+		{
+			m_result = result;
+			m_serverCS = serverCS;
+		}
+
+		@Override
+		public AdjustingSourceResult set(Source source) throws SQLException
+		{
+			if ( source instanceof Adjusting.XML.Source )
+				source = ((Adjusting.XML.Source)source).get();
+
+			if ( source instanceof StreamSource )
+				return set((StreamSource)source);
+
+			if ( source instanceof SAXSource )
+				return set((SAXSource)source);
+
+			if ( source instanceof StAXSource )
+				return set((StAXSource)source);
+
+			if ( source instanceof DOMSource )
+				return set((DOMSource)source);
+
+			m_result.free();
+			throw new SQLDataException(
+				"XML source class " + source.getClass().getName() +
+				" unsupported");
+		}
+
+		@Override
+		public AdjustingSourceResult set(StreamSource source)
+		throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too late to set source");
+
+			/*
+			 * Foreign implementation also gets its choice whether to supply
+			 * an InputStream or a Reader.
+			 */
+			InputStream is = source.getInputStream();
+			Reader       r = source.getReader();
+			DeclProbe probe = new DeclProbe();
+			try
+			{
+				if ( null != is )
+				{
+					int b;
+					while ( -1 != (b = is.read()) )
+						if ( ! probe.take((byte)b) )
+							break;
+					String probedEncoding = probe.queryEncoding();
+					m_copier = XMLCopier
+						.copierFor(m_result, m_serverCS, probedEncoding)
+						.prepare(probe, is);
+				}
+				else if ( null != r )
+				{
+					int b;
+					while ( -1 != (b = r.read()) )
+						if ( ! probe.take((char)b) )
+							break;
+					String probedEncoding = probe.queryEncoding();
+					m_copier = XMLCopier
+						.copierFor(m_result, m_serverCS, probedEncoding)
+						.prepare(probe, r);
+				}
+				else
+					throw new SQLDataException(
+						"Foreign SQLXML implementation has " +
+						"a broken StreamSource", "22000");
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+			finally
+			{
+				if ( null == m_copier )
+				{
+					m_result.free();
+					m_result = null;
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult set(SAXSource source)
+		throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too late to set source");
+
+			m_copier = new XMLCopier.SAX(m_result, source);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult set(StAXSource source)
+		throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too late to set source");
+
+			m_copier = new XMLCopier.StAX(m_result, source);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult set(DOMSource source)
+		throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too late to set source");
+
+			m_copier = new XMLCopier.DOM(m_result, source);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult set(String source)
+		throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too late to set source");
+
+			return set(new StreamSource(new StringReader(source)));
+		}
+
+		@Override
+		public SQLXML getSQLXML() throws SQLException
+		{
+			if ( null == m_result )
+				throw new IllegalStateException(
+					"AdjustingSourceResult getSQLXML called more than once");
+			if ( null == m_copier )
+				throw new IllegalStateException(
+					"AdjustingSourceResult getSQLXML called before set");
+			Writable result = null;
+			try
+			{
+				result = m_copier.finish();
+			}
+			catch ( IOException e )
+			{
+				throw normalizedException(e);
+			}
+			finally
+			{
+				Writable r = m_result;
+				m_result = null;
+				m_serverCS = null;
+				m_copier = null;
+				if ( null == result )
+					r.free();
+			}
+			return result;
+		}
+
+		@Override
+		public void setSystemId(String systemId)
+		{
+			throw new UnsupportedOperationException(
+				"SourceResult does not support setSystemId");
+		}
+
+		@Override
+		public String getSystemId()
+		{
+			throw new UnsupportedOperationException(
+				"SourceResult does not support getSystemId");
+		}
+
+		private Adjusting.XML.Source theAdjustable()
+		{
+			if ( null == m_copier )
+				throw new IllegalStateException(
+					"AdjustingSourceResult too early or late to adjust");
+			return m_copier.getAdjustable();
+		}
+
+		@Override
+		public AdjustingSourceResult get() throws SQLException
+		{
+			return this; // for this class, get is a noop
+		}
+
+		@Override
+		public AdjustingSourceResult allowDTD(boolean v)
+		{
+			theAdjustable().allowDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult externalGeneralEntities(boolean v)
+		{
+			theAdjustable().externalGeneralEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult externalParameterEntities(boolean v)
+		{
+			theAdjustable().externalParameterEntities(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult loadExternalDTD(boolean v)
+		{
+			theAdjustable().loadExternalDTD(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult xIncludeAware(boolean v)
+		{
+			theAdjustable().xIncludeAware(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult expandEntityReferences(boolean v)
+		{
+			theAdjustable().expandEntityReferences(v);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			theAdjustable().setFirstSupportedFeature(value, names);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult defaults()
+		{
+			theAdjustable().defaults();
+			return this;
 		}
 	}
 
@@ -2312,12 +3239,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				xr = XMLReaderFactory.createXMLReader();
 				xr.setFeature("http://xml.org/sax/features/namespaces", true);
+				m_verifierSource = new AdjustingSAXSource(null, false);
 			}
 			catch ( SAXException e )
 			{
 				throw normalizedException(e);
 			}
-			m_verifierSource = new AdjustingSAXSource(xr, null);
 		}
 
 		@Override
@@ -2451,10 +3378,32 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private XMLReader m_xr;
 		private InputSource m_is;
 
-		AdjustingSAXSource(XMLReader xr, InputSource is)
+		static class Dummy extends AdjustingSAXSource
 		{
-			m_xr = xr;
+			static final Dummy INSTANCE = new Dummy();
+			private Dummy() { }
+
+			@Override
+			public AdjustingSAXSource setFirstSupportedFeature(
+				boolean value, String... names)
+			{
+				return this;
+			}
+		}
+
+		private AdjustingSAXSource() // only for Dummy
+		{
+		}
+
+		AdjustingSAXSource(InputSource is, boolean wrapped)
+		throws SAXException
+		{
 			m_is = is;
+			m_xr = XMLReaderFactory.createXMLReader();
+			m_xr.setFeature("http://xml.org/sax/features/namespaces",
+							true);
+			if ( wrapped )
+				m_xr = new SAXUnwrapFilter(m_xr);
 		}
 
 		@Override
@@ -2769,7 +3718,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingStAXSource expandEntityReferences(boolean v)
 		{
-			return this;
+			return setFirstSupportedFeature( v,
+				XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES);
 		}
 
 		@Override

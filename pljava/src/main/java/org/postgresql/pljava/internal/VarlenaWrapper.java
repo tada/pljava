@@ -134,6 +134,23 @@ public interface VarlenaWrapper extends Closeable
 			}
 		}
 
+		/**
+		 * Wrapper around the {@code pinUnlessReleased} method of the native
+		 * state, for sites where an {@code IOException} is needed rather than
+		 * {@code SQLException}.
+		 */
+		private boolean pinUnlessReleased() throws IOException
+		{
+			try
+			{
+				return ((State)m_state).pinUnlessReleased();
+			}
+			catch ( SQLException e )
+			{
+				throw new IOException(e.getMessage(), e);
+			}
+		}
+
 		/*
 		 * Unpin for use in {@code ByteBufferInputStream} or here; no
 		 * throws-clause difference to blotch things up.
@@ -225,7 +242,8 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public void close() throws IOException
 		{
-			pin();
+			if ( pinUnlessReleased() )
+				return;
 			try
 			{
 				super.close();
@@ -495,6 +513,23 @@ public interface VarlenaWrapper extends Closeable
 			}
 		}
 
+		/**
+		 * Wrapper around the {@code pinUnlessReleased} method of the native
+		 * state, for sites where an {@code IOException} is needed rather than
+		 * {@code SQLException}.
+		 */
+		private boolean pinUnlessReleased() throws IOException
+		{
+			try
+			{
+				return m_state.pinUnlessReleased();
+			}
+			catch ( SQLException e )
+			{
+				throw new IOException(e.getMessage(), e);
+			}
+		}
+
 		@Override
 		public void write(int b) throws IOException
 		{
@@ -536,11 +571,13 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public void close() throws IOException
 		{
-			pin();
+			if ( pinUnlessReleased() )
+				return;
 			try
 			{
 				if ( ! m_open )
 					return;
+				m_state.setVerifierIfNone();
 				buf(0);
 				m_open = false;
 				m_state.verify();
@@ -668,6 +705,17 @@ public interface VarlenaWrapper extends Closeable
 				if ( null == v )
 					throw new NullPointerException("Null Verifier parameter");
 				m_verifier = v.schedule();
+			}
+
+			/*
+			 * Only for use in close() in case of early closing before the
+			 * caller has set a verifier; make sure at least the NoOp verifier
+			 * is there.
+			 */
+			private void setVerifierIfNone()
+			{
+				if ( null == m_verifier )
+					m_verifier = Verifier.NoOp.INSTANCE;
 			}
 
 			private void cancelVerifier()
