@@ -11,8 +11,39 @@
 	<description>Examples of Java stored procedures using PL/Java</description>
 
 	<profiles>
+		<!--
+		  - This profile has to precede saxon-examples, because both set
+		  - the property pljava.examples.apitarget; a property set in more than
+		  - one active profile gets the later value, and that has to be the
+		  - Java 8 target set by saxon-examples, if those examples are built.
+		  -->
+		<profile>
+			<id>jdk9plus</id>
+			<activation>
+				<jdk>[9,)</jdk>
+			</activation>
+			<properties>
+				<pljava.examples.apitarget>7</pljava.examples.apitarget>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<version>3.8.1</version>
+						<configuration>
+							<release>${pljava.examples.apitarget}</release>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
 		<profile>
 			<id>saxon-examples</id>
+			<properties>
+				<pljava.examples.apitarget>8</pljava.examples.apitarget>
+			</properties>
 			<dependencies>
 				<dependency>
 					<groupId>net.sf.saxon</groupId>
@@ -36,6 +67,7 @@
 		</profile>
 
 		<profile>
+			<id>jdk7plus</id>
 			<activation>
 				<jdk>[1.7,)</jdk>
 			</activation>
