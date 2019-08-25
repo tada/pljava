@@ -109,15 +109,16 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"END"
 	),
 
-	@SQLAction(implementor="postgresql_ge_80400", provides="postgresql_xml_cte",
+	@SQLAction(implementor="postgresql_ge_80400",
+		provides="postgresql_xml_ge84",
 		install=
 		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-		" THEN set_config('pljava.implementors', 'postgresql_xml_cte,' || " +
+		" THEN set_config('pljava.implementors', 'postgresql_xml_ge84,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
 	),
 
-	@SQLAction(implementor="postgresql_xml_cte", requires="echoXMLParameter",
+	@SQLAction(implementor="postgresql_xml_ge84", requires="echoXMLParameter",
 		install=
 		"WITH" +
 		" s(how) AS (SELECT generate_series(1, 7))," +
@@ -142,7 +143,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" r"
 	),
 
-	@SQLAction(implementor="postgresql_xml_cte", requires="proxiedXMLEcho",
+	@SQLAction(implementor="postgresql_xml_ge84", requires="proxiedXMLEcho",
 		install=
 		"WITH" +
 		" s(how) AS (SELECT unnest('{1,2,4,5,6,7}'::int[]))," +
@@ -392,7 +393,7 @@ public class PassXML implements SQLData
 	 * would allow a document that contains an internal DTD subset and uses
 	 * entities defined there.
 	 */
-	@Function(schema="javatest", implementor="postgresql_xml")
+	@Function(schema="javatest", implementor="postgresql_xml_ge84")
 	public static SQLXML lowLevelXMLEcho(
 		SQLXML sx, int how, @SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
@@ -705,8 +706,12 @@ public class PassXML implements SQLData
 
 	/**
 	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
+	 *<p>
+	 * It does declare a parameter default, limiting it to PostgreSQL 8.4 or
+	 * later.
 	 */
-	@Function(schema="javatest", name="lowLevelXMLEcho", type="text")
+	@Function(schema="javatest", name="lowLevelXMLEcho",
+		type="text", implementor="postgresql_ge_80400")
 	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how,
 		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
@@ -781,7 +786,7 @@ public class PassXML implements SQLData
 	 * @param inElement True if the text node should be wrapped in an element.
 	 * @return The resulting XML content.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", implementor="postgresql_xml")
 	public static SQLXML xmlTextNode(
 		byte[] stuff, String encoding, int how, boolean inElement)
 		throws Exception
