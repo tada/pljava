@@ -40,6 +40,33 @@
 		</profile>
 
 		<profile>
+			<id>jdkpre9</id>
+			<activation>
+				<jdk>[1.6,9)</jdk>
+			</activation>
+			<properties>
+				<!--
+				  - Building pre-9, we'll assume 6 here. It will be bumped to 8
+				  - if building saxon-examples. For now, the jdk7plus profile
+				  - does not need to bump this to 7, as its comments explain.
+				  -->
+				<pljava.examples.apitarget>6</pljava.examples.apitarget>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<source>${pljava.examples.apitarget}</source>
+							<target>${pljava.examples.apitarget}</target>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
 			<id>saxon-examples</id>
 			<properties>
 				<pljava.examples.apitarget>8</pljava.examples.apitarget>
@@ -71,6 +98,17 @@
 			<activation>
 				<jdk>[1.7,)</jdk>
 			</activation>
+			<!--
+			  - For now, this profile does not bump pljava.examples.apitarget
+			  - to 7. There is code in the example.jdk7 package that requires
+			  - Java 7 API, but does not use Java 7 language or bytecode
+			  - features, so the executive decision here is to avoid setting
+			  - source/target to exclude Java 6 for all the examples, and
+			  - instead just allow the jdk7 ones to not work on a 6 runtime.
+			  - ON THE OTHER hand, if building with 9+, the jdk9plus profile
+			  - *will* bump the minimum to 7, because sneakily using newer API
+			  - is the exact thing Java 9's 'release' option forbids.
+			  -->
 			<build>
 				<plugins>
 					<plugin>

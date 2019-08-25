@@ -56,6 +56,8 @@ import static javax.xml.XMLConstants.XML_NS_PREFIX;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 
+import net.sf.saxon.lib.ConversionRules;
+
 import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
 
@@ -87,9 +89,13 @@ import net.sf.saxon.trans.XPathException;
 
 import net.sf.saxon.tree.iter.LookaheadIterator;
 
+import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.Converter;
+
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Base64BinaryValue;
+import net.sf.saxon.value.CalendarValue;
 import net.sf.saxon.value.HexBinaryValue;
-import net.sf.saxon.value.TimeValue;
 
 import org.postgresql.pljava.ResultSetProvider;
 
@@ -568,7 +574,7 @@ public class S9 implements ResultSetProvider
 					continue;
 				}
 				XdmAtomicValue av = (XdmAtomicValue)x1.itemAt(0);
-				xmlCastAsNonXML(av, p, receive, i);
+				xmlCastAsNonXML(av, staticType.getItemType(), p, receive, i);
 			}
 			catch ( SaxonApiException e )
 			{
@@ -1021,25 +1027,84 @@ public class S9 implements ResultSetProvider
 		}
 	}
 
+	@FunctionalInterface
+	interface CastingFunction
+	{
+		AtomicValue apply(AtomicValue v) throws XPathException;
+	}
+
+	@FunctionalInterface
+	interface CasterSupplier
+	{
+		CastingFunction get() throws SQLException;
+	}
+
 	/**
 	 * Handle the case of XMLCAST to a non-XML target type when the cast operand
 	 * is already a single atomic value.
+	 *<p>
+	 * The caller, if operating on a sequence, must itself handle the case of
+	 * an empty sequence (returning null, per General Rule 4c in :2011), or a
+	 * sequence of length greater than one (raising XPTY0004, which is not
+	 * specified in :2011, but the exclusion of such a sequence is implicit in
+	 * rules 4g and 4h; Db2 silently drops all but the first item, unlike
+	 * Oracle, which raises XPTY0004).
 	 * @param av The atomic operand value
 	 * @param p The parameter binding, recording the needed type information
 	 * @param rs ResultSet into which the value will be stored
 	 * @param col Index of the result column
 	 */
 	private static void xmlCastAsNonXML(
-		XdmAtomicValue av, Binding.Parameter p, ResultSet rs, int col)
+		XdmAtomicValue av, ItemType vt,
+		Binding.Parameter p, ResultSet rs, int col)
 		throws SQLException, XPathException
 	{
 		XdmAtomicValue bv;
-		ItemType xt = p.typeXS().getItemType();
-		if ( xt.matches(av) ) // perhaps we can skip one bout of casting
-			bv = av; // XXX xt==DATE_TIME, av isa DATE_TIME_STAMP gets through
-		else
-			throw new UnsupportedOperationException(
-				"Casting AV to BV is not yet implemented (column " + col + ")");
+		ItemType xt = p.typeXT().getItemType();
+
+		CastingFunction caster = p.atomicCaster(vt, () ->
+		{
+			ConversionRules rules = vt.getConversionRules();
+			Converter c1;
+			ItemType t1;
+			Converter c2;
+
+			switch ( p.typeJDBC() )
+			{
+			case Types.TIMESTAMP:
+				t1 = ItemType.DATE_TIME;
+				break;
+			case Types.TIME:
+				t1 = ItemType.TIME;
+				break;
+			case Types.DATE:
+				t1 = ItemType.DATE;
+				break;
+			default:
+				c1 = rules.getConverter(
+					(AtomicType)vt.getUnderlyingItemType(),
+					(AtomicType)xt.getUnderlyingItemType());
+				return (AtomicValue v) -> c1.convert(v).asAtomic();
+			}
+			/*
+			 * Nothing left here but the rest of the three date/timey cases
+			 * partly handled above.
+			 */
+			c1 = rules.getConverter(
+				(AtomicType)vt.getUnderlyingItemType(),
+				(AtomicType)t1.getUnderlyingItemType());
+			c2 = rules.getConverter(
+				(AtomicType)t1.getUnderlyingItemType(),
+				(AtomicType)xt.getUnderlyingItemType());
+			return (AtomicValue v) ->
+			{
+				v = c1.convert(v).asAtomic();
+				v = ((CalendarValue)v).adjustTimezone(0).removeTimezone();
+				return c2.convert(v).asAtomic();
+			};
+		});
+
+		bv = makeAtomicValue(caster.apply(av.getUnderlyingValue()));
 
 		if ( ItemType.STRING.subsumes(xt) )
 			rs.updateString(col, bv.getStringValue());
@@ -1059,21 +1124,23 @@ public class S9 implements ResultSetProvider
 		 * of range" rather than forwarding a float or double inf, -inf, or nan
 		 * to SQL, but PostgreSQL supports those values, and these conversions
 		 * preserve them.
+		 *  Because of the collapsing in typeXT(), xt will never be FLOAT,
+		 * only DOUBLE. JDBC is supposed to handle assigning a double to a float
+		 * column, anyway.
 		 */
-		else if ( ItemType.FLOAT.subsumes(xt) )
-			rs.updateObject(col, bv.getValue());
 		else if ( ItemType.DOUBLE.subsumes(xt) )
 			rs.updateObject(col, bv.getValue());
 
 		else if ( ItemType.DATE.subsumes(xt) )
 			rs.updateObject(col, LocalDate.parse(bv.getStringValue()));
-		else if ( ItemType.DATE_TIME_STAMP.subsumes(xt) )
-			rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
 		else if ( ItemType.DATE_TIME.subsumes(xt) )
-			rs.updateObject(col, LocalDateTime.parse(bv.getStringValue()));
+			rs.updateObject(col,
+				((CalendarValue)bv.getUnderlyingValue()).hasTimezone()
+				? OffsetDateTime.parse(bv.getStringValue())
+				:  LocalDateTime.parse(bv.getStringValue()));
 		else if ( ItemType.TIME.subsumes(xt) ) // no handy tz/notz distinction
 			rs.updateObject(col,
-				((TimeValue)bv.getUnderlyingValue()).hasTimezone()
+				((CalendarValue)bv.getUnderlyingValue()).hasTimezone()
 				? OffsetTime.parse(bv.getStringValue())
 				:  LocalTime.parse(bv.getStringValue()));
 
@@ -1336,6 +1403,36 @@ public class S9 implements ResultSetProvider
 				return m_typeXS = implTypeXS(false);
 			}
 
+			/**
+			 * Return the XS type collapsed according to the Syntax Rule
+			 * deriving {@code XT} for {@code XMLCAST}.
+			 *<p>
+			 * The intent of the rule is unclear, but it involves collapsing
+			 * certain sets of more-specific types into common supertypes, for
+			 * use only in an intermediate step of {@code xmlCastAsNonXML}.
+			 */
+			SequenceType typeXT() throws SQLException
+			{
+				throw new UnsupportedOperationException(
+					"typeXT() on synthetic binding");
+			}
+
+			/**
+			 * Memoize and return a casting function from a given
+			 * {@code ItemType} to the type of this parameter.
+			 *<p>
+			 * Used only by {@code xmlCastAsNonXML}, which does all the work
+			 * of constructing the function; this merely allows it to be
+			 * remembered, if many casts to the same output parameter will be
+			 * made (as by {@code xmltable}).
+			 */
+			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
+			throws SQLException
+			{
+				throw new UnsupportedOperationException(
+					"atomicCaster() on synthetic binding");
+			}
+
 			protected SequenceType m_typeXS;
 
 			private final String m_name;
@@ -1575,12 +1672,56 @@ public class S9 implements ResultSetProvider
 		class Parameter extends Binding.Parameter
 		{
 			final int m_idx;
+			private SequenceType m_typeXT;
+			private CastingFunction m_atomCaster;
+			private ItemType m_lastCastFrom;
 
 			Parameter(String name, int index, boolean isInput)
 			throws SQLException
 			{
 				super(name, isInput);
 				m_idx = index;
+			}
+
+			@Override
+			SequenceType typeXT() throws SQLException
+			{
+				if ( null != m_typeXT )
+					return m_typeXT;
+
+				SequenceType xs = typeXS();
+				OccurrenceIndicator oi = xs.getOccurrenceIndicator();
+				if ( oi.allowsMany() )
+					return m_typeXT = xs;
+				ItemType it = xs.getItemType();
+				if ( ! ItemType.ANY_ATOMIC_VALUE.subsumes(it) )
+					return m_typeXT = xs;
+
+				if ( it.equals(ItemType.INTEGER) )
+				{
+					int tj = typeJDBC();
+					if ( Types.NUMERIC == tj || Types.DECIMAL == tj )
+						it = ItemType.DECIMAL;
+				}
+				else if ( ItemType.INTEGER.subsumes(it) )
+					it = ItemType.INTEGER;
+				else if ( ItemType.FLOAT.subsumes(it) )
+					it = ItemType.DOUBLE;
+				else if ( ItemType.DATE_TIME_STAMP.subsumes(it) )
+					it = ItemType.DATE_TIME;
+
+				if ( it != xs.getItemType() )
+					xs = makeSequenceType(it, oi);
+				return m_typeXT = xs;
+			}
+
+			@Override
+			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
+			throws SQLException
+			{
+				if ( null == m_atomCaster || ! it.equals(m_lastCastFrom) )
+					m_atomCaster = s.get();
+				return m_atomCaster;
 			}
 
 			protected String implTypePG() throws SQLException
