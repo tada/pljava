@@ -13,6 +13,7 @@
 #include <postgres.h>
 #include <catalog/pg_type.h>
 
+#include "pljava/pljava.h"
 #include "org_postgresql_pljava_jdbc_TypeOid.h"
 
 /*
