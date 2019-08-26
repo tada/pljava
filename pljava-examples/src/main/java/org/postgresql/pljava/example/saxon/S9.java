@@ -97,6 +97,7 @@ import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Base64BinaryValue;
 import net.sf.saxon.value.CalendarValue;
 import net.sf.saxon.value.HexBinaryValue;
+import static net.sf.saxon.value.StringValue.getStringLength;
 
 import org.postgresql.pljava.ResultSetProvider;
 
@@ -2520,68 +2521,160 @@ public class S9 implements ResultSetProvider
 
 	/*
 	 * The XQuery-regular-expression-based functions added in 9075-2:2006.
+	 *
+	 * For each function below, a parameter is marked //strict if the spec
+	 * explicitly says the result is NULL when that parameter is NULL. The
+	 * parameters not marked //strict (including the non-standard w3cNewlines
+	 * added here) all have non-null defaults, so by executive decision, these
+	 * functions will all get the onNullInput=RETURNS_NULL treatment, so none of
+	 * the null-checking has to be done here. At worst, that may result in a
+	 * mystery NULL return rather than an error, if someone explicitly passes
+	 * NULL to one of the parameters with a non-null default.
 	 */
+
+	/*
+	 * Check valid range of 'from' and supported 'usingOctets'.
+	 *
+	 * Every specified function that has a start position FROM and a USING
+	 * clause starts with a check that the start position is in range. This
+	 * function factors out that test, returning true if the start position is
+	 * /out of range/ (triggering the caller to return the special result
+	 * defined for that case), returning false if the value is in range, or
+	 * throwing an exception if the length unit specified in the USING clause
+	 * isn't supported.
+	 */
+	private static boolean usingAndLengthCheck(
+		String in, int from, boolean usingOctets, String function)
+	throws SQLException
+	{
+		if ( usingOctets )
+			throw new SQLFeatureNotSupportedException(
+				'"' + function + "\" does not yet support USING OCTETS",
+				"0A000");
+		return ( 1 > from  ||  from > getStringLength(in) );
+	}
+
+	private static void newlinesCheck(boolean w3cNewlines, String function)
+	throws SQLException
+	{
+		if ( ! w3cNewlines )
+			throw new SQLFeatureNotSupportedException(
+				'"' + function + "\" does not yet support the ISO SQL newline" +
+				" conventions, only the original W3C XQuery ones" +
+				" (HINT: pass w3cNewlines => true)", "0A000");
+	}
 
 	@Function(schema="javatest")
 	public static boolean like_regex(
-		String value, String pattern, @SQLType(defaultValue="") String flag)
+		String value,                          //strict
+		String pattern,                        //strict
+		@SQLType(defaultValue="") String flag, //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
 		throws SQLException
 	{
+		newlinesCheck(w3cNewlines, "like_regex");
 		throw new SQLFeatureNotSupportedException("like_regex", "0A000");
+		/*
+		 * Needed of LOMV: whether empty or not
+		 */
 	}
 
 	@Function(schema="javatest")
 	public static int occurrences_regex(
-		String pattern,
-		@SQLType(name="\"in\"") String in,
-		@SQLType(defaultValue="") String flag,
+		String pattern,                        //strict
+		@SQLType(name="\"in\"") String in,     //strict
+		@SQLType(defaultValue="") String flag, //strict
 		@SQLType(name="\"from\"", defaultValue="1") int from,
-		@SQLType(defaultValue="false") boolean usingOctets)
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
 		throws SQLException
 	{
+		if ( usingAndLengthCheck(in, from, usingOctets, "occurrences_regex") )
+			return -1; // note: not the same as in position_regex!
+		newlinesCheck(w3cNewlines, "occurrences_regex");
 		throw new SQLFeatureNotSupportedException("occurrences_regex", "0A000");
+		/*
+		 * Needed of LOMV: total number of match vectors
+		 */
 	}
 
 	@Function(schema="javatest")
 	public static int position_regex(
-		String pattern,
-		@SQLType(name="\"in\"") String in,
-		@SQLType(defaultValue="") String flag,
+		String pattern,                                         //strict
+		@SQLType(name="\"in\"") String in,                      //strict
+		@SQLType(defaultValue="") String flag,                  //strict
 		@SQLType(name="\"from\"", defaultValue="1") int from,
 		@SQLType(defaultValue="false") boolean usingOctets,
 		@SQLType(defaultValue="false") boolean after,
-		@SQLType(defaultValue="1") int occurrence,
-		@SQLType(name="\"group\"", defaultValue="0") int group)
+		@SQLType(defaultValue="1") int occurrence,              //strict
+		@SQLType(name="\"group\"", defaultValue="0") int group, //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
 		throws SQLException
 	{
+		if ( 1 > occurrence )
+			return 0;
+		if ( 0 > group ) // test group > ngroups after compiling regex
+			return 0;
+		if ( usingAndLengthCheck(in, from, usingOctets, "position_regex") )
+			return 0; // note: not the same as in occurrences_regex!
+		newlinesCheck(w3cNewlines, "position_regex");
 		throw new SQLFeatureNotSupportedException("position_regex", "0A000");
+		/*
+		 * Needed of LOMV: match vector at index, if present
+		 * P and L at CAP in that vector
+		 */
 	}
 
 	@Function(schema="javatest")
 	public static String substring_regex(
-		String pattern,
-		@SQLType(name="\"in\"") String in,
-		@SQLType(defaultValue="") String flag,
+		String pattern,                                          //strict
+		@SQLType(name="\"in\"") String in,                       //strict
+		@SQLType(defaultValue="") String flag,                   //strict
 		@SQLType(name="\"from\"", defaultValue="1") int from,
 		@SQLType(defaultValue="false") boolean usingOctets,
-		@SQLType(defaultValue="1") int occurrence,
-		@SQLType(name="\"group\"", defaultValue="0") int group)
+		@SQLType(defaultValue="1") int occurrence,               //strict
+		@SQLType(name="\"group\"", defaultValue="0") int group,  //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
 		throws SQLException
 	{
+		if ( 1 > occurrence )
+			return null;
+		if ( 0 > group ) // test group > ngroups after compiling regex
+			return null;
+		if ( usingAndLengthCheck(in, from, usingOctets, "substring_regex") )
+			return null;
+		newlinesCheck(w3cNewlines, "substring_regex");
 		throw new SQLFeatureNotSupportedException("substring_regex", "0A000");
+		/*
+		 * Needed of LOMV: match vector at index, if present
+		 * P and L at CAP in that vector
+		 */
 	}
 
 	@Function(schema="javatest")
 	public static String translate_regex(
-		String pattern,
-		@SQLType(name="\"in\"") String in,
-		@SQLType(defaultValue="") String flag,
-		@SQLType(name="\"with\"", defaultValue="") String with,
+		String pattern, 										 //strict
+		@SQLType(name="\"in\"") String in,						 //strict
+		@SQLType(defaultValue="") String flag,					 //strict
+		@SQLType(name="\"with\"", defaultValue="") String with,  //strict
 		@SQLType(name="\"from\"", defaultValue="1") int from,
 		@SQLType(defaultValue="false") boolean usingOctets,
-		@SQLType(defaultValue="0" /* ALL */) int occurrence)
+		@SQLType(defaultValue="0" /* ALL */) int occurrence,
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
 		throws SQLException
 	{
+		if ( usingAndLengthCheck(in, from, usingOctets, "translate_regex") )
+			return null;
+		newlinesCheck(w3cNewlines, "translate_regex");
 		throw new SQLFeatureNotSupportedException("translate_regex", "0A000");
+		/*
+		 * Needed of LOMV: match vector at index, if present; iteration
+		 * (if hewing right to the spec, iteration in reverse order)
+		 */
 	}
 }
