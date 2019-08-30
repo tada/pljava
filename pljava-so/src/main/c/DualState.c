@@ -247,6 +247,11 @@ void pljava_DualState_initialize(void)
 	pljava_VarlenaWrapper_initialize();
 }
 
+void pljava_DualState_unregister(void)
+{
+	UnregisterResourceReleaseCallback(resourceReleaseCB, NULL);
+}
+
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg)
 {
