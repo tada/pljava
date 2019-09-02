@@ -794,10 +794,29 @@ public abstract class Lexicals
 				if ( null == local )
 					throw new NullPointerException(
 					"local part of an Identifier.Qualified may not be null");
-				Simple localId = Simple.fromCatalog(local);
+				Simple localId = ( null == local ) ?
+					null : Simple.fromCatalog(local);
 				Simple qualId = ( null == qualifier ) ?
 					null : Simple.fromCatalog(qualifier);
-				return new Qualified(qualId, localId);
+				return fromSimplePair(qualId, localId);
+			}
+
+
+			/**
+			 * Create an {@code Identifier.Qualified} from a pair of
+			 * {@code Identifier.Simple}.
+			 * @param Simple identifier representing the schema name.
+			 * @param Simple identifier naming an object in that schema.
+			 * @return an Identifier.Qualified
+			 * @throws NullPointerException if the local name is null.
+			 */
+			public static Qualified fromSimplePair(
+				Simple qualifier, Simple local)
+			{
+				if ( null == local )
+					throw new NullPointerException(
+					"local part of an Identifier.Qualified may not be null");
+				return new Qualified(qualifier, local);
 			}
 
 			private Qualified(Simple qualifier, Simple local)
