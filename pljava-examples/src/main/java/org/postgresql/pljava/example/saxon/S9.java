@@ -67,7 +67,6 @@ import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
 
-import net.sf.saxon.regex.ARegularExpression;
 import net.sf.saxon.regex.RegexIterator;
 import net.sf.saxon.regex.RegularExpression;
 
@@ -2576,7 +2575,8 @@ public class S9 implements ResultSetProvider
 	{
 		try
 		{
-			return new ARegularExpression(pattern, flags, "XP30", null, null);
+			return s_s9p.getUnderlyingConfiguration()
+				.compileRegularExpression(pattern, flags, "XP30", null);
 		}
 		catch ( XPathException e )
 		{
@@ -2610,8 +2610,18 @@ public class S9 implements ResultSetProvider
 		 * a zero-length match is just what's wanted. (But that pattern relies
 		 * on lookahead/lookbehind operators, which XQuery regular expressions
 		 * don't have.)
+		 *  When the underlying library is Saxon, there is an Easter egg: if a
+		 * regular expression is compiled with a 'flags' string ending in ";j",
+		 * a Java regular expression is produced instead of an XQuery one (with
+		 * standards conformance cast to the wind). That can be detected with
+		 * getFlags() on the regular expression: not looking for ";j", because
+		 * that has been stripped out, but for "d" which is a Java regex flag
+		 * that Saxon sets by default, and is not a valid XQuery regex flag.
+		 *  If the caller has used Saxon's Easter egg to get a Java regex, here
+		 * is another Easter egg to go with it, allowing zero-length matches
+		 * to be replaced if that's what the caller wants to do.
 		 */
-		if ( 0 == in.length() )
+		if ( 0 == in.length()  &&  ! re.getFlags().contains("d") )
 			throw new SQLDataException(
 				"attempt to replace a zero-length string", "2201U");
 		try
@@ -2705,9 +2715,19 @@ public class S9 implements ResultSetProvider
 
 				if ( null == m_begPositions )
 				{
-					int groups = m_ri.getNumberOfGroups(); // count includes $0!
-					m_begPositions = new int [ groups ];
-					m_endPositions = new int [ groups ];
+					int groups = m_ri.getNumberOfGroups();
+					/*
+					 * Saxon's Apache-derived XQuery engine will report a number
+					 * of groups counting $0 (so it will be 1 even if no capture
+					 * groups were defined in the expression). In contrast, the
+					 * Java regex engine that you get with the Saxon ";j" Easter
+					 * egg does not count $0 (so arrays need groups+1 entries).
+					 * It's hard to tell from here which flavor was used, plus
+					 * the Saxon behavior might change some day, so just spend
+					 * the extra + 1 every time.
+					 */
+					m_begPositions = new int [ groups + 1 ];
+					m_endPositions = new int [ groups + 1 ];
 				}
 
 				m_begPositions [ 0 ] = m_pos;
