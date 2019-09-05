@@ -396,6 +396,8 @@ public class S9 implements ResultSetProvider
 	 *</pre>
 	 * @param operand a one-row, one-column record supplied by the caller, whose
 	 * one typed value is the operand to be cast.
+	 * @param hex true if binary SQL values should be hex-encoded in XML; if
+	 * false (the default), values will be encoded in base 64.
 	 * @param target a one-row, one-column record supplied by PL/Java from the
 	 * {@code AS} clause after the function call, whose one column's type is the
 	 * type to be cast to.
@@ -406,14 +408,21 @@ public class S9 implements ResultSetProvider
 		onNullInput=CALLED,
 		settings="IntervalStyle TO iso_8601"
 	)
-	public static boolean xmlcast(ResultSet operand, ResultSet target)
+	public static boolean xmlcast(
+		ResultSet operand, @SQLType(defaultValue="false") Boolean hex,
+		ResultSet target)
 		throws SQLException
 	{
-		// XXX don't forget about base64/hex
 		if ( null == operand )
 			throw new SQLDataException(
 				"xmlcast \"operand\" must be (in this implementation) " +
 				"a non-null row type", "22004");
+
+		if ( null == hex )
+			throw new SQLDataException(
+				"xmlcast \"hex\" must be true or false, not null", "22004");
+		XMLBinary enc = hex ? XMLBinary.HEX : XMLBinary.BASE64;
+
 		assert null != target : "PL/Java supplied a null output record???";
 
 		if ( 1 != operand.getMetaData().getColumnCount() )
@@ -455,6 +464,31 @@ public class S9 implements ResultSetProvider
 			 * XML type to itself is more of a warm-up exercise.
 			 */
 			target.updateSQLXML(1, operand.getSQLXML(1));
+			return true;
+		case 1: // something non-XML being cast to XML
+			assertCanCastAsXmlSequence(sd, "operand");
+			Object v = op.valueJDBC();
+			if ( null == v )
+			{
+				target.updateNull(1);
+				return true;
+			}
+			ItemType xsbt =
+				mapSQLDataTypeToXMLSchemaDataType(op, enc, Nulls.ABSENT);
+			XdmValue tv = xmlCastAsSequence(v, enc, xsbt);
+			try
+			{
+				target.updateSQLXML(1,
+					returnContent(tv, /*nullOnEmpty*/ false));
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
 			return true;
 		default:
 			throw new SQLFeatureNotSupportedException(
