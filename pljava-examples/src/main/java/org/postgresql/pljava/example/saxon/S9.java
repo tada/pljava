@@ -2564,6 +2564,43 @@ public class S9 implements ResultSetProvider
 				" (HINT: pass w3cNewlines => true)", "0A000");
 	}
 
+	/**
+	 * Function form of the ISO SQL {@code <regex like predicate>}.
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * value LIKE_REGEX pattern FLAG flags
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * like_regex(value, pattern, flag =&gt; flags)
+	 *</pre>
+	 * where the {@code flag} parameter defaults to no flags if omitted.
+	 *<p>
+	 * The SQL standard specifies that pattern elements sensitive to newlines
+	 * (namely {@code ^}, {@code $}, {@code \s}, {@code \S}, and {@code .}) are
+	 * to support the various representations of newline set out in
+	 * <a href='http://www.unicode.org/reports/tr18/#RL1.6'>Unicode Technical
+	 * Standard #18, RL1.6</a>. That behavior differs from the standard W3C
+	 * XQuery newline handling, as described for
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>the flags
+	 * {@code m} and {@code s}</a> and for
+	 * <a href='https://www.w3.org/TR/xmlschema11-2/#cces-mce'>the
+	 * multicharacter escapes {@code \s} and {@code \S}</a>. As an extension to
+	 * ISO SQL, passing {@code w3cNewlines => true} requests the standard W3C
+	 * XQuery behavior rather than the UTS#18 behevior for newlines. If the
+	 * underlying XQuery library only provides the W3C behavior, calls without
+	 * {@code w3cNewlines => true} will throw exceptions.
+	 * @param value The string to be tested against the pattern.
+	 * @param pattern The XQuery regular expression.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return True if the supplied value matches the pattern. Null if any
+	 * parameter is null.
+	 */
 	@Function(schema="javatest")
 	public static boolean like_regex(
 		String value,                          //strict
@@ -2580,6 +2617,41 @@ public class S9 implements ResultSetProvider
 		 */
 	}
 
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code OCCURRENCES_REGEX} function:
+	 * how many times does a pattern occur in a string?
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * OCCURRENCES_REGEX(pattern FLAG flags IN str FROM position USING units)
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * occurrences_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                   "from" =&gt; position, usingOctets =&gt; true|false)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in",
+	 * and the standard {@code USING CHARACTERS} becomes
+	 * {@code usingOctets => false}, which is the default, and
+	 * {@code USING OCTETS} becomes {@code usingOctets => true}. See also
+	 * {@link #like_regex like_regex} regarding the {@code w3cNewlines}
+	 * parameter.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The number of occurrences of the pattern in the input string,
+	 * starting from the specified position. Null if any parameter is null; -1
+	 * if the start position is less than 1 or beyond the end of the string.
+	 */
 	@Function(schema="javatest")
 	public static int occurrences_regex(
 		String pattern,                        //strict
@@ -2600,6 +2672,58 @@ public class S9 implements ResultSetProvider
 		 */
 	}
 
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code POSITION_REGEX} function:
+	 * where does a pattern, or part of it, occur in a string?
+	 *<p>
+	 * Rewrite the standard forms
+	 *<pre>
+	 * POSITION_REGEX(START pattern FLAG flags IN str FROM position
+	 *                OCCURRENCE n GROUP m)
+	 * POSITION_REGEX(AFTER pattern FLAG flags IN str FROM position
+	 *                OCCURRENCE n GROUP m)
+	 *</pre>
+	 * into these forms, respectively:
+	 *<pre>
+	 * position_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                "from" =&gt; position, occurrence =&gt; n,
+	 *                "group" =&gt; m)
+	 * position_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                "from" =&gt; position, occurrence =&gt; n,
+	 *                "group" =&gt; m, after =&gt; true)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in".
+	 * See also {@link #occurrences_regex occurrences_regex} regarding the
+	 * {@code usingOctets} parameter, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param after Whether to return the position where the match starts
+	 * (when false, the default), or just after the match ends (when true).
+	 * @param occurrence If specified as an integer n (default 1), returns the
+	 * position starting (or after) the nth match of the pattern in the string.
+	 * @param group If zero (the default), returns the position starting (or
+	 * after) the match of the whole pattern overall, otherwise if an integer m,
+	 * the position starting or after the mth parenthesized group in (the nth
+	 * occurrence of) the pattern.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The position, in the specified units, starting or just after,
+	 * the nth occurrence (or mth capturing group of the nth occurrence) of the
+	 * pattern in the input string, starting from the specified position. Null
+	 * if any parameter is null; zero if the start position is less than 1 or
+	 * beyond the end of the string, if occurrence is less than 1 or greater
+	 * than the number of matches, or if group is less than zero or greater than
+	 * the number of parenthesized capturing groups in the pattern.
+	 */
 	@Function(schema="javatest")
 	public static int position_regex(
 		String pattern,                                         //strict
@@ -2628,6 +2752,52 @@ public class S9 implements ResultSetProvider
 		 */
 	}
 
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code SUBSTRING_REGEX} function:
+	 * return a substring specified by a pattern match in a string.
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * SUBSTRING_REGEX(pattern FLAG flags IN str FROM position
+	 *                 OCCURRENCE n GROUP m)
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * substring_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "from" =&gt; position, occurrence =&gt; n,
+	 *                 "group" =&gt; m)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in".
+	 * See also {@link #position_regex position_regex} regarding the
+	 * {@code occurrence} and {@code "group"} parameters,
+	 * {@link #occurrences_regex occurrences_regex} regarding
+	 * {@code usingOctets}, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param occurrence If specified as an integer n (default 1), returns the
+	 * nth match of the pattern in the string.
+	 * @param group If zero (the default), returns the match of the whole
+	 * pattern overall, otherwise if an integer m, the match the mth
+	 * parenthesized group in (the nth occurrence of) the pattern.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The substring matching the nth occurrence (or mth capturing group
+	 * of the nth occurrence) of the pattern in the input string, starting from
+	 * the specified position. Null if any parameter is null, if the start
+	 * position is less than 1 or beyond the end of the string, if occurrence is
+	 * less than 1 or greater than the number of matches, or if group is less
+	 * than zero or greater than the number of parenthesized capturing groups in
+	 * the pattern.
+	 */
 	@Function(schema="javatest")
 	public static String substring_regex(
 		String pattern,                                          //strict
@@ -2655,6 +2825,63 @@ public class S9 implements ResultSetProvider
 		 */
 	}
 
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code TRANSLATE_REGEX} function:
+	 * return a string constructed from the input string by replacing one
+	 * specified occurrence, or all occurrences, of a matching pattern.
+	 *<p>
+	 * Rewrite the standard forms
+	 *<pre>
+	 * TRANSLATE_REGEX(pattern FLAG flags IN str WITH repl FROM position
+	 *                 OCCURRENCE ALL)
+	 * TRANSLATE_REGEX(pattern FLAG flags IN str WITH repl FROM position
+	 *                 OCCURRENCE n)
+	 *</pre>
+	 * into these forms, respectively:
+	 *<pre>
+	 * translate_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "with" =&gt; repl, "from" =&gt; position)
+	 * translate_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "with" =&gt; repl, "from" =&gt; position,
+	 *                 occurrence =&gt; n)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in"
+	 * (the default for "with" is the empty string, resulting in matches being
+	 * deleted).
+	 * See also {@link #position_regex position_regex} regarding the
+	 * {@code occurrence} parameter,
+	 * {@link #occurrences_regex occurrences_regex} regarding
+	 * {@code usingOctets}, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 *<p>
+	 * For the specified occurrence (or all occurrences), the matching portion
+	 * <em>s</em> of the string is replaced as by the XQuery function
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#func-replace'
+	 * >replace</a>(<em>s, pattern, repl, flags</em>). The <em>repl</em> string
+	 * may contain {@code $0} to refer to the entire matched substring, or
+	 * {@code $}<em>m</em> to refer to the <em>m</em>th parenthesized capturing
+	 * group in the pattern.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param with The replacement string, possibly with $m references.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param occurrence If specified as an integer n (default 0 for "ALL"),
+	 * replace the nth match of the pattern in the string.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The input string with one occurrence or all occurences of the
+	 * pattern replaced, as described above. Null if any parameter is null, or
+	 * if the start position is less than 1 or beyond the end of the string.
+	 * The input string unchanged if occurrence is less than zero or exceeds the
+	 * number of matches.
+	 */
 	@Function(schema="javatest")
 	public static String translate_regex(
 		String pattern, 										 //strict
