@@ -2828,6 +2828,10 @@ public class S9 implements ResultSetProvider
 	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
 	 * @return True if the supplied value matches the pattern. Null if any
 	 * parameter is null.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) w3cNewlines is false or omitted.
 	 */
 	@Function(schema="javatest")
 	public static boolean like_regex(
@@ -2876,6 +2880,10 @@ public class S9 implements ResultSetProvider
 	 * @return The number of occurrences of the pattern in the input string,
 	 * starting from the specified position. Null if any parameter is null; -1
 	 * if the start position is less than 1 or beyond the end of the string.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
 	@Function(schema="javatest")
 	public static int occurrences_regex(
@@ -2950,6 +2958,10 @@ public class S9 implements ResultSetProvider
 	 * beyond the end of the string, if occurrence is less than 1 or greater
 	 * than the number of matches, or if group is less than zero or greater than
 	 * the number of parenthesized capturing groups in the pattern.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
 	@Function(schema="javatest")
 	public static int position_regex(
@@ -3027,6 +3039,10 @@ public class S9 implements ResultSetProvider
 	 * less than 1 or greater than the number of matches, or if group is less
 	 * than zero or greater than the number of parenthesized capturing groups in
 	 * the pattern.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
 	@Function(schema="javatest")
 	public static String substring_regex(
@@ -3120,6 +3136,13 @@ public class S9 implements ResultSetProvider
 	 * if the start position is less than 1 or beyond the end of the string.
 	 * The input string unchanged if occurrence is less than zero or exceeds the
 	 * number of matches.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid; 2201U if
+	 * replacing where the pattern has matched a substring of zero length; 2201V
+	 * if the replacement string has improper form (a backslash must be used to
+	 * escape any dollar sign or backslash intended literally);
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
 	@Function(schema="javatest")
 	public static String translate_regex(

@@ -115,8 +115,8 @@ This code is not built by default because it pulls in the sizeable [Saxon-HE][]
 library from Saxonica, and because it requires Java 8.
 
 To include these optional functions when building the examples, be sure to use
-a Java 8 build environment, and add `-Psaxon-examples` to the `mvn` command
-line.
+a Java 8 or later build environment, and add `-Psaxon-examples` to the `mvn`
+command line.
 
 The Saxon example [documentation is here](../examples/saxon.html).
 
