@@ -37,6 +37,7 @@ import java.time.OffsetDateTime;
 import static java.time.ZoneOffset.UTC;
 
 import static java.util.Arrays.asList;
+import static java.util.Arrays.fill;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,12 +59,17 @@ import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 
 import net.sf.saxon.lib.ConversionRules;
+import net.sf.saxon.lib.NamespaceConstant;
 
 import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
 
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
+
+import net.sf.saxon.regex.ARegularExpression;
+import net.sf.saxon.regex.RegexIterator;
+import net.sf.saxon.regex.RegularExpression;
 
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.ItemType;
@@ -97,6 +103,7 @@ import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Base64BinaryValue;
 import net.sf.saxon.value.CalendarValue;
 import net.sf.saxon.value.HexBinaryValue;
+import net.sf.saxon.value.StringValue;
 import static net.sf.saxon.value.StringValue.getStringLength;
 
 import org.postgresql.pljava.ResultSetProvider;
@@ -2564,6 +2571,207 @@ public class S9 implements ResultSetProvider
 				" (HINT: pass w3cNewlines => true)", "0A000");
 	}
 
+	private static RegularExpression compileRE(String pattern, String flags)
+	throws SQLException
+	{
+		try
+		{
+			return new ARegularExpression(pattern, flags, "XP30", null, null);
+		}
+		catch ( XPathException e )
+		{
+			if ( NamespaceConstant.ERR.equals(e.getErrorCodeNamespace()) )
+			{
+				if ( "FORX0001".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery option flag", "2201T", e);
+				if ( "FORX0002".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery regular expression", "2201S", e);
+			}
+			throw new SQLException(
+				"compiling XQuery regular expression: " + e.getMessage(), e);
+		}
+	}
+
+	private static CharSequence replace(
+		RegularExpression re, CharSequence in, CharSequence with)
+		throws SQLException
+	{
+		/*
+		 * Report the standard-mandated error if replacing a zero-length match.
+		 * Strictly speaking, this is a test of the length of the match, not of
+		 * the input string. Here, though, this private method is only called by
+		 * translate_regex, which always passes only the portion of the input
+		 * string that matched, so the test is equivalent.
+		 *  As to why the SQL committee would make such a point of disallowing
+		 * replacement of a zero-length match, that's a good question. See
+		 * s_intervalSignSite in this very file for an example where replacing
+		 * a zero-length match is just what's wanted. (But that pattern relies
+		 * on lookahead/lookbehind operators, which XQuery regular expressions
+		 * don't have.)
+		 */
+		if ( 0 == in.length() )
+			throw new SQLDataException(
+				"attempt to replace a zero-length string", "2201U");
+		try
+		{
+			return re.replace(in, with);
+		}
+		catch ( XPathException e )
+		{
+			if ( NamespaceConstant.ERR.equals(e.getErrorCodeNamespace()) )
+			{
+				if ( "FORX0003".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"attempt to replace a zero-length string", "2201U", e);
+				if ( "FORX0004".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery replacement string", "2201V", e);
+			}
+			throw new SQLException(
+				"replacing regular expression match: " + e.getMessage(), e);
+		}
+	}
+
+	interface MatchVector
+	{
+		int groups();
+		int position(int group);
+		int length(int group);
+	}
+
+	interface ListOfMatchVectors
+	{
+		/**
+		 * Return the MatchVector for one occurrence of a match.
+		 *<p>
+		 * Any previously-returned MatchVector is invalid after another get.
+		 * In multiple calls to get, the occurrence parameter must be strictly
+		 * increasing.
+		 * After get has returned null, it should not be called again.
+		 */
+		MatchVector get(int occurrence) throws SQLException;
+		void close();
+	}
+
+	static class LOMV
+	implements ListOfMatchVectors, MatchVector, RegexIterator.MatchHandler
+	{
+		private RegexIterator m_ri;
+		private int m_pos;
+		private int m_occurrence;
+
+		LOMV(int startPos, RegexIterator ri)
+		{
+			m_ri = ri;
+			m_pos = startPos;
+		}
+
+		static ListOfMatchVectors of(
+			String pattern, String flags, String in, int from)
+			throws SQLException
+		{
+			RegularExpression re = compileRE(pattern, flags);
+			return of(re, in, from);
+		}
+
+		static ListOfMatchVectors of(RegularExpression re, String in, int from)
+		{
+			RegexIterator ri =
+				re.analyze(in.substring(in.offsetByCodePoints(0, from - 1)));
+			return new LOMV(from, ri);
+		}
+
+		private int[] m_begPositions;
+		private int[] m_endPositions;
+
+		@Override // ListOfMatchVectors
+		public MatchVector get(int occurrence) throws SQLException
+		{
+			try
+			{
+				StringValue sv;
+				for ( ;; )
+				{
+					sv = m_ri.next();
+					if ( null == sv )
+						return null;
+					if ( m_ri.isMatching() )
+						if ( ++ m_occurrence == occurrence )
+							break;
+					m_pos += sv.getStringLength();
+				}
+
+				if ( null == m_begPositions )
+				{
+					int groups = m_ri.getNumberOfGroups(); // count includes $0!
+					m_begPositions = new int [ groups ];
+					m_endPositions = new int [ groups ];
+				}
+
+				m_begPositions [ 0 ] = m_pos;
+
+				fill(m_begPositions, 1, m_begPositions.length, 0);
+				fill(m_endPositions, 1, m_endPositions.length, 0);
+				m_ri.processMatchingSubstring(this);
+
+				m_endPositions [ 0 ] = m_pos;
+
+				return this;
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(
+					"evaluating XQuery regular expression: " + e.getMessage(),
+					e);
+			}
+		}
+
+		@Override
+		public void close()
+		{
+			m_ri.close();
+		}
+
+		@Override // MatchVector
+		public int groups()
+		{
+			return m_begPositions.length - 1;
+		}
+
+		@Override
+		public int position(int groupNumber)
+		{
+			return m_begPositions [ groupNumber ];
+		}
+
+		@Override
+		public int length(int groupNumber)
+		{
+			return
+				m_endPositions [ groupNumber ] - m_begPositions [ groupNumber ];
+		}
+
+		@Override // MatchHandler
+		public void characters(CharSequence s)
+		{
+			m_pos += getStringLength(s);
+		}
+
+		@Override
+		public void onGroupStart(int groupNumber)
+		{
+			m_begPositions [ groupNumber ] = m_pos;
+		}
+
+		@Override
+		public void onGroupEnd(int groupNumber)
+		{
+			m_endPositions [ groupNumber ] = m_pos;
+		}
+	}
+
 	/**
 	 * Function form of the ISO SQL {@code <regex like predicate>}.
 	 *<p>
@@ -2611,10 +2819,7 @@ public class S9 implements ResultSetProvider
 		throws SQLException
 	{
 		newlinesCheck(w3cNewlines, "like_regex");
-		throw new SQLFeatureNotSupportedException("like_regex", "0A000");
-		/*
-		 * Needed of LOMV: whether empty or not
-		 */
+		return compileRE(pattern, flag).containsMatch(value);
 	}
 
 	/**
@@ -2666,10 +2871,12 @@ public class S9 implements ResultSetProvider
 		if ( usingAndLengthCheck(in, from, usingOctets, "occurrences_regex") )
 			return -1; // note: not the same as in position_regex!
 		newlinesCheck(w3cNewlines, "occurrences_regex");
-		throw new SQLFeatureNotSupportedException("occurrences_regex", "0A000");
-		/*
-		 * Needed of LOMV: total number of match vectors
-		 */
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		for ( int i = 1 ;; ++ i )
+			if ( null == lomv.get(i) )
+				return i - 1;
 	}
 
 	/**
@@ -2745,11 +2952,14 @@ public class S9 implements ResultSetProvider
 		if ( usingAndLengthCheck(in, from, usingOctets, "position_regex") )
 			return 0; // note: not the same as in occurrences_regex!
 		newlinesCheck(w3cNewlines, "position_regex");
-		throw new SQLFeatureNotSupportedException("position_regex", "0A000");
-		/*
-		 * Needed of LOMV: match vector at index, if present
-		 * P and L at CAP in that vector
-		 */
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		MatchVector mv = lomv.get(occurrence);
+		if ( null == mv  ||  mv.groups() < group )
+			return 0;
+
+		return mv.position(group) + (after ? mv.length(group) : 0);
 	}
 
 	/**
@@ -2818,11 +3028,20 @@ public class S9 implements ResultSetProvider
 		if ( usingAndLengthCheck(in, from, usingOctets, "substring_regex") )
 			return null;
 		newlinesCheck(w3cNewlines, "substring_regex");
-		throw new SQLFeatureNotSupportedException("substring_regex", "0A000");
-		/*
-		 * Needed of LOMV: match vector at index, if present
-		 * P and L at CAP in that vector
-		 */
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		MatchVector mv = lomv.get(occurrence);
+		if ( null == mv  ||  mv.groups() < group )
+			return null;
+
+		int codePointPos = mv.position(group);
+		int codePointLen = mv.length(group);
+
+		int utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+		int utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+		return in.substring(utf16pos, utf16end);
 	}
 
 	/**
@@ -2898,10 +3117,54 @@ public class S9 implements ResultSetProvider
 		if ( usingAndLengthCheck(in, from, usingOctets, "translate_regex") )
 			return null;
 		newlinesCheck(w3cNewlines, "translate_regex");
-		throw new SQLFeatureNotSupportedException("translate_regex", "0A000");
-		/*
-		 * Needed of LOMV: match vector at index, if present; iteration
-		 * (if hewing right to the spec, iteration in reverse order)
-		 */
+		if ( 0 > occurrence )
+			return in;
+
+		RegularExpression re = compileRE(pattern, flag);
+
+		ListOfMatchVectors lomv = LOMV.of(re, in, from);
+
+		MatchVector mv;
+		int codePointPos;
+		int codePointLen;
+		int utf16pos;
+		int utf16end;
+
+		if ( 0 < occurrence )
+		{
+			mv = lomv.get(occurrence);
+			if ( null == mv )
+				return in;
+
+			codePointPos = mv.position(0);
+			codePointLen = mv.length(0);
+
+			utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+			utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+			return
+				in.substring(0, utf16pos)
+				+ replace(re, in.substring(utf16pos, utf16end), with)
+				+ in.substring(utf16end);
+		}
+
+		StringBuilder sb = new StringBuilder();
+		utf16end = 0;
+
+		for ( int i = 1; null != (mv = lomv.get(i)); ++ i )
+		{
+			codePointPos = mv.position(0);
+			codePointLen = mv.length(0);
+
+			utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+
+			sb.append(in.substring(utf16end, utf16pos));
+
+			utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+			sb.append(replace(re, in.substring(utf16pos, utf16end), with));
+		}
+
+		return sb.append(in.substring(utf16end)).toString();
 	}
 }
