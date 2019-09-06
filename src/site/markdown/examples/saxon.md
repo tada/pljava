@@ -23,6 +23,18 @@ To include these optional functions when building the examples, be sure to use
 a Java 8 or later build environment, and add `-Psaxon-examples` to the `mvn`
 command line.
 
+The functions are presented as examples, not as fully supported for production;
+for one thing, there is no test suite included to verify their conformance.
+Nevertheless, they are intended to be substantially usable subject to the limits
+described here, and testing and reports of shortcomings are welcome.
+
+In addition to the open-source and freely-licensed Saxon-HE, the Saxon library
+is available in two paid editions, which implement more of the features of
+XQuery 3.1 than Saxon-HE does. It should be possible to drop either of those
+jar files in place of Saxon-HE (with a working license key) if features are
+needed beyond what Saxon-HE provides. Its developers publish
+[a matrix][saxmatrix] identifying the features provided in each edition.
+
 ### Using the Saxon examples
 
 The simplest installation method is to use `sqlj.install_jar` twice, once to
@@ -157,6 +169,31 @@ a column expression.
 
 More on that issue and the spec can be found at "About bare attribute nodes"
 [in the code comments][assignrowvalues].
+
+#### An `XMLCAST`-like function
+
+The ISO SQL `XMLCAST` is used to convert XML content into a value of an SQL
+data type, or an SQL value to an XML value, following the same
+precisely-specified conversion rules that are used for the parameters and
+results of the `XMLQUERY` and `XMLTABLE` functions. It can also convert from
+one XML type to another, though in PostgreSQL, which has just one XML type, the
+conversion is trivial. In a DBMS with support for the full set of XML types
+such as `XML(CONTENT)`, `XML(DOCUMENT)`, and `XML(SEQUENCE)`, the rules for
+casting one to another are more interesting.
+
+This ordinary-function implementation of `XMLCAST` is used by rewriting an
+SQL standard form like
+
+    SELECT XMLCAST(value AS wantedtype)
+
+into a form like
+
+    SELECT result FROM (select value) as v, "xmlcast"(v) AS (result wantedtype)
+
+where either: _value_ is of `xml` type, _wantedtype_ is `xml`, or both; in
+other words, the only case `XMLCAST` does not handle is where neither the input
+nor result is of `xml` type. Because casting XML to XML is not exciting in
+PostgreSQL, the most useful cases are XML to another SQL type, or the reverse.
 
 #### The ISO SQL XQuery regular expression features
 
@@ -418,3 +455,4 @@ the encumbrance.
 [prx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#position_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-boolean-int-int-boolean-
 [srx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#substring_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-int-boolean-
 [trx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#translate_regex-java.lang.String-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-boolean-
+[saxmatrix]: https://www.saxonica.com/html/products/feature-matrix-9-9.html
