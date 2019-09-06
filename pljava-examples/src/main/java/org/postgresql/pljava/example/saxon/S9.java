@@ -446,7 +446,7 @@ public class S9 implements ResultSetProvider
 				"one component", "22000");
 
 		Binding.Parameter op =
-			new BindingsFromResultSet(operand).iterator().next();
+			new BindingsFromResultSet(operand, false).iterator().next();
 
 		Binding.Parameter tg =
 			new BindingsFromResultSet(target, null).iterator().next();
@@ -605,7 +605,7 @@ public class S9 implements ResultSetProvider
 			throw new SQLDataException(
 				"XMLQUERY nullOnEmpty may not be null", "22004");
 
-		Binding.Assemblage bindings = new BindingsFromResultSet(passing);
+		Binding.Assemblage bindings = new BindingsFromResultSet(passing, true);
 
 		try
 		{
@@ -738,7 +738,8 @@ public class S9 implements ResultSetProvider
 				"XMLTABLE base64 parameter may not be null", "22004");
 		XMLBinary enc = base64 ? XMLBinary.BASE64 : XMLBinary.HEX;
 
-		Binding.Assemblage rowBindings = new BindingsFromResultSet(passing);
+		Binding.Assemblage rowBindings =
+			new BindingsFromResultSet(passing, true);
 
 		Iterable<Map.Entry<String,String>> namespacepairs =
 			namespaceBindings(namespaces);
@@ -1711,7 +1712,7 @@ public class S9 implements ResultSetProvider
 	@FunctionalInterface
 	interface CasterSupplier
 	{
-		CastingFunction get() throws SQLException;
+		CastingFunction get() throws SQLException, XPathException;
 	}
 
 	@FunctionalInterface
@@ -1724,6 +1725,13 @@ public class S9 implements ResultSetProvider
 		 */
 		XdmValue apply(XdmValue v, int columnIndex)
 		throws SaxonApiException, XPathException;
+	}
+
+	private static XPathException noPrimitiveCast(ItemType vt, ItemType xt)
+	{
+		return new XPathException(
+			"Casting from " + vt.getTypeName() + " to " + xt.getTypeName() +
+			" can never succeed", "XPTY0004");
 	}
 
 	/**
@@ -1771,6 +1779,8 @@ public class S9 implements ResultSetProvider
 				c1 = rules.getConverter(
 					(AtomicType)vt.getUnderlyingItemType(),
 					(AtomicType)xt.getUnderlyingItemType());
+				if ( null == c1 )
+					throw noPrimitiveCast(vt, xt);
 				return (AtomicValue v) -> c1.convert(v).asAtomic();
 			}
 			/*
@@ -1783,6 +1793,8 @@ public class S9 implements ResultSetProvider
 			c2 = rules.getConverter(
 				(AtomicType)t1.getUnderlyingItemType(),
 				(AtomicType)xt.getUnderlyingItemType());
+			if ( null == c1  ||  null == c2 )
+				throw noPrimitiveCast(vt, xt);
 			return (AtomicValue v) ->
 			{
 				v = c1.convert(v).asAtomic();
@@ -2157,7 +2169,7 @@ public class S9 implements ResultSetProvider
 			 * made (as by {@code xmltable}).
 			 */
 			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
-			throws SQLException
+			throws SQLException, XPathException
 			{
 				throw new UnsupportedOperationException(
 					"atomicCaster() on synthetic binding");
@@ -2169,18 +2181,17 @@ public class S9 implements ResultSetProvider
 
 			/**
 			 * @param name The SQL name of the parameter
-			 * @param isInput True if this is an input parameter from SQL to the
-			 * XML query context, or false if it describes a result (as in the
-			 * ouput of XMLTABLE). If an input parameter, the name must be a
-			 * valid NCName; for an output parameter, the name doesn't matter
-			 * and isn't checked.
-			 * @throws SQLException if the name of an input parameter isn't a
-			 * valid NCName.
+			 * @param checkName True if the name must be a valid NCName (as for
+			 * an input parameter from SQL to the XML query context), or false
+			 * if the name doesn't matter (as when it describes a result, or the
+			 * sole input value of an XMLCAST.
+			 * @throws SQLException if the name of a checked input parameter
+			 * isn't a valid NCName.
 			 */
-			protected Parameter(String name, boolean isInput)
+			protected Parameter(String name, boolean checkName)
 			throws SQLException
 			{
-				if ( isInput  &&  ! isValidNCName(name) )
+				if ( checkName  &&  ! isValidNCName(name) )
 					throw new SQLSyntaxErrorException(
 						"Not an XML NCname: \"" + name + '"', "42602");
 				m_name = name;
@@ -2270,9 +2281,14 @@ public class S9 implements ResultSetProvider
 		 * query's context item; every other column name must be a valid NCName,
 		 * and neither any named parameter nor the context item may be mentioned
 		 * more than once.
+		 * @param checkNames True if the input parameter names matter (a name of
+		 * "." or "?COLUMN?" will define the context item, and any other name
+		 * must be a valid NCName); false to skip such checking (as for the
+		 * single input value to XMLCAST, whose name doesn't matter).
 		 * @throws SQLException if names are duplicated or invalid.
 		 */
-		BindingsFromResultSet(ResultSet rs) throws SQLException
+		BindingsFromResultSet(ResultSet rs, boolean checkNames)
+		throws SQLException
 		{
 			m_resultSet = rs;
 			m_rsmd = rs.getMetaData();
@@ -2285,7 +2301,8 @@ public class S9 implements ResultSetProvider
 			for ( int i = 1; i <= nParams; ++i )
 			{
 				String label = m_rsmd.getColumnLabel(i);
-				if ( "?COLUMN?".equals(label)  ||  ".".equals(label) )
+				if ( checkNames  &&
+					("?COLUMN?".equals(label)  ||  ".".equals(label)) )
 				{
 					if ( null != contextItem )
 					throw new SQLSyntaxErrorException(
@@ -2296,7 +2313,8 @@ public class S9 implements ResultSetProvider
 				}
 
 				Parameter was =
-					(Parameter)n2b.put(label, new Parameter(label, i, true));
+					(Parameter)n2b.put(
+						label, new Parameter(label, i, checkNames));
 				if ( null != was )
 					throw new SQLSyntaxErrorException(
 						"Name \"" + label + "\" duplicated at positions " +
@@ -2444,7 +2462,7 @@ public class S9 implements ResultSetProvider
 
 			@Override
 			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
-			throws SQLException
+			throws SQLException, XPathException
 			{
 				if ( null == m_atomCaster || ! it.equals(m_lastCastFrom) )
 				{
