@@ -25,10 +25,15 @@ import static
 	org.postgresql.pljava.sqlgen.Lexicals.ISO_AND_PG_IDENTIFIER_CAPTURING;
 import static
 	org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.PG_OPERATOR;
 import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
 import static org.postgresql.pljava.sqlgen.Lexicals.separator;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Operator;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 
 public class LexicalsTest extends TestCase
 {
@@ -151,23 +156,23 @@ public class LexicalsTest extends TestCase
 
 	public void testIdentifierEquivalence() throws Exception
 	{
-		Identifier baß = Identifier.from("baß", false);
-		Identifier Baß = Identifier.from("Baß", false);
-		Identifier bass = Identifier.from("bass", false);
-		Identifier BASS = Identifier.from("BASS", false);
+		Identifier baß = Simple.from("baß", false);
+		Identifier Baß = Simple.from("Baß", false);
+		Identifier bass = Simple.from("bass", false);
+		Identifier BASS = Simple.from("BASS", false);
 
-		Identifier qbaß = Identifier.from("baß", true);
-		Identifier qBaß = Identifier.from("Baß", true);
-		Identifier qbass = Identifier.from("bass", true);
-		Identifier qBASS = Identifier.from("BASS", true);
+		Identifier qbaß = Simple.from("baß", true);
+		Identifier qBaß = Simple.from("Baß", true);
+		Identifier qbass = Simple.from("bass", true);
+		Identifier qBASS = Simple.from("BASS", true);
 
-		Identifier sab = Identifier.from("sopran alt baß", true);
-		Identifier SAB = Identifier.from("Sopran Alt Baß", true);
+		Identifier sab = Simple.from("sopran alt baß", true);
+		Identifier SAB = Simple.from("Sopran Alt Baß", true);
 
 		/* DESERET SMALL LETTER OW */
-		Identifier ow = Identifier.from("\uD801\uDC35", false);
+		Identifier ow = Simple.from("\uD801\uDC35", false);
 		/* DESERET CAPITAL LETTER OW */
-		Identifier OW = Identifier.from("\uD801\uDC0D", false);
+		Identifier OW = Simple.from("\uD801\uDC0D", false);
 
 		assertEquals("hash1", baß.hashCode(), Baß.hashCode());
 		assertEquals("hash2", baß.hashCode(), bass.hashCode());
@@ -197,14 +202,14 @@ public class LexicalsTest extends TestCase
 
 	public void testIdentifierSimpleFrom() throws Exception
 	{
-		Identifier.Simple s1 = Identifier.Simple.fromJava("aB");
-		Identifier.Simple s2 = Identifier.Simple.fromJava("\"ab\"");
-		Identifier.Simple s3 = Identifier.Simple.fromJava("\"A\"\"b\"");
-		Identifier.Simple s4 = Identifier.Simple.fromJava("A\"b");
+		Identifier.Simple s1 = Simple.fromJava("aB");
+		Identifier.Simple s2 = Simple.fromJava("\"ab\"");
+		Identifier.Simple s3 = Simple.fromJava("\"A\"\"b\"");
+		Identifier.Simple s4 = Simple.fromJava("A\"b");
 
-		Identifier.Simple s5 = Identifier.Simple.fromCatalog("ab");
-		Identifier.Simple s6 = Identifier.Simple.fromCatalog("AB");
-		Identifier.Simple s7 = Identifier.Simple.fromCatalog("A\"b");
+		Identifier.Simple s5 = Simple.fromCatalog("ab");
+		Identifier.Simple s6 = Simple.fromCatalog("AB");
+		Identifier.Simple s7 = Simple.fromCatalog("A\"b");
 
 		assertEquals("eq1", s1, s2);
 		assertEquals("eq2", s3, s4);
@@ -223,5 +228,48 @@ public class LexicalsTest extends TestCase
 		assertEquals("deparse5", s5.deparse(), "ab");
 		assertEquals("deparse6", s6.deparse(), "\"AB\"");
 		assertEquals("deparse7", s7.deparse(), "\"A\"\"b\"");
+	}
+
+	public void testOperatorPattern() throws Exception
+	{
+		Matcher m = PG_OPERATOR.matcher("+");
+		assertTrue("+", m.matches());
+		assertTrue("-", m.reset("-").matches());
+		assertFalse("--", m.reset("--").matches());
+		assertFalse("/-", m.reset("/-").matches());
+		assertTrue("@-", m.reset("@-").matches());
+		assertTrue("@_--", m.reset("@--").lookingAt());
+		assertEquals("eq1", m.group(), "@");
+		assertTrue("@/", m.reset("@/").lookingAt());
+		assertEquals("eq2", m.group(), "@/");
+		assertTrue("@_/*", m.reset("@/*").lookingAt());
+		assertEquals("eq3", m.group(), "@");
+		assertTrue("+_-", m.reset("+-").lookingAt());
+		assertEquals("eq4", m.group(), "+");
+		assertTrue("-_+", m.reset("-+").lookingAt());
+		assertEquals("eq5", m.group(), "-");
+		assertFalse("--+", m.reset("--+").lookingAt());
+		assertTrue("-_++", m.reset("-++").lookingAt());
+		assertEquals("eq6", m.group(), "-");
+		assertTrue("**_-++", m.reset("**-++").lookingAt());
+		assertEquals("eq7", m.group(), "**");
+		assertTrue("*!*-++", m.reset("*!*-++").lookingAt());
+		assertEquals("eq8", m.group(), "*!*-++");
+	}
+
+	public void testIdentifierOperatorFrom() throws Exception
+	{
+		Operator o1 = Operator.from("!@#%*");
+		Operator o2 = Operator.from("!@#%*");
+		assertEquals("eq1", o1, o2);
+		assertEquals("eq2", o1.deparse(), "!@#%*");
+		Simple s1 = Simple.from("foo", false);
+		Qualified q1 = o1.withQualifier(null);
+		assertEquals("eq3", q1.deparse(), o1.deparse());
+		Qualified q2 = o1.withQualifier(s1);
+		assertEquals("eq4", q2.deparse(), "OPERATOR(foo.!@#%*)");
+		Simple s2 = Simple.from("foo", true);
+		Qualified q3 = o1.withQualifier(s2);
+		assertEquals("eq5", q3.deparse(), "OPERATOR(\"foo\".!@#%*)");
 	}
 }

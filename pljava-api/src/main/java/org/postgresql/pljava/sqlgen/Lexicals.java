@@ -15,6 +15,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.InputMismatchException;
 
+import static java.util.Objects.requireNonNull;
+
 import javax.annotation.processing.Messager;
 import javax.tools.Diagnostic.Kind;
 
@@ -197,6 +199,22 @@ public abstract class Lexicals
 		"javaJavaIdentifier"
 	));
 
+	/** An operator by PostgreSQL rules. The length limit ({@code NAMELEN - 1})
+	 * is not applied here. The match will not include a {@code -} followed by
+	 * {@code -} or a {@code /} followed by {@code *}, and a multicharacter
+	 * match will not end with {@code +} or {@code -} unless it also contains
+	 * one of {@code ~ ! @ # % ^ & | ` ?}.
+	 */
+	public static final Pattern PG_OPERATOR =
+	Pattern.compile(
+		"(?:(?!--|/\\*)(?![-+][+]*+(?:$|[^-+*/<>=~!@#%^&|`?]))[-+*/<>=])++" +
+		"(?:[~!@#%^&|`?](?:(?!--|/\\*)[-+*/<>=~!@#%^&|`?])*+)?+" +
+		"|" +
+		"[~!@#%^&|`?](?:(?!--|/\\*)[-+*/<>=~!@#%^&|`?])*+" +
+		"|" +
+		"(?!--)[-+]"
+	);
+
 	/** A newline, in any of the various forms recognized by the Java regex
 	 * engine, letting it handle the details.
 	 */
@@ -346,10 +364,10 @@ public abstract class Lexicals
 	{
 		String s = m.group("i");
 		if ( null != s )
-			return Identifier.from(s, false);
+			return Identifier.Simple.from(s, false);
 		s = m.group("xd");
 		if ( null != s )
-			return Identifier.from(s.replace("\"\"", "\""), true);
+			return Identifier.Simple.from(s.replace("\"\"", "\""), true);
 		s = m.group("xui");
 		if ( null == s )
 			return null; // XXX?
@@ -377,7 +395,7 @@ public abstract class Lexicals
 			// XXX check validity
 			sb.appendCodePoint(cp);
 		}
-		return Identifier.from(replacer.appendTail(sb).toString(), true);
+		return Identifier.Simple.from(replacer.appendTail(sb).toString(), true);
 	}
 
 	/**
@@ -412,35 +430,6 @@ public abstract class Lexicals
 		 */
 		public abstract String deparse();
 
-		/**
-		 * Create an Identifier.Simple given its original, non-folded spelling,
-		 * and whether it represents a quoted identifier.
-		 * @param s The exact, internal, non-folded spelling of the identifier
-		 * (unwrapped from any quoting in its external form).
-		 * @param quoted Pass {@code true} if this was parsed from any quoted
-		 * external form, false if non-quoted.
-		 * @return A corresponding Identifier.Simple
-		 * @throws IllegalArgumentException if {@code quoted} is {@code false}
-		 * but {@code s} cannot be a non-quoted identifier, or {@code s} is
-		 * empty or longer than the ISO SQL maximum 128 codepoints.
-		 */
-		public static Simple from(String s, boolean quoted)
-		{
-			boolean foldable =
-				ISO_AND_PG_REGULAR_IDENTIFIER.matcher(s).matches();
-			if ( ! quoted )
-			{
-				if ( ! foldable )
-					throw new IllegalArgumentException(String.format(
-						"impossible for \"%1$s\" to be a non-quoted identifier",
-						s));
-				return new Folding(s);
-			}
-			if ( foldable )
-				return new Foldable(s);
-			return new Simple(s);
-		}
-
 		@Override
 		public boolean equals(Object other)
 		{
@@ -462,9 +451,56 @@ public abstract class Lexicals
 		 */
 		public abstract boolean equals(Object other, Messager msgr);
 
-		public static class Simple extends Identifier
+		public static abstract class Unqualified<T extends Unqualified<T>>
+		extends Identifier
+		{
+			/**
+			 * Produce the deparsed form of a qualified identifier with the
+			 * given <em>qualifier</em> and this as the local part.
+			 * @throws NullPointerException if qualifier is null
+			 */
+			public abstract String deparse(Simple qualifier);
+
+			/**
+			 * Form an {@code Identifier.Qualified} with this as the local part.
+			 */
+			public abstract Qualified<T> withQualifier(Simple qualifier);
+		}
+
+		public static class Simple extends Unqualified<Simple>
 		{
 			protected final String m_nonFolded;
+
+			/**
+			 * Create an {@code Identifier.Simple} given its original,
+			 * non-folded spelling, and whether it represents a quoted
+			 * identifier.
+			 * @param s The exact, internal, non-folded spelling of the
+			 * identifier (unwrapped from any quoting in its external form).
+			 * @param quoted Pass {@code true} if this was parsed from any
+			 * quoted external form, false if non-quoted.
+			 * @return A corresponding Identifier.Simple
+			 * @throws IllegalArgumentException if {@code quoted} is
+			 * {@code false} but {@code s} cannot be a non-quoted identifier,
+			 * or {@code s} is empty or longer than the ISO SQL maximum 128
+			 * codepoints.
+			 */
+			public static Simple from(String s, boolean quoted)
+			{
+				boolean foldable =
+					ISO_AND_PG_REGULAR_IDENTIFIER.matcher(s).matches();
+				if ( ! quoted )
+				{
+					if ( ! foldable )
+						throw new IllegalArgumentException(String.format(
+							"impossible for \"%1$s\" to be" +
+							" a non-quoted identifier", s));
+					return new Folding(s);
+				}
+				if ( foldable )
+					return new Foldable(s);
+				return new Simple(s);
+			}
 
 			/**
 			 * Create an {@code Identifier.Simple} from a name string found in
@@ -486,8 +522,11 @@ public abstract class Lexicals
 				{
 					if ( s.equals(Folding.pgFold(s)) )
 						return new Folding(s);
-					else
-						return new Foldable(s);
+					/*
+					 * Having just determined it does not match its pgFolded
+					 * form, there is no point returning it as a Foldable; there
+					 * is no chance PG will see it as a match to a folded one.
+					 */
 				}
 				return new Simple(s);
 			}
@@ -514,19 +553,30 @@ public abstract class Lexicals
 			 */
 			public static Simple fromJava(String s)
 			{
-				boolean quoted = true;
 				Matcher m = ISO_DELIMITED_IDENTIFIER_CAPTURING.matcher(s);
 				if ( m.matches() )
 					s = m.group("xd").replace("\"\"", "\"");
 				else if ( m.usePattern(PG_REGULAR_IDENTIFIER).matches() )
 					return new Folding(s);
-				return Identifier.from(s, true);
+				return from(s, true);
+			}
+
+			@Override
+			public Qualified<Simple> withQualifier(Simple qualifier)
+			{
+				return new Qualified<>(qualifier, this);
 			}
 
 			@Override
 			public String deparse()
 			{
 				return '"' + m_nonFolded.replace("\"", "\"\"") + '"';
+			}
+
+			@Override
+			public String deparse(Simple qualifier)
+			{
+				return qualifier.deparse() + "." + deparse();
 			}
 
 			/**
@@ -762,15 +812,90 @@ public abstract class Lexicals
 			}
 		}
 
+		public static class Operator extends Unqualified<Operator>
+		{
+			private final String m_name;
+
+			private Operator(String name)
+			{
+				m_name = name;
+			}
+
+			public static Operator from(String name)
+			{
+				return from(name, null);
+			}
+
+			public static Operator from(String name, Messager msgr)
+			{
+				requireNonNull(name);
+				boolean ok = PG_OPERATOR.matcher(name).matches();
+
+				if ( ! ok )
+				{
+					if ( null == msgr )
+						throw new IllegalArgumentException(String.format(
+							"not a valid PostgreSQL operator name: %s", name));
+					msgr.printMessage(Kind.ERROR, String.format(
+						"not a valid PostgreSQL operator name: %s", name));
+				}
+
+				/*
+				 * It would be considerate to check the length here, but that
+				 * would require knowing the server encoding, because the length
+				 * limit in PostgreSQL is NAMELEN - 1 encoded octets (or
+				 * possibly fewer, if the character that overflows encodes to
+				 * more than one octet). In the SQL generator, that would
+				 * require an argument to supply the assumed PG server encoding
+				 * being compiled for, and passing it here. Too much work.
+				 */
+				return new Operator(name);
+			}
+
+			@Override
+			public Qualified<Operator> withQualifier(Simple qualifier)
+			{
+				return new Qualified<>(qualifier, this);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return m_name.hashCode();
+			}
+
+			@Override
+			public boolean equals(Object other, Messager msgr)
+			{
+				if ( ! (other instanceof Operator) )
+					return false;
+				return m_name.equals(((Operator)other).m_name);
+			}
+
+			@Override
+			public String deparse()
+			{
+				return m_name;
+			}
+
+			@Override
+			public String deparse(Simple qualifier)
+			{
+				return
+					"OPERATOR(" + qualifier.deparse() + "." + deparse() + ")";
+			}
+		}
+
 		/**
 		 * Class representing a schema-qualified identifier.
-		 * This is distinct from an Identifier.Simple even when it has no
+		 * This is distinct from an Identifier.Unqualified even when it has no
 		 * qualifier (and would therefore deparse the same way).
 		 */
-		public static class Qualified extends Identifier
+		public static class Qualified<T extends Unqualified<T>>
+		extends Identifier
 		{
 			private final Simple m_qualifier;
-			private final Simple m_local;
+			private final T m_local;
 
 			/**
 			 * Create an {@code Identifier.Qualified} from name strings found in
@@ -788,38 +913,35 @@ public abstract class Lexicals
 			 * @return an Identifier.Qualified
 			 * @throws NullPointerException if the local name is null.
 			 */
-			public static Qualified fromCatalog(
+			public static Qualified<Simple> nameFromCatalog(
 				String qualifier, String local)
 			{
-				if ( null == local )
-					throw new NullPointerException(
-					"local part of an Identifier.Qualified may not be null");
-				Simple localId = ( null == local ) ?
-					null : Simple.fromCatalog(local);
+				Simple localId = Simple.fromCatalog(local);
 				Simple qualId = ( null == qualifier ) ?
 					null : Simple.fromCatalog(qualifier);
-				return fromSimplePair(qualId, localId);
+				return localId.withQualifier(qualId);
 			}
 
-
 			/**
-			 * Create an {@code Identifier.Qualified} from a pair of
-			 * {@code Identifier.Simple}.
-			 * @param Simple identifier representing the schema name.
-			 * @param Simple identifier naming an object in that schema.
+			 * Create an {@code Identifier.Qualified} representing an operator
+			 * from name strings found in PostgreSQL system catalogs.
+			 * @param qualifier string with the name of a schema, as found in
+			 * the pg_namespace system catalog.
+			 * @param local string with the local name of an object in that
+			 * schema.
 			 * @return an Identifier.Qualified
 			 * @throws NullPointerException if the local name is null.
 			 */
-			public static Qualified fromSimplePair(
-				Simple qualifier, Simple local)
+			public static Qualified<Operator> operatorFromCatalog(
+				String qualifier, String local)
 			{
-				if ( null == local )
-					throw new NullPointerException(
-					"local part of an Identifier.Qualified may not be null");
-				return new Qualified(qualifier, local);
+				Operator localId = Operator.from(local);
+				Simple qualId = ( null == qualifier ) ?
+					null : Simple.fromCatalog(qualifier);
+				return localId.withQualifier(qualId);
 			}
 
-			private Qualified(Simple qualifier, Simple local)
+			private Qualified(Simple qualifier, T local)
 			{
 				m_qualifier = qualifier;
 				m_local = local;
@@ -830,7 +952,7 @@ public abstract class Lexicals
 			{
 				if ( null == m_qualifier )
 					return m_local.deparse();
-				return m_qualifier.deparse() + "." + m_local.deparse();
+				return m_local.deparse(m_qualifier);
 			}
 
 			@Override
