@@ -21,6 +21,20 @@ import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
+ * One invocation, from PostgreSQL, of functionality implemented using PL/Java.
+ *<p>
+ * This class is the Java counterpart of the {@code struct Invocation_} in the
+ * C code, but while there is a new stack-allocated C structure on every entry
+ * from PG to PL/Java, no instance of this class is created unless requested
+ * (with {@link #current current()}; once requested, a reference to it is saved
+ * in the C struct for the duration of the invocation.
+ *<p>
+ * One further piece of magic applies to set-returning functions. Under the
+ * value-per-call protocol, there is technically a new entry into PL/Java, and
+ * a new C {@code Invocation_} struct, for every row to be returned, but that
+ * low-level complication is hidden at this level: a single instance of this
+ * class, if once requested, will be remembered throughout the value-per-call
+ * sequence of calls.
  * @author Thomas Hallgren
  */
 public class Invocation

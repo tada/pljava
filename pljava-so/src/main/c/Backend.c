@@ -653,6 +653,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errhint("The most common reason is that \"pljava.classpath\" "
 					"needs to be set, naming the proper \"pljava.jar\" file.")
 					));
+			pljava_DualState_unregister();
 			_destroyJavaVM(0, 0);
 			goto check_tolerant;
 		}
