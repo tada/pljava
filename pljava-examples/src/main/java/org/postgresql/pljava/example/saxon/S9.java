@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,6 +25,7 @@ import java.sql.Types;
 
 import java.sql.SQLException;
 import java.sql.SQLDataException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
@@ -33,8 +34,10 @@ import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import static java.time.ZoneOffset.UTC;
 
 import static java.util.Arrays.asList;
+import static java.util.Arrays.fill;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,11 +58,17 @@ import static javax.xml.XMLConstants.XML_NS_PREFIX;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 
+import net.sf.saxon.lib.ConversionRules;
+import net.sf.saxon.lib.NamespaceConstant;
+
 import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
 
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
+
+import net.sf.saxon.regex.RegexIterator;
+import net.sf.saxon.regex.RegularExpression;
 
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.ItemType;
@@ -86,15 +95,27 @@ import net.sf.saxon.trans.XPathException;
 
 import net.sf.saxon.tree.iter.LookaheadIterator;
 
+import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.Converter;
+
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Base64BinaryValue;
+import net.sf.saxon.value.CalendarValue;
 import net.sf.saxon.value.HexBinaryValue;
-import net.sf.saxon.value.TimeValue;
+import net.sf.saxon.value.StringValue;
+import static net.sf.saxon.value.StringValue.getStringLength;
 
 import org.postgresql.pljava.ResultSetProvider;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
+
+/* For the xmltext function, which only needs plain SAX and not Saxon */
+
+import javax.xml.transform.sax.SAXResult;
+import org.xml.sax.ContentHandler;
+import org.xml.sax.SAXException;
 
 /**
  * Class illustrating use of XQuery with Saxon as the
@@ -132,7 +153,7 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * rewritten as this call to the {@link #xq_ret_content xq_ret_content} method:
  *<pre>
  * SELECT javatest.xq_ret_content('/pg_catalog/pg_proc[proname eq $FUNCNAME]',
- *                                PASSING => p, nullOnEmpty => false)
+ *                                PASSING =&gt; p, nullOnEmpty =&gt; false)
  * FROM catalog_as_xml,
  * LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
  *</pre>
@@ -150,7 +171,7 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  * dropped in a future PL/Java release, it is wisest until then to use only
  * parameter names that really are uppercase, both in the XQuery text where they
  * are used and in the SQL expression that supplies them. In PostgreSQL,
- * identifiers that are not quoted are _lower_cased, so they must be both
+ * identifiers that are not quoted are <em>lower</em>cased, so they must be both
  * uppercase and quoted, in the SQL syntax, to be truly uppercase.
  *<p>
  * In the standard, parameters and results (of XML types) can be passed
@@ -175,11 +196,11 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  *
  *	LATERAL (SELECT data AS ".", 'not specified'::text AS "DPREMIER") AS p,
  *
- *	"xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
- *	 'xs:int(@id)', null, 'string(COUNTRY_NAME)',
- *	 'string(COUNTRY_ID)', 'xs:double(SIZE[@unit eq "sq_km"])',
+ *	"xmltable"('//ROWS/ROW', PASSING =&gt; p, COLUMNS =&gt; ARRAY[
+ *	 'data(@id)', null, 'COUNTRY_NAME',
+ *	 'COUNTRY_ID', 'SIZE[@unit eq "sq_km"]',
  *	 'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
- *	 'let $e := zero-or-one(PREMIER_NAME)/string()
+ *	 'let $e := PREMIER_NAME
  *	  return if ( empty($e) )then $DPREMIER else $e'
  *	]) AS (
  *	 id int, ordinality int, "COUNTRY_NAME" text, country_id text,
@@ -187,9 +208,15 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
  *	);
  *</pre>
  *<p>
- * The explicit casts and {@code zero-or-one} will not be needed once the
- * full automatic casting rules (for now only partially implemented) are
- * in place.
+ * In the first column expression, without the {@code data()} function, the
+ * result would be a bare attribute node (one not enclosed in an XML element).
+ * Many implementations will accept a bare attribute as a column expression
+ * result, and simply assume the attribute's value is wanted, but it appears
+ * that a strict implementation of the spec must raise {@code err:XPTY0004} in
+ * such a case. This implementation is meant to be strict, so the attribute is
+ * wrapped in {@code data()} to extract and return its value. (See
+ * "About bare attribute nodes" in {@link #assignRowValues assignRowValues}
+ * for more explanation.)
  *<p>
  * The `DPREMIER` parameter passed from SQL to the XQuery expression is spelled
  * in uppercase (and also, in the SQL expression supplying it, quoted), for the
@@ -201,17 +228,25 @@ public class S9 implements ResultSetProvider
 	private S9(
 		XdmSequenceIterator xsi,
 		XQueryEvaluator[] columnXQEs,
-		SequenceType[] columnStaticTypes)
+		SequenceType[] columnStaticTypes,
+		XMLBinary enc)
 	{
 		m_sequenceIterator = xsi;
 		m_columnXQEs = columnXQEs;
 		m_columnStaticTypes = columnStaticTypes;
+		m_atomize = new AtomizingFunction [ columnStaticTypes.length ];
+		m_xmlbinary = enc;
 	}
 
 	final XdmSequenceIterator m_sequenceIterator;
 	final XQueryEvaluator[] m_columnXQEs;
 	final SequenceType[] m_columnStaticTypes;
+	final SequenceType s_01untypedAtomic = makeSequenceType(
+		ItemType.UNTYPED_ATOMIC, OccurrenceIndicator.ZERO_OR_ONE);
+	final AtomizingFunction[] m_atomize;
+	final XMLBinary m_xmlbinary;
 	Binding.Assemblage m_outBindings;
+	XQueryEvaluator m_documentWrap;
 
 	static final Connection s_dbc;
 	static final Processor s_s9p = new Processor(false);
@@ -261,9 +296,263 @@ public class S9 implements ResultSetProvider
 		}
 	}
 
+	static class PredefinedQueryHolders
+	{
+		static final XQueryCompiler s_xqc = s_s9p.newXQueryCompiler();
+		static final QName s_qEXPR = new QName("EXPR");
+
+		static class DocumentWrap
+		{
+			static final XQueryExecutable INSTANCE;
+
+			static
+			{
+				try
+				{
+					INSTANCE = s_xqc.compile(
+						"declare construction preserve;" +
+						"declare variable $EXPR as item()* external;" +
+						"document{$EXPR}");
+				}
+				catch ( SaxonApiException e )
+				{
+					throw new ExceptionInInitializerError(e);
+				}
+			}
+		}
+
+		static class DocumentWrapUnwrap
+		{
+			static final XQueryExecutable INSTANCE;
+
+			static
+			{
+				try
+				{
+					INSTANCE = s_xqc.compile(
+						"declare construction preserve;" +
+						"declare variable $EXPR as item()* external;" +
+						"data(document{$EXPR}/child::node())");
+				}
+				catch ( SaxonApiException e )
+				{
+					throw new ExceptionInInitializerError(e);
+				}
+			}
+		}
+	}
+
+	/**
+	 * PostgreSQL (as of 12) lacks the XMLTEXT function, so here it is.
+	 *<p>
+	 * As long as PostgreSQL does not have the {@code XML(SEQUENCE)} type,
+	 * this can only be the {@code XMLTEXT(v RETURNING CONTENT)} flavor, which
+	 * does create a text node with {@code v} as its value, but returns the text
+	 * node wrapped in a document node.
+	 *<p>
+	 * This function doesn't actually require Saxon, but otherwise fits in with
+	 * the theme here, implementing missing parts of SQL/XML for PostgreSQL.
+	 * @param sve SQL string value to use in a text node
+	 * @return XML content, the text node wrapped in a document node
+	 */
+	@Function(schema="javatest")
+	public static SQLXML xmltext(String sve) throws SQLException
+	{
+		SQLXML rx = s_dbc.createSQLXML();
+		ContentHandler ch = rx.setResult(SAXResult.class).getHandler();
+
+		try
+		{
+			ch.startDocument();
+			/*
+			 * It seems XMLTEXT() should be such a trivial function to write,
+			 * but already it reveals a subtlety in the SAX API docs. They say
+			 * the third argument to characters() is "the number of characters
+			 * to read from the array" and that follows a long discussion of how
+			 * individual characters can (with code points above U+FFFF) consist
+			 * of more than one Java char value.
+			 *
+			 * And yet, when you try it out (and include some characters above
+			 * U+FFFF in the input), you discover the third argument isn't the
+			 * number of characters, has to be the number of Java char values.
+			 */
+			ch.characters(sve.toCharArray(), 0, sve.length());
+			ch.endDocument();
+		}
+		catch ( SAXException e )
+		{
+			rx.free();
+			throw new SQLException(e.getMessage(), e);
+		}
+
+		return rx;
+	}
+
+	/**
+	 * An implementation of XMLCAST.
+	 *<p>
+	 * Will be declared to take and return type {@code RECORD}, where each must
+	 * have exactly one component, just because that makes it easy to use
+	 * existing JDBC metadata queries to find out the operand and target SQL
+	 * data types.
+	 *<p>
+	 * Serving suggestion: rewrite this ISO standard expression
+	 *<pre>
+	 * XMLCAST(v AS wantedtype)
+	 *</pre>
+	 * to this idiomatic one:
+	 *<pre>
+	 * (SELECT r FROM (SELECT v) AS o, xmlcast(o) AS (r wantedtype))
+	 *</pre>
+	 * @param operand a one-row, one-column record supplied by the caller, whose
+	 * one typed value is the operand to be cast.
+	 * @param base64 true if binary SQL values should be base64-encoded in XML;
+	 * if false (the default), values will be encoded in hex.
+	 * @param target a one-row, one-column record supplied by PL/Java from the
+	 * {@code AS} clause after the function call, whose one column's type is the
+	 * type to be cast to.
+	 */
+	@Function(
+		schema="javatest",
+		type="pg_catalog.record",
+		onNullInput=CALLED,
+		settings="IntervalStyle TO iso_8601"
+	)
+	public static boolean xmlcast(
+		ResultSet operand, @SQLType(defaultValue="false") Boolean base64,
+		ResultSet target)
+		throws SQLException
+	{
+		if ( null == operand )
+			throw new SQLDataException(
+				"xmlcast \"operand\" must be (in this implementation) " +
+				"a non-null row type", "22004");
+
+		if ( null == base64 )
+			throw new SQLDataException(
+				"xmlcast \"base64\" must be true or false, not null", "22004");
+		XMLBinary enc = base64 ? XMLBinary.BASE64 : XMLBinary.HEX;
+
+		assert null != target : "PL/Java supplied a null output record???";
+
+		if ( 1 != operand.getMetaData().getColumnCount() )
+			throw new SQLDataException(
+				"xmlcast \"operand\" must be a row type with exactly " +
+				"one component", "22000");
+
+		if ( 1 != target.getMetaData().getColumnCount() )
+			throw new SQLDataException(
+				"xmlcast \"target\" must be a row type with exactly " +
+				"one component", "22000");
+
+		Binding.Parameter op =
+			new BindingsFromResultSet(operand, false).iterator().next();
+
+		Binding.Parameter tg =
+			new BindingsFromResultSet(target, null).iterator().next();
+
+		int sd = op.typeJDBC();
+		int td = tg.typeJDBC();
+
+		int castcase =
+			(Types.SQLXML == sd ? 2 : 0) | (Types.SQLXML == td ? 1 : 0);
+
+		switch ( castcase )
+		{
+		case 0: // neither sd nor td is an XML type
+			throw new SQLSyntaxErrorException(
+				"at least one of xmlcast \"operand\" or \"target\" must " +
+				"be of XML type", "42804");
+		case 3: // both XML
+			/*
+			 * In an implementation closely following the spec, this case would
+			 * be handled in parse analysis and rewritten from an XMLCAST to a
+			 * plain CAST, and this code would never see it. This is a plain
+			 * example function without benefit of a parser that can do that.
+			 * In a DBMS with all the various SQL:2006 XML subtypes, there would
+			 * be nontrivial work to do here, but casting from PostgreSQL's one
+			 * XML type to itself is more of a warm-up exercise.
+			 */
+			target.updateSQLXML(1, operand.getSQLXML(1));
+			return true;
+		case 1: // something non-XML being cast to XML
+			assertCanCastAsXmlSequence(sd, "operand");
+			Object v = op.valueJDBC();
+			if ( null == v )
+			{
+				target.updateNull(1);
+				return true;
+			}
+			ItemType xsbt =
+				mapSQLDataTypeToXMLSchemaDataType(op, enc, Nulls.ABSENT);
+			XdmValue tv = xmlCastAsSequence(v, enc, xsbt);
+			try
+			{
+				target.updateSQLXML(1,
+					returnContent(tv, /*nullOnEmpty*/ false));
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			return true;
+		case 2: // XML being cast to something non-XML
+			assertCanCastAsXmlSequence(td, "target");
+			SQLXML sx = operand.getSQLXML(1);
+			if ( null == sx )
+			{
+				target.updateNull(1);
+				return true;
+			}
+			DocumentBuilder dBuilder = s_s9p.newDocumentBuilder();
+			Source source = sx.getSource(null);
+			try
+			{
+				XdmValue xv = dBuilder.build(source);
+				XQueryEvaluator xqe =
+					PredefinedQueryHolders.DocumentWrapUnwrap.INSTANCE.load();
+				xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, xv);
+				xv = xqe.evaluate();
+				XdmSequenceIterator si = (XdmSequenceIterator)xv.iterator();
+				if ( ! si.hasNext() )
+				{
+					target.updateNull(1);
+					return true;
+				}
+				xv = si.next();
+				if ( si.hasNext() )
+				{
+					si.close();
+					throw new XPathException(
+						"Atomized sequence has more than one item", "XPTY0004");
+				}
+				XdmAtomicValue av = (XdmAtomicValue)xv;
+				xmlCastAsNonXML(
+					av, ItemType.UNTYPED_ATOMIC, tg, target, 1, enc);
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+			return true;
+		}
+
+		throw new SQLFeatureNotSupportedException(
+			"cannot yet xmlcast from " + op.typePG() +
+			" to " + tg.typePG(), "0A000");
+	}
+
 	/**
 	 * A simple example corresponding to {@code XMLQUERY(expression
-	 * PASSING BY VALUE passing RETURNING CONTENT {NULL|EMPTY} ON EMPTY).
+	 * PASSING BY VALUE passing RETURNING CONTENT {NULL|EMPTY} ON EMPTY)}.
 	 * @param expression An XQuery expression. Must not be {@code null} (in the
 	 * SQL standard {@code XMLQUERY} syntax, it is not even allowed to be an
 	 * expression at all, only a string literal).
@@ -288,7 +577,7 @@ public class S9 implements ResultSetProvider
 	 * future PL/Java release.
 	 * @param namespaces An even-length String array where, of each pair of
 	 * consecutive entries, the first is a namespace prefix and the second is
-	 * to URI to which to bind it. The zero-length prefix sets the default
+	 * the URI to which to bind it. The zero-length prefix sets the default
 	 * element and type namespace; if the prefix has zero length, the URI may
 	 * also have zero length, to declare that unprefixed elements are in no
 	 * namespace.
@@ -316,7 +605,7 @@ public class S9 implements ResultSetProvider
 			throw new SQLDataException(
 				"XMLQUERY nullOnEmpty may not be null", "22004");
 
-		Binding.Assemblage bindings = new BindingsFromResultSet(passing);
+		Binding.Assemblage bindings = new BindingsFromResultSet(passing, true);
 
 		try
 		{
@@ -334,26 +623,7 @@ public class S9 implements ResultSetProvider
 			 */
 			XdmValue x1 = xqe.evaluate();
 
-			SequenceIterator x1s = x1.getUnderlyingValue().iterate();
-			if ( nullOnEmpty.booleanValue() )
-			{
-				if ( 0 == ( SequenceIterator.LOOKAHEAD & x1s.getProperties() ) )
-					throw new SQLException(
-					"nullOnEmpty requested and result sequence lacks lookahead",
-						"XX000");
-				if ( ! ((LookaheadIterator)x1s).hasNext() )
-				{
-					x1s.close();
-					return null;
-				}
-			}
-
-			SQLXML rsx = s_dbc.createSQLXML();
-			Result rslt = rsx.setResult(null);
-			QueryResult.serializeSequence(
-				x1s, s_s9p.getUnderlyingConfiguration(), rslt,
-				new Properties());
-			return rsx;
+			return returnContent(x1, nullOnEmpty);
 		}
 		catch ( SaxonApiException e )
 		{
@@ -363,6 +633,42 @@ public class S9 implements ResultSetProvider
 		{
 			throw new SQLException(e.getMessage(), "10000", e);
 		}
+	}
+
+	private static SQLXML returnContent(XdmValue x, boolean nullOnEmpty)
+	throws SQLException, SaxonApiException, XPathException
+	{
+		XQueryEvaluator xqe =
+			PredefinedQueryHolders.DocumentWrap.INSTANCE.load();
+		return returnContent(x, nullOnEmpty, xqe);
+	}
+
+	private static SQLXML returnContent(
+		XdmValue x, boolean nullOnEmpty, XQueryEvaluator xqe)
+	throws SQLException, SaxonApiException, XPathException
+	{
+		xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, x);
+		x = xqe.evaluate();
+
+		SequenceIterator xs = x.getUnderlyingValue().iterate();
+		if ( nullOnEmpty )
+		{
+			if ( 0 == ( SequenceIterator.LOOKAHEAD & xs.getProperties() ) )
+				throw new SQLException(
+				"nullOnEmpty requested and result sequence lacks lookahead",
+					"XX000");
+			if ( ! ((LookaheadIterator)xs).hasNext() )
+			{
+				xs.close();
+				return null;
+			}
+		}
+
+		SQLXML rsx = s_dbc.createSQLXML();
+		Result r = rsx.setResult(null);
+		QueryResult.serializeSequence(
+			xs, s_s9p.getUnderlyingConfiguration(), r, new Properties());
+		return rsx;
 	}
 
 	/**
@@ -404,6 +710,8 @@ public class S9 implements ResultSetProvider
 	 * consecutive entries, the first is a namespace prefix and the second is
 	 * to URI to which to bind it, just as described for
 	 * {@link #xq_ret_content xq_ret_content()}.
+	 * @param base64 whether the effective, in-scope 'xmlbinary' setting calls
+	 * for base64 or (the default, false) hexadecimal.
 	 */
 	@Function(
 		schema="javatest",
@@ -413,7 +721,8 @@ public class S9 implements ResultSetProvider
 	public static ResultSetProvider xmltable(
 		String rows, String[] columns,
 		@SQLType(defaultValue={}) ResultSet passing,
-		@SQLType(defaultValue={}) String[] namespaces)
+		@SQLType(defaultValue={}) String[] namespaces,
+		@SQLType(defaultValue="false") Boolean base64)
 		throws SQLException
 	{
 		if ( null == rows )
@@ -424,7 +733,13 @@ public class S9 implements ResultSetProvider
 			throw new SQLDataException(
 				"XMLTABLE columns expression array may not be null", "22004");
 
-		Binding.Assemblage rowBindings = new BindingsFromResultSet(passing);
+		if ( null == base64 )
+			throw new SQLDataException(
+				"XMLTABLE base64 parameter may not be null", "22004");
+		XMLBinary enc = base64 ? XMLBinary.BASE64 : XMLBinary.HEX;
+
+		Binding.Assemblage rowBindings =
+			new BindingsFromResultSet(passing, true);
 
 		Iterable<Map.Entry<String,String>> namespacepairs =
 			namespaceBindings(namespaces);
@@ -470,10 +785,11 @@ public class S9 implements ResultSetProvider
 			XQueryEvaluator rowXQE = rowXQX.load();
 			XdmSequenceIterator rowIterator;
 			if ( storePassedValuesInDynamicContext(rowXQE, rowBindings, true) )
-				rowIterator = XdmEmptySequence.getInstance().iterator();
+				rowIterator = (XdmSequenceIterator)
+					XdmEmptySequence.getInstance().iterator();
 			else
 				rowIterator = rowXQE.iterator();
-			return new S9(rowIterator, columnXQEs, columnStaticTypes);
+			return new S9(rowIterator, columnXQEs, columnStaticTypes, enc);
 		}
 		catch ( SaxonApiException e )
 		{
@@ -491,12 +807,387 @@ public class S9 implements ResultSetProvider
 		m_sequenceIterator.close();
 	}
 
+	/**
+	 * Produce and return one row of the {@code XMLTABLE} result table per call.
+	 *<p>
+	 * The row expression has already been compiled and its evaluation begun,
+	 * producing a sequence iterator. The column XQuery expressions have all
+	 * been compiled and are ready to evaluate, and the compiler's static
+	 * analysis has bounded the data types they will produce. Because of the
+	 * way the set-returning function protocol works, we don't know the types
+	 * of the SQL output columns yet, until the first call of this function,
+	 * when the {@code receive} parameter's {@code ResultSetMetaData} can be
+	 * inspected to find out. So that will be the first thing done when called
+	 * with {@code currentRow} of zero.
+	 *<p>
+	 * Each call will then: (a) get the next value from the row expression's
+	 * sequence iterator, then for each column, (b) evaluate that column's
+	 * XQuery expression on the row value, and (c) assign that column's result
+	 * to the SQL output column, casting to the proper type (which the SQL/XML
+	 * spec has very exacting rules on how to do).
+	 *<p>
+	 * A note before going any further: this implementation, while fairly
+	 * typical of a PostgreSQL set-returning user function, is <em>not</em> the
+	 * way the SQL/XML spec defines {@code XMLTABLE}. The official behavior of
+	 * {@code XMLTABLE} is defined in terms of a rewriting, at the SQL level,
+	 * into a much-expanded SQL query where each result column appears as an
+	 * {@code XMLQUERY} call applying the column expression, wrapped in an
+	 * {@code XMLCAST} to the result column type (with a
+	 * {@code CASE WHEN XMLEXISTS} thrown in to support column defaults).
+	 *<p>
+	 * As an ordinary user function, this example cannot rely on any fancy
+	 * query rewriting during PostgreSQL's parse analysis. The slight syntax
+	 * desugaring needed to transform a standard {@code XMLTABLE} call into a
+	 * call of this function is not too hard to learn and do by hand, but no one
+	 * would ever want to write out by hand the whole longwinded "official"
+	 * expansion prescribed in the spec. So this example is a compromise.
+	 *<p>
+	 * The main thing lost in the compromise is the handling of column defaults.
+	 * The full rewriting with per-column SQL expressions means that each
+	 * column default expression can be evaluated exactly when/if needed, which
+	 * is often the desired behavior. This implementation as an ordinary
+	 * function, whose arguments all get evaluated ahead of the call, can't
+	 * really do that. Otherwise, there's nothing in the spec that's inherently
+	 * unachievable in this implementation.
+	 *<p>
+	 * Which brings us to the matter of casting each column expression result
+	 * to the proper type for its SQL result column.
+	 *<p>
+	 * Like any spec, {@code SQL/XML} does not mandate that an implementation
+	 * must be done in exactly the way presented in the spec (rewritten so each
+	 * column value is produced by an {@code XMLQUERY} wrapped in an
+	 * {@code XMLCAST}). The requirement is to produce the equivalent result.
+	 *<p>
+	 * A look at the rewritten query shows that each column XQuery result value
+	 * must be representable as some value in SQL's type system, not once, but
+	 * twice: first as the result returned by {@code XMLQUERY} and passed along
+	 * to {@code XMLCAST}, and finally with the output column's type as the
+	 * result of the {@code XMLCAST}.
+	 *<p>
+	 * Now, the output column type can be whatever is wanted. Importantly, it
+	 * can be either an XML type, or any ordinary SQL scalar type, like a
+	 * {@code float} or a {@code date}. Likewise, the XQuery column expression
+	 * may have produced some atomic value (like an {@code xs:double} or
+	 * {@code xs:date}), or some XML node, or any sequence of any of those.
+	 *<p>
+	 * What are the choices for the type in the middle: the SQL value returned
+	 * by {@code XMLQUERY} and passed on to {@code XMLCAST}?
+	 *<p>
+	 * There are two. An ISO-standard SQL {@code XMLQUERY} can specify
+	 * {@code RETURNING SEQUENCE} or {@code RETURNING CONTENT}. The first option
+	 * produces the type {@code XML(SEQUENCE)}, a useful type that PostgreSQL
+	 * does not currently have. {@code XML(SEQUENCE)} can hold exactly whatever
+	 * an XQuery expression can produce: a sequence of any length, of any
+	 * mixture of atomic values and XML nodes (even such oddities as attribute
+	 * nodes outside of any element), in any order. An {@code XML(SEQUENCE)}
+	 * value need not look anything like what "XML" normally brings to mind.
+	 *<p>
+	 * With the other option, {@code RETURNING CONTENT}, the result of
+	 * {@code XMLQUERY} has to be something that PostgreSQL's {@code xml} type
+	 * could store: a serialized document with XML structure, but without the
+	 * strict requirements of exactly one root element with no text outside it.
+	 * At the limit, a completely non-XMLish string of ordinary text is
+	 * perfectly acceptable XML {@code CONTENT}, as long as it uses the right
+	 * {@code &...;} escapes for any characters that could look like XML markup.
+	 *<p>
+	 * {@code XMLCAST} is able to accept either form as input, and deliver it
+	 * to the output column as whatever type is needed. But the spec leaves no
+	 * wiggle room as to which form to use:
+	 *<ul>
+	 *<li>If the result column type is {@code XML(SEQUENCE)}, then the
+	 * {@code XMLQUERY} is to specify {@code RETURNING SEQUENCE}. It produces
+	 * the column's result type directly, so the {@code XMLCAST} has nothing
+	 * to do.
+	 *<li>In every other case (<em>every</em> other case), the {@code XMLQUERY}
+	 * is to specify {@code RETURNING CONTENT}.
+	 *</ul>
+	 *<p>
+	 * At first blush, that second rule should sound crazy. Imagine a column
+	 * definition like
+	 *<pre>
+	 * growth float8 PATH 'math:pow(1.0 + $RATE, count(year))'
+	 *</pre>
+	 * The expression produces an {@code xs:double}, which can be assigned
+	 * directly to a PostgreSQL {@code float8}, but the rule in the spec will
+	 * have it first converted to a decimal string representation, made into
+	 * a text node, wrapped in a document node, and returned as XML, to be
+	 * passed along to {@code XMLCAST}, which parses it, discards the wrapping
+	 * document node, parses the text content as a double, and returns that as
+	 * a proper value of the result column type (which, in this example, it
+	 * already is).
+	 *<p>
+	 * The spec does not go into why this rule was chosen. The only rationale
+	 * that makes sense to me is that the {@code XML(SEQUENCE)} data type
+	 * is an SQL feature (X190) that not every implementation will support,
+	 * so the spec has to define {@code XMLTABLE} using a rewritten query that
+	 * can work on systems that do not have that type. (PostgreSQL itself, at
+	 * present, does not have it.)
+	 *<p>
+	 * The first rule, when {@code XML(SEQUENCE)} is the result column type,
+	 * will naturally never be in play except on a system that has that type, in
+	 * which case it can be used directly. But even such a system must still
+	 * produce, in all other cases, results that match what a system without
+	 * that type would produce. All those cases are therefore defined as if
+	 * going the long way through {@code XML(CONTENT)}.
+	 *<p>
+	 * Whenever the XQuery expression can be known to produce a (possibly empty
+	 * or) singleton sequence of an atomic type, the long round trip can be
+	 * shown to be idempotent, and we can skip right to casting the atomic type
+	 * to the SQL result column type. A few other cases could be short-circuited
+	 * the same way. But in general, for cases involving nodes or non-singleton
+	 * sequences, it is safest to follow the spec punctiliously; the steps are
+	 * defined in terms of XQuery constructs like {@code document {...}} and
+	 * {@code data()}, which have specs of their own with many traps for the
+	 * unwary, and the XQuery library provides implementations of them that are
+	 * already tested and correct.
+	 *<p>
+	 * Though most of the work can be done by the XQuery library, it may be
+	 * helpful to look closely at just what the specification entails.
+	 *<p>
+	 * Again, but for the case of an {@code XML(SEQUENCE)} result column, in all
+	 * other cases the result must pass through
+	 * {@code XMLQUERY(... RETURNING CONTENT EMPTY ON EMPTY)}. That, in turn, is
+	 * defined as equivalent to {@code XMLQUERY(... RETURNING SEQUENCE)} with
+	 * the result then passed to {@code XMLDOCUMENT(... RETURNING CONTENT)},
+	 * whose behavior is that of a
+	 * <a href='https://www.w3.org/TR/xquery-31/#id-documentConstructors'>
+	 * document node constructor</a> in XQuery, with
+	 * <a href='https://www.w3.org/TR/xquery-31/#dt-construction-mode'>
+	 * construction mode</a> {@code preserve}. The first step of that behavior
+	 * is the same as Step 1e in the processing of
+	 * <a href='https://www.w3.org/TR/xquery-31/#id-content'>direct element
+	 * constructor content</a>. The remaining steps are those laid out for the
+	 * document node constructor.
+	 *<p>
+	 * Clarity demands flattening this nest of specifications into a single
+	 * ordered list of the steps to apply:
+	 *<ul>
+	 *<li>Any item in the sequence that is an array is flattened (its elements
+	 * become items in the sequence)
+	 *<li>If any item is a function, {@code err:XQTY0105} is raised.
+	 *<li>Any sequence {@code $s} of adjacent atomic values is replaced by
+	 * {@code string-join($s, ' ')}.
+	 *<li>Any XML node in the sequence is copied (as detailed in the spec).
+	 *<li>After all the above, any document node that may exist in the resulting
+	 * sequence is flattened (replaced by its children).
+	 *<li>A single text node is produced for any run of adjacent text nodes in
+	 * the sequence (including any that have newly become adjacent by the
+	 * flattening of document nodes), by concatenation with no separator.
+	 *<li>If the sequence directly contains any attribute or namespace node,
+	 * {@code err:XPTY0004} is raised. <b>More on this below.</b>
+	 *<li>The sequence resulting from the preceding steps is wrapped in one
+	 * new document node (as detailed in the spec).
+	 *</ul>
+	 *<p>
+	 * At this point, the result could be returned to SQL as a value of
+	 * {@code XML(CONTENT(ANY))} type, to be passed to an {@code XMLCAST}
+	 * invocation. This implementation avoids that, and simply proceeds with the
+	 * existing Java in-memory representation of the document tree, to the
+	 * remaining steps entailed in an {@code XMLCAST} to the output column type:
+	 *<ul>
+	 *<li>If the result column type is an XML type, rewriting turns the
+	 * {@code XMLCAST} into a simple {@code CAST} and that's that. Otherwise,
+	 * the result column has some non-XML, SQL type, and:
+	 *<li>The algorithm "Removing XQuery document nodes from an XQuery sequence"
+	 * is applied. By construction, we know the only such node is the one the
+	 * whole sequence was recently wrapped in, two steps ago (you get your
+	 * house back, you get your dog back, you get your truck back...).
+	 *<li>That sequence of zero or more XML nodes is passed to the
+	 *<a href='https://www.w3.org/TR/xpath-functions-31/#func-data'>fn:data</a>
+	 * function, producing a sequence of zero or more atomic values, which will
+	 * all have type {@code xs:untypedAtomic} (because the document-wrapping
+	 * stringified any original atomic values and wrapped them in text nodes,
+	 * for which the
+	 * <a href='https://www.w3.org/TR/xpath-datamodel-31/#acc-summ-typed-value'>
+	 * typed-value</a> is {@code xs:untypedAtomic} by definition). This sequence
+	 * also has cardinality zero-or-more, and may be shorter or longer than the
+	 * original.
+	 *<li>If the sequence is empty, the result column is assigned {@code NULL}
+	 * (or the column's default value, if one was specified). Otherwise, the
+	 * sequence is known to have length one or more, and:
+	 *<li>The spec does not say this (which may be an oversight or bug), but the
+	 * sequence must be checked for length greater than one, raising
+	 * {@code err:XPTY0004} in that case. The following steps require it to be a
+	 * singleton.
+	 *<li>It is labeled as a singleton sequence of {@code xs:anyAtomicType} and
+	 * used as input to an XQuery {@code cast as} expression. (Alternatively, it
+	 * could be labeled a one-or-more sequence of {@code xs:anyAtomicType},
+	 * leaving the length check to be done by {@code cast as}, which would raise
+	 * the same error {@code err:XPTY0004}, if longer than one.)
+	 *<li>The {@code cast as} is to the XQuery type determined as in
+	 * {@code determineXQueryFormalType} below, based on the SQL type of the
+	 * result column; or, if the SQL type is a date/time type with no time zone,
+	 * there is a first {@code cast as} to a specific XSD date/time type, which
+	 * is (if it has a time zone) first adjusted to UTC, then stripped of its
+	 * time zone, followed by a second {@code cast as} from that type to the one
+	 * determined from the result column type. Often, that will be the same type
+	 * as was used for the time zone adjustment, and the second {@code cast as}
+	 * will have nothing to do.
+	 *<li>The XQuery value resulting from the cast is converted and assigned to
+	 * the SQL-typed result column, a step with many details but few surprises,
+	 * therefore left for the morbidly curious to explore in the code. The flip
+	 * side of the time zone removal described above happens here: if the SQL
+	 * column type expects a time zone and the incoming value lacks one, it is
+	 * given a zone of UTC.
+	 *</ul>
+	 *<p>
+	 * The later steps above, those following the length-one check, are
+	 * handled by {@code xmlCastAsNonXML} below.
+	 *<p>
+	 * The earlier steps, from the start through the {@code XMLCAST} early steps
+	 * of document-node unwrapping, can all be applied by letting the original
+	 * result sequence be {@code $EXPR} in the expression:
+	 *<pre>
+	 * declare construction preserve;
+	 * data(document { $EXPR } / child::node())
+	 *</pre>
+	 * which may seem a bit of an anticlimax after seeing how many details lurk
+	 * behind those tidy lines of code.
+	 *<p>
+	 * <strong>About bare attribute nodes</strong>
+	 *<p>
+	 * One consequence of the rules above deserves special attention.
+	 * Consider something like:
+	 *<pre>
+	 * XMLTABLE('.' PASSING '&lt;a foo="bar"/&gt;' COLUMNS c1 VARCHAR PATH 'a/@foo');
+	 *</pre>
+	 *<p>
+	 * The result of the column expression is an XML attribute node all on its
+	 * own, with name {@code foo} and value {@code bar}, not enclosed in any
+	 * XML element. In the data type {@code XML(SEQUENCE)}, an attribute node
+	 * can appear standalone like that, but not in {@code XML(CONTENT)}.
+	 *<p>
+	 * Db2, Oracle, and even the XPath-based pseudo-XMLTABLE built into
+	 * PostgreSQL, will all accept that query and produce the result "bar".
+	 *<p>
+	 * However, a strict interpretation of the spec cannot produce that result,
+	 * because the result column type ({@code VARCHAR}) is not
+	 * {@code XML(SEQUENCE)}, meaning the result must be as if passed through
+	 * {@code XMLDOCUMENT(... RETURNING CONTENT)}, and the XQuery
+	 * {@code document { ... }} constructor is required to raise
+	 * {@code err:XPTY0004} upon encountering any bare attribute node. The
+	 * apparently common, convenient behavior of returning the attribute node's
+	 * value component is not, strictly, conformant.
+	 *<p>
+	 * This implementation will raise {@code err:XPTY0004}. That can be avoided
+	 * by simply wrapping any such bare attribute in {@code data()}:
+	 *<pre>
+	 * ... COLUMNS c1 VARCHAR PATH 'a/data(@foo)');
+	 *</pre>
+	 *<p>
+	 * It is possible the spec has an editorial mistake and did not intend to
+	 * require an error for this usage, in which case this implementation can
+	 * be changed to match a future clarification of the spec.
+	 */
 	@Override
 	public boolean assignRowValues(ResultSet receive, int currentRow)
 	throws SQLException
 	{
 		if ( 0 == currentRow )
+		{
 			m_outBindings = new BindingsFromResultSet(receive, m_columnXQEs);
+			int i = -1;
+			AtomizingFunction atomizer = null;
+			for ( Binding.Parameter p : m_outBindings )
+			{
+				SequenceType staticType = m_columnStaticTypes [ ++ i ];
+				/*
+				 * A null in m_columnXQEs identifies the ORDINALITY column,
+				 * if any. Assign nothing to m_atomize[i], it won't be used.
+				 */
+				if ( null == m_columnXQEs [ i ] )
+					continue;
+				/*
+				 * If the output column type is an XML type (other than
+				 * XML(SEQUENCE), which can be assumed, as PostgreSQL doesn't
+				 * have that type), then the column will just be assigned as by
+				 * returnContent(). Load up a DocumentWrap predefined query, so
+				 * returnContent won't have to do it every time. Assign nothing
+				 * to m_atomize[i]; null there will distinguish this case
+				 * (because the ORDINALITY case will already have been checked).
+				 */
+				if ( Types.SQLXML == p.typeJDBC() )
+				{
+					if ( null == m_documentWrap )
+						m_documentWrap =
+							PredefinedQueryHolders.DocumentWrap.INSTANCE.load();
+					continue;
+				}
+				/*
+				 * Ok, the output column type is non-XML. If the column
+				 * expression type isn't known to be atomic, or isn't known to
+				 * be zero-or-one, then the general-purpose atomizer--a trip
+				 * through data(document { ... } / child::node())--must be used.
+				 * This atomizer will definitely produce a sequence of length
+				 * zero or one, raising XPTY0004 otherwise. So the staticType
+				 * can be replaced by xs:anyAtomicType?. xmlCastAsNonXML will
+				 * therefore be passed xs:anyAtomicType, as in the spec.
+				 *    BUT NO ... Saxon is more likely to find a converter from
+				 * xs:untypedAtomic than from xs:anyAtomicType.
+				 */
+				if ( staticType.getOccurrenceIndicator().allowsMany()
+					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(
+						staticType.getItemType())
+					/*
+					 * The following tests may be punctilious to a fault. If we
+					 * have a bare Saxon atomic type of either xs:base64Binary
+					 * or xs:hexBinary type, Saxon will happily and successfully
+					 * convert it to a binary string; but if we have the same
+					 * thing as a less-statically-determinate type that we'll
+					 * put through the atomizer, the conversion will fail unless
+					 * its encoding matches the m_xmlbinary setting. That could
+					 * seem weirdly unpredictable to a user, so we'll just
+					 * (perversely) disallow the optimization (which would
+					 * succeed) in the cases where the specified, unoptimized
+					 * behavior would be to fail.
+					 */
+					|| ItemType.HEX_BINARY.subsumes(staticType.getItemType())
+						&& (XMLBinary.HEX != m_xmlbinary)
+					|| ItemType.BASE64_BINARY.subsumes(staticType.getItemType())
+						&& (XMLBinary.BASE64 != m_xmlbinary)
+				   )
+				{
+					if ( null == atomizer )
+					{
+						XQueryEvaluator docWrapUnwrap =	PredefinedQueryHolders
+							.DocumentWrapUnwrap.INSTANCE.load();
+						atomizer = (v, col) ->
+						{
+							docWrapUnwrap.setExternalVariable(
+								PredefinedQueryHolders.s_qEXPR, v);
+							v = docWrapUnwrap.evaluate();
+							XdmSequenceIterator si =
+								(XdmSequenceIterator)v.iterator();
+							if ( ! si.hasNext() )
+								return v;
+							v = si.next();
+							if ( ! si.hasNext() )
+								return v;
+							si.close();
+							throw new XPathException(
+								"Atomized sequence has more than one item " +
+								"(column " + col + ")", "XPTY0004");
+						};
+					}
+					m_atomize [ i ] = atomizer;
+					/*
+					 * The spec wants anyAtomicType below instead of
+					 * untypedAtomic. But Saxon's getConverter is more likely
+					 * to fail to find a converter from anyAtomicType to an
+					 * arbitrary type, than from untypedAtomic. So use that.
+					 */
+					m_columnStaticTypes [ i ] = s_01untypedAtomic;
+				}
+				else
+				{
+					/*
+					 * We know we'll be getting zero-or-one atomic value, so
+					 * the atomizing function can be the identity.
+					 */
+					 m_atomize [ i ] = (v, col) -> v;
+				}
+			}
+		}
 
 		if ( ! m_sequenceIterator.hasNext() )
 			return false;
@@ -509,6 +1200,7 @@ public class S9 implements ResultSetProvider
 		for ( Binding.Parameter p : m_outBindings )
 		{
 			XQueryEvaluator xqe = m_columnXQEs [ i ];
+			AtomizingFunction atomizer = m_atomize [ i ];
 			SequenceType staticType = m_columnStaticTypes [ i++ ];
 
 			if ( null == xqe )
@@ -517,47 +1209,22 @@ public class S9 implements ResultSetProvider
 				continue;
 			}
 
-			xqe.setContextItem(it);
-
 			try
 			{
+				xqe.setContextItem(it);
 				XdmValue x1 = xqe.evaluate();
 
-				/*
-				 * The fully general rules, outlining how x1 gets from here to
-				 * the end goal of a value of the SQL result column, are a
-				 * real caution. Except when the wanted SQL data type is
-				 * XML(SEQUENCE)--which PG doesn't support--they begin by
-				 * pumping x1 through all the effects of XMLDOCUMENT( ...
-				 * RETURNING CONTENT) (text nodes built from atomic values,
-				 * errors raised for attribute nodes, everything wrapped in a
-				 * document node, etc.,) and then hitting that on the head with
-				 * XMLCAST. In the case where the SQL result column has a
-				 * non-XML type, that starts right off by document-node
-				 * unwrapping followed by atomization (you get your house back,
-				 * you get your dog back, you get your truck back, only now as
-				 * lexical strings with types all erased to xs:untypedAtomic),
-				 * and finally (ring a little bell right here) putting those
-				 * through XML Query "cast as" to the XQuery type determined
-				 * according to the output column SQL type, and then converting
-				 * and stashing that value into the result column.
-				 *
-				 * In cases where the XQuery compiler was statically certain
-				 * the result will be exactly one, or zero-or-one, atomic value,
-				 * it seems sensible to skip right ahead to the little ringing
-				 * bell ... both for efficiency's sake, and because it gets a
-				 * very useful subset of XMLTABLE working before all that other
-				 * jazz is in place.
-				 */
-				if ( staticType.getOccurrenceIndicator().allowsMany()
-					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(
-						staticType.getItemType()) )
-					throw new UnsupportedOperationException(
-						"The fully general rules for returning XMLTABLE " +
-						"output are not yet implemented (column " + i + ").");
+				if ( null == atomizer ) /* => result type was found to be XML */
+				{
+					receive.updateSQLXML(
+						i, returnContent(x1, false, m_documentWrap));
+					continue;
+				}
+
+				x1 = atomizer.apply(x1, i);
 
 				/*
-				 * The value is statically known to be atomic and either exactly
+				 * The value is now known to be atomic and either exactly
 				 * one or zero-or-one. May as well just use size() to see if
 				 * it's empty.
 				 */
@@ -567,7 +1234,8 @@ public class S9 implements ResultSetProvider
 					continue;
 				}
 				XdmAtomicValue av = (XdmAtomicValue)x1.itemAt(0);
-				xmlCastAsNonXML(av, p, receive, i);
+				xmlCastAsNonXML(
+					av, staticType.getItemType(), p, receive, i, m_xmlbinary);
 			}
 			catch ( SaxonApiException e )
 			{
@@ -739,6 +1407,21 @@ public class S9 implements ResultSetProvider
 				"XMLCAST to XML(SEQUENCE).", "42804");
 	}
 
+	/**
+	 * The "determination of an XQuery formal type notation" algorithm.
+	 *<p>
+	 * This is relied on for parameters and context items passed to
+	 * {@code XMLQUERY} and therefore, {@code XMLTABLE} (and also, in the spec,
+	 * {@code XMLDOCUMENT} and {@code XMLPI}). Note that it does <em>not</em>
+	 * take an {@code XMLBinary} parameter, but rather imposes hexadecimal form
+	 * unconditionally, so in the contexts where this is called, any
+	 * {@code xmlbinary} setting is ignored.
+	 * @param b a {@code Binding} from which the JDBC type can be retrieved
+	 * @param forContextItem whether the type being derived is for a context
+	 * item or (if false) for a named parameter.
+	 * @return a {@code SequenceType} (always a singleton in the
+	 * {@code forContextItem} case)
+	 */
 	private static SequenceType determineXQueryFormalType(
 		Binding b, boolean forContextItem)
 		throws SQLException
@@ -870,10 +1553,10 @@ public class S9 implements ResultSetProvider
 		case Types.BIGINT:
 			return ItemType.LONG;
 
-		case Types.FLOAT:
-			assert false; // PG should always report either REAL or DOUBLE
 		case Types.REAL:
 			return ItemType.FLOAT; // could check P, MINEXP, MAXEXP here.
+		case Types.FLOAT:
+			assert false; // PG should always report either REAL or DOUBLE
 		case Types.DOUBLE:
 			return ItemType.DOUBLE;
 
@@ -1020,25 +1703,107 @@ public class S9 implements ResultSetProvider
 		}
 	}
 
+	@FunctionalInterface
+	interface CastingFunction
+	{
+		AtomicValue apply(AtomicValue v) throws XPathException;
+	}
+
+	@FunctionalInterface
+	interface CasterSupplier
+	{
+		CastingFunction get() throws SQLException, XPathException;
+	}
+
+	@FunctionalInterface
+	interface AtomizingFunction
+	{
+		/**
+		 * @param v sequence to be atomized
+		 * @param columnIndex only to include in exception if result has more
+		 * than one item
+		 */
+		XdmValue apply(XdmValue v, int columnIndex)
+		throws SaxonApiException, XPathException;
+	}
+
+	private static XPathException noPrimitiveCast(ItemType vt, ItemType xt)
+	{
+		return new XPathException(
+			"Casting from " + vt.getTypeName() + " to " + xt.getTypeName() +
+			" can never succeed", "XPTY0004");
+	}
+
 	/**
 	 * Handle the case of XMLCAST to a non-XML target type when the cast operand
 	 * is already a single atomic value.
+	 *<p>
+	 * The caller, if operating on a sequence, must itself handle the case of
+	 * an empty sequence (returning null, per General Rule 4c in :2011), or a
+	 * sequence of length greater than one (raising XPTY0004, which is not
+	 * specified in :2011, but the exclusion of such a sequence is implicit in
+	 * rules 4g and 4h; Db2 silently drops all but the first item, unlike
+	 * Oracle, which raises XPTY0004).
 	 * @param av The atomic operand value
 	 * @param p The parameter binding, recording the needed type information
 	 * @param rs ResultSet into which the value will be stored
 	 * @param col Index of the result column
 	 */
 	private static void xmlCastAsNonXML(
-		XdmAtomicValue av, Binding.Parameter p, ResultSet rs, int col)
+		XdmAtomicValue av, ItemType vt,
+		Binding.Parameter p, ResultSet rs, int col, XMLBinary enc)
 		throws SQLException, XPathException
 	{
 		XdmAtomicValue bv;
-		ItemType xt = p.typeXS().getItemType();
-		if ( xt.matches(av) ) // perhaps we can skip one bout of casting
-			bv = av; // XXX xt==DATE_TIME, av isa DATE_TIME_STAMP gets through
-		else
-			throw new UnsupportedOperationException(
-				"Casting AV to BV is not yet implemented (column " + col + ")");
+		ItemType xt = p.typeXT(enc);
+
+		CastingFunction caster = p.atomicCaster(vt, () ->
+		{
+			ConversionRules rules = vt.getConversionRules();
+			Converter c1;
+			ItemType t1;
+			Converter c2;
+
+			switch ( p.typeJDBC() )
+			{
+			case Types.TIMESTAMP:
+				t1 = ItemType.DATE_TIME;
+				break;
+			case Types.TIME:
+				t1 = ItemType.TIME;
+				break;
+			case Types.DATE:
+				t1 = ItemType.DATE;
+				break;
+			default:
+				c1 = rules.getConverter(
+					(AtomicType)vt.getUnderlyingItemType(),
+					(AtomicType)xt.getUnderlyingItemType());
+				if ( null == c1 )
+					throw noPrimitiveCast(vt, xt);
+				return (AtomicValue v) -> c1.convert(v).asAtomic();
+			}
+			/*
+			 * Nothing left here but the rest of the three date/timey cases
+			 * partly handled above.
+			 */
+			c1 = rules.getConverter(
+				(AtomicType)vt.getUnderlyingItemType(),
+				(AtomicType)t1.getUnderlyingItemType());
+			c2 = rules.getConverter(
+				(AtomicType)t1.getUnderlyingItemType(),
+				(AtomicType)xt.getUnderlyingItemType());
+			if ( null == c1  ||  null == c2 )
+				throw noPrimitiveCast(vt, xt);
+			return (AtomicValue v) ->
+			{
+				v = c1.convert(v).asAtomic();
+				v = ((CalendarValue)v).adjustTimezone(0).removeTimezone();
+				return c2.convert(v).asAtomic();
+			};
+		});
+
+		bv = makeAtomicValue(caster.apply(av.getUnderlyingValue()));
 
 		if ( ItemType.STRING.subsumes(xt) )
 			rs.updateString(col, bv.getStringValue());
@@ -1058,23 +1823,39 @@ public class S9 implements ResultSetProvider
 		 * of range" rather than forwarding a float or double inf, -inf, or nan
 		 * to SQL, but PostgreSQL supports those values, and these conversions
 		 * preserve them.
+		 *  Because of the collapsing in typeXT(), xt will never be FLOAT,
+		 * only DOUBLE. JDBC is supposed to handle assigning a double to a float
+		 * column, anyway.
 		 */
-		else if ( ItemType.FLOAT.subsumes(xt) )
-			rs.updateObject(col, bv.getValue());
 		else if ( ItemType.DOUBLE.subsumes(xt) )
 			rs.updateObject(col, bv.getValue());
 
 		else if ( ItemType.DATE.subsumes(xt) )
 			rs.updateObject(col, LocalDate.parse(bv.getStringValue()));
-		else if ( ItemType.DATE_TIME_STAMP.subsumes(xt) )
-			rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
 		else if ( ItemType.DATE_TIME.subsumes(xt) )
-			rs.updateObject(col, LocalDateTime.parse(bv.getStringValue()));
+		{
+			if ( ((CalendarValue)bv.getUnderlyingValue()).hasTimezone() )
+				rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
+			else
+			{
+				LocalDateTime jv = LocalDateTime.parse(bv.getStringValue());
+				rs.updateObject(col,
+					Types.TIMESTAMP_WITH_TIMEZONE == p.typeJDBC() ?
+						jv.atOffset(UTC) : jv);
+			}
+		}
 		else if ( ItemType.TIME.subsumes(xt) ) // no handy tz/notz distinction
-			rs.updateObject(col,
-				((TimeValue)bv.getUnderlyingValue()).hasTimezone()
-				? OffsetTime.parse(bv.getStringValue())
-				:  LocalTime.parse(bv.getStringValue()));
+		{
+			if ( ((CalendarValue)bv.getUnderlyingValue()).hasTimezone() )
+				rs.updateObject(col, OffsetTime.parse(bv.getStringValue()));
+			else
+			{
+				LocalTime jv = LocalTime.parse(bv.getStringValue());
+				rs.updateObject(col,
+					Types.TIME_WITH_TIMEZONE == p.typeJDBC() ?
+						jv.atOffset(UTC) : jv);
+			}
+		}
 
 		else if ( ItemType.YEAR_MONTH_DURATION.subsumes(xt) )
 			rs.updateString(col, toggleIntervalRepr(bv.getStringValue()));
@@ -1091,6 +1872,21 @@ public class S9 implements ResultSetProvider
 				"0N000");
 	}
 
+	/**
+	 * Like the "Mapping values of SQL data types to values of XML Schema
+	 * data types" algorithm, except after the SQL values have already been
+	 * converted to Java values according to JDBC rules.
+	 *<p>
+	 * Also, this uses Saxon s9api constructors for the XML Schema values, which
+	 * accept the Java types directly. As a consequence, where the target type
+	 * {@code xst} is {@code xs:hexBinary} or {@code xs:base64Binary}, that type
+	 * will be produced, regardless of the passed {@code encoding}. This might
+	 * not be strictly correct, but is probably safest until an oddity in the
+	 * spec can be clarified: {@code determineXQueryFormalType} will always
+	 * declare {@code xs:hexBinary} as the type for an SQL byte string, and it
+	 * would violate type safety to construct a value here that honors the
+	 * {@code encoding} parameter but isn't of the declared formal type.
+	 */
 	private static XdmAtomicValue mapJDBCofSQLvalueToXdmAtomicValue(
 		Object dv, XMLBinary encoding, ItemType xst)
 		throws SQLException, SaxonApiException, XPathException
@@ -1309,6 +2105,14 @@ public class S9 implements ResultSetProvider
 
 		static class ContextItem extends Binding
 		{
+			/**
+			 * Return the XML Schema type of this input binding for a context
+			 * item.
+			 *<p>
+			 * Because it is based on {@code determinXQueryFormalType}, this
+			 * method is not parameterized by {@code XMLBinary}, and will always
+			 * map a binary-string SQL type to {@code xs:hexBinary}.
+			 */
 			ItemType typeXS() throws SQLException
 			{
 				if ( null != m_typeXS )
@@ -1335,24 +2139,59 @@ public class S9 implements ResultSetProvider
 				return m_typeXS = implTypeXS(false);
 			}
 
+			/**
+			 * Return the XML Schema type collapsed according to the Syntax Rule
+			 * deriving {@code XT} for {@code XMLCAST}.
+			 *<p>
+			 * The intent of the rule is unclear, but it involves collapsing
+			 * certain sets of more-specific types that {@code typeXS} might
+			 * return into common supertypes, for use only in an intermediate
+			 * step of {@code xmlCastAsNonXML}. Unlike {@code typeXS}, this
+			 * method must be passed an {@code XMLBinary} parameter reflecting
+			 * the hex/base64 choice currently in scope.
+			 * @param enc whether to use {@code xs:hexBinary} or
+			 * {@code xs:base64Binary} as the XML Schema type corresponding to a
+			 * binary-string SQL type.
+			 */
+			ItemType typeXT(XMLBinary enc) throws SQLException
+			{
+				throw new UnsupportedOperationException(
+					"typeXT() on synthetic binding");
+			}
+
+			/**
+			 * Memoize and return a casting function from a given
+			 * {@code ItemType} to the type of this parameter.
+			 *<p>
+			 * Used only by {@code xmlCastAsNonXML}, which does all the work
+			 * of constructing the function; this merely allows it to be
+			 * remembered, if many casts to the same output parameter will be
+			 * made (as by {@code xmltable}).
+			 */
+			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
+			throws SQLException, XPathException
+			{
+				throw new UnsupportedOperationException(
+					"atomicCaster() on synthetic binding");
+			}
+
 			protected SequenceType m_typeXS;
 
 			private final String m_name;
 
 			/**
 			 * @param name The SQL name of the parameter
-			 * @param isInput True if this is an input parameter from SQL to the
-			 * XML query context, or false if it describes a result (as in the
-			 * ouput of XMLTABLE). If an input parameter, the name must be a
-			 * valid NCName; for an output parameter, the name doesn't matter
-			 * and isn't checked.
-			 * @throws SQLException if the name of an input parameter isn't a
-			 * valid NCName.
+			 * @param checkName True if the name must be a valid NCName (as for
+			 * an input parameter from SQL to the XML query context), or false
+			 * if the name doesn't matter (as when it describes a result, or the
+			 * sole input value of an XMLCAST.
+			 * @throws SQLException if the name of a checked input parameter
+			 * isn't a valid NCName.
 			 */
-			protected Parameter(String name, boolean isInput)
+			protected Parameter(String name, boolean checkName)
 			throws SQLException
 			{
-				if ( isInput  &&  ! isValidNCName(name) )
+				if ( checkName  &&  ! isValidNCName(name) )
 					throw new SQLSyntaxErrorException(
 						"Not an XML NCname: \"" + name + '"', "42602");
 				m_name = name;
@@ -1442,9 +2281,14 @@ public class S9 implements ResultSetProvider
 		 * query's context item; every other column name must be a valid NCName,
 		 * and neither any named parameter nor the context item may be mentioned
 		 * more than once.
+		 * @param checkNames True if the input parameter names matter (a name of
+		 * "." or "?COLUMN?" will define the context item, and any other name
+		 * must be a valid NCName); false to skip such checking (as for the
+		 * single input value to XMLCAST, whose name doesn't matter).
 		 * @throws SQLException if names are duplicated or invalid.
 		 */
-		BindingsFromResultSet(ResultSet rs) throws SQLException
+		BindingsFromResultSet(ResultSet rs, boolean checkNames)
+		throws SQLException
 		{
 			m_resultSet = rs;
 			m_rsmd = rs.getMetaData();
@@ -1457,7 +2301,8 @@ public class S9 implements ResultSetProvider
 			for ( int i = 1; i <= nParams; ++i )
 			{
 				String label = m_rsmd.getColumnLabel(i);
-				if ( "?COLUMN?".equals(label)  ||  ".".equals(label) )
+				if ( checkNames  &&
+					("?COLUMN?".equals(label)  ||  ".".equals(label)) )
 				{
 					if ( null != contextItem )
 					throw new SQLSyntaxErrorException(
@@ -1468,7 +2313,8 @@ public class S9 implements ResultSetProvider
 				}
 
 				Parameter was =
-					(Parameter)n2b.put(label, new Parameter(label, i, true));
+					(Parameter)n2b.put(
+						label, new Parameter(label, i, checkNames));
 				if ( null != was )
 					throw new SQLSyntaxErrorException(
 						"Name \"" + label + "\" duplicated at positions " +
@@ -1490,6 +2336,8 @@ public class S9 implements ResultSetProvider
 		 * that) is allowed to be null, making the corresponding column
 		 * "FOR ORDINALITY". An ordinality column will be checked to ensure it
 		 * has an SQL type that is (ahem) "exact numeric with scale 0 (zero)."
+		 * May be null if this is some other general-purpose output result set,
+		 * not for an XMLTABLE.
 		 * @throws SQLException if numbers of columns and expressions don't
 		 * match, or there is an ordinality column and its type is not suitable.
 		 */
@@ -1500,7 +2348,7 @@ public class S9 implements ResultSetProvider
 			m_rsmd = rs.getMetaData();
 
 			int nParams = m_rsmd.getColumnCount();
-			if ( nParams != exprs.length )
+			if ( null != exprs  &&  nParams != exprs.length )
 				throw new SQLSyntaxErrorException(
 					"Not as many supplied column expressions as output columns",
 					"42611");
@@ -1512,7 +2360,7 @@ public class S9 implements ResultSetProvider
 				String label = m_rsmd.getColumnLabel(i);
 				Parameter p = new Parameter(label, i, false);
 				ps [ i - 1 ] = p;
-				if ( null == exprs [ i - 1 ] )
+				if ( null != exprs  &&  null == exprs [ i - 1 ] )
 				{
 					switch ( p.typeJDBC() )
 					{
@@ -1574,12 +2422,54 @@ public class S9 implements ResultSetProvider
 		class Parameter extends Binding.Parameter
 		{
 			final int m_idx;
+			private ItemType m_typeXT;
+			private CastingFunction m_atomCaster;
+			private ItemType m_lastCastFrom;
 
 			Parameter(String name, int index, boolean isInput)
 			throws SQLException
 			{
 				super(name, isInput);
 				m_idx = index;
+			}
+
+			@Override
+			ItemType typeXT(XMLBinary enc) throws SQLException
+			{
+				if ( null != m_typeXT )
+					return m_typeXT;
+
+				ItemType it =
+					mapSQLDataTypeToXMLSchemaDataType(this, enc, Nulls.ABSENT);
+				if ( ! ItemType.ANY_ATOMIC_VALUE.subsumes(it) )
+					return m_typeXT = it;
+
+				if ( it.equals(ItemType.INTEGER) )
+				{
+					int tj = typeJDBC();
+					if ( Types.NUMERIC == tj || Types.DECIMAL == tj )
+						it = ItemType.DECIMAL;
+				}
+				else if ( ItemType.INTEGER.subsumes(it) )
+					it = ItemType.INTEGER;
+				else if ( ItemType.FLOAT.subsumes(it) )
+					it = ItemType.DOUBLE;
+				else if ( ItemType.DATE_TIME_STAMP.subsumes(it) )
+					it = ItemType.DATE_TIME;
+
+				return m_typeXT = it;
+			}
+
+			@Override
+			CastingFunction atomicCaster(ItemType it, CasterSupplier s)
+			throws SQLException, XPathException
+			{
+				if ( null == m_atomCaster || ! it.equals(m_lastCastFrom) )
+				{
+					m_atomCaster = s.get();
+					m_lastCastFrom = it;
+				}
+				return m_atomCaster;
 			}
 
 			protected String implTypePG() throws SQLException
@@ -1651,5 +2541,691 @@ public class S9 implements ResultSetProvider
 				m_typeJDBC = Types.OTHER;
 			}
 		}
+	}
+
+	/*
+	 * The XQuery-regular-expression-based functions added in 9075-2:2006.
+	 *
+	 * For each function below, a parameter is marked //strict if the spec
+	 * explicitly says the result is NULL when that parameter is NULL. The
+	 * parameters not marked //strict (including the non-standard w3cNewlines
+	 * added here) all have non-null defaults, so by executive decision, these
+	 * functions will all get the onNullInput=RETURNS_NULL treatment, so none of
+	 * the null-checking has to be done here. At worst, that may result in a
+	 * mystery NULL return rather than an error, if someone explicitly passes
+	 * NULL to one of the parameters with a non-null default.
+	 */
+
+	/*
+	 * Check valid range of 'from' and supported 'usingOctets'.
+	 *
+	 * Every specified function that has a start position FROM and a USING
+	 * clause starts with a check that the start position is in range. This
+	 * function factors out that test, returning true if the start position is
+	 * /out of range/ (triggering the caller to return the special result
+	 * defined for that case), returning false if the value is in range, or
+	 * throwing an exception if the length unit specified in the USING clause
+	 * isn't supported.
+	 */
+	private static boolean usingAndLengthCheck(
+		String in, int from, boolean usingOctets, String function)
+	throws SQLException
+	{
+		if ( usingOctets )
+			throw new SQLFeatureNotSupportedException(
+				'"' + function + "\" does not yet support USING OCTETS",
+				"0A000");
+		return ( 1 > from  ||  from > getStringLength(in) );
+	}
+
+	private static void newlinesCheck(boolean w3cNewlines, String function)
+	throws SQLException
+	{
+		if ( ! w3cNewlines )
+			throw new SQLFeatureNotSupportedException(
+				'"' + function + "\" does not yet support the ISO SQL newline" +
+				" conventions, only the original W3C XQuery ones" +
+				" (HINT: pass w3cNewlines => true)", "0A000");
+	}
+
+	private static RegularExpression compileRE(String pattern, String flags)
+	throws SQLException
+	{
+		try
+		{
+			return s_s9p.getUnderlyingConfiguration()
+				.compileRegularExpression(pattern, flags, "XP30", null);
+		}
+		catch ( XPathException e )
+		{
+			if ( NamespaceConstant.ERR.equals(e.getErrorCodeNamespace()) )
+			{
+				if ( "FORX0001".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery option flag", "2201T", e);
+				if ( "FORX0002".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery regular expression", "2201S", e);
+			}
+			throw new SQLException(
+				"compiling XQuery regular expression: " + e.getMessage(), e);
+		}
+	}
+
+	private static CharSequence replace(
+		RegularExpression re, CharSequence in, CharSequence with)
+		throws SQLException
+	{
+		/*
+		 * Report the standard-mandated error if replacing a zero-length match.
+		 * Strictly speaking, this is a test of the length of the match, not of
+		 * the input string. Here, though, this private method is only called by
+		 * translate_regex, which always passes only the portion of the input
+		 * string that matched, so the test is equivalent.
+		 *  As to why the SQL committee would make such a point of disallowing
+		 * replacement of a zero-length match, that's a good question. See
+		 * s_intervalSignSite in this very file for an example where replacing
+		 * a zero-length match is just what's wanted. (But that pattern relies
+		 * on lookahead/lookbehind operators, which XQuery regular expressions
+		 * don't have.)
+		 *  When the underlying library is Saxon, there is an Easter egg: if a
+		 * regular expression is compiled with a 'flags' string ending in ";j",
+		 * a Java regular expression is produced instead of an XQuery one (with
+		 * standards conformance cast to the wind). That can be detected with
+		 * getFlags() on the regular expression: not looking for ";j", because
+		 * that has been stripped out, but for "d" which is a Java regex flag
+		 * that Saxon sets by default, and is not a valid XQuery regex flag.
+		 *  If the caller has used Saxon's Easter egg to get a Java regex, here
+		 * is another Easter egg to go with it, allowing zero-length matches
+		 * to be replaced if that's what the caller wants to do.
+		 */
+		if ( 0 == in.length()  &&  ! re.getFlags().contains("d") )
+			throw new SQLDataException(
+				"attempt to replace a zero-length string", "2201U");
+		try
+		{
+			return re.replace(in, with);
+		}
+		catch ( XPathException e )
+		{
+			if ( NamespaceConstant.ERR.equals(e.getErrorCodeNamespace()) )
+			{
+				if ( "FORX0003".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"attempt to replace a zero-length string", "2201U", e);
+				if ( "FORX0004".equals(e.getErrorCodeLocalPart()) )
+					throw new SQLDataException(
+						"invalid XQuery replacement string", "2201V", e);
+			}
+			throw new SQLException(
+				"replacing regular expression match: " + e.getMessage(), e);
+		}
+	}
+
+	interface MatchVector
+	{
+		int groups();
+		int position(int group);
+		int length(int group);
+	}
+
+	interface ListOfMatchVectors
+	{
+		/**
+		 * Return the MatchVector for one occurrence of a match.
+		 *<p>
+		 * Any previously-returned MatchVector is invalid after another get.
+		 * In multiple calls to get, the occurrence parameter must be strictly
+		 * increasing.
+		 * After get has returned null, it should not be called again.
+		 */
+		MatchVector get(int occurrence) throws SQLException;
+		void close();
+	}
+
+	static class LOMV
+	implements ListOfMatchVectors, MatchVector, RegexIterator.MatchHandler
+	{
+		private RegexIterator m_ri;
+		private int m_pos;
+		private int m_occurrence;
+
+		LOMV(int startPos, RegexIterator ri)
+		{
+			m_ri = ri;
+			m_pos = startPos;
+		}
+
+		static ListOfMatchVectors of(
+			String pattern, String flags, String in, int from)
+			throws SQLException
+		{
+			RegularExpression re = compileRE(pattern, flags);
+			return of(re, in, from);
+		}
+
+		static ListOfMatchVectors of(RegularExpression re, String in, int from)
+		{
+			RegexIterator ri =
+				re.analyze(in.substring(in.offsetByCodePoints(0, from - 1)));
+			return new LOMV(from, ri);
+		}
+
+		private int[] m_begPositions;
+		private int[] m_endPositions;
+
+		@Override // ListOfMatchVectors
+		public MatchVector get(int occurrence) throws SQLException
+		{
+			try
+			{
+				StringValue sv;
+				for ( ;; )
+				{
+					sv = m_ri.next();
+					if ( null == sv )
+						return null;
+					if ( m_ri.isMatching() )
+						if ( ++ m_occurrence == occurrence )
+							break;
+					m_pos += sv.getStringLength();
+				}
+
+				if ( null == m_begPositions )
+				{
+					int groups = m_ri.getNumberOfGroups();
+					/*
+					 * Saxon's Apache-derived XQuery engine will report a number
+					 * of groups counting $0 (so it will be 1 even if no capture
+					 * groups were defined in the expression). In contrast, the
+					 * Java regex engine that you get with the Saxon ";j" Easter
+					 * egg does not count $0 (so arrays need groups+1 entries).
+					 * It's hard to tell from here which flavor was used, plus
+					 * the Saxon behavior might change some day, so just spend
+					 * the extra + 1 every time.
+					 */
+					m_begPositions = new int [ groups + 1 ];
+					m_endPositions = new int [ groups + 1 ];
+				}
+
+				m_begPositions [ 0 ] = m_pos;
+
+				fill(m_begPositions, 1, m_begPositions.length, 0);
+				fill(m_endPositions, 1, m_endPositions.length, 0);
+				m_ri.processMatchingSubstring(this);
+
+				m_endPositions [ 0 ] = m_pos;
+
+				return this;
+			}
+			catch ( XPathException e )
+			{
+				throw new SQLException(
+					"evaluating XQuery regular expression: " + e.getMessage(),
+					e);
+			}
+		}
+
+		@Override
+		public void close()
+		{
+			m_ri.close();
+		}
+
+		@Override // MatchVector
+		public int groups()
+		{
+			return m_begPositions.length - 1;
+		}
+
+		@Override
+		public int position(int groupNumber)
+		{
+			return m_begPositions [ groupNumber ];
+		}
+
+		@Override
+		public int length(int groupNumber)
+		{
+			return
+				m_endPositions [ groupNumber ] - m_begPositions [ groupNumber ];
+		}
+
+		@Override // MatchHandler
+		public void characters(CharSequence s)
+		{
+			m_pos += getStringLength(s);
+		}
+
+		@Override
+		public void onGroupStart(int groupNumber)
+		{
+			m_begPositions [ groupNumber ] = m_pos;
+		}
+
+		@Override
+		public void onGroupEnd(int groupNumber)
+		{
+			m_endPositions [ groupNumber ] = m_pos;
+		}
+	}
+
+	/**
+	 * Function form of the ISO SQL {@code <regex like predicate>}.
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * value LIKE_REGEX pattern FLAG flags
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * like_regex(value, pattern, flag =&gt; flags)
+	 *</pre>
+	 * where the {@code flag} parameter defaults to no flags if omitted.
+	 *<p>
+	 * The SQL standard specifies that pattern elements sensitive to newlines
+	 * (namely {@code ^}, {@code $}, {@code \s}, {@code \S}, and {@code .}) are
+	 * to support the various representations of newline set out in
+	 * <a href='http://www.unicode.org/reports/tr18/#RL1.6'>Unicode Technical
+	 * Standard #18, RL1.6</a>. That behavior differs from the standard W3C
+	 * XQuery newline handling, as described for
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>the flags
+	 * {@code m} and {@code s}</a> and for
+	 * <a href='https://www.w3.org/TR/xmlschema11-2/#cces-mce'>the
+	 * multicharacter escapes {@code \s} and {@code \S}</a>. As an extension to
+	 * ISO SQL, passing {@code w3cNewlines => true} requests the standard W3C
+	 * XQuery behavior rather than the UTS#18 behevior for newlines. If the
+	 * underlying XQuery library only provides the W3C behavior, calls without
+	 * {@code w3cNewlines => true} will throw exceptions.
+	 * @param value The string to be tested against the pattern.
+	 * @param pattern The XQuery regular expression.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return True if the supplied value matches the pattern. Null if any
+	 * parameter is null.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) w3cNewlines is false or omitted.
+	 */
+	@Function(schema="javatest")
+	public static boolean like_regex(
+		String value,                          //strict
+		String pattern,                        //strict
+		@SQLType(defaultValue="") String flag, //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
+		throws SQLException
+	{
+		newlinesCheck(w3cNewlines, "like_regex");
+		return compileRE(pattern, flag).containsMatch(value);
+	}
+
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code OCCURRENCES_REGEX} function:
+	 * how many times does a pattern occur in a string?
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * OCCURRENCES_REGEX(pattern FLAG flags IN str FROM position USING units)
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * occurrences_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                   "from" =&gt; position, usingOctets =&gt; true|false)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in",
+	 * and the standard {@code USING CHARACTERS} becomes
+	 * {@code usingOctets => false}, which is the default, and
+	 * {@code USING OCTETS} becomes {@code usingOctets => true}. See also
+	 * {@link #like_regex like_regex} regarding the {@code w3cNewlines}
+	 * parameter.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The number of occurrences of the pattern in the input string,
+	 * starting from the specified position. Null if any parameter is null; -1
+	 * if the start position is less than 1 or beyond the end of the string.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
+	 */
+	@Function(schema="javatest")
+	public static int occurrences_regex(
+		String pattern,                        //strict
+		@SQLType(name="\"in\"") String in,     //strict
+		@SQLType(defaultValue="") String flag, //strict
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
+		throws SQLException
+	{
+		if ( usingAndLengthCheck(in, from, usingOctets, "occurrences_regex") )
+			return -1; // note: not the same as in position_regex!
+		newlinesCheck(w3cNewlines, "occurrences_regex");
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		for ( int i = 1 ;; ++ i )
+			if ( null == lomv.get(i) )
+				return i - 1;
+	}
+
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code POSITION_REGEX} function:
+	 * where does a pattern, or part of it, occur in a string?
+	 *<p>
+	 * Rewrite the standard forms
+	 *<pre>
+	 * POSITION_REGEX(START pattern FLAG flags IN str FROM position
+	 *                OCCURRENCE n GROUP m)
+	 * POSITION_REGEX(AFTER pattern FLAG flags IN str FROM position
+	 *                OCCURRENCE n GROUP m)
+	 *</pre>
+	 * into these forms, respectively:
+	 *<pre>
+	 * position_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                "from" =&gt; position, occurrence =&gt; n,
+	 *                "group" =&gt; m)
+	 * position_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                "from" =&gt; position, occurrence =&gt; n,
+	 *                "group" =&gt; m, after =&gt; true)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in".
+	 * See also {@link #occurrences_regex occurrences_regex} regarding the
+	 * {@code usingOctets} parameter, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param after Whether to return the position where the match starts
+	 * (when false, the default), or just after the match ends (when true).
+	 * @param occurrence If specified as an integer n (default 1), returns the
+	 * position starting (or after) the nth match of the pattern in the string.
+	 * @param group If zero (the default), returns the position starting (or
+	 * after) the match of the whole pattern overall, otherwise if an integer m,
+	 * the position starting or after the mth parenthesized group in (the nth
+	 * occurrence of) the pattern.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The position, in the specified units, starting or just after,
+	 * the nth occurrence (or mth capturing group of the nth occurrence) of the
+	 * pattern in the input string, starting from the specified position. Null
+	 * if any parameter is null; zero if the start position is less than 1 or
+	 * beyond the end of the string, if occurrence is less than 1 or greater
+	 * than the number of matches, or if group is less than zero or greater than
+	 * the number of parenthesized capturing groups in the pattern.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
+	 */
+	@Function(schema="javatest")
+	public static int position_regex(
+		String pattern,                                         //strict
+		@SQLType(name="\"in\"") String in,                      //strict
+		@SQLType(defaultValue="") String flag,                  //strict
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="false") boolean after,
+		@SQLType(defaultValue="1") int occurrence,              //strict
+		@SQLType(name="\"group\"", defaultValue="0") int group, //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
+		throws SQLException
+	{
+		if ( 1 > occurrence )
+			return 0;
+		if ( 0 > group ) // test group > ngroups after compiling regex
+			return 0;
+		if ( usingAndLengthCheck(in, from, usingOctets, "position_regex") )
+			return 0; // note: not the same as in occurrences_regex!
+		newlinesCheck(w3cNewlines, "position_regex");
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		MatchVector mv = lomv.get(occurrence);
+		if ( null == mv  ||  mv.groups() < group )
+			return 0;
+
+		return mv.position(group) + (after ? mv.length(group) : 0);
+	}
+
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code SUBSTRING_REGEX} function:
+	 * return a substring specified by a pattern match in a string.
+	 *<p>
+	 * Rewrite the standard form
+	 *<pre>
+	 * SUBSTRING_REGEX(pattern FLAG flags IN str FROM position
+	 *                 OCCURRENCE n GROUP m)
+	 *</pre>
+	 * into this form:
+	 *<pre>
+	 * substring_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "from" =&gt; position, occurrence =&gt; n,
+	 *                 "group" =&gt; m)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in".
+	 * See also {@link #position_regex position_regex} regarding the
+	 * {@code occurrence} and {@code "group"} parameters,
+	 * {@link #occurrences_regex occurrences_regex} regarding
+	 * {@code usingOctets}, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param occurrence If specified as an integer n (default 1), returns the
+	 * nth match of the pattern in the string.
+	 * @param group If zero (the default), returns the match of the whole
+	 * pattern overall, otherwise if an integer m, the match the mth
+	 * parenthesized group in (the nth occurrence of) the pattern.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The substring matching the nth occurrence (or mth capturing group
+	 * of the nth occurrence) of the pattern in the input string, starting from
+	 * the specified position. Null if any parameter is null, if the start
+	 * position is less than 1 or beyond the end of the string, if occurrence is
+	 * less than 1 or greater than the number of matches, or if group is less
+	 * than zero or greater than the number of parenthesized capturing groups in
+	 * the pattern.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid;
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
+	 */
+	@Function(schema="javatest")
+	public static String substring_regex(
+		String pattern,                                          //strict
+		@SQLType(name="\"in\"") String in,                       //strict
+		@SQLType(defaultValue="") String flag,                   //strict
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="1") int occurrence,               //strict
+		@SQLType(name="\"group\"", defaultValue="0") int group,  //strict
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
+		throws SQLException
+	{
+		if ( 1 > occurrence )
+			return null;
+		if ( 0 > group ) // test group > ngroups after compiling regex
+			return null;
+		if ( usingAndLengthCheck(in, from, usingOctets, "substring_regex") )
+			return null;
+		newlinesCheck(w3cNewlines, "substring_regex");
+
+		ListOfMatchVectors lomv = LOMV.of(pattern, flag, in, from);
+
+		MatchVector mv = lomv.get(occurrence);
+		if ( null == mv  ||  mv.groups() < group )
+			return null;
+
+		int codePointPos = mv.position(group);
+		int codePointLen = mv.length(group);
+
+		int utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+		int utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+		return in.substring(utf16pos, utf16end);
+	}
+
+	/**
+	 * Syntax-sugar-free form of the ISO SQL {@code TRANSLATE_REGEX} function:
+	 * return a string constructed from the input string by replacing one
+	 * specified occurrence, or all occurrences, of a matching pattern.
+	 *<p>
+	 * Rewrite the standard forms
+	 *<pre>
+	 * TRANSLATE_REGEX(pattern FLAG flags IN str WITH repl FROM position
+	 *                 OCCURRENCE ALL)
+	 * TRANSLATE_REGEX(pattern FLAG flags IN str WITH repl FROM position
+	 *                 OCCURRENCE n)
+	 *</pre>
+	 * into these forms, respectively:
+	 *<pre>
+	 * translate_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "with" =&gt; repl, "from" =&gt; position)
+	 * translate_regex(pattern, flag =&gt; flags, "in" =&gt; str,
+	 *                 "with" =&gt; repl, "from" =&gt; position,
+	 *                 occurrence =&gt; n)
+	 *</pre>
+	 * where all of the named parameters are optional except pattern and "in"
+	 * (the default for "with" is the empty string, resulting in matches being
+	 * deleted).
+	 * See also {@link #position_regex position_regex} regarding the
+	 * {@code occurrence} parameter,
+	 * {@link #occurrences_regex occurrences_regex} regarding
+	 * {@code usingOctets}, and {@link #like_regex like_regex}
+	 * regarding {@code w3cNewlines}.
+	 *<p>
+	 * For the specified occurrence (or all occurrences), the matching portion
+	 * <em>s</em> of the string is replaced as by the XQuery function
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#func-replace'
+	 * >replace</a>(<em>s, pattern, repl, flags</em>). The <em>repl</em> string
+	 * may contain {@code $0} to refer to the entire matched substring, or
+	 * {@code $}<em>m</em> to refer to the <em>m</em>th parenthesized capturing
+	 * group in the pattern.
+	 * @param pattern XQuery regular expression to seek in the input string.
+	 * @param in The input string.
+	 * @param flag Optional string of
+	 * <a href='https://www.w3.org/TR/xpath-functions-31/#flags'>flags adjusting
+	 * the regular expression behavior</a>.
+	 * @param with The replacement string, possibly with $m references.
+	 * @param from Starting position in the input string, 1 by default.
+	 * @param usingOctets Whether position is counted in characters (actual
+	 * Unicode characters, not any smaller encoded unit, not even Java char),
+	 * which is the default, or (when true) in octets of the string's encoded
+	 * form.
+	 * @param occurrence If specified as an integer n (default 0 for "ALL"),
+	 * replace the nth match of the pattern in the string.
+	 * @param w3cNewlines Pass true to allow the regular expression to recognize
+	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.
+	 * @return The input string with one occurrence or all occurences of the
+	 * pattern replaced, as described above. Null if any parameter is null, or
+	 * if the start position is less than 1 or beyond the end of the string.
+	 * The input string unchanged if occurrence is less than zero or exceeds the
+	 * number of matches.
+	 * @throws SQLException SQLDataException with SQLSTATE 2201S if the regular
+	 * expression is invalid, 2201T if the flags string is invalid; 2201U if
+	 * replacing where the pattern has matched a substring of zero length; 2201V
+	 * if the replacement string has improper form (a backslash must be used to
+	 * escape any dollar sign or backslash intended literally);
+	 * SQLFeatureNotSupportedException (0A000) if (in the current
+	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
+	 */
+	@Function(schema="javatest")
+	public static String translate_regex(
+		String pattern, 										 //strict
+		@SQLType(name="\"in\"") String in,						 //strict
+		@SQLType(defaultValue="") String flag,					 //strict
+		@SQLType(name="\"with\"", defaultValue="") String with,  //strict
+		@SQLType(name="\"from\"", defaultValue="1") int from,
+		@SQLType(defaultValue="false") boolean usingOctets,
+		@SQLType(defaultValue="0" /* ALL */) int occurrence,
+		@SQLType(defaultValue="false") boolean w3cNewlines
+	)
+		throws SQLException
+	{
+		if ( usingAndLengthCheck(in, from, usingOctets, "translate_regex") )
+			return null;
+		newlinesCheck(w3cNewlines, "translate_regex");
+		if ( 0 > occurrence )
+			return in;
+
+		RegularExpression re = compileRE(pattern, flag);
+
+		ListOfMatchVectors lomv = LOMV.of(re, in, from);
+
+		MatchVector mv;
+		int codePointPos;
+		int codePointLen;
+		int utf16pos;
+		int utf16end;
+
+		if ( 0 < occurrence )
+		{
+			mv = lomv.get(occurrence);
+			if ( null == mv )
+				return in;
+
+			codePointPos = mv.position(0);
+			codePointLen = mv.length(0);
+
+			utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+			utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+			return
+				in.substring(0, utf16pos)
+				+ replace(re, in.substring(utf16pos, utf16end), with)
+				+ in.substring(utf16end);
+		}
+
+		StringBuilder sb = new StringBuilder();
+		utf16end = 0;
+
+		for ( int i = 1; null != (mv = lomv.get(i)); ++ i )
+		{
+			codePointPos = mv.position(0);
+			codePointLen = mv.length(0);
+
+			utf16pos = in.offsetByCodePoints(0, codePointPos - 1);
+
+			sb.append(in.substring(utf16end, utf16pos));
+
+			utf16end = in.offsetByCodePoints(utf16pos, codePointLen);
+
+			sb.append(replace(re, in.substring(utf16pos, utf16end), with));
+		}
+
+		return sb.append(in.substring(utf16end)).toString();
 	}
 }

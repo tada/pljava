@@ -1,18 +1,39 @@
 ## Optionally-built example code for XML processing with Saxon
 
 In the source directory `org/postgresql/pljava/example/saxon` is example code
-for XML processing functions similar to `XMLQUERY` and `XMLTABLE` but using
-the XQuery language as the SQL/XML standard actually specifies (in contrast
-to the similar functions built into PostgreSQL, which support only XPath,
+for XML processing functions similar to `XMLCAST`, `XMLQUERY`, and `XMLTABLE`,
+but using the XQuery language as the SQL/XML standard actually specifies (in
+contrast to similar functions built into PostgreSQL, which support only XPath,
 and XPath 1.0, at that).
+
+The example also implements the four new string functions and one predicate
+added in SQL:2006 for regular expression processing using the standardized
+XQuery regular expression syntax: `LIKE_REGEX`, `OCCURRENCES_REGEX`, `POSITION_REGEX`,
+`SUBSTRING_REGEX`, and `TRANSLATE_REGEX`.
+
+There is also, for completeness, an implementation of `XMLTEXT`, which is
+trivial and does not require an XQuery library at all, but is missing from
+core PostgreSQL and easy to implement here.
 
 This code is not built by default, because it pulls in the sizeable [Saxon-HE][]
 library from Saxonica, and because (unlike the rest of PL/Java) it requires
 Java 8.
 
 To include these optional functions when building the examples, be sure to use
-a Java 8 build environment, and add `-Psaxon-examples` to the `mvn` command
-line.
+a Java 8 or later build environment, and add `-Psaxon-examples` to the `mvn`
+command line.
+
+The functions are presented as examples, not as fully supported for production;
+for one thing, there is no test suite included to verify their conformance.
+Nevertheless, they are intended to be substantially usable subject to the limits
+described here, and testing and reports of shortcomings are welcome.
+
+In addition to the open-source and freely-licensed Saxon-HE, the Saxon library
+is available in two paid editions, which implement more of the features of
+XQuery 3.1 than Saxon-HE does. It should be possible to drop either of those
+jar files in place of Saxon-HE (with a working license key) if features are
+needed beyond what Saxon-HE provides. Its developers publish
+[a matrix][saxmatrix] identifying the features provided in each edition.
 
 ### Using the Saxon examples
 
@@ -25,24 +46,6 @@ have directed it elsewhere) below the path `net/sf/saxon`.
 
 Then use `sqlj.set_classpath` to set a path including both jars (`'ex:saxon'` if
 you used the names suggested above).
-
-This is work-in-progress code, currently incomplete, and for purposes of
-example. Two known current limitations:
-
-* `XMLTABLE` output columns can have non-XML ("atomic") types only. As a
-    common use of `XMLTABLE` is to process XML and get atomic types out, it
-    should be quite useful even with this limitation. An XML type can be
-    returned, if needed, by using a `text` output column, wrapping the XQuery
-    column expression in `serialize()`, and then applying SQL `XMLPARSE` to
-    the resulting column, at some cost in efficiency.
-
-* `XMLTABLE` column expressions must have the exact XQuery types corresponding
-    to the output columns' SQL types; the automatic casts provided in the spec
-    are not yet implemented. This is no blocker in practice, as any XQuery
-    column expression can be written with an explicit cast to the needed type,
-    which is exactly what the spec's automated behavior would be.
-
-Both of these limitations are intended to be temporary.
 
 ### Calling XML functions without SQL syntactic sugar
 
@@ -129,10 +132,10 @@ with the reserved word. A rewritten form of the
       LATERAL (SELECT data AS ".", 'not specified'::text AS "DPREMIER") AS p,
     
       "xmltable"('//ROWS/ROW', PASSING => p, COLUMNS => ARRAY[
-       'xs:int(@id)', null, 'string(COUNTRY_NAME)',
-       'string(COUNTRY_ID)', 'xs:double(SIZE[@unit eq "sq_km"])',
+       'data(@id)', null, 'COUNTRY_NAME',
+       'COUNTRY_ID', 'SIZE[@unit eq "sq_km"]',
        'concat(SIZE[@unit ne "sq_km"], " ", SIZE[@unit ne "sq_km"]/@unit)',
-       'let $e := zero-or-one(PREMIER_NAME)/string()
+       'let $e := PREMIER_NAME
         return if ( empty($e) ) then $DPREMIER else $e'
       ]) AS (
        id int, ordinality int, "COUNTRY_NAME" text, country_id text,
@@ -155,13 +158,244 @@ The parameter being passed into the XQuery expressions here, `DPREMIER`, is
 spelled in uppercase (and, on the SQL side, quoted), for the reasons explained
 above for the `XMLQUERY`-like function.
 
-The explicit casts and `zero-or-one` will not be needed once the
-full automatic casting rules (for now only partially implemented) are
-in place. The default, as shown, is handled by passing the desired default
-value as a parameter and rewriting the column expression to apply it in place
-of an empty sequence. This lacks, for now, some functionality of the standard
-`XMLTABLE`, where the default expression can refer to other columns of the
-same output row.
+In the first column expression, `@id` is wrapped in `data()` to return the value
+of the attribute, as `@id` by itself would be a bare XML attribute node, outside
+of any XML element. Many implementations (including the XPath-based
+pseudo-XMLTABLE built in to PostgreSQL) will allow a bare attribute node in a
+column expression result, and assume the attribute's value is wanted, but a
+strict interpretation of the spec appears to require raising `err:XPTY0004` in
+that case. So, just use `data()` to wrap any attribute node being returned in
+a column expression.
+
+More on that issue and the spec can be found at "About bare attribute nodes"
+[in the code comments][assignrowvalues].
+
+#### An `XMLCAST`-like function
+
+The ISO SQL `XMLCAST` is used to convert XML content into a value of an SQL
+data type, or an SQL value to an XML value, following the same
+precisely-specified conversion rules that are used for the parameters and
+results of the `XMLQUERY` and `XMLTABLE` functions. It can also convert from
+one XML type to another, though in PostgreSQL, which has just one XML type, the
+conversion is trivial. In a DBMS with support for the full set of XML types
+such as `XML(CONTENT)`, `XML(DOCUMENT)`, and `XML(SEQUENCE)`, the rules for
+casting one to another are more interesting.
+
+This ordinary-function implementation of `XMLCAST` is used by rewriting an
+SQL standard form like
+
+    SELECT XMLCAST(value AS wantedtype)
+
+into a form like
+
+    SELECT result FROM (select value) as v, "xmlcast"(v) AS (result wantedtype)
+
+where either: _value_ is of `xml` type, _wantedtype_ is `xml`, or both; in
+other words, the only case `XMLCAST` does not handle is where neither the input
+nor result is of `xml` type. Because casting XML to XML is not exciting in
+PostgreSQL, the most useful cases are XML to another SQL type, or the reverse.
+
+#### The ISO SQL XQuery regular expression features
+
+The SQL standard specifies a string predicate, `LIKE_REGEX`, for testing a
+string against an [XQuery regular expression][xqre] (an extension of
+[XML Schema regular expression syntax][xsre]), and four string functions also
+based on XQuery regular expressions: `OCCURRENCES_REGEX`, `POSITION_REGEX`,
+`SUBSTRING_REGEX`, and `TRANSLATE_REGEX`.
+
+The "flags" parameter to any of these can include any of the
+[XQuery regular expression flags `s`, `m`, `i`, `x`, and `q`][xqflags].
+
+As with the `XMLQUERY` and `XMLTABLE` functions, some straightforward rewriting
+is needed from the SQL-standard syntax into calls of these ordinary functions.
+
+In the current implementation, all of these functions recognize newlines in the
+way specified by XQuery, not the modified way specified for ISO SQL, as further
+explained below after the function descriptions. To leave a clear path to a
+full implementation, these versions all accept an additional parameter
+`w3cNewlines`, which must always be present, for now,  as `w3cNewlines => true`.
+Specifying `false`, or omitting this parameter, will mean the ISO SQL newline
+treatment is wanted, and will be rejected as an unsupported feature
+in this implementation.
+
+To avoid clutter, the `w3cNewlines => true` is not shown in the examples below.
+
+##### [`LIKE_REGEX`][lrx]
+
+A predicate that is `true` if a string matches the regular expression.
+The standard syntaxes
+
+    value LIKE_REGEX pattern
+    value LIKE_REGEX pattern FLAG flags
+
+can be rewritten to
+
+    like_regex(value, pattern)
+    like_regex(value, pattern, flags)
+    like_regex(value, pattern, flag => flags)
+
+##### [`OCCURRENCES_REGEX`][orx]
+
+A function to count the occurrences of a pattern in a string. The count can
+start from a specific position in the string (the first character has
+position 1), and the position can be counted using Unicode characters, or using
+octets of the string's encoded form. For now, only `USING CHARACTERS` is
+implemented, which can be indicated by passing `usingOctets => false` or
+simply omitting it, as `false` is the default. Standard syntax examples like
+
+    OCCURRENCES_REGEX(pattern IN str)
+    OCCURRENCES_REGEX(pattern FLAG flags IN str)
+    OCCURRENCES_REGEX(pattern IN str FROM position USING CHARACTERS)
+
+can be rewritten to
+
+    occurrences_regex(pattern, str)
+    occurrences_regex(pattern, flag => flags, "in" => str)
+    occurrences_regex(pattern, str, "from" => position)
+
+##### [`POSITION_REGEX`][prx]
+
+A function to return the position of a regular expression match in a string,
+which can optionally return the position of a specific occurrence of the match
+(the first, if not specified), or of a particular capturing group within the
+desired match. The position reported can be of the first character of the match
+of interest (`START`), or of the first character following the match (`AFTER`).
+As for `OCCURRENCES_REGEX`, all positions can be expressed `USING CHARACTERS` or
+`USING OCTETS`, but only the default `USING CHARACTERS` is implemented here.
+
+Standard syntax examples like
+
+    POSITION_REGEX(START pattern IN str)
+    POSITION_REGEX(AFTER pattern IN str)
+    POSITION_REGEX(START pattern IN str OCCURRENCE n)
+    POSITION_REGEX(START pattern IN str OCCURRENCE n GROUP m)
+    POSITION_REGEX(START pattern IN str FROM pos OCCURRENCE n GROUP m)
+
+can be rewritten to
+
+    position_regex(pattern, str)
+    position_regex(pattern, str, after => true)
+    position_regex(pattern, str, occurrence => n)
+    position_regex(pattern, str, occurrence => n, "group" => m)
+    position_regex(pattern, str, "from" => pos, occurrence => n, "group" => m)
+
+The result is always relative to the start of the string, not the starting
+position. That is, `POSITION_REGEX('d' IN 'abcdef' FROM 3)` is 4, not 2.
+
+##### [`SUBSTRING_REGEX`][srx]
+
+Returns the substring that matched the regular expression, or a specific
+occurrence of the expression, or a specific capturing group within the
+desired occurrence. Standard syntax examples like
+
+    SUBSTRING_REGEX(pattern IN str)
+    SUBSTRING_REGEX(pattern FLAG flags IN str)
+    SUBSTRING_REGEX(pattern IN str FROM position)
+    SUBSTRING_REGEX(pattern IN str OCCURRENCE n GROUP m)
+
+can be rewritten to
+
+    substring_regex(pattern, str)
+    substring_regex(pattern, flag => flags, "in" => str)
+    substring_regex(pattern, str, "from" => position)
+    substring_regex(pattern, str, occurrence => n, "group" => m)
+
+##### [`TRANSLATE_REGEX`][trx]
+
+Returns a string built from the input string by replacing one specified
+occurrence, or all occurrences, of a matching pattern. The
+replacement text can include `$0` to include the entire substring
+that matched, or `$`_n_ for _n_ a digit 1 through 9,
+to include what matched a capturing group in the pattern.
+The default behavior of replacing all occurrences applies when
+`occurrence` is not specified.
+
+Standard syntax examples like
+
+    TRANSLATE_REGEX(pattern IN str WITH repl)
+    TRANSLATE_REGEX(pattern IN str WITH repl OCCURRENCE n)
+    TRANSLATE_REGEX(pattern FLAG flags IN str WITH repl)
+    TRANSLATE_REGEX(pattern IN str WITH repl FROM position)
+
+can be rewritten to
+
+    translate_regex(pattern, str, "with" => repl)
+    translate_regex(pattern, str, "with" => repl, occurrence => n)
+    translate_regex(pattern, flag => flags, "in" => str, "with" => repl)
+    translate_regex(pattern, str, "with" => repl, "from" => position)
+
+##### Recognition of newlines
+
+A standard XQuery library provides regular expressions that follow the W3C
+XQuery rules for newline recognition, in which the `^` and `$` anchors
+recognize only the `LINE FEED` character, `U&'\000a'`, the `.` metacharacter
+in non-`dotall` mode matches anything other than a `LINE FEED` or
+`CARRIAGE RETURN` `U&'\000d'`, the `\s` multicharacter escape matches only
+those two characters plus space and horizontal tab, and `\S` is the exact
+complement of `\s`.
+
+The ISO SQL specification for these XQuery regular expression features
+contains a modification of those rules to conform instead to
+[Unicode Technical Standard 18 rule 1.6][uts18rl16], in which several more
+Unicode characters are recognized as line boundaries, plus the two-character
+sequence `CARRIAGE RETURN` `LINE FEED` (which counts only as one line boundary).
+The modified meaning of `\S` becomes "any _single_ character that is not matched
+by a _single_ character that matches" `\s` (emphasis added), leaving it no
+longer the exact complement of `\s`.
+
+It is difficult to implement the ISO SQL behavior over a standard XQuery
+library, so this implementation, for now, does not do so. All of these
+functions implement the standard W3C XQuery behavior, which can be "requested"
+by passing `w3cNewlines => true`. Without `w3cNewlines => true`,
+the call will be interpreted as intending the ISO SQL behavior, and an
+`SQLFeatureNotSupportedException` (SQLSTATE `0A000`) will be raised.
+
+##### Nonstandard features
+
+The Saxon XQuery library, implemented in Java, offers the ability to use Java
+regular expressions rather than XQuery ones, by passing a _flag_ argument
+that ends with `;j` (an invalid flag string per the XQuery spec). This should
+not be used in code that intends to be standards-conformant or to run on another
+DBMS or XQuery library, but can be useful in some cases for features that Java
+regular expressions offer (such as lookahead and lookbehind predicates) that
+XQuery regular expressions do not.
+
+###### Java regular expressions and empty-match replacements
+
+This example implementation of `TRANSLATE_REGEX` will detect when a Java
+expression rather than an XQuery one is being used, and will then permit
+replacement of a zero-length match, rather than raising error `2201U` as the
+standard requires. As Java regular expressions include zero-width lookahead and
+lookbehind operators, a Java regex can usefully locate zero-width sites for
+replacements to be applied.
+
+There are still subtleties involved. A site that is identified by
+_negative_ lookahead or lookbehind operators (`(?!)` and `(?<!)`) will be
+replaced as expected, but if the positive forms were used (`(?=)` and `(?<=)`),
+the replacement will not occur. This example might be expected to insert `!`
+for the empty string between `o` and `b`, but does not:
+
+    SELECT translate_regex('(?<=o)(?=b)', 'foobar', "with" => '!',
+                           flag => ';j', w3cNewlines => true);
+     translate_regex 
+    -----------------
+     foobar
+
+The reason is that the specification of `TRANSLATE_REGEX` is as if the
+matched substring, here an empty string, is matched again _in isolation_
+against the original regex to do the replacement, and that empty string no
+longer has the `o` and `b` that the original lookbehind and lookahead matched.
+It can be made to work by adding an alternative that matches a truly empty
+string (`\A\z` in Java syntax):
+
+    SELECT translate_regex('(?<=o)(?=b)|\A\z', 'foobar', "with" => '!',
+                           flag => ';j', w3cNewlines => true);
+     translate_regex 
+    -----------------
+     foo!bar
+
+That workaround would also cause the replacement to happen if the input string
+is completely empty to start with, which might not be what's wanted.
 
 #### Syntax in older PostgreSQL versions
 
@@ -211,3 +445,14 @@ the encumbrance.
 [j9cds]: ../install/oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
 [Saxon-HE]: http://www.saxonica.com/html/products/products.html
 [ptwp]: https://github.com/tada/pljava/wiki/Performance-tuning
+[assignrowvalues]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#assignRowValues-java.sql.ResultSet-int-
+[xqre]: https://www.w3.org/TR/xpath-functions-31/#regex-syntax
+[xsre]: https://www.w3.org/TR/xmlschema-2/#regexs
+[xqflags]: https://www.w3.org/TR/xpath-functions-31/#flags
+[uts18rl16]: http://www.unicode.org/reports/tr18/#RL1.6
+[lrx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#like_regex-java.lang.String-java.lang.String-java.lang.String-boolean-
+[orx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#occurrences_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-boolean-
+[prx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#position_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-boolean-int-int-boolean-
+[srx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#substring_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-int-boolean-
+[trx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#translate_regex-java.lang.String-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-boolean-
+[saxmatrix]: https://www.saxonica.com/html/products/feature-matrix-9-9.html
