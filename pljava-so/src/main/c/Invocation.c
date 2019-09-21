@@ -20,6 +20,7 @@
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
 #include "pljava/DualState.h"
+#include "pljava/Exception.h"
 
 #define LOCAL_FRAME_SIZE 128
 
@@ -238,5 +239,15 @@ Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jc
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this)
 {
-	currentInvocation->invocation = (*env)->NewGlobalRef(env, _this);
+	if ( NULL == currentInvocation->invocation )
+	{
+		currentInvocation->invocation = (*env)->NewGlobalRef(env, _this);
+		return;
+	}
+	if ( (*env)->IsSameObject(env, currentInvocation->invocation, _this) )
+		return;
+	BEGIN_NATIVE
+	Exception_throw(ERRCODE_INTERNAL_ERROR,
+		"mismanaged PL/Java invocation stack");
+	END_NATIVE
 }
