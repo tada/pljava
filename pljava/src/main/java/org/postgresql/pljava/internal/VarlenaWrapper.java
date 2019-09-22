@@ -126,174 +126,175 @@ public interface VarlenaWrapper extends Closeable
 			 */
 			private ByteBuffer m_movingBuffer;
 
-		/*
-		 * Overrides {@code ByteBufferInputStream} method and throws the
-		 * exception type declared there. For other uses of pin in this class
-		 * where SQLException is expected, just use {@code m_state.pin}
-		 * directly,
-		 */
-		@Override
-		protected void pin() throws IOException
-		{
-			if ( ! m_open )
-				throw new IOException("Read from closed VarlenaWrapper");
-			try
-			{
-				m_state.pin();
-			}
-			catch ( SQLException e )
-			{
-				throw new IOException(e.getMessage(), e);
-			}
-		}
-
-		/**
-		 * Wrapper around the {@code pinUnlessReleased} method of the native
-		 * state.
-		 */
-		private boolean pinUnlessReleased()
-		{
-			return m_state.pinUnlessReleased();
-		}
-
-		/*
-		 * Unpin for use in {@code ByteBufferInputStream} or here; no
-		 * throws-clause difference to blotch things up.
-		 */
-		@Override
-		protected void unpin()
-		{
-			m_state.unpin();
-		}
-
-		/**
-		 * Apply a {@code Verifier} to the input data.
-		 *<p>
-		 * This should only be necessary if the input wrapper is being used
-		 * directly as an output item, and needs verification that it conforms
-		 * to the format of the target type.
-		 *<p>
-		 * The current position must be at the beginning of the stream. The
-		 * verifier must leave it at the end to confirm the entire stream was
-		 * examined. There should be no need to reset the position here, as the
-		 * only anticipated use is during an {@code adopt}, and the native code
-		 * will only care about the varlena's address.
-		 */
-		public void verify(Verifier v) throws SQLException
-		{
 			/*
-			 * This is only called from some client code's adopt() method, calls
-			 * to which are serialized through Backend.THREADLOCK anyway, so
-			 * holding a pin here for the duration doesn't further limit
-			 * concurrency. Hold m_state's monitor also to block any extraneous
-			 * reading interleaved with the verifier.
+			 * Overrides {@code ByteBufferInputStream} method and throws the
+			 * exception type declared there. For other uses of pin in this
+			 * class where SQLException is expected, just use
+			 * {@code m_state.pin} directly.
 			 */
-			m_state.pin();
-			try
+			@Override
+			protected void pin() throws IOException
 			{
-				ByteBuffer buf = buffer();
-				synchronized ( m_state )
+				if ( ! m_open )
+					throw new IOException("Read from closed VarlenaWrapper");
+				try
 				{
-					if ( 0 != buf.position() )
-						throw new SQLException(
-							"Variable-length input data to be verified " +
-							" not positioned at start",
-							"55000");
-					InputStream dontCloseMe = new FilterInputStream(this)
-					{
-						@Override
-						public void close() throws IOException { }
-					};
-					v.verify(dontCloseMe);
-					if ( 0 != buf.remaining() )
-						throw new SQLException("Verifier finished prematurely");
+					m_state.pin();
+				}
+				catch ( SQLException e )
+				{
+					throw new IOException(e.getMessage(), e);
 				}
 			}
-			catch ( SQLException sqe )
+
+			/**
+			 * Wrapper around the {@code pinUnlessReleased} method of the native
+			 * state.
+			 */
+			private boolean pinUnlessReleased()
 			{
-				throw sqe;
+				return m_state.pinUnlessReleased();
 			}
-			catch ( RuntimeException rte )
-			{
-				throw rte;
-			}
-			catch ( Exception e )
-			{
-				throw new SQLException(
-					"Error verifying variable-length input data, " +
-					"not otherwise provided for", "XX000", e);
-			}
-			finally
+
+			/*
+			 * Unpin for use in {@code ByteBufferInputStream} or here; no
+			 * throws-clause difference to blotch things up.
+			 */
+			@Override
+			protected void unpin()
 			{
 				m_state.unpin();
 			}
-		}
 
-		@Override
-		protected ByteBuffer buffer() throws IOException
-		{
-			try
+			/**
+			 * Apply a {@code Verifier} to the input data.
+			 *<p>
+			 * This should only be necessary if the input wrapper is being used
+			 * directly as an output item, and needs verification that it
+			 * conforms to the format of the target type.
+			 *<p>
+			 * The current position must be at the beginning of the stream. The
+			 * verifier must leave it at the end to confirm the entire stream
+			 * was examined. There should be no need to reset the position here,
+			 * as the only anticipated use is during an {@code adopt}, and the
+			 * native code will only care about the varlena's address.
+			 */
+			public void verify(Verifier v) throws SQLException
 			{
-				if ( null == m_movingBuffer )
+				/*
+				 * This is only called from some client code's adopt() method,
+				 * calls to which are serialized through Backend.THREADLOCK
+				 * anyway, so holding a pin here for the duration doesn't
+				 * further limit concurrency. Hold m_state's monitor also to
+				 * block any extraneous reading interleaved with the verifier.
+				 */
+				m_state.pin();
+				try
 				{
-					ByteBuffer b = m_state.buffer();
-					m_movingBuffer = b.duplicate().order(b.order());
+					ByteBuffer buf = buffer();
+					synchronized ( m_state )
+					{
+						if ( 0 != buf.position() )
+							throw new SQLException(
+								"Variable-length input data to be verified " +
+								" not positioned at start",
+								"55000");
+						InputStream dontCloseMe = new FilterInputStream(this)
+						{
+							@Override
+							public void close() throws IOException { }
+						};
+						v.verify(dontCloseMe);
+						if ( 0 != buf.remaining() )
+							throw new SQLException(
+								"Verifier finished prematurely");
+					}
 				}
-				return m_movingBuffer;
-			}
-			catch ( SQLException sqe )
-			{
-				throw new IOException("Read from varlena failed", sqe);
-			}
-		}
-
-		@Override
-		public void close() throws IOException
-		{
-			if ( pinUnlessReleased() )
-				return;
-			try
-			{
-				super.close();
-				m_state.releaseFromJava();
-			}
-			finally
-			{
-				unpin();
-			}
-		}
-
-		@Override
-		public long adopt(DualState.Key cookie) throws SQLException
-		{
-			((State)m_state).pin();
-			try
-			{
-				if ( ! m_open )
+				catch ( SQLException sqe )
+				{
+					throw sqe;
+				}
+				catch ( RuntimeException rte )
+				{
+					throw rte;
+				}
+				catch ( Exception e )
+				{
 					throw new SQLException(
-						"Cannot adopt VarlenaWrapper.Input after it is closed",
-						"55000");
-				return ((State)m_state).adopt(cookie);
+						"Error verifying variable-length input data, " +
+						"not otherwise provided for", "XX000", e);
+				}
+				finally
+				{
+					m_state.unpin();
+				}
 			}
-			finally
-			{
-				((State)m_state).unpin();
-			}
-		}
 
-		@Override
-		public String toString()
-		{
-			return toString(this);
-		}
-		
-		@Override
-		public String toString(Object o)
-		{
-			return String.format("%s parked:%d buffer:%d %s",
-				((State)m_state).toString(o), m_parkedSize, m_bufferSize,
-				m_open ? "open" : "closed");
-		}
+			@Override
+			protected ByteBuffer buffer() throws IOException
+			{
+				try
+				{
+					if ( null == m_movingBuffer )
+					{
+						ByteBuffer b = m_state.buffer();
+						m_movingBuffer = b.duplicate().order(b.order());
+					}
+					return m_movingBuffer;
+				}
+				catch ( SQLException sqe )
+				{
+					throw new IOException("Read from varlena failed", sqe);
+				}
+			}
+
+			@Override
+			public void close() throws IOException
+			{
+				if ( pinUnlessReleased() )
+					return;
+				try
+				{
+					super.close();
+					m_state.releaseFromJava();
+				}
+				finally
+				{
+					unpin();
+				}
+			}
+
+			@Override
+			public long adopt(DualState.Key cookie) throws SQLException
+			{
+				((State)m_state).pin();
+				try
+				{
+					if ( ! m_open )
+						throw new SQLException(
+							"Cannot adopt VarlenaWrapper.Input after " +
+							"it is closed", "55000");
+					return ((State)m_state).adopt(cookie);
+				}
+				finally
+				{
+					((State)m_state).unpin();
+				}
+			}
+
+			@Override
+			public String toString()
+			{
+				return toString(this);
+			}
+
+			@Override
+			public String toString(Object o)
+			{
+				return String.format("%s parked:%d buffer:%d %s",
+					((State)m_state).toString(o), m_parkedSize, m_bufferSize,
+					m_open ? "open" : "closed");
+			}
 		}
 
 
