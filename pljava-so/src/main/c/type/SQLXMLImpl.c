@@ -19,8 +19,8 @@
 static TypeClass s_SQLXMLClass;
 static jclass    s_SQLXML_class;
 static jmethodID s_SQLXML_adopt;
-static jclass    s_SQLXML_Readable_class;
-static jmethodID s_SQLXML_Readable_init;
+static jclass    s_SQLXML_Readable_PgXML_class;
+static jmethodID s_SQLXML_Readable_PgXML_init;
 static jclass    s_SQLXML_Writable_class;
 static jmethodID s_SQLXML_Writable_init;
 
@@ -54,7 +54,8 @@ static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 	jvalue result;
 	jobject vwi = pljava_VarlenaWrapper_Input(
 		arg, TopTransactionContext, TopTransactionResourceOwner);
-	result.l = JNI_newObject(s_SQLXML_Readable_class, s_SQLXML_Readable_init,
+	result.l = JNI_newObject(
+		s_SQLXML_Readable_PgXML_class, s_SQLXML_Readable_PgXML_init,
 		vwi, Type_getOid(self));
 	JNI_deleteLocalRef(vwi);
 	return result;
@@ -154,9 +155,10 @@ void pljava_SQLXMLImpl_initialize(void)
 	s_SQLXML_adopt = PgObject_getStaticJavaMethod(s_SQLXML_class, "adopt",
 		"(Ljava/sql/SQLXML;I)Lorg/postgresql/pljava/internal/VarlenaWrapper;");
 
-	s_SQLXML_Readable_class = JNI_newGlobalRef(PgObject_getJavaClass(
-		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable"));
-	s_SQLXML_Readable_init = PgObject_getJavaMethod(s_SQLXML_Readable_class,
+	s_SQLXML_Readable_PgXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable$PgXML"));
+	s_SQLXML_Readable_PgXML_init = PgObject_getJavaMethod(
+		s_SQLXML_Readable_PgXML_class,
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;I)V");
 
 	s_SQLXML_Writable_class = JNI_newGlobalRef(PgObject_getJavaClass(

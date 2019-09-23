@@ -305,7 +305,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 */
 	private static VarlenaWrapper adopt(SQLXML sx, int oid) throws SQLException
 	{
-		if ( sx instanceof SQLXMLImpl )
+		if ( sx instanceof Readable.PgXML || sx instanceof Writable )
 			return ((SQLXMLImpl)sx).adopt(oid);
 
 		SQLXML rx =
@@ -645,12 +645,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 
 
-	static class Readable extends SQLXMLImpl<VarlenaWrapper.Input.Stream>
+	static abstract class Readable<V extends VarlenaWrapper>
+	extends SQLXMLImpl<V>
 	{
-		private AtomicBoolean m_readable = new AtomicBoolean(true);
-		private Charset m_serverCS = implServerCharset();
-		private boolean m_wrapped = false;
-		private final int m_pgTypeID;
+		protected final AtomicBoolean m_readable = new AtomicBoolean(true);
+		protected final int m_pgTypeID;
+		protected Charset m_serverCS = implServerCharset();
+		protected boolean m_wrapped = false;
 
 		/**
 		 * Create a readable instance, when called by native code (the
@@ -662,9 +663,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 * @param oid The PostgreSQL type ID from which this instance is being
 		 * created (for why it matters, see {@code adopt}).
 		 */
-		private Readable(VarlenaWrapper.Input vwi, int oid) throws SQLException
+		private Readable(V vwi, int oid) throws SQLException
 		{
-			super(vwi.new Stream());
+			super(vwi);
 			m_pgTypeID = oid;
 			if ( null == m_serverCS )
 			{
@@ -676,21 +677,25 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
-		private InputStream backingAndClearReadable() throws SQLException
+		private V backingAndClearReadable() throws SQLException
 		{
-			InputStream backing = backingIfNotFreed();
+			V backing = backingIfNotFreed();
 			return m_readable.getAndSet(false) ? backing : null;
 		}
+
+		protected abstract InputStream toBinaryStream(
+			V backing, boolean neverWrap)
+		throws SQLException, IOException;
 
 		@Override
 		public InputStream getBinaryStream() throws SQLException
 		{
-			InputStream is = backingAndClearReadable();
-			if ( null == is )
+			V backing = backingAndClearReadable();
+			if ( null == backing )
 				return super.getBinaryStream();
 			try
 			{
-				return correctedDeclStream(is, true);
+				return toBinaryStream(backing, true);
 			}
 			catch ( IOException e )
 			{
@@ -698,16 +703,19 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		protected abstract Reader toCharacterStream(
+			V backing, boolean neverWrap)
+		throws SQLException, IOException;
+
 		@Override
 		public Reader getCharacterStream() throws SQLException
 		{
-			InputStream is = backingAndClearReadable();
-			if ( null == is )
+			V backing = backingAndClearReadable();
+			if ( null == backing )
 				return super.getCharacterStream();
 			try
 			{
-				is = correctedDeclStream(is, true);
-				return new InputStreamReader(is, m_serverCS.newDecoder());
+				return toCharacterStream(backing, true);
 			}
 			catch ( IOException e )
 			{
@@ -718,16 +726,15 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public String getString() throws SQLException
 		{
-			InputStream is = backingAndClearReadable();
-			if ( null == is )
+			V backing = backingAndClearReadable();
+			if ( null == backing )
 				return super.getString();
 
 			CharBuffer cb = CharBuffer.allocate(32768);
 			StringBuilder sb = new StringBuilder();
 			try
 			{
-				is = correctedDeclStream(is, true);
-				Reader r = new InputStreamReader(is, m_serverCS.newDecoder());
+				Reader r = toCharacterStream(backing, true);
 				while ( -1 != r.read(cb) )
 				{
 					sb.append((CharBuffer)cb.flip());
@@ -742,31 +749,69 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Return a {@code Class<? extends Source>} object representing the most
+		 * natural or preferred presentation if the caller has left it
+		 * unspecified.
+		 *<p>
+		 * Override if the preferred flavor is not {@code SAXSource.class},
+		 * which this implementation returns.
+		 * @param adjust Whether the caller has requested an
+		 * Adjusting.XML.Source.
+		 * @return A preferred flavor of Adjusting.XML.Source, if adjust is
+		 * true, otherwise the corresponding flavor of ordinary Source.
+		 */
+		protected Class<? extends Source> preferredSourceClass(boolean adjust)
+		{
+			return adjust ? Adjusting.XML.SAXSource.class : SAXSource.class;
+		}
+
+		/**
+		 * Return a {@code StreamSource} presenting <em>backing</em> as a binary
+		 * or character stream, whichever is most natural.
+		 *<p>
+		 * This implementation returns the binary stream obtained with
+		 * {@code toBinaryStream(backing, true)}.
+		 */
+		protected StreamSource toStreamSource(V backing)
+		throws SQLException, IOException
+		{
+			return new StreamSource(toBinaryStream(backing, true));
+		}
+
+		protected abstract Adjusting.XML.SAXSource toSAXSource(V backing)
+		throws SQLException, SAXException, IOException;
+
+		protected abstract Adjusting.XML.StAXSource toStAXSource(V backing)
+		throws SQLException, XMLStreamException, IOException;
+
+		protected abstract Adjusting.XML.DOMSource toDOMSource(V backing)
+		throws
+			SQLException, SAXException, IOException,
+			ParserConfigurationException;
+
 		@Override
 		public <T extends Source> T getSource(Class<T> sourceClass)
 		throws SQLException
 		{
-			InputStream is = backingAndClearReadable();
-			if ( null == is )
+			V backing = backingAndClearReadable();
+			if ( null == backing )
 				return super.getSource(sourceClass);
 
 			if ( null == sourceClass || Source.class == sourceClass )
-				sourceClass = (Class<T>)SAXSource.class; // trust me on this
+				sourceClass = (Class<T>)preferredSourceClass(false);
 			else if ( Adjusting.XML.Source.class.equals(sourceClass) )
-				sourceClass = (Class<T>)AdjustingSAXSource.class;
+				sourceClass = (Class<T>)preferredSourceClass(true);
 
 			try
 			{
 				if ( sourceClass.isAssignableFrom(StreamSource.class) )
-					return sourceClass.cast(
-						new StreamSource(correctedDeclStream(is, true)));
+					return sourceClass.cast(toStreamSource(backing));
 
 				if ( sourceClass.isAssignableFrom(SAXSource.class)
 					|| sourceClass.isAssignableFrom(AdjustingSAXSource.class) )
 				{
-					is = correctedDeclStream(is, false);
-					AdjustingSAXSource ss =
-						new AdjustingSAXSource(new InputSource(is), m_wrapped);
+					Adjusting.XML.SAXSource ss = toSAXSource(backing);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
 							.isAssignableFrom(sourceClass) )
@@ -777,11 +822,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( sourceClass.isAssignableFrom(StAXSource.class)
 					|| sourceClass.isAssignableFrom(AdjustingStAXSource.class) )
 				{
-					XMLInputFactory xif = XMLInputFactory.newInstance();
-					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-					is = correctedDeclStream(is, false);
-					AdjustingStAXSource ss =
-						new AdjustingStAXSource(xif, is, m_serverCS, m_wrapped);
+					Adjusting.XML.StAXSource ss = toStAXSource(backing);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
 							.isAssignableFrom(sourceClass) )
@@ -792,12 +833,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( sourceClass.isAssignableFrom(DOMSource.class)
 					|| sourceClass.isAssignableFrom(AdjustingDOMSource.class) )
 				{
-					DocumentBuilderFactory dbf =
-						DocumentBuilderFactory.newInstance();
-					dbf.setNamespaceAware(true);
-					is = correctedDeclStream(is, false);
-					AdjustingDOMSource ds =
-						new AdjustingDOMSource(dbf, is, m_wrapped);
+					Adjusting.XML.DOMSource ds = toDOMSource(backing);
 					ds.defaults();
 					if ( Adjusting.XML.Source.class
 							.isAssignableFrom(sourceClass) )
@@ -815,46 +851,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				sourceClass.getName() + ".class)", "0A000");
 		}
 
-		/**
-		 * {@inheritDoc}
-		 *<p>
-		 * This is the <em>readable</em> subclass, most typically used for data
-		 * coming from PostgreSQL to Java. The only circumstance in which it can
-		 * be {@code adopt}ed is if the Java code has left it untouched, and
-		 * simply returned it from a function, or used it directly as a query
-		 * parameter.
-		 *<p>
-		 * That is a very efficient handoff with no superfluous copying of data.
-		 * However, the backend is able to associate {@code SQLXML} instances
-		 * with more than one PostgreSQL data type (as of this writing, it will
-		 * allow XML or text, so that this API is usable in Java even if the
-		 * PostgreSQL instance was not built with the XML type, or if, for some
-		 * other reason, it is useful to apply Java XML processing to values in
-		 * the database as text, without the overhead of a PG cast).
-		 *<p>
-		 * It would break type safety to allow a {@code SQLXML} instance created
-		 * from text (on which PostgreSQL does not impose any particular syntax)
-		 * to be directly assigned to a PostgreSQL XML type without verifying
-		 * that it is XML. For generality, the verification will be done here
-		 * whenever the PostgreSQL oid at {@code adopt} time differs from the
-		 * one saved at creation. Doing the verification is noticeably slower
-		 * than not doing it, but that fast case has to be reserved for when
-		 * there is no funny business with the PostgreSQL types.
-		 */
-		@Override
-		protected VarlenaWrapper adopt(int oid) throws SQLException
-		{
-			VarlenaWrapper.Input.Stream vw = m_backing.getAndSet(null);
-			if ( ! m_readable.get() )
-				throw new SQLNonTransientException(
-					"SQLXML object has already been read from", "55000");
-			if ( null == vw )
-				backingIfNotFreed(); /* shorthand way to throw the exception */
-			if ( m_pgTypeID != oid )
-				vw.verify(new Verifier());
-			return vw;
-		}
-
 		@Override
 		protected String toString(Object o)
 		{
@@ -863,20 +859,111 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				m_wrapped ? "" : "not ");
 		}
 
-		/**
-		 * An instance method for calling the static {@code
-		 * correctedDeclInputStream} and storing its {@code wrapped} indicator
-		 * as {@code m_wrapped}.
-		 */
-		private InputStream correctedDeclStream(
-			InputStream is, boolean neverWrap)
-		throws IOException, SQLException
+		static class PgXML
+		extends Readable<VarlenaWrapper.Input.Stream>
 		{
-			boolean[] wrapped = { false };
-			InputStream rslt =
-				correctedDeclStream(is, neverWrap, m_serverCS, wrapped);
-			m_wrapped = wrapped[0];
-			return rslt;
+			private PgXML(VarlenaWrapper.Input vwi, int oid)
+			throws SQLException
+			{
+				super(vwi.new Stream(), oid);
+			}
+
+			/**
+			 * {@inheritDoc}
+			 *<p>
+			 * This is the <em>readable</em> subclass, most typically used for
+			 * data coming from PostgreSQL to Java. The only circumstance in
+			 * which it can be {@code adopt}ed is if the Java code has left it
+			 * untouched, and simply returned it from a function, or used it
+			 * directly as a query parameter.
+			 *<p>
+			 * That is a very efficient handoff with no superfluous copying of
+			 * data. However, the backend is able to associate {@code SQLXML}
+			 * instances with more than one PostgreSQL data type (as of this
+			 * writing, it will allow XML or text, so that this API is usable in
+			 * Java even if the PostgreSQL instance was not built with the XML
+			 * type, or if, for some other reason, it is useful to apply Java
+			 * XML processing to values in the database as text, without the
+			 * overhead of a PG cast).
+			 *<p>
+			 * It would break type safety to allow a {@code SQLXML} instance
+			 * created from text (on which PostgreSQL does not impose any
+			 * particular syntax) to be directly assigned to a PostgreSQL XML
+			 * type without verifying that it is XML. For generality, the
+			 * verification will be done here whenever the PostgreSQL oid at
+			 * {@code adopt} time differs from the one saved at creation. Doing
+			 * the verification is noticeably slower than not doing it, but that
+			 * fast case has to be reserved for when there is no funny business
+			 * with the PostgreSQL types.
+			 */
+			@Override
+			protected VarlenaWrapper adopt(int oid) throws SQLException
+			{
+				VarlenaWrapper.Input.Stream vw = m_backing.getAndSet(null);
+				if ( ! m_readable.get() )
+					throw new SQLNonTransientException(
+						"SQLXML object has already been read from", "55000");
+				if ( null == vw )
+					backingIfNotFreed(); /* shorthand to throw the exception */
+				if ( m_pgTypeID != oid )
+					vw.verify(new Verifier());
+				return vw;
+			}
+
+			/*
+			 * This implementation of toBinaryStream has the side effect of
+			 * setting m_wrapped to indicate whether a wrapping element has been
+			 * added around the stream contents.
+			 */
+			@Override
+			protected InputStream toBinaryStream(
+				VarlenaWrapper.Input.Stream backing, boolean neverWrap)
+			throws SQLException, IOException
+			{
+				boolean[] wrapped = { false };
+				InputStream rslt = correctedDeclStream(
+									backing, neverWrap, m_serverCS, wrapped);
+				m_wrapped = wrapped[0];
+				return rslt;
+			}
+
+			@Override
+			protected Reader toCharacterStream(
+				VarlenaWrapper.Input.Stream backing, boolean neverWrap)
+			throws SQLException, IOException
+			{
+				InputStream is = toBinaryStream(backing, neverWrap);
+				return new InputStreamReader(is, m_serverCS.newDecoder());
+			}
+
+			@Override
+			protected Adjusting.XML.SAXSource toSAXSource(
+				VarlenaWrapper.Input.Stream backing)
+			throws SQLException, SAXException, IOException
+			{
+				InputStream is = toBinaryStream(backing, false);
+				return new AdjustingSAXSource(new InputSource(is), m_wrapped);
+			}
+
+			@Override
+			protected Adjusting.XML.StAXSource toStAXSource(
+				VarlenaWrapper.Input.Stream backing)
+			throws SQLException, XMLStreamException, IOException
+			{
+				InputStream is = toBinaryStream(backing, false);
+				return new AdjustingStAXSource(is, m_serverCS, m_wrapped);
+			}
+
+			@Override
+			protected Adjusting.XML.DOMSource toDOMSource(
+				VarlenaWrapper.Input.Stream backing)
+			throws
+				SQLException, SAXException, IOException,
+				ParserConfigurationException
+			{
+				InputStream is = toBinaryStream(backing, false);
+				return new AdjustingDOMSource(is, m_wrapped);
+			}
 		}
 	}
 
@@ -3625,10 +3712,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private Charset m_serverCS;
 		private boolean m_wrapped;
 
-		AdjustingStAXSource(XMLInputFactory xif, InputStream is,
-			Charset serverCS, boolean wrapped) throws XMLStreamException
+		AdjustingStAXSource(InputStream is, Charset serverCS, boolean wrapped)
+		throws XMLStreamException
 		{
-			m_xif = xif;
+			m_xif = XMLInputFactory.newInstance();
+			m_xif.setProperty(m_xif.IS_NAMESPACE_AWARE, true);
 			m_is = is;
 			m_serverCS = serverCS;
 			m_wrapped = wrapped;
@@ -3751,10 +3839,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private InputStream m_is;
 		private boolean m_wrapped;
 
-		AdjustingDOMSource(
-			DocumentBuilderFactory dbf, InputStream is, boolean wrapped)
+		AdjustingDOMSource(InputStream is, boolean wrapped)
 		{
-			m_dbf = dbf;
+			m_dbf = DocumentBuilderFactory.newInstance();
+			m_dbf.setNamespaceAware(true);
 			m_is = is;
 			m_wrapped = wrapped;
 		}
