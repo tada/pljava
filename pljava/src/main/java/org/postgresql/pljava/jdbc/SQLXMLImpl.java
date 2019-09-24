@@ -316,39 +316,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		return ((SQLXMLImpl)rx).adopt(oid);
 	}
 
-	static void saxCopy(SAXSource sxs, SAXResult sxr) throws SQLException
-	{
-		XMLReader xr = sxs.getXMLReader();
-		try
-		{
-			if ( null == xr )
-			{
-				xr = XMLReaderFactory.createXMLReader();
-				xr.setFeature("http://xml.org/sax/features/namespaces",
-								true);
-			}
-			ContentHandler ch = sxr.getHandler();
-			xr.setContentHandler(ch);
-			if ( ch instanceof DTDHandler )
-				xr.setDTDHandler((DTDHandler)ch);
-			LexicalHandler lh = sxr.getLexicalHandler();
-			if ( null == lh  &&  ch instanceof LexicalHandler )
-			lh = (LexicalHandler)ch;
-			if ( null != lh )
-				xr.setProperty(
-					"http://xml.org/sax/properties/lexical-handler", lh);
-			xr.parse(sxs.getInputSource());
-		}
-		catch ( SAXException e )
-		{
-			throw new SQLDataException(e.getMessage(), "22000", e);
-		}
-		catch ( IOException e )
-		{
-			throw new SQLException(e.getMessage(), "58030", e);
-		}
-	}
-
 	/**
 	 * Allow native code to claim complete control over the
 	 * underlying {@code VarlenaWrapper} and dissociate it from Java.
@@ -2610,10 +2577,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * content as a {@code StreamSource}, obtain an instance with
 	 * {@code copierFor}, passing the target {@code SQLXML} instance, the server
 	 * character set and the encoding name peeked from any declaration at the
-	 * front of the source stream. Then supply the {@code DeclProbe} object representing the peeked initial
-	 * content, and the {@code InputStream} or {@code Reader} representing the
-	 * rest of the source content, to the appropriate {@code prepare} method.
-	 * The copy is completed by calling {@link #finish finish}.
+	 * front of the source stream. Then supply the {@code DeclProbe} object
+	 * representing the peeked initial content, and the {@code InputStream} or
+	 * {@code Reader} representing the rest of the source content, to the
+	 * appropriate {@code prepare} method. The copy is completed by calling
+	 * {@link #finish finish}.
 	 *<p>
 	 * Between {@code prepare} and {@code finish}, parser restrictions can be
 	 * adjusted if needed, using the {@link Adjusting.XML.Source} API on the
@@ -2857,6 +2825,39 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					m_tgt.setResult(
 						m_tgt.backingIfNotFreed(), SAXResult.class));
 				return m_tgt;
+			}
+		}
+
+		static void saxCopy(SAXSource sxs, SAXResult sxr) throws SQLException
+		{
+			XMLReader xr = sxs.getXMLReader();
+			try
+			{
+				if ( null == xr )
+				{
+					xr = XMLReaderFactory.createXMLReader();
+					xr.setFeature("http://xml.org/sax/features/namespaces",
+									true);
+				}
+				ContentHandler ch = sxr.getHandler();
+				xr.setContentHandler(ch);
+				if ( ch instanceof DTDHandler )
+					xr.setDTDHandler((DTDHandler)ch);
+				LexicalHandler lh = sxr.getLexicalHandler();
+				if ( null == lh  &&  ch instanceof LexicalHandler )
+					lh = (LexicalHandler)ch;
+				if ( null != lh )
+					xr.setProperty(
+						"http://xml.org/sax/properties/lexical-handler", lh);
+				xr.parse(sxs.getInputSource());
+			}
+			catch ( SAXException e )
+			{
+				throw new SQLDataException(e.getMessage(), "22000", e);
+			}
+			catch ( IOException e )
+			{
+				throw new SQLException(e.getMessage(), "58030", e);
 			}
 		}
 
@@ -3234,11 +3235,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			m_vwo = vwo;
 			m_serverCS = serverCS;
-			XMLReader xr;
 			try
 			{
-				xr = XMLReaderFactory.createXMLReader();
-				xr.setFeature("http://xml.org/sax/features/namespaces", true);
 				m_verifierSource = new AdjustingSAXSource(null, false);
 			}
 			catch ( SAXException e )
