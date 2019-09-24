@@ -32,6 +32,11 @@ public class PgNodeTreeAsXML extends VarlenaXMLRenderer
 		super(vwi);
 	}
 
+	public static final String LPAR_TOK = "(";
+	public static final String RPAR_TOK = ")";
+	public static final String LBRA_TOK = "{";
+	public static final String RBRA_TOK = "}";
+
 	@Override
 	protected EventCarrier next(ByteBuffer buf)
 	{
@@ -45,7 +50,17 @@ public class PgNodeTreeAsXML extends VarlenaXMLRenderer
 				@Override
 				public void toSAX() throws IOException, SAXException
 				{
-					content().characters(cb.array(), 0, cb.remaining());
+					m_attributes.clear();
+					m_attributes.addAttribute(
+						"", "", "value", "CDATA", "");
+					String tok;
+					while ( null != (tok = lowToken(cb)) )
+					{
+						m_attributes.setValue(0, tok);
+						content().startElement(
+							"", "", "lowToken", m_attributes);
+						content().endElement("", "", "lowToken");
+					}
 				}
 			};
 		}
@@ -53,5 +68,61 @@ public class PgNodeTreeAsXML extends VarlenaXMLRenderer
 		{
 			return exceptionCarrier(e);
 		}
+	}
+
+	private String lowToken(CharBuffer cb)
+	{
+		int beg = cb.position();
+		int end = cb.limit();
+		int cur = beg;
+		char ch = 0; // sop for javac
+
+		while ( cur < end )
+		{
+			ch = cb.get(cur);
+			if ( ' ' == ch  ||  '\n' == ch  ||  '\t' == ch )
+				beg = ++cur;
+			else
+				break;
+		}
+
+		if ( cur == end )
+		{
+			cb.position(cur);
+			return null;
+		}
+
+		if ( '(' == ch  ||  ')' == ch  ||  '{' == ch  ||  '}' == ch )
+		{
+			cb.position(++cur);
+			switch ( ch )
+			{
+				case '(': return LPAR_TOK;
+				case ')': return RPAR_TOK;
+				case '{': return LBRA_TOK;
+				case '}': return RBRA_TOK;
+			}
+		}
+
+		StringBuilder sb = new StringBuilder();
+
+		while ( -1 == "(){} \n\t".indexOf(ch) )
+		{
+			++ cur;
+			if ( '\\' == ch  &&  cur < end )
+				sb.append(cb.get(cur++));
+			else
+				sb.append(ch);
+			if ( cur == end )
+				break;
+			ch = cb.get(cur);
+		}
+
+		cb.position(cur);
+
+		if ( 2 == sb.length()  &&  0 == sb.indexOf("<>") )
+			return "";
+
+		return sb.toString();
 	}
 }
