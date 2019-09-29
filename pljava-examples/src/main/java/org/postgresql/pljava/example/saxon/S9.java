@@ -135,6 +135,8 @@ import org.xml.sax.SAXException;
  * CREATE TABLE catalog_as_xml(x) AS
  *   SELECT schema_to_xml('pg_catalog', false, true, '');
  *</pre>
+ *<h1>Functions/predicates from ISO 9075-14 SQL/XML</h1>
+ *<h2>XMLQUERY</h2>
  *<p>
  * In the syntax of the SQL/XML standard, here is a query that would return
  * an XML element representing the declaration of a function with a specified
@@ -182,6 +184,28 @@ import org.xml.sax.SAXException;
  * provides no way for {@code BY REF} semantics to be implemented, so everything
  * happening here happens {@code BY VALUE} implicitly, and does not need to be
  * specified.
+ *<h2>XMLEXISTS</h2>
+ *<p>
+ * The function {@link #xmlexists xmlexists} here implements the
+ * standard function of the same name. Because it is the same name, it has to
+ * be either schema-qualified or double-quoted in a call to avoid confusion
+ * with the reserved word. In the syntax of the SQL/XML standard, here is a
+ * query returning a boolean value indicating whether a function with the
+ * specified name is declared:
+ *<pre>
+ * SELECT XMLEXISTS('/pg_catalog/pg_proc[proname eq $FUNCNAME]'
+ *                  PASSING BY VALUE x, 'numeric_avg' AS FUNCNAME)
+ * FROM catalog_as_xml;
+ *</pre>
+ *<p>
+ * It can be rewritten as this call to the {@link #xmlexists xmlexists} method:
+ *<pre>
+ * SELECT "xmlexists"('/pg_catalog/pg_proc[proname eq $FUNCNAME]',
+ *                    PASSING =&gt; p)
+ * FROM catalog_as_xml,
+ * LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
+ *</pre>
+ *<h2>XMLTABLE</h2>
  *<p>
  * The function {@link #xmltable xmltable} here implements (much of) the
  * standard function of the same name. Because it is the same name, it has to
@@ -218,9 +242,36 @@ import org.xml.sax.SAXException;
  * "About bare attribute nodes" in {@link #assignRowValues assignRowValues}
  * for more explanation.)
  *<p>
- * The `DPREMIER` parameter passed from SQL to the XQuery expression is spelled
- * in uppercase (and also, in the SQL expression supplying it, quoted), for the
- * reasons explained above for the {@code xq_ret_content} function.
+ * The {@code DPREMIER} parameter passed from SQL to the XQuery expression is
+ * spelled in uppercase (and also, in the SQL expression supplying it, quoted),
+ * for the reasons explained above for the {@code xq_ret_content} function.
+ *<h1>XQuery regular-expression functions in ISO 9075-2 Foundations</h1>
+ * The methods {@link #like_regex like_regex},
+ * {@link #occurrences_regex occurrences_regex},
+ * {@link #position_regex position_regex},
+ * {@link #substring_regex substring_regex}, and
+ * {@link #translate_regex translate_regex} provide, with slightly altered
+ * syntax, the ISO SQL predicate and functions of the same names.
+ *<p>
+ * For the moment, they will only match newlines in the way W3C XQuery
+ * specifies, not in the more-flexible Unicode-compatible way ISO SQL specifies,
+ * and for the ones where ISO SQL allows {@code USING CHARACTERS} or
+ * {@code USING OCTETS}, only {@code USING CHARACTERS} will work.
+ *<h1>Extensions</h1>
+ *<h2>XQuery module prolog allowed</h2>
+ *<p>
+ * Where any function here accepts an XQuery
+ *<a href='https://www.w3.org/TR/xquery-31/#id-expressions'
+ *>"expression"</a> according to the SQL specification, in fact an XQuery
+ *<a href='https://www.w3.org/TR/xquery-31/#dt-main-module'
+ *>"main module"</a> will be accepted. Therefore, the query can be preceded by
+ * a prolog declaring namespaces, options, local variables and functions, etc.
+ *<h2>Saxon extension to XQuery regular expressions</h2>
+ *<p>
+ * Saxon's implementation of XQuery regular expressions will accept a
+ * nonstandard <em>flag</em> string ending with {@code ;j} to use Java regular
+ * expressions rather than XQuery ones. That extension is available in the
+ * XQuery regular-expression methods provided here.
  * @author Chapman Flack
  */
 public class S9 implements ResultSetProvider
@@ -555,7 +606,7 @@ public class S9 implements ResultSetProvider
 	 * PASSING BY VALUE passing RETURNING CONTENT {NULL|EMPTY} ON EMPTY)}.
 	 * @param expression An XQuery expression. Must not be {@code null} (in the
 	 * SQL standard {@code XMLQUERY} syntax, it is not even allowed to be an
-	 * expression at all, only a string literal).
+	 * SQL expression at all, only a string literal).
 	 * @param nullOnEmpty pass {@code true} to get a null return in place of
 	 * an empty sequence, or {@code false} to just get the empty sequence.
 	 * @param passing A row value whose columns will be supplied to the query
@@ -605,6 +656,89 @@ public class S9 implements ResultSetProvider
 			throw new SQLDataException(
 				"XMLQUERY nullOnEmpty may not be null", "22004");
 
+		try
+		{
+			XdmValue x1 = evalXQuery(expression, passing, namespaces);
+			return null == x1 ? null : returnContent(x1, nullOnEmpty);
+		}
+		catch ( SaxonApiException e )
+		{
+			throw new SQLException(e.getMessage(), "10000", e);
+		}
+		catch ( XPathException e )
+		{
+			throw new SQLException(e.getMessage(), "10000", e);
+		}
+	}
+
+	/**
+	 * An implementation of {@code XMLEXISTS(expression
+	 * PASSING BY VALUE passing)}, using genuine XQuery.
+	 * @param expression An XQuery expression. Must not be {@code null} (in the
+	 * SQL standard {@code XMLQUERY} syntax, it is not even allowed to be an
+	 * SQL expression at all, only a string literal).
+	 * @param passing A row value whose columns will be supplied to the query
+	 * as parameters. Columns with names (typically supplied with {@code AS})
+	 * appear as predeclared external variables with matching names (in no
+	 * namespace) in the query, with types derived from the SQL types of the
+	 * row value's columns. There may be one (and no more than one)
+	 * column with {@code AS "."} which, if present, will be bound as the
+	 * context item. (The name {@code ?column?}, which PostgreSQL uses for an
+	 * otherwise-unnamed column, is also accepted, which will often allow the
+	 * context item to be specified with no {@code AS} at all. Beware, though,
+	 * that PostgreSQL likes to invent column names from any function or type
+	 * name that may appear in the value expression, so this shorthand will not
+	 * always work, while {@code AS "."} will.) PL/Java's internal JDBC uppercases all column
+	 * names, so any uses of the corresponding variables in the query must have
+	 * the names in upper case. It is safest to also uppercase their appearances
+	 * in the SQL (for which, in PostgreSQL, they must be quoted), so that the
+	 * JDBC uppercasing is not being relied on. It is likely to be dropped in a
+	 * future PL/Java release.
+	 * @param namespaces An even-length String array where, of each pair of
+	 * consecutive entries, the first is a namespace prefix and the second is
+	 * the URI to which to bind it. The zero-length prefix sets the default
+	 * element and type namespace; if the prefix has zero length, the URI may
+	 * also have zero length, to declare that unprefixed elements are in no
+	 * namespace.
+	 * @return True if the expression evaluates to a nonempty sequence, false if
+	 * it evaluates to an empty one. Null if a context item is passed and its
+	 * SQL value is null.
+	 */
+	@Function(
+		schema="javatest",
+		onNullInput=CALLED,
+		settings="IntervalStyle TO iso_8601"
+	)
+	public static Boolean xmlexists(
+		String expression,
+		@SQLType(defaultValue={}) ResultSet passing,
+		@SQLType(defaultValue={}) String[] namespaces)
+		throws SQLException
+	{
+		/*
+		 * The expression itself may not be null (in the standard, it isn't
+		 * even allowed to be dynamic, and can only be a string literal!).
+		 */
+		if ( null == expression )
+			throw new SQLDataException(
+				"XMLEXISTS expression may not be null", "22004");
+
+		XdmValue x1 = evalXQuery(expression, passing, namespaces);
+		if ( null == x1 )
+			return null;
+		if ( null == x1.getUnderlyingValue().head() )
+			return false;
+		return true;
+	}
+
+	/**
+	 * Implementation factor of XMLEXISTS and XMLQUERY.
+	 * @return null if a context item is passed and its SQL value is null
+	 */
+	private static XdmValue evalXQuery(
+		String expression, ResultSet passing, String[] namespaces)
+		throws SQLException
+	{
 		Binding.Assemblage bindings = new BindingsFromResultSet(passing, true);
 
 		try
@@ -621,9 +755,7 @@ public class S9 implements ResultSetProvider
 			 * For now, punt on whether the <XQuery expression> is evaluated
 			 * with XML 1.1 or 1.0 lexical rules....  XXX
 			 */
-			XdmValue x1 = xqe.evaluate();
-
-			return returnContent(x1, nullOnEmpty);
+			return xqe.evaluate();
 		}
 		catch ( SaxonApiException e )
 		{
@@ -635,6 +767,10 @@ public class S9 implements ResultSetProvider
 		}
 	}
 
+	/**
+	 * A version of {@code returnContent} that returns XQuery's
+	 * {@code document{{$EXPR}}} applied to <em>x</em> (as {@code $EXPR}).
+	 */
 	private static SQLXML returnContent(XdmValue x, boolean nullOnEmpty)
 	throws SQLException, SaxonApiException, XPathException
 	{
@@ -643,16 +779,21 @@ public class S9 implements ResultSetProvider
 		return returnContent(x, nullOnEmpty, xqe);
 	}
 
+	/**
+	 * A version of {@code returnContent} that returns the result of an
+	 * arbitrary XQuery evaluator <em>xqe</em> (that declares an external
+	 * variable {@code $EXPR} of type {@code item()*}) applied to <em>x</em>
+	 * (as {@code $EXPR}).
+	 */
 	private static SQLXML returnContent(
 		XdmValue x, boolean nullOnEmpty, XQueryEvaluator xqe)
 	throws SQLException, SaxonApiException, XPathException
 	{
-		xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, x);
-		x = xqe.evaluate();
+		SequenceIterator xs;
 
-		SequenceIterator xs = x.getUnderlyingValue().iterate();
 		if ( nullOnEmpty )
 		{
+			xs = x.getUnderlyingValue().iterate();
 			if ( 0 == ( SequenceIterator.LOOKAHEAD & xs.getProperties() ) )
 				throw new SQLException(
 				"nullOnEmpty requested and result sequence lacks lookahead",
@@ -662,7 +803,11 @@ public class S9 implements ResultSetProvider
 				xs.close();
 				return null;
 			}
+			xs.close();
 		}
+
+		xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, x);
+		xs = xqe.evaluate().getUnderlyingValue().iterate();
 
 		SQLXML rsx = s_dbc.createSQLXML();
 		Result r = rsx.setResult(null);

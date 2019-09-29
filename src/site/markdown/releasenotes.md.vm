@@ -16,10 +16,11 @@ This release adds support for PostgreSQL 12, and removes the former
 requirement to build with a Java release earlier than 9.
 
 It includes a rework of of threading and resource management, improvements to
-the JDBC 4.0 `java-sql.SQLXML` API that first became available in 1.5.1, and
+the JDBC 4.0 `java.sql.SQLXML` API that first became available in 1.5.1, and
 a substantially usable example providing the functionality of ISO SQL
-`XMLQUERY`, `XMLTABLE`, `XMLCAST`, `LIKE_REGEX`, `OCCURRENCES_REGEX`,
-`POSITION_REGEX`, `SUBSTRING_REGEX`, and `TRANSLATE_REGEX`. Some bugs are fixed.
+`XMLEXISTS`, `XMLQUERY`, `XMLTABLE`, `XMLCAST`, `LIKE_REGEX`,
+`OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and `TRANSLATE_REGEX`.
+Some bugs are fixed.
 
 $h3 Version compatibility
 
@@ -117,9 +118,10 @@ Since PL/Java 1.5.1, the supplied examples have included a not-built-by-default
 It is not built by default because it raises the minimum Java version to 8, and
 brings in the Saxon-HE XML-processing library.
 
-In 1.5.3, the example now provides versions of the ISO SQL `XMLQUERY`,
-`XMLTABLE`, and `XMLCAST` functions based on the W3C XQuery language as ISO SQL
-specifies (while PostgreSQL has an "XMLTABLE" function since release 10, it has
+In 1.5.3, the example now provides versions of the ISO SQL `XMLEXISTS`,
+`XMLQUERY`, `XMLTABLE`, and `XMLCAST` functions based on the W3C XQuery
+language as ISO SQL specifies (while PostgreSQL has an "XMLTABLE" function
+since release 10 and "XMLEXISTS" since 9.1, they have
 [numerous limitations][appD31] inherited from a library that does not support
 XQuery, and additional peculiarities prior to PostgreSQL 12), and the ISO SQL
 `LIKE_REGEX`, `OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and

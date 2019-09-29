@@ -1,10 +1,10 @@
 ## Optionally-built example code for XML processing with Saxon
 
 In the source directory `org/postgresql/pljava/example/saxon` is example code
-for XML processing functions similar to `XMLCAST`, `XMLQUERY`, and `XMLTABLE`,
-but using the XQuery language as the SQL/XML standard actually specifies (in
-contrast to similar functions built into PostgreSQL, which support only XPath,
-and XPath 1.0, at that).
+for XML processing functions similar to `XMLCAST`, `XMLEXISTS`, `XMLQUERY`, and
+`XMLTABLE`, but using the XQuery language as the SQL/XML standard actually
+specifies (in contrast to similar functions built into PostgreSQL, which support
+only XPath, and XPath 1.0, at that).
 
 The example also implements the four new string functions and one predicate
 added in SQL:2006 for regular expression processing using the standardized
@@ -34,6 +34,14 @@ XQuery 3.1 than Saxon-HE does. It should be possible to drop either of those
 jar files in place of Saxon-HE (with a working license key) if features are
 needed beyond what Saxon-HE provides. Its developers publish
 [a matrix][saxmatrix] identifying the features provided in each edition.
+
+### Extension to ISO SQL/XML
+
+Wherever ISO SQL/XML requires one of these functions to accept an XQuery
+[expression][xqexpr], in fact an XQuery [main module][xqmainmod] will be
+accepted. Therefore, a query can be preceded by a prolog that declares
+namespaces, options, local variables and functions, etc. This may simplify
+porting queries from Oracle, which permits the same extension.
 
 ### Using the Saxon examples
 
@@ -116,6 +124,29 @@ PostgreSQL's documentation). PostgreSQL's implementation of the XML type
 provides no way for `BY REF` semantics to be implemented, so everything
 happening here happens `BY VALUE` implicitly, and does not need to be
 specified.
+
+#### An `XMLEXISTS`-like predicate
+
+In the syntax of the SQL/XML standard, here is a query that would return a
+boolean result indicating whether an SQL function named `numeric_avg`
+is declared (if PostgreSQL really had the standard `XMLEXISTS` function built
+in):
+
+    SELECT XMLEXISTS('/pg_catalog/pg_proc[proname eq $FUNCNAME]'
+                     PASSING BY VALUE x, 'numeric_avg' AS FUNCNAME)
+    FROM catalog_as_xml;
+
+It can be rewritten as this call to the `xmlexists` method provided here:
+
+    SELECT "xmlexists"('/pg_catalog/pg_proc[proname eq $FUNCNAME]',
+                       PASSING => p)
+    FROM catalog_as_xml,
+    LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
+
+As for the `XMLQUERY`-like function above, , the context item and a parameter
+are supplied by a separate query producing the row `p` that is given as the
+`PASSING` argument to `"xmlexists"`. The parameter name is capitalized for the
+reasons explained above for the `XMLQUERY`-like function.
 
 #### An `XMLTABLE`-like function
 
@@ -456,3 +487,5 @@ the encumbrance.
 [srx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#substring_regex-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-int-boolean-
 [trx]: ../pljava-examples/apidocs/org/postgresql/pljava/example/saxon/S9.html#translate_regex-java.lang.String-java.lang.String-java.lang.String-java.lang.String-int-boolean-int-boolean-
 [saxmatrix]: https://www.saxonica.com/html/products/feature-matrix-9-9.html
+[xqexpr]: https://www.w3.org/TR/xquery-31/#id-expressions
+[xqmainmod]: https://www.w3.org/TR/xquery-31/#dt-main-module
