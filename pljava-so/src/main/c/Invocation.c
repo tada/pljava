@@ -20,6 +20,7 @@
 #include "pljava/JNICalls.h"
 #include "pljava/Backend.h"
 #include "pljava/DualState.h"
+#include "pljava/Exception.h"
 
 #define LOCAL_FRAME_SIZE 128
 
@@ -59,7 +60,7 @@ void Invocation_initialize(void)
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
 	PgObject_registerNatives2(cls, invocationMethods);
-	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "()V");
+	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "(Z)V");
 	JNI_deleteLocalRef(cls);
 }
 
@@ -148,13 +149,14 @@ void Invocation_popInvocation(bool wasException)
 
 	/*
 	 * If a Java Invocation instance was created and associated with this
-	 * invocation, delete the reference (after calling its onExit method, for
-	 * non-exceptional returns).
+	 * invocation, delete the reference (after calling its onExit method,
+	 * indicating whether the return is exceptional or not).
 	 */
 	if(currentInvocation->invocation != 0)
 	{
-		if(!wasException)
-			JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit);
+		JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit,
+			(wasException || currentInvocation->errorOccurred)
+			? JNI_TRUE : JNI_FALSE);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
 
@@ -237,5 +239,15 @@ Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jc
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this)
 {
-	currentInvocation->invocation = (*env)->NewGlobalRef(env, _this);
+	if ( NULL == currentInvocation->invocation )
+	{
+		currentInvocation->invocation = (*env)->NewGlobalRef(env, _this);
+		return;
+	}
+	if ( (*env)->IsSameObject(env, currentInvocation->invocation, _this) )
+		return;
+	BEGIN_NATIVE
+	Exception_throw(ERRCODE_INTERNAL_ERROR,
+		"mismanaged PL/Java invocation stack");
+	END_NATIVE
 }

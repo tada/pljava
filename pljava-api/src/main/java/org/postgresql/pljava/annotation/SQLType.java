@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -63,4 +63,18 @@ public @interface SQLType
 	// Is it worth having a defaultRaw() for rare cases wanting some
 	// arbitrary SQL expression for the default?
 	// String[] defaultRaw() default {};
+
+	/**
+	 * SQL name for the parameter, to allow calling the function using named
+	 * parameter notation, in preference to the parameter's Java name.
+	 * By default, the SQL name is taken from the Java name, but in some cases
+	 * the SQL name expected by callers may be a reserved word in Java, or the
+	 * Java name may be reserved in SQL. The name specified here can simply be
+	 * different, or it can be given in quoted-identifier form to work around
+	 * the reservedness in SQL of the unquoted name. Callers, in that case, have
+	 * to quote the name also, but that may be acceptable for clarity's sake if
+	 * there is a particular name that is used in a standard or is otherwise the
+	 * most natural choice.
+	 */
+	String name() default "";
 }

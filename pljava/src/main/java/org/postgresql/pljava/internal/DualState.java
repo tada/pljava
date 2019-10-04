@@ -170,7 +170,7 @@ import javax.management.JMException;
  * structure, as long as only thread-safe routines from the C runtime are called
  * and no routines of PostgreSQL itself, and as long as the memory or structure
  * being accessed is known to be safe from modification by PostgreSQL while the
- * pin is held. If the future, PL/Java may one day have an annotation that can
+ * pin is held. In the future, PL/Java may one day have an annotation that can
  * be used to mark native methods that satisfy these limits; at present, there
  * has been no effort to segregate them into those that do and those that don't.
  * Native methods that may (under any circumstances!) invoke PG routines must
@@ -623,7 +623,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * native state; if it does not, double-free crashes can result.
 	 *<p>
 	 * It is not necessary for this method to remove the instance from the
-	 * live-instances} data structures; that will have been done just before
+	 * live-instances data structures; that will have been done just before
 	 * this method is called.
 	 * @param nativeStateLive true is passed if the instance's "native state" is
 	 * still considered live, that is, no resource-owner callback has been
@@ -718,8 +718,8 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
-	 * Obtain a pin on this state, if it is still valid, blocking if necessary
-	 * until release of a lock.
+	 * Obtain a pin on this state, throwing an appropriate exception if it
+	 * is not still valid, blocking if necessary until release of a lock.
 	 *<p>
 	 * Pins are re-entrant; a thread may obtain more than one on the same
 	 * object, in strictly nested fashion. Only the outer acquisition (and
@@ -732,22 +732,50 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	public final void pin() throws SQLException
 	{
+		int r = _pin();
+		if ( z(r) )
+			return;
+		if ( !z(r & NATIVE_RELEASED) )
+			throw new SQLException(invalidMessage(), invalidSqlState());
+		throw new SQLException(releasedMessage(), releasedSqlState());
+	}
+
+	/**
+	 * Obtain a pin on this state, if it is still valid, blocking if necessary
+	 * until release of a lock.
+	 *<p>
+	 * Pins are re-entrant; a thread may obtain more than one on the same
+	 * object, in strictly nested fashion. Only the outer acquisition (and
+	 * corresponding release) will have any memory synchronization effect;
+	 * likewise, only the outer acquisition will detect release of the object
+	 * and throw the associated exception.
+	 * @return true if the state has already been released; this will often be
+	 * used in a caller (such as a {@code close} or {@code free} operation) that
+	 * will have nothing to do and return immediately if this method returns
+	 * true.
+	 * @throws SQLException if the native state or the Java state has been
+	 * released.
+	 * @throws CancellationException if the thread is interrupted while waiting.
+	 */public final boolean pinUnlessReleased() throws SQLException
+	{
+		return !z(_pin());
+	}
+
+	/**
+	 * Workhorse for {@code pin()} and {@code pinUnlessReleased()}.
+	 * @return zero if the pin was obtained, otherwise {@code NATIVE_RELEASED},
+	 * {@code JAVA_RELEASED}, or both.
+	 */
+	private final int _pin() throws SQLException
+	{
 		if ( s_pinCount.pin(this) )
-			return; // reentrant pin, no need for sync effort
+			return 0; // reentrant pin, no need for sync effort
 
 		int s = m_state.incrementAndGet(); // be optimistic
 		if ( z(s & ~ PINNERS_MASK) )       // nothing in s but a pin count? ->
-			return;                        // ... uncontended win!
-		if ( !z(s & NATIVE_RELEASED) )
-		{
-			backoutPinBeforeEnqueue(s);
-			throw new SQLException(invalidMessage(), invalidSqlState());
-		}
-		if ( !z(s & JAVA_RELEASED) )
-		{
-			backoutPinBeforeEnqueue(s);
-			throw new SQLException(releasedMessage(), releasedSqlState());
-		}
+			return 0;                        // ... uncontended win!
+		if ( !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
+			return backoutPinBeforeEnqueue(s);
 		if ( !z(s & PINNERS_GUARD) )
 		{
 			m_state.decrementAndGet(); // recovery is questionable in this case
@@ -797,10 +825,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * JAVA_RELEASED could have appeared, though.
 			 */
 			if ( !z(s & JAVA_RELEASED) )
-			{
-				backoutPinAfterEnqueue(s);
-				throw new SQLException(releasedMessage(), releasedSqlState());
-			}
+				return backoutPinAfterEnqueue(s);
 			if ( !z(s & PINNERS_GUARD) )
 			{
 				backoutPinAfterEnqueue(s);
@@ -826,7 +851,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			s = m_state.get();
 			if ( thr.isInterrupted()
 				|| !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
-				backoutPinAfterPark(s, t); // does not return
+				return backoutPinAfterPark(s, t);
 			if ( !z(s & MUTATOR_HOLDS) ) // can only be a spurious unpark
 				continue;
 			if ( z(s & MUTATOR_WANTS) )  // no HOLDS, no WANTS, so
@@ -856,13 +881,12 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * latter. (There is no race with the mutator thread draining the
 			 * queue, because it does that with WANTS and HOLDS both clear, and
 			 * remember, it is the only thread that gets to request a lock.)
-			 * and we have our pin. In that case, we are no longer in the
-			 * waiters queue, giving us a way to tell the cases apart.
 			 */
-			if ( m_waiters.contains(Thread.currentThread()) )
+			if ( m_waiters.contains(thr) )
 				continue;
 			break;
 		}
+		return 0;
 	}
 
 	/**
@@ -912,8 +936,10 @@ public abstract class DualState<T> extends WeakReference<T>
 	/**
 	 * Back out an in-progress pin before our thread has been placed on the
 	 * queue.
+	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
+	 * the state
 	 */
-	private void backoutPinBeforeEnqueue(int s)
+	private int backoutPinBeforeEnqueue(int s)
 	{
 		s_pinCount.unpin(this);
 		int t;
@@ -933,17 +959,20 @@ public abstract class DualState<T> extends WeakReference<T>
 			scheduleJavaReleased(t);
 		if ( !z(t & MUTATOR_HOLDS)  &&  !z(s & MUTATOR_WANTS)) // promoted by us
 			unpark(s_mutatorThread);
+		return t & (NATIVE_RELEASED | JAVA_RELEASED);
 	}
 
 	/**
 	 * Back out an in-progress pin after our thread has been placed on the
 	 * queue, but before success of the CAS that counts us under WAITERS_MASK
 	 * rather than PINNERS_MASK.
+	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
+	 * the state
 	 */
-	private void backoutPinAfterEnqueue(int s)
+	private int backoutPinAfterEnqueue(int s)
 	{
 		m_waiters.remove(Thread.currentThread());
-		backoutPinBeforeEnqueue(s);
+		return backoutPinBeforeEnqueue(s);
 	}
 
 	/**
@@ -952,14 +981,17 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * this method can complete, in which case the pin is immediately released).
 	 *<p>
 	 * This is only called when a condition is detected during park for which an
-	 * exception is to be thrown. Therefore, after backing out, this method
-	 * throws the corresponding exception; it never returns normally.
+	 * exception ought to be thrown. Therefore, after backing out, this method
+	 * either throws the {@code CancellationException} (if thread interruption
+	 * was the reason), or returns one or both of {@code NATIVE_RELEASED} or
+	 * {@code JAVA_RELEASED}; it never returns zero.
 	 * @param s the most recently fetched state
 	 * @param t prior state from before parking
-	 * @throws SQLException appropriate for the reason this method was called
 	 * @throws CancellationException if the reason was thread interruption
+	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
+	 * the state
 	 */
-	private void backoutPinAfterPark(int s, int t) throws SQLException
+	private int backoutPinAfterPark(int s, int t) throws SQLException
 	{
 		boolean wasHolds = !z(t & MUTATOR_HOLDS); // t, the pre-park state
 		/*
@@ -1016,7 +1048,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		if ( mustUnpin )
 			unpin();
 		else
-			backoutPinBeforeEnqueue(t);
+			t = backoutPinAfterEnqueue(t);
 		/*
 		 * One of the following conditions was the reason this method was
 		 * called, so throw the appropriate exception.
@@ -1025,10 +1057,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			throw (CancellationException)
 				new CancellationException("Interrupted waiting for pin")
 					.initCause(new InterruptedException());
-		if ( !z(s & NATIVE_RELEASED) )
-			throw new SQLException(invalidMessage(), invalidSqlState());
-		if ( !z(s & JAVA_RELEASED) )
-			throw new SQLException(releasedMessage(), releasedSqlState());
+		return t & (NATIVE_RELEASED | JAVA_RELEASED);
 	}
 
 	/**

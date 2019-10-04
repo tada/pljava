@@ -272,6 +272,65 @@
 				<pgsql.pgconfig>pg_config</pgsql.pgconfig>
 			</properties>
 		</profile>
+
+		<profile>
+			<id>hasjavah</id>
+			<activation>
+				<jdk>[1.7,10)</jdk>
+			</activation>
+			<properties>
+				<javah.include>${basedir}/target/nar/javah-include/</javah.include>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<!-- Generates C header files from Java class files. -->
+							<javah>
+								<classPaths>
+									<classPath>${basedir}/../pljava/target/classes/</classPath>
+									<classPath>${basedir}/../pljava-api/target/classes/</classPath>
+								</classPaths>
+								<classDirectory>${basedir}/../pljava/target/classes/</classDirectory>
+								<extraClasses>
+									<extraClass>java.sql.Types</extraClass>
+								</extraClasses>
+							</javah>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
+			<id>lacksjavah</id>
+			<activation>
+				<jdk>[10,)</jdk>
+			</activation>
+			<properties>
+				<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.github.maven-nar</groupId>
+						<artifactId>nar-maven-plugin</artifactId>
+						<configuration>
+							<c>
+								<includePaths combine.children='append'>
+									<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
+								</includePaths>
+							</c>
+							<java>
+								<include>true</include>
+							</java>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 	<build>
@@ -301,7 +360,9 @@
 						</goals>
 						<configuration>
 							<target>
-								<script language='javascript'>
+								<script
+									language='javascript'
+									classpathref='maven.plugin.classpath'>
 <![CDATA[
 /* This regex supports a function to wrap a string in the quoting needed for a
    C string literal. Capturing group 1 captures those special characters that
@@ -380,7 +441,9 @@ if ( null !== jvmdflt )
 
 								<!-- Converts pg_config output
 									 to "pgsql.properties" -->
-								<ant />
+								<ant>
+									<reference refid='maven.plugin.classpath'/>
+								</ant>
 							</target>
 						</configuration>
 					</execution>
@@ -419,17 +482,6 @@ if ( null !== jvmdflt )
 
 				<configuration>
 					<maxCores>${nar.cores}</maxCores>
-					<!-- Generates C header files from Java class files. -->
-					<javah>
-						<classPaths>
-							<classPath>${basedir}/../pljava/target/classes/</classPath>
-							<classPath>${basedir}/../pljava-api/target/classes/</classPath>
-						</classPaths>
-						<classDirectory>${basedir}/../pljava/target/classes/</classDirectory>
-						<extraClasses>
-							<extraClass>java.sql.Types</extraClass>
-						</extraClasses>
-					</javah>
 
 					<!-- Compiles the C sources to object files. -->
 					<c>
@@ -444,7 +496,7 @@ if ( null !== jvmdflt )
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
 							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
 							<includePath>${basedir}/src/main/include/</includePath>
-							<includePath>${basedir}/target/nar/javah-include/</includePath>
+							<includePath>${javah.include}</includePath>
 						</includePaths>
 						<debug>${so.debug}</debug>
 						<optimize>${so.optimize}</optimize>

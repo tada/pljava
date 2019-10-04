@@ -27,6 +27,8 @@ extern void pljava_DualState_cleanEnqueuedInstances(void);
 
 extern void pljava_DualState_initialize(void);
 
+extern void pljava_DualState_unregister(void);
+
 extern void pljava_DualState_nativeRelease(void *);
 
 #ifdef __cplusplus

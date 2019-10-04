@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -83,21 +83,76 @@ static jmethodID s_TypeBridge_Holder_className;
 static jmethodID s_TypeBridge_Holder_defaultOid;
 static jmethodID s_TypeBridge_Holder_payload;
 
-/* Structure used in multi function calls (calls returning
- * SETOF <composite type>)
+/*
+ * Structure used to retain state of set-returning functions using the
+ * SFRM_ValuePerCall protocol (the only one PL/Java currently supports). In that
+ * protocol, PostgreSQL will make repeated calls arriving at Type_invokeSRF
+ * below, which returns one result row on each call (and then a no-more-results
+ * result). This struct holds necessary context through the sequence of calls.
+ *
+ * If PostgreSQL is satisfied before the whole set has been returned, the
+ * _endOfSetCB below will be invoked to clean up the work in progress, and also
+ * needs this stashed information.
  */
 typedef struct
 {
 	Type          elemType;
 	jobject       rowProducer;
 	jobject       rowCollector;
+	/*
+	 * Invocation instance, if any, the Java counterpart to currentInvocation
+	 * the C struct. There isn't one unless it gets asked for, then if it is,
+	 * it's saved here, so even though the C currentInvocation really is new on
+	 * each entry from PG, Java will see one Invocation instance throughout the
+	 * sequence of calls.
+	 */
 	jobject       invocation;
-	MemoryContext rowContext;
+	/*
+	 * Two pieces of state from Invocation.c's management of SPI connection,
+	 * effectively keeping one such connection alive through the sequence of
+	 * calls. I could easily be led to question the advisability of even doing
+	 * that, but it has a long history in PL/Java, so changing it might call for
+	 * some careful analysis.
+	 */
 	MemoryContext spiContext;
 	bool          hasConnected;
+	/*
+	 * Copy of Invocation's 'trusted' flag. In normal calls through the handler,
+	 * the value is known (implicit in which handler entry point was called),
+	 * but that isn't available to the _endOfSetCB, so must be remembered here.
+	 */
 	bool          trusted;
 } CallContextData;
 
+/*
+ * Called during evaluation of a set-returning function, at various points after
+ * calls into Java code could have instantiated an Invocation, or connected SPI.
+ * Does not stash elemType, rowProducer, rowCollector, or trusted; those are all
+ * unconditionally set in the first-call initialization, and spiContext to zero.
+ */
+static void stashCallContext(CallContextData *ctxData)
+{
+	bool wasConnected = ctxData->hasConnected;
+
+	ctxData->hasConnected  = currentInvocation->hasConnected;
+
+	ctxData->invocation    = currentInvocation->invocation;
+
+	if ( wasConnected )
+		return;
+
+	/*
+	 * If SPI has been connected for the first time, capture the memory context
+	 * it imposed. Curiously, this is not used again except in _closeIteration.
+	 */
+	if(ctxData->hasConnected)
+		ctxData->spiContext = CurrentMemoryContext;
+}
+
+/*
+ * Called either at normal completion of a set-returning function, or by the
+ * _endOfSetCB if PostgreSQL doesn't want all the results.
+ */
 static void _closeIteration(CallContextData* ctxData)
 {
 	currentInvocation->hasConnected = ctxData->hasConnected;
@@ -107,12 +162,19 @@ static void _closeIteration(CallContextData* ctxData)
 	JNI_deleteGlobalRef(ctxData->rowProducer);
 	if(ctxData->rowCollector != 0)
 		JNI_deleteGlobalRef(ctxData->rowCollector);
-	MemoryContextDelete(ctxData->rowContext);
 
 	if(ctxData->hasConnected && ctxData->spiContext != 0)
 	{
-		/* Connect during SRF_IS_FIRSTCALL(). Switch context back to what
-		 * it was at that time and disconnect.
+		/*
+		 * SPI was connected. We will (1) switch back to the memory context that
+		 * was imposed by SPI_connect, then (2) disconnect. SPI_finish will have
+		 * switched back to whatever memory context was current when SPI_connect
+		 * was called, and that context had better still be valid. It might be
+		 * the executor's multi_call_memory_ctx, if the SPI_connect happened
+		 * during initialization of the rowProducer or rowCollector, or the
+		 * executor's per-row context, if it happened later. Both of those are
+		 * still valid at this point. The final step (3) is to switch back to
+		 * the context we had before (1) and (2) happened.
 		 */
 		MemoryContext currCtx = MemoryContextSwitchTo(ctxData->spiContext);
 		Invocation_assertDisconnect();
@@ -120,6 +182,10 @@ static void _closeIteration(CallContextData* ctxData)
 	}
 }
 
+/*
+ * Called by PostgreSQL if abandoning the collection of set-returning-function
+ * results early.
+ */
 static void _endOfSetCB(Datum arg)
 {
 	Invocation topCall;
@@ -396,6 +462,17 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 		/* create a function context for cross-call persistence
 		 */
 		context = SRF_FIRSTCALL_INIT();
+
+		/*
+		 * Before creating the rowProducer (and rowCollector, if applicable),
+		 * switch to the SRF_FIRSTCALL_INIT-created multi_call_memory_ctx that
+		 * is not reset between calls. The motivation seems clear enough (allow
+		 * the first-call initialization to allocate things in a context that
+		 * will last through the sequence), though it is not clear whether
+		 * anything in existing PL/Java code in fact does so (other than our
+		 * allocation of ctxData below, which could perhaps just be a direct
+		 * MemoryContextAllocZero).
+		 */
 		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
 		/* Call the declared Java function. It returns an instance that can produce
@@ -410,7 +487,7 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 			SRF_RETURN_DONE(context);
 		}
 
-		ctxData = (CallContextData*)palloc(sizeof(CallContextData));
+		ctxData = (CallContextData*)palloc0(sizeof(CallContextData));
 		context->user_fctx = ctxData;
 
 		ctxData->elemType = self;
@@ -421,54 +498,58 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 		 * to produce the row. If one is needed, it's created here.
 		 */
 		tmp = Type_getSRFCollector(self, fcinfo);
-		if(tmp == 0)
-			ctxData->rowCollector = 0;
-		else
+		if(tmp != 0)
 		{
 			ctxData->rowCollector = JNI_newGlobalRef(tmp);
 			JNI_deleteLocalRef(tmp);
 		}		
 
-		ctxData->trusted       = currentInvocation->trusted;
-		ctxData->hasConnected  = currentInvocation->hasConnected;
-		ctxData->invocation    = currentInvocation->invocation;
-		if(ctxData->hasConnected)
-			ctxData->spiContext = CurrentMemoryContext;
-		else
-			ctxData->spiContext = 0;
-
-		ctxData->rowContext = AllocSetContextCreate(context->multi_call_memory_ctx,
-								  "PL/Java row context",
-								  ALLOCSET_DEFAULT_SIZES);
+		ctxData->trusted    = currentInvocation->trusted;
+		stashCallContext(ctxData);
 
 		/* Register callback to be called when the function ends
 		 */
-		RegisterExprContextCallback(((ReturnSetInfo*)fcinfo->resultinfo)->econtext, _endOfSetCB, PointerGetDatum(ctxData));
+		RegisterExprContextCallback(
+			((ReturnSetInfo*)fcinfo->resultinfo)->econtext,
+			_endOfSetCB, PointerGetDatum(ctxData));
+
+		/*
+		 * Switch back to the context on entry, which by caller arrangement is
+		 * one that gets reset between calls. Thus here at the conclusion of the
+		 * first-call initialization, the context invariant below is satisfied.
+		 */
 		MemoryContextSwitchTo(currCtx);
 	}
 
+	/*
+	 * Invariant: whether this is the first call and the SRF_IS_FIRSTCALL block
+	 * above just completed, or this is a subsequent call, at this point, the
+	 * memory context is the per-row one supplied by the executor (which gets
+	 * reset between calls).
+	 */
+
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
-	MemoryContextReset(ctxData->rowContext);
-	currCtx = MemoryContextSwitchTo(ctxData->rowContext);
+	currCtx = CurrentMemoryContext; /* save executor's per-row context */
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
 	hasRow = Type_hasNextSRF(self, ctxData->rowProducer, ctxData->rowCollector,
 		(jlong)context->call_cntr);
 
-	ctxData->hasConnected = currentInvocation->hasConnected;
-	ctxData->invocation   = currentInvocation->invocation;
-	currentInvocation->hasConnected = false;
-	currentInvocation->invocation   = 0;
-
 	if(hasRow)
 	{
 		Datum result = Type_nextSRF(self, ctxData->rowProducer, ctxData->rowCollector);
+		stashCallContext(ctxData);
+		currentInvocation->hasConnected = false;
+		currentInvocation->invocation   = 0;
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
 
+	stashCallContext(ctxData);
+	currentInvocation->hasConnected = false;
+	currentInvocation->invocation   = 0;
 	MemoryContextSwitchTo(currCtx);
 
 	/* Unregister this callback and call it manually. We do this because

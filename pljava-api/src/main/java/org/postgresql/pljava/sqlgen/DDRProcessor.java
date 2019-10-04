@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1100,9 +1100,11 @@ hunt:	for ( ExecutableElement ee : ees )
 	{
 		public String value() { return _value; }
 		public String[] defaultValue() { return _defaultValue; }
+		public String name() { return _name; }
 		
 		String _value;
 		String[] _defaultValue;
+		String _name;
 		
 		public void setValue( Object o, boolean explicit, Element e)
 		{
@@ -1114,6 +1116,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				_defaultValue = avToArray( o, String.class);
+		}
+
+		public void setName( Object o, boolean explicit, Element e)
+		{
+			if ( ! explicit )
+				return;
+
+			_name = (String)o;
+			if ( _name.startsWith( "\"")
+				&& ! Lexicals.ISO_DELIMITED_IDENTIFIER.matcher( _name).matches()
+				|| ! Lexicals.ISO_AND_PG_REGULAR_IDENTIFIER.matcher( _name)
+					.matches()
+				)
+				msg( Kind.WARNING, e, "malformed parameter name: %s", _name);
 		}
 	}
 
@@ -1461,6 +1477,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		TypeMirror setofComponent = null;
 		boolean trigger = false;
 		TypeMirror returnTypeMapKey = null;
+		SQLType[] paramTypeAnnotations;
 
 		FunctionImpl(ExecutableElement e)
 		{
@@ -1577,6 +1594,8 @@ hunt:	for ( ExecutableElement ee : ees )
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
 
+			collectParameterTypeAnnotations();
+
 			/*
 			 * Report any unmappable types now that could appear in
 			 * deployStrings (return type or parameter types) ... so that the
@@ -1591,6 +1610,34 @@ hunt:	for ( ExecutableElement ee : ees )
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
 			return true;
+		}
+
+		/*
+		 * Factored out of characterize() so it could be called if needed by
+		 * BaseUDTFunctionImpl.characterize(), which does not need anything else
+		 * from its super.characterize(). But for now it doesn't need this
+		 * either; it knows what parameters the base UDT functions take, and it
+		 * takes no heed of @SQLType annotations. Perhaps it should warn if such
+		 * annotations are used, but that's for another day.
+		 */
+		void collectParameterTypeAnnotations()
+		{
+			List<? extends VariableElement> ves = func.getParameters();
+			paramTypeAnnotations = new SQLType [ ves.size() ];
+			int i = 0;
+			for ( VariableElement ve : ves )
+			{
+				for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( ve) )
+				{
+					if ( am.getAnnotationType().asElement().equals(AN_SQLTYPE) )
+					{
+						SQLTypeImpl sti = new SQLTypeImpl();
+						populateAnnotationImpl( sti, ve, am);
+						paramTypeAnnotations[i] = sti;
+					}
+				}
+				++ i;
+			}
 		}
 
 		/**
@@ -1621,13 +1668,24 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( complexViaInOut )
 					tms = tms.subList( 0, tms.size() - 1);
 				int s = tms.size();
+				int i = 0;
 				for ( TypeMirror tm : tms )
 				{
 					VariableElement ve = ves.next();
-					sb.append( "\n\t").append( ve.getSimpleName().toString());
+					/*
+					 * paramTypeAnnotations can be null if
+					 * collectParameterTypeAnnotations hasn't been called.
+					 * That's the case in BaseUDTFunctionImpl, but it also
+					 * overrides this method, so it isn't a problem.
+					 */
+					SQLType st = paramTypeAnnotations[i];
+					String name = null == st ? null : st.name();
+					if ( null == name )
+						name = ve.getSimpleName().toString();
+					sb.append( "\n\t").append( name);
 					sb.append( ' ');
-					sb.append( tmpr.getSQLType( tm, ve, true, dflts));
-					if ( 0 < -- s )
+					sb.append( tmpr.getSQLType( tm, ve, st, true, dflts));
+					if ( ++ i < s )
 						sb.append( ',');
 				}
 			}
@@ -2507,7 +2565,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		String getSQLType(TypeMirror tm, Element e)
 		{
-			return getSQLType( tm, e, false, false);
+			return getSQLType( tm, e, null, false, false);
 		}
 
 
@@ -2519,6 +2577,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param tm Represents the type whose corresponding SQL type is wanted.
 		 * @param e Annotated element (chiefly for use as a location hint in
 		 * diagnostic messages).
+		 * @param st {@code SQLType} annotation, or null if none, explicitly
+		 * given for the element.
 		 * @param contravariant Indicates that the element whose type is wanted
 		 * is a function parameter and should be given the widest type that can
 		 * be assigned to it. If false, find the narrowest type that a function
@@ -2526,7 +2586,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param withDefault Indicates whether any specified default value
 		 * information should also be included in the "type" string returned.
 		 */
-		String getSQLType(TypeMirror tm, Element e,
+		String getSQLType(TypeMirror tm, Element e, SQLType st,
 			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
@@ -2535,15 +2595,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			
 			String[] defaults = null;
 			
-			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
+			if ( null != st )
 			{
-				if ( am.getAnnotationType().asElement().equals( AN_SQLTYPE) )
-				{
-					SQLTypeImpl sti = new SQLTypeImpl();
-					populateAnnotationImpl( sti, e, am);
-					rslt = sti.value();
-					defaults = sti.defaultValue();
-				}
+				rslt = st.value();
+				defaults = st.defaultValue();
 			}
 
 			if ( tm.getKind().equals( TypeKind.ARRAY) )

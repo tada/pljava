@@ -10,7 +10,242 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.2
+$h2 PL/Java 1.5.3
+
+This release adds support for PostgreSQL 12, and removes the former
+requirement to build with a Java release earlier than 9.
+
+It includes a rework of of threading and resource management, improvements to
+the JDBC 4.0 `java.sql.SQLXML` API that first became available in 1.5.1, and
+a substantially usable example providing the functionality of ISO SQL
+`XMLEXISTS`, `XMLQUERY`, `XMLTABLE`, `XMLCAST`, `LIKE_REGEX`,
+`OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and `TRANSLATE_REGEX`.
+Some bugs are fixed.
+
+$h3 Version compatibility
+
+PL/Java 1.5.3 can be built against recent PostgreSQL versions including 12,
+and older ones back to 8.2, using Java SE 8 or later. The source code avoids
+features newer than Java 6, so building with Java 7 or 6 should also be
+possible, but is no longer routinely tested. The Java version used at runtime
+does not have to be the same version used for building. PL/Java itself can run
+on any Java version 6 or later if built with Java 11 or earlier; it can run
+on Java 7 or later if built with Java 12. PL/Java functions can be written for,
+and use features of, whatever Java version will be loaded at run time. See
+[version compatibility][versions] for more detail.
+
+When used with [GraalVM][] as the runtime VM, PL/Java functions can use its
+"polyglot" capabilities to execute code in any other language available on
+GraalVM. In this release, it is not yet possible to directly declare a function
+in a language other than Java.
+
+$h3 Changes
+
+$h4 Threading/synchronization, finalizers, and new configuration variable
+
+Java is multithreaded while PostgreSQL is not, requiring ways to prevent
+Java threads from entering PostgreSQL at the wrong times, while cleaning up
+native resources in PostgreSQL when PL/Java references are released, and
+_vice versa_.
+
+PL/Java has historically used an assortment of approaches including Java
+object finalizers, which have long been deprecated informally, and formally
+since Java 9. Finalizers enter PostgreSQL from a thread of their own, and the
+synchronization approach used in PL/Java 1.5.2 and earlier has been associated
+with occasional hangs at backend exit when using an OpenJ9 JVM at runtime.
+
+A redesigned approach using a new `DualState` class was introduced in 1.5.1,
+at first only used in implementing the `java.sql.SQLXML` type, a newly-added
+feature. In 1.5.3, other approaches used in the rest of PL/Java's code base are
+migrated to use `DualState` also, and all uses of the deprecated Java object
+finalizers have been retired. With the new techniques, the former occasional
+OpenJ9 hangs have not been observed.
+
+This represents the most invasive change to PL/Java's thread synchronization
+in many years, so it may be worthwhile to reserve extra time for
+testing applications.
+
+A new [configuration variable](use/variables.html),
+`pljava.java_thread_pg_entry`, allows adjusting the thread policy. The default
+setting, `allow`, preserves PL/Java's former behavior, allowing Java threads
+entry into PostgreSQL one at a time, only when any thread already in PG code
+has entered or returned to Java.
+
+With object finalizers no longer used, PL/Java itself does not need the `allow`
+mode, but there may be application code that does. Application code can be
+tested by setting the `error` mode, which will raise an error for any attempted
+entry to PG from a thread other than the original thread that launched PL/Java.
+If an application runs in `error` mode with no errors, it can also be run in
+`block` mode, which may be more efficient, as it eliminates many locking
+operations that happen in `allow` or `error` mode. However, if `block` mode
+is used with an application that has not been fully tested in `error` mode
+first, and the application does attempt to enter PostgreSQL from a Java thread
+other than the initial one, the result can be blocked threads or a deadlocked
+backend that has to be killed.
+
+A JMX management client like `JConsole` or `jvisualvm` can identify threads that
+are blocked, if needed. The new `DualState` class also offers some statistics
+that can be viewed in `JConsole`, or `jvisualvm` with the `VisualVM-MBeans`
+plugin.
+
+$h4 Improvements to the `java.sql.SQLXML` type
+
+Support for this JDBC 4.0 type was added in PL/Java 1.5.1. Release 1.5.3
+includes the following improvements:
+
+* A new ["Adjusting" API](use/sqlxml.html#Extended_API_to_configure_XML_parsers)
+    exposes configuration settings for Java XML parsers that may be created
+    internally during operations on `SQLXML` instances. That allows the default
+    settings to restrict certain XML parser features as advocated by the
+    [Open Web Application Security Project][OWASP] when XML content may be
+    coming from untrusted sources, with a simple API for relaxing those
+    restrictions when appropriate for XML content from a known source.
+* It is now possible for a PL/Java function to return, pass into a
+    `PreparedStatement`, etc., an `SQLXML` instance that PL/Java did not create.
+    For example, a PL/Java function could use another database's JDBC driver to
+    obtain a `SQLXML` value from that database, and use that as its own return
+    value. Transparently, the content is copied to a PL/Java `SQLXML` instance.
+    The copy can also be done explicitly, allowing the "Adjusting" API to be
+    used if the default XML parser restrictions should be relaxed.
+* Behavior when the server encoding is not UTF-8, or when it is not an
+    IANA-registered encoding (even if Java has a codec for it), has been
+    improved.
+
+$h4 Improvements to the Saxon-based ISO SQL/XML example functions
+
+Since PL/Java 1.5.1, the supplied examples have included a not-built-by-default
+[example supplying ISO SQL/XML features missing from core PostgreSQL][exsaxon].
+It is not built by default because it raises the minimum Java version to 8, and
+brings in the Saxon-HE XML-processing library.
+
+In 1.5.3, the example now provides versions of the ISO SQL `XMLEXISTS`,
+`XMLQUERY`, `XMLTABLE`, and `XMLCAST` functions based on the W3C XQuery
+language as ISO SQL specifies (while PostgreSQL has an "XMLTABLE" function
+since release 10 and "XMLEXISTS" since 9.1, they have
+[numerous limitations][appD31] inherited from a library that does not support
+XQuery, and additional peculiarities prior to PostgreSQL 12), and the ISO SQL
+`LIKE_REGEX`, `OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and
+`TRANSLATE_REGEX` functions that apply XQuery regular expressions. It also
+includes the `XMLTEXT` function, which is rather trivial, but also missing from
+core PostgreSQL, and supplied here for completeness.
+
+As plain user-defined functions without special treatment in PostgreSQL's SQL
+parser, these functions cannot be used with the exact syntax specified in
+ISO SQL, but require simple rewriting into equivalent forms that are valid
+ordinary PostgreSQL function calls. The rewritten forms are intended to be easy
+to read and correspond closely to the ISO syntax.
+
+While still presented as examples and not a full implementation, these functions
+are now intended to be substantially usable (subject to minor
+[documented limits][exsaxon]), and testing and reports of shortcomings are
+welcome.
+
+$h4 ResultSet holdability again
+
+A `ResultSet` obtained from a query done in PL/Java would return the value
+`CLOSE_CURSORS_AT_COMMIT` to a caller of its `getHoldability` method, but in
+reality would become unusable as soon as the PL/Java function creating it
+returned to PostgreSQL. That was fixed in PL/Java 1.5.1 for a `ResultSet`
+obtained from a `Statement`, but not for one obtained from a
+`PreparedStatement`. It now correctly remains usable to the end of the
+transaction in either case.
+
+$h4 Savepoint behavior at rollback
+
+Per JDBC, a `Savepoint` still exists after being used in a rollback, and can be
+used again; the rollback only invalidates any `Savepoint` that had been created
+after the one being rolled back. That should be familiar behavior, as it is the
+same as PostgreSQL's own SQL `SAVEPOINT` behavior. It is also correct in pgJDBC,
+which has test coverage to confirm it. PL/Java has been doing it wrong.
+
+In 1.5.3 it now has the JDBC-specified behavior. For compatibility with existing
+application code, the meaning of the `pljava.release_lingering_savepoints`
+[configuration variable](use/variables.html) has been adjusted. The setting
+tells PL/Java what to do if a `Savepoint` still exists, neither released nor
+rolled back, at the time a function exits. If `on`, the savepoint is released
+(committed); if `off`, the savepoint is rolled back. A warning is issued in
+either case.
+
+In an existing function that used savepoints and assumed that a rolled-back
+savepoint would be no longer live, it will now be normal for such a savepoint
+to reach the function exit still alive. To recognize this case, PL/Java tracks
+whether any savepoint has been rolled back at least once. At function exit, any
+savepoint that has been neither released nor ever rolled back is disposed of
+according to the `release_lingering_savepoints` setting and with a warning,
+as before, but any savepoint that has already been rolled back at least once
+is simply released, regardless of the variable setting, and without producing
+a warning.
+
+$h4 Control of function parameter names in generated SQL
+
+When generating the `CREATE FUNCTION` command in a deployment descriptor
+according to an annotated Java function, PL/Java ordinarily gives the function
+parameters names that match their Java names, unquoted. Because PostgreSQL
+allows named notation when calling a function, the parameter names in its
+declaration become part of its signature that cannot later be changed without
+dropping and re-creating the function.
+
+In some cases, explicit control of the SQL parameter names may be wanted,
+independently of the Java names: to align with an external standard, perhaps,
+or when either the SQL or the Java name would collide with a reserved word.
+For that purpose, the (already slightly overloaded) `@SQLType` annotation now
+has a `name` attribute that can specify the SQL name of the annotated parameter.
+
+$h4 Documentation
+
+The user guide and guide for packagers contained incorrect instructions for
+using Maven to build a single subproject of PL/Java (such as `pljava-api` or
+`pljava-examples`) instead of the full project. Those have been corrected. 
+
+$h3 Enhancement requests addressed
+
+* [Allow building with Java releases newer than 8](${ghbug}212)
+
+$h3 Bugs fixed
+
+* [ResultSet holdability still wrong when using PreparedStatement](${ghbug}209)
+* [Can't return (or set/update PreparedStatement/ResultSet) non-PL/Java SQLXML object](${ghbug}225)
+* [JDBC Savepoint behavior](${ghbug}228)
+* Writing `SQLXML` via StAX when server encoding is not UTF-8
+* StAX rejecting server encoding if not an IANA-registered encoding
+* Error handling when PL/Java startup fails
+    (may have been [issue 211](${ghbug}211))
+* SPI connection management for certain set-returning functions
+
+$h3 Updated PostgreSQL APIs tracked
+
+* Retirement of `dynloader.h`
+* Retirement of magical Oids
+* Retirement of `nabstime`
+* Retirement of `pg_attrdef.adsrc`
+* Extensible `TupleTableSlot`s
+* `FunctionCallInfoBaseData`
+
+$h3 Credits
+
+There is a PL/Java 1.5.3 thanks in part to
+Christoph Berg,
+Chapman Flack,
+`ppKrauss`,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+[GraalVM]: https://www.graalvm.org/
+[OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
+[appD31]: https://www.postgresql.org/docs/12/xml-limits-conformance.html
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.2 (5 November 2018)
 
 A pure bug-fix release, correcting a regression in 1.5.1 that was not caught
 in pre-release testing, and could leave
@@ -442,17 +677,6 @@ Kenneth Olson,
 Fabian Zeindl,
 original creator Thomas Hallgren,
 and the many contributors to earlier versions.
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.0 (29 March 2016)
 
