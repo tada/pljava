@@ -62,7 +62,7 @@ public class MarkableSequenceReader extends Reader
 	{
 		if ( null == streams )
 			throw new NullPointerException("MarkableSequenceReader(null)");
-		LinkedList<Reader> isl = new LinkedList<Reader>();
+		LinkedList<Reader> isl = new LinkedList<>();
 		for ( Reader s : streams )
 		{
 			if ( null == s )

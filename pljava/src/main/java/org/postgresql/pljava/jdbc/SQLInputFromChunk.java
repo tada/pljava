@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 TADA AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 TADA AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,7 +16,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
-import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.net.URL;
