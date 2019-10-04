@@ -1,3 +1,4 @@
 org.postgresql.pljava.example
 org.postgresql.pljava.example.annotation
 org.postgresql.pljava.example.jdk7
+org.postgresql.pljava.example.saxon
