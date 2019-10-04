@@ -10,9 +10,9 @@
 
 $h2 Selecting a current Java version to use with PL/Java
 
-Having used a Java 8 or earlier JDK to build PL/Java, you will probably want to
-use PL/Java with a newer Java version at run time, so your PL/Java application
-code can use the latest Java features. When you reach the step
+Whichever JDK version you use to build PL/Java, you may want to
+use PL/Java with another Java version at run time, so your PL/Java application
+code can use the newer Java features. When you reach the step
 [setting PL/Java configuration variables](#PLJava_configuration_variables),
 the `pljava.libjvm_location` variable will allow you to do that.
 
