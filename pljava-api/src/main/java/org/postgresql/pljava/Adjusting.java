@@ -361,7 +361,7 @@ public final class Adjusting
 			 * An exception from the pattern of {@code Source}-typed arguments,
 			 * this method simplifies retrofitting adjustments into code that
 			 * was using {@code SQLXML}'s {@code setString}. Has the same effect
-			 * as {@link set(javax.xml.transform.stream.StreamSource) set} with
+			 * as {@link #set(javax.xml.transform.stream.StreamSource) set} with
 			 * a {@code StreamSource} wrapping a {@code StringReader} over the
 			 * {@code String}.
 			 */
