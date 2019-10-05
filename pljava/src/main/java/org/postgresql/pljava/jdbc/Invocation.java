@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
+import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.PgSavepoint;
 
 /**
@@ -106,7 +107,7 @@ public class Invocation
 	 */
 	public static Invocation current()
 	{
-		synchronized(Backend.THREADLOCK)
+		return doInPG(() ->
 		{
 			Invocation curr = _getCurrent();
 			if(curr != null)
@@ -135,15 +136,12 @@ public class Invocation
 			s_levels[level] = curr;
 			curr._register();
 			return curr;
-		}
+		});
 	}
 
 	static void clearErrorCondition()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			_clearErrorCondition();
-		}
+		doInPG(Invocation::_clearErrorCondition);
 	}
 
 	/**

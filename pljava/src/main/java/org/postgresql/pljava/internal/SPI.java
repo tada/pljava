@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 /**
  * The <code>SPI</code> class provides access to some global
  * variables used by SPI.
@@ -64,18 +66,12 @@ public class SPI
 	@Deprecated
 	private static int exec(String command, int rowCount)
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _exec(command, rowCount);
-		}
+		return doInPG(() -> _exec(command, rowCount));
 	}
 
 	public static void freeTupTable()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			_freeTupTable();
-		}
+		doInPG(SPI::_freeTupTable);
 	}
 
 	/**
@@ -83,14 +79,11 @@ public class SPI
 	 */
 	public static long getProcessed()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			long count = _getProcessed();
-			if ( count < 0 )
-				throw new ArithmeticException(
-					"too many rows processed to count in a Java signed long");
-			return count;
-		}
+		long count = doInPG(SPI::_getProcessed);
+		if ( count < 0 )
+			throw new ArithmeticException(
+				"too many rows processed to count in a Java signed long");
+		return count;
 	}
 
 	/**
@@ -98,10 +91,7 @@ public class SPI
 	 */
 	public static int getResult()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getResult();
-		}
+		return doInPG(SPI::_getResult);
 	}
 
 	/**
@@ -109,10 +99,7 @@ public class SPI
 	 */
 	public static TupleTable getTupTable(TupleDesc known)
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getTupTable(known);
-		}
+		return doInPG(() -> _getTupTable(known));
 	}
 
 	/**

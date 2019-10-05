@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -58,6 +58,100 @@ public class Backend
 		if(s_session == null)
 			s_session = new Session();
 		return s_session;
+	}
+
+	/**
+	 * Do an operation on a thread with serialized access to call into
+	 * PostgreSQL, returning a result.
+	 */
+	public static <T, E extends Throwable> T doInPG(Checked.Supplier<T,E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			return op.get();
+		}
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return no result. This version must be present, as the Java compiler will
+	 * not automagically match a void lambda or method reference to
+	 * {@code Supplier<Void>}.
+	 */
+	public static <E extends Throwable> void doInPG(Checked.Runnable<E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			op.run();
+		}
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a boolean result. This method need not be present: without it, the
+	 * Java compiler will happily match boolean lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> boolean doInPG(
+		Checked.BooleanSupplier<E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			return op.getAsBoolean();
+		}
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a double result. This method need not be present: without it, the
+	 * Java compiler will happily match double lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> double doInPG(
+		Checked.DoubleSupplier<E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			return op.getAsDouble();
+		}
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return an int result. This method need not be present: without it, the
+	 * Java compiler will happily match int lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> int doInPG(Checked.IntSupplier<E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			return op.getAsInt();
+		}
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a long result. This method need not be present: without it, the
+	 * Java compiler will happily match int lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> long doInPG(Checked.LongSupplier<E> op)
+	throws E
+	{
+		synchronized(THREADLOCK)
+		{
+			return op.getAsLong();
+		}
 	}
 
 	/**
