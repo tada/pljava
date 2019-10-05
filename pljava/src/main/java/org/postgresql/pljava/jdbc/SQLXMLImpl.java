@@ -311,9 +311,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		if ( sx instanceof Readable.PgXML || sx instanceof Writable )
 			return ((SQLXMLImpl)sx).adopt(oid);
 
+		Source src = sx.getSource(null);
 		SQLXML rx =
 			newWritable().setResult(Adjusting.XML.SourceResult.class)
-			.set(sx.getSource(null)).getSQLXML();
+			.set(src).getSQLXML();
 
 		sx.free();
 		return ((SQLXMLImpl)rx).adopt(oid);
