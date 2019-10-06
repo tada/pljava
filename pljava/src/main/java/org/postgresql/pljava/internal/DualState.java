@@ -718,6 +718,25 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * Throws {@code UnsupportedOperationException}; client code should already
+	 * hold a reference.
+	 */
+	@Override
+	public final T get()
+	{
+		throw new UnsupportedOperationException(
+			"directly calling get() on a DualState object is not supported.");
+	}
+
+	/**
+	 * Used internally to obtain this object's referent.
+	 */
+	protected final T referent()
+	{
+		return super.get();
+	}
+
+	/**
 	 * Obtain a pin on this state, throwing an appropriate exception if it
 	 * is not still valid, blocking if necessary until release of a lock.
 	 *<p>
@@ -1074,11 +1093,11 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private void scheduleJavaReleased(int s)
 	{
-		T r = get();
+		T r = referent();
 		/*
-		 * If get() returned a non-null reference, clearly the garbage collector
-		 * has not cleared this yet (and is now prevented from doing so, by the
-		 * strong reference r).
+		 * If referent() returned a non-null reference, clearly the garbage
+		 * collector has not cleared this yet (and is now prevented from doing
+		 * so, by the strong reference r ... barring JIT optimizations!).
 		 *
 		 * Clearing it here explicitly relieves the garbage collector of further
 		 * need to track it for later enqueueing.
@@ -1339,7 +1358,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	protected String identifierForMessage()
 	{
 		String id;
-		Object referent = get();
+		Object referent = referent();
 		if ( null != referent )
 			id = referent.getClass().getName();
 		else
@@ -1486,7 +1505,7 @@ public abstract class DualState<T> extends WeakReference<T>
 				{
 					++ release;
 					s.nativeStateReleased(
-						z(JAVA_RELEASED & state)  &&  null != s.get());
+						z(JAVA_RELEASED & state)  &&  null != s.referent());
 				}
 			}
 			finally
