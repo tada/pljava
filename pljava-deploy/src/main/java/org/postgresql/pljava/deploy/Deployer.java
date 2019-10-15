@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -56,20 +56,20 @@ import java.util.ArrayList;
  * <td>Drops the Java language and the sqjl procedures and loaded jars</td>
  * </tr>
  * <tr>
- * <td nowrap="true" valign="top">-user &lt;user name&gt;</td>
+ * <td valign="top">-user &lt;user name&gt;</td>
  * <td>Name of user that connects to the database. Default is current user</td>
  * </tr>
  * <tr>
- * <td nowrap="true" valign="top">-password &lt;password&gt;</td>
+ * <td valign="top">-password &lt;password&gt;</td>
  * <td>Password of user that connects to the database. Default is no password
  * </td>
  * </tr>
  * <tr>
- * <td nowrap="true" valign="top">-database &lt;database&gt;</td>
+ * <td valign="top">-database &lt;database&gt;</td>
  * <td>The name of the database to connect to. Default is current user</td>
  * </tr>
  * <tr>
- * <td nowrap="true" valign="top">-host &lt;hostname&gt;</td>
+ * <td valign="top">-host &lt;hostname&gt;</td>
  * <td>Name of the host. Default is "localhost"</td>
  * </tr>
  * <tr>
