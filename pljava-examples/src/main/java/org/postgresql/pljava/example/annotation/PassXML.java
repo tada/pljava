@@ -578,7 +578,7 @@ public class PassXML implements SQLData
 			case 6:
 				StAXSource sts = sx.getSource(StAXSource.class);
 				StAXResult str = rx.setResult(StAXResult.class);
-				XMLOutputFactory xof = XMLOutputFactory.newFactory();
+				XMLOutputFactory xof = XMLOutputFactory.newInstance();
 				/*
 				 * The Source has either an event reader or a stream reader. Use
 				 * the event reader directly, or create one around the stream
@@ -587,7 +587,7 @@ public class PassXML implements SQLData
 				XMLEventReader xer = sts.getXMLEventReader();
 				if ( null == xer )
 				{
-					XMLInputFactory  xif = XMLInputFactory .newFactory();
+					XMLInputFactory  xif = XMLInputFactory .newInstance();
 					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 					/*
 					 * Important: before copying this example code for another

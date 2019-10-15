@@ -594,7 +594,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		boolean mustBeDocument = false;
 		boolean cantBeDocument = false;
 
-		XMLInputFactory xif = XMLInputFactory.newFactory();
+		XMLInputFactory xif = XMLInputFactory.newInstance();
 		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 		XMLStreamReader xsr = null;
 		try
@@ -781,7 +781,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( sourceClass.isAssignableFrom(StAXSource.class)
 					|| sourceClass.isAssignableFrom(AdjustingStAXSource.class) )
 				{
-					XMLInputFactory xif = XMLInputFactory.newFactory();
+					XMLInputFactory xif = XMLInputFactory.newInstance();
 					xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 					is = correctedDeclStream(is, false);
 					AdjustingStAXSource ss =
@@ -1118,7 +1118,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 				if ( resultClass.isAssignableFrom(StAXResult.class) )
 				{
-					XMLOutputFactory xof = XMLOutputFactory.newFactory();
+					XMLOutputFactory xof = XMLOutputFactory.newInstance();
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					XMLStreamWriter xsw = xof.createXMLStreamWriter(
 						os, m_serverCS.name());
@@ -2896,9 +2896,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				StAXResult str = m_tgt.setResult(
 					m_tgt.backingIfNotFreed(), StAXResult.class);
-				XMLInputFactory  xif = XMLInputFactory.newFactory();
+				XMLInputFactory  xif = XMLInputFactory.newInstance();
 				xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-				XMLOutputFactory xof = XMLOutputFactory.newFactory();
+				XMLOutputFactory xof = XMLOutputFactory.newInstance();
 				/*
 				 * The Source has either an event reader or a stream reader. Use
 				 * the event reader directly, or create one around the stream
