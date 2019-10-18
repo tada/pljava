@@ -36,7 +36,7 @@ public final class Adjusting
 	/**
 	 * Class that collects adjustment APIs for affecting the behavior of
 	 * PL/Java's XML support.
-	 *<h1>XML parser behavior adjustments</h1>
+	 *<h2>XML parser behavior adjustments</h2>
 	 *<p>
 	 * Retrieving or verifying the XML content in a JDBC {@code SQLXML} object
 	 * can involve applying an XML parser. The full XML specification includes

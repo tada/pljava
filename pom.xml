@@ -85,6 +85,9 @@
 					</plugin>
 				</plugins>
 			</build>
+			<properties>
+				<version.javadoc.plugin>2.10.3</version.javadoc.plugin>
+			</properties>
 		</profile>
 		<profile>
 			<id>release6</id>
@@ -103,6 +106,9 @@
 					</plugin>
 				</plugins>
 			</build>
+			<properties>
+				<version.javadoc.plugin>3.1.1</version.javadoc.plugin>
+			</properties>
 		</profile>
 		<profile>
 			<id>release7</id>
@@ -121,6 +127,9 @@
 					</plugin>
 				</plugins>
 			</build>
+			<properties>
+				<version.javadoc.plugin>3.1.1</version.javadoc.plugin>
+			</properties>
 		</profile>
 	</profiles>
 
@@ -192,10 +201,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>2.10.3</version>
-				<configuration>
-					<source>8</source>
-				</configuration>
+				<version>${version.javadoc.plugin}</version>
 				<reportSets>
 					<reportSet>
 						<reports>

@@ -135,8 +135,8 @@ import org.xml.sax.SAXException;
  * CREATE TABLE catalog_as_xml(x) AS
  *   SELECT schema_to_xml('pg_catalog', false, true, '');
  *</pre>
- *<h1>Functions/predicates from ISO 9075-14 SQL/XML</h1>
- *<h2>XMLQUERY</h2>
+ *<h2>Functions/predicates from ISO 9075-14 SQL/XML</h2>
+ *<h3>XMLQUERY</h3>
  *<p>
  * In the syntax of the SQL/XML standard, here is a query that would return
  * an XML element representing the declaration of a function with a specified
@@ -167,9 +167,9 @@ import org.xml.sax.SAXException;
  * query function.
  *<p>
  * Because of an unconditional uppercasing that PL/Java's JDBC driver currently
- * applies to column names, any parameter names, such as `FUNCNAME` above, must
- * be spelled in uppercase where used in the XQuery text, or they will not be
- * recognized. Because the unconditional uppercasing is highly likely to be
+ * applies to column names, any parameter names, such as {@code FUNCNAME} above,
+ * must be spelled in uppercase where used in the XQuery text, or they will not
+ * be recognized. Because the unconditional uppercasing is highly likely to be
  * dropped in a future PL/Java release, it is wisest until then to use only
  * parameter names that really are uppercase, both in the XQuery text where they
  * are used and in the SQL expression that supplies them. In PostgreSQL,
@@ -184,7 +184,7 @@ import org.xml.sax.SAXException;
  * provides no way for {@code BY REF} semantics to be implemented, so everything
  * happening here happens {@code BY VALUE} implicitly, and does not need to be
  * specified.
- *<h2>XMLEXISTS</h2>
+ *<h3>XMLEXISTS</h3>
  *<p>
  * The function {@link #xmlexists xmlexists} here implements the
  * standard function of the same name. Because it is the same name, it has to
@@ -205,7 +205,7 @@ import org.xml.sax.SAXException;
  * FROM catalog_as_xml,
  * LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
  *</pre>
- *<h2>XMLTABLE</h2>
+ *<h3>XMLTABLE</h3>
  *<p>
  * The function {@link #xmltable xmltable} here implements (much of) the
  * standard function of the same name. Because it is the same name, it has to
@@ -245,7 +245,7 @@ import org.xml.sax.SAXException;
  * The {@code DPREMIER} parameter passed from SQL to the XQuery expression is
  * spelled in uppercase (and also, in the SQL expression supplying it, quoted),
  * for the reasons explained above for the {@code xq_ret_content} function.
- *<h1>XQuery regular-expression functions in ISO 9075-2 Foundations</h1>
+ *<h2>XQuery regular-expression functions in ISO 9075-2 Foundations</h2>
  * The methods {@link #like_regex like_regex},
  * {@link #occurrences_regex occurrences_regex},
  * {@link #position_regex position_regex},
@@ -257,8 +257,8 @@ import org.xml.sax.SAXException;
  * specifies, not in the more-flexible Unicode-compatible way ISO SQL specifies,
  * and for the ones where ISO SQL allows {@code USING CHARACTERS} or
  * {@code USING OCTETS}, only {@code USING CHARACTERS} will work.
- *<h1>Extensions</h1>
- *<h2>XQuery module prolog allowed</h2>
+ *<h2>Extensions</h2>
+ *<h3>XQuery module prolog allowed</h3>
  *<p>
  * Where any function here accepts an XQuery
  *<a href='https://www.w3.org/TR/xquery-31/#id-expressions'
@@ -266,7 +266,7 @@ import org.xml.sax.SAXException;
  *<a href='https://www.w3.org/TR/xquery-31/#dt-main-module'
  *>"main module"</a> will be accepted. Therefore, the query can be preceded by
  * a prolog declaring namespaces, options, local variables and functions, etc.
- *<h2>Saxon extension to XQuery regular expressions</h2>
+ *<h3>Saxon extension to XQuery regular expressions</h3>
  *<p>
  * Saxon's implementation of XQuery regular expressions will accept a
  * nonstandard <em>flag</em> string ending with {@code ;j} to use Java regular
@@ -1108,7 +1108,7 @@ public class S9 implements ResultSetProvider
 	 * ordered list of the steps to apply:
 	 *<ul>
 	 *<li>Any item in the sequence that is an array is flattened (its elements
-	 * become items in the sequence)
+	 * become items in the sequence).
 	 *<li>If any item is a function, {@code err:XQTY0105} is raised.
 	 *<li>Any sequence {@code $s} of adjacent atomic values is replaced by
 	 * {@code string-join($s, ' ')}.

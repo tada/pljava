@@ -27,15 +27,13 @@ import java.util.ArrayList;
  * PostgreSQL distribution. The former contains the code for the deployer
  * command and the second includes the PostgreSQL JDBC driver. You then run the
  * deployer with the command:
- * <p>
  * <blockquote><code>
  * java -cp &lt;your classpath&gt; org.postgresql.pljava.deploy.Deployer [ options ]
  * </code></blockquote>
  * <p>
  * It's recommended that create a shell script or a .bat script that does this
  * for you so that you don't have to do this over and over again.
- * </p>
- * <h3>Deployer options</h3>
+ * <h2>Deployer options</h2>
  * <blockquote><table><caption>Options for Deployer</caption>
  * <tr>
  * <th>Option</th>
