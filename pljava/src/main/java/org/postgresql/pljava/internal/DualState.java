@@ -17,9 +17,11 @@ import java.lang.ref.WeakReference;
 import java.sql.SQLException;
 
 import java.util.ArrayDeque;
+import static java.util.Arrays.asList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 
@@ -251,14 +253,26 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * They will turn up on this queue (with referent already set null) if
 	 * the garbage collector has determined them to be unreachable. They can
 	 * also arrive here (also with referent nulled) following
-	 * {@code releaseFromJava} if the release of the last pin occurs on a thread
-	 * other than the PG thread.
+	 * {@code releaseFromJava}.
 	 *<p>
 	 * The queue is only processed by a private method called on the PG thread
 	 * in selected places where it makes sense to do so.
 	 */
 	private static final ReferenceQueue<Object> s_releasedInstances =
 		new ReferenceQueue<Object>();
+
+	/**
+	 * {@code DualState} objects that arrived on {@code s_releasedInstances}
+	 * before their time.
+	 *<p>
+	 * A slim chance exists (see {@code releaseFromJava} code comments) for an
+	 * instance occasionally to appear on {@code s_releasedInstances}
+	 * before all pins on it have been released. In queue processing, they can
+	 * be put back on this queue and polled again in a later pass. The rarity of
+	 * the case doesn't suggest a need for anything more elaborate.
+	 */
+	private static final Deque<DualState<?>> s_deferredReleased =
+		new ArrayDeque<DualState<?>>();
 
 	/**
 	 * All instances in a non-transient native scope are added here upon
@@ -662,6 +676,12 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * Part of a pre-Java-9 attempt to achieve something like reachabilityFence;
+	 * see releaseFromJava.
+	 */
+	private static final List<?> s_nulls = asList((Object)null);
+
+	/**
 	 * What Java code will call to explicitly release this instance
 	 * (in the implementation of {@code close}, for example).
 	 *<p>
@@ -671,6 +691,50 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	protected final void releaseFromJava()
 	{
+		/*
+		 * The possibility of a race between GC and a releaseFromJava call seems
+		 * remote; it stands to reason that whoever is calling releaseFromJava
+		 * is holding a live reference to the referent, so it's not eligible for
+		 * GC. Strictly, though, something with only a reference to the
+		 * DualState could call this method. It would be a strange coding
+		 * pattern, but nothing here prevents it.
+		 *
+		 * Of greater concern is what happens after releaseFromJava. The caller
+		 * might well let go of any reference, creating a race to see who puts
+		 * the object onto the ReferenceQueue first, GC or this method (or
+		 * unpin, if there are pins to wait for), making it difficult for the
+		 * reference queue drainer to distinguish which case it is handling.
+		 *
+		 * That can be avoided by doing an unconditional clear() here, so (as
+		 * long as the referent was live when we started), the GC is relieved of
+		 * any queuing duties, leaving us in control of the next steps.
+		 *
+		 * We must do the clear() and also detect whether it already was clear,
+		 * by calling referent() first. Those two steps aren't an atom, but at
+		 * first blush it looks safe to hold our own strong reference in r1 and
+		 * so hold off any finding of unreachability from there to the clear().
+		 *
+		 * Optimizing JIT could muddy the picture, though, by deciding the only
+		 * use of r1 here is to compare it to null, which could be moved ahead
+		 * of the clear(). In Java 9, that can be prevented explicitly by
+		 * placing reachabilityFence(r1) after the clear(). In the pre-Java-9
+		 * world, making the comparison to null somewhat less constant-foldable
+		 * and placing it on the far side of the atomic operations on m_state
+		 * will have to do, with some crossing of fingers.
+		 *
+		 * The m_state operations are the only ones with synchronizing effects,
+		 * so we had better delay our unconditional clear() until after we know
+		 * the JAVA_RELEASED flag has been CAS'd in. Otherwise we'd be unable to
+		 * decide whether a referent-was-cleared-at-entry condition meant we
+		 * were beaten by GC or by another releaseFromJava call.
+		 *
+		 * Note that Reference.isEnqueued() looks promising as a way to tell if
+		 * the GC has enqueued something already, but it isn't: it goes back to
+		 * false again as soon as a reference is removed from the queue, so it's
+		 * hopelessly racy.
+		 */
+		T r1 = referent();
+
 		int s = 0; // start by assuming state is simple with no pins
 		int t;
 		for ( ;; )
@@ -680,15 +744,55 @@ public abstract class DualState<T> extends WeakReference<T>
 				break;
 			s = m_state.get();
 			if ( !z(s & JAVA_RELEASED) )
-				return; // whoever beat us will take care of the next steps.
+				break; // someone else has beaten us to marking it released.
 		}
 		/*
-		 * The state is now marked JAVA_RELEASED. If there is currently a
-		 * non-zero count of pins, just return; the last pinner out will take
-		 * the next step. Otherwise, it's up to us.
+		 * The state is now marked JAVA_RELEASED; that flag may have been set
+		 * before us, or here now by us (the latter indicated by its absence
+		 * in s).
+		 *
+		 * Now to clear the referent, and find out if it was live at entry.
 		 */
+		super.clear();
+		T r2 = referent();
+		boolean wasClearAtEntry = s_nulls.containsAll(asList(r1, r2));
+		boolean releaseFlagWasClear = z(s & JAVA_RELEASED);
+
+		if ( wasClearAtEntry )
+		{
+			if ( releaseFlagWasClear )
+			{
+				/*
+				 * The garbage collector has already enqueued it; we are too
+				 * late. Count the event and return.
+				 * If there are any pins, two things will happen, one more bad,
+				 * one less. The GC has no clue about waiting for unpins, so
+				 * the queue drainer may receive (or already has, even) this
+				 * object with active pins. It can detect that, and do something
+				 * reasonable.
+				 * Also, when unpin() releases the last one, it will want to
+				 * enqueue the object again. That's already a non-problem:
+				 * Reference.enqueue() only works one time.
+				 */
+				s_stats.gcReleaseRace();
+				return;
+			}
+			else
+			{
+				/*
+				 * We were beaten by another releaseFromJava call. That thread
+				 * will be handling the remaining formalities.
+				 */
+				s_stats.releaseReleaseRace();
+				return;
+			}
+		}
+
+		if ( ! releaseFlagWasClear )
+			return; // Other winning thread will handle the formalities.
+
 		if ( !z(s & (WAITERS_MASK | PINNERS_MASK)) )
-			return;
+			return; // unpin() will schedule when the last pin is released
 
 		scheduleJavaReleased(s);
 	}
@@ -1086,55 +1190,25 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * pins at the time; otherwise, it is called by {@code unpin} when the last
 	 * pin is released.
 	 *<p>
-	 * It calls {@code javaStateReleased} directly if the current thread may
-	 * enter the native PostgreSQL code; otherwise, it adds the instance to
+	 * It could call {@code javaStateReleased} directly if the current thread
+	 * may enter the native PostgreSQL code, otherwise adding the instance to
 	 * the reference queue, to be handled when the queue is polled by such
 	 * a thread.
+	 *<p>
+	 * A complication arises because of a very slim chance that the instance has
+	 * already been enqueued (see {@code releaseFromJava} for details), and
+	 * should not be enqueued again. As if tailor-made for such a situation, the
+	 * {@code Reference.enqueue} method only works one time, and is a no-op
+	 * thereafter. Hence, a simple and workable scheme is to unconditionally
+	 * call {@code enqueue} here (enqueuing the object, or not, if it already
+	 * has been), and then call the queue drainer if this is the PG thread.
 	 */
 	private void scheduleJavaReleased(int s)
 	{
-		T r = referent();
-		/*
-		 * If referent() returned a non-null reference, clearly the garbage
-		 * collector has not cleared this yet (and is now prevented from doing
-		 * so, by the strong reference r ... barring JIT optimizations!).
-		 *
-		 * Clearing it here explicitly relieves the garbage collector of further
-		 * need to track it for later enqueueing.
-		 */
-		super.clear();
+		super.enqueue();
 
 		if ( Backend.threadMayEnterPG() )
-		{
-			if ( null != r )
-			{
-				assert s_inCleanup.enter(); // no-op when assertions disabled
-				try
-				{
-					delist();
-					javaStateReleased(z(s & NATIVE_RELEASED));
-					s_stats.javaRelease();
-				}
-				finally
-				{
-					assert s_inCleanup.exit();
-				}
-			}
-			else
-			{
-				/*
-				 * The referent was already cleared, meaning we may already be
-				 * enqueued. We do not want to call javaStateReleased more than
-				 * once (as could happen if it is called from here and also when
-				 * the queue is drained). Instead, just do a queue drain here,
-				 * having what amounts to a decent hint that at least one item
-				 * may be on it.
-				 */
-				 cleanEnqueuedInstances();
-			}
-		}
-		else
-			super.enqueue();
+			cleanEnqueuedInstances();
 	}
 
 	/**
@@ -1519,7 +1593,8 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * Called only from native code, at points where checking the
-	 * freed/unreachable objects queue would be useful. Calls the
+	 * freed/unreachable objects queue would be useful, or from
+	 * {@code scheduleJavaReleased} when on the PG thread. Calls the
 	 * {@link #javaStateUnreachable javaStateUnreachable} method for instances
 	 * that were cleared and enqueued by the garbage collector; calls the
 	 * {@link #javaStateReleased javaStateReleased} method for instances that
@@ -1528,18 +1603,37 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private static void cleanEnqueuedInstances()
 	{
-		long total = 0L, release = 0L;
+		long total = 0L, release = 0L, reDefer = 0L;
 		DualState s;
+		int nDeferred = s_deferredReleased.size();
+		boolean isDeferred;
 
 		assert s_inCleanup.enter(); // no-op when assertions disabled
 		try
 		{
-			while ( null != (s = (DualState)s_releasedInstances.poll()) )
+			for ( ;; )
 			{
+				isDeferred = 0 < nDeferred;
+				if ( isDeferred )
+				{
+					-- nDeferred;
+					s = s_deferredReleased.remove();
+				}
+				else if ( null == (s = (DualState)s_releasedInstances.poll()) )
+					break;
+
+				int state = s.m_state.get();
+				if ( !z((PINNERS_MASK | WAITERS_MASK) & state) )
+				{
+					s_deferredReleased.add(s);
+					if ( isDeferred )
+						++ reDefer;
+					continue;
+				}
+
 				++ total;
 
 				s.delist();
-				int state = s.m_state.get();
 				try
 				{
 					if ( !z(JAVA_RELEASED & state) )
@@ -1558,7 +1652,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			assert s_inCleanup.exit();
 		}
 
-		s_stats.referenceQueueDrain(total - release, release, total);
+		s_stats.referenceQueueDrain(total - release, release, total, reDefer);
 	}
 
 	/**
@@ -1967,6 +2061,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		long getReferenceQueueItems();
 		long getContendedLocks();
 		long getContendedPins();
+		long getRepeatedlyDeferred();
+		int getGcReleaseRaces();
+		int getReleaseReleaseRaces();
 	}
 
 	static class Statistics implements StatisticsMBean
@@ -1984,6 +2081,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		public long getReferenceQueueItems()   { return referenceQueueItems; }
 		public long getContendedLocks()        { return contendedLocks; }
 		public long getContendedPins()         { return contendedPins; }
+		public long getRepeatedlyDeferred()    { return repeatedlyDeferred; }
+		public int  getGcReleaseRaces()        { return gcRelRaces.get(); }
+		public int  getReleaseReleaseRaces()   { return relRelRaces.get(); }
 
 		private long constructed = 0L;
 		private long enlistedScoped = 0L;
@@ -1998,6 +2098,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		private long referenceQueueItems = 0L;
 		private long contendedLocks = 0L;
 		private long contendedPins = 0L;
+		private long repeatedlyDeferred = 0L;
+		private AtomicInteger  gcRelRaces = new AtomicInteger();
+		private AtomicInteger relRelRaces = new AtomicInteger();
 
 		final void construct(long scoped)
 		{
@@ -2021,12 +2124,13 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		final void referenceQueueDrain(
-			long unreachable, long release, long total)
+			long unreachable, long release, long total, long reDefer)
 		{
 			++ referenceQueuePasses;
 			referenceQueueItems += total;
 			javaUnreachable += unreachable;
 			javaReleased += release;
+			repeatedlyDeferred += reDefer;
 		}
 
 		final void delistScoped()
@@ -2052,6 +2156,16 @@ public abstract class DualState<T> extends WeakReference<T>
 		final void pinContended(int n)
 		{
 			contendedPins += n;
+		}
+
+		final void gcReleaseRace()
+		{
+			gcRelRaces.getAndIncrement();
+		}
+
+		final void releaseReleaseRace()
+		{
+			gcRelRaces.getAndIncrement();
 		}
 	}
 }
