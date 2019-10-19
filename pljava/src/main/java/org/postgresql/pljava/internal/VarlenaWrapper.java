@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -136,19 +136,11 @@ public interface VarlenaWrapper extends Closeable
 
 		/**
 		 * Wrapper around the {@code pinUnlessReleased} method of the native
-		 * state, for sites where an {@code IOException} is needed rather than
-		 * {@code SQLException}.
+		 * state.
 		 */
-		private boolean pinUnlessReleased() throws IOException
+		private boolean pinUnlessReleased()
 		{
-			try
-			{
-				return ((State)m_state).pinUnlessReleased();
-			}
-			catch ( SQLException e )
-			{
-				throw new IOException(e.getMessage(), e);
-			}
+			return ((State)m_state).pinUnlessReleased();
 		}
 
 		/*
@@ -515,19 +507,11 @@ public interface VarlenaWrapper extends Closeable
 
 		/**
 		 * Wrapper around the {@code pinUnlessReleased} method of the native
-		 * state, for sites where an {@code IOException} is needed rather than
-		 * {@code SQLException}.
+		 * state.
 		 */
-		private boolean pinUnlessReleased() throws IOException
+		private boolean pinUnlessReleased()
 		{
-			try
-			{
-				return m_state.pinUnlessReleased();
-			}
-			catch ( SQLException e )
-			{
-				throw new IOException(e.getMessage(), e);
-			}
+			return m_state.pinUnlessReleased();
 		}
 
 		@Override

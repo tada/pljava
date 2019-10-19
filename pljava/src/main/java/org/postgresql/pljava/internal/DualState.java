@@ -753,10 +753,9 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * used in a caller (such as a {@code close} or {@code free} operation) that
 	 * will have nothing to do and return immediately if this method returns
 	 * true.
-	 * @throws SQLException if the native state or the Java state has been
-	 * released.
 	 * @throws CancellationException if the thread is interrupted while waiting.
-	 */public final boolean pinUnlessReleased() throws SQLException
+	 */
+	public final boolean pinUnlessReleased()
 	{
 		return !z(_pin());
 	}
@@ -766,7 +765,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @return zero if the pin was obtained, otherwise {@code NATIVE_RELEASED},
 	 * {@code JAVA_RELEASED}, or both.
 	 */
-	private final int _pin() throws SQLException
+	private final int _pin()
 	{
 		if ( s_pinCount.pin(this) )
 			return 0; // reentrant pin, no need for sync effort
@@ -991,7 +990,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
 	 * the state
 	 */
-	private int backoutPinAfterPark(int s, int t) throws SQLException
+	private int backoutPinAfterPark(int s, int t)
 	{
 		boolean wasHolds = !z(t & MUTATOR_HOLDS); // t, the pre-park state
 		/*
