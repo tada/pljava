@@ -25,24 +25,20 @@ import java.nio.InvalidMarkException;
  * region windowed by the {@code ByteBuffer} is no longer to be accessed, and
  * throwing an exception in that case.
  *<p>
- * The implementing class must supply an object that the {@code InputStream}
- * operations will be {@code synchronized} on, and that must be the same object
- * on which any operations that affect the byte buffer's accessibility will
- * synchronize.
+ * The implementing class may supply an object that the {@code InputStream}
+ * operations will be {@code synchronized} on.
+ *<p>
+ * The underlying buffer's
+ * {@link ByteBuffer#position() position} and
+ * {@link ByteBuffer#mark() mark} are used to maintain the corresponding values
+ * for the input stream.
  */
 public abstract class ByteBufferInputStream extends InputStream
 {
 	/**
 	 * The object on which the {@code InputStream} operations will synchronize.
-	 *<p>
-	 * Must be the same object, if any, that operations affecting the byte
-	 * buffer's accessibility synchronize on, and may be of any type useful to
-	 * the implementing class.
-	 * <strong>Every implementing subclass must assign something to
-	 * {@code m_state} when created, and then leave it alone as if it were
-	 * {@code final}.</strong>
 	 */
-	protected Object m_state;
+	protected final Object m_lock;
 
 	/**
 	 * Whether this stream is open; initially true.
@@ -50,26 +46,41 @@ public abstract class ByteBufferInputStream extends InputStream
 	protected boolean m_open;
 
 	/**
-	 * Construct an instance, given an object on which to synchronize.
-	 *<p>
-	 * Does not require a parameter to initialize {@link m_state} (because if an
-	 * implementing subclass needs to create a state object with a reference to
-	 * this, Java's restriction on referencing this prior to calling a
-	 * superclass constructor could be triggered).
-	 *<p>
-	 * <strong>Every implementing subclass must assign something to
-	 * {@code m_state} when created, and then leave it alone as if it were
-	 * {@code final}.</strong>
+	 * Construct an instance whose critical sections will synchronize on the
+	 * instance itself.
 	 */
 	protected ByteBufferInputStream()
 	{
+		m_lock = this;
 		m_open = true;
 	}
 
+	/**
+	 * Construct an instance, given an object on which to synchronize.
+	 * @param lock The Object to synchronize on.
+	 */
+	protected ByteBufferInputStream(Object lock)
+	{
+		m_lock = lock;
+		m_open = true;
+	}
+
+	/**
+	 * Pin resources if necessary during a reading operation.
+	 *<p>
+	 * This default implementation does nothing. A subclass should override it
+	 * if (in addition to synchronizing on {@code m_lock}), some pinning of a
+	 * resource is needed during access operations.
+	 */
 	protected void pin() throws IOException
 	{
 	}
 
+	/**
+	 * Unpin resources if necessary after a reading operation.
+	 *<p>
+	 * This default implementation does nothing.
+	 */
 	protected void unpin()
 	{
 	}
@@ -78,7 +89,7 @@ public abstract class ByteBufferInputStream extends InputStream
 	 * Return the {@link ByteBuffer} being wrapped, or throw an exception if the
 	 * memory windowed by the buffer should no longer be accessed.
 	 *<p>
-	 * The monitor on {@link #m_state} is held when this method is called.
+	 * The monitor on {@link #m_lock} is held when this method is called.
 	 *<p>
 	 * This method also should throw an exception if {@link #m_open} is false.
 	 * It is called everywhere that should happen, so it is the perfect place
@@ -100,9 +111,9 @@ public abstract class ByteBufferInputStream extends InputStream
 		pin();
 		try
 		{
-			ByteBuffer src = buffer();
-			synchronized ( m_state )
+			synchronized ( m_lock )
 			{
+				ByteBuffer src = buffer();
 				if ( 0 < src.remaining() )
 					return src.get();
 				return -1;
@@ -120,9 +131,9 @@ public abstract class ByteBufferInputStream extends InputStream
 		pin();
 		try
 		{
-			ByteBuffer src = buffer();
-			synchronized ( m_state )
+			synchronized ( m_lock )
 			{
+				ByteBuffer src = buffer();
 				int has = src.remaining();
 				if ( len > has )
 				{
@@ -146,9 +157,9 @@ public abstract class ByteBufferInputStream extends InputStream
 		pin();
 		try
 		{
-			ByteBuffer src = buffer();
-			synchronized ( m_state )
+			synchronized ( m_lock )
 			{
+				ByteBuffer src = buffer();
 				int has = src.remaining();
 				if ( n > has )
 					n = has;
@@ -168,7 +179,7 @@ public abstract class ByteBufferInputStream extends InputStream
 		pin();
 		try
 		{
-			synchronized ( m_state )
+			synchronized ( m_lock )
 			{
 				return buffer().remaining();
 			}
@@ -182,7 +193,7 @@ public abstract class ByteBufferInputStream extends InputStream
 	@Override
 	public void close() throws IOException
 	{
-		synchronized ( m_state )
+		synchronized ( m_lock )
 		{
 			if ( ! m_open )
 				return;
@@ -193,7 +204,7 @@ public abstract class ByteBufferInputStream extends InputStream
 	@Override
 	public void mark(int readlimit)
 	{
-		synchronized ( m_state )
+		synchronized ( m_lock )
 		{
 			if ( ! m_open )
 				return;
@@ -224,7 +235,7 @@ public abstract class ByteBufferInputStream extends InputStream
 	@Override
 	public void reset() throws IOException
 	{
-		synchronized ( m_state )
+		synchronized ( m_lock )
 		{
 			if ( ! m_open )
 				return;

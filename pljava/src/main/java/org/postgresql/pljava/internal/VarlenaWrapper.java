@@ -74,17 +74,17 @@ public interface VarlenaWrapper extends Closeable
 
 
 	/**
-	 * A class by which Java reads the content of a varlena as an InputStream.
+	 * A class by which Java reads the content of a varlena.
 	 *
 	 * Associated with a {@code ResourceOwner} to bound the lifetime of
 	 * the native reference; the chosen resource owner must be one that will be
 	 * released no later than the memory context containing the varlena.
 	 */
 	public static class Input
-	extends ByteBufferInputStream implements VarlenaWrapper
 	{
 		private long m_parkedSize;
 		private long m_bufferSize;
+		private final State m_state;
 
 		/**
 		 * Construct a {@code VarlenaWrapper.Input}.
@@ -115,6 +115,17 @@ public interface VarlenaWrapper extends Closeable
 				context, snapshot, varlenaPtr, buf);
 		}
 
+		public class Stream
+		extends ByteBufferInputStream implements VarlenaWrapper
+		{
+			/**
+			 * A duplicate of the {@code VarlenaWrapper.Input}'s byte buffer,
+			 * so its {@code position} and {@code mark} can be updated by the
+			 * {@code InputStream} operations without affecting the original
+			 * (therefore multiple {@code Stream}s may read one {@code Input}).
+			 */
+			private ByteBuffer m_movingBuffer;
+
 		/*
 		 * Overrides {@code ByteBufferInputStream} method and throws the
 		 * exception type declared there. For other uses of pin in this class
@@ -124,9 +135,11 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		protected void pin() throws IOException
 		{
+			if ( ! m_open )
+				throw new IOException("Read from closed VarlenaWrapper");
 			try
 			{
-				((State)m_state).pin();
+				m_state.pin();
 			}
 			catch ( SQLException e )
 			{
@@ -140,7 +153,7 @@ public interface VarlenaWrapper extends Closeable
 		 */
 		private boolean pinUnlessReleased()
 		{
-			return ((State)m_state).pinUnlessReleased();
+			return m_state.pinUnlessReleased();
 		}
 
 		/*
@@ -150,7 +163,7 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		protected void unpin()
 		{
-			((State)m_state).unpin();
+			m_state.unpin();
 		}
 
 		/**
@@ -175,7 +188,7 @@ public interface VarlenaWrapper extends Closeable
 			 * concurrency. Hold m_state's monitor also to block any extraneous
 			 * reading interleaved with the verifier.
 			 */
-			((State)m_state).pin();
+			m_state.pin();
 			try
 			{
 				ByteBuffer buf = buffer();
@@ -212,18 +225,21 @@ public interface VarlenaWrapper extends Closeable
 			}
 			finally
 			{
-				((State)m_state).unpin();
+				m_state.unpin();
 			}
 		}
 
 		@Override
 		protected ByteBuffer buffer() throws IOException
 		{
-			if ( ! m_open )
-				throw new IOException("Read from closed VarlenaWrapper");
 			try
 			{
-				return ((State)m_state).buffer();
+				if ( null == m_movingBuffer )
+				{
+					ByteBuffer b = m_state.buffer();
+					m_movingBuffer = b.duplicate().order(b.order());
+				}
+				return m_movingBuffer;
 			}
 			catch ( SQLException sqe )
 			{
@@ -239,7 +255,7 @@ public interface VarlenaWrapper extends Closeable
 			try
 			{
 				super.close();
-				((State)m_state).releaseFromJava();
+				m_state.releaseFromJava();
 			}
 			finally
 			{
@@ -277,6 +293,7 @@ public interface VarlenaWrapper extends Closeable
 			return String.format("%s parked:%d buffer:%d %s",
 				((State)m_state).toString(o), m_parkedSize, m_bufferSize,
 				m_open ? "open" : "closed");
+		}
 		}
 
 
@@ -1140,7 +1157,7 @@ public interface VarlenaWrapper extends Closeable
 
 			BufferWrapper(Output.State state, ByteBuffer buf)
 			{
-				m_state = this;
+				// default superclass constructor uses 'this' as m_lock.
 				m_nativeState = state;
 				m_buf = buf;
 			}

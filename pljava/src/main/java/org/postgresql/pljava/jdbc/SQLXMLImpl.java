@@ -645,7 +645,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 
 
-	static class Readable extends SQLXMLImpl<VarlenaWrapper.Input>
+	static class Readable extends SQLXMLImpl<VarlenaWrapper.Input.Stream>
 	{
 		private AtomicBoolean m_readable = new AtomicBoolean(true);
 		private Charset m_serverCS = implServerCharset();
@@ -664,15 +664,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 */
 		private Readable(VarlenaWrapper.Input vwi, int oid) throws SQLException
 		{
-			super(vwi);
+			super(vwi.new Stream());
 			m_pgTypeID = oid;
 			if ( null == m_serverCS )
 			{
-				try
-				{
-					vwi.close();
-				}
-				catch ( IOException ioe ) { }
+				free();
 				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
 					"Charset found to match server encoding; perhaps set " +
 					"org.postgresql.server.encoding system property to a " +
@@ -848,7 +844,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		protected VarlenaWrapper adopt(int oid) throws SQLException
 		{
-			VarlenaWrapper.Input vw = m_backing.getAndSet(null);
+			VarlenaWrapper.Input.Stream vw = m_backing.getAndSet(null);
 			if ( ! m_readable.get() )
 				throw new SQLNonTransientException(
 					"SQLXML object has already been read from", "55000");
