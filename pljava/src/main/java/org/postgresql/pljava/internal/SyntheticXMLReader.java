@@ -23,6 +23,8 @@ import java.net.URL;
 
 import java.nio.charset.Charset;
 
+import java.sql.SQLException;
+
 import static java.util.Collections.unmodifiableSet;
 import java.util.EnumSet;
 import java.util.Set;
@@ -91,31 +93,14 @@ public abstract class SyntheticXMLReader implements XMLReader
 	 * convenience in {@code startElement} calls for elements with no
 	 * attributes.
 	 */
-	public static final Attributes2 NO_ATTRIBUTES = new Attributes2Impl()
-	{
-		@Override
-		public void addAttribute(
-			String uri, String localName, String qName,
-			String type, String value)
-		{
-			throw new UnsupportedOperationException(
-				"addAttribute() to the NO_ATTRIBUTES instance");
-		}
-
-		@Override
-		public void setAttributes(Attributes atts)
-		{
-			throw new UnsupportedOperationException(
-				"setAttributes() to the NO_ATTRIBUTES instance");
-		}
-	};
+	public static final Attributes2 NO_ATTRIBUTES = new EmptyAttributes2();
 
 	/**
-	 * A per-instance, pre-allocated {@code Attributes2Impl} that can be re-used
-	 * (but not across threads) for convenience in {@code startElement} calls
-	 * for elements with attributes.
+	 * A per-instance, pre-allocated {@code FluentAttributes2} that can be
+	 * re-used (but not across threads) for convenience in {@code startElement}
+	 * calls for elements with attributes.
 	 */
-	public final Attributes2Impl m_attributes = new Attributes2Impl();
+	public final FluentAttributes2 m_attributes = new FluentAttributes2();
 
 	public enum SAX2FEATURE
 	{
@@ -508,8 +493,16 @@ public abstract class SyntheticXMLReader implements XMLReader
 		m_contentHandler_.startDocument();
 
 		EventCarrier c;
-		while ( null != ( c = next() ) )
-			c.toSAX();
+
+		try
+		{
+			while ( null != ( c = next() ) )
+				c.toSAX();
+		}
+		catch ( SQLException e )
+		{
+			throw new IOException(e.getMessage(), e);
+		}
 
 		m_contentHandler_.endDocument();
 	}
@@ -652,6 +645,9 @@ public abstract class SyntheticXMLReader implements XMLReader
 	 * which it should disgorge events. Those methods never return null; a no-op
 	 * handler will be returned if the consumer code did not register a handler
 	 * of the corresponding type.
+	 *<p>
+	 * Additional convenience methods are provided for generating the most
+	 * common SAX parse events.
 	 */
 	public abstract class EventCarrier
 	{
@@ -685,7 +681,79 @@ public abstract class SyntheticXMLReader implements XMLReader
 			return m_lexicalHandler_;
 		}
 
-		public abstract void toSAX() throws IOException, SAXException;
+		/**
+		 * Return the per-instance, reusable
+		 * {@link FluentAttributes2 FluentAttributes2} instance, without
+		 * clearing it first, so the attributes from its last use can be
+		 * reused or modified.
+		 */
+		protected FluentAttributes2 attrs()
+		{
+			return m_attributes;
+		}
+
+		/**
+		 * Return the per-instance, reusable
+		 * {@link FluentAttributes2 FluentAttributes2} instance,
+		 * clearing it first.
+		 */
+		protected FluentAttributes2 cleared()
+		{
+			return m_attributes.cleared();
+		}
+
+		/**
+		 * Write a {@code String} value as character content.
+		 */
+		protected void characters(String s) throws SAXException
+		{
+			m_contentHandler_.characters(s.toCharArray(), 0, s.length());
+		}
+
+		/**
+		 * Write a {@code String} value as a {@code CDATA} segment.
+		 */
+		protected void cdataCharacters(String s) throws SAXException
+		{
+			m_lexicalHandler_.startCDATA();
+			try
+			{
+				m_contentHandler_.characters(s.toCharArray(), 0, s.length());
+			}
+			finally
+			{
+				m_lexicalHandler_.endCDATA();
+			}
+		}
+
+		/**
+		 * Start an element with only a local name and no attributes.
+		 */
+		protected void startElement(String localName) throws SAXException
+		{
+			m_contentHandler_.startElement(
+				"", localName, localName, NO_ATTRIBUTES);
+		}
+
+		/**
+		 * Start an element with only a local name, and attributes.
+		 */
+		protected void startElement(String localName, Attributes atts)
+		throws SAXException
+		{
+			m_contentHandler_.startElement("", localName, localName, atts);
+		}
+
+		/**
+		 * End an element with only a local name.
+		 */
+		protected void endElement(String localName) throws SAXException
+		{
+			m_contentHandler_.endElement("", localName, localName);
+		}
+
+		public abstract void toSAX()
+		throws IOException, SAXException, SQLException;
 	}
 
 	/**
@@ -703,13 +771,128 @@ public abstract class SyntheticXMLReader implements XMLReader
 		}
 
 		@Override
-		public void toSAX() throws IOException, SAXException
+		public void toSAX()
+		throws IOException, SAXException, SQLException
 		{
 			if ( e instanceof IOException )
 				throw (IOException)e;
 			if ( e instanceof SAXException )
 				throw (SAXException)e;
-			throw new SAXException(e.getMessage(), e);
+			if ( e instanceof SQLException )
+				throw (SQLException)e;
+			throw new SQLException(e.getMessage(), e);
+		}
+	}
+
+	public static class EmptyAttributes2 extends Attributes2Impl
+	{
+		@Override
+		public void addAttribute(
+			String uri, String localName, String qName,
+			String type, String value)
+		{
+			throw new UnsupportedOperationException(
+				"addAttribute() to the NO_ATTRIBUTES instance");
+		}
+
+		@Override
+		public void setAttributes(Attributes atts)
+		{
+			throw new UnsupportedOperationException(
+				"setAttributes() to the NO_ATTRIBUTES instance");
+		}
+	}
+
+	/**
+	 * Subclass of {@link Attributes2Impl} that also provides chainable methods
+	 * so attribute information can be supplied in a fluent style.
+	 */
+	public static class FluentAttributes2 extends Attributes2Impl
+	{
+		public FluentAttributes2 cleared()
+		{
+			clear();
+			return this;
+		}
+
+		public FluentAttributes2 withAttribute(String localName)
+		{
+			addAttribute("", localName, localName, "CDATA", "");
+			return this;
+		}
+
+		public FluentAttributes2 withAttribute(String localName, String value)
+		{
+			addAttribute("", localName, localName, "CDATA", value);
+			return this;
+		}
+
+		public FluentAttributes2 withAttribute(String uri, String localName,
+			String qName, String type, String value)
+		{
+			addAttribute(uri, localName, qName, type, value);
+			return this;
+		}
+
+		public FluentAttributes2 withoutAttribute(int index)
+		{
+			removeAttribute(index);
+			return this;
+		}
+
+		public FluentAttributes2 withAttribute(int index, String uri,
+			String localName, String qName, String type, String value)
+		{
+			setAttribute(index, uri, localName, qName, type, value);
+			return this;
+		}
+
+		public FluentAttributes2 withAttributes(Attributes atts)
+		{
+			setAttributes(atts);
+			return this;
+		}
+
+		public FluentAttributes2 withLocalName(int index, String localName)
+		{
+			setLocalName(index, localName);
+			return this;
+		}
+
+		public FluentAttributes2 withQName(int index, String qName)
+		{
+			setQName(index, qName);
+			return this;
+		}
+
+		public FluentAttributes2 withType(int index, String type)
+		{
+			setType(index, type);
+			return this;
+		}
+
+		public FluentAttributes2 withURI(int index, String uri)
+		{
+			setURI(index, uri);
+			return this;
+		}
+
+		public FluentAttributes2 withValue(int index, String value)
+		{
+			setValue(index, value);
+			return this;
+		}
+
+		public FluentAttributes2 withDeclared(int index, boolean value)
+		{
+			setDeclared(index, value);
+			return this;
+		}
+
+		public FluentAttributes2 withSpecified(int index, boolean value)
+		{
+			setSpecified(index, value);
+			return this;
 		}
 	}
 }
