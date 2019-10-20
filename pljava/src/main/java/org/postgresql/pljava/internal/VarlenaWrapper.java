@@ -80,7 +80,7 @@ public interface VarlenaWrapper extends Closeable
 	 * the native reference; the chosen resource owner must be one that will be
 	 * released no later than the memory context containing the varlena.
 	 */
-	public static class Input
+	public static class Input implements VarlenaWrapper
 	{
 		private long m_parkedSize;
 		private long m_bufferSize;
@@ -115,6 +115,68 @@ public interface VarlenaWrapper extends Closeable
 				context, snapshot, varlenaPtr, buf);
 		}
 
+		public void pin() throws SQLException
+		{
+			m_state.pin();
+		}
+
+		public boolean pinUnlessReleased()
+		{
+			return m_state.pinUnlessReleased();
+		}
+
+		public void unpin()
+		{
+			m_state.unpin();
+		}
+
+		public ByteBuffer buffer() throws SQLException
+		{
+			return m_state.buffer();
+		}
+
+		@Override
+		public void close() throws IOException
+		{
+			if ( pinUnlessReleased() )
+				return;
+			try
+			{
+				m_state.releaseFromJava();
+			}
+			finally
+			{
+				unpin();
+			}
+		}
+
+		@Override
+		public String toString()
+		{
+			return toString(this);
+		}
+
+		@Override
+		public String toString(Object o)
+		{
+			return String.format("%s parked:%d buffer:%d",
+				m_state.toString(o), m_parkedSize, m_bufferSize);
+		}
+
+		@Override
+		public long adopt(DualState.Key cookie) throws SQLException
+		{
+			m_state.pin();
+			try
+			{
+				return m_state.adopt(cookie);
+			}
+			finally
+			{
+				m_state.unpin();
+			}
+		}
+
 		public class Stream
 		extends ByteBufferInputStream implements VarlenaWrapper
 		{
@@ -139,7 +201,7 @@ public interface VarlenaWrapper extends Closeable
 					throw new IOException("Read from closed VarlenaWrapper");
 				try
 				{
-					m_state.pin();
+					Input.this.pin();
 				}
 				catch ( SQLException e )
 				{
@@ -147,23 +209,36 @@ public interface VarlenaWrapper extends Closeable
 				}
 			}
 
-			/**
-			 * Wrapper around the {@code pinUnlessReleased} method of the native
-			 * state.
-			 */
-			private boolean pinUnlessReleased()
-			{
-				return m_state.pinUnlessReleased();
-			}
-
 			/*
 			 * Unpin for use in {@code ByteBufferInputStream} or here; no
 			 * throws-clause difference to blotch things up.
 			 */
-			@Override
 			protected void unpin()
 			{
-				m_state.unpin();
+				Input.this.unpin();
+			}
+
+			@Override
+			public void close() throws IOException
+			{
+				if ( pinUnlessReleased() )
+					return;
+				try
+				{
+					super.close();
+					Input.this.close();
+				}
+				finally
+				{
+					unpin();
+				}
+			}
+
+			@Override
+			public String toString(Object o)
+			{
+				return String.format("%s %s",
+					Input.this.toString(o), m_open ? "open" : "closed");
 			}
 
 			/**
@@ -237,7 +312,7 @@ public interface VarlenaWrapper extends Closeable
 				{
 					if ( null == m_movingBuffer )
 					{
-						ByteBuffer b = m_state.buffer();
+						ByteBuffer b = Input.this.buffer();
 						m_movingBuffer = b.duplicate().order(b.order());
 					}
 					return m_movingBuffer;
@@ -249,51 +324,21 @@ public interface VarlenaWrapper extends Closeable
 			}
 
 			@Override
-			public void close() throws IOException
-			{
-				if ( pinUnlessReleased() )
-					return;
-				try
-				{
-					super.close();
-					m_state.releaseFromJava();
-				}
-				finally
-				{
-					unpin();
-				}
-			}
-
-			@Override
 			public long adopt(DualState.Key cookie) throws SQLException
 			{
-				((State)m_state).pin();
+				Input.this.pin();
 				try
 				{
 					if ( ! m_open )
 						throw new SQLException(
 							"Cannot adopt VarlenaWrapper.Input after " +
 							"it is closed", "55000");
-					return ((State)m_state).adopt(cookie);
+					return Input.this.adopt(cookie);
 				}
 				finally
 				{
-					((State)m_state).unpin();
+					Input.this.unpin();
 				}
-			}
-
-			@Override
-			public String toString()
-			{
-				return toString(this);
-			}
-
-			@Override
-			public String toString(Object o)
-			{
-				return String.format("%s parked:%d buffer:%d %s",
-					((State)m_state).toString(o), m_parkedSize, m_bufferSize,
-					m_open ? "open" : "closed");
 			}
 		}
 
