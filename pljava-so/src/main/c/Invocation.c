@@ -154,7 +154,8 @@ void Invocation_popInvocation(bool wasException)
 	 */
 	if(currentInvocation->invocation != 0)
 	{
-		JNI_callVoidMethod(currentInvocation->invocation, s_Invocation_onExit,
+		JNI_callVoidMethodLocked(
+			currentInvocation->invocation, s_Invocation_onExit,
 			(wasException || currentInvocation->errorOccurred)
 			? JNI_TRUE : JNI_FALSE);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
