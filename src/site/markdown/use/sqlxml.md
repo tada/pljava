@@ -393,6 +393,13 @@ also allows passing a `sourceClass` other than `null` to the foreign object's
 `getSource` method, if there is a reason not to let the foreign object choose
 the type of `Source` to return.
 
+### `SQLXML` views of non-XML data
+
+There are the beginnings of a feature supporting
+[XML views of non-XML data](xmlview.html), so that some data types that are
+not XML, but are similarly tree-structured, can be manipulated in Java using
+Java's extensive support for XML.
+
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
 [adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
