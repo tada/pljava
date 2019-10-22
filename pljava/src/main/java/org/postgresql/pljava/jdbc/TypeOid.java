@@ -20,6 +20,11 @@ import org.postgresql.pljava.internal.Oid;
  */
 public class TypeOid
 {
+	/*
+	 * These constants (well, the Oid reference ones) have been here for ages,
+	 * so some code auditing is needed to determine where they are used, before
+	 * going a different direction with Oid.
+	 */
 	public static final int InvalidOid     = 0;
 	public static final int INT2OID        = 21;
 	public static final int INT4OID        = 23;
@@ -55,6 +60,12 @@ public class TypeOid
 	public static final Oid VARCHAR     = new Oid(VARCHAROID);
 	public static final Oid OID         = new Oid(OIDOID);
 	public static final Oid BPCHAR      = new Oid(BPCHAROID);
+
+	/*
+	 * Added in 2019. The numeric constant will be used, but no need is foreseen
+	 * for an Oid-reference constant.
+	 */
+	public static final int PGNODETREEOID = 194;
 
 	/*
 	 * Before Java 8 with the @Native annotation, a class needs at least one
