@@ -160,11 +160,11 @@ import org.xml.sax.SAXException;
  * LATERAL (SELECT x AS ".", 'numeric_avg' AS "FUNCNAME") AS p;
  *</pre>
  *<p>
- * In the rewritten form, the type of value returned is determined by which
- * function is called, and the parameters to pass to the query are moved out to
- * a separate {@code SELECT} that supplies their values, types, and names (with
- * the context item now given the name ".") and is passed by its alias into the
- * query function.
+ * In the rewritten form, the form of result wanted ({@code RETURNING CONTENT})
+ * is implicit in the called function name ({@code xq_ret_content}), and the
+ * parameters to pass to the query are moved out to a separate {@code SELECT}
+ * that supplies their values, types, and names (with the context item now given
+ * the name ".") and is passed by its alias into the query function.
  *<p>
  * Because of an unconditional uppercasing that PL/Java's JDBC driver currently
  * applies to column names, any parameter names, such as {@code FUNCNAME} above,
@@ -245,6 +245,17 @@ import org.xml.sax.SAXException;
  * The {@code DPREMIER} parameter passed from SQL to the XQuery expression is
  * spelled in uppercase (and also, in the SQL expression supplying it, quoted),
  * for the reasons explained above for the {@code xq_ret_content} function.
+ *<h3>XMLCAST</h3>
+ *<p>
+ * An ISO standard cast expression like
+ *<pre>
+ * XMLCAST(v AS wantedtype)
+ *</pre>
+ * can be rewritten with this idiom and the {@link #xmlcast xmlcast} function
+ * provided here:
+ *<pre>
+ * (SELECT r FROM (SELECT v) AS o, xmlcast(o) AS (r wantedtype))
+ *</pre>
  *<h2>XQuery regular-expression functions in ISO 9075-2 Foundations</h2>
  * The methods {@link #like_regex like_regex},
  * {@link #occurrences_regex occurrences_regex},
@@ -397,9 +408,9 @@ public class S9 implements ResultSetProvider
 	 * PostgreSQL (as of 12) lacks the XMLTEXT function, so here it is.
 	 *<p>
 	 * As long as PostgreSQL does not have the {@code XML(SEQUENCE)} type,
-	 * this can only be the {@code XMLTEXT(v RETURNING CONTENT)} flavor, which
-	 * does create a text node with {@code v} as its value, but returns the text
-	 * node wrapped in a document node.
+	 * this can only be the {@code XMLTEXT(sve RETURNING CONTENT)} flavor, which
+	 * does create a text node with {@code sve} as its value, but returns the
+	 * text node wrapped in a document node.
 	 *<p>
 	 * This function doesn't actually require Saxon, but otherwise fits in with
 	 * the theme here, implementing missing parts of SQL/XML for PostgreSQL.
@@ -833,8 +844,6 @@ public class S9 implements ResultSetProvider
 	 * and supplying the default <em>D</em> as another query parameter, though
 	 * such defaults will be evaluated only once when {@code xmltable} is called
 	 * and will not be able to refer to other values in an output row.
-	 *<p>
-	 * Output columns of XML type are not yet supported.
 	 * @param rows The single XQuery expression whose result sequence generates
 	 * the rows of the resulting table. Must not be null.
 	 * @param columns Array of XQuery expressions, exactly as many as result
@@ -983,8 +992,8 @@ public class S9 implements ResultSetProvider
 	 * As an ordinary user function, this example cannot rely on any fancy
 	 * query rewriting during PostgreSQL's parse analysis. The slight syntax
 	 * desugaring needed to transform a standard {@code XMLTABLE} call into a
-	 * call of this function is not too hard to learn and do by hand, but no one
-	 * would ever want to write out by hand the whole longwinded "official"
+	 * call of this "xmltable" is not too hard to learn and do by hand, but no
+	 * one would ever want to write out by hand the whole longwinded "official"
 	 * expansion prescribed in the spec. So this example is a compromise.
 	 *<p>
 	 * The main thing lost in the compromise is the handling of column defaults.
@@ -1117,7 +1126,9 @@ public class S9 implements ResultSetProvider
 	 * sequence is flattened (replaced by its children).
 	 *<li>A single text node is produced for any run of adjacent text nodes in
 	 * the sequence (including any that have newly become adjacent by the
-	 * flattening of document nodes), by concatenation with no separator.
+	 * flattening of document nodes), by concatenation with no separator (unlike
+	 * the earlier step where atomic values were concatenated with a space as
+	 * the separator).
 	 *<li>If the sequence directly contains any attribute or namespace node,
 	 * {@code err:XPTY0004} is raised. <b>More on this below.</b>
 	 *<li>The sequence resulting from the preceding steps is wrapped in one
@@ -1130,7 +1141,7 @@ public class S9 implements ResultSetProvider
 	 * existing Java in-memory representation of the document tree, to the
 	 * remaining steps entailed in an {@code XMLCAST} to the output column type:
 	 *<ul>
-	 *<li>If the result column type is an XML type, rewriting turns the
+	 *<li>If the result column type is an XML type, rewriting would turn the
 	 * {@code XMLCAST} into a simple {@code CAST} and that's that. Otherwise,
 	 * the result column has some non-XML, SQL type, and:
 	 *<li>The algorithm "Removing XQuery document nodes from an XQuery sequence"
@@ -3191,7 +3202,7 @@ public class S9 implements ResultSetProvider
 	 * @param occurrence If specified as an integer n (default 1), returns the
 	 * nth match of the pattern in the string.
 	 * @param group If zero (the default), returns the match of the whole
-	 * pattern overall, otherwise if an integer m, the match the mth
+	 * pattern overall, otherwise if an integer m, the match of the mth
 	 * parenthesized group in (the nth occurrence of) the pattern.
 	 * @param w3cNewlines Pass true to allow the regular expression to recognize
 	 * newlines according to the W3C XQuery rules rather than those of ISO SQL.

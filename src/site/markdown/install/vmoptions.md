@@ -33,16 +33,22 @@ this page are specific to Hotspot. For the corresponding feature in OpenJ9,
 which is worth a good look, see the [class sharing in OpenJ9][cdsJ9] page.
 
 For Hotspot, the class data sharing is enabled by including
-
-    -Xshare:on
-
+`-Xshare:on` or `-Xshare:auto`
 in the `pljava.vmoptions` string. In rough terms in 64-bit Java 8 it can
 reduce the 'Metaspace' size per PL/Java backend by slightly over 4 MB, and
 cut about 15 percent from the PL/Java startup time per process.
 
 Sharing may be enabled automatically if the Java VM runs in `client` mode
-(described below), but usually *must* be turned on with `-Xshare:on` if the
-VM runs in `server` mode.
+(described below), but may need to be turned on with `-Xshare:on` or
+`-Xshare=auto` if the VM runs in `server` mode.
+
+The `on` setting can be useful for quickly confirming that sharing works,
+as it will report a hard failure if anything is amiss. However, `auto` is
+recommended in production: on an operating system with address-space layout
+randomization, it is possible for some backends to (randomly) fail to map
+the share. Under the `auto` setting, they will proceed without sharing (and
+with higher resource usage, which may not be ideal), where with the `on`
+setting they would simply fail.
 
 *Note: the earliest documentation on class data sharing, dating to Java 1.5,
 suggested that the feature was not available at all in server mode. In recent
@@ -140,6 +146,26 @@ classes!) in OpenJ9][cdsJ9].
 [vmoptJ9]: oj9vmopt.html
 [cdsJ9]: oj9vmopt.html#How_to_set_up_class_sharing_in_OpenJ9
 [o]: https://blogs.oracle.com/java-platform-group/oracle-jdk-releases-for-java-11-and-later
+[cdsaot]: http://web.archive.org/web/20191020025455/https://blog.gilliard.lol/2017/10/04/AppCDS-and-Clojure.html
+
+## `-XX:AOTLibrary=`
+
+JDK 9 and later have included a tool, `jaotc`, that does ahead-of-time
+compilation of class files to native code, producing a shared-object file
+that can be named with the `-XX:AOTLibrary` option. Options to the `jaotc`
+command can specify which jars, modules, individual classes, or individual
+methods to compile and include. Optionally, `jaotc` can include additional
+metadata with the compiled code (at the cost of a slightly larger file),
+so that the Java runtime's tiered JIT compiler can still further optimize
+the compiled-in-advance methods that turn out to be hot spots.
+
+To make a library of manageable size, a list of touched classes and methods
+from a sample run can be made, much as described above for application class
+data sharing.
+
+A [blog post by Matthew Gilliard][cdsaot] reports successfully combining `jaotc`
+compilation and application class data sharing with good results, and goes into
+some detail on the preparation steps.
 
 ## `-XX:+DisableAttachMechanism`
 

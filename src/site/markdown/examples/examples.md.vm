@@ -106,7 +106,8 @@ corresponding `-P` profile options to the `mvn` command line when building.
 $h3 Using the Saxon XML-processing library for true `XMLQUERY` and `XMLTABLE`
 
 In the source directory `org/postgresql/pljava/example/saxon` is example code
-for XML processing functions similar to `XMLQUERY` and `XMLTABLE` but using
+for XML processing functions similar to `XMLCAST`, `XMLEXISTS`, `XMLQUERY`, and
+`XMLTABLE` but using
 the XQuery language as the SQL/XML standard actually specifies (in contrast
 to the similar functions built into PostgreSQL, which support only XPath,
 and XPath 1.0, at that).

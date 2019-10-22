@@ -10,7 +10,41 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.3
+$h2 PL/Java 1.5.4
+
+This minor release fixes a build issue reported with Java 11, and adds
+support for building with Java 13. Issues with building the javadocs in later
+Java versions are resolved. A work-in-progress feature that can
+[apply the SQLXML API to other tree-structured data types](use/xmlview.html)
+is introduced.
+
+Documentation updates include coverage of
+[changes to Application Class Data Sharing](install/appcds.html) in recent
+Hotspot versions, and ahead-of-time compilation using
+[jaotc](install/vmoptions.html#a-XX:AOTLibrary).
+
+Otherwise, the release notes for 1.5.3, below, should be
+consulted for the details of recent user-visible changes.
+
+$h3 Bugs fixed
+
+* [Build failure with Java 11 and --release](${ghbug}235)
+* [Build with Java 13](${ghbug}236)
+* [Javadoc build fails in Java 11+](${ghbug}239)
+* [Javadoc build fails in Java 13](${ghbug}241)
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.3 (4 October 2019)
 
 This release adds support for PostgreSQL 12, and removes the former
 requirement to build with a Java release earlier than 9.
@@ -233,17 +267,6 @@ and the many contributors to earlier versions.
 [GraalVM]: https://www.graalvm.org/
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [appD31]: https://www.postgresql.org/docs/12/xml-limits-conformance.html
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.2 (5 November 2018)
 

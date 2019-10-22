@@ -201,6 +201,28 @@ public class PassXML implements SQLData
 	 * If howin =&gt; 0, the XML parameter is simply saved in a static. It can
 	 * be read in a subsequent call with sx =&gt; null, but only in the same
 	 * transaction.
+	 *<p>
+	 * The "echoing" is done (in the {@code echoXML} method below) using a
+	 * {@code Transformer}, that is, the "TrAX" Transformation API for XML
+	 * supplied in Java. It illustrates how an identity {@code Transformer} can
+	 * be used to get the XML content from the source to the result for any of
+	 * the APIs selectable by howin and howout.
+	 *<p>
+	 * It also illustrates something else. When using StAX (6 for howin
+	 * or howout) and XML of the {@code CONTENT} flavor (multiple top-level
+	 * elements, characters outside the top element, etc.), it is easy to
+	 * construct examples that fail. The fault is not really with the StAX API,
+	 * nor with TrAX proper, but with the small handful of bridge classes that
+	 * were added to the JRE with StAX's first appearance, to make it
+	 * interoperate with TrAX. It is not that those classes completely overlook
+	 * the {@code CONTENT} case: they make some efforts to handle it. Just not
+	 * the right ones, and given the Java developers' usual reluctance to change
+	 * such longstanding behavior, that's probably not getting fixed.
+	 *<p>
+	 * Moral: StAX is a nice API, have no fear to use it directly in
+	 * freshly-developed code, but: when using TrAX, make every effort to supply
+	 * a {@code Transformer} with {@code Source} and {@code Result} objects of
+	 * <em>any</em> kind other than StAX.
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml",
 			  provides="echoXMLParameter")
@@ -392,6 +414,11 @@ public class PassXML implements SQLData
 	 *</pre>
 	 * would allow a document that contains an internal DTD subset and uses
 	 * entities defined there.
+	 *<p>
+	 * The older, pre-{@code SourceResult} code for doing low-level XML echo
+	 * has been moved to the {@code oldSchoolLowLevelEcho} method below. It can
+	 * still be exercised by calling this method, explicitly passing
+	 * {@code adjust => NULL}.
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml_ge84")
 	public static SQLXML lowLevelXMLEcho(
@@ -502,7 +529,11 @@ public class PassXML implements SQLData
 	/**
 	 * An obsolescent example, showing what was required to copy from one
 	 * {@code SQLXML} object to another, using the various supported APIs,
-	 * without using {@link Adjusting.XML.SourceResult}.
+	 * without using {@link Adjusting.XML.SourceResult}, or at least without
+	 * using it much. It is still used in case 4 to be sure of getting a
+	 * {@code StreamResult} that matches the byte-or-character-ness of the
+	 * {@code StreamSource}. How to handle that case without
+	 * {@code SourceResult} is left as an exercise.
 	 */
 	private static SQLXML oldSchoolLowLevelEcho(SQLXML rx, SQLXML sx, int how)
 	throws SQLException
@@ -592,11 +623,11 @@ public class PassXML implements SQLData
 					/*
 					 * Important: before copying this example code for another
 					 * use, consider whether the input XML might be untrusted.
-					 * If so, the new XMLInputFactory created here should have
+					 * If so, the new XMLInputFactory created here might want
 					 * several properties given safe default settings as
-					 * outlined in the OWASP guidelines. (This branch is not
-					 * reached when sx is a PL/Java native SQLXML instance, as
-					 * xer will be non-null and already configured.)
+					 * outlined in the OWASP guidelines. (When sx is a PL/Java
+					 * native SQLXML instance, the XMLStreamReader obtained
+					 * below will already have been so configured.)
 					 */
 					xer = xif.createXMLEventReader(sts.getXMLStreamReader());
 				}
