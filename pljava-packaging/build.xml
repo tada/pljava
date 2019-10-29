@@ -283,6 +283,10 @@ jos.close();
 			  -->
 			<utf8 dir="target/classes" includes="pljava--.sql"
 				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.4--${project.version}.sql"
+			/>
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
 			"pljava/sharedir/pljava/pljava--1.5.3--${project.version}.sql"
 			/>
 			<utf8 dir="target/classes" includes="pljava--.sql"
