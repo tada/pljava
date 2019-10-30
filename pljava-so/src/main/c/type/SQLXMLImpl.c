@@ -19,10 +19,14 @@
 static TypeClass s_SQLXMLClass;
 static jclass    s_SQLXML_class;
 static jmethodID s_SQLXML_adopt;
-static jclass    s_SQLXML_Readable_class;
-static jmethodID s_SQLXML_Readable_init;
+static jclass    s_SQLXML_Readable_PgXML_class;
+static jmethodID s_SQLXML_Readable_PgXML_init;
 static jclass    s_SQLXML_Writable_class;
 static jmethodID s_SQLXML_Writable_init;
+
+static TypeClass s_SQLXMLClass_Synthetic;
+static jclass    s_SQLXML_Readable_Synthetic_class;
+static jmethodID s_SQLXML_Readable_Synthetic_init;
 
 static bool   _SQLXML_canReplaceType(Type self, Type other);
 static jvalue _SQLXML_coerceDatum(Type self, Datum arg);
@@ -46,6 +50,9 @@ static bool _SQLXML_canReplaceType(Type self, Type other)
 #if defined(XMLOID)
 		Type_getOid(other) == XMLOID  ||
 #endif
+#if PG_VERSION_NUM >= 90100
+		Type_getOid(other) == PGNODETREEOID  ||  /* a synthetic rendering */
+#endif
 		Type_getOid(other) == TEXTOID;
 }
 
@@ -54,7 +61,20 @@ static jvalue _SQLXML_coerceDatum(Type self, Datum arg)
 	jvalue result;
 	jobject vwi = pljava_VarlenaWrapper_Input(
 		arg, TopTransactionContext, TopTransactionResourceOwner);
-	result.l = JNI_newObject(s_SQLXML_Readable_class, s_SQLXML_Readable_init,
+	result.l = JNI_newObject(
+		s_SQLXML_Readable_PgXML_class, s_SQLXML_Readable_PgXML_init,
+		vwi, Type_getOid(self));
+	JNI_deleteLocalRef(vwi);
+	return result;
+}
+
+static jvalue _SQLXML_coerceDatum_synthetic(Type self, Datum arg)
+{
+	jvalue result;
+	jobject vwi = pljava_VarlenaWrapper_Input(
+		arg, TopTransactionContext, TopTransactionResourceOwner);
+	result.l = JNI_newObject(
+		s_SQLXML_Readable_Synthetic_class, s_SQLXML_Readable_Synthetic_init,
 		vwi, Type_getOid(self));
 	JNI_deleteLocalRef(vwi);
 	return result;
@@ -108,18 +128,41 @@ static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 static Type _SQLXML_obtain(Oid typeId)
 {
 	static Type textInstance;
-	Oid allowedId = TEXTOID;
-	Type *cache = &textInstance;
+	Oid allowedId = InvalidOid;
+	bool synthetic = false;
+	Type *cache;
 #if defined(XMLOID)
 	static Type xmlInstance;
-	if ( TEXTOID != typeId )
-	{
-		allowedId = XMLOID;
-		cache = &xmlInstance;
-	}
 #endif
+#if PG_VERSION_NUM >= 90100
+	static Type pgNodeTreeInstance;
+#endif
+	switch ( typeId )
+	{
+#if PG_VERSION_NUM >= 90100
+	case PGNODETREEOID:
+		allowedId = PGNODETREEOID;
+		synthetic = true;
+		cache = &pgNodeTreeInstance;
+		break;
+#endif
+	default:
+		if ( TEXTOID == typeId )
+		{
+			cache = &textInstance;
+			allowedId = TEXTOID;
+		}
+#if defined(XMLOID)
+		else
+		{
+			allowedId = XMLOID;
+			cache = &xmlInstance;
+		}
+#endif
+	}
 	if ( NULL == *cache )
-		*cache = TypeClass_allocInstance(s_SQLXMLClass, allowedId);
+		*cache = TypeClass_allocInstance(
+			synthetic ? s_SQLXMLClass_Synthetic : s_SQLXMLClass, allowedId);
 	return *cache;
 }
 
@@ -149,14 +192,29 @@ void pljava_SQLXMLImpl_initialize(void)
 
 	Type_registerType2(InvalidOid, "java.sql.SQLXML", _SQLXML_obtain);
 
+	cls = TypeClass_alloc("type.SQLXML");
+	cls->JNISignature = "Ljava/sql/SQLXML;";
+	cls->javaTypeName = "java.sql.SQLXML";
+	cls->canReplaceType = _SQLXML_canReplaceType;
+	cls->coerceDatum  = _SQLXML_coerceDatum_synthetic;
+	/* cls->coerceObject = _SQLXML_coerceObject; */
+	s_SQLXMLClass_Synthetic = cls; /* what happens if I don't register it? */
+
 	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl"));
 	s_SQLXML_adopt = PgObject_getStaticJavaMethod(s_SQLXML_class, "adopt",
 		"(Ljava/sql/SQLXML;I)Lorg/postgresql/pljava/internal/VarlenaWrapper;");
 
-	s_SQLXML_Readable_class = JNI_newGlobalRef(PgObject_getJavaClass(
-		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable"));
-	s_SQLXML_Readable_init = PgObject_getJavaMethod(s_SQLXML_Readable_class,
+	s_SQLXML_Readable_PgXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable$PgXML"));
+	s_SQLXML_Readable_PgXML_init = PgObject_getJavaMethod(
+		s_SQLXML_Readable_PgXML_class,
+		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;I)V");
+
+	s_SQLXML_Readable_Synthetic_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable$Synthetic"));
+	s_SQLXML_Readable_Synthetic_init = PgObject_getJavaMethod(
+		s_SQLXML_Readable_Synthetic_class,
 		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;I)V");
 
 	s_SQLXML_Writable_class = JNI_newGlobalRef(PgObject_getJavaClass(

@@ -437,7 +437,7 @@ public class MarkableSequenceInputStream extends InputStream
 	 * A {@code ListIterator} that will fetch an element from a
 	 * {@code BlockingQueue} whenever {@code hasNext} would (otherwise)
 	 * return {@code false}, adding it to the end of the list where the next
-	 * {@code next()} will retrieve it.'
+	 * {@code next()} will retrieve it.
 	 *<p>
 	 * It is possible for the {@code hasNext}, {@code next}, and
 	 * {@code nextIndex} methods to throw {@link CancellationException}, if the

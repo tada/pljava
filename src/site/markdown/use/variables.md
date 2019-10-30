@@ -84,11 +84,19 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 `pljava.release_lingering_savepoints`
 : How the return from a PL/Java function will treat any savepoints created
     within it that have not been explicitly either released (the savepoint
-    analog of "committed") or rolled back.
+    analog of "committed") or rolled back and released.
     If `off` (the default), they will be rolled back. If `on`, they will be
     released/committed. If possible, rather than setting this variable `on`,
     it would be safer to fix the function to release its own savepoints when
     appropriate.
+
+    A savepoint continues to exist after being used as a rollback target.
+    This is JDBC-specified behavior, but was not PL/Java's behavior before
+    release 1.5.3, so code may exist that did not explicitly release or roll
+    back a savepoint after rolling back to it once. To avoid a behavior change
+    for such code, PL/Java will always release a savepoint that is still live
+    at function return, regardless of this setting, if the savepoint has already
+    been rolled back.
 
 `pljava.statement_cache_size`
 : The number of most-recently-prepared statements PL/Java will keep open.

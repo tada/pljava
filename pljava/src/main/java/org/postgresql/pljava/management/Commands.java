@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,16 +57,16 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
  * This methods of this class are implementations of SQLJ commands.
- * <h1>SQLJ functions</h1>
- * <h2>install_jar</h2>
+ * <h2>SQLJ functions</h2>
+ * <h3>install_jar</h3>
  * The install_jar command loads a jar file from a location appointed by an URL
  * or a binary image that constitutes the contents of a jar file into the SQLJ
  * jar repository. It is an error if a jar with the given name already exists in
  * the repository.
- * <h3>Usage 1</h3>
+ * <h4>Usage 1</h4>
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.install_jar(url...)</caption>
  * <tr>
  * <td valign="top"><b>jar_url</b></td>
@@ -84,10 +84,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * descriptor}, false otherwise</td>
  * </tr>
  * </table></blockquote>
- * <h3>Usage 2</h3>
+ * <h4>Usage 2</h4>
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for
  * sqlj.install_jar(bytea...)</caption>
  * <tr>
@@ -107,13 +107,13 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * descriptor}, false otherwise</td>
  * </tr>
  * </table></blockquote>
- * <h2>replace_jar</h2>
+ * <h3>replace_jar</h3>
  * The replace_jar will replace a loaded jar with another jar. Use this command
  * to update already loaded files. It's an error if the jar is not found.
- * <h3>Usage 1</h3>
+ * <h4>Usage 1</h4>
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.replace_jar(url...)</caption>
  * <tr>
  * <td valign="top"><b>jar_url</b></td>
@@ -131,10 +131,10 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * descriptors}, false otherwise</td>
  * </tr>
  * </table></blockquote>
- * <h3>Usage 2</h3>
+ * <h4>Usage 2</h4>
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for
  * sqlj.replace_jar(bytea...)</caption>
  * <tr>
@@ -154,14 +154,14 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * descriptors}, false otherwise</td>
  * </tr>
  * </table></blockquote>
- * <h2>remove_jar</h2>
+ * <h3>remove_jar</h3>
  * The remove_jar will drop the jar from the jar repository. Any classpath that
  * references this jar will be updated accordingly. It's an error if the jar is
  * not found.
- * <h3>Usage</h3>
+ * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.remove_jar(&lt;jar_name&gt;, &lt;undeploy&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.remove_jar</caption>
  * <tr>
  * <td valign="top"><b>jar_name</b></td>
@@ -174,29 +174,29 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * descriptor}, false otherwise</td>
  * </tr>
  * </table></blockquote>
- * <h2>get_classpath</h2>
+ * <h3>get_classpath</h3>
  * The get_classpath will return the classpath that has been defined for the
  * given schema or NULL if the schema has no classpath. It's an error if the
  * given schema does not exist.
- * <h3>Usage</h3>
+ * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.get_classpath(&lt;schema&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.get_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
  * <td>The name of the schema</td>
  * </tr>
  * </table></blockquote>
- * <h2>set_classpath</h2>
+ * <h3>set_classpath</h3>
  * The set_classpath will define a classpath for the given schema. A classpath
  * consists of a colon separated list of jar names. It's an error if the given
  * schema does not exist or if one or more jar names references non existent
  * jars.
- * <h3>Usage</h3>
+ * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.set_classpath(&lt;schema&gt;, &lt;classpath&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.set_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
@@ -207,13 +207,13 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <td>The colon separated list of jar names</td>
  * </tr>
  * </table></blockquote>
- * <h2>add_type_mapping</h2>
+ * <h3>add_type_mapping</h3>
  * The add_type_mapping defines the mapping between an SQL type and a Java
  * class.
- * <h3>Usage</h3>
+ * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.add_type_mapping(&lt;sqlTypeName&gt;, &lt;className&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.add_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
@@ -227,13 +227,13 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * effect for the current schema</td>
  * </tr>
  * </table></blockquote>
- * <h2>drop_type_mapping</h2>
+ * <h3>drop_type_mapping</h3>
  * The drop_type_mapping removes the mapping between an SQL type and a Java
  * class.
- * <h3>Usage</h3>
+ * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.drop_type_mapping(&lt;sqlTypeName&gt;);</code>
  * </blockquote>
- * <h3>Parameters</h3>
+ * <h4>Parameters</h4>
  * <blockquote><table><caption>Parameters for sqlj.drop_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
