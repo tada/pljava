@@ -272,7 +272,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * the case doesn't suggest a need for anything more elaborate.
 	 */
 	private static final Deque<DualState<?>> s_deferredReleased =
-		new ArrayDeque<DualState<?>>();
+		new ArrayDeque<>();
 
 	/**
 	 * All instances in a non-transient native scope are added here upon

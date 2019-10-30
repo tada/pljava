@@ -22,6 +22,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 
 import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import java.sql.SQLException;
 
@@ -287,9 +288,6 @@ public abstract class SyntheticXMLReader implements XMLReader
 			this.writable = writable;
 		}
 	}
-
-	/* XXX eliminate forName when back horizon reaches Java 7 */
-	protected static final Charset ASCII = Charset.forName("US-ASCII");
 	
 	private Set<SAX2FEATURE> m_featuresSet =
 		EnumSet.copyOf(SAX2FEATURE.STANDARD_DEFAULTS);
@@ -577,7 +575,7 @@ public abstract class SyntheticXMLReader implements XMLReader
 			return r;
 
 		String encoding = input.getEncoding();
-		Charset cs = ( null != encoding ) ? Charset.forName(encoding) : ASCII;
+		Charset cs = (null != encoding) ? Charset.forName(encoding) : US_ASCII;
 
 		InputStream is = input.getByteStream();
 		if ( null != is )
