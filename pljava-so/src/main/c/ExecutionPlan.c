@@ -74,8 +74,8 @@ void pljava_ExecutionPlan_initialize(void)
 	};
 	PgObject_registerNatives("org/postgresql/pljava/internal/ExecutionPlan", methods);
 
-	s_ExecutionPlan_class = (jclass)PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/ExecutionPlan");
+	s_ExecutionPlan_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/ExecutionPlan"));
 	s_ExecutionPlan_init = PgObject_getJavaMethod(s_ExecutionPlan_class,
 		"<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;J"

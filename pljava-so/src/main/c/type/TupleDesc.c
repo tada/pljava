@@ -233,7 +233,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		bool*  nulls   = palloc(count * sizeof(bool));
-		jobject typeMap = Invocation_getTypeMap();
+		jobject typeMap = Invocation_getTypeMap(); /* a global ref */
 
 		memset(values, 0,  count * sizeof(Datum));
 		memset(nulls, true, count * sizeof(bool));/*all values null initially*/
@@ -246,6 +246,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1), typeMap);
 				values[idx] = Type_coerceObjectBridged(type, value);
 				nulls[idx] = false;
+				JNI_deleteLocalRef(value);
 			}
 		}
 

@@ -922,10 +922,20 @@ jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char
 	result = (*env)->GetStaticMethodID(env, clazz, name, sig);
 	if(result == 0) {
 		exh = (*env)->ExceptionOccurred(env);
-		if ( 0 == exh
-			||  (*env)->IsInstanceOf(env, exh, NoSuchMethodError_class) )
-			(*env)->ExceptionClear(env); /* NoSuch... is only thing to ignore */
-		(*env)->DeleteLocalRef(env, exh);
+		if ( 0 != exh )
+		{
+			/*
+			 * Ignore a NoSuchMethodError, but not any other exception.
+			 * This operation order (first clear the pending exception, then
+			 * do the IsInstanceOf check, then Throw again if not the expected
+			 * class) avoids a benign -Xcheck:JNI warning about calling
+			 * IsInstanceOf while an exception is pending.
+			 */
+			(*env)->ExceptionClear(env);
+			if ( ! (*env)->IsInstanceOf(env, exh, NoSuchMethodError_class) )
+				(*env)->Throw(env, exh);
+			(*env)->DeleteLocalRef(env, exh);
+		}
 	}
 	END_CALL
 	return result;

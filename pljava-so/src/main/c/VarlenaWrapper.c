@@ -457,8 +457,8 @@ void pljava_VarlenaWrapper_initialize(void)
 		s_VarlenaWrapper_class, "adopt",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;)J");
 
-	clazz = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
-			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State"));
+	clazz = PgObject_getJavaClass(
+			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State");
 
 	PgObject_registerNatives2(clazz, methodsIn);
 
@@ -467,8 +467,8 @@ void pljava_VarlenaWrapper_initialize(void)
 
 	JNI_deleteLocalRef(clazz);
 
-	clazz = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
-			"org/postgresql/pljava/internal/VarlenaWrapper$Output$State"));
+	clazz = PgObject_getJavaClass(
+			"org/postgresql/pljava/internal/VarlenaWrapper$Output$State");
 
 	PgObject_registerNatives2(clazz, methodsOut);
 
