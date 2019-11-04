@@ -35,6 +35,7 @@ static jmethodID s_Relation_init;
 jobject pljava_Relation_create(Relation r)
 {
 	Ptr2Long p2lr;
+	Ptr2Long p2lro;
 
 	if ( NULL == r )
 		return NULL;
@@ -42,11 +43,14 @@ jobject pljava_Relation_create(Relation r)
 	p2lr.longVal = 0L;
 	p2lr.ptrVal = r;
 
+	p2lro.longVal = 0L;
+	p2lro.ptrVal = currentInvocation;
+
 	return JNI_newObjectLocked(
 			s_Relation_class,
 			s_Relation_init,
 			pljava_DualState_key(),
-			currentInvocation,
+			p2lro.longVal,
 			p2lr.longVal);
 }
 

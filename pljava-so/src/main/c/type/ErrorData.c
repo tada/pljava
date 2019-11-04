@@ -35,13 +35,13 @@ jobject pljava_ErrorData_getCurrentError(void)
 	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = errorData;
 	/*
-	 * Passing NULL as the ResourceOwner means this will never be matched by a
-	 * nativeRelease call; that's appropriate (for now) as the ErrorData copy is
-	 * being made into JavaMemoryContext, which never gets reset, so only
+	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by
+	 * a nativeRelease call; that's appropriate (for now) as the ErrorData copy
+	 * is being made into JavaMemoryContext, which never gets reset, so only
 	 * unreachability from the Java side will free it.
 	 */
 	jed = JNI_newObjectLocked(s_ErrorData_class, s_ErrorData_init,
-		pljava_DualState_key(), NULL, p2l.longVal);
+		pljava_DualState_key(), (jlong)0, p2l.longVal);
 	return jed;
 }
 

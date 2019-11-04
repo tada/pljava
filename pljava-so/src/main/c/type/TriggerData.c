@@ -32,6 +32,7 @@ static jmethodID s_TriggerData_getTriggerReturnTuple;
 jobject pljava_TriggerData_create(TriggerData* triggerData)
 {
 	Ptr2Long p2ltd;
+	Ptr2Long p2lro;
 
 	if ( NULL == triggerData )
 		return NULL;
@@ -39,11 +40,14 @@ jobject pljava_TriggerData_create(TriggerData* triggerData)
 	p2ltd.longVal = 0L;
 	p2ltd.ptrVal = triggerData;
 
+	p2lro.longVal = 0L;
+	p2lro.ptrVal = currentInvocation;
+
 	return JNI_newObjectLocked(
 			s_TriggerData_class,
 			s_TriggerData_init,
 			pljava_DualState_key(),
-			currentInvocation,
+			p2lro.longVal,
 			p2ltd.longVal);
 }
 

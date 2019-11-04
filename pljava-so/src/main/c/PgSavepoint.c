@@ -63,8 +63,8 @@ void PgSavepoint_initialize(void)
 	PgObject_registerNatives("org/postgresql/pljava/internal/PgSavepoint",
 		methods);
 
-	jclass s_PgSavepoint_class = PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/PgSavepoint");
+	jclass s_PgSavepoint_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/PgSavepoint"));
 	s_forId =
 		PgObject_getStaticJavaMethod(s_PgSavepoint_class, "forId",
 			"(I)Lorg/postgresql/pljava/internal/PgSavepoint;");
