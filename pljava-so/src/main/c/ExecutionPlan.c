@@ -333,8 +333,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 #endif
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
-				/* 0L as resource owner as the saved plan isn't transient */
-				pljava_DualState_key(), 0L, key, p2l.longVal);
+				/* (jlong)0 as resource owner: the saved plan isn't transient */
+				pljava_DualState_key(), (jlong)0, key, p2l.longVal);
 		}
 	}
 	PG_CATCH();

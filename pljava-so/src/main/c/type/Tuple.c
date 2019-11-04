@@ -65,14 +65,14 @@ jobject pljava_Tuple_internalCreate(HeapTuple ht, bool mustCopy)
 	htH.longVal = 0L; /* ensure that the rest is zeroed out */
 	htH.ptrVal = ht;
 	/*
-	 * Passing NULL as the ResourceOwner means this will never be matched by a
+	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
 	 * nativeRelease call; that's appropriate (for now) as the Tuple copy is
 	 * being made into JavaMemoryContext, which never gets reset, so only
 	 * unreachability from the Java side will free it.
 	 * XXX? this seems like a lot of tuple copying.
 	 */
 	jht = JNI_newObjectLocked(s_Tuple_class, s_Tuple_init,
-		pljava_DualState_key(), NULL, htH.longVal);
+		pljava_DualState_key(), (jlong)0, htH.longVal);
 	return jht;
 }
 

@@ -55,14 +55,14 @@ jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 	tdH.longVal = 0L; /* ensure that the rest is zeroed out */
 	tdH.ptrVal = td;
 	/*
-	 * Passing NULL as the ResourceOwner means this will never be matched by a
+	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
 	 * nativeRelease call; that's appropriate (for now) as the TupleDesc copy is
 	 * being made into JavaMemoryContext, which never gets reset, so only
 	 * unreachability from the Java side will free it.
 	 * XXX what about invalidating if DDL alters the column layout?
 	 */
 	jtd = JNI_newObjectLocked(s_TupleDesc_class, s_TupleDesc_init,
-		pljava_DualState_key(), NULL, tdH.longVal, (jint)td->natts);
+		pljava_DualState_key(), (jlong)0, tdH.longVal, (jint)td->natts);
 	return jtd;
 }
 
