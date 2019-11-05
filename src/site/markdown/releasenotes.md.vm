@@ -10,7 +10,34 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.4
+$h2 PL/Java 1.5.5
+
+This bug-fix release fixes runtime issues reported in 32-bit `i386` builds, some
+of which would not affect a more common 64-bit architecture, but some of which
+could under the wrong circumstances, so this release should be used in
+preference to 1.5.4 or 1.5.3 on any architecture.
+
+It is featurewise identical to 1.5.4, so those release notes, below, should be
+consulted for the details of user-visible changes.
+
+Thanks to Christoph Berg for the `i386` testing that exposed these issues.
+
+$h3 Bugs fixed
+
+* [32bit i386 segfault](${ghbug}246)
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.4 (29 October 2019)
 
 This minor release fixes a build issue reported with Java 11, and adds
 support for building with Java 13. Issues with building the javadocs in later
@@ -32,17 +59,6 @@ $h3 Bugs fixed
 * [Build with Java 13](${ghbug}236)
 * [Javadoc build fails in Java 11+](${ghbug}239)
 * [Javadoc build fails in Java 13](${ghbug}241)
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.3 (4 October 2019)
 

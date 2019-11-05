@@ -74,8 +74,8 @@ void pljava_ExecutionPlan_initialize(void)
 	};
 	PgObject_registerNatives("org/postgresql/pljava/internal/ExecutionPlan", methods);
 
-	s_ExecutionPlan_class = (jclass)PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/ExecutionPlan");
+	s_ExecutionPlan_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/ExecutionPlan"));
 	s_ExecutionPlan_init = PgObject_getJavaMethod(s_ExecutionPlan_class,
 		"<init>",
 		"(Lorg/postgresql/pljava/internal/DualState$Key;J"
@@ -333,8 +333,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 #endif
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
-				/* 0L as resource owner as the saved plan isn't transient */
-				pljava_DualState_key(), 0L, key, p2l.longVal);
+				/* (jlong)0 as resource owner: the saved plan isn't transient */
+				pljava_DualState_key(), (jlong)0, key, p2l.longVal);
 		}
 	}
 	PG_CATCH();
