@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -285,13 +285,9 @@ public interface VarlenaWrapper extends Closeable
 								"Verifier finished prematurely");
 					}
 				}
-				catch ( SQLException sqe )
+				catch ( SQLException | RuntimeException e )
 				{
-					throw sqe;
-				}
-				catch ( RuntimeException rte )
-				{
-					throw rte;
+					throw e;
 				}
 				catch ( Exception e )
 				{

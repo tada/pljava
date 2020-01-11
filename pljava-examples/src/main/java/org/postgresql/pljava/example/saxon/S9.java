@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -553,11 +553,7 @@ public class S9 implements ResultSetProvider
 				target.updateSQLXML(1,
 					returnContent(tv, /*nullOnEmpty*/ false));
 			}
-			catch ( SaxonApiException e )
-			{
-				throw new SQLException(e.getMessage(), "10000", e);
-			}
-			catch ( XPathException e )
+			catch ( SaxonApiException | XPathException e )
 			{
 				throw new SQLException(e.getMessage(), "10000", e);
 			}
@@ -596,11 +592,7 @@ public class S9 implements ResultSetProvider
 				xmlCastAsNonXML(
 					av, ItemType.UNTYPED_ATOMIC, tg, target, 1, enc);
 			}
-			catch ( SaxonApiException e )
-			{
-				throw new SQLException(e.getMessage(), "10000", e);
-			}
-			catch ( XPathException e )
+			catch ( SaxonApiException | XPathException e )
 			{
 				throw new SQLException(e.getMessage(), "10000", e);
 			}
@@ -672,11 +664,7 @@ public class S9 implements ResultSetProvider
 			XdmValue x1 = evalXQuery(expression, passing, namespaces);
 			return null == x1 ? null : returnContent(x1, nullOnEmpty);
 		}
-		catch ( SaxonApiException e )
-		{
-			throw new SQLException(e.getMessage(), "10000", e);
-		}
-		catch ( XPathException e )
+		catch ( SaxonApiException | XPathException e )
 		{
 			throw new SQLException(e.getMessage(), "10000", e);
 		}
@@ -768,11 +756,7 @@ public class S9 implements ResultSetProvider
 			 */
 			return xqe.evaluate();
 		}
-		catch ( SaxonApiException e )
-		{
-			throw new SQLException(e.getMessage(), "10000", e);
-		}
-		catch ( XPathException e )
+		catch ( SaxonApiException | XPathException e )
 		{
 			throw new SQLException(e.getMessage(), "10000", e);
 		}
@@ -945,11 +929,7 @@ public class S9 implements ResultSetProvider
 				rowIterator = rowXQE.iterator();
 			return new S9(rowIterator, columnXQEs, columnStaticTypes, enc);
 		}
-		catch ( SaxonApiException e )
-		{
-			throw new SQLException(e.getMessage(), "10000", e);
-		}
-		catch ( XPathException e )
+		catch ( SaxonApiException | XPathException e )
 		{
 			throw new SQLException(e.getMessage(), "10000", e);
 		}
@@ -1393,11 +1373,7 @@ public class S9 implements ResultSetProvider
 				xmlCastAsNonXML(
 					av, staticType.getItemType(), p, receive, i, m_xmlbinary);
 			}
-			catch ( SaxonApiException e )
-			{
-				throw new SQLException(e.getMessage(), "10000", e);
-			}
-			catch ( XPathException e )
+			catch ( SaxonApiException | XPathException e )
 			{
 				throw new SQLException(e.getMessage(), "10000", e);
 			}
@@ -1849,11 +1825,7 @@ public class S9 implements ResultSetProvider
 		{
 			return mapJDBCofSQLvalueToXdmAtomicValue(v, enc, xsbt);
 		}
-		catch ( SaxonApiException e )
-		{
-			throw new SQLException(e.getMessage(), "10000", e);
-		}
-		catch ( XPathException e )
+		catch ( SaxonApiException | XPathException e )
 		{
 			throw new SQLException(e.getMessage(), "10000", e);
 		}
