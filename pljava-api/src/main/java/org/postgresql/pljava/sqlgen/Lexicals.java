@@ -11,6 +11,12 @@
  */
 package org.postgresql.pljava.sqlgen;
 
+import java.io.InvalidObjectException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
+
 import java.nio.charset.Charset;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -419,7 +425,7 @@ public abstract class Lexicals
 	 * server encoding. The recommended encoding, UTF-8, is multibyte, so the
 	 * PostgreSQL rule will be taken to be: only the 26 ASCII letters, always.
 	 */
-	public static abstract class Identifier
+	public static abstract class Identifier implements Serializable
 	{
 		/**
 		 * This Identifier represented as it would be in SQL source.
@@ -461,6 +467,24 @@ public abstract class Lexicals
 		public String toString()
 		{
 			return deparse(UTF_8);
+		}
+
+		/**
+		 * Ensure deserialization doesn't produce any unknown {@code Identifier}
+		 * subclass.
+		 *<p>
+		 * The natural hierarchy means not everything can be made {@code final}.
+		 */
+		private void readObject(ObjectInputStream in)
+		throws IOException, ClassNotFoundException
+		{
+			Class<?> c = getClass();
+			if ( c != Simple.class && c != Foldable.class && c != Folding.class
+				&& c != Pseudo.class && c != Operator.class
+				&& c != Qualified.class )
+				throw new InvalidObjectException(
+					"deserializing unknown Identifier subclass: "
+					+ c.getName());
 		}
 
 		public static abstract class Unqualified<T extends Unqualified<T>>
@@ -650,6 +674,10 @@ public abstract class Lexicals
 			@Override
 			public boolean equals(Object other, Messager msgr)
 			{
+				if ( this == other )
+					return true;
+				if ( other instanceof Pseudo )
+					return false;
 				if ( ! (other instanceof Simple) )
 					return false;
 				Simple oi = (Simple)other;
@@ -658,14 +686,31 @@ public abstract class Lexicals
 				return m_nonFolded.equals(oi.nonFolded());
 			}
 
-			protected Simple(String nonFolded)
+			private Simple(String nonFolded)
 			{
+				String diag = checkLength(nonFolded);
+				if ( null != diag )
+					throw new IllegalArgumentException(diag);
 				m_nonFolded = nonFolded;
-				int cpc = nonFolded.codePointCount(0, nonFolded.length());
-				if ( 0 == cpc || cpc > 128 )
-					throw new IllegalArgumentException(String.format(
-						"identifier empty or longer than 128 codepoints: \"%s\"",
-						nonFolded));
+			}
+
+			private static String checkLength(String s)
+			{
+				int cpc = s.codePointCount(0, s.length());
+				if ( 0 < cpc && cpc <= 128 )
+					return null; /* check has passed */
+				return String.format(
+					"identifier empty or longer than 128 codepoints: \"%s\"",
+					s);
+			}
+
+			private void readObject(ObjectInputStream in)
+			throws IOException, ClassNotFoundException
+			{
+				in.defaultReadObject();
+				String diag = checkLength(m_nonFolded);
+				if ( null != diag )
+					throw new InvalidObjectException(diag);
 			}
 		}
 
@@ -676,17 +721,27 @@ public abstract class Lexicals
 		 */
 		static class Foldable extends Simple
 		{
-			private final int m_hashCode;
+			private transient /*otherwise final*/ int m_hashCode;
 
-			protected Foldable(String nonFolded)
+			private Foldable(String nonFolded)
 			{
 				this(nonFolded, isoFold(nonFolded));
 			}
 
-			protected Foldable(String nonFolded, String isoFolded)
+			private Foldable(String nonFolded, String isoFolded)
 			{
 				super(nonFolded);
 				m_hashCode = isoFolded.hashCode();
+			}
+
+			private void readObject(ObjectInputStream in)
+			throws IOException, ClassNotFoundException
+			{
+				in.defaultReadObject();
+				if ( ! PG_REGULAR_IDENTIFIER.matcher(m_nonFolded).matches() )
+					throw new InvalidObjectException(
+						"cannot be an SQL regular identifier: " + m_nonFolded);
+				m_hashCode = isoFold(m_nonFolded).hashCode();
 			}
 
 			/**
@@ -741,19 +796,27 @@ public abstract class Lexicals
 		 */
 		static class Folding extends Foldable
 		{
-			private final String m_pgFolded;
-			private final String m_isoFolded;
+			private transient /*otherwise final*/ String m_pgFolded;
+			private transient /*otherwise final*/ String m_isoFolded;
 
-			protected Folding(String nonFolded)
+			private Folding(String nonFolded)
 			{
 				this(nonFolded, isoFold(nonFolded));
 			}
 
-			protected Folding(String nonFolded, String isoFolded)
+			private Folding(String nonFolded, String isoFolded)
 			{
 				super(nonFolded, isoFolded);
 				m_pgFolded = pgFold(nonFolded);
 				m_isoFolded = isoFolded;
+			}
+
+			private void readObject(ObjectInputStream in)
+			throws IOException, ClassNotFoundException
+			{
+				in.defaultReadObject();
+				m_pgFolded = pgFold(m_nonFolded);
+				m_isoFolded = isoFold(m_nonFolded);
 			}
 
 			@Override
@@ -786,6 +849,10 @@ public abstract class Lexicals
 			@Override
 			public boolean equals(Object other, Messager msgr)
 			{
+				if ( this == other )
+					return true;
+				if ( other instanceof Pseudo )
+					return false;
 				if ( ! (other instanceof Simple) )
 					return false;
 				Simple oi = (Simple)other;
@@ -824,6 +891,41 @@ public abstract class Lexicals
 			}
 		}
 
+		/**
+		 * Displays/deparses like a {@code Simple} identifier, but no singleton
+		 * of this class matches anything but itself, to represent
+		 * pseudo-identifiers like {@code PUBLIC} as a privilege grantee.
+		 */
+		public static class Pseudo extends Simple
+		{
+			public static final Pseudo PUBLIC = new Pseudo("PUBLIC");
+
+			@Override
+			public boolean equals(Object other)
+			{
+				return this == other;
+			}
+
+			private Pseudo(String name)
+			{
+				super(name);
+			}
+
+			private Object readResolve() throws ObjectStreamException
+			{
+				switch ( m_nonFolded )
+				{
+				case "PUBLIC": return PUBLIC;
+				default:
+					throw new InvalidObjectException(
+						"not a known Pseudo-identifier: " + m_nonFolded);
+				}
+			}
+		}
+
+		/**
+		 * Class representing an Identifier that names a PostgreSQL operator.
+		 */
 		public static class Operator extends Unqualified<Operator>
 		{
 			private final String m_name;
@@ -841,15 +943,13 @@ public abstract class Lexicals
 			public static Operator from(String name, Messager msgr)
 			{
 				requireNonNull(name);
-				boolean ok = PG_OPERATOR.matcher(name).matches();
+				String diag = checkMatch(name);
 
-				if ( ! ok )
+				if ( null != diag )
 				{
 					if ( null == msgr )
-						throw new IllegalArgumentException(String.format(
-							"not a valid PostgreSQL operator name: %s", name));
-					msgr.printMessage(Kind.ERROR, String.format(
-						"not a valid PostgreSQL operator name: %s", name));
+						throw new IllegalArgumentException(diag);
+					msgr.printMessage(Kind.ERROR, diag);
 				}
 
 				/*
@@ -862,6 +962,23 @@ public abstract class Lexicals
 				 * being compiled for, and passing it here. Too much work.
 				 */
 				return new Operator(name);
+			}
+
+			private static String checkMatch(String name)
+			{
+				if ( PG_OPERATOR.matcher(name).matches() )
+					return null; /* the check has passed */
+				return String.format(
+					"not a valid PostgreSQL operator name: %s", name);
+			}
+
+			private void readObject(ObjectInputStream in)
+			throws IOException, ClassNotFoundException
+			{
+				in.defaultReadObject();
+				String diag = checkMatch(m_name);
+				if ( null != diag )
+					throw new InvalidObjectException(diag);
 			}
 
 			@Override
@@ -879,6 +996,8 @@ public abstract class Lexicals
 			@Override
 			public boolean equals(Object other, Messager msgr)
 			{
+				if ( this == other )
+					return true;
 				if ( ! (other instanceof Operator) )
 					return false;
 				return m_name.equals(((Operator)other).m_name);
