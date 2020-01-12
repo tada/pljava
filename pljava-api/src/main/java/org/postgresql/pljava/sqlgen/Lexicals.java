@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -10,6 +10,9 @@
  *   Chapman Flack
  */
 package org.postgresql.pljava.sqlgen;
+
+import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -421,14 +424,13 @@ public abstract class Lexicals
 		/**
 		 * This Identifier represented as it would be in SQL source.
 		 *<p>
-		 * <em>Note</em>: a more robust approach would be a deparse method
-		 * that is passed the character encoding in which the deparsed
-		 * result will be stored; it should verify that the characters can
-		 * be encoded there, or use the Unicode delimited identifier form
-		 * and escape the ones that cannot.
+		 * The passed {@code Charset} indicates the character encoding
+		 * in which the deparsed result will be stored; the method should verify
+		 * that the characters can be encoded there, or use the Unicode
+		 * delimited identifier form and escape the ones that cannot.
 		 * @return The identifier, quoted, unless it is folding.
 		 */
-		public abstract String deparse();
+		public abstract String deparse(Charset cs);
 
 		@Override
 		public boolean equals(Object other)
@@ -451,6 +453,16 @@ public abstract class Lexicals
 		 */
 		public abstract boolean equals(Object other, Messager msgr);
 
+		/**
+		 * Convert to {@code String} as by {@code deparse} passing a character
+		 * set of {@code UTF_8}.
+		 */
+		@Override
+		public String toString()
+		{
+			return deparse(UTF_8);
+		}
+
 		public static abstract class Unqualified<T extends Unqualified<T>>
 		extends Identifier
 		{
@@ -459,7 +471,7 @@ public abstract class Lexicals
 			 * given <em>qualifier</em> and this as the local part.
 			 * @throws NullPointerException if qualifier is null
 			 */
-			public abstract String deparse(Simple qualifier);
+			public abstract String deparse(Simple qualifier, Charset cs);
 
 			/**
 			 * Form an {@code Identifier.Qualified} with this as the local part.
@@ -568,15 +580,18 @@ public abstract class Lexicals
 			}
 
 			@Override
-			public String deparse()
+			public String deparse(Charset cs)
 			{
+				if ( ! cs.contains(UTF_8)
+					&& ! cs.newEncoder().canEncode(m_nonFolded) )
+					throw noUnicodeQuotingYet(m_nonFolded);
 				return '"' + m_nonFolded.replace("\"", "\"\"") + '"';
 			}
 
 			@Override
-			public String deparse(Simple qualifier)
+			public String deparse(Simple qualifier, Charset cs)
 			{
-				return qualifier.deparse() + "." + deparse();
+				return qualifier.deparse(cs) + "." + deparse(cs);
 			}
 
 			/**
@@ -617,12 +632,6 @@ public abstract class Lexicals
 			 * Identifier folds.
 			 */
 			public String isoFolded()
-			{
-				return m_nonFolded;
-			}
-
-			@Override
-			public String toString()
 			{
 				return m_nonFolded;
 			}
@@ -766,8 +775,11 @@ public abstract class Lexicals
 			}
 
 			@Override
-			public String deparse()
+			public String deparse(Charset cs)
 			{
+				if ( ! cs.contains(UTF_8)
+					&& ! cs.newEncoder().canEncode(m_nonFolded) )
+					throw noUnicodeQuotingYet(m_nonFolded);
 				return m_nonFolded;
 			}
 
@@ -873,16 +885,20 @@ public abstract class Lexicals
 			}
 
 			@Override
-			public String deparse()
+			public String deparse(Charset cs)
 			{
+				/*
+				 * Operator characters are limited to ASCII. Don't bother
+				 * checking that cs can encode m_name.
+				 */
 				return m_name;
 			}
 
 			@Override
-			public String deparse(Simple qualifier)
+			public String deparse(Simple qualifier, Charset cs)
 			{
-				return
-					"OPERATOR(" + qualifier.deparse() + "." + deparse() + ")";
+				return "OPERATOR("
+					+ qualifier.deparse(cs) + "." + deparse(cs) + ")";
 			}
 		}
 
@@ -948,11 +964,11 @@ public abstract class Lexicals
 			}
 
 			@Override
-			public String deparse()
+			public String deparse(Charset cs)
 			{
 				if ( null == m_qualifier )
-					return m_local.deparse();
-				return m_local.deparse(m_qualifier);
+					return m_local.deparse(cs);
+				return m_local.deparse(m_qualifier, cs);
 			}
 
 			@Override
@@ -984,6 +1000,12 @@ public abstract class Lexicals
 			{
 				return m_local;
 			}
+		}
+
+		private static RuntimeException noUnicodeQuotingYet(String n)
+		{
+			return new UnsupportedOperationException(
+				"cannot yet Unicode-escape identifier \"" + n + '"');
 		}
 	}
 }

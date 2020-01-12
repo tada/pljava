@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -221,13 +221,13 @@ public class LexicalsTest extends TestCase
 
 		assertThat("ne1", s2, not(equalTo(s6)));
 
-		assertEquals("deparse1", s1.deparse(), "aB");
-		assertEquals("deparse2", s2.deparse(), "\"ab\"");
-		assertEquals("deparse3", s3.deparse(), "\"A\"\"b\"");
-		assertEquals("deparse4", s4.deparse(), "\"A\"\"b\"");
-		assertEquals("deparse5", s5.deparse(), "ab");
-		assertEquals("deparse6", s6.deparse(), "\"AB\"");
-		assertEquals("deparse7", s7.deparse(), "\"A\"\"b\"");
+		assertEquals("deparse1", s1.toString(), "aB");
+		assertEquals("deparse2", s2.toString(), "\"ab\"");
+		assertEquals("deparse3", s3.toString(), "\"A\"\"b\"");
+		assertEquals("deparse4", s4.toString(), "\"A\"\"b\"");
+		assertEquals("deparse5", s5.toString(), "ab");
+		assertEquals("deparse6", s6.toString(), "\"AB\"");
+		assertEquals("deparse7", s7.toString(), "\"A\"\"b\"");
 	}
 
 	public void testOperatorPattern() throws Exception
@@ -262,14 +262,14 @@ public class LexicalsTest extends TestCase
 		Operator o1 = Operator.from("!@#%*");
 		Operator o2 = Operator.from("!@#%*");
 		assertEquals("eq1", o1, o2);
-		assertEquals("eq2", o1.deparse(), "!@#%*");
+		assertEquals("eq2", o1.toString(), "!@#%*");
 		Simple s1 = Simple.from("foo", false);
 		Qualified q1 = o1.withQualifier(null);
-		assertEquals("eq3", q1.deparse(), o1.deparse());
+		assertEquals("eq3", q1.toString(), o1.toString());
 		Qualified q2 = o1.withQualifier(s1);
-		assertEquals("eq4", q2.deparse(), "OPERATOR(foo.!@#%*)");
+		assertEquals("eq4", q2.toString(), "OPERATOR(foo.!@#%*)");
 		Simple s2 = Simple.from("foo", true);
 		Qualified q3 = o1.withQualifier(s2);
-		assertEquals("eq5", q3.deparse(), "OPERATOR(\"foo\".!@#%*)");
+		assertEquals("eq5", q3.toString(), "OPERATOR(\"foo\".!@#%*)");
 	}
 }
