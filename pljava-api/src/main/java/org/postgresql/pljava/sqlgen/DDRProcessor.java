@@ -122,7 +122,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
   "ddr.output"           // name of ddr file to write
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_7)
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class DDRProcessor extends AbstractProcessor
 {
 	private DDRProcessorImpl impl;
