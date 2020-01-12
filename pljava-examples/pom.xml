@@ -64,6 +64,10 @@
 						<include>org/postgresql/pljava/example/*.java</include>
 						<include>org/postgresql/pljava/example/annotation/*.java</include>
 					</includes>
+					<compilerArgs>
+						<arg>--processor-module-path</arg>
+						<arg>${basedir}/../pljava-api/target/pljava-api-${project.version}.jar</arg>
+					</compilerArgs>
 				</configuration>
 			</plugin>
 			<plugin>
