@@ -556,8 +556,8 @@ public class Loader extends ClassLoader
 			Class<?> shared = ClassLoader.getSystemClassLoader().loadClass(
 				"com.ibm.oti.shared.Shared");
 
-			Method getFactory =
-				shared.getMethod("getSharedClassHelperFactory", null);
+			Method getFactory =	shared.getMethod(
+				"getSharedClassHelperFactory", (Class<?>[])null);
 
 			/* If getFactory returns null, sharing is not enabled. */
 			factory = getFactory.invoke(null);

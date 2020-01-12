@@ -40,6 +40,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
  */
 public class Session implements org.postgresql.pljava.Session
 {
+	@SuppressWarnings("removal")
 	private final TransactionalMap m_attributes = new TransactionalMap(new HashMap());
 
 	/**
@@ -95,6 +96,8 @@ public class Session implements org.postgresql.pljava.Session
 	 * Java and kept in sync by using a {@link TransactionListener}.
 	 */
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since="1.5.3", forRemoval=true)
 	public Object getAttribute(String attributeName)
 	{
 		return m_attributes.get(attributeName);
@@ -118,6 +121,8 @@ public class Session implements org.postgresql.pljava.Session
 	}
 
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since="1.5.0", forRemoval=true)
 	public String getSessionUserName()
 	{
 		return getOuterUserName();
@@ -134,6 +139,8 @@ public class Session implements org.postgresql.pljava.Session
 	 * Java and kept in sync by using a {@link TransactionListener}.
 	 */
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since="1.5.3", forRemoval=true)
 	public void removeAttribute(String attributeName)
 	{
 		m_attributes.remove(attributeName);
@@ -149,6 +156,8 @@ public class Session implements org.postgresql.pljava.Session
 	 * Java and kept in sync by using a {@link TransactionListener}.
 	 */
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since="1.5.3", forRemoval=true)
 	public void setAttribute(String attributeName, Object value)
 	{
 		m_attributes.put(attributeName, value);
@@ -173,6 +182,8 @@ public class Session implements org.postgresql.pljava.Session
 	}
 
 	@Override
+	@SuppressWarnings("removal")
+	@Deprecated(since="1.5.0", forRemoval=true)
 	public void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException
 	{

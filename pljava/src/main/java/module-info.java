@@ -20,4 +20,7 @@ module org.postgresql.pljava.internal
 	requires org.postgresql.pljava;
 
 	provides java.sql.Driver with org.postgresql.pljava.jdbc.SPIDriver;
+
+	provides org.postgresql.pljava.Session
+		with org.postgresql.pljava.internal.Session;
 }

@@ -23,6 +23,8 @@ module org.postgresql.pljava
 	exports org.postgresql.pljava.annotation;
 	exports org.postgresql.pljava.sqlgen;
 
+	uses org.postgresql.pljava.Session;
+
 	provides javax.annotation.processing.Processor
 		with org.postgresql.pljava.sqlgen.DDRProcessor;
 }
