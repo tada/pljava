@@ -679,12 +679,6 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
-	 * Part of a pre-Java-9 attempt to achieve something like reachabilityFence;
-	 * see releaseFromJava.
-	 */
-	private static final List<?> s_nulls = asList((Object)null);
-
-	/**
 	 * What Java code will call to explicitly release this instance
 	 * (in the implementation of {@code close}, for example).
 	 *<p>
@@ -719,11 +713,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 *
 		 * Optimizing JIT could muddy the picture, though, by deciding the only
 		 * use of r1 here is to compare it to null, which could be moved ahead
-		 * of the clear(). In Java 9, that can be prevented explicitly by
-		 * placing reachabilityFence(r1) after the clear(). In the pre-Java-9
-		 * world, making the comparison to null somewhat less constant-foldable
-		 * and placing it on the far side of the atomic operations on m_state
-		 * will have to do, with some crossing of fingers.
+		 * of the clear(), in the absence of the reachabilityFence below.
 		 *
 		 * The m_state operations are the only ones with synchronizing effects,
 		 * so we had better delay our unconditional clear() until after we know
@@ -757,11 +747,11 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * Now to clear the referent, and find out if it was live at entry.
 		 */
 		super.clear();
-		T r2 = referent();
-		boolean wasClearAtEntry = s_nulls.containsAll(asList(r1, r2));
 		boolean releaseFlagWasClear = z(s & JAVA_RELEASED);
+		boolean refWasClearAtEntry = null == r1;
+		reachabilityFence(r1);
 
-		if ( wasClearAtEntry )
+		if ( refWasClearAtEntry )
 		{
 			if ( releaseFlagWasClear )
 			{
