@@ -9,32 +9,4 @@
 	<artifactId>pljava-api</artifactId>
 	<name>PL/Java API</name>
 	<description>The API for Java stored procedures in PostgreSQL using PL/Java</description>
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<configuration>
-					<archive>
-						<manifestSections>
-							<manifestSection>
-								<name>org/postgresql/pljava/</name>
-								<manifestEntries>
-									<Implementation-Title>
-										${project.name}
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-						</manifestSections>
-					</archive>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
 </project>
