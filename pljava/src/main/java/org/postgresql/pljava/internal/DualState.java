@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -35,6 +35,8 @@ import static java.util.concurrent.locks.LockSupport.unpark;
 import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 import javax.management.ObjectName;
 import javax.management.JMException;
+
+import org.postgresql.pljava.mbeans.DualStateStatistics;
 
 /**
  * Base class for object state with corresponding Java and native components.
@@ -2058,27 +2060,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * Bean exposing some {@code DualState} allocation and lifecycle statistics
 	 * for viewing in a JMX management client.
 	 */
-	public static interface StatisticsMBean
-	{
-		long getConstructed();
-		long getEnlistedScoped();
-		long getEnlistedUnscoped();
-		long getDelistedScoped();
-		long getDelistedUnscoped();
-		long getJavaUnreachable();
-		long getJavaReleased();
-		long getNativeReleased();
-		long getResourceOwnerPasses();
-		long getReferenceQueuePasses();
-		long getReferenceQueueItems();
-		long getContendedLocks();
-		long getContendedPins();
-		long getRepeatedlyDeferred();
-		long getGcReleaseRaces();
-		long getReleaseReleaseRaces();
-	}
-
-	static class Statistics implements StatisticsMBean
+	static class Statistics implements DualStateStatistics
 	{
 		public long getConstructed()
 		{

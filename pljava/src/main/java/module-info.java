@@ -19,6 +19,8 @@ module org.postgresql.pljava.internal
 	requires java.management;
 	requires org.postgresql.pljava;
 
+	exports org.postgresql.pljava.mbeans; // bothers me, but only interfaces
+
 	exports org.postgresql.pljava.elog to java.logging;
 
 	provides java.sql.Driver with org.postgresql.pljava.jdbc.SPIDriver;
