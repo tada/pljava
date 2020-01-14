@@ -11,6 +11,9 @@
  */
 package org.postgresql.pljava.internal;
 
+import static java.lang.invoke.MethodHandles.lookup;
+import java.lang.invoke.VarHandle;
+
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 
@@ -27,7 +30,6 @@ import java.util.Queue;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import static java.util.concurrent.locks.LockSupport.park;
 import static java.util.concurrent.locks.LockSupport.unpark;
@@ -461,6 +463,12 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * {@code VarHandle} for applying atomic operations on the {@code m_state}
+	 * field.
+	 */
+	private static final VarHandle s_stateVH;
+
+	/**
 	 * Bean to expose DualState allocation/release statistics to JMX management
 	 * tools.
 	 */
@@ -469,11 +477,21 @@ public abstract class DualState<T> extends WeakReference<T>
 	static {
 		try
 		{
+			s_stateVH =
+				lookup().findVarHandle(DualState.class, "m_state", int.class);
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+
+		try
+		{
 			ObjectName n = new ObjectName(
 				"org.postgresql.pljava:type=DualState,name=Statistics");
 			getPlatformMBeanServer().registerMBean(s_stats, n);
 		}
-		catch ( JMException e ) { }
+		catch ( JMException e ) { /* XXX */ }
 	}
 
 	/**
@@ -513,7 +531,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	private static final int PINNERS_MASK    = 0x00001fff;
 
 	/** Lock state, also records whether native or Java release has occurred. */
-	private final AtomicInteger m_state;
+	private volatile int m_state = 0;
 
 	/** Threads waiting for pins pending release of lock. */
 	private final Queue<Thread> m_waiters;
@@ -558,7 +576,6 @@ public abstract class DualState<T> extends WeakReference<T>
 
 		m_resourceOwner = resourceOwner;
 
-		m_state = new AtomicInteger();
 		m_waiters = new ConcurrentLinkedQueue<>();
 
 		assert Backend.threadMayEnterPG() : m("DualState construction");
@@ -603,7 +620,6 @@ public abstract class DualState<T> extends WeakReference<T>
 		super.clear();   // but nobody ever said for how long.
 		m_resourceOwner = resourceOwner;
 		m_prev = m_next = this;
-		m_state = null;
 		m_waiters = null;
 	}
 
@@ -728,27 +744,17 @@ public abstract class DualState<T> extends WeakReference<T>
 		 */
 		T r1 = referent();
 
-		int s = 0; // start by assuming state is simple with no pins
-		int t;
-		for ( ;; )
-		{
-			t = s | JAVA_RELEASED;
-			if ( m_state.compareAndSet(s, t) )
-				break;
-			s = m_state.get();
-			if ( !z(s & JAVA_RELEASED) )
-				break; // someone else has beaten us to marking it released.
-		}
+		int s = (int)s_stateVH.getAndBitwiseOr(this, JAVA_RELEASED);
 		/*
 		 * The state is now marked JAVA_RELEASED; that flag may have been set
 		 * before us, or here now by us (the latter indicated by its absence
 		 * in s).
 		 *
-		 * Now to clear the referent, and find out if it was live at entry.
+		 * Now to find out if the referent was live at entry, and clear it.
 		 */
-		super.clear();
 		boolean releaseFlagWasClear = z(s & JAVA_RELEASED);
 		boolean refWasClearAtEntry = null == r1;
+		super.clear();
 		reachabilityFence(r1);
 
 		if ( refWasClearAtEntry )
@@ -817,7 +823,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * So, spare the exception as long as the instance has in fact been
 		 * released.
 		 */
-		int s = m_state.get();
+		int s = (int)s_stateVH.get(this);
 		if ( z(s & JAVA_RELEASED) )
 			throw new UnsupportedOperationException(
 				"directly calling clear() on a DualState object is not " +
@@ -897,14 +903,14 @@ public abstract class DualState<T> extends WeakReference<T>
 		if ( s_pinCount.pin(this) )
 			return 0; // reentrant pin, no need for sync effort
 
-		int s = m_state.incrementAndGet(); // be optimistic
+		int s = 1 + (int)s_stateVH.getAndAdd(this, 1); // be optimistic
 		if ( z(s & ~ PINNERS_MASK) )       // nothing in s but a pin count? ->
 			return 0;                        // ... uncontended win!
 		if ( !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
 			return backoutPinBeforeEnqueue(s);
 		if ( !z(s & PINNERS_GUARD) )
 		{
-			m_state.decrementAndGet(); // recovery is questionable in this case
+			s = (int)s_stateVH.getAndAdd(this, -1); //recovery iffy in this case
 			s_pinCount.unpin(this);
 			throw new Error("DualState pin tracking capacity exceeded");
 		}
@@ -927,6 +933,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		Thread thr = Thread.currentThread();
 		m_waiters.add(thr);
 		int t;
+		int u;
 		/*
 		 * Top-of-loop invariant, s has either MUTATOR_HOLDS or MUTATOR_WANTS,
 		 * and we're counted under PINNERS_MASK, but under WAITERS_MASK is where
@@ -942,7 +949,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * the PINNERS count prevents a WANTS advancing to HOLDS, and also
 		 * blocks the final CAS in the release of a HOLDS.
 		 */
-		for ( ;; s = m_state.get() )
+		for ( ;; s = u )
 		{
 			t = s + (PINNERS_GUARD|PINNERS_MASK);
 			/*
@@ -959,7 +966,8 @@ public abstract class DualState<T> extends WeakReference<T>
 			}
 			if ( !z(t & MUTATOR_WANTS)  &&  z(t & PINNERS_MASK) )
 				t += MUTATOR_WANTS; // promote to MUTATOR_HOLDS, next bit left
-			if ( m_state.compareAndSet(s, t) )
+			u = (int)s_stateVH.compareAndExchange(this, s, t);
+			if ( s == u )
 				break;
 		}
 		if ( !z(t & MUTATOR_HOLDS)  &&  !z(s & MUTATOR_WANTS)) // promoted by us
@@ -974,10 +982,10 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			if ( ! thr.isInterrupted() )
 				park(this);
-			s = m_state.get();
+			s = (int)s_stateVH.getVolatile(this);
 			if ( thr.isInterrupted()
 				|| !z(s & (NATIVE_RELEASED | JAVA_RELEASED)) )
-				return backoutPinAfterPark(s, t);
+				return backoutPinAfterPark(t);
 			if ( !z(s & MUTATOR_HOLDS) ) // can only be a spurious unpark
 				continue;
 			if ( z(s & MUTATOR_WANTS) )  // no HOLDS, no WANTS, so
@@ -1028,13 +1036,15 @@ public abstract class DualState<T> extends WeakReference<T>
 
 		int s = 1; // start by assuming state is simple with only one pinner, us
 		int t;
-		for ( ;; s = m_state.get() )
+		int u;
+		for ( ;; s = u )
 		{
 			assert 1 <= (s & PINNERS_MASK) : m("DualState unpin < 1 pinner");
 			t = s - 1;
 			if ( !z(t & MUTATOR_WANTS)  &&  z(t & PINNERS_MASK) )
 				t += MUTATOR_WANTS; // promote to MUTATOR_HOLDS, next bit left
-			if ( m_state.compareAndSet(s, t) )
+			u = (int)s_stateVH.compareAndExchange(this, s, t);
+			if ( s == u )
 				break;
 		}
 
@@ -1062,6 +1072,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	/**
 	 * Back out an in-progress pin before our thread has been placed on the
 	 * queue.
+	 * @param s the most recently known state
 	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
 	 * the state
 	 */
@@ -1069,13 +1080,15 @@ public abstract class DualState<T> extends WeakReference<T>
 	{
 		s_pinCount.unpin(this);
 		int t;
-		for ( ;; s = m_state.get() )
+		int u;
+		for ( ;; s = u )
 		{
 			assert 1 <= (s & PINNERS_MASK) : m("backoutPinBeforeEnqueue");
 			t = s - 1;
 			if ( !z(t & MUTATOR_WANTS)  &&  z(t & PINNERS_MASK) )
 				t += MUTATOR_WANTS; // promote to MUTATOR_HOLDS, next bit left
-			if ( m_state.compareAndSet(s, t) )
+			u = (int)s_stateVH.compareAndExchange(this, s, t);
+			if ( s == u )
 				break;
 		}
 		/*
@@ -1092,6 +1105,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * Back out an in-progress pin after our thread has been placed on the
 	 * queue, but before success of the CAS that counts us under WAITERS_MASK
 	 * rather than PINNERS_MASK.
+	 * @param s the most recently known state
 	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
 	 * the state
 	 */
@@ -1111,13 +1125,12 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * either throws the {@code CancellationException} (if thread interruption
 	 * was the reason), or returns one or both of {@code NATIVE_RELEASED} or
 	 * {@code JAVA_RELEASED}; it never returns zero.
-	 * @param s the most recently fetched state
 	 * @param t prior state from before parking
 	 * @throws CancellationException if the reason was thread interruption
 	 * @return the {@code NATIVE_RELEASED} and {@code JAVA_RELEASED} bits of
 	 * the state
 	 */
-	private int backoutPinAfterPark(int s, int t)
+	private int backoutPinAfterPark(int t)
 	{
 		boolean wasHolds = !z(t & MUTATOR_HOLDS); // t, the pre-park state
 		/*
@@ -1125,12 +1138,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * transitions by the mutator thread (WANTS to HOLDS, or HOLDS to
 		 * released) while we determine what to do next.
 		 */
-		for ( ;; s = m_state.get() )
-		{
-			t = s + 1;
-			if ( m_state.compareAndSet(s, t) )
-				break;
-		}
+		t = 1 + (int)s_stateVH.getAndAdd(this, 1);
 
 		/*
 		 * From the current state, determine whether our pin has in fact been
@@ -1163,13 +1171,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			delta = 1 << WAITERS_SHIFT;
 			assert delta <= (t & WAITERS_MASK) : m("backoutPinAfterPark");
 		}
-		s = t;
-		for ( ;; s = m_state.get() )
-		{
-			t = s - delta;
-			if ( m_state.compareAndSet(s, t) )
-				break;
-		}
+		t = (int)s_stateVH.getAndAdd(this, - delta) - delta;
 
 		if ( mustUnpin )
 			unpin();
@@ -1240,6 +1242,7 @@ public abstract class DualState<T> extends WeakReference<T>
 
 		int s = upgrade ? 1 : 0; // to start, assume simple state, no other pins
 		int t;
+		int u;
 		int contended = 0;
 		for ( ;; )
 		{
@@ -1247,9 +1250,10 @@ public abstract class DualState<T> extends WeakReference<T>
 			if ( upgrade )
 				t += (PINNERS_GUARD|PINNERS_MASK); // hide my pin as a waiter
 			t |= ( !z(t & PINNERS_MASK) ? MUTATOR_WANTS : MUTATOR_HOLDS );
-			if ( m_state.compareAndSet(s, t) )
+			u = (int)s_stateVH.compareAndExchange(this, s, t);
+			if ( s == u )
 				break;
-			s = m_state.get();
+			s = u;
 			if ( !z(s & MUTATOR_HOLDS) ) // surprise! this is a reentrant call.
 				return s & (NATIVE_RELEASED | JAVA_RELEASED | MUTATOR_HOLDS);
 			if ( z(s & PINNERS_MASK) )
@@ -1259,7 +1263,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			contended = 1;
 			park(this);
-			t = m_state.get();
+			t = (int)s_stateVH.getVolatile(this);
 		}
 		s_stats.lockContended(contended);
 		return t & (NATIVE_RELEASED | JAVA_RELEASED) | (upgrade? 1 : 0);
@@ -1283,6 +1287,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	protected final void unlock(int s, boolean isNativeRelease)
 	{
 		int t;
+		int u;
 		if ( !z(s & MUTATOR_HOLDS) )
 		{
 			/*
@@ -1293,14 +1298,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * else does.
 			 */
 			if ( isNativeRelease  &&  z(s & NATIVE_RELEASED) )
-			{
-				for ( ;; s = m_state.get() )
-				{
-					t = s | NATIVE_RELEASED;
-					if ( m_state.compareAndSet(s, t) )
-						break;
-				}
-			}
+				u = (int)s_stateVH.getAndBitwiseOr(this, NATIVE_RELEASED);
 			return;
 		}
 
@@ -1327,9 +1325,10 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * bits under WAITERS_MASK where they belong. Then trust the queue.
 			 */
 			s &= ~ PINNERS_MASK;
-			if ( m_state.compareAndSet(s, t) )
+			u = (int)s_stateVH.compareAndExchange(this, s, t);
+			if ( s == u )
 				break;
-			s = m_state.get();
+			s = u;
 			assert !z(s & MUTATOR_HOLDS) : m("DualState mispaired unlock");
 			/*
 			 * Most of our CAS spins in this class require only that no other
@@ -1339,10 +1338,10 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * other thread to enqueue itself and move its bit out of the way.
 			 * That's still a very short spin, unless we are short of CPUs and
 			 * actually competing with the thread we're waiting for. Hence
-			 * a yield seems prudent, if pinner count is the reason we spin.
+			 * onSpinWait seems prudent, if pinner count is the reason we spin.
 			 */
 			if ( !z(s & PINNERS_MASK) )
-				Thread.yield();
+				Thread.onSpinWait();
 		}
 		/*
 		 * It's good to be the only thread allowed to mutate. Nobody else will
@@ -1383,7 +1382,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		int s = 1; // must be: quiescent (our pin only), unreleased
 		int t = NATIVE_RELEASED | JAVA_RELEASED | MUTATOR_HOLDS
 				| 1 << WAITERS_SHIFT;
-		if ( ! m_state.compareAndSet(s, t) )
+		if ( ! (boolean)s_stateVH.compareAndSet(this, s, t) )
 			throw new SQLException(
 				"Attempt by PostgreSQL to adopt a released or non-quiescent " +
 				"Java object");
@@ -1416,7 +1415,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 */
 		nativeStateReleased(false);
 
-		if ( ! m_state.compareAndSet(s, t) )
+		if ( ! (boolean)s_stateVH.compareAndSet(this, s, t) )
 			throw new SQLException("Release failed while adopting Java object");
 
 		/*
@@ -1531,7 +1530,8 @@ public abstract class DualState<T> extends WeakReference<T>
 		int pnl = c.getPackage().getName().length();
 		return String.format("%s owner:%x %s",
 			cn.substring(1 + pnl), m_resourceOwner,
-			z(m_state.get() & NATIVE_RELEASED) ? "fresh" : "stale");
+			z((int)s_stateVH.getVolatile(this) & NATIVE_RELEASED)
+				? "fresh" : "stale");
 	}
 
 	/**
@@ -1626,7 +1626,7 @@ public abstract class DualState<T> extends WeakReference<T>
 				else if ( null == (s = (DualState)s_releasedInstances.poll()) )
 					break;
 
-				int state = s.m_state.get();
+				int state = (int)s_stateVH.getVolatile(s);
 				if ( !z((PINNERS_MASK | WAITERS_MASK) & state) )
 				{
 					s_deferredReleased.add(s);
