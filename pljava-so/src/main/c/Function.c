@@ -173,12 +173,12 @@ void Function_initialize(void)
 	{
 		{
 		"_storeToNonUDT",
-		"(JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z",
+		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z",
 		Java_org_postgresql_pljava_internal_Function__1storeToNonUDT
 		},
 		{
 		"_storeToUDT",
-		"(JLjava/lang/Class;ZII)V",
+		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII)V",
 		Java_org_postgresql_pljava_internal_Function__1storeToUDT
 		},
 		{
@@ -591,12 +591,12 @@ jobject Function_currentLoader(void)
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToNonUDT
- * Signature: (JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z
  */
 JNIEXPORT jboolean JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToNonUDT(
-	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jclass clazz,
-	jboolean readOnly, jboolean isMultiCall, jobject typeMap,
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
+	jclass clazz, jboolean readOnly, jboolean isMultiCall, jobject typeMap,
 	jint numParams, jint returnType, jstring returnJType,
 	jintArray paramTypes, jobjectArray paramJTypes, jobjectArray outJTypes)
 {
@@ -616,6 +616,7 @@ JNIEXPORT jboolean JNICALL
 	{
 		self->isUDT = false;
 		self->readOnly = (JNI_TRUE == readOnly);
+		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
 		self->clazz = JNI_newGlobalRef(clazz);
 		self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
 		self->func.nonudt.typeMap =
@@ -689,12 +690,12 @@ JNIEXPORT jboolean JNICALL
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToUDT
- * Signature: (JLjava/lang/Class;ZII)V
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZII)V
  */
 JNIEXPORT void JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
-	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jclass clazz,
-	jboolean readOnly, jint funcInitial, jint udtId)
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
+	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId)
 {
 	Ptr2Long p2l;
 	Function self;
@@ -709,6 +710,7 @@ JNIEXPORT void JNICALL
 	{
 		self->isUDT = true;
 		self->readOnly = (JNI_TRUE == readOnly);
+		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
 		self->clazz = JNI_newGlobalRef(clazz);
 
 		typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");

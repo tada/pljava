@@ -36,7 +36,9 @@ public class Function
 		String className = info.group("udtcls");
 		if ( null == className )
 			return null;
-		return loadClass(schemaName, className).asSubclass(SQLData.class);
+		return
+			loadClass(Loader.getSchemaLoader(schemaName), className)
+				.asSubclass(SQLData.class);
 	}
 
 	public static String create(
@@ -64,7 +66,7 @@ public class Function
 	private static String init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger)
-		throws SQLException
+	throws SQLException
 	{
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
 		String className = info.group("udtcls");
@@ -78,23 +80,24 @@ public class Function
 
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
-		Class<?> clazz = loadClass(schemaName, className);
+		ClassLoader schemaLoader = Loader.getSchemaLoader(schemaName);
+		Class<?> clazz = loadClass(schemaLoader, className);
 
 		if ( isUDT )
 		{
-			setupUDT(wrappedPtr, info, procTup, clazz, readOnly);
+			setupUDT(wrappedPtr, info, procTup, schemaLoader, clazz, readOnly);
 			return null;
 		}
 
 		if ( calledAsTrigger )
 		{
 			typeMap = null;
-			setupTriggerParams(wrappedPtr, info, clazz, readOnly);
+			setupTriggerParams(wrappedPtr, info, schemaLoader, clazz, readOnly);
 		}
 		else
 		{
 			setupFunctionParams(wrappedPtr, info, procTup,
-				clazz, readOnly, typeMap);
+				schemaLoader, clazz, readOnly, typeMap);
 		}
 
 		return info.group("meth");
@@ -103,8 +106,8 @@ public class Function
 
 	private static void setupUDT(
 		long wrappedPtr, Matcher info, ResultSet procTup,
-		Class<?> clazz, boolean readOnly)
-		throws SQLException
+		ClassLoader schemaLoader, Class<?> clazz, boolean readOnly)
+	throws SQLException
 	{
 		String udtFunc = info.group("udtfun");
 		int udtInitial = Character.toLowerCase(udtFunc.charAt(0));
@@ -123,13 +126,15 @@ public class Function
 			throw new SQLException("internal error in PL/Java UDT parsing");
 		}
 
-		doInPG(() -> _storeToUDT(wrappedPtr, clazz.asSubclass(SQLData.class),
-			readOnly, udtInitial, udtId.intValue()));
+		doInPG(() -> _storeToUDT(wrappedPtr, schemaLoader,
+			clazz.asSubclass(SQLData.class), readOnly, udtInitial,
+			udtId.intValue()));
 	}
 
 	private static void setupTriggerParams(
-		long wrappedPtr, Matcher info, Class<?> clazz, boolean readOnly)
-		throws SQLException
+		long wrappedPtr, Matcher info,
+		ClassLoader schemaLoader, Class<?> clazz, boolean readOnly)
+	throws SQLException
 	{
 		if ( null != info.group("sig") )
 			throw new SQLSyntaxErrorException(
@@ -141,13 +146,15 @@ public class Function
 		Oid[] paramTypes = { INVALID };
 		String[] paramJTypes = { "org.postgresql.pljava.TriggerData" };
 
-		storeToNonUDT(wrappedPtr, clazz, readOnly, false /* isMultiCall */,
+		storeToNonUDT(wrappedPtr, schemaLoader, clazz, readOnly,
+			false /* isMultiCall */,
 			null /* typeMap */, retType, retJType, paramTypes, paramJTypes,
 			null /* [returnTypeIsOutputParameter] */);
 	}
 
 	private static void setupFunctionParams(
-		long wrappedPtr, Matcher info, ResultSet procTup, Class<?> clazz,
+		long wrappedPtr, Matcher info, ResultSet procTup,
+		ClassLoader schemaLoader, Class<?> clazz,
 		boolean readOnly, Map<Oid,Class<? extends SQLData>> typeMap)
 		throws SQLException
 	{
@@ -162,8 +169,10 @@ public class Function
 
 		boolean[] returnTypeIsOP = new boolean [ 1 ];
 
-		String[] resolvedTypes = storeToNonUDT(wrappedPtr, clazz,
-			readOnly, isMultiCall, typeMap, returnType, null, paramTypes, null,
+		String[] resolvedTypes = storeToNonUDT(wrappedPtr, schemaLoader, clazz,
+			readOnly, isMultiCall, typeMap,
+			returnType, null /* returnJType */,
+			paramTypes, null /* paramJTypes */,
 			returnTypeIsOP);
 
 		boolean returnTypeIsOutputParameter = returnTypeIsOP[0];
@@ -253,12 +262,13 @@ public class Function
 	 */
 	private static final Pattern COMMA = Pattern.compile("(?<=[^,]),(?=[^,])");
 
-	private static Class<?> loadClass(String schemaName, String className)
+	private static Class<?> loadClass(
+		ClassLoader schemaLoader, String className)
 	throws SQLException
 	{
 		try
 		{
-			return Loader.getSchemaLoader(schemaName).loadClass(className);
+			return schemaLoader.loadClass(className);
 		}
 		catch ( ClassNotFoundException e )
 		{
@@ -307,7 +317,8 @@ public class Function
 	);
 
 	private static String[] storeToNonUDT(
-		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
+		long wrappedPtr, ClassLoader schemaLoader, Class<?> clazz,
+		boolean readOnly, boolean isMultiCall,
 		Map<Oid,Class<? extends SQLData>> typeMap,
 		Oid returnType, String returnJType, Oid[] paramTypes, String[] pJTypes,
 		boolean[] returnTypeIsOutParameter)
@@ -331,9 +342,9 @@ public class Function
 
 		boolean rtiop =
 			doInPG(() -> _storeToNonUDT(
-				wrappedPtr, clazz, readOnly, isMultiCall, typeMap, numParams,
-				returnType.intValue(), returnJType, paramOids, pJTypes,
-				outJTypes));
+				wrappedPtr, schemaLoader, clazz, readOnly, isMultiCall, typeMap,
+				numParams, returnType.intValue(), returnJType, paramOids,
+				pJTypes, outJTypes));
 
 		if ( null != returnTypeIsOutParameter )
 			returnTypeIsOutParameter[0] = rtiop;
@@ -342,13 +353,15 @@ public class Function
 	}
 
 	private static native boolean _storeToNonUDT(
-		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
+		long wrappedPtr, ClassLoader schemaLoader, Class<?> clazz,
+		boolean readOnly, boolean isMultiCall,
 		Map<Oid,Class<? extends SQLData>> typeMap,
 		int numParams, int returnType, String returnJType,
 		int[] paramTypes, String[] paramJTypes, String[] outJTypes);
 
 	private static native void _storeToUDT(
-		long wrappedPtr, Class<? extends SQLData> clazz,
+		long wrappedPtr, ClassLoader schemaLoader,
+		Class<? extends SQLData> clazz,
 		boolean readOnly, int funcInitial, int udtOid);
 
 	private static native void _reconcileTypes(
