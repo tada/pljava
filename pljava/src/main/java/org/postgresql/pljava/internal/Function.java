@@ -15,23 +15,26 @@ import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientException;
+import java.sql.SQLSyntaxErrorException;
 
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
 {
 	public static Object create(
-		ResultSet procTup, String langName, String schemaName,
+		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger)
 	throws SQLException
 	{
 		Matcher info = parse(procTup);
 
-		init(info, procTup, schemaName, calledAsTrigger);
+		init(wrappedPtr, info, procTup, schemaName, calledAsTrigger);
 		return null;
 	}
 
@@ -57,23 +60,104 @@ public class Function
 	}
 
 	private static void init(
-		Matcher info, ResultSet procTup, String schemaName,
+		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger)
 		throws SQLException
 	{
-		Map<Oid,Class<? extends SQLData>> nonudtTypeMap = null;
+		Map<Oid,Class<? extends SQLData>> typeMap = null;
 		String className = info.group("udtcls");
 		boolean isUDT = (null != className);
 
 		if ( ! isUDT )
 		{
 			className = info.group("cls");
-			nonudtTypeMap = Loader.getTypeMap(schemaName);
+			typeMap = Loader.getTypeMap(schemaName);
 		}
 
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
 		Class<?> clazz = loadClass(schemaName, className);
+
+		if ( isUDT )
+		{
+			setupUDT(wrappedPtr, info, procTup, clazz, readOnly);
+			return;
+		}
+
+		if ( calledAsTrigger )
+		{
+			typeMap = null;
+			setupTriggerParams(wrappedPtr, info, clazz, readOnly);
+		}
+		else
+		{
+			setupFunctionParams(wrappedPtr, info, procTup,
+				clazz, readOnly, typeMap);
+		}
+
+		/* to do: build signature ... look up method ... store that. */
+	}
+
+	private static void setupUDT(
+		long wrappedPtr, Matcher info, ResultSet procTup,
+		Class<?> clazz, boolean readOnly)
+		throws SQLException
+	{
+		String udtFunc = info.group("udtfun");
+		int udtInitial = Character.toLowerCase(udtFunc.charAt(0));
+		Oid udtId;
+		switch ( udtInitial )
+		{
+		case 'i':
+		case 'r':
+			udtId = (Oid)procTup.getObject("prorettype");
+			break;
+		case 'o':
+		case 's':
+			udtId = ((Oid[])procTup.getObject("proargtypes"))[0];
+			break;
+		default:
+			throw new SQLException("internal error in PL/Java UDT parsing");
+		}
+
+		doInPG(() -> _storeToUDT(wrappedPtr, clazz.asSubclass(SQLData.class),
+			readOnly, udtInitial, udtId.intValue()));
+	}
+
+	private static void setupTriggerParams(
+		long wrappedPtr, Matcher info, Class<?> clazz, boolean readOnly)
+		throws SQLException
+	{
+		if ( null != info.group("sig") )
+			throw new SQLSyntaxErrorException(
+				"Triggers may not have a Java parameter signature", "42601");
+
+		Oid retType = INVALID;
+		String retJType = "void";
+
+		Oid[] paramTypes = { INVALID };
+		String[] paramJTypes = { "org.postgresql.pljava.TriggerData" };
+
+		storeToNonUDT(wrappedPtr, clazz, readOnly, false /* isMultiCall */,
+			null /* typeMap */, retType, retJType, paramTypes, paramJTypes);
+	}
+
+	private static void setupFunctionParams(
+		long wrappedPtr, Matcher info, ResultSet procTup, Class<?> clazz,
+		boolean readOnly, Map<Oid,Class<? extends SQLData>> typeMap)
+		throws SQLException
+	{
+		int numParams = procTup.getInt("pronargs");
+		boolean isMultiCall = procTup.getBoolean("proretset");
+		Oid[] paramTypes = null;
+
+		Oid returnType = (Oid)procTup.getObject("prorettype");
+
+		if ( 0 < numParams )
+			paramTypes = (Oid[])procTup.getObject("proargtypes");
+
+		storeToNonUDT(wrappedPtr, clazz, readOnly, isMultiCall,
+			typeMap, returnType, null, paramTypes, null);
 	}
 
 	private static Class<?> loadClass(String schemaName, String className)
@@ -90,10 +174,6 @@ public class Function
 		}
 	}
 
-	/*
-		int numParams = procTup.getInt("pronargs");
-		boolean isMultiCall = procTup.getBoolean("proretset");
-	*/
 
 	private static void say(Matcher m, String grpname)
 	{
@@ -140,4 +220,40 @@ public class Function
 		"(?:(?<ret>[^=]++)=)?+(?<cls>(?:[^.(]++\\.?)+)\\.(?<meth>[^.(]++)" +
 		"(?:\\((?<sig>[^)]*+)\\))?+"
 	);
+
+	private static void storeToNonUDT(
+		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
+		Map<Oid,Class<? extends SQLData>> typeMap,
+		Oid returnType, String returnJType, Oid[] paramTypes, String[] pJTypes)
+	{
+		int numParams;
+		int[] paramOids;
+		if ( null == paramTypes )
+		{
+			numParams = 0;
+			paramOids = null;
+		}
+		else
+		{
+			numParams = paramTypes.length;
+			paramOids = new int [ numParams ];
+			for ( int i = 0 ; i < numParams ; ++ i )
+				paramOids[i] = paramTypes[i].intValue();
+		}
+
+		doInPG(() -> _storeToNonUDT(
+				wrappedPtr, clazz, readOnly, isMultiCall, typeMap, numParams,
+				returnType.intValue(), returnJType, paramOids, pJTypes));
+		}
+	}
+
+	private static native void _storeToNonUDT(
+		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
+		Map<Oid,Class<? extends SQLData>> typeMap,
+		int numParams, int returnType, String returnJType,
+		int[] paramTypes, String[] paramJTypes);
+
+	private static native void _storeToUDT(
+		long wrappedPtr, Class<? extends SQLData> clazz,
+		boolean readOnly, int funcInitial, int udtOid);
 }

@@ -10,6 +10,7 @@
  *   Thomas Hallgren
  *   Chapman Flack
  */
+#include "org_postgresql_pljava_internal_Function.h"
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
 #include "pljava/InstallHelper.h"
@@ -170,6 +171,20 @@ static void _Function_finalize(PgObject func)
 extern void Function_initialize(void);
 void Function_initialize(void)
 {
+	JNINativeMethod functionMethods[] =
+	{
+		{
+		"_storeToNonUDT",
+		"(JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;)V",
+		Java_org_postgresql_pljava_internal_Function__1storeToNonUDT
+		},
+		{
+		"_storeToUDT",
+		"(JLjava/lang/Class;ZII)V",
+		Java_org_postgresql_pljava_internal_Function__1storeToUDT
+		},
+		{ 0, 0, 0 }
+	};
 	s_funcMap = HashMap_create(59, TopMemoryContext);
 	
 	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
@@ -182,8 +197,10 @@ void Function_initialize(void)
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
-		"(Ljava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
+		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
 		"Ljava/lang/Object;");
+
+	PgObject_registerNatives2(s_Function_class, functionMethods);
 
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 
@@ -217,6 +234,8 @@ static void buildSignature(Function self, StringInfo sign, Type retType, bool al
  * a coercer type between the two. It does not concern itself with return types
  * of ordinary functions, but does, in the case represented by lastIsOut, where
  * there is an extra entry paramTypes[numParams] representing an OUT type.
+ * Note: dfltIds and nonudt.paramTypes are both null if nonudt.numParams is
+ * zero, which is ok because neither will be dereferenced in that case.
  */
 static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
 {
@@ -757,13 +776,19 @@ static Function Function_create(PG_FUNCTION_ARGS)
 	ParseResultData info;
 	Function self =
 		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	Function self2 =
+		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
 	HeapTuple procTup =
 		PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
 	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
-	HeapTuple langTup =
+	HeapTuple lngTup =
 		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
-	Form_pg_language langStruct = (Form_pg_language)GETSTRUCT(langTup);
-	jstring lname = String_createJavaStringFromNTS(NameStr(langStruct->lanname));
+	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
+	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
+	Ptr2Long p2l;
+
+	p2l.longVal = 0;
+	p2l.ptrVal = (void *)self2;
 
 #if 90305<=PG_VERSION_NUM || \
 	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
@@ -777,11 +802,23 @@ static Function Function_create(PG_FUNCTION_ARGS)
 #endif
 
 	JNI_callStaticVoidMethod(s_Function_class, s_Function_create,
-		Type_coerceDatum(s_pgproc_Type, d), lname,
+		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
 		getSchemaName(procStruct->pronamespace),
 		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
 	pfree((void *)d);
-	ReleaseSysCache(langTup);
+	ReleaseSysCache(lngTup);
+
+	fprintf(stderr, "isUDT: %s\n", self2->isUDT ? "t" : "f");
+	if ( ! self2->isUDT )
+	{
+		int i;
+		fprintf(stderr, "isMultiCall: %s\n", self2->func.nonudt.isMultiCall ? "t" : "f");
+		fprintf(stderr, "returnType: %s\n",
+			Type_getJavaTypeName(self2->func.nonudt.returnType));
+		for ( i = 0 ; i < self2->func.nonudt.numParams ; ++ i )
+			fprintf(stderr, "paramType[%d]: %s\n", i,
+				Type_getJavaTypeName(self2->func.nonudt.paramTypes[i]));
+	}
 
 	parseFunction(&info, procTup);
 	Function_init(self, &info, procStruct, fcinfo);
@@ -996,3 +1033,109 @@ jobject Function_currentLoader(void)
 	return JNI_newLocalRef(weakRef);
 }
 
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _storeToNonUDT
+ * Signature: (JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;)V
+ */
+JNIEXPORT void JNICALL
+	Java_org_postgresql_pljava_internal_Function__1storeToNonUDT(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jclass clazz,
+	jboolean readOnly, jboolean isMultiCall, jobject typeMap,
+	jint numParams, jint returnType, jstring returnJType,
+	jintArray paramTypes, jobjectArray paramJTypes)
+{
+	Ptr2Long p2l;
+	Function self;
+	MemoryContext ctx;
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+	ctx = GetMemoryChunkContext(self);
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	self->isUDT = false;
+	self->readOnly = (JNI_TRUE == readOnly);
+	self->clazz = JNI_newGlobalRef(clazz);
+	self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
+	self->func.nonudt.typeMap =
+		(NULL == typeMap) ? NULL : JNI_newGlobalRef(typeMap);
+	self->func.nonudt.numParams = numParams;
+
+	if ( NULL != returnJType )
+	{
+		char *rjtc = String_createNTS(returnJType);
+		self->func.nonudt.returnType = Type_fromJavaType(returnType, rjtc);
+		pfree(rjtc);
+	}
+	else
+		self->func.nonudt.returnType = Type_fromOid(returnType, typeMap);
+
+	if ( 0 < numParams )
+	{
+		self->func.nonudt.paramTypes =
+			(Type *)MemoryContextAlloc(ctx, numParams * sizeof (Type));
+		int i;
+		jint *paramOids = JNI_getIntArrayElements(paramTypes, NULL);
+		for ( i = 0 ; i < numParams ; ++ i )
+		{
+			if ( NULL != paramJTypes )
+			{
+				jstring pjt = JNI_getObjectArrayElement(paramJTypes, i);
+				if ( NULL != pjt )
+				{
+					char *pjtc = String_createNTS(pjt);
+					JNI_deleteLocalRef(pjt);
+					self->func.nonudt.paramTypes[i] =
+						Type_fromJavaType(paramOids[i], pjtc);
+					pfree(pjtc);
+					continue;
+				}
+			}
+			self->func.nonudt.paramTypes[i] =
+				Type_fromOid(paramOids[i], typeMap);
+		}
+		JNI_releaseIntArrayElements(paramTypes, paramOids, JNI_ABORT);
+	}
+	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _storeToUDT
+ * Signature: (JLjava/lang/Class;ZII)V
+ */
+JNIEXPORT void JNICALL
+	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jclass clazz,
+	jboolean readOnly, jint funcInitial, jint udtId)
+{
+	Ptr2Long p2l;
+	Function self;
+	HeapTuple typeTup;
+	Form_pg_type pgType;
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	self->isUDT = true;
+	self->readOnly = (JNI_TRUE == readOnly);
+	self->clazz = JNI_newGlobalRef(clazz);
+
+	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
+	pgType = (Form_pg_type)GETSTRUCT(typeTup);
+	self->func.udt.udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
+	ReleaseSysCache(typeTup);
+
+	switch ( funcInitial )
+	{
+	case 'i': self->func.udt.udtFunction = UDT_input; break;
+	case 'o': self->func.udt.udtFunction = UDT_output; break;
+	case 'r': self->func.udt.udtFunction = UDT_receive; break;
+	case 's': self->func.udt.udtFunction = UDT_send; break;
+	default:
+		elog(ERROR, "PL/Java jar/native code mismatch: unexpected UDT func ID");
+	}
+	END_NATIVE
+}
