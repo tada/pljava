@@ -1128,8 +1128,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			_name = (String)o;
 			if ( _name.startsWith( "\"")
 				&& ! Lexicals.ISO_DELIMITED_IDENTIFIER.matcher( _name).matches()
-				|| ! Lexicals.ISO_AND_PG_REGULAR_IDENTIFIER.matcher( _name)
-					.matches()
 				)
 				msg( Kind.WARNING, e, "malformed parameter name: %s", _name);
 		}
@@ -2147,7 +2145,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			_storage = Storage.valueOf(
 				((VariableElement)o).getSimpleName().toString());
-			categoryExplicit = explicit;
+			storageExplicit = explicit;
 		}
 
 		public void setDefaultValue( Object o, boolean explicit, Element e)
@@ -2297,7 +2295,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( ",\n\tLIKE = ").append( like());
 
 			if ( categoryExplicit )
-				sb.append( ",\n\tCATEGORY = '").append(
+				sb.append( ",\n\tCATEGORY = ").append(
 					DDRWriter.eQuote( String.valueOf( category())));
 
 			if ( preferred() )
@@ -2311,7 +2309,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( ",\n\tELEMENT = ").append( element());
 
 			if ( delimiterExplicit )
-				sb.append( ",\n\tDELIMITER = '").append(
+				sb.append( ",\n\tDELIMITER = ").append(
 					DDRWriter.eQuote( String.valueOf( delimiter())));
 
 			if ( collatable() )
