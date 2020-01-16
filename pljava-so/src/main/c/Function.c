@@ -175,13 +175,18 @@ void Function_initialize(void)
 	{
 		{
 		"_storeToNonUDT",
-		"(JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;)V",
+		"(JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z",
 		Java_org_postgresql_pljava_internal_Function__1storeToNonUDT
 		},
 		{
 		"_storeToUDT",
 		"(JLjava/lang/Class;ZII)V",
 		Java_org_postgresql_pljava_internal_Function__1storeToUDT
+		},
+		{
+		"_reconcileTypes",
+		"(J[Ljava/lang/String;[Ljava/lang/String;I)V",
+		Java_org_postgresql_pljava_internal_Function__1reconcileTypes
 		},
 		{ 0, 0, 0 }
 	};
@@ -1036,68 +1041,99 @@ jobject Function_currentLoader(void)
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToNonUDT
- * Signature: (JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;)V
+ * Signature: (JLjava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z
  */
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToNonUDT(
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jclass clazz,
 	jboolean readOnly, jboolean isMultiCall, jobject typeMap,
 	jint numParams, jint returnType, jstring returnJType,
-	jintArray paramTypes, jobjectArray paramJTypes)
+	jintArray paramTypes, jobjectArray paramJTypes, jobjectArray outJTypes)
 {
 	Ptr2Long p2l;
 	Function self;
 	MemoryContext ctx;
+	jstring jtn;
+	int i = 0;
+	bool returnTypeIsOutParameter;
 
 	p2l.longVal = wrappedPtr;
 	self = (Function)p2l.ptrVal;
 	ctx = GetMemoryChunkContext(self);
 
 	BEGIN_NATIVE_NO_ERRCHECK
-	self->isUDT = false;
-	self->readOnly = (JNI_TRUE == readOnly);
-	self->clazz = JNI_newGlobalRef(clazz);
-	self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
-	self->func.nonudt.typeMap =
-		(NULL == typeMap) ? NULL : JNI_newGlobalRef(typeMap);
-	self->func.nonudt.numParams = numParams;
-
-	if ( NULL != returnJType )
+	PG_TRY();
 	{
-		char *rjtc = String_createNTS(returnJType);
-		self->func.nonudt.returnType = Type_fromJavaType(returnType, rjtc);
-		pfree(rjtc);
-	}
-	else
-		self->func.nonudt.returnType = Type_fromOid(returnType, typeMap);
+		self->isUDT = false;
+		self->readOnly = (JNI_TRUE == readOnly);
+		self->clazz = JNI_newGlobalRef(clazz);
+		self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
+		self->func.nonudt.typeMap =
+			(NULL == typeMap) ? NULL : JNI_newGlobalRef(typeMap);
+		self->func.nonudt.numParams = numParams;
 
-	if ( 0 < numParams )
-	{
-		self->func.nonudt.paramTypes =
-			(Type *)MemoryContextAlloc(ctx, numParams * sizeof (Type));
-		int i;
-		jint *paramOids = JNI_getIntArrayElements(paramTypes, NULL);
-		for ( i = 0 ; i < numParams ; ++ i )
+		if ( NULL != returnJType )
 		{
-			if ( NULL != paramJTypes )
-			{
-				jstring pjt = JNI_getObjectArrayElement(paramJTypes, i);
-				if ( NULL != pjt )
-				{
-					char *pjtc = String_createNTS(pjt);
-					JNI_deleteLocalRef(pjt);
-					self->func.nonudt.paramTypes[i] =
-						Type_fromJavaType(paramOids[i], pjtc);
-					pfree(pjtc);
-					continue;
-				}
-			}
-			self->func.nonudt.paramTypes[i] =
-				Type_fromOid(paramOids[i], typeMap);
+			char *rjtc = String_createNTS(returnJType);
+			self->func.nonudt.returnType = Type_fromJavaType(returnType, rjtc);
+			pfree(rjtc);
 		}
-		JNI_releaseIntArrayElements(paramTypes, paramOids, JNI_ABORT);
+		else
+			self->func.nonudt.returnType = Type_fromOid(returnType, typeMap);
+
+		if ( 0 < numParams )
+		{
+			self->func.nonudt.paramTypes =
+				(Type *)MemoryContextAlloc(ctx, numParams * sizeof (Type));
+			jint *paramOids = JNI_getIntArrayElements(paramTypes, NULL);
+			for ( i = 0 ; i < numParams ; ++ i )
+			{
+				if ( NULL != paramJTypes )
+				{
+					jstring pjt = JNI_getObjectArrayElement(paramJTypes, i);
+					if ( NULL != pjt )
+					{
+						char *pjtc = String_createNTS(pjt);
+						JNI_deleteLocalRef(pjt);
+						self->func.nonudt.paramTypes[i] =
+							Type_fromJavaType(paramOids[i], pjtc);
+						pfree(pjtc);
+						continue;
+					}
+				}
+				self->func.nonudt.paramTypes[i] =
+					Type_fromOid(paramOids[i], typeMap);
+			}
+			JNI_releaseIntArrayElements(paramTypes, paramOids, JNI_ABORT);
+
+			for ( i = 0 ; i < numParams ; ++ i )
+			{
+				jtn = String_createJavaStringFromNTS(Type_getJavaTypeName(
+					self->func.nonudt.paramTypes[i]));
+				JNI_setObjectArrayElement(outJTypes, i, jtn);
+				JNI_deleteLocalRef(jtn);
+			}
+		}
+
+		/* Store Java type name of return type at outJTypes[i], where i (after
+		 * all of the above) indexes the last element of outJTypes.
+		 */
+		jtn = String_createJavaStringFromNTS(Type_getJavaTypeName(
+			self->func.nonudt.returnType));
+		JNI_setObjectArrayElement(outJTypes, i, jtn);
+		JNI_deleteLocalRef(jtn);
+
+		returnTypeIsOutParameter =
+			Type_isOutParameter(self->func.nonudt.returnType);
 	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
 	END_NATIVE
+
+	return returnTypeIsOutParameter;
 }
 
 /*
@@ -1119,23 +1155,102 @@ JNIEXPORT void JNICALL
 	self = (Function)p2l.ptrVal;
 
 	BEGIN_NATIVE_NO_ERRCHECK
-	self->isUDT = true;
-	self->readOnly = (JNI_TRUE == readOnly);
-	self->clazz = JNI_newGlobalRef(clazz);
-
-	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
-	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->func.udt.udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
-	ReleaseSysCache(typeTup);
-
-	switch ( funcInitial )
+	PG_TRY();
 	{
-	case 'i': self->func.udt.udtFunction = UDT_input; break;
-	case 'o': self->func.udt.udtFunction = UDT_output; break;
-	case 'r': self->func.udt.udtFunction = UDT_receive; break;
-	case 's': self->func.udt.udtFunction = UDT_send; break;
-	default:
-		elog(ERROR, "PL/Java jar/native code mismatch: unexpected UDT func ID");
+		self->isUDT = true;
+		self->readOnly = (JNI_TRUE == readOnly);
+		self->clazz = JNI_newGlobalRef(clazz);
+
+		typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
+		pgType = (Form_pg_type)GETSTRUCT(typeTup);
+		self->func.udt.udt =
+			UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
+		ReleaseSysCache(typeTup);
+
+		switch ( funcInitial )
+		{
+		case 'i': self->func.udt.udtFunction = UDT_input; break;
+		case 'o': self->func.udt.udtFunction = UDT_output; break;
+		case 'r': self->func.udt.udtFunction = UDT_receive; break;
+		case 's': self->func.udt.udtFunction = UDT_send; break;
+		default:
+			elog(ERROR,
+				"PL/Java jar/native code mismatch: unexpected UDT func ID");
+		}
 	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
+	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _reconcileTypes
+ * Signature: (J[Ljava/lang/String;[Ljava/lang/String;I)V
+ */
+JNIEXPORT void JNICALL
+	Java_org_postgresql_pljava_internal_Function__1reconcileTypes(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr,
+	jobjectArray resolvedTypes, jobjectArray explicitTypes, jint index)
+{
+	Ptr2Long p2l;
+	Function self;
+	Type origType;
+	Type replType;
+	Oid typeId;
+	char *javaName;
+	jstring javaNameString;
+
+	/* The Java code will pass index -1 to indicate the special case of
+	 * reconciling the return type instead of a parameter type. This is
+	 * a bit convoluted in order to reproduce the behavior of the
+	 * original C parseParameters. The explicit return type is at numParams.
+	 */
+	bool actOnReturnType = ( -1 == index );
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	PG_TRY();
+	{
+		if ( actOnReturnType )
+		{
+			index = self->func.nonudt.numParams;
+			origType = self->func.nonudt.returnType;
+			typeId = InvalidOid;
+		}
+		else
+		{
+			origType = self->func.nonudt.paramTypes[index];
+			typeId = Type_getOid(origType);
+		}
+
+		javaName =
+			String_createNTS(JNI_getObjectArrayElement(explicitTypes, index));
+
+		replType = Type_fromJavaType(typeId, javaName);
+		pfree(javaName);
+		if ( ! Type_canReplaceType(replType, origType) )
+			replType = Type_getCoerceIn(replType, origType);
+
+		if ( actOnReturnType )
+			self->func.nonudt.returnType = replType;
+		else
+			self->func.nonudt.paramTypes[index] = replType;
+
+		javaNameString =
+			String_createJavaStringFromNTS(Type_getJavaTypeName(replType));
+		JNI_setObjectArrayElement(resolvedTypes, index, javaNameString);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
+
 	END_NATIVE
 }

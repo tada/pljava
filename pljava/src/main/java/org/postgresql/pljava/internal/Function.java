@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
+import static java.util.Arrays.copyOf;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -139,7 +140,8 @@ public class Function
 		String[] paramJTypes = { "org.postgresql.pljava.TriggerData" };
 
 		storeToNonUDT(wrappedPtr, clazz, readOnly, false /* isMultiCall */,
-			null /* typeMap */, retType, retJType, paramTypes, paramJTypes);
+			null /* typeMap */, retType, retJType, paramTypes, paramJTypes,
+			null /* [returnTypeIsOutputParameter] */);
 	}
 
 	private static void setupFunctionParams(
@@ -156,9 +158,64 @@ public class Function
 		if ( 0 < numParams )
 			paramTypes = (Oid[])procTup.getObject("proargtypes");
 
-		storeToNonUDT(wrappedPtr, clazz, readOnly, isMultiCall,
-			typeMap, returnType, null, paramTypes, null);
+		boolean[] returnTypeIsOP = new boolean [ 1 ];
+
+		String[] resolvedTypes = storeToNonUDT(wrappedPtr, clazz,
+			readOnly, isMultiCall, typeMap, returnType, null, paramTypes, null,
+			returnTypeIsOP);
+
+		boolean returnTypeIsOutputParameter = returnTypeIsOP[0];
+
+		String explicitSignature = info.group("sig");
+		if ( null != explicitSignature )
+			parseParameters( wrappedPtr, resolvedTypes, explicitSignature,
+				isMultiCall, returnTypeIsOutputParameter);
 	}
+
+	private static void parseParameters(
+		long wrappedPtr, String[] resolvedTypes, String explicitSignature,
+		boolean isMultiCall, boolean returnTypeIsOutputParameter)
+		throws SQLException
+	{
+		boolean lastIsOut = ( ! isMultiCall ) && returnTypeIsOutputParameter;
+		String[] explicitTypes = explicitSignature.isEmpty() ?
+			new String[0] : COMMA.split(explicitSignature);
+
+		int expect = resolvedTypes.length - (lastIsOut ? 0 : 1);
+
+		if ( expect != explicitTypes.length )
+			throw new SQLSyntaxErrorException(String.format(
+				"AS (Java): expected %1$d parameter types, found %2$d",
+				expect, explicitTypes.length), "42601");
+
+		doInPG(() ->
+		{
+			for ( int i = 0 ; i < resolvedTypes.length - 1 ; ++ i )
+			{
+				if ( resolvedTypes[i].equals(explicitTypes[i]) )
+					continue;
+				_reconcileTypes(wrappedPtr, resolvedTypes, explicitTypes, i);
+			}
+		});
+
+		if ( lastIsOut
+			&& ! resolvedTypes[expect-1].equals(explicitTypes[expect-1]) )
+		{
+			/* Use the same reconcileTypes native method to handle the return
+			 * type also ... its behavior must change a bit, so use index -1 to
+			 * identify this case.
+			 */
+			doInPG(() ->
+				_reconcileTypes(wrappedPtr, resolvedTypes, explicitTypes, -1));
+		}
+	}
+
+	/**
+	 * Pattern for splitting an explicit signature on commas, relying on
+	 * whitespace already being stripped by {@code getAS}. Will not match
+	 * consecutive, leading, or trailing commas.
+	 */
+	private static final Pattern COMMA = Pattern.compile("(?<=[^,]),(?=[^,])");
 
 	private static Class<?> loadClass(String schemaName, String className)
 	throws SQLException
@@ -221,10 +278,11 @@ public class Function
 		"(?:\\((?<sig>[^)]*+)\\))?+"
 	);
 
-	private static void storeToNonUDT(
+	private static String[] storeToNonUDT(
 		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
 		Map<Oid,Class<? extends SQLData>> typeMap,
-		Oid returnType, String returnJType, Oid[] paramTypes, String[] pJTypes)
+		Oid returnType, String returnJType, Oid[] paramTypes, String[] pJTypes,
+		boolean[] returnTypeIsOutParameter)
 	{
 		int numParams;
 		int[] paramOids;
@@ -241,19 +299,34 @@ public class Function
 				paramOids[i] = paramTypes[i].intValue();
 		}
 
-		doInPG(() -> _storeToNonUDT(
+		String[] outJTypes = new String [ 1 + numParams ];
+
+		boolean rtiop =
+			doInPG(() -> _storeToNonUDT(
 				wrappedPtr, clazz, readOnly, isMultiCall, typeMap, numParams,
-				returnType.intValue(), returnJType, paramOids, pJTypes));
-		}
+				returnType.intValue(), returnJType, paramOids, pJTypes,
+				outJTypes));
+
+		if ( null != returnTypeIsOutParameter )
+			returnTypeIsOutParameter[0] = rtiop;
+
+		System.err.println(java.util.Arrays.toString(outJTypes));
+
+		return outJTypes;
 	}
 
-	private static native void _storeToNonUDT(
+	private static native boolean _storeToNonUDT(
 		long wrappedPtr, Class<?> clazz, boolean readOnly, boolean isMultiCall,
 		Map<Oid,Class<? extends SQLData>> typeMap,
 		int numParams, int returnType, String returnJType,
-		int[] paramTypes, String[] paramJTypes);
+		int[] paramTypes, String[] paramJTypes, String[] outJTypes);
 
 	private static native void _storeToUDT(
 		long wrappedPtr, Class<? extends SQLData> clazz,
 		boolean readOnly, int funcInitial, int udtOid);
+
+	private static native void _reconcileTypes(
+		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);
+
+public static void main(String[] args) { }
 }
