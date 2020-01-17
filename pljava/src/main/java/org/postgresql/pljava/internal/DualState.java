@@ -824,7 +824,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * So, spare the exception as long as the instance has in fact been
 		 * released.
 		 */
-		int s = (int)s_stateVH.get(this);
+		int s = m_state.get();
 		if ( z(s & JAVA_RELEASED) )
 			throw new UnsupportedOperationException(
 				"directly calling clear() on a DualState object is not " +
