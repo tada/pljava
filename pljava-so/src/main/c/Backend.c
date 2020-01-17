@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,6 +46,7 @@
 #include <unistd.h>
 
 #include "org_postgresql_pljava_internal_Backend.h"
+#include "org_postgresql_pljava_internal_Backend_EarlyNatives.h"
 #include "pljava/DualState.h"
 #include "pljava/Invocation.h"
 #include "pljava/InstallHelper.h"
@@ -230,6 +231,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 		char **newval, void **extra, GucSource source);
 	static bool check_enabled(
 		bool *newval, void **extra, GucSource source);
+	static bool check_java_thread_pg_entry(
+		int *newval, void **extra, GucSource source);
 
 	/* Check hooks will always allow "setting" a value that is the same as
 	 * current; otherwise, it would be frustrating to have just found settings
@@ -309,6 +312,22 @@ static void initsequencer(enum initstage is, bool tolerant);
 			"For another chance, exit this session and start a new one.");
 		return false;
 	}
+
+	static bool check_java_thread_pg_entry(
+		int *newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_PLJAVA_FOUND )
+			return true;
+		if ( java_thread_pg_entry == *newval )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.java_thread_pg_entry\" setting");
+		GUC_check_errdetail(
+			"Start-up has progressed past the point where it is checked.");
+		GUC_check_errhint(
+			"For another chance, exit this session and start a new one.");
+		return false;
+	}
 #endif
 
 #if PG_VERSION_NUM < 90100
@@ -356,9 +375,12 @@ struct config_enum_entry
 #endif
 
 static const struct config_enum_entry java_thread_pg_entry_options[] = {
-	{"allow", 0, false},
-	{"error", 1, false},
-	{"block", 3, false},
+	{"allow", 0, false}, /* numeric value is bit-coded: */
+	{"error", 1, false}, /* 1: C code should refuse JNI calls on wrong thread */
+	                     /* 2: C code shouldn't call MonitorEnter/MonitorExit */
+	{"block", 3, false}, /* (3: check thread AND skip MonitorEnter/Exit)      */
+	                     /* 4: *Java* code should refuse wrong-thread calls   */
+	{"throw", 6, false}, /* (6: check in Java AND skip C MonitorEnter/Exit)   */
 	{NULL, 0, false}
 };
 
@@ -893,6 +915,17 @@ static void initPLJavaClasses(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod earlyMethods[] =
+	{
+		{
+		"_forbidOtherThreads",
+		"()Z",
+		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads
+		},
+		{ 0, 0, 0 }
+	};
+	jclass cls;
+
 	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
 												"PL/Java",
 												ALLOCSET_DEFAULT_SIZES);
@@ -900,12 +933,18 @@ static void initPLJavaClasses(void)
 	Exception_initialize();
 
 	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
+
+	cls = PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Backend$EarlyNatives");
+	PgObject_registerNatives2(cls, earlyMethods);
+
 	s_Backend_class = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Backend");
 	elog(DEBUG2, "successfully loaded Backend class");
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
-	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
+	tlField = PgObject_getStaticJavaField(s_Backend_class,
+		"THREADLOCK", "Ljava/lang/Object;");
 	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
 
 	Invocation_initialize();
@@ -1561,13 +1600,15 @@ static void registerGUCOptions(void)
 		"entered Java. If 'error', any thread other than the main one will "
 		"incur an exception if it tries to enter PG. If 'block', the main "
 		"thread will never release its lock, so any other thread that tries "
-		"to enter PG will indefinitely block.",
+		"to enter PG will indefinitely block. If 'throw', like 'error', other "
+		"threads will incur an exception, but earlier: it will be thrown "
+		"in Java, before the JNI boundary into C is even crossed.",
 		&java_thread_pg_entry,
 		ENUMBOOTVAL(java_thread_pg_entry_options[0]), /* allow */
 		java_thread_pg_entry_options,
 		PGC_USERSET,
 		0, /* flags */
-		NULL, /* check hook */
+		check_java_thread_pg_entry, /* check hook */
 		assign_java_thread_pg_entry,
 		NULL); /* display hook */
 
@@ -1782,4 +1823,15 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 	bool inExtension = false;
 	pljavaCheckExtension( &inExtension);
 	return inExtension ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend_Natives
+ * Method:    _forbidOtherThreads
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads(JNIEnv *env, jclass cls)
+{
+	return (java_thread_pg_entry & 4) ? JNI_TRUE : JNI_FALSE;
 }

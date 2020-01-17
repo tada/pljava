@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,7 +46,24 @@ public class Backend
 	/**
 	 * All native calls synchronize on this object.
 	 */
-	public static final Object THREADLOCK = new Object();
+	public static final Object THREADLOCK;
+
+	/**
+	 * Will be {@code Boolean.TRUE} on the one primordial thread first entered
+	 * from PG, and null on any other thread.
+	 */
+	public static final ThreadLocal<Boolean> IAMPGTHREAD = new ThreadLocal<>();
+
+	static
+	{
+		IAMPGTHREAD.set(Boolean.TRUE);
+		THREADLOCK = EarlyNatives._forbidOtherThreads() ? null : new Object();
+		/*
+		 * With any luck, the static final null-or-not-ness of THREADLOCK will
+		 * cause JIT to quickly specialize the doInPG() methods to one or the
+		 * other branch of their code.
+		 */
+	}
 
 	private static Session s_session;
 
@@ -67,10 +84,13 @@ public class Backend
 	public static <T, E extends Throwable> T doInPG(Checked.Supplier<T,E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			return op.get();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.get();
+			}
+		assertThreadMayEnterPG();
+		return op.get();
 	}
 
 	/**
@@ -82,10 +102,14 @@ public class Backend
 	public static <E extends Throwable> void doInPG(Checked.Runnable<E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			op.run();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				op.run();
+				return;
+			}
+		assertThreadMayEnterPG();
+		op.run();
 	}
 
 	/**
@@ -99,10 +123,13 @@ public class Backend
 		Checked.BooleanSupplier<E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			return op.getAsBoolean();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsBoolean();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsBoolean();
 	}
 
 	/**
@@ -116,10 +143,13 @@ public class Backend
 		Checked.DoubleSupplier<E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			return op.getAsDouble();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsDouble();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsDouble();
 	}
 
 	/**
@@ -132,10 +162,13 @@ public class Backend
 	public static <E extends Throwable> int doInPG(Checked.IntSupplier<E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			return op.getAsInt();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsInt();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsInt();
 	}
 
 	/**
@@ -148,10 +181,13 @@ public class Backend
 	public static <E extends Throwable> long doInPG(Checked.LongSupplier<E> op)
 	throws E
 	{
-		synchronized(THREADLOCK)
-		{
-			return op.getAsLong();
-		}
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsLong();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsLong();
 	}
 
 	/**
@@ -166,11 +202,32 @@ public class Backend
 	 * thread that acquires the {@code THREADLOCK} monitor, but any such thread
 	 * that isn't the actual original PG thread will have an exception thrown
 	 * if it calls into PG.
+	 *<p>
+	 * Under the setting {@code pljava.java_thread_pg_entry=throw}, this method
+	 * will only return true for the one primordial PG thread (and there is no
+	 * {@code THREADLOCK} object to do any monitor operations on).
 	 * @return true if the current thread is the one prepared to enter PG.
 	 */
 	public static boolean threadMayEnterPG()
 	{
-		return Thread.holdsLock(THREADLOCK);
+		if ( null != THREADLOCK )
+			return Thread.holdsLock(THREADLOCK);
+		return Boolean.TRUE == IAMPGTHREAD.get();
+	}
+
+	/**
+	 * Throw {@code IllegalStateException} if {@code threadMayEnterPG()} would
+	 * return false.
+	 *<p>
+	 * This method is only called in, and only correct for, the case where no
+	 * {@code THREADLOCK} is in use and only the one primordial thread is ever
+	 * allowed into PG.
+	 */
+	private static void assertThreadMayEnterPG()
+	{
+		if ( null == IAMPGTHREAD.get() )
+			throw new IllegalStateException(
+				"Attempt by non-initial thread to enter PostgreSQL from Java");
 	}
 
 	/**
@@ -181,10 +238,7 @@ public class Backend
 	 */
 	public static String getConfigOption(String key)
 	{
-		synchronized(THREADLOCK)
-		{
-			return _getConfigOption(key);
-		}
+		return doInPG(() -> _getConfigOption(key));
 	}
 
 	public static List<Identifier> getListConfigOption(String key)
@@ -212,10 +266,7 @@ public class Backend
 	 */
 	public static int getStatementCacheSize()
 	{
-		synchronized(THREADLOCK)
-		{
-			return _getStatementCacheSize();
-		}
+		return doInPG(Backend::_getStatementCacheSize);
 	}
 
 	/**
@@ -226,10 +277,7 @@ public class Backend
 	 */
 	static void log(int logLevel, String str)
 	{
-		synchronized(THREADLOCK)
-		{
-			_log(logLevel, str);
-		}
+		doInPG(() -> _log(logLevel, str));
 	}
 
 	private static class PLJavaSecurityManager extends SecurityManager
@@ -386,18 +434,12 @@ public class Backend
 
 	public static void clearFunctionCache()
 	{
-		synchronized(THREADLOCK)
-		{
-			_clearFunctionCache();
-		}
+		doInPG(Backend::_clearFunctionCache);
 	}
 
 	public static boolean isCreatingExtension()
 	{
-		synchronized(THREADLOCK)
-		{
-			return _isCreatingExtension();
-		}
+		return doInPG(Backend::_isCreatingExtension);
 	}
 
 	/**
@@ -441,4 +483,9 @@ public class Backend
 	private native static void _log(int logLevel, String str);
 	private native static void _clearFunctionCache();
 	private native static boolean _isCreatingExtension();
+
+	private static class EarlyNatives
+	{
+		private native static boolean _forbidOtherThreads();
+	}
 }
