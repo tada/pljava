@@ -816,9 +816,20 @@ public abstract class DualState<T> extends WeakReference<T>
 	@Override
 	public final void clear()
 	{
-		throw new UnsupportedOperationException(
-			"directly calling clear() on a DualState object is not " +
-			"supported; use releaseFromJava().");
+		/*
+		 * Must relax this assertion, because for some reason the clear() method
+		 * can be called from enqueue() when running on OpenJ9. See
+		 * https://github.com/AdoptOpenJDK/openjdk-support/issues/42
+		 *
+		 * So, spare the exception as long as the instance has in fact been
+		 * released.
+		 */
+		int s = (int)s_stateVH.get(this);
+		if ( z(s & JAVA_RELEASED) )
+			throw new UnsupportedOperationException(
+				"directly calling clear() on a DualState object is not " +
+				"supported; use releaseFromJava().");
+		super.clear();
 	}
 
 	/**
