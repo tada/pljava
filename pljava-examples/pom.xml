@@ -63,7 +63,6 @@
 					<includes>
 						<include>org/postgresql/pljava/example/*.java</include>
 						<include>org/postgresql/pljava/example/annotation/*.java</include>
-						<include>org/postgresql/pljava/example/jdk7/*.java</include>
 					</includes>
 				</configuration>
 			</plugin>
