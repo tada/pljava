@@ -30,9 +30,12 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 
-import java.nio.charset.Charset;
+import java.lang.invoke.MethodHandles.Lookup;
+import static java.lang.invoke.MethodHandles.lookup;
+import java.lang.invoke.VarHandle;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import org.postgresql.pljava.internal.Backend;
 import static org.postgresql.pljava.internal.Backend.doInPG;
@@ -58,8 +61,6 @@ import javax.xml.stream.XMLStreamException;
 
 import java.io.InputStreamReader;
 import java.nio.CharBuffer;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.transform.sax.SAXSource;
@@ -159,17 +160,31 @@ import static org.postgresql.pljava.jdbc.TypeOid.PGNODETREEOID;
 
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
-	protected AtomicReference<V> m_backing;
+	private static final VarHandle s_backingVH;
+	protected volatile V m_backing;
+
+	static
+	{
+		try
+		{
+			s_backingVH = lookup().findVarHandle(
+				SQLXMLImpl.class, "m_backing", VarlenaWrapper.class);
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+	}
 
 	protected SQLXMLImpl(V backing)
 	{
-		m_backing = new AtomicReference<>(backing);
+		s_backingVH.set(this, backing);
 	}
 
 	@Override
 	public void free() throws SQLException
 	{
-		V backing = m_backing.getAndSet(null);
+		V backing = (V)s_backingVH.getAndSet(this, null);
 		if ( null == backing )
 			return;
 		try
@@ -250,7 +265,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	protected V backingIfNotFreed() throws SQLException
 	{
-		V backing = m_backing.get();
+		V backing = (V)s_backingVH.getAcquire(this);
 		if ( null == backing )
 			throw new SQLNonTransientException(
 				"Attempted use of already-freed SQLXML object", "55000");
@@ -357,7 +372,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		if ( null == o )
 			o = this;
-		V backing = m_backing.get();
+		V backing = (V)s_backingVH.getAcquire(this);
 		if ( null != backing )
 			return backing.toString(o);
 		Class<?> c = o.getClass();
@@ -652,10 +667,24 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	static abstract class Readable<V extends VarlenaWrapper>
 	extends SQLXMLImpl<V>
 	{
-		protected final AtomicBoolean m_readable = new AtomicBoolean(true);
+		private static final VarHandle s_readableVH;
+		protected volatile boolean m_readable = true;
 		protected final int m_pgTypeID;
 		protected Charset m_serverCS = implServerCharset();
 		protected boolean m_wrapped = false;
+
+		static
+		{
+			try
+			{
+				s_readableVH = lookup().findVarHandle(
+					Readable.class, "m_readable", boolean.class);
+			}
+			catch ( ReflectiveOperationException e )
+			{
+				throw new ExceptionInInitializerError(e);
+			}
+		}
 
 		/**
 		 * Create a readable instance, when called by native code (the
@@ -684,7 +713,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private V backingAndClearReadable() throws SQLException
 		{
 			V backing = backingIfNotFreed();
-			return m_readable.getAndSet(false) ? backing : null;
+			return (boolean)s_readableVH.getAndSet(this, false)
+				? backing : null;
 		}
 
 		protected abstract InputStream toBinaryStream(
@@ -859,8 +889,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %sreadable %swrapped",
-				super.toString(o), m_readable.get() ? "" : "not ",
-				m_wrapped ? "" : "not ");
+				super.toString(o), (boolean)s_readableVH.getAcquire()
+					? "" : "not ", m_wrapped ? "" : "not ");
 		}
 
 		static class PgXML
@@ -903,8 +933,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			@Override
 			protected VarlenaWrapper adopt(int oid) throws SQLException
 			{
-				VarlenaWrapper.Input.Stream vw = m_backing.getAndSet(null);
-				if ( ! m_readable.get() )
+				VarlenaWrapper.Input.Stream vw = (VarlenaWrapper.Input.Stream)
+					s_backingVH.getAndSet(this, null);
+				if ( ! (boolean)s_readableVH.getAcquire(this) )
 					throw new SQLNonTransientException(
 						"SQLXML object has already been read from", "55000");
 				if ( null == vw )
@@ -1121,9 +1152,23 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	static class Writable extends SQLXMLImpl<VarlenaWrapper.Output>
 	{
-		private AtomicBoolean m_writable = new AtomicBoolean(true);
+		private static final VarHandle s_writableVH;
+		private volatile boolean m_writable = true;
 		private Charset m_serverCS = implServerCharset();
 		private DOMResult m_domResult;
+
+		static
+		{
+			try
+			{
+				s_writableVH = lookup().findVarHandle(
+					Writable.class, "m_writable", boolean.class);
+			}
+			catch ( ReflectiveOperationException e )
+			{
+				throw new ExceptionInInitializerError(e);
+			}
+		}
 
 		private Writable(VarlenaWrapper.Output vwo) throws SQLException
 		{
@@ -1146,13 +1191,14 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		throws SQLException
 		{
 			VarlenaWrapper.Output backing = backingIfNotFreed();
-			return m_writable.getAndSet(false) ? backing : null;
+			return (boolean)s_writableVH.getAndSet(this, false)? backing : null;
 		}
 
 		@Override
 		public void free() throws SQLException
 		{
-			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
+			VarlenaWrapper.Output vwo =
+				(VarlenaWrapper.Output)s_backingVH.getAndSet(this, null);
 			if ( null == vwo )
 				return;
 			try
@@ -1333,8 +1379,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		protected VarlenaWrapper adopt(int oid) throws SQLException
 		{
-			VarlenaWrapper.Output vwo = m_backing.getAndSet(null);
-			if ( m_writable.get() )
+			VarlenaWrapper.Output vwo =
+				(VarlenaWrapper.Output)s_backingVH.getAndSet(this, null);
+			if ( (boolean)s_writableVH.getAcquire(this) )
 				throw new SQLNonTransientException(
 					"Writable SQLXML object has not been written yet", "55000");
 			if ( null == vwo )
@@ -1351,7 +1398,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %swritable", super.toString(o),
-				m_writable.get() ? "" : "not ");
+				(boolean)s_writableVH.getAcquire() ? "" : "not ");
 		}
 	}
 
@@ -2136,20 +2183,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 */
 		private char m_savedChar;
 
-		/* XXX discard once Java back horizon reaches 7 */
-		private static final Charset s_ASCII;
-		static
-		{
-			try
-			{
-				s_ASCII = Charset.forName("US-ASCII");
-			}
-			catch ( IllegalArgumentException e ) // I'll take this chance
-			{
-				throw new ExceptionInInitializerError(e);
-			}
-		}
-
 		/**
 		 * Parse for an initial declaration (XMLDecl or TextDecl) in a stream
 		 * made available a byte at a time.
@@ -2728,7 +2761,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				byte[] parseResult = m_save.toByteArray();
 				return new String(parseResult,
 					m_encodingStart, m_encodingEnd - m_encodingStart,
-					s_ASCII);
+					US_ASCII);
 			}
 			return null;
 		}
