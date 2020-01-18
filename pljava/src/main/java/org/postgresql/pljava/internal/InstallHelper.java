@@ -32,7 +32,7 @@ import static java.sql.Types.VARCHAR;
 
 import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.management.SQLDeploymentDescriptor;
-import static org.postgresql.pljava.sqlgen.DDRWriter.eQuote;
+import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
 
 /**
  * Group of methods intended to streamline the PL/Java installation/startup

@@ -10,7 +10,7 @@
  *   Tada AB
  *   Purdue University
  */
-package org.postgresql.pljava.sqlgen;
+package org.postgresql.pljava.annotation.processing;
 
 import java.io.IOException;
 
@@ -100,6 +100,8 @@ import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.Trigger;
 import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
+
+import org.postgresql.pljava.sqlgen.Lexicals;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
