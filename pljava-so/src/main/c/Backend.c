@@ -136,6 +136,8 @@ bool integerDateTimes = false;
 static void checkIntTimeType(void);
 #endif
 
+static char s_path_var_sep;
+
 extern void Invocation_initialize(void);
 extern void Exception_initialize(void);
 extern void Exception_initialize2(void);
@@ -591,7 +593,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
-		effectiveClassPath = getClassPath("-Djava.class.path=");
+		effectiveClassPath = getClassPath("--module-path=");
 		if(effectiveClassPath != 0)
 		{
 			JVMOptList_add(&optList, effectiveClassPath, 0, true);
@@ -863,8 +865,25 @@ static void reLogWithChangedLevel(int level)
 
 void _PG_init()
 {
+	char *sep;
+
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
+
+	/*
+	 * Find the platform's path separator. Java knows it, but that's no help in
+	 * preparing the launch options before it is launched. PostgreSQL knows what
+	 * it is, but won't directly say; give it some choices and it'll pick one.
+	 * Alternatively, let Maven or Ant determine and add a -D at build time from
+	 * the path.separator property. Maybe that's cleaner? This only works for
+	 * PG_VERSION_NUM >= 90100.
+	 */
+	sep = first_path_var_separator(":;");
+	if ( NULL == sep )
+		elog(ERROR,
+			"PL/Java cannot determine the path separator this platform uses");
+	s_path_var_sep = *sep;
+
 	if ( InstallHelper_shouldDeferInit() )
 		deferInit = true;
 	else
@@ -1035,30 +1054,32 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 	for (;;)
 	{
 		char* pathPart;
+		char* sep;
 		size_t len;
+
 		if(*path == 0)
 			break;
 
-		len = strcspn(path, ";:");
+		sep = first_path_var_separator(path);
 
-		if(len == 1 && *(path+1) == ':' && isalnum(*path))
-			/*
-			 * Windows drive designator, leave it "as is".
-			 */
-			len = strcspn(path+2, ";:") + 2;
-		else
-		if(len == 0)
-			{
+		if(sep == path)
+		{
 			/* Ignore zero length components.
 			 */
 			++path;
 			continue;
-			}
+		}
+
+		if ( NULL == sep )
+			len = strlen(path);
+		else
+			len = sep - path;
 
 		initStringInfo(&buf);
 		if(*path == '$')
 		{
-			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
+			if( (len == 7 || first_dir_separator(path) == path + 7)
+				&& strncmp(path, "$libdir", 7) == 0)
 			{
 				char pathbuf[MAXPGPATH];
 				get_pkglib_path(my_exec_path, pathbuf);
@@ -1069,7 +1090,8 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			else
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name '%*s' in PL/Java classpath", (int)len, path)));
+					errmsg("invalid macro name '%*s' in PL/Java classpath",
+						(int)len, path)));
 		}
 
 		if(len > 0)
@@ -1084,23 +1106,21 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, "%s", prefix);
 			else
-#if defined(WIN32)
-				appendStringInfoChar(bld, ';');
-#else
-				appendStringInfoChar(bld, ':');
-#endif
+				appendStringInfoChar(bld, s_path_var_sep);
 			appendStringInfo(bld, "%s", pathPart);
 			HashMap_putByString(unique, pathPart, (void*)1);
 		}
 		pfree(pathPart);
 		if(*path == 0)
 			break;
-		++path; /* Skip ':' */
+		++path; /* Skip path var separator */
 	}
 }
 
 /*
  * Get the CLASSPATH. Result is always freshly palloc'd.
+ * No longer relies on an environment variable. What CLASSPATH variable might
+ * happen to be randomly set in the environment of a PostgreSQL backend?
  */
 static char* getClassPath(const char* prefix)
 {
@@ -1109,7 +1129,6 @@ static char* getClassPath(const char* prefix)
 	StringInfoData buf;
 	initStringInfo(&buf);
 	appendPathParts(classpath, &buf, unique, prefix);
-	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix);
 	PgObject_free((PgObject)unique);
 	path = buf.data;
 	if(strlen(path) == 0)
@@ -1409,7 +1428,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 
 	vm_args.nOptions = optList->size;
 	vm_args.options  = optList->options;
-	vm_args.version  = JNI_VERSION_1_4;
+	vm_args.version  = JNI_VERSION_9;
 	vm_args.ignoreUnrecognized = JNI_FALSE;
 
 	elog(DEBUG2, "creating Java virtual machine");
@@ -1526,7 +1545,7 @@ static void registerGUCOptions(void)
 		"Classpath used by the JVM",
 		NULL, /* extended description */
 		&classpath,
-		InstallHelper_defaultClassPath(pathbuf), /* boot value */
+		InstallHelper_defaultClassPath(pathbuf, s_path_var_sep),/* boot value */
 		PGC_SUSET,
 		0,    /* flags */
 		check_classpath,
@@ -1705,7 +1724,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
  ****************************************/
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
-	return JNI_VERSION_1_4;
+	return JNI_VERSION_9;
 }
 
 /*
