@@ -1527,7 +1527,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	{
 		Class<?> c = (null == o ? this : o).getClass();
 		String cn = c.getCanonicalName();
-		int pnl = c.getPackage().getName().length();
+		int pnl = c.getPackageName().length();
 		return String.format("%s owner:%x %s",
 			cn.substring(1 + pnl), m_resourceOwner,
 			z((int)s_stateVH.getVolatile(this) & NATIVE_RELEASED)

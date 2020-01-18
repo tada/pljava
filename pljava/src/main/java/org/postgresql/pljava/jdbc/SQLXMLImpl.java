@@ -377,7 +377,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return backing.toString(o);
 		Class<?> c = o.getClass();
 		String cn = c.getCanonicalName();
-		int pnl = c.getPackage().getName().length();
+		int pnl = c.getPackageName().length();
 		return cn.substring(1 + pnl) + " defunct";
 	}
 
