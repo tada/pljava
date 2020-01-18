@@ -4,8 +4,8 @@ As of January 2020, the following version constraints are known.
 
 ## Java
 
-No version of Java before 1.8 ("Java 8") is supported. The PL/Java code
-makes use of Java features first appearing in Java 8.
+No version of Java before 9 is supported. The PL/Java code
+makes use of Java features first appearing in Java 9.
 
 As for later versions of Java, backward compatibility in the language is
 generally good. Before Java 8, most likely problem areas with a new Java
@@ -14,14 +14,24 @@ implemented. Since Java 8, even JDBC additions have not caused problems for
 existing PL/Java code, as they have taken advantage of the default-methods
 feature introduced in that release.
 
-In the PL/Java 1.6.x series, the build can be done with Java 8 or newer.
-Once built, PL/Java is able to use another Java 8 or later JVM at run time,
+In the PL/Java 1.6.x series, the build can be done with Java 9 or newer.
+Once built, PL/Java is able to use another Java 9 or later JVM at run time,
 simply by setting
-[the `pljava.libjvm_location` variable][jvml] to the desired version's library.
+[the `pljava.libjvm_location` variable][jvml] to the desired version's library
+(but see the exceptions described next).
 
-That allows PL/Java to run application code written for the latest Java
-versions, and also to take advantage of recent Java implementation advances
-such as [class data sharing][cds].
+### Exceptions to build-version / runtime-version compatibility
+
+Because of compiler bugs in Java 10 and 11, builds done with those versions
+will not run on earlier Java releases. A build on 10 requires 10 or later at
+run time; a build on 11 requires 11 or later at run time. To ensure that the
+built extension can use any Java 9 or later at run time, it must be built on
+Java 9, or on Java 12 or later.
+
+PL/Java can run application code written for a later Java version than PL/Java
+itself was built with, as long as that later JRE version is used at run time.
+That also allows PL/Java to take advantage of recent Java implementation
+advances such as [class data sharing][cds].
 
 PL/Java has been successfully used with [Oracle Java][orj] and with
 [OpenJDK][], which is available with
