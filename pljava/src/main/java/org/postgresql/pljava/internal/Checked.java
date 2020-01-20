@@ -68,6 +68,10 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * to challenge {@code javac}'s type inference when exception types are thrown
  * in. A static {@code composed} method can substitute for {@code compose} or
  * {@code andThen}, by ordering the parameters as desired.
+ *<p>
+ * Each functional interface declared here has a static {@code of(...)} method
+ * that can be used, as a concise alternative to casting, to constrain the type
+ * of a lambda expression when the compiler won't infer it.
  */
 public interface Checked<WT, EX extends Throwable>
 {
@@ -80,7 +84,7 @@ public interface Checked<WT, EX extends Throwable>
 	WT ederWrap();
 
 	/*
-	 * ederUnwrap() methods.
+	 * ederUnwrap() methods, overloaded for all the types that can be wrapped.
 	 */
 
 	default <RT> Supplier<RT,EX> ederUnwrap(java.util.function.Supplier<RT> s)
@@ -224,6 +228,11 @@ public interface Checked<WT, EX extends Throwable>
 				}
 			};
 		}
+
+		static <E extends Throwable> Runnable<E> of(Runnable<E> o)
+		{
+			return o;
+		}
 	}
 
 	/*
@@ -251,6 +260,11 @@ public interface Checked<WT, EX extends Throwable>
 				}
 			};
 		}
+
+		static <T, E extends Throwable> Supplier<T,E> of(Supplier<T,E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
@@ -273,6 +287,11 @@ public interface Checked<WT, EX extends Throwable>
 					throw Checked.<RuntimeException>ederThrow(t);
 				}
 			};
+		}
+
+		static <E extends Throwable> BooleanSupplier<E> of(BooleanSupplier<E> o)
+		{
+			return o;
 		}
 	}
 
@@ -297,6 +316,11 @@ public interface Checked<WT, EX extends Throwable>
 				}
 			};
 		}
+
+		static <E extends Throwable> DoubleSupplier<E> of(DoubleSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
@@ -319,6 +343,11 @@ public interface Checked<WT, EX extends Throwable>
 					throw Checked.<RuntimeException>ederThrow(t);
 				}
 			};
+		}
+
+		static <E extends Throwable> IntSupplier<E> of(IntSupplier<E> o)
+		{
+			return o;
 		}
 	}
 
@@ -343,6 +372,11 @@ public interface Checked<WT, EX extends Throwable>
 				}
 			};
 		}
+
+		static <E extends Throwable> LongSupplier<E> of(LongSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	/*
@@ -353,24 +387,44 @@ public interface Checked<WT, EX extends Throwable>
 	interface ByteSupplier<E extends Throwable>
 	{
 		byte getAsByte() throws E;
+
+		static <E extends Throwable> ByteSupplier<E> of(ByteSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface ShortSupplier<E extends Throwable>
 	{
 		short getAsShort() throws E;
+
+		static <E extends Throwable> ShortSupplier<E> of(ShortSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface CharSupplier<E extends Throwable>
 	{
 		char getAsChar() throws E;
+
+		static <E extends Throwable> CharSupplier<E> of(CharSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface FloatSupplier<E extends Throwable>
 	{
 		float getAsFloat() throws E;
+
+		static <E extends Throwable> FloatSupplier<E> of(FloatSupplier<E> o)
+		{
+			return o;
+		}
 	}
 
 	/*
@@ -399,10 +453,9 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <T, R, E extends Throwable>
-			Function<T,R,E> of(Function<T,R,E> f)
+		static <T, R, E extends Throwable> Function<T,R,E> of(Function<T,R,E> o)
 		{
-			return f;
+			return o;
 		}
 	}
 
@@ -432,10 +485,9 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <T, E extends Throwable>
-			Consumer<T,E> of(Consumer<T,E> c)
+		static <T, E extends Throwable> Consumer<T,E> of(Consumer<T,E> o)
 		{
-			return c;
+			return o;
 		}
 	}
 
@@ -461,10 +513,9 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable>
-			DoubleConsumer<E> of(DoubleConsumer<E> c)
+		static <E extends Throwable> DoubleConsumer<E> of(DoubleConsumer<E> o)
 		{
-			return c;
+			return o;
 		}
 	}
 
@@ -490,10 +541,9 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable>
-			IntConsumer<E> of(IntConsumer<E> c)
+		static <E extends Throwable> IntConsumer<E> of(IntConsumer<E> o)
 		{
-			return c;
+			return o;
 		}
 	}
 
@@ -519,10 +569,9 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable>
-			LongConsumer<E> of(LongConsumer<E> c)
+		static <E extends Throwable> LongConsumer<E> of(LongConsumer<E> o)
 		{
-			return c;
+			return o;
 		}
 	}
 
@@ -534,30 +583,55 @@ public interface Checked<WT, EX extends Throwable>
 	interface BooleanConsumer<E extends Throwable>
 	{
 		void accept(boolean value) throws E;
+
+		static <E extends Throwable> BooleanConsumer<E> of(BooleanConsumer<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface ByteConsumer<E extends Throwable>
 	{
 		void accept(byte value) throws E;
+
+		static <E extends Throwable> ByteConsumer<E> of(ByteConsumer<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface ShortConsumer<E extends Throwable>
 	{
 		void accept(short value) throws E;
+
+		static <E extends Throwable> ShortConsumer<E> of(ShortConsumer<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface CharConsumer<E extends Throwable>
 	{
 		void accept(char value) throws E;
+
+		static <E extends Throwable> CharConsumer<E> of(CharConsumer<E> o)
+		{
+			return o;
+		}
 	}
 
 	@FunctionalInterface
 	interface FloatConsumer<E extends Throwable>
 	{
 		void accept(float value) throws E;
+
+		static <E extends Throwable> FloatConsumer<E> of(FloatConsumer<E> o)
+		{
+			return o;
+		}
 	}
 
 	/*
