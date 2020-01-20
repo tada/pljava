@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,12 +9,7 @@
  * Contributors:
  *   Chapman Flack
  */
-/*
- * At the moment, this is written so it will compile in jdk6, even though it
- * won't work before jdk8. It's in the exclude-prior-to-jdk7 package though,
- * because it has an order dependency on TypeRoundTripper, which is there.
- */
-package org.postgresql.pljava.example.jdk7;
+package org.postgresql.pljava.example.annotation;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -34,16 +29,7 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
  */
 @SQLActions({
 	@SQLAction(
-		implementor="postgresql_ge_90300", requires="javaSpecificationGE",
-		install=
-		"SELECT CASE WHEN javatest.javaSpecificationGE('1.8')" +
-		" THEN set_config('pljava.implementors', 'pg_jdbc42_21,' || " +
-		" current_setting('pljava.implementors'), true) " +
-		"END"
-	),
-
-	@SQLAction(
-		implementor="pg_jdbc42_21", requires="TypeRoundTripper.roundTrip",
+		implementor="postgresql_ge_90300",requires="TypeRoundTripper.roundTrip",
 		install={
 		" SELECT" +
 		"  CASE WHEN every(orig = roundtripped)" +

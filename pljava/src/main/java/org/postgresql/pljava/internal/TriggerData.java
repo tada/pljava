@@ -15,6 +15,8 @@ package org.postgresql.pljava.internal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.jdbc.TriggerResultSet;
 
@@ -212,10 +214,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	{
 		if(m_relation == null)
 		{
-			synchronized(Backend.THREADLOCK)
-			{
-				m_relation = _getRelation(this.getNativePointer());
-			}
+			m_relation = doInPG(() -> _getRelation(this.getNativePointer()));
 		}
 		return m_relation;
 	}
@@ -238,10 +237,8 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	{
 		if(m_triggerTuple == null)
 		{
-			synchronized(Backend.THREADLOCK)
-			{
-				m_triggerTuple = _getTriggerTuple(this.getNativePointer());
-			}
+			m_triggerTuple =
+				doInPG(() -> _getTriggerTuple(this.getNativePointer()));
 		}
 		return m_triggerTuple;
 	}
@@ -262,10 +259,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	{
 		if(m_newTuple == null)
 		{
-			synchronized(Backend.THREADLOCK)
-			{
-				m_newTuple = _getNewTuple(this.getNativePointer());
-			}
+			m_newTuple = doInPG(() -> _getNewTuple(this.getNativePointer()));
 		}
 		return m_newTuple;
 	}
@@ -281,10 +275,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public String[] getArguments()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getArguments(this.getNativePointer());
-		}
+		return doInPG(() -> _getArguments(this.getNativePointer()));
 	}
 
 	/**
@@ -297,10 +288,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public String getName()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getName(this.getNativePointer());
-		}
+		return doInPG(() -> _getName(this.getNativePointer()));
 	}
 
 	/**
@@ -313,10 +301,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredAfter()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredAfter(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredAfter(this.getNativePointer()));
 	}
 
 	/**
@@ -329,10 +314,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredBefore()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredBefore(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredBefore(this.getNativePointer()));
 	}
 
 	/**
@@ -345,10 +327,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredForEachRow()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredForEachRow(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredForEachRow(this.getNativePointer()));
 	}
 
 	/**
@@ -361,10 +340,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredForStatement()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredForStatement(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredForStatement(this.getNativePointer()));
 	}
 
 	/**
@@ -376,10 +352,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredByDelete()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredByDelete(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredByDelete(this.getNativePointer()));
 	}
 
 	/**
@@ -391,10 +364,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredByInsert()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredByInsert(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredByInsert(this.getNativePointer()));
 	}
 
 	/**
@@ -406,10 +376,7 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	public boolean isFiredByUpdate()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isFiredByUpdate(this.getNativePointer());
-		}
+		return doInPG(() -> _isFiredByUpdate(this.getNativePointer()));
 	}
 
 	private static native Relation _getRelation(long pointer) throws SQLException;

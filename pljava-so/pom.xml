@@ -16,6 +16,7 @@
 	<properties>
 		<!-- use -Dnar.cores=1 if non-interleaved warning messages wanted -->
 		<nar.cores>0</nar.cores>
+		<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
 	</properties>
 
 	<profiles>
@@ -272,65 +273,6 @@
 				<pgsql.pgconfig>pg_config</pgsql.pgconfig>
 			</properties>
 		</profile>
-
-		<profile>
-			<id>hasjavah</id>
-			<activation>
-				<jdk>[1.7,10)</jdk>
-			</activation>
-			<properties>
-				<javah.include>${basedir}/target/nar/javah-include/</javah.include>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<!-- Generates C header files from Java class files. -->
-							<javah>
-								<classPaths>
-									<classPath>${basedir}/../pljava/target/classes/</classPath>
-									<classPath>${basedir}/../pljava-api/target/classes/</classPath>
-								</classPaths>
-								<classDirectory>${basedir}/../pljava/target/classes/</classDirectory>
-								<extraClasses>
-									<extraClass>java.sql.Types</extraClass>
-								</extraClasses>
-							</javah>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>lacksjavah</id>
-			<activation>
-				<jdk>[10,)</jdk>
-			</activation>
-			<properties>
-				<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<includePaths combine.children='append'>
-									<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
-								</includePaths>
-							</c>
-							<java>
-								<include>true</include>
-							</java>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
 	</profiles>
 
 	<build>
@@ -496,11 +438,16 @@ if ( null !== jvmdflt )
 							<includePath>${PGSQL_INCLUDEDIR}</includePath>
 							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
 							<includePath>${basedir}/src/main/include/</includePath>
+							<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
 							<includePath>${javah.include}</includePath>
 						</includePaths>
 						<debug>${so.debug}</debug>
 						<optimize>${so.optimize}</optimize>
 					</c>
+
+					<java>
+						<include>true</include>
+					</java>
 
 					<!-- Options/extra libs/etc. for the linker go here. -->
 					<linker>

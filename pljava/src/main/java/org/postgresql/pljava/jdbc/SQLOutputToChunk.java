@@ -46,7 +46,7 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 
-import org.postgresql.pljava.internal.Backend;
+import static org.postgresql.pljava.internal.Backend.doInPG;
 
 /**
  * The SQLOutputToChunk uses JNI to build a PostgreSQL StringInfo buffer in
@@ -486,7 +486,7 @@ public class SQLOutputToChunk implements SQLOutput
 
 	private void ensureCapacity(int c) throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			if(m_handle == 0)
 				throw new SQLException("Stream is closed");
@@ -494,7 +494,7 @@ public class SQLOutputToChunk implements SQLOutput
 			m_bb = _ensureCapacity(m_handle, m_bb, m_bb.position(), c);
 			if ( m_bb != oldbb )
 				m_bb.order(oldbb.order());
-		}
+		});
 	}
 
 	private static native ByteBuffer _ensureCapacity(long handle,

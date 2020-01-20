@@ -34,6 +34,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 /**
  * Interface that wraps a PostgreSQL native variable-length ("varlena") datum;
  * implementing classes present an existing one to Java as a readable
@@ -364,13 +366,13 @@ public interface VarlenaWrapper extends Closeable
 				{
 					if ( null != m_buf )
 						return m_buf;
-					synchronized ( Backend.THREADLOCK )
+					doInPG(() ->
 					{
 						m_buf = _detoast(
 							m_varlena, guardedLong(), m_snapshot,
 							m_resourceOwner).asReadOnlyBuffer();
 						m_snapshot = 0;
-					}
+					});
 					return m_buf;
 				}
 				finally
@@ -703,7 +705,7 @@ public interface VarlenaWrapper extends Closeable
 					if ( 0 < m_buf.remaining()  &&  0 < desiredCapacity )
 						return m_buf;
 					ByteBuffer filledBuf = m_buf;
-					synchronized ( Backend.THREADLOCK )
+					doInPG(() ->
 					{
 						int lstate = lock(true); // true -> upgrade my held pin
 						try
@@ -715,7 +717,7 @@ public interface VarlenaWrapper extends Closeable
 						{
 							unlock(lstate);
 						}
-					}
+					});
 					m_verifier.update(this, filledBuf);
 					if ( 0 == desiredCapacity )
 						m_verifier.update(MarkableSequenceInputStream.NO_MORE);

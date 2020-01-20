@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.SQLException;
 
 /**
@@ -90,10 +92,7 @@ public class TupleDesc
 	public String getColumnName(int index)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getColumnName(this.getNativePointer(), index);
-		}
+		return doInPG(() -> _getColumnName(this.getNativePointer(), index));
 	}
 
 	/**
@@ -106,10 +105,8 @@ public class TupleDesc
 	public int getColumnIndex(String colName)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getColumnIndex(this.getNativePointer(), colName.toLowerCase());
-		}
+		return doInPG(() ->
+			_getColumnIndex(this.getNativePointer(), colName.toLowerCase()));
 	}
 
 	/**
@@ -123,10 +120,7 @@ public class TupleDesc
 	public Tuple formTuple(Object[] values)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _formTuple(this.getNativePointer(), values);
-		}
+		return doInPG(() -> _formTuple(this.getNativePointer(), values));
 	}
 
 	/**
@@ -146,12 +140,12 @@ public class TupleDesc
 		if(m_columnClasses == null)
 		{
 			m_columnClasses = new Class[m_size];
-			synchronized(Backend.THREADLOCK)
+			doInPG(() ->
 			{				
 				long _this = this.getNativePointer();
 				for(int idx = 0; idx < m_size; ++idx)
 					m_columnClasses[idx] = _getOid(_this, idx+1).getJavaClass();
-			}
+			});
 		}
 		return m_columnClasses[index-1];
 	}
@@ -162,10 +156,7 @@ public class TupleDesc
 	public Oid getOid(int index)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getOid(this.getNativePointer(), index);
-		}
+		return doInPG(() -> _getOid(this.getNativePointer(), index));
 	}
 
 	private static native String _getColumnName(long _this, int index) throws SQLException;

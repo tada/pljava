@@ -28,6 +28,7 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import static java.util.concurrent.locks.LockSupport.park;
 import static java.util.concurrent.locks.LockSupport.unpark;
 
@@ -2073,110 +2074,174 @@ public abstract class DualState<T> extends WeakReference<T>
 		long getContendedLocks();
 		long getContendedPins();
 		long getRepeatedlyDeferred();
-		int getGcReleaseRaces();
-		int getReleaseReleaseRaces();
+		long getGcReleaseRaces();
+		long getReleaseReleaseRaces();
 	}
 
 	static class Statistics implements StatisticsMBean
 	{
-		public long getConstructed()           { return constructed; }
-		public long getEnlistedScoped()        { return enlistedScoped; }
-		public long getEnlistedUnscoped()      { return enlistedUnscoped; }
-		public long getDelistedScoped()        { return delistedScoped; }
-		public long getDelistedUnscoped()      { return delistedUnscoped; }
-		public long getJavaUnreachable()       { return javaUnreachable; }
-		public long getJavaReleased()          { return javaReleased; }
-		public long getNativeReleased()        { return nativeReleased; }
-		public long getResourceOwnerPasses()   { return resourceOwnerPasses; }
-		public long getReferenceQueuePasses()  { return referenceQueuePasses; }
-		public long getReferenceQueueItems()   { return referenceQueueItems; }
-		public long getContendedLocks()        { return contendedLocks; }
-		public long getContendedPins()         { return contendedPins; }
-		public long getRepeatedlyDeferred()    { return repeatedlyDeferred; }
-		public int  getGcReleaseRaces()        { return gcRelRaces.get(); }
-		public int  getReleaseReleaseRaces()   { return relRelRaces.get(); }
+		public long getConstructed()
+		{
+			return constructed.sum();
+		}
 
-		private long constructed = 0L;
-		private long enlistedScoped = 0L;
-		private long enlistedUnscoped = 0L;
-		private long delistedScoped = 0L;
-		private long delistedUnscoped = 0L;
-		private long javaUnreachable = 0L;
-		private long javaReleased = 0L;
-		private long nativeReleased = 0L;
-		private long resourceOwnerPasses = 0L;
-		private long referenceQueuePasses = 0L;
-		private long referenceQueueItems = 0L;
-		private long contendedLocks = 0L;
-		private long contendedPins = 0L;
-		private long repeatedlyDeferred = 0L;
-		private AtomicInteger  gcRelRaces = new AtomicInteger();
-		private AtomicInteger relRelRaces = new AtomicInteger();
+		public long getEnlistedScoped()
+		{
+			return enlistedScoped.sum();
+		}
+
+		public long getEnlistedUnscoped()
+		{
+			return enlistedUnscoped.sum();
+		}
+
+		public long getDelistedScoped()
+		{
+			return delistedScoped.sum();
+		}
+
+		public long getDelistedUnscoped()
+		{
+			return delistedUnscoped.sum();
+		}
+
+		public long getJavaUnreachable()
+		{
+			return javaUnreachable.sum();
+		}
+
+		public long getJavaReleased()
+		{
+			return javaReleased.sum();
+		}
+
+		public long getNativeReleased()
+		{
+			return nativeReleased.sum();
+		}
+
+		public long getResourceOwnerPasses()
+		{
+			return resourceOwnerPasses.sum();
+		}
+
+		public long getReferenceQueuePasses()
+		{
+			return referenceQueuePasses.sum();
+		}
+
+		public long getReferenceQueueItems()
+		{
+			return referenceQueueItems.sum();
+		}
+
+		public long getContendedLocks()
+		{
+			return contendedLocks.sum();
+		}
+
+		public long getContendedPins()
+		{
+			return contendedPins.sum();
+		}
+
+		public long getRepeatedlyDeferred()
+		{
+			return repeatedlyDeferred.sum();
+		}
+
+		public long getGcReleaseRaces()
+		{
+			return gcRelRaces.sum();
+		}
+
+		public long getReleaseReleaseRaces()
+		{
+			return relRelRaces.sum();
+		}
+
+
+		private LongAdder          constructed = new LongAdder();
+		private LongAdder       enlistedScoped = new LongAdder();
+		private LongAdder     enlistedUnscoped = new LongAdder();
+		private LongAdder       delistedScoped = new LongAdder();
+		private LongAdder     delistedUnscoped = new LongAdder();
+		private LongAdder      javaUnreachable = new LongAdder();
+		private LongAdder         javaReleased = new LongAdder();
+		private LongAdder       nativeReleased = new LongAdder();
+		private LongAdder  resourceOwnerPasses = new LongAdder();
+		private LongAdder referenceQueuePasses = new LongAdder();
+		private LongAdder  referenceQueueItems = new LongAdder();
+		private LongAdder       contendedLocks = new LongAdder();
+		private LongAdder        contendedPins = new LongAdder();
+		private LongAdder   repeatedlyDeferred = new LongAdder();
+		private LongAdder           gcRelRaces = new LongAdder();
+		private LongAdder          relRelRaces = new LongAdder();
 
 		final void construct(long scoped)
 		{
-			++ constructed;
-			enlistedScoped += scoped;
-			enlistedUnscoped += 1L - scoped;
+			constructed.increment();
+			enlistedScoped.add(scoped);
+			enlistedUnscoped.add(1L - scoped);
 		}
 
 		final void resourceOwnerPoll(long released, long total)
 		{
-			++ resourceOwnerPasses;
-			nativeReleased += released;
-			delistedScoped += total;
+			resourceOwnerPasses.increment();
+			nativeReleased.add(released);
+			delistedScoped.add(total);
 		}
 
 		final void javaRelease(long scoped, long unscoped)
 		{
-			++ javaReleased;
-			delistedScoped += scoped;
-			delistedUnscoped += unscoped;
+			javaReleased.increment();
+			delistedScoped.add(scoped);
+			delistedUnscoped.add(unscoped);
 		}
 
 		final void referenceQueueDrain(
 			long unreachable, long release, long total, long reDefer)
 		{
-			++ referenceQueuePasses;
-			referenceQueueItems += total;
-			javaUnreachable += unreachable;
-			javaReleased += release;
-			repeatedlyDeferred += reDefer;
+			referenceQueuePasses.increment();
+			referenceQueueItems.add(total);
+			javaUnreachable.add(unreachable);
+			javaReleased.add(release);
+			repeatedlyDeferred.add(reDefer);
 		}
 
 		final void delistScoped()
 		{
-			++ delistedScoped;
+			delistedScoped.increment();
 		}
 
 		final void delistUnscoped()
 		{
-			++ delistedUnscoped;
+			delistedUnscoped.increment();
 		}
 
 		final void javaRelease()
 		{
-			++ javaReleased;
+			javaReleased.increment();
 		}
 
 		final void lockContended(int n)
 		{
-			contendedLocks += n;
+			contendedLocks.add(n);
 		}
 
 		final void pinContended(int n)
 		{
-			contendedPins += n;
+			contendedPins.add(n);
 		}
 
 		final void gcReleaseRace()
 		{
-			gcRelRaces.getAndIncrement();
+			gcRelRaces.increment();
 		}
 
 		final void releaseReleaseRace()
 		{
-			gcRelRaces.getAndIncrement();
+			gcRelRaces.increment();
 		}
 	}
 }

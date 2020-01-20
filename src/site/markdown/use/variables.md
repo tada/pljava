@@ -53,7 +53,7 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     a (single-quoted) string explicitly containing the double quotes._
 
 `pljava.java_thread_pg_entry`
-: A choice of `allow`, `error`, or `block` controlling PL/Java's thread
+: A choice of `allow`, `error`, `block`, or `throw` controlling PL/Java's thread
     management. Java makes heavy use of threading, while PostgreSQL may not be
     accessed by multiple threads concurrently. PL/Java's historical behavior is
     `allow`, which serializes access by Java threads into PostgreSQL, allowing
@@ -64,7 +64,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     PL/Java itself no longer requires the ability for any thread to access
     PostgreSQL other than the original main thread. User code developed for
     PL/Java, however, may still rely on that ability. To test whether it does,
-    the `error` setting can be used here, and any attempt by a Java thread other
+    the `error` or `throw` setting can be used here, and any attempt by a Java
+    thread other
     than the main one to enter PostgreSQL will incur an exception (and stack
     trace, written to the server's standard error channel). When confident that
     there is no code that will need to enter PostgreSQL except on the main
@@ -75,6 +76,12 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     can lead to blocked threads or a deadlocked backend if used with code that
     does attempt to access PG from more than one thread. (A JMX client, like
     JConsole, can identify the blocked threads, should that occur.)
+
+    The `throw` setting is like `error` but more efficient: under the `error`
+    setting, attempted entry by the wrong thread is detected in the native C
+    code, only after a lock operation and call through JNI. Under the `throw`
+    setting, the lock operations are elided and an entry attempt by the wrong
+    thread results in no JNI call and an exception thrown directly in Java.
 
 `pljava.libjvm_location`
 : Used by PL/Java to load the Java runtime. The full path to a `libjvm` shared

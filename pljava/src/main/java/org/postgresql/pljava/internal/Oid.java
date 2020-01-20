@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.SQLData;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -52,10 +54,7 @@ public class Oid extends Number
 	public static Oid forTypeName(String typeString)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return new Oid(_forTypeName(typeString));
-		}
+		return doInPG(() -> new Oid(_forTypeName(typeString)));
 	}
 
 	/**
@@ -66,10 +65,7 @@ public class Oid extends Number
 	public static Oid forSqlType(int sqlType)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return new Oid(_forSqlType(sqlType));
-		}
+		return doInPG(() -> new Oid(_forSqlType(sqlType)));
 	}
 
 	/**
@@ -77,10 +73,7 @@ public class Oid extends Number
 	 */
 	public static Oid getTypeId()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getTypeId();
-		}
+		return doInPG(Oid::_getTypeId);
 	}
 
 	/**
@@ -134,30 +127,28 @@ public class Oid extends Number
 	throws SQLException
 	{
 		Class c = s_typeId2class.get(this);
-		if(c == null)
+		if(c != null)
+			return c;
+		return doInPG(() ->
 		{
-			String className;
-			ClassLoader loader;
-			synchronized(Backend.THREADLOCK)
-			{
-				className = _getJavaClassName(m_native);
-				loader = _getCurrentLoader();
-			}
+			String className = _getJavaClassName(m_native);
+			ClassLoader loader = _getCurrentLoader();
+			Class cc;
 			try
 			{
 				String canonName = getCanonicalClassName(className, 0);
 				if ( null == loader )
 					loader = getClass().getClassLoader();
-				c = Class.forName(canonName, true, loader);
+				cc = Class.forName(canonName, true, loader);
 			}
 			catch(ClassNotFoundException e)
 			{
 				throw new SQLException(e.getMessage());
 			}
-			s_typeId2class.put(this, c);
-			s_class2typeId.put(c, this);
-		}
-		return c;
+			s_typeId2class.put(this, cc);
+			s_class2typeId.put(cc, this);
+			return cc;
+		});
 	}
 
 	/**

@@ -328,9 +328,9 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 
 	// ************************************************************
 	// Implementation of JDBC 4.2 method.
-	// Add @Override here once Java back horizon advances to 8.
 	// ************************************************************
 
+	@Override
 	public <T> T readObject(Class<T> type) throws SQLException
 	{
 		return getObject(nextIndex(), type);

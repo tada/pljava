@@ -1035,29 +1035,6 @@ public class SPIConnection implements Connection
 
 	static
 	{
-		/*
-		 * Try to get the JDBC 4.2 / Java 8 TIME*ZONE types reflectively.
-		 * Once the Java back horizon advances to 8, just do this the easy way.
-		 */
-		int sqx  = Types.OTHER;      // don't just start saying SQLXML in 1.5.1
-		int ttz  = Types.TIME;       // Use these values
-		int tstz = Types.TIMESTAMP;  //         pre-Java 8
-//		try    COMMENTED OUT FOR BACK-COMPATIBILITY REASONS IN PL/JAVA 1.5.x
-//		{
-//			ttz =
-//				Types.class.getField("TIME_WITH_TIMEZONE")
-//					.getInt(Types.class);
-//			tstz =
-//				Types.class.getField("TIMESTAMP_WITH_TIMEZONE")
-//					.getInt(Types.class);
-//		}
-//		catch ( NoSuchFieldException nsfe ) { } // ok, not running in Java 8
-//		catch ( IllegalAccessException iae )
-//		{
-//			throw new ExceptionInInitializerError(iae);
-//		}
-//		sqx = Types.SQLXML;
-
 		JDBC_TYPE_NUMBERS = new int[]
 		{
 			Types.SMALLINT,
@@ -1073,9 +1050,9 @@ public class SPIConnection implements Connection
 			Types.BOOLEAN,
 			Types.BIT,
 			Types.DATE,
-			Types.TIME, ttz,
-			Types.TIMESTAMP, Types.TIMESTAMP, tstz,
-			sqx,
+			Types.TIME, Types.TIME_WITH_TIMEZONE,
+			Types.TIMESTAMP, Types.TIMESTAMP, Types.TIMESTAMP_WITH_TIMEZONE,
+			Types.SQLXML,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,
 			Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY, Types.ARRAY,

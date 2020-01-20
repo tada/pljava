@@ -35,6 +35,7 @@ import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.postgresql.pljava.internal.Backend;
+import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.MarkableSequenceInputStream;
 
 import java.sql.SQLNonTransientException;
@@ -285,10 +286,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 */
 	static SQLXML newWritable()
 	{
-		synchronized ( Backend.THREADLOCK )
-		{
-			return _newWritable();
-		}
+		return doInPG(() -> _newWritable());
 	}
 
 	/**
@@ -313,9 +311,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		if ( sx instanceof Readable.PgXML || sx instanceof Writable )
 			return ((SQLXMLImpl)sx).adopt(oid);
 
+		Source src = sx.getSource(null);
 		SQLXML rx =
 			newWritable().setResult(Adjusting.XML.SourceResult.class)
-			.set(sx.getSource(null)).getSQLXML();
+			.set(src).getSQLXML();
 
 		sx.free();
 		return ((SQLXMLImpl)rx).adopt(oid);

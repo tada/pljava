@@ -1,10 +1,18 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
+
+import static org.postgresql.pljava.internal.Backend.doInPG;
 
 import java.sql.SQLException;
 
@@ -61,10 +69,7 @@ public final class AclId
 	 */
 	public static AclId getUser()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getUser();
-		}
+		return doInPG(AclId::_getUser);
 	}
 
 	/**
@@ -82,10 +87,7 @@ public final class AclId
 	 */
 	public static AclId getOuterUser()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getOuterUser();
-		}
+		return doInPG(AclId::_getOuterUser);
 	}
 
 	/**
@@ -111,10 +113,7 @@ public final class AclId
 	 */
 	public static AclId fromName(String name) throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _fromName(name);
-		}
+		return doInPG(() -> _fromName(name));
 	}
 
 	/**
@@ -122,10 +121,7 @@ public final class AclId
 	 */
 	public String getName()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._getName();
-		}
+		return doInPG(this::_getName);
 	}
 
 	/**
@@ -134,10 +130,7 @@ public final class AclId
 	 */
 	public boolean hasSchemaCreatePermission(Oid oid)
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._hasSchemaCreatePermission(oid);
-		}
+		return doInPG(() -> _hasSchemaCreatePermission(oid));
 	}
 
 	/**
@@ -145,10 +138,7 @@ public final class AclId
 	 */
 	public boolean isSuperuser()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return this._isSuperuser();
-		}
+		return doInPG(this::_isSuperuser);
 	}
 
 	/**

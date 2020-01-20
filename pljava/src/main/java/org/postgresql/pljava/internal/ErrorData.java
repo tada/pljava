@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.lang.reflect.UndeclaredThrowableException;
 import java.sql.SQLException;
 
@@ -89,10 +91,7 @@ public class ErrorData
 	 */
 	public int getErrorLevel()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getErrorLevel(this.getNativePointer());
-		}
+		return doInPG(() -> _getErrorLevel(this.getNativePointer()));
 	}
 
 	/**
@@ -100,10 +99,7 @@ public class ErrorData
 	 */
 	public boolean isOutputToServer()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isOutputToServer(this.getNativePointer());
-		}
+		return doInPG(() -> _isOutputToServer(this.getNativePointer()));
 	}
 
 	/**
@@ -111,10 +107,7 @@ public class ErrorData
 	 */
 	public boolean isOutputToClient()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isOutputToClient(this.getNativePointer());
-		}
+		return doInPG(() -> _isOutputToClient(this.getNativePointer()));
 	}
 
 	/**
@@ -122,10 +115,7 @@ public class ErrorData
 	 */
 	public boolean isShowFuncname()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _isShowFuncname(this.getNativePointer());
-		}
+		return doInPG(() -> _isShowFuncname(this.getNativePointer()));
 	}
 
 	/**
@@ -133,10 +123,7 @@ public class ErrorData
 	 */
 	public String getFilename()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getFilename(this.getNativePointer());
-		}
+		return doInPG(() -> _getFilename(this.getNativePointer()));
 	}
 
 	/**
@@ -144,10 +131,7 @@ public class ErrorData
 	 */
 	public int getLineno()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getLineno(this.getNativePointer());
-		}
+		return doInPG(() -> _getLineno(this.getNativePointer()));
 	}
 
 	/**
@@ -155,10 +139,7 @@ public class ErrorData
 	 */
 	public String getFuncname()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getFuncname(this.getNativePointer());
-		}
+		return doInPG(() -> _getFuncname(this.getNativePointer()));
 	}
 
 	/**
@@ -166,10 +147,7 @@ public class ErrorData
 	 */
 	public String getSqlState()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getSqlState(this.getNativePointer());
-		}
+		return doInPG(() -> _getSqlState(this.getNativePointer()));
 	}
 
 	/**
@@ -177,10 +155,7 @@ public class ErrorData
 	 */
 	public String getMessage()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getMessage(this.getNativePointer());
-		}
+		return doInPG(() -> _getMessage(this.getNativePointer()));
 	}
 	
 	/**
@@ -188,10 +163,7 @@ public class ErrorData
 	 */
 	public String getDetail()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getDetail(this.getNativePointer());
-		}
+		return doInPG(() -> _getDetail(this.getNativePointer()));
 	}
 	
 	/**
@@ -199,10 +171,7 @@ public class ErrorData
 	 */
 	public String getHint()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getHint(this.getNativePointer());
-		}
+		return doInPG(() -> _getHint(this.getNativePointer()));
 	}
 	
 	/**
@@ -210,10 +179,7 @@ public class ErrorData
 	 */
 	public String getContextMessage()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getContextMessage(this.getNativePointer());
-		}
+		return doInPG(() -> _getContextMessage(this.getNativePointer()));
 	}
 	
 	/**
@@ -221,10 +187,7 @@ public class ErrorData
 	 */
 	public int getCursorPos()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getCursorPos(this.getNativePointer());
-		}
+		return doInPG(() -> _getCursorPos(this.getNativePointer()));
 	}
 	
 	/**
@@ -232,10 +195,7 @@ public class ErrorData
 	 */
 	public int getInternalPos()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getInternalPos(this.getNativePointer());
-		}
+		return doInPG(() -> _getInternalPos(this.getNativePointer()));
 	}
 	
 	/**
@@ -243,10 +203,7 @@ public class ErrorData
 	 */
 	public String getInternalQuery()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getInternalQuery(this.getNativePointer());
-		}
+		return doInPG(() -> _getInternalQuery(this.getNativePointer()));
 	}
 	
 	/**
@@ -254,10 +211,7 @@ public class ErrorData
 	 */
 	public int getSavedErrno()
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getSavedErrno(this.getNativePointer());
-		}
+		return doInPG(() -> _getSavedErrno(this.getNativePointer()));
 	}
 
 	private static native int _getErrorLevel(long pointer);

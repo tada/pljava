@@ -1,11 +1,11 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of June 2019, the following version constraints are known.
+As of January 2020, the following version constraints are known.
 
 ## Java
 
-No version of Java before 1.7 ("Java 7") is supported. The PL/Java code
-makes use of Java features first appearing in Java 7.
+No version of Java before 1.8 ("Java 8") is supported. The PL/Java code
+makes use of Java features first appearing in Java 8.
 
 As for later versions of Java, backward compatibility in the language is
 generally good. Before Java 8, most likely problem areas with a new Java
@@ -14,10 +14,8 @@ implemented. Since Java 8, even JDBC additions have not caused problems for
 existing PL/Java code, as they have taken advantage of the default-methods
 feature introduced in that release.
 
-In the PL/Java 1.6.x series, the build can be done with Java 7 or newer (but
-builds with 7
-[may be difficult](#Maven_failures_when_downloading_dependencies)).
-Once built, PL/Java is able to use another Java 7 or later JVM at run time,
+In the PL/Java 1.6.x series, the build can be done with Java 8 or newer.
+Once built, PL/Java is able to use another Java 8 or later JVM at run time,
 simply by setting
 [the `pljava.libjvm_location` variable][jvml] to the desired version's library.
 
@@ -30,15 +28,6 @@ PL/Java has been successfully used with [Oracle Java][orj] and with
 [either the Hotspot or the OpenJ9 JVM][hsj9]. It can also be built and used
 with [GraalVM][].
 
-### Maven failures when downloading dependencies
-
-As of late 2017, important Maven remote repository servers no longer accept
-connections using the encryption protocols available in Java 7. Although
-PL/Java can still, in principle, be built using that Java version (if all
-dependencies are already in the build host's local repository), Maven may fail
-to download necessary dependencies unless run with Java 8, which supports the
-newer protocol versions needed to reach the servers.
-
 [jvml]: ../use/variables.html
 [cds]:  ../install/vmoptions.html#Class_data_sharing
 [orj]: https://www.oracle.com/technetwork/java/javase/downloads/index.html
@@ -48,10 +37,8 @@ newer protocol versions needed to reach the servers.
 
 ## Maven
 
-PL/Java can be built with Maven versions at least as far back as 3.0.4.
-As shown in the [Maven release history][mvnhist], **Maven releases after
-3.2.5 require Java 7 or later**. If you wish to *build* PL/Java using a
-Java 6 development kit, you must use a Maven version not newer than 3.2.5.
+PL/Java can be built with Maven versions at least as far back as 3.3.
+Maven's requirements can be seen in the [Maven release history][mvnhist].
 
 [mvnhist]: https://maven.apache.org/docs/history.html
 

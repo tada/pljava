@@ -1,10 +1,18 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
+
+import static org.postgresql.pljava.internal.Backend.doInPG;
 
 import java.sql.SQLException;
 
@@ -69,10 +77,7 @@ public class Relation
 	public String getName()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getName(m_state.getRelationPtr());
-		}
+		return doInPG(() -> _getName(m_state.getRelationPtr()));
 	}
 
 	/**
@@ -82,10 +87,7 @@ public class Relation
 	public String getSchema()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _getSchema(m_state.getRelationPtr());
-		}
+		return doInPG(() -> _getSchema(m_state.getRelationPtr()));
 	}
 
 	/**
@@ -97,10 +99,7 @@ public class Relation
 	{
 		if(m_tupleDesc == null)
 		{
-			synchronized(Backend.THREADLOCK)
-			{
-				m_tupleDesc = _getTupleDesc(m_state.getRelationPtr());
-			}
+			m_tupleDesc = doInPG(() -> _getTupleDesc(m_state.getRelationPtr()));
 		}
 		return m_tupleDesc;
 	}
@@ -127,10 +126,9 @@ public class Relation
 	public Tuple modifyTuple(Tuple original, int[] fieldNumbers, Object[] values)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
-		{
-			return _modifyTuple(m_state.getRelationPtr(), original.getNativePointer(), fieldNumbers, values);
-		}
+		return doInPG(() ->
+			_modifyTuple(m_state.getRelationPtr(),
+				original.getNativePointer(), fieldNumbers, values));
 	}
 
 	private static native String _getName(long pointer)

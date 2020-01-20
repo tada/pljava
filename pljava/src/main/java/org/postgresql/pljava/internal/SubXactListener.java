@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -57,25 +59,25 @@ class SubXactListener
 
 	static void addListener(SavepointListener listener)
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			if ( s_listeners.contains(listener) )
 				return;
 			s_listeners.push(listener);
 			if( 1 == s_listeners.size() )
 				_register();
-		}
+		});
 	}
 
 	static void removeListener(SavepointListener listener)
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			if ( ! s_listeners.remove(listener) )
 				return;
 			if ( 0 == s_listeners.size() )
 				_unregister();
-		}
+		});
 	}
 
 	private static native void _register();

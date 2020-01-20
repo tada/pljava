@@ -32,6 +32,12 @@ import java.sql.Timestamp;
 
 import java.text.BreakIterator;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetTime;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -116,7 +122,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
   "ddr.output"           // name of ddr file to write
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_7)
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class DDRProcessor extends AbstractProcessor
 {
 	private DDRProcessorImpl impl;
@@ -2373,15 +2379,11 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			this.addMap(byte[].class, "pg_catalog.bytea");
 
-			// (Once Java back horizon advances to 8, do these the easy way.)
-			//
-			this.addMapIfExists("java.time.LocalDate", "pg_catalog.date");
-			this.addMapIfExists("java.time.LocalTime", "pg_catalog.time");
-			this.addMapIfExists("java.time.OffsetTime", "pg_catalog.timetz");
-			this.addMapIfExists("java.time.LocalDateTime",
-				"pg_catalog.timestamp");
-			this.addMapIfExists("java.time.OffsetDateTime",
-				"pg_catalog.timestamptz");
+			this.addMap(LocalDate.class, "pg_catalog.date");
+			this.addMap(LocalTime.class, "pg_catalog.time");
+			this.addMap(OffsetTime.class, "pg_catalog.timetz");
+			this.addMap(LocalDateTime.class, "pg_catalog.timestamp");
+			this.addMap(OffsetDateTime.class, "pg_catalog.timestamptz");
 		}
 
 		private boolean mappingsFrozen()

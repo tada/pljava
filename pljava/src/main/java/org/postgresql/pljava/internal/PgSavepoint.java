@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.internal;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientException;
@@ -126,7 +128,7 @@ public class PgSavepoint implements java.sql.Savepoint
 	public static PgSavepoint set(String name)
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		return doInPG(() ->
 		{
 			PgSavepoint sp = new PgSavepoint(name);
 			s_nursery = sp;
@@ -144,14 +146,15 @@ public class PgSavepoint implements java.sql.Savepoint
 			}
 			s_knownSavepoints.put(sp, Boolean.TRUE);
 			return sp;
-		}
+		});
 	}
 
 	static PgSavepoint forId(int savepointId)
 	{
-		if(savepointId != 0)
+		if(savepointId == 0)
+			return null;
+		return doInPG(() ->
 		{
-			assert Backend.threadMayEnterPG(); // this only happens on PG thread
 			if ( null != s_nursery ) // can only be the Savepoint being set
 			{
 				PgSavepoint sp = s_nursery;
@@ -164,8 +167,8 @@ public class PgSavepoint implements java.sql.Savepoint
 				if(savepointId == sp.m_xactId)
 					return sp;
 			}
-		}
-		return null;
+			return null;
+		});
 	}
 
 	@Override
@@ -187,7 +190,7 @@ public class PgSavepoint implements java.sql.Savepoint
 	public void release()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			if ( 0 == m_nestLevel )
 				throw new SQLNonTransientException(
@@ -197,7 +200,7 @@ public class PgSavepoint implements java.sql.Savepoint
 
 			_release(m_xactId, m_nestLevel);
 			forgetNestLevelsGE(m_nestLevel);
-		}
+		});
 	}
 
 	/**
@@ -213,7 +216,7 @@ public class PgSavepoint implements java.sql.Savepoint
 	public void rollback()
 	throws SQLException
 	{
-		synchronized(Backend.THREADLOCK)
+		doInPG(() ->
 		{
 			if ( 0 == m_nestLevel )
 				throw new SQLNonTransientException(
@@ -241,7 +244,7 @@ public class PgSavepoint implements java.sql.Savepoint
 			{
 				s_nursery = null;
 			}
-		}
+		});
 	}
 
 	@Override

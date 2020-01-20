@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,7 +9,7 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.example.jdk7;
+package org.postgresql.pljava.example.annotation;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
