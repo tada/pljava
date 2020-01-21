@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB - Thomas Hallgren
+ *   Chapman Flack
  */
 #include "pljava/type/String_priv.h"
 #include "pljava/HashMap.h"
@@ -377,15 +381,15 @@ void String_initialize(void)
 
 static void String_initialize_codec()
 {
+	/*
+	 * Wondering why this function doesn't bother deleting its many local refs?
+	 * The call is wrapped in pushLocalFrame/popLocalFrame in the caller.
+	 */
 	jmethodID string_intern = PgObject_getJavaMethod(s_String_class,
 		"intern", "()Ljava/lang/String;");
 	jstring empty = JNI_newStringUTF( "");
-	jclass scharset_class =
-		PgObject_getJavaClass("java/nio/charset/StandardCharsets");
-	jfieldID scharset_UTF_8 = PgObject_getStaticJavaField(scharset_class,
-		"UTF_8", "Ljava/nio/charset/Charset;");
-	jobject u8cs = JNI_getStaticObjectField(scharset_class, scharset_UTF_8);
-	jclass charset_class = JNI_getObjectClass(u8cs);
+	jclass charset_class =
+		PgObject_getJavaClass("java/nio/charset/Charset");
 	jmethodID charset_newDecoder = PgObject_getJavaMethod(charset_class,
 		"newDecoder", "()Ljava/nio/charset/CharsetDecoder;");
 	jmethodID charset_newEncoder = PgObject_getJavaMethod(charset_class,
@@ -402,11 +406,38 @@ static void String_initialize_codec()
 	jfieldID underflow = PgObject_getStaticJavaField(result_class, "UNDERFLOW",
 		"Ljava/nio/charset/CoderResult;");
 	jclass buffer_class = PgObject_getJavaClass("java/nio/Buffer");
+	jobject servercs;
+
+	s_server_encoding = GetDatabaseEncoding();
+
+	if ( PG_SQL_ASCII == s_server_encoding )
+	{
+		jmethodID forname =
+			PgObject_getStaticJavaMethod(charset_class,
+				"forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
+		jstring sql_ascii = JNI_newStringUTF("X-PGSQL_ASCII");
+
+		s_two_step_conversion = false;
+
+		servercs = JNI_callStaticObjectMethodLocked(charset_class,
+			forname, sql_ascii);
+	}
+	else
+	{
+		jclass scharset_class =
+			PgObject_getJavaClass("java/nio/charset/StandardCharsets");
+		jfieldID scharset_UTF_8 = PgObject_getStaticJavaField(scharset_class,
+			"UTF_8", "Ljava/nio/charset/Charset;");
+
+		s_two_step_conversion = PG_UTF8 != s_server_encoding;
+
+		servercs = JNI_getStaticObjectField(scharset_class, scharset_UTF_8);
+	}
 
 	s_CharsetDecoder_instance =
-		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newDecoder));
+		JNI_newGlobalRef(JNI_callObjectMethod(servercs, charset_newDecoder));
 	s_CharsetEncoder_instance =
-		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newEncoder));
+		JNI_newGlobalRef(JNI_callObjectMethod(servercs, charset_newEncoder));
 	s_CharsetDecoder_decode = PgObject_getJavaMethod(decoder_class, "decode",
 		"(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;");
 	s_CharsetEncoder_encode = PgObject_getJavaMethod(encoder_class, "encode",
@@ -432,7 +463,5 @@ static void String_initialize_codec()
 	s_the_empty_string = JNI_newGlobalRef(
 		JNI_callObjectMethod(empty, string_intern));
 
-	s_server_encoding = GetDatabaseEncoding();
-	s_two_step_conversion = PG_UTF8 != s_server_encoding;
 	uninitialized = false;
 }
