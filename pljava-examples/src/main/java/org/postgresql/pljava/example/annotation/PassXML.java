@@ -211,6 +211,44 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"FROM" +
 		" r"
 		}
+	),
+
+	@SQLAction(implementor="postgresql_xml",
+			   requires={"prepareXMLTransform", "transformXML"},
+		install={
+			"SELECT" +
+			" javatest.prepareXMLTransform('distinctElementNames'," +
+			"'<xsl:transform version=''1.0''" +
+			" xmlns:xsl=''http://www.w3.org/1999/XSL/Transform''" +
+			" xmlns:exsl=''http://exslt.org/common''" +
+			" xmlns:set=''http://exslt.org/sets''" +
+			" extension-element-prefixes=''exsl set''" +
+			">" +
+			" <xsl:output method=''xml'' indent=''no''/>" +
+			" <xsl:template match=''/''>" +
+			"  <xsl:variable name=''enames''>" +
+			"   <xsl:for-each select=''//*''>" +
+			"    <ename><xsl:value-of select=''local-name()''/></ename>" +
+			"   </xsl:for-each>" +
+			"  </xsl:variable>" +
+			"  <xsl:for-each" +
+			"   select=''set:distinct(exsl:node-set($enames)/ename)''>" +
+			"   <xsl:sort select=''string()''/>" +
+			"   <den><xsl:value-of select=''.''/></den>" +
+			"  </xsl:for-each>" +
+			" </xsl:template>" +
+			"</xsl:transform>', 5, true)",
+
+			"SELECT" +
+			" CASE WHEN" +
+			"  javatest.transformXML('distinctElementNames'," +
+			"   '<a><c/><e/><b/><b/><d/></a>', 5, 5)::text" +
+			"  =" +
+			"   '<den>a</den><den>b</den><den>c</den><den>d</den><den>e</den>'"+
+			"  THEN javatest.logmessage('INFO', 'XSLT 1.0 test succeeded')" +
+			"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 test failed')" +
+			" END"
+		}
 	)
 })
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
@@ -360,24 +398,26 @@ public class PassXML implements SQLData
 	 * Each value of {@code how}, 1-7, selects a different way of presenting
 	 * the {@code SQLXML} object to the XSL processor.
 	 *<p>
-	 * Preparing a transform with
-	 * {@link TransformerFactory#newTemplates newTemplates()} seems to require
-	 * {@link Function.Trust#UNSANDBOXED Trust.UNSANDBOXED}, at least for the
-	 * XSLTC transform compiler in newer JREs.
+	 * Passing {@code true} for {@code enableExtensionFunctions} allows the
+	 * transform to use extensions that the Java XSLT implementation supports,
+	 * such as functions from EXSLT. Those are disabled by default.
 	 *<p>
-	 * If you wish this <strong>unsandboxed</strong> function to be installed,
-	 * set the PostgreSQL variable {@code pljava.implementors} to a list with
-	 * {@code pg_xml_unsandboxed} as an added entry, before installing the
-	 * examples jar.
+	 * Out of the box, Java's transformers only support XSLT 1.0. See the S9
+	 * example for more capabilities (at the cost of downloading the Saxon jar).
 	 */
-	@Function(schema="javatest", trust=Function.Trust.UNSANDBOXED,
-			  implementor="pg_xml_unsandboxed")
-	public static void prepareXMLTransform(String name, SQLXML source, int how)
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="prepareXMLTransform")
+	public static void prepareXMLTransform(String name, SQLXML source, int how,
+		@SQLType(defaultValue="false") boolean enableExtensionFunctions)
 	throws SQLException
 	{
+		TransformerFactory tf = TransformerFactory.newInstance();
+		String exf =
+		  "http://www.oracle.com/xml/jaxp/properties/enableExtensionFunctions";
 		try
 		{
-			s_tpls.put(name, s_tf.newTemplates(sxToSource(source, how)));
+			tf.setFeature(exf, enableExtensionFunctions);
+			s_tpls.put(name, tf.newTemplates(sxToSource(source, how)));
 		}
 		catch ( TransformerException te )
 		{
@@ -389,7 +429,8 @@ public class PassXML implements SQLData
 	 * Transform some XML according to a named transform prepared with
 	 * {@code prepareXMLTransform}.
 	 */
-	@Function(schema="javatest", implementor="postgresql_xml")
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="transformXML")
 	public static SQLXML transformXML(
 		String transformName, SQLXML source, int howin, int howout)
 	throws SQLException
