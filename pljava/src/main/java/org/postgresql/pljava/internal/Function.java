@@ -14,6 +14,7 @@ package org.postgresql.pljava.internal;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import static java.lang.invoke.MethodHandles.publicLookup;
+import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
 import java.lang.reflect.Array;
@@ -31,12 +32,15 @@ import java.sql.SQLSyntaxErrorException;
 
 import static java.util.Arrays.copyOf;
 import static java.util.Collections.addAll;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.postgresql.pljava.ResultSetHandle;
+import org.postgresql.pljava.ResultSetProvider;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import org.postgresql.pljava.sqlj.Loader;
@@ -59,6 +63,178 @@ public class Function
 		return
 			loadClass(Loader.getSchemaLoader(schemaName), className)
 				.asSubclass(SQLData.class);
+	}
+
+	/**
+	 * Like the original C function of the same name, using effectively the same
+	 * inputs, but producing a {@code MethodType} instead of a JNI signature.
+	 *<p>
+	 * The return type is the last element of {@code jTypes}.
+	 */
+	private static MethodType buildSignature(
+		ClassLoader schemaLoader, String[] jTypes,
+		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
+	throws SQLException
+	{
+		/*
+		 * Begin by assuming we won't include the "return" type among the
+		 * parameter types.
+		 */
+		int rtIdx = jTypes.length - 1;
+		String retJType = jTypes[rtIdx];
+
+		/*
+		 * As things are currently arranged, retTypeIsOutParameter is equivalent
+		 * to "the return type is composite" and "the type is ResultSet".
+		 */
+		assert retTypeIsOutParameter == ("java.sql.ResultSet".equals(retJType));
+
+		/*
+		 * And ... if the return type is composite, and this isn't a multi-call,
+		 * then it does go at the end of the other parameters.
+		 */
+		if ( ! isMultiCall  &&  retTypeIsOutParameter )
+			++ rtIdx;
+
+		Class<?>[] pTypes = new Class[ rtIdx ];
+
+		for ( int i = 0 ; i < rtIdx ; ++ i )
+			pTypes[i] = loadClass(schemaLoader, jTypes[i]);
+
+		Class<?> returnType =
+			getReturnSignature(schemaLoader, retJType,
+				retTypeIsOutParameter, isMultiCall, altForm);
+
+		return methodType(returnType, pTypes);
+	}
+
+	/**
+	 * Return a {@code Class} object for the target method's return type.
+	 *<p>
+	 * The C original in this case was a "virtual method" on {@code Type}, but
+	 * only one "subclass" ({@code Composite}) ever overrode the default
+	 * behavior. The default (for everything else but {@code Composite}) is to
+	 * return the type unchanged in the non-multicall case, or {@code Iterator}
+	 * (of that type) for multicall.
+	 *<p>
+	 * The overridden behavior for a composite type is to return boolean in the
+	 * non-multicall case, else one of {@code ResultSetHandle} or
+	 * {@code ResultSetProvider} depending on {@code altForm}.
+	 */
+	private static Class<?> getReturnSignature(
+		ClassLoader schemaLoader, String retJType,
+		boolean isComposite, boolean isMultiCall, boolean altForm)
+	throws SQLException
+	{
+		if ( ! isComposite )
+		{
+			if ( isMultiCall )
+				return Iterator.class;
+			return loadClass(schemaLoader, retJType);
+		}
+
+		/* The composite case */
+		if ( isMultiCall )
+			return altForm ? ResultSetHandle.class : ResultSetProvider.class;
+		return boolean.class;
+	}
+
+	/**
+	 * Replacement for {@code getMethodID} in the C code, but producing a
+	 * {@code MethodHandle} instead.
+	 *<p>
+	 * This is called in the cases where {@code init} would return a non-null
+	 * method name: the non-UDT cases. UDT methods are handled their own
+	 * special way.
+	 *<p>
+	 * This may modify the last element (the return type) of the {@code jTypes}
+	 * array, in the course of hunting for the right return type of the method.
+	 *<p>
+	 * For now, this is a near-facsimile of the C implementation. A further step
+	 * of refactoring into clearer idiomatic Java can come later.
+	 */
+	private static MethodHandle getMethodHandle(
+		ClassLoader schemaLoader, Class<?> clazz, String methodName,
+		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
+	throws SQLException
+	{
+		MethodType mt =
+			buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
+				isMultiCall, false); // first try altForm = false
+
+		ReflectiveOperationException ex1 = null;
+		try
+		{
+			return publicLookup().findStatic(clazz, methodName, mt);
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			ex1 = e;
+		}
+
+		MethodType origMT = mt;
+		Class<?> altType = null;
+		Class<?> realRetType = loadClass(schemaLoader, jTypes[jTypes.length-1]);
+
+		/* COPIED COMMENT:
+		 * One valid reason for not finding the method is when
+		 * the return type used in the signature is a primitive and
+		 * the true return type of the method is the object class that
+		 * corresponds to that primitive.
+		 */
+		if ( realRetType.isPrimitive() )
+		{
+			altType = methodType(realRetType).wrap().returnType();
+			realRetType = altType;
+		}
+
+		/* COPIED COMMENT:
+		 * Another reason might be that we expected a ResultSetProvider
+		 * but the implementation returns a ResultSetHandle that needs to be
+		 * wrapped. The wrapping is internal so we retain the original
+		 * return type anyway.
+		 */
+		if ( ResultSet.class == realRetType )
+			altType = realRetType;
+
+		if ( null != altType )
+		{
+			jTypes[jTypes.length - 1] = altType.getCanonicalName();
+			mt = buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
+					isMultiCall, true); // this time altForm = true
+			try
+			{
+				return publicLookup().findStatic(clazz, methodName, mt);
+			}
+			catch ( ReflectiveOperationException e )
+			{
+				SQLException sqle =
+					memberException(clazz, methodName, origMT,true/*isStatic*/);
+				sqle.initCause(ex1);
+				sqle.setNextException((SQLException)
+					memberException(clazz, methodName, mt, true /*isStatic*/)
+					.initCause(e));
+				throw sqle;
+			}	
+		}
+
+		throw (SQLException)
+			memberException(clazz, methodName, origMT, true /*isStatic*/)
+			.initCause(ex1);
+	}
+
+	/**
+	 * Produce an exception for a class member not found, with a message similar
+	 * to that of the C {@code PgObject_throwMemberError}.
+	 */
+	private static SQLException memberException(
+		Class<?> clazz, String name, MethodType mt, boolean isStatic)
+	{
+		return new SQLNonTransientException(
+			String.format("Unable to find%s method %s.%s with signature %s",
+				(isStatic ? " static" : ""),
+				clazz.getCanonicalName(), name, mt),
+			"38000");
 	}
 
 	/**
@@ -126,18 +302,33 @@ public class Function
 			return null;
 		}
 
+		String[] resolvedTypes;
+		boolean isMultiCall = false;
+		boolean retTypeIsOutParameter = false;
+
 		if ( calledAsTrigger )
 		{
 			typeMap = null;
-			setupTriggerParams(wrappedPtr, info, schemaLoader, clazz, readOnly);
+			resolvedTypes =	setupTriggerParams(
+				wrappedPtr, info, schemaLoader, clazz, readOnly);
 		}
 		else
 		{
-			setupFunctionParams(wrappedPtr, info, procTup,
-				schemaLoader, clazz, readOnly, typeMap);
+			boolean[] multi = new boolean[] { isMultiCall };
+			boolean[] rtiop = new boolean[] { retTypeIsOutParameter };
+			resolvedTypes = setupFunctionParams(wrappedPtr, info, procTup,
+				schemaLoader, clazz, readOnly, typeMap, multi, rtiop);
+			isMultiCall = multi [ 0 ];
+			retTypeIsOutParameter = rtiop [ 0 ];
 		}
 
-		return info.group("meth");
+		String methodName = info.group("meth");
+
+		System.err.println(
+			getMethodHandle(schemaLoader, clazz, methodName,
+				resolvedTypes, retTypeIsOutParameter, isMultiCall));
+
+		return methodName;
 		/* to do: build signature ... look up method ... store that. */
 	}
 
@@ -174,7 +365,7 @@ public class Function
 	/**
 	 * The initialization specific to a trigger function.
 	 */
-	private static void setupTriggerParams(
+	private static String[] setupTriggerParams(
 		long wrappedPtr, Matcher info,
 		ClassLoader schemaLoader, Class<?> clazz, boolean readOnly)
 	throws SQLException
@@ -189,7 +380,7 @@ public class Function
 		Oid[] paramTypes = { INVALID };
 		String[] paramJTypes = { "org.postgresql.pljava.TriggerData" };
 
-		storeToNonUDT(wrappedPtr, schemaLoader, clazz, readOnly,
+		return storeToNonUDT(wrappedPtr, schemaLoader, clazz, readOnly,
 			false /* isMultiCall */,
 			null /* typeMap */, retType, retJType, paramTypes, paramJTypes,
 			null /* [returnTypeIsOutputParameter] */);
@@ -198,22 +389,22 @@ public class Function
 	/**
 	 * The initialization specific to an ordinary function.
 	 */
-	private static void setupFunctionParams(
+	private static String[] setupFunctionParams(
 		long wrappedPtr, Matcher info, ResultSet procTup,
 		ClassLoader schemaLoader, Class<?> clazz,
-		boolean readOnly, Map<Oid,Class<? extends SQLData>> typeMap)
+		boolean readOnly, Map<Oid,Class<? extends SQLData>> typeMap,
+		boolean[] multi, boolean[] returnTypeIsOP)
 		throws SQLException
 	{
 		int numParams = procTup.getInt("pronargs");
 		boolean isMultiCall = procTup.getBoolean("proretset");
+		multi [ 0 ] = isMultiCall;
 		Oid[] paramTypes = null;
 
 		Oid returnType = (Oid)procTup.getObject("prorettype");
 
 		if ( 0 < numParams )
 			paramTypes = (Oid[])procTup.getObject("proargtypes");
-
-		boolean[] returnTypeIsOP = new boolean [ 1 ];
 
 		String[] resolvedTypes = storeToNonUDT(wrappedPtr, schemaLoader, clazz,
 			readOnly, isMultiCall, typeMap,
@@ -268,6 +459,8 @@ public class Function
 					new String[] { explicitReturnType }, -2));
 			}
 		}
+
+		return resolvedTypes;
 	}
 
 	/**
