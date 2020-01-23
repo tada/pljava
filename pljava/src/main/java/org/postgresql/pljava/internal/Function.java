@@ -15,6 +15,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import static java.lang.invoke.MethodHandles.lookup;
+import static java.lang.invoke.MethodHandles.publicLookup;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
@@ -143,6 +144,16 @@ public class Function
 	private static Lookup s_lookup =
 		lookup().dropLookupMode(Lookup.PACKAGE);
 
+	private static Lookup lookupFor(Class<?> clazz)
+	{
+		Module thisModule = Function.class.getModule();
+		Module thatModule = clazz.getModule();
+
+		if ( thisModule == thatModule )
+			return s_lookup;
+		return publicLookup();
+	}
+
 	/**
 	 * Replacement for {@code getMethodID} in the C code, but producing a
 	 * {@code MethodHandle} instead.
@@ -169,7 +180,7 @@ public class Function
 		ReflectiveOperationException ex1 = null;
 		try
 		{
-			return s_lookup.findStatic(clazz, methodName, mt);
+			return lookupFor(clazz).findStatic(clazz, methodName, mt);
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -208,7 +219,7 @@ public class Function
 					isMultiCall, true); // this time altForm = true
 			try
 			{
-				return s_lookup.findStatic(clazz, methodName, mt);
+				return lookupFor(clazz).findStatic(clazz, methodName, mt);
 			}
 			catch ( ReflectiveOperationException e )
 			{
