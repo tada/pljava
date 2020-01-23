@@ -13,7 +13,8 @@ package org.postgresql.pljava.internal;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import static java.lang.invoke.MethodHandles.publicLookup;
+import java.lang.invoke.MethodHandles.Lookup;
+import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
@@ -139,6 +140,9 @@ public class Function
 		return boolean.class;
 	}
 
+	private static Lookup s_lookup =
+		lookup().dropLookupMode(Lookup.PACKAGE);
+
 	/**
 	 * Replacement for {@code getMethodID} in the C code, but producing a
 	 * {@code MethodHandle} instead.
@@ -165,7 +169,7 @@ public class Function
 		ReflectiveOperationException ex1 = null;
 		try
 		{
-			return publicLookup().findStatic(clazz, methodName, mt);
+			return s_lookup.findStatic(clazz, methodName, mt);
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -204,7 +208,7 @@ public class Function
 					isMultiCall, true); // this time altForm = true
 			try
 			{
-				return publicLookup().findStatic(clazz, methodName, mt);
+				return s_lookup.findStatic(clazz, methodName, mt);
 			}
 			catch ( ReflectiveOperationException e )
 			{
