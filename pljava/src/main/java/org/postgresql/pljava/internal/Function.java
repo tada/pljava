@@ -158,7 +158,7 @@ public class Function
 	{
 		if ( Commands.class == clazz )
 			return s_lookup;
-		return publicLookup();
+		return publicLookup().in(clazz);
 	}
 
 	/**
