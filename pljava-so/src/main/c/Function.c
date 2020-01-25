@@ -577,6 +577,21 @@ void Function_clearFunctionCache(void)
 	PgObject_free((PgObject)oldMap);
 }
 
+/*
+ * Type_isPrimitive() by itself returns true for both, say, int and int[].
+ * That is sometimes relied on, as in the code that would accept Integer[]
+ * as a replacement for int[].
+ *
+ * However, it isn't correct for determining whether the thing should be passed
+ * to Java as a primitive or a reference, because of course no Java array is a
+ * primitive. Hence this method, which requires both Type_isPrimitive to be true
+ * and that the type is not an array.
+ */
+static bool passAsPrimitive(Type t)
+{
+	return Type_isPrimitive(t) && (NULL == Type_getElementType(t));
+}
+
 Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 {
 	Datum retVal;
@@ -638,14 +653,14 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		for(idx = 0; idx < passedArgCount; ++idx)
 		{
 			Type paramType = types[idx];
-			bool isPrimitive = Type_isPrimitive(paramType);
+			bool passPrimitive = passAsPrimitive(paramType);
 
 			if(PG_ARGISNULL(idx))
 			{
 				/*
 				 * Set this argument to zero (or null in case of object)
 				 */
-				if ( isPrimitive )
+				if ( passPrimitive )
 					primArgs[primIdx++].j = 0L;
 				else
 					++ refIdx; /* array element is already initially null */
@@ -657,7 +672,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 						get_fn_expr_argtype(fcinfo->flinfo, idx),
 						self->func.nonudt.typeMap);
 				coerced = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
-				if ( isPrimitive )
+				if ( passPrimitive )
 					primArgs[primIdx++] = coerced;
 				else
 					JNI_setObjectArrayElement(refArgs, refIdx++, coerced.l);
@@ -839,7 +854,7 @@ JNIEXPORT jboolean JNICALL
 					self->func.nonudt.paramTypes[i]));
 				JNI_setObjectArrayElement(outJTypes, i, jtn);
 				JNI_deleteLocalRef(jtn);
-				if ( Type_isPrimitive(self->func.nonudt.paramTypes[i]) )
+				if ( passAsPrimitive(self->func.nonudt.paramTypes[i]) )
 					++ primParams;
 				else
 					++ refParams;
@@ -997,7 +1012,7 @@ JNIEXPORT void JNICALL
 		else
 		{
 			self->func.nonudt.paramTypes[index] = replType;
-			if ( Type_isPrimitive(origType) != Type_isPrimitive(replType) )
+			if ( passAsPrimitive(origType) != passAsPrimitive(replType) )
 			{
 				if ( Type_isPrimitive(replType) )
 				{
