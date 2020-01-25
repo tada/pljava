@@ -54,6 +54,7 @@ import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
+import org.postgresql.pljava.management.Commands;
 import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
@@ -155,10 +156,7 @@ public class Function
 
 	private static Lookup lookupFor(Class<?> clazz)
 	{
-		Module thisModule = Function.class.getModule();
-		Module thatModule = clazz.getModule();
-
-		if ( thisModule == thatModule )
+		if ( Commands.class == clazz )
 			return s_lookup;
 		return publicLookup();
 	}

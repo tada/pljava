@@ -622,7 +622,7 @@ public class Commands
 		}
 	}
 
-	public static String getCurrentSchema() throws SQLException
+	static String getCurrentSchema() throws SQLException
 	{
 		Session session = SessionManager.current();
 		return ((org.postgresql.pljava.internal.Session)session)
