@@ -441,12 +441,13 @@ TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return self->typeClass->getTupleDesc(self, fcinfo);
 }
 
-Datum Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum Type_invoke(Type self, Function fn,
+	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
 {
-	return self->typeClass->invoke(self, cls, method, args, fcinfo);
+	return self->typeClass->invoke(self, fn, refArgs, primArgs, fcinfo);
 }
 
-Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum Type_invokeSRF(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	CallContextData* ctxData;
@@ -478,7 +479,7 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 		/* Call the declared Java function. It returns an instance that can produce
 		 * the rows.
 		 */
-		tmp = Type_getSRFProducer(self, cls, method, args);
+		tmp = Type_getSRFProducer(self, fn, refArgs, primArgs);
 		if(tmp == 0)
 		{
 			Invocation_assertDisconnect();
@@ -714,11 +715,12 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->typeClass == other->typeClass;
 }
 
-Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum _Type_invoke(Type self, Function fn,
+	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
 {
 	MemoryContext currCtx;
 	Datum ret;
-	jobject value = JNI_callStaticObjectMethodA(cls, method, args);
+	jobject value = pljava_Function_refInvoke(fn, refArgs, primArgs);
 	if(value == 0)
 	{
 		fcinfo->isnull = true;
@@ -740,9 +742,9 @@ static Type _Type_createArrayType(Type self, Oid arrayTypeId)
 	return Array_fromOid(arrayTypeId, self);
 }
 
-static jobject _Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+static jobject _Type_getSRFProducer(Type self, Function fn, jobjectArray refArgs, jobject primArgs)
 {
-	return JNI_callStaticObjectMethodA(cls, method, args);
+	return pljava_Function_refInvoke(fn, refArgs, primArgs);
 }
 
 static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
@@ -767,9 +769,9 @@ static void _Type_closeSRF(Type self, jobject rowProducer)
 {
 }
 
-jobject Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+jobject Type_getSRFProducer(Type self, Function fn, jobjectArray refArgs, jobject primArgs)
 {
-	return self->typeClass->getSRFProducer(self, cls, method, args);
+	return self->typeClass->getSRFProducer(self, fn, refArgs, primArgs);
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)

@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
 #ifndef __pljava_Function_h
 #define __pljava_Function_h
@@ -52,16 +56,48 @@ extern Function Function_getFunction(PG_FUNCTION_ARGS);
 extern Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
- * Invoke a function, i.e. coerce the parameters, call the java method, and
- * coerce the return value back to a Datum.
- */
-extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
-
-/*
  * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
  * object, make the call, and unwrap the resulting Tuple.
  */
 extern Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS);
+
+/*
+ * Invoke a function, i.e. coerce the parameters, call the java method, and
+ * coerce the return value back to a Datum. The return-value coercion is handled
+ * by a convention where this call will delegate to the Type representing the
+ * SQL return type. That will call back on one of the flavors of fooInvoke below
+ * corresponding to the return type of the Java method, and then coerce that to
+ * the intended SQL type.
+ */
+extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
+
+/*
+ * These actually invoke a target Java method (returning, respectively, a
+ * reference type or one of the Java primitive types). The arguments to the
+ * method have already been coerced, and segregated into reference types (stored
+ * in the Object array references) and primitives (stored in a C array of jvalue
+ * covered by a direct byte buffer, primitives).
+ */
+extern jobject pljava_Function_refInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern void pljava_Function_voidInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jboolean pljava_Function_booleanInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jbyte pljava_Function_byteInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jshort pljava_Function_shortInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jchar pljava_Function_charInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jint pljava_Function_intInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jfloat pljava_Function_floatInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jlong pljava_Function_longInvoke(
+	Function self, jobjectArray references, jobject primitives);
+extern jdouble pljava_Function_doubleInvoke(
+	Function self, jobjectArray references, jobject primitives);
 
 /*
  * Returns the Type Map that is associated with the function

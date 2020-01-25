@@ -426,12 +426,41 @@ jobject JNI_callObjectMethodLockedV(jobject object, jmethodID methodID, va_list 
 	return result;
 }
 
+jboolean JNI_callStaticBooleanMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jboolean result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticBooleanMethodV(clazz, methodID, args);
+	va_end(args);
+	return result;
+}
+
 jboolean JNI_callStaticBooleanMethodA(jclass clazz, jmethodID methodID, jvalue* args)
 {
 	jboolean result;
 	BEGIN_CALL
 	result = (*env)->CallStaticBooleanMethodA(env, clazz, methodID, args);
 	END_CALL
+	return result;
+}
+
+jboolean JNI_callStaticBooleanMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jboolean result;
+	BEGIN_CALL
+	result = (*env)->CallStaticBooleanMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jbyte JNI_callStaticByteMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jbyte result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticByteMethodV(clazz, methodID, args);
+	va_end(args);
 	return result;
 }
 
@@ -444,12 +473,88 @@ jbyte JNI_callStaticByteMethodA(jclass clazz, jmethodID methodID, jvalue* args)
 	return result;
 }
 
+jbyte JNI_callStaticByteMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jbyte result;
+	BEGIN_CALL
+	result = (*env)->CallStaticByteMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jshort JNI_callStaticShortMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jshort result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticShortMethodV(clazz, methodID, args);
+	va_end(args);
+	return result;
+}
+
+jshort JNI_callStaticShortMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jshort result;
+	BEGIN_CALL
+	result = (*env)->CallStaticShortMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jchar JNI_callStaticCharMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jchar result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticCharMethodV(clazz, methodID, args);
+	va_end(args);
+	return result;
+}
+
+jchar JNI_callStaticCharMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jchar result;
+	BEGIN_CALL
+	result = (*env)->CallStaticCharMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jdouble JNI_callStaticDoubleMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jdouble result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticDoubleMethodV(clazz, methodID, args);
+	va_end(args);
+	return result;
+}
+
 jdouble JNI_callStaticDoubleMethodA(jclass clazz, jmethodID methodID, jvalue* args)
 {
 	jdouble result;
 	BEGIN_CALL
 	result = (*env)->CallStaticDoubleMethodA(env, clazz, methodID, args);
 	END_CALL
+	return result;
+}
+
+jdouble JNI_callStaticDoubleMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jdouble result;
+	BEGIN_CALL
+	result = (*env)->CallStaticDoubleMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jfloat JNI_callStaticFloatMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jfloat result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticFloatMethodV(clazz, methodID, args);
+	va_end(args);
 	return result;
 }
 
@@ -462,11 +567,39 @@ jfloat JNI_callStaticFloatMethodA(jclass clazz, jmethodID methodID, jvalue* args
 	return result;
 }
 
+jfloat JNI_callStaticFloatMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jfloat result;
+	BEGIN_CALL
+	result = (*env)->CallStaticFloatMethodV(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jint JNI_callStaticIntMethod(jclass clazz, jmethodID methodID, ...)
+{
+	jint result;
+	va_list args;
+	va_start(args, methodID);
+	result = JNI_callStaticIntMethodV(clazz, methodID, args);
+	va_end(args);
+	return result;
+}
+
 jint JNI_callStaticIntMethodA(jclass clazz, jmethodID methodID, jvalue* args)
 {
 	jint result;
 	BEGIN_CALL
 	result = (*env)->CallStaticIntMethodA(env, clazz, methodID, args);
+	END_CALL
+	return result;
+}
+
+jint JNI_callStaticIntMethodV(jclass clazz, jmethodID methodID, va_list args)
+{
+	jint result;
+	BEGIN_CALL
+	result = (*env)->CallStaticIntMethodV(env, clazz, methodID, args);
 	END_CALL
 	return result;
 }

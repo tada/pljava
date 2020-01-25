@@ -504,12 +504,83 @@ public class Function
 		return 0 != b;
 	}
 
+	private static Object invoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return mh.invokeExact(references, primitives);
+	}
+
+	private static void voidInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		mh.invokeExact(references, primitives);
+	}
+
+	private static boolean booleanInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (boolean)mh.invokeExact(references, primitives);
+	}
+
+	private static byte byteInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (byte)mh.invokeExact(references, primitives);
+	}
+
+	private static short shortInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (short)mh.invokeExact(references, primitives);
+	}
+
+	private static char charInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (char)mh.invokeExact(references, primitives);
+	}
+
+	private static int intInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (int)mh.invokeExact(references, primitives);
+	}
+
+	private static float floatInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (float)mh.invokeExact(references, primitives);
+	}
+
+	private static long longInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (long)mh.invokeExact(references, primitives);
+	}
+
+	private static double doubleInvoke(
+		MethodHandle mh, Object[] references, ByteBuffer primitives)
+	throws Throwable
+	{
+		return (double)mh.invokeExact(references, primitives);
+	}
+
 	/**
 	 * Parse the function specification in {@code procTup}, initializing most
-	 * fields of the C {@code Function} structure, and returning the name of the
-	 * implementing method, as a {@code String}.
+	 * fields of the C {@code Function} structure, and returning a
+	 * {@code MethodHandle} for invoking the method, or null in the case of
+	 * a UDT.
 	 */
-	public static String create(
+	public static MethodHandle create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger)
 	throws SQLException
@@ -540,10 +611,10 @@ public class Function
 	 * object from {@code parse}, determine the type of function being created
 	 * (ordinary, UDT, trigger) and initialize most of the C structure
 	 * accordingly.
-	 * @return the name of the implementing method as a String, or null in the
+	 * @return a MethodHandle to invoke the implementing method, or null in the
 	 * case of a UDT
 	 */
-	private static String init(
+	private static MethodHandle init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger)
 	throws SQLException
@@ -591,12 +662,9 @@ public class Function
 
 		String methodName = info.group("meth");
 
-		System.err.println(
-			getMethodHandle(schemaLoader, clazz, methodName,
+		return
+			adaptHandle(getMethodHandle(schemaLoader, clazz, methodName,
 				resolvedTypes, retTypeIsOutParameter, isMultiCall));
-
-		return methodName;
-		/* to do: build signature ... look up method ... store that. */
 	}
 
 	/**

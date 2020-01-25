@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -93,18 +93,23 @@ struct TypeClass_
 	ObjectCoercer coerceObject;
 
 	/*
-	 * Calls a java method using one of the Call<type>MethodA routines where
-	 * <type> corresponds to the type represented by this instance and
-	 * coerces the returned value into a Datum.
+	 * Call a java method using (ultimately) one of the Call<type>Method
+	 * routines where <type> corresponds to the type represented by this
+	 * instance and coerce the returned value into a Datum.
 	 * 
 	 * The method will set the value pointed to by the wasNull parameter
 	 * to true if the Java method returned null. The method expects that
 	 * the wasNull parameter is set to false by the caller prior to the
 	 * call.
+	 *
+	 * The call into Java is made via a callback of
+	 * Function_<type>Invoke(fn, refArgs, primArgs).
 	 */
-	Datum (*invoke)(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+	Datum (*invoke)(Type self, Function fn,
+		jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
 
-	jobject (*getSRFProducer)(Type self, jclass clazz, jmethodID method, jvalue* args);
+	jobject (*getSRFProducer)(Type self, Function fn, jobjectArray refArgs,
+		jobject primArgs);
 	jobject (*getSRFCollector)(Type self, PG_FUNCTION_ARGS);
 	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jlong counter);
 	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
@@ -172,7 +177,7 @@ extern bool _Type_canReplaceType(Type self, Type other);
  * Default version of invoke. Will make a JNI CallObjectMethod call and then
  * a call to self->coerceObject to create the Datum.
  */
-extern Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
+extern Datum _Type_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
 
 /*
  * Return the m_oid member of the Type. This is the default version of
