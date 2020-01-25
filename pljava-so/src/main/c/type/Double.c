@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Array.h"
@@ -29,9 +32,9 @@ static Datum _asDatum(jdouble v)
 	return ret;
 }
 
-static Datum _double_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _double_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
 {
-	return _asDatum(JNI_callStaticDoubleMethodA(cls, method, args));
+	return _asDatum(pljava_Function_doubleInvoke(fn, refArgs, primArgs));
 }
 
 static jvalue _double_coerceDatum(Type self, Datum arg)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -76,19 +76,21 @@ static HeapTuple _getTupleAndClear(jobject jrps)
  * true. If so, the values are obtained in the form of a HeapTuple which in
  * turn is returned (as a Datum) from this method.
  */
-static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _Composite_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
 	jobject jtd = pljava_TupleDesc_create(tupleDesc);
 	jobject singleRowWriter = _createWriter(jtd);
-	int numArgs = fcinfo->nargs;
+	/*
+	 * Caller guarantees room for one extra refArg, so it will go at
+	 * length - 1/
+	 */
+	int addedArgIdx = JNI_getArrayLength(refArgs) - 1;
 	
-	// Caller guarantees room for one extra slot
-	//
-	args[numArgs].l = singleRowWriter;
-	hasRow = (JNI_callStaticBooleanMethodA(cls, method, args) == JNI_TRUE);
+	JNI_setObjectArrayElement(refArgs, addedArgIdx, singleRowWriter);
+	hasRow = (pljava_Function_booleanInvoke(fn, refArgs, primArgs) == JNI_TRUE);
 
 	if(hasRow)
 	{
@@ -108,9 +110,10 @@ static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* 
 	return result;
 }
 
-static jobject _Composite_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+static jobject _Composite_getSRFProducer(Type self, Function fn,
+	jobjectArray refArgs, jobject primArgs)
 {
-	jobject tmp = JNI_callStaticObjectMethodA(cls, method, args);
+	jobject tmp = pljava_Function_refInvoke(fn, refArgs, primArgs);
 	if(tmp != 0 && JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
 	{
 		jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
