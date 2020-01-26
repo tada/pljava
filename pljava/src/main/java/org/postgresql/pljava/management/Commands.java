@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,6 +18,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
@@ -48,6 +50,7 @@ import org.postgresql.pljava.SessionManager;
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.sqlj.Loader;
 
@@ -334,13 +337,49 @@ public class Commands
 	 * jar_entry table.
 	 * 
 	 * @param jarId The id used for the foreign key to the jar_repository table
+	 * @param urlString The url to be read
+	 */
+	static void addClassImages(int jarId, String urlString)
+	throws SQLException
+	{
+		try
+		{
+			URL url = new URL(urlString);
+			URLConnection uc = url.openConnection();
+			long[] sz = new long[1];
+
+			/*
+			 * Do uc.connect() with PL/Java implementation's permissions, but
+			 * narrowed to only what uc says it needs to make this connection.
+			 */
+			try (
+				InputStream urlStream = doPrivileged(() ->
+				{
+					uc.connect();
+					sz[0] = uc.getContentLengthLong();
+					return uc.getInputStream();
+				}, null, uc.getPermission())
+			)
+			{
+				addClassImages(jarId, urlStream, sz[0]);
+			}
+		}
+		catch(IOException e)
+		{
+			throw new SQLException("I/O exception reading jar file: " +
+				e.getMessage());
+		}
+	}
+
+	/**
+	 * Add class images from an already opened stream.
 	 * @param urlStream An InputStream (opened on what may have been a URL)
 	 * @param sz The expected size of the stream, used as a worst-case
 	 * mark/reset limit. The caller might pass -1 if the URLConnection can't
 	 * determine a size in advance (a generous guess will be made in that case).
 	 * @throws SQLException
 	 */
-	public static void addClassImages(int jarId, InputStream urlStream, int sz)
+	static void addClassImages(int jarId, InputStream urlStream, long sz)
 	throws SQLException
 	{
 		PreparedStatement stmt = null;
@@ -486,12 +525,14 @@ public class Commands
 	 * leaves little choice but to sneak in ahead of the JarInputStream and
 	 * pluck out the original manifest as a zip entry.
 	 */
-	private static String rawManifest( BufferedInputStream bis, int markLimit)
+	private static String rawManifest( BufferedInputStream bis, long markLimit)
 	throws IOException
 	{
+		if ( Integer.MAX_VALUE < markLimit )
+			markLimit = -1; // just pretend it wasn't specified
 		// If the caller can't say how long the stream is, this mark() limit
 		// should be plenty
-		bis.mark( markLimit > 0 ? markLimit : 32*1024*1024);
+		bis.mark( markLimit > 0 ? (int)markLimit : 32*1024*1024);
 		ZipInputStream zis = new ZipInputStream( bis);
 		for ( ZipEntry ze; null != (ze = zis.getNextEntry()); )
 		{
@@ -1160,7 +1201,7 @@ public class Commands
 			throw new SQLException("Unable to obtain id of '" + jarName + "'");
 
 		if(image == null)
-			Backend.addClassImages(jarId, urlString);
+			addClassImages(jarId, urlString);
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);
@@ -1231,7 +1272,7 @@ public class Commands
 			SQLUtils.close(stmt);
 		}
 		if(image == null)
-			Backend.addClassImages(jarId, urlString);
+			addClassImages(jarId, urlString);
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);

@@ -126,18 +126,12 @@ typedef struct
 	 */
 	MemoryContext spiContext;
 	bool          hasConnected;
-	/*
-	 * Copy of Invocation's 'trusted' flag. In normal calls through the handler,
-	 * the value is known (implicit in which handler entry point was called),
-	 * but that isn't available to the _endOfSetCB, so must be remembered here.
-	 */
-	bool          trusted;
 } CallContextData;
 
 /*
  * Called during evaluation of a set-returning function, at various points after
  * calls into Java code could have instantiated an Invocation, or connected SPI.
- * Does not stash elemType, rowProducer, rowCollector, or trusted; those are all
+ * Does not stash elemType, rowProducer, or rowCollector; those are all
  * unconditionally set in the first-call initialization, and spiContext to zero.
  */
 static void stashCallContext(CallContextData *ctxData)
@@ -202,7 +196,7 @@ static void _endOfSetCB(Datum arg)
 	bool saveInExprCtxCB;
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
 	if(currentInvocation == 0)
-		Invocation_pushInvocation(&topCall, ctxData->trusted);
+		Invocation_pushInvocation(&topCall);
 
 	saveInExprCtxCB = currentInvocation->inExprContextCB;
 	currentInvocation->inExprContextCB = true;
@@ -518,7 +512,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 			JNI_deleteLocalRef(tmp);
 		}		
 
-		ctxData->trusted    = currentInvocation->trusted;
 		stashCallContext(ctxData);
 
 		/* Register callback to be called when the function ends

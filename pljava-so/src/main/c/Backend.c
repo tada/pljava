@@ -108,7 +108,6 @@ MemoryContext JavaMemoryContext;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
-static jmethodID s_setTrusted;
 
 /*
  * GUC states
@@ -128,7 +127,6 @@ static int   java_thread_pg_entry;
 static char* java_thread_pg_entry;
 #endif
 
-static bool  s_currentTrust;
 static int   s_javaLogLevel;
 
 #if PG_VERSION_NUM < 100000
@@ -1007,33 +1005,6 @@ static void initPLJavaClasses(void)
 	SQLOutputToTuple_initialize();
 
 	InstallHelper_initialize();
-
-	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
-}
-
-/**
- *  Initialize security
- */
-void Backend_setJavaSecurity(bool trusted)
-{
-	if(trusted != s_currentTrust)
-	{
-		/* GCJ has major issues here. Real work on SecurityManager and
-		 * related classes has just started in version 4.0.0.
-		 */
-#ifndef GCJ
-		JNI_callStaticVoidMethod(s_Backend_class, s_setTrusted, (jboolean)trusted);
-		if(JNI_exceptionCheck())
-		{
-			JNI_exceptionDescribe();
-			JNI_exceptionClear();
-			ereport(ERROR, (
-				errcode(ERRCODE_INTERNAL_ERROR),
-				errmsg("Unable to initialize java security")));
-		}
-#endif
-		s_currentTrust = trusted;
-	}
 }
 
 int Backend_setJavaLogLevel(int logLevel)
@@ -1313,7 +1284,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		pqsigfunc saveSigAlrm;
 #endif
 
-		Invocation_pushInvocation(&ctx, false);
+		Invocation_pushInvocation(&ctx);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
 			elog(DEBUG2,
@@ -1340,7 +1311,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 #endif
 
 #else
-		Invocation_pushInvocation(&ctx, false);
+		Invocation_pushInvocation(&ctx);
 		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
@@ -1801,13 +1772,9 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	{
 		deferInit = false;
 		initsequencer( initstage, false);
-
-		/* Force initial setting
- 		 */
-		s_currentTrust = !trusted;
 	}
 
-	Invocation_pushInvocation(&ctx, trusted);
+	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
 		Function function =
@@ -1886,13 +1853,9 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 			if ( IS_PLJAVA_INSTALLING > initstage )
 				PG_RETURN_VOID();
 		}
-
-		/* Force initial setting
-		 */
-		s_currentTrust = !trusted;
 	}
 
-	Invocation_pushInvocation(&ctx, trusted);
+	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
 		Function_getFunction(funcoid, false, true, check_function_bodies);

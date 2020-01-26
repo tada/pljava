@@ -107,7 +107,6 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->invocation      = 0;
 	ctx->function        = 0;
 	ctx->pushedFrame     = false;
-	ctx->trusted         = false;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -127,13 +126,12 @@ void Invocation_popBootContext(void)
 	--s_callLevel;
 }
 
-void Invocation_pushInvocation(Invocation* ctx, bool trusted)
+void Invocation_pushInvocation(Invocation* ctx)
 {
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
 	ctx->pushedFrame     = false;
-	ctx->trusted         = trusted;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -143,7 +141,6 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->triggerData     = 0;
 #endif
 	currentInvocation   = ctx;
-	Backend_setJavaSecurity(trusted);
 	++s_callLevel;
 }
 
@@ -184,15 +181,6 @@ void Invocation_popInvocation(bool wasException)
 	JNI_popLocalFrame(0);
 	if(ctx != 0)
 	{
-		PG_TRY();
-		{
-			Backend_setJavaSecurity(ctx->trusted);
-		}
-		PG_CATCH();
-		{
-			elog(FATAL, "Failed to reinstate untrusted security after a trusted call or vice versa");
-		}
-		PG_END_TRY();
 		MemoryContextSwitchTo(ctx->upperContext);
 	}
 

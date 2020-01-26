@@ -52,11 +52,6 @@ struct Invocation_
 	bool          inExprContextCB;
 
 	/**
-	 * Set to true if the executing function is trusted
-	 */
-	bool          trusted;
-
-	/**
 	 * Whether nested invocation of a Function has required pushing a parameter
 	 * frame that will have to be popped when the Invocation is.
 	 */
@@ -102,7 +97,7 @@ extern void Invocation_pushBootContext(Invocation* ctx);
 
 extern void Invocation_popBootContext(void);
 
-extern void Invocation_pushInvocation(Invocation* ctx, bool trusted);
+extern void Invocation_pushInvocation(Invocation* ctx);
 
 extern void Invocation_popInvocation(bool wasException);
 

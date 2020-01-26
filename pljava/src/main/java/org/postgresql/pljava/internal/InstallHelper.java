@@ -14,7 +14,10 @@ package org.postgresql.pljava.internal;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.net.URL;
+import java.net.MalformedURLException;
 import java.nio.charset.Charset;
+import java.security.Security;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -121,6 +124,11 @@ public class InstallHelper
 			System.clearProperty(encodingKey);
 		}
 
+		/* so it can be granted permissions in the pljava policy */
+		System.setProperty( "org.postgresql.pljava.codesource",
+			InstallHelper.class.getProtectionDomain().getCodeSource()
+				.getLocation().toString());
+
 		/*
 		 * Construct the strings announcing the versions in use.
 		 */
@@ -136,6 +144,19 @@ public class InstallHelper
 		String vmName = System.getProperty( "java.vm.name");
 		String vmVer = System.getProperty( "java.vm.version");
 		String vmInfo = System.getProperty( "java.vm.info");
+
+		try
+		{
+			new URL("sqlj:x"); // sqlj: scheme must exist before reading policy
+		}
+		catch ( MalformedURLException e )
+		{
+			throw new SecurityException(
+				"failed to create sqlj: URL scheme needed for security policy",
+				e);
+		}
+
+		System.setSecurityManager( new SecurityManager());
 
 		StringBuilder sb = new StringBuilder();
 		sb.append( "PL/Java native code (").append( nativeVer).append( ")\n");

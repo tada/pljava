@@ -595,7 +595,7 @@ void InstallHelper_groundwork()
 {
 	Invocation ctx;
 	bool snapshot_set = false;
-	Invocation_pushInvocation(&ctx, false);
+	Invocation_pushInvocation(&ctx);
 	ctx.function = Function_INIT_WRITER;
 #if PG_VERSION_NUM >= 80400
 	if ( ! ActiveSnapshotSet() )
