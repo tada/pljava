@@ -14,6 +14,12 @@ package org.postgresql.pljava.internal;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
+import static java.lang.invoke.MethodHandles.arrayElementGetter;
+import static java.lang.invoke.MethodHandles.dropArguments;
+import static java.lang.invoke.MethodHandles.filterArguments;
+import static java.lang.invoke.MethodHandles.filterReturnValue;
+import static java.lang.invoke.MethodHandles.foldArguments;
+import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodHandles.publicLookup;
 import java.lang.invoke.MethodType;
@@ -25,6 +31,9 @@ import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -250,6 +259,251 @@ public class Function
 				(isStatic ? " static" : ""),
 				clazz.getCanonicalName(), name, mt),
 			"38000");
+	}
+
+	/**
+	 * Adapt an arbitrary static method's handle to what the C call handler
+	 * expects to invoke.
+	 *<p>
+	 * Java does not allow a {@code MethodHandle} to be invoked directly from
+	 * JNI. The invocation has to pass through a Java method that in turn
+	 * invokes the handle. So there has to be a common way to pass an arbitrary
+	 * method's parameters, whether reference or primitive.
+	 *<p>
+	 * The convention here will be that the C call handler segregates all of the
+	 * incoming parameters into an {@code Object} array for all those of
+	 * reference type, and a C array of {@code jvalue} for the primitives. It
+	 * then passes the {@code Object} array and a direct {@code ByteBuffer} that
+	 * maps the {@code jvalue} array. Either may be null, if there are no
+	 * parameters of reference or primitive type, respectively.
+	 *<p>
+	 * The job of this method is to take any static method handle {@code mh} and
+	 * return a method handle that takes exactly two parameters, an
+	 * {@code Object[]} and a {@code ByteBuffer}, and invokes the original
+	 * handle with the parameter values unpacked to their proper positions.
+	 *<p>
+	 * The handle's return type will be unchanged if primitive, or, if any
+	 * reference type, erased to {@code Object}. The erasure allows a single
+	 * wrapper method for reference return types that can be declared to return
+	 * {@code Object} and still use {@code invokeExact} on the method handle.
+	 */
+	private static MethodHandle adaptHandle(MethodHandle mh)
+	{
+		MethodType mt = mh.type();
+		int parameterCount = mt.parameterCount();
+		int primitives = (int)
+			mt.parameterList().stream().filter(Class::isPrimitive).count();
+		int references = parameterCount - primitives;
+
+		boolean hasPrimitiveParams = 0 < primitives;
+
+		/*
+		 * "Erase" any/all reference types, parameter or return, to Object.
+		 * Erasing the return type avoids wrong-method-type exceptions when
+		 * invoking the handle from a wrapper method that returns Object.
+		 * Erasing any reference parameter types is kind of a notational
+		 * convenience: alternatively, each refGetter constructed below could
+		 * be built to fetch from the Object array and cast to the non-erased
+		 * parameter type, but this does the same for all of them in one
+		 * swell foop.
+		 */
+		mh = mh.asType(mt.erase());
+
+		/*
+		 * mh represents a method taking some arbitrary arguments a0,...,a(n-1)
+		 * where n is parameterCount. It is the ultimate target, invoked as the
+		 * last thing that happens at invocation time.
+		 *
+		 * Each step in this construction produces a new mh that invokes the one
+		 * from the step before, after doing something useful first. Therefore,
+		 * the mh from the *last* of these construction steps is what will be
+		 * invoked *first* when a call is later made. In other words, the order
+		 * of these steps has a reverse-chronological flavor, producing handles
+		 * whose chronological sequence will be last-to-first during a call.
+		 *
+		 * That brief introduction helps to grok the names of the various
+		 * combinator methods used here. This next one, for example, is called
+		 * dropArguments. It is going to replace our existing mh(a0,...,a(n-1))
+		 * with a new mh having two more arguments: a0,...,a(n-1),Obj[],ByteBuf!
+		 *
+		 * So, the method handle produced by "dropArguments" is one that has two
+		 * *more* arguments than the one it started with. It is later, at call
+		 * time, when that resulting method handle will "drop" those arguments,
+		 * and invoke the original handle without them.
+		 */
+		mh =
+			dropArguments(mh, parameterCount, Object[].class, ByteBuffer.class);
+
+		/*
+		 * Iterate through the parameter indices in reverse order. Each step
+		 * takes a method handle with parameters a0,...,ak,Object[],ByteBuffer
+		 * and produces a handle with one fewer: a0,...ak-1,Object[],ByteBuffer.
+		 * At invocation time, this handle will fetch the value for ak (from
+		 * either the Object[] or the ByteBuffer as ak is of reference or
+		 * primitive type), and invoke the next (in construction order, prior)
+		 * handle.
+		 *
+		 * The handle left at the end of this loop will have only the
+		 * Object[] and ByteBuffer parameters.
+		 */
+		while ( parameterCount --> 0 )
+		{
+			Class<?> pt = mt.parameterType(parameterCount);
+			if ( pt.isPrimitive() )
+			{
+				MethodHandle primGetter;
+				switch ( pt.getSimpleName() )
+				{
+				case "boolean": primGetter = s_booleanGetter; break;
+				case "byte":    primGetter = s_byteGetter;    break;
+				case "short":   primGetter = s_shortGetter;   break;
+				case "char":    primGetter = s_charGetter;    break;
+				case "int":     primGetter = s_intGetter;     break;
+				case "float":   primGetter = s_floatGetter;   break;
+				case "long":    primGetter = s_longGetter;    break;
+				case "double":  primGetter = s_doubleGetter;  break;
+				default:
+					throw new AssertionError("unknown Java primitive type");
+				}
+				/*
+				 * Each getter takes two arguments: a ByteBuffer and a byte
+				 * offset. Use "insertArguments" to bind in the offset for this
+				 * parameter, so the resulting getter handle has a ByteBuffer
+				 * argument only. (That nomenclature again! Here at construction
+				 * time, "insertArguments" produces a method handle with *fewer*
+				 * than the one it starts with. It's later, at call time, when
+				 * the value(s) will get "inserted" as it calls the prior handle
+				 * that expects them.)
+				 */
+				primGetter = insertArguments(primGetter, 1,
+					(--primitives) * s_sizeof_jvalue);
+				/*
+				 * "dropArguments" here because the getter handle really needs
+				 * to take two arguments (Object[],ByteBuffer) to fit the scheme
+				 * (and just ignore the Object[], of course).
+				 */
+				primGetter = dropArguments(primGetter, 0, Object[].class);
+				/*
+				 * The "foldArgument" combinator. At this step, let k be
+				 * parameterCount, so we are looking at a method handle that
+				 * takes a0,...,ak,Object[],ByteBuffer, and foldArguments will
+				 * produce a shorter one a0,...,ak-1,Object[],ByteBuffer.
+				 *
+				 * At invocation time, the handle will invoke the primGetter
+				 * (which has arity 2) on the corresponding number of parameters
+				 * (2) starting at position k (or parameterCount, if you will).
+				 * Those will be the Object[] and ByteBuffer, and the result of
+				 * the primGetter will become ak in the invocation of the next
+				 * underlying handle (with the Object[] and ByteBuffer still
+				 * tagging along after it).
+				 */
+				mh = foldArguments(mh, parameterCount, primGetter);
+			}
+			else
+			{
+				/*
+				 * The same drill as above, only for reference-typed arguments,
+				 * which will be fetched from the Object[]. It is not necessary
+				 * here to use dropArguments to make the getter have arity 2.
+				 * Because the Object[] is the first of the two tag-along args,
+				 * the getter can have arity 1 and the right thing happens
+				 * naturally: it sees the Object[], and ignores the ByteBuffer.
+				 */
+				MethodHandle refGetter = arrayElementGetter(Object[].class);
+				/*
+				 * Again, an arrayElementGetter has arity 2 (an array, and an
+				 * index); bind in the right index for this parameter, producing
+				 * a getter with only the array argument.
+				 */
+				refGetter = insertArguments(refGetter, 1, --references);
+				mh = foldArguments(mh, parameterCount, refGetter);
+			}
+		}
+
+		/*
+		 * When a ByteBuffer is created in C code with newDirectByteBuffer(),
+		 * there is no opportunity to specify details like its byte ordering
+		 * or read-only. It had definitely better be set to native byte order
+		 * before we begin fetching values out of it. That doesn't have to
+		 * happen at all if the method has no primitive parameters (and in fact
+		 * had better not happen, as the byte buffer parameter will be null in
+		 * that case!). There is no need for that to be a conditional tested at
+		 * call time; we know right now whether this method has any primitive
+		 * parameters, and can just tack on one "last" (at call time, "first")
+		 * filterArguments action to set the native order.
+		 *
+		 * It is tempting to also call asReadOnlyBuffer, but then, the buffer
+		 * doesn't escape to any code outside these method handles, and we know
+		 * we only read it, so that's one method call we don't have to make.
+		 */
+		if ( hasPrimitiveParams )
+			mh = filterArguments(mh, 1, s_nativeOrderer);
+
+		return mh;
+	}
+
+	private static final MethodHandle s_booleanGetter;
+	private static final MethodHandle s_byteGetter;
+	private static final MethodHandle s_shortGetter;
+	private static final MethodHandle s_charGetter;
+	private static final MethodHandle s_intGetter;
+	private static final MethodHandle s_floatGetter;
+	private static final MethodHandle s_longGetter;
+	private static final MethodHandle s_doubleGetter;
+	private static final MethodHandle s_nativeOrderer;
+	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
+
+	static
+	{
+		Lookup l = publicLookup();
+		MethodType mt = methodType(byte.class, int.class);
+		MethodHandle mh;
+
+		try
+		{
+			s_byteGetter = l.findVirtual(ByteBuffer.class, "get", mt);
+			mt = mt.changeReturnType(short.class);
+			s_shortGetter = l.findVirtual(ByteBuffer.class, "getShort", mt);
+			mt = mt.changeReturnType(char.class);
+			s_charGetter = l.findVirtual(ByteBuffer.class, "getChar", mt);
+			mt = mt.changeReturnType(int.class);
+			s_intGetter = l.findVirtual(ByteBuffer.class, "getInt", mt);
+			mt = mt.changeReturnType(float.class);
+			s_floatGetter = l.findVirtual(ByteBuffer.class, "getFloat", mt);
+			mt = mt.changeReturnType(long.class);
+			s_longGetter = l.findVirtual(ByteBuffer.class, "getLong", mt);
+			mt = mt.changeReturnType(double.class);
+			s_doubleGetter = l.findVirtual(ByteBuffer.class, "getDouble", mt);
+
+			mt = methodType(boolean.class, byte.class);
+			mh = lookup().findStatic(Function.class, "byteNonZero", mt);
+			s_booleanGetter = filterReturnValue(s_byteGetter, mh);
+
+			mt = methodType(ByteBuffer.class, ByteOrder.class);
+			mh = l.findVirtual(ByteBuffer.class, "order", mt);
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+
+		/*
+		 * "nativeOrderer" is the ByteBuffer.order(o) method, with the correct
+		 * native order bound in as o.
+		 */
+		s_nativeOrderer = insertArguments(mh, 1, ByteOrder.nativeOrder());
+	}
+
+	/**
+	 * Converts a byte value to boolean as the JNI code does, where any nonzero
+	 * value is true.
+	 *<p>
+	 * There is a {@code MethodHandles.explicitCastArguments} that will cast a
+	 * byte to boolean by considering only the low bit. I don't trust it.
+	 */
+	private static boolean byteNonZero(byte b)
+	{
+		return 0 != b;
 	}
 
 	/**

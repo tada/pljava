@@ -188,6 +188,10 @@ void Function_initialize(void)
 		},
 		{ 0, 0, 0 }
 	};
+
+	StaticAssertStmt(org_postgresql_pljava_internal_Function_s_sizeof_jvalue
+		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
+
 	s_funcMap = HashMap_create(59, TopMemoryContext);
 	
 	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
