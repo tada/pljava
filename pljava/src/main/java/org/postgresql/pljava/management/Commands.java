@@ -1158,8 +1158,18 @@ public class Commands
 			addClassImages(jarId, imageStream, image.length);
 		}
 		Loader.clearSchemaLoaders();
-		if(deploy)
+		if(!deploy)
+			return;
+
+		try
+		{
 			deployInstall(jarId, jarName);
+		}
+		catch ( Error | RuntimeException | SQLException e )
+		{
+			Loader.clearSchemaLoaders();
+			throw e;
+		}
 	}
 
 	private static void replaceJar(String urlString, String jarName,
@@ -1219,7 +1229,17 @@ public class Commands
 			addClassImages(jarId, imageStream, image.length);
 		}
 		Loader.clearSchemaLoaders();
-		if(redeploy)
+		if(!redeploy)
+			return;
+
+		try
+		{
 			deployInstall(jarId, jarName);
+		}
+		catch ( Error | RuntimeException | SQLException e )
+		{
+			Loader.clearSchemaLoaders();
+			throw e;
+		}
 	}
 }
