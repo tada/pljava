@@ -35,7 +35,7 @@ backend JVMs and the per-JVM startup time. It is [described here][ej9cds].
 The OpenJ9 class-sharing feature is similar to Hotspot's
 [application class data sharing][iads], but with a major advantage in the
 context of PL/Java: it is able to share not only classes of the Java runtime
-itself and those on `pljava.classpath` (PL/Java's own internals), but also
+itself and those on `pljava.module_path` (PL/Java's own internals), but also
 classes from application jars loaded with `sqlj.install_jar`. The Hotspot
 counterpart can share only the first two of those categories.
 

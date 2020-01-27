@@ -85,11 +85,12 @@ extern char *pljavaDbName();
 extern char const *pljavaClusterName();
 
 /*
- * Construct a default for pljava.classpath ($sharedir/pljava/pljava-$VER.jar)
- * in pathbuf (which must have length at least MAXPGPATH), and return pathbuf,
- * or NULL if the constructed path would not fit. (pathbuf, pathSepChar).
+ * Construct a default for pljava.module_path ($sharedir/pljava/pljava-$VER.jar
+ * and pljava-api-$VER.jar) in pathbuf (which must have length at least
+ * MAXPGPATH), and return pathbuf, or NULL if the constructed path would not
+ * fit. (pathbuf, pathSepChar).
  */
-extern char const *InstallHelper_defaultClassPath(char *, char);
+extern char const *InstallHelper_defaultModulePath(char *, char);
 
 /*
  * Return true if in a 'viable' transaction (not aborted or abort pending).

@@ -140,11 +140,14 @@ things right on the first try, you might set them after, too.) For example:
     before calling the installation complete. Some are described on the
     [VM options page][vmop].
 
-`pljava.classpath`
+`pljava.module_path`
 : There is probably no need to set this variable unless installation locations
     were changed, in which case, it should be set to the final installed full
-    pathname of the file that is called
-    `pljava/sharedir/pljava/pljava-${project.version}.jar` in the installer jar.
+    pathnames of the files that are called
+    `pljava/sharedir/pljava/pljava-${project.version}.jar` and
+    `pljava/sharedir/pljava/pljava-api-${project.version}.jar` in the installer
+    jar. The pathnames should be separated by the appropriate character for your
+    platform; often a colon, or a semicolon on Windows.
     Note: this variable isn't meant to point to the code you develop and
     use in PL/Java---that's what the [`sqlj.install_jar function`][sqjij]
     is for.
@@ -295,7 +298,7 @@ PostgreSQL superuser), the commands for first-time PL/Java setup are:
 ```
 SET client_min_messages TO NOTICE; -- or anything finer (INFO, DEBUG, ...)
 SET pljava.libjvm_location TO ' use the libjvm path here ';
-SET pljava.classpath TO ' use the pljava.jar path here ';
+SET pljava.module_path TO ' use the pljava and pljava-api jar paths here ';
 LOAD ' use the PL/Java native library path here ';
 ```
 (The `client_min_messages` setting is only to ensure you do not miss
@@ -308,9 +311,9 @@ in the [`examples.jar` supplied in the build][examples].
 
 [examples]: ../examples/examples.html
 
-Although typically only `pljava.libjvm_location` and `pljava.classpath` need
-to be set, there is a [reference to PL/Java configuration variables][varref]
-if you need it.
+Although typically only `pljava.libjvm_location` and `pljava.module_path` need
+to be right for PL/Java to function, there is a
+[reference to PL/Java configuration variables][varref] if you need it.
 
 [varref]: ../use/variables.html
 
@@ -352,9 +355,10 @@ given just the basename of the file instead of a full path. Or, if
 `dynamic_library_path` is already set, the file can be placed in any
 directory on that list for the same effect.
 
-If the `pljava-\${project.version}.jar` file is placed in the default location
+If the `pljava-\${project.version}.jar` and `pljava-api-\${project.version}.jar`
+files are placed in the default location
 (typically a `pljava` subdirectory of the PostgreSQL "share" directory), then
-`pljava.classpath` will not need to be set.
+`pljava.module_path` will not need to be set.
 
 The self-extracting jar file produced by the build, assuming it is run with
 adequate permission, will extract the files into appropriate locations

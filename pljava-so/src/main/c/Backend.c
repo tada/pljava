@@ -115,7 +115,7 @@ static jmethodID s_setTrusted;
  */
 static char* libjvmlocation;
 static char* vmoptions;
-static char* classpath;
+static char* modulepath;
 static char* implementors;
 static int   statementCacheSize;
 static bool  pljavaDebug;
@@ -167,7 +167,7 @@ static void JVMOptList_delete(JVMOptList*);
 static void JVMOptList_add(JVMOptList*, const char*, void*, bool);
 static void JVMOptList_addVisualVMName(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
-static char* getClassPath(const char*);
+static char* getModulePath(const char*);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
@@ -229,7 +229,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 		char **newval, void **extra, GucSource source);
 	static bool check_vmoptions(
 		char **newval, void **extra, GucSource source);
-	static bool check_classpath(
+	static bool check_modulepath(
 		char **newval, void **extra, GucSource source);
 	static bool check_enabled(
 		bool *newval, void **extra, GucSource source);
@@ -280,17 +280,17 @@ static void initsequencer(enum initstage is, bool tolerant);
 		return false;
 	}
 
-	static bool check_classpath(
+	static bool check_modulepath(
 		char **newval, void **extra, GucSource source)
 	{
 		if ( initstage < IS_JAVAVM_OPTLIST )
 			return true;
-		if ( classpath == *newval )
+		if ( modulepath == *newval )
 			return true;
-		if ( classpath && *newval && 0 == strcmp(classpath, *newval) )
+		if ( modulepath && *newval && 0 == strcmp(modulepath, *newval) )
 			return true;
 		GUC_check_errmsg(
-			"too late to change \"pljava.classpath\" setting");
+			"too late to change \"pljava.module_path\" setting");
 		GUC_check_errdetail(
 			"Changing the setting has no effect after "
 			"PL/Java has started the Java virtual machine.");
@@ -412,10 +412,10 @@ ASSIGNSTRINGHOOK(vmoptions)
 	ASSIGNRETURN(newval);
 }
 
-ASSIGNSTRINGHOOK(classpath)
+ASSIGNSTRINGHOOK(modulepath)
 {
 	ASSIGNRETURNIFCHECK(newval);
-	classpath = (char *)newval;
+	modulepath = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		ASSIGNRETURNIFNXACT(newval);
@@ -593,10 +593,10 @@ static void initsequencer(enum initstage is, bool tolerant)
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
-		effectiveClassPath = getClassPath("--module-path=");
-		if(effectiveClassPath != 0)
+		effectiveModulePath = getModulePath("--module-path=");
+		if(effectiveModulePath != 0)
 		{
-			JVMOptList_add(&optList, effectiveClassPath, 0, true);
+			JVMOptList_add(&optList, effectiveModulePath, 0, true);
 		}
 		initstage = IS_JAVAVM_OPTLIST;
 
@@ -670,12 +670,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 		{
 			/* JVM initialization failed for some reason. Destroy
 			 * the VM if it exists. Perhaps the user will try
-			 * fixing the pljava.classpath and make a new attempt.
+			 * fixing the pljava.module_path and make a new attempt.
 			 */
 			ereport(WARNING, (
 				errmsg("failed to load initial PL/Java classes"),
-				errhint("The most common reason is that \"pljava.classpath\" "
-					"needs to be set, naming the proper \"pljava.jar\" file.")
+				errhint("The most common reason is that \"pljava.module_path\" "
+					"needs to be set, naming the proper \"pljava.jar\" "
+					"and \"pljava-api.jar\" files, separated by the correct "
+					"path separator for this platform.")
 					));
 			pljava_DualState_unregister();
 			_destroyJavaVM(0, 0);
@@ -951,7 +953,8 @@ static void initPLJavaClasses(void)
 
 	Exception_initialize();
 
-	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
+	elog(DEBUG2,
+		"checking for a PL/Java Backend class on the given module path");
 
 	cls = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Backend$EarlyNatives");
@@ -1090,7 +1093,7 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			else
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name '%*s' in PL/Java classpath",
+					errmsg("invalid macro name '%*s' in PL/Java module path",
 						(int)len, path)));
 		}
 
@@ -1118,17 +1121,17 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 }
 
 /*
- * Get the CLASSPATH. Result is always freshly palloc'd.
+ * Get the module path. Result is always freshly palloc'd.
  * No longer relies on an environment variable. What CLASSPATH variable might
  * happen to be randomly set in the environment of a PostgreSQL backend?
  */
-static char* getClassPath(const char* prefix)
+static char* getModulePath(const char* prefix)
 {
 	char* path;
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendPathParts(classpath, &buf, unique, prefix);
+	appendPathParts(modulepath, &buf, unique, prefix);
 	PgObject_free((PgObject)unique);
 	path = buf.data;
 	if(strlen(path) == 0)
@@ -1541,15 +1544,15 @@ static void registerGUCOptions(void)
 		NULL); /* show hook */
 
 	STRING_GUC(
-		"pljava.classpath",
-		"Classpath used by the JVM",
+		"pljava.module_path",
+		"Module path to be used by the JVM",
 		NULL, /* extended description */
-		&classpath,
-		InstallHelper_defaultClassPath(pathbuf, s_path_var_sep),/* boot value */
+		&modulepath,
+		InstallHelper_defaultModulePath(pathbuf,s_path_var_sep),/* boot value */
 		PGC_SUSET,
 		0,    /* flags */
-		check_classpath,
-		assign_classpath,
+		check_modulepath,
+		assign_modulepath,
 		NULL); /* show hook */
 
 	BOOL_GUC(

@@ -475,7 +475,7 @@ finally:
 	return result;
 }
 
-char const *InstallHelper_defaultClassPath(char *pathbuf, char pathsep)
+char const *InstallHelper_defaultModulePath(char *pathbuf, char pathsep)
 {
 	char * const pbend = pathbuf + MAXPGPATH;
 	char *pbp = pathbuf;

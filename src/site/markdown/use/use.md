@@ -28,11 +28,6 @@ If not using Maven, you can simply add the `pljava-api` jar file to the
 class path for your Java compiler. Installation normally places the file
 in `SHAREDIR/pljava` where `SHAREDIR` is as reported by `pg_config`.
 
-You can also compile successfully by placing the full `pljava` jar
-file on the classpath instead of `pljava-api`, but in that case the
-compiler will not alert you if your code inadvertently refers to non-API
-internal PL/Java classes that may change from release to release.
-
 ## Special topics
 
 ### Choices when mapping data types
