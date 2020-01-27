@@ -175,12 +175,6 @@ extern const char* Type_getJavaTypeName(Type self);
 extern const char* Type_getJNISignature(Type self);
 
 /*
- * Returns the JNI signature used when returning instances
- * of this type.
- */
-extern const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr);
-
-/*
  * Returns the array Type. The type is created if it doesn't exist
  */
 extern Type Type_getArrayType(Type self, Oid arrayTypeId);

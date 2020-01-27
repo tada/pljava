@@ -98,11 +98,6 @@ struct Function_
 	 */
 	jweak schemaLoader;
 
-	/**
-	 * MethodHandle to the resolved Java method implementing the function.
-	 */
-	jobject methodHandle;
-
 	union
 	{
 		struct
@@ -140,10 +135,10 @@ struct Function_
 		 */
 		jobject typeMap;
 
-		/*
-		 * The static method that should be called.
+		/**
+		 * MethodHandle to the resolved Java method implementing the function.
 		 */
-		jmethodID method;
+		jobject methodHandle;
 		} nonudt;
 		
 		struct
@@ -178,9 +173,9 @@ static void _Function_finalize(PgObject func)
 {
 	Function self = (Function)func;
 	JNI_deleteGlobalRef(self->clazz);
-	JNI_deleteGlobalRef(self->methodHandle);
 	if(!self->isUDT)
 	{
+		JNI_deleteGlobalRef(self->func.nonudt.methodHandle);
 		if(self->func.nonudt.typeMap != 0)
 			JNI_deleteGlobalRef(self->func.nonudt.typeMap);
 		if(self->func.nonudt.paramTypes != 0)
@@ -275,88 +270,80 @@ jobject pljava_Function_refInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_invoke, self->methodHandle, references, primitives);
+		s_Function_invoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 void pljava_Function_voidInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	JNI_callStaticVoidMethod(s_Function_class,
-		s_Function_voidInvoke, self->methodHandle, references, primitives);
+		s_Function_voidInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jboolean pljava_Function_booleanInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticBooleanMethod(s_Function_class,
-		s_Function_booleanInvoke, self->methodHandle, references, primitives);
+		s_Function_booleanInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jbyte pljava_Function_byteInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticByteMethod(s_Function_class,
-		s_Function_byteInvoke, self->methodHandle, references, primitives);
+		s_Function_byteInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jshort pljava_Function_shortInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticShortMethod(s_Function_class,
-		s_Function_shortInvoke, self->methodHandle, references, primitives);
+		s_Function_shortInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jchar pljava_Function_charInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticCharMethod(s_Function_class,
-		s_Function_charInvoke, self->methodHandle, references, primitives);
+		s_Function_charInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jint pljava_Function_intInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticIntMethod(s_Function_class,
-		s_Function_intInvoke, self->methodHandle, references, primitives);
+		s_Function_intInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jfloat pljava_Function_floatInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticFloatMethod(s_Function_class,
-		s_Function_floatInvoke, self->methodHandle, references, primitives);
+		s_Function_floatInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jlong pljava_Function_longInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticLongMethod(s_Function_class,
-		s_Function_longInvoke, self->methodHandle, references, primitives);
+		s_Function_longInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 jdouble pljava_Function_doubleInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
 	return JNI_callStaticDoubleMethod(s_Function_class,
-		s_Function_doubleInvoke, self->methodHandle, references, primitives);
-}
-
-static void buildSignature(Function self, StringInfo sign, Type retType, bool alt)
-{
-	Type* tp = self->func.nonudt.paramTypes;
-	/*Type* ep = tp + self->func.nonudt.numParams;
-
-	appendStringInfoChar(sign, '(');
-	while(tp < ep)
-		appendStringInfoString(sign, Type_getJNISignature(*tp++));
-
-	if(!self->func.nonudt.isMultiCall && Type_isOutParameter(retType))
-		appendStringInfoString(sign, Type_getJNISignature(retType));
-
-	appendStringInfoChar(sign, ')');
-	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
-	*/
-	elog(ERROR, "Function.buildSignature called");
+		s_Function_doubleInvoke, self->func.nonudt.methodHandle,
+		references, primitives);
 }
 
 static jstring getSchemaName(int namespaceOid)
@@ -405,73 +392,6 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 	return t;
 }
 
-static void Function_getMethodID(Function self, jstring methodNameJ)
-{
-	char *className = PgObject_getClassName(self->clazz);
-	char *methodName = String_createNTS(methodNameJ);
-	StringInfoData sign;
-	initStringInfo(&sign);
-	buildSignature(self, &sign, self->func.nonudt.returnType, false);
-
-	elog(DEBUG2, "Obtaining method %s.%s %s", className, methodName, sign.data);
-	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz,
-		methodName, sign.data);
-
-	if(self->func.nonudt.method == 0)
-	{
-		char* origSign = sign.data;
-		Type altType = 0;
-		Type realRetType = self->func.nonudt.returnType;
-
-		elog(DEBUG2, "Method %s.%s %s not found", className, methodName, origSign);
-
-		if(Type_isPrimitive(self->func.nonudt.returnType))
-		{
-			/*
-			 * One valid reason for not finding the method is when
-			 * the return type used in the signature is a primitive and
-			 * the true return type of the method is the object class that
-			 * corresponds to that primitive.
-			 */
-			altType = Type_getObjectType(self->func.nonudt.returnType);
-			realRetType = altType;
-		}
-		else if(strcmp(Type_getJavaTypeName(self->func.nonudt.returnType), "java.sql.ResultSet") == 0)
-		{
-			/*
-			 * Another reason might be that we expected a ResultSetProvider
-			 * but the implementation returns a ResultSetHandle that needs to be
-			 * wrapped. The wrapping is internal so we retain the original
-			 * return type anyway.
-			 */
-			altType = realRetType;
-		}
-
-		if(altType != 0)
-		{
-			JNI_exceptionClear();
-			initStringInfo(&sign);
-			buildSignature(self, &sign, altType, true);
-
-			elog(DEBUG2, "Obtaining method %s.%s %s", className, methodName, sign.data);
-			self->func.nonudt.method =
-				JNI_getStaticMethodIDOrNull(self->clazz, methodName, sign.data);
-	
-			if(self->func.nonudt.method != 0)
-				self->func.nonudt.returnType = realRetType;
-		}
-		if(self->func.nonudt.method == 0)
-			PgObject_throwMemberError(self->clazz, methodName, origSign,
-				true, true);
-
-		if(sign.data != origSign)
-			pfree(origSign);
-	}
-	pfree(sign.data);
-	pfree(className);
-	pfree(methodName);
-}
-
 static Function Function_create(PG_FUNCTION_ARGS)
 {
 	Function self =
@@ -505,7 +425,7 @@ static Function Function_create(PG_FUNCTION_ARGS)
 
 	if ( NULL != handle )
 	{
-		self->methodHandle = JNI_newGlobalRef(handle);
+		self->func.nonudt.methodHandle = JNI_newGlobalRef(handle);
 		JNI_deleteLocalRef(handle);
 	}
 

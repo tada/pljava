@@ -115,7 +115,6 @@ struct TypeClass_
 	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
 	void (*closeSRF)(Type self, jobject producer);
 	const char* (*getJNISignature)(Type self);
-	const char* (*getJNIReturnSignature)(Type self, bool forMultiCall, bool useAltRepr);
 
 	/*
 	 * Returns the TupleDesc that corresponds to this type.

@@ -392,11 +392,6 @@ const char* Type_getJNISignature(Type self)
 	return self->typeClass->getJNISignature(self);
 }
 
-const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return self->typeClass->getJNIReturnSignature(self, forMultiCall, useAltRepr);
-}
-
 Type Type_getArrayType(Type self, Oid arrayTypeId)
 {
 	Type arrayType = self->arrayType;
@@ -804,11 +799,6 @@ static const char* _Type_getJNISignature(Type self)
 	return self->typeClass->JNISignature;
 }
 
-static const char* _Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return forMultiCall ? "Ljava/util/Iterator;" : Type_getJNISignature(self);
-}
-
 TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 {
 	ereport(ERROR,
@@ -966,7 +956,6 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	self->closeSRF        = _Type_closeSRF;
 	self->getTupleDesc    = _Type_getTupleDesc;
 	self->getJNISignature = _Type_getJNISignature;
-	self->getJNIReturnSignature = _Type_getJNIReturnSignature;
 	self->dynamic         = false;
 	self->outParameter    = false;
 	self->getRealType     = _Type_getRealType;

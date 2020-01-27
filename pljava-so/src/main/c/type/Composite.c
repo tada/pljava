@@ -230,15 +230,6 @@ static TupleDesc _Composite_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return td;
 }
 
-static const char* _Composite_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return forMultiCall
-		? (useAltRepr
-			? "Lorg/postgresql/pljava/ResultSetHandle;"
-			: "Lorg/postgresql/pljava/ResultSetProvider;")
-		: "Z";
-}
-
 Type Composite_obtain(Oid typeId)
 {
 	Composite infant = (Composite)TypeClass_allocInstance(s_CompositeClass, typeId);
@@ -281,7 +272,6 @@ void Composite_initialize(void)
 	s_CompositeClass->hasNextSRF      = _Composite_hasNextSRF;
 	s_CompositeClass->nextSRF         = _Composite_nextSRF;
 	s_CompositeClass->closeSRF        = _Composite_closeSRF;
-	s_CompositeClass->getJNIReturnSignature = _Composite_getJNIReturnSignature;
 	s_CompositeClass->outParameter    = true;
 
 	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);
