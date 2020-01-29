@@ -99,6 +99,16 @@ extern jlong pljava_Function_longInvoke(
 extern jdouble pljava_Function_doubleInvoke(
 	Function self, jobjectArray references, jobject primitives);
 
+extern void pljava_Function_udtWriteInvoke(jobject value, jobject stream);
+extern jstring pljava_Function_udtToStringInvoke(jobject value);
+extern jobject pljava_Function_udtReadInvoke(
+	jobject readMH, jobject stream, jstring typeName);
+extern jobject pljava_Function_udtParseInvoke(
+	jobject parseMH, jstring stringRep, jstring typeName);
+
+extern jobject pljava_Function_udtReadHandle(jclass clazz);
+extern jobject pljava_Function_udtParseHandle(jclass clazz);
+
 /*
  * Returns the Type Map that is associated with the function
  */

@@ -67,6 +67,12 @@ static jmethodID s_Function_intInvoke;
 static jmethodID s_Function_floatInvoke;
 static jmethodID s_Function_longInvoke;
 static jmethodID s_Function_doubleInvoke;
+static jmethodID s_Function_udtWriteInvoke;
+static jmethodID s_Function_udtToStringInvoke;
+static jmethodID s_Function_udtReadInvoke;
+static jmethodID s_Function_udtParseInvoke;
+static jmethodID s_Function_udtReadHandle;
+static jmethodID s_Function_udtParseHandle;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
 
@@ -195,7 +201,8 @@ void Function_initialize(void)
 		},
 		{
 		"_storeToUDT",
-		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII)V",
+		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII"
+		"Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V",
 		Java_org_postgresql_pljava_internal_Function__1storeToUDT
 		},
 		{
@@ -258,6 +265,24 @@ void Function_initialize(void)
 	s_Function_doubleInvoke = PgObject_getStaticJavaMethod(s_Function_class,
 		"doubleInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)D");
+
+	s_Function_udtWriteInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtWriteInvoke", "(Ljava/sql/SQLData;Ljava/sql/SQLOutput;"
+		")V");
+	s_Function_udtToStringInvoke = PgObject_getStaticJavaMethod(
+		s_Function_class,
+		"udtToStringInvoke", "(Ljava/sql/SQLData;)Ljava/lang/String;");
+	s_Function_udtReadInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtReadInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/sql/SQLInput;"
+		"Ljava/lang/String;)Ljava/sql/SQLData;");
+	s_Function_udtParseInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtParseInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/sql/SQLData;");
+
+	s_Function_udtReadHandle = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtReadHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
+	s_Function_udtParseHandle = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtParseHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
 
@@ -346,6 +371,44 @@ jdouble pljava_Function_doubleInvoke(
 		references, primitives);
 }
 
+void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
+{
+	JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtWriteInvoke, value, stream);
+}
+
+jstring pljava_Function_udtToStringInvoke(jobject value)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtToStringInvoke, value);
+}
+
+jobject pljava_Function_udtReadInvoke(
+	jobject readMH, jobject stream, jstring typeName)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtReadInvoke, readMH, stream, typeName);
+}
+
+jobject pljava_Function_udtParseInvoke(
+	jobject parseMH, jstring stringRep, jstring typeName)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtParseInvoke, parseMH, stringRep, typeName);
+}
+
+jobject pljava_Function_udtReadHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtReadHandle, clazz);
+}
+
+jobject pljava_Function_udtParseHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtParseHandle, clazz);
+}
+
 static jstring getSchemaName(int namespaceOid)
 {
 	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, namespaceOid, "namespace");
@@ -387,7 +450,8 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 	ReleaseSysCache(procTup);
 
 	if ( NULL != clazz )
-		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
+		t = (Type)
+			UDT_registerUDT(clazz, typeId, typeStruct, 0, true, NULL, NULL);
 
 	return t;
 }
@@ -811,12 +875,13 @@ JNIEXPORT jboolean JNICALL
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToUDT
- * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZII)V
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZIILjava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V
  */
 JNIEXPORT void JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
-	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId)
+	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId,
+	jobject parseMH, jobject readMH)
 {
 	Ptr2Long p2l;
 	Function self;
@@ -837,7 +902,8 @@ JNIEXPORT void JNICALL
 		typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
 		pgType = (Form_pg_type)GETSTRUCT(typeTup);
 		self->func.udt.udt =
-			UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
+			UDT_registerUDT(
+				self->clazz, udtId, pgType, 0, true, parseMH, readMH);
 		ReleaseSysCache(typeTup);
 
 		switch ( funcInitial )

@@ -15,12 +15,15 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import static java.lang.invoke.MethodHandles.arrayElementGetter;
+import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
+import static java.lang.invoke.MethodHandles.identity;
 import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
+import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.lang.invoke.MethodHandles.publicLookup;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
@@ -38,6 +41,8 @@ import java.nio.ByteOrder;
 import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLInput;
+import java.sql.SQLOutput;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
@@ -450,6 +455,8 @@ public class Function
 	private static final MethodHandle s_doubleGetter;
 	private static final MethodHandle s_nativeOrderer;
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
+	private static final MethodHandle s_readSQL_mh;
+
 
 	static
 	{
@@ -479,6 +486,9 @@ public class Function
 
 			mt = methodType(ByteBuffer.class, ByteOrder.class);
 			mh = l.findVirtual(ByteBuffer.class, "order", mt);
+
+			s_readSQL_mh = l.findVirtual(SQLData.class, "readSQL",
+					methodType(void.class, SQLInput.class, String.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -574,6 +584,98 @@ public class Function
 		return (double)mh.invokeExact(references, primitives);
 	}
 
+	private static void udtWriteInvoke(SQLData o, SQLOutput stream)
+	throws SQLException
+	{
+		o.writeSQL(stream);
+	}
+
+	private static String udtToStringInvoke(SQLData o)
+	{
+		return o.toString();
+	}
+
+	/*
+	 * Expect a MethodHandle that composes the allocation of a new instance
+	 * by its no-arg constructor with the call of readSQL.
+	 */
+	private static SQLData udtReadInvoke(
+		MethodHandle mh, SQLInput stream, String typeName)
+	throws Throwable
+	{
+		return (SQLData)mh.invokeExact(stream, typeName);
+	}
+
+	/*
+	 * Expect a MethodHandle to the class's static parse method, which will
+	 * allocate and return an instance.
+	 */
+	private static SQLData udtParseInvoke(
+		MethodHandle mh, String stringRep, String typeName)
+	throws Throwable
+	{
+		return (SQLData)mh.invokeExact(stringRep, typeName);
+	}
+
+	/**
+	 * Return a "construct+readSQL" method handle for a given UDT class.
+	 *<p>
+	 * The method handle will expect the two non-receiver arguments for
+	 * {@code readSQL}, construct a new instance of the class, invoke
+	 * {@code readSQL} on that instance and the two supplied arguments,
+	 * and return the instance.
+	 */
+	private static MethodHandle udtReadHandle(Class<? extends SQLData> clazz)
+	throws SQLException
+	{
+		Lookup l = lookupFor(clazz);
+		MethodHandle ctor;
+
+		try
+		{
+			ctor = l.findConstructor(clazz, methodType(void.class));
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new SQLNonTransientException(
+				"Java UDT implementing class " + clazz.getCanonicalName() +
+				" must have a no-argument public constructor", "38000", e);
+		}
+
+		MethodHandle mh = identity(SQLData.class); // o -> o
+		mh = collectArguments(mh, 1, s_readSQL_mh); // (o, o, stream, type) -> o
+		mh = permuteArguments(mh, methodType(
+			SQLData.class, SQLData.class, SQLInput.class, String.class),
+			0, 0, 1, 2); // (o, stream, type) -> o
+		ctor = ctor.asType(methodType(SQLData.class));
+		mh = collectArguments(mh, 0, ctor); // (stream, type) -> o
+		return mh;
+	}
+
+	/**
+	 * Return a "parse" method handle for a given UDT class.
+	 */
+	private static MethodHandle udtParseHandle(Class<? extends SQLData> clazz)
+	throws SQLException
+	{
+		Lookup l = lookupFor(clazz);
+
+		try
+		{
+			return l.findStatic(clazz, "parse",
+				methodType(clazz, String.class, String.class))
+				.asType(methodType(SQLData.class, String.class, String.class));
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new SQLNonTransientException(
+				"Java scalar-UDT implementing class " +
+				clazz.getCanonicalName() +
+				" must have a public static parse(String,String) method",
+				"38000", e);
+		}
+	}
+
 	/**
 	 * Parse the function specification in {@code procTup}, initializing most
 	 * fields of the C {@code Function} structure, and returning a
@@ -636,7 +738,8 @@ public class Function
 
 		if ( isUDT )
 		{
-			setupUDT(wrappedPtr, info, procTup, schemaLoader, clazz, readOnly);
+			setupUDT(wrappedPtr, info, procTup, schemaLoader,
+				clazz.asSubclass(SQLData.class), readOnly);
 			return null;
 		}
 
@@ -672,7 +775,8 @@ public class Function
 	 */
 	private static void setupUDT(
 		long wrappedPtr, Matcher info, ResultSet procTup,
-		ClassLoader schemaLoader, Class<?> clazz, boolean readOnly)
+		ClassLoader schemaLoader, Class<? extends SQLData> clazz,
+		boolean readOnly)
 	throws SQLException
 	{
 		String udtFunc = info.group("udtfun");
@@ -692,9 +796,12 @@ public class Function
 			throw new SQLException("internal error in PL/Java UDT parsing");
 		}
 
+		MethodHandle parseMH = 'i' == udtInitial ? udtParseHandle(clazz) : null;
+		MethodHandle readMH = udtReadHandle(clazz);
+
 		doInPG(() -> _storeToUDT(wrappedPtr, schemaLoader,
-			clazz.asSubclass(SQLData.class), readOnly, udtInitial,
-			udtId.intValue()));
+			clazz, readOnly, udtInitial, udtId.intValue(),
+			parseMH, readMH));
 	}
 
 	/**
@@ -1152,7 +1259,8 @@ public class Function
 	private static native void _storeToUDT(
 		long wrappedPtr, ClassLoader schemaLoader,
 		Class<? extends SQLData> clazz,
-		boolean readOnly, int funcInitial, int udtOid);
+		boolean readOnly, int funcInitial, int udtOid,
+		MethodHandle readMH, MethodHandle parseMH);
 
 	private static native void _reconcileTypes(
 		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);

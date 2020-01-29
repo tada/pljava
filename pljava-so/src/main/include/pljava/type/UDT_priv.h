@@ -31,11 +31,8 @@ struct UDT_
 
 	jstring   sqlTypeName;
 	bool      hasTupleDesc;
-	jmethodID init;
-	jmethodID parse;
-	jmethodID toString;
-	jmethodID readSQL;
-	jmethodID writeSQL;
+	jobject parse;
+	jobject readSQL;
 };
 
 extern Datum _UDT_coerceObject(Type self, jobject jstr);

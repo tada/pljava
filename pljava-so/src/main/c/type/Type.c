@@ -656,7 +656,8 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 			bool hasTupleDesc = NULL != tupleDesc;
 			if ( hasTupleDesc )
 				ReleaseTupleDesc(tupleDesc);
-			type = (Type)UDT_registerUDT(typeClass, typeId, typeStruct, hasTupleDesc, false);
+			type = (Type)UDT_registerUDT(
+				typeClass, typeId, typeStruct, hasTupleDesc, false, NULL, NULL);
 			JNI_deleteLocalRef(typeClass);
 			goto finally;
 		}
