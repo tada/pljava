@@ -72,7 +72,6 @@ you expect.
 Please review any of the following that apply to your situation:
 
 * [Version compatibility](versions.html)
-* [Maven failures when downloading dependencies][protofail]
 * Building on [FreeBSD](freebsd.html)
 * Building on [Mac OS X](macosx.html)
 * Building on [Solaris](solaris.html)

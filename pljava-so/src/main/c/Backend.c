@@ -166,6 +166,7 @@ static void JVMOptList_init(JVMOptList*);
 static void JVMOptList_delete(JVMOptList*);
 static void JVMOptList_add(JVMOptList*, const char*, void*, bool);
 static void JVMOptList_addVisualVMName(JVMOptList*);
+static void JVMOptList_addModuleMain(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static char* getModulePath(const char*);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
@@ -206,7 +207,9 @@ static bool jvmStartedAtLeastOnce = false;
 static bool alteredSettingsWereNeeded = false;
 static bool loadAsExtensionFailed = false;
 static bool seenVisualVMName;
+static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
+static char const moduleMainPrefix[] = "-Djdk.module.main=";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -586,9 +589,12 @@ static void initsequencer(enum initstage is, bool tolerant)
 	case IS_MISC_ONCE_DONE:
 		JVMOptList_init(&optList); /* uses CurrentMemoryContext */
 		seenVisualVMName = false;
+		seenModuleMain = false;
 		addUserJVMOptions(&optList);
 		if ( ! seenVisualVMName )
 			JVMOptList_addVisualVMName(&optList);
+		if ( ! seenModuleMain )
+			JVMOptList_addModuleMain(&optList);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
@@ -1295,6 +1301,9 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	if ( 0 == strncmp(optString, visualVMprefix, sizeof visualVMprefix - 1) )
 		seenVisualVMName = true;
 
+	if ( 0 == strncmp(optString, moduleMainPrefix, sizeof moduleMainPrefix-1) )
+		seenModuleMain = true;
+
 	elog(DEBUG2, "Added JVM option string \"%s\"", optString);
 }
 
@@ -1309,6 +1318,15 @@ static void JVMOptList_addVisualVMName(JVMOptList* jol)
 	else
 		appendStringInfo(&buf, "%sPL/Java:%s:%d:%s",
 			visualVMprefix, clustername, MyProcPid, pljavaDbName());
+	JVMOptList_add(jol, buf.data, 0, false);
+}
+
+static void JVMOptList_addModuleMain(JVMOptList* jol)
+{
+	StringInfoData buf;
+	initStringInfo(&buf);
+	appendStringInfo(&buf, "%s%s",
+		moduleMainPrefix, "org.postgresql.pljava");
 	JVMOptList_add(jol, buf.data, 0, false);
 }
 

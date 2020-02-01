@@ -15,7 +15,7 @@ the name `libjvm.*` under the Java home directory (which is reported
 by `mvn -v` assuming the JRE that you used for running Maven is the
 one you intend to use at run time).
 
-The filename extension may be `.so` on many systems, `.dylib` on Mac OS X
+The filename extension may be `.so` on many systems, `.bundle` on Mac OS X
 (see the [Mac OS X build notes](../build/macosx.html) for more about OS X),
 or `.dll` on Windows. As Windows also leaves off the `lib` in front, on
 that platform you would look for `jvm.dll`.
