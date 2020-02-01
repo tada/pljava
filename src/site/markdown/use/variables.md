@@ -24,14 +24,11 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 `server_encoding`
 : Another non-PL/Java variable, this affects all text/character strings
     exchanged between PostgreSQL and Java. `UTF8` as the database and server
-    encoding is _strongly_ recommended. If a different encoding is used, it
+    encoding is strongly recommended. If a different encoding is used, it
     should be any of the available _fully defined_ character encodings. In
-    particular, the PostgreSQL pseudo-encoding `SQL_ASCII` (which means
-    "characters within ASCII are ASCII, others are no-one-knows-what") will
-    _not_ work well with PL/Java, raising exceptions whenever strings contain
-    non-ASCII characters. (PL/Java can still be used in such a database, but
-    the application code needs to know what it's doing and use the right
-    conversion functions where needed.)
+    particular, the PostgreSQL pseudo-encoding `SQL_ASCII` does not fully
+    define what any values outside ASCII represent; it is usable, but
+    [subject to limitations][sqlascii].
 
 `pljava.debug`
 : A boolean variable that, if set `on`, stops the process on first entry to
@@ -183,4 +180,4 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [jow]: https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html
 [jou]: https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html
 [vmop]: ../install/vmoptions.html
-
+[sqlascii]: charsets.html#Using_PLJava_with_server_encoding_SQL_ASCII
