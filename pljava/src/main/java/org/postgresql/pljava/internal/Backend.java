@@ -30,6 +30,8 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.postgresql.pljava.elog.ELogHandler; // for javadoc
+
 import org.postgresql.pljava.management.Commands;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
@@ -275,7 +277,7 @@ public class Backend
 	 * {@link ELogHandler}.
 	 * @param str The message
 	 */
-	static void log(int logLevel, String str)
+	public static void log(int logLevel, String str)
 	{
 		doInPG(() -> _log(logLevel, str));
 	}

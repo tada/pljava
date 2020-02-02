@@ -23,123 +23,43 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<compilerArguments>
-						<h>${basedir}/target/javah-include</h>
-					</compilerArguments>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-shade-plugin</artifactId>
-				<version>1.4</version>
-				<configuration>
-					<createDependencyReducedPom>true</createDependencyReducedPom>
-					<filters>
-						<filter>
-							<artifact>*:*</artifact>
-							<excludes>
-								<exclude>META-INF/*.SF</exclude>
-								<exclude>META-INF/*.DSA</exclude>
-								<exclude>META-INF/*.RSA</exclude>
-							</excludes>
-						</filter>
-					</filters>
-				</configuration>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>shade</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<configuration>
-					<archive>
-						<manifestSections>
-							<manifestSection>
-								<name>org/postgresql/pljava/</name>
-								<!--
-								  This section totally doesn't belong here - it
-								  is crazy that the shade plugin cannot copy it
-								  from the manifest of the API jar being shaded
-								  in - even the manifest transformer is no help.
-								-->
-								<manifestEntries>
-									<Implementation-Title>
-										PL/Java API
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.dependencies[0].version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-							<manifestSection>
-								<name>org/postgresql/pljava/internal/</name>
-								<manifestEntries>
-									<Implementation-Title>
-										${project.name}
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-							<manifestSection>
-								<name>org/postgresql/pljava/jdbc/</name>
-								<manifestEntries>
-									<Implementation-Title>
-										${project.name}
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-							<manifestSection>
-								<name>org/postgresql/pljava/management/</name>
-								<manifestEntries>
-									<Implementation-Title>
-										${project.name}
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-							<manifestSection>
-								<name>org/postgresql/pljava/sqlj/</name>
-								<manifestEntries>
-									<Implementation-Title>
-										${project.name}
-									</Implementation-Title>
-									<Implementation-Version>
-										${project.version}
-									</Implementation-Version>
-									<Implementation-Vendor>
-										${project.organization.name}
-									</Implementation-Vendor>
-								</manifestEntries>
-							</manifestSection>
-						</manifestSections>
-					</archive>
+					<compilerArgs>
+						<arg>-h</arg>
+						<arg>${basedir}/target/javah-include</arg>
+
+						<arg>--processor-module-path</arg>
+						<arg>${basedir}/../pljava-api/target/pljava-api-${project.version}.jar</arg>
+					</compilerArgs>
 				</configuration>
 			</plugin>
 		</plugins>
 	</build>
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<doctitle>${project.name} ${project.version}</doctitle>
+					<windowtitle>${project.name} ${project.version}</windowtitle>
+					<!-- If I tried to tell you why maven-javadoc-plugin 3.1.1 needs
+					   - this exact potpourri of weirdness just to avoid forcing
+					   - the javadoc tool to do the wrong thing, you would call me
+					   - crazy. See the git commit comment for more explanation.
+					  -->
+					<additionalOptions>
+						<additionalOption>--module</additionalOption>
+						<additionalOption>org.postgresql.pljava.internal</additionalOption>
+						<additionalOption>--show-module-contents</additionalOption>
+						<additionalOption>all</additionalOption>
+						<additionalOption>--show-packages</additionalOption>
+						<additionalOption>all</additionalOption>
+					</additionalOptions>
+					<sourceFileExcludes>
+						<sourceFileExclude>**/org/**/*.java</sourceFileExclude>
+					</sourceFileExcludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</reporting>
 </project>

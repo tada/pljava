@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -10,13 +10,9 @@
  *   Tada AB
  *   Purdue University
  */
-package org.postgresql.pljava.sqlgen;
+package org.postgresql.pljava.annotation.processing;
 
 import org.postgresql.pljava.annotation.Trigger;
-
-import static org.postgresql.pljava.annotation.Trigger.Event.DELETE;
-import static org.postgresql.pljava.annotation.Trigger.Event.INSERT;
-import static org.postgresql.pljava.annotation.Trigger.Event.TRUNCATE;
 
 /**
  * @author Thomas Hallgren - pre-Java6 version

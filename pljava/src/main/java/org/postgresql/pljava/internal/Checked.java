@@ -42,11 +42,11 @@ import java.util.NoSuchElementException;
  * constructions like:
  *
  *<pre>
- * Stream<String> strs = ...;
+ * Stream&lt;String&gt; strs = ...;
  * Writer w = ...;
- * var c = Checked.Consumer.of((String s) -> w.write(s)); // throws IOException!
+ * var c = Checked.Consumer.of((String s) -&gt; w.write(s)); // throws IOException!
  * try {
- *   c.ederUnwrap(() -> strs.forEach(c.ederWrap())).run();
+ *   c.ederUnwrap(() -&gt; strs.forEach(c.ederWrap())).run();
  * }
  * catch ( IOException e ) { ... }
  *</pre>

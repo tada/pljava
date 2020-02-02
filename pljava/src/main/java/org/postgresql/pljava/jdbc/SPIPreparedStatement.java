@@ -186,9 +186,6 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 			Types.CLOB);
 	}
 
-	/**
-	 * @deprecated
-	 */
 	@Override
 	public void setUnicodeStream(int columnIndex, InputStream value, int arg2) throws SQLException
 	{

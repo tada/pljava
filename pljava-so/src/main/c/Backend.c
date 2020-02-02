@@ -115,7 +115,7 @@ static jmethodID s_setTrusted;
  */
 static char* libjvmlocation;
 static char* vmoptions;
-static char* classpath;
+static char* modulepath;
 static char* implementors;
 static int   statementCacheSize;
 static bool  pljavaDebug;
@@ -135,6 +135,8 @@ static int   s_javaLogLevel;
 bool integerDateTimes = false;
 static void checkIntTimeType(void);
 #endif
+
+static char s_path_var_sep;
 
 extern void Invocation_initialize(void);
 extern void Exception_initialize(void);
@@ -164,8 +166,9 @@ static void JVMOptList_init(JVMOptList*);
 static void JVMOptList_delete(JVMOptList*);
 static void JVMOptList_add(JVMOptList*, const char*, void*, bool);
 static void JVMOptList_addVisualVMName(JVMOptList*);
+static void JVMOptList_addModuleMain(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
-static char* getClassPath(const char*);
+static char* getModulePath(const char*);
 static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
@@ -204,7 +207,9 @@ static bool jvmStartedAtLeastOnce = false;
 static bool alteredSettingsWereNeeded = false;
 static bool loadAsExtensionFailed = false;
 static bool seenVisualVMName;
+static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
+static char const moduleMainPrefix[] = "-Djdk.module.main=";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -227,7 +232,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 		char **newval, void **extra, GucSource source);
 	static bool check_vmoptions(
 		char **newval, void **extra, GucSource source);
-	static bool check_classpath(
+	static bool check_modulepath(
 		char **newval, void **extra, GucSource source);
 	static bool check_enabled(
 		bool *newval, void **extra, GucSource source);
@@ -278,17 +283,17 @@ static void initsequencer(enum initstage is, bool tolerant);
 		return false;
 	}
 
-	static bool check_classpath(
+	static bool check_modulepath(
 		char **newval, void **extra, GucSource source)
 	{
 		if ( initstage < IS_JAVAVM_OPTLIST )
 			return true;
-		if ( classpath == *newval )
+		if ( modulepath == *newval )
 			return true;
-		if ( classpath && *newval && 0 == strcmp(classpath, *newval) )
+		if ( modulepath && *newval && 0 == strcmp(modulepath, *newval) )
 			return true;
 		GUC_check_errmsg(
-			"too late to change \"pljava.classpath\" setting");
+			"too late to change \"pljava.module_path\" setting");
 		GUC_check_errdetail(
 			"Changing the setting has no effect after "
 			"PL/Java has started the Java virtual machine.");
@@ -410,10 +415,10 @@ ASSIGNSTRINGHOOK(vmoptions)
 	ASSIGNRETURN(newval);
 }
 
-ASSIGNSTRINGHOOK(classpath)
+ASSIGNSTRINGHOOK(modulepath)
 {
 	ASSIGNRETURNIFCHECK(newval);
-	classpath = (char *)newval;
+	modulepath = (char *)newval;
 	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
 	{
 		ASSIGNRETURNIFNXACT(newval);
@@ -584,17 +589,20 @@ static void initsequencer(enum initstage is, bool tolerant)
 	case IS_MISC_ONCE_DONE:
 		JVMOptList_init(&optList); /* uses CurrentMemoryContext */
 		seenVisualVMName = false;
+		seenModuleMain = false;
 		addUserJVMOptions(&optList);
 		if ( ! seenVisualVMName )
 			JVMOptList_addVisualVMName(&optList);
+		if ( ! seenModuleMain )
+			JVMOptList_addModuleMain(&optList);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
-		effectiveClassPath = getClassPath("-Djava.class.path=");
-		if(effectiveClassPath != 0)
+		effectiveModulePath = getModulePath("--module-path=");
+		if(effectiveModulePath != 0)
 		{
-			JVMOptList_add(&optList, effectiveClassPath, 0, true);
+			JVMOptList_add(&optList, effectiveModulePath, 0, true);
 		}
 		initstage = IS_JAVAVM_OPTLIST;
 
@@ -668,12 +676,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 		{
 			/* JVM initialization failed for some reason. Destroy
 			 * the VM if it exists. Perhaps the user will try
-			 * fixing the pljava.classpath and make a new attempt.
+			 * fixing the pljava.module_path and make a new attempt.
 			 */
 			ereport(WARNING, (
 				errmsg("failed to load initial PL/Java classes"),
-				errhint("The most common reason is that \"pljava.classpath\" "
-					"needs to be set, naming the proper \"pljava.jar\" file.")
+				errhint("The most common reason is that \"pljava.module_path\" "
+					"needs to be set, naming the proper \"pljava.jar\" "
+					"and \"pljava-api.jar\" files, separated by the correct "
+					"path separator for this platform.")
 					));
 			pljava_DualState_unregister();
 			_destroyJavaVM(0, 0);
@@ -863,8 +873,25 @@ static void reLogWithChangedLevel(int level)
 
 void _PG_init()
 {
+	char *sep;
+
 	if ( IS_PLJAVA_FOUND == initstage )
 		return; /* creating handler functions will cause recursive call */
+
+	/*
+	 * Find the platform's path separator. Java knows it, but that's no help in
+	 * preparing the launch options before it is launched. PostgreSQL knows what
+	 * it is, but won't directly say; give it some choices and it'll pick one.
+	 * Alternatively, let Maven or Ant determine and add a -D at build time from
+	 * the path.separator property. Maybe that's cleaner? This only works for
+	 * PG_VERSION_NUM >= 90100.
+	 */
+	sep = first_path_var_separator(":;");
+	if ( NULL == sep )
+		elog(ERROR,
+			"PL/Java cannot determine the path separator this platform uses");
+	s_path_var_sep = *sep;
+
 	if ( InstallHelper_shouldDeferInit() )
 		deferInit = true;
 	else
@@ -932,7 +959,8 @@ static void initPLJavaClasses(void)
 
 	Exception_initialize();
 
-	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
+	elog(DEBUG2,
+		"checking for a PL/Java Backend class on the given module path");
 
 	cls = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Backend$EarlyNatives");
@@ -1035,30 +1063,32 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 	for (;;)
 	{
 		char* pathPart;
+		char* sep;
 		size_t len;
+
 		if(*path == 0)
 			break;
 
-		len = strcspn(path, ";:");
+		sep = first_path_var_separator(path);
 
-		if(len == 1 && *(path+1) == ':' && isalnum(*path))
-			/*
-			 * Windows drive designator, leave it "as is".
-			 */
-			len = strcspn(path+2, ";:") + 2;
-		else
-		if(len == 0)
-			{
+		if(sep == path)
+		{
 			/* Ignore zero length components.
 			 */
 			++path;
 			continue;
-			}
+		}
+
+		if ( NULL == sep )
+			len = strlen(path);
+		else
+			len = sep - path;
 
 		initStringInfo(&buf);
 		if(*path == '$')
 		{
-			if(len == 7 || (strcspn(path, "/\\") == 7 && strncmp(path, "$libdir", 7) == 0))
+			if( (len == 7 || first_dir_separator(path) == path + 7)
+				&& strncmp(path, "$libdir", 7) == 0)
 			{
 				char pathbuf[MAXPGPATH];
 				get_pkglib_path(my_exec_path, pathbuf);
@@ -1069,7 +1099,8 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			else
 				ereport(ERROR, (
 					errcode(ERRCODE_INVALID_NAME),
-					errmsg("invalid macro name '%*s' in PL/Java classpath", (int)len, path)));
+					errmsg("invalid macro name '%*s' in PL/Java module path",
+						(int)len, path)));
 		}
 
 		if(len > 0)
@@ -1084,32 +1115,29 @@ static void appendPathParts(const char* path, StringInfoData* bld, HashMap uniqu
 			if(HashMap_size(unique) == 0)
 				appendStringInfo(bld, "%s", prefix);
 			else
-#if defined(WIN32)
-				appendStringInfoChar(bld, ';');
-#else
-				appendStringInfoChar(bld, ':');
-#endif
+				appendStringInfoChar(bld, s_path_var_sep);
 			appendStringInfo(bld, "%s", pathPart);
 			HashMap_putByString(unique, pathPart, (void*)1);
 		}
 		pfree(pathPart);
 		if(*path == 0)
 			break;
-		++path; /* Skip ':' */
+		++path; /* Skip path var separator */
 	}
 }
 
 /*
- * Get the CLASSPATH. Result is always freshly palloc'd.
+ * Get the module path. Result is always freshly palloc'd.
+ * No longer relies on an environment variable. What CLASSPATH variable might
+ * happen to be randomly set in the environment of a PostgreSQL backend?
  */
-static char* getClassPath(const char* prefix)
+static char* getModulePath(const char* prefix)
 {
 	char* path;
 	HashMap unique = HashMap_create(13, CurrentMemoryContext);
 	StringInfoData buf;
 	initStringInfo(&buf);
-	appendPathParts(classpath, &buf, unique, prefix);
-	appendPathParts(getenv("CLASSPATH"), &buf, unique, prefix);
+	appendPathParts(modulepath, &buf, unique, prefix);
 	PgObject_free((PgObject)unique);
 	path = buf.data;
 	if(strlen(path) == 0)
@@ -1273,6 +1301,9 @@ static void JVMOptList_add(JVMOptList* jol, const char* optString, void* extraIn
 	if ( 0 == strncmp(optString, visualVMprefix, sizeof visualVMprefix - 1) )
 		seenVisualVMName = true;
 
+	if ( 0 == strncmp(optString, moduleMainPrefix, sizeof moduleMainPrefix-1) )
+		seenModuleMain = true;
+
 	elog(DEBUG2, "Added JVM option string \"%s\"", optString);
 }
 
@@ -1287,6 +1318,15 @@ static void JVMOptList_addVisualVMName(JVMOptList* jol)
 	else
 		appendStringInfo(&buf, "%sPL/Java:%s:%d:%s",
 			visualVMprefix, clustername, MyProcPid, pljavaDbName());
+	JVMOptList_add(jol, buf.data, 0, false);
+}
+
+static void JVMOptList_addModuleMain(JVMOptList* jol)
+{
+	StringInfoData buf;
+	initStringInfo(&buf);
+	appendStringInfo(&buf, "%s%s",
+		moduleMainPrefix, "org.postgresql.pljava");
 	JVMOptList_add(jol, buf.data, 0, false);
 }
 
@@ -1409,7 +1449,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 
 	vm_args.nOptions = optList->size;
 	vm_args.options  = optList->options;
-	vm_args.version  = JNI_VERSION_1_4;
+	vm_args.version  = JNI_VERSION_9;
 	vm_args.ignoreUnrecognized = JNI_FALSE;
 
 	elog(DEBUG2, "creating Java virtual machine");
@@ -1522,15 +1562,15 @@ static void registerGUCOptions(void)
 		NULL); /* show hook */
 
 	STRING_GUC(
-		"pljava.classpath",
-		"Classpath used by the JVM",
+		"pljava.module_path",
+		"Module path to be used by the JVM",
 		NULL, /* extended description */
-		&classpath,
-		InstallHelper_defaultClassPath(pathbuf), /* boot value */
+		&modulepath,
+		InstallHelper_defaultModulePath(pathbuf,s_path_var_sep),/* boot value */
 		PGC_SUSET,
 		0,    /* flags */
-		check_classpath,
-		assign_classpath,
+		check_modulepath,
+		assign_modulepath,
 		NULL); /* show hook */
 
 	BOOL_GUC(
@@ -1705,7 +1745,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
  ****************************************/
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
-	return JNI_VERSION_1_4;
+	return JNI_VERSION_9;
 }
 
 /*

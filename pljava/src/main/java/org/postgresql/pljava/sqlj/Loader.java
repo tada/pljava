@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,8 +13,10 @@
 package org.postgresql.pljava.sqlj;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import static java.lang.invoke.MethodType.methodType;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -429,9 +431,9 @@ public class Loader extends ClassLoader
 	 */
 
 	private static final Object s_j9HelperFactory;
-	private static final Method s_j9GetTokenHelper;
-	private static final Method s_j9FindSharedClass;
-	private static final Method s_j9StoreSharedClass;
+	private static final MethodHandle s_j9GetTokenHelper;
+	private static final MethodHandle s_j9FindSharedClass;
+	private static final MethodHandle s_j9StoreSharedClass;
 	private final Object m_j9Helper;
 
 	/**
@@ -446,13 +448,8 @@ public class Loader extends ClassLoader
 		{
 			return s_j9GetTokenHelper.invoke(s_j9HelperFactory, this);
 		}
-		catch ( IllegalAccessException e )
+		catch ( Throwable t )
 		{
-			throw new SecurityException(e);
-		}
-		catch ( InvocationTargetException ite )
-		{
-			Throwable t = ite.getCause();
 			if ( t instanceof Error )
 				throw (Error)t;
 			if ( t instanceof RuntimeException )
@@ -490,13 +487,8 @@ public class Loader extends ClassLoader
 				return token;
 			return cookie;
 		}
-		catch ( IllegalAccessException e )
+		catch ( Throwable t )
 		{
-			throw new SecurityException(e);
-		}
-		catch ( InvocationTargetException ite )
-		{
-			Throwable t = ite.getCause();
 			if ( t instanceof Error )
 				throw (Error)t;
 			if ( t instanceof RuntimeException )
@@ -524,13 +516,8 @@ public class Loader extends ClassLoader
 		{
 			s_j9StoreSharedClass.invoke(m_j9Helper, token, cls);
 		}
-		catch ( IllegalAccessException e )
+		catch ( Throwable t )
 		{
-			throw new SecurityException(e);
-		}
-		catch ( InvocationTargetException ite )
-		{
-			Throwable t = ite.getCause();
 			if ( t instanceof Error )
 				throw (Error)t;
 			if ( t instanceof RuntimeException )
@@ -546,9 +533,9 @@ public class Loader extends ClassLoader
 	static
 	{
 		Object factory = null;
-		Method getHelper = null;
-		Method findShared = null;
-		Method storeShared = null;
+		MethodHandle getHelper = null;
+		MethodHandle findShared = null;
+		MethodHandle storeShared = null;
 
 		try
 		{
@@ -556,36 +543,36 @@ public class Loader extends ClassLoader
 			Class<?> shared = ClassLoader.getSystemClassLoader().loadClass(
 				"com.ibm.oti.shared.Shared");
 
-			Method getFactory =
-				shared.getMethod("getSharedClassHelperFactory", null);
+			MethodHandles.Lookup lup = MethodHandles.publicLookup();
+
+			MethodHandle getFactory = lup.unreflect(shared.getMethod(
+				"getSharedClassHelperFactory", (Class<?>[])null));
 
 			/* If getFactory returns null, sharing is not enabled. */
-			factory = getFactory.invoke(null);
+			factory = getFactory.invoke();
 			if ( null != factory )
 			{
-				Class<?> factoryClass = getFactory.getReturnType();
-				getHelper =
-					factoryClass.getMethod("getTokenHelper", ClassLoader.class);
-				Class<?> helperClass = getHelper.getReturnType();
-				findShared =
-					helperClass.getMethod(
-						"findSharedClass", String.class, String.class);
-				storeShared =
-					helperClass.getMethod(
-						"storeSharedClass", String.class, Class.class);
+				Class<?> factoryClass = getFactory.type().returnType();
+				getHelper = lup.unreflect(
+					factoryClass.getMethod("getTokenHelper",ClassLoader.class));
+				Class<?> helperClass = getHelper.type().returnType();
+				findShared = lup.findVirtual(helperClass, "findSharedClass",
+					methodType(byte[].class, String.class, String.class));
+				storeShared = lup.findVirtual(helperClass, "storeSharedClass",
+					methodType(boolean.class, String.class, Class.class));
 			}
 		}
 		catch ( ClassNotFoundException cnfe )
 		{
 			/* Not running on an OpenJ9 JVM. Leave all the statics null. */
 		}
-		catch ( RuntimeException rte )
+		catch ( Error | RuntimeException e )
 		{
-			throw rte;
+			throw e;
 		}
-		catch ( Exception e )
+		catch ( Throwable t )
 		{
-			throw new ExceptionInInitializerError(e);
+			throw new ExceptionInInitializerError(t);
 		}
 		finally
 		{

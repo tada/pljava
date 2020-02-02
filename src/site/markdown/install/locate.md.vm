@@ -47,7 +47,7 @@ or `amd64-Windows-msvc`. It contains these things:
     (more below).
 
 `pljava/sharedir/pljava/pljava-api-\${project.version}.jar`
-: The jar file that should be named on the `javac` classpath when compiling
+: The jar file that should be named on the `javac` module path when compiling
     code for PL/Java (see "How to compile against the PL/Java API" in the
     [user guide][use]).
 
@@ -80,6 +80,19 @@ not to extract files from the packaged archive into some other location,
 but simply to `SET` the `pljava.*` variables to point to the files right
 where they were generated in the build tree.
 
+$h3 The PL/Java API `jar` file
+
+This file is built by the `pljava-api` subproject,
+so relative to the source root where the build was
+done, it will be found in `pljava-api/target/pljava-api-\${project.version}.jar`
+with `\${project.version}` replaced in the obvious way,
+for example `${project.version}`.
+
+This file needs to be named in `pljava.module_path` along with the internals
+`jar` file below. If convenient, check the default value of `pljava.module_path`
+and place both these files where it expects them to be; then it will not need
+to be set.
+
 $h3 The architecture-independent PL/Java `jar` file
 
 This file is built by the `pljava` subproject,
@@ -88,9 +101,11 @@ done, it will be found in `pljava/target/pljava-\${project.version}.jar`
 with `\${project.version}` replaced in the obvious way,
 for example `${project.version}`.
 
-In the simplest installation, determine the default value of `pljava.classpath`
-and place the jar file at that exact name. In a typical distribution, the
-default will be `$sharedir/pljava/pljava-\${project.version}.jar`.
+In the simplest installation, determine the default value of
+`pljava.module_path` and place the jar file at that exact name, alongside
+the PL/Java API jar described above.
+In a typical distribution, the default will be
+`$sharedir/pljava/pljava-\${project.version}.jar`.
 
 $h3 The architecture-dependent PL/Java native library
 

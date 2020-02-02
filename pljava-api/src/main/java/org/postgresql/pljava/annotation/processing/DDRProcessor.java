@@ -10,7 +10,7 @@
  *   Tada AB
  *   Purdue University
  */
-package org.postgresql.pljava.sqlgen;
+package org.postgresql.pljava.annotation.processing;
 
 import java.io.IOException;
 
@@ -101,6 +101,8 @@ import org.postgresql.pljava.annotation.Trigger;
 import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
 
+import org.postgresql.pljava.sqlgen.Lexicals;
+
 /**
  * Annotation processor invoked by the annotations framework in javac for
  * annotations of type org.postgresql.pljava.annotation.*.
@@ -122,7 +124,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
   "ddr.output"           // name of ddr file to write
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_8)
+@SupportedSourceVersion(SourceVersion.RELEASE_9)
 public class DDRProcessor extends AbstractProcessor
 {
 	private DDRProcessorImpl impl;

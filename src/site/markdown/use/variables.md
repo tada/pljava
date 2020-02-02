@@ -19,11 +19,16 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     the application code needs to know what it's doing and use the right
     conversion functions where needed.)
 
-`pljava.classpath`
-: The class path to be passed to the Java application class loader. There
-    must be at least one (and usually only one) entry, the PL/Java jar file
-    itself. To determine the proper setting, see
+`pljava.module_path`
+: The module path to be passed to the Java application class loader. The default
+    is computed from the PostgreSQL configuration and is usually correct, unless
+    PL/Java's files have been installed in unusual locations. If it must be set
+    explicitly, there must be at least two (and usually only two) entries, the
+    PL/Java API jar file and the PL/Java internals jar file. To determine the
+    proper setting, see
     [finding the files produced by a PL/Java build](../install/locate.html).
+    For more on PL/Java's "module path" and "class path", see
+    [PL/Java and the Java Platform Module System](jpms.html).
 
 `pljava.debug`
 : A boolean variable that, if set `on`, stops the process on first entry to

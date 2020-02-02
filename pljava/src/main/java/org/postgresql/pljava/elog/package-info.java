@@ -11,8 +11,8 @@
  *   Purdue University
  */
 /**
- * <p>API for manipulating common lexical elements of SQL such as identifiers,
- * mostly for use by PL/Java's SQL deployment-descriptor-generating code, but
- * exported here for other possible uses.
+ * <p>PL/Java's legacy bridge code between {@code java.util.logging} and
+ * PostgreSQL's error logging mechanisms, isolated here in a package that can be
+ * exported to the {@code java.logging} module, as that API requires.
  */
-package org.postgresql.pljava.sqlgen;
+package org.postgresql.pljava.elog;

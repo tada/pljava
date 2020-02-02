@@ -61,6 +61,7 @@ public interface Session
 	 * @param attributeName The name of the attribute
 	 * @return The value of the attribute
 	 */
+	@Deprecated(since="1.5.3", forRemoval=true)
 	Object getAttribute(String attributeName);
 
 	/**
@@ -112,7 +113,7 @@ public interface Session
 	 * only the session ID should be
 	 * <a href='../../../../issue-tracking.html'>reported as an issue.</a>
 	 */
-	@Deprecated
+	@Deprecated(since="1.5.0", forRemoval=true)
 	String getSessionUserName();
 
 	/**
@@ -141,7 +142,7 @@ public interface Session
 	 * should be <a href='../../../../issue-tracking.html'>reported as an
 	 * issue</a>.
 	 */
-	@Deprecated
+	@Deprecated(since="1.5.0", forRemoval=true)
 	void executeAsSessionUser(Connection conn, String statement)
 	throws SQLException;
 
@@ -157,6 +158,7 @@ public interface Session
 	 * Java and kept in sync by using a {@link TransactionListener}.
 	 * @param attributeName The name of the attribute.
 	 */
+	@Deprecated(since="1.5.3", forRemoval=true)
 	void removeAttribute(String attributeName);
 
 	/**
@@ -187,5 +189,6 @@ public interface Session
 	 * @param attributeName
 	 * @param value
 	 */
+	@Deprecated(since="1.5.3", forRemoval=true)
 	void setAttribute(String attributeName, Object value);
 }

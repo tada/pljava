@@ -102,7 +102,7 @@ final `pljava.vmoptions` setting at the end.
 Classes eligible to go in the shared archive are the Java system classes
 (including anything in the deprecated `java.ext.dirs` or `java.endorsed.dirs`
 directories), classes in the PL/Java jar itself, and any others in jars named in
-`pljava.classpath`. Classes from PL/Java application jars loaded into the
+`pljava.module_path`. Classes from PL/Java application jars loaded into the
 database normally with `sqlj.install_jar` are not candidates for the shared
 archive. The feature will speed the startup of PL/Java itself, but application
 classes are still loaded from the database in PL/Java's usual way.

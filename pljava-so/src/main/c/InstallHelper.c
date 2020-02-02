@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -475,27 +475,37 @@ finally:
 	return result;
 }
 
-char const *InstallHelper_defaultClassPath(char *pathbuf)
+char const *InstallHelper_defaultModulePath(char *pathbuf, char pathsep)
 {
 	char * const pbend = pathbuf + MAXPGPATH;
 	char *pbp = pathbuf;
 	size_t remaining;
-	size_t verlen = strlen(SO_VERSION_STRING);
+	int would_have_sprinted;
 
 	get_share_path(my_exec_path, pathbuf);
 	join_path_components(pathbuf, pathbuf, "pljava");
-	join_path_components(pathbuf, pathbuf, "pljava-");
+	join_path_components(pathbuf, pathbuf, "pljava"); /* puts \0 where - goes */
 
 	for ( ; pbp < pbend && '\0' != *pbp ; ++ pbp )
 		;
 	if ( pbend == pbp )
 		return NULL;
 
-	remaining = pbend - pbp;
-	if ( remaining < verlen + 5 )
+	/*
+	 * pbp now points to a \0 that should later be replaced with a hyphen.
+	 * The \0-terminated string starting at pathbuf can, for now, be reused
+	 * as an argument to snprintf.
+	 */
+
+	remaining = (pbend - pbp) - 1;
+
+	would_have_sprinted = snprintf(pbp + 1, remaining, "%s.jar%c%s-api-%s.jar",
+		SO_VERSION_STRING, pathsep, pathbuf, SO_VERSION_STRING);
+
+	if ( would_have_sprinted >= remaining )
 		return NULL;
 
-	snprintf(pbp, remaining, "%s.jar", SO_VERSION_STRING);
+	*pbp = '-'; /* overwrite the \0 so now it's a single string. */
 	return pathbuf;
 }
 

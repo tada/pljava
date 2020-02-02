@@ -11,8 +11,9 @@
  *   Purdue University
  */
 /**
- * <p>API for manipulating common lexical elements of SQL such as identifiers,
- * mostly for use by PL/Java's SQL deployment-descriptor-generating code, but
- * exported here for other possible uses.
+ * <p>Interfaces defining the views on PL/Java's internals that are available
+ * through the Java Management Extensions, isolated here in an exportable
+ * package, as the interfaces must be accessible to a JMX module that is
+ * dynamic and unnamed.
  */
-package org.postgresql.pljava.sqlgen;
+package org.postgresql.pljava.mbeans;

@@ -124,7 +124,6 @@ public abstract class ObjectResultSet extends AbstractResultSet
 
 	/**
 	 * Throws "unsupported" exception.
-	 * @deprecated
 	 */
 	@Override
 	public BigDecimal getBigDecimal(int columnIndex, int scale)
@@ -372,7 +371,6 @@ public abstract class ObjectResultSet extends AbstractResultSet
 
 	/**
 	 * Throws "unsupported" exception.
-	 * @deprecated
 	 */
 	public InputStream getUnicodeStream(int columnIndex)
 	throws SQLException
