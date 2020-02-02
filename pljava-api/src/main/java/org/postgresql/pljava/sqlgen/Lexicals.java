@@ -571,6 +571,17 @@ public abstract class Lexicals
 			 * Create an {@code Identifier.Simple} from a name string supplied
 			 * in Java source, such as an annotation value.
 			 *<p>
+			 * Equivalent to {@code fromJava(s, null)}.
+			 */
+			public static Simple fromJava(String s)
+			{
+				return fromJava(s, null);
+			}
+
+			/**
+			 * Create an {@code Identifier.Simple} from a name string supplied
+			 * in Java source, such as an annotation value.
+			 *<p>
 			 * Historically, PL/Java has treated these identifiers as regular
 			 * ones, requiring delimited ones to be represented by adding quotes
 			 * explicitly at start and end, and doubling internal quotes, all
@@ -584,17 +595,34 @@ public abstract class Lexicals
 			 * The SQL Unicode escape syntax is not accepted here. Java already
 			 * has its own Unicode escape syntax, which is what should be used.
 			 * @param s name of the simple identifier, as found in Java source.
+			 * @param msgr a Messager for reporting diagnostics at compile time,
+			 * or null if not in a compilation context.
 			 * @return an Identifier.Simple or subclass appropriate to the form
 			 * of the name.
 			 */
-			public static Simple fromJava(String s)
+			public static Simple fromJava(String s, Messager msgr)
 			{
 				Matcher m = ISO_DELIMITED_IDENTIFIER_CAPTURING.matcher(s);
-				if ( m.matches() )
-					s = m.group("xd").replace("\"\"", "\"");
+				boolean warn = false;
+
+				if ( m.find() )
+				{
+					if ( 0 == m.start()  &&  s.length() == m.end() )
+						s = m.group("xd").replace("\"\"", "\"");
+					else
+						warn = true;
+				}
 				else if ( m.usePattern(PG_REGULAR_IDENTIFIER).matches() )
 					return new Folding(s);
-				return from(s, true);
+
+				Simple rslt = from(s, true);
+
+				if ( warn && null != msgr )
+					msgr.printMessage(Kind.WARNING,
+						"identifier input as [" + s +
+						"] interpreted as [" + rslt + ']');
+
+				return rslt;
 			}
 
 			@Override
@@ -935,11 +963,27 @@ public abstract class Lexicals
 				m_name = name;
 			}
 
+			/**
+			 * Create an {@code Identifier.Operator} from a name string.
+			 *<p>
+			 * Equivalent to {@code from(s, null)}.
+			 */
 			public static Operator from(String name)
 			{
 				return from(name, null);
 			}
 
+			/**
+			 * Create an {@code Identifier.Operator} from a name string.
+			 *<p>
+			 * There are not different ways to represent an operator in Java
+			 * source and in the PostgreSQL catalogs, so there do not need to be
+			 * {@code fromCatalog} and {@code fromJava} flavors of this method.
+			 *<p>
+			 * @param name The operator name.
+			 * @param msgr a Messager for reporting diagnostics at compile time,
+			 * or null if not in a compilation context.
+			 */
 			public static Operator from(String name, Messager msgr)
 			{
 				requireNonNull(name);
@@ -1074,6 +1118,231 @@ public abstract class Lexicals
 				Simple qualId = ( null == qualifier ) ?
 					null : Simple.fromCatalog(qualifier);
 				return localId.withQualifier(qualId);
+			}
+
+
+			/**
+			 * Create an {@code Identifier.Qualified<Simple>} from a name
+			 * string supplied in Java source, such as an annotation value.
+			 *<p>
+			 * Equivalent to {@code nameFromJava(s, null)}.
+			 */
+			public static Qualified<Simple> nameFromJava(String s)
+			{
+				return nameFromJava(s, null);
+			}
+
+			/**
+			 * Create an {@code Identifier.Qualified<Simple>} from a name
+			 * string supplied in Java source, such as an annotation value.
+			 *<p>
+			 * Explicit delimited-identifier syntax is recognized if it spans
+			 * the entire string (producing a local name and null qualifier),
+			 * or from the beginning to a dot (representing the qualifier), or
+			 * from a dot to the end (representing the local name). If both the
+			 * qualifier and local name are given in the delimited syntax, they
+			 * define the result.
+			 *<p>
+			 * Otherwise, if either component is given in the delimited syntax
+			 * as above, the other component is taken from the rest of the
+			 * string on the other side of the dot, as a folding regular
+			 * identifier if it is one, otherwise as an implicitly quoted one.
+			 *<p>
+			 * Any subsequence that resembles delimited syntax but does not
+			 * appear where it is recognized as above will be treated as literal
+			 * content (so, its quotes will be doubled when deparsed, etc.), and
+			 * produce a compiler warning if called in a compilation context.
+			 *<p>
+			 * If neither component is given in delimited syntax, the string
+			 * must contain at most one dot. If it contains none, it is a local
+			 * name with null qualifier, again treated as a regular identifier
+			 * if it is one, or an implicitly quoted one. If there is one
+			 * dot, the substrings that precede and follow it are the qualifier
+			 * and the local name, treated the same way. It is an error if there
+			 * is more than one dot.
+			 *<p>
+			 * The SQL Unicode escape syntax is not accepted here. Java already
+			 * has its own Unicode escape syntax, which is what should be used.
+			 * @param s the qualified identifier, as found in Java source.
+			 * @param msgr a Messager for reporting diagnostics at compile time,
+			 * or null if not in a compilation context.
+			 * @return the Identifier.Qualified&lt;Simple&gt;
+			 */
+			public static Qualified<Simple> nameFromJava(
+				String s, Messager msgr)
+			{
+				String qualifier = null;
+				String localName = null;
+
+				/*
+				 * Find out if delimited-identifier-resembling syntax appears
+				 * anywhere in s. Save the first (and last, if more than one).
+				 */
+				Matcher m = ISO_DELIMITED_IDENTIFIER.matcher(s);
+				int startFirst = -1, endFirst = -1;
+				int startLast = -1, endLast = -1;
+				int matched = 0;
+
+				if ( m.find() )
+				{
+					matched = 1;
+					startFirst = m.start();
+					endFirst = m.end();
+					while ( m.find() )
+					{
+						matched = 2;
+						startLast = m.start();
+						endLast = m.end();
+					}
+				}
+
+				switch ( matched )
+				{
+				case 2:
+					if ( s.length() == endLast && '.' == s.charAt(startLast-1) )
+					{
+						localName = s.substring(startLast);
+						if ( 0 == startFirst && 2 + endFirst == startLast )
+						{
+							qualifier = s.substring(startFirst, endFirst);
+							break;
+						}
+						qualifier = s.substring(0, startLast - 1);
+						break;
+					}
+					/* FALLTHROUGH */
+				case 1:
+					if ( 0 == startFirst )
+					{
+						if ( s.length() == endFirst )
+						{
+							localName = s;
+							break;
+						}
+						if ( '.' == s.charAt(endFirst) )
+						{
+							qualifier = s.substring(0, endFirst);
+							localName = s.substring(endFirst + 1);
+							break;
+						}
+					}
+					else if ( '.' == s.charAt(startFirst - 1)
+						&& s.length() == endFirst )
+					{
+						qualifier = s.substring(0, startFirst - 1);
+						localName = s.substring(startFirst);
+						break;
+					}
+					/* FALLTHROUGH */
+				default:
+					endFirst = s.indexOf('.');
+					if ( -1 != endFirst )
+					{
+						if ( -1 != s.indexOf('.', 1 + endFirst) )
+						{
+							String diag =
+								"ambiguous qualified identifier: \"" + s + '"';
+							if ( null == msgr )
+								throw new IllegalArgumentException(diag);
+							msgr.printMessage(Kind.ERROR, diag);
+						}
+						qualifier = s.substring(0, endFirst);
+						localName = s.substring(endFirst + 1);
+						break;
+					}
+					localName = s;
+				}
+
+				Qualified<Simple> q =
+					Simple.fromJava(localName).withQualifier(
+						null == qualifier ? null : Simple.fromJava(qualifier));
+
+				return q;
+			}
+
+			/**
+			 * Create an {@code Identifier.Qualified<Operator>} from a
+			 * name string supplied in Java source, such as an annotation value.
+			 *<p>
+			 * Equivalent to {@code operatorFromJava(s, null)}.
+			 */
+			public static Qualified<Operator> operatorFromJava(String s)
+			{
+				return operatorFromJava(s, null);
+			}
+
+			/**
+			 * Create an {@code Identifier.Qualified<Operator>} from a
+			 * name string supplied in Java source, such as an annotation value.
+			 *<p>
+			 * The string must end in a valid operator name. That is either the
+			 * entire string (representing a local name and null qualifier), or
+			 * follows a dot. Whatever precedes the dot becomes the qualifier,
+			 * treated as a folding regular identifier if it is one, or as a
+			 * delimited identifier if it has that form, or as an implicitly
+			 * quoted one.
+			 *<p>
+			 * The SQL Unicode escape syntax is not accepted here. Java already
+			 * has its own Unicode escape syntax, which is what should be used.
+			 * @param s the qualified identifier, as found in Java source.
+			 * @param msgr a Messager for reporting diagnostics at compile time,
+			 * or null if not in a compilation context.
+			 * @return the Identifier.Qualified&lt;Operator&gt;
+			 */
+			public static Qualified<Operator> operatorFromJava(
+				String s, Messager msgr)
+			{
+				String qualifier = null;
+				String localName = null;
+				boolean error = false;
+
+				/*
+				 * This string had better end with a match of PG_OPERATOR.
+				 * Find the last such, in case of a nutty schema name.
+				 */
+				int opStart = -1, opEnd = -1;
+				Matcher m = PG_OPERATOR.matcher(s);
+				while ( m.find() )
+				{
+					opStart = m.start();
+					opEnd = m.end();
+				}
+
+				if ( s.length() == opEnd )
+				{
+					localName = s.substring(opStart);
+					if ( 1 < opStart && '.' == s.charAt(opStart - 1) )
+						qualifier = s.substring(0, opStart - 1);
+					else if ( 0 != opStart )
+					{
+						error = true;
+						/*
+						 * This is compilation time; the ERROR above will
+						 * ultimately fail the compilation, but for now return a
+						 * value, however bogus, so the compiler can proceed.
+						 */
+						qualifier = s.substring(0, opStart);
+					}
+				}
+				else
+				{
+					error = true;
+					/* Again, make something bogus to return. */
+					qualifier = s;
+					localName = "???";
+				}
+
+				if ( error )
+				{
+					String diag =
+						"cannot parse qualified operator: \"" + s + '"';
+					if ( null == msgr )
+						throw new IllegalArgumentException(diag);
+					msgr.printMessage(Kind.ERROR, diag);
+				}
+
+				return new Operator(localName).withQualifier(
+					null == qualifier ? null : Simple.fromJava(qualifier));
 			}
 
 			private Qualified(Simple qualifier, T local)
