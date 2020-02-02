@@ -35,4 +35,28 @@
 			</plugin>
 		</plugins>
 	</build>
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<doctitle>${project.name} ${project.version}</doctitle>
+					<windowtitle>${project.name} ${project.version}</windowtitle>
+					<!-- If I tried to tell you why maven-javadoc-plugin 3.1.1 needs
+					   - this exact potpourri of weirdness just to avoid forcing
+					   - the javadoc tool to do the wrong thing, you would call me
+					   - crazy. See the git commit comment for more explanation.
+					  -->
+					<additionalOptions>
+						<additionalOption>--module</additionalOption>
+						<additionalOption>org.postgresql.pljava</additionalOption>
+					</additionalOptions>
+					<sourceFileExcludes>
+						<sourceFileExclude>**/org/**/*.java</sourceFileExclude>
+					</sourceFileExcludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</reporting>
 </project>
