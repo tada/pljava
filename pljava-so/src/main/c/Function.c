@@ -52,27 +52,28 @@
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jclass s_Function_class;
+static jclass s_EntryPoints_class;
 static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_Loader_getTypeMap;
 static jmethodID s_ClassLoader_loadClass;
 static jmethodID s_Function_create;
 static jmethodID s_Function_getClassIfUDT;
-static jmethodID s_Function_invoke;
-static jmethodID s_Function_voidInvoke;
-static jmethodID s_Function_booleanInvoke;
-static jmethodID s_Function_byteInvoke;
-static jmethodID s_Function_shortInvoke;
-static jmethodID s_Function_charInvoke;
-static jmethodID s_Function_intInvoke;
-static jmethodID s_Function_floatInvoke;
-static jmethodID s_Function_longInvoke;
-static jmethodID s_Function_doubleInvoke;
-static jmethodID s_Function_udtWriteInvoke;
-static jmethodID s_Function_udtToStringInvoke;
-static jmethodID s_Function_udtReadInvoke;
-static jmethodID s_Function_udtParseInvoke;
 static jmethodID s_Function_udtReadHandle;
 static jmethodID s_Function_udtParseHandle;
+static jmethodID s_EntryPoints_invoke;
+static jmethodID s_EntryPoints_voidInvoke;
+static jmethodID s_EntryPoints_booleanInvoke;
+static jmethodID s_EntryPoints_byteInvoke;
+static jmethodID s_EntryPoints_shortInvoke;
+static jmethodID s_EntryPoints_charInvoke;
+static jmethodID s_EntryPoints_intInvoke;
+static jmethodID s_EntryPoints_floatInvoke;
+static jmethodID s_EntryPoints_longInvoke;
+static jmethodID s_EntryPoints_doubleInvoke;
+static jmethodID s_EntryPoints_udtWriteInvoke;
+static jmethodID s_EntryPoints_udtToStringInvoke;
+static jmethodID s_EntryPoints_udtReadInvoke;
+static jmethodID s_EntryPoints_udtParseInvoke;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
 
@@ -235,47 +236,57 @@ void Function_initialize(void)
 		"(Ljava/sql/ResultSet;Ljava/lang/String;)"
 		"Ljava/lang/Class;");
 
-	s_Function_invoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/EntryPoints"));
+	s_EntryPoints_invoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
 		"invoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)Ljava/lang/Object;");
-	s_Function_voidInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_voidInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"voidInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)V");
-	s_Function_booleanInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_booleanInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"booleanInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)Z");
-	s_Function_byteInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_byteInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
 		"byteInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)B");
-	s_Function_shortInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_shortInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"shortInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)S");
-	s_Function_charInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_charInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
 		"charInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)C");
-	s_Function_intInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_intInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
 		"intInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)I");
-	s_Function_floatInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_floatInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"floatInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)F");
-	s_Function_longInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_longInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
 		"longInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)J");
-	s_Function_doubleInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_doubleInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"doubleInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
 		"Ljava/nio/ByteBuffer;)D");
 
-	s_Function_udtWriteInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_udtWriteInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"udtWriteInvoke", "(Ljava/sql/SQLData;Ljava/sql/SQLOutput;"
 		")V");
-	s_Function_udtToStringInvoke = PgObject_getStaticJavaMethod(
-		s_Function_class,
+	s_EntryPoints_udtToStringInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"udtToStringInvoke", "(Ljava/sql/SQLData;)Ljava/lang/String;");
-	s_Function_udtReadInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_udtReadInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"udtReadInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/sql/SQLInput;"
 		"Ljava/lang/String;)Ljava/sql/SQLData;");
-	s_Function_udtParseInvoke = PgObject_getStaticJavaMethod(s_Function_class,
+	s_EntryPoints_udtParseInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
 		"udtParseInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/String;"
 		"Ljava/lang/String;)Ljava/sql/SQLData;");
 
@@ -294,107 +305,107 @@ void Function_initialize(void)
 jobject pljava_Function_refInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_invoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 void pljava_Function_voidInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	JNI_callStaticVoidMethod(s_Function_class,
-		s_Function_voidInvoke, self->func.nonudt.methodHandle,
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_voidInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jboolean pljava_Function_booleanInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticBooleanMethod(s_Function_class,
-		s_Function_booleanInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticBooleanMethod(s_EntryPoints_class,
+		s_EntryPoints_booleanInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jbyte pljava_Function_byteInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticByteMethod(s_Function_class,
-		s_Function_byteInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticByteMethod(s_EntryPoints_class,
+		s_EntryPoints_byteInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jshort pljava_Function_shortInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticShortMethod(s_Function_class,
-		s_Function_shortInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticShortMethod(s_EntryPoints_class,
+		s_EntryPoints_shortInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jchar pljava_Function_charInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticCharMethod(s_Function_class,
-		s_Function_charInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticCharMethod(s_EntryPoints_class,
+		s_EntryPoints_charInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jint pljava_Function_intInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticIntMethod(s_Function_class,
-		s_Function_intInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticIntMethod(s_EntryPoints_class,
+		s_EntryPoints_intInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jfloat pljava_Function_floatInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticFloatMethod(s_Function_class,
-		s_Function_floatInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticFloatMethod(s_EntryPoints_class,
+		s_EntryPoints_floatInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jlong pljava_Function_longInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticLongMethod(s_Function_class,
-		s_Function_longInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticLongMethod(s_EntryPoints_class,
+		s_EntryPoints_longInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 jdouble pljava_Function_doubleInvoke(
 	Function self, jobjectArray references, jobject primitives)
 {
-	return JNI_callStaticDoubleMethod(s_Function_class,
-		s_Function_doubleInvoke, self->func.nonudt.methodHandle,
+	return JNI_callStaticDoubleMethod(s_EntryPoints_class,
+		s_EntryPoints_doubleInvoke, self->func.nonudt.methodHandle,
 		references, primitives);
 }
 
 void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
 {
-	JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtWriteInvoke, value, stream);
+	JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtWriteInvoke, value, stream);
 }
 
 jstring pljava_Function_udtToStringInvoke(jobject value)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtToStringInvoke, value);
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtToStringInvoke, value);
 }
 
 jobject pljava_Function_udtReadInvoke(
 	jobject readMH, jobject stream, jstring typeName)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtReadInvoke, readMH, stream, typeName);
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtReadInvoke, readMH, stream, typeName);
 }
 
 jobject pljava_Function_udtParseInvoke(
 	jobject parseMH, jstring stringRep, jstring typeName)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtParseInvoke, parseMH, stringRep, typeName);
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtParseInvoke, parseMH, stringRep, typeName);
 }
 
 jobject pljava_Function_udtReadHandle(jclass clazz)
