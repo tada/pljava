@@ -32,9 +32,9 @@ static Datum _asDatum(jlong v)
 	return ret;
 }
 
-static Datum _long_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _long_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	return _asDatum(pljava_Function_longInvoke(fn, refArgs, primArgs));
+	return _asDatum(pljava_Function_longInvoke(fn));
 }
 
 static jvalue _long_coerceDatum(Type self, Datum arg)

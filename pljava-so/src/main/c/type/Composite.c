@@ -76,21 +76,21 @@ static HeapTuple _getTupleAndClear(jobject jrps)
  * true. If so, the values are obtained in the form of a HeapTuple which in
  * turn is returned (as a Datum) from this method.
  */
-static Datum _Composite_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _Composite_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
 	jobject jtd = pljava_TupleDesc_create(tupleDesc);
-	jobject singleRowWriter = _createWriter(jtd);
+	jvalue singleRowWriter;
+	singleRowWriter.l = _createWriter(jtd);
 	/*
-	 * Caller guarantees room for one extra refArg, so it will go at
-	 * length - 1/
+	 * Caller guarantees room for one extra reference parameter, so it will go
+	 * at index (length - 1).
 	 */
-	int addedArgIdx = JNI_getArrayLength(refArgs) - 1;
+	pljava_Function_setParameter(fn, -1, singleRowWriter);
 	
-	JNI_setObjectArrayElement(refArgs, addedArgIdx, singleRowWriter);
-	hasRow = (pljava_Function_booleanInvoke(fn, refArgs, primArgs) == JNI_TRUE);
+	hasRow = (pljava_Function_booleanInvoke(fn) == JNI_TRUE);
 
 	if(hasRow)
 	{
@@ -98,7 +98,7 @@ static Datum _Composite_invoke(Type self, Function fn, jobjectArray refArgs, job
 		 * durable context.
 		 */
 		MemoryContext currCtx = Invocation_switchToUpperContext();
-		HeapTuple tuple = _getTupleAndClear(singleRowWriter);
+		HeapTuple tuple = _getTupleAndClear(singleRowWriter.l);
 	    result = HeapTupleGetDatum(tuple);
 		MemoryContextSwitchTo(currCtx);
 	}
@@ -106,14 +106,13 @@ static Datum _Composite_invoke(Type self, Function fn, jobjectArray refArgs, job
 		fcinfo->isnull = true;
 
 	JNI_deleteLocalRef(jtd);
-	JNI_deleteLocalRef(singleRowWriter);
+	JNI_deleteLocalRef(singleRowWriter.l);
 	return result;
 }
 
-static jobject _Composite_getSRFProducer(Type self, Function fn,
-	jobjectArray refArgs, jobject primArgs)
+static jobject _Composite_getSRFProducer(Type self, Function fn)
 {
-	jobject tmp = pljava_Function_refInvoke(fn, refArgs, primArgs);
+	jobject tmp = pljava_Function_refInvoke(fn);
 	if(tmp != 0 && JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
 	{
 		jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);

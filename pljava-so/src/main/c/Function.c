@@ -697,6 +697,21 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	return ret;
 }
 
+/*
+ * Most slots in the parameter area are set directly in invoke() or
+ * invokeTrigger() above. The only caller of this is Composite_invoke, which
+ * needs to set one parameter (always the last one, and a reference type).
+ * So this function, though with an API that could be general, for now only
+ * handles the case where index is -1 and the last parameter has reference type.
+ */
+void pljava_Function_setParameter(Function self, int index, jvalue value)
+{
+	int numRefs = self->func.nonudt.numRefParams;
+	if ( -1 != index  ||  1 > numRefs )
+		elog(ERROR, "unsupported index in pljava_Function_setParameter");
+	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
+}
+
 bool Function_isCurrentReadOnly(void)
 {
 	/* function will be 0 during resolve of class and java function. At

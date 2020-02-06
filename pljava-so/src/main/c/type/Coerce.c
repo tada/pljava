@@ -36,10 +36,10 @@ struct Coerce_
 
 typedef struct Coerce_* Coerce;
 
-static Datum _Coerce_invoke(Type type, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _Coerce_invoke(Type type, Function fn, PG_FUNCTION_ARGS)
 {
 	Coerce self = (Coerce)type;
-	Datum arg = Type_invoke(self->innerType, fn, refArgs, primArgs, fcinfo);
+	Datum arg = Type_invoke(self->innerType, fn, fcinfo);
 	if(arg != 0)
 	{
 		MemoryContext currCtx = Invocation_switchToUpperContext();

@@ -32,9 +32,9 @@ static Datum _asDatum(jdouble v)
 	return ret;
 }
 
-static Datum _double_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _double_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	return _asDatum(pljava_Function_doubleInvoke(fn, refArgs, primArgs));
+	return _asDatum(pljava_Function_doubleInvoke(fn));
 }
 
 static jvalue _double_coerceDatum(Type self, Datum arg)

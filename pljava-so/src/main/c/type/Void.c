@@ -19,9 +19,9 @@
 /*
  * void primitive type.
  */
-static Datum _void_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _void_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	pljava_Function_voidInvoke(fn, refArgs, primArgs);
+	pljava_Function_voidInvoke(fn);
 	fcinfo->isnull = true;
 	return 0;
 }

@@ -27,9 +27,9 @@ static jmethodID s_Byte_byteValue;
 /*
  * byte primitive type.
  */
-static Datum _byte_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _byte_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	jbyte v = pljava_Function_byteInvoke(fn, refArgs, primArgs);
+	jbyte v = pljava_Function_byteInvoke(fn);
 	return CharGetDatum(v);
 }
 

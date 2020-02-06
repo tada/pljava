@@ -24,9 +24,9 @@ static jmethodID s_Short_shortValue;
 /*
  * short primitive type.
  */
-static Datum _short_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _short_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	jshort v = pljava_Function_shortInvoke(fn, refArgs, primArgs);
+	jshort v = pljava_Function_shortInvoke(fn);
 	return Int16GetDatum(v);
 }
 

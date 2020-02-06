@@ -24,9 +24,9 @@ static jmethodID s_Boolean_booleanValue;
 /*
  * boolean primitive type.
  */
-static Datum _boolean_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _boolean_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	jboolean v = pljava_Function_booleanInvoke(fn, refArgs, primArgs);
+	jboolean v = pljava_Function_booleanInvoke(fn);
 	return BoolGetDatum(v);
 }
 

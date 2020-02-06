@@ -32,9 +32,9 @@ static Datum _asDatum(jfloat v)
 	return ret;
 }
 
-static Datum _float_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _float_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	return _asDatum(pljava_Function_floatInvoke(fn, refArgs, primArgs));
+	return _asDatum(pljava_Function_floatInvoke(fn));
 }
 
 static jvalue _float_coerceDatum(Type self, Datum arg)

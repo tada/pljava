@@ -24,9 +24,9 @@ static jmethodID s_Integer_intValue;
 /*
  * int primitive type.
  */
-static Datum _int_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+static Datum _int_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	jint iv = pljava_Function_intInvoke(fn, refArgs, primArgs);
+	jint iv = pljava_Function_intInvoke(fn);
 	return Int32GetDatum(iv);
 }
 
