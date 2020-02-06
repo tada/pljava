@@ -14,11 +14,13 @@ package org.postgresql.pljava.internal;
 import junit.framework.TestCase;
 
 import static org.junit.Assert.*;
+import org.junit.Ignore;
 import static org.hamcrest.CoreMatchers.*;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 
+@Ignore("Function class has native method now, can't unit test")
 public class FunctionCreationTest extends TestCase
 {
 	public FunctionCreationTest(String name) { super(name); }

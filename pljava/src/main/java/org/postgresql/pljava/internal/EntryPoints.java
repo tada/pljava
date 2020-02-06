@@ -21,74 +21,14 @@ import java.sql.SQLOutput;
 
 class EntryPoints
 {
-	private static Object invoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
+	private static Object refInvoke(MethodHandle mh) throws Throwable
 	{
-		return mh.invokeExact(references, primitives);
+		return mh.invokeExact();
 	}
 
-	private static void voidInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
+	private static void invoke(MethodHandle mh) throws Throwable
 	{
-		mh.invokeExact(references, primitives);
-	}
-
-	private static boolean booleanInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (boolean)mh.invokeExact(references, primitives);
-	}
-
-	private static byte byteInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (byte)mh.invokeExact(references, primitives);
-	}
-
-	private static short shortInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (short)mh.invokeExact(references, primitives);
-	}
-
-	private static char charInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (char)mh.invokeExact(references, primitives);
-	}
-
-	private static int intInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (int)mh.invokeExact(references, primitives);
-	}
-
-	private static float floatInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (float)mh.invokeExact(references, primitives);
-	}
-
-	private static long longInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (long)mh.invokeExact(references, primitives);
-	}
-
-	private static double doubleInvoke(
-		MethodHandle mh, Object[] references, ByteBuffer primitives)
-	throws Throwable
-	{
-		return (double)mh.invokeExact(references, primitives);
+		mh.invokeExact();
 	}
 
 	private static void udtWriteInvoke(SQLData o, SQLOutput stream)

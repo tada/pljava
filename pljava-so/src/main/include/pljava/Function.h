@@ -78,26 +78,16 @@ extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
  * in the Object array references) and primitives (stored in a C array of jvalue
  * covered by a direct byte buffer, primitives).
  */
-extern jobject pljava_Function_refInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern void pljava_Function_voidInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jboolean pljava_Function_booleanInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jbyte pljava_Function_byteInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jshort pljava_Function_shortInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jchar pljava_Function_charInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jint pljava_Function_intInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jfloat pljava_Function_floatInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jlong pljava_Function_longInvoke(
-	Function self, jobjectArray references, jobject primitives);
-extern jdouble pljava_Function_doubleInvoke(
-	Function self, jobjectArray references, jobject primitives);
+extern jobject pljava_Function_refInvoke(Function self);
+extern void pljava_Function_voidInvoke(Function self);
+extern jboolean pljava_Function_booleanInvoke(Function self);
+extern jbyte pljava_Function_byteInvoke(Function self);
+extern jshort pljava_Function_shortInvoke(Function self);
+extern jchar pljava_Function_charInvoke(Function self);
+extern jint pljava_Function_intInvoke(Function self);
+extern jfloat pljava_Function_floatInvoke(Function self);
+extern jlong pljava_Function_longInvoke(Function self);
+extern jdouble pljava_Function_doubleInvoke(Function self);
 
 extern void pljava_Function_udtWriteInvoke(jobject value, jobject stream);
 extern jstring pljava_Function_udtToStringInvoke(jobject value);

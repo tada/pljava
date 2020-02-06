@@ -203,7 +203,7 @@ extern TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
  * Obtains the Java object that acts as the SRF producer. This instance will be
  * called once for each row that should be produced.
  */
-extern jobject Type_getSRFProducer(Type self, Function fn, jobjectArray refArgs, jobject primArgs);
+extern jobject Type_getSRFProducer(Type self, Function fn);
 
 /*
  * Obtains the optional Java object that will act as the value collector for
@@ -272,17 +272,14 @@ extern void Type_registerType2(Oid typeId, const char* javaTypeName, TypeObtaine
  * the wasNull parameter is set to false by the caller prior to the
  * call.
  *
- * The call into Java is made via a callback of
- * Function_<type>Invoke(fn, refArgs, primArgs).
+ * The call into Java is made via a callback of Function_<type>Invoke(fn).
  */
-extern Datum Type_invoke(Type self, Function fn,
-	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
+extern Datum Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS);
 
 /*
  * Calls a Set Returning Function (SRF).
  */
-extern Datum Type_invokeSRF(Type self, Function fn,
-	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
+extern Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS);
 
 #ifdef __cplusplus
 }

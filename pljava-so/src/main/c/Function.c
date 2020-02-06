@@ -11,6 +11,7 @@
  *   Chapman Flack
  */
 #include "org_postgresql_pljava_internal_Function.h"
+#include "org_postgresql_pljava_internal_Function_EarlyNatives.h"
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
 #include "pljava/InstallHelper.h"
@@ -49,6 +50,11 @@
 #error "Need fallback for heap_copy_tuple_as_datum"
 #endif
 
+#define SETPARAMCOUNTS(refs, prims) \
+	*(jshort *)(((char *)s_primitiveParameters) + \
+	org_postgresql_pljava_internal_Function_s_offset_paramCounts) = \
+	(jshort)(((refs) << 8) | ((prims) & 0xff))
+
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jclass s_Function_class;
@@ -60,22 +66,17 @@ static jmethodID s_Function_create;
 static jmethodID s_Function_getClassIfUDT;
 static jmethodID s_Function_udtReadHandle;
 static jmethodID s_Function_udtParseHandle;
+static jmethodID s_EntryPoints_refInvoke;
 static jmethodID s_EntryPoints_invoke;
-static jmethodID s_EntryPoints_voidInvoke;
-static jmethodID s_EntryPoints_booleanInvoke;
-static jmethodID s_EntryPoints_byteInvoke;
-static jmethodID s_EntryPoints_shortInvoke;
-static jmethodID s_EntryPoints_charInvoke;
-static jmethodID s_EntryPoints_intInvoke;
-static jmethodID s_EntryPoints_floatInvoke;
-static jmethodID s_EntryPoints_longInvoke;
-static jmethodID s_EntryPoints_doubleInvoke;
 static jmethodID s_EntryPoints_udtWriteInvoke;
 static jmethodID s_EntryPoints_udtToStringInvoke;
 static jmethodID s_EntryPoints_udtReadInvoke;
 static jmethodID s_EntryPoints_udtParseInvoke;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
+
+static jobjectArray s_referenceParameters;
+static jvalue s_primitiveParameters [ 1 + 255 ];
 
 struct Function_
 {
@@ -193,6 +194,16 @@ static void _Function_finalize(PgObject func)
 extern void Function_initialize(void);
 void Function_initialize(void)
 {
+	JNINativeMethod earlyMethods[] =
+	{
+		{
+		"_parameterArea",
+		"([Ljava/lang/Object;)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_Function_00024EarlyNatives__1parameterArea
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod functionMethods[] =
 	{
 		{
@@ -214,6 +225,8 @@ void Function_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	jclass cls;
+
 	StaticAssertStmt(org_postgresql_pljava_internal_Function_s_sizeof_jvalue
 		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
 
@@ -225,6 +238,10 @@ void Function_initialize(void)
 
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+
+	cls = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function$EarlyNatives"));
+	PgObject_registerNatives2(cls, earlyMethods);
 
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
@@ -238,41 +255,11 @@ void Function_initialize(void)
 
 	s_EntryPoints_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/EntryPoints"));
+	s_EntryPoints_refInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"refInvoke", "(Ljava/lang/invoke/MethodHandle;)Ljava/lang/Object;");
 	s_EntryPoints_invoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
-		"invoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)Ljava/lang/Object;");
-	s_EntryPoints_voidInvoke = PgObject_getStaticJavaMethod(
-		s_EntryPoints_class,
-		"voidInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)V");
-	s_EntryPoints_booleanInvoke = PgObject_getStaticJavaMethod(
-		s_EntryPoints_class,
-		"booleanInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)Z");
-	s_EntryPoints_byteInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
-		"byteInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)B");
-	s_EntryPoints_shortInvoke = PgObject_getStaticJavaMethod(
-		s_EntryPoints_class,
-		"shortInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)S");
-	s_EntryPoints_charInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
-		"charInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)C");
-	s_EntryPoints_intInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
-		"intInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)I");
-	s_EntryPoints_floatInvoke = PgObject_getStaticJavaMethod(
-		s_EntryPoints_class,
-		"floatInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)F");
-	s_EntryPoints_longInvoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
-		"longInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)J");
-	s_EntryPoints_doubleInvoke = PgObject_getStaticJavaMethod(
-		s_EntryPoints_class,
-		"doubleInvoke", "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;"
-		"Ljava/nio/ByteBuffer;)D");
+		"invoke", "(Ljava/lang/invoke/MethodHandle;)V");
 
 	s_EntryPoints_udtWriteInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
@@ -302,84 +289,72 @@ void Function_initialize(void)
 	s_pgproc_Type = Composite_obtain(ProcedureRelation_Rowtype_Id);
 }
 
-jobject pljava_Function_refInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jobject pljava_Function_refInvoke(Function self)
 {
 	return JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.methodHandle,
-		references, primitives);
+		s_EntryPoints_refInvoke, self->func.nonudt.methodHandle);
 }
 
-void pljava_Function_voidInvoke(
-	Function self, jobjectArray references, jobject primitives)
+void pljava_Function_voidInvoke(Function self)
 {
 	JNI_callStaticVoidMethod(s_EntryPoints_class,
-		s_EntryPoints_voidInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
 }
 
-jboolean pljava_Function_booleanInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jboolean pljava_Function_booleanInvoke(Function self)
 {
-	return JNI_callStaticBooleanMethod(s_EntryPoints_class,
-		s_EntryPoints_booleanInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].z;
 }
 
-jbyte pljava_Function_byteInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jbyte pljava_Function_byteInvoke(Function self)
 {
-	return JNI_callStaticByteMethod(s_EntryPoints_class,
-		s_EntryPoints_byteInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].b;
 }
 
-jshort pljava_Function_shortInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jshort pljava_Function_shortInvoke(Function self)
 {
-	return JNI_callStaticShortMethod(s_EntryPoints_class,
-		s_EntryPoints_shortInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].s;
 }
 
-jchar pljava_Function_charInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jchar pljava_Function_charInvoke(Function self)
 {
-	return JNI_callStaticCharMethod(s_EntryPoints_class,
-		s_EntryPoints_charInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].c;
 }
 
-jint pljava_Function_intInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jint pljava_Function_intInvoke(Function self)
 {
-	return JNI_callStaticIntMethod(s_EntryPoints_class,
-		s_EntryPoints_intInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].i;
 }
 
-jfloat pljava_Function_floatInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jfloat pljava_Function_floatInvoke(Function self)
 {
-	return JNI_callStaticFloatMethod(s_EntryPoints_class,
-		s_EntryPoints_floatInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].f;
 }
 
-jlong pljava_Function_longInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jlong pljava_Function_longInvoke(Function self)
 {
-	return JNI_callStaticLongMethod(s_EntryPoints_class,
-		s_EntryPoints_longInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].j;
 }
 
-jdouble pljava_Function_doubleInvoke(
-	Function self, jobjectArray references, jobject primitives)
+jdouble pljava_Function_doubleInvoke(Function self)
 {
-	return JNI_callStaticDoubleMethod(s_EntryPoints_class,
-		s_EntryPoints_doubleInvoke, self->func.nonudt.methodHandle,
-		references, primitives);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].d;
 }
 
 void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
@@ -593,9 +568,6 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	jsize refArgCount;
 	jsize primArgCount;
 	Size passedArgCount;
-	jobjectArray refArgs = NULL;
-	jvalue* primArgs;
-	jobject primitives = NULL;
 	Type  invokerType;
 
 	fcinfo->isnull = false;
@@ -611,23 +583,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 
 	refArgCount = self->func.nonudt.numRefParams;
 	primArgCount = self->func.nonudt.numPrimParams;
-	
-	/*
-	 * numRefParams, computed when the function was created, will include one
-	 * extra slot in the case of a composite return type; that last slot will be
-	 * populated by the invoke method of Composite, not here. In other cases,
-	 * the count won't include that extra slot, meaning it could plausibly be
-	 * zero, in which case there is no need to allocate the array.
-	 */
-	if ( 0 < refArgCount )
-		refArgs = JNI_newObjectArray(refArgCount, s_Object_class, NULL);
-
-	if ( 0 < primArgCount )
-	{
-		primArgs = (jvalue*)palloc(primArgCount * sizeof(jvalue));
-		primitives =
-			JNI_newDirectByteBuffer(primArgs, primArgCount * sizeof(jvalue));
-	}
+	SETPARAMCOUNTS(refArgCount, primArgCount);
 
 	invokerType = self->func.nonudt.returnType;
 
@@ -656,7 +612,7 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 				 * Set this argument to zero (or null in case of object)
 				 */
 				if ( passPrimitive )
-					primArgs[primIdx++].j = 0L;
+					s_primitiveParameters[primIdx++].j = 0L;
 				else
 					++ refIdx; /* array element is already initially null */
 			}
@@ -668,29 +624,23 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 						self->func.nonudt.typeMap);
 				coerced = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
 				if ( passPrimitive )
-					primArgs[primIdx++] = coerced;
+					s_primitiveParameters[primIdx++] = coerced;
 				else
-					JNI_setObjectArrayElement(refArgs, refIdx++, coerced.l);
+					JNI_setObjectArrayElement(
+						s_referenceParameters, refIdx++, coerced.l);
 			}
 		}
 	}
 
 	retVal = self->func.nonudt.isMultiCall
-		? Type_invokeSRF(invokerType, self, refArgs, primitives, fcinfo)
-		: Type_invoke(invokerType, self, refArgs, primitives, fcinfo);
+		? Type_invokeSRF(invokerType, self, fcinfo)
+		: Type_invoke(invokerType, self, fcinfo);
 
-	JNI_deleteLocalRef(refArgs);
-	if ( NULL != primitives )
-	{
-		JNI_deleteLocalRef(primitives);
-		pfree(primArgs);
-	}
 	return retVal;
 }
 
 Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 {
-	jobjectArray refArgs;
 	jobject jtd;
 	Datum  ret;
 
@@ -699,7 +649,8 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	if(jtd == 0)
 		return 0;
 
-	refArgs = JNI_newObjectArray(1, s_Object_class, jtd);
+	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
+	SETPARAMCOUNTS(1, 0); /* (refs, prims) */
 
 #if PG_VERSION_NUM >= 100000
 	currentInvocation->triggerData = td;
@@ -710,8 +661,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	 * the trigger function has returned.
 	 */
 #endif
-	Type_invoke(self->func.nonudt.returnType, self, refArgs, NULL, fcinfo);
-	JNI_deleteLocalRef(refArgs);
+	Type_invoke(self->func.nonudt.returnType, self, fcinfo);
 
 	fcinfo->isnull = false;
 	if(JNI_exceptionCheck())
@@ -771,6 +721,24 @@ jobject Function_currentLoader(void)
 	if ( NULL == weakRef )
 		return NULL;
 	return JNI_newLocalRef(weakRef);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function_EarlyNatives
+ * Method:    _parameterArea
+ * Signature: ([Ljava/lang/Object;)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+	Java_org_postgresql_pljava_internal_Function_00024EarlyNatives__1parameterArea(
+	JNIEnv *env, jclass cls, jobjectArray referenceParams)
+{
+	/*
+	 * This native method will use *env directly, not BEGIN_NATIVE / END_NATIVE:
+	 * it is only called once in early initialization on the primordial thread.
+	 */
+	s_referenceParameters = (*env)->NewGlobalRef(env, referenceParams);
+	return (*env)->NewDirectByteBuffer(
+		env, &s_primitiveParameters, sizeof s_primitiveParameters);
 }
 
 /*

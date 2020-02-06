@@ -436,13 +436,12 @@ TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return self->typeClass->getTupleDesc(self, fcinfo);
 }
 
-Datum Type_invoke(Type self, Function fn,
-	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+Datum Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	return self->typeClass->invoke(self, fn, refArgs, primArgs, fcinfo);
+	return self->typeClass->invoke(self, fn, fcinfo);
 }
 
-Datum Type_invokeSRF(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	CallContextData* ctxData;
@@ -474,7 +473,7 @@ Datum Type_invokeSRF(Type self, Function fn, jobjectArray refArgs, jobject primA
 		/* Call the declared Java function. It returns an instance that can produce
 		 * the rows.
 		 */
-		tmp = Type_getSRFProducer(self, fn, refArgs, primArgs);
+		tmp = Type_getSRFProducer(self, fn);
 		if(tmp == 0)
 		{
 			Invocation_assertDisconnect();
@@ -711,12 +710,11 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->typeClass == other->typeClass;
 }
 
-Datum _Type_invoke(Type self, Function fn,
-	jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS)
+Datum _Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	MemoryContext currCtx;
 	Datum ret;
-	jobject value = pljava_Function_refInvoke(fn, refArgs, primArgs);
+	jobject value = pljava_Function_refInvoke(fn);
 	if(value == 0)
 	{
 		fcinfo->isnull = true;
@@ -738,9 +736,9 @@ static Type _Type_createArrayType(Type self, Oid arrayTypeId)
 	return Array_fromOid(arrayTypeId, self);
 }
 
-static jobject _Type_getSRFProducer(Type self, Function fn, jobjectArray refArgs, jobject primArgs)
+static jobject _Type_getSRFProducer(Type self, Function fn)
 {
-	return pljava_Function_refInvoke(fn, refArgs, primArgs);
+	return pljava_Function_refInvoke(fn);
 }
 
 static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
@@ -755,6 +753,7 @@ static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollecto
 
 static Datum _Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
 {
+	/* XXX make an entry point */
 	jobject tmp = JNI_callObjectMethod(rowProducer, s_Iterator_next);
 	Datum result = Type_coerceObject(self, tmp);
 	JNI_deleteLocalRef(tmp);
@@ -765,9 +764,9 @@ static void _Type_closeSRF(Type self, jobject rowProducer)
 {
 }
 
-jobject Type_getSRFProducer(Type self, Function fn, jobjectArray refArgs, jobject primArgs)
+jobject Type_getSRFProducer(Type self, Function fn)
 {
-	return self->typeClass->getSRFProducer(self, fn, refArgs, primArgs);
+	return self->typeClass->getSRFProducer(self, fn);
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)

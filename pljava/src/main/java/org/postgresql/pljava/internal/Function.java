@@ -20,6 +20,7 @@ import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
+import static java.lang.invoke.MethodHandles.guardWithTest;
 import static java.lang.invoke.MethodHandles.identity;
 import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
@@ -27,6 +28,7 @@ import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.lang.invoke.MethodHandles.publicLookup;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
+import java.lang.invoke.WrongMethodTypeException;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
@@ -64,6 +66,16 @@ import org.postgresql.pljava.sqlj.Loader;
 
 public class Function
 {
+
+	private static class EarlyNatives
+	{
+		/*
+		 * Pass the Java-allocated s_referenceParameters area down to the C code
+		 * and obtain the ByteBuffer over the C-allocated primitives area.
+		 */
+		private static native ByteBuffer _parameterArea(Object[] refs);
+	}
+
 	/**
 	 * Return null if the {@code prosrc} field in the provided {@code procTup}
 	 * does not have the form of a UDT specification; if it does, return the
@@ -297,6 +309,7 @@ public class Function
 		int primitives = (int)
 			mt.parameterList().stream().filter(Class::isPrimitive).count();
 		int references = parameterCount - primitives;
+		short countCheck = (short)((references << 8) | (primitives & 0xff));
 
 		boolean hasPrimitiveParams = 0 < primitives;
 
@@ -323,31 +336,19 @@ public class Function
 		 * invoked *first* when a call is later made. In other words, the order
 		 * of these steps has a reverse-chronological flavor, producing handles
 		 * whose chronological sequence will be last-to-first during a call.
-		 *
-		 * That brief introduction helps to grok the names of the various
-		 * combinator methods used here. This next one, for example, is called
-		 * dropArguments. It is going to replace our existing mh(a0,...,a(n-1))
-		 * with a new mh having two more arguments: a0,...,a(n-1),Obj[],ByteBuf!
-		 *
-		 * So, the method handle produced by "dropArguments" is one that has two
-		 * *more* arguments than the one it started with. It is later, at call
-		 * time, when that resulting method handle will "drop" those arguments,
-		 * and invoke the original handle without them.
 		 */
-		mh =
-			dropArguments(mh, parameterCount, Object[].class, ByteBuffer.class);
 
 		/*
 		 * Iterate through the parameter indices in reverse order. Each step
-		 * takes a method handle with parameters a0,...,ak,Object[],ByteBuffer
-		 * and produces a handle with one fewer: a0,...ak-1,Object[],ByteBuffer.
+		 * takes a method handle with parameters a0,...,ak
+		 * and produces a handle with one fewer: a0,...ak-1.
 		 * At invocation time, this handle will fetch the value for ak (from
 		 * either the Object[] or the ByteBuffer as ak is of reference or
 		 * primitive type), and invoke the next (in construction order, prior)
 		 * handle.
 		 *
 		 * The handle left at the end of this loop will have only the
-		 * Object[] and ByteBuffer parameters.
+		 * parameters expected by the invocation target.
 		 */
 		while ( parameterCount --> 0 )
 		{
@@ -369,36 +370,29 @@ public class Function
 					throw new AssertionError("unknown Java primitive type");
 				}
 				/*
-				 * Each getter takes two arguments: a ByteBuffer and a byte
+				 * Each getter takes one argument: a byte
 				 * offset. Use "insertArguments" to bind in the offset for this
-				 * parameter, so the resulting getter handle has a ByteBuffer
-				 * argument only. (That nomenclature again! Here at construction
+				 * parameter, so the resulting getter handle has no arguments.
+				 * (That nomenclature again! Here at construction
 				 * time, "insertArguments" produces a method handle with *fewer*
 				 * than the one it starts with. It's later, at call time, when
 				 * the value(s) will get "inserted" as it calls the prior handle
 				 * that expects them.)
 				 */
-				primGetter = insertArguments(primGetter, 1,
+				primGetter = insertArguments(primGetter, 0,
 					(--primitives) * s_sizeof_jvalue);
 				/*
-				 * "dropArguments" here because the getter handle really needs
-				 * to take two arguments (Object[],ByteBuffer) to fit the scheme
-				 * (and just ignore the Object[], of course).
-				 */
-				primGetter = dropArguments(primGetter, 0, Object[].class);
-				/*
-				 * The "foldArgument" combinator. At this step, let k be
+				 * The "foldArguments" combinator. At this step, let k be
 				 * parameterCount, so we are looking at a method handle that
-				 * takes a0,...,ak,Object[],ByteBuffer, and foldArguments will
-				 * produce a shorter one a0,...,ak-1,Object[],ByteBuffer.
+				 * takes a0,...,ak, and foldArguments will
+				 * produce a shorter one a0,...,ak-1.
 				 *
 				 * At invocation time, the handle will invoke the primGetter
-				 * (which has arity 2) on the corresponding number of parameters
-				 * (2) starting at position k (or parameterCount, if you will).
-				 * Those will be the Object[] and ByteBuffer, and the result of
+				 * (which has arity 0) on the corresponding number of parameters
+				 * (0) starting at position k (or parameterCount, if you will).
+				 * The result of
 				 * the primGetter will become ak in the invocation of the next
-				 * underlying handle (with the Object[] and ByteBuffer still
-				 * tagging along after it).
+				 * underlying handle.
 				 */
 				mh = foldArguments(mh, parameterCount, primGetter);
 			}
@@ -406,45 +400,62 @@ public class Function
 			{
 				/*
 				 * The same drill as above, only for reference-typed arguments,
-				 * which will be fetched from the Object[]. It is not necessary
-				 * here to use dropArguments to make the getter have arity 2.
-				 * Because the Object[] is the first of the two tag-along args,
-				 * the getter can have arity 1 and the right thing happens
-				 * naturally: it sees the Object[], and ignores the ByteBuffer.
+				 * which will be fetched from the Object[].
 				 */
-				MethodHandle refGetter = arrayElementGetter(Object[].class);
+				MethodHandle refGetter = s_refGetter;
 				/*
-				 * Again, an arrayElementGetter has arity 2 (an array, and an
-				 * index); bind in the right index for this parameter, producing
-				 * a getter with only the array argument.
+				 * Again, s_refGetter has arity 1 (just the integer index);
+				 * bind in the right index for this parameter, producing
+				 * a getter with no argument.
 				 */
-				refGetter = insertArguments(refGetter, 1, --references);
+				refGetter = insertArguments(refGetter, 0, --references);
 				mh = foldArguments(mh, parameterCount, refGetter);
 			}
 		}
 
 		/*
-		 * When a ByteBuffer is created in C code with newDirectByteBuffer(),
-		 * there is no opportunity to specify details like its byte ordering
-		 * or read-only. It had definitely better be set to native byte order
-		 * before we begin fetching values out of it. That doesn't have to
-		 * happen at all if the method has no primitive parameters (and in fact
-		 * had better not happen, as the byte buffer parameter will be null in
-		 * that case!). There is no need for that to be a conditional tested at
-		 * call time; we know right now whether this method has any primitive
-		 * parameters, and can just tack on one "last" (at call time, "first")
-		 * filterArguments action to set the native order.
-		 *
-		 * It is tempting to also call asReadOnlyBuffer, but then, the buffer
-		 * doesn't escape to any code outside these method handles, and we know
-		 * we only read it, so that's one method call we don't have to make.
+		 * If the target has a primitive return type, add a filter that stashes
+		 * the return value in slot 0 of the primitives static area. A return
+		 * value of reference type is simply returned.
 		 */
-		if ( hasPrimitiveParams )
-			mh = filterArguments(mh, 1, s_nativeOrderer);
+		Class<?> rt = mt.returnType();
+		if ( void.class != rt  &&  rt.isPrimitive() )
+		{
+			MethodHandle primReturn;
+			switch ( rt.getSimpleName() )
+			{
+			case "boolean": primReturn = s_booleanReturn; break;
+			case "byte":    primReturn = s_byteReturn;    break;
+			case "short":   primReturn = s_shortReturn;   break;
+			case "char":    primReturn = s_charReturn;    break;
+			case "int":     primReturn = s_intReturn;     break;
+			case "float":   primReturn = s_floatReturn;   break;
+			case "long":    primReturn = s_longReturn;    break;
+			case "double":  primReturn = s_doubleReturn;  break;
+			default:
+				throw new AssertionError("unknown Java primitive return type");
+			}
 
-		return mh;
+			mh = filterReturnValue(mh, primReturn);
+		}
+
+		/*
+		 * The returned method handle will first confirm that it is being called
+		 * with the expected numbers of reference and primitive parameters,
+		 * throwing an exception if not.
+		 */
+		return foldArguments(mh,
+			insertArguments(s_paramCountsAre, 0, countCheck));
 	}
 
+	private static final MethodHandle s_booleanReturn;
+	private static final MethodHandle s_byteReturn;
+	private static final MethodHandle s_shortReturn;
+	private static final MethodHandle s_charReturn;
+	private static final MethodHandle s_intReturn;
+	private static final MethodHandle s_floatReturn;
+	private static final MethodHandle s_longReturn;
+	private static final MethodHandle s_doubleReturn;
 	private static final MethodHandle s_booleanGetter;
 	private static final MethodHandle s_byteGetter;
 	private static final MethodHandle s_shortGetter;
@@ -453,39 +464,134 @@ public class Function
 	private static final MethodHandle s_floatGetter;
 	private static final MethodHandle s_longGetter;
 	private static final MethodHandle s_doubleGetter;
-	private static final MethodHandle s_nativeOrderer;
+	private static final MethodHandle s_refGetter;
+	private static final MethodHandle s_paramCountsAre;
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 	private static final MethodHandle s_readSQL_mh;
 
+	/*
+	 * Static areas for passing reference and primitive parameters. A Java
+	 * method can have no more than 255 parameters, so each area gets the
+	 * worst-case allocation. s_primitiveParameters is a direct byte buffer
+	 * over an array of 255 JNI jvalues. (It could be made half the size by
+	 * taking into account the JVM convention that long/double take two slots
+	 * each, but that can be a future optimization.)
+	 *
+	 * These areas will be bound into MethodHandle trees constructed over
+	 * desired invocation targets. Such a constructed method handle will take
+	 * care of pushing the arguments from the appropriate static slots. Because
+	 * that happens before the target is invoked, and calls must happen on the
+	 * PG thread, the static areas are safe for reentrant calls.
+	 *
+	 * Such a constructed method handle will be passed to EntryPoints.refInvoke
+	 * if the invocation target returns a reference type (which becomes the
+	 * return value of refInvoke). If the target has a primitive or void return
+	 * type, the handle will be passed to EntryPoints.invoke, which has void
+	 * return type. If the target returns a primitive value, the last act of the
+	 * constructed method handle will be to store that in the first slot of
+	 * s_primitiveParameters, where the C code will find it.
+	 *
+	 * The primitive parameters area is slightly larger than 255 jvalues; the
+	 * next two bytes contain the numbers of actual parameters in the call (as
+	 * an int16 with the count of reference parameters in the MSB, primitives
+	 * in the LSB). Each constructed MethodHandle will have the corresponding
+	 * int16 value bound in for comparison, and will throw an exception if
+	 * invoked with the wrong parameter counts.
+	 */
+	private static final Object[] s_referenceParameters = new Object [ 255 ];
+	private static final ByteBuffer s_primitiveParameters =
+		EarlyNatives._parameterArea(s_referenceParameters)
+		.order(ByteOrder.nativeOrder());
+	private static final int s_offset_paramCounts = 255 * s_sizeof_jvalue;
 
 	static
 	{
 		Lookup l = publicLookup();
+		Lookup myL = lookup();
+		MethodHandle toVoid = identity(ByteBuffer.class)
+			.asType(methodType(void.class, ByteBuffer.class));
 		MethodType mt = methodType(byte.class, int.class);
 		MethodHandle mh;
 
 		try
 		{
-			s_byteGetter = l.findVirtual(ByteBuffer.class, "get", mt);
+			s_byteGetter = l.findVirtual(ByteBuffer.class, "get", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(short.class);
-			s_shortGetter = l.findVirtual(ByteBuffer.class, "getShort", mt);
+			s_shortGetter = l.findVirtual(ByteBuffer.class, "getShort", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(char.class);
-			s_charGetter = l.findVirtual(ByteBuffer.class, "getChar", mt);
+			s_charGetter = l.findVirtual(ByteBuffer.class, "getChar", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(int.class);
-			s_intGetter = l.findVirtual(ByteBuffer.class, "getInt", mt);
+			s_intGetter = l.findVirtual(ByteBuffer.class, "getInt", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(float.class);
-			s_floatGetter = l.findVirtual(ByteBuffer.class, "getFloat", mt);
+			s_floatGetter = l.findVirtual(ByteBuffer.class, "getFloat", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(long.class);
-			s_longGetter = l.findVirtual(ByteBuffer.class, "getLong", mt);
+			s_longGetter = l.findVirtual(ByteBuffer.class, "getLong", mt)
+				.bindTo(s_primitiveParameters);
 			mt = mt.changeReturnType(double.class);
-			s_doubleGetter = l.findVirtual(ByteBuffer.class, "getDouble", mt);
+			s_doubleGetter = l.findVirtual(ByteBuffer.class, "getDouble", mt)
+				.bindTo(s_primitiveParameters);
+
+			mt = mt.changeReturnType(Object.class);
+			s_refGetter = arrayElementGetter(Object[].class)
+				.bindTo(s_referenceParameters);
 
 			mt = methodType(boolean.class, byte.class);
-			mh = lookup().findStatic(Function.class, "byteNonZero", mt);
+			mh = myL.findStatic(Function.class, "byteNonZero", mt);
 			s_booleanGetter = filterReturnValue(s_byteGetter, mh);
 
-			mt = methodType(ByteBuffer.class, ByteOrder.class);
-			mh = l.findVirtual(ByteBuffer.class, "order", mt);
+			mt = methodType(void.class, short.class);
+			mh = myL.findStatic(Function.class, "paramCountsAre", mt);
+			s_paramCountsAre = mh;
+
+			mt = methodType(ByteBuffer.class, int.class, byte.class);
+			mh = l.findVirtual(ByteBuffer.class, "put", mt)
+				.bindTo(s_primitiveParameters);
+			s_byteReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, short.class);
+			mh = l.findVirtual(ByteBuffer.class, "putShort", mt)
+				.bindTo(s_primitiveParameters);
+			s_shortReturn =
+				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, char.class);
+			mh = l.findVirtual(ByteBuffer.class, "putChar", mt)
+				.bindTo(s_primitiveParameters);
+			s_charReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, int.class);
+			mh = l.findVirtual(ByteBuffer.class, "putInt", mt)
+				.bindTo(s_primitiveParameters);
+			s_intReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, float.class);
+			mh = l.findVirtual(ByteBuffer.class, "putFloat", mt)
+				.bindTo(s_primitiveParameters);
+			s_floatReturn =
+				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, long.class);
+			mh = l.findVirtual(ByteBuffer.class, "putLong", mt)
+				.bindTo(s_primitiveParameters);
+			s_longReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mt = mt.changeParameterType(1, double.class);
+			mh = l.findVirtual(ByteBuffer.class, "putDouble", mt)
+				.bindTo(s_primitiveParameters);
+			s_doubleReturn =
+				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+
+			mh = s_byteReturn;
+			s_booleanReturn = guardWithTest(identity(boolean.class),
+				dropArguments(
+					insertArguments(mh, 0, (byte)1), 0, boolean.class),
+				dropArguments(
+					insertArguments(mh, 0, (byte)0), 0, boolean.class));
 
 			s_readSQL_mh = l.findVirtual(SQLData.class, "readSQL",
 					methodType(void.class, SQLInput.class, String.class));
@@ -494,12 +600,6 @@ public class Function
 		{
 			throw new ExceptionInInitializerError(e);
 		}
-
-		/*
-		 * "nativeOrderer" is the ByteBuffer.order(o) method, with the correct
-		 * native order bound in as o.
-		 */
-		s_nativeOrderer = insertArguments(mh, 1, ByteOrder.nativeOrder());
 	}
 
 	/**
@@ -512,6 +612,23 @@ public class Function
 	private static boolean byteNonZero(byte b)
 	{
 		return 0 != b;
+	}
+
+	/**
+	 * Throw a {@code WrongMethodTypeException} if the parameter counts in
+	 * {@code counts} (references in the MSB, primitives in the LSB) do not
+	 * match those at offset {@code s_offset_paramCounts} in the static passing
+	 * area.
+	 */
+	private static void paramCountsAre(short counts)
+	{
+		short got = s_primitiveParameters.getShort(s_offset_paramCounts);
+		if ( counts != got )
+			throw new WrongMethodTypeException(String.format(
+				"PL/Java invocation expects (%d reference/%d primitive) " +
+				"parameter count but passed (%d reference/%d primitive)",
+				(counts >>> 8), (counts & 0xff),
+				(got >>> 8), (got & 0xff)));
 	}
 
 	/**

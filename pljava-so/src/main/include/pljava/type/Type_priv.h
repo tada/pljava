@@ -105,11 +105,9 @@ struct TypeClass_
 	 * The call into Java is made via a callback of
 	 * Function_<type>Invoke(fn, refArgs, primArgs).
 	 */
-	Datum (*invoke)(Type self, Function fn,
-		jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
+	Datum (*invoke)(Type self, Function fn, PG_FUNCTION_ARGS);
 
-	jobject (*getSRFProducer)(Type self, Function fn, jobjectArray refArgs,
-		jobject primArgs);
+	jobject (*getSRFProducer)(Type self, Function fn);
 	jobject (*getSRFCollector)(Type self, PG_FUNCTION_ARGS);
 	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jlong counter);
 	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
@@ -176,7 +174,7 @@ extern bool _Type_canReplaceType(Type self, Type other);
  * Default version of invoke. Will make a JNI CallObjectMethod call and then
  * a call to self->coerceObject to create the Datum.
  */
-extern Datum _Type_invoke(Type self, Function fn, jobjectArray refArgs, jobject primArgs, PG_FUNCTION_ARGS);
+extern Datum _Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS);
 
 /*
  * Return the m_oid member of the Type. This is the default version of
