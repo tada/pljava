@@ -15,6 +15,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import static java.lang.invoke.MethodHandles.arrayElementGetter;
+import static java.lang.invoke.MethodHandles.arrayElementSetter;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.filterArguments;
@@ -379,21 +380,29 @@ public class Function
 				 * the value(s) will get "inserted" as it calls the prior handle
 				 * that expects them.)
 				 */
-				primGetter = insertArguments(primGetter, 0,
-					(--primitives) * s_sizeof_jvalue);
+				int offset = (--primitives) * s_sizeof_jvalue;
+				primGetter = insertArguments(primGetter, 0, offset);
 				/*
 				 * The "foldArguments" combinator. At this step, let k be
 				 * parameterCount, so we are looking at a method handle that
-				 * takes a0,...,ak, and foldArguments will
+				 * takes a0,...,ak, and foldArguments(..., primGetter) will
 				 * produce a shorter one a0,...,ak-1.
 				 *
 				 * At invocation time, the handle will invoke the primGetter
 				 * (which has arity 0) on the corresponding number of parameters
 				 * (0) starting at position k (or parameterCount, if you will).
-				 * The result of
-				 * the primGetter will become ak in the invocation of the next
-				 * underlying handle.
+				 * The result of the primGetter will become ak in the invocation
+				 * of the next underlying handle.
+				 *
+				 * *Ahead* of the primGetter here (so, at invocation time,
+				 * *after* the prim has been got), fold in a primitiveZeroer
+				 * bound to the same offset, so argument values won't lie around
+				 * indefinitely in the static area. Because the zeroer has void
+				 * return and (once bound) no arguments, it has no effect on the
+				 * argument list being constructed here for the target method.
 				 */
+				mh = foldArguments(mh, 0,
+					insertArguments(s_primitiveZeroer, 0, offset));
 				mh = foldArguments(mh, parameterCount, primGetter);
 			}
 			else
@@ -407,8 +416,17 @@ public class Function
 				 * Again, s_refGetter has arity 1 (just the integer index);
 				 * bind in the right index for this parameter, producing
 				 * a getter with no argument.
+				 *
+				 * Also again, fold in a referenceNuller, both to prevent the
+				 * lingering exposure of argument values in the static area and,
+				 * as important, indefinitely holding the reference live. The
+				 * nuller, once bound to the index, has no arguments and void
+				 * return, so does not affect the argument list being built.
 				 */
-				refGetter = insertArguments(refGetter, 0, --references);
+				int index = --references;
+				refGetter = insertArguments(refGetter, 0, index);
+				mh = foldArguments(mh, 0,
+					insertArguments(s_referenceNuller, 0, index));
 				mh = foldArguments(mh, parameterCount, refGetter);
 			}
 		}
@@ -465,6 +483,8 @@ public class Function
 	private static final MethodHandle s_longGetter;
 	private static final MethodHandle s_doubleGetter;
 	private static final MethodHandle s_refGetter;
+	private static final MethodHandle s_referenceNuller;
+	private static final MethodHandle s_primitiveZeroer;
 	private static final MethodHandle s_paramCountsAre;
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 	private static final MethodHandle s_readSQL_mh;
@@ -510,6 +530,7 @@ public class Function
 		Lookup myL = lookup();
 		MethodHandle toVoid = identity(ByteBuffer.class)
 			.asType(methodType(void.class, ByteBuffer.class));
+		MethodHandle longSetter = null;
 		MethodType mt = methodType(byte.class, int.class);
 		MethodHandle mh;
 
@@ -578,7 +599,8 @@ public class Function
 			mt = mt.changeParameterType(1, long.class);
 			mh = l.findVirtual(ByteBuffer.class, "putLong", mt)
 				.bindTo(s_primitiveParameters);
-			s_longReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			longSetter = filterReturnValue(mh, toVoid);
+			s_longReturn = insertArguments(longSetter, 0, 0);
 
 			mt = mt.changeParameterType(1, double.class);
 			mh = l.findVirtual(ByteBuffer.class, "putDouble", mt)
@@ -600,6 +622,12 @@ public class Function
 		{
 			throw new ExceptionInInitializerError(e);
 		}
+
+		s_referenceNuller =
+			insertArguments(arrayElementSetter(Object[].class), 2, (Object)null)
+			.bindTo(s_referenceParameters);
+
+		s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
 	}
 
 	/**
