@@ -65,8 +65,52 @@ import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import org.postgresql.pljava.management.Commands;
 import org.postgresql.pljava.sqlj.Loader;
 
+/**
+ * Methods to look up a PL/Java function and prepare it for invocation.
+ *<p>
+ * This class contains, mostly, logic that was originally in {@code Function.c}
+ * and has been ported to Java for better maintainability and adaptability. Many
+ * methods here have similar or identical names to the C functions they replace.
+ *<p>
+ * When a PL/Java function is called, the C call handler will call the C
+ * {@code Function_getFunction}, which will delegate to {@code Function_create}
+ * if the function has not already been called. That C function calls the
+ * {@link #create create} method here, which ultimately (after all parsing of
+ * the {@code CREATE FUNCTION ... AS ...} information, matching up of parameter
+ * and return types, etc.) will return a {@code MethodHandle} to use when
+ * invoking the function.
+ *<p>
+ * This remains a hybrid approach, in which PL/Java's legacy C {@code Type}
+ * infrastructure is used for converting the parameter and return values, and a
+ * C {@code Function_} structure kept in a C hash table holds the details
+ * needed for invocation, including the {@code MethodHandle} created here. The
+ * methods in this class also use some JNI calls to contribute and retrieve
+ * additional details that belong in the C structure.
+ *<p>
+ * The method handle returned here by {@code create} will have return type of
+ * either {@code Object} (for a target method returning any reference type) or
+ * {@code void} (for a target method of any other return type, including
+ * {@code void}), and no formal parameters. The method handle can contain bound
+ * references to the static {@code s_referenceParameters} and
+ * {@code s_primitiveParameters} declared in this class, and will fetch the
+ * parameters from there (where invocation code in {@code Function.c} will have
+ * put them) at the time of invocation. The parameter areas are static, but
+ * invocation takes place only on the PG thread, and the method handles created
+ * here will have fetched all of the values to push on the stack before the
+ * (potentially reentrant) target method is invoked. If the method has a
+ * primitive return type, its return value will be placed in the first slot of
+ * {@code s_primitiveParameters} and the method handle returns {@code void}.
+ * Naturally, the (potentially reentrant) target method has already returned
+ * before that value is placed in the static slot.
+ */
 public class Function
 {
+	/**
+	 * Prevent instantiation.
+	 */
+	private Function()
+	{
+	}
 
 	private static class EarlyNatives
 	{
@@ -169,9 +213,19 @@ public class Function
 		return boolean.class;
 	}
 
+	/**
+	 * A Lookup to be used for the few functions inside this module that are
+	 * allowed to be declared in SQL.
+	 */
 	private static Lookup s_lookup =
 		lookup().dropLookupMode(Lookup.PACKAGE);
 
+	/**
+	 * Return a Lookup appropriate to the target class, which will be a public
+	 * Lookup unless the class is {@code Commands} in this module, whose public
+	 * methods are the only ones inside this module that SQL is allowed to
+	 * declare.
+	 */
 	private static Lookup lookupFor(Class<?> clazz)
 	{
 		if ( Commands.class == clazz )
