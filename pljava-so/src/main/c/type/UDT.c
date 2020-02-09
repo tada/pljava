@@ -22,6 +22,7 @@
 #include "pljava/type/UDT_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
+#include "pljava/Function.h"
 #include "pljava/Invocation.h"
 #include "pljava/SQLInputFromChunk.h"
 #include "pljava/SQLOutputToChunk.h"
@@ -32,19 +33,57 @@
 #include <utils/bytea.h>
 #endif
 
+/*
+ * This code, as currently constituted, makes these assumptions that limit how
+ * Java can implement a (scalar) UDT:
+ *
+ * ASSUMPTION 1: If a Java UDT is declared with INTERNALLENGTH -2 (indicating
+ *               that its internal representation is a variable-length sequence
+ *               of nonzero bytes terminated by a zero byte), this code ASSUMES
+ *               that the internal representation and the human-readable one
+ *               (defined by typinput/typoutput) have to be identical ... an
+ *               assumption apparently made because typinput/typoutput consume
+ *               and produce the type cstring, whose internallength is also -2.
+ *
+ * ASSUMPTION 2: Whatever the UDT's internal representation is, its binary
+ *               exchange representation (defined by typreceive/typsend) has to
+ *               be identical to that.
+ *
+ * This list of assumptions could grow with further review of the code.
+ *
+ * Comments will be added below to tag code that embodies these assumptions.
+ *
+ * The current pattern for a scalar UDT has another difficulty: it relies on
+ * toString for producing the external representation, which is a general
+ * Object method declared to have nothing to throw. And the general expectation
+ * for toString is to produce some nice representation, but not necessarily
+ * always the literally re-parsable representation of something. And the scalar
+ * readSQL/writeSQL implementations impose a 16-bit limit on lengths of things.
+ *
+ * Idea for future: add another scalar UDT pattern using different methods, and
+ * without the current readSQL/writeSQL limitations. Continue to recognize the
+ * parse/toString pattern and provide the old behavior for compatibility.
+ */
+
 static jobject coerceScalarDatum(UDT self, Datum arg)
 {
 	jobject result;
 	int32 dataLen = Type_getLength((Type)self);
-	jclass javaClass = Type_getJavaClass((Type)self);
-	bool isJavaBasedScalar = 0 != self->toString;
+	bool isJavaBasedScalar = 0 != self->parse;
 
 	if(dataLen == -2)
 	{
 		/* Data is a zero terminated string
 		 */
 		jstring jstr = String_createJavaStringFromNTS(DatumGetCString(arg));
-		result = JNI_callStaticObjectMethod(javaClass, self->parse, jstr, self->sqlTypeName);
+		/*
+		 * ASSUMPTION 1 is in play here. 'arg' here is a Datum holding this
+		 * UDT's internal representation, and will now be passed to 'parse', the
+		 * same method that is specified to parse a value from the human-used
+		 * external representation.
+		 */
+		result = pljava_Function_udtParseInvoke(
+			self->parse, jstr, self->sqlTypeName);
 		JNI_deleteLocalRef(jstr);
 	}
 	else
@@ -79,11 +118,11 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 				data = DatumGetPointer(arg);
 			}
 		}
-		result = JNI_newObject(javaClass, self->init);
 
 		inputStream = SQLInputFromChunk_create(data, dataLen,
 			isJavaBasedScalar);
-		JNI_callVoidMethod(result, self->readSQL, inputStream, self->sqlTypeName);
+		result = pljava_Function_udtReadInvoke(
+			self->readSQL, inputStream, self->sqlTypeName);
 		SQLInputFromChunk_close(inputStream);
 	}
 	return result;
@@ -91,10 +130,11 @@ static jobject coerceScalarDatum(UDT self, Datum arg)
 
 static jobject coerceTupleDatum(UDT udt, Datum arg)
 {
-	jobject result = JNI_newObject(Type_getJavaClass((Type)udt), udt->init);
+	jobject result;
 	jobject inputStream =
 		pljava_SQLInputFromTuple_create(DatumGetHeapTupleHeader(arg));
-	JNI_callVoidMethod(result, udt->readSQL, inputStream, udt->sqlTypeName);
+	result = pljava_Function_udtReadInvoke(
+		udt->readSQL, inputStream, udt->sqlTypeName);
 	JNI_deleteLocalRef(inputStream);
 	return result;
 }
@@ -103,10 +143,15 @@ static Datum coerceScalarObject(UDT self, jobject value)
 {
 	Datum result;
 	int32 dataLen = Type_getLength((Type)self);
-	bool isJavaBasedScalar = 0 != self->toString;
+	bool isJavaBasedScalar = 0 != self->parse;
 	if(dataLen == -2)
 	{
-		jstring jstr = (jstring)JNI_callObjectMethod(value, self->toString);
+		/*
+		 * ASSUMPTION 1 is in play here: the toString method, specified to
+		 * produce the human-used external representation, is being called here
+		 * to produce this UDT's internal representation.
+		 */
+		jstring jstr = pljava_Function_udtToStringInvoke(value);
 		char* tmp = String_createNTS(jstr);
 		result = CStringGetDatum(tmp);
 		JNI_deleteLocalRef(jstr);
@@ -131,7 +176,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 			enlargeStringInfo(&buffer, dataLen);
 
 		outputStream = SQLOutputToChunk_create(&buffer, isJavaBasedScalar);
-		JNI_callVoidMethod(value, self->writeSQL, outputStream);
+		pljava_Function_udtWriteInvoke(value, outputStream);
 		SQLOutputToChunk_close(outputStream);
 
 		if(dataLen < 0)
@@ -178,7 +223,7 @@ static Datum coerceTupleObject(UDT self, jobject value)
 		TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
 		jobject sqlOutput = SQLOutputToTuple_create(tupleDesc);
 		ReleaseTupleDesc(tupleDesc);
-		JNI_callVoidMethod(value, self->writeSQL, sqlOutput);
+		pljava_Function_udtWriteInvoke(value, sqlOutput);
 		tuple = SQLOutputToTuple_getTuple(sqlOutput);
 		if(tuple != 0)
 			result = HeapTupleGetDatum(tuple);
@@ -257,12 +302,24 @@ Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
 
 	if(Type_getLength((Type)udt) == -2)
 	{
+		/*
+		 * ASSUMPTION 1 is in play here. UDT_input is passed a cstring holding
+		 * the human-used external representation, and, just because this UDT is
+		 * also declared with length -2, that external representation is being
+		 * copied directly here as the internal representation, without even
+		 * invoking any of the UDT's code.
+		 */
 		if(txt != 0)
 			txt = pstrdup(txt);
 		PG_RETURN_CSTRING(txt);
 	}
+	/*
+	 * Length != -2 so we do the expected: call parse to construct a Java object
+	 * from the external representation, then _UDT_coerceObject to get the
+	 * internal representation from the object.
+	 */
 	jstr = String_createJavaStringFromNTS(txt);
-	obj  = JNI_callStaticObjectMethod(Type_getJavaClass((Type)udt), udt->parse, jstr, udt->sqlTypeName);
+	obj  = pljava_Function_udtParseInvoke(udt->parse, jstr, udt->sqlTypeName);
 	JNI_deleteLocalRef(jstr);
 
 	return _UDT_coerceObject((Type)udt, obj);
@@ -281,12 +338,24 @@ Datum UDT_output(UDT udt, PG_FUNCTION_ARGS)
 	{
 		txt = PG_GETARG_CSTRING(0);
 		if(txt != 0)
+		/*
+		 * ASSUMPTION 1 is in play here. UDT_output returns a cstring to contain
+		 * the human-used external representation, and, just because this UDT's
+		 * internal representation is also declared with length -2, the internal
+		 * is being copied directly as the external representation, without even
+		 * invoking any of the UDT's code.
+		 */
 			txt = pstrdup(txt);
 	}
 	else
 	{
+		/*
+		 * Length != -2 so we do the expected: call _UDT_coerceDatum to
+		 * construct a Java object from the internal representation, then
+		 * toString to get the external representation from the object.
+		 */
 		jobject value = _UDT_coerceDatum((Type)udt, PG_GETARG_DATUM(0)).l;
-		jstring jstr  = (jstring)JNI_callObjectMethod(value, udt->toString);
+		jstring jstr  = pljava_Function_udtToStringInvoke(value);
 
 		MemoryContext currCtx = Invocation_switchToUpperContext();
 		txt = String_createNTS(jstr);
@@ -311,6 +380,10 @@ Datum UDT_receive(UDT udt, PG_FUNCTION_ARGS)
 
 	noTypmodYet(udt, fcinfo);
 
+	/*
+	 * ASSUMPTION 2 is in play here. The external byte stream is being received
+	 * and directly stored as the internal representation of the type.
+	 */
 	if(dataLen == -1)
 		return bytearecv(fcinfo);
 
@@ -333,6 +406,10 @@ Datum UDT_send(UDT udt, PG_FUNCTION_ARGS)
 			errcode(ERRCODE_CANNOT_COERCE),
 			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
 
+	/*
+	 * ASSUMPTION 2 is in play here. The internal representation of the type
+	 * is being transmitted directly as the external byte stream.
+	 */
 	if(dataLen == -1)
 		return byteasend(fcinfo);
 
@@ -351,7 +428,8 @@ bool UDT_isScalar(UDT udt)
 
 /* Make this datatype available to the postgres system.
  */
-UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTupleDesc, bool isJavaBasedScalar)
+UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
+	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH)
 {
 	jstring jcn;
 	MemoryContext currCtx;
@@ -430,8 +508,6 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTuple
 	udt->sqlTypeName = JNI_newGlobalRef(sqlTypeName);
 	JNI_deleteLocalRef(sqlTypeName);
 
-	udt->init     = PgObject_getJavaMethod(clazz, "<init>", "()V");
-
 	if(isJavaBasedScalar)
 	{
 		/* A scalar mapping that is implemented in Java will have the static method:
@@ -442,29 +518,28 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTuple
 		 * 
 		 *   String toString();
 		 * 
-		 * instance method. A pure mapping (i.e. no Java I/O methods) will not have
-		 * this.
+		 * instance method. A pure mapping (i.e. no Java I/O methods) will not
+		 * have this.
 		 */
-		udt->toString = PgObject_getJavaMethod(clazz, "toString", "()Ljava/lang/String;");
 	
 		/* The parse method is a static method on the class with the signature
 		 * (Ljava/lang/String;Ljava/lang/String;)<classSignature>
 		 */
-		sp = palloc(signatureLen + 40);
-		strcpy(sp, "(Ljava/lang/String;Ljava/lang/String;)");
-		strcpy(sp + 38, classSignature);
-		udt->parse = PgObject_getStaticJavaMethod(clazz, "parse", sp);
-		pfree(sp);
+		if ( NULL == parseMH )
+			parseMH = pljava_Function_udtParseHandle(clazz);
+		udt->parse = JNI_newGlobalRef(parseMH);
+		JNI_deleteLocalRef(parseMH);
 	}
 	else
 	{
-		udt->toString = 0;
-		udt->parse = 0;
+		udt->parse = NULL;
 	}
 
 	udt->hasTupleDesc = hasTupleDesc;
-	udt->readSQL = PgObject_getJavaMethod(clazz, "readSQL", "(Ljava/sql/SQLInput;Ljava/lang/String;)V");
-	udt->writeSQL = PgObject_getJavaMethod(clazz, "writeSQL", "(Ljava/sql/SQLOutput;)V");
+	if ( NULL == readMH )
+		readMH = pljava_Function_udtReadHandle(clazz);
+	udt->readSQL = JNI_newGlobalRef(readMH);
+	JNI_deleteLocalRef(readMH);
 	Type_registerType(className, (Type)udt);
 	return udt;
 }

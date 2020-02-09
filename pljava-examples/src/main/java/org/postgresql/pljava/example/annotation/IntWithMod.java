@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,11 +12,14 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import java.sql.Connection;
+import static java.sql.DriverManager.getConnection;
 import java.sql.SQLData;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
+import java.sql.Statement;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -67,7 +70,9 @@ import static
 		" javatest.IntWithMod, integer, boolean)",
 
 		"COMMENT ON CAST (javatest.IntWithMod AS javatest.IntWithMod) IS '" +
-		"Cast that applies/verifies the type modifier on an IntWithMod.'"
+		"Cast that applies/verifies the type modifier on an IntWithMod.'",
+
+		"SELECT CAST('42' AS javatest.IntWithMod(even))"
 	}
 )
 @BaseUDT(schema="javatest", provides="IntWithMod type",
@@ -110,6 +115,19 @@ public class IntWithMod implements SQLData {
 	public void readSQL(SQLInput stream, String typeName) throws SQLException {
 		m_value = stream.readInt();
 		m_typeName = typeName;
+
+		/*
+		 * This bit here is completely extraneous to the IntWithMod example, but
+		 * simply included to verify that PL/Java works right if a UDT's readSQL
+		 * method ends up invoking some other PL/Java function.
+		 */
+		try (
+			Connection c = getConnection("jdbc:default:connection");
+			Statement s = c.createStatement();
+		)
+		{
+			s.execute("SELECT javatest.java_addone(42)");
+		}
 	}
 
 	@Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)

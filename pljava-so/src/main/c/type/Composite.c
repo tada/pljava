@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -76,19 +76,21 @@ static HeapTuple _getTupleAndClear(jobject jrps)
  * true. If so, the values are obtained in the form of a HeapTuple which in
  * turn is returned (as a Datum) from this method.
  */
-static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+static Datum _Composite_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	Datum result = 0;
 	TupleDesc tupleDesc = Type_getTupleDesc(self, fcinfo);
 	jobject jtd = pljava_TupleDesc_create(tupleDesc);
-	jobject singleRowWriter = _createWriter(jtd);
-	int numArgs = fcinfo->nargs;
+	jvalue singleRowWriter;
+	singleRowWriter.l = _createWriter(jtd);
+	/*
+	 * Caller guarantees room for one extra reference parameter, so it will go
+	 * at index (length - 1).
+	 */
+	pljava_Function_setParameter(fn, -1, singleRowWriter);
 	
-	// Caller guarantees room for one extra slot
-	//
-	args[numArgs].l = singleRowWriter;
-	hasRow = (JNI_callStaticBooleanMethodA(cls, method, args) == JNI_TRUE);
+	hasRow = (pljava_Function_booleanInvoke(fn) == JNI_TRUE);
 
 	if(hasRow)
 	{
@@ -96,7 +98,7 @@ static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* 
 		 * durable context.
 		 */
 		MemoryContext currCtx = Invocation_switchToUpperContext();
-		HeapTuple tuple = _getTupleAndClear(singleRowWriter);
+		HeapTuple tuple = _getTupleAndClear(singleRowWriter.l);
 	    result = HeapTupleGetDatum(tuple);
 		MemoryContextSwitchTo(currCtx);
 	}
@@ -104,13 +106,13 @@ static Datum _Composite_invoke(Type self, jclass cls, jmethodID method, jvalue* 
 		fcinfo->isnull = true;
 
 	JNI_deleteLocalRef(jtd);
-	JNI_deleteLocalRef(singleRowWriter);
+	JNI_deleteLocalRef(singleRowWriter.l);
 	return result;
 }
 
-static jobject _Composite_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+static jobject _Composite_getSRFProducer(Type self, Function fn)
 {
-	jobject tmp = JNI_callStaticObjectMethodA(cls, method, args);
+	jobject tmp = pljava_Function_refInvoke(fn);
 	if(tmp != 0 && JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
 	{
 		jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
@@ -227,15 +229,6 @@ static TupleDesc _Composite_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return td;
 }
 
-static const char* _Composite_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return forMultiCall
-		? (useAltRepr
-			? "Lorg/postgresql/pljava/ResultSetHandle;"
-			: "Lorg/postgresql/pljava/ResultSetProvider;")
-		: "Z";
-}
-
 Type Composite_obtain(Oid typeId)
 {
 	Composite infant = (Composite)TypeClass_allocInstance(s_CompositeClass, typeId);
@@ -278,7 +271,6 @@ void Composite_initialize(void)
 	s_CompositeClass->hasNextSRF      = _Composite_hasNextSRF;
 	s_CompositeClass->nextSRF         = _Composite_nextSRF;
 	s_CompositeClass->closeSRF        = _Composite_closeSRF;
-	s_CompositeClass->getJNIReturnSignature = _Composite_getJNIReturnSignature;
 	s_CompositeClass->outParameter    = true;
 
 	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);

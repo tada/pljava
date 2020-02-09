@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -175,12 +175,6 @@ extern const char* Type_getJavaTypeName(Type self);
 extern const char* Type_getJNISignature(Type self);
 
 /*
- * Returns the JNI signature used when returning instances
- * of this type.
- */
-extern const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr);
-
-/*
  * Returns the array Type. The type is created if it doesn't exist
  */
 extern Type Type_getArrayType(Type self, Oid arrayTypeId);
@@ -206,27 +200,10 @@ extern Oid Type_getOid(Type self);
 extern TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
 
 /*
- * Calls a java method using one of the Call<type>MethodA routines where
- * <type> corresponds to the type represented by this instance and
- * coerces the returned value into a Datum.
- *
- * The method will set the value pointed to by the wasNull parameter
- * to true if the Java method returned null. The method expects that
- * the wasNull parameter is set to false by the caller prior to the
- * call.
- */
-extern Datum Type_invoke(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
-
-/*
- * Calls a Set Returning Function (SRF).
- */
-extern Datum Type_invokeSRF(Type self, jclass clazz, jmethodID method, jvalue* args, PG_FUNCTION_ARGS);
-
-/*
  * Obtains the Java object that acts as the SRF producer. This instance will be
  * called once for each row that should be produced.
  */
-extern jobject Type_getSRFProducer(Type self, jclass clazz, jmethodID method, jvalue* args);
+extern jobject Type_getSRFProducer(Type self, Function fn);
 
 /*
  * Obtains the optional Java object that will act as the value collector for
@@ -282,6 +259,27 @@ typedef Datum (*ObjectCoercer)(Type, jobject);
  */
 extern void Type_registerType(const char* javaTypeName, Type type);
 extern void Type_registerType2(Oid typeId, const char* javaTypeName, TypeObtainer obtainer);
+
+#include "pljava/Function.h"
+
+/*
+ * Call a java method using (ultimately) one of the Call<type>Method routines
+ * where <type> corresponds to the type represented by this instance and
+ * coerce the returned value into a Datum.
+ *
+ * The method will set the value pointed to by the wasNull parameter
+ * to true if the Java method returned null. The method expects that
+ * the wasNull parameter is set to false by the caller prior to the
+ * call.
+ *
+ * The call into Java is made via a callback of Function_<type>Invoke(fn).
+ */
+extern Datum Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS);
+
+/*
+ * Calls a Set Returning Function (SRF).
+ */
+extern Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS);
 
 #ifdef __cplusplus
 }

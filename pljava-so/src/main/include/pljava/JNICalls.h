@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -130,18 +130,32 @@ extern jobject      JNI_callObjectMethod(jobject object, jmethodID methodID, ...
 extern jobject      JNI_callObjectMethodV(jobject object, jmethodID methodID, va_list args);
 extern jshort       JNI_callShortMethod(jobject object, jmethodID methodID, ...);
 extern jshort       JNI_callShortMethodV(jobject object, jmethodID methodID, va_list args);
+extern jboolean     JNI_callStaticBooleanMethod(jclass clazz, jmethodID methodID, ...);
 extern jboolean     JNI_callStaticBooleanMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jboolean     JNI_callStaticBooleanMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jbyte        JNI_callStaticByteMethod(jclass clazz, jmethodID methodID, ...);
 extern jbyte        JNI_callStaticByteMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jbyte        JNI_callStaticByteMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jchar        JNI_callStaticCharMethod(jclass clazz, jmethodID methodID, ...);
+extern jchar        JNI_callStaticCharMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jdouble      JNI_callStaticDoubleMethod(jclass clazz, jmethodID methodID, ...);
 extern jdouble      JNI_callStaticDoubleMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jdouble      JNI_callStaticDoubleMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jfloat       JNI_callStaticFloatMethod(jclass clazz, jmethodID methodID, ...);
 extern jfloat       JNI_callStaticFloatMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jfloat       JNI_callStaticFloatMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jint         JNI_callStaticIntMethod(jclass clazz, jmethodID methodID, ...);
 extern jint         JNI_callStaticIntMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jint         JNI_callStaticIntMethodV(jclass clazz, jmethodID methodID, va_list args);
 extern jlong        JNI_callStaticLongMethod(jclass clazz, jmethodID methodID, ...);
 extern jlong        JNI_callStaticLongMethodA(jclass clazz, jmethodID methodID, jvalue* args);
 extern jlong        JNI_callStaticLongMethodV(jclass clazz, jmethodID methodID, va_list args);
 extern jobject      JNI_callStaticObjectMethod(jclass clazz, jmethodID methodID, ...);
 extern jobject      JNI_callStaticObjectMethodA(jclass clazz, jmethodID methodID, jvalue* args);
 extern jobject      JNI_callStaticObjectMethodV(jclass clazz, jmethodID methodID, va_list args);
+extern jshort       JNI_callStaticShortMethod(jclass clazz, jmethodID methodID, ...);
 extern jshort       JNI_callStaticShortMethodA(jclass clazz, jmethodID methodID, jvalue* args);
+extern jshort       JNI_callStaticShortMethodV(jclass clazz, jmethodID methodID, va_list args);
 extern void         JNI_callStaticVoidMethod(jclass clazz, jmethodID methodID, ...);
 extern void         JNI_callStaticVoidMethodA(jclass clazz, jmethodID methodID, jvalue* args);
 extern void         JNI_callStaticVoidMethodV(jclass clazz, jmethodID methodID, va_list args);

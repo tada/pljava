@@ -110,6 +110,11 @@ extern PgObjectClass PgObject_getClass(PgObject self);
  */
 extern const char* PgObjectClass_getName(PgObjectClass self);
 
+/*
+ * Returns the name of a Java class, as a palloc'd NTS.
+ */
+extern char* PgObject_getClassName(jclass cls);
+
 #ifdef __cplusplus
 }
 #endif

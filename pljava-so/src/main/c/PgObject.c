@@ -71,7 +71,7 @@ void _PgObject_pureVirtualCalled(PgObject object)
 	ereport(ERROR, (errmsg("Pure virtual method called")));
 }
 
-static char* PgObject_getClassName(jclass cls)
+char* PgObject_getClassName(jclass cls)
 {
 	jstring jstr;
 	char* tmp;

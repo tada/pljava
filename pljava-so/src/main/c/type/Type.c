@@ -392,11 +392,6 @@ const char* Type_getJNISignature(Type self)
 	return self->typeClass->getJNISignature(self);
 }
 
-const char* Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return self->typeClass->getJNIReturnSignature(self, forMultiCall, useAltRepr);
-}
-
 Type Type_getArrayType(Type self, Oid arrayTypeId)
 {
 	Type arrayType = self->arrayType;
@@ -441,12 +436,12 @@ TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
 	return self->typeClass->getTupleDesc(self, fcinfo);
 }
 
-Datum Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	return self->typeClass->invoke(self, cls, method, args, fcinfo);
+	return self->typeClass->invoke(self, fn, fcinfo);
 }
 
-Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	bool hasRow;
 	CallContextData* ctxData;
@@ -478,7 +473,7 @@ Datum Type_invokeSRF(Type self, jclass cls, jmethodID method, jvalue* args, PG_F
 		/* Call the declared Java function. It returns an instance that can produce
 		 * the rows.
 		 */
-		tmp = Type_getSRFProducer(self, cls, method, args);
+		tmp = Type_getSRFProducer(self, fn);
 		if(tmp == 0)
 		{
 			Invocation_assertDisconnect();
@@ -660,7 +655,8 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 			bool hasTupleDesc = NULL != tupleDesc;
 			if ( hasTupleDesc )
 				ReleaseTupleDesc(tupleDesc);
-			type = (Type)UDT_registerUDT(typeClass, typeId, typeStruct, hasTupleDesc, false);
+			type = (Type)UDT_registerUDT(
+				typeClass, typeId, typeStruct, hasTupleDesc, false, NULL, NULL);
 			JNI_deleteLocalRef(typeClass);
 			goto finally;
 		}
@@ -714,11 +710,11 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->typeClass == other->typeClass;
 }
 
-Datum _Type_invoke(Type self, jclass cls, jmethodID method, jvalue* args, PG_FUNCTION_ARGS)
+Datum _Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	MemoryContext currCtx;
 	Datum ret;
-	jobject value = JNI_callStaticObjectMethodA(cls, method, args);
+	jobject value = pljava_Function_refInvoke(fn);
 	if(value == 0)
 	{
 		fcinfo->isnull = true;
@@ -740,9 +736,9 @@ static Type _Type_createArrayType(Type self, Oid arrayTypeId)
 	return Array_fromOid(arrayTypeId, self);
 }
 
-static jobject _Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+static jobject _Type_getSRFProducer(Type self, Function fn)
 {
-	return JNI_callStaticObjectMethodA(cls, method, args);
+	return pljava_Function_refInvoke(fn);
 }
 
 static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
@@ -757,6 +753,7 @@ static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollecto
 
 static Datum _Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
 {
+	/* XXX make an entry point */
 	jobject tmp = JNI_callObjectMethod(rowProducer, s_Iterator_next);
 	Datum result = Type_coerceObject(self, tmp);
 	JNI_deleteLocalRef(tmp);
@@ -767,9 +764,9 @@ static void _Type_closeSRF(Type self, jobject rowProducer)
 {
 }
 
-jobject Type_getSRFProducer(Type self, jclass cls, jmethodID method, jvalue* args)
+jobject Type_getSRFProducer(Type self, Function fn)
 {
-	return self->typeClass->getSRFProducer(self, cls, method, args);
+	return self->typeClass->getSRFProducer(self, fn);
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
@@ -800,11 +797,6 @@ static Type _Type_getRealType(Type self, Oid realId, jobject typeMap)
 static const char* _Type_getJNISignature(Type self)
 {
 	return self->typeClass->JNISignature;
-}
-
-static const char* _Type_getJNIReturnSignature(Type self, bool forMultiCall, bool useAltRepr)
-{
-	return forMultiCall ? "Ljava/util/Iterator;" : Type_getJNISignature(self);
 }
 
 TupleDesc _Type_getTupleDesc(Type self, PG_FUNCTION_ARGS)
@@ -964,7 +956,6 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	self->closeSRF        = _Type_closeSRF;
 	self->getTupleDesc    = _Type_getTupleDesc;
 	self->getJNISignature = _Type_getJNISignature;
-	self->getJNIReturnSignature = _Type_getJNIReturnSignature;
 	self->dynamic         = false;
 	self->outParameter    = false;
 	self->getRealType     = _Type_getRealType;

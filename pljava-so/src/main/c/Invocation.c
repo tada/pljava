@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -105,6 +105,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 {
 	ctx->invocation      = 0;
 	ctx->function        = 0;
+	ctx->pushedFrame     = false;
 	ctx->trusted         = false;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
@@ -129,6 +130,7 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
+	ctx->pushedFrame     = false;
 	ctx->trusted         = trusted;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
@@ -146,6 +148,9 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
+
+	if ( currentInvocation->pushedFrame )
+		pljava_Function_popFrame();
 
 	/*
 	 * If a Java Invocation instance was created and associated with this

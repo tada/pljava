@@ -1866,7 +1866,7 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 }
 
 /*
- * Class:     org_postgresql_pljava_internal_Backend_Natives
+ * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
  * Method:    _forbidOtherThreads
  * Signature: ()Z
  */

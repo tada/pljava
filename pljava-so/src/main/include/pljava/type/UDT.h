@@ -33,7 +33,20 @@ extern Datum UDT_send(UDT udt, PG_FUNCTION_ARGS);
 
 extern bool UDT_isScalar(UDT udt);
 
-extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType, bool hasTupleDesc, bool isJavaBasedScalar);
+/*
+ * Register that a Java class is the UDT implementation for a PostgreSQL typeID.
+ *
+ * Only one of hasTupleDesc / isJavaBasedScalar can be true, and the parseMH
+ * argument is only used in the scalar case. A readMH is needed for the scalar
+ * or the composite case.
+ *
+ * If null is supplied for readMH, or for parseMH in the scalar case, an upcall
+ * to Java will be made to obtain the handle. Handles can be passed as arguments
+ * here as a shortcut in case the registration is coming from Function.c and the
+ * handles are already known.
+ */
+extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
+	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH);
 
 typedef Datum (*UDTFunction)(UDT udt, PG_FUNCTION_ARGS);
 

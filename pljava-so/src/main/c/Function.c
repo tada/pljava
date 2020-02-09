@@ -1,11 +1,17 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Thomas Hallgren
+ *   Chapman Flack
  */
+#include "org_postgresql_pljava_internal_Function.h"
+#include "org_postgresql_pljava_internal_Function_EarlyNatives.h"
 #include "pljava/PgObject_priv.h"
 #include "pljava/Exception.h"
 #include "pljava/InstallHelper.h"
@@ -13,12 +19,15 @@
 #include "pljava/Function.h"
 #include "pljava/HashMap.h"
 #include "pljava/Iterator.h"
+#include "pljava/JNICalls.h"
+#include "pljava/type/Composite.h"
 #include "pljava/type/Oid.h"
 #include "pljava/type/String.h"
 #include "pljava/type/TriggerData.h"
 #include "pljava/type/UDT.h"
 
 #include <catalog/pg_proc.h>
+#include <catalog/pg_language.h>
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
 #include <ctype.h>
@@ -32,12 +41,46 @@
 
 #define PARAM_OIDS(procStruct) (procStruct)->proargtypes.values
 
+#if 90305<=PG_VERSION_NUM || \
+	90209<=PG_VERSION_NUM && PG_VERSION_NUM<90300 || \
+	90114<=PG_VERSION_NUM && PG_VERSION_NUM<90200 || \
+	90018<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
+	80422<=PG_VERSION_NUM && PG_VERSION_NUM<90000
+#else
+#error "Need fallback for heap_copy_tuple_as_datum"
+#endif
+
+#define COUNTCHECK(refs, prims) ((jshort)(((refs) << 8) | ((prims) & 0xff)))
+
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
+static jclass s_Function_class;
+static jclass s_ParameterFrame_class;
+static jclass s_EntryPoints_class;
 static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_Loader_getTypeMap;
 static jmethodID s_ClassLoader_loadClass;
+static jmethodID s_Function_create;
+static jmethodID s_Function_getClassIfUDT;
+static jmethodID s_Function_udtReadHandle;
+static jmethodID s_Function_udtParseHandle;
+static jmethodID s_ParameterFrame_push;
+static jmethodID s_ParameterFrame_pop;
+static jmethodID s_EntryPoints_refInvoke;
+static jmethodID s_EntryPoints_invoke;
+static jmethodID s_EntryPoints_udtWriteInvoke;
+static jmethodID s_EntryPoints_udtToStringInvoke;
+static jmethodID s_EntryPoints_udtReadInvoke;
+static jmethodID s_EntryPoints_udtParseInvoke;
 static PgObjectClass s_FunctionClass;
+static Type s_pgproc_Type;
+
+static jobjectArray s_referenceParameters;
+static jvalue s_primitiveParameters [ 1 + 255 ];
+
+static jshort * const s_countCheck =
+	(jshort *)(((char *)s_primitiveParameters) +
+		org_postgresql_pljava_internal_Function_s_offset_paramCounts);
 
 struct Function_
 {
@@ -78,9 +121,14 @@ struct Function_
 		bool      isMultiCall;
 	
 		/*
-		 * The number of parameters
+		 * The number of reference parameters
 		 */
-		int32     numParams;
+		uint16     numRefParams;
+
+		/*
+		 * The number of primitive parameters
+		 */
+		uint16     numPrimParams;
 	
 		/*
 		 * Array containing one type for eeach parameter.
@@ -99,10 +147,10 @@ struct Function_
 		 */
 		jobject typeMap;
 
-		/*
-		 * The static method that should be called.
+		/**
+		 * MethodHandle to the resolved Java method implementing the function.
 		 */
-		jmethodID method;
+		jobject methodHandle;
 		} nonudt;
 		
 		struct
@@ -128,18 +176,6 @@ static struct Function_ s_initWriter;
 
 Function Function_INIT_WRITER = &s_initWriter;
 
-typedef struct ParseResultData
-{
-	char* buffer;	/* The buffer to pfree once we are done */
-	const char* returnType;
-	const char* className;
-	const char* methodName;
-	const char* parameters;
-	bool isUDT;
-} ParseResultData;
-
-typedef ParseResultData *ParseResult;
-
 static HashMap s_funcMap = 0;
 
 static jclass s_Loader_class;
@@ -151,6 +187,7 @@ static void _Function_finalize(PgObject func)
 	JNI_deleteGlobalRef(self->clazz);
 	if(!self->isUDT)
 	{
+		JNI_deleteGlobalRef(self->func.nonudt.methodHandle);
 		if(self->func.nonudt.typeMap != 0)
 			JNI_deleteGlobalRef(self->func.nonudt.typeMap);
 		if(self->func.nonudt.paramTypes != 0)
@@ -161,8 +198,44 @@ static void _Function_finalize(PgObject func)
 extern void Function_initialize(void);
 void Function_initialize(void)
 {
+	JNINativeMethod earlyMethods[] =
+	{
+		{
+		"_parameterArea",
+		"([Ljava/lang/Object;)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_Function_00024EarlyNatives__1parameterArea
+		},
+		{ 0, 0, 0 }
+	};
+
+	JNINativeMethod functionMethods[] =
+	{
+		{
+		"_storeToNonUDT",
+		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z",
+		Java_org_postgresql_pljava_internal_Function__1storeToNonUDT
+		},
+		{
+		"_storeToUDT",
+		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII"
+		"Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V",
+		Java_org_postgresql_pljava_internal_Function__1storeToUDT
+		},
+		{
+		"_reconcileTypes",
+		"(J[Ljava/lang/String;[Ljava/lang/String;I)V",
+		Java_org_postgresql_pljava_internal_Function__1reconcileTypes
+		},
+		{ 0, 0, 0 }
+	};
+
+	jclass cls;
+
+	StaticAssertStmt(org_postgresql_pljava_internal_Function_s_sizeof_jvalue
+		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
+
 	s_funcMap = HashMap_create(59, TopMemoryContext);
-	
+
 	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
 	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
 	s_Loader_getTypeMap = PgObject_getStaticJavaMethod(s_Loader_class, "getTypeMap", "(Ljava/lang/String;)Ljava/util/Map;");
@@ -170,275 +243,168 @@ void Function_initialize(void)
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
+	cls = PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function$EarlyNatives");
+	PgObject_registerNatives2(cls, earlyMethods);
+	JNI_deleteLocalRef(cls);
+
+	s_ParameterFrame_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function$ParameterFrame"));
+	s_ParameterFrame_push = PgObject_getStaticJavaMethod(s_ParameterFrame_class,
+		"push", "()V");
+	s_ParameterFrame_pop = PgObject_getStaticJavaMethod(s_ParameterFrame_class,
+		"pop", "()V");
+
+	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function"));
+	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
+		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
+		"Ljava/lang/invoke/MethodHandle;");
+	s_Function_getClassIfUDT = PgObject_getStaticJavaMethod(s_Function_class,
+		"getClassIfUDT",
+		"(Ljava/sql/ResultSet;Ljava/lang/String;)"
+		"Ljava/lang/Class;");
+
+	s_EntryPoints_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/EntryPoints"));
+	s_EntryPoints_refInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"refInvoke", "(Ljava/lang/invoke/MethodHandle;)Ljava/lang/Object;");
+	s_EntryPoints_invoke = PgObject_getStaticJavaMethod(s_EntryPoints_class,
+		"invoke", "(Ljava/lang/invoke/MethodHandle;)V");
+
+	s_EntryPoints_udtWriteInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"udtWriteInvoke", "(Ljava/sql/SQLData;Ljava/sql/SQLOutput;"
+		")V");
+	s_EntryPoints_udtToStringInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"udtToStringInvoke", "(Ljava/sql/SQLData;)Ljava/lang/String;");
+	s_EntryPoints_udtReadInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"udtReadInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/sql/SQLInput;"
+		"Ljava/lang/String;)Ljava/sql/SQLData;");
+	s_EntryPoints_udtParseInvoke = PgObject_getStaticJavaMethod(
+		s_EntryPoints_class,
+		"udtParseInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/String;"
+		"Ljava/lang/String;)Ljava/sql/SQLData;");
+
+	s_Function_udtReadHandle = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtReadHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
+	s_Function_udtParseHandle = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtParseHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
+
+	PgObject_registerNatives2(s_Function_class, functionMethods);
+
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
+
+	s_pgproc_Type = Composite_obtain(ProcedureRelation_Rowtype_Id);
 }
 
-static void buildSignature(Function self, StringInfo sign, Type retType, bool alt)
+jobject pljava_Function_refInvoke(Function self)
 {
-	Type* tp = self->func.nonudt.paramTypes;
-	Type* ep = tp + self->func.nonudt.numParams;
-
-	appendStringInfoChar(sign, '(');
-	while(tp < ep)
-		appendStringInfoString(sign, Type_getJNISignature(*tp++));
-
-	if(!self->func.nonudt.isMultiCall && Type_isOutParameter(retType))
-		appendStringInfoString(sign, Type_getJNISignature(retType));
-
-	appendStringInfoChar(sign, ')');
-	appendStringInfoString(sign, Type_getJNIReturnSignature(retType, self->func.nonudt.isMultiCall, alt));
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_refInvoke, self->func.nonudt.methodHandle);
 }
 
-static void parseParameters(Function self, Oid* dfltIds, const char* paramDecl)
+void pljava_Function_voidInvoke(Function self)
 {
-	char c;
-	int idx = 0;
-	int top = self->func.nonudt.numParams;
-	bool lastIsOut = !self->func.nonudt.isMultiCall
-					&& Type_isOutParameter(self->func.nonudt.returnType);
-	StringInfoData sign;
-	Type deflt;
-	const char* jtName;
-	bool gotone = false;
-	for( ; ; ++ paramDecl )
-	{
-		c = *paramDecl;
-		/* all whitespace has already been stripped by getAS() */
-
-		if ( '\0' != c  &&  ',' != c )
-		{
-			if ( ! gotone ) /* first character of a param type has been seen. */
-			{
-				if(idx >= top)
-				{
-					if(!(lastIsOut && idx == top))
-						ereport(ERROR, (
-							errcode(ERRCODE_SYNTAX_ERROR),
-							errmsg("AS (Java): expected %d parameter types, "
-							       "found more", top)));
-				}
-				gotone = true;
-				initStringInfo(&sign);
-			}
-			appendStringInfoChar(&sign, c);
-			continue;
-		}
-
-		if ( ! gotone )
-		{
-			if ( '\0' == c )
-				break;
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("AS (Java): expected parameter type, found comma")));
-		}
-
-		/* so, got one. */
-		deflt = (idx == top)
-			? self->func.nonudt.returnType : self->func.nonudt.paramTypes[idx];
-		jtName = Type_getJavaTypeName(deflt);
-		if ( strcmp(jtName, sign.data) != 0 )
-		{
-			Oid did;
-			Type repl;
-			if(idx == top)
-				/*
-				 * Last parameter is the OUT parameter. It has no corresponding
-				 * entry in the dfltIds array.
-				 */
-				did = InvalidOid;
-			else
-				did = dfltIds[idx];
-
-			repl = Type_fromJavaType(did, sign.data);
-			if(!Type_canReplaceType(repl, deflt))
-				repl = Type_getCoerceIn(repl, deflt);
-
-			if(idx == top)
-				self->func.nonudt.returnType = repl;
-			else
-				self->func.nonudt.paramTypes[idx] = repl;
-		}
-		pfree(sign.data);
-
-		++idx;
-		if ( '\0' == c )
-			break;
-		gotone = false;
-	}
-
-    /*
-     * We are done.
-     */
-    if(lastIsOut)
-		++top;
-    if(idx != top)
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("AS (Java): expected %d parameter types, found fewer",
-				top)));
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
 }
 
-static char* getAS(HeapTuple procTup, char** epHolder)
+jboolean pljava_Function_booleanInvoke(Function self)
 {
-	char c;
-	char* cp1;
-	char* cp2;
-	char* bp;
-	bool  atStart = true;
-	bool  passedFirst = false;
-	bool  isNull = false;
-	Datum tmp = SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_prosrc, &isNull);
-	if(isNull)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("'AS' clause of Java function cannot be NULL")));
-	}
-
-	bp = pstrdup(DatumGetCString(DirectFunctionCall1(textout, tmp)));
-
-	/* Strip all whitespace except the first one if it occures after
-	 * some alpha numeric characers and before some other alpha numeric
-	 * characters. We insert a '=' when that happens since it delimits
-	 * the return value from the method name.
-	 */
-	cp1 = cp2 = bp;
-	while((c = *cp1++) != 0)
-	{
-		if(isspace(c))
-		{
-			if(atStart || passedFirst)
-				continue;
-
-			while((c = *cp1++) != 0)
-				if(!isspace(c))
-					break;
-
-			if(c == 0)
-				break;
-
-			if(isalpha(c))
-				*cp2++ = '=';
-			passedFirst = true;
-		}
-		atStart = false;
-		if(!isalnum(c))
-			passedFirst = true;
-		*cp2++ = c;
-	}
-	*cp2 = 0;
-	*epHolder = cp2;
-	return bp;
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].z;
 }
 
-static void parseUDT(ParseResult info, char* bp, char* ep)
+jbyte pljava_Function_byteInvoke(Function self)
 {
-	char* ip = ep - 1;
-	while(ip > bp && *ip != ']')
-		--ip;
-
-	if(ip == bp)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Missing ending ']' in UDT declaration")));
-	}
-	*ip = 0; /* Terminate class name */
-	info->className = bp;
-	info->methodName = ip + 1;
-	info->isUDT = true;
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].b;
 }
 
-/*
- * Zeros info before setting any of its fields.
- */
-static void parseFunction(ParseResult info, HeapTuple procTup)
+jshort pljava_Function_shortInvoke(Function self)
 {
-	/* The user's function definition must be the fully
-	 * qualified name of a java method short of parameter
-	 * signature.
-	 */
-	char* ip;
-	char* ep;
-	char* bp = getAS(procTup, &ep);
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].s;
+}
 
-	memset(info, 0, sizeof(ParseResultData));
-	info->buffer = bp;
+jchar pljava_Function_charInvoke(Function self)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].c;
+}
 
-	/* The AS clause can have two formats
-	 *
-	 * <class name> "." <method name> [ "(" <parameter decl> ["," <parameter decl> ... ] ")" ]
-	 *   or
-	 * "UDT" "[" <class name> "]" <UDT function type>
-	 * where <UDT function type> is one of "input", "output", "receive" or "send"
-	 */
-	if(ep - bp >= 4 && strncasecmp(bp, "udt[", 4) == 0)
-	{
-		parseUDT(info, bp + 4, ep);
-		return;
-	}
+jint pljava_Function_intInvoke(Function self)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].i;
+}
 
-	info->isUDT = false;
+jfloat pljava_Function_floatInvoke(Function self)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].f;
+}
 
-	/* Scan backwards from ep.
-	 */
-	ip = ep - 1;
-	if(*ip == ')')
-	{
-		/* We have an explicit parameter type declaration
-		 */
-		*ip-- = 0;
-		while(ip > bp && *ip != '(')
-			--ip;
+jlong pljava_Function_longInvoke(Function self)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].j;
+}
 
-		if(ip == bp)
-		{
-			ereport(ERROR, (
-				errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("Unbalanced parenthesis")));
-		}
+jdouble pljava_Function_doubleInvoke(Function self)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, self->func.nonudt.methodHandle);
+	return s_primitiveParameters[0].d;
+}
 
-		info->parameters = ip + 1;
-		*ip-- = 0;
-	}
+void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
+{
+	JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtWriteInvoke, value, stream);
+}
 
-	/* Find last '.' occurrence.
-	*/
-	while(ip > bp && *ip != '.')
-		--ip;
+jstring pljava_Function_udtToStringInvoke(jobject value)
+{
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtToStringInvoke, value);
+}
 
-	if(ip == bp)
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Did not find <fully qualified class>.<method name>")));
-	}
-	info->methodName = ip + 1;
-	*ip = 0;
-	
-	/* Check if we have a return type declaration
-	 */
-	while(--ip > bp)
-	{
-		if(*ip == '=')
-		{
-			info->className = ip + 1;
-			*ip = 0;
-			break;
-		}
-	}
+jobject pljava_Function_udtReadInvoke(
+	jobject readMH, jobject stream, jstring typeName)
+{
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtReadInvoke, readMH, stream, typeName);
+}
 
-	if(info->className != 0)
-		info->returnType = bp;
-	else
-		info->className = bp;
+jobject pljava_Function_udtParseInvoke(
+	jobject parseMH, jstring stringRep, jstring typeName)
+{
+	return JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_udtParseInvoke, parseMH, stringRep, typeName);
+}
 
-	elog(DEBUG3, "className = '%s', methodName = '%s', parameters = '%s', returnType = '%s'",
-		info->className == 0 ? "null" : info->className,
-		info->methodName == 0 ? "null" : info->methodName,
-		info->parameters == 0 ? "null" : info->parameters,
-		info->returnType == 0 ? "null" : info->returnType);
+jobject pljava_Function_udtReadHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtReadHandle, clazz);
+}
+
+jobject pljava_Function_udtParseHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtParseHandle, clazz);
 }
 
 static jstring getSchemaName(int namespaceOid)
@@ -450,68 +416,10 @@ static jstring getSchemaName(int namespaceOid)
 	return schemaName;
 }
 
-static void setupTriggerParams(Function self, ParseResult info)
-{
-	if(info->parameters != 0)
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Triggers can not have a java parameter declaration")));
-
-	self->func.nonudt.returnType = Type_fromJavaType(InvalidOid, "void");
-
-	/* Parameters are not used when calling triggers.
-		*/
-	self->func.nonudt.numParams  = 1;
-	self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(GetMemoryChunkContext(self), sizeof(Type));
-	self->func.nonudt.paramTypes[0] = Type_fromJavaType(InvalidOid, "org.postgresql.pljava.TriggerData");
-}
-
-static void setupUDT(Function self, ParseResult info, Form_pg_proc procStruct)
-{
-	Oid udtId = 0;
-	HeapTuple typeTup;
-	Form_pg_type pgType;
-
-	if(strcasecmp("input", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_input;
-		udtId = procStruct->prorettype;
-	}
-	else if(strcasecmp("output", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_output;
-		udtId = PARAM_OIDS(procStruct)[0];
-	}
-	else if(strcasecmp("receive", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_receive;
-		udtId = procStruct->prorettype;
-	}
-	else if(strcasecmp("send", info->methodName) == 0)
-	{
-		self->func.udt.udtFunction = UDT_send;
-		udtId = PARAM_OIDS(procStruct)[0];
-	}
-	else
-	{
-		ereport(ERROR, (
-			errcode(ERRCODE_SYNTAX_ERROR),
-			errmsg("Unknown UDT function %s", info->methodName)));
-	}
-
-	typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
-	pgType = (Form_pg_type)GETSTRUCT(typeTup);
-	self->func.udt.udt = UDT_registerUDT(self->clazz, udtId, pgType, 0, true);
-	ReleaseSysCache(typeTup);
-}
-
-static jclass Function_loadClass(
-	jstring schemaName, char const *className, jweak *loaderref);
-
 Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 {
-	ParseResultData info;
 	HeapTuple procTup;
+	Datum d;
 	Form_pg_proc procStruct;
 	Type t = NULL;
 	jstring schemaName;
@@ -525,208 +433,71 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 
 	/* typinput as good as any, all four had better be in same class */
 	procTup = PgObject_getValidTuple(PROCOID, typeStruct->typinput, "function");
-	parseFunction(&info, procTup);
-	if ( ! info.isUDT )
-		goto finally;
 
 	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 	schemaName = getSchemaName(procStruct->pronamespace);
-	clazz = Function_loadClass(schemaName, info.className, NULL);
-	JNI_deleteLocalRef(schemaName);
-	t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true);
 
-finally:
-	pfree(info.buffer);
+	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+
+	clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
+		schemaName);
+
+	pfree((void *)d);
+	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(procTup);
+
+	if ( NULL != clazz )
+		t = (Type)
+			UDT_registerUDT(clazz, typeId, typeStruct, 0, true, NULL, NULL);
+
 	return t;
-}
-
-static void setupFunctionParams(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
-{
-	Oid* paramOids;
-	MemoryContext ctx = GetMemoryChunkContext(self);
-	int32 top = (int32)procStruct->pronargs;;
-
-	self->func.nonudt.numParams = top;
-	self->func.nonudt.isMultiCall = procStruct->proretset;
-	self->func.nonudt.returnType = Type_fromOid(procStruct->prorettype, self->func.nonudt.typeMap);
-
-	if(top > 0)
-	{
-		int idx;
-		paramOids = PARAM_OIDS(procStruct);
-		self->func.nonudt.paramTypes = (Type*)MemoryContextAlloc(ctx, top * sizeof(Type));
-
-		for(idx = 0; idx < top; ++idx)
-			self->func.nonudt.paramTypes[idx] = Type_fromOid(paramOids[idx], self->func.nonudt.typeMap);
-	}
-	else
-	{
-		self->func.nonudt.paramTypes = 0;
-		paramOids = 0;
-	}
-
-	if(info->parameters != 0)
-		parseParameters(self, paramOids, info->parameters);
-
-	if(info->returnType != 0)
-	{
-		const char* jtName = Type_getJavaTypeName(self->func.nonudt.returnType);
-		if(strcmp(jtName, info->returnType) != 0)
-		{
-			Type repl = Type_fromJavaType(Type_getOid(self->func.nonudt.returnType), info->returnType);
-			if(!Type_canReplaceType(repl, self->func.nonudt.returnType))
-				repl = Type_getCoerceOut(repl, self->func.nonudt.returnType);
-			self->func.nonudt.returnType = repl;
-		}
-	}
-}
-
-static void Function_init(Function self, ParseResult info, Form_pg_proc procStruct, PG_FUNCTION_ARGS)
-{
-	StringInfoData sign;
-
-	/* Get the ClassLoader for the schema that this function belongs to
-	 */
-	jstring schemaName = getSchemaName(procStruct->pronamespace);
-
-	/* Install the type map for the current schema. This must be done ASAP since
-	 * many other functions (including obtaining the loader) depends on it.
-	 */
-	jobject tmp = JNI_callStaticObjectMethod(s_Loader_class, s_Loader_getTypeMap, schemaName);
-	self->func.nonudt.typeMap = JNI_newGlobalRef(tmp);
-	JNI_deleteLocalRef(tmp);
-
-	self->readOnly = (procStruct->provolatile != PROVOLATILE_VOLATILE);
-	self->isUDT = info->isUDT;
-
-	currentInvocation->function = self;
-
-	self->clazz = Function_loadClass(
-		schemaName, info->className, &(self->schemaLoader));
-
-	JNI_deleteLocalRef(schemaName);
-
-	if(self->isUDT)
-	{
-		setupUDT(self, info, procStruct);
-		return;
-	}
-
-	if(CALLED_AS_TRIGGER(fcinfo))
-	{
-		self->func.nonudt.typeMap = 0;
-		setupTriggerParams(self, info);
-	}
-	else
-	{
-		setupFunctionParams(self, info, procStruct, fcinfo);
-	}
-
-
-	initStringInfo(&sign);
-	buildSignature(self, &sign, self->func.nonudt.returnType, false);
-
-	elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-	self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
-
-	if(self->func.nonudt.method == 0)
-	{
-		char* origSign = sign.data;
-		Type altType = 0;
-		Type realRetType = self->func.nonudt.returnType;
-
-		elog(DEBUG2, "Method %s.%s %s not found", info->className, info->methodName, origSign);
-
-		if(Type_isPrimitive(self->func.nonudt.returnType))
-		{
-			/*
-			 * One valid reason for not finding the method is when
-			 * the return type used in the signature is a primitive and
-			 * the true return type of the method is the object class that
-			 * corresponds to that primitive.
-			 */
-			altType = Type_getObjectType(self->func.nonudt.returnType);
-			realRetType = altType;
-		}
-		else if(strcmp(Type_getJavaTypeName(self->func.nonudt.returnType), "java.sql.ResultSet") == 0)
-		{
-			/*
-			 * Another reason might be that we expected a ResultSetProvider
-			 * but the implementation returns a ResultSetHandle that needs to be
-			 * wrapped. The wrapping is internal so we retain the original
-			 * return type anyway.
-			 */
-			altType = realRetType;
-		}
-
-		if(altType != 0)
-		{
-			JNI_exceptionClear();
-			initStringInfo(&sign);
-			buildSignature(self, &sign, altType, true);
-
-			elog(DEBUG2, "Obtaining method %s.%s %s", info->className, info->methodName, sign.data);
-			self->func.nonudt.method = JNI_getStaticMethodIDOrNull(self->clazz, info->methodName, sign.data);
-	
-			if(self->func.nonudt.method != 0)
-				self->func.nonudt.returnType = realRetType;
-		}
-		if(self->func.nonudt.method == 0)
-			PgObject_throwMemberError(self->clazz, info->methodName, origSign, true, true);
-
-		if(sign.data != origSign)
-			pfree(origSign);
-	}
-	pfree(sign.data);
-}
-
-/*
- * Return a global ref to the loaded class. Store a weak global ref to the
- * initiating loader at *loaderref if non-null.
- */
-static jclass Function_loadClass(
-	jstring schemaName, char const *className, jweak *loaderref)
-{
-	jobject tmp;
-	jobject loader;
-	jstring classJstr;
-	jclass clazz;
-	/* Get the ClassLoader for the schema that this function belongs to
-	 */
-	loader = JNI_callStaticObjectMethod(s_Loader_class,
-		s_Loader_getSchemaLoader, schemaName);
-
-	elog(DEBUG2, "Loading class %s", className);
-	classJstr = String_createJavaStringFromNTS(className);
-
-	tmp = JNI_callObjectMethod(loader, s_ClassLoader_loadClass, classJstr);
-
-	if ( NULL != loaderref )
-		*loaderref = JNI_newWeakGlobalRef(loader);
-
-	JNI_deleteLocalRef(loader);
-	JNI_deleteLocalRef(classJstr);
-
-	clazz = (jclass)JNI_newGlobalRef(tmp);
-	JNI_deleteLocalRef(tmp);
-	return clazz;
 }
 
 static Function Function_create(PG_FUNCTION_ARGS)
 {
-	ParseResultData info;
-	Function self = (Function)PgObjectClass_allocInstance(s_FunctionClass, TopMemoryContext);
-	HeapTuple procTup = PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
+	Function self =
+		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	HeapTuple procTup =
+		PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
+	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
+	HeapTuple lngTup =
+		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
+	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
+	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
+	jstring schemaName;
+	Ptr2Long p2l;
+	Datum d;
+	jobject handle;
 
-	parseFunction(&info, procTup);
-	Function_init(self, &info, (Form_pg_proc)GETSTRUCT(procTup), fcinfo);
+	p2l.longVal = 0;
+	p2l.ptrVal = (void *)self;
 
-	pfree(info.buffer);
+	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+
+	schemaName = getSchemaName(procStruct->pronamespace);
+	handle = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
+		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
+		schemaName,
+		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
+	pfree((void *)d);
+	JNI_deleteLocalRef(schemaName);
+	ReleaseSysCache(lngTup);
 	ReleaseSysCache(procTup);
+
+	if ( NULL != handle )
+	{
+		self->func.nonudt.methodHandle = JNI_newGlobalRef(handle);
+		JNI_deleteLocalRef(handle);
+	}
+
 	return self;
 }
 
+/*
+ * In all cases, this Function has been stored in currentInvocation->function
+ * upon succesful return from here.
+ */
 Function Function_getFunction(PG_FUNCTION_ARGS)
 {
 	Oid funcOid = fcinfo->flinfo->fn_oid;
@@ -736,6 +507,7 @@ Function Function_getFunction(PG_FUNCTION_ARGS)
 		func = Function_create(fcinfo);
 		HashMap_putByOid(s_funcMap, funcOid, func);
 	}
+	currentInvocation->function = func;
 	return func;
 }
 
@@ -787,77 +559,160 @@ void Function_clearFunctionCache(void)
 	PgObject_free((PgObject)oldMap);
 }
 
+/*
+ * Type_isPrimitive() by itself returns true for both, say, int and int[].
+ * That is sometimes relied on, as in the code that would accept Integer[]
+ * as a replacement for int[].
+ *
+ * However, it isn't correct for determining whether the thing should be passed
+ * to Java as a primitive or a reference, because of course no Java array is a
+ * primitive. Hence this method, which requires both Type_isPrimitive to be true
+ * and that the type is not an array.
+ */
+static bool passAsPrimitive(Type t)
+{
+	return Type_isPrimitive(t) && (NULL == Type_getElementType(t));
+}
+
 Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 {
 	Datum retVal;
-	int32 top;
-	jvalue* args;
-	Type  invokerType;
+	Size passedArgCount;
+	Type invokerType;
+	bool skipParameterConversion = false;
 
 	fcinfo->isnull = false;
-	currentInvocation->function = self;
 
 	if(self->isUDT)
 		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
 
-	/* a class loader or other mechanism might have connected already. This
-	 * connection must be dropped since its parent context is wrong.
-	 */
-	if(self->func.nonudt.isMultiCall && SRF_IS_FIRSTCALL())
-		Invocation_assertDisconnect();
+	if ( self->func.nonudt.isMultiCall )
+	{
+		if ( SRF_IS_FIRSTCALL() )
+		{
+			/* A class loader or other mechanism might have connected already.
+			 * This connection must be dropped since its parent context
+			 * is wrong.
+			 */
+			Invocation_assertDisconnect();
+		}
+		else
+		{
+			/* In PL/Java's implementation of the ValuePerCall SRF protocol, the
+			 * passed parameters from SQL only matter on the first call. All
+			 * subsequent calls are either hasNext()/next() on an Iterator, or
+			 * assignRowValues on a ResultSetProvider, and none of those methods
+			 * will receive the SQL-passed parameters. So there is no need to
+			 * spend cycles to convert them and populate the parameter area.
+			 */
+			skipParameterConversion = true;
+		}
+	}
 
-	top = self->func.nonudt.numParams;
-	
-	/* Leave room for one extra parameter. Functions that returns unmapped
-	 * composite types must have a single row ResultSet as an OUT parameter.
-	 */
-	args  = (jvalue*)palloc((top + 1) * sizeof(jvalue));
+	if ( ! skipParameterConversion )
+	{
+		jsize refArgCount = self->func.nonudt.numRefParams;
+		jsize primArgCount = self->func.nonudt.numPrimParams;
+
+		/* The *s_countCheck field in the parameter area will be zero unless
+		 * this is a recursive invocation (believed only possible via a UDT
+		 * function called while converting the parameters for some outer
+		 * invocation). It could also be zero if this is a recursive invocation
+		 * but the outer one involves no parameters, which won't happen if UDT
+		 * conversion for a parameter is the only way to get here, and even if
+		 * it happens, we still don't need to save its frame because there is
+		 * nothing there that we'll clobber.
+		 */
+		if ( 0 != *s_countCheck )
+		{
+			JNI_callStaticVoidMethodLocked(
+				s_ParameterFrame_class, s_ParameterFrame_push);
+			/* Record, in currentInvocation, that a frame was pushed; the pop
+			 * will happen in Invocation_popInvocation, which our caller
+			 * arranges for both normal return and PG_CATCH cases.
+			 */
+			currentInvocation->pushedFrame = true;
+		}
+		*s_countCheck = COUNTCHECK(refArgCount, primArgCount);
+	}
+
 	invokerType = self->func.nonudt.returnType;
 
-	if(top > 0)
+	passedArgCount = PG_NARGS();
+
+	if ( passedArgCount > 0  &&  ! skipParameterConversion )
 	{
 		int32 idx;
+		int32 refIdx = 0;
+		int32 primIdx = 0;
 		Type* types = self->func.nonudt.paramTypes;
+		jvalue coerced;
 
 		if(Type_isDynamic(invokerType))
-			invokerType = Type_getRealType(invokerType, get_fn_expr_rettype(fcinfo->flinfo), self->func.nonudt.typeMap);
+			invokerType = Type_getRealType(invokerType,
+				get_fn_expr_rettype(fcinfo->flinfo), self->func.nonudt.typeMap);
 
-		for(idx = 0; idx < top; ++idx)
+		for(idx = 0; idx < passedArgCount; ++idx)
 		{
+			Type paramType = types[idx];
+			bool passPrimitive = passAsPrimitive(paramType);
+
 			if(PG_ARGISNULL(idx))
+			{
 				/*
 				 * Set this argument to zero (or null in case of object)
 				 */
-				args[idx].j = 0L;
+				if ( passPrimitive )
+					s_primitiveParameters[primIdx++].j = 0L;
+				else
+					++ refIdx; /* array element is already initially null */
+			}
 			else
 			{
-				Type paramType = types[idx];
 				if(Type_isDynamic(paramType))
-					paramType = Type_getRealType(paramType, get_fn_expr_argtype(fcinfo->flinfo, idx), self->func.nonudt.typeMap);
-				args[idx] = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
+					paramType = Type_getRealType(paramType,
+						get_fn_expr_argtype(fcinfo->flinfo, idx),
+						self->func.nonudt.typeMap);
+				coerced = Type_coerceDatum(paramType, PG_GETARG_DATUM(idx));
+				if ( passPrimitive )
+					s_primitiveParameters[primIdx++] = coerced;
+				else
+					JNI_setObjectArrayElement(
+						s_referenceParameters, refIdx++, coerced.l);
 			}
 		}
 	}
 
 	retVal = self->func.nonudt.isMultiCall
-		? Type_invokeSRF(invokerType, self->clazz, self->func.nonudt.method, args, fcinfo)
-		: Type_invoke(invokerType, self->clazz, self->func.nonudt.method, args, fcinfo);
+		? Type_invokeSRF(invokerType, self, fcinfo)
+		: Type_invoke(invokerType, self, fcinfo);
 
-	pfree(args);
 	return retVal;
 }
 
 Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 {
-	jvalue arg;
+	jobject jtd;
 	Datum  ret;
 
 	TriggerData *td = (TriggerData*)fcinfo->context;
-	arg.l = pljava_TriggerData_create(td);
-	if(arg.l == 0)
+	jtd = pljava_TriggerData_create(td);
+	if(jtd == 0)
 		return 0;
 
-	currentInvocation->function = self;
+	/*
+	 * See comments for this block in Function_invoke.
+	 */
+	if ( 0 != *s_countCheck )
+	{
+		JNI_callStaticVoidMethodLocked(
+			s_ParameterFrame_class, s_ParameterFrame_push);
+		currentInvocation->pushedFrame = true;
+	}
+	*s_countCheck = COUNTCHECK(1, 0);
+
+	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
+
 #if PG_VERSION_NUM >= 100000
 	currentInvocation->triggerData = td;
 	/* Also starting in PG 10, Invocation_assertConnect must be called before
@@ -867,7 +722,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	 * the trigger function has returned.
 	 */
 #endif
-	Type_invoke(self->func.nonudt.returnType, self->clazz, self->func.nonudt.method, &arg, fcinfo);
+	Type_invoke(self->func.nonudt.returnType, self, fcinfo);
 
 	fcinfo->isnull = false;
 	if(JNI_exceptionCheck())
@@ -889,7 +744,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		MemoryContext currCtx = Invocation_switchToUpperContext();
 		ret = PointerGetDatum(
 				pljava_TriggerData_getTriggerReturnTuple(
-					arg.l, &fcinfo->isnull));
+					jtd, &fcinfo->isnull));
 
 		/* Triggers are not allowed to set the fcinfo->isnull, even when
 		 * they return null.
@@ -899,8 +754,31 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(currCtx);
 	}
 
-	JNI_deleteLocalRef(arg.l);
+	JNI_deleteLocalRef(jtd);
 	return ret;
+}
+
+/*
+ * Most slots in the parameter area are set directly in invoke() or
+ * invokeTrigger() above. The only caller of this is Composite_invoke, which
+ * needs to set one parameter (always the last one, and a reference type).
+ * So this function, though with an API that could be general, for now only
+ * handles the case where index is -1 and the last parameter has reference type.
+ */
+void pljava_Function_setParameter(Function self, int index, jvalue value)
+{
+	int numRefs = self->func.nonudt.numRefParams;
+	if ( -1 != index  ||  1 > numRefs )
+		elog(ERROR, "unsupported index in pljava_Function_setParameter");
+	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
+}
+
+/*
+ * Not intended for any caller but Invocation_popInvocation.
+ */
+void pljava_Function_popFrame()
+{
+	JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
 }
 
 bool Function_isCurrentReadOnly(void)
@@ -929,3 +807,285 @@ jobject Function_currentLoader(void)
 	return JNI_newLocalRef(weakRef);
 }
 
+/*
+ * Class:     org_postgresql_pljava_internal_Function_EarlyNatives
+ * Method:    _parameterArea
+ * Signature: ([Ljava/lang/Object;)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+	Java_org_postgresql_pljava_internal_Function_00024EarlyNatives__1parameterArea(
+	JNIEnv *env, jclass cls, jobjectArray referenceParams)
+{
+	/*
+	 * This native method will use *env directly, not BEGIN_NATIVE / END_NATIVE:
+	 * it is only called once in early initialization on the primordial thread.
+	 */
+	s_referenceParameters = (*env)->NewGlobalRef(env, referenceParams);
+	return (*env)->NewDirectByteBuffer(
+		env, &s_primitiveParameters, sizeof s_primitiveParameters);
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _storeToNonUDT
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZZLjava/util/Map;IILjava/lang/String;[I[Ljava/lang/String;[Ljava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL
+	Java_org_postgresql_pljava_internal_Function__1storeToNonUDT(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
+	jclass clazz, jboolean readOnly, jboolean isMultiCall, jobject typeMap,
+	jint numParams, jint returnType, jstring returnJType,
+	jintArray paramTypes, jobjectArray paramJTypes, jobjectArray outJTypes)
+{
+	Ptr2Long p2l;
+	Function self;
+	MemoryContext ctx;
+	jstring jtn;
+	int i = 0;
+	uint16 refParams = 0;
+	uint16 primParams = 0;
+	bool returnTypeIsOutParameter;
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+	ctx = GetMemoryChunkContext(self);
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	PG_TRY();
+	{
+		self->isUDT = false;
+		self->readOnly = (JNI_TRUE == readOnly);
+		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+		self->clazz = JNI_newGlobalRef(clazz);
+		self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
+		self->func.nonudt.typeMap =
+			(NULL == typeMap) ? NULL : JNI_newGlobalRef(typeMap);
+
+		if ( NULL != returnJType )
+		{
+			char *rjtc = String_createNTS(returnJType);
+			self->func.nonudt.returnType = Type_fromJavaType(returnType, rjtc);
+			pfree(rjtc);
+		}
+		else
+			self->func.nonudt.returnType = Type_fromOid(returnType, typeMap);
+
+		if ( 0 < numParams )
+		{
+			self->func.nonudt.paramTypes =
+				(Type *)MemoryContextAlloc(ctx, numParams * sizeof (Type));
+			jint *paramOids = JNI_getIntArrayElements(paramTypes, NULL);
+			for ( i = 0 ; i < numParams ; ++ i )
+			{
+				if ( NULL != paramJTypes )
+				{
+					jstring pjt = JNI_getObjectArrayElement(paramJTypes, i);
+					if ( NULL != pjt )
+					{
+						char *pjtc = String_createNTS(pjt);
+						JNI_deleteLocalRef(pjt);
+						self->func.nonudt.paramTypes[i] =
+							Type_fromJavaType(paramOids[i], pjtc);
+						pfree(pjtc);
+						continue;
+					}
+				}
+				self->func.nonudt.paramTypes[i] =
+					Type_fromOid(paramOids[i], typeMap);
+			}
+			JNI_releaseIntArrayElements(paramTypes, paramOids, JNI_ABORT);
+
+			for ( i = 0 ; i < numParams ; ++ i )
+			{
+				jtn = String_createJavaStringFromNTS(Type_getJavaTypeName(
+					self->func.nonudt.paramTypes[i]));
+				JNI_setObjectArrayElement(outJTypes, i, jtn);
+				JNI_deleteLocalRef(jtn);
+				if ( passAsPrimitive(self->func.nonudt.paramTypes[i]) )
+					++ primParams;
+				else
+					++ refParams;
+			}
+		}
+
+		/* Store Java type name of return type at outJTypes[i], where i (after
+		 * all of the above) indexes the last element of outJTypes.
+		 */
+		jtn = String_createJavaStringFromNTS(Type_getJavaTypeName(
+			self->func.nonudt.returnType));
+		JNI_setObjectArrayElement(outJTypes, i, jtn);
+		JNI_deleteLocalRef(jtn);
+
+		returnTypeIsOutParameter =
+			Type_isOutParameter(self->func.nonudt.returnType);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
+	END_NATIVE
+
+	if ( returnTypeIsOutParameter  &&  JNI_TRUE != isMultiCall )
+		++ refParams;
+
+	self->func.nonudt.numRefParams = refParams;
+	self->func.nonudt.numPrimParams = primParams;
+
+	return returnTypeIsOutParameter;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _storeToUDT
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZIILjava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V
+ */
+JNIEXPORT void JNICALL
+	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
+	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId,
+	jobject parseMH, jobject readMH)
+{
+	Ptr2Long p2l;
+	Function self;
+	HeapTuple typeTup;
+	Form_pg_type pgType;
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	PG_TRY();
+	{
+		self->isUDT = true;
+		self->readOnly = (JNI_TRUE == readOnly);
+		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+		self->clazz = JNI_newGlobalRef(clazz);
+
+		typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
+		pgType = (Form_pg_type)GETSTRUCT(typeTup);
+		self->func.udt.udt =
+			UDT_registerUDT(
+				self->clazz, udtId, pgType, 0, true, parseMH, readMH);
+		ReleaseSysCache(typeTup);
+
+		switch ( funcInitial )
+		{
+		case 'i': self->func.udt.udtFunction = UDT_input; break;
+		case 'o': self->func.udt.udtFunction = UDT_output; break;
+		case 'r': self->func.udt.udtFunction = UDT_receive; break;
+		case 's': self->func.udt.udtFunction = UDT_send; break;
+		default:
+			elog(ERROR,
+				"PL/Java jar/native code mismatch: unexpected UDT func ID");
+		}
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
+	END_NATIVE
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Function
+ * Method:    _reconcileTypes
+ * Signature: (J[Ljava/lang/String;[Ljava/lang/String;I)V
+ */
+JNIEXPORT void JNICALL
+	Java_org_postgresql_pljava_internal_Function__1reconcileTypes(
+	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr,
+	jobjectArray resolvedTypes, jobjectArray explicitTypes, jint index)
+{
+	Ptr2Long p2l;
+	Function self;
+	Type origType;
+	Type replType;
+	Oid typeId;
+	char *javaName;
+	jstring javaNameString;
+
+	/* The Java code will pass index -1 to indicate the special case of
+	 * reconciling the return type instead of a parameter type. This is
+	 * a bit convoluted in order to reproduce the behavior of the
+	 * original C parseParameters. The explicit return type is at numParams.
+	 * OR ... the Java code will pass -2 in a *different* case of adapting the
+	 * return type, which in this case is the only element in a length-one
+	 * explicitTypes array ... and in this case a coercer, if needed, will be
+	 * built with getCoerceOut instead of getCoerceIn. (The use of getCoerceIn
+	 * for the -1 case seems unconvincing; it is a faithful copy of what the
+	 * C parseParameters did, but applying it to the return type may have been
+	 * an oversight.) The resolvedTypes array in this case is still full length,
+	 * and the resulting return type name still goes at the end of it.
+	 */
+	bool actOnReturnType = ( -1 == index ||  -2 == index );
+	bool coerceOutAndSingleton = ( -2 == index );
+
+	p2l.longVal = wrappedPtr;
+	self = (Function)p2l.ptrVal;
+
+	BEGIN_NATIVE_NO_ERRCHECK
+	PG_TRY();
+	{
+		if ( actOnReturnType )
+		{
+			index = JNI_getArrayLength(resolvedTypes) - 1;
+			origType = self->func.nonudt.returnType;
+			typeId = InvalidOid;
+		}
+		else
+		{
+			origType = self->func.nonudt.paramTypes[index];
+			typeId = Type_getOid(origType);
+		}
+
+		javaNameString = JNI_getObjectArrayElement(explicitTypes,
+			coerceOutAndSingleton ? 0 : index);
+
+		javaName = String_createNTS(javaNameString);
+
+		replType = Type_fromJavaType(typeId, javaName);
+		pfree(javaName);
+
+		if ( ! Type_canReplaceType(replType, origType) )
+		{
+			if ( coerceOutAndSingleton )
+				replType = Type_getCoerceOut(replType, origType);
+			else
+				replType = Type_getCoerceIn(replType, origType);
+		}
+
+		if ( actOnReturnType )
+			self->func.nonudt.returnType = replType;
+		else
+		{
+			self->func.nonudt.paramTypes[index] = replType;
+			if ( passAsPrimitive(origType) != passAsPrimitive(replType) )
+			{
+				if ( Type_isPrimitive(replType) )
+				{
+					-- self->func.nonudt.numRefParams;
+					++ self->func.nonudt.numPrimParams;
+				}
+				else
+				{
+					++ self->func.nonudt.numRefParams;
+					-- self->func.nonudt.numPrimParams;
+				}
+			}
+		}
+
+		javaNameString =
+			String_createJavaStringFromNTS(Type_getJavaTypeName(replType));
+
+		JNI_setObjectArrayElement(resolvedTypes, index, javaNameString);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
+	}
+	PG_END_TRY();
+
+	END_NATIVE
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,6 +55,12 @@ struct Invocation_
 	 * Set to true if the executing function is trusted
 	 */
 	bool          trusted;
+
+	/**
+	 * Whether nested invocation of a Function has required pushing a parameter
+	 * frame that will have to be popped when the Invocation is.
+	 */
+	bool pushedFrame;
 
 	/**
 	 * The currently executing Function.
