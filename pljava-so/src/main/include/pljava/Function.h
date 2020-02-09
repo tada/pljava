@@ -81,6 +81,11 @@ extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
 extern void pljava_Function_setParameter(Function self, int idx, jvalue val);
 
 /*
+ * Not intended for any caller other than Invocation_popInvocation.
+ */
+extern void pljava_Function_popFrame();
+
+/*
  * These actually invoke a target Java method (returning, respectively, a
  * reference type or one of the Java primitive types). The arguments to the
  * method have already been coerced, and segregated into reference types (stored

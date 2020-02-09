@@ -50,14 +50,12 @@
 #error "Need fallback for heap_copy_tuple_as_datum"
 #endif
 
-#define SETPARAMCOUNTS(refs, prims) \
-	*(jshort *)(((char *)s_primitiveParameters) + \
-	org_postgresql_pljava_internal_Function_s_offset_paramCounts) = \
-	(jshort)(((refs) << 8) | ((prims) & 0xff))
+#define COUNTCHECK(refs, prims) ((jshort)(((refs) << 8) | ((prims) & 0xff)))
 
 static jclass s_Loader_class;
 static jclass s_ClassLoader_class;
 static jclass s_Function_class;
+static jclass s_ParameterFrame_class;
 static jclass s_EntryPoints_class;
 static jmethodID s_Loader_getSchemaLoader;
 static jmethodID s_Loader_getTypeMap;
@@ -66,6 +64,8 @@ static jmethodID s_Function_create;
 static jmethodID s_Function_getClassIfUDT;
 static jmethodID s_Function_udtReadHandle;
 static jmethodID s_Function_udtParseHandle;
+static jmethodID s_ParameterFrame_push;
+static jmethodID s_ParameterFrame_pop;
 static jmethodID s_EntryPoints_refInvoke;
 static jmethodID s_EntryPoints_invoke;
 static jmethodID s_EntryPoints_udtWriteInvoke;
@@ -77,6 +77,10 @@ static Type s_pgproc_Type;
 
 static jobjectArray s_referenceParameters;
 static jvalue s_primitiveParameters [ 1 + 255 ];
+
+static jshort * const s_countCheck =
+	(jshort *)(((char *)s_primitiveParameters) +
+		org_postgresql_pljava_internal_Function_s_offset_paramCounts);
 
 struct Function_
 {
@@ -239,9 +243,17 @@ void Function_initialize(void)
 	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
 	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
-	cls = JNI_newGlobalRef(PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/Function$EarlyNatives"));
+	cls = PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function$EarlyNatives");
 	PgObject_registerNatives2(cls, earlyMethods);
+	JNI_deleteLocalRef(cls);
+
+	s_ParameterFrame_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/Function$ParameterFrame"));
+	s_ParameterFrame_push = PgObject_getStaticJavaMethod(s_ParameterFrame_class,
+		"push", "()V");
+	s_ParameterFrame_pop = PgObject_getStaticJavaMethod(s_ParameterFrame_class,
+		"pop", "()V");
 
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
@@ -565,31 +577,70 @@ static bool passAsPrimitive(Type t)
 Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 {
 	Datum retVal;
-	jsize refArgCount;
-	jsize primArgCount;
 	Size passedArgCount;
-	Type  invokerType;
+	Type invokerType;
+	bool skipParameterConversion = false;
 
 	fcinfo->isnull = false;
 
 	if(self->isUDT)
 		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
 
-	/* a class loader or other mechanism might have connected already. This
-	 * connection must be dropped since its parent context is wrong.
-	 */
-	if(self->func.nonudt.isMultiCall && SRF_IS_FIRSTCALL())
-		Invocation_assertDisconnect();
+	if ( self->func.nonudt.isMultiCall )
+	{
+		if ( SRF_IS_FIRSTCALL() )
+		{
+			/* A class loader or other mechanism might have connected already.
+			 * This connection must be dropped since its parent context
+			 * is wrong.
+			 */
+			Invocation_assertDisconnect();
+		}
+		else
+		{
+			/* In PL/Java's implementation of the ValuePerCall SRF protocol, the
+			 * passed parameters from SQL only matter on the first call. All
+			 * subsequent calls are either hasNext()/next() on an Iterator, or
+			 * assignRowValues on a ResultSetProvider, and none of those methods
+			 * will receive the SQL-passed parameters. So there is no need to
+			 * spend cycles to convert them and populate the parameter area.
+			 */
+			skipParameterConversion = true;
+		}
+	}
 
-	refArgCount = self->func.nonudt.numRefParams;
-	primArgCount = self->func.nonudt.numPrimParams;
-	SETPARAMCOUNTS(refArgCount, primArgCount);
+	if ( ! skipParameterConversion )
+	{
+		jsize refArgCount = self->func.nonudt.numRefParams;
+		jsize primArgCount = self->func.nonudt.numPrimParams;
+
+		/* The *s_countCheck field in the parameter area will be zero unless
+		 * this is a recursive invocation (believed only possible via a UDT
+		 * function called while converting the parameters for some outer
+		 * invocation). It could also be zero if this is a recursive invocation
+		 * but the outer one involves no parameters, which won't happen if UDT
+		 * conversion for a parameter is the only way to get here, and even if
+		 * it happens, we still don't need to save its frame because there is
+		 * nothing there that we'll clobber.
+		 */
+		if ( 0 != *s_countCheck )
+		{
+			JNI_callStaticVoidMethodLocked(
+				s_ParameterFrame_class, s_ParameterFrame_push);
+			/* Record, in currentInvocation, that a frame was pushed; the pop
+			 * will happen in Invocation_popInvocation, which our caller
+			 * arranges for both normal return and PG_CATCH cases.
+			 */
+			currentInvocation->pushedFrame = true;
+		}
+		*s_countCheck = COUNTCHECK(refArgCount, primArgCount);
+	}
 
 	invokerType = self->func.nonudt.returnType;
 
 	passedArgCount = PG_NARGS();
 
-	if(passedArgCount > 0)
+	if ( passedArgCount > 0  &&  ! skipParameterConversion )
 	{
 		int32 idx;
 		int32 refIdx = 0;
@@ -649,8 +700,18 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	if(jtd == 0)
 		return 0;
 
+	/*
+	 * See comments for this block in Function_invoke.
+	 */
+	if ( 0 != *s_countCheck )
+	{
+		JNI_callStaticVoidMethodLocked(
+			s_ParameterFrame_class, s_ParameterFrame_push);
+		currentInvocation->pushedFrame = true;
+	}
+	*s_countCheck = COUNTCHECK(1, 0);
+
 	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
-	SETPARAMCOUNTS(1, 0); /* (refs, prims) */
 
 #if PG_VERSION_NUM >= 100000
 	currentInvocation->triggerData = td;
@@ -710,6 +771,14 @@ void pljava_Function_setParameter(Function self, int index, jvalue value)
 	if ( -1 != index  ||  1 > numRefs )
 		elog(ERROR, "unsupported index in pljava_Function_setParameter");
 	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
+}
+
+/*
+ * Not intended for any caller but Invocation_popInvocation.
+ */
+void pljava_Function_popFrame()
+{
+	JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
 }
 
 bool Function_isCurrentReadOnly(void)

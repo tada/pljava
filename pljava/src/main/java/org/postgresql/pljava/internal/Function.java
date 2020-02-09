@@ -366,8 +366,6 @@ public class Function
 		int references = parameterCount - primitives;
 		short countCheck = (short)((references << 8) | (primitives & 0xff));
 
-		boolean hasPrimitiveParams = 0 < primitives;
-
 		/*
 		 * "Erase" any/all reference types, parameter or return, to Object.
 		 * Erasing the return type avoids wrong-method-type exceptions when
@@ -391,7 +389,16 @@ public class Function
 		 * invoked *first* when a call is later made. In other words, the order
 		 * of these steps has a reverse-chronological flavor, producing handles
 		 * whose chronological sequence will be last-to-first during a call.
+		 *
+		 * As a first construction step (and therefore the last thing to happen
+		 * before the target method is ultimately invoked), add a countsZeroer
+		 * (if there were nonzero parameter counts) to announce that the values
+		 * have all been fetched and the static parameter area is free for use.
+		 * The countsZeroer has void return and no parameters, so it doesn't
+		 * affect the constructed parameter list.
 		 */
+		if ( 0 != countCheck )
+			mh = foldArguments(mh, 0, s_countsZeroer);
 
 		/*
 		 * Iterate through the parameter indices in reverse order. Each step
@@ -402,8 +409,7 @@ public class Function
 		 * primitive type), and invoke the next (in construction order, prior)
 		 * handle.
 		 *
-		 * The handle left at the end of this loop will have only the
-		 * parameters expected by the invocation target.
+		 * The handle left at the end of this loop will expect no parameters.
 		 */
 		while ( parameterCount --> 0 )
 		{
@@ -513,8 +519,8 @@ public class Function
 
 		/*
 		 * The returned method handle will first confirm that it is being called
-		 * with the expected numbers of reference and primitive parameters,
-		 * throwing an exception if not.
+		 * with the expected numbers of reference and primitive parameters ready
+		 * in the static parameter areas, throwing an exception if not.
 		 */
 		return foldArguments(mh,
 			insertArguments(s_paramCountsAre, 0, countCheck));
@@ -540,6 +546,7 @@ public class Function
 	private static final MethodHandle s_referenceNuller;
 	private static final MethodHandle s_primitiveZeroer;
 	private static final MethodHandle s_paramCountsAre;
+	private static final MethodHandle s_countsZeroer;
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 	private static final MethodHandle s_readSQL_mh;
 
@@ -577,6 +584,91 @@ public class Function
 		EarlyNatives._parameterArea(s_referenceParameters)
 		.order(ByteOrder.nativeOrder());
 	private static final int s_offset_paramCounts = 255 * s_sizeof_jvalue;
+
+	/**
+	 * Class used to stack parameters for an in-construction call if needed for
+	 * the (unlikely) re-entrant use of the static parameter area.
+	 *<p>
+	 * The need for this should be rare, as the only obvious cases for PL/Java
+	 * upcalls that can occur while assembling another call's parameter list
+	 * will be for UDTs that appear among those parameters. On the other hand,
+	 * nothing restricts what a UDT method is allowed to do, so in the unlikely
+	 * case it does something heavy enough to involve another upcall, there has
+	 * to be a way for that to work.
+	 */
+	static class ParameterFrame
+	{
+		private static ParameterFrame s_stack = null;
+		private ParameterFrame m_prev;
+		private Object[] m_refs;
+		private byte[] m_prims;
+
+		/**
+		 * Construct a copy of the current in-progress parameter area.
+		 */
+		private ParameterFrame()
+		{
+			short counts = s_primitiveParameters.getShort(s_offset_paramCounts);
+			assert 0 != counts : "ParameterFrame() called when no parameters";
+
+			int refs = counts >>> 8;
+			int prims = counts & 0xff;
+
+			if ( 0 < refs )
+				m_refs = copyOf(s_referenceParameters, refs);
+
+			if ( 0 < prims )
+			{
+				m_prims = new byte [ prims * s_sizeof_jvalue ];
+				// Java 13: s_primitiveParameters.get(0, m_prims);
+				s_primitiveParameters.get(m_prims).position(0);
+			}
+
+			m_prev = s_stack;
+		}
+
+		/**
+		 * Push a copy of the current in-progress parameter area; called only
+		 * via JNI.
+		 *<p>
+		 * Only happens on the PG thread.
+		 */
+		private static void push()
+		{
+			s_stack = new ParameterFrame();
+			s_primitiveParameters.putShort(s_offset_paramCounts, (short)0);
+		}
+
+		/**
+		 * Pop a stacked parameter frame; called only vi JNI, only when
+		 * the current invocation is known to have pushed one.
+		 */
+		private static void pop()
+		{
+			ParameterFrame f = s_stack;
+			s_stack = f.m_prev;
+
+			int refs = 0;
+			int prims = 0;
+
+			if ( null != f.m_refs )
+			{
+				refs = f.m_refs.length;
+				System.arraycopy(f.m_refs, 0, s_referenceParameters, 0, refs);
+			}
+
+			if ( null != f.m_prims )
+			{
+				int len = f.m_prims.length;
+				prims = len / s_sizeof_jvalue;
+				// Java 13: s_primitiveParameters.put(0, f.m_prims);
+				s_primitiveParameters.put(f.m_prims).position(0);
+			}
+
+			s_primitiveParameters.putShort(s_offset_paramCounts,
+				(short)((refs << 8) | (prims & 0xff)));
+		}
+	}
 
 	static
 	{
@@ -682,6 +774,9 @@ public class Function
 			.bindTo(s_referenceParameters);
 
 		s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
+
+		s_countsZeroer =
+			insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
 	}
 
 	/**
