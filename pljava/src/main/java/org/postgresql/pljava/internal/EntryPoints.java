@@ -13,8 +13,6 @@ package org.postgresql.pljava.internal;
 
 import java.lang.invoke.MethodHandle;
 
-import java.nio.ByteBuffer;
-
 import java.sql.SQLData;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
