@@ -342,20 +342,22 @@ public class Function
 	 *<p>
 	 * The convention here will be that the C call handler segregates all of the
 	 * incoming parameters into an {@code Object} array for all those of
-	 * reference type, and a C array of {@code jvalue} for the primitives. It
-	 * then passes the {@code Object} array and a direct {@code ByteBuffer} that
-	 * maps the {@code jvalue} array. Either may be null, if there are no
-	 * parameters of reference or primitive type, respectively.
+	 * reference type, and a C array of {@code jvalue} for the primitives.
+	 * Those arrays are static, and will be bound into the method handle
+	 * produced here, from which it will fetch values when invoked.
 	 *<p>
 	 * The job of this method is to take any static method handle {@code mh} and
-	 * return a method handle that takes exactly two parameters, an
-	 * {@code Object[]} and a {@code ByteBuffer}, and invokes the original
+	 * return a method handle that takes no parameters, and invokes the original
 	 * handle with the parameter values unpacked to their proper positions.
 	 *<p>
-	 * The handle's return type will be unchanged if primitive, or, if any
+	 * The handle's return type will be {@code void} if primitive, or, if any
 	 * reference type, erased to {@code Object}. The erasure allows a single
 	 * wrapper method for reference return types that can be declared to return
 	 * {@code Object} and still use {@code invokeExact} on the method handle.
+	 * For any (non-{@code void}) primitive type, the handle will store the
+	 * actual returned value back into the first static primitive-parameters
+	 * slot, allowing a single {@code void}-returning invocation wrapper for all
+	 * of the primitive return types.
 	 */
 	private static MethodHandle adaptHandle(MethodHandle mh)
 	{
