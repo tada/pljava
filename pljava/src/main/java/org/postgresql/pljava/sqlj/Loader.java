@@ -22,6 +22,11 @@ import static java.lang.invoke.MethodType.methodType;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+import java.security.CodeSigner;
+import java.security.CodeSource;
+import java.security.Principal;
+import java.security.ProtectionDomain;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -37,6 +42,8 @@ import java.util.NoSuchElementException;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static java.util.stream.Collectors.groupingBy;
 
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Checked;
@@ -175,13 +182,24 @@ public class Loader extends ClassLoader
 		if(loader != null)
 			return loader;
 
+		/*
+		 * Under-construction map from an entry name to an array of integer
+		 * surrogate keys for entries with matching names in jars on the path.
+		 */
 		Map<String,int[]> classImages = new HashMap<>();
+
+		/*
+		 * Under-construction map from an integer entry key to a
+		 * CodeSource representing the jar it belongs to.
+		 */
+		Map<Integer,CodeSource> codeSources = new HashMap<>();
+
 		Connection conn = getDefaultConnection();
 		try (
 			// Read the entries so that the one with highest prio is read last.
 			//
 			PreparedStatement outer = conn.prepareStatement(
-				"SELECT r.jarId" +
+				"SELECT r.jarId, r.jarName" +
 				" FROM" +
 				"  sqlj.jar_repository r" +
 				"  INNER JOIN sqlj.classpath_entry c" +
@@ -200,6 +218,9 @@ public class Loader extends ClassLoader
 			{
 				while(rs.next())
 				{
+					URL jarUrl = new URL("sqlj:" + rs.getString(2));
+					CodeSource cs = new CodeSource(jarUrl, (CodeSigner[])null);
+
 					inner.setInt(1, rs.getInt(1));
 					try ( ResultSet rs2 = inner.executeQuery() )
 					{
@@ -207,6 +228,7 @@ public class Loader extends ClassLoader
 						{
 							int entryId = rs2.getInt(1);
 							String entryName = rs2.getString(2);
+							codeSources.put(entryId, cs);
 							int[] oldEntry = classImages.get(entryName);
 							if(oldEntry == null)
 								classImages.put(entryName, new int[] { entryId });
@@ -222,6 +244,10 @@ public class Loader extends ClassLoader
 					}
 				}
 			}
+			catch ( MalformedURLException e )
+			{
+				throw unchecked(e);
+			}
 		}
 
 		ClassLoader parent = ClassLoader.getSystemClassLoader();
@@ -234,7 +260,7 @@ public class Loader extends ClassLoader
 			loader = schemaName.equals(PUBLIC_SCHEMA)
 				? parent : getSchemaLoader(PUBLIC_SCHEMA);
 		else
-			loader = new Loader(classImages, parent);
+			loader = new Loader(classImages, codeSources, parent);
 
 		s_schemaLoaders.put(schemaName, loader);
 		return loader;
@@ -330,17 +356,33 @@ public class Loader extends ClassLoader
 	 * loader's jar path that contain entries matching the name.
 	 */
 	private final Map<String,int[]> m_entries;
+	private final Map<Integer,ProtectionDomain> m_domains;
 
 	/**
 	 * Create a new Loader.
 	 * @param entries
 	 * @param parent
 	 */
-	Loader(Map<String,int[]> entries, ClassLoader parent)
+	Loader(
+		Map<String,int[]> entries,
+		Map<Integer,CodeSource> sources, ClassLoader parent)
 	{
 		super(parent);
 		m_entries = entries;
 		m_j9Helper = ifJ9getHelper(); // null if not under OpenJ9 with sharing
+
+		Principal[] noPrincipals = new Principal[0];
+
+		m_domains = new HashMap<>();
+
+		sources.entrySet().stream()
+			.collect(groupingBy(Map.Entry::getValue))
+			.entrySet().stream().forEach(e ->
+			{
+				ProtectionDomain pd = new ProtectionDomain(
+					e.getKey(), null /* no permissions */, this, noPrincipals);
+				e.getValue().forEach(ee -> m_domains.put(ee.getKey(), pd));
+			});
 	}
 
 	@Override
@@ -351,6 +393,8 @@ public class Loader extends ClassLoader
 		int[] entryId = m_entries.get(path);
 		if(entryId != null)
 		{
+			ProtectionDomain pd = m_domains.get(entryId[0]);
+
 			/*
 			 * Check early whether running on OpenJ9 JVM and the shared cache
 			 * has the class. It is possible this early because the entryId is
@@ -365,7 +409,7 @@ public class Loader extends ClassLoader
 			if ( o instanceof byte[] )
 			{
 				byte[] img = (byte[]) o;
-				return defineClass(name, img, 0, img.length);
+				return defineClass(name, img, 0, img.length, pd);
 			}
 			String ifJ9token = (String) o; // used below when storing class
 
@@ -396,7 +440,7 @@ public class Loader extends ClassLoader
 				{
 					byte[] img = rs.getBytes(1);
 
-					Class<?> cls = this.defineClass(name, img, 0, img.length);
+					Class<?> cls = defineClass(name, img, 0, img.length, pd);
 
 					ifJ9storeSharedClass(ifJ9token, cls); // noop for null token
 					return cls;
