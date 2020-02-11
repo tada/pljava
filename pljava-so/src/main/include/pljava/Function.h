@@ -46,12 +46,16 @@ extern void Function_clearFunctionCache(void);
  * Get a Function using a function Oid. If the function is not found, one
  * will be created based on the class and method name denoted in the "AS"
  * clause, the parameter types, and the return value of the function
- * description. If "isTrigger" is set to true, the parameter type and
+ * description. If "forTrigger" is true, the parameter type and
  * return value of the function will be fixed to:
- * 
- * org.postgresql.pljava.Tuple <method name>(org.postgresql.pljava.TriggerData td)
+ * void <method name>(org.postgresql.pljava.TriggerData td)
+ *
+ * If forValidator is true, forTrigger is disregarded, and will be determined
+ * from the function's pg_proc entry. If forValidator is false, checkBody has no
+ * meaning.
  */
-extern Function Function_getFunction(PG_FUNCTION_ARGS);
+extern Function Function_getFunction(
+	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody);
 
 extern Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct);
 

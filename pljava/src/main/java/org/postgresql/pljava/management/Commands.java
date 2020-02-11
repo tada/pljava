@@ -263,7 +263,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * many are unchanged). It is used that way in the cache-token construction in
  * o.p.p.sqlj.Loader, which could need to be revisited if this behavior changes.
  */
-@SQLAction(install={
+@SQLAction(provides="sqlj.tables", install={
 "	CREATE TABLE sqlj.jar_repository(" +
 "		jarId       SERIAL PRIMARY KEY," +
 "		jarName     CHARACTER VARYING(100) UNIQUE NOT NULL," +
@@ -525,7 +525,8 @@ public class Commands
 	 * @throws SQLException if the type or class cannot be found, or if the
 	 *            invoking user does not own the type.
 	 */
-	@Function(schema="sqlj", name="add_type_mapping", security=DEFINER)
+	@Function(schema="sqlj", name="add_type_mapping", security=DEFINER,
+		requires="sqlj.tables")
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
 	throws SQLException
 	{
@@ -563,7 +564,8 @@ public class Commands
 	 * @throws SQLException if the type cannot be found, or if the
 	 *            invoking user does not own the type.
 	 */
-	@Function(schema="sqlj", name="drop_type_mapping", security=DEFINER)
+	@Function(schema="sqlj", name="drop_type_mapping", security=DEFINER,
+		requires="sqlj.tables")
 	public static void dropTypeMapping(String sqlTypeName) throws SQLException
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
@@ -588,7 +590,8 @@ public class Commands
 	 *         no classpath.
 	 * @throws SQLException
 	 */
-	@Function(schema="sqlj", name="get_classpath", security=DEFINER)
+	@Function(schema="sqlj", name="get_classpath", security=DEFINER,
+		requires="sqlj.tables")
 	public static String getClassPath(String schemaName) throws SQLException
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
@@ -644,7 +647,8 @@ public class Commands
 	 *             system.
 	 * @see #setClassPath
 	 */
-	@Function(schema="sqlj", name="install_jar", security=DEFINER)
+	@Function(schema="sqlj", name="install_jar", security=DEFINER,
+		requires="sqlj.tables")
 	public static void installJar(byte[] image, String jarName, boolean deploy)
 	throws SQLException
 	{
@@ -666,7 +670,8 @@ public class Commands
 	 *             system.
 	 * @see #setClassPath
 	 */
-	@Function(schema="sqlj", name="install_jar", security=DEFINER)
+	@Function(schema="sqlj", name="install_jar", security=DEFINER,
+		requires="sqlj.tables")
 	public static void installJar(String urlString, String jarName,
 		boolean deploy) throws SQLException
 	{
@@ -684,7 +689,8 @@ public class Commands
 	 *            descriptor of the jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
-	@Function(schema="sqlj", name="remove_jar", security=DEFINER)
+	@Function(schema="sqlj", name="remove_jar", security=DEFINER,
+		requires="sqlj.tables")
 	public static void removeJar(String jarName, boolean undeploy)
 	throws SQLException
 	{
@@ -735,7 +741,8 @@ public class Commands
 	 *            deployment descriptor of the new jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
-	@Function(schema="sqlj", name="replace_jar", security=DEFINER)
+	@Function(schema="sqlj", name="replace_jar", security=DEFINER,
+		requires="sqlj.tables")
 	public static void replaceJar(byte[] jarImage, String jarName,
 		boolean redeploy) throws SQLException
 	{
@@ -754,7 +761,8 @@ public class Commands
 	 *            deployment descriptor of the new jar.
 	 * @throws SQLException if the named jar cannot be found in the repository.
 	 */
-	@Function(schema="sqlj", name="replace_jar", security=DEFINER)
+	@Function(schema="sqlj", name="replace_jar", security=DEFINER,
+		requires="sqlj.tables")
 	public static void replaceJar(String urlString, String jarName,
 		boolean redeploy) throws SQLException
 	{
@@ -774,7 +782,8 @@ public class Commands
 	 *             if one or several names of the path denotes a nonexistant jar
 	 *             file.
 	 */
-	@Function(schema="sqlj", name="set_classpath", security=DEFINER)
+	@Function(schema="sqlj", name="set_classpath", security=DEFINER,
+		requires="sqlj.tables")
 	public static void setClassPath(String schemaName, String path)
 	throws SQLException
 	{

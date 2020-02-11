@@ -62,6 +62,7 @@ import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
+import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
 import org.postgresql.pljava.management.Commands;
 import org.postgresql.pljava.sqlj.Loader;
 
@@ -877,12 +878,16 @@ public class Function
 	 */
 	public static MethodHandle create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
-		boolean calledAsTrigger)
+		boolean calledAsTrigger, boolean forValidator, boolean checkBody)
 	throws SQLException
 	{
 		Matcher info = parse(procTup);
 
-		return init(wrappedPtr, info, procTup, schemaName, calledAsTrigger);
+		if ( forValidator  &&  ! checkBody )
+			return null;
+
+		return init(wrappedPtr, info, procTup, schemaName, calledAsTrigger,
+				forValidator);
 	}
 
 	/**
@@ -911,7 +916,7 @@ public class Function
 	 */
 	private static MethodHandle init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
-		boolean calledAsTrigger)
+		boolean calledAsTrigger, boolean forValidator)
 	throws SQLException
 	{
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
@@ -940,6 +945,9 @@ public class Function
 		boolean isMultiCall = false;
 		boolean retTypeIsOutParameter = false;
 
+		if ( forValidator )
+			calledAsTrigger = isTrigger(procTup);
+
 		if ( calledAsTrigger )
 		{
 			typeMap = null;
@@ -961,6 +969,21 @@ public class Function
 		return
 			adaptHandle(getMethodHandle(schemaLoader, clazz, methodName,
 				resolvedTypes, retTypeIsOutParameter, isMultiCall));
+	}
+
+	/**
+	 * Determine from a function's {@code pg_proc} entry whether it is a
+	 * trigger function.
+	 *<p>
+	 * This is needed to implement a validator, as the function isn't being
+	 * called, so "calledAsTrigger" can't be determined from the call context.
+	 */
+	private static boolean isTrigger(ResultSet procTup)
+	throws SQLException
+	{
+		return 0 == procTup.getInt("pronargs")
+			&& TRIGGEROID ==
+				procTup.getInt("prorettype"); // type Oid, but implements Number
 	}
 
 	/**
