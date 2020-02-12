@@ -16,14 +16,12 @@ trivial and does not require an XQuery library at all, but is missing from
 core PostgreSQL and easy to implement here.
 
 This code is not built by default, because it pulls in the sizeable [Saxon-HE][]
-library from Saxonica, and because (unlike the rest of PL/Java) it requires
-Java 8.
+library from Saxonica.
 
-To include these optional functions when building the examples, be sure to use
-a Java 8 or later build environment, and add `-Psaxon-examples` to the `mvn`
-command line.
+To include these optional functions when building the examples,
+add `-Psaxon-examples` to the `mvn` command line.
 
-The functions are presented as examples, not as fully supported for production;
+The functions are presented as examples, not as a full implementation;
 for one thing, there is no test suite included to verify their conformance.
 Nevertheless, they are intended to be substantially usable subject to the limits
 described here, and testing and reports of shortcomings are welcome.
@@ -46,14 +44,39 @@ porting queries from Oracle, which permits the same extension.
 ### Using the Saxon examples
 
 The simplest installation method is to use `sqlj.install_jar` twice, once to
-install the PL/Java examples jar in the usual way (perhaps with the name `ex`
-and with `deploy => true`), and once to install (perhaps with the name `saxon`)
-the Saxon-HE jar that Maven will have downloaded during the build. That jar
-will be found in your Maven repository (likely `~/.m2/repository/` unless you
-have directed it elsewhere) below the path `net/sf/saxon`.
+install (perhaps with the name `saxon`) the Saxon-HE jar that Maven will have
+downloaded during the build, and once to install the PL/Java examples jar in the
+usual way (perhaps with the name `examples` and with `deploy => true`). The
+Saxon jar will be found in your Maven repository (likely `~/.m2/repository/`
+unless you have directed it elsewhere) below the path `net/sf/saxon`.
 
-Then use `sqlj.set_classpath` to set a path including both jars (`'ex:saxon'` if
-you used the names suggested above).
+The function `sqlj.set_classpath` is used to make installed jars available.
+After installing the Saxon jar, if you installed it with the name `saxon`,
+add it to the class path:
+
+```
+SELECT sqlj.set_classpath('public', 'saxon');
+```
+
+This must be done before installing the `examples` jar, so that its dependencies
+on Saxon can be resolved.
+
+After both jars are installed, make sure they are both on the classpath. If
+the examples jar was installed with the name `examples`:
+
+```
+SELECT sqlj.set_classpath('public', 'examples:saxon');
+```
+
+*Note: an alternative, shorter procedure is to use
+`SET check_function_bodies TO off;` before loading the examples jar.
+With the checking turned off, the jar can be installed even if the Saxon jar
+has not been installed yet, or has not been added to the class path, so the
+order of steps is less critical. Naturally, the example functions that use Saxon
+will not work until it has been installed and added to the class path.
+`SET check_function_bodies TO off;` simply arranges that missing dependency
+errors will be reported later when the functions are used, rather than when
+they are created.*
 
 ### Calling XML functions without SQL syntactic sugar
 

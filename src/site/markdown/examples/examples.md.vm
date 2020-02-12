@@ -60,6 +60,9 @@ test-related output. (To see _successful_ test-related output, be sure to
 set `client_min_messages` to a level at least as detailed as `INFO` before
 the session's first use of PL/Java.)
 
+**See the end of this page if your attempt to install the examples jar
+fails with "unable to find static method" or "no such class" messages.**
+
 $h2 Trying the examples
 
 While the deployment descriptor itself runs some of the examples, once the
@@ -122,3 +125,33 @@ command line.
 The Saxon example [documentation is here](../examples/saxon.html).
 
 [Saxon-HE]: http://www.saxonica.com/html/products/products.html
+
+$h2 Unable to find class or method (message when installing examples)
+
+As described above, there are some optionally-built examples included
+in the source. For example, there are XML Query examples that are not built
+by default because they depend on the Saxon jar.
+
+If your examples jar was built with the optional examples enabled, then
+PL/Java will normally validate that all of the functions it creates can be used.
+That validation will fail if a needed dependency, such as the Saxon jar, is
+not already installed and on the classpath. The error message can be puzzling,
+as it won't say the Saxon jar is missing, it will say it can't find a method
+that is clearly present in the examples jar. The explanation is that Java does
+not resolve the method, because a dependency is missing.
+
+There are two ways to proceed:
+
+* Install the required dependency first. Use `sqlj.install_jar` to install
+    the Saxon jar (as described [here](../examples/saxon.html)), and
+    `sqlj.set_classpath` to make it accessible, and *then* use
+    `sqlj.install_jar` to install the examples jar itself. The dependency will
+    be satisfied and all of the example functions will work.
+
+* Use `SET check_function_bodies TO off` before installing the examples jar.
+    That will simply relax the strict checking at `CREATE FUNCTION` time, so
+    that all of the example functions will be created. The ones that require
+    Saxon, of course, won't work; `SET check_function_bodies TO off` simply
+    means you get the errors later, when trying to use the functions, instead
+    of when creating them. If you install the dependency jar later and
+    add it to the class path, those functions will then work.
