@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import static java.util.regex.Pattern.compile;
 
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
@@ -1168,7 +1169,7 @@ public class Function
 	 * whitespace already being stripped by {@code getAS}. Will not match
 	 * consecutive, leading, or trailing commas.
 	 */
-	private static final Pattern COMMA = Pattern.compile("(?<=[^,]),(?=[^,])");
+	private static final Pattern COMMA = compile("(?<=[^,]),(?=[^,])");
 
 	/**
 	 * Return a class given a loader to use and a canonical type name, as used
@@ -1250,27 +1251,54 @@ public class Function
 	/**
 	 * Pattern used to strip early whitespace in an "AS" string.
 	 */
-	private static final Pattern stripEarlyWSinAS = Pattern.compile(
+	private static final Pattern stripEarlyWSinAS = compile(
 		"^(\\s*+)(\\p{Alnum}++)(\\s*+)(?=\\p{Alpha})"
 	);
 
 	/**
 	 * Pattern used to strip the remaining whitespace in an "AS" string.
 	 */
-	private static final Pattern stripOtherWSinAS = Pattern.compile(
+	private static final Pattern stripOtherWSinAS = compile(
 		"\\s*+"
 	);
+
+	/**
+	 * Uncompiled pattern to recognize a Java identifier.
+	 */
+	private static final String javaIdentifier = String.format(
+		"\\p{%1$sStart}\\p{%1sPart}++", "javaJavaIdentifier"
+	);
+
+	/**
+	 * Uncompiled pattern to recognize a Java type name, possibly qualified,
+	 * without array brackets.
+	 */
+	private static final String javaTypeName = String.format(
+		"(?:%1$s\\.)*%1$s", javaIdentifier
+	);
+
+	/**
+	 * Uncompiled pattern to recognize one or more {@code []} array markers (the
+	 * match length divided by two is the number of array dimensions).
+	 */
+	private static final String arrayDims = "(?:\\[\\])++";
 
 	/**
 	 * The recognized forms of an "AS" string, distinguishable and broken out
 	 * by named capturing groups.
 	 */
-	private static final Pattern specForms = Pattern.compile(
-		"(?i:udt\\[(?<udtcls>[^]]++)\\](?<udtfun>input|output|receive|send))" +
+	private static final Pattern specForms = compile(String.format(
+		/* the UDT notation, which is case insensitive */
+		"(?i:udt\\[(?<udtcls>%1$s)\\](?<udtfun>input|output|receive|send))" +
+
+		/* or the non-UDT form (which can't begin, insensitively, with UDT) */
 		"|(?!(?i:udt\\[))" +
-		"(?:(?<ret>[^=]++)=)?+(?<cls>(?:[^.(]++\\.?)+)\\.(?<meth>[^.(]++)" +
-		"(?:\\((?<sig>[^)]*+)\\))?+"
-	);
+		"(?:(?<ret>%2$s)=)?+(?<cls>%1$s)\\.(?<meth>%3$s)" +
+		"(?:\\((?<sig>(?:(?:%2$s,)*+%2$s)?+)\\))?+",
+		javaTypeName,
+		javaTypeName + "(?:" + arrayDims + ")?+",
+		javaIdentifier
+	));
 
 	/**
 	 * The recognized form of a Java type name in an "AS" string.
@@ -1278,8 +1306,8 @@ public class Function
 	 * group, if present, matches one or more {@code []} array markers following
 	 * the name (its length divided by two is the number of array dimensions).
 	 */
-	private static final Pattern typeNameInAS = Pattern.compile(
-		"([^\\[]++)((?:\\[\\])++)?+"
+	private static final Pattern typeNameInAS = compile(
+		"(" + javaTypeName + ")(" + arrayDims + ")?+"
 	);
 
 	/**
