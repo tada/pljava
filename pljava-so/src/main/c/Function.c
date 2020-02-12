@@ -457,8 +457,7 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 static Function Function_create(
 	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
 {
-	Function self = /* will rely on the fact that allocInstance zeroes memory */
-		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	Function self;
 	HeapTuple procTup =
 		PgObject_getValidTuple(PROCOID, funcOid, "function");
 	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
@@ -471,19 +470,34 @@ static Function Function_create(
 	Datum d;
 	jobject handle;
 
-	p2l.longVal = 0;
-	p2l.ptrVal = (void *)self;
-
 	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
 	schemaName = getSchemaName(procStruct->pronamespace);
-	handle = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
-		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
-		schemaName,
-		forTrigger ? JNI_TRUE : JNI_FALSE,
-		forValidator ? JNI_TRUE : JNI_FALSE,
-		checkBody ? JNI_TRUE : JNI_FALSE);
-	pfree((void *)d);
+
+	self = /* will rely on the fact that allocInstance zeroes memory */
+		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	p2l.longVal = 0;
+	p2l.ptrVal = (void *)self;
+
+	PG_TRY();
+	{
+		handle = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
+			p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
+			schemaName,
+			forTrigger ? JNI_TRUE : JNI_FALSE,
+			forValidator ? JNI_TRUE : JNI_FALSE,
+			checkBody ? JNI_TRUE : JNI_FALSE);
+	}
+	PG_CATCH();
+	{
+		JNI_deleteLocalRef(schemaName);
+		ReleaseSysCache(lngTup);
+		ReleaseSysCache(procTup);
+		pfree(self); /* would otherwise leak into TopMemoryContext */
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
 	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(lngTup);
 	ReleaseSysCache(procTup);
