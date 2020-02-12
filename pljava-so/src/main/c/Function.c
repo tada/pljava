@@ -1132,9 +1132,6 @@ JNIEXPORT void JNICALL
 			}
 		}
 
-		javaNameString =
-			String_createJavaStringFromNTS(Type_getJavaTypeName(replType));
-
 		JNI_setObjectArrayElement(resolvedTypes, index, javaNameString);
 	}
 	PG_CATCH();
