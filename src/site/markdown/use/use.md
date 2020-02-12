@@ -28,6 +28,12 @@ If not using Maven, you can simply add the `pljava-api` jar file to the
 class path for your Java compiler. Installation normally places the file
 in `SHAREDIR/pljava` where `SHAREDIR` is as reported by `pg_config`.
 
+## PL/Java configuration variables
+
+Several [configuration variables](variables.html) can affect PL/Java's
+operation, including some common PostgreSQL variables as well as
+PL/Java's own.
+
 ## Special topics
 
 ### Choices when mapping data types
