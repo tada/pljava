@@ -306,6 +306,7 @@ public class InstallHelper
 	private static void languages( Connection c, Statement s)
 	throws SQLException
 	{
+		boolean created = false;
 		Savepoint p = null;
 		try
 		{
@@ -313,6 +314,7 @@ public class InstallHelper
 			s.execute(
 				"CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler " +
 				"VALIDATOR sqlj.java_validator");
+			created = true;
 			s.execute(
 				"COMMENT ON LANGUAGE java IS '" +
 				"Trusted/sandboxed language for routines and types in " +
@@ -327,12 +329,20 @@ public class InstallHelper
 				throw sqle;
 		}
 
+		if ( ! created ) /* existed already but may need validator added */
+			s.execute(
+				"CREATE OR REPLACE " +
+				"TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler " +
+				"VALIDATOR sqlj.java_validator");
+
+		created = false;
 		try
 		{
 			p = c.setSavepoint();
 			s.execute(
 				"CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler " +
 				"VALIDATOR sqlj.javau_validator");
+			created = true;
 			s.execute(
 				"COMMENT ON LANGUAGE javau IS '" +
 				"Untrusted/unsandboxed language for routines and types in " +
@@ -345,6 +355,12 @@ public class InstallHelper
 			if ( ! "42710".equals(sqle.getSQLState()) )
 				throw sqle;
 		}
+
+		if ( ! created ) /* existed already but may need validator added */
+			s.execute(
+				"CREATE OR REPLACE " +
+				"LANGUAGE javaU HANDLER sqlj.javau_call_handler " +
+				"VALIDATOR sqlj.javau_validator");
 	}
 
 	/**
