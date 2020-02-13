@@ -255,17 +255,66 @@ public class InstallHelper
 				"COMMENT ON FUNCTION sqlj.javau_call_handler() IS '" +
 				"Function-call handler for PL/Java''s untrusted/unsandboxed " +
 				"language.'");
+
+		s.execute(
+			"CREATE OR REPLACE FUNCTION sqlj.javau_validator(pg_catalog.oid)" +
+			" RETURNS pg_catalog.void" +
+			" AS " + eQuote(module_path) +
+			" LANGUAGE C");
+		s.execute("REVOKE ALL PRIVILEGES" +
+			" ON FUNCTION sqlj.javau_validator(pg_catalog.oid) FROM public");
+		rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.javau_validator(pg_catalog.oid)' " +
+			"AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION " +
+				"sqlj.javau_validator(pg_catalog.oid) IS '" +
+				"Function declaration validator for PL/Java''s " +
+				"untrusted/unsandboxed language.'");
+
+		s.execute(
+			"CREATE OR REPLACE FUNCTION sqlj.java_validator(pg_catalog.oid)" +
+			" RETURNS pg_catalog.void" +
+			" AS " + eQuote(module_path) +
+			" LANGUAGE C");
+		s.execute("REVOKE ALL PRIVILEGES" +
+			" ON FUNCTION sqlj.java_validator(pg_catalog.oid) FROM public");
+		rs = s.executeQuery(
+			"SELECT pg_catalog.obj_description(CAST(" +
+			"'sqlj.java_validator(pg_catalog.oid)' " +
+			"AS pg_catalog.regprocedure), " +
+			"'pg_proc')");
+		rs.next();
+		rs.getString(1);
+		noComment = rs.wasNull();
+		rs.close();
+		if ( noComment )
+			s.execute(
+				"COMMENT ON FUNCTION " +
+				"sqlj.java_validator(pg_catalog.oid) IS '" +
+				"Function declaration validator for PL/Java''s " +
+				"trusted/sandboxed language.'");
 	}
 
 	private static void languages( Connection c, Statement s)
 	throws SQLException
 	{
+		boolean created = false;
 		Savepoint p = null;
 		try
 		{
 			p = c.setSavepoint();
 			s.execute(
-				"CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler");
+				"CREATE TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler " +
+				"VALIDATOR sqlj.java_validator");
+			created = true;
 			s.execute(
 				"COMMENT ON LANGUAGE java IS '" +
 				"Trusted/sandboxed language for routines and types in " +
@@ -280,11 +329,20 @@ public class InstallHelper
 				throw sqle;
 		}
 
+		if ( ! created ) /* existed already but may need validator added */
+			s.execute(
+				"CREATE OR REPLACE " +
+				"TRUSTED LANGUAGE java HANDLER sqlj.java_call_handler " +
+				"VALIDATOR sqlj.java_validator");
+
+		created = false;
 		try
 		{
 			p = c.setSavepoint();
 			s.execute(
-				"CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler");
+				"CREATE LANGUAGE javaU HANDLER sqlj.javau_call_handler " +
+				"VALIDATOR sqlj.javau_validator");
+			created = true;
 			s.execute(
 				"COMMENT ON LANGUAGE javau IS '" +
 				"Untrusted/unsandboxed language for routines and types in " +
@@ -297,6 +355,12 @@ public class InstallHelper
 			if ( ! "42710".equals(sqle.getSQLState()) )
 				throw sqle;
 		}
+
+		if ( ! created ) /* existed already but may need validator added */
+			s.execute(
+				"CREATE OR REPLACE " +
+				"LANGUAGE javaU HANDLER sqlj.javau_call_handler " +
+				"VALIDATOR sqlj.javau_validator");
 	}
 
 	/**

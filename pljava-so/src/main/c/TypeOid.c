@@ -54,4 +54,6 @@ JNIEXPORT void JNICALL Java_org_postgresql_pljava_jdbc_TypeOid__1dummy(JNIEnv * 
 #if PG_VERSION_NUM >= 90100
 	CONFIRMCONST(PGNODETREEOID);
 #endif
+
+	CONFIRMCONST(TRIGGEROID);
 }

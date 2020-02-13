@@ -258,7 +258,7 @@ void Function_initialize(void)
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
-		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;Z)"
+		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;ZZZ)"
 		"Ljava/lang/invoke/MethodHandle;");
 	s_Function_getClassIfUDT = PgObject_getStaticJavaMethod(s_Function_class,
 		"getClassIfUDT",
@@ -454,12 +454,12 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 	return t;
 }
 
-static Function Function_create(PG_FUNCTION_ARGS)
+static Function Function_create(
+	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
 {
-	Function self =
-		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	Function self;
 	HeapTuple procTup =
-		PgObject_getValidTuple(PROCOID, fcinfo->flinfo->fn_oid, "function");
+		PgObject_getValidTuple(PROCOID, funcOid, "function");
 	Form_pg_proc procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 	HeapTuple lngTup =
 		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
@@ -470,25 +470,75 @@ static Function Function_create(PG_FUNCTION_ARGS)
 	Datum d;
 	jobject handle;
 
-	p2l.longVal = 0;
-	p2l.ptrVal = (void *)self;
-
 	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
 	schemaName = getSchemaName(procStruct->pronamespace);
-	handle = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
-		p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
-		schemaName,
-		CALLED_AS_TRIGGER(fcinfo)? JNI_TRUE : JNI_FALSE);
-	pfree((void *)d);
+
+	self = /* will rely on the fact that allocInstance zeroes memory */
+		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
+	p2l.longVal = 0;
+	p2l.ptrVal = (void *)self;
+
+	PG_TRY();
+	{
+		handle = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
+			p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
+			schemaName,
+			forTrigger ? JNI_TRUE : JNI_FALSE,
+			forValidator ? JNI_TRUE : JNI_FALSE,
+			checkBody ? JNI_TRUE : JNI_FALSE);
+	}
+	PG_CATCH();
+	{
+		JNI_deleteLocalRef(schemaName);
+		ReleaseSysCache(lngTup);
+		ReleaseSysCache(procTup);
+		pfree(self); /* would otherwise leak into TopMemoryContext */
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
 	JNI_deleteLocalRef(schemaName);
 	ReleaseSysCache(lngTup);
 	ReleaseSysCache(procTup);
+
+	/*
+	 * One of four things has happened, the product of two binary choices:
+	 * - This Function turns out to be either a UDT function, or a nonUDT one.
+	 * - it is now fully initialized and should be returned, or it isn't, and
+	 *   should be pfree()d. (Validator calls don't have to do the whole job.)
+	 *
+	 * If Function.create returned a non-NULL result, this is a fully
+	 * initialized, non-UDT function, ready to save and use. (That can happen
+	 * even during validation; if checkBody is true, enough work is done to get
+	 * a complete result, so we might as well save it.)
+	 *
+	 * If it returned NULL, this is either an incompletely-initialized non-UDT
+	 * function, or it is a UDT function (whether fully initialized or not; it
+	 * is always NULL for a UDT function). If it is a UDT function and not
+	 * complete, it should be pfree()d. If complete, it has already been
+	 * registered with the UDT machinery and should be saved. We can arrange
+	 * (see _storeToUDT below) for the isUDT flag to be left false if the UDT
+	 * initialization isn't complete; that collapses the need-to-pfree cases
+	 * into one case here (Function.create returned NULL && ! isUDT).
+	 *
+	 * Because allocInstance zeroes memory, isUDT is reliably false even if
+	 * the Java code bailed early.
+	 */
 
 	if ( NULL != handle )
 	{
 		self->func.nonudt.methodHandle = JNI_newGlobalRef(handle);
 		JNI_deleteLocalRef(handle);
+	}
+	else if ( ! self->isUDT )
+	{
+		pfree(self);
+		if ( forValidator )
+			return NULL;
+		elog(ERROR,
+			"failed to create a PL/Java function (oid %u) and not validating",
+			funcOid);
 	}
 
 	return self;
@@ -496,17 +546,24 @@ static Function Function_create(PG_FUNCTION_ARGS)
 
 /*
  * In all cases, this Function has been stored in currentInvocation->function
- * upon succesful return from here.
+ * upon successful return from here.
+ *
+ * If called with forValidator true, may return NULL. The validator doesn't
+ * use the result.
  */
-Function Function_getFunction(PG_FUNCTION_ARGS)
+Function Function_getFunction(
+	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
 {
-	Oid funcOid = fcinfo->flinfo->fn_oid;
-	Function func = (Function)HashMap_getByOid(s_funcMap, funcOid);
-	if(func == 0)
+	Function func =
+		forValidator ? NULL : (Function)HashMap_getByOid(s_funcMap, funcOid);
+
+	if ( NULL == func )
 	{
-		func = Function_create(fcinfo);
-		HashMap_putByOid(s_funcMap, funcOid, func);
+		func = Function_create(funcOid, forTrigger, forValidator, checkBody);
+		if ( NULL != func )
+			HashMap_putByOid(s_funcMap, funcOid, func);
 	}
+
 	currentInvocation->function = func;
 	return func;
 }
@@ -957,28 +1014,41 @@ JNIEXPORT void JNICALL
 	BEGIN_NATIVE_NO_ERRCHECK
 	PG_TRY();
 	{
-		self->isUDT = true;
-		self->readOnly = (JNI_TRUE == readOnly);
-		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
-		self->clazz = JNI_newGlobalRef(clazz);
-
 		typeTup = PgObject_getValidTuple(TYPEOID, udtId, "type");
 		pgType = (Form_pg_type)GETSTRUCT(typeTup);
-		self->func.udt.udt =
-			UDT_registerUDT(
-				self->clazz, udtId, pgType, 0, true, parseMH, readMH);
-		ReleaseSysCache(typeTup);
 
-		switch ( funcInitial )
+		/*
+		 * Check typisdefined first. During validation, it will probably be
+		 * false, as the functions are created while the type is just a shell.
+		 * In that case, leave isUDT false, which will trigger Function_create
+		 * to pfree the unusable proto-Function.
+		 *
+		 * In that case, don't store anything needing special deallocation
+		 * such as JNI references; Function_create will do a blind pfree only.
+		 */
+		if ( pgType->typisdefined )
 		{
-		case 'i': self->func.udt.udtFunction = UDT_input; break;
-		case 'o': self->func.udt.udtFunction = UDT_output; break;
-		case 'r': self->func.udt.udtFunction = UDT_receive; break;
-		case 's': self->func.udt.udtFunction = UDT_send; break;
-		default:
-			elog(ERROR,
-				"PL/Java jar/native code mismatch: unexpected UDT func ID");
+			self->isUDT = true;
+			self->readOnly = (JNI_TRUE == readOnly);
+			self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+			self->clazz = JNI_newGlobalRef(clazz);
+
+			self->func.udt.udt =
+				UDT_registerUDT(
+					self->clazz, udtId, pgType, 0, true, parseMH, readMH);
+
+			switch ( funcInitial )
+			{
+			case 'i': self->func.udt.udtFunction = UDT_input; break;
+			case 'o': self->func.udt.udtFunction = UDT_output; break;
+			case 'r': self->func.udt.udtFunction = UDT_receive; break;
+			case 's': self->func.udt.udtFunction = UDT_send; break;
+			default:
+				elog(ERROR,
+					"PL/Java jar/native code mismatch: unexpected UDT func ID");
+			}
 		}
+		ReleaseSysCache(typeTup);
 	}
 	PG_CATCH();
 	{
@@ -1075,9 +1145,6 @@ JNIEXPORT void JNICALL
 				}
 			}
 		}
-
-		javaNameString =
-			String_createJavaStringFromNTS(Type_getJavaTypeName(replType));
 
 		JNI_setObjectArrayElement(resolvedTypes, index, javaNameString);
 	}

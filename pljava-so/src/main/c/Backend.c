@@ -198,6 +198,7 @@ enum initstage
 	IS_JAVAVM_STARTED,
 	IS_SIGHANDLERS,
 	IS_PLJAVA_FOUND,
+	IS_PLJAVA_INSTALLING,
 	IS_COMPLETE
 };
 
@@ -696,6 +697,9 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errmsg("PL/Java loaded"),
 				errdetail("versions:\n%s", greeting)));
 		pfree(greeting);
+		initstage = IS_PLJAVA_INSTALLING;
+
+	case IS_PLJAVA_INSTALLING:
 		if ( NULL != pljavaLoadPath )
 			InstallHelper_groundwork(); /* sqlj schema, language handlers, ...*/
 		initstage = IS_COMPLETE;
@@ -875,7 +879,7 @@ void _PG_init()
 {
 	char *sep;
 
-	if ( IS_PLJAVA_FOUND == initstage )
+	if ( IS_PLJAVA_INSTALLING == initstage )
 		return; /* creating handler functions will cause recursive call */
 
 	/*
@@ -1694,6 +1698,8 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
+	Oid funcoid = fcinfo->flinfo->fn_oid;
+	bool forTrigger = CALLED_AS_TRIGGER(fcinfo);
 
 	/*
 	 * Just in case it could be helpful in offering diagnostics later, hang
@@ -1701,8 +1707,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	 * It's cheap, and can be followed back to the right language and
 	 * handler function entries later if needed.
 	 */
-	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid)
-		= fcinfo->flinfo->fn_oid;
+	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
 	if ( IS_COMPLETE != initstage )
 	{
 		deferInit = false;
@@ -1716,8 +1721,9 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx, trusted);
 	PG_TRY();
 	{
-		Function function = Function_getFunction(fcinfo);
-		if(CALLED_AS_TRIGGER(fcinfo))
+		Function function =
+			Function_getFunction(funcoid, forTrigger, false, true);
+		if(forTrigger)
 		{
 			/* Called as a trigger procedure
 			 */
@@ -1738,6 +1744,78 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	}
 	PG_END_TRY();
 	return retval;
+}
+
+static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS);
+
+extern PLJAVADLLEXPORT Datum javau_validator(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(javau_validator);
+
+Datum javau_validator(PG_FUNCTION_ARGS)
+{
+	return internalValidator(false, fcinfo);
+}
+
+extern PLJAVADLLEXPORT Datum java_validator(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(java_validator);
+
+Datum java_validator(PG_FUNCTION_ARGS)
+{
+	return internalValidator(true, fcinfo);
+}
+
+static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
+{
+	Oid funcoid = PG_GETARG_OID(0);
+	Invocation ctx;
+
+	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
+		PG_RETURN_VOID();
+
+	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
+	/*
+	 * The result of this call isn't particularly interesting (if it is false,
+	 * I'll ne'er trust CheckFunctionValidatorAccess). But its side effect will
+	 * be to make sure InstallHelper saves our library load path now, in case
+	 * we decide we don't like this function, which would make the Oid we just
+	 * stashed for it invalid, and frustrate getting the load path later.
+	 */
+	if ( ! InstallHelper_isPLJavaFunction(funcoid) )
+		elog(ERROR, "unexpected error validating PL/Java function");
+
+
+	if ( IS_PLJAVA_INSTALLING > initstage )
+	{
+		if ( check_function_bodies ) /* We're gonna need a JVM */
+		{
+			deferInit = false;
+			initsequencer( initstage, false);
+		}
+		else /* Can try to start one, but if no go, just assume function's ok */
+		{
+			initsequencer( initstage, true);
+			if ( IS_PLJAVA_INSTALLING > initstage )
+				PG_RETURN_VOID();
+		}
+
+		/* Force initial setting
+		 */
+		s_currentTrust = !trusted;
+	}
+
+	Invocation_pushInvocation(&ctx, trusted);
+	PG_TRY();
+	{
+		Function_getFunction(funcoid, false, true, check_function_bodies);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	PG_RETURN_VOID();
 }
 
 /****************************************

@@ -2,8 +2,22 @@
 
 These PostgreSQL configuration variables can influence PL/Java's operation:
 
+`check_function_bodies`
+: Although not technically a PL/Java variable, `check_function_bodies` affects
+    how strictly PL/Java validates a new function at the time of a
+    `CREATE FUNCTION` (or when installing a jar file with `CREATE FUNCTION`
+    among its deployment actions). With `check_function_bodies` set to `on`,
+    PL/Java will make sure that the referenced class and method can be loaded
+    and resolved. If the referenced class depends on classes in other jars,
+    those other jars must be already installed and on the class path, so
+    loading jars with dependencies in the wrong order can incur validation
+    errors. With `check_function_bodies` set to `off`, only basic syntax is
+    checked at `CREATE FUNCTION` time, so it is possible to declare functions
+    or install jars in any order, postponing any errors about unresolved
+    dependencies until later when the functions are used.
+
 `dynamic_library_path`
-: Although strictly not a PL/Java variable, `dynamic_library_path` influences
+: Another non-PL/Java variable, `dynamic_library_path` influences
     where the PL/Java native code object (`.so`, `.dll`, `.bundle`, etc.) can
     be found, if the full path is not given to the `LOAD` command.
 
@@ -18,17 +32,6 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     non-ASCII characters. (PL/Java can still be used in such a database, but
     the application code needs to know what it's doing and use the right
     conversion functions where needed.)
-
-`pljava.module_path`
-: The module path to be passed to the Java application class loader. The default
-    is computed from the PostgreSQL configuration and is usually correct, unless
-    PL/Java's files have been installed in unusual locations. If it must be set
-    explicitly, there must be at least two (and usually only two) entries, the
-    PL/Java API jar file and the PL/Java internals jar file. To determine the
-    proper setting, see
-    [finding the files produced by a PL/Java build](../install/locate.html).
-    For more on PL/Java's "module path" and "class path", see
-    [PL/Java and the Java Platform Module System](jpms.html).
 
 `pljava.debug`
 : A boolean variable that, if set `on`, stops the process on first entry to
@@ -92,6 +95,17 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 : Used by PL/Java to load the Java runtime. The full path to a `libjvm` shared
     object (filename typically ending with `.so`, `.dll`, or `.dylib`).
     To determine the proper setting, see [finding the `libjvm` library][fljvm].
+
+`pljava.module_path`
+: The module path to be passed to the Java application class loader. The default
+    is computed from the PostgreSQL configuration and is usually correct, unless
+    PL/Java's files have been installed in unusual locations. If it must be set
+    explicitly, there must be at least two (and usually only two) entries, the
+    PL/Java API jar file and the PL/Java internals jar file. To determine the
+    proper setting, see
+    [finding the files produced by a PL/Java build](../install/locate.html).
+    For more on PL/Java's "module path" and "class path", see
+    [PL/Java and the Java Platform Module System](jpms.html).
 
 `pljava.release_lingering_savepoints`
 : How the return from a PL/Java function will treat any savepoints created
