@@ -47,8 +47,11 @@ import java.util.zip.ZipInputStream;
 import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Oid;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import org.postgresql.pljava.jdbc.SQLUtils;
@@ -331,6 +334,9 @@ public class Commands
 {
 	private final static Logger s_logger = Logger.getLogger(Commands.class
 		.getName());
+
+	private static final Identifier.Simple s_public_schema =
+		Identifier.Simple.fromCatalog("public");
 
 	/**
 	 * Reads the jar found at the specified URL and stores the entries in the
@@ -635,6 +641,12 @@ public class Commands
 		requires="sqlj.tables")
 	public static String getClassPath(String schemaName) throws SQLException
 	{
+		return getClassPath(Identifier.Simple.fromJava(schemaName));
+	}
+
+	public static String getClassPath(Identifier.Simple schema)
+	throws SQLException
+	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT r.jarName" +
@@ -645,11 +657,7 @@ public class Commands
 				" WHERE c.schemaName OPERATOR(pg_catalog.=) ?" +
 				" ORDER BY c.ordinal"))
 		{
-			if(schemaName == null || schemaName.length() == 0)
-				schemaName = "public";
-			else
-				schemaName = schemaName.toLowerCase();
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			StringBuffer buf = null;
 			try(ResultSet rs = stmt.executeQuery())
 			{
@@ -666,7 +674,7 @@ public class Commands
 		}
 	}
 
-	static String getCurrentSchema() throws SQLException
+	static Identifier.Simple getCurrentSchema() throws SQLException
 	{
 		Session session = SessionManager.current();
 		return ((org.postgresql.pljava.internal.Session)session)
@@ -830,9 +838,13 @@ public class Commands
 	{
 		if(schemaName == null || schemaName.length() == 0)
 			schemaName = "public";
+		setClassPath(Identifier.Simple.fromJava(schemaName), path);
+	}
 
-		schemaName = schemaName.toLowerCase();
-		if("public".equals(schemaName))
+	public static void setClassPath(Identifier.Simple schema, String path)
+	throws SQLException
+	{
+		if(s_public_schema.equals(schema))
 		{
 			if(!AclId.getOuterUser().isSuperuser())
 				throw new SQLSyntaxErrorException( // yeah, for 42501, really
@@ -841,10 +853,10 @@ public class Commands
 		}
 		else
 		{
-			Oid schemaId = getSchemaId(schemaName);
+			Oid schemaId = getSchemaId(schema);
 			if(schemaId == null)
 				throw new SQLNonTransientException(
-					"No such schema: " + schemaName, "3F000");
+					"No such schema: " + schema, "3F000");
 			if(!AclId.getOuterUser().hasSchemaCreatePermission(schemaId))
 				throw new SQLSyntaxErrorException(
 					"Permission denied. User must have create permission on " +
@@ -894,7 +906,7 @@ public class Commands
 				"DELETE FROM sqlj.classpath_entry " +
 				"WHERE schemaName OPERATOR(pg_catalog.=) ?"))
 		{
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			stmt.executeUpdate();
 		}
 
@@ -912,7 +924,7 @@ public class Commands
 				for(int idx = 0; idx < top; ++idx)
 				{
 					int jarId = entries.get(idx);
-					stmt.setString(1, schemaName);
+					stmt.setString(1, schema.pgFolded());
 					stmt.setInt(2, idx + 1);
 					stmt.setInt(3, jarId);
 					stmt.executeUpdate();
@@ -922,34 +934,52 @@ public class Commands
 		Loader.clearSchemaLoaders();
 	}
 
-	private static boolean assertInPath(String jarName,
-		String[] originalSchemaAndPath) throws SQLException
+	private static void withJarInPath(String jarName, boolean schemaMayVanish,
+		Checked.Runnable<SQLException> runnable) throws SQLException
 	{
-		String currentSchema = getCurrentSchema();
-		String currentClasspath = getClassPath(currentSchema);
-		originalSchemaAndPath[0] = currentSchema;
-		originalSchemaAndPath[1] = currentClasspath;
-		if(currentClasspath == null)
+		Identifier.Simple originalSchema = getCurrentSchema();
+		String originalClasspath = getClassPath(originalSchema);
+		boolean changed;
+		if(originalClasspath == null)
 		{
-			setClassPath(currentSchema, jarName);
-			return true;
+			setClassPath(originalSchema, jarName);
+			changed = true;
+		}
+		else
+		{
+			String[] elems = originalClasspath.split(":");
+			int idx = elems.length;
+			boolean found = false;
+			while(--idx >= 0)
+				if(elems[idx].equals(jarName))
+				{
+					found = true;
+					break;
+				}
+
+			if(found)
+				changed = false;
+			else
+			{
+				setClassPath(originalSchema, jarName + ':' + originalClasspath);
+				changed = true;
+			}
 		}
 
-		String[] elems = currentClasspath.split(":");
-		int idx = elems.length;
-		boolean found = false;
-		while(--idx >= 0)
-			if(elems[idx].equals(jarName))
+		runnable.run();
+
+		if ( changed )
+		{
+			try
 			{
-				found = true;
-				break;
+				setClassPath(originalSchema, originalClasspath);
 			}
-
-		if(found)
-			return false;
-
-		setClassPath(currentSchema, jarName + ':' + currentClasspath);
-		return true;
+			catch ( SQLException e )
+			{
+				if ( ! schemaMayVanish ||  ! "3F000".equals(e.getSQLState()) )
+					throw e;
+			}
+		}
 	}
 
 	/**
@@ -984,12 +1014,11 @@ public class Commands
 	{
 		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
-		String[] originalSchemaAndPath = new String[2];
-		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		for ( SQLDeploymentDescriptor dd : depDesc )
-			dd.install(SQLUtils.getDefaultConnection());
-		if (classpathChanged)
-			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
+		withJarInPath(jarName, false, () ->
+		{
+			for ( SQLDeploymentDescriptor dd : depDesc )
+				dd.install(SQLUtils.getDefaultConnection());
+		});
 	}
 
 	private static void deployRemove(int jarId, String jarName)
@@ -997,20 +1026,11 @@ public class Commands
 	{
 		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
-		String[] originalSchemaAndPath = new String[2];
-		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		for ( int i = depDesc.length ; i --> 0 ; )
-			depDesc[i].remove(SQLUtils.getDefaultConnection());
-		try
+		withJarInPath(jarName, true, () ->
 		{
-			if (classpathChanged)
-				setClassPath(originalSchemaAndPath[0],originalSchemaAndPath[1]);
-		}
-		catch ( SQLException sqle )
-		{
-			if ( ! "3F000".equals(sqle.getSQLState()) )
-				throw sqle;
-		}
+			for ( int i = depDesc.length ; i --> 0 ; )
+				depDesc[i].remove(SQLUtils.getDefaultConnection());
+		});
 	}
 
 	private static SQLDeploymentDescriptor[] getDeploymentDescriptors(int jarId)
@@ -1145,14 +1165,14 @@ public class Commands
 	 *         schema is found.
 	 * @throws SQLException
 	 */
-	private static Oid getSchemaId(String schemaName) throws SQLException
+	private static Oid getSchemaId(Identifier.Simple schema) throws SQLException
 	{
 		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
 			.prepareStatement(
 				"SELECT oid FROM pg_catalog.pg_namespace " +
 				"WHERE nspname OPERATOR(pg_catalog.=) ?"))
 		{
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			try(ResultSet rs = stmt.executeQuery())
 			{
 				if(!rs.next())

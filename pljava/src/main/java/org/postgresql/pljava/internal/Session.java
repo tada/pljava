@@ -24,6 +24,8 @@ import org.postgresql.pljava.ObjectPool;
 import org.postgresql.pljava.PooledObject;
 import org.postgresql.pljava.SavepointListener;
 import org.postgresql.pljava.TransactionListener;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+
 import org.postgresql.pljava.jdbc.SQLUtils;
 
 import org.postgresql.pljava.elog.ELogHandler;
@@ -229,7 +231,7 @@ public class Session implements org.postgresql.pljava.Session
 	 * Currently used only in Commands.java. Not made visible API yet
 	 * because there <em>has</em> to be a more general way to do this.
 	 */
-	public String getOuterUserSchema()
+	public Identifier.Simple getOuterUserSchema()
 	throws SQLException
 	{
 		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
@@ -246,7 +248,7 @@ public class Session implements org.postgresql.pljava.Session
 				changeSucceeded = true;
 				rs = stmt.executeQuery("SELECT current_schema()");
 				if ( rs.next() )
-					return rs.getString(1);
+					return Identifier.Simple.fromCatalog(rs.getString(1));
 				throw new SQLException("Unable to obtain current schema");
 			}
 			finally

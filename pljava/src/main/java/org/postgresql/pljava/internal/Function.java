@@ -69,6 +69,8 @@ import static java.util.regex.Pattern.compile;
 
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
@@ -142,10 +144,13 @@ public class Function
 	{
 		Matcher info = parse(procTup);
 		String className = info.group("udtcls");
+
 		if ( null == className )
 			return null;
+
+		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
 		return
-			loadClass(Loader.getSchemaLoader(schemaName), className)
+			loadClass(Loader.getSchemaLoader(schema), className)
 				.asSubclass(SQLData.class);
 	}
 
@@ -933,7 +938,9 @@ public class Function
 		if ( forValidator  &&  ! checkBody )
 			return null;
 
-		return init(wrappedPtr, info, procTup, schemaName, calledAsTrigger,
+		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
+
+		return init(wrappedPtr, info, procTup, schema, calledAsTrigger,
 				forValidator);
 	}
 
@@ -962,8 +969,8 @@ public class Function
 	 * null in the case of a UDT
 	 */
 	private static Invocable init(
-		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
-		boolean calledAsTrigger, boolean forValidator)
+		long wrappedPtr, Matcher info, ResultSet procTup,
+		Identifier.Simple schema, boolean calledAsTrigger, boolean forValidator)
 	throws SQLException
 	{
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
@@ -974,12 +981,12 @@ public class Function
 		if ( ! isUDT )
 		{
 			className = info.group("cls");
-			typeMap = Loader.getTypeMap(schemaName);
+			typeMap = Loader.getTypeMap(schema);
 		}
 
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
-		ClassLoader schemaLoader = Loader.getSchemaLoader(schemaName);
+		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
 		Class<?> clazz = loadClass(schemaLoader, className);
 
 		if ( clazz != Commands.class

@@ -52,14 +52,9 @@
 
 #define COUNTCHECK(refs, prims) ((jshort)(((refs) << 8) | ((prims) & 0xff)))
 
-static jclass s_Loader_class;
-static jclass s_ClassLoader_class;
 static jclass s_Function_class;
 static jclass s_ParameterFrame_class;
 static jclass s_EntryPoints_class;
-static jmethodID s_Loader_getSchemaLoader;
-static jmethodID s_Loader_getTypeMap;
-static jmethodID s_ClassLoader_loadClass;
 static jmethodID s_Function_create;
 static jmethodID s_Function_getClassIfUDT;
 static jmethodID s_Function_udtReadHandle;
@@ -178,9 +173,6 @@ Function Function_INIT_WRITER = &s_initWriter;
 
 static HashMap s_funcMap = 0;
 
-static jclass s_Loader_class;
-static jmethodID s_Loader_getSchemaLoader;
-
 static void _Function_finalize(PgObject func)
 {
 	Function self = (Function)func;
@@ -235,13 +227,6 @@ void Function_initialize(void)
 		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
 
 	s_funcMap = HashMap_create(59, TopMemoryContext);
-
-	s_Loader_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader"));
-	s_Loader_getSchemaLoader = PgObject_getStaticJavaMethod(s_Loader_class, "getSchemaLoader", "(Ljava/lang/String;)Ljava/lang/ClassLoader;");
-	s_Loader_getTypeMap = PgObject_getStaticJavaMethod(s_Loader_class, "getTypeMap", "(Ljava/lang/String;)Ljava/util/Map;");
-
-	s_ClassLoader_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/ClassLoader"));
-	s_ClassLoader_loadClass = PgObject_getJavaMethod(s_ClassLoader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
 	cls = PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function$EarlyNatives");
