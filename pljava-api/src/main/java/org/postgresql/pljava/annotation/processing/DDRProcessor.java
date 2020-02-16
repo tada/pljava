@@ -56,7 +56,11 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
+import static java.util.stream.Collectors.joining;
+
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import static java.util.regex.Pattern.compile;
 
 import javax.annotation.processing.*;
 
@@ -102,6 +106,7 @@ import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
 
 import org.postgresql.pljava.sqlgen.Lexicals;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
@@ -1841,20 +1846,30 @@ hunt:	for ( ExecutableElement ee : ees )
 		BaseUDTFunctionID( String suffix, String param, String ret)
 		{
 			this.suffix = suffix;
-			this.param = param;
-			this.ret = ret;
+			this.param = null == param ? null :
+				/*
+				 * Caution: do not assume this code is reusable for the general
+				 * case of parsing a comma-separated list of identifiers (there
+				 * could be commas in delimited ones!). It only needs to parse
+				 * the known comma-space-separated constants used in this enum.
+				 */
+				compile(", ").splitAsStream(param)
+				.map(Identifier.Qualified::nameFromJava)
+				.toArray(Identifier.Qualified[]::new);
+			this.ret = null == ret ? null :
+				Identifier.Qualified.nameFromJava(ret);
 		}
 		private String suffix;
-		private String param;
-		private String ret;
+		private Identifier.Qualified[] param;
+		private Identifier.Qualified ret;
 		String getSuffix() { return suffix; }
-		String getParam( BaseUDTImpl u)
+		Identifier.Qualified[] getParam( BaseUDTImpl u)
 		{
 			if ( null != param )
 				return param;
-			return u.qname;
+			return new Identifier.Qualified[] { u.qname };
 		}
-		String getRet( BaseUDTImpl u)
+		Identifier.Qualified getRet( BaseUDTImpl u)
 		{
 			if ( null != ret )
 				return ret;
@@ -1872,7 +1887,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.te = te;
 			this.id = id;
 
-			_type = id.getRet( ui);
+			_type = id.getRet( ui).toString();
 			_name = ui.name() + '_' + id.getSuffix();
 			_schema = ui.schema();
 			_cost = -1;
@@ -1896,7 +1911,11 @@ hunt:	for ( ExecutableElement ee : ees )
 		@Override
 		void appendParams( StringBuilder sb, boolean dflts)
 		{
-			sb.append( id.getParam( ui));
+			sb.append(
+				Arrays.stream(id.getParam( ui))
+				.map(Object::toString)
+				.collect(joining(", "))
+			);
 		}
 
 		@Override
@@ -1992,7 +2011,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		TypeElement tclass;
 
-		String qname;
+		Identifier.Qualified qname;
 
 		AbstractUDTImpl(TypeElement e)
 		{
@@ -2020,13 +2039,15 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( "".equals( _name) )
 				_name = tclass.getSimpleName().toString();
 
-			if ( "".equals( _schema) )
-				qname = _name;
-			else
-				qname = _schema + "." + _name;
+			Identifier.Simple localName =
+				Identifier.Simple.fromJava(_name, msgr);
+			Identifier.Simple qualifier = "".equals( _schema) ? null :
+				Identifier.Simple.fromJava(_schema, msgr);
+
+			qname = localName.withQualifier(qualifier);
 
 			if ( ! tmpr.mappingsFrozen() )
-				tmpr.addMap( tclass.asType(), qname);
+				tmpr.addMap( tclass.asType(), new DBType.Named(qname));
 		}
 
 		protected void addComment( ArrayList<String> al)
@@ -2083,7 +2104,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				al.add( sb.toString());
 			}
 			al.add( "SELECT sqlj.add_type_mapping(" +
-				DDRWriter.eQuote( qname) + ", " +
+				DDRWriter.eQuote( qname.toString()) + ", " +
 				DDRWriter.eQuote( tclass.toString()) + ')');
 			addComment( al);
 			return al.toArray( new String [ al.size() ]);
@@ -2093,7 +2114,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			ArrayList<String> al = new ArrayList<>();
 			al.add( "SELECT sqlj.drop_type_mapping(" +
-				DDRWriter.eQuote( qname) + ')');
+				DDRWriter.eQuote( qname.toString()) + ')');
 			if ( null != structure() )
 				al.add( "DROP TYPE " + qname);
 			return al.toArray( new String [ al.size() ]);
@@ -2348,8 +2369,8 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<TypeMirror, String>> protoMappings;
-		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
+		ArrayList<Map.Entry<TypeMirror, DBType>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, DBType>> finalMappings;
 
 		TypeMapper()
 		{
@@ -2376,25 +2397,25 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Known common mappings
 			//
-			this.addMap(Number.class, "pg_catalog.numeric");
-			this.addMap(String.class, "pg_catalog.varchar");
-			this.addMap(java.util.Date.class, "pg_catalog.timestamp");
-			this.addMap(Timestamp.class, "pg_catalog.timestamp");
-			this.addMap(Time.class, "pg_catalog.time");
-			this.addMap(java.sql.Date.class, "pg_catalog.date");
-			this.addMap(java.sql.SQLXML.class, "pg_catalog.xml");
-			this.addMap(BigInteger.class, "pg_catalog.numeric");
-			this.addMap(BigDecimal.class, "pg_catalog.numeric");
-			this.addMap(ResultSet.class, "pg_catalog.record");
-			this.addMap(Object.class, "pg_catalog.\"any\"");
+			this.addMap(Number.class, "pg_catalog", "numeric");
+			this.addMap(String.class, "pg_catalog", "varchar");
+			this.addMap(java.util.Date.class, "pg_catalog", "timestamp");
+			this.addMap(Timestamp.class, "pg_catalog", "timestamp");
+			this.addMap(Time.class, "pg_catalog", "time");
+			this.addMap(java.sql.Date.class, "pg_catalog", "date");
+			this.addMap(java.sql.SQLXML.class, "pg_catalog", "xml");
+			this.addMap(BigInteger.class, "pg_catalog", "numeric");
+			this.addMap(BigDecimal.class, "pg_catalog", "numeric");
+			this.addMap(ResultSet.class, "pg_catalog", "record");
+			this.addMap(Object.class, "pg_catalog", "\"any\"");
 
-			this.addMap(byte[].class, "pg_catalog.bytea");
+			this.addMap(byte[].class, "pg_catalog", "bytea");
 
-			this.addMap(LocalDate.class, "pg_catalog.date");
-			this.addMap(LocalTime.class, "pg_catalog.time");
-			this.addMap(OffsetTime.class, "pg_catalog.timetz");
-			this.addMap(LocalDateTime.class, "pg_catalog.timestamp");
-			this.addMap(OffsetDateTime.class, "pg_catalog.timestamptz");
+			this.addMap(LocalDate.class, "pg_catalog", "date");
+			this.addMap(LocalTime.class, "pg_catalog", "time");
+			this.addMap(OffsetTime.class, "pg_catalog", "timetz");
+			this.addMap(LocalDateTime.class, "pg_catalog", "timestamp");
+			this.addMap(OffsetDateTime.class, "pg_catalog", "timestamptz");
 		}
 
 		private boolean mappingsFrozen()
@@ -2435,19 +2456,19 @@ hunt:	for ( ExecutableElement ee : ees )
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<TypeMirror, String>>> vs = new ArrayList<>(
+			List<Vertex<Map.Entry<TypeMirror, DBType>>> vs = new ArrayList<>(
 					protoMappings.size());
 
-			for ( Map.Entry<TypeMirror, String> me : protoMappings )
+			for ( Map.Entry<TypeMirror, DBType> me : protoMappings )
 				vs.add( new Vertex<>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
-				Vertex<Map.Entry<TypeMirror, String>> vi = vs.get( i);
+				Vertex<Map.Entry<TypeMirror, DBType>> vi = vs.get( i);
 				TypeMirror ci = vi.payload.getKey();
 				for ( int j = i; j --> 0; )
 				{
-					Vertex<Map.Entry<TypeMirror, String>> vj = vs.get( j);
+					Vertex<Map.Entry<TypeMirror, DBType>> vj = vs.get( j);
 					TypeMirror cj = vj.payload.getKey();
 					boolean oij = typu.isAssignable( ci, cj);
 					boolean oji = typu.isAssignable( cj, ci);
@@ -2460,7 +2481,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
-			Queue<Vertex<Map.Entry<TypeMirror, String>>> q;
+			Queue<Vertex<Map.Entry<TypeMirror, DBType>>> q;
 			if ( reproducible )
 			{
 				q = new PriorityQueue<>( 11, new TypeTiebreaker());
@@ -2470,7 +2491,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				q = new LinkedList<>();
 			}
 
-			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
+			for ( Vertex<Map.Entry<TypeMirror, DBType>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
@@ -2480,7 +2501,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			while ( ! q.isEmpty() )
 			{
-				Vertex<Map.Entry<TypeMirror, String>> v = q.remove();
+				Vertex<Map.Entry<TypeMirror, DBType>> v = q.remove();
 				v.use( q);
 				finalMappings.add( v.payload);
 			}
@@ -2519,14 +2540,35 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		/**
-		 * Add a custom mapping from a Java class to an SQL type.
+		 * Add a custom mapping from a Java class to an SQL type identified
+		 * by SQL-standard reserved syntax.
 		 *
 		 * @param k Class representing the Java type
-		 * @param v String representing the SQL type to be used
+		 * @param v String representing the SQL (language-reserved) type
+		 * to be used
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			addMap( typeMirrorFromClass( k), v);
+			addMap( typeMirrorFromClass( k), new DBType.Reserved(v));
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type identified
+		 * by an SQL qualified identifier.
+		 *
+		 * @param k Class representing the Java type
+		 * @param schema String representing the qualifier of the type name
+		 * (may be null)
+		 * @param local String representing the SQL (language-reserved) type
+		 * to be used
+		 */
+		void addMap(Class<?> k, String schema, String local)
+		{
+			Identifier.Simple localName = Identifier.Simple.fromJava(local);
+			Identifier.Simple qualifier = null == schema ? null :
+				Identifier.Simple.fromJava(schema);
+			addMap( typeMirrorFromClass( k),
+				new DBType.Named(localName.withQualifier(qualifier)));
 		}
 
 		/**
@@ -2540,7 +2582,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			TypeElement te = elmu.getTypeElement( k);
 			if ( null != te )
-				addMap( te.asType(), v);
+				addMap( te.asType(), new DBType.Reserved(v));
 		}
 
 		/**
@@ -2550,7 +2592,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param tm TypeMirror representing the Java type
 		 * @param v String representing the SQL type to be used
 		 */
-		void addMap(TypeMirror tm, String v)
+		void addMap(TypeMirror tm, DBType v)
 		{
 			if ( mappingsFrozen() )
 			{
@@ -2573,7 +2615,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param e Annotated element (chiefly for use as a location hint in
 		 * diagnostic messages).
 		 */
-		String getSQLType(TypeMirror tm, Element e)
+		DBType getSQLType(TypeMirror tm, Element e)
 		{
 			return getSQLType( tm, e, null, false, false);
 		}
@@ -2596,18 +2638,33 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param withDefault Indicates whether any specified default value
 		 * information should also be included in the "type" string returned.
 		 */
-		String getSQLType(TypeMirror tm, Element e, SQLType st,
+		DBType getSQLType(TypeMirror tm, Element e, SQLType st,
 			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
 			boolean row = false;
-			String rslt = null;
+			DBType rslt = null;
 			
 			String[] defaults = null;
 			
 			if ( null != st )
 			{
-				rslt = st.value();
+				String s = st.value();
+				if ( null != s )
+				{
+					String suffix = null;
+					Matcher m = arrayish.matcher(s);
+					if ( m.find() )
+					{
+						suffix = m.group();
+						s = s.substring(0, m.start());
+					}
+					Identifier.Qualified qn =
+						Identifier.Qualified.nameFromJava(s, msgr);
+					rslt = new DBType.Named(qn);
+					if ( null != suffix )
+						rslt = rslt.withSuffix(suffix);
+				}
 				defaults = st.defaultValue();
 			}
 
@@ -2630,20 +2687,22 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "pg_catalog.void"; // return type only; no defaults apply
+				return // return type only; no defaults apply
+					new DBType.Named(
+						Identifier.Qualified.nameFromJava("pg_catalog.void"));
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
 				msg ( Kind.ERROR, e,
 					"Cannot determine mapping to SQL type for unresolved type");
-				rslt = tm.toString();
+				rslt = new DBType.Reserved(tm.toString());
 			}
 			else
 			{    
-				ArrayList<Map.Entry<TypeMirror, String>> ms = finalMappings;
+				ArrayList<Map.Entry<TypeMirror, DBType>> ms = finalMappings;
 				if ( contravariant )
 					ms = reversed(ms);
-				for ( Map.Entry<TypeMirror, String> me : ms )
+				for ( Map.Entry<TypeMirror, DBType> me : ms )
 				{
 					TypeMirror ktm = me.getKey();
 					if ( ktm instanceof PrimitiveType )
@@ -2678,11 +2737,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				msg( Kind.ERROR, e,
 					"No known mapping to an SQL type");
-				rslt = tm.toString();
+				rslt = new DBType.Reserved(tm.toString());
 			}
 
 			if ( array )
-				rslt += "[]";
+				rslt = rslt.withSuffix("[]");
 			
 			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
 		}
@@ -2707,8 +2766,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param withDefault Whether to append the default information to the
 		 * type.
 		 */
-		String typeWithDefault(
-			Element e, String rslt, boolean array, boolean row,
+		DBType typeWithDefault(
+			Element e, DBType rslt, boolean array, boolean row,
 			String[] defaults, boolean withDefault)
 		{
 			if ( null == defaults || ! withDefault )
@@ -2718,16 +2777,16 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( row )
 			{
 				assert ! array;
-				if ( n > 0 && rslt.equalsIgnoreCase("record") )
+				if ( n > 0 && rslt.toString().equalsIgnoreCase("record") )
 					msg( Kind.ERROR, e,
 						"Only supported default for unknown RECORD type is {}");
 			}
 			else if ( n != 1 )
 				array = true;
 			else if ( ! array )
-				array = arrayish.matcher( rslt).matches();
+				array = arrayish.matcher( rslt.toString()).find();
 			
-			StringBuilder sb = new StringBuilder( rslt);
+			StringBuilder sb = new StringBuilder();
 			sb.append( " DEFAULT ");
 			sb.append( row ? "ROW(" : "CAST(");
 			if ( array )
@@ -2745,13 +2804,15 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! row )
 				sb.append( " AS ").append( rslt);
 			sb.append( ')');
-			return sb.toString();
+			return rslt.withSuffix(sb.toString());
 		}
 	}
 
 	// expression intended to match SQL types that are arrays
-	static final Pattern arrayish =
-		Pattern.compile( "(?si:(?:\\[\\s*+\\d*+\\s*+\\]|ARRAY)\\s*+)$");
+	static final Pattern arrayish = compile(String.format(
+		"(?si:(?:%1$s\\s*+)++|ARRAY(?:\\s*+%1$s)?+)\\s*+$",
+		"\\[\\s*+\\d*+\\s*+\\]"
+	));
 
 	/**
 	 * Work around bizarre javac behavior that silently supplies an Error
@@ -2975,16 +3036,17 @@ class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 }
 
 class TypeTiebreaker
-implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
+implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
 {
 	@Override
 	public int compare(
-		Vertex<Map.Entry<TypeMirror, String>> o1,
-		Vertex<Map.Entry<TypeMirror, String>> o2)
+		Vertex<Map.Entry<TypeMirror, DBType>> o1,
+		Vertex<Map.Entry<TypeMirror, DBType>> o2)
 	{
-		Map.Entry<TypeMirror, String> m1 = o1.payload;
-		Map.Entry<TypeMirror, String> m2 = o2.payload;
-		int diff = m1.getValue().compareTo( m2.getValue());
+		Map.Entry<TypeMirror, DBType> m1 = o1.payload;
+		Map.Entry<TypeMirror, DBType> m2 = o2.payload;
+		int diff =
+			m1.getValue().toString().compareTo( m2.getValue().toString());
 		if ( 0 != diff )
 			return diff;
 		diff = m1.getKey().toString().compareTo( m2.getKey().toString());
@@ -2993,5 +3055,61 @@ implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
 		assert
 			m1 == m2 : "Two distinct type mappings compare equal by tiebreaker";
 		return 0;
+	}
+}
+
+/**
+ * Abstraction of a database type, which is usually specified by an
+ * {@code Identifier.Qualified}, but sometimes by reserved SQL syntax.
+ */
+abstract class DBType implements Cloneable
+{
+	private String m_suffix = "";
+
+	DBType withSuffix(String s)
+	{
+		try
+		{
+			DBType copy = (DBType)clone();
+			copy.m_suffix += " " + s;
+			return copy;
+		}
+		catch ( CloneNotSupportedException e )
+		{
+			throw new AssertionError("Cloneable isn't");
+		}
+	}
+
+	protected String suffixed(String s)
+	{
+		return s + m_suffix;
+	}
+
+	static class Reserved extends DBType
+	{
+		private final String m_reservedName;
+		Reserved(String name)
+		{
+			m_reservedName = name;
+		}
+		@Override
+		public String toString()
+		{
+			return suffixed(m_reservedName);
+		}
+	}
+
+	static class Named extends DBType
+	{
+		private final Identifier.Qualified m_ident;
+		Named(Identifier.Qualified ident)
+		{
+			m_ident = ident;
+		}
+		@Override
+		public String toString()
+		{
+			return suffixed(m_ident.toString());
+		}
 	}
 }
