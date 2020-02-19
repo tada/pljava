@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import static java.util.Collections.unmodifiableSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +53,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import static java.util.Objects.hash;
+import static java.util.Objects.requireNonNull;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
@@ -179,7 +182,7 @@ class DDRProcessorImpl
 	final String nameTrusted;
 	final String nameUntrusted;
 	final String output;
-	final String defaultImplementor;
+	final Identifier.Simple defaultImplementor;
 	final boolean reproducible;
 	
 	// Certain known types that need to be recognized in the processed code
@@ -234,9 +237,10 @@ class DDRProcessorImpl
 		
 		optv = opts.get( "ddr.implementor");
 		if ( null != optv )
-			defaultImplementor = "-".equals( optv) ? null : optv;
+			defaultImplementor = "-".equals( optv) ? null :
+				Identifier.Simple.fromJava(optv);
 		else
-			defaultImplementor = "PostgreSQL";
+			defaultImplementor = Identifier.Simple.fromJava("PostgreSQL");
 
 		optv = opts.get( "ddr.output");
 		if ( null != optv )
@@ -372,7 +376,7 @@ class DDRProcessorImpl
 	 * that 'provides' it. Has to be out here as an instance field for the
 	 * same reason {@code snippetQueue} does.
 	 */
-	Map<String, VertexPair<Snippet>> provider = new HashMap<>();
+	Map<DependTag, VertexPair<Snippet>> provider = new HashMap<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -460,7 +464,7 @@ class DDRProcessorImpl
 				continue;
 			VertexPair<Snippet> v = new VertexPair<>( snip);
 			snippetVPairs.add( v);
-			for ( String s : snip.provides() )
+			for ( DependTag s : snip.provideTags() )
 				if ( null != provider.put( s, v) )
 					msg( Kind.ERROR, "tag %s has more than one provider", s);
 		}
@@ -475,8 +479,8 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
-		Set<String> fwdConsumers = new HashSet<>();
-		Set<String> revConsumers = new HashSet<>();
+		Set<DependTag> fwdConsumers = new HashSet<>();
+		Set<DependTag> revConsumers = new HashSet<>();
 
 		for ( VertexPair<Snippet> v : snippetVPairs )
 		{
@@ -489,7 +493,8 @@ class DDRProcessorImpl
 			 * determined what got installed must also be evaluated early and
 			 * determine what gets removed.
 			 */
-			String imp = v.payload().implementor();
+			Identifier.Simple impName = v.payload().implementorName();
+			DependTag imp = v.payload().implementorTag();
 			if ( null != imp )
 			{
 				fwdConsumers.add( imp);
@@ -510,7 +515,7 @@ class DDRProcessorImpl
 					if ( 0 == p.rev.payload.undeployStrings().length )
 						p.rev.payload = new ImpProvider( p.rev.payload);
 				}
-				else if ( ! defaultImplementor.equals( imp) )
+				else if ( ! defaultImplementor.equals( impName) )
 				{
 					/*
 					 * Don't insist that every implementor tag have a provider
@@ -525,7 +530,7 @@ class DDRProcessorImpl
 					 ++ v.rev.indegree;
 				}
 			}
-			for ( String s : v.payload().requires() )
+			for ( DependTag s : v.payload().requireTags() )
 			{
 				fwdConsumers.add( s);
 				p = provider.get( s);
@@ -541,7 +546,7 @@ class DDRProcessorImpl
 					errorRaised = true;
 				}
 			}
-			for ( String s : v.payload().requires() )
+			for ( DependTag s : v.payload().requireTags() )
 				revConsumers.add( s);
 		}
 
@@ -602,7 +607,7 @@ class DDRProcessorImpl
 	 */
 	Snippet[] order(
 		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
-		Set<String> consumer)
+		Set<DependTag> consumer)
 	{
 		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
 		Vertex<Snippet> cycleBreaker = null;
@@ -615,7 +620,7 @@ queuerunning:
 				Vertex<Snippet> v = ready.remove();
 				snips[i++] = v.payload;
 				v.use( ready, blocked);
-				for ( String p : v.payload.provides() )
+				for ( DependTag p : v.payload.provideTags() )
 					consumer.remove(p);
 			}
 			if ( blocked.isEmpty() )
@@ -633,9 +638,9 @@ queuerunning:
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
-				if ( 1 < v.indegree  ||  null == v.payload.implementor() )
+				if ( 1 < v.indegree  ||  null == v.payload.implementorTag() )
 					continue;
-				if ( provider.containsKey( v.payload.implementor()) )
+				if ( provider.containsKey( v.payload.implementorTag()) )
 					continue;
 				if ( reproducible )
 				{
@@ -662,7 +667,7 @@ queuerunning:
 			/*
 			 * Got here? It's a real cycle ... nothing to be done.
 			 */
-			for ( String s : consumer )
+			for ( DependTag s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
 			return null;
 		}
@@ -931,6 +936,10 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class AbstractAnnotationImpl implements Annotation
 	{
+		private Set<DependTag> m_provideTags = new HashSet<>();
+		private Set<DependTag> m_requireTags = new HashSet<>();
+
+		@Override
 		public Class<? extends Annotation> annotationType()
 		{
 			throw new UnsupportedOperationException();
@@ -940,15 +949,28 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * Supply the required implementor() method for those subclasses
 		 * that will implement {@link Snippet}.
 		 */
-		public String implementor() { return _implementor; }
+		public String implementor()
+		{
+			return null == _implementor ? null : _implementor.pgFolded();
+		}
 
-		String _implementor = defaultImplementor;
+		/**
+		 * Supply the required implementor() method for those subclasses
+		 * that will implement {@link Snippet}.
+		 */
+		public Identifier.Simple implementorName()
+		{
+			return _implementor;
+		}
+
+		Identifier.Simple _implementor = defaultImplementor;
 		String _comment;
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				_implementor = "".equals( o) ? null : (String)o;
+				_implementor = "".equals( o) ? null :
+					Identifier.Simple.fromJava((String)o);
 		}
 
 		public String comment() { return _comment; }
@@ -982,6 +1004,36 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( BreakIterator.DONE == end )
 				return null;
 			return s.substring( start, end).trim();
+		}
+
+		protected void recordExplicitTags(String[] provides, String[] requires)
+		{
+			if ( null != provides )
+				for ( String s : provides )
+					m_provideTags.add(new DependTag.Explicit(s));
+			if ( null != requires )
+				for ( String s : requires )
+					m_requireTags.add(new DependTag.Explicit(s));
+			m_provideTags = unmodifiableSet(m_provideTags);
+			m_requireTags = unmodifiableSet(m_requireTags);
+		}
+
+		/**
+		 * Return the set of 'provide' tags, mutable before
+		 * {@code recordExplicitTags} has been called, immutable thereafter.
+		 */
+		public Set<DependTag> provideTags()
+		{
+			return m_provideTags;
+		}
+
+		/**
+		 * Return the set of 'require' tags, mutable before
+		 * {@code recordExplicitTags} has been called, immutable thereafter.
+		 */
+		public Set<DependTag> requireTags()
+		{
+			return m_requireTags;
 		}
 	}
 
@@ -1191,6 +1243,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			recordExplicitTags(_provides, _requires);
 			return true;
 		}
 	}
@@ -1532,6 +1585,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			recordExplicitTags(_provides, _requires);
+
 			if ( "".equals( _name) )
 				_name = func.getSimpleName().toString();
 
@@ -2086,6 +2141,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			recordExplicitTags(_provides, _requires);
 			return true;
 		}
 
@@ -2282,6 +2338,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( 32 > category() || category() > 126 )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
+
+			recordExplicitTags(_provides, _requires);
 
 			return true;
 		}
@@ -2862,7 +2920,19 @@ interface Snippet
 	 * from this Snippet as an {@code <implementor block>}. If null, the
 	 * commands will be emitted as plain {@code <SQL statement>}s.
 	 */
-	public String implementor();
+	public Identifier.Simple implementorName();
+	/**
+	 * A {@code DependTag} to represent this snippet's dependence on whatever
+	 * determines whether the implementor name is to be recognized.
+	 *<p>
+	 * Represented for now as a {@code DependTag.Explicit} even though the
+	 * dependency is implicitly created; an {@code SQLAction} snippet may have
+	 * an explicit {@code provides=} that has to be matched.
+	 */
+	default DependTag implementorTag()
+	{
+		return new DependTag.Explicit(implementorName().pgFolded());
+	}
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
@@ -2879,14 +2949,14 @@ interface Snippet
 	 * this Snippet will come before any whose requires method returns any of
 	 * the same labels.
 	 */
-	public String[] provides();
+	public Set<DependTag> provideTags();
 	/**
 	 * Return an array of arbitrary labels considered "required" by this
 	 * Snippet. In generating the final order of the deployment descriptor file,
 	 * this Snippet will come after those whose provides method returns any of
 	 * the same labels.
 	 */
-	public String[] requires();
+	public Set<DependTag> requireTags();
 	/**
 	 * Method to be called after all annotations'
 	 * element/value pairs have been filled in, to compute any additional
@@ -3001,14 +3071,21 @@ class ImpProvider implements Snippet
 
 	ImpProvider( Snippet s) { this.s = s; }
 
-	@Override public String       implementor() { return s.implementor(); }
+	@Override public Identifier.Simple implementorName()
+	{
+		return s.implementorName();
+	}
 	@Override public String[]   deployStrings() { return s.deployStrings(); }
 	@Override public String[] undeployStrings() { return s.deployStrings(); }
-	@Override public String[]        provides() { return s.provides(); }
-	@Override public String[]        requires() { return s.requires(); }
+	@Override public Set<DependTag> provideTags() { return s.provideTags(); }
+	@Override public Set<DependTag> requireTags() { return s.requireTags(); }
 	@Override public boolean     characterize() { return s.characterize(); }
 }
 
+/**
+ * Resolve ties in {@code Snippet} ordering in an arbitrary but deterministic
+ * way, for use when {@code ddr.reproducible} is set.
+ */
 class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 {
 	@Override
@@ -3016,9 +3093,17 @@ class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 	{
 		Snippet s1 = o1.payload;
 		Snippet s2 = o2.payload;
-		int diff = s1.implementor().compareTo( s2.implementor());
-		if ( 0 != diff )
-			return diff;
+		int diff;
+		Identifier.Simple s1imp = s1.implementorName();
+		Identifier.Simple s2imp = s2.implementorName();
+		if ( null != s1imp  &&  null != s2imp )
+		{
+			diff = s1imp.pgFolded().compareTo( s2imp.pgFolded());
+			if ( 0 != diff )
+				return diff;
+		}
+		else
+			return null == s1imp ? -1 : 1;
 		String[] ds1 = s1.deployStrings();
 		String[] ds2 = s2.deployStrings();
 		diff = ds1.length - ds2.length;
@@ -3035,6 +3120,10 @@ class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 	}
 }
 
+/**
+ * Resolve ties in type-mapping resolution in an arbitrary but deterministic
+ * way, for use when {@code ddr.reproducible} is set.
+ */
 class TypeTiebreaker
 implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
 {
@@ -3110,6 +3199,67 @@ abstract class DBType implements Cloneable
 		public String toString()
 		{
 			return suffixed(m_ident.toString());
+		}
+	}
+}
+
+/**
+ * Abstraction of a dependency tag, encompassing {@code Explicit} ones declared
+ * in annotations and distinguished by {@code String}s, and others added
+ * implicitly such as {@code Type}s known by {@code Identifier.Qualified}.
+ */
+abstract class DependTag<T>
+{
+	private T m_value;
+
+	protected DependTag(T value)
+	{
+		m_value = value;
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return hash(getClass(), m_value);
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		if ( null == o )
+			return false;
+		return
+			getClass() == o.getClass()
+				&&  m_value.equals(((DependTag<?>)o).m_value);
+	}
+
+	@Override
+	public String toString()
+	{
+		return '(' + getClass().getSimpleName() + ')' + m_value.toString();
+	}
+
+	static final class Explicit extends DependTag<String>
+	{
+		Explicit(String value)
+		{
+			super(requireNonNull(value));
+		}
+	}
+
+	static final class Type extends DependTag<Identifier.Qualified>
+	{
+		Type(Identifier.Qualified value)
+		{
+			super(requireNonNull(value));
+		}
+	}
+
+	static final class Function extends DependTag<Identifier.Qualified>
+	{
+		Function(Identifier.Qualified value)
+		{
+			super(requireNonNull(value));
 		}
 	}
 }

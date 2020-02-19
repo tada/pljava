@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
 import static javax.tools.Diagnostic.Kind.ERROR;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+
 import static org.postgresql.pljava.sqlgen.Lexicals.ISO_PG_JAVA_IDENTIFIER;
 
 /**
@@ -64,13 +66,13 @@ public class DDRWriter
 		
 		for ( Snippet snip : fwdSnips )
 			for ( String s : snip.deployStrings() )
-				writeCommand( w, s, snip.implementor());
+				writeCommand( w, s, snip.implementorName());
 
 		w.write( "END INSTALL\",\n\"BEGIN REMOVE\n");
 		
 		for ( Snippet snip : revSnips )
 			for ( String s : snip.undeployStrings() )
-				writeCommand( w, s, snip.implementor());
+				writeCommand( w, s, snip.implementorName());
 
 		w.write( "END REMOVE\"\n}\n");
 		
@@ -91,13 +93,13 @@ public class DDRWriter
 	 * is implementor-nonspecific. PostgreSQL is the string to use for
 	 * PostgreSQL-specific commands.
 	 */
-	static void writeCommand( Writer w, String s, String implementor)
+	static void writeCommand( Writer w, String s, Identifier.Simple implementor)
 	throws IOException
 	{
 		if ( null != implementor )
 		{
 			w.write( "BEGIN ");
-			w.write( implementor);
+			w.write( implementor.toString());
 			w.write( '\n');
 		}
 
@@ -106,7 +108,7 @@ public class DDRWriter
 		if ( null != implementor )
 		{
 			w.write( "\nEND ");
-			w.write( implementor);
+			w.write( implementor.toString());
 		}
 
 		w.write( ";\n");
@@ -164,7 +166,7 @@ public class DDRWriter
 		
 		for ( Snippet snip : snips )
 		{
-			String implementor = snip.implementor();
+			String implementor = snip.implementorName().nonFolded();
 			if ( null != implementor )
 			{
 				i.reset( implementor);
