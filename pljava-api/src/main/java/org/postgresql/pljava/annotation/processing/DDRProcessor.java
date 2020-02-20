@@ -59,6 +59,8 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
+import java.util.function.Supplier;
+
 import static java.util.stream.Collectors.joining;
 
 import java.util.regex.Matcher;
@@ -349,9 +351,11 @@ class DDRProcessorImpl
 	 */
 	Map<SnippetsKey, Snippet> snippets = new HashMap<>();
 
-	<S extends Snippet> S getSnippet(Object o, Class<S> c)
+	<S extends Snippet> S getSnippet(Object o, Class<S> c, Supplier<S> ctor)
 	{
-		return (S)snippets.get( new SnippetsKey( o, c));
+		return
+			c.cast(snippets
+				.computeIfAbsent(new SnippetsKey( o, c), k -> ctor.get()));
 	}
 
 	void putSnippet( Object o, Snippet s)
@@ -679,12 +683,8 @@ queuerunning:
 	 */
 	void processSQLAction( Element e)
 	{
-		SQLActionImpl sa = getSnippet( e, SQLActionImpl.class);
-		if ( null == sa )
-		{
-			sa = new SQLActionImpl();
-			putSnippet( e, sa);
-		}
+		SQLActionImpl sa =
+			getSnippet( e, SQLActionImpl.class, SQLActionImpl::new);
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_SQLACTION) )
@@ -769,12 +769,8 @@ queuerunning:
 		switch ( k )
 		{
 		case BASE:
-			BaseUDTImpl bu = getSnippet( e, BaseUDTImpl.class);
-			if ( null == bu )
-			{
-				bu = new BaseUDTImpl( (TypeElement)e);
-				putSnippet( e, bu);
-			}
+			BaseUDTImpl bu = getSnippet( e, BaseUDTImpl.class, () ->
+				new BaseUDTImpl( (TypeElement)e));
 			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 			{
 				if ( am.getAnnotationType().asElement().equals( AN_BASEUDT) )
@@ -784,12 +780,8 @@ queuerunning:
 			break;
 
 		case MAPPED:
-			MappedUDTImpl mu = getSnippet( e, MappedUDTImpl.class);
-			if ( null == mu )
-			{
-				mu = new MappedUDTImpl( (TypeElement)e);
-				putSnippet( e, mu);
-			}
+			MappedUDTImpl mu = getSnippet( e, MappedUDTImpl.class, () ->
+				new MappedUDTImpl( (TypeElement)e));
 			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 			{
 				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
@@ -874,12 +866,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 		}
 
-		FunctionImpl f = getSnippet( e, FunctionImpl.class);
-		if ( null == f )
-		{
-			f = new FunctionImpl( (ExecutableElement)e);
-			putSnippet( e, f);
-		}
+		FunctionImpl f = getSnippet( e, FunctionImpl.class, () ->
+			new FunctionImpl( (ExecutableElement)e));
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_FUNCTION) )
