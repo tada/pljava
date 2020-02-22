@@ -901,9 +901,14 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			Object v = getValue( av);
 			if ( isEnum )
-				v = Enum.valueOf( k.asSubclass( Enum.class),
+			{
+				@SuppressWarnings({"unchecked"})
+				T t = (T)Enum.valueOf( k.asSubclass( Enum.class),
 					((VariableElement)v).getSimpleName().toString());
-			a[i++] = k.cast( v);
+				a[i++] = t;
+			}
+			else
+				a[i++] = k.cast( v);
 		}
 		return a;
 	}
@@ -1075,8 +1080,12 @@ hunt:	for ( ExecutableElement ee : ees )
 						}
 					}
 					else if ( fkl.isEnum() )
-						f.set( inst, Enum.valueOf( fkl.asSubclass( Enum.class),
-							((VariableElement)v).getSimpleName().toString()));
+					{
+						@SuppressWarnings("unchecked")
+						Object t = Enum.valueOf( fkl.asSubclass( Enum.class),
+							((VariableElement)v).getSimpleName().toString());
+						f.set( inst, t);
+					}
 					else
 						f.set( inst, v);
 					nsme = null;
@@ -2633,10 +2642,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{    
 				ArrayList<Map.Entry<TypeMirror, String>> ms = finalMappings;
 				if ( contravariant )
-				{
-					ms = (ArrayList<Map.Entry<TypeMirror, String>>)ms.clone();
-					Collections.reverse( ms);
-				}
+					ms = reversed(ms);
 				for ( Map.Entry<TypeMirror, String> me : ms )
 				{
 					TypeMirror ktm = me.getKey();
@@ -2760,6 +2766,17 @@ hunt:	for ( ExecutableElement ee : ees )
 			av.getClass().getCanonicalName()) )
 			throw new AnnotationValueException();
 		return av.getValue();
+	}
+
+	/**
+	 * Return a reversed copy of an ArrayList.
+	 */
+	static <E, T extends ArrayList<E>> T reversed(T orig)
+	{
+		@SuppressWarnings("unchecked")
+		T list = (T)orig.clone();
+		Collections.reverse(list);
+		return list;
 	}
 }
 
@@ -2903,8 +2920,8 @@ class VertexPair<P>
 
 	VertexPair( P payload)
 	{
-		fwd = new Vertex( payload);
-		rev = new Vertex( payload);
+		fwd = new Vertex<>( payload);
+		rev = new Vertex<>( payload);
 	}
 
 	P payload()
