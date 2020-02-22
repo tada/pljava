@@ -994,6 +994,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			return s.substring( start, end).trim();
 		}
 
+		/**
+		 * Called by a snippet's {@code characterize} method to install its
+		 * explicit, annotation-supplied 'provides' / 'requires' strings, if
+		 * any, into the {@code provideTags} and {@code requireTags} sets, then
+		 * making those sets immutable.
+		 */
 		protected void recordExplicitTags(String[] provides, String[] requires)
 		{
 			if ( null != provides )
@@ -2709,7 +2715,7 @@ hunt:	for ( ExecutableElement ee : ees )
 						Identifier.Qualified.nameFromJava(s, msgr);
 					rslt = new DBType.Named(qn);
 					if ( null != suffix )
-						rslt = rslt.withSuffix(suffix);
+						rslt = rslt.asArray(suffix);
 				}
 				defaults = st.defaultValue();
 			}
@@ -2787,7 +2793,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 
 			if ( array )
-				rslt = rslt.withSuffix("[]");
+				rslt = rslt.asArray("[]");
 			
 			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
 		}
@@ -2830,7 +2836,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			else if ( n != 1 )
 				array = true;
 			else if ( ! array )
-				array = arrayish.matcher( rslt.toString()).find();
+				array = rslt.isArray();
 			
 			StringBuilder sb = new StringBuilder();
 			sb.append( " DEFAULT ");
@@ -3139,54 +3145,164 @@ implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
  * Abstraction of a database type, which is usually specified by an
  * {@code Identifier.Qualified}, but sometimes by reserved SQL syntax.
  */
-abstract class DBType implements Cloneable
+abstract class DBType
 {
-	private String m_suffix = "";
-
-	DBType withSuffix(String s)
+	DBType asArray(String notated)
 	{
-		try
-		{
-			DBType copy = (DBType)clone();
-			copy.m_suffix += " " + s;
-			return copy;
-		}
-		catch ( CloneNotSupportedException e )
-		{
-			throw new AssertionError("Cloneable isn't");
-		}
+		return new Array(this, notated);
 	}
 
-	protected String suffixed(String s)
+	DBType withSuffix(String suffix)
 	{
-		return s + m_suffix;
+		return new Suffixed(this, suffix);
+	}
+
+	String toString(boolean withSuffix)
+	{
+		return toString();
+	}
+
+	abstract DependTag dependTag();
+
+	boolean isArray()
+	{
+		return false;
 	}
 
 	static class Reserved extends DBType
 	{
 		private final String m_reservedName;
+
 		Reserved(String name)
 		{
 			m_reservedName = name;
 		}
+
 		@Override
 		public String toString()
 		{
-			return suffixed(m_reservedName);
+			return m_reservedName;
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return null;
 		}
 	}
 
 	static class Named extends DBType
 	{
 		private final Identifier.Qualified m_ident;
+
 		Named(Identifier.Qualified ident)
 		{
 			m_ident = ident;
 		}
+
 		@Override
 		public String toString()
 		{
-			return suffixed(m_ident.toString());
+			return m_ident.toString();
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return new DependTag.Type(m_ident);
+		}
+	}
+
+	static class Array extends DBType
+	{
+		private final DBType m_component;
+		private final int m_dims;
+		private final String m_notated;
+
+		Array(DBType component, String notated)
+		{
+			assert component instanceof Named || component instanceof Reserved;
+			int dims = 0;
+			for ( int pos = 0; -1 != (pos = notated.indexOf('[', pos)); ++ pos )
+				++ dims;
+			m_dims = 0 == dims ? 1 : dims; // "ARRAY" with no [ has dimension 1
+			m_notated = notated;
+			m_component = requireNonNull(component);
+		}
+
+		@Override
+		Array asArray(String notated)
+		{
+			/* Implementable in principle, but may never be needed */
+			throw new UnsupportedOperationException("asArray on an Array");
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_component.toString() + m_notated;
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_component.dependTag();
+		}
+
+		@Override
+		boolean isArray()
+		{
+			return true;
+		}
+	}
+
+	static class Suffixed extends DBType
+	{
+		private final DBType m_raw;
+		private final String m_suffix;
+
+		Suffixed(DBType raw, String suffix)
+		{
+			assert ! (raw instanceof Suffixed);
+			m_raw = requireNonNull(raw);
+			m_suffix = suffix;
+		}
+
+		@Override
+		Array asArray(String notated)
+		{
+			throw new UnsupportedOperationException("asArray on a Suffixed");
+		}
+
+		@Override
+		Array withSuffix(String suffix)
+		{
+			/* Implementable in principle, but may never be needed */
+			throw new UnsupportedOperationException("withSuffix on a Suffixed");
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_raw.toString() + " " + m_suffix;
+		}
+
+		@Override
+		String toString(boolean withSuffix)
+		{
+			return withSuffix ? m_raw.toString() + " " + m_suffix : toString();
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_raw.dependTag();
+		}
+
+		@Override
+		boolean isArray()
+		{
+			return m_raw.isArray();
 		}
 	}
 }
