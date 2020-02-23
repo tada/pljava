@@ -111,6 +111,15 @@ import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
 
 import org.postgresql.pljava.sqlgen.Lexicals;
+import static org.postgresql.pljava.sqlgen.Lexicals
+	.ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING;
+import static org.postgresql.pljava.sqlgen.Lexicals
+	.ISO_DELIMITED_IDENTIFIER_CAPTURING;
+import static org.postgresql.pljava.sqlgen.Lexicals.ISO_REGULAR_IDENTIFIER_PART;
+import static org.postgresql.pljava.sqlgen.Lexicals.PG_REGULAR_IDENTIFIER_PART;
+import static org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
+import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
+import static org.postgresql.pljava.sqlgen.Lexicals.separator;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 /**
@@ -210,6 +219,15 @@ class DDRProcessorImpl
 	final TypeElement  AN_TRIGGER;
 	final TypeElement  AN_BASEUDT;
 	final TypeElement  AN_MAPPEDUDT;
+
+	// Certain familiar DBTypes (capitalized as this file historically has)
+	//
+	final DBType DT_RECORD  = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.RECORD"));
+	final DBType DT_TRIGGER = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.trigger"));
+	final DBType DT_VOID = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.void"));
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -1780,7 +1798,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
-				sb.append( "pg_catalog.trigger");
+				sb.append( DT_TRIGGER.toString());
 			else
 			{
 				if ( setof )
@@ -1790,7 +1808,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				else if ( null != setofComponent )
 					sb.append( tmpr.getSQLType( setofComponent, func));
 				else if ( setof )
-					sb.append( "pg_catalog.RECORD");
+					sb.append( DT_RECORD.toString());
 				else
 					sb.append( tmpr.getSQLType( returnTypeMapKey, func));
 			}
@@ -2703,20 +2721,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				String s = st.value();
 				if ( null != s )
-				{
-					String suffix = null;
-					Matcher m = arrayish.matcher(s);
-					if ( m.find() )
-					{
-						suffix = m.group();
-						s = s.substring(0, m.start());
-					}
-					Identifier.Qualified qn =
-						Identifier.Qualified.nameFromJava(s, msgr);
-					rslt = new DBType.Named(qn);
-					if ( null != suffix )
-						rslt = rslt.asArray(suffix);
-				}
+					rslt = DBType.fromSQLTypeAnnotation(s);
 				defaults = st.defaultValue();
 			}
 
@@ -2739,9 +2744,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return // return type only; no defaults apply
-					new DBType.Named(
-						Identifier.Qualified.nameFromJava("pg_catalog.void"));
+				return DT_VOID; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
@@ -2856,15 +2859,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! row )
 				sb.append( " AS ").append( rslt);
 			sb.append( ')');
-			return rslt.withSuffix(sb.toString());
+			return rslt.withDefault(sb.toString());
 		}
 	}
-
-	// expression intended to match SQL types that are arrays
-	static final Pattern arrayish = compile(String.format(
-		"(?si:(?:%1$s\\s*+)++|ARRAY(?:\\s*+%1$s)?+)\\s*+$",
-		"\\[\\s*+\\d*+\\s*+\\]"
-	));
 
 	/**
 	 * Work around bizarre javac behavior that silently supplies an Error
@@ -3147,17 +3144,22 @@ implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
  */
 abstract class DBType
 {
+	DBType withModifier(String modifier)
+	{
+		return new Modified(this, modifier);
+	}
+
 	DBType asArray(String notated)
 	{
 		return new Array(this, notated);
 	}
 
-	DBType withSuffix(String suffix)
+	DBType withDefault(String suffix)
 	{
-		return new Suffixed(this, suffix);
+		return new Defaulting(this, suffix);
 	}
 
-	String toString(boolean withSuffix)
+	String toString(boolean withDefault)
 	{
 		return toString();
 	}
@@ -3167,6 +3169,306 @@ abstract class DBType
 	boolean isArray()
 	{
 		return false;
+	}
+
+	static final Pattern s_regularOrDelimited = compile(String.format(
+		"%1$s|%2$s",
+		ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING.pattern(),
+		ISO_DELIMITED_IDENTIFIER_CAPTURING.pattern()
+	));
+
+	static final Pattern s_reservedTypeFirstWords = compile(
+		"(?i:" +
+		"INT|INTEGER|SMALLINT|BIGINT|REAL|FLOAT|DECIMAL|DEC|NUMERIC|" +
+		"BOOLEAN|BIT|CHARACTER|CHAR|VARCHAR|TIMESTAMP|TIME|INTERVAL|" +
+		"(DOUBLE|NATIONAL)" + // these may be reserved depending on next token
+		")"
+	);
+
+	static final Pattern s_doubleNextToken = compile(String.format(
+		"(?i:PRECISION)(?!%1$s|%2$s)",
+		ISO_REGULAR_IDENTIFIER_PART.pattern(),
+		PG_REGULAR_IDENTIFIER_PART.pattern()
+	));
+
+	static final Pattern s_nationalNextToken = compile(String.format(
+		"(?i:CHARACTER|CHAR)(?!%1$s|%2$s)",
+		ISO_REGULAR_IDENTIFIER_PART.pattern(),
+		PG_REGULAR_IDENTIFIER_PART.pattern()
+	));
+
+	/**
+	 * Make a {@code DBType} from whatever might appear in an {@code SQLType}
+	 * annotation.
+	 *<p>
+	 * The possibilities are numerous, as that text used to be dumped rather
+	 * blindly into the descriptor and thus could be whatever PostgreSQL would
+	 * make sense of. The result could be a {@code DBType.Named} if the start of
+	 * the text parses as a (possibly schema-qualified) identifier, or a
+	 * {@code DBType.Reserved} if it doesn't (or it parses as a non-schema-
+	 * qualified regular identifier and matches one of SQL's grammatically
+	 * reserved type names). It could be either of those wrapped in a
+	 * {@code DBType.Modified} if a type modifier was parsed out. It could be
+	 * any of those wrapped in a {@code DBType.Array} if the text ended with any
+	 * of the recognized forms of array dimension notation. The one thing it
+	 * can't be (as a result from this method) is a {@code DBType.Defaulting};
+	 * that wrapping can be applied to the result later, to carry a default
+	 * value that has been specified at a particular site of use.
+	 *<p>
+	 * The parsing strategy is a bit heuristic. An attempt is made to parse a
+	 * (possibly schema-qualified) identifier at the start of the string.
+	 * An attempt is made to find a match for array-dimension notation that runs
+	 * to the end of the string. Whatever lies between gets to be a typmod if it
+	 * looks enough like one, or gets rolled with the front of the string into a
+	 * {@code DBType.Reserved}, which is not otherwise scrutinized; the
+	 * {@code Reserved} case is still more or less a catch-all that will be
+	 * dumped blindly into the descriptor in the hope that PostgreSQL will make
+	 * sense of it.
+	 *<p>
+	 * This strategy is used because compared to what can appear in a typmod
+	 * (which could require arbitrary constant expression parsing), the array
+	 * grammar depends on much less.
+	 */
+	static DBType fromSQLTypeAnnotation(String value)
+	{
+		Identifier.Qualified<Identifier.Simple> qname = null;
+
+		Matcher m = SEPARATOR.matcher(value);
+		separator(m, false);
+
+		if ( m.usePattern(s_regularOrDelimited).lookingAt() )
+		{
+			Identifier.Simple id1 = identifierFrom(m);
+			m.region(m.end(), m.regionEnd());
+
+			separator(m, false);
+			if ( value.startsWith(".", m.regionStart()) )
+			{
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+				if ( m.usePattern(s_regularOrDelimited).lookingAt() )
+				{
+					Identifier.Simple id2 = identifierFrom(m);
+					qname = id2.withQualifier(id1);
+					m.region(m.end(), m.regionEnd());
+					separator(m, false);
+				}
+			}
+			else
+				qname = id1.withQualifier(null);
+		}
+
+		/*
+		 * At this point, qname may have a local name and qualifier, or it may
+		 * have a local name and null qualifier (if a single identifier was
+		 * successfully matched but not followed by a dot). It is also possible
+		 * for qname to be null, either because the start of the string didn't
+		 * look like an identifier at all, or because it did, but was followed
+		 * by a dot, and what followed the dot could not be parsed as another
+		 * identifier. Probably both of those cases are erroneous, but they can
+		 * also be handled by simply treating the content as Reserved and hoping
+		 * PostgreSQL can make sense of it.
+		 *
+		 * Search from here to the end of the string for possible array notation
+		 * that can be stripped off the end, leaving just the middle (if any) to
+		 * be dealt with.
+		 */
+
+		String arrayNotation = arrayNotationIfPresent(m, value);
+
+		/*
+		 * If arrayNotation is not null, m's region end has been adjusted to
+		 * exclude the array notation.
+		 */
+
+		boolean reserved;
+
+		if ( null == qname )
+			reserved = true;
+		else if ( null != qname.qualifier() )
+			reserved = false;
+		else
+		{
+			Identifier.Simple local = qname.local();
+			if ( ! local.folds() )
+				reserved = false;
+			else
+			{
+				Matcher m1 =
+					s_reservedTypeFirstWords.matcher(local.pgFolded());
+				if ( ! m1.matches() )
+					reserved = false;
+				else if ( -1 == m.start(1) ) // no need to check next token
+					reserved = true;
+				else
+				{
+					switch ( local.pgFolded() )
+					{
+					case "double":
+						m.usePattern(s_doubleNextToken);
+						break;
+					case "national":
+						m.usePattern(s_nationalNextToken);
+						break;
+					default:
+						throw new AssertionError("checking for reserved type");
+					}
+					reserved = m.lookingAt();
+				}
+			}
+		}
+
+		/*
+		 * If this is a reserved type, just wrap up everything from its start to
+		 * the array notation (if any) as a Reserved; there is no need to try to
+		 * tease out a typmod separately. (The reserved syntax can be quite
+		 * unlike the generic typename(typmod) pattern; there could be what
+		 * looks like a (typmod) between TIME and WITH TIME ZONE, or the moral
+		 * equivalent of a typmod could look like HOUR TO MINUTE, and so on.)
+		 *
+		 * If we think this is a non-reserved type, and there is anything left
+		 * in the matching region (preceding the array notation, if any), then
+		 * it had better be a typmod in the generic form starting with a (. We
+		 * will capture whatever is there and call it a typmod as long as it
+		 * does start that way. (More elaborate checking, such as balancing the
+		 * parens, would require ability to parse an expr_list.) This can allow
+		 * malformed syntax to be uncaught until deployment time when PostgreSQL
+		 * sees it, but that's unchanged from when the entire SQLType string was
+		 * passed along verbatim. The 'threat' model here is just that the
+		 * legitimate developer may get an error later when earlier would be
+		 * more helpful, not a malicious adversary bent on injection.
+		 *
+		 * On the other hand, if what's left doesn't start with a ( then we
+		 * somehow don't know what we're looking at, so fall back and treat it
+		 * as reserved.
+		 */
+
+		if ( ! reserved  &&  m.regionStart() < m.regionEnd() )
+			if ( ! value.startsWith("(", m.regionStart()) )
+				reserved = true;
+
+		DBType result;
+
+		if ( reserved )
+			result = new DBType.Reserved(value.substring(0, m.regionEnd()));
+		else
+		{
+			result = new DBType.Named(qname);
+			if ( m.regionStart() < m.regionEnd() )
+				result = result.withModifier(
+					value.substring(m.regionStart(), m.regionEnd()));
+		}
+
+		if ( null != arrayNotation )
+			result = result.asArray(arrayNotation);
+
+		return result;
+	}
+
+	private static final Pattern s_arrayDimStart = compile(String.format(
+		"(?i:(?<!%1$s|%2$s)ARRAY(?!%1$s|%2$s))|\\[",
+		ISO_REGULAR_IDENTIFIER_PART.pattern(),
+		PG_REGULAR_IDENTIFIER_PART.pattern()
+	));
+
+	private static final Pattern s_digits = compile("\\d++");
+
+	/**
+	 * Return any array dimension notation (any of the recognized forms) that
+	 * "ends" the string (i.e., is followed by at most {@code separator} before
+	 * the string ends).
+	 *<p>
+	 * If a non-null string is returned, the matcher's region-end has been
+	 * adjusted to exclude it.
+	 *<p>
+	 * The matcher's associated pattern may have been changed, and the region
+	 * transiently changed, but on return the region will either be the same as
+	 * on entry (if no array notation was found), or have only the region end
+	 * adjusted to exclude the notation.
+	 *<p>
+	 * The returned string can include a {@code separator} that followed the
+	 * array notation.
+	 */
+	private static String arrayNotationIfPresent(Matcher m, String s)
+	{
+		int originalRegionStart = m.regionStart();
+		int notationStart;
+		int dims;
+		boolean atMostOneDimAllowed; // true after ARRAY keyword
+
+restart:for ( ;; )
+		{
+			notationStart = -1;
+			dims = 0;
+			atMostOneDimAllowed = false;
+
+			m.usePattern(s_arrayDimStart);
+			if ( ! m.find() )
+				break restart; // notationStart is -1 indicating not found
+
+			notationStart = m.start();
+			if ( ! "[".equals(m.group()) ) // saw ARRAY
+			{
+				atMostOneDimAllowed = true;
+				m.region(m.end(), m.regionEnd());
+				separator(m, false);
+				if ( ! s.startsWith("[", m.regionStart()) )
+				{
+					if ( m.regionStart() == m.regionEnd() )
+					{
+						dims = 1; // ARRAY separator $ --ok (means 1 dim)
+						break restart;
+					}
+					/*
+					 * ARRAY separator something-other-than-[
+					 * This is not the match we're looking for. The regionStart
+					 * already points here, so restart the loop to look for
+					 * another potential array notation start beyond this point.
+					 */
+					continue restart;
+				}
+				m.region(m.regionStart() + 1, m.regionEnd());
+			}
+
+			/*
+			 * Invariant: have seen [ and regionStart still points to it.
+			 * Accept optional digits, then ]
+			 * Repeat if followed by a [
+			 */
+			for ( ;; )
+			{
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+
+				if ( m.usePattern(s_digits).lookingAt() )
+				{
+					m.region(m.end(), m.regionEnd());
+					separator(m, false);
+				}
+
+				if ( ! s.startsWith("]", m.regionStart()) )
+					continue restart;
+
+				++ dims; // have seen a complete [ (\d+)? ]
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+				if ( s.startsWith("[", m.regionStart()) )
+					continue;
+				if ( m.regionStart() == m.regionEnd() )
+					if ( ! atMostOneDimAllowed  ||  1 == dims )
+						break restart;
+				continue restart; // not at end, not at [ --start over
+			}
+		}
+
+		if ( -1 == notationStart )
+		{
+			m.region(originalRegionStart, m.regionEnd());
+			return null;
+		}
+
+		m.region(originalRegionStart, notationStart);
+		return s.substring(notationStart);
 	}
 
 	static class Reserved extends DBType
@@ -3213,6 +3515,37 @@ abstract class DBType
 		}
 	}
 
+	static class Modified extends DBType
+	{
+		private final DBType m_raw;
+		private final String m_modifier;
+
+		Modified(DBType raw, String modifier)
+		{
+			m_raw = raw;
+			m_modifier = modifier;
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_raw.toString() + m_modifier;
+		}
+
+		@Override
+		DBType withModifier(String modifier)
+		{
+			throw new UnsupportedOperationException(
+				"withModifier on a Modified");
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_raw.dependTag();
+		}
+	}
+
 	static class Array extends DBType
 	{
 		private final DBType m_component;
@@ -3221,7 +3554,9 @@ abstract class DBType
 
 		Array(DBType component, String notated)
 		{
-			assert component instanceof Named || component instanceof Reserved;
+			assert component instanceof Named
+				|| component instanceof Reserved
+				|| component instanceof Modified;
 			int dims = 0;
 			for ( int pos = 0; -1 != (pos = notated.indexOf('[', pos)); ++ pos )
 				++ dims;
@@ -3256,29 +3591,37 @@ abstract class DBType
 		}
 	}
 
-	static class Suffixed extends DBType
+	static class Defaulting extends DBType
 	{
 		private final DBType m_raw;
 		private final String m_suffix;
 
-		Suffixed(DBType raw, String suffix)
+		Defaulting(DBType raw, String suffix)
 		{
-			assert ! (raw instanceof Suffixed);
+			assert ! (raw instanceof Defaulting);
 			m_raw = requireNonNull(raw);
 			m_suffix = suffix;
 		}
 
 		@Override
-		Array asArray(String notated)
+		Modified withModifier(String notated)
 		{
-			throw new UnsupportedOperationException("asArray on a Suffixed");
+			throw new UnsupportedOperationException(
+				"withModifier on a Defaulting");
 		}
 
 		@Override
-		Array withSuffix(String suffix)
+		Array asArray(String notated)
+		{
+			throw new UnsupportedOperationException("asArray on a Defaulting");
+		}
+
+		@Override
+		Array withDefault(String suffix)
 		{
 			/* Implementable in principle, but may never be needed */
-			throw new UnsupportedOperationException("withSuffix on a Suffixed");
+			throw new UnsupportedOperationException(
+				"withDefault on a Defaulting");
 		}
 
 		@Override
@@ -3288,9 +3631,9 @@ abstract class DBType
 		}
 
 		@Override
-		String toString(boolean withSuffix)
+		String toString(boolean withDefault)
 		{
-			return withSuffix ? m_raw.toString() + " " + m_suffix : toString();
+			return withDefault ? toString() : m_raw.toString();
 		}
 
 		@Override
