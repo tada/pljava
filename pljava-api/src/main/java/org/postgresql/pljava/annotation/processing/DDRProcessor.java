@@ -120,6 +120,7 @@ import static org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
 import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
 import static org.postgresql.pljava.sqlgen.Lexicals.separator;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple.pgFold;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
@@ -560,7 +561,7 @@ class DDRProcessorImpl
 					p.fwd.precede( v.fwd);
 					v.rev.precede( p.rev); // these relationships do reverse
 				}
-				else
+				else if ( s instanceof DependTag.Explicit )
 				{
 					msg( Kind.ERROR,
 						"tag \"%s\" is required but nowhere provided", s);
@@ -1690,6 +1691,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			 */
 			resolveParameterAndReturnTypes();
 
+			recordImplicitTags();
+
 			recordExplicitTags(_provides, _requires);
 
 			for ( Trigger t : triggers() )
@@ -1780,6 +1783,36 @@ hunt:	for ( ExecutableElement ee : ees )
 			parameterTypes = parameterInfo()
 				.map(i -> tmpr.getSQLType(i.tm, i.ve, i.st, true, true))
 				.toArray(DBType[]::new);
+		}
+
+		/**
+		 * Record that this function provides itself, and requires its
+		 * parameter and return types.
+		 *<p>
+		 * Must be called before {@code recordExplicitTags}, which makes the
+		 * provides and requires sets immutable.
+		 */
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			Identifier.Simple name = Identifier.Simple.fromJava(_name);
+			Identifier.Simple qual = "".equals(_schema) ? null :
+				Identifier.Simple.fromJava(_schema);
+			provides.add(new DependTag.Function(
+				name.withQualifier(qual), parameterTypes));
+
+			DependTag t = returnType.dependTag();
+			if ( null != t )
+				requires.add(t);
+
+			for ( DBType dbt : parameterTypes )
+			{
+				t = dbt.dependTag();
+				if ( null != t )
+					requires.add(t);
+			}
 		}
 
 		/**
@@ -3200,9 +3233,52 @@ abstract class DBType
 
 	abstract DependTag dependTag();
 
+	/**
+	 * Return the original underlying (leaf) type, either a {@code Named} or
+	 * a {@code Reserved}.
+	 *<p>
+	 * Override in non-leaf classes (except {@code Array}).
+	 */
+	DBType leaf()
+	{
+		return this;
+	}
+
 	boolean isArray()
 	{
 		return false;
+	}
+
+	/**
+	 * True if the underlying (leaf) types compare equal (overridden for
+	 * {@code Array}).
+	 *<p>
+	 * The assumption is that equality checking will be done for function
+	 * signature equivalence, for which defaults and typmods don't matter
+	 * (but arrayness does).
+	 */
+	@Override
+	public final boolean equals(Object o)
+	{
+		if ( this == o )
+			return true;
+		if ( ! (o instanceof DBType) )
+			return false;
+		DBType dt1 = this.leaf();
+		DBType dt2 = ((DBType)o).leaf();
+		if ( dt1.getClass() != dt2.getClass() )
+			return false;
+		if ( dt1 instanceof Array )
+		{
+			dt1 = ((Array)dt1).m_component.leaf();
+			dt2 = ((Array)dt2).m_component.leaf();
+			if ( dt1.getClass() != dt2.getClass() )
+				return false;
+		}
+		if ( dt1 instanceof Named )
+			return ((Named)dt1).m_ident.equals(((Named)dt2).m_ident);
+		return pgFold(((Reserved)dt1).m_reservedName)
+			.equals(pgFold(((Reserved)dt2).m_reservedName));
 	}
 
 	/**
@@ -3482,7 +3558,7 @@ restart:for ( ;; )
 		return s.substring(notationStart);
 	}
 
-	static class Reserved extends DBType
+	static final class Reserved extends DBType
 	{
 		private final String m_reservedName;
 
@@ -3502,9 +3578,15 @@ restart:for ( ;; )
 		{
 			return null;
 		}
+
+		@Override
+		public int hashCode()
+		{
+			return pgFold(m_reservedName).hashCode();
+		}
 	}
 
-	static class Named extends DBType
+	static final class Named extends DBType
 	{
 		private final Identifier.Qualified m_ident;
 
@@ -3524,9 +3606,15 @@ restart:for ( ;; )
 		{
 			return new DependTag.Type(m_ident);
 		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_ident.hashCode();
+		}
 	}
 
-	static class Modified extends DBType
+	static final class Modified extends DBType
 	{
 		private final DBType m_raw;
 		private final String m_modifier;
@@ -3555,9 +3643,21 @@ restart:for ( ;; )
 		{
 			return m_raw.dependTag();
 		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_raw.hashCode();
+		}
+
+		@Override
+		DBType leaf()
+		{
+			return m_raw.leaf();
+		}
 	}
 
-	static class Array extends DBType
+	static final class Array extends DBType
 	{
 		private final DBType m_component;
 		private final int m_dims;
@@ -3600,9 +3700,15 @@ restart:for ( ;; )
 		{
 			return true;
 		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_component.hashCode();
+		}
 	}
 
-	static class Defaulting extends DBType
+	static final class Defaulting extends DBType
 	{
 		private final DBType m_raw;
 		private final String m_suffix;
@@ -3658,6 +3764,18 @@ restart:for ( ;; )
 		{
 			return m_raw.isArray();
 		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_raw.hashCode();
+		}
+
+		@Override
+		DBType leaf()
+		{
+			return m_raw.leaf();
+		}
 	}
 }
 
@@ -3684,6 +3802,8 @@ abstract class DependTag<T>
 	@Override
 	public boolean equals(Object o)
 	{
+		if ( this == o )
+			return true;
 		if ( null == o )
 			return false;
 		return
@@ -3715,9 +3835,19 @@ abstract class DependTag<T>
 
 	static final class Function extends DependTag<Identifier.Qualified>
 	{
-		Function(Identifier.Qualified value)
+		private DBType[] m_signature;
+
+		Function(Identifier.Qualified value, DBType[] signature)
 		{
 			super(requireNonNull(value));
+			m_signature = signature.clone();
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return super.equals(o)
+				&& Arrays.equals(m_signature, ((Function)o).m_signature);
 		}
 	}
 }

@@ -725,6 +725,28 @@ public abstract class Lexicals
 				return m_nonFolded.equals(oi.nonFolded());
 			}
 
+			/**
+			 * Case-fold a string by the PostgreSQL rules (assuming a
+			 * multibyte server encoding, where only the 26 uppercase ASCII
+			 * letters fold to lowercase).
+			 * @param s The non-folded value.
+			 * @return The folded value.
+			 */
+			public static String pgFold(String s)
+			{
+				Matcher m = s_pgFolded.matcher(s);
+				StringBuffer sb = new StringBuffer();
+				while ( m.find() )
+					m.appendReplacement(sb, m.group().toLowerCase());
+				return m.appendTail(sb).toString();
+			}
+
+			/**
+			 * The characters that PostgreSQL rules will fold: only the 26
+			 * uppercase ASCII letters.
+			 */
+			private static final Pattern s_pgFolded = Pattern.compile("[A-Z]");
+
 			private Simple(String nonFolded)
 			{
 				String diag = checkLength(nonFolded);
@@ -905,28 +927,6 @@ public abstract class Lexicals
 						m_nonFolded, oi.nonFolded()));
 				}
 				return eqPG || eqISO;
-			}
-
-			/**
-			 * The characters that PostgreSQL rules will fold: only the 26
-			 * uppercase ASCII letters.
-			 */
-			private static final Pattern s_pgFolded = Pattern.compile("[A-Z]");
-
-			/**
-			 * Case-fold a string by the PostgreSQL rules (assuming a
-			 * multibyte server encoding, where only the 26 uppercase ASCII
-			 * letters fold to lowercase).
-			 * @param s The non-folded value.
-			 * @return The folded value.
-			 */
-			private static String pgFold(String s)
-			{
-				Matcher m = s_pgFolded.matcher(s);
-				StringBuffer sb = new StringBuffer();
-				while ( m.find() )
-					m.appendReplacement(sb, m.group().toLowerCase());
-				return m.appendTail(sb).toString();
 			}
 		}
 
