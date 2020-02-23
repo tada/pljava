@@ -94,6 +94,17 @@ public abstract class Lexicals
 	/** The escape-specifier part of a Unicode delimited identifier or string.
 	 * The escape character itself is in the capturing group named {@code uec}.
 	 * The group can be absent, in which case \ should be used as the uec.
+	 *<p>
+	 * What makes this implementable as a regular expression is that what
+	 * precedes/follows {@code UESCAPE} is restricted to simple white space,
+	 * not the more general {@code separator} (which can include nesting
+	 * comments and therefore isn't a regular language). PostgreSQL enforces
+	 * the same restriction, and a bit of language lawyering does confirm
+	 * it's what ISO entails. ISO says "any {@code <token>} may be followed by
+	 * a {@code <separator>}", and enumerates the expansions of {@code <token>}.
+	 * While an entire {@code <Unicode character string literal>} or
+	 * {@code <Unicode delimited identifier>} is a {@code <token>}, the
+	 * constituent pieces of one, like {@code UESCAPE} here, are not.
 	 */
 	public static final Pattern ISO_UNICODE_ESCAPE_SPECIFIER =
 	Pattern.compile(

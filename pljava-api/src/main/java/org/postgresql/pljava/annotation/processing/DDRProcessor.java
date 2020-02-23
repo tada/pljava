@@ -112,9 +112,7 @@ import org.postgresql.pljava.annotation.MappedUDT;
 
 import org.postgresql.pljava.sqlgen.Lexicals;
 import static org.postgresql.pljava.sqlgen.Lexicals
-	.ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING;
-import static org.postgresql.pljava.sqlgen.Lexicals
-	.ISO_DELIMITED_IDENTIFIER_CAPTURING;
+	.ISO_AND_PG_IDENTIFIER_CAPTURING;
 import static org.postgresql.pljava.sqlgen.Lexicals.ISO_REGULAR_IDENTIFIER_PART;
 import static org.postgresql.pljava.sqlgen.Lexicals.PG_REGULAR_IDENTIFIER_PART;
 import static org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
@@ -3171,31 +3169,24 @@ abstract class DBType
 		return false;
 	}
 
-	static final Pattern s_regularOrDelimited = compile(String.format(
-		"%1$s|%2$s",
-		ISO_AND_PG_REGULAR_IDENTIFIER_CAPTURING.pattern(),
-		ISO_DELIMITED_IDENTIFIER_CAPTURING.pattern()
-	));
-
+	/**
+	 * Pattern to match type names that are special in SQL, if they appear as
+	 * regular (unquoted) identifiers and without a schema qualification.
+	 *<p>
+	 * This list does not include {@code DOUBLE} or {@code NATIONAL}, as the
+	 * reserved SQL form for each includes a following keyword
+	 * ({@code PRECISION} or {@code CHARACTER}/{@code CHAR}, respectively).
+	 * There is a catch-all test in {@code fromSQLTypeAnnotation} that will fall
+	 * back to 'reserved' treatment if the name is followed by anything that
+	 * isn't a parenthesized type modifier, so the fallback will naturally catch
+	 * these two cases.
+	 */
 	static final Pattern s_reservedTypeFirstWords = compile(
 		"(?i:" +
 		"INT|INTEGER|SMALLINT|BIGINT|REAL|FLOAT|DECIMAL|DEC|NUMERIC|" +
-		"BOOLEAN|BIT|CHARACTER|CHAR|VARCHAR|TIMESTAMP|TIME|INTERVAL|" +
-		"(DOUBLE|NATIONAL)" + // these may be reserved depending on next token
+		"BOOLEAN|BIT|CHARACTER|CHAR|VARCHAR|TIMESTAMP|TIME|INTERVAL" +
 		")"
 	);
-
-	static final Pattern s_doubleNextToken = compile(String.format(
-		"(?i:PRECISION)(?!%1$s|%2$s)",
-		ISO_REGULAR_IDENTIFIER_PART.pattern(),
-		PG_REGULAR_IDENTIFIER_PART.pattern()
-	));
-
-	static final Pattern s_nationalNextToken = compile(String.format(
-		"(?i:CHARACTER|CHAR)(?!%1$s|%2$s)",
-		ISO_REGULAR_IDENTIFIER_PART.pattern(),
-		PG_REGULAR_IDENTIFIER_PART.pattern()
-	));
 
 	/**
 	 * Make a {@code DBType} from whatever might appear in an {@code SQLType}
@@ -3236,7 +3227,7 @@ abstract class DBType
 		Matcher m = SEPARATOR.matcher(value);
 		separator(m, false);
 
-		if ( m.usePattern(s_regularOrDelimited).lookingAt() )
+		if ( m.usePattern(ISO_AND_PG_IDENTIFIER_CAPTURING).lookingAt() )
 		{
 			Identifier.Simple id1 = identifierFrom(m);
 			m.region(m.end(), m.regionEnd());
@@ -3246,7 +3237,7 @@ abstract class DBType
 			{
 				m.region(m.regionStart() + 1, m.regionEnd());
 				separator(m, false);
-				if ( m.usePattern(s_regularOrDelimited).lookingAt() )
+				if ( m.usePattern(ISO_AND_PG_IDENTIFIER_CAPTURING).lookingAt() )
 				{
 					Identifier.Simple id2 = identifierFrom(m);
 					qname = id2.withQualifier(id1);
@@ -3295,26 +3286,8 @@ abstract class DBType
 			else
 			{
 				Matcher m1 =
-					s_reservedTypeFirstWords.matcher(local.pgFolded());
-				if ( ! m1.matches() )
-					reserved = false;
-				else if ( -1 == m.start(1) ) // no need to check next token
-					reserved = true;
-				else
-				{
-					switch ( local.pgFolded() )
-					{
-					case "double":
-						m.usePattern(s_doubleNextToken);
-						break;
-					case "national":
-						m.usePattern(s_nationalNextToken);
-						break;
-					default:
-						throw new AssertionError("checking for reserved type");
-					}
-					reserved = m.lookingAt();
-				}
+					s_reservedTypeFirstWords.matcher(local.nonFolded());
+				reserved = m1.matches();
 			}
 		}
 
@@ -3340,7 +3313,9 @@ abstract class DBType
 		 *
 		 * On the other hand, if what's left doesn't start with a ( then we
 		 * somehow don't know what we're looking at, so fall back and treat it
-		 * as reserved.
+		 * as reserved. This will naturally catch the two-token reserved names
+		 * DOUBLE PRECISION, NATIONAL CHARACTER or NATIONAL CHAR, which were
+		 * therefore left out of the s_reservedTypeFirstWords pattern.
 		 */
 
 		if ( ! reserved  &&  m.regionStart() < m.regionEnd() )
