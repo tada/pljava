@@ -61,6 +61,7 @@ import java.util.Set;
 
 import java.util.function.Supplier;
 
+import java.util.stream.Stream;
 import static java.util.stream.Collectors.joining;
 
 import java.util.regex.Matcher;
@@ -1561,6 +1562,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		TypeMirror returnTypeMapKey = null;
 		SQLType[] paramTypeAnnotations;
 
+		DBType returnType;
+		DBType[] parameterTypes;
+
 		FunctionImpl(ExecutableElement e)
 		{
 			func = e;
@@ -1595,8 +1599,6 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
-			recordExplicitTags(_provides, _requires);
-
 			if ( "".equals( _name) )
 				_name = func.getSimpleName().toString();
 
@@ -1685,11 +1687,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			 * deployStrings (return type or parameter types) ... so that the
 			 * error messages won't be missing the source location, as they can
 			 * with javac 7 throwing away symbol tables between rounds.
-			 * Because the logic in deployStrings determining what to call
-			 * getSQLType on is a bit fiddly, the simplest way to make all those
-			 * calls here is just ... call deployStrings.
 			 */
-			deployStrings();
+			resolveParameterAndReturnTypes();
+
+			recordExplicitTags(_provides, _requires);
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
@@ -1725,6 +1726,63 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		/**
+		 * Return a stream of {@code ParameterInfo} 'records' for the function's
+		 * parameters in order.
+		 *<p>
+		 * If {@code paramTypeAnnotations} has not been set, every element in
+		 * the stream will have null for {@code st}.
+		 *<p>
+		 * If {@code parameterTypes} has not been set, every element in
+		 * the stream will have null for {@code dt}.
+		 */
+		Stream<ParameterInfo> parameterInfo()
+		{
+			if ( trigger )
+				return Stream.empty();
+
+			ExecutableType et = (ExecutableType)func.asType();
+			List<? extends TypeMirror> tms = et.getParameterTypes();
+			if ( complexViaInOut )
+				tms = tms.subList( 0, tms.size() - 1);
+
+			Iterator<? extends VariableElement> ves =
+				func.getParameters().iterator();
+
+			Supplier<SQLType> sts =
+				null == paramTypeAnnotations
+				? () -> null
+				: Arrays.asList(paramTypeAnnotations).iterator()::next;
+
+			Supplier<DBType> dts =
+				null == parameterTypes
+				? () -> null
+				: Arrays.asList(parameterTypes).iterator()::next;
+
+			return tms.stream().map(tm ->
+				new ParameterInfo(tm, ves.next(), sts.get(), dts.get()));
+		}
+
+		/**
+		 * Create the {@code DBType}s to populate {@code returnType} and
+		 * {@code parameterTypes}.
+		 */
+		void resolveParameterAndReturnTypes()
+		{
+			if ( ! "".equals( type()) )
+				returnType = DBType.fromSQLTypeAnnotation( type());
+			else if ( null != setofComponent )
+				returnType = tmpr.getSQLType( setofComponent, func);
+			else if ( setof )
+				returnType = DT_RECORD;
+			else
+				returnType = tmpr.getSQLType( returnTypeMapKey, func);
+
+			parameterTypes = parameterInfo()
+				.map(i -> tmpr.getSQLType(i.tm, i.ve, i.st, true, true))
+				.toArray(DBType[]::new);
+		}
+
+		/**
 		 * Append SQL syntax for the function's name (schema-qualified if
 		 * appropriate) and parameters, either with any defaults indicated
 		 * (for use in CREATE FUNCTION) or without (for use in DROP FUNCTION).
@@ -1743,36 +1801,17 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendParams( StringBuilder sb, boolean dflts)
 		{
-			if ( ! trigger )
-			{
-				ExecutableType et = (ExecutableType)func.asType();
-				List<? extends TypeMirror> tms = et.getParameterTypes();
-				Iterator<? extends VariableElement> ves =
-					func.getParameters().iterator();
-				if ( complexViaInOut )
-					tms = tms.subList( 0, tms.size() - 1);
-				int s = tms.size();
-				int i = 0;
-				for ( TypeMirror tm : tms )
-				{
-					VariableElement ve = ves.next();
-					/*
-					 * paramTypeAnnotations can be null if
-					 * collectParameterTypeAnnotations hasn't been called.
-					 * That's the case in BaseUDTFunctionImpl, but it also
-					 * overrides this method, so it isn't a problem.
-					 */
-					SQLType st = paramTypeAnnotations[i];
-					String name = null == st ? null : st.name();
-					if ( null == name )
-						name = ve.getSimpleName().toString();
-					sb.append( "\n\t").append( name);
-					sb.append( ' ');
-					sb.append( tmpr.getSQLType( tm, ve, st, true, dflts));
-					if ( ++ i < s )
-						sb.append( ',');
-				}
-			}
+			sb.append(parameterInfo()
+				.map(
+					i ->
+					{
+						String name = null == i.st ? null : i.st.name();
+						if ( null == name )
+							name = i.ve.getSimpleName().toString();
+						return "\n\t" + name + " " + i.dt.toString(dflts);
+					})
+				.collect(joining(","))
+			);
 		}
 
 		void appendAS( StringBuilder sb)
@@ -1801,14 +1840,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				if ( setof )
 					sb.append( "SETOF ");
-				if ( ! "".equals( type()) )
-					sb.append( type());
-				else if ( null != setofComponent )
-					sb.append( tmpr.getSQLType( setofComponent, func));
-				else if ( setof )
-					sb.append( DT_RECORD.toString());
-				else
-					sb.append( tmpr.getSQLType( returnTypeMapKey, func));
+				sb.append( returnType);
 			}
 			sb.append( "\n\tLANGUAGE ");
 			if ( Trust.SANDBOXED.equals( trust()) )
@@ -1920,21 +1952,22 @@ hunt:	for ( ExecutableElement ee : ees )
 				 */
 				compile(", ").splitAsStream(param)
 				.map(Identifier.Qualified::nameFromJava)
-				.toArray(Identifier.Qualified[]::new);
+				.map(DBType.Named::new)
+				.toArray(DBType[]::new);
 			this.ret = null == ret ? null :
-				Identifier.Qualified.nameFromJava(ret);
+				new DBType.Named(Identifier.Qualified.nameFromJava(ret));
 		}
 		private String suffix;
-		private Identifier.Qualified[] param;
-		private Identifier.Qualified ret;
+		private DBType[] param;
+		private DBType ret;
 		String getSuffix() { return suffix; }
-		Identifier.Qualified[] getParam( BaseUDTImpl u)
+		DBType[] getParam( BaseUDTImpl u)
 		{
 			if ( null != param )
 				return param;
-			return new Identifier.Qualified[] { u.qname };
+			return new DBType[] { u.qname };
 		}
-		Identifier.Qualified getRet( BaseUDTImpl u)
+		DBType getRet( BaseUDTImpl u)
 		{
 			if ( null != ret )
 				return ret;
@@ -1952,7 +1985,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.te = te;
 			this.id = id;
 
-			_type = id.getRet( ui).toString();
+			returnType = id.getRet( ui);
+			parameterTypes = id.getParam( ui);
+
+			_type = returnType.toString();
 			_name = ui.name() + '_' + id.getSuffix();
 			_schema = ui.schema();
 			_cost = -1;
@@ -2076,7 +2112,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		TypeElement tclass;
 
-		Identifier.Qualified qname;
+		DBType qname;
 
 		AbstractUDTImpl(TypeElement e)
 		{
@@ -2109,10 +2145,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			Identifier.Simple qualifier = "".equals( _schema) ? null :
 				Identifier.Simple.fromJava(_schema, msgr);
 
-			qname = localName.withQualifier(qualifier);
+			qname = new DBType.Named(localName.withQualifier(qualifier));
 
 			if ( ! tmpr.mappingsFrozen() )
-				tmpr.addMap( tclass.asType(), new DBType.Named(qname));
+				tmpr.addMap( tclass.asType(), qname);
 		}
 
 		protected void addComment( ArrayList<String> al)
@@ -3683,5 +3719,25 @@ abstract class DependTag<T>
 		{
 			super(requireNonNull(value));
 		}
+	}
+}
+
+/**
+ * Tiny 'record' used in factoring duplicative operations on function parameter
+ * lists into operations on streams of these.
+ */
+class ParameterInfo
+{
+	final TypeMirror tm;
+	final VariableElement ve;
+	final SQLType st;
+	final DBType dt;
+
+	ParameterInfo(TypeMirror m, VariableElement e, SQLType t, DBType d)
+	{
+		tm = m;
+		ve = e;
+		st = t;
+		dt = d;
 	}
 }
