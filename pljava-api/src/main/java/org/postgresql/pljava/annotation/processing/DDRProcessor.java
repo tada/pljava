@@ -519,12 +519,12 @@ class DDRProcessorImpl
 			DependTag imp = v.payload().implementorTag();
 			if ( null != imp )
 			{
-				fwdConsumers.add( imp);
-				revConsumers.add( imp);
-
 				p = provider.get( imp);
 				if ( null != p )
 				{
+					fwdConsumers.add( imp);
+					revConsumers.add( imp);
+
 					p.fwd.precede( v.fwd);
 					p.rev.precede( v.rev);
 
@@ -548,16 +548,17 @@ class DDRProcessorImpl
 					 * code (see below) sets it free after any others that
 					 * can be handled first.
 					 */
-					 ++ v.fwd.indegree;
-					 ++ v.rev.indegree;
+					++ v.fwd.indegree;
+					++ v.rev.indegree;
 				}
 			}
 			for ( DependTag s : v.payload().requireTags() )
 			{
-				fwdConsumers.add( s);
 				p = provider.get( s);
 				if ( null != p )
 				{
+					fwdConsumers.add( s);
+					revConsumers.add( s);
 					p.fwd.precede( v.fwd);
 					v.rev.precede( p.rev); // these relationships do reverse
 				}
@@ -568,8 +569,6 @@ class DDRProcessorImpl
 					errorRaised = true;
 				}
 			}
-			for ( DependTag s : v.payload().requireTags() )
-				revConsumers.add( s);
 		}
 
 		if ( errorRaised )
@@ -660,7 +659,10 @@ queuerunning:
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
-				if ( 1 < v.indegree  ||  null == v.payload.implementorTag() )
+				if ( 1 < v.indegree )
+					continue;
+				Identifier.Simple impName = v.payload.implementorName();
+				if ( null == impName  ||  defaultImplementor.equals( impName) )
 					continue;
 				if ( provider.containsKey( v.payload.implementorTag()) )
 					continue;
@@ -977,6 +979,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( explicit )
 				_implementor = "".equals( o) ? null :
 					Identifier.Simple.fromJava((String)o);
+		}
+
+		@Override
+		public String toString()
+		{
+			return String.format(
+				"(%s)%s", getClass().getSimpleName(), _comment);
 		}
 
 		public String comment() { return _comment; }
@@ -2220,6 +2229,12 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			if ( null != structure() )
+			{
+				DependTag t = qname.dependTag();
+				if ( null != t )
+					provideTags().add(t);
+			}
 			recordExplicitTags(_provides, _requires);
 			return true;
 		}
