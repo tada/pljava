@@ -51,14 +51,14 @@ import java.security.PrivilegedExceptionAction;
  */
 public interface Privilege
 {
-	public static <T, E extends Exception>T doPrivileged(
+	public static <T, E extends Exception> T doPrivileged(
 		Checked.Supplier<T,E> op)
 	throws E
 	{
 		try
 		{
 			return (T)AccessController.doPrivileged(
-				(PrivilegedExceptionAction)op::get);
+				(PrivilegedExceptionAction<T>)op::get);
 		}
 		catch ( PrivilegedActionException pae )
 		{
@@ -73,7 +73,7 @@ public interface Privilege
 		try
 		{
 			return (T)AccessController.doPrivileged(
-				(PrivilegedExceptionAction)op::get, acc);
+				(PrivilegedExceptionAction<T>)op::get, acc);
 		}
 		catch ( PrivilegedActionException pae )
 		{
@@ -88,7 +88,7 @@ public interface Privilege
 		try
 		{
 			return (T)AccessController.doPrivileged(
-				(PrivilegedExceptionAction)op::get, acc, perms);
+				(PrivilegedExceptionAction<T>)op::get, acc, perms);
 		}
 		catch ( PrivilegedActionException pae )
 		{
@@ -103,7 +103,7 @@ public interface Privilege
 		try
 		{
 			return (T)AccessController.doPrivilegedWithCombiner(
-				(PrivilegedExceptionAction)op::get);
+				(PrivilegedExceptionAction<T>)op::get);
 		}
 		catch ( PrivilegedActionException pae )
 		{
@@ -118,7 +118,7 @@ public interface Privilege
 		try
 		{
 			return (T)AccessController.doPrivilegedWithCombiner(
-				(PrivilegedExceptionAction)op::get, acc, perms);
+				(PrivilegedExceptionAction<T>)op::get, acc, perms);
 		}
 		catch ( PrivilegedActionException pae )
 		{
@@ -132,7 +132,7 @@ public interface Privilege
 	{
 		try
 		{
-			AccessController.doPrivileged((PrivilegedExceptionAction)() ->
+			AccessController.doPrivileged((PrivilegedExceptionAction<Void>)() ->
 			{
 				op.run();
 				return null;
@@ -150,7 +150,7 @@ public interface Privilege
 	{
 		try
 		{
-			AccessController.doPrivileged((PrivilegedExceptionAction)() ->
+			AccessController.doPrivileged((PrivilegedExceptionAction<Void>)() ->
 			{
 				op.run();
 				return null;
@@ -168,7 +168,7 @@ public interface Privilege
 	{
 		try
 		{
-			AccessController.doPrivileged((PrivilegedExceptionAction)() ->
+			AccessController.doPrivileged((PrivilegedExceptionAction<Void>)() ->
 			{
 				op.run();
 				return null;
@@ -187,7 +187,7 @@ public interface Privilege
 		try
 		{
 			AccessController
-			.doPrivilegedWithCombiner((PrivilegedExceptionAction)() ->
+			.doPrivilegedWithCombiner((PrivilegedExceptionAction<Void>)() ->
 			{
 				op.run();
 				return null;
@@ -206,7 +206,7 @@ public interface Privilege
 		try
 		{
 			AccessController
-			.doPrivilegedWithCombiner((PrivilegedExceptionAction)() ->
+			.doPrivilegedWithCombiner((PrivilegedExceptionAction<Void>)() ->
 			{
 				op.run();
 				return null;

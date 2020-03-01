@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -89,7 +89,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		if(x == null)
 			m_values[columnIndex-1] = x;
 
-		Class c = m_tupleDesc.getColumnClass(columnIndex);
+		Class<?> c = m_tupleDesc.getColumnClass(columnIndex);
 		TypeBridge<?>.Holder xAlt = TypeBridge.wrap(x);
 		if(null == xAlt  &&  !c.isInstance(x)
 		&& !(c == byte[].class && (x instanceof BlobValue)))

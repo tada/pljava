@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -28,7 +28,7 @@ import org.postgresql.pljava.internal.TupleDesc;
  */
 public class TriggerResultSet extends SingleRowResultSet
 {
-	private ArrayList m_tupleChanges;
+	private ArrayList<Object> m_tupleChanges;
 	private final TupleDesc m_tupleDesc;
 	private final Tuple     m_tuple;
 	private final boolean   m_readOnly;
@@ -92,7 +92,7 @@ public class TriggerResultSet extends SingleRowResultSet
 			throw new UnsupportedFeatureException("ResultSet is read-only");
 
 		if(m_tupleChanges == null)
-			m_tupleChanges = new ArrayList();
+			m_tupleChanges = new ArrayList<>();
 
 		m_tupleChanges.add(columnIndex);
 		m_tupleChanges.add(x);
@@ -111,7 +111,7 @@ public class TriggerResultSet extends SingleRowResultSet
 	 */
 	public Object[] getChangeIndexesAndValues()
 	{
-		ArrayList changes = m_tupleChanges;
+		ArrayList<Object> changes = m_tupleChanges;
 		if(changes == null)
 			return null;
 

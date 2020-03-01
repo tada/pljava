@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -8,6 +8,7 @@
  *
  * Contributors:
  *   Tada AB
+ *   Chapman Flack
  */
 package org.postgresql.pljava.example;
 
@@ -34,18 +35,19 @@ public class UsingProperties implements ResultSetProvider, PooledObject {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
 	public static ResultSetProvider getProperties() throws SQLException {
-		ObjectPool pool = SessionManager.current().getObjectPool(
-				UsingProperties.class);
+		ObjectPool<UsingProperties> pool =
+			SessionManager.current().getObjectPool(UsingProperties.class);
 		return (ResultSetProvider) pool.activateInstance();
 	}
 
 	private final Properties m_properties;
 
-	private final ObjectPool m_pool;
+	private final ObjectPool<UsingProperties> m_pool;
 
 	private Enumeration<?> m_propertyIterator;
 
-	public UsingProperties(ObjectPool pool) throws IOException {
+	public UsingProperties(ObjectPool<UsingProperties> pool) throws IOException
+	{
 		m_pool = pool;
 		m_properties = new Properties();
 

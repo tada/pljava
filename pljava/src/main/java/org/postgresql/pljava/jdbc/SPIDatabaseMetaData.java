@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2005-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1469,7 +1469,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String columnNamePattern) throws SQLException
 	{
 		ResultSetField f[] = new ResultSetField[13];
-		ArrayList v = new ArrayList(); // The new ResultSet tuple stuff
+		ArrayList<Object[]> v = new ArrayList<>(); // New ResultSet tuple stuff
 
 		f[0] = new ResultSetField("PROCEDURE_CAT", TypeOid.VARCHAR,
 			getMaxNameLength());
@@ -1534,14 +1534,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				tuple[1] = schema;
 				tuple[2] = procedureName;
 				tuple[3] = "returnValue";
-				tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnReturn);
-				tuple[5] = new Short((short)m_connection.getSQLType(returnType));
+				tuple[4] = (short)
+					java.sql.DatabaseMetaData.procedureColumnReturn;
+				tuple[5] = (short)m_connection.getSQLType(returnType);
 				tuple[6] = m_connection.getPGType(returnType);
 				tuple[7] = null;
 				tuple[8] = null;
 				tuple[9] = null;
 				tuple[10] = null;
-				tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
+				tuple[11] = (short)
+					java.sql.DatabaseMetaData.procedureNullableUnknown;
 				tuple[12] = null;
 				v.add(tuple);
 			}
@@ -1555,14 +1557,15 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				tuple[1] = schema;
 				tuple[2] = procedureName;
 				tuple[3] = "$" + (i + 1);
-				tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnIn);
-				tuple[5] = new Short((short)m_connection.getSQLType(argOid));
+				tuple[4] = (short)java.sql.DatabaseMetaData.procedureColumnIn;
+				tuple[5] = (short)m_connection.getSQLType(argOid);
 				tuple[6] = m_connection.getPGType(argOid);
 				tuple[7] = null;
 				tuple[8] = null;
 				tuple[9] = null;
 				tuple[10] = null;
-				tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
+				tuple[11] = (short)
+					java.sql.DatabaseMetaData.procedureNullableUnknown;
 				tuple[12] = null;
 				v.add(tuple);
 			}
@@ -1583,14 +1586,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 					tuple[1] = schema;
 					tuple[2] = procedureName;
 					tuple[3] = columnrs.getString("attname");
-					tuple[4] = new Short((short)java.sql.DatabaseMetaData.procedureColumnResult);
-					tuple[5] = new Short((short)m_connection.getSQLType(columnTypeOid));
+					tuple[4] = (short)
+						java.sql.DatabaseMetaData.procedureColumnResult;
+					tuple[5] = (short)m_connection.getSQLType(columnTypeOid);
 					tuple[6] = m_connection.getPGType(columnTypeOid);
 					tuple[7] = null;
 					tuple[8] = null;
 					tuple[9] = null;
 					tuple[10] = null;
-					tuple[11] = new Short((short)java.sql.DatabaseMetaData.procedureNullableUnknown);
+					tuple[11] = (short)
+						java.sql.DatabaseMetaData.procedureNullableUnknown;
 					tuple[12] = null;
 					v.add(tuple);
 				}
@@ -1796,7 +1801,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		sort(types);
 
 		ResultSetField f[] = new ResultSetField[1];
-		ArrayList v = new ArrayList();
+		ArrayList<Object[]> v = new ArrayList<>();
 		f[0] = new ResultSetField(new String("TABLE_TYPE"), TypeOid.VARCHAR,
 			getMaxNameLength());
 		for(int i = 0; i < types.length; i++)
@@ -1844,7 +1849,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	public java.sql.ResultSet getColumns(String catalog, String schemaPattern,
 		String tableNamePattern, String columnNamePattern) throws SQLException
 	{
-		ArrayList v = new ArrayList(); // The new ResultSet tuple stuff
+		ArrayList<Object[]> v = new ArrayList<>(); // New ResultSet tuple stuff
 		ResultSetField f[] = new ResultSetField[18]; // The field descriptors
 														// for the new ResultSet
 
@@ -1925,7 +1930,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			tuple[1] = rs.getString("nspname"); // Schema
 			tuple[2] = rs.getString("relname"); // Table name
 			tuple[3] = rs.getString("attname"); // Column name
-			tuple[4] = new Short((short)m_connection.getSQLType(typeOid));
+			tuple[4] = (short)m_connection.getSQLType(typeOid);
 			String pgType = m_connection.getPGType(typeOid);
 			tuple[5] = m_connection.getPGType(typeOid); // Type name
 
@@ -1950,45 +1955,44 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// by default no decimal_digits
 			// if the type is numeric or decimal we will
 			// overwrite later.
-			tuple[8] = new Integer(0);
+			tuple[8] = 0;
 
 			if(pgType.equals("bpchar") || pgType.equals("varchar"))
 			{
 				int atttypmod = rs.getInt("atttypmod");
-				tuple[6] = new Integer(atttypmod != -1
-										? atttypmod - VARHDRSZ
-										: 0);
+				tuple[6] = atttypmod != -1
+								? atttypmod - VARHDRSZ
+								: 0;
 			}
 			else if(pgType.equals("numeric") || pgType.equals("decimal"))
 			{
 				int attypmod = rs.getInt("atttypmod") - VARHDRSZ;
-				tuple[6] = new Integer ((attypmod >> 16) & 0xffff);
-				tuple[8] = new Integer (attypmod & 0xffff);
-				tuple[9] = new Integer(10);
+				tuple[6] = (attypmod >> 16) & 0xffff;
+				tuple[8] = attypmod & 0xffff;
+				tuple[9] = 10;
 			}
 			else if(pgType.equals("bit") || pgType.equals("varbit"))
 			{
 				tuple[6] = rs.getObject("atttypmod");
-				tuple[9] = new Integer(2);
+				tuple[9] = 2;
 			}
 			else
 			{
 				tuple[6] = rs.getObject("attlen");
-				tuple[9] = new Integer(10);
+				tuple[9] = 10;
 			}
 
 			tuple[7] = null; // Buffer length
 
-			tuple[10] = new Integer(rs
-							.getBoolean("attnotnull")
+			tuple[10] = rs.getBoolean("attnotnull") // Nullable
 							? java.sql.DatabaseMetaData.columnNoNulls
-							: java.sql.DatabaseMetaData.columnNullable); // Nullable
+							: java.sql.DatabaseMetaData.columnNullable;
 			tuple[11] = rs.getString("description"); // Description (if any)
 			tuple[12] = rs.getString("adsrc"); // Column default
 			tuple[13] = null; // sql data type (unused)
 			tuple[14] = null; // sql datetime sub (unused)
 			tuple[15] = tuple[6]; // char octet length
-			tuple[16] = new Integer(rs.getInt("attnum")); // ordinal position
+			tuple[16] = rs.getInt("attnum"); // ordinal position
 			tuple[17] = rs.getBoolean("attnotnull") ? "NO" : "YES"; // Is
 																	// nullable
 			v.add(tuple);
@@ -2021,7 +2025,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	throws SQLException
 	{
 		ResultSetField f[] = new ResultSetField[8];
-		ArrayList v = new ArrayList();
+		ArrayList<Object[]> v = new ArrayList<>();
 
 		if(table == null)
 			table = "%";
@@ -2072,7 +2076,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String column = null;
 		String owner = null;
 		String[] acls = null;
-		HashMap permissions = null;
+		HashMap<String,ArrayList<String>> permissions = null;
 		String permNames[] = null;
 
 		while(rs.next())
@@ -2083,7 +2087,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			owner = rs.getString("usename");
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
-			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
+			permNames =
+				permissions.keySet().toArray(new String[permissions.size()]);
 			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
@@ -2133,7 +2138,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String schemaPattern, String tableNamePattern) throws SQLException
 	{
 		ResultSetField f[] = new ResultSetField[7];
-		ArrayList v = new ArrayList();
+		ArrayList<Object[]> v = new ArrayList<>();
 
 		f[0] = new ResultSetField("TABLE_CAT", TypeOid.VARCHAR,
 			getMaxNameLength());
@@ -2170,7 +2175,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String table = null;
 		String owner = null;
 		String[] acls = null;
-		HashMap permissions = null;
+		HashMap<String,ArrayList<String>> permissions = null;
 		String permNames[] = null;
 
 		while(rs.next())
@@ -2180,11 +2185,12 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			owner = rs.getString("usename");
 			acls = (String[])rs.getObject("relacl");
 			permissions = parseACL(acls, owner);
-			permNames = (String[])permissions.keySet().toArray(new String[permissions.size()]);
+			permNames =
+				permissions.keySet().toArray(new String[permissions.size()]);
 			sort(permNames);
 			for(int i = 0; i < permNames.length; i++)
 			{
-				ArrayList grantees = (ArrayList)permissions.get(permNames[i]);
+				ArrayList<String> grantees = permissions.get(permNames[i]);
 				for(int j = 0; j < grantees.size(); j++)
 				{
 					String grantee = (String)grantees.get(j);
@@ -2210,7 +2216,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * Add the user described by the given acl to the ArrayLists of users with the
 	 * privileges described by the acl.
 	 */
-	private void addACLPrivileges(String acl, HashMap privileges)
+	private void addACLPrivileges(
+		String acl, HashMap<String,ArrayList<String>> privileges)
 	{
 		int equalIndex = acl.lastIndexOf("=");
 		String name = acl.substring(0, equalIndex);
@@ -2263,13 +2270,9 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 				default:
 					sqlpriv = "UNKNOWN";
 			}
-			ArrayList usersWithPermission = (ArrayList)privileges.get(sqlpriv);
-			if(usersWithPermission == null)
-			{
-				usersWithPermission = new ArrayList();
-				privileges.put(sqlpriv, usersWithPermission);
-			}
-			usersWithPermission.add(name);
+			privileges
+				.computeIfAbsent(sqlpriv, k -> new ArrayList<>())
+				.add(name);
 		}
 	}
 
@@ -2278,14 +2281,16 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * mapping the SQL permission name to a ArrayList of usernames who have that
 	 * permission.
 	 */
-	protected HashMap parseACL(String[] aclArray, String owner)
+	protected HashMap<String,ArrayList<String>> parseACL(
+		String[] aclArray, String owner)
 	{
 		if(aclArray == null || aclArray.length == 0)
 		{
 			// null acl is a shortcut for owner having full privs
+			// XXX (2020) the implied default depends on type of catalog object
 			aclArray = new String[] { owner + "=arwdRxt" };
 		}
-		HashMap privileges = new HashMap();
+		HashMap<String,ArrayList<String>> privileges = new HashMap<>();
 		for(int i = 0; i < aclArray.length; i++)
 		{
 			String acl = aclArray[i];
@@ -2320,7 +2325,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	throws SQLException
 	{
 		ResultSetField f[] = new ResultSetField[8];
-		ArrayList v = new ArrayList(); // The new ResultSet tuple stuff
+		ArrayList<Object[]> v = new ArrayList<>(); // New ResultSet tuple stuff
 
 		f[0] = new ResultSetField("SCOPE", TypeOid.INT2, 2);
 		f[1] = new ResultSetField("COLUMN_NAME", TypeOid.VARCHAR,
@@ -2359,14 +2364,14 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		{
 			Object[] tuple = new Object[8];
 			Oid columnTypeOid = (Oid)rs.getObject("atttypid");
-			tuple[0] = new Short((short)scope);
+			tuple[0] = (short)scope;
 			tuple[1] = rs.getString("attname");
-			tuple[2] = new Short((short)m_connection.getSQLType(columnTypeOid));
+			tuple[2] = (short)m_connection.getSQLType(columnTypeOid);
 			tuple[3] = m_connection.getPGType(columnTypeOid);
 			tuple[4] = null;
 			tuple[5] = null;
 			tuple[6] = null;
-			tuple[7] = new Short((short)java.sql.DatabaseMetaData.bestRowNotPseudo);
+			tuple[7] = (short)java.sql.DatabaseMetaData.bestRowNotPseudo;
 			v.add(tuple);
 		}
 
@@ -2393,7 +2398,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		String table) throws SQLException
 	{
 		ResultSetField f[] = new ResultSetField[8];
-		ArrayList v = new ArrayList(); // The new ResultSet tuple stuff
+		ArrayList<Object[]> v = new ArrayList<>(); // New ResultSet tuple stuff
 
 		f[0] = new ResultSetField("SCOPE", TypeOid.INT2, 2);
 		f[1] = new ResultSetField("COLUMN_NAME", TypeOid.VARCHAR,
@@ -2420,12 +2425,12 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		tuple[0] = null;
 		tuple[1] = "ctid";
-		tuple[2] = new Short((short)m_connection.getSQLType("tid"));
+		tuple[2] = (short)m_connection.getSQLType("tid");
 		tuple[3] = "tid";
 		tuple[4] = null;
 		tuple[5] = null;
 		tuple[6] = null;
-		tuple[7] = new Short((short)java.sql.DatabaseMetaData.versionColumnPseudo);
+		tuple[7] = (short)java.sql.DatabaseMetaData.versionColumnPseudo;
 		v.add(tuple);
 
 		/*
@@ -2768,7 +2773,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	{
 
 		ResultSetField f[] = new ResultSetField[18];
-		ArrayList v = new ArrayList(); // The new ResultSet tuple stuff
+		ArrayList<Object[]> v = new ArrayList<>(); // New ResultSet tuple stuff
 
 		f[0] = new ResultSetField("TYPE_NAME", TypeOid.VARCHAR,
 			getMaxNameLength());
@@ -2801,10 +2806,10 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 		ResultSet rs = m_connection.createStatement().executeQuery(sql);
 		// cache some results, this will keep memory useage down, and speed
 		// things up a little.
-		Integer i9 = new Integer(9);
-		Integer i10 = new Integer(10);
-		Short nn = new Short((short)java.sql.DatabaseMetaData.typeNoNulls);
-		Short ts = new Short((short)java.sql.DatabaseMetaData.typeSearchable);
+		Integer i9 = 9;
+		Integer i10 = 10;
+		Short nn = (short)java.sql.DatabaseMetaData.typeNoNulls;
+		Short ts = (short)java.sql.DatabaseMetaData.typeSearchable;
 
 		String typname = null;
 
@@ -2813,7 +2818,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			Object[] tuple = new Object[18];
 			typname = rs.getString(1);
 			tuple[0] = typname;
-			tuple[1] = new Short((short)m_connection.getSQLType(typname));
+			tuple[1] = (short)m_connection.getSQLType(typname);
 			tuple[2] = i9; // for now
 			tuple[6] = nn; // for now
 			tuple[7] = Boolean.FALSE; // false for now - not case sensitive
@@ -3517,7 +3522,8 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	 * This method creates a ResultSet which is not associated with any
 	 * statement.
 	 */
-	private ResultSet createSyntheticResultSet(ResultSetField[] f, ArrayList tuples)
+	private ResultSet createSyntheticResultSet(
+		ResultSetField[] f, ArrayList<Object[]> tuples)
 	throws SQLException
 	{
 		return new SyntheticResultSet(f, tuples);

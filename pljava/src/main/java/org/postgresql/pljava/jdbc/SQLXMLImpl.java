@@ -69,10 +69,11 @@ import javax.xml.transform.dom.DOMSource;
 
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
-import org.xml.sax.helpers.XMLReaderFactory;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.DocumentFragment;
@@ -790,14 +791,18 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 *<p>
 		 * Override if the preferred flavor is not {@code SAXSource.class},
 		 * which this implementation returns.
-		 * @param adjust Whether the caller has requested an
-		 * Adjusting.XML.Source.
-		 * @return A preferred flavor of Adjusting.XML.Source, if adjust is
-		 * true, otherwise the corresponding flavor of ordinary Source.
+		 * @param sourceClass Either null, Source, or Adjusting.XML.Source.
+		 * @return A preferred flavor of Adjusting.XML.Source, if sourceClass is
+		 * Adjusting.XML.Source, otherwise the corresponding flavor of ordinary
+		 * Source.
 		 */
-		protected Class<? extends Source> preferredSourceClass(boolean adjust)
+		@SuppressWarnings("unchecked")
+		protected <T extends Source> Class<T> preferredSourceClass(
+			Class<T> sourceClass)
 		{
-			return adjust ? Adjusting.XML.SAXSource.class : SAXSource.class;
+			return Adjusting.XML.Source.class == sourceClass
+				? (Class<T>)Adjusting.XML.SAXSource.class
+				: (Class<T>)SAXSource.class;
 		}
 
 		/**
@@ -832,10 +837,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( null == backing )
 				return super.getSource(sourceClass);
 
-			if ( null == sourceClass || Source.class == sourceClass )
-				sourceClass = (Class<T>)preferredSourceClass(false);
-			else if ( Adjusting.XML.Source.class.equals(sourceClass) )
-				sourceClass = (Class<T>)preferredSourceClass(true);
+			if ( null == sourceClass
+				|| Source.class == sourceClass
+				|| Adjusting.XML.Source.class.equals(sourceClass) )
+				sourceClass = preferredSourceClass(sourceClass);
 
 			try
 			{
@@ -1260,6 +1265,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return setResult(vwo, resultClass);
 		}
 
+		/**
+		 * Return a {@code Class<? extends Result>} object representing the most
+		 * natural or preferred presentation if the caller has left it
+		 * unspecified.
+		 *<p>
+		 * Override if the preferred flavor is not {@code SAXResult.class},
+		 * which this implementation returns.
+		 * @param resultClass Either null, Result, or Adjusting.XML.Result.
+		 * @return A preferred flavor of Adjusting.XML.Result, if resultClass is
+		 * Adjusting.XML.Result, otherwise the corresponding flavor of ordinary
+		 * Result.
+		 */
+		@SuppressWarnings("unchecked")
+		protected <T extends Result> Class<T> preferredResultClass(
+			Class<T> resultClass)
+		{
+			return Adjusting.XML.Result.class == resultClass
+				? (Class<T>)AdjustingSAXResult.class
+				: (Class<T>)SAXResult.class;
+		}
+
 		/*
 		 * Internal version for use in the implementation of
 		 * AdjustingSourceResult, when 'officially' the instance is no longer
@@ -1270,10 +1296,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo, Class<T> resultClass)
 			throws SQLException
 		{
-			if ( null == resultClass || Result.class == resultClass )
-				resultClass = (Class<T>)SAXResult.class; // trust me on this
-			else if ( Adjusting.XML.Result.class.equals(resultClass) )
-				resultClass = (Class<T>)AdjustingSAXResult.class;
+			if ( null == resultClass
+				|| Result.class == resultClass
+				|| Adjusting.XML.Result.class == resultClass )
+				resultClass = preferredResultClass(resultClass);
 
 			try
 			{
@@ -3032,9 +3058,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				if ( null == xr )
 				{
-					xr = XMLReaderFactory.createXMLReader();
-					xr.setFeature("http://xml.org/sax/features/namespaces",
-									true);
+					SAXParserFactory spf = SAXParserFactory.newInstance();
+					spf.setNamespaceAware(true);
+					xr = spf.newSAXParser().getXMLReader();
 				}
 				ContentHandler ch = sxr.getHandler();
 				xr.setContentHandler(ch);
@@ -3048,7 +3074,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						"http://xml.org/sax/properties/lexical-handler", lh);
 				xr.parse(sxs.getInputSource());
 			}
-			catch ( SAXException e )
+			catch ( ParserConfigurationException | SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
 			}
@@ -3594,9 +3620,16 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		throws SAXException
 		{
 			m_is = is;
-			m_xr = XMLReaderFactory.createXMLReader();
-			m_xr.setFeature("http://xml.org/sax/features/namespaces",
-							true);
+			try
+			{
+				SAXParserFactory spf = SAXParserFactory.newInstance();
+				spf.setNamespaceAware(true);
+				m_xr = spf.newSAXParser().getXMLReader();
+			}
+			catch ( ParserConfigurationException e )
+			{
+				throw new SAXException(e.getMessage(), e);
+			}
 			if ( wrapped )
 				m_xr = new SAXUnwrapFilter(m_xr);
 		}

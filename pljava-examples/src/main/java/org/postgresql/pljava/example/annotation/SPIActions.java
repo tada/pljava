@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -220,6 +220,7 @@ public class SPIActions {
 		connection.close();
 	}
 
+	@SuppressWarnings("removal") // getAttribute / setAttribute
 	private static void nextState(Session session, int expected, int next)
 			throws SQLException {
 		Integer state = (Integer) session.getAttribute(SP_CHECKSTATE);
@@ -230,6 +231,7 @@ public class SPIActions {
 	}
 
 	@Function(schema="javatest", effects=IMMUTABLE)
+	@SuppressWarnings("removal") // setAttribute
 	public static int testSavepointSanity() throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
@@ -322,6 +324,7 @@ public class SPIActions {
 	}
 
 	@Function(schema="javatest", effects=IMMUTABLE)
+	@SuppressWarnings("removal") // setAttribute
 	public static int testTransactionRecovery() throws SQLException {
 		Connection conn = DriverManager
 				.getConnection("jdbc:default:connection");
