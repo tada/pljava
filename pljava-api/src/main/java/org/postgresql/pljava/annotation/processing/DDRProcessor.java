@@ -547,7 +547,7 @@ class DDRProcessorImpl
 					if ( 0 == p.rev.payload.undeployStrings().length )
 						p.rev.payload = new ImpProvider( p.rev.payload);
 				}
-				else if ( ! defaultImplementor.equals( impName) )
+				else if ( ! defaultImplementor.equals( impName, msgr) )
 				{
 					/*
 					 * Don't insist that every implementor tag have a provider
@@ -701,7 +701,8 @@ queuerunning:
 				if ( 1 < v.indegree )
 					continue;
 				Identifier.Simple impName = v.payload.implementorName();
-				if ( null == impName  ||  defaultImplementor.equals( impName) )
+				if ( null == impName
+					|| defaultImplementor.equals( impName, msgr) )
 					continue;
 				if ( provider.containsKey( v.payload.implementorTag()) )
 					continue;
@@ -1017,7 +1018,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				_implementor = "".equals( o) ? null :
-					Identifier.Simple.fromJava((String)o);
+					Identifier.Simple.fromJava((String)o, msgr);
 		}
 
 		@Override
@@ -1493,15 +1494,11 @@ hunt:	for ( ExecutableElement ee : ees )
 					sb.append( " OR ");
 			}
 			sb.append( "\n\tON ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( table());
+			sb.append(qnameFrom(table(), schema()));
 			if ( ! "".equals( from()) )
 			{
 				sb.append("\n\tFROM ");
-				if ( ! "".equals( fromSchema()) )
-					sb.append( fromSchema()).append( '.');
-				sb.append( from());
+				sb.append(qnameFrom(from(), fromSchema()));
 			}
 			if ( isConstraint ) {
 				sb.append("\n\t");
@@ -1549,7 +1546,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			return new String[] {
 				sb.toString(),
 				"COMMENT ON TRIGGER " + name() + " ON " +
-				( "".equals( schema()) ? "" : ( schema() + '.' ) ) + table() +
+				qnameFrom(table(), schema()) +
 				"\nIS " +
 				DDRWriter.eQuote( comm)
 			};
@@ -1559,9 +1556,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			StringBuilder sb = new StringBuilder();
 			sb.append( "DROP TRIGGER ").append( name()).append( "\n\tON ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( table());
+			sb.append(qnameFrom(table(), schema()));
 			return new String[] { sb.toString() };
 		}
 	}
@@ -1877,9 +1872,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void appendNameAndParams( StringBuilder sb, boolean dflts)
 		{
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( name()).append( '(');
+			sb.append(qnameFrom(name(), schema())).append( '(');
 			appendParams( sb, dflts);
 			// TriggerImpl relies on ) being the very last character
 			sb.append( ')');
@@ -2119,9 +2112,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		StringBuilder appendTypeOp( StringBuilder sb)
 		{
 			sb.append( id.name()).append( " = ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			return sb.append( name());
+			return sb.append(qnameFrom(name(), schema()));
 		}
 
 		@Override
@@ -2536,15 +2527,17 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			String s = typeModifierInput();
 			if ( ! s.isEmpty() )
-				requires.add(new DependTag.Function(s, SIG_TYPMODIN));
+				requires.add(new DependTag.Function(
+					qnameFrom(s), SIG_TYPMODIN));
 
 			s = typeModifierOutput();
 			if ( ! s.isEmpty() )
-				requires.add(new DependTag.Function(s, SIG_TYPMODOUT));
+				requires.add(new DependTag.Function(
+					qnameFrom(s), SIG_TYPMODOUT));
 
 			s = analyze();
 			if ( ! s.isEmpty() )
-				requires.add(new DependTag.Function(s, SIG_ANALYZE));
+				requires.add(new DependTag.Function(qnameFrom(s), SIG_ANALYZE));
 		}
 
 		public String[] deployStrings()
@@ -3120,6 +3113,15 @@ hunt:	for ( ExecutableElement ee : ees )
 		Identifier.Simple local = Identifier.Simple.fromJava(name, msgr);
 		return local.withQualifier(qualifier);
 	}
+
+	/**
+	 * Return an {@code Identifier.Qualified} from a single Java string
+	 * representing the local name and possibly a schema.
+	 */
+	Identifier.Qualified<Identifier.Simple> qnameFrom(String name)
+	{
+		return Identifier.Qualified.nameFromJava(name, msgr);
+	}
 }
 
 /**
@@ -3574,6 +3576,12 @@ abstract class DBType
 		return false;
 	}
 
+	@Override
+	public final boolean equals(Object o)
+	{
+		return equals(o, null);
+	}
+
 	/**
 	 * True if the underlying (leaf) types compare equal (overridden for
 	 * {@code Array}).
@@ -3582,8 +3590,7 @@ abstract class DBType
 	 * signature equivalence, for which defaults and typmods don't matter
 	 * (but arrayness does).
 	 */
-	@Override
-	public final boolean equals(Object o)
+	public final boolean equals(Object o, Messager msgr)
 	{
 		if ( this == o )
 			return true;
@@ -3601,7 +3608,7 @@ abstract class DBType
 				return false;
 		}
 		if ( dt1 instanceof Named )
-			return ((Named)dt1).m_ident.equals(((Named)dt2).m_ident);
+			return ((Named)dt1).m_ident.equals(((Named)dt2).m_ident, msgr);
 		return pgFold(((Reserved)dt1).m_reservedName)
 			.equals(pgFold(((Reserved)dt2).m_reservedName));
 	}
@@ -4111,7 +4118,7 @@ restart:for ( ;; )
  */
 abstract class DependTag<T>
 {
-	private T m_value;
+	protected final T m_value;
 
 	protected DependTag(T value)
 	{
@@ -4125,7 +4132,12 @@ abstract class DependTag<T>
 	}
 
 	@Override
-	public boolean equals(Object o)
+	public final boolean equals(Object o)
+	{
+		return equals(o, null);
+	}
+
+	public boolean equals(Object o, Messager msgr)
 	{
 		if ( this == o )
 			return true;
@@ -4150,7 +4162,27 @@ abstract class DependTag<T>
 		}
 	}
 
-	static final class Type extends DependTag<Identifier.Qualified>
+	static abstract class Named<T extends Identifier> extends DependTag<T>
+	{
+		Named(T value)
+		{
+			super(value);
+		}
+
+		@Override
+		public boolean equals(Object o, Messager msgr)
+		{
+			if ( this == o )
+				return true;
+			if ( null == o )
+				return false;
+			return
+				getClass() == o.getClass()
+					&&  m_value.equals(((DependTag<?>)o).m_value, msgr);
+		}
+	}
+
+	static final class Type extends Named<Identifier.Qualified>
 	{
 		Type(Identifier.Qualified value)
 		{
@@ -4158,14 +4190,9 @@ abstract class DependTag<T>
 		}
 	}
 
-	static final class Function extends DependTag<Identifier.Qualified>
+	static final class Function extends Named<Identifier.Qualified>
 	{
 		private DBType[] m_signature;
-
-		Function(String qname, DBType[] signature)
-		{
-			this(Identifier.Qualified.nameFromJava(qname), signature);
-		}
 
 		Function(Identifier.Qualified value, DBType[] signature)
 		{
@@ -4174,10 +4201,25 @@ abstract class DependTag<T>
 		}
 
 		@Override
-		public boolean equals(Object o)
+		public boolean equals(Object o, Messager msgr)
 		{
-			return super.equals(o)
-				&& Arrays.equals(m_signature, ((Function)o).m_signature);
+			if ( ! super.equals(o, msgr) )
+				return false;
+			Function f = (Function)o;
+			if ( m_signature.length != f.m_signature.length )
+				return false;
+			for ( int i = 0; i < m_signature.length; ++ i )
+			{
+				if ( null == m_signature[i]  ||  null == f.m_signature[i] )
+				{
+					if ( m_signature[i] != f.m_signature[i] )
+						return false;
+					continue;
+				}
+				if ( ! m_signature[i].equals(f.m_signature[i], msgr) )
+					return false;
+			}
+			return true;
 		}
 	}
 }
