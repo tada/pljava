@@ -13,6 +13,7 @@
 /**
  * Defines the API for PL/Java.
  */
+@SuppressWarnings("module") // don't warn that o.p.p.internal's not visible yet
 module org.postgresql.pljava
 {
 	requires java.base;
