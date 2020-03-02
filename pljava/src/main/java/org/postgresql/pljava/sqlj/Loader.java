@@ -283,7 +283,7 @@ public class Loader extends ClassLoader
 				{
 					String javaClassName = rs.getString(1);
 					String sqlName = rs.getString(2);
-					Class cls = loader.loadClass(javaClassName);
+					Class<?> cls = loader.loadClass(javaClassName);
 					if(!SQLData.class.isAssignableFrom(cls))
 						throw new SQLException("Class " + javaClassName +
 							" does not implement java.sql.SQLData");
@@ -299,7 +299,7 @@ public class Loader extends ClassLoader
 				}
 			}
 			if(typesForSchema.isEmpty())
-				typesForSchema = Collections.EMPTY_MAP;
+				typesForSchema = Map.of();
 			s_typeMap.put(schema, typesForSchema);
 			return typesForSchema;
 		}
