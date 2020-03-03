@@ -236,13 +236,13 @@ public class Session implements org.postgresql.pljava.Session
 		return doInPG(() ->
 		{
 			ResultSet rs = null;
-			AclId sessionUser = AclId.getSessionUser();
+			AclId outerUser = AclId.getOuterUser();
 			AclId effectiveUser = AclId.getUser();
 			boolean wasLocalChange = false;
 			boolean changeSucceeded = false;
 			try
 			{
-				wasLocalChange = _setUser(sessionUser, true);
+				wasLocalChange = _setUser(outerUser, true);
 				changeSucceeded = true;
 				rs = stmt.executeQuery("SELECT current_schema()");
 				if ( rs.next() )

@@ -1351,7 +1351,7 @@ public class Function
 
 		if ( null == actualArgs )
 		{
-			List<Type> pending = new LinkedList();
+			List<Type> pending = new LinkedList<>();
 			pending.add(c.getGenericSuperclass());
 			addAll(pending, c.getGenericInterfaces());
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -66,6 +66,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 	 * @return
 	 * @throws SQLException
 	 */
+	@SuppressWarnings("unchecked")
 	public static <T extends PooledObject> ObjectPoolImpl<T>
 	getObjectPool(Class<T> cls)
 	{
@@ -78,6 +79,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 		return pool;
 	}
 
+	@SuppressWarnings("unchecked")
 	public T activateInstance()
 	throws SQLException
 	{
@@ -149,6 +151,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 		// Obtain a handle from the pool of handles so that
 		// we have something to wrap the instance in.
 		//
+		@SuppressWarnings("unchecked")
 		PooledObjectHandle<T> handle = (PooledObjectHandle<T>)s_handlePool;
 		if(handle != null)
 			s_handlePool = handle.m_next;
@@ -160,6 +163,7 @@ class ObjectPoolImpl<T extends PooledObject> implements ObjectPool<T>
 		m_providerPool = handle;
 	}
 
+	@SuppressWarnings("unchecked")
 	public void removeInstance(T instance) throws SQLException
 	{
 		PooledObjectHandle prev = null;

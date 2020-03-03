@@ -13,30 +13,37 @@
 package org.postgresql.pljava.sqlj;
 
 import java.io.IOException;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
-import java.lang.reflect.UndeclaredThrowableException;
+
 import java.net.MalformedURLException;
 import java.net.URL;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
 import java.sql.SQLException;
 import java.sql.Statement;
+
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Oid;
-import org.postgresql.pljava.jdbc.SQLUtils;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
+
+import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
 
 /*
  * Import an interface (internal-only, at least for now) that allows overriding
@@ -72,7 +79,15 @@ public class Loader extends ClassLoader
 {
 	private final static Logger s_logger = Logger.getLogger(Loader.class.getName());
 
-	static class EntryEnumeration implements Enumeration
+	/**
+	 * The enumeration of URLs returned by {@code findResources}.
+	 *<p>
+	 * The returned URLs have a "dbf:" scheme and expose the integer surrogate
+	 * keys of jar entries, not a very stable way to refer to an entry in a jar,
+	 * but perhaps adequate for now, as no one will be constructing such URLs
+	 * or obtaining them except from {@code findResources} here.
+	 */
+	static class EntryEnumeration implements Enumeration<URL>
 	{
 		private final int[] m_entryIds;
 		private int m_top = 0;
@@ -87,7 +102,7 @@ public class Loader extends ClassLoader
 			return (m_top < m_entryIds.length);
 		}
 		
-		public Object nextElement()
+		public URL nextElement()
 		throws NoSuchElementException
 		{
 			if (m_top >= m_entryIds.length)
@@ -126,19 +141,15 @@ public class Loader extends ClassLoader
 	throws SQLException
 	{
 		String schema;
-		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
-		ResultSet rs = null;
-		try
+		try (
+			Statement stmt = getDefaultConnection().createStatement();
+			ResultSet rs =
+				stmt.executeQuery("SELECT pg_catalog.current_schema()");
+		)
 		{
-			rs = stmt.executeQuery("SELECT pg_catalog.current_schema()");
 			if(!rs.next())
 				throw new SQLException("Unable to determine current schema");
 			schema = rs.getString(1);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
 		}
 		return getSchemaLoader(schema);
 	}
@@ -162,15 +173,12 @@ public class Loader extends ClassLoader
 		if(loader != null)
 			return loader;
 
-		Map classImages = new HashMap();
-		Connection conn = SQLUtils.getDefaultConnection();
-		PreparedStatement outer = null;
-		PreparedStatement inner = null;
-		try
-		{
+		Map<String,int[]> classImages = new HashMap<>();
+		Connection conn = getDefaultConnection();
+		try (
 			// Read the entries so that the one with highest prio is read last.
 			//
-			outer = conn.prepareStatement(
+			PreparedStatement outer = conn.prepareStatement(
 				"SELECT r.jarId" +
 				" FROM" +
 				"  sqlj.jar_repository r" +
@@ -178,28 +186,26 @@ public class Loader extends ClassLoader
 				"  ON r.jarId OPERATOR(pg_catalog.=) c.jarId" +
 				" WHERE c.schemaName OPERATOR(pg_catalog.=) ?" +
 				" ORDER BY c.ordinal DESC");
-
-			inner = conn.prepareStatement(
+			PreparedStatement inner = conn.prepareStatement(
 				"SELECT entryId, entryName FROM sqlj.jar_entry " +
 				"WHERE jarId OPERATOR(pg_catalog.=) ?");
-
+		)
+		{
 			outer.unwrap(SPIReadOnlyControl.class).clearReadOnly();
 			inner.unwrap(SPIReadOnlyControl.class).clearReadOnly();
 			outer.setString(1, schemaName);
-			ResultSet rs = outer.executeQuery();
-			try
+			try ( ResultSet rs = outer.executeQuery() )
 			{
 				while(rs.next())
 				{
 					inner.setInt(1, rs.getInt(1));
-					ResultSet rs2 = inner.executeQuery();
-					try
+					try ( ResultSet rs2 = inner.executeQuery() )
 					{
 						while(rs2.next())
 						{
 							int entryId = rs2.getInt(1);
 							String entryName = rs2.getString(2);
-							int[] oldEntry = (int[])classImages.get(entryName);
+							int[] oldEntry = classImages.get(entryName);
 							if(oldEntry == null)
 								classImages.put(entryName, new int[] { entryId });
 							else
@@ -212,21 +218,8 @@ public class Loader extends ClassLoader
 							}
 						}
 					}
-					finally
-					{
-						SQLUtils.close(rs2);
-					}
 				}
 			}
-			finally
-			{
-				SQLUtils.close(rs);
-			}
-		}
-		finally
-		{
-			SQLUtils.close(outer);
-			SQLUtils.close(inner);
 		}
 
 		ClassLoader parent = ClassLoader.getSystemClassLoader();
@@ -236,7 +229,8 @@ public class Loader extends ClassLoader
 			// classpath of public schema or to the system classloader if the
 			// request already is for the public schema.
 			//
-			loader = schemaName.equals(PUBLIC_SCHEMA) ? parent : getSchemaLoader(PUBLIC_SCHEMA);
+			loader = schemaName.equals(PUBLIC_SCHEMA)
+				? parent : getSchemaLoader(PUBLIC_SCHEMA);
 		else
 			loader = new Loader(classImages, parent);
 
@@ -263,34 +257,41 @@ public class Loader extends ClassLoader
 			return typesForSchema;
 
 		s_logger.finer("Creating typeMappings for schema " + schema);
-		typesForSchema = new HashMap()
+		typesForSchema = new HashMap<Oid,Class<? extends SQLData>>()
 		{
-			public Object get(Object key)
+			public Class<? extends SQLData> get(Oid key)
 			{
 				s_logger.finer("Obtaining type mapping for OID " + key + " for schema " + schema);
 				return super.get(key);
 			}
 		};
 		ClassLoader loader = Loader.getSchemaLoader(schema);
-		Statement stmt = SQLUtils.getDefaultConnection().createStatement();
-		stmt.unwrap(SPIReadOnlyControl.class).clearReadOnly();
-		ResultSet rs = null;
-		try
+		try (
+			Statement stmt = Checked.Supplier.of((() ->
+			{
+				Statement s = getDefaultConnection().createStatement();
+				s.unwrap(SPIReadOnlyControl.class).clearReadOnly();
+				return s;
+			})).get();
+			ResultSet rs = stmt.executeQuery(
+				"SELECT javaName, sqlName FROM sqlj.typemap_entry");
+		)
 		{
-			rs = stmt.executeQuery("SELECT javaName, sqlName FROM sqlj.typemap_entry");
 			while(rs.next())
 			{
 				try
 				{
 					String javaClassName = rs.getString(1);
 					String sqlName = rs.getString(2);
-					Class cls = loader.loadClass(javaClassName);
+					Class<?> cls = loader.loadClass(javaClassName);
 					if(!SQLData.class.isAssignableFrom(cls))
-						throw new SQLException("Class " + javaClassName + " does not implement java.sql.SQLData");
+						throw new SQLException("Class " + javaClassName +
+							" does not implement java.sql.SQLData");
 					
 					Oid typeOid = Oid.forTypeName(sqlName);
 					typesForSchema.put(typeOid, cls.asSubclass(SQLData.class));
-					s_logger.finer("Adding type mapping for OID " + typeOid + " -> class " + cls.getName() + " for schema " + schema);
+					s_logger.finer("Adding type mapping for OID " + typeOid +
+						" -> class " + cls.getName() + " for schema " + schema);
 				}
 				catch(ClassNotFoundException e)
 				{
@@ -298,14 +299,9 @@ public class Loader extends ClassLoader
 				}
 			}
 			if(typesForSchema.isEmpty())
-				typesForSchema = Collections.EMPTY_MAP;
+				typesForSchema = Map.of();
 			s_typeMap.put(schema, typesForSchema);
 			return typesForSchema;
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -322,29 +318,35 @@ public class Loader extends ClassLoader
 		}
 		catch(MalformedURLException e)
 		{
-			throw new RuntimeException(e);
+			throw unchecked(e);
 		}
 	}
 
-	private final Map m_entries;
+	/**
+	 * Map from name of entry (resource or expanded class name) to an array of
+	 * the integer surrogate keys for jar entries, in the order of jars on this
+	 * loader's jar path that contain entries matching the name.
+	 */
+	private final Map<String,int[]> m_entries;
 
 	/**
 	 * Create a new Loader.
 	 * @param entries
 	 * @param parent
 	 */
-	Loader(Map entries, ClassLoader parent)
+	Loader(Map<String,int[]> entries, ClassLoader parent)
 	{
 		super(parent);
 		m_entries = entries;
 		m_j9Helper = ifJ9getHelper(); // null if not under OpenJ9 with sharing
 	}
 
+	@Override
 	protected Class<?> findClass(final String name)
 	throws ClassNotFoundException
 	{
 		String path = name.replace('.', '/').concat(".class");
-		int[] entryId = (int[])m_entries.get(path);
+		int[] entryId = m_entries.get(path);
 		if(entryId != null)
 		{
 			/*
@@ -365,26 +367,32 @@ public class Loader extends ClassLoader
 			}
 			String ifJ9token = (String) o; // used below when storing class
 
-			PreparedStatement stmt = null;
-			ResultSet rs = null;
-			try
-			{
+			try (
 				// This code relies heavily on the fact that the connection
 				// is a singleton and that the prepared statement will live
-				// for the duration of the loader.
+				// for the duration of the loader. (This comment has said so
+				// since January 2004; the prepared statement has been getting
+				// closed in a finally block since November 2004, and that
+				// hasn't broken anything, and it is currently true that
+				// prepared statements are backed by ExecutionPlans that stick
+				// around in an MRU cache after being closed.)
 				//
-				stmt = SQLUtils.getDefaultConnection().prepareStatement(
-					"SELECT entryImage FROM sqlj.jar_entry " +
-					"WHERE entryId OPERATOR(pg_catalog.=) ?");
-
-				stmt.setInt(1, entryId[0]);
-				stmt.unwrap(SPIReadOnlyControl.class).clearReadOnly();
-				rs = stmt.executeQuery();
+				PreparedStatement stmt = Checked.Supplier.of((() ->
+					{
+						PreparedStatement s = getDefaultConnection()
+							.prepareStatement(
+								"SELECT entryImage FROM sqlj.jar_entry " +
+								"WHERE entryId OPERATOR(pg_catalog.=) ?");
+						s.unwrap(SPIReadOnlyControl.class).clearReadOnly();
+						s.setInt(1, entryId[0]);
+						return s;
+					})).get();
+				ResultSet rs = stmt.executeQuery();
+			)
+			{
 				if(rs.next())
 				{
 					byte[] img = rs.getBytes(1);
-					rs.close();
-					rs = null;
 
 					Class<?> cls = this.defineClass(name, img, 0, img.length);
 
@@ -394,31 +402,30 @@ public class Loader extends ClassLoader
 			}
 			catch(SQLException e)
 			{
-				Logger.getAnonymousLogger().log(Level.INFO, "Failed to load class", e);
-				throw new ClassNotFoundException(name + " due to: " + e.getMessage());
-			}
-			finally
-			{
-				SQLUtils.close(rs);
-				SQLUtils.close(stmt);
+				Logger.getAnonymousLogger().log(Level.INFO,
+					"Failed to load class", e);
+				throw new ClassNotFoundException(name + " due to: " +
+					e.getMessage(), e);
 			}
 		}
-	throw new ClassNotFoundException(name);
+		throw new ClassNotFoundException(name);
 	}
 
+	@Override
 	protected URL findResource(String name)
 	{
-		int[] entryIds = (int[])m_entries.get(name);
+		int[] entryIds = m_entries.get(name);
 		if(entryIds == null)
 			return null;
 		
 		return entryURL(entryIds[0]);
 	}
 
-	protected Enumeration findResources(String name)
+	@Override
+	protected Enumeration<URL> findResources(String name)
     throws IOException
 	{
-		int[] entryIds = (int[])m_entries.get(name);
+		int[] entryIds = m_entries.get(name);
 		if(entryIds == null)
 			entryIds = new int[0];
 		return new EntryEnumeration(entryIds);
@@ -450,11 +457,7 @@ public class Loader extends ClassLoader
 		}
 		catch ( Throwable t )
 		{
-			if ( t instanceof Error )
-				throw (Error)t;
-			if ( t instanceof RuntimeException )
-				throw (RuntimeException)t;
-			throw new UndeclaredThrowableException(t, t.getMessage());
+			throw unchecked(t);
 		}
 	}
 
@@ -489,11 +492,7 @@ public class Loader extends ClassLoader
 		}
 		catch ( Throwable t )
 		{
-			if ( t instanceof Error )
-				throw (Error)t;
-			if ( t instanceof RuntimeException )
-				throw (RuntimeException)t;
-			throw new UndeclaredThrowableException(t, t.getMessage());
+			throw unchecked(t);
 		}
 	}
 
@@ -518,11 +517,7 @@ public class Loader extends ClassLoader
 		}
 		catch ( Throwable t )
 		{
-			if ( t instanceof Error )
-				throw (Error)t;
-			if ( t instanceof RuntimeException )
-				throw (RuntimeException)t;
-			throw new UndeclaredThrowableException(t, t.getMessage());
+			throw unchecked(t);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -828,6 +828,7 @@ public class SPIConnection implements Connection
 	 * in {@code ResultSet}s seems a bit suspect, as does its use in UDT input
 	 * but not output with composites.
 	 */
+	@SuppressWarnings("unchecked")
 	static <T> T basicCoercion(Class<T> cls, Object value)
 	throws SQLException
 	{
@@ -888,7 +889,7 @@ public class SPIConnection implements Connection
 				return Long.valueOf((String)value);
 
 			if(value instanceof Boolean)
-				return new Long(((Boolean)value).booleanValue() ? 1 : 0);
+				return ((Boolean)value) ? 1 : 0;
 		}
 		else if(cls == BigDecimal.class)
 		{
@@ -904,7 +905,7 @@ public class SPIConnection implements Connection
 				return Double.valueOf((String)value);
 
 			if(value instanceof Boolean)
-				return new Double(((Boolean)value).booleanValue() ? 1 : 0);
+				return ((Boolean)value) ? 1 : 0;
 		}
 		throw new SQLException("Cannot derive a Number from an object of class " + value.getClass().getName());
 	}
@@ -922,6 +923,7 @@ public class SPIConnection implements Connection
 	 * the use of the same coercion in both the retrieval and storage direction
 	 * in {@code ResultSet}s seems a bit suspect.
 	 */
+	@SuppressWarnings("unchecked")
 	static <T> T basicCalendricalCoercion(
 		Class<T> cls, Object value, Calendar cal)
 	throws SQLException

@@ -139,6 +139,7 @@
 				<configuration>
 					<encoding>${project.build.sourceEncoding}</encoding>
 					<release>9</release>
+					<showWarnings>true</showWarnings>
 				</configuration>
 			</plugin>
 			<plugin>

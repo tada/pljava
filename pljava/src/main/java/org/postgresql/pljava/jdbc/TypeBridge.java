@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -64,6 +64,12 @@ public abstract class TypeBridge<S>
 	 */
 	protected Class<S> m_cachedClass;
 
+	@SuppressWarnings("unchecked")
+	protected void setCachedClass(Class<?> cls)
+	{
+		m_cachedClass = (Class<S>)cls;
+	}
+
 	/**
 	 * List of TypeBridges to check, in order, for one that 'captures' a given
 	 * class.
@@ -90,9 +96,13 @@ public abstract class TypeBridge<S>
 		if ( null == o )
 			return null;
 		Class<?> c = o.getClass();
-		for ( TypeBridge tb : m_candidates )
+		for ( TypeBridge<?> tb : m_candidates )
 			if ( tb.captures(c) )
-				return ((TypeBridge<T>)tb).new Holder(o);
+			{
+				@SuppressWarnings("unchecked")
+				TypeBridge<T> tbt = (TypeBridge<T>)tb;
+				return tbt.new Holder(o);
+			}
 		if ( o instanceof TypeBridge<?>.Holder )
 			throw new IllegalArgumentException("Not valid as argument: " +
 				o.toString());
@@ -137,7 +147,7 @@ public abstract class TypeBridge<S>
 	private static <T> TypeBridge<T> of(Class<T> c, int dOid)
 	{
 		String cn = c.getCanonicalName();
-		TypeBridge tb =
+		TypeBridge<T> tb =
 			c.isInterface() ? ofInterface(cn, dOid) : ofClass(cn, dOid);
 		tb.m_cachedClass = c;
 		return tb;
@@ -182,7 +192,7 @@ public abstract class TypeBridge<S>
 			{
 				if ( ! m_canonName.equals(c.getCanonicalName()) )
 					continue;
-				m_cachedClass = (Class<S>)c;
+				setCachedClass(c);
 				return true;
 			}
 			return false;
@@ -220,7 +230,7 @@ public abstract class TypeBridge<S>
 
 				if ( m_canonName.equals(c.getCanonicalName()) )
 				{
-					m_cachedClass = (Class<S>)c;
+					setCachedClass(c);
 					return true;
 				}
 				addAll(q, c.getInterfaces());

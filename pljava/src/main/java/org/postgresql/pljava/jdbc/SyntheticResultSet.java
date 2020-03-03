@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -47,7 +47,7 @@ public class SyntheticResultSet extends ResultSetBase
 		super(tuples.size());
 		m_fields = fields;
 		m_tuples = tuples;
-        m_fieldIndexes = new HashMap();
+        m_fieldIndexes = new HashMap<>();
         int i = m_fields.length;
         while(--i >= 0)
             m_fieldIndexes.put(m_fields[i].getColumnLabel(), i+1);

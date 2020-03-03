@@ -71,7 +71,7 @@ public abstract class AbstractResultSet implements ResultSet
 		return this.getBigDecimal(this.findColumn(columnName));
 	}
 
-	@Override
+	@SuppressWarnings("deprecation") @Override
 	public BigDecimal getBigDecimal(String columnName, int scale)
 	throws SQLException
 	{
@@ -177,7 +177,7 @@ public abstract class AbstractResultSet implements ResultSet
 	}
 
 	@Override
-	public Object getObject(String columnName, Map map)
+	public Object getObject(String columnName, Map<String,Class<?>> map)
 	throws SQLException
 	{
 		return this.getObject(this.findColumn(columnName), map);
@@ -232,7 +232,7 @@ public abstract class AbstractResultSet implements ResultSet
 		return this.getTimestamp(this.findColumn(columnName), cal);
 	}
 
-	@Override
+	@SuppressWarnings("deprecation") @Override
 	public InputStream getUnicodeStream(String columnName)
 	throws SQLException
 	{

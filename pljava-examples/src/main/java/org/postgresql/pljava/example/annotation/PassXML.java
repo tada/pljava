@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -70,8 +70,9 @@ import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
 /* Imports needed just for the SAX flavor of "low-level XML echo" below */
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
 import org.xml.sax.XMLReader;
-import org.xml.sax.helpers.XMLReaderFactory;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.DTDHandler;
 import org.xml.sax.ext.LexicalHandler;
@@ -581,9 +582,9 @@ public class PassXML implements SQLData
 				XMLReader xr  = sxs.getXMLReader();
 				if ( null == xr )
 				{
-					xr = XMLReaderFactory.createXMLReader();
-					xr.setFeature("http://xml.org/sax/features/namespaces",
-									true);
+					SAXParserFactory spf = SAXParserFactory.newInstance();
+					spf.setNamespaceAware(true);
+					xr = spf.newSAXParser().getXMLReader();
 					/*
 					 * Important: before copying this example code for another
 					 * use, consider whether the input XML might be untrusted.
@@ -671,15 +672,11 @@ public class PassXML implements SQLData
 			throw new SQLException(
 				"IOException in lowLevelXMLEcho", "58030", e);
 		}
-		catch ( SAXException e )
+		catch (
+			ParserConfigurationException | SAXException | XMLStreamException e )
 		{
 			throw new SQLException(
-				"SAXException in lowLevelXMLEcho", "22000", e);
-		}
-		catch ( XMLStreamException e )
-		{
-			throw new SQLException(
-				"XMLStreamException in lowLevelXMLEcho", "22000", e);
+				"XML exception in lowLevelXMLEcho", "22000", e);
 		}
 		return rx;
 	}
@@ -1200,6 +1197,7 @@ public class PassXML implements SQLData
 		}
 
 		@Override
+		@SuppressWarnings("unchecked") // all the fun's when sourceClass is null
 		public <T extends Source> T getSource(Class<T> sourceClass)
 		throws SQLException
 		{
@@ -1312,6 +1310,7 @@ public class PassXML implements SQLData
 		}
 
 		@Override
+		@SuppressWarnings("unchecked") // sourceClass==StreamSource is verified
 		public <T extends Source> T getSource(Class<T> sourceClass)
 		throws SQLException
 		{

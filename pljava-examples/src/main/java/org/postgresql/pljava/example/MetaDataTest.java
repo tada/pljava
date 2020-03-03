@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,6 +9,7 @@
  * Contributors:
  *   Tada AB
  *   Filip Hrbek
+ *   Chapman Flack
  */
 package org.postgresql.pljava.example;
 
@@ -201,7 +202,7 @@ public class MetaDataTest {
 																				// a
 																				// boolean
 					{
-						objects.add(new Boolean(param));
+						objects.add(Boolean.valueOf(param));
 						types.add(Boolean.TYPE);
 					} else if (param.startsWith("(")) // it is String, String[]
 														// or int[] null
@@ -247,14 +248,14 @@ public class MetaDataTest {
 										+ param);
 							}
 
-							intList.add(new Integer(marr.group(1)));
+							intList.add(Integer.valueOf(marr.group(1)));
 							auxParamArr = marr.group(2).trim();
 						}
 						objects.add(intList.toArray(new Integer[0]));
 						types.add(int[].class);
 					} else // it is an int
 					{
-						objects.add(new Integer(param));
+						objects.add(Integer.valueOf(param));
 						types.add(Integer.TYPE);
 					}
 

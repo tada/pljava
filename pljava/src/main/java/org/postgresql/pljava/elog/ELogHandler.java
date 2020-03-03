@@ -205,7 +205,11 @@ public class ELogHandler extends Handler
 		{	
 			try
 			{	
-				this.setFilter((Filter)Class.forName(val.trim()).newInstance());
+				this.setFilter((Filter)
+					Class.forName(val.trim())
+						.getDeclaredConstructor()
+						.newInstance()
+				);
 			}
 			catch (Exception e)
 			{
@@ -220,7 +224,11 @@ public class ELogHandler extends Handler
 		{	
 			try
 			{
-				this.setFormatter((Formatter)Class.forName(val.trim()).newInstance());
+				this.setFormatter((Formatter)
+					Class.forName(val.trim())
+						.getDeclaredConstructor()
+						.newInstance()
+				);
 			}
 			catch (Exception e)
 			{

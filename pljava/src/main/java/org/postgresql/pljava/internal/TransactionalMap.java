@@ -45,6 +45,7 @@ import org.postgresql.pljava.TransactionListener;
  * @author Thomas Hallgren
  */
 @Deprecated(since="1.5.3", forRemoval=true)
+@SuppressWarnings("unchecked") // fix warnings in a deprecated class? no thanks.
 public class TransactionalMap extends HashMap
 {
 	private static final long serialVersionUID = 5337569423915578121L;
