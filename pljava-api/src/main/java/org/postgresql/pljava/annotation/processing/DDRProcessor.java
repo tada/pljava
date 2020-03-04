@@ -2018,23 +2018,16 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "pg_catalog.cstring, pg_catalog.oid, integer", null),
-		OUTPUT( "out", null, "pg_catalog.cstring"),
-		RECEIVE( "recv", "pg_catalog.internal, pg_catalog.oid, integer", null),
-		SEND( "send", null, "pg_catalog.bytea");
-		BaseUDTFunctionID( String suffix, String param, String ret)
+		INPUT("in", null, "pg_catalog.cstring", "pg_catalog.oid", "integer"),
+		OUTPUT("out", "pg_catalog.cstring", (String[])null),
+		RECEIVE("recv", null, "pg_catalog.internal","pg_catalog.oid","integer"),
+		SEND("send", "pg_catalog.bytea", null);
+		BaseUDTFunctionID( String suffix, String ret, String... param)
 		{
 			this.suffix = suffix;
 			this.param = null == param ? null :
-				/*
-				 * Caution: do not assume this code is reusable for the general
-				 * case of parsing a comma-separated list of identifiers (there
-				 * could be commas in delimited ones!). It only needs to parse
-				 * the known comma-space-separated constants used in this enum.
-				 */
-				compile(", ").splitAsStream(param)
-				.map(Identifier.Qualified::nameFromJava)
-				.map(DBType.Named::new)
+				Arrays.stream(param)
+				.map(DBType::fromSQLTypeAnnotation)
 				.toArray(DBType[]::new);
 			this.ret = null == ret ? null :
 				new DBType.Named(Identifier.Qualified.nameFromJava(ret));
