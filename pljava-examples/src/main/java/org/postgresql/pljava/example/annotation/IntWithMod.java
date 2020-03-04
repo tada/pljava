@@ -77,7 +77,6 @@ import static
 )
 @BaseUDT(schema="javatest", provides="IntWithMod type",
 	implementor="postgresql_ge_80300",
-	requires={"IntWithMod modIn", "IntWithMod modOut"},
 	typeModifierInput="javatest.intwithmod_typmodin",
 	typeModifierOutput="javatest.intwithmod_typmodout",
 	like="pg_catalog.int4")
@@ -147,9 +146,9 @@ public class IntWithMod implements SQLData {
 	 * "even" or "odd". The modifier value is 0 for even or 1 for odd.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodin",
-		provides="IntWithMod modIn", implementor="postgresql_ge_80300",
+		implementor="postgresql_ge_80300",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
-	public static int modIn(@SQLType("cstring[]") String[] toks)
+	public static int modIn(@SQLType("pg_catalog.cstring[]") String[] toks)
 		throws SQLException {
 		if ( 1 != toks.length )
 			throw new SQLDataException(
@@ -166,7 +165,7 @@ public class IntWithMod implements SQLData {
 	 * Type modifier output function for IntWithMod type.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodout",
-		provides="IntWithMod modOut", type="cstring",
+		type="pg_catalog.cstring",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static String modOut(int mod) throws SQLException {
 		switch ( mod ) {
@@ -182,7 +181,7 @@ public class IntWithMod implements SQLData {
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodapply",
 		implementor="postgresql_ge_80300",
-		requires="IntWithMod type", provides="IntWithMod modApply",
+		provides="IntWithMod modApply",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static IntWithMod modApply(IntWithMod iwm, int mod, boolean explicit)
 		throws SQLException

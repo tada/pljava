@@ -47,6 +47,7 @@ import static java.util.Collections.unmodifiableSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -228,6 +229,15 @@ class DDRProcessorImpl
 		Identifier.Qualified.nameFromJava("pg_catalog.trigger"));
 	final DBType DT_VOID = new DBType.Named(
 		Identifier.Qualified.nameFromJava("pg_catalog.void"));
+
+	// Function signatures for certain known functions
+	//
+	final DBType[] SIG_TYPMODIN =
+		{ DBType.fromSQLTypeAnnotation("pg_catalog.cstring[]") };
+	final DBType[] SIG_TYPMODOUT =
+		{ DBType.fromSQLTypeAnnotation("integer") };
+	final DBType[] SIG_ANALYZE =
+		{ DBType.fromSQLTypeAnnotation("pg_catalog.internal") };
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -396,7 +406,7 @@ class DDRProcessorImpl
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
-	 * same reason {@code snippetQueue} does.
+	 * same reason {@code snippetVPairs} does.
 	 */
 	Map<DependTag, VertexPair<Snippet>> provider = new HashMap<>();
 	
@@ -604,8 +614,8 @@ class DDRProcessorImpl
 				revBlocked.add( v);
 		}
 
-		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers);
-		Snippet[] revSnips = order( revReady, revBlocked, revConsumers);
+		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers, true);
+		Snippet[] revSnips = order( revReady, revBlocked, revConsumers, false);
 
 		if ( null == fwdSnips  ||  null == revSnips )
 			return; // error already reported
@@ -628,28 +638,57 @@ class DDRProcessorImpl
 	 */
 	Snippet[] order(
 		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
-		Set<DependTag> consumer)
+		Set<DependTag> consumer, boolean deploying)
 	{
-		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+		ArrayList<Snippet> snips = new ArrayList<>(ready.size()+blocked.size());
 		Vertex<Snippet> cycleBreaker = null;
 
 queuerunning:
-		for ( int i = 0 ; ; )
+		for ( ; ; )
 		{
 			while ( ! ready.isEmpty() )
 			{
 				Vertex<Snippet> v = ready.remove();
-				snips[i++] = v.payload;
-				v.use( ready, blocked);
+				snips.add(v.payload);
+				v.use(ready, blocked);
 				for ( DependTag p : v.payload.provideTags() )
 					consumer.remove(p);
 			}
 			if ( blocked.isEmpty() )
 				break; // all done
+
 			/*
 			 * There are snippets remaining to output but they all have
-			 * indegree > 0, normally a 'cycle' error. But somewhere there may
-			 * be one with indegree exactly 1 and an implicit requirement of its
+			 * indegree > 0, normally a 'cycle' error. But some may have
+			 * breakCycle methods that can help. Add any vertices they return
+			 * onto the ready queue (all at once, so that for reproducible
+			 * builds, the ready queue's ordering constraints will take effect).
+			 */
+			boolean cycleBroken = false;
+			for ( Iterator<Vertex<Snippet>> it = blocked.iterator();
+					it.hasNext(); )
+			{
+				Vertex<Snippet> v = it.next();
+				cycleBreaker = v.payload.breakCycle(v, deploying);
+				if ( null == cycleBreaker )
+					continue;
+				/*
+				 * If v supplied another vertex to go on the ready queue, leave
+				 * v on the blocked queue; it should become ready in due course.
+				 * If v nominated itself as cycle breaker, remove from blocked.
+				 */
+				if ( cycleBreaker == v )
+					it.remove();
+				ready.add(cycleBreaker);
+				cycleBroken = true;
+			}
+			if ( cycleBroken )
+				continue;
+
+			/*
+			 * A cycle was detected and no snippet's breakCycle method broke it,
+			 * but there may yet be a way. Somewhere there may be a vertex
+			 * with indegree exactly 1 and an implicit requirement of its
 			 * own implementor tag, with no snippet on record to provide it.
 			 * That's allowed (maybe the installing/removing environment will
 			 * be "providing" that tag anyway), so set one such snippet free
@@ -695,7 +734,7 @@ queuerunning:
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
 			return null;
 		}
-		return snips;
+		return snips.toArray(new Snippet[snips.size()]);
 	}
 	
 	/**
@@ -1575,6 +1614,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		DBType returnType;
 		DBType[] parameterTypes;
 
+		boolean subsumed = false;
+
 		FunctionImpl(ExecutableElement e)
 		{
 			func = e;
@@ -1806,11 +1847,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			Set<DependTag> provides = provideTags();
 			Set<DependTag> requires = requireTags();
 
-			Identifier.Simple name = Identifier.Simple.fromJava(_name);
-			Identifier.Simple qual = "".equals(_schema) ? null :
-				Identifier.Simple.fromJava(_schema);
 			provides.add(new DependTag.Function(
-				name.withQualifier(qual), parameterTypes));
+				qnameFrom(_name, _schema), parameterTypes));
 
 			DependTag t = returnType.dependTag();
 			if ( null != t )
@@ -1822,6 +1860,12 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != t )
 					requires.add(t);
 			}
+		}
+
+		@Override
+		public void subsume()
+		{
+			subsumed = true;
 		}
 
 		/**
@@ -1929,6 +1973,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		
 		public String[] undeployStrings()
 		{
+			if ( subsumed )
+				return new String[0];
+
 			String[] rslt = new String [ 1 + triggers().length ];
 			int i = rslt.length - 1;
 			for ( Trigger t : triggers() )
@@ -2031,7 +2078,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			parameterTypes = id.getParam( ui);
 
 			_type = returnType.toString();
-			_name = ui.name() + '_' + id.getSuffix();
+			_name = Identifier.Simple.fromJava(ui.name())
+				.concat("_", id.getSuffix()).toString();
 			_schema = ui.schema();
 			_cost = -1;
 			_rows = -1;
@@ -2079,7 +2127,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		@Override
 		public boolean characterize()
 		{
-			return false;
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+			return true;
 		}
 
 		public void setType( Object o, boolean explicit, Element e)
@@ -2182,12 +2232,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( "".equals( _name) )
 				_name = tclass.getSimpleName().toString();
 
-			Identifier.Simple localName =
-				Identifier.Simple.fromJava(_name, msgr);
-			Identifier.Simple qualifier = "".equals( _schema) ? null :
-				Identifier.Simple.fromJava(_schema, msgr);
-
-			qname = new DBType.Named(localName.withQualifier(qualifier));
+			qname = new DBType.Named(qnameFrom(_name, _schema));
 
 			if ( ! tmpr.mappingsFrozen() )
 				tmpr.addMap( tclass.asType(), qname);
@@ -2275,6 +2320,45 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractUDTImpl
 	implements BaseUDT
 	{
+		class Shell implements Snippet
+		{
+			@Override
+			public Identifier.Simple implementorName()
+			{
+				return BaseUDTImpl.this.implementorName();
+			}
+
+			@Override
+			public String[] deployStrings()
+			{
+				return new String[] { "CREATE TYPE " + qname };
+			}
+
+			@Override
+			public String[] undeployStrings()
+			{
+				return new String[0];
+			}
+
+			@Override
+			public Set<DependTag> provideTags()
+			{
+				return Set.of();
+			}
+
+			@Override
+			public Set<DependTag> requireTags()
+			{
+				return Set.of();
+			}
+
+			@Override
+			public boolean characterize()
+			{
+				return false;
+			}
+		}
+
 		public String    typeModifierInput() { return _typeModifierInput; }
 		public String   typeModifierOutput() { return _typeModifierOutput; }
 		public String              analyze() { return _analyze; }
@@ -2433,20 +2517,39 @@ hunt:	for ( ExecutableElement ee : ees )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
 
+			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);
 
 			return true;
 		}
 
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			provides.add(qname.dependTag());
+
+			for ( BaseUDTFunctionImpl f : List.of(in, out, recv, send) )
+				requires.add(new DependTag.Function(
+					qnameFrom(f._name, f._schema), f.parameterTypes));
+
+			String s = typeModifierInput();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(s, SIG_TYPMODIN));
+
+			s = typeModifierOutput();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(s, SIG_TYPMODOUT));
+
+			s = analyze();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(s, SIG_ANALYZE));
+		}
+
 		public String[] deployStrings()
 		{
 			ArrayList<String> al = new ArrayList<>();
-			al.add( "CREATE TYPE " + qname);
-
-			al.addAll( Arrays.asList( in.deployStrings()));
-			al.addAll( Arrays.asList( out.deployStrings()));
-			al.addAll( Arrays.asList( recv.deployStrings()));
-			al.addAll( Arrays.asList( send.deployStrings()));
 
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE TYPE ").append( qname).append( " (\n\t");
@@ -2462,7 +2565,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( ",\n\tTYPMOD_OUT = ").append( typeModifierOutput());
 
 			if ( ! "".equals( analyze()) )
-				sb.append( ",\n\tANALYZE = ").append( typeModifierOutput());
+				sb.append( ",\n\tANALYZE = ").append( analyze());
 
 			if ( lengthExplicit  ||  "".equals( like()) )
 				sb.append( ",\n\tINTERNALLENGTH = ").append(
@@ -2513,6 +2616,42 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				"DROP TYPE " + qname + " CASCADE"
 			};
+		}
+
+		@Override
+		public Vertex<Snippet> breakCycle(Vertex<Snippet> v, boolean deploy)
+		{
+			assert this == v.payload;
+
+			/*
+			 * Find the entries in my adjacency list that are implicated in the
+			 * cycle (that is, that precede, perhaps transitively, me).
+			 */
+			Vertex<Snippet>[] vs = v.precedesTransitively(v);
+
+			assert null != vs && 0 < vs.length : "breakCycle not in a cycle";
+
+			if ( vs.length < v.indegree )
+				return null; // other non-cyclic edges not satisfied yet
+
+			if ( deploy )
+			{
+				Vertex<Snippet> breaker = new Vertex<>(new Shell());
+				v.transferSuccessorsTo(breaker, vs);
+				return breaker;
+			}
+
+			for ( Vertex<Snippet> subsumed : vs )
+				subsumed.payload.subsume();
+
+			/*
+			 * Set indegree now to zero, so that when the subsumed snippets are
+			 * themselves emitted, they will not decrement it to zero and cause
+			 * this to be scheduled again.
+			 */
+			v.indegree = 0;
+
+			return v; // use this vertex itself in the undeploy case
 		}
 	}
 
@@ -2716,11 +2855,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void addMap(Class<?> k, String schema, String local)
 		{
-			Identifier.Simple localName = Identifier.Simple.fromJava(local);
-			Identifier.Simple qualifier = null == schema ? null :
-				Identifier.Simple.fromJava(schema);
 			addMap( typeMirrorFromClass( k),
-				new DBType.Named(localName.withQualifier(qualifier)));
+				new DBType.Named(qnameFrom(local, schema)));
 		}
 
 		/**
@@ -2970,6 +3106,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		Collections.reverse(list);
 		return list;
 	}
+
+	/**
+	 * Return an {@code Identifier.Qualified} from discrete Java strings
+	 * representing the local name and schema, with a zero-length schema string
+	 * producing a qualified name with null qualifier.
+	 */
+	Identifier.Qualified<Identifier.Simple> qnameFrom(
+		String name, String schema)
+	{
+		Identifier.Simple qualifier =
+			"".equals(schema) ? null : Identifier.Simple.fromJava(schema, msgr);
+		Identifier.Simple local = Identifier.Simple.fromJava(name, msgr);
+		return local.withQualifier(qualifier);
+	}
 }
 
 /**
@@ -3041,6 +3191,36 @@ interface Snippet
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
 	public boolean characterize();
+
+	/**
+	 * If it is possible to break an ordering cycle at this snippet, return a
+	 * vertex wrapping a snippet (possibly this one, or another) that can be
+	 * considered ready, otherwise return null.
+	 *<p>
+	 * The default implementation returns null unconditionally.
+	 * @param v Vertex that wraps this Snippet
+	 * @param deploy true when generating an ordering for the deploy strings
+	 * @return a Vertex wrapping a Snippet that can be considered ready
+	 */
+	default Vertex<Snippet> breakCycle(Vertex<Snippet> v, boolean deploy)
+	{
+		return null;
+	}
+
+	/**
+	 * Called when undeploy ordering breaks a cycle by using
+	 * {@code DROP ... CASCADE} or equivalent on another object, with effects
+	 * that would duplicate or interfere with this snippet's undeploy actions.
+	 *<p>
+	 * A snippet for which this can matter should note that this method has been
+	 * called, and later generate its undeploy strings with any necessary
+	 * adjustments.
+	 *<p>
+	 * The default implementation does nothing.
+	 */
+	default void subsume()
+	{
+	}
 }
 
 interface Commentable
@@ -3110,6 +3290,136 @@ class Vertex<P>
 				vs.remove( v);
 				q.add( v);
 			}
+	}
+
+	/**
+	 * Whether a vertex is known to transitively precede, or not so precede, a
+	 * target vertex, or cannot yet be so classified.
+	 */
+	enum MemoState { YES, NO, PENDING }
+
+	/**
+	 * Return the memoized state of this vertex or, if none, enqueue the vertex
+	 * for further exploration, memoize its state as {@code PENDING}, and return
+	 * that.
+	 */
+	MemoState classifyOrEnqueue(
+		Queue<Vertex<P>> queue, IdentityHashMap<Vertex<P>,MemoState> memos)
+	{
+		MemoState state = memos.putIfAbsent(this, MemoState.PENDING);
+		if ( null == state )
+		{
+			queue.add(this);
+			return MemoState.PENDING;
+		}
+		return state;
+	}
+
+	/**
+	 * Execute one step of {@code precedesTransitively} determination.
+	 *<p>
+	 * On entry, this vertex has been removed from the queue. Its immediate
+	 * adjacency successors will be evaluated.
+	 *<p>
+	 * If any immediate successor is a {@code YES}, this vertex
+	 * is a {@code YES}.
+	 *<p>
+	 * If any immediate successor is {@code PENDING}, this vertex remains
+	 * {@code PENDING} and is replaced on the queue, to be encountered again
+	 * after all currently pending vertices.
+	 *<p>
+	 * Otherwise, this vertex is a {@code NO}.
+	 */
+	MemoState stepOfPrecedes(
+		Queue<Vertex<P>> queue, IdentityHashMap<Vertex<P>,MemoState> memos)
+	{
+		boolean anyPendingSuccessors = false;
+		for ( Vertex<P> v : adj )
+		{
+			switch ( v.classifyOrEnqueue(queue, memos) )
+			{
+			case YES:
+				memos.replace(this, MemoState.YES);
+				return MemoState.YES;
+			case PENDING:
+				anyPendingSuccessors = true;
+				break;
+			case NO:
+				break;
+			}
+		}
+
+		if ( anyPendingSuccessors )
+		{
+			queue.add(this);
+			return MemoState.PENDING;
+		}
+
+		memos.replace(this, MemoState.NO);
+		return MemoState.NO;
+	}
+
+	/**
+	 * Determine whether this vertex (transitively) precedes <em>other</em>,
+	 * returning, if so, that subset of its immediate adjacency successors
+	 * through which <em>other</em> is reachable.
+	 * @param other vertex to which reachability is to be tested
+	 * @return array of immediate adjacencies through which other is reachable,
+	 * or null if it is not
+	 */
+	Vertex<P>[] precedesTransitively(Vertex<P> other)
+	{
+		Queue<Vertex<P>> queue = new LinkedList<>();
+		IdentityHashMap<Vertex<P>,MemoState> memos = new IdentityHashMap<>();
+		boolean anyYeses = false;
+
+		/*
+		 * Initially: the 'other' vertex itself is known to be a YES.
+		 * Nothing is yet known to be a NO.
+		 */
+		memos.put(requireNonNull(other), MemoState.YES);
+
+		/*
+		 * classifyOrEnqueue my immediate successors. Any that is not 'other'
+		 * itself will be enqueued in PENDING status.
+		 */
+		for ( Vertex<P> v : adj )
+			if ( MemoState.YES == v.classifyOrEnqueue(queue, memos) )
+				anyYeses = true;
+
+		/*
+		 * After running stepOfPrecedes on every enqueued vertex until the queue
+		 * is empty, every vertex seen will be in memos as a YES or a NO.
+		 */
+		while ( ! queue.isEmpty() )
+			if ( MemoState.YES == queue.remove().stepOfPrecedes(queue, memos) )
+				anyYeses = true;
+
+		if ( ! anyYeses )
+			return null;
+
+		@SuppressWarnings("unchecked") // can't quite say Vertex<P>[]::new
+		Vertex<P>[] result = adj.stream()
+			.filter(v -> MemoState.YES == memos.get(v))
+			.toArray(Vertex[]::new);
+
+		return result;
+	}
+
+	/**
+	 * Remove <em>successors</em> from the adjacency list of this vertex, and
+	 * add them to the adjacency list of <em>other</em>.
+	 *<p>
+	 * No successor's indegree is changed.
+	 */
+	void transferSuccessorsTo(Vertex<P> other, Vertex<P>[] successors)
+	{
+		for ( Vertex<P> v : successors )
+		{
+			boolean removed = adj.remove(v);
+			assert removed : "transferSuccessorsTo passed a non-successor";
+			other.adj.add(v);
+		}
 	}
 }
 
@@ -3851,6 +4161,11 @@ abstract class DependTag<T>
 	static final class Function extends DependTag<Identifier.Qualified>
 	{
 		private DBType[] m_signature;
+
+		Function(String qname, DBType[] signature)
+		{
+			this(Identifier.Qualified.nameFromJava(qname), signature);
+		}
 
 		Function(Identifier.Qualified value, DBType[] signature)
 		{

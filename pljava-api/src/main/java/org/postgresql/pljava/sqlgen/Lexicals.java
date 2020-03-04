@@ -550,6 +550,48 @@ public abstract class Lexicals
 			}
 
 			/**
+			 * Concatenates one or more strings or identifiers to the end of
+			 * this identifier.
+			 *<p>
+			 * The arguments may be instances of {@code Simple} or of
+			 * {@code CharSequence}, in any combination.
+			 *<p>
+			 * The resulting identifier folds if this identifier and all
+			 * identifier arguments fold and the concatenation (with all
+			 * {@code Simple} and {@code CharSequence} components included)
+			 * still matches the {@code ISO_AND_PG_REGULAR_IDENTIFIER} pattern.
+			 */
+			public Simple concat(Object... more)
+			{
+				boolean foldable = folds();
+				StringBuilder s = new StringBuilder(nonFolded());
+
+				for ( Object o : more )
+				{
+					if ( o instanceof Simple )
+					{
+						Simple si = (Simple)o;
+						foldable = foldable && si.folds();
+						s.append(si.nonFolded());
+					}
+					else if ( o instanceof CharSequence )
+					{
+						CharSequence cs = (CharSequence)o;
+						s.append(cs);
+					}
+					else
+						throw new IllegalArgumentException(
+							"arguments to Identifier.Simple.concat() must be " +
+							"Identifier.Simple or CharSequence");
+				}
+
+				if ( foldable )
+					foldable=ISO_AND_PG_REGULAR_IDENTIFIER.matcher(s).matches();
+
+				return from(s.toString(), ! foldable);
+			}
+
+			/**
 			 * Create an {@code Identifier.Simple} from a name string found in
 			 * a PostgreSQL system catalog.
 			 *<p>
