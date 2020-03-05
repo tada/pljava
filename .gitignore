@@ -1,6 +1,7 @@
 /.classpath
 /.project
 /.settings
+.idea/
 target/site
 target/staging
 target/javadoc-bundle-options
