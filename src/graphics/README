@@ -1,0 +1,15 @@
+pljava_logo.psd is original Photoshop art by Annelie Hallgren.
+
+pljava_logo.svg is derived from that by Chapman Flack and Inkscape's
+tracing feature.
+
+pljava_logo.svg should not, in its current form, be used directly in web
+content. It refers to the "Nimbus Sans L" font by name, which not all web
+browsers will honor. A version to be used directly should have the font
+subsetted and directly embedded, which may become possible in a newer
+version of Inkscape: https://gitlab.com/inkscape/inbox/issues/301
+Until then, it would require a separate step with another tool.
+
+On the other hand, the current pljava_logo.svg is well suited to generating
+clean PNG or other formats at various resolutions, which can then be used
+in site content.
