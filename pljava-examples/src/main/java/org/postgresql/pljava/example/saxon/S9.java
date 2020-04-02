@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -63,6 +63,7 @@ import net.sf.saxon.lib.NamespaceConstant;
 
 import static net.sf.saxon.om.NameChecker.isValidNCName;
 import net.sf.saxon.om.SequenceIterator;
+import static net.sf.saxon.om.SequenceIterator.Property.LOOKAHEAD;
 
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
@@ -805,7 +806,7 @@ public class S9 implements ResultSetProvider
 		if ( nullOnEmpty )
 		{
 			xs = x.getUnderlyingValue().iterate();
-			if ( 0 == ( SequenceIterator.LOOKAHEAD & xs.getProperties() ) )
+			if ( ! xs.getProperties().contains(LOOKAHEAD) )
 				throw new SQLException(
 				"nullOnEmpty requested and result sequence lacks lookahead",
 					"XX000");
