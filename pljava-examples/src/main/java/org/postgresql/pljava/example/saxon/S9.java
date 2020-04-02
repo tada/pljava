@@ -1988,14 +1988,14 @@ public class S9 implements ResultSetProvider
 			rs.updateObject(col, bv.getValue());
 
 		else if ( ItemType.DATE.subsumes(xt) )
-			rs.updateObject(col, LocalDate.parse(bv.getStringValue()));
+			rs.updateObject(col, bv.getLocalDate());
 		else if ( ItemType.DATE_TIME.subsumes(xt) )
 		{
 			if ( ((CalendarValue)bv.getUnderlyingValue()).hasTimezone() )
-				rs.updateObject(col, OffsetDateTime.parse(bv.getStringValue()));
+				rs.updateObject(col, bv.getOffsetDateTime());
 			else
 			{
-				LocalDateTime jv = LocalDateTime.parse(bv.getStringValue());
+				LocalDateTime jv = bv.getLocalDateTime();
 				rs.updateObject(col,
 					Types.TIMESTAMP_WITH_TIMEZONE == p.typeJDBC() ?
 						jv.atOffset(UTC) : jv);
@@ -2075,16 +2075,28 @@ public class S9 implements ResultSetProvider
 			return new XdmAtomicValue((Boolean)dv);
 
 		if ( ItemType.DATE.equals(xst) )
+		{
+			if ( dv instanceof LocalDate )
+				return new XdmAtomicValue((LocalDate)dv);
 			return new XdmAtomicValue(dv.toString(), xst);
+		}
 
 		if ( ItemType.TIME.equals(xst) )
 			return new XdmAtomicValue(dv.toString(), xst);
 
 		if ( ItemType.DATE_TIME.equals(xst) )
+		{
+			if ( dv instanceof LocalDateTime )
+				return new XdmAtomicValue((LocalDateTime)dv);
 			return new XdmAtomicValue(dv.toString(), xst);
+		}
 
 		if ( ItemType.DATE_TIME_STAMP.equals(xst) )
+		{
+			if ( dv instanceof OffsetDateTime )
+				return new XdmAtomicValue((OffsetDateTime)dv);
 			return new XdmAtomicValue(dv.toString(), xst);
+		}
 
 		if ( ItemType.DURATION.equals(xst) )
 			return new XdmAtomicValue(toggleIntervalRepr((String)dv), xst);
