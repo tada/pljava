@@ -386,7 +386,7 @@ public abstract class DualState<T> extends WeakReference<T>
 				if ( null == pc  ||  ! pc.m_referent.equals(s) )
 				{
 					result = counts.hasPin(s);
-					counts.push(pc = counts.allocate(s));
+					pc = counts.push(s);
 				}
 				if ( 0 < pc.m_count ++ )
 					return true;
@@ -469,21 +469,11 @@ public abstract class DualState<T> extends WeakReference<T>
 			}
 
 			/**
-			 * Push an entry that must have been obtained from {@code allocate}.
+			 * Obtain an entry from {@code allocate}, push and return it.
 			 */
-			void push(PinCount pc)
+			PinCount push(DualState<?> s)
 			{
-				/*
-				 * The object returned by {@code allocate} will not have been
-				 * newly allocated, unless nothing was pooled. If it came from
-				 * the pool, this {@code push} will be using the same array
-				 * slot, so we cannot have to extend the array, and will not
-				 * corrupt the pool. If the array must be extended, it follows
-				 * that m_pooled is zero, and no special attention to the pool
-				 * is needed. These invariants depend on the pattern that this
-				 * method is only passed a value that has just been obtained
-				 * from {@code allocate}. This is a very special-purpose stack.
-				 */
+				PinCount pc = allocate(s);
 				++ m_top;
 				if ( m_top < m_array.length )
 					assert m_top + m_pooled < m_array.length : "stack v. pool";
@@ -493,9 +483,10 @@ public abstract class DualState<T> extends WeakReference<T>
 					m_array = copyOf(m_array, 2 * m_array.length);
 				}
 				m_array [ m_top ] = pc;
+				return pc;
 			}
 
-			PinCount allocate(DualState<?> s)
+			private PinCount allocate(DualState<?> s)
 			{
 				if ( m_pooled > 0 )
 				{
