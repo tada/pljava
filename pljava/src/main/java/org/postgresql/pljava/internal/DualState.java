@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.LongAdder;
 import static java.util.concurrent.locks.LockSupport.park;
 import static java.util.concurrent.locks.LockSupport.unpark;
 
+import java.util.function.Supplier;
+
 import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 import javax.management.ObjectName;
 import javax.management.JMException;
@@ -374,11 +376,13 @@ public abstract class DualState<T> extends WeakReference<T>
 
 			/**
 			 * Increment a thread-local count of pins for a DualState object.
-			 * @return true if there was already at least one pin counted for
+			 * @return null if there was already at least one pin counted for
 			 * the object (that is, no real pin will need to be taken; this is
-			 * a reentrant pin).
+			 * a reentrant pin); otherwise, a Supplier<Queue<Thread>> that can
+			 * supply a preallocated queue prepopulated with the current thread,
+			 * in case inflation is needed.
 			 */
-			boolean pin(DualState<?> s)
+			Supplier<Queue<Thread>> pin(DualState<?> s)
 			{
 				boolean result = false; // assume a real pin must be taken
 				Manager counts = get();
@@ -389,8 +393,18 @@ public abstract class DualState<T> extends WeakReference<T>
 					pc = counts.push(s);
 				}
 				if ( 0 < pc.m_count ++ )
-					return true;
-				return result;
+					return null;
+				/*
+				 * Ensure that counts.m_protoWaiters contains a preallocated
+				 * queue with this thread already added to it, ready for
+				 * immediate use by a contended pin that needs to inflate.
+				 */
+				if ( null == counts.m_protoWaiters )
+				{
+					counts.m_protoWaiters = new ConcurrentLinkedQueue<>();
+					counts.m_protoWaiters.add(Thread.currentThread());
+				}
+				return counts;
 			}
 
 			/**
@@ -430,13 +444,22 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * objects once pushed on it, for reuse, intended to produce less
 		 * observed garbage than the earlier straight use of ArrayDeque.
 		 */
-		static final class Manager
+		static final class Manager implements Supplier<Queue<Thread>>
 		{
 			private static final int INITIAL_SIZE = 4;
 			private static final int POOL_TARGET = 2;
 			private PinCount[] m_array = new PinCount [ INITIAL_SIZE ];
 			private int m_top = -1;
 			private int m_pooled = 0;
+			Queue<Thread> m_protoWaiters;
+
+			@Override
+			public Queue<Thread> get()
+			{
+				Queue<Thread> q = m_protoWaiters;
+				m_protoWaiters = null;
+				return q;
+			}
 
 			PinCount peek()
 			{
@@ -549,6 +572,12 @@ public abstract class DualState<T> extends WeakReference<T>
 	private static final VarHandle s_stateVH;
 
 	/**
+	 * {@code VarHandle} for applying atomic operations on the {@code m_waiters}
+	 * field.
+	 */
+	private static final VarHandle s_waitersVH;
+
+	/**
 	 * Bean to expose DualState allocation/release statistics to JMX management
 	 * tools.
 	 */
@@ -559,6 +588,8 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			s_stateVH =
 				lookup().findVarHandle(DualState.class, "m_state", int.class);
+			s_waitersVH = lookup().findVarHandle(DualState.class, "m_waiters",
+				Queue.class);
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -614,13 +645,13 @@ public abstract class DualState<T> extends WeakReference<T>
 	private volatile int m_state = 0;
 
 	/** Threads waiting for pins pending release of lock. */
-	private final Queue<Thread> m_waiters;
+	private Queue<Thread> m_waiters;
 
 	/** True if argument is zero. */
 	static boolean z(int i) { return 0 == i; }
 
 	/**
-	 * Return the argument; convenient breakpoint targe for failed assertions.
+	 * Return the argument; convenient breakpoint target for failed assertions.
 	 */
 	static <T> T m(T detail)
 	{
@@ -655,8 +686,6 @@ public abstract class DualState<T> extends WeakReference<T>
 		long scoped = 0L;
 
 		m_resourceOwner = resourceOwner;
-
-		m_waiters = new ConcurrentLinkedQueue<>();
 
 		assert Backend.threadMayEnterPG() : m("DualState construction");
 		/*
@@ -980,7 +1009,15 @@ public abstract class DualState<T> extends WeakReference<T>
 	 */
 	private final int _pin()
 	{
-		if ( s_pinCount.pin(this) )
+		/*
+		 * The test for a reentrant pin will indicate its result by returning
+		 * null (if the pin is reentrant and no further action is needed here)
+		 * or a queue supplier, which is ready to supply a preallocated queue
+		 * in case inflation is needed.
+		 */
+		Supplier<Queue<Thread>> qSupplier = s_pinCount.pin(this);
+
+		if ( null == qSupplier )
 			return 0; // reentrant pin, no need for sync effort
 
 		int s = 1 + (int)s_stateVH.getAndAdd(this, 1); // be optimistic
@@ -1011,7 +1048,40 @@ public abstract class DualState<T> extends WeakReference<T>
 		 */
 
 		Thread thr = Thread.currentThread();
-		m_waiters.add(thr);
+
+		/*
+		 * Observation shows contention is very rare, so m_waiters can be left
+		 * null for most DualState instances, and be 'inflated' by having a
+		 * queue installed when first needed. That requires a null check here.
+		 */
+		if ( null != m_waiters )
+			m_waiters.add(thr);
+		else
+		{
+			/*
+			 * We install the queue with a CAS on m_waiters, which is enough to
+			 * coordinate with any other thread trying to do this concurrently.
+			 * It is not enough to synchronize with unlock(), which uses only a
+			 * plain read on m_waiters. But it only does that after seeing our
+			 * upcoming modification to m_state, which this happens before.
+			 */
+			if ( s_waitersVH.compareAndSet(this, null, qSupplier.get()) )
+			{
+				/*
+				 * We successfully inflated. The queue obtained from get() above
+				 * already has this thread enqueued on it, so there is nothing
+				 * else to do here.
+				 */
+			}
+			else
+			{
+				/*
+				 * Somebody beat us to it. Their queue is just as good; use it.
+				 */
+				m_waiters.add(thr);
+			}
+		}
+
 		int t;
 		int u;
 		/*
@@ -1431,6 +1501,12 @@ public abstract class DualState<T> extends WeakReference<T>
 		t &= PINNERS_MASK; // should equal the number of threads on the queue
 		if ( upgrade ) // my pin bit was stashed as a waiter, but nothing queued
 			-- t;
+		/*
+		 * If no waiters (t is zero), we are done. Don't bother comparing zero
+		 * to the queue size; inflation may not have supplied a queue yet.
+		 */
+		if ( 0 == t )
+			return;
 		s_stats.pinContended(t);
 		Thread thr;
 		while ( null != (thr = m_waiters.poll()) )
