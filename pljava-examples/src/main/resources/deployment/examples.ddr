@@ -192,24 +192,6 @@ SQLActions[ ] = {
 			AS 'org.postgresql.pljava.example.ResultSetTest.executeSelect'
 			LANGUAGE java;
 
-		/*
-		 * An example using the ANY type
-		 */
-		CREATE FUNCTION javatest.loganyelement(anyelement)
-			RETURNS anyelement
-			AS 'org.postgresql.pljava.example.AnyTest.logAnyElement'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		CREATE FUNCTION javatest.logany("any")
-			RETURNS void
-			AS 'org.postgresql.pljava.example.AnyTest.logAny'
-			LANGUAGE java IMMUTABLE STRICT;
-
-		CREATE FUNCTION javatest.makearray(anyelement)
-			RETURNS anyarray
-			AS 'org.postgresql.pljava.example.AnyTest.makeArray'
-			LANGUAGE java IMMUTABLE STRICT;
-
 	END INSTALL",
 
 	"BEGIN REMOVE

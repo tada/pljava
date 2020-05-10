@@ -968,8 +968,11 @@ public class Function
 		String methodName = info.group("meth");
 
 		return
-			adaptHandle(getMethodHandle(schemaLoader, clazz, methodName,
-				resolvedTypes, retTypeIsOutParameter, isMultiCall));
+			adaptHandle(
+				getMethodHandle(schemaLoader, clazz, methodName,
+					resolvedTypes, retTypeIsOutParameter, isMultiCall)
+				.asFixedArity()
+			);
 	}
 
 	/**
