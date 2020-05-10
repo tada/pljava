@@ -58,25 +58,26 @@ import static javax.xml.XMLConstants.XML_NS_PREFIX;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE_NS_URI;
 import static javax.xml.XMLConstants.XMLNS_ATTRIBUTE;
 
+import net.sf.saxon.event.Receiver;
+
 import net.sf.saxon.lib.ConversionRules;
 import net.sf.saxon.lib.NamespaceConstant;
 
 import static net.sf.saxon.om.NameChecker.isValidNCName;
-import net.sf.saxon.om.SequenceIterator;
-import static net.sf.saxon.om.SequenceIterator.Property.LOOKAHEAD;
 
-import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
 
 import net.sf.saxon.regex.RegexIterator;
 import net.sf.saxon.regex.RegularExpression;
 
+import net.sf.saxon.s9api.Destination;
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.ItemType;
 import net.sf.saxon.s9api.ItemTypeFactory;
 import net.sf.saxon.s9api.OccurrenceIndicator;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.QName;
+import net.sf.saxon.s9api.SAXDestination;
 import net.sf.saxon.s9api.SequenceType;
 import static net.sf.saxon.s9api.SequenceType.makeSequenceType;
 import net.sf.saxon.s9api.XdmAtomicValue;
@@ -94,7 +95,7 @@ import net.sf.saxon.s9api.SaxonApiException;
 
 import net.sf.saxon.trans.XPathException;
 
-import net.sf.saxon.tree.iter.LookaheadIterator;
+import net.sf.saxon.serialize.SerializationProperties;
 
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.Converter;
@@ -309,7 +310,6 @@ public class S9 implements ResultSetProvider
 	final AtomizingFunction[] m_atomize;
 	final XMLBinary m_xmlbinary;
 	Binding.Assemblage m_outBindings;
-	XQueryEvaluator m_documentWrap;
 
 	static final Connection s_dbc;
 	static final Processor s_s9p = new Processor(false);
@@ -363,26 +363,6 @@ public class S9 implements ResultSetProvider
 	{
 		static final XQueryCompiler s_xqc = s_s9p.newXQueryCompiler();
 		static final QName s_qEXPR = new QName("EXPR");
-
-		static class DocumentWrap
-		{
-			static final XQueryExecutable INSTANCE;
-
-			static
-			{
-				try
-				{
-					INSTANCE = s_xqc.compile(
-						"declare construction preserve;" +
-						"declare variable $EXPR as item()* external;" +
-						"document{$EXPR}");
-				}
-				catch ( SaxonApiException e )
-				{
-					throw new ExceptionInInitializerError(e);
-				}
-			}
-		}
 
 		static class DocumentWrapUnwrap
 		{
@@ -548,7 +528,8 @@ public class S9 implements ResultSetProvider
 			}
 			ItemType xsbt =
 				mapSQLDataTypeToXMLSchemaDataType(op, enc, Nulls.ABSENT);
-			XdmValue tv = xmlCastAsSequence(v, enc, xsbt);
+			XdmSequenceIterator tv = (XdmSequenceIterator)
+				xmlCastAsSequence(v, enc, xsbt).iterator();
 			try
 			{
 				target.updateSQLXML(1,
@@ -670,7 +651,8 @@ public class S9 implements ResultSetProvider
 
 		try
 		{
-			XdmValue x1 = evalXQuery(expression, passing, namespaces);
+			XdmSequenceIterator<XdmItem> x1 =
+				evalXQuery(expression, passing, namespaces);
 			return null == x1 ? null : returnContent(x1, nullOnEmpty);
 		}
 		catch ( SaxonApiException e )
@@ -735,11 +717,13 @@ public class S9 implements ResultSetProvider
 			throw new SQLDataException(
 				"XMLEXISTS expression may not be null", "22004");
 
-		XdmValue x1 = evalXQuery(expression, passing, namespaces);
+		XdmSequenceIterator<XdmItem> x1 =
+			evalXQuery(expression, passing, namespaces);
 		if ( null == x1 )
 			return null;
-		if ( null == x1.getUnderlyingValue().head() )
+		if ( ! x1.hasNext() )
 			return false;
+		x1.close();
 		return true;
 	}
 
@@ -747,7 +731,7 @@ public class S9 implements ResultSetProvider
 	 * Implementation factor of XMLEXISTS and XMLQUERY.
 	 * @return null if a context item is passed and its SQL value is null
 	 */
-	private static XdmValue evalXQuery(
+	private static XdmSequenceIterator<XdmItem> evalXQuery(
 		String expression, ResultSet passing, String[] namespaces)
 		throws SQLException
 	{
@@ -767,7 +751,7 @@ public class S9 implements ResultSetProvider
 			 * For now, punt on whether the <XQuery expression> is evaluated
 			 * with XML 1.1 or 1.0 lexical rules....  XXX
 			 */
-			return xqe.evaluate();
+			return xqe.iterator();
 		}
 		catch ( SaxonApiException e )
 		{
@@ -780,51 +764,39 @@ public class S9 implements ResultSetProvider
 	}
 
 	/**
-	 * A version of {@code returnContent} that returns XQuery's
-	 * {@code document{{$EXPR}}} applied to <em>x</em> (as {@code $EXPR}).
-	 */
-	private static SQLXML returnContent(XdmValue x, boolean nullOnEmpty)
-	throws SQLException, SaxonApiException, XPathException
-	{
-		XQueryEvaluator xqe =
-			PredefinedQueryHolders.DocumentWrap.INSTANCE.load();
-		return returnContent(x, nullOnEmpty, xqe);
-	}
-
-	/**
-	 * A version of {@code returnContent} that returns the result of an
-	 * arbitrary XQuery evaluator <em>xqe</em> (that declares an external
-	 * variable {@code $EXPR} of type {@code item()*}) applied to <em>x</em>
-	 * (as {@code $EXPR}).
+	 * Perform the final steps of <em>something</em> {@code RETURNING CONTENT},
+	 * with or without {@code nullOnEmpty}.
+	 *<p>
+	 * The effects are to be the same as if the supplied sequence were passed
+	 * as {@code $EXPR} to {@code document{$EXPR}}.
 	 */
 	private static SQLXML returnContent(
-		XdmValue x, boolean nullOnEmpty, XQueryEvaluator xqe)
+		XdmSequenceIterator<XdmItem> x, boolean nullOnEmpty)
 	throws SQLException, SaxonApiException, XPathException
 	{
-		SequenceIterator xs;
-
-		if ( nullOnEmpty )
-		{
-			xs = x.getUnderlyingValue().iterate();
-			if ( ! xs.getProperties().contains(LOOKAHEAD) )
-				throw new SQLException(
-				"nullOnEmpty requested and result sequence lacks lookahead",
-					"XX000");
-			if ( ! ((LookaheadIterator)xs).hasNext() )
-			{
-				xs.close();
-				return null;
-			}
-			xs.close();
-		}
-
-		xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, x);
-		xs = xqe.evaluate().getUnderlyingValue().iterate();
+		if ( nullOnEmpty  &&  ! x.hasNext() )
+			return null;
 
 		SQLXML rsx = s_dbc.createSQLXML();
-		Result r = rsx.setResult(null);
-		QueryResult.serializeSequence(
-			xs, s_s9p.getUnderlyingConfiguration(), r, new Properties());
+		/*
+		 * Keep this simple by requesting a specific type of Result rather
+		 * than letting PL/Java choose. It happens (though this is a detail of
+		 * the implementation) that SAXResult won't be a bad choice.
+		 */
+		SAXResult sr = rsx.setResult(SAXResult.class);
+		/*
+		 * Michael Kay recommends the following as equivalent to the SQL/XML-
+		 * mandated behavior of evaluating document{$x}.
+		 * https://sourceforge.net/p/saxon/mailman/message/36969060/
+		 */
+		SAXDestination d = new SAXDestination(sr.getHandler());
+		Receiver r = d.getReceiver(
+			s_s9p.getUnderlyingConfiguration().makePipelineConfiguration(),
+			new SerializationProperties());
+		r.open();
+		while ( x.hasNext() )
+			r.append(x.next().getUnderlyingValue());
+		r.close();
 		return rsx;
 	}
 
@@ -1255,22 +1227,6 @@ public class S9 implements ResultSetProvider
 				if ( null == m_columnXQEs [ i ] )
 					continue;
 				/*
-				 * If the output column type is an XML type (other than
-				 * XML(SEQUENCE), which can be assumed, as PostgreSQL doesn't
-				 * have that type), then the column will just be assigned as by
-				 * returnContent(). Load up a DocumentWrap predefined query, so
-				 * returnContent won't have to do it every time. Assign nothing
-				 * to m_atomize[i]; null there will distinguish this case
-				 * (because the ORDINALITY case will already have been checked).
-				 */
-				if ( Types.SQLXML == p.typeJDBC() )
-				{
-					if ( null == m_documentWrap )
-						m_documentWrap =
-							PredefinedQueryHolders.DocumentWrap.INSTANCE.load();
-					continue;
-				}
-				/*
 				 * Ok, the output column type is non-XML. If the column
 				 * expression type isn't known to be atomic, or isn't known to
 				 * be zero-or-one, then the general-purpose atomizer--a trip
@@ -1369,15 +1325,15 @@ public class S9 implements ResultSetProvider
 			try
 			{
 				xqe.setContextItem(it);
-				XdmValue x1 = xqe.evaluate();
 
 				if ( null == atomizer ) /* => result type was found to be XML */
 				{
 					receive.updateSQLXML(
-						i, returnContent(x1, false, m_documentWrap));
+						i, returnContent(xqe.iterator(), false));
 					continue;
 				}
 
+				XdmValue x1 = xqe.evaluate();
 				x1 = atomizer.apply(x1, i);
 
 				/*
