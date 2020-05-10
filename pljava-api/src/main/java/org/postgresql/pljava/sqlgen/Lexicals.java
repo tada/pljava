@@ -94,6 +94,17 @@ public abstract class Lexicals
 	/** The escape-specifier part of a Unicode delimited identifier or string.
 	 * The escape character itself is in the capturing group named {@code uec}.
 	 * The group can be absent, in which case \ should be used as the uec.
+	 *<p>
+	 * What makes this implementable as a regular expression is that what
+	 * precedes/follows {@code UESCAPE} is restricted to simple white space,
+	 * not the more general {@code separator} (which can include nesting
+	 * comments and therefore isn't a regular language). PostgreSQL enforces
+	 * the same restriction, and a bit of language lawyering does confirm
+	 * it's what ISO entails. ISO says "any {@code <token>} may be followed by
+	 * a {@code <separator>}", and enumerates the expansions of {@code <token>}.
+	 * While an entire {@code <Unicode character string literal>} or
+	 * {@code <Unicode delimited identifier>} is a {@code <token>}, the
+	 * constituent pieces of one, like {@code UESCAPE} here, are not.
 	 */
 	public static final Pattern ISO_UNICODE_ESCAPE_SPECIFIER =
 	Pattern.compile(
@@ -539,6 +550,48 @@ public abstract class Lexicals
 			}
 
 			/**
+			 * Concatenates one or more strings or identifiers to the end of
+			 * this identifier.
+			 *<p>
+			 * The arguments may be instances of {@code Simple} or of
+			 * {@code CharSequence}, in any combination.
+			 *<p>
+			 * The resulting identifier folds if this identifier and all
+			 * identifier arguments fold and the concatenation (with all
+			 * {@code Simple} and {@code CharSequence} components included)
+			 * still matches the {@code ISO_AND_PG_REGULAR_IDENTIFIER} pattern.
+			 */
+			public Simple concat(Object... more)
+			{
+				boolean foldable = folds();
+				StringBuilder s = new StringBuilder(nonFolded());
+
+				for ( Object o : more )
+				{
+					if ( o instanceof Simple )
+					{
+						Simple si = (Simple)o;
+						foldable = foldable && si.folds();
+						s.append(si.nonFolded());
+					}
+					else if ( o instanceof CharSequence )
+					{
+						CharSequence cs = (CharSequence)o;
+						s.append(cs);
+					}
+					else
+						throw new IllegalArgumentException(
+							"arguments to Identifier.Simple.concat() must be " +
+							"Identifier.Simple or CharSequence");
+				}
+
+				if ( foldable )
+					foldable=ISO_AND_PG_REGULAR_IDENTIFIER.matcher(s).matches();
+
+				return from(s.toString(), ! foldable);
+			}
+
+			/**
 			 * Create an {@code Identifier.Simple} from a name string found in
 			 * a PostgreSQL system catalog.
 			 *<p>
@@ -713,6 +766,28 @@ public abstract class Lexicals
 					return oi.equals(this);
 				return m_nonFolded.equals(oi.nonFolded());
 			}
+
+			/**
+			 * Case-fold a string by the PostgreSQL rules (assuming a
+			 * multibyte server encoding, where only the 26 uppercase ASCII
+			 * letters fold to lowercase).
+			 * @param s The non-folded value.
+			 * @return The folded value.
+			 */
+			public static String pgFold(String s)
+			{
+				Matcher m = s_pgFolded.matcher(s);
+				StringBuffer sb = new StringBuffer();
+				while ( m.find() )
+					m.appendReplacement(sb, m.group().toLowerCase());
+				return m.appendTail(sb).toString();
+			}
+
+			/**
+			 * The characters that PostgreSQL rules will fold: only the 26
+			 * uppercase ASCII letters.
+			 */
+			private static final Pattern s_pgFolded = Pattern.compile("[A-Z]");
 
 			private Simple(String nonFolded)
 			{
@@ -894,28 +969,6 @@ public abstract class Lexicals
 						m_nonFolded, oi.nonFolded()));
 				}
 				return eqPG || eqISO;
-			}
-
-			/**
-			 * The characters that PostgreSQL rules will fold: only the 26
-			 * uppercase ASCII letters.
-			 */
-			private static final Pattern s_pgFolded = Pattern.compile("[A-Z]");
-
-			/**
-			 * Case-fold a string by the PostgreSQL rules (assuming a
-			 * multibyte server encoding, where only the 26 uppercase ASCII
-			 * letters fold to lowercase).
-			 * @param s The non-folded value.
-			 * @return The folded value.
-			 */
-			private static String pgFold(String s)
-			{
-				Matcher m = s_pgFolded.matcher(s);
-				StringBuffer sb = new StringBuffer();
-				while ( m.find() )
-					m.appendReplacement(sb, m.group().toLowerCase());
-				return m.appendTail(sb).toString();
 			}
 		}
 

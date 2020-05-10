@@ -32,13 +32,13 @@ import static
 /**
  * Complex (re and im parts are doubles) implemented in Java as a scalar UDT.
  */
-@SQLAction(requires = { "scalar complex type", "complex assertHasValues" },
+@SQLAction(requires = "complex assertHasValues",
 	install = {
 		"SELECT javatest.assertHasValues(" +
 		" CAST('(1,2)' AS javatest.complex), 1, 2)"
 	}
 )
-@BaseUDT(schema="javatest", name="complex", provides="scalar complex type",
+@BaseUDT(schema="javatest", name="complex",
 	internalLength=16, alignment=BaseUDT.Alignment.DOUBLE)
 public class ComplexScalar implements SQLData {
 	private static Logger s_logger = Logger.getAnonymousLogger();
@@ -48,7 +48,7 @@ public class ComplexScalar implements SQLData {
 	 * @param cpl any instance of this UDT
 	 * @return the same instance passed in
 	 */
-	@Function(requires="scalar complex type",
+	@Function(
 		schema="javatest", name="logcomplex", effects=IMMUTABLE,
 		onNullInput=RETURNS_NULL)
 	public static ComplexScalar logAndReturn(ComplexScalar cpl) {
@@ -65,7 +65,7 @@ public class ComplexScalar implements SQLData {
 	 * @throws SQLException if the values do not match
 	 */
 	@Function(schema="javatest",
-		requires="scalar complex type", provides="complex assertHasValues",
+		provides="complex assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static void assertHasValues(ComplexScalar cpl, double re, double im)
 		throws SQLException

@@ -43,20 +43,31 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import static java.util.Collections.unmodifiableSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import static java.util.Objects.hash;
+import static java.util.Objects.requireNonNull;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
+import java.util.function.Supplier;
+
+import java.util.stream.Stream;
+import static java.util.stream.Collectors.joining;
+
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import static java.util.regex.Pattern.compile;
 
 import javax.annotation.processing.*;
 
@@ -102,6 +113,15 @@ import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
 
 import org.postgresql.pljava.sqlgen.Lexicals;
+import static org.postgresql.pljava.sqlgen.Lexicals
+	.ISO_AND_PG_IDENTIFIER_CAPTURING;
+import static org.postgresql.pljava.sqlgen.Lexicals.ISO_REGULAR_IDENTIFIER_PART;
+import static org.postgresql.pljava.sqlgen.Lexicals.PG_REGULAR_IDENTIFIER_PART;
+import static org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
+import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
+import static org.postgresql.pljava.sqlgen.Lexicals.separator;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple.pgFold;
 
 /**
  * Annotation processor invoked by the annotations framework in javac for
@@ -174,7 +194,7 @@ class DDRProcessorImpl
 	final String nameTrusted;
 	final String nameUntrusted;
 	final String output;
-	final String defaultImplementor;
+	final Identifier.Simple defaultImplementor;
 	final boolean reproducible;
 	
 	// Certain known types that need to be recognized in the processed code
@@ -200,6 +220,24 @@ class DDRProcessorImpl
 	final TypeElement  AN_TRIGGER;
 	final TypeElement  AN_BASEUDT;
 	final TypeElement  AN_MAPPEDUDT;
+
+	// Certain familiar DBTypes (capitalized as this file historically has)
+	//
+	final DBType DT_RECORD  = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.RECORD"));
+	final DBType DT_TRIGGER = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.trigger"));
+	final DBType DT_VOID = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.void"));
+
+	// Function signatures for certain known functions
+	//
+	final DBType[] SIG_TYPMODIN =
+		{ DBType.fromSQLTypeAnnotation("pg_catalog.cstring[]") };
+	final DBType[] SIG_TYPMODOUT =
+		{ DBType.fromSQLTypeAnnotation("integer") };
+	final DBType[] SIG_ANALYZE =
+		{ DBType.fromSQLTypeAnnotation("pg_catalog.internal") };
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -229,9 +267,10 @@ class DDRProcessorImpl
 		
 		optv = opts.get( "ddr.implementor");
 		if ( null != optv )
-			defaultImplementor = "-".equals( optv) ? null : optv;
+			defaultImplementor = "-".equals( optv) ? null :
+				Identifier.Simple.fromJava(optv);
 		else
-			defaultImplementor = "PostgreSQL";
+			defaultImplementor = Identifier.Simple.fromJava("PostgreSQL");
 
 		optv = opts.get( "ddr.output");
 		if ( null != optv )
@@ -340,9 +379,11 @@ class DDRProcessorImpl
 	 */
 	Map<SnippetsKey, Snippet> snippets = new HashMap<>();
 
-	<S extends Snippet> S getSnippet(Object o, Class<S> c)
+	<S extends Snippet> S getSnippet(Object o, Class<S> c, Supplier<S> ctor)
 	{
-		return (S)snippets.get( new SnippetsKey( o, c));
+		return
+			c.cast(snippets
+				.computeIfAbsent(new SnippetsKey( o, c), k -> ctor.get()));
 	}
 
 	void putSnippet( Object o, Snippet s)
@@ -365,9 +406,9 @@ class DDRProcessorImpl
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
 	 * that 'provides' it. Has to be out here as an instance field for the
-	 * same reason {@code snippetQueue} does.
+	 * same reason {@code snippetVPairs} does.
 	 */
-	Map<String, VertexPair<Snippet>> provider = new HashMap<>();
+	Map<DependTag, VertexPair<Snippet>> provider = new HashMap<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -455,7 +496,7 @@ class DDRProcessorImpl
 				continue;
 			VertexPair<Snippet> v = new VertexPair<>( snip);
 			snippetVPairs.add( v);
-			for ( String s : snip.provides() )
+			for ( DependTag s : snip.provideTags() )
 				if ( null != provider.put( s, v) )
 					msg( Kind.ERROR, "tag %s has more than one provider", s);
 		}
@@ -470,8 +511,8 @@ class DDRProcessorImpl
 	void generateDescriptor()
 	{
 		boolean errorRaised = false;
-		Set<String> fwdConsumers = new HashSet<>();
-		Set<String> revConsumers = new HashSet<>();
+		Set<DependTag> fwdConsumers = new HashSet<>();
+		Set<DependTag> revConsumers = new HashSet<>();
 
 		for ( VertexPair<Snippet> v : snippetVPairs )
 		{
@@ -484,15 +525,16 @@ class DDRProcessorImpl
 			 * determined what got installed must also be evaluated early and
 			 * determine what gets removed.
 			 */
-			String imp = v.payload().implementor();
+			Identifier.Simple impName = v.payload().implementorName();
+			DependTag imp = v.payload().implementorTag();
 			if ( null != imp )
 			{
-				fwdConsumers.add( imp);
-				revConsumers.add( imp);
-
 				p = provider.get( imp);
 				if ( null != p )
 				{
+					fwdConsumers.add( imp);
+					revConsumers.add( imp);
+
 					p.fwd.precede( v.fwd);
 					p.rev.precede( v.rev);
 
@@ -505,7 +547,7 @@ class DDRProcessorImpl
 					if ( 0 == p.rev.payload.undeployStrings().length )
 						p.rev.payload = new ImpProvider( p.rev.payload);
 				}
-				else if ( ! defaultImplementor.equals( imp) )
+				else if ( ! defaultImplementor.equals( impName, msgr) )
 				{
 					/*
 					 * Don't insist that every implementor tag have a provider
@@ -516,28 +558,27 @@ class DDRProcessorImpl
 					 * code (see below) sets it free after any others that
 					 * can be handled first.
 					 */
-					 ++ v.fwd.indegree;
-					 ++ v.rev.indegree;
+					++ v.fwd.indegree;
+					++ v.rev.indegree;
 				}
 			}
-			for ( String s : v.payload().requires() )
+			for ( DependTag s : v.payload().requireTags() )
 			{
-				fwdConsumers.add( s);
 				p = provider.get( s);
 				if ( null != p )
 				{
+					fwdConsumers.add( s);
+					revConsumers.add( s);
 					p.fwd.precede( v.fwd);
 					v.rev.precede( p.rev); // these relationships do reverse
 				}
-				else
+				else if ( s instanceof DependTag.Explicit )
 				{
 					msg( Kind.ERROR,
 						"tag \"%s\" is required but nowhere provided", s);
 					errorRaised = true;
 				}
 			}
-			for ( String s : v.payload().requires() )
-				revConsumers.add( s);
 		}
 
 		if ( errorRaised )
@@ -573,8 +614,8 @@ class DDRProcessorImpl
 				revBlocked.add( v);
 		}
 
-		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers);
-		Snippet[] revSnips = order( revReady, revBlocked, revConsumers);
+		Snippet[] fwdSnips = order( fwdReady, fwdBlocked, fwdConsumers, true);
+		Snippet[] revSnips = order( revReady, revBlocked, revConsumers, false);
 
 		if ( null == fwdSnips  ||  null == revSnips )
 			return; // error already reported
@@ -597,28 +638,57 @@ class DDRProcessorImpl
 	 */
 	Snippet[] order(
 		Queue<Vertex<Snippet>> ready, Queue<Vertex<Snippet>> blocked,
-		Set<String> consumer)
+		Set<DependTag> consumer, boolean deploying)
 	{
-		Snippet[] snips = new Snippet [ ready.size() + blocked.size() ];
+		ArrayList<Snippet> snips = new ArrayList<>(ready.size()+blocked.size());
 		Vertex<Snippet> cycleBreaker = null;
 
 queuerunning:
-		for ( int i = 0 ; ; )
+		for ( ; ; )
 		{
 			while ( ! ready.isEmpty() )
 			{
 				Vertex<Snippet> v = ready.remove();
-				snips[i++] = v.payload;
-				v.use( ready, blocked);
-				for ( String p : v.payload.provides() )
+				snips.add(v.payload);
+				v.use(ready, blocked);
+				for ( DependTag p : v.payload.provideTags() )
 					consumer.remove(p);
 			}
 			if ( blocked.isEmpty() )
 				break; // all done
+
 			/*
 			 * There are snippets remaining to output but they all have
-			 * indegree > 0, normally a 'cycle' error. But somewhere there may
-			 * be one with indegree exactly 1 and an implicit requirement of its
+			 * indegree > 0, normally a 'cycle' error. But some may have
+			 * breakCycle methods that can help. Add any vertices they return
+			 * onto the ready queue (all at once, so that for reproducible
+			 * builds, the ready queue's ordering constraints will take effect).
+			 */
+			boolean cycleBroken = false;
+			for ( Iterator<Vertex<Snippet>> it = blocked.iterator();
+					it.hasNext(); )
+			{
+				Vertex<Snippet> v = it.next();
+				cycleBreaker = v.payload.breakCycle(v, deploying);
+				if ( null == cycleBreaker )
+					continue;
+				/*
+				 * If v supplied another vertex to go on the ready queue, leave
+				 * v on the blocked queue; it should become ready in due course.
+				 * If v nominated itself as cycle breaker, remove from blocked.
+				 */
+				if ( cycleBreaker == v )
+					it.remove();
+				ready.add(cycleBreaker);
+				cycleBroken = true;
+			}
+			if ( cycleBroken )
+				continue;
+
+			/*
+			 * A cycle was detected and no snippet's breakCycle method broke it,
+			 * but there may yet be a way. Somewhere there may be a vertex
+			 * with indegree exactly 1 and an implicit requirement of its
 			 * own implementor tag, with no snippet on record to provide it.
 			 * That's allowed (maybe the installing/removing environment will
 			 * be "providing" that tag anyway), so set one such snippet free
@@ -628,9 +698,13 @@ queuerunning:
 					it.hasNext(); )
 			{
 				Vertex<Snippet> v = it.next();
-				if ( 1 < v.indegree  ||  null == v.payload.implementor() )
+				if ( 1 < v.indegree )
 					continue;
-				if ( provider.containsKey( v.payload.implementor()) )
+				Identifier.Simple impName = v.payload.implementorName();
+				if ( null == impName
+					|| defaultImplementor.equals( impName, msgr) )
+					continue;
+				if ( provider.containsKey( v.payload.implementorTag()) )
 					continue;
 				if ( reproducible )
 				{
@@ -657,11 +731,11 @@ queuerunning:
 			/*
 			 * Got here? It's a real cycle ... nothing to be done.
 			 */
-			for ( String s : consumer )
+			for ( DependTag s : consumer )
 				msg( Kind.ERROR, "requirement in a cycle: %s", s);
 			return null;
 		}
-		return snips;
+		return snips.toArray(new Snippet[snips.size()]);
 	}
 	
 	/**
@@ -669,12 +743,8 @@ queuerunning:
 	 */
 	void processSQLAction( Element e)
 	{
-		SQLActionImpl sa = getSnippet( e, SQLActionImpl.class);
-		if ( null == sa )
-		{
-			sa = new SQLActionImpl();
-			putSnippet( e, sa);
-		}
+		SQLActionImpl sa =
+			getSnippet( e, SQLActionImpl.class, SQLActionImpl::new);
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_SQLACTION) )
@@ -759,12 +829,8 @@ queuerunning:
 		switch ( k )
 		{
 		case BASE:
-			BaseUDTImpl bu = getSnippet( e, BaseUDTImpl.class);
-			if ( null == bu )
-			{
-				bu = new BaseUDTImpl( (TypeElement)e);
-				putSnippet( e, bu);
-			}
+			BaseUDTImpl bu = getSnippet( e, BaseUDTImpl.class, () ->
+				new BaseUDTImpl( (TypeElement)e));
 			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 			{
 				if ( am.getAnnotationType().asElement().equals( AN_BASEUDT) )
@@ -774,12 +840,8 @@ queuerunning:
 			break;
 
 		case MAPPED:
-			MappedUDTImpl mu = getSnippet( e, MappedUDTImpl.class);
-			if ( null == mu )
-			{
-				mu = new MappedUDTImpl( (TypeElement)e);
-				putSnippet( e, mu);
-			}
+			MappedUDTImpl mu = getSnippet( e, MappedUDTImpl.class, () ->
+				new MappedUDTImpl( (TypeElement)e));
 			for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 			{
 				if ( am.getAnnotationType().asElement().equals( AN_MAPPEDUDT) )
@@ -864,12 +926,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 		}
 
-		FunctionImpl f = getSnippet( e, FunctionImpl.class);
-		if ( null == f )
-		{
-			f = new FunctionImpl( (ExecutableElement)e);
-			putSnippet( e, f);
-		}
+		FunctionImpl f = getSnippet( e, FunctionImpl.class, () ->
+			new FunctionImpl( (ExecutableElement)e));
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_FUNCTION) )
@@ -901,9 +959,14 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			Object v = getValue( av);
 			if ( isEnum )
-				v = Enum.valueOf( k.asSubclass( Enum.class),
+			{
+				@SuppressWarnings({"unchecked"})
+				T t = (T)Enum.valueOf( k.asSubclass( Enum.class),
 					((VariableElement)v).getSimpleName().toString());
-			a[i++] = k.cast( v);
+				a[i++] = t;
+			}
+			else
+				a[i++] = k.cast( v);
 		}
 		return a;
 	}
@@ -921,6 +984,10 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class AbstractAnnotationImpl implements Annotation
 	{
+		private Set<DependTag> m_provideTags = new HashSet<>();
+		private Set<DependTag> m_requireTags = new HashSet<>();
+
+		@Override
 		public Class<? extends Annotation> annotationType()
 		{
 			throw new UnsupportedOperationException();
@@ -930,15 +997,35 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * Supply the required implementor() method for those subclasses
 		 * that will implement {@link Snippet}.
 		 */
-		public String implementor() { return _implementor; }
+		public String implementor()
+		{
+			return null == _implementor ? null : _implementor.pgFolded();
+		}
 
-		String _implementor = defaultImplementor;
+		/**
+		 * Supply the required implementor() method for those subclasses
+		 * that will implement {@link Snippet}.
+		 */
+		public Identifier.Simple implementorName()
+		{
+			return _implementor;
+		}
+
+		Identifier.Simple _implementor = defaultImplementor;
 		String _comment;
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				_implementor = "".equals( o) ? null : (String)o;
+				_implementor = "".equals( o) ? null :
+					Identifier.Simple.fromJava((String)o, msgr);
+		}
+
+		@Override
+		public String toString()
+		{
+			return String.format(
+				"(%s)%s", getClass().getSimpleName(), _comment);
 		}
 
 		public String comment() { return _comment; }
@@ -972,6 +1059,42 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( BreakIterator.DONE == end )
 				return null;
 			return s.substring( start, end).trim();
+		}
+
+		/**
+		 * Called by a snippet's {@code characterize} method to install its
+		 * explicit, annotation-supplied 'provides' / 'requires' strings, if
+		 * any, into the {@code provideTags} and {@code requireTags} sets, then
+		 * making those sets immutable.
+		 */
+		protected void recordExplicitTags(String[] provides, String[] requires)
+		{
+			if ( null != provides )
+				for ( String s : provides )
+					m_provideTags.add(new DependTag.Explicit(s));
+			if ( null != requires )
+				for ( String s : requires )
+					m_requireTags.add(new DependTag.Explicit(s));
+			m_provideTags = unmodifiableSet(m_provideTags);
+			m_requireTags = unmodifiableSet(m_requireTags);
+		}
+
+		/**
+		 * Return the set of 'provide' tags, mutable before
+		 * {@code recordExplicitTags} has been called, immutable thereafter.
+		 */
+		public Set<DependTag> provideTags()
+		{
+			return m_provideTags;
+		}
+
+		/**
+		 * Return the set of 'require' tags, mutable before
+		 * {@code recordExplicitTags} has been called, immutable thereafter.
+		 */
+		public Set<DependTag> requireTags()
+		{
+			return m_requireTags;
 		}
 	}
 
@@ -1075,8 +1198,12 @@ hunt:	for ( ExecutableElement ee : ees )
 						}
 					}
 					else if ( fkl.isEnum() )
-						f.set( inst, Enum.valueOf( fkl.asSubclass( Enum.class),
-							((VariableElement)v).getSimpleName().toString()));
+					{
+						@SuppressWarnings("unchecked")
+						Object t = Enum.valueOf( fkl.asSubclass( Enum.class),
+							((VariableElement)v).getSimpleName().toString());
+						f.set( inst, t);
+					}
 					else
 						f.set( inst, v);
 					nsme = null;
@@ -1177,6 +1304,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			recordExplicitTags(_provides, _requires);
 			return true;
 		}
 	}
@@ -1366,15 +1494,11 @@ hunt:	for ( ExecutableElement ee : ees )
 					sb.append( " OR ");
 			}
 			sb.append( "\n\tON ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( table());
+			sb.append(qnameFrom(table(), schema()));
 			if ( ! "".equals( from()) )
 			{
 				sb.append("\n\tFROM ");
-				if ( ! "".equals( fromSchema()) )
-					sb.append( fromSchema()).append( '.');
-				sb.append( from());
+				sb.append(qnameFrom(from(), fromSchema()));
 			}
 			if ( isConstraint ) {
 				sb.append("\n\t");
@@ -1422,7 +1546,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			return new String[] {
 				sb.toString(),
 				"COMMENT ON TRIGGER " + name() + " ON " +
-				( "".equals( schema()) ? "" : ( schema() + '.' ) ) + table() +
+				qnameFrom(table(), schema()) +
 				"\nIS " +
 				DDRWriter.eQuote( comm)
 			};
@@ -1432,9 +1556,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			StringBuilder sb = new StringBuilder();
 			sb.append( "DROP TRIGGER ").append( name()).append( "\n\tON ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( table());
+			sb.append(qnameFrom(table(), schema()));
 			return new String[] { sb.toString() };
 		}
 	}
@@ -1483,6 +1605,11 @@ hunt:	for ( ExecutableElement ee : ees )
 		boolean trigger = false;
 		TypeMirror returnTypeMapKey = null;
 		SQLType[] paramTypeAnnotations;
+
+		DBType returnType;
+		DBType[] parameterTypes;
+
+		boolean subsumed = false;
 
 		FunctionImpl(ExecutableElement e)
 		{
@@ -1606,11 +1733,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			 * deployStrings (return type or parameter types) ... so that the
 			 * error messages won't be missing the source location, as they can
 			 * with javac 7 throwing away symbol tables between rounds.
-			 * Because the logic in deployStrings determining what to call
-			 * getSQLType on is a bit fiddly, the simplest way to make all those
-			 * calls here is just ... call deployStrings.
 			 */
-			deployStrings();
+			resolveParameterAndReturnTypes();
+
+			recordImplicitTags();
+
+			recordExplicitTags(_provides, _requires);
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
@@ -1646,6 +1774,96 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		/**
+		 * Return a stream of {@code ParameterInfo} 'records' for the function's
+		 * parameters in order.
+		 *<p>
+		 * If {@code paramTypeAnnotations} has not been set, every element in
+		 * the stream will have null for {@code st}.
+		 *<p>
+		 * If {@code parameterTypes} has not been set, every element in
+		 * the stream will have null for {@code dt}.
+		 */
+		Stream<ParameterInfo> parameterInfo()
+		{
+			if ( trigger )
+				return Stream.empty();
+
+			ExecutableType et = (ExecutableType)func.asType();
+			List<? extends TypeMirror> tms = et.getParameterTypes();
+			if ( complexViaInOut )
+				tms = tms.subList( 0, tms.size() - 1);
+
+			Iterator<? extends VariableElement> ves =
+				func.getParameters().iterator();
+
+			Supplier<SQLType> sts =
+				null == paramTypeAnnotations
+				? () -> null
+				: Arrays.asList(paramTypeAnnotations).iterator()::next;
+
+			Supplier<DBType> dts =
+				null == parameterTypes
+				? () -> null
+				: Arrays.asList(parameterTypes).iterator()::next;
+
+			return tms.stream().map(tm ->
+				new ParameterInfo(tm, ves.next(), sts.get(), dts.get()));
+		}
+
+		/**
+		 * Create the {@code DBType}s to populate {@code returnType} and
+		 * {@code parameterTypes}.
+		 */
+		void resolveParameterAndReturnTypes()
+		{
+			if ( ! "".equals( type()) )
+				returnType = DBType.fromSQLTypeAnnotation( type());
+			else if ( null != setofComponent )
+				returnType = tmpr.getSQLType( setofComponent, func);
+			else if ( setof )
+				returnType = DT_RECORD;
+			else
+				returnType = tmpr.getSQLType( returnTypeMapKey, func);
+
+			parameterTypes = parameterInfo()
+				.map(i -> tmpr.getSQLType(i.tm, i.ve, i.st, true, true))
+				.toArray(DBType[]::new);
+		}
+
+		/**
+		 * Record that this function provides itself, and requires its
+		 * parameter and return types.
+		 *<p>
+		 * Must be called before {@code recordExplicitTags}, which makes the
+		 * provides and requires sets immutable.
+		 */
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			provides.add(new DependTag.Function(
+				qnameFrom(_name, _schema), parameterTypes));
+
+			DependTag t = returnType.dependTag();
+			if ( null != t )
+				requires.add(t);
+
+			for ( DBType dbt : parameterTypes )
+			{
+				t = dbt.dependTag();
+				if ( null != t )
+					requires.add(t);
+			}
+		}
+
+		@Override
+		public void subsume()
+		{
+			subsumed = true;
+		}
+
+		/**
 		 * Append SQL syntax for the function's name (schema-qualified if
 		 * appropriate) and parameters, either with any defaults indicated
 		 * (for use in CREATE FUNCTION) or without (for use in DROP FUNCTION).
@@ -1654,9 +1872,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void appendNameAndParams( StringBuilder sb, boolean dflts)
 		{
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			sb.append( name()).append( '(');
+			sb.append(qnameFrom(name(), schema())).append( '(');
 			appendParams( sb, dflts);
 			// TriggerImpl relies on ) being the very last character
 			sb.append( ')');
@@ -1664,36 +1880,17 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendParams( StringBuilder sb, boolean dflts)
 		{
-			if ( ! trigger )
-			{
-				ExecutableType et = (ExecutableType)func.asType();
-				List<? extends TypeMirror> tms = et.getParameterTypes();
-				Iterator<? extends VariableElement> ves =
-					func.getParameters().iterator();
-				if ( complexViaInOut )
-					tms = tms.subList( 0, tms.size() - 1);
-				int s = tms.size();
-				int i = 0;
-				for ( TypeMirror tm : tms )
-				{
-					VariableElement ve = ves.next();
-					/*
-					 * paramTypeAnnotations can be null if
-					 * collectParameterTypeAnnotations hasn't been called.
-					 * That's the case in BaseUDTFunctionImpl, but it also
-					 * overrides this method, so it isn't a problem.
-					 */
-					SQLType st = paramTypeAnnotations[i];
-					String name = null == st ? null : st.name();
-					if ( null == name )
-						name = ve.getSimpleName().toString();
-					sb.append( "\n\t").append( name);
-					sb.append( ' ');
-					sb.append( tmpr.getSQLType( tm, ve, st, true, dflts));
-					if ( ++ i < s )
-						sb.append( ',');
-				}
-			}
+			sb.append(parameterInfo()
+				.map(
+					i ->
+					{
+						String name = null == i.st ? null : i.st.name();
+						if ( null == name )
+							name = i.ve.getSimpleName().toString();
+						return "\n\t" + name + " " + i.dt.toString(dflts);
+					})
+				.collect(joining(","))
+			);
 		}
 
 		void appendAS( StringBuilder sb)
@@ -1717,19 +1914,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			appendNameAndParams( sb, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
-				sb.append( "pg_catalog.trigger");
+				sb.append( DT_TRIGGER.toString());
 			else
 			{
 				if ( setof )
 					sb.append( "SETOF ");
-				if ( ! "".equals( type()) )
-					sb.append( type());
-				else if ( null != setofComponent )
-					sb.append( tmpr.getSQLType( setofComponent, func));
-				else if ( setof )
-					sb.append( "pg_catalog.RECORD");
-				else
-					sb.append( tmpr.getSQLType( returnTypeMapKey, func));
+				sb.append( returnType);
 			}
 			sb.append( "\n\tLANGUAGE ");
 			if ( Trust.SANDBOXED.equals( trust()) )
@@ -1776,6 +1966,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		
 		public String[] undeployStrings()
 		{
+			if ( subsumed )
+				return new String[0];
+
 			String[] rslt = new String [ 1 + triggers().length ];
 			int i = rslt.length - 1;
 			for ( Trigger t : triggers() )
@@ -1825,27 +2018,31 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	static enum BaseUDTFunctionID
 	{
-		INPUT( "in", "pg_catalog.cstring, pg_catalog.oid, integer", null),
-		OUTPUT( "out", null, "pg_catalog.cstring"),
-		RECEIVE( "recv", "pg_catalog.internal, pg_catalog.oid, integer", null),
-		SEND( "send", null, "pg_catalog.bytea");
-		BaseUDTFunctionID( String suffix, String param, String ret)
+		INPUT("in", null, "pg_catalog.cstring", "pg_catalog.oid", "integer"),
+		OUTPUT("out", "pg_catalog.cstring", (String[])null),
+		RECEIVE("recv", null, "pg_catalog.internal","pg_catalog.oid","integer"),
+		SEND("send", "pg_catalog.bytea", null);
+		BaseUDTFunctionID( String suffix, String ret, String... param)
 		{
 			this.suffix = suffix;
-			this.param = param;
-			this.ret = ret;
+			this.param = null == param ? null :
+				Arrays.stream(param)
+				.map(DBType::fromSQLTypeAnnotation)
+				.toArray(DBType[]::new);
+			this.ret = null == ret ? null :
+				new DBType.Named(Identifier.Qualified.nameFromJava(ret));
 		}
 		private String suffix;
-		private String param;
-		private String ret;
+		private DBType[] param;
+		private DBType ret;
 		String getSuffix() { return suffix; }
-		String getParam( BaseUDTImpl u)
+		DBType[] getParam( BaseUDTImpl u)
 		{
 			if ( null != param )
 				return param;
-			return u.qname;
+			return new DBType[] { u.qname };
 		}
-		String getRet( BaseUDTImpl u)
+		DBType getRet( BaseUDTImpl u)
 		{
 			if ( null != ret )
 				return ret;
@@ -1863,8 +2060,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.te = te;
 			this.id = id;
 
-			_type = id.getRet( ui);
-			_name = ui.name() + '_' + id.getSuffix();
+			returnType = id.getRet( ui);
+			parameterTypes = id.getParam( ui);
+
+			_type = returnType.toString();
+			_name = Identifier.Simple.fromJava(ui.name())
+				.concat("_", id.getSuffix()).toString();
 			_schema = ui.schema();
 			_cost = -1;
 			_rows = -1;
@@ -1887,7 +2088,11 @@ hunt:	for ( ExecutableElement ee : ees )
 		@Override
 		void appendParams( StringBuilder sb, boolean dflts)
 		{
-			sb.append( id.getParam( ui));
+			sb.append(
+				Arrays.stream(id.getParam( ui))
+				.map(Object::toString)
+				.collect(joining(", "))
+			);
 		}
 
 		@Override
@@ -1900,15 +2105,15 @@ hunt:	for ( ExecutableElement ee : ees )
 		StringBuilder appendTypeOp( StringBuilder sb)
 		{
 			sb.append( id.name()).append( " = ");
-			if ( ! "".equals( schema()) )
-				sb.append( schema()).append( '.');
-			return sb.append( name());
+			return sb.append(qnameFrom(name(), schema()));
 		}
 
 		@Override
 		public boolean characterize()
 		{
-			return false;
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+			return true;
 		}
 
 		public void setType( Object o, boolean explicit, Element e)
@@ -1983,7 +2188,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		TypeElement tclass;
 
-		String qname;
+		DBType qname;
 
 		AbstractUDTImpl(TypeElement e)
 		{
@@ -2011,10 +2216,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( "".equals( _name) )
 				_name = tclass.getSimpleName().toString();
 
-			if ( "".equals( _schema) )
-				qname = _name;
-			else
-				qname = _schema + "." + _name;
+			qname = new DBType.Named(qnameFrom(_name, _schema));
 
 			if ( ! tmpr.mappingsFrozen() )
 				tmpr.addMap( tclass.asType(), qname);
@@ -2056,6 +2258,13 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public boolean characterize()
 		{
+			if ( null != structure() )
+			{
+				DependTag t = qname.dependTag();
+				if ( null != t )
+					provideTags().add(t);
+			}
+			recordExplicitTags(_provides, _requires);
 			return true;
 		}
 
@@ -2074,7 +2283,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				al.add( sb.toString());
 			}
 			al.add( "SELECT sqlj.add_type_mapping(" +
-				DDRWriter.eQuote( qname) + ", " +
+				DDRWriter.eQuote( qname.toString()) + ", " +
 				DDRWriter.eQuote( tclass.toString()) + ')');
 			addComment( al);
 			return al.toArray( new String [ al.size() ]);
@@ -2084,7 +2293,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			ArrayList<String> al = new ArrayList<>();
 			al.add( "SELECT sqlj.drop_type_mapping(" +
-				DDRWriter.eQuote( qname) + ')');
+				DDRWriter.eQuote( qname.toString()) + ')');
 			if ( null != structure() )
 				al.add( "DROP TYPE " + qname);
 			return al.toArray( new String [ al.size() ]);
@@ -2095,6 +2304,45 @@ hunt:	for ( ExecutableElement ee : ees )
 	extends AbstractUDTImpl
 	implements BaseUDT
 	{
+		class Shell implements Snippet
+		{
+			@Override
+			public Identifier.Simple implementorName()
+			{
+				return BaseUDTImpl.this.implementorName();
+			}
+
+			@Override
+			public String[] deployStrings()
+			{
+				return new String[] { "CREATE TYPE " + qname };
+			}
+
+			@Override
+			public String[] undeployStrings()
+			{
+				return new String[0];
+			}
+
+			@Override
+			public Set<DependTag> provideTags()
+			{
+				return Set.of();
+			}
+
+			@Override
+			public Set<DependTag> requireTags()
+			{
+				return Set.of();
+			}
+
+			@Override
+			public boolean characterize()
+			{
+				return false;
+			}
+		}
+
 		public String    typeModifierInput() { return _typeModifierInput; }
 		public String   typeModifierOutput() { return _typeModifierOutput; }
 		public String              analyze() { return _analyze; }
@@ -2253,18 +2501,41 @@ hunt:	for ( ExecutableElement ee : ees )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
 
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+
 			return true;
+		}
+
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			provides.add(qname.dependTag());
+
+			for ( BaseUDTFunctionImpl f : List.of(in, out, recv, send) )
+				requires.add(new DependTag.Function(
+					qnameFrom(f._name, f._schema), f.parameterTypes));
+
+			String s = typeModifierInput();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(
+					qnameFrom(s), SIG_TYPMODIN));
+
+			s = typeModifierOutput();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(
+					qnameFrom(s), SIG_TYPMODOUT));
+
+			s = analyze();
+			if ( ! s.isEmpty() )
+				requires.add(new DependTag.Function(qnameFrom(s), SIG_ANALYZE));
 		}
 
 		public String[] deployStrings()
 		{
 			ArrayList<String> al = new ArrayList<>();
-			al.add( "CREATE TYPE " + qname);
-
-			al.addAll( Arrays.asList( in.deployStrings()));
-			al.addAll( Arrays.asList( out.deployStrings()));
-			al.addAll( Arrays.asList( recv.deployStrings()));
-			al.addAll( Arrays.asList( send.deployStrings()));
 
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE TYPE ").append( qname).append( " (\n\t");
@@ -2280,7 +2551,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( ",\n\tTYPMOD_OUT = ").append( typeModifierOutput());
 
 			if ( ! "".equals( analyze()) )
-				sb.append( ",\n\tANALYZE = ").append( typeModifierOutput());
+				sb.append( ",\n\tANALYZE = ").append( analyze());
 
 			if ( lengthExplicit  ||  "".equals( like()) )
 				sb.append( ",\n\tINTERNALLENGTH = ").append(
@@ -2332,6 +2603,42 @@ hunt:	for ( ExecutableElement ee : ees )
 				"DROP TYPE " + qname + " CASCADE"
 			};
 		}
+
+		@Override
+		public Vertex<Snippet> breakCycle(Vertex<Snippet> v, boolean deploy)
+		{
+			assert this == v.payload;
+
+			/*
+			 * Find the entries in my adjacency list that are implicated in the
+			 * cycle (that is, that precede, perhaps transitively, me).
+			 */
+			Vertex<Snippet>[] vs = v.precedesTransitively(v);
+
+			assert null != vs && 0 < vs.length : "breakCycle not in a cycle";
+
+			if ( vs.length < v.indegree )
+				return null; // other non-cyclic edges not satisfied yet
+
+			if ( deploy )
+			{
+				Vertex<Snippet> breaker = new Vertex<>(new Shell());
+				v.transferSuccessorsTo(breaker, vs);
+				return breaker;
+			}
+
+			for ( Vertex<Snippet> subsumed : vs )
+				subsumed.payload.subsume();
+
+			/*
+			 * Set indegree now to zero, so that when the subsumed snippets are
+			 * themselves emitted, they will not decrement it to zero and cause
+			 * this to be scheduled again.
+			 */
+			v.indegree = 0;
+
+			return v; // use this vertex itself in the undeploy case
+		}
 	}
 
 	/**
@@ -2339,8 +2646,8 @@ hunt:	for ( ExecutableElement ee : ees )
 	 */
 	class TypeMapper
 	{
-		ArrayList<Map.Entry<TypeMirror, String>> protoMappings;
-		ArrayList<Map.Entry<TypeMirror, String>> finalMappings;
+		ArrayList<Map.Entry<TypeMirror, DBType>> protoMappings;
+		ArrayList<Map.Entry<TypeMirror, DBType>> finalMappings;
 
 		TypeMapper()
 		{
@@ -2367,25 +2674,25 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Known common mappings
 			//
-			this.addMap(Number.class, "pg_catalog.numeric");
-			this.addMap(String.class, "pg_catalog.varchar");
-			this.addMap(java.util.Date.class, "pg_catalog.timestamp");
-			this.addMap(Timestamp.class, "pg_catalog.timestamp");
-			this.addMap(Time.class, "pg_catalog.time");
-			this.addMap(java.sql.Date.class, "pg_catalog.date");
-			this.addMap(java.sql.SQLXML.class, "pg_catalog.xml");
-			this.addMap(BigInteger.class, "pg_catalog.numeric");
-			this.addMap(BigDecimal.class, "pg_catalog.numeric");
-			this.addMap(ResultSet.class, "pg_catalog.record");
-			this.addMap(Object.class, "pg_catalog.\"any\"");
+			this.addMap(Number.class, "pg_catalog", "numeric");
+			this.addMap(String.class, "pg_catalog", "varchar");
+			this.addMap(java.util.Date.class, "pg_catalog", "timestamp");
+			this.addMap(Timestamp.class, "pg_catalog", "timestamp");
+			this.addMap(Time.class, "pg_catalog", "time");
+			this.addMap(java.sql.Date.class, "pg_catalog", "date");
+			this.addMap(java.sql.SQLXML.class, "pg_catalog", "xml");
+			this.addMap(BigInteger.class, "pg_catalog", "numeric");
+			this.addMap(BigDecimal.class, "pg_catalog", "numeric");
+			this.addMap(ResultSet.class, "pg_catalog", "record");
+			this.addMap(Object.class, "pg_catalog", "\"any\"");
 
-			this.addMap(byte[].class, "pg_catalog.bytea");
+			this.addMap(byte[].class, "pg_catalog", "bytea");
 
-			this.addMap(LocalDate.class, "pg_catalog.date");
-			this.addMap(LocalTime.class, "pg_catalog.time");
-			this.addMap(OffsetTime.class, "pg_catalog.timetz");
-			this.addMap(LocalDateTime.class, "pg_catalog.timestamp");
-			this.addMap(OffsetDateTime.class, "pg_catalog.timestamptz");
+			this.addMap(LocalDate.class, "pg_catalog", "date");
+			this.addMap(LocalTime.class, "pg_catalog", "time");
+			this.addMap(OffsetTime.class, "pg_catalog", "timetz");
+			this.addMap(LocalDateTime.class, "pg_catalog", "timestamp");
+			this.addMap(OffsetDateTime.class, "pg_catalog", "timestamptz");
 		}
 
 		private boolean mappingsFrozen()
@@ -2426,19 +2733,19 @@ hunt:	for ( ExecutableElement ee : ees )
 			// assignable to by widening reference conversions, so a
 			// topological sort is in order.
 			//
-			List<Vertex<Map.Entry<TypeMirror, String>>> vs = new ArrayList<>(
+			List<Vertex<Map.Entry<TypeMirror, DBType>>> vs = new ArrayList<>(
 					protoMappings.size());
 
-			for ( Map.Entry<TypeMirror, String> me : protoMappings )
+			for ( Map.Entry<TypeMirror, DBType> me : protoMappings )
 				vs.add( new Vertex<>( me));
 
 			for ( int i = vs.size(); i --> 1; )
 			{
-				Vertex<Map.Entry<TypeMirror, String>> vi = vs.get( i);
+				Vertex<Map.Entry<TypeMirror, DBType>> vi = vs.get( i);
 				TypeMirror ci = vi.payload.getKey();
 				for ( int j = i; j --> 0; )
 				{
-					Vertex<Map.Entry<TypeMirror, String>> vj = vs.get( j);
+					Vertex<Map.Entry<TypeMirror, DBType>> vj = vs.get( j);
 					TypeMirror cj = vj.payload.getKey();
 					boolean oij = typu.isAssignable( ci, cj);
 					boolean oji = typu.isAssignable( cj, ci);
@@ -2451,7 +2758,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
-			Queue<Vertex<Map.Entry<TypeMirror, String>>> q;
+			Queue<Vertex<Map.Entry<TypeMirror, DBType>>> q;
 			if ( reproducible )
 			{
 				q = new PriorityQueue<>( 11, new TypeTiebreaker());
@@ -2461,7 +2768,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				q = new LinkedList<>();
 			}
 
-			for ( Vertex<Map.Entry<TypeMirror, String>> v : vs )
+			for ( Vertex<Map.Entry<TypeMirror, DBType>> v : vs )
 				if ( 0 == v.indegree )
 					q.add( v);
 
@@ -2471,7 +2778,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			while ( ! q.isEmpty() )
 			{
-				Vertex<Map.Entry<TypeMirror, String>> v = q.remove();
+				Vertex<Map.Entry<TypeMirror, DBType>> v = q.remove();
 				v.use( q);
 				finalMappings.add( v.payload);
 			}
@@ -2510,14 +2817,32 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		/**
-		 * Add a custom mapping from a Java class to an SQL type.
+		 * Add a custom mapping from a Java class to an SQL type identified
+		 * by SQL-standard reserved syntax.
 		 *
 		 * @param k Class representing the Java type
-		 * @param v String representing the SQL type to be used
+		 * @param v String representing the SQL (language-reserved) type
+		 * to be used
 		 */
 		void addMap(Class<?> k, String v)
 		{
-			addMap( typeMirrorFromClass( k), v);
+			addMap( typeMirrorFromClass( k), new DBType.Reserved(v));
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type identified
+		 * by an SQL qualified identifier.
+		 *
+		 * @param k Class representing the Java type
+		 * @param schema String representing the qualifier of the type name
+		 * (may be null)
+		 * @param local String representing the SQL (language-reserved) type
+		 * to be used
+		 */
+		void addMap(Class<?> k, String schema, String local)
+		{
+			addMap( typeMirrorFromClass( k),
+				new DBType.Named(qnameFrom(local, schema)));
 		}
 
 		/**
@@ -2531,7 +2856,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			TypeElement te = elmu.getTypeElement( k);
 			if ( null != te )
-				addMap( te.asType(), v);
+				addMap( te.asType(), new DBType.Reserved(v));
 		}
 
 		/**
@@ -2541,7 +2866,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param tm TypeMirror representing the Java type
 		 * @param v String representing the SQL type to be used
 		 */
-		void addMap(TypeMirror tm, String v)
+		void addMap(TypeMirror tm, DBType v)
 		{
 			if ( mappingsFrozen() )
 			{
@@ -2564,7 +2889,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param e Annotated element (chiefly for use as a location hint in
 		 * diagnostic messages).
 		 */
-		String getSQLType(TypeMirror tm, Element e)
+		DBType getSQLType(TypeMirror tm, Element e)
 		{
 			return getSQLType( tm, e, null, false, false);
 		}
@@ -2587,18 +2912,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param withDefault Indicates whether any specified default value
 		 * information should also be included in the "type" string returned.
 		 */
-		String getSQLType(TypeMirror tm, Element e, SQLType st,
+		DBType getSQLType(TypeMirror tm, Element e, SQLType st,
 			boolean contravariant, boolean withDefault)
 		{
 			boolean array = false;
 			boolean row = false;
-			String rslt = null;
+			DBType rslt = null;
 			
 			String[] defaults = null;
 			
 			if ( null != st )
 			{
-				rslt = st.value();
+				String s = st.value();
+				if ( null != s )
+					rslt = DBType.fromSQLTypeAnnotation(s);
 				defaults = st.defaultValue();
 			}
 
@@ -2621,23 +2948,20 @@ hunt:	for ( ExecutableElement ee : ees )
 					e, rslt, array, row, defaults, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
-				return "pg_catalog.void"; // return type only; no defaults apply
+				return DT_VOID; // return type only; no defaults apply
 
 			if ( tm.getKind().equals( TypeKind.ERROR) )
 			{
 				msg ( Kind.ERROR, e,
 					"Cannot determine mapping to SQL type for unresolved type");
-				rslt = tm.toString();
+				rslt = new DBType.Reserved(tm.toString());
 			}
 			else
 			{    
-				ArrayList<Map.Entry<TypeMirror, String>> ms = finalMappings;
+				ArrayList<Map.Entry<TypeMirror, DBType>> ms = finalMappings;
 				if ( contravariant )
-				{
-					ms = (ArrayList<Map.Entry<TypeMirror, String>>)ms.clone();
-					Collections.reverse( ms);
-				}
-				for ( Map.Entry<TypeMirror, String> me : ms )
+					ms = reversed(ms);
+				for ( Map.Entry<TypeMirror, DBType> me : ms )
 				{
 					TypeMirror ktm = me.getKey();
 					if ( ktm instanceof PrimitiveType )
@@ -2672,11 +2996,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				msg( Kind.ERROR, e,
 					"No known mapping to an SQL type");
-				rslt = tm.toString();
+				rslt = new DBType.Reserved(tm.toString());
 			}
 
 			if ( array )
-				rslt += "[]";
+				rslt = rslt.asArray("[]");
 			
 			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
 		}
@@ -2701,8 +3025,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * @param withDefault Whether to append the default information to the
 		 * type.
 		 */
-		String typeWithDefault(
-			Element e, String rslt, boolean array, boolean row,
+		DBType typeWithDefault(
+			Element e, DBType rslt, boolean array, boolean row,
 			String[] defaults, boolean withDefault)
 		{
 			if ( null == defaults || ! withDefault )
@@ -2712,16 +3036,16 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( row )
 			{
 				assert ! array;
-				if ( n > 0 && rslt.equalsIgnoreCase("record") )
+				if ( n > 0 && rslt.toString().equalsIgnoreCase("record") )
 					msg( Kind.ERROR, e,
 						"Only supported default for unknown RECORD type is {}");
 			}
 			else if ( n != 1 )
 				array = true;
 			else if ( ! array )
-				array = arrayish.matcher( rslt).matches();
+				array = rslt.isArray();
 			
-			StringBuilder sb = new StringBuilder( rslt);
+			StringBuilder sb = new StringBuilder();
 			sb.append( " DEFAULT ");
 			sb.append( row ? "ROW(" : "CAST(");
 			if ( array )
@@ -2739,13 +3063,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! row )
 				sb.append( " AS ").append( rslt);
 			sb.append( ')');
-			return sb.toString();
+			return rslt.withDefault(sb.toString());
 		}
 	}
-
-	// expression intended to match SQL types that are arrays
-	static final Pattern arrayish =
-		Pattern.compile( "(?si:(?:\\[\\s*+\\d*+\\s*+\\]|ARRAY)\\s*+)$");
 
 	/**
 	 * Work around bizarre javac behavior that silently supplies an Error
@@ -2760,6 +3080,40 @@ hunt:	for ( ExecutableElement ee : ees )
 			av.getClass().getCanonicalName()) )
 			throw new AnnotationValueException();
 		return av.getValue();
+	}
+
+	/**
+	 * Return a reversed copy of an ArrayList.
+	 */
+	static <E, T extends ArrayList<E>> T reversed(T orig)
+	{
+		@SuppressWarnings("unchecked")
+		T list = (T)orig.clone();
+		Collections.reverse(list);
+		return list;
+	}
+
+	/**
+	 * Return an {@code Identifier.Qualified} from discrete Java strings
+	 * representing the local name and schema, with a zero-length schema string
+	 * producing a qualified name with null qualifier.
+	 */
+	Identifier.Qualified<Identifier.Simple> qnameFrom(
+		String name, String schema)
+	{
+		Identifier.Simple qualifier =
+			"".equals(schema) ? null : Identifier.Simple.fromJava(schema, msgr);
+		Identifier.Simple local = Identifier.Simple.fromJava(name, msgr);
+		return local.withQualifier(qualifier);
+	}
+
+	/**
+	 * Return an {@code Identifier.Qualified} from a single Java string
+	 * representing the local name and possibly a schema.
+	 */
+	Identifier.Qualified<Identifier.Simple> qnameFrom(String name)
+	{
+		return Identifier.Qualified.nameFromJava(name, msgr);
 	}
 }
 
@@ -2784,7 +3138,19 @@ interface Snippet
 	 * from this Snippet as an {@code <implementor block>}. If null, the
 	 * commands will be emitted as plain {@code <SQL statement>}s.
 	 */
-	public String implementor();
+	public Identifier.Simple implementorName();
+	/**
+	 * A {@code DependTag} to represent this snippet's dependence on whatever
+	 * determines whether the implementor name is to be recognized.
+	 *<p>
+	 * Represented for now as a {@code DependTag.Explicit} even though the
+	 * dependency is implicitly created; an {@code SQLAction} snippet may have
+	 * an explicit {@code provides=} that has to be matched.
+	 */
+	default DependTag implementorTag()
+	{
+		return new DependTag.Explicit(implementorName().pgFolded());
+	}
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
 	 * be executed in order during deployment.
@@ -2801,14 +3167,14 @@ interface Snippet
 	 * this Snippet will come before any whose requires method returns any of
 	 * the same labels.
 	 */
-	public String[] provides();
+	public Set<DependTag> provideTags();
 	/**
 	 * Return an array of arbitrary labels considered "required" by this
 	 * Snippet. In generating the final order of the deployment descriptor file,
 	 * this Snippet will come after those whose provides method returns any of
 	 * the same labels.
 	 */
-	public String[] requires();
+	public Set<DependTag> requireTags();
 	/**
 	 * Method to be called after all annotations'
 	 * element/value pairs have been filled in, to compute any additional
@@ -2820,6 +3186,36 @@ interface Snippet
 	 * emitted based on provides/requires; false if something else will emit it.
 	 */
 	public boolean characterize();
+
+	/**
+	 * If it is possible to break an ordering cycle at this snippet, return a
+	 * vertex wrapping a snippet (possibly this one, or another) that can be
+	 * considered ready, otherwise return null.
+	 *<p>
+	 * The default implementation returns null unconditionally.
+	 * @param v Vertex that wraps this Snippet
+	 * @param deploy true when generating an ordering for the deploy strings
+	 * @return a Vertex wrapping a Snippet that can be considered ready
+	 */
+	default Vertex<Snippet> breakCycle(Vertex<Snippet> v, boolean deploy)
+	{
+		return null;
+	}
+
+	/**
+	 * Called when undeploy ordering breaks a cycle by using
+	 * {@code DROP ... CASCADE} or equivalent on another object, with effects
+	 * that would duplicate or interfere with this snippet's undeploy actions.
+	 *<p>
+	 * A snippet for which this can matter should note that this method has been
+	 * called, and later generate its undeploy strings with any necessary
+	 * adjustments.
+	 *<p>
+	 * The default implementation does nothing.
+	 */
+	default void subsume()
+	{
+	}
 }
 
 interface Commentable
@@ -2890,6 +3286,136 @@ class Vertex<P>
 				q.add( v);
 			}
 	}
+
+	/**
+	 * Whether a vertex is known to transitively precede, or not so precede, a
+	 * target vertex, or cannot yet be so classified.
+	 */
+	enum MemoState { YES, NO, PENDING }
+
+	/**
+	 * Return the memoized state of this vertex or, if none, enqueue the vertex
+	 * for further exploration, memoize its state as {@code PENDING}, and return
+	 * that.
+	 */
+	MemoState classifyOrEnqueue(
+		Queue<Vertex<P>> queue, IdentityHashMap<Vertex<P>,MemoState> memos)
+	{
+		MemoState state = memos.putIfAbsent(this, MemoState.PENDING);
+		if ( null == state )
+		{
+			queue.add(this);
+			return MemoState.PENDING;
+		}
+		return state;
+	}
+
+	/**
+	 * Execute one step of {@code precedesTransitively} determination.
+	 *<p>
+	 * On entry, this vertex has been removed from the queue. Its immediate
+	 * adjacency successors will be evaluated.
+	 *<p>
+	 * If any immediate successor is a {@code YES}, this vertex
+	 * is a {@code YES}.
+	 *<p>
+	 * If any immediate successor is {@code PENDING}, this vertex remains
+	 * {@code PENDING} and is replaced on the queue, to be encountered again
+	 * after all currently pending vertices.
+	 *<p>
+	 * Otherwise, this vertex is a {@code NO}.
+	 */
+	MemoState stepOfPrecedes(
+		Queue<Vertex<P>> queue, IdentityHashMap<Vertex<P>,MemoState> memos)
+	{
+		boolean anyPendingSuccessors = false;
+		for ( Vertex<P> v : adj )
+		{
+			switch ( v.classifyOrEnqueue(queue, memos) )
+			{
+			case YES:
+				memos.replace(this, MemoState.YES);
+				return MemoState.YES;
+			case PENDING:
+				anyPendingSuccessors = true;
+				break;
+			case NO:
+				break;
+			}
+		}
+
+		if ( anyPendingSuccessors )
+		{
+			queue.add(this);
+			return MemoState.PENDING;
+		}
+
+		memos.replace(this, MemoState.NO);
+		return MemoState.NO;
+	}
+
+	/**
+	 * Determine whether this vertex (transitively) precedes <em>other</em>,
+	 * returning, if so, that subset of its immediate adjacency successors
+	 * through which <em>other</em> is reachable.
+	 * @param other vertex to which reachability is to be tested
+	 * @return array of immediate adjacencies through which other is reachable,
+	 * or null if it is not
+	 */
+	Vertex<P>[] precedesTransitively(Vertex<P> other)
+	{
+		Queue<Vertex<P>> queue = new LinkedList<>();
+		IdentityHashMap<Vertex<P>,MemoState> memos = new IdentityHashMap<>();
+		boolean anyYeses = false;
+
+		/*
+		 * Initially: the 'other' vertex itself is known to be a YES.
+		 * Nothing is yet known to be a NO.
+		 */
+		memos.put(requireNonNull(other), MemoState.YES);
+
+		/*
+		 * classifyOrEnqueue my immediate successors. Any that is not 'other'
+		 * itself will be enqueued in PENDING status.
+		 */
+		for ( Vertex<P> v : adj )
+			if ( MemoState.YES == v.classifyOrEnqueue(queue, memos) )
+				anyYeses = true;
+
+		/*
+		 * After running stepOfPrecedes on every enqueued vertex until the queue
+		 * is empty, every vertex seen will be in memos as a YES or a NO.
+		 */
+		while ( ! queue.isEmpty() )
+			if ( MemoState.YES == queue.remove().stepOfPrecedes(queue, memos) )
+				anyYeses = true;
+
+		if ( ! anyYeses )
+			return null;
+
+		@SuppressWarnings("unchecked") // can't quite say Vertex<P>[]::new
+		Vertex<P>[] result = adj.stream()
+			.filter(v -> MemoState.YES == memos.get(v))
+			.toArray(Vertex[]::new);
+
+		return result;
+	}
+
+	/**
+	 * Remove <em>successors</em> from the adjacency list of this vertex, and
+	 * add them to the adjacency list of <em>other</em>.
+	 *<p>
+	 * No successor's indegree is changed.
+	 */
+	void transferSuccessorsTo(Vertex<P> other, Vertex<P>[] successors)
+	{
+		for ( Vertex<P> v : successors )
+		{
+			boolean removed = adj.remove(v);
+			assert removed : "transferSuccessorsTo passed a non-successor";
+			other.adj.add(v);
+		}
+	}
 }
 
 /**
@@ -2903,8 +3429,8 @@ class VertexPair<P>
 
 	VertexPair( P payload)
 	{
-		fwd = new Vertex( payload);
-		rev = new Vertex( payload);
+		fwd = new Vertex<>( payload);
+		rev = new Vertex<>( payload);
 	}
 
 	P payload()
@@ -2923,14 +3449,21 @@ class ImpProvider implements Snippet
 
 	ImpProvider( Snippet s) { this.s = s; }
 
-	@Override public String       implementor() { return s.implementor(); }
+	@Override public Identifier.Simple implementorName()
+	{
+		return s.implementorName();
+	}
 	@Override public String[]   deployStrings() { return s.deployStrings(); }
 	@Override public String[] undeployStrings() { return s.deployStrings(); }
-	@Override public String[]        provides() { return s.provides(); }
-	@Override public String[]        requires() { return s.requires(); }
+	@Override public Set<DependTag> provideTags() { return s.provideTags(); }
+	@Override public Set<DependTag> requireTags() { return s.requireTags(); }
 	@Override public boolean     characterize() { return s.characterize(); }
 }
 
+/**
+ * Resolve ties in {@code Snippet} ordering in an arbitrary but deterministic
+ * way, for use when {@code ddr.reproducible} is set.
+ */
 class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 {
 	@Override
@@ -2938,9 +3471,17 @@ class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 	{
 		Snippet s1 = o1.payload;
 		Snippet s2 = o2.payload;
-		int diff = s1.implementor().compareTo( s2.implementor());
-		if ( 0 != diff )
-			return diff;
+		int diff;
+		Identifier.Simple s1imp = s1.implementorName();
+		Identifier.Simple s2imp = s2.implementorName();
+		if ( null != s1imp  &&  null != s2imp )
+		{
+			diff = s1imp.pgFolded().compareTo( s2imp.pgFolded());
+			if ( 0 != diff )
+				return diff;
+		}
+		else
+			return null == s1imp ? -1 : 1;
 		String[] ds1 = s1.deployStrings();
 		String[] ds2 = s2.deployStrings();
 		diff = ds1.length - ds2.length;
@@ -2957,17 +3498,22 @@ class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 	}
 }
 
+/**
+ * Resolve ties in type-mapping resolution in an arbitrary but deterministic
+ * way, for use when {@code ddr.reproducible} is set.
+ */
 class TypeTiebreaker
-implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
+implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
 {
 	@Override
 	public int compare(
-		Vertex<Map.Entry<TypeMirror, String>> o1,
-		Vertex<Map.Entry<TypeMirror, String>> o2)
+		Vertex<Map.Entry<TypeMirror, DBType>> o1,
+		Vertex<Map.Entry<TypeMirror, DBType>> o2)
 	{
-		Map.Entry<TypeMirror, String> m1 = o1.payload;
-		Map.Entry<TypeMirror, String> m2 = o2.payload;
-		int diff = m1.getValue().compareTo( m2.getValue());
+		Map.Entry<TypeMirror, DBType> m1 = o1.payload;
+		Map.Entry<TypeMirror, DBType> m2 = o2.payload;
+		int diff =
+			m1.getValue().toString().compareTo( m2.getValue().toString());
 		if ( 0 != diff )
 			return diff;
 		diff = m1.getKey().toString().compareTo( m2.getKey().toString());
@@ -2976,5 +3522,717 @@ implements Comparator<Vertex<Map.Entry<TypeMirror, String>>>
 		assert
 			m1 == m2 : "Two distinct type mappings compare equal by tiebreaker";
 		return 0;
+	}
+}
+
+/**
+ * Abstraction of a database type, which is usually specified by an
+ * {@code Identifier.Qualified}, but sometimes by reserved SQL syntax.
+ */
+abstract class DBType
+{
+	DBType withModifier(String modifier)
+	{
+		return new Modified(this, modifier);
+	}
+
+	DBType asArray(String notated)
+	{
+		return new Array(this, notated);
+	}
+
+	DBType withDefault(String suffix)
+	{
+		return new Defaulting(this, suffix);
+	}
+
+	String toString(boolean withDefault)
+	{
+		return toString();
+	}
+
+	abstract DependTag dependTag();
+
+	/**
+	 * Return the original underlying (leaf) type, either a {@code Named} or
+	 * a {@code Reserved}.
+	 *<p>
+	 * Override in non-leaf classes (except {@code Array}).
+	 */
+	DBType leaf()
+	{
+		return this;
+	}
+
+	boolean isArray()
+	{
+		return false;
+	}
+
+	@Override
+	public final boolean equals(Object o)
+	{
+		return equals(o, null);
+	}
+
+	/**
+	 * True if the underlying (leaf) types compare equal (overridden for
+	 * {@code Array}).
+	 *<p>
+	 * The assumption is that equality checking will be done for function
+	 * signature equivalence, for which defaults and typmods don't matter
+	 * (but arrayness does).
+	 */
+	public final boolean equals(Object o, Messager msgr)
+	{
+		if ( this == o )
+			return true;
+		if ( ! (o instanceof DBType) )
+			return false;
+		DBType dt1 = this.leaf();
+		DBType dt2 = ((DBType)o).leaf();
+		if ( dt1.getClass() != dt2.getClass() )
+			return false;
+		if ( dt1 instanceof Array )
+		{
+			dt1 = ((Array)dt1).m_component.leaf();
+			dt2 = ((Array)dt2).m_component.leaf();
+			if ( dt1.getClass() != dt2.getClass() )
+				return false;
+		}
+		if ( dt1 instanceof Named )
+			return ((Named)dt1).m_ident.equals(((Named)dt2).m_ident, msgr);
+		return pgFold(((Reserved)dt1).m_reservedName)
+			.equals(pgFold(((Reserved)dt2).m_reservedName));
+	}
+
+	/**
+	 * Pattern to match type names that are special in SQL, if they appear as
+	 * regular (unquoted) identifiers and without a schema qualification.
+	 *<p>
+	 * This list does not include {@code DOUBLE} or {@code NATIONAL}, as the
+	 * reserved SQL form for each includes a following keyword
+	 * ({@code PRECISION} or {@code CHARACTER}/{@code CHAR}, respectively).
+	 * There is a catch-all test in {@code fromSQLTypeAnnotation} that will fall
+	 * back to 'reserved' treatment if the name is followed by anything that
+	 * isn't a parenthesized type modifier, so the fallback will naturally catch
+	 * these two cases.
+	 */
+	static final Pattern s_reservedTypeFirstWords = compile(
+		"(?i:" +
+		"INT|INTEGER|SMALLINT|BIGINT|REAL|FLOAT|DECIMAL|DEC|NUMERIC|" +
+		"BOOLEAN|BIT|CHARACTER|CHAR|VARCHAR|TIMESTAMP|TIME|INTERVAL" +
+		")"
+	);
+
+	/**
+	 * Make a {@code DBType} from whatever might appear in an {@code SQLType}
+	 * annotation.
+	 *<p>
+	 * The possibilities are numerous, as that text used to be dumped rather
+	 * blindly into the descriptor and thus could be whatever PostgreSQL would
+	 * make sense of. The result could be a {@code DBType.Named} if the start of
+	 * the text parses as a (possibly schema-qualified) identifier, or a
+	 * {@code DBType.Reserved} if it doesn't (or it parses as a non-schema-
+	 * qualified regular identifier and matches one of SQL's grammatically
+	 * reserved type names). It could be either of those wrapped in a
+	 * {@code DBType.Modified} if a type modifier was parsed out. It could be
+	 * any of those wrapped in a {@code DBType.Array} if the text ended with any
+	 * of the recognized forms of array dimension notation. The one thing it
+	 * can't be (as a result from this method) is a {@code DBType.Defaulting};
+	 * that wrapping can be applied to the result later, to carry a default
+	 * value that has been specified at a particular site of use.
+	 *<p>
+	 * The parsing strategy is a bit heuristic. An attempt is made to parse a
+	 * (possibly schema-qualified) identifier at the start of the string.
+	 * An attempt is made to find a match for array-dimension notation that runs
+	 * to the end of the string. Whatever lies between gets to be a typmod if it
+	 * looks enough like one, or gets rolled with the front of the string into a
+	 * {@code DBType.Reserved}, which is not otherwise scrutinized; the
+	 * {@code Reserved} case is still more or less a catch-all that will be
+	 * dumped blindly into the descriptor in the hope that PostgreSQL will make
+	 * sense of it.
+	 *<p>
+	 * This strategy is used because compared to what can appear in a typmod
+	 * (which could require arbitrary constant expression parsing), the array
+	 * grammar depends on much less.
+	 */
+	static DBType fromSQLTypeAnnotation(String value)
+	{
+		Identifier.Qualified<Identifier.Simple> qname = null;
+
+		Matcher m = SEPARATOR.matcher(value);
+		separator(m, false);
+
+		if ( m.usePattern(ISO_AND_PG_IDENTIFIER_CAPTURING).lookingAt() )
+		{
+			Identifier.Simple id1 = identifierFrom(m);
+			m.region(m.end(), m.regionEnd());
+
+			separator(m, false);
+			if ( value.startsWith(".", m.regionStart()) )
+			{
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+				if ( m.usePattern(ISO_AND_PG_IDENTIFIER_CAPTURING).lookingAt() )
+				{
+					Identifier.Simple id2 = identifierFrom(m);
+					qname = id2.withQualifier(id1);
+					m.region(m.end(), m.regionEnd());
+					separator(m, false);
+				}
+			}
+			else
+				qname = id1.withQualifier(null);
+		}
+
+		/*
+		 * At this point, qname may have a local name and qualifier, or it may
+		 * have a local name and null qualifier (if a single identifier was
+		 * successfully matched but not followed by a dot). It is also possible
+		 * for qname to be null, either because the start of the string didn't
+		 * look like an identifier at all, or because it did, but was followed
+		 * by a dot, and what followed the dot could not be parsed as another
+		 * identifier. Probably both of those cases are erroneous, but they can
+		 * also be handled by simply treating the content as Reserved and hoping
+		 * PostgreSQL can make sense of it.
+		 *
+		 * Search from here to the end of the string for possible array notation
+		 * that can be stripped off the end, leaving just the middle (if any) to
+		 * be dealt with.
+		 */
+
+		String arrayNotation = arrayNotationIfPresent(m, value);
+
+		/*
+		 * If arrayNotation is not null, m's region end has been adjusted to
+		 * exclude the array notation.
+		 */
+
+		boolean reserved;
+
+		if ( null == qname )
+			reserved = true;
+		else if ( null != qname.qualifier() )
+			reserved = false;
+		else
+		{
+			Identifier.Simple local = qname.local();
+			if ( ! local.folds() )
+				reserved = false;
+			else
+			{
+				Matcher m1 =
+					s_reservedTypeFirstWords.matcher(local.nonFolded());
+				reserved = m1.matches();
+			}
+		}
+
+		/*
+		 * If this is a reserved type, just wrap up everything from its start to
+		 * the array notation (if any) as a Reserved; there is no need to try to
+		 * tease out a typmod separately. (The reserved syntax can be quite
+		 * unlike the generic typename(typmod) pattern; there could be what
+		 * looks like a (typmod) between TIME and WITH TIME ZONE, or the moral
+		 * equivalent of a typmod could look like HOUR TO MINUTE, and so on.)
+		 *
+		 * If we think this is a non-reserved type, and there is anything left
+		 * in the matching region (preceding the array notation, if any), then
+		 * it had better be a typmod in the generic form starting with a (. We
+		 * will capture whatever is there and call it a typmod as long as it
+		 * does start that way. (More elaborate checking, such as balancing the
+		 * parens, would require ability to parse an expr_list.) This can allow
+		 * malformed syntax to be uncaught until deployment time when PostgreSQL
+		 * sees it, but that's unchanged from when the entire SQLType string was
+		 * passed along verbatim. The 'threat' model here is just that the
+		 * legitimate developer may get an error later when earlier would be
+		 * more helpful, not a malicious adversary bent on injection.
+		 *
+		 * On the other hand, if what's left doesn't start with a ( then we
+		 * somehow don't know what we're looking at, so fall back and treat it
+		 * as reserved. This will naturally catch the two-token reserved names
+		 * DOUBLE PRECISION, NATIONAL CHARACTER or NATIONAL CHAR, which were
+		 * therefore left out of the s_reservedTypeFirstWords pattern.
+		 */
+
+		if ( ! reserved  &&  m.regionStart() < m.regionEnd() )
+			if ( ! value.startsWith("(", m.regionStart()) )
+				reserved = true;
+
+		DBType result;
+
+		if ( reserved )
+			result = new DBType.Reserved(value.substring(0, m.regionEnd()));
+		else
+		{
+			result = new DBType.Named(qname);
+			if ( m.regionStart() < m.regionEnd() )
+				result = result.withModifier(
+					value.substring(m.regionStart(), m.regionEnd()));
+		}
+
+		if ( null != arrayNotation )
+			result = result.asArray(arrayNotation);
+
+		return result;
+	}
+
+	private static final Pattern s_arrayDimStart = compile(String.format(
+		"(?i:(?<!%1$s|%2$s)ARRAY(?!%1$s|%2$s))|\\[",
+		ISO_REGULAR_IDENTIFIER_PART.pattern(),
+		PG_REGULAR_IDENTIFIER_PART.pattern()
+	));
+
+	private static final Pattern s_digits = compile("\\d++");
+
+	/**
+	 * Return any array dimension notation (any of the recognized forms) that
+	 * "ends" the string (i.e., is followed by at most {@code separator} before
+	 * the string ends).
+	 *<p>
+	 * If a non-null string is returned, the matcher's region-end has been
+	 * adjusted to exclude it.
+	 *<p>
+	 * The matcher's associated pattern may have been changed, and the region
+	 * transiently changed, but on return the region will either be the same as
+	 * on entry (if no array notation was found), or have only the region end
+	 * adjusted to exclude the notation.
+	 *<p>
+	 * The returned string can include a {@code separator} that followed the
+	 * array notation.
+	 */
+	private static String arrayNotationIfPresent(Matcher m, String s)
+	{
+		int originalRegionStart = m.regionStart();
+		int notationStart;
+		int dims;
+		boolean atMostOneDimAllowed; // true after ARRAY keyword
+
+restart:for ( ;; )
+		{
+			notationStart = -1;
+			dims = 0;
+			atMostOneDimAllowed = false;
+
+			m.usePattern(s_arrayDimStart);
+			if ( ! m.find() )
+				break restart; // notationStart is -1 indicating not found
+
+			notationStart = m.start();
+			if ( ! "[".equals(m.group()) ) // saw ARRAY
+			{
+				atMostOneDimAllowed = true;
+				m.region(m.end(), m.regionEnd());
+				separator(m, false);
+				if ( ! s.startsWith("[", m.regionStart()) )
+				{
+					if ( m.regionStart() == m.regionEnd() )
+					{
+						dims = 1; // ARRAY separator $ --ok (means 1 dim)
+						break restart;
+					}
+					/*
+					 * ARRAY separator something-other-than-[
+					 * This is not the match we're looking for. The regionStart
+					 * already points here, so restart the loop to look for
+					 * another potential array notation start beyond this point.
+					 */
+					continue restart;
+				}
+				m.region(m.regionStart() + 1, m.regionEnd());
+			}
+
+			/*
+			 * Invariant: have seen [ and regionStart still points to it.
+			 * Accept optional digits, then ]
+			 * Repeat if followed by a [
+			 */
+			for ( ;; )
+			{
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+
+				if ( m.usePattern(s_digits).lookingAt() )
+				{
+					m.region(m.end(), m.regionEnd());
+					separator(m, false);
+				}
+
+				if ( ! s.startsWith("]", m.regionStart()) )
+					continue restart;
+
+				++ dims; // have seen a complete [ (\d+)? ]
+				m.region(m.regionStart() + 1, m.regionEnd());
+				separator(m, false);
+				if ( s.startsWith("[", m.regionStart()) )
+					continue;
+				if ( m.regionStart() == m.regionEnd() )
+					if ( ! atMostOneDimAllowed  ||  1 == dims )
+						break restart;
+				continue restart; // not at end, not at [ --start over
+			}
+		}
+
+		if ( -1 == notationStart )
+		{
+			m.region(originalRegionStart, m.regionEnd());
+			return null;
+		}
+
+		m.region(originalRegionStart, notationStart);
+		return s.substring(notationStart);
+	}
+
+	static final class Reserved extends DBType
+	{
+		private final String m_reservedName;
+
+		Reserved(String name)
+		{
+			m_reservedName = name;
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_reservedName;
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return null;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return pgFold(m_reservedName).hashCode();
+		}
+	}
+
+	static final class Named extends DBType
+	{
+		private final Identifier.Qualified m_ident;
+
+		Named(Identifier.Qualified ident)
+		{
+			m_ident = ident;
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_ident.toString();
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return new DependTag.Type(m_ident);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_ident.hashCode();
+		}
+	}
+
+	static final class Modified extends DBType
+	{
+		private final DBType m_raw;
+		private final String m_modifier;
+
+		Modified(DBType raw, String modifier)
+		{
+			m_raw = raw;
+			m_modifier = modifier;
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_raw.toString() + m_modifier;
+		}
+
+		@Override
+		DBType withModifier(String modifier)
+		{
+			throw new UnsupportedOperationException(
+				"withModifier on a Modified");
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_raw.dependTag();
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_raw.hashCode();
+		}
+
+		@Override
+		DBType leaf()
+		{
+			return m_raw.leaf();
+		}
+	}
+
+	static final class Array extends DBType
+	{
+		private final DBType m_component;
+		private final int m_dims;
+		private final String m_notated;
+
+		Array(DBType component, String notated)
+		{
+			assert component instanceof Named
+				|| component instanceof Reserved
+				|| component instanceof Modified;
+			int dims = 0;
+			for ( int pos = 0; -1 != (pos = notated.indexOf('[', pos)); ++ pos )
+				++ dims;
+			m_dims = 0 == dims ? 1 : dims; // "ARRAY" with no [ has dimension 1
+			m_notated = notated;
+			m_component = requireNonNull(component);
+		}
+
+		@Override
+		Array asArray(String notated)
+		{
+			/* Implementable in principle, but may never be needed */
+			throw new UnsupportedOperationException("asArray on an Array");
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_component.toString() + m_notated;
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_component.dependTag();
+		}
+
+		@Override
+		boolean isArray()
+		{
+			return true;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_component.hashCode();
+		}
+	}
+
+	static final class Defaulting extends DBType
+	{
+		private final DBType m_raw;
+		private final String m_suffix;
+
+		Defaulting(DBType raw, String suffix)
+		{
+			assert ! (raw instanceof Defaulting);
+			m_raw = requireNonNull(raw);
+			m_suffix = suffix;
+		}
+
+		@Override
+		Modified withModifier(String notated)
+		{
+			throw new UnsupportedOperationException(
+				"withModifier on a Defaulting");
+		}
+
+		@Override
+		Array asArray(String notated)
+		{
+			throw new UnsupportedOperationException("asArray on a Defaulting");
+		}
+
+		@Override
+		Array withDefault(String suffix)
+		{
+			/* Implementable in principle, but may never be needed */
+			throw new UnsupportedOperationException(
+				"withDefault on a Defaulting");
+		}
+
+		@Override
+		public String toString()
+		{
+			return m_raw.toString() + " " + m_suffix;
+		}
+
+		@Override
+		String toString(boolean withDefault)
+		{
+			return withDefault ? toString() : m_raw.toString();
+		}
+
+		@Override
+		DependTag dependTag()
+		{
+			return m_raw.dependTag();
+		}
+
+		@Override
+		boolean isArray()
+		{
+			return m_raw.isArray();
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return m_raw.hashCode();
+		}
+
+		@Override
+		DBType leaf()
+		{
+			return m_raw.leaf();
+		}
+	}
+}
+
+/**
+ * Abstraction of a dependency tag, encompassing {@code Explicit} ones declared
+ * in annotations and distinguished by {@code String}s, and others added
+ * implicitly such as {@code Type}s known by {@code Identifier.Qualified}.
+ */
+abstract class DependTag<T>
+{
+	protected final T m_value;
+
+	protected DependTag(T value)
+	{
+		m_value = value;
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return hash(getClass(), m_value);
+	}
+
+	@Override
+	public final boolean equals(Object o)
+	{
+		return equals(o, null);
+	}
+
+	public boolean equals(Object o, Messager msgr)
+	{
+		if ( this == o )
+			return true;
+		if ( null == o )
+			return false;
+		return
+			getClass() == o.getClass()
+				&&  m_value.equals(((DependTag<?>)o).m_value);
+	}
+
+	@Override
+	public String toString()
+	{
+		return '(' + getClass().getSimpleName() + ')' + m_value.toString();
+	}
+
+	static final class Explicit extends DependTag<String>
+	{
+		Explicit(String value)
+		{
+			super(requireNonNull(value));
+		}
+	}
+
+	static abstract class Named<T extends Identifier> extends DependTag<T>
+	{
+		Named(T value)
+		{
+			super(value);
+		}
+
+		@Override
+		public boolean equals(Object o, Messager msgr)
+		{
+			if ( this == o )
+				return true;
+			if ( null == o )
+				return false;
+			return
+				getClass() == o.getClass()
+					&&  m_value.equals(((DependTag<?>)o).m_value, msgr);
+		}
+	}
+
+	static final class Type extends Named<Identifier.Qualified>
+	{
+		Type(Identifier.Qualified value)
+		{
+			super(requireNonNull(value));
+		}
+	}
+
+	static final class Function extends Named<Identifier.Qualified>
+	{
+		private DBType[] m_signature;
+
+		Function(Identifier.Qualified value, DBType[] signature)
+		{
+			super(requireNonNull(value));
+			m_signature = signature.clone();
+		}
+
+		@Override
+		public boolean equals(Object o, Messager msgr)
+		{
+			if ( ! super.equals(o, msgr) )
+				return false;
+			Function f = (Function)o;
+			if ( m_signature.length != f.m_signature.length )
+				return false;
+			for ( int i = 0; i < m_signature.length; ++ i )
+			{
+				if ( null == m_signature[i]  ||  null == f.m_signature[i] )
+				{
+					if ( m_signature[i] != f.m_signature[i] )
+						return false;
+					continue;
+				}
+				if ( ! m_signature[i].equals(f.m_signature[i], msgr) )
+					return false;
+			}
+			return true;
+		}
+	}
+}
+
+/**
+ * Tiny 'record' used in factoring duplicative operations on function parameter
+ * lists into operations on streams of these.
+ */
+class ParameterInfo
+{
+	final TypeMirror tm;
+	final VariableElement ve;
+	final SQLType st;
+	final DBType dt;
+
+	ParameterInfo(TypeMirror m, VariableElement e, SQLType t, DBType d)
+	{
+		tm = m;
+		ve = e;
+		st = t;
+		dt = d;
 	}
 }

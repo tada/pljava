@@ -34,14 +34,13 @@ import static
  * Complex (re and im parts are doubles) implemented in Java as a mapped UDT.
  */
 @SQLAction(requires={
-	"complextuple type", "complextuple assertHasValues",
-	"complextuple setParameter"}, install={
+		"complextuple assertHasValues","complextuple setParameter"}, install={
 		"SELECT javatest.assertHasValues(" +
 		" CAST('(1,2)' AS javatest.complextuple), 1, 2)",
 		"SELECT javatest.setParameter()"
 	}
 )
-@MappedUDT(schema="javatest", name="complextuple", provides="complextuple type",
+@MappedUDT(schema="javatest", name="complextuple",
 structure={
 	"x float8",
 	"y float8"
@@ -56,8 +55,7 @@ public class ComplexTuple implements SQLData {
 	 * @return the same instance passed in
 	 */
 	@Function(schema="javatest", name="logcomplex",
-		effects=IMMUTABLE, onNullInput=RETURNS_NULL,
-		requires="complextuple type")
+		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static ComplexTuple logAndReturn(ComplexTuple cpl) {
 		s_logger.info(cpl.getSQLTypeName() + "(" + cpl.m_x + ", " + cpl.m_y
 				+ ")");
@@ -72,8 +70,7 @@ public class ComplexTuple implements SQLData {
 	 * @param im the 'imaginary' value it should have
 	 * @throws SQLException if the values do not match
 	 */
-	@Function(schema="javatest",
-		requires="complextuple type", provides="complextuple assertHasValues",
+	@Function(schema="javatest", provides="complextuple assertHasValues",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static void assertHasValues(ComplexTuple cpl, double re, double im)
 		throws SQLException
@@ -86,8 +83,7 @@ public class ComplexTuple implements SQLData {
 	 * Pass a 'complextuple' UDT as a parameter to a PreparedStatement
 	 * that returns it, and verify that it makes the trip intact.
 	 */
-	@Function(schema="javatest",
-		requires="complextuple type", provides="complextuple setParameter",
+	@Function(schema="javatest", provides="complextuple setParameter",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static void setParameter() throws SQLException
 	{
