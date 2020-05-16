@@ -1,0 +1,89 @@
+image: Visual Studio 2019
+environment:
+  APPVEYOR_RDP_PASSWORD: MrRobot@2020
+  VCVARSALL: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat
+  PGUSER: postgres
+  PGPASSWORD: Password12!
+  matrix:
+    - SYS: MINGW
+      JDK: 9
+      PG: 12
+    - SYS: MINGW
+      JDK: 10
+      PG: 12
+    - SYS: MINGW
+      JDK: 14
+      PG: 12
+    - SYS: MINGW
+      JDK: 13
+      PG: 12
+    - SYS: MINGW
+      JDK: 12
+      PG: 12
+    - SYS: MINGW
+      JDK: 11
+      PG: 12
+    - SYS: MSVC
+      JDK: 14
+      PG: 12
+    - SYS: MSVC
+      JDK: 13
+      PG: 12
+    - SYS: MSVC
+      JDK: 12
+      PG: 12
+    - SYS: MSVC
+      JDK: 11
+      PG: 12
+    - SYS: MSVC
+      JDK: 10
+      PG: 12
+    - SYS: MSVC
+      JDK: 9
+      PG: 12
+    - SYS: MSVC
+      JDK: 14
+      PG: 11
+    - SYS: MSVC
+      JDK: 14
+      PG: 10
+    - SYS: MSVC
+      JDK: 14
+      PG: 9
+before_build:
+  - ps: .appveyor/./appveyor_download_java.ps1
+  - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%
+  - set PGROOT=%ProgramFiles%\PostgreSQL\%PG%
+  - path %JAVA_HOME%\bin;%PGROOT%\bin;%PATH%
+  - '"%VCVARSALL%" x86'
+  - '"%VCVARSALL%" amd64'
+  - ps: $Env:JAVA_HOME = "C:\Program Files\Java\jdk$Env:JDK"
+  - ps: $Env:PGROOT = "C:\Program Files\PostgreSQL\$Env:PG"
+  - ps: $Env:Path = "$Env:JAVA_HOME\bin;$Env:PGROOT\bin;" + $Env:Path
+  - ps: $Env:PGDATA = "$Env:PGROOT\data"
+  - ps: Start-Process -FilePath "$Env:PGROOT\bin\pg_ctl.exe" -ArgumentList "start" -RedirectStandardError "error.txt"
+build_script:
+  - IF %SYS%==MINGW (
+    C:\msys64\usr\bin\env MSYSTEM=MINGW64 C:\msys64\usr\bin\bash -l -c "/c/projects/pljava/.appveyor/appveyor_mingw.sh %JDK%")
+    ELSE (
+    mvn clean install -Dnar.cores=1 -Psaxon-examples --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+    )
+  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+before_test:
+  - ps: $libjvm = "$Env:JAVA_HOME\bin\server\jvm.dll"
+  - ps: $vmoptions= "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
+  - ps: Get-ChildItem -Recurse -Path pljava-packaging -Filter pljava-pg*.jar | %{java -jar $_.fullName}
+  - ps: psql -c "SET pljava.libjvm_location to '$libjvm'; ALTER USER postgres SET pljava.libjvm_location to '$libjvm'; SELECT pg_reload_conf();" -U postgres
+  - ps: psql -c "SET pljava.vmoptions  to '$vmoptions'; ALTER USER postgres SET pljava.vmoptions  to '$vmoptions'; SELECT pg_reload_conf();" -U postgres
+  - ps: psql -c "CREATE EXTENSION pljava;" -U postgres
+test_script:
+  - ps: $saxonJar = Get-ChildItem -Recurse -Path "$env:UserProfile\.m2\repository\net\sf\saxon\Saxon-HE\" -Filter Saxon-HE-*.jar | Select-Object -First 1 | %{$_.fullName}
+  - ps: $examplesJar =  Get-ChildItem -Recurse -Path "pljava-examples" -Filter pljava-*.jar | %{$_.fullName}
+  - ps: $saxon = "file:$saxonJar"
+  - ps: $examples = "file:$examplesJar"
+  - ps: psql -c "SELECT sqlj.install_jar('$saxon','saxon',true);" -U postgres
+  - ps: psql -c "SELECT sqlj.set_classpath('public', 'saxon');" -U postgres
+  - ps: psql -c "SET client_min_messages TO WARNING; SELECT sqlj.install_jar('$examples','examples',true);" -U postgres
+  - ps: psql -c "SELECT sqlj.get_classpath('javatest');" -U postgres
+  - ps: psql -c "SELECT sqlj.set_classpath('javatest', 'examples');" -U postgres
+  - ps: psql -c "SELECT javatest.java_addone(3);" -U postgres
