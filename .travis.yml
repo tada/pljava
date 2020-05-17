@@ -1,0 +1,49 @@
+language: java
+os:
+  - linux
+  - osx
+dist: bionic
+osx_image: xcode11
+jdk:
+  - openjdk14
+  - openjdk13
+  - openjdk12
+  - openjdk11
+  - openjdk10
+  - openjdk9
+env:
+  - POSTGRESQL_VERSION=12
+cache:
+  directories:
+    - $HOME/.m2
+before_install:
+  - . .travis/travis_install_postgresql.sh
+  - . .travis/travis_install_openssl.sh
+install: mvn clean install -Dnar.cores=1 -Psaxon-examples -Pwnosign --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+script:
+  - .travis/travis_setup_postgresql.sh
+  - .travis/travis_setup_pljava.sh
+  - .travis/travis_test_pljava.sh
+jobs:
+  include:
+    - os: linux
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=11
+    - os: linux
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=10
+    - os: linux
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=9.5
+    - os: osx
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=11
+    - os: osx
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=10
+    - os: osx
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=9.5
+    - os: linux
+      jdk: openjdk14
+      env: POSTGRESQL_VERSION=SOURCE
