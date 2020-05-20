@@ -16,7 +16,7 @@
 			<item name='Wiki' href='https://github.com/tada/pljava/wiki/'/>
 			<item name='Issues' href='${project.issueManagement.url}'/>
 			<item name='Mailing list'
-			 href='http://lists.pgfoundry.org/pipermail/pljava-dev/'/>
+			 href='https://www.postgresql.org/list/pljava-dev/'/>
 			<item name='Code' href='${project.scm.url}'/>
 		</links>
 		<menu name='Usage' inherit='top'>

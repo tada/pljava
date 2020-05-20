@@ -34,10 +34,11 @@
 	<mailingLists>
 		<mailingList>
 			<name>Mailing list for PL/Java users and developers</name>
-			<post>pljava-dev@lists.pgfoundry.org</post>
-			<archive>http://lists.pgfoundry.org/pipermail/pljava-dev/</archive>
+			<post>pljava-dev@lists.postgresql.org</post>
+			<archive>https://www.postgresql.org/list/pljava-dev/</archive>
 			<otherArchives>
-				<otherArchive>http://news.gmane.org/gmane.comp.db.postgresql.pljava</otherArchive>
+				<otherArchive>https://web.archive.org/web/*/http://lists.pgfoundry.org/pipermail/pljava-dev/</otherArchive>
+				<otherArchive>gmane.comp.db.postgresql.pljava on news.gmane.io</otherArchive>
 			</otherArchives>
 		</mailingList>
 	</mailingLists>
