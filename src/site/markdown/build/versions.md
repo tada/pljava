@@ -47,7 +47,7 @@ with [GraalVM][].
 
 ## Maven
 
-PL/Java can be built with Maven versions at least as far back as 3.3.
+PL/Java can be built with Maven versions as far back as 3.5.2.
 Maven's requirements can be seen in the [Maven release history][mvnhist].
 
 [mvnhist]: https://maven.apache.org/docs/history.html
