@@ -392,7 +392,7 @@ public abstract class DualState<T> extends WeakReference<T>
 					result = counts.hasPin(s);
 					pc = counts.push(s);
 				}
-				if ( 0 < pc.m_count ++ )
+				if ( 0 < pc.m_count ++  ||  result )
 					return null;
 				/*
 				 * Ensure that counts.m_protoWaiters contains a preallocated
