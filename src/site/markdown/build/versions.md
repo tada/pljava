@@ -53,7 +53,8 @@ newer protocol versions needed to reach the servers.
 
 ## Maven
 
-PL/Java can be built with Maven versions at least as far back as 3.0.4.
+As of mid-2020, PL/Java can be built with Maven versions at least as far back
+as 3.2.5.
 As shown in the [Maven release history][mvnhist], **Maven releases after
 3.2.5 require Java 7 or later**. If you wish to *build* PL/Java using a
 Java 6 development kit, you must use a Maven version not newer than 3.2.5.
