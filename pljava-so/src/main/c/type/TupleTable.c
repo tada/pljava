@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -56,7 +56,11 @@ jobject TupleTable_create(SPITupleTable* tts, jobject knownTD)
 	if(tts == 0)
 		return 0;
 
+#if PG_VERSION_NUM < 130000
 	tupcount = tts->alloced - tts->free;
+#else
+	tupcount = tts->numvals;
+#endif
 	if ( tupcount > PG_INT32_MAX )
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
