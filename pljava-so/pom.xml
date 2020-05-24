@@ -293,6 +293,7 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-antrun-plugin</artifactId>
 				<version>1.7</version>
+				<?m2e ignore?>
 				<executions>
 					<execution>
 						<id>pg_config to pgsql.properties</id>
@@ -399,7 +400,7 @@ if ( null !== jvmdflt )
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>properties-maven-plugin</artifactId>
-				<version>1.0-alpha-2</version>
+				<version>1.0.0</version>
 				<executions>
 					<execution>
 						<phase>initialize</phase>
@@ -476,77 +477,5 @@ if ( null !== jvmdflt )
 			</plugin> -->
 
 		</plugins>
-		<pluginManagement>
-			<plugins>
-				<!--This plugin's configuration is used to store Eclipse m2e settings
-					only. It has no influence on the Maven build itself. -->
-				<plugin>
-					<groupId>org.eclipse.m2e</groupId>
-					<artifactId>lifecycle-mapping</artifactId>
-					<version>1.0.0</version>
-					<configuration>
-						<lifecycleMappingMetadata>
-							<pluginExecutions>
-								<pluginExecution>
-									<pluginExecutionFilter>
-										<groupId>org.apache.maven.plugins</groupId>
-										<artifactId>maven-antrun-plugin</artifactId>
-										<versionRange>[1.7,)</versionRange>
-										<goals>
-											<goal>run</goal>
-										</goals>
-									</pluginExecutionFilter>
-									<action>
-										<ignore></ignore>
-									</action>
-								</pluginExecution>
-								<pluginExecution>
-									<pluginExecutionFilter>
-										<groupId>org.codehaus.mojo</groupId>
-										<artifactId>properties-maven-plugin</artifactId>
-										<versionRange>[1.0-alpha-2,)</versionRange>
-										<goals>
-											<goal>
-												read-project-properties
-											</goal>
-										</goals>
-									</pluginExecutionFilter>
-									<action>
-										<ignore></ignore>
-									</action>
-								</pluginExecution>
-								<pluginExecution>
-									<pluginExecutionFilter>
-										<groupId>com.github.maven-nar</groupId>
-										<artifactId>nar-maven-plugin</artifactId>
-										<versionRange>[3.2.3]</versionRange>
-										<goals>
-											<goal>nar-compile</goal>
-											<goal>nar-download</goal>
-											<goal>nar-gnu-configure</goal>
-											<goal>nar-gnu-make</goal>
-											<goal>nar-gnu-process</goal>
-											<goal>nar-gnu-resources</goal>
-											<goal>nar-javah</goal>
-											<goal>nar-system-generate</goal>
-											<goal>nar-resources</goal>
-											<goal>nar-testCompile</goal>
-											<goal>nar-testDownload</goal>
-											<goal>nar-testUnpack</goal>
-											<goal>nar-unpack</goal>
-											<goal>nar-validate</goal>
-											<goal>nar-vcproj</goal>
-										</goals>
-									</pluginExecutionFilter>
-									<action>
-										<ignore></ignore>
-									</action>
-								</pluginExecution>
-							</pluginExecutions>
-						</lifecycleMappingMetadata>
-					</configuration>
-				</plugin>
-			</plugins>
-		</pluginManagement>
 	</build>
 </project>
