@@ -196,6 +196,12 @@
 						</reports>
 					</reportSet>
 				</reportSets>
+				<configuration>
+					<detectJavaApiLink>false</detectJavaApiLink>
+					<links>
+						<link>https://docs.oracle.com/javase/10/docs/api/</link>
+					</links>
+				</configuration>
 			</plugin>
 		</plugins>
 	</reporting>
