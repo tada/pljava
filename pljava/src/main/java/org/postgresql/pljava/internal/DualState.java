@@ -18,11 +18,13 @@ import java.sql.SQLException;
 
 import java.util.ArrayDeque;
 import static java.util.Arrays.asList;
+import static java.util.Arrays.copyOf;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 
 import java.util.concurrent.CancellationException;
@@ -334,7 +336,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		/**
 		 * DualState object on which the pins counted by this entry are held.
 		 */
-		final DualState<?> m_referent;
+		DualState<?> m_referent;
 		/**
 		 * Count of pins held on {@code m_referent} at this stack level.
 		 *<p>
@@ -358,12 +360,12 @@ public abstract class DualState<T> extends WeakReference<T>
 		/**
 		 * Thread-local stack of {@code PinCount} entries.
 		 */
-		static final class Holder extends ThreadLocal<Deque<PinCount>>
+		static final class Holder extends ThreadLocal<Manager>
 		{
 			@Override
-			protected Deque<PinCount> initialValue()
+			protected Manager initialValue()
 			{
-				return new ArrayDeque<PinCount>();
+				return new Manager();
 			}
 
 			/**
@@ -375,12 +377,12 @@ public abstract class DualState<T> extends WeakReference<T>
 			boolean pin(DualState<?> s)
 			{
 				boolean result = false; // assume a real pin must be taken
-				Deque<PinCount> counts = get();
+				Manager counts = get();
 				PinCount pc = counts.peek();
 				if ( null == pc  ||  ! pc.m_referent.equals(s) )
 				{
-					result = hasPin(s, counts);
-					counts.push(pc = new PinCount(s));
+					result = counts.hasPin(s);
+					pc = counts.push(s);
 				}
 				if ( 0 < pc.m_count ++ )
 					return true;
@@ -395,7 +397,7 @@ public abstract class DualState<T> extends WeakReference<T>
 			 */
 			boolean unpin(DualState<?> s)
 			{
-				Deque<PinCount> counts = get();
+				Manager counts = get();
 				PinCount pc = counts.peek();
 				if ( null == pc  ||  ! pc.m_referent.equals(s) )
 					throw new IllegalThreadStateException(
@@ -403,7 +405,7 @@ public abstract class DualState<T> extends WeakReference<T>
 				if ( 0 == -- pc.m_count )
 				{
 					counts.pop();
-					return hasPin(s, counts);
+					return counts.hasPin(s);
 				}
 				return true;
 			}
@@ -413,18 +415,97 @@ public abstract class DualState<T> extends WeakReference<T>
 			 */
 			boolean hasPin(DualState<?> s)
 			{
-				return hasPin(s, get());
+				return get().hasPin(s);
+			}
+		}
+
+		/**
+		 * Open-coded implementation of as much of a Stack as PinCount needs.
+		 *<p>
+		 * A lightweight stack implementation that also pools a few of the
+		 * objects once pushed on it, for reuse, intended to produce less
+		 * observed garbage than the earlier straight use of ArrayDeque.
+		 */
+		static final class Manager
+		{
+			private static final int INITIAL_SIZE = 4;
+			private static final int POOL_TARGET = 2;
+			private PinCount[] m_array = new PinCount [ INITIAL_SIZE ];
+			private int m_top = -1;
+			private int m_pooled = 0;
+
+			PinCount peek()
+			{
+				if ( m_top >= 0 )
+					return m_array [ m_top ];
+				return null;
 			}
 
 			/**
-			 * True if a stack of {@code PinCount}s contains any with a non-zero
+			 * A version of 'pop' that returns {@code void}.
+			 *<p>
+			 * No caller above needs the value that was popped; {@code peek} is
+			 * used for that. This method simply pops an element (and may,
+			 * behind the scenes, reset its fields and pool it for reuse).
+			 */
+			void pop()
+			{
+				if ( m_top < 0 )
+					throw new NoSuchElementException();
+				if ( m_pooled >= POOL_TARGET )
+					m_array [ m_top ] = null;
+				else
+				{
+					PinCount pc = m_array [ m_top ];
+					pc.m_referent = null;
+					assert 0 == pc.m_count : "won't pop a nonzero PinCount";
+					++ m_pooled;
+				}
+				-- m_top;
+			}
+
+			/**
+			 * Obtain an entry from {@code allocate}, push and return it.
+			 */
+			PinCount push(DualState<?> s)
+			{
+				PinCount pc = allocate(s);
+				++ m_top;
+				if ( m_top < m_array.length )
+					assert m_top + m_pooled < m_array.length : "stack v. pool";
+				else
+				{
+					assert 0 == m_pooled : "pool will be empty if extending";
+					m_array = copyOf(m_array, 2 * m_array.length);
+				}
+				m_array [ m_top ] = pc;
+				return pc;
+			}
+
+			private PinCount allocate(DualState<?> s)
+			{
+				if ( m_pooled > 0 )
+				{
+					PinCount pc = m_array [ 1 + m_top ];
+					-- m_pooled;
+					pc.m_referent = s;
+					return pc;
+				}
+				return new PinCount(s);
+			}
+
+			/**
+			 * True if stack of {@code PinCount}s contains any with a non-zero
 			 * count for object {@code s}.
 			 */
-			private boolean hasPin(DualState<?> s, Deque<PinCount> counts)
+			private boolean hasPin(DualState<?> s)
 			{
-				for ( PinCount pc : counts )
+				for ( int i = 1 + m_top; i --> 0; )
+				{
+					PinCount pc = m_array [ i ];
 					if ( pc.m_referent.equals(s)  &&  0 < pc.m_count )
 						return true;
+				}
 				return false;
 			}
 		}
