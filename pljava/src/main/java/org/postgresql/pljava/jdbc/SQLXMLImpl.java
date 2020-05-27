@@ -1586,6 +1586,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	static class SAXUnwrapFilter extends XMLFilterImpl
 	{
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
 
 		SAXUnwrapFilter(XMLReader parent)
 		{
@@ -1593,10 +1596,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public void endDocument() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  ! m_topElementSeen )
+				commitToContent();
+			super.endDocument();
+		}
+
+		@Override
 		public void startElement(
 			String uri, String localName, String qName, Attributes atts)
 			throws SAXException
 		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				if ( m_topElementSeen ) // a second top-level element?
+					commitToContent();  // ==> has to be CONTENT.
+				else
+					m_wsAcc.discard();
+				m_topElementSeen = true;
+			}
+
 			if ( 0 < m_nestLevel++ )
 				super.startElement(uri, localName, qName, atts);
 		}
@@ -1607,6 +1627,59 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( 0 < --m_nestLevel )
 				super.endElement(uri, localName, qName);
+		}
+
+		@Override
+		public void characters(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				int mismatchIndex = m_wsAcc.accumulate(ch, start, length);
+				if ( -1 == mismatchIndex )
+					return;
+				commitToContent(); // they weren't all whitespace ==> CONTENT.
+				start = mismatchIndex;
+			}
+			super.characters(ch, start, length);
+		}
+
+		@Override
+		public void processingInstruction(String target, String data)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			super.processingInstruction(target, data);
+		}
+
+		@Override
+		public void skippedEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent(); // an entity at the top level? CONTENT.
+			super.skippedEntity(name);
+		}
+
+		/**
+		 * Called whenever, at "top level" (really nesting level 1, inside our
+		 * wrapping element), a parse event that could not appear there in
+		 * {@code XML(DOCUMENT)} form is encountered.
+		 *<p>
+		 * Forces {@code m_couldBeDocument} false, and disburses any whitespace
+		 * that may be held in the accumulator.
+		 *<p>
+		 * The occurrence of a parse event that <em>could</em> occur in the
+		 * {@code XML(DOCUMENT)} form should be handled not by calling this
+		 * method, but by simply discarding any held whitespace instead.
+		 */
+		private void commitToContent() throws SAXException
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int length;
+			m_couldBeDocument = false;
+			while ( 0 < (length = m_wsAcc.disburse(buf)) )
+				super.characters(buf, 0, length);
 		}
 	}
 
