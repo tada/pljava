@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -82,6 +82,11 @@ import static org.postgresql.pljava.internal.Session.implServerCharset;
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
 import java.sql.SQLFeatureNotSupportedException;
+
+/* ... for SQLXMLImpl.WhitespaceAccumulator */
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /* ... for SQLXMLImpl.DeclProbe */
 
@@ -390,7 +395,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * {@code DOCUMENT}, or was simply inconclusive}, a synthetic wrapper
 	 * will be added, as it will not break anything.
 	 *<p>
-	 * As a side effect, this method sets {@code m_wrapped} tp {@code true}
+	 * As a side effect, this method sets {@code m_wrapped} to {@code true}
 	 * if it applies a wrapper element. When returning a type of
 	 * {@code Source} that presents parsed results, it will be configured
 	 * to present them with the wrapper element filtered out.
@@ -613,7 +618,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				int evt = xsr.next();
 
 				if ( COMMENT == evt || PROCESSING_INSTRUCTION == evt
-					|| SPACE == evt || START_DOCUMENT == evt )
+					|| START_DOCUMENT == evt )
 					continue;
 
 				if ( DTD == evt )
@@ -1049,6 +1054,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
+	static final Pattern s_entirelyWS = Pattern.compile("\\A[ \\t\\n\\r]*+\\z");
+
 	/**
 	 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
 	 * root element in case it had the form of {@code XML(CONTENT)}.
@@ -1076,8 +1083,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		Document newDoc =
 			d.getImplementation().createDocument(null, null, null);
 		DocumentFragment docFrag = newDoc.createDocumentFragment();
+
+		Matcher entirelyWhitespace = s_entirelyWS.matcher("");
+
 		boolean isDocument = true;
 		boolean seenElement = false;
+		boolean seenText = false;
 		for ( Node n = wrapper.getFirstChild(), next = null;
 			  null != n; n = next )
 		{
@@ -1099,8 +1110,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			case Node.PROCESSING_INSTRUCTION_NODE:
 				break;
 			case Node.TEXT_NODE:
-				if ( ! ((Text)n).isElementContentWhitespace() )
-					isDocument = false;
+				if ( isDocument )
+				{
+					seenText = true;
+					entirelyWhitespace.reset(n.getNodeValue());
+					if ( ! entirelyWhitespace.matches() )
+						isDocument = false;
+				}
 				break;
 			default:
 				isDocument = false;
@@ -1109,8 +1125,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			docFrag.appendChild(newDoc.adoptNode(n));
 		}
 
+		if ( ! seenElement )
+			isDocument = false;
+
 		if ( isDocument )
 		{
+			if ( seenText )
+			{
+				/*
+				 * At least one text node was seen at top level, but none
+				 * containing anything but whitespace (else isDocument would
+				 * be false and we wouldn't be here). Such nodes have to go.
+				 */
+				for ( Node n = docFrag.getFirstChild(), next = null;
+					  null != n; n = next )
+				{
+					next = n.getNextSibling();
+					if ( Node.TEXT_NODE == n.getNodeType() )
+						docFrag.removeChild(n);
+				}
+			}
+
 			newDoc.appendChild(docFrag);
 			ds.setNode(newDoc);
 		}
@@ -2075,6 +2110,195 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		public Object getProperty(String name) throws IllegalArgumentException
 		{
 			return m_xsw.getProperty(name);
+		}
+	}
+
+	/**
+	 * Accumulate whitespace at top level (outside any element) pending
+	 * determination of what to do with it.
+	 *<p>
+	 * The handling of whitespace at the top level is a subtle business. Per the
+	 * XML spec "Character Data and Markup" section (in either spec version),
+	 * whitespace is considered, when at the top level, "markup" rather than
+	 * "character data". And the section on "White Space Handling" spells out
+	 * that an XML processor "MUST always pass all characters in a document that
+	 * are not markup through to the application." A sharp-eyed language lawyer
+	 * will see right away that whitespace at the top level does not fall
+	 * under that mandate. (It took me longer.) Indeed, a bit of experimenting
+	 * with a SAX parser will show that it doesn't invoke any handler callbacks
+	 * at all for whitespace at the top level. The whitespace could as well not
+	 * even be there. Some applications rely on that and will report an error if
+	 * the parser shows them any whitespace outside the element they expect.
+	 *<p>
+	 * Our application of a wrapping element, to avoid parse errors for the
+	 * {@code XML(CONTENT)} form, alters the treatment of whitespace that would
+	 * otherwise have been at the top level. As it will now be inside of
+	 * an element, Java's parser will want to pass it on, and our unwrap filter
+	 * will have to fix that.
+	 *<p>
+	 * Complicating matters, our determination whether to apply a wrapping
+	 * element is lazy. It looks only far enough into the start of the stream
+	 * to conclude one of: (1) it is definitely {@code XML(DOCUMENT)},
+	 * (2) it is definitely {@code XML(CONTENT)}, or (3) it could be either and
+	 * has to be be wrapped in case it turns out to be {@code XML(CONTENT)}.
+	 *<p>
+	 * The first two cases are simple. In case (1), we apply no wrapping and
+	 * no filter, and the underlying parser does the right thing. In case (2)
+	 * we know this is not a document, and no whitespace should be filtered out.
+	 *<p>
+	 * Case (3) is the tricky one, and as long as PostgreSQL does not store any
+	 * {@code DOCUMENT}/{@code CONTENT} flag with the value and we have no API
+	 * for the application to say what's expected, unless we are willing to
+	 * pre-parse what could end up being the whole stream just to decide how
+	 * to parse it, we'll have to settle for an approximate behavior.
+	 *<p>
+	 * What's implemented here is to handle character data reported by the
+	 * parser, if it is at "top level" (within our added wrapping element), by
+	 * accumulating any whitespace here until we see what comes next.
+	 *<p>
+	 * This must be applied above the parser (that is, to character events that
+	 * the parser reports), because it applies the XML definition of whitespace,
+	 * which includes only the four characters " \t\n\r" but recognizes them
+	 * <em>after</em> the parser has normalized various newline styles to '\n'.
+	 * The exact set of those newline styles depends on the XML version, and the
+	 * XML 1.1 set includes non-ASCII characters and therefore depend on the
+	 * parser's knowledge of the input stream encoding.
+	 *<p>
+	 * If the character data includes anything other than whitespace, we emit
+	 * it intact including the whitespace, and note that the input is now known
+	 * to be {@code CONTENT} and gets no more special whitespace treatment.
+	 *<p>
+	 * If all whitespace, and followed by the end of input or by an element that
+	 * is <em>not</em> the first one to be seen, we emit it intact and turn off
+	 * special whitespace handling for the remainder of the stream (if any).
+	 *<p>
+	 * If all whitespace and followed by a comment, PI, or the first element
+	 * to be seen it is discarded.
+	 *<p>
+	 * This strategy will produce correct results for any case (3) input that
+	 * turns out to be {@code XML(DOCUMENT)}. In the case of input that turns
+	 * out to be {@code XML(CONTENT)}, it can fail to preserve whitespace ahead
+	 * of the first point where the input is definitely known to be
+	 * {@code CONTENT}.
+	 *<p>
+	 * That may be good enough for many cases. To cover those where it isn't,
+	 * it may be necessary to offer a nonstandard API to specify what the
+	 * application expects, or observe the PostgreSQL {@code XMLOPTION} setting
+	 * in case 3, or both.
+	 */
+	static class WhitespaceAccumulator
+	{
+		/**
+		 * A Pattern to walk through some character data in runs of the same
+		 * whitespace character, allowing a rudimentary run-length encoding.
+		 */
+		static final Pattern s_wsChunk = Pattern.compile(
+			"\\G([ \\t\\n\\r])\\1*+(?![^ \\t\\n\\r])");
+
+		private static final char[] s_runValToChar = {' ', '\t', '\n', '\r'};
+		static final int MAX_RUN = 1 + (0xff >>> 2);
+
+		byte[] m_rleBuffer = new byte [ 8 ];
+		int m_bufPos = 0;
+		int m_disbursePos = 0;
+		Matcher m_matcher = s_wsChunk.matcher("");
+
+		/**
+		 * Given an array with reported character data, return -1 if exclusively
+		 * whitespace characters were seen and have been added to the
+		 * accumulator; otherwise return an index into the input array from
+		 * which the caller should emit the tail unprocessed after using
+		 * {@link #disburse disburse} here to emit any earlier-accumulated
+		 * whitespace.
+		 *<p>
+		 * Java's XML parsing APIs generally do not promise to supply all
+		 * characters of contiguous text in one parse event, so this method
+		 * may be called more than once accumulating whitespace from several
+		 * consecutive events.
+		 */
+		int accumulate(char[] content, int start, int length)
+		{
+			CharBuffer cb = CharBuffer.wrap(content, start, length);
+			int tailPos = 0;
+
+			m_matcher.reset(cb);
+			while ( m_matcher.find() )
+			{
+				tailPos = m_matcher.end();
+				char c = m_matcher.group(1).charAt(0);
+				int runVal = (c & 3) | (c >>> 1 & 2); // index in s_runValToChar
+				int runLength = tailPos - m_matcher.start();
+
+				newRun();
+				while ( runLength > MAX_RUN )
+				{
+					m_rleBuffer [m_bufPos - 1] =
+						(byte)(runVal | (MAX_RUN - 1) << 2);
+					runLength -= MAX_RUN;
+					newRun();
+				}
+				m_rleBuffer [m_bufPos - 1] =
+					(byte)(runVal | (runLength - 1) << 2);
+			}
+
+			m_matcher.reset(""); // don't hold a reference to caller's array
+			if ( tailPos == length )
+				return -1;
+			return start + tailPos;
+		}
+
+		private final void newRun()
+		{
+			++ m_bufPos;
+			if ( m_rleBuffer.length == m_bufPos )
+				m_rleBuffer = Arrays.copyOf(m_rleBuffer, 2*m_rleBuffer.length);
+		}
+
+		/**
+		 * Retrieve the accumulated whitespace if it is not to be discarded.
+		 *<p>
+		 * If the caller detects that the whitespace is significant (either
+		 * because {@link #accumulate accumulate} returned a nonnegative result
+		 * or because the next parse event was a second top-level element or
+		 * the end-event of the wrapping element), the caller should allocate
+		 * a {@code char} array of length at least {@code MAX_RUN} and supply it
+		 * to this method until zero is returned; for each non-zero value
+		 * returned, that many {@code char}s at the head of the array should be
+		 * passed to the application as a character event.
+		 *<p>
+		 * After this method has returned zero, if the caller had received a
+		 * non-negative result from {@code accumulate}, it should present one
+		 * more character event to the application, containing the tail of the
+		 * the array that was given to {@code accumulate}, starting at the index
+		 * {@code accumulate} returned.
+		 */
+		int disburse(char[] into)
+		{
+			assert into.length >= MAX_RUN;
+			if ( m_disbursePos == m_bufPos )
+			{
+				m_bufPos = m_disbursePos = 0;
+				return 0;
+			}
+			int runVal = m_rleBuffer [ m_disbursePos ] & 3;
+			int runLength = 1 + ((m_rleBuffer [ m_disbursePos ] & 0xff) >>> 2);
+			++ m_disbursePos;
+			char c = s_runValToChar [ runVal ];
+			Arrays.fill(into, 0, runLength, c);
+			return runLength;
+		}
+
+		/**
+		 * Discard the accumulated whitespace.
+		 *<p>
+		 * This should be called if some whitespace was successfully accumulated
+		 * ({@code accumulate} returned -1) but the following parse event is one
+		 * that must be passed to the application and does not force the input
+		 * to be classified as {@code XML(CONTENT)}.
+		 */
+		void discard()
+		{
+			m_bufPos = m_disbursePos = 0;
 		}
 	}
 
