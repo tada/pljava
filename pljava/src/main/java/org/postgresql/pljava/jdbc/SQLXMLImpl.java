@@ -122,7 +122,10 @@ import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.Transformer;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
+import org.xml.sax.ext.DefaultHandler2;
 import org.xml.sax.helpers.XMLFilterImpl;
+
+import org.postgresql.pljava.internal.SyntheticXMLReader.SAX2PROPERTY;
 
 /* ... for SQLXMLImpl.StAXResultAdapter and .StAXUnwrapFilter */
 
@@ -1583,7 +1586,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * transformer, at least, to accept the input and faithfully reproduce the
 	 * non-document content.
 	 */
-	static class SAXUnwrapFilter extends XMLFilterImpl
+	static class SAXUnwrapFilter extends XMLFilterImpl implements LexicalHandler
 	{
 		private int m_nestLevel = 0;
 		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
@@ -1680,6 +1683,125 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			m_couldBeDocument = false;
 			while ( 0 < (length = m_wsAcc.disburse(buf)) )
 				super.characters(buf, 0, length);
+		}
+
+		/*
+		 * Implementation of the LexicalHandler interface (and the property
+		 * interception to set and retrieve the handler). No help from
+		 * XMLFilterImpl there.
+		 */
+
+		private static final LexicalHandler s_dummy = new DefaultHandler2();
+		private LexicalHandler m_consumersLexHandler;
+		private LexicalHandler m_realLexHandler;
+		private boolean m_lexHandlerIsRegistered = false;
+
+		@Override
+		public void setContentHandler(ContentHandler handler)
+		{
+			super.setContentHandler(handler);
+			if ( m_lexHandlerIsRegistered )
+				return;
+
+			/*
+			 * The downstream consumer might never register a LexicalHandler of
+			 * its own, but those events still matter here, so trigger the
+			 * registration of 'this' if necessary.
+			 */
+			try
+			{
+				setProperty(SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(),
+					m_consumersLexHandler);
+			}
+			catch ( SAXException e )
+			{
+			}
+		}
+
+		@Override
+		public Object getProperty(String name)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+				return m_consumersLexHandler;
+			return super.getProperty(name);
+		}
+
+		@Override
+		public void setProperty(String name, Object value)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+			{
+				if ( ! SAX2PROPERTY.LEXICAL_HANDLER.valueOk(value) )
+					throw new SAXNotSupportedException(name);
+				/*
+				 * Make sure 'this' is registered as the upstream parser's
+				 * lexical handler, done here to avoid publishing 'this' early
+				 * from the constructor, and also to make sure the consumer gets
+				 * an appropriate exception if it doesn't work for some reason.
+				 */
+				if ( ! m_lexHandlerIsRegistered )
+				{
+					super.setProperty(name, this);
+					m_lexHandlerIsRegistered = true;
+				}
+				m_consumersLexHandler = (LexicalHandler)value;
+				m_realLexHandler =
+					null != value ? m_consumersLexHandler : s_dummy;
+				return;
+			}
+			super.setProperty(name, value);
+		}
+
+		@Override
+		public void startDTD(String name, String publicId, String systemId)
+			throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void endDTD() throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void startEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startEntity(name);
+		}
+
+		@Override
+		public void endEntity(String name) throws SAXException
+		{
+			m_realLexHandler.endEntity(name);
+		}
+
+		@Override
+		public void startCDATA() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void endCDATA() throws SAXException
+		{
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void comment(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			m_realLexHandler.comment(ch, start, length);
 		}
 	}
 
@@ -3310,7 +3432,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					lh = (LexicalHandler)ch;
 				if ( null != lh )
 					xr.setProperty(
-						"http://xml.org/sax/properties/lexical-handler", lh);
+						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
 			catch ( SAXException e )
