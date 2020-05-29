@@ -132,6 +132,7 @@ import org.postgresql.pljava.internal.SyntheticXMLReader.SAX2PROPERTY;
 import java.util.NoSuchElementException;
 
 import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
@@ -1963,10 +1964,99 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private boolean m_hasPeeked;
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
+		private int m_disbursed = 0;
+		private int m_disburseOffset = 0;
+		private char[] m_disburseBuffer;
+		private int m_tailFrom = -1;
+		private Matcher m_allWhiteSpace = s_entirelyWS.matcher("");
 
 		StAXUnwrapFilter(XMLStreamReader reader)
 		{
 			super(reader);
+		}
+
+		/**
+		 * Wrap upstream {@code hasNext} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private boolean wrappedHasNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer, return true;
+			 * the next event will be either another disburse buffer from the
+			 * accumulator, or the upstream event that's still under the cursor.
+			 * That one is either a CHARACTERS event (from which some tail
+			 * characters still need to be emitted), or whatever following event
+			 * triggered the commitToContent.
+			 *
+			 * Otherwise, defer to the upstream's hasNext().
+			 */
+			if ( 0 < m_disbursed )
+				return true;
+
+			return super.hasNext();
+		}
+
+		/**
+		 * Wrap upstream {@code next} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedHasNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private int wrappedNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer and there is
+			 * another one, get that one and return CHARACTERS. If there isn't,
+			 * and m_tailFrom is -1, then the event now under the upstream
+			 * cursor is the one that triggered the commitToContent; return its
+			 * event type. A nonnegative m_tailFrom indicates that the event
+			 * under the cursor is still the CHARACTERS event that turned out
+			 * not to be all whitespace, and still has a tail of characters to
+			 * emit. Store a reference to its upstream array in m_disburseBuffer
+			 * and the proper offset and length values to fake it up as one last
+			 * disburse array; this requires less work in the many other methods
+			 * that must be overridden to sustain the illusion. Set m_tailFrom
+			 * to another negative value in that case (-2), to be replaced with
+			 * -1 on the next iteration and returning to your regularly
+			 * scheduled programming.
+			 *
+			 * Otherwise, defer to the upstream's next().
+			 */
+			if ( 0 < m_disbursed )
+			{
+				m_disbursed = m_wsAcc.disburse(m_disburseBuffer);
+				if ( 0 < m_disbursed )
+					return CHARACTERS;
+				if ( -1 == m_tailFrom )
+					return super.getEventType();
+				if ( 0 <= m_tailFrom )
+				{
+					m_disburseBuffer = super.getTextCharacters();
+					m_disburseOffset = super.getTextStart() + m_tailFrom;
+					m_disbursed = super.getTextLength() - m_tailFrom;
+					m_tailFrom = -2;
+					return CHARACTERS;
+				}
+				m_tailFrom = -1;
+				m_disburseBuffer = null;
+				m_disburseOffset = m_disbursed = 0;
+			}
+
+			return super.next();
 		}
 
 		@Override
@@ -1975,7 +2065,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( m_hasPeeked )
 				return true;
 
-			while ( super.hasNext() )
+			while ( wrappedHasNext() )
 			{
 				/*
 				 * Set hasPeeked = true *just before* peeking. Even if next()
@@ -1984,9 +2074,21 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				 * the cursor to the wrong location for the error.
 				 */
 				m_hasPeeked = true;
-				switch ( super.next() )
+				switch ( wrappedNext() )
 				{
 				case START_ELEMENT:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						if ( m_topElementSeen )
+						{
+							commitToContent();
+							if ( 0 < m_disbursed )
+								return true; // no nestLevel++; we'll be back
+						}
+						else
+							m_wsAcc.discard();
+						m_topElementSeen = true;
+					}
 					if ( 0 < m_nestLevel++ )
 						return true;
 					continue;
@@ -1995,6 +2097,36 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					if ( 0 < --m_nestLevel )
 						return true;
 					continue;
+
+				case END_DOCUMENT:
+					if ( m_couldBeDocument  &&  ! m_topElementSeen )
+						commitToContent();
+					return true;
+
+				case CHARACTERS:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						int mismatchIndex = m_wsAcc.accumulate(
+							super.getTextCharacters(),
+							super.getTextStart(), super.getTextLength());
+						if ( -1 == mismatchIndex )
+							continue;
+						commitToContent();
+						m_tailFrom = mismatchIndex;
+					}
+					return true;
+
+				case COMMENT:
+				case PROCESSING_INSTRUCTION:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						m_wsAcc.discard();
+					return true;
+
+				case CDATA:
+				case ENTITY_REFERENCE:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						commitToContent();
+					return true;
 
 				default:
 					return true;
@@ -2012,6 +2144,170 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new NoSuchElementException();
 			m_hasPeeked = false;
 			return getEventType();
+		}
+
+		@Override
+		public int getEventType()
+		{
+			if ( 0 < m_disbursed )
+				return CHARACTERS;
+			return super.getEventType();
+		}
+
+		private void commitToContent()
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int got = m_wsAcc.disburse(buf);
+			m_couldBeDocument = false;
+			if ( 0 == got )
+				return;
+			m_disburseBuffer = buf;
+			m_disbursed = got;
+		}
+
+		/*
+		 * The methods specific to CHARACTERS events must be overridden here
+		 * to handle 'extra' CHARACTERS events after commitToContent. That's
+		 * the bare-metal ones getTextCharacters, getTextStart, getTextLength
+		 * for sure, but also getText and the copying getTextCharacters, because
+		 * the StAX API spec does not guarantee that those are implemented with
+		 * virtual calls to the bare ones.
+		 */
+
+		@Override
+		public char[] getTextCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseBuffer;
+			return super.getTextCharacters();
+		}
+
+		@Override
+		public int getTextStart()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseOffset;
+			return super.getTextStart();
+		}
+
+		@Override
+		public int getTextLength()
+		{
+			if ( 0 < m_disbursed )
+				return m_disbursed;
+			return super.getTextLength();
+		}
+
+		@Override
+		public String getText()
+		{
+			if ( 0 < m_disbursed )
+				return new String(
+					m_disburseBuffer, m_disburseOffset, m_disbursed);
+			return super.getText();
+		}
+
+		@Override
+		public int getTextCharacters(
+			int sourceStart, char[] target, int targetStart, int length)
+			throws XMLStreamException
+		{
+			int internalStart = getTextStart();
+			int internalLength = getTextLength();
+			if ( sourceStart < 0 ) // arraycopy might not catch this, check here
+				throw new IndexOutOfBoundsException();
+			internalStart += sourceStart;
+			internalLength -= sourceStart;
+			if ( length > internalLength )
+				length = internalLength;
+			System.arraycopy( // let arraycopy do the other index checks
+				getTextCharacters(), internalStart,
+				target, targetStart, length);
+			return length;
+		}
+
+		/*
+		 * But wait, there's more: some methods that are valid in "All States"
+		 * need adjustments to play along with 'inserted' CHARACTERS events.
+		 */
+
+		@Override
+		public void require(int type, String namespaceURI, String localName)
+			throws XMLStreamException
+		{
+			if ( 0 < m_disbursed )
+				if ( CHARACTERS != type
+					|| null != namespaceURI || null != localName )
+					throw new XMLStreamException(
+						"Another event expected, parsed CHARACTERS");
+			super.require(type, namespaceURI, localName);
+		}
+
+		@Override
+		public String getNamespaceURI()
+		{
+			if ( 0 < m_disbursed )
+				return null;
+			return super.getNamespaceURI();
+		}
+
+		@Override
+		public boolean isStartElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isStartElement();
+		}
+
+		@Override
+		public boolean isEndElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isEndElement();
+		}
+
+		@Override
+		public boolean isCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.isCharacters();
+		}
+
+		@Override
+		public boolean isWhiteSpace()
+		{
+			if ( 0 == m_disbursed )
+				return super.isWhiteSpace();
+			/*
+			 * If you are about to change the below to a simple 'return true'
+			 * because things are disbursed by the WhitespaceAccumulator, don't
+			 * forget that one last 'disbursement' can be faked up containing
+			 * the tail of the CHARACTERS event that was not all whitespace.
+			 */
+			CharBuffer cb = CharBuffer.wrap(
+				m_disburseBuffer, m_disburseOffset, m_disbursed);
+			m_allWhiteSpace.reset(cb);
+			boolean result = m_allWhiteSpace.matches();
+			m_allWhiteSpace.reset("");
+			return result;
+		}
+
+		@Override
+		public boolean hasText()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.hasText();
+		}
+
+		@Override
+		public boolean hasName()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.hasName();
 		}
 
 		@Override
@@ -2034,6 +2330,117 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new XMLStreamException(
 					"expected start or end tag", getLocation());
 			return evt;
+		}
+
+		/*
+		 * It ain't over till it's over: the methods that must throw
+		 * IllegalStateException when positioned on a CHARACTERS event
+		 * must do so on an 'inserted' one also.
+		 */
+
+		private void illegalForCharacters()
+		{
+			if ( 0 < m_disbursed )
+				throw new IllegalStateException(
+					"XML parsing method inappropriate for a CHARACTERS event.");
+		}
+
+		@Override
+		public String getAttributeValue(String namespaceURI, String localName)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(namespaceURI, localName);
+		}
+
+		@Override
+		public int getAttributeCount()
+		{
+			illegalForCharacters();
+			return super.getAttributeCount();
+		}
+
+		@Override
+		public QName getAttributeName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeName(index);
+		}
+
+		@Override
+		public String getAttributeNamespace(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeNamespace(index);
+		}
+
+		@Override
+		public String getAttributeLocalName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeLocalName(index);
+		}
+
+		@Override
+		public String getAttributePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributePrefix(index);
+		}
+
+		@Override
+		public String getAttributeType(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeType(index);
+		}
+
+		@Override
+		public String getAttributeValue(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(index);
+		}
+
+		@Override
+		public boolean isAttributeSpecified(int index)
+		{
+			illegalForCharacters();
+			return super.isAttributeSpecified(index);
+		}
+
+		@Override
+		public int getNamespaceCount()
+		{
+			illegalForCharacters();
+			return super.getNamespaceCount();
+		}
+
+		@Override
+		public String getNamespacePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespacePrefix(index);
+		}
+
+		@Override
+		public String getNamespaceURI(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespaceURI(index);
+		}
+
+		@Override
+		public QName getName()
+		{
+			illegalForCharacters();
+			return super.getName();
+		}
+
+		@Override
+		public String getLocalName()
+		{
+			illegalForCharacters();
+			return super.getLocalName();
 		}
 	}
 
