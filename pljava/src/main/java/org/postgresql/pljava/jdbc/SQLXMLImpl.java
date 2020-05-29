@@ -3877,8 +3877,56 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				try
 				{
 					if ( null == xer )
-						xer = xif.createXMLEventReader(
-							m_source.getXMLStreamReader());
+					{
+						XMLStreamReader xsr = m_source.getXMLStreamReader();
+						/*
+						 * Before wrapping this XMLStreamReader in an
+						 * XMLEventReader, wrap it in this trivial delegate
+						 * first. The authors of XMLEventReaderImpl found
+						 * themselves with a problem to solve, namely that
+						 * XMLEventReader's hasNext() method isn't declared to
+						 * throw any exceptions (XMLEventReader implements
+						 * Iterator). So they solved it by just swallowing any
+						 * exception thrown by the stream reader's hasNext, and
+						 * returning false, so it just seems the XML abruptly
+						 * ends for no reported reason.
+						 *
+						 * So, just wrap hasNext here to save any exception from
+						 * below, and return true, thereby inviting the consumer
+						 * to go ahead and call next, where we'll re-throw it.
+						 */
+						xsr = new StreamReaderDelegate(xsr)
+						{
+							XMLStreamException savedException;
+
+							@Override
+							public boolean hasNext() throws XMLStreamException
+							{
+								try
+								{
+									return super.hasNext();
+								}
+								catch ( XMLStreamException e )
+								{
+									savedException = e;
+									return true;
+								}
+							}
+
+							@Override
+							public int next() throws XMLStreamException
+							{
+								XMLStreamException e = savedException;
+								if ( null != e )
+								{
+									savedException = null;
+									throw e;
+								}
+								return super.next();
+							}
+						};
+						xer = xif.createXMLEventReader(xsr);
+					}
 					/*
 					 * Were you thinking the above could be simply
 					 * createXMLEventReader(m_source) by analogy with
