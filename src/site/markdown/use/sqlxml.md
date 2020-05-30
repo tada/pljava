@@ -242,6 +242,22 @@ constructs that might not be encountered when parsing a strictly conforming
 `DOCUMENT`. Java code that requests an `InputStream`, `Reader`, `String`, or
 `StreamSource` will be on its own to parse the data in whichever form appears.
 
+##### Effect on parsing of whitespace
+
+In `DOCUMENT` form, any whitespace outside of the single root element is
+considered markup, not character data. When the value is parsable as `DOCUMENT`,
+and read through PL/Java's `SAXSource` or `StAXSource`, no whitespace that
+occurs outside of the root element will be reported to the application.
+PL/Java's `DOMSource` will present a `Document` node with no whitespace
+text-node children outside of the root element.
+
+If the value parses as `CONTENT`, PL/Java's `DOMSource` will present a
+`DocumentFragment` node with all character data, including whitespace,
+preserved. The streaming operation of the `SAXSource` and `StAXSource` is more
+complicated, and lossy for whitespace (only if it occurs outside of any element)
+ahead of the first parse event that would not be possible in `DOCUMENT` form.
+All whitespace beyond that point is preserved.
+
 #### How both forms are accommodated when writing
 
 Java code using a _writable_ SQLXML instance to produce a result may write
@@ -403,3 +419,41 @@ Java's extensive support for XML.
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
 [adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
+
+## Known limitations
+
+### Limitations of `StAX` support
+
+PL/Java's `StAXSource` supplies an `XMLStreamReader` that only supports the
+expected usage pattern:
+
+```
+while ( streamReader.hasNext() )
+{
+  streamReader.next();
+  /* methods that query state of the current parse event */
+}
+```
+
+It would be unexpected to reorder that pattern so that queries of the current
+event occur after `hasNext` but before `next`, and may produce
+`IllegalStateExceptions` or incorrect results from a `StAXSource` supplied
+by PL/Java.
+
+### Compatibility of `StAX` with `TrAX` (Java's transformation API)
+
+The `javax.xml.transform` APIs are required to accept any of a specified
+four types of `Source` and `Result`: `StreamSource`, `DOMSource`, `SAXSource`,
+or `StAXSource` (and their `Result` counterparts). However, `StAX` was a later
+addition to the family. While `TrAX` is a mature and reliable transformation
+API, and `StAX` is well suited for direct use in new code that will parse or
+generate XML, the handful of internal bridge classes that were added
+to the Java runtime for `StAX` and `TrAX` interoperation are not dependable,
+especially when handling `XML(CONTENT)`. When supplying a `Source` or `Result`
+to a `Transformer`, a variant other than `StAX` should be chosen whenever
+possible, whether PL/Java's or any other implementation.
+
+For convenience, the `SQLXML` API allows passing a null value to `getSource`
+or `setResult`, allowing the implementation to choose the type of `Source`
+or `Result` to supply. PL/Java's implementation will never supply a `StAX`
+variant when not explicitly requested.
