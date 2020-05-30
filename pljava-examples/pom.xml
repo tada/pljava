@@ -87,6 +87,12 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
+				<!-- Limiting the plugin version, for this subproject only,
+				   - works around javadoc's inability to document unnamed-module
+				   - code (these examples) that depends on named-module code
+				   - (such as PL/Java's API). I hope that gets fixed soon.
+				  -->
+				<version>3.0.1</version>
 				<configuration>
 					<excludePackageNames>org.postgresql.pljava.example.saxon</excludePackageNames>
 				</configuration>

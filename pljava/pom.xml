@@ -46,10 +46,14 @@
 					   - this exact potpourri of weirdness just to avoid forcing
 					   - the javadoc tool to do the wrong thing, you would call me
 					   - crazy. See the git commit comment for more explanation.
+					   - Then see the git commit comment for THIS line for even
+					   - MORE explanation.
 					  -->
 					<additionalOptions>
 						<additionalOption>--module</additionalOption>
 						<additionalOption>org.postgresql.pljava.internal</additionalOption>
+						<additionalOption>--module-source-path</additionalOption>
+						<additionalOption>org.postgresql.pljava.internal=${basedir}/src/main/java</additionalOption>
 						<additionalOption>--show-module-contents</additionalOption>
 						<additionalOption>all</additionalOption>
 						<additionalOption>--show-packages</additionalOption>

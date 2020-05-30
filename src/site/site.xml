@@ -9,15 +9,15 @@
 		<name>PL/Java - Stored procedures for PostgreSQL in Java</name>
 		<src>images/pljava_logo.jpg</src>
 		<alt>PL/Java logo combining the PostgreSQL elephant and a Java bean</alt>
-		<href>${project.url}</href>
+		<href>${this.url}</href>
 	</bannerLeft>
 	<body>
 		<links>
 			<item name='Wiki' href='https://github.com/tada/pljava/wiki/'/>
-			<item name='Issues' href='${project.issueManagement.url}'/>
+			<item name='Issues' href='${this.issueManagement.url}'/>
 			<item name='Mailing list'
 			 href='https://www.postgresql.org/list/pljava-dev/'/>
-			<item name='Code' href='${project.scm.url}'/>
+			<item name='Code' href='${this.scm.url}'/>
 		</links>
 		<menu name='Usage' inherit='top'>
 			<item name='Building PL/Java'

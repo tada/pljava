@@ -151,7 +151,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-site-plugin</artifactId>
-				<version>3.4</version>
+				<version>3.8.2</version>
 				<dependencies>
 					<dependency>
 						<groupId>org.apache.maven.doxia</groupId>
@@ -183,12 +183,12 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-project-info-reports-plugin</artifactId>
-				<version>2.8</version>
+				<version>3.0.0</version>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.1.1</version>
+				<version>3.2.0</version>
 				<reportSets>
 					<reportSet>
 						<reports>
@@ -196,6 +196,12 @@
 						</reports>
 					</reportSet>
 				</reportSets>
+				<configuration>
+					<detectJavaApiLink>false</detectJavaApiLink>
+					<links>
+						<link>https://docs.oracle.com/javase/10/docs/api/</link>
+					</links>
+				</configuration>
 			</plugin>
 		</plugins>
 	</reporting>
