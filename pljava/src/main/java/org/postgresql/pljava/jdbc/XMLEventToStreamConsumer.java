@@ -180,14 +180,16 @@ implements XMLEventConsumer, XMLStreamConstants
 
 	protected void add(EndElement event) throws XMLStreamException
 	{
-		if ( null == m_startElement )
-			m_xsw.writeEndElement();
-		else
+		if ( null != m_startElement )
 		{
-			add(m_startElement, locationsEqual(m_location,event.getLocation()));
+			boolean empty = locationsEqual(m_location, event.getLocation());
+			add(m_startElement, empty);
 			m_startElement = null;
 			m_location = null;
+			if ( empty )
+				return;
 		}
+		m_xsw.writeEndElement();
 	}
 
 	protected void add(Attribute a) throws XMLStreamException
