@@ -1974,57 +1974,35 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( m_hasPeeked )
 				return true;
-			if ( ! super.hasNext() )
-				return false;
-			int evt = super.next();
 
-			if ( START_ELEMENT == evt )
+			while ( super.hasNext() )
 			{
-				if ( 0 < m_nestLevel++ )
+				/*
+				 * Set hasPeeked = true *just before* peeking. Even if next()
+				 * throws an exception, hasNext() must be idempotent: another
+				 * call shouldn't try another next(), which could advance
+				 * the cursor to the wrong location for the error.
+				 */
+				m_hasPeeked = true;
+				switch ( super.next() )
 				{
-					m_hasPeeked = true;
+				case START_ELEMENT:
+					if ( 0 < m_nestLevel++ )
+						return true;
+					continue;
+
+				case END_ELEMENT:
+					if ( 0 < --m_nestLevel )
+						return true;
+					continue;
+
+				default:
 					return true;
 				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
 			}
 
-			/*
-			 * If the above if() matched, we saw a START_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It could also be a START_ELEMENT, but it can't
-			 * be the hidden one, so needs no special treatment other than to
-			 * increment nestLevel. It could be an END_ELEMENT, checked next.
-			 */
-
-			if ( START_ELEMENT == evt )
-				++ m_nestLevel;
-			else if ( END_ELEMENT == evt )
-			{
-				if ( 0 < --m_nestLevel )
-				{
-					m_hasPeeked = true;
-					return true;
-				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
-			}
-
-			/*
-			 * If the above if() matched, we saw an END_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It can't really be an END_ELEMENT (the hidden
-			 * one had better be the last one) at all, much less the hidden one.
-			 * It also can't really be a START_ELEMENT. So, no more bookkeeping,
-			 * other than to set hasPeeked.
-			 */
-
-			m_hasPeeked = true;
-			return true;
+			m_hasPeeked = false;
+			return false;
 		}
 
 		@Override
