@@ -103,6 +103,7 @@ jobject Invocation_getTypeMap(void)
 
 void Invocation_pushBootContext(Invocation* ctx)
 {
+	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
 	ctx->pushedFrame     = false;
@@ -121,6 +122,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 
 void Invocation_popBootContext(void)
 {
+	JNI_popLocalFrame(0);
 	currentInvocation = 0;
 	--s_callLevel;
 }

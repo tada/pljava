@@ -970,9 +970,9 @@ static void initPLJavaClasses(void)
 		"org/postgresql/pljava/internal/Backend$EarlyNatives");
 	PgObject_registerNatives2(cls, earlyMethods);
 
-	s_Backend_class = PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/Backend");
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG2, "successfully loaded Backend class");
+	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class,
