@@ -95,8 +95,9 @@ static Datum _floatArray_coerceObject(Type self, jobject floatArray)
 
 		for(idx = 0; idx < nElems; ++idx)
 		{
-			array[idx] = JNI_callFloatMethod(JNI_getObjectArrayElement(floatArray, idx),
-							   s_Float_floatValue);
+			jobject e = JNI_getObjectArrayElement(floatArray, idx);
+			array[idx] = JNI_callFloatMethod(e, s_Float_floatValue);
+			JNI_deleteLocalRef(e);
 		}
 	}
 
