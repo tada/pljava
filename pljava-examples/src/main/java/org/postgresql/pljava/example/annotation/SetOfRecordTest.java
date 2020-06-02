@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -42,8 +42,8 @@ install=
 "  END " +
 " FROM " +
 "  javatest.executeselecttorecords( " +
-"   'select ''Foo'',  1,  1.5,  23.67,  ''2005-06-01'',  ''20:56''::time, " +
-"           ''192.168.0''') " +
+"   'select ''Foo'',  1,  1.5::float,  23.67,  ''2005-06-01'',  " +
+"           ''20:56''::time, ''192.168.0''') " +
 "  AS r(t_varchar varchar, t_integer integer, t_float float, " +
 "      t_decimal decimal(8,2), t_date date, t_time time, t_cidr cidr)"
 )
