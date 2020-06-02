@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://wiki.tada.se/index.php?title=PLJava_License
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
  *
- * @author Thomas Hallgren
+ * Contributors:
+ *   Tada AB
+ *   PostgreSQL Global Development Group
+ *   Chapman Flack
  */
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Array.h"
@@ -76,18 +79,20 @@ static Datum _intArray_coerceObject(Type self, jobject intArray)
 	v = createArrayType(nElems, sizeof(jint), INT4OID, false);
 
 	if(!JNI_isInstanceOf( intArray, s_IntegerArray_class))
-	  JNI_getIntArrayRegion((jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
+		JNI_getIntArrayRegion(
+			(jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
 	else
-	  {
-	    int idx = 0;
-	    jint *array = (jint*)ARR_DATA_PTR(v);
+	{
+		int idx = 0;
+		jint *array = (jint*)ARR_DATA_PTR(v);
 
-	    for(idx = 0; idx < nElems; ++idx)
-	      {
-		array[idx] = JNI_callIntMethod(JNI_getObjectArrayElement(intArray, idx),
-					       s_Integer_intValue);
-	      }
-	  }
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			jobject e = JNI_getObjectArrayElement(intArray, idx);
+			array[idx] = JNI_callIntMethod(e, s_Integer_intValue);
+			JNI_deleteLocalRef(e);
+		}
+	}
 
 
 	PG_RETURN_ARRAYTYPE_P(v);
