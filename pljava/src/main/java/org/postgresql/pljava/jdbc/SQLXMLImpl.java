@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -83,6 +83,11 @@ import org.postgresql.pljava.internal.VarlenaWrapper;
 
 import java.sql.SQLFeatureNotSupportedException;
 
+/* ... for SQLXMLImpl.WhitespaceAccumulator */
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /* ... for SQLXMLImpl.DeclProbe */
 
 import java.io.BufferedInputStream;
@@ -117,13 +122,17 @@ import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.Transformer;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
+import org.xml.sax.ext.DefaultHandler2;
 import org.xml.sax.helpers.XMLFilterImpl;
+
+import org.postgresql.pljava.internal.SyntheticXMLReader.SAX2PROPERTY;
 
 /* ... for SQLXMLImpl.StAXResultAdapter and .StAXUnwrapFilter */
 
 import java.util.NoSuchElementException;
 
 import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
@@ -390,7 +399,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * {@code DOCUMENT}, or was simply inconclusive}, a synthetic wrapper
 	 * will be added, as it will not break anything.
 	 *<p>
-	 * As a side effect, this method sets {@code m_wrapped} tp {@code true}
+	 * As a side effect, this method sets {@code m_wrapped} to {@code true}
 	 * if it applies a wrapper element. When returning a type of
 	 * {@code Source} that presents parsed results, it will be configured
 	 * to present them with the wrapper element filtered out.
@@ -613,7 +622,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				int evt = xsr.next();
 
 				if ( COMMENT == evt || PROCESSING_INSTRUCTION == evt
-					|| SPACE == evt || START_DOCUMENT == evt )
+					|| START_DOCUMENT == evt )
 					continue;
 
 				if ( DTD == evt )
@@ -1049,6 +1058,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
+	static final Pattern s_entirelyWS = Pattern.compile("\\A[ \\t\\n\\r]*+\\z");
+
 	/**
 	 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
 	 * root element in case it had the form of {@code XML(CONTENT)}.
@@ -1076,8 +1087,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		Document newDoc =
 			d.getImplementation().createDocument(null, null, null);
 		DocumentFragment docFrag = newDoc.createDocumentFragment();
+
+		Matcher entirelyWhitespace = s_entirelyWS.matcher("");
+
 		boolean isDocument = true;
 		boolean seenElement = false;
+		boolean seenText = false;
 		for ( Node n = wrapper.getFirstChild(), next = null;
 			  null != n; n = next )
 		{
@@ -1099,8 +1114,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			case Node.PROCESSING_INSTRUCTION_NODE:
 				break;
 			case Node.TEXT_NODE:
-				if ( ! ((Text)n).isElementContentWhitespace() )
-					isDocument = false;
+				if ( isDocument )
+				{
+					seenText = true;
+					entirelyWhitespace.reset(n.getNodeValue());
+					if ( ! entirelyWhitespace.matches() )
+						isDocument = false;
+				}
 				break;
 			default:
 				isDocument = false;
@@ -1109,8 +1129,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			docFrag.appendChild(newDoc.adoptNode(n));
 		}
 
+		if ( ! seenElement )
+			isDocument = false;
+
 		if ( isDocument )
 		{
+			if ( seenText )
+			{
+				/*
+				 * At least one text node was seen at top level, but none
+				 * containing anything but whitespace (else isDocument would
+				 * be false and we wouldn't be here). Such nodes have to go.
+				 */
+				for ( Node n = docFrag.getFirstChild(), next = null;
+					  null != n; n = next )
+				{
+					next = n.getNextSibling();
+					if ( Node.TEXT_NODE == n.getNodeType() )
+						docFrag.removeChild(n);
+				}
+			}
+
 			newDoc.appendChild(docFrag);
 			ds.setNode(newDoc);
 		}
@@ -1548,9 +1587,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * transformer, at least, to accept the input and faithfully reproduce the
 	 * non-document content.
 	 */
-	static class SAXUnwrapFilter extends XMLFilterImpl
+	static class SAXUnwrapFilter extends XMLFilterImpl implements LexicalHandler
 	{
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
 
 		SAXUnwrapFilter(XMLReader parent)
 		{
@@ -1558,10 +1600,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public void endDocument() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  ! m_topElementSeen )
+				commitToContent();
+			super.endDocument();
+		}
+
+		@Override
 		public void startElement(
 			String uri, String localName, String qName, Attributes atts)
 			throws SAXException
 		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				if ( m_topElementSeen ) // a second top-level element?
+					commitToContent();  // ==> has to be CONTENT.
+				else
+					m_wsAcc.discard();
+				m_topElementSeen = true;
+			}
+
 			if ( 0 < m_nestLevel++ )
 				super.startElement(uri, localName, qName, atts);
 		}
@@ -1572,6 +1631,178 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( 0 < --m_nestLevel )
 				super.endElement(uri, localName, qName);
+		}
+
+		@Override
+		public void characters(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				int mismatchIndex = m_wsAcc.accumulate(ch, start, length);
+				if ( -1 == mismatchIndex )
+					return;
+				commitToContent(); // they weren't all whitespace ==> CONTENT.
+				start = mismatchIndex;
+			}
+			super.characters(ch, start, length);
+		}
+
+		@Override
+		public void processingInstruction(String target, String data)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			super.processingInstruction(target, data);
+		}
+
+		@Override
+		public void skippedEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent(); // an entity at the top level? CONTENT.
+			super.skippedEntity(name);
+		}
+
+		/**
+		 * Called whenever, at "top level" (really nesting level 1, inside our
+		 * wrapping element), a parse event that could not appear there in
+		 * {@code XML(DOCUMENT)} form is encountered.
+		 *<p>
+		 * Forces {@code m_couldBeDocument} false, and disburses any whitespace
+		 * that may be held in the accumulator.
+		 *<p>
+		 * The occurrence of a parse event that <em>could</em> occur in the
+		 * {@code XML(DOCUMENT)} form should be handled not by calling this
+		 * method, but by simply discarding any held whitespace instead.
+		 */
+		private void commitToContent() throws SAXException
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int length;
+			m_couldBeDocument = false;
+			while ( 0 < (length = m_wsAcc.disburse(buf)) )
+				super.characters(buf, 0, length);
+		}
+
+		/*
+		 * Implementation of the LexicalHandler interface (and the property
+		 * interception to set and retrieve the handler). No help from
+		 * XMLFilterImpl there.
+		 */
+
+		private static final LexicalHandler s_dummy = new DefaultHandler2();
+		private LexicalHandler m_consumersLexHandler;
+		private LexicalHandler m_realLexHandler;
+		private boolean m_lexHandlerIsRegistered = false;
+
+		@Override
+		public void setContentHandler(ContentHandler handler)
+		{
+			super.setContentHandler(handler);
+			if ( m_lexHandlerIsRegistered )
+				return;
+
+			/*
+			 * The downstream consumer might never register a LexicalHandler of
+			 * its own, but those events still matter here, so trigger the
+			 * registration of 'this' if necessary.
+			 */
+			try
+			{
+				setProperty(SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(),
+					m_consumersLexHandler);
+			}
+			catch ( SAXException e )
+			{
+			}
+		}
+
+		@Override
+		public Object getProperty(String name)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+				return m_consumersLexHandler;
+			return super.getProperty(name);
+		}
+
+		@Override
+		public void setProperty(String name, Object value)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+			{
+				if ( ! SAX2PROPERTY.LEXICAL_HANDLER.valueOk(value) )
+					throw new SAXNotSupportedException(name);
+				/*
+				 * Make sure 'this' is registered as the upstream parser's
+				 * lexical handler, done here to avoid publishing 'this' early
+				 * from the constructor, and also to make sure the consumer gets
+				 * an appropriate exception if it doesn't work for some reason.
+				 */
+				if ( ! m_lexHandlerIsRegistered )
+				{
+					super.setProperty(name, this);
+					m_lexHandlerIsRegistered = true;
+				}
+				m_consumersLexHandler = (LexicalHandler)value;
+				m_realLexHandler =
+					null != value ? m_consumersLexHandler : s_dummy;
+				return;
+			}
+			super.setProperty(name, value);
+		}
+
+		@Override
+		public void startDTD(String name, String publicId, String systemId)
+			throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void endDTD() throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void startEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startEntity(name);
+		}
+
+		@Override
+		public void endEntity(String name) throws SAXException
+		{
+			m_realLexHandler.endEntity(name);
+		}
+
+		@Override
+		public void startCDATA() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void endCDATA() throws SAXException
+		{
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void comment(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			m_realLexHandler.comment(ch, start, length);
 		}
 	}
 
@@ -1733,10 +1964,99 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private boolean m_hasPeeked;
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
+		private int m_disbursed = 0;
+		private int m_disburseOffset = 0;
+		private char[] m_disburseBuffer;
+		private int m_tailFrom = -1;
+		private Matcher m_allWhiteSpace = s_entirelyWS.matcher("");
 
 		StAXUnwrapFilter(XMLStreamReader reader)
 		{
 			super(reader);
+		}
+
+		/**
+		 * Wrap upstream {@code hasNext} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private boolean wrappedHasNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer, return true;
+			 * the next event will be either another disburse buffer from the
+			 * accumulator, or the upstream event that's still under the cursor.
+			 * That one is either a CHARACTERS event (from which some tail
+			 * characters still need to be emitted), or whatever following event
+			 * triggered the commitToContent.
+			 *
+			 * Otherwise, defer to the upstream's hasNext().
+			 */
+			if ( 0 < m_disbursed )
+				return true;
+
+			return super.hasNext();
+		}
+
+		/**
+		 * Wrap upstream {@code next} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedHasNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private int wrappedNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer and there is
+			 * another one, get that one and return CHARACTERS. If there isn't,
+			 * and m_tailFrom is -1, then the event now under the upstream
+			 * cursor is the one that triggered the commitToContent; return its
+			 * event type. A nonnegative m_tailFrom indicates that the event
+			 * under the cursor is still the CHARACTERS event that turned out
+			 * not to be all whitespace, and still has a tail of characters to
+			 * emit. Store a reference to its upstream array in m_disburseBuffer
+			 * and the proper offset and length values to fake it up as one last
+			 * disburse array; this requires less work in the many other methods
+			 * that must be overridden to sustain the illusion. Set m_tailFrom
+			 * to another negative value in that case (-2), to be replaced with
+			 * -1 on the next iteration and returning to your regularly
+			 * scheduled programming.
+			 *
+			 * Otherwise, defer to the upstream's next().
+			 */
+			if ( 0 < m_disbursed )
+			{
+				m_disbursed = m_wsAcc.disburse(m_disburseBuffer);
+				if ( 0 < m_disbursed )
+					return CHARACTERS;
+				if ( -1 == m_tailFrom )
+					return super.getEventType();
+				if ( 0 <= m_tailFrom )
+				{
+					m_disburseBuffer = super.getTextCharacters();
+					m_disburseOffset = super.getTextStart() + m_tailFrom;
+					m_disbursed = super.getTextLength() - m_tailFrom;
+					m_tailFrom = -2;
+					return CHARACTERS;
+				}
+				m_tailFrom = -1;
+				m_disburseBuffer = null;
+				m_disburseOffset = m_disbursed = 0;
+			}
+
+			return super.next();
 		}
 
 		@Override
@@ -1744,57 +2064,77 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( m_hasPeeked )
 				return true;
-			if ( ! super.hasNext() )
-				return false;
-			int evt = super.next();
 
-			if ( START_ELEMENT == evt )
+			while ( wrappedHasNext() )
 			{
-				if ( 0 < m_nestLevel++ )
+				/*
+				 * Set hasPeeked = true *just before* peeking. Even if next()
+				 * throws an exception, hasNext() must be idempotent: another
+				 * call shouldn't try another next(), which could advance
+				 * the cursor to the wrong location for the error.
+				 */
+				m_hasPeeked = true;
+				switch ( wrappedNext() )
 				{
-					m_hasPeeked = true;
+				case START_ELEMENT:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						if ( m_topElementSeen )
+						{
+							commitToContent();
+							if ( 0 < m_disbursed )
+								return true; // no nestLevel++; we'll be back
+						}
+						else
+							m_wsAcc.discard();
+						m_topElementSeen = true;
+					}
+					if ( 0 < m_nestLevel++ )
+						return true;
+					continue;
+
+				case END_ELEMENT:
+					if ( 0 < --m_nestLevel )
+						return true;
+					continue;
+
+				case END_DOCUMENT:
+					if ( m_couldBeDocument  &&  ! m_topElementSeen )
+						commitToContent();
+					return true;
+
+				case CHARACTERS:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						int mismatchIndex = m_wsAcc.accumulate(
+							super.getTextCharacters(),
+							super.getTextStart(), super.getTextLength());
+						if ( -1 == mismatchIndex )
+							continue;
+						commitToContent();
+						m_tailFrom = mismatchIndex;
+					}
+					return true;
+
+				case COMMENT:
+				case PROCESSING_INSTRUCTION:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						m_wsAcc.discard();
+					return true;
+
+				case CDATA:
+				case ENTITY_REFERENCE:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						commitToContent();
+					return true;
+
+				default:
 					return true;
 				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
 			}
 
-			/*
-			 * If the above if() matched, we saw a START_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It could also be a START_ELEMENT, but it can't
-			 * be the hidden one, so needs no special treatment other than to
-			 * increment nestLevel. It could be an END_ELEMENT, checked next.
-			 */
-
-			if ( START_ELEMENT == evt )
-				++ m_nestLevel;
-			else if ( END_ELEMENT == evt )
-			{
-				if ( 0 < --m_nestLevel )
-				{
-					m_hasPeeked = true;
-					return true;
-				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
-			}
-
-			/*
-			 * If the above if() matched, we saw an END_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It can't really be an END_ELEMENT (the hidden
-			 * one had better be the last one) at all, much less the hidden one.
-			 * It also can't really be a START_ELEMENT. So, no more bookkeeping,
-			 * other than to set hasPeeked.
-			 */
-
-			m_hasPeeked = true;
-			return true;
+			m_hasPeeked = false;
+			return false;
 		}
 
 		@Override
@@ -1804,6 +2144,170 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new NoSuchElementException();
 			m_hasPeeked = false;
 			return getEventType();
+		}
+
+		@Override
+		public int getEventType()
+		{
+			if ( 0 < m_disbursed )
+				return CHARACTERS;
+			return super.getEventType();
+		}
+
+		private void commitToContent()
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int got = m_wsAcc.disburse(buf);
+			m_couldBeDocument = false;
+			if ( 0 == got )
+				return;
+			m_disburseBuffer = buf;
+			m_disbursed = got;
+		}
+
+		/*
+		 * The methods specific to CHARACTERS events must be overridden here
+		 * to handle 'extra' CHARACTERS events after commitToContent. That's
+		 * the bare-metal ones getTextCharacters, getTextStart, getTextLength
+		 * for sure, but also getText and the copying getTextCharacters, because
+		 * the StAX API spec does not guarantee that those are implemented with
+		 * virtual calls to the bare ones.
+		 */
+
+		@Override
+		public char[] getTextCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseBuffer;
+			return super.getTextCharacters();
+		}
+
+		@Override
+		public int getTextStart()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseOffset;
+			return super.getTextStart();
+		}
+
+		@Override
+		public int getTextLength()
+		{
+			if ( 0 < m_disbursed )
+				return m_disbursed;
+			return super.getTextLength();
+		}
+
+		@Override
+		public String getText()
+		{
+			if ( 0 < m_disbursed )
+				return new String(
+					m_disburseBuffer, m_disburseOffset, m_disbursed);
+			return super.getText();
+		}
+
+		@Override
+		public int getTextCharacters(
+			int sourceStart, char[] target, int targetStart, int length)
+			throws XMLStreamException
+		{
+			int internalStart = getTextStart();
+			int internalLength = getTextLength();
+			if ( sourceStart < 0 ) // arraycopy might not catch this, check here
+				throw new IndexOutOfBoundsException();
+			internalStart += sourceStart;
+			internalLength -= sourceStart;
+			if ( length > internalLength )
+				length = internalLength;
+			System.arraycopy( // let arraycopy do the other index checks
+				getTextCharacters(), internalStart,
+				target, targetStart, length);
+			return length;
+		}
+
+		/*
+		 * But wait, there's more: some methods that are valid in "All States"
+		 * need adjustments to play along with 'inserted' CHARACTERS events.
+		 */
+
+		@Override
+		public void require(int type, String namespaceURI, String localName)
+			throws XMLStreamException
+		{
+			if ( 0 < m_disbursed )
+				if ( CHARACTERS != type
+					|| null != namespaceURI || null != localName )
+					throw new XMLStreamException(
+						"Another event expected, parsed CHARACTERS");
+			super.require(type, namespaceURI, localName);
+		}
+
+		@Override
+		public String getNamespaceURI()
+		{
+			if ( 0 < m_disbursed )
+				return null;
+			return super.getNamespaceURI();
+		}
+
+		@Override
+		public boolean isStartElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isStartElement();
+		}
+
+		@Override
+		public boolean isEndElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isEndElement();
+		}
+
+		@Override
+		public boolean isCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.isCharacters();
+		}
+
+		@Override
+		public boolean isWhiteSpace()
+		{
+			if ( 0 == m_disbursed )
+				return super.isWhiteSpace();
+			/*
+			 * If you are about to change the below to a simple 'return true'
+			 * because things are disbursed by the WhitespaceAccumulator, don't
+			 * forget that one last 'disbursement' can be faked up containing
+			 * the tail of the CHARACTERS event that was not all whitespace.
+			 */
+			CharBuffer cb = CharBuffer.wrap(
+				m_disburseBuffer, m_disburseOffset, m_disbursed);
+			m_allWhiteSpace.reset(cb);
+			boolean result = m_allWhiteSpace.matches();
+			m_allWhiteSpace.reset("");
+			return result;
+		}
+
+		@Override
+		public boolean hasText()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.hasText();
+		}
+
+		@Override
+		public boolean hasName()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.hasName();
 		}
 
 		@Override
@@ -1826,6 +2330,117 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new XMLStreamException(
 					"expected start or end tag", getLocation());
 			return evt;
+		}
+
+		/*
+		 * It ain't over till it's over: the methods that must throw
+		 * IllegalStateException when positioned on a CHARACTERS event
+		 * must do so on an 'inserted' one also.
+		 */
+
+		private void illegalForCharacters()
+		{
+			if ( 0 < m_disbursed )
+				throw new IllegalStateException(
+					"XML parsing method inappropriate for a CHARACTERS event.");
+		}
+
+		@Override
+		public String getAttributeValue(String namespaceURI, String localName)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(namespaceURI, localName);
+		}
+
+		@Override
+		public int getAttributeCount()
+		{
+			illegalForCharacters();
+			return super.getAttributeCount();
+		}
+
+		@Override
+		public QName getAttributeName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeName(index);
+		}
+
+		@Override
+		public String getAttributeNamespace(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeNamespace(index);
+		}
+
+		@Override
+		public String getAttributeLocalName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeLocalName(index);
+		}
+
+		@Override
+		public String getAttributePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributePrefix(index);
+		}
+
+		@Override
+		public String getAttributeType(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeType(index);
+		}
+
+		@Override
+		public String getAttributeValue(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(index);
+		}
+
+		@Override
+		public boolean isAttributeSpecified(int index)
+		{
+			illegalForCharacters();
+			return super.isAttributeSpecified(index);
+		}
+
+		@Override
+		public int getNamespaceCount()
+		{
+			illegalForCharacters();
+			return super.getNamespaceCount();
+		}
+
+		@Override
+		public String getNamespacePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespacePrefix(index);
+		}
+
+		@Override
+		public String getNamespaceURI(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespaceURI(index);
+		}
+
+		@Override
+		public QName getName()
+		{
+			illegalForCharacters();
+			return super.getName();
+		}
+
+		@Override
+		public String getLocalName()
+		{
+			illegalForCharacters();
+			return super.getLocalName();
 		}
 	}
 
@@ -2075,6 +2690,195 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		public Object getProperty(String name) throws IllegalArgumentException
 		{
 			return m_xsw.getProperty(name);
+		}
+	}
+
+	/**
+	 * Accumulate whitespace at top level (outside any element) pending
+	 * determination of what to do with it.
+	 *<p>
+	 * The handling of whitespace at the top level is a subtle business. Per the
+	 * XML spec "Character Data and Markup" section (in either spec version),
+	 * whitespace is considered, when at the top level, "markup" rather than
+	 * "character data". And the section on "White Space Handling" spells out
+	 * that an XML processor "MUST always pass all characters in a document that
+	 * are not markup through to the application." A sharp-eyed language lawyer
+	 * will see right away that whitespace at the top level does not fall
+	 * under that mandate. (It took me longer.) Indeed, a bit of experimenting
+	 * with a SAX parser will show that it doesn't invoke any handler callbacks
+	 * at all for whitespace at the top level. The whitespace could as well not
+	 * even be there. Some applications rely on that and will report an error if
+	 * the parser shows them any whitespace outside the element they expect.
+	 *<p>
+	 * Our application of a wrapping element, to avoid parse errors for the
+	 * {@code XML(CONTENT)} form, alters the treatment of whitespace that would
+	 * otherwise have been at the top level. As it will now be inside of
+	 * an element, Java's parser will want to pass it on, and our unwrap filter
+	 * will have to fix that.
+	 *<p>
+	 * Complicating matters, our determination whether to apply a wrapping
+	 * element is lazy. It looks only far enough into the start of the stream
+	 * to conclude one of: (1) it is definitely {@code XML(DOCUMENT)},
+	 * (2) it is definitely {@code XML(CONTENT)}, or (3) it could be either and
+	 * has to be be wrapped in case it turns out to be {@code XML(CONTENT)}.
+	 *<p>
+	 * The first two cases are simple. In case (1), we apply no wrapping and
+	 * no filter, and the underlying parser does the right thing. In case (2)
+	 * we know this is not a document, and no whitespace should be filtered out.
+	 *<p>
+	 * Case (3) is the tricky one, and as long as PostgreSQL does not store any
+	 * {@code DOCUMENT}/{@code CONTENT} flag with the value and we have no API
+	 * for the application to say what's expected, unless we are willing to
+	 * pre-parse what could end up being the whole stream just to decide how
+	 * to parse it, we'll have to settle for an approximate behavior.
+	 *<p>
+	 * What's implemented here is to handle character data reported by the
+	 * parser, if it is at "top level" (within our added wrapping element), by
+	 * accumulating any whitespace here until we see what comes next.
+	 *<p>
+	 * This must be applied above the parser (that is, to character events that
+	 * the parser reports), because it applies the XML definition of whitespace,
+	 * which includes only the four characters " \t\n\r" but recognizes them
+	 * <em>after</em> the parser has normalized various newline styles to '\n'.
+	 * The exact set of those newline styles depends on the XML version, and the
+	 * XML 1.1 set includes non-ASCII characters and therefore depend on the
+	 * parser's knowledge of the input stream encoding.
+	 *<p>
+	 * If the character data includes anything other than whitespace, we emit
+	 * it intact including the whitespace, and note that the input is now known
+	 * to be {@code CONTENT} and gets no more special whitespace treatment.
+	 *<p>
+	 * If all whitespace, and followed by the end of input or by an element that
+	 * is <em>not</em> the first one to be seen, we emit it intact and turn off
+	 * special whitespace handling for the remainder of the stream (if any).
+	 *<p>
+	 * If all whitespace and followed by a comment, PI, or the first element
+	 * to be seen it is discarded.
+	 *<p>
+	 * This strategy will produce correct results for any case (3) input that
+	 * turns out to be {@code XML(DOCUMENT)}. In the case of input that turns
+	 * out to be {@code XML(CONTENT)}, it can fail to preserve whitespace ahead
+	 * of the first point where the input is definitely known to be
+	 * {@code CONTENT}.
+	 *<p>
+	 * That may be good enough for many cases. To cover those where it isn't,
+	 * it may be necessary to offer a nonstandard API to specify what the
+	 * application expects, or observe the PostgreSQL {@code XMLOPTION} setting
+	 * in case 3, or both.
+	 */
+	static class WhitespaceAccumulator
+	{
+		/**
+		 * A Pattern to walk through some character data in runs of the same
+		 * whitespace character, allowing a rudimentary run-length encoding.
+		 */
+		static final Pattern s_wsChunk = Pattern.compile(
+			"\\G([ \\t\\n\\r])\\1*+(?![^ \\t\\n\\r])");
+
+		private static final char[] s_runValToChar = {' ', '\t', '\n', '\r'};
+		static final int MAX_RUN = 1 + (0xff >>> 2);
+
+		byte[] m_rleBuffer = new byte [ 8 ];
+		int m_bufPos = 0;
+		int m_disbursePos = 0;
+		Matcher m_matcher = s_wsChunk.matcher("");
+
+		/**
+		 * Given an array with reported character data, return -1 if exclusively
+		 * whitespace characters were seen and have been added to the
+		 * accumulator; otherwise return an index into the input array from
+		 * which the caller should emit the tail unprocessed after using
+		 * {@link #disburse disburse} here to emit any earlier-accumulated
+		 * whitespace.
+		 *<p>
+		 * Java's XML parsing APIs generally do not promise to supply all
+		 * characters of contiguous text in one parse event, so this method
+		 * may be called more than once accumulating whitespace from several
+		 * consecutive events.
+		 */
+		int accumulate(char[] content, int start, int length)
+		{
+			CharBuffer cb = CharBuffer.wrap(content, start, length);
+			int tailPos = 0;
+
+			m_matcher.reset(cb);
+			while ( m_matcher.find() )
+			{
+				tailPos = m_matcher.end();
+				char c = m_matcher.group(1).charAt(0);
+				int runVal = (c & 3) | (c >>> 1 & 2); // index in s_runValToChar
+				int runLength = tailPos - m_matcher.start();
+
+				newRun();
+				while ( runLength > MAX_RUN )
+				{
+					m_rleBuffer [m_bufPos - 1] =
+						(byte)(runVal | (MAX_RUN - 1) << 2);
+					runLength -= MAX_RUN;
+					newRun();
+				}
+				m_rleBuffer [m_bufPos - 1] =
+					(byte)(runVal | (runLength - 1) << 2);
+			}
+
+			m_matcher.reset(""); // don't hold a reference to caller's array
+			if ( tailPos == length )
+				return -1;
+			return start + tailPos;
+		}
+
+		private final void newRun()
+		{
+			++ m_bufPos;
+			if ( m_rleBuffer.length == m_bufPos )
+				m_rleBuffer = Arrays.copyOf(m_rleBuffer, 2*m_rleBuffer.length);
+		}
+
+		/**
+		 * Retrieve the accumulated whitespace if it is not to be discarded.
+		 *<p>
+		 * If the caller detects that the whitespace is significant (either
+		 * because {@link #accumulate accumulate} returned a nonnegative result
+		 * or because the next parse event was a second top-level element or
+		 * the end-event of the wrapping element), the caller should allocate
+		 * a {@code char} array of length at least {@code MAX_RUN} and supply it
+		 * to this method until zero is returned; for each non-zero value
+		 * returned, that many {@code char}s at the head of the array should be
+		 * passed to the application as a character event.
+		 *<p>
+		 * After this method has returned zero, if the caller had received a
+		 * non-negative result from {@code accumulate}, it should present one
+		 * more character event to the application, containing the tail of the
+		 * the array that was given to {@code accumulate}, starting at the index
+		 * {@code accumulate} returned.
+		 */
+		int disburse(char[] into)
+		{
+			assert into.length >= MAX_RUN;
+			if ( m_disbursePos == m_bufPos )
+			{
+				m_bufPos = m_disbursePos = 0;
+				return 0;
+			}
+			int runVal = m_rleBuffer [ m_disbursePos ] & 3;
+			int runLength = 1 + ((m_rleBuffer [ m_disbursePos ] & 0xff) >>> 2);
+			++ m_disbursePos;
+			char c = s_runValToChar [ runVal ];
+			Arrays.fill(into, 0, runLength, c);
+			return runLength;
+		}
+
+		/**
+		 * Discard the accumulated whitespace.
+		 *<p>
+		 * This should be called if some whitespace was successfully accumulated
+		 * ({@code accumulate} returned -1) but the following parse event is one
+		 * that must be passed to the application and does not force the input
+		 * to be classified as {@code XML(CONTENT)}.
+		 */
+		void discard()
+		{
+			m_bufPos = m_disbursePos = 0;
 		}
 	}
 
@@ -3013,7 +3817,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					lh = (LexicalHandler)ch;
 				if ( null != lh )
 					xr.setProperty(
-						"http://xml.org/sax/properties/lexical-handler", lh);
+						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
 			catch ( SAXException e )
@@ -3073,8 +3877,56 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				try
 				{
 					if ( null == xer )
-						xer = xif.createXMLEventReader(
-							m_source.getXMLStreamReader());
+					{
+						XMLStreamReader xsr = m_source.getXMLStreamReader();
+						/*
+						 * Before wrapping this XMLStreamReader in an
+						 * XMLEventReader, wrap it in this trivial delegate
+						 * first. The authors of XMLEventReaderImpl found
+						 * themselves with a problem to solve, namely that
+						 * XMLEventReader's hasNext() method isn't declared to
+						 * throw any exceptions (XMLEventReader implements
+						 * Iterator). So they solved it by just swallowing any
+						 * exception thrown by the stream reader's hasNext, and
+						 * returning false, so it just seems the XML abruptly
+						 * ends for no reported reason.
+						 *
+						 * So, just wrap hasNext here to save any exception from
+						 * below, and return true, thereby inviting the consumer
+						 * to go ahead and call next, where we'll re-throw it.
+						 */
+						xsr = new StreamReaderDelegate(xsr)
+						{
+							XMLStreamException savedException;
+
+							@Override
+							public boolean hasNext() throws XMLStreamException
+							{
+								try
+								{
+									return super.hasNext();
+								}
+								catch ( XMLStreamException e )
+								{
+									savedException = e;
+									return true;
+								}
+							}
+
+							@Override
+							public int next() throws XMLStreamException
+							{
+								XMLStreamException e = savedException;
+								if ( null != e )
+								{
+									savedException = null;
+									throw e;
+								}
+								return super.next();
+							}
+						};
+						xer = xif.createXMLEventReader(xsr);
+					}
 					/*
 					 * Were you thinking the above could be simply
 					 * createXMLEventReader(m_source) by analogy with
