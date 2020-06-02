@@ -86,7 +86,8 @@ static Datum _longArray_coerceObject(Type self, jobject longArray)
 	v = createArrayType(nElems, sizeof(jlong), INT8OID, false);
 
 	if(!JNI_isInstanceOf( longArray, s_LongArray_class))
-		JNI_getLongArrayRegion((jlongArray)longArray, 0, nElems, (jlong*)ARR_DATA_PTR(v));
+		JNI_getLongArrayRegion(
+			(jlongArray)longArray, 0, nElems, (jlong*)ARR_DATA_PTR(v));
 	else
 	{
 		int idx = 0;
@@ -94,8 +95,9 @@ static Datum _longArray_coerceObject(Type self, jobject longArray)
 
 		for(idx = 0; idx < nElems; ++idx)
 		{
-			array[idx] = JNI_callLongMethod(JNI_getObjectArrayElement(longArray, idx),
-							s_Long_longValue);
+			jobject e = JNI_getObjectArrayElement(longArray, idx);
+			array[idx] = JNI_callLongMethod(e, s_Long_longValue);
+			JNI_deleteLocalRef(e);
 		}
 	}
 

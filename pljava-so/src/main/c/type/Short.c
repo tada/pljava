@@ -78,18 +78,20 @@ static Datum _shortArray_coerceObject(Type self, jobject shortArray)
 	v = createArrayType(nElems, sizeof(jshort), INT2OID, false);
 
 	if(!JNI_isInstanceOf( shortArray, s_ShortArray_class))
-	  JNI_getShortArrayRegion((jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
+		JNI_getShortArrayRegion(
+			(jshortArray)shortArray, 0, nElems, (jshort*)ARR_DATA_PTR(v));
 	else
-	  {
-	    int idx = 0;
-	    jshort *array = (jshort*)ARR_DATA_PTR(v);
+	{
+		int idx = 0;
+		jshort *array = (jshort*)ARR_DATA_PTR(v);
 
-	    for(idx = 0; idx < nElems; ++idx)
-	      {
-		array[idx] = JNI_callShortMethod(JNI_getObjectArrayElement(shortArray, idx),
-					       s_Short_shortValue);
-	      }
-	  }
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			jobject e = JNI_getObjectArrayElement(shortArray, idx);
+			array[idx] = JNI_callShortMethod(e, s_Short_shortValue);
+			JNI_deleteLocalRef(e);
+		}
+	}
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }

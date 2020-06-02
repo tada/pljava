@@ -79,18 +79,20 @@ static Datum _intArray_coerceObject(Type self, jobject intArray)
 	v = createArrayType(nElems, sizeof(jint), INT4OID, false);
 
 	if(!JNI_isInstanceOf( intArray, s_IntegerArray_class))
-	  JNI_getIntArrayRegion((jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
+		JNI_getIntArrayRegion(
+			(jintArray)intArray, 0, nElems, (jint*)ARR_DATA_PTR(v));
 	else
-	  {
-	    int idx = 0;
-	    jint *array = (jint*)ARR_DATA_PTR(v);
+	{
+		int idx = 0;
+		jint *array = (jint*)ARR_DATA_PTR(v);
 
-	    for(idx = 0; idx < nElems; ++idx)
-	      {
-		array[idx] = JNI_callIntMethod(JNI_getObjectArrayElement(intArray, idx),
-					       s_Integer_intValue);
-	      }
-	  }
+		for(idx = 0; idx < nElems; ++idx)
+		{
+			jobject e = JNI_getObjectArrayElement(intArray, idx);
+			array[idx] = JNI_callIntMethod(e, s_Integer_intValue);
+			JNI_deleteLocalRef(e);
+		}
+	}
 
 
 	PG_RETURN_ARRAYTYPE_P(v);

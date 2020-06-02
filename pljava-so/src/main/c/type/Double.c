@@ -93,10 +93,10 @@ static Datum _doubleArray_coerceObject(Type self, jobject doubleArray)
 
 		for(idx = 0; idx < nElems; ++idx)
 		{
-			array[idx] = JNI_callDoubleMethod(JNI_getObjectArrayElement(doubleArray, idx),
-						       s_Double_doubleValue);
+			jobject e = JNI_getObjectArrayElement(doubleArray, idx);
+			array[idx] = JNI_callDoubleMethod(e, s_Double_doubleValue);
+			JNI_deleteLocalRef(e);
 		}
-
 	}
 
 	PG_RETURN_ARRAYTYPE_P(v);

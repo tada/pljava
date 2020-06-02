@@ -88,8 +88,9 @@ static Datum _booleanArray_coerceObject(Type self, jobject booleanArray)
 
 		for(idx = 0; idx < nElems; ++idx)
 		{
-			array[idx] = JNI_callBooleanMethod(JNI_getObjectArrayElement(booleanArray, idx),
-							   s_Boolean_booleanValue);
+			jobject e = JNI_getObjectArrayElement(booleanArray, idx);
+			array[idx] = JNI_callBooleanMethod(e, s_Boolean_booleanValue);
+			JNI_deleteLocalRef(e);
 		}
 	}
 
