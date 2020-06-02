@@ -973,6 +973,8 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 	static char const class_prefix[] = "(a ";
 	static char const culprit[] =
 		" com.sun.management.internal.DiagnosticCommandImpl.";
+	static char const nostack[] =
+		"No stacktrace, probably called from PostgreSQL";
 	static enum matchstate
 	{
 		VFP_INITIAL,
@@ -988,6 +990,7 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 	char* bp = buf;
 	unsigned int live, cap;
 	int got;
+	char const *detail;
 
     vsnprintf(buf, sizeof(buf), format, args);
 
@@ -1008,14 +1011,25 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 			return 0;
 
 		case VFP_MAYBE:
-			if ( 0 == strncmp(buf, at_prefix, sizeof at_prefix - 1)
-				&& NULL != strstr(buf, culprit) )
+			if ( 0 != strncmp(buf, at_prefix, sizeof at_prefix - 1) )
+				detail = nostack;
+			else
 			{
+				detail = buf;
 				state = VFP_ATE_AT;
-				return 0;
+				if ( NULL != strstr(buf, culprit) )
+					return 0;
 			}
-			elog(s_javaLogLevel, cap_format, lastlive, lastcap);
-			continue;
+			ereport(INFO, (
+				errmsg_internal(cap_format, lastlive, lastcap),
+				errdetail_internal("%s", detail),
+				errhint(
+					"To pinpoint location, set a breakpoint on this ereport "
+					"and follow stacktrace to a functionExit(), its caller "
+					"(a JNI method), and the immediate caller of that.")));
+			if ( nostack == detail )
+				continue;
+			return 0;
 
 		case VFP_ATE_AT:
 			if ( 0 == strncmp(buf, at_prefix, sizeof at_prefix - 1) )
