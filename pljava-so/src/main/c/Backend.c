@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -892,6 +892,7 @@ static void initPLJavaClasses(void)
 		},
 		{ 0, 0, 0 }
 	};
+	jclass cls;
 
 	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
 												"PL/Java",
@@ -900,9 +901,10 @@ static void initPLJavaClasses(void)
 	Exception_initialize();
 
 	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
-	s_Backend_class = PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/Backend");
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG2, "successfully loaded Backend class");
+	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");

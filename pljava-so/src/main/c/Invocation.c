@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -103,6 +103,7 @@ jobject Invocation_getTypeMap(void)
 
 void Invocation_pushBootContext(Invocation* ctx)
 {
+	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
 	ctx->trusted         = false;
@@ -120,6 +121,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 
 void Invocation_popBootContext(void)
 {
+	JNI_popLocalFrame(0);
 	currentInvocation = 0;
 	--s_callLevel;
 }
