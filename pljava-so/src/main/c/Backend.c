@@ -966,11 +966,73 @@ int Backend_setJavaLogLevel(int logLevel)
  */
 static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 {
+	static char const * const cap_format =
+		"WARNING: JNI local refs: %u, exceeds capacity: %u";
+	static char const at_prefix[] = "\tat ";
+	static char const locked_prefix[] = "\t- locked <";
+	static char const class_prefix[] = "(a ";
+	static char const culprit[] =
+		" com.sun.management.internal.DiagnosticCommandImpl.";
+	static enum matchstate
+	{
+		VFP_INITIAL,
+		VFP_MAYBE,
+		VFP_ATE_AT,
+		VFP_ATE_LOCKED
+	}
+	state = VFP_INITIAL;
+	static unsigned int lastlive, lastcap;
+
 	char buf[1024];
 	char* ep;
 	char* bp = buf;
+	unsigned int live, cap;
+	int got;
 
     vsnprintf(buf, sizeof(buf), format, args);
+
+	/* Try to eliminate annoying -Xcheck:jni messages from deep in JMX that
+	 * nothing can be done about here.
+	 */
+	for ( ;; state = VFP_INITIAL )
+	{
+		switch ( state )
+		{
+		case VFP_INITIAL:
+			got = sscanf(buf, cap_format, &live, &cap);
+			if ( 2 != got )
+				break;
+			lastlive = live;
+			lastcap = cap;
+			state = VFP_MAYBE;
+			return 0;
+
+		case VFP_MAYBE:
+			if ( 0 == strncmp(buf, at_prefix, sizeof at_prefix - 1)
+				&& NULL != strstr(buf, culprit) )
+			{
+				state = VFP_ATE_AT;
+				return 0;
+			}
+			elog(s_javaLogLevel, cap_format, lastlive, lastcap);
+			continue;
+
+		case VFP_ATE_AT:
+			if ( 0 == strncmp(buf, at_prefix, sizeof at_prefix - 1) )
+				return 0; /* remain in ATE_AT state */
+			if ( 0 != strncmp(buf, locked_prefix, sizeof locked_prefix - 1) )
+				continue;
+			state = VFP_ATE_LOCKED;
+			return 0;
+
+		case VFP_ATE_LOCKED:
+			if ( 0 != strncmp(buf, class_prefix, sizeof class_prefix - 1) )
+				continue;
+			state = VFP_ATE_AT;
+			return 0;
+		}
+		break;
+	}
 
     /* Trim off trailing newline and other whitespace.
      */
