@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -892,6 +892,7 @@ static void initPLJavaClasses(void)
 		},
 		{ 0, 0, 0 }
 	};
+	jclass cls;
 
 	JavaMemoryContext = AllocSetContextCreate(TopMemoryContext,
 												"PL/Java",
@@ -900,9 +901,10 @@ static void initPLJavaClasses(void)
 	Exception_initialize();
 
 	elog(DEBUG2, "checking for a PL/Java Backend class on the given classpath");
-	s_Backend_class = PgObject_getJavaClass(
-		"org/postgresql/pljava/internal/Backend");
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Backend");
 	elog(DEBUG2, "successfully loaded Backend class");
+	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	tlField = PgObject_getStaticJavaField(s_Backend_class, "THREADLOCK", "Ljava/lang/Object;");
@@ -964,11 +966,87 @@ int Backend_setJavaLogLevel(int logLevel)
  */
 static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 {
+	static char const * const cap_format =
+		"WARNING: JNI local refs: %u, exceeds capacity: %u";
+	static char const at_prefix[] = "\tat ";
+	static char const locked_prefix[] = "\t- locked <";
+	static char const class_prefix[] = "(a ";
+	static char const culprit[] =
+		" com.sun.management.internal.DiagnosticCommandImpl.";
+	static char const nostack[] =
+		"No stacktrace, probably called from PostgreSQL";
+	static enum matchstate
+	{
+		VFP_INITIAL,
+		VFP_MAYBE,
+		VFP_ATE_AT,
+		VFP_ATE_LOCKED
+	}
+	state = VFP_INITIAL;
+	static unsigned int lastlive, lastcap;
+
 	char buf[1024];
 	char* ep;
 	char* bp = buf;
+	unsigned int live, cap;
+	int got;
+	char const *detail;
 
     vsnprintf(buf, sizeof(buf), format, args);
+
+	/* Try to eliminate annoying -Xcheck:jni messages from deep in JMX that
+	 * nothing can be done about here.
+	 */
+	for ( ;; state = VFP_INITIAL )
+	{
+		switch ( state )
+		{
+		case VFP_INITIAL:
+			got = sscanf(buf, cap_format, &live, &cap);
+			if ( 2 != got )
+				break;
+			lastlive = live;
+			lastcap = cap;
+			state = VFP_MAYBE;
+			return 0;
+
+		case VFP_MAYBE:
+			if ( 0 != strncmp(buf, at_prefix, sizeof at_prefix - 1) )
+				detail = nostack;
+			else
+			{
+				detail = buf;
+				state = VFP_ATE_AT;
+				if ( NULL != strstr(buf, culprit) )
+					return 0;
+			}
+			ereport(INFO, (
+				errmsg_internal(cap_format, lastlive, lastcap),
+				errdetail_internal("%s", detail),
+				errhint(
+					"To pinpoint location, set a breakpoint on this ereport "
+					"and follow stacktrace to a functionExit(), its caller "
+					"(a JNI method), and the immediate caller of that.")));
+			if ( nostack == detail )
+				continue;
+			return 0;
+
+		case VFP_ATE_AT:
+			if ( 0 == strncmp(buf, at_prefix, sizeof at_prefix - 1) )
+				return 0; /* remain in ATE_AT state */
+			if ( 0 != strncmp(buf, locked_prefix, sizeof locked_prefix - 1) )
+				continue;
+			state = VFP_ATE_LOCKED;
+			return 0;
+
+		case VFP_ATE_LOCKED:
+			if ( 0 != strncmp(buf, class_prefix, sizeof class_prefix - 1) )
+				continue;
+			state = VFP_ATE_AT;
+			return 0;
+		}
+		break;
+	}
 
     /* Trim off trailing newline and other whitespace.
      */
