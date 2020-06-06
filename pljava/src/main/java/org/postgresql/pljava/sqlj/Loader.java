@@ -267,7 +267,7 @@ public class Loader extends ClassLoader
 		};
 		ClassLoader loader = Loader.getSchemaLoader(schema);
 		try (
-			Statement stmt = Checked.Supplier.of((() ->
+			Statement stmt = Checked.Supplier.use((() ->
 			{
 				Statement s = getDefaultConnection().createStatement();
 				s.unwrap(SPIReadOnlyControl.class).clearReadOnly();
@@ -377,7 +377,7 @@ public class Loader extends ClassLoader
 				// prepared statements are backed by ExecutionPlans that stick
 				// around in an MRU cache after being closed.)
 				//
-				PreparedStatement stmt = Checked.Supplier.of((() ->
+				PreparedStatement stmt = Checked.Supplier.use((() ->
 					{
 						PreparedStatement s = getDefaultConnection()
 							.prepareStatement(

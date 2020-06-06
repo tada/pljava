@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,8 +11,6 @@
  */
 package org.postgresql.pljava.jdbc;
 
-import java.util.Iterator;
-
 import javax.xml.namespace.QName;
 
 import javax.xml.stream.Location;
@@ -23,6 +21,8 @@ import javax.xml.stream.XMLStreamWriter;
 import javax.xml.stream.events.*;
 
 import javax.xml.stream.util.XMLEventConsumer;
+
+import org.postgresql.pljava.internal.Checked;
 
 /**
  * Consume a stream of StAX {@code XMLEvent}s, writing them to an
@@ -172,10 +172,10 @@ implements XMLEventConsumer, XMLStreamConstants
 		else
 			m_xsw.writeStartElement(
 				qn.getPrefix(), qn.getLocalPart(), qn.getNamespaceURI());
-		for ( Namespace n : namespaces(event) )
-			add(n);
-		for ( Attribute a : attributes(event) )
-			add(a);
+		Checked.Consumer.use((Namespace n) -> add(n))
+			.in(event.getNamespaces()::forEachRemaining);
+		Checked.Consumer.use((Attribute a) -> add(a))
+			.in(event.getAttributes()::forEachRemaining);
 	}
 
 	protected void add(EndElement event) throws XMLStreamException
@@ -229,48 +229,5 @@ implements XMLEventConsumer, XMLStreamConstants
 		if ( null != a )
 			return a.equals(b);
 		return b.equals(a);
-	}
-
-	/*
-	 * XXX Do the below with lambdas once Java back horizon >= 8.
-	 */
-	protected Attributes attributes(StartElement event)
-	{
-		Attributes as = new Attributes();
-		as.m_event = event;
-		return as;
-	}
-
-	protected Namespaces namespaces(StartElement event)
-	{
-		Namespaces ns = new Namespaces();
-		ns.m_event = event;
-		return ns;
-	}
-
-	static abstract class ElementIterable<T> implements Iterable<T>
-	{
-		protected StartElement m_event;
-
-		@Override
-		public abstract Iterator<T> iterator();
-	}
-
-	static class Attributes extends ElementIterable<Attribute>
-	{
-		@Override
-		public Iterator<Attribute> iterator()
-		{
-			return (Iterator<Attribute>)m_event.getAttributes();
-		}
-	}
-
-	static class Namespaces extends ElementIterable<Namespace>
-	{
-		@Override
-		public Iterator<Namespace> iterator()
-		{
-			return (Iterator<Namespace>)m_event.getNamespaces();
-		}
 	}
 }

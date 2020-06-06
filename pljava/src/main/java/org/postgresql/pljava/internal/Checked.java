@@ -37,16 +37,16 @@ import java.util.NoSuchElementException;
  * the Java no-checked version of the same interface, using a lightweight idiom
  * advanced by Lukas Eder, developer of jOOλ. The checked exception is not
  * wrapped, but simply flown under {@code javac}'s radar. That idiom is extended
- * here with a corresponding {@code ederUnwrap} method to produce a checked
- * interface again, re-exposing the checked exception type. That makes possible
- * constructions like:
+ * here with a corresponding {@code in} method to pass the wrapped interface
+ * into code that requires it, re-exposing the checked exception type. That
+ * makes possible constructions like:
  *
  *<pre>
  * Stream&lt;String&gt; strs = ...;
  * Writer w = ...;
- * var c = Checked.Consumer.of((String s) -&gt; w.write(s)); // throws IOException!
  * try {
- *   c.ederUnwrap(() -&gt; strs.forEach(c.ederWrap())).run();
+ *   Checked.Consumer.use((String s) -&gt; w.write(s)) // throws IOException!
+ *     .in(c -> strs.forEach(c));
  * }
  * catch ( IOException e ) { ... }
  *</pre>
@@ -60,8 +60,8 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * and likely to produce surprises if the exception will be 'flown' through deep
  * layers of code by others that may contain {@code catch} blocks. That said, as
  * a convenience for dealing with checked exceptions and simple Java APIs that
- * cannot accept them, it can be useful as long as the intervening code between
- * {@code ederWrap} and {@code ederUnwrap} is simple and short.
+ * cannot accept them, it can be useful as long as the intervening code through
+ * which the exception may be 'flown' is simple and short.
  *<p>
  * Static {@code composed()} methods are provided here in place of the instance
  * {@code compose} or {@code andThen} methods in Java's function API, which seem
@@ -69,8 +69,8 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * in. A static {@code composed} method can substitute for {@code compose} or
  * {@code andThen}, by ordering the parameters as desired.
  *<p>
- * Each functional interface declared here has a static {@code of(...)} method
- * that can be used, as a concise alternative to casting, to constrain the type
+ * Each functional interface declared here has a static {@code use(...)} method
+ * that can serve, as a concise alternative to casting, to constrain the type
  * of a lambda expression when the compiler won't infer it.
  */
 public interface Checked<WT, EX extends Throwable>
@@ -83,64 +83,39 @@ public interface Checked<WT, EX extends Throwable>
 
 	WT ederWrap();
 
-	/*
-	 * ederUnwrap() methods, overloaded for all the types that can be wrapped.
-	 */
-
-	default <RT> Supplier<RT,EX> ederUnwrap(java.util.function.Supplier<RT> s)
+	default <RX extends Throwable>
+	void in(Consumer<? super WT, RX> c)
+	throws EX, RX
 	{
-		return () -> s.get();
+		c.accept(ederWrap());
 	}
 
-	default Runnable<EX> ederUnwrap(java.lang.Runnable r)
+	default <RT, RX extends Throwable>
+	RT in(Function<? super WT, RT, RX> f)
+	throws EX, RX
 	{
-		return () -> r.run();
+		return f.apply(ederWrap());
 	}
 
-	default BooleanSupplier<EX> ederUnwrap(java.util.function.BooleanSupplier s)
+	default <RX extends Throwable>
+	double in(ToDoubleFunction<? super WT, RX> f)
+		throws EX, RX
 	{
-		return () -> s.getAsBoolean();
+		return f.apply(ederWrap());
 	}
 
-	default DoubleSupplier<EX> ederUnwrap(java.util.function.DoubleSupplier s)
+	default <RX extends Throwable>
+	int in(ToIntFunction<? super WT, RX> f)
+	throws EX, RX
 	{
-		return () -> s.getAsDouble();
+		return f.apply(ederWrap());
 	}
 
-	default IntSupplier<EX> ederUnwrap(java.util.function.IntSupplier s)
+	default <RX extends Throwable>
+	long in(ToLongFunction<? super WT, RX> f)
+	throws EX, RX
 	{
-		return () -> s.getAsInt();
-	}
-
-	default LongSupplier<EX> ederUnwrap(java.util.function.LongSupplier s)
-	{
-		return () -> s.getAsLong();
-	}
-
-	default <T,R> Function<T,R,EX> ederUnwrap(
-		java.util.function.Function<T,R> f)
-	{
-		return (v) -> f.apply(v);
-	}
-
-	default <T> Consumer<T,EX> ederUnwrap(java.util.function.Consumer<T> c)
-	{
-		return (v) -> c.accept(v);
-	}
-
-	default DoubleConsumer<EX> ederUnwrap(java.util.function.DoubleConsumer c)
-	{
-		return (v) -> c.accept(v);
-	}
-
-	default IntConsumer<EX> ederUnwrap(java.util.function.IntConsumer c)
-	{
-		return (v) -> c.accept(v);
-	}
-
-	default LongConsumer<EX> ederUnwrap(java.util.function.LongConsumer c)
-	{
-		return (v) -> c.accept(v);
+		return f.apply(ederWrap());
 	}
 
 	/*
@@ -229,7 +204,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> Runnable<E> of(Runnable<E> o)
+		static <E extends Throwable> Runnable<E> use(Runnable<E> o)
 		{
 			return o;
 		}
@@ -261,7 +236,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <T, E extends Throwable> Supplier<T,E> of(Supplier<T,E> o)
+		static <T, E extends Throwable> Supplier<T,E> use(Supplier<T,E> o)
 		{
 			return o;
 		}
@@ -289,7 +264,8 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> BooleanSupplier<E> of(BooleanSupplier<E> o)
+		static <E extends Throwable>
+		BooleanSupplier<E> use(BooleanSupplier<E> o)
 		{
 			return o;
 		}
@@ -317,7 +293,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> DoubleSupplier<E> of(DoubleSupplier<E> o)
+		static <E extends Throwable> DoubleSupplier<E> use(DoubleSupplier<E> o)
 		{
 			return o;
 		}
@@ -345,7 +321,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> IntSupplier<E> of(IntSupplier<E> o)
+		static <E extends Throwable> IntSupplier<E> use(IntSupplier<E> o)
 		{
 			return o;
 		}
@@ -373,7 +349,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> LongSupplier<E> of(LongSupplier<E> o)
+		static <E extends Throwable> LongSupplier<E> use(LongSupplier<E> o)
 		{
 			return o;
 		}
@@ -388,7 +364,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		byte getAsByte() throws E;
 
-		static <E extends Throwable> ByteSupplier<E> of(ByteSupplier<E> o)
+		static <E extends Throwable> ByteSupplier<E> use(ByteSupplier<E> o)
 		{
 			return o;
 		}
@@ -399,7 +375,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		short getAsShort() throws E;
 
-		static <E extends Throwable> ShortSupplier<E> of(ShortSupplier<E> o)
+		static <E extends Throwable> ShortSupplier<E> use(ShortSupplier<E> o)
 		{
 			return o;
 		}
@@ -410,7 +386,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		char getAsChar() throws E;
 
-		static <E extends Throwable> CharSupplier<E> of(CharSupplier<E> o)
+		static <E extends Throwable> CharSupplier<E> use(CharSupplier<E> o)
 		{
 			return o;
 		}
@@ -421,7 +397,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		float getAsFloat() throws E;
 
-		static <E extends Throwable> FloatSupplier<E> of(FloatSupplier<E> o)
+		static <E extends Throwable> FloatSupplier<E> use(FloatSupplier<E> o)
 		{
 			return o;
 		}
@@ -453,7 +429,95 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <T, R, E extends Throwable> Function<T,R,E> of(Function<T,R,E> o)
+		static <T, R, E extends Throwable>
+		Function<T,R,E> use(Function<T,R,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToDoubleFunction<T,E extends Throwable>
+	extends Checked<java.util.function.ToDoubleFunction<T>, E>
+	{
+		double apply(T t) throws E;
+
+		@Override
+		default java.util.function.ToDoubleFunction<T> ederWrap()
+		{
+			return (t) ->
+			{
+				try
+				{
+					return apply(t);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, E extends Throwable>
+		ToDoubleFunction<T,E> use(ToDoubleFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToIntFunction<T,E extends Throwable>
+	extends Checked<java.util.function.ToIntFunction<T>, E>
+	{
+		int apply(T t) throws E;
+
+		@Override
+		default java.util.function.ToIntFunction<T> ederWrap()
+		{
+			return (t) ->
+			{
+				try
+				{
+					return apply(t);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, E extends Throwable>
+		ToIntFunction<T,E> use(ToIntFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToLongFunction<T,E extends Throwable>
+	extends Checked<java.util.function.ToLongFunction<T>, E>
+	{
+		long apply(T t) throws E;
+
+		@Override
+		default java.util.function.ToLongFunction<T> ederWrap()
+		{
+			return (t) ->
+			{
+				try
+				{
+					return apply(t);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, E extends Throwable>
+		ToLongFunction<T,E> use(ToLongFunction<T,E> o)
 		{
 			return o;
 		}
@@ -485,7 +549,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <T, E extends Throwable> Consumer<T,E> of(Consumer<T,E> o)
+		static <T, E extends Throwable> Consumer<T,E> use(Consumer<T,E> o)
 		{
 			return o;
 		}
@@ -513,7 +577,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> DoubleConsumer<E> of(DoubleConsumer<E> o)
+		static <E extends Throwable> DoubleConsumer<E> use(DoubleConsumer<E> o)
 		{
 			return o;
 		}
@@ -541,7 +605,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> IntConsumer<E> of(IntConsumer<E> o)
+		static <E extends Throwable> IntConsumer<E> use(IntConsumer<E> o)
 		{
 			return o;
 		}
@@ -569,7 +633,7 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
-		static <E extends Throwable> LongConsumer<E> of(LongConsumer<E> o)
+		static <E extends Throwable> LongConsumer<E> use(LongConsumer<E> o)
 		{
 			return o;
 		}
@@ -584,7 +648,8 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		void accept(boolean value) throws E;
 
-		static <E extends Throwable> BooleanConsumer<E> of(BooleanConsumer<E> o)
+		static <E extends Throwable>
+		BooleanConsumer<E> use(BooleanConsumer<E> o)
 		{
 			return o;
 		}
@@ -595,7 +660,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		void accept(byte value) throws E;
 
-		static <E extends Throwable> ByteConsumer<E> of(ByteConsumer<E> o)
+		static <E extends Throwable> ByteConsumer<E> use(ByteConsumer<E> o)
 		{
 			return o;
 		}
@@ -606,7 +671,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		void accept(short value) throws E;
 
-		static <E extends Throwable> ShortConsumer<E> of(ShortConsumer<E> o)
+		static <E extends Throwable> ShortConsumer<E> use(ShortConsumer<E> o)
 		{
 			return o;
 		}
@@ -617,7 +682,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		void accept(char value) throws E;
 
-		static <E extends Throwable> CharConsumer<E> of(CharConsumer<E> o)
+		static <E extends Throwable> CharConsumer<E> use(CharConsumer<E> o)
 		{
 			return o;
 		}
@@ -628,7 +693,7 @@ public interface Checked<WT, EX extends Throwable>
 	{
 		void accept(float value) throws E;
 
-		static <E extends Throwable> FloatConsumer<E> of(FloatConsumer<E> o)
+		static <E extends Throwable> FloatConsumer<E> use(FloatConsumer<E> o)
 		{
 			return o;
 		}
