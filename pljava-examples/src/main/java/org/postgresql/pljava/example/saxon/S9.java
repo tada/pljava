@@ -84,6 +84,7 @@ import net.sf.saxon.s9api.XdmAtomicValue;
 import static net.sf.saxon.s9api.XdmAtomicValue.makeAtomicValue;
 import net.sf.saxon.s9api.XdmEmptySequence;
 import net.sf.saxon.s9api.XdmItem;
+import net.sf.saxon.s9api.XdmNode;
 import static net.sf.saxon.s9api.XdmNodeKind.DOCUMENT;
 import net.sf.saxon.s9api.XdmValue;
 import net.sf.saxon.s9api.XdmSequenceIterator;
@@ -1226,6 +1227,8 @@ public class S9 implements ResultSetProvider
 				 */
 				if ( null == m_columnXQEs [ i ] )
 					continue;
+				if ( Types.SQLXML == p.typeJDBC() )
+					continue;
 				/*
 				 * Ok, the output column type is non-XML. If the column
 				 * expression type isn't known to be atomic, or isn't known to
@@ -1381,8 +1384,6 @@ public class S9 implements ResultSetProvider
 		XQueryEvaluator xqe, Binding.Assemblage passing, boolean setContextItem)
 		throws SQLException, SaxonApiException
 	{
-		DocumentBuilder dBuilder = s_s9p.newDocumentBuilder();
-
 		/*
 		 * Is there or is there not a context item?
 		 */
@@ -1396,10 +1397,9 @@ public class S9 implements ResultSetProvider
 			if ( null == cve )
 				return true;
 			XdmValue ci;
-			if ( cve instanceof SQLXML ) // XXX support SEQUENCE input someday
+			if ( cve instanceof XdmNode ) // XXX support SEQUENCE input someday
 			{
-				Source src = ((SQLXML)cve).getSource(null);
-				ci = dBuilder.build(src);
+				ci = (XdmNode)cve;
 			}
 			else
 				ci = xmlCastAsSequence(
@@ -1428,10 +1428,9 @@ public class S9 implements ResultSetProvider
 			XdmValue vv;
 			if ( null == v )
 				vv = XdmEmptySequence.getInstance();
-			else if ( v instanceof SQLXML ) // XXX support SEQUENCE someday
+			else if ( v instanceof XdmNode ) // XXX support SEQUENCE someday
 			{
-				Source src = ((SQLXML)v).getSource(null);
-				vv = dBuilder.build(src);
+				vv = (XdmNode)v;
 			}
 			else
 				vv = xmlCastAsSequence(
@@ -2193,7 +2192,10 @@ public class S9 implements ResultSetProvider
 			 * provides that a SQLXML object should be returned, and that should
 			 * happen in a future major PL/Java release, but for now, the plain
 			 * getObject will still return String, so it is also necessary to
-			 * ask for the SQLXML type explicitly.
+			 * ask for the SQLXML type explicitly. In fact, we will ask for
+			 * XdmNode, as it might be referred to more than once (if a
+			 * parameter), and a SQLXML can't be read more than once, nor would
+			 * there be any sense in building an XdmNode from it more than once.
 			 */
 			switch ( typeJDBC() )
 			{
@@ -2208,7 +2210,7 @@ public class S9 implements ResultSetProvider
 			case Types.TIMESTAMP_WITH_TIMEZONE:
 				return setValueJDBC(implValueJDBC(OffsetDateTime.class));
 			case Types.SQLXML:
-				return setValueJDBC(implValueJDBC(SQLXML.class));
+				return setValueJDBC(implValueJDBC(XdmNode.class));
 			default:
 			}
 			return setValueJDBC(implValueJDBC());
@@ -2423,6 +2425,9 @@ public class S9 implements ResultSetProvider
 			Map<String,Binding.Parameter> n2b =
 				new HashMap<String,Binding.Parameter>();
 
+			if ( 0 < nParams )
+				m_dBuilder = s_s9p.newDocumentBuilder();
+
 			for ( int i = 1; i <= nParams; ++i )
 			{
 				String label = m_rsmd.getColumnLabel(i);
@@ -2511,6 +2516,23 @@ public class S9 implements ResultSetProvider
 
 		private ResultSet m_resultSet;
 		private ResultSetMetaData m_rsmd;
+		DocumentBuilder m_dBuilder;
+
+		<T> T typedValueAtIndex(int idx, Class<T> type) throws SQLException
+		{
+			if ( XdmNode.class != type )
+				return m_resultSet.getObject(idx, type);
+			try
+			{
+				SQLXML sx = m_resultSet.getObject(idx, SQLXML.class);
+				return type.cast(
+					m_dBuilder.build(sx.getSource((Class<Source>)null)));
+			}
+			catch ( SaxonApiException e )
+			{
+				throw new SQLException(e.getMessage(), "10000", e);
+			}
+		}
 
 		class ContextItem extends Binding.ContextItem
 		{
@@ -2540,7 +2562,7 @@ public class S9 implements ResultSetProvider
 
 			protected <T> T implValueJDBC(Class<T> type) throws SQLException
 			{
-				return m_resultSet.getObject(m_idx, type);
+				return typedValueAtIndex(m_idx, type);
 			}
 		}
 
@@ -2624,7 +2646,7 @@ public class S9 implements ResultSetProvider
 
 			protected <T> T implValueJDBC(Class<T> type) throws SQLException
 			{
-				return m_resultSet.getObject(m_idx, type);
+				return typedValueAtIndex(m_idx, type);
 			}
 		}
 	}
