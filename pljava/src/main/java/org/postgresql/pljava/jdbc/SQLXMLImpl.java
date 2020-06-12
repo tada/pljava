@@ -3982,7 +3982,97 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
-	static class AdjustingSourceResult implements Adjusting.XML.SourceResult
+	/**
+	 * Implements setters for the later JAXP security properties, which use the
+	 * same names for SAX, StAX, and DOM, so the individual setters can all be
+	 * here with only the {@code setFirstSupportedProperty} method abstract.
+	 */
+	abstract static class
+	AdjustingJAXPParser<T extends Adjusting.XML.Parsing<T>>
+	implements Adjusting.XML.Parsing<T>
+	{
+		private static final String LIMIT =
+			"http://www.oracle.com/xml/jaxp/properties/";
+
+		/*
+		 * Can get these from javax.xml.XMLConstants once assuming Java >= 7.
+		 */
+		private static final String ACCESS =
+			"http://javax.xml.XMLConstants/property/accessExternal";
+
+		@Override
+		public T elementAttributeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "elementAttributeLimit");
+		}
+
+		@Override
+		public T entityExpansionLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "entityExpansionLimit");
+		}
+
+		@Override
+		public T entityReplacementLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "entityReplacementLimit");
+		}
+
+		@Override
+		public T maxElementDepth(int depth)
+		{
+			return setFirstSupportedProperty(depth,
+				LIMIT + "maxElementDepth");
+		}
+
+		@Override
+		public T maxGeneralEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxGeneralEntitySizeLimit");
+		}
+
+		@Override
+		public T maxParameterEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxParameterEntitySizeLimit");
+		}
+
+		@Override
+		public T maxXMLNameLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxXMLNameLimit");
+		}
+
+		@Override
+		public T totalEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "totalEntitySizeLimit");
+		}
+
+		@Override
+		public T accessExternalDTD(String protocols)
+		{
+			return setFirstSupportedProperty(protocols, ACCESS + "DTD");
+		}
+
+		@Override
+		public T accessExternalSchema(String protocols)
+		{
+			return setFirstSupportedProperty(protocols, ACCESS + "Schema");
+		}
+	}
+
+	static class AdjustingSourceResult
+	extends
+		AdjustingJAXPParser<Adjusting.XML.Result<Adjusting.XML.SourceResult>>
+	implements Adjusting.XML.SourceResult
 	{
 		private Writable m_result;
 		private Charset m_serverCS;
@@ -4238,9 +4328,19 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			theAdjustable().defaults();
 			return this;
 		}
+
+		@Override
+		public AdjustingSourceResult setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			theAdjustable().setFirstSupportedProperty(value, names);
+			return this;
+		}
 	}
 
-	static class AdjustingStreamResult implements Adjusting.XML.StreamResult
+	static class AdjustingStreamResult
+	extends AdjustingJAXPParser<Adjusting.XML.Result<StreamResult>>
+	implements Adjusting.XML.StreamResult
 	{
 		private VarlenaWrapper.Output m_vwo;
 		private Charset m_serverCS;
@@ -4386,9 +4486,19 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			theVerifierSource().defaults();
 			return preferBinaryStream();
 		}
+
+		@Override
+		public AdjustingStreamResult setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			theVerifierSource().setFirstSupportedProperty(value, names);
+			return this;
+		}
 	}
 
-	static class AdjustingSAXSource implements Adjusting.XML.SAXSource
+	static class AdjustingSAXSource
+	extends AdjustingJAXPParser<Adjusting.XML.Source<SAXSource>>
+	implements Adjusting.XML.SAXSource
 	{
 		private XMLReader m_xr;
 		private InputSource m_is;
@@ -4401,6 +4511,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			@Override
 			public AdjustingSAXSource setFirstSupportedFeature(
 				boolean value, String... names)
+			{
+				return this;
+			}
+
+			@Override
+			public AdjustingSAXSource setFirstSupportedProperty(
+				Object value, String... names)
 			{
 				return this;
 			}
@@ -4545,6 +4662,30 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				.externalParameterEntities(false).loadExternalDTD(false)
 				.xIncludeAware(false).expandEntityReferences(false);
 		}
+
+		@Override
+		public AdjustingSAXSource setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			XMLReader r = theReader();
+			for ( String name : names )
+			{
+				try
+				{
+					r.setProperty(name, value);
+					break;
+				}
+				catch ( SAXNotRecognizedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+				catch ( SAXNotSupportedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
 	}
 
 	/*
@@ -4553,7 +4694,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * just because if the client asks only for Adjusting.XML.Result, meaning we
 	 * get to pick, SAX is the flavor we pick.
 	 */
-	static class AdjustingSAXResult implements Adjusting.XML.SAXResult
+	static class AdjustingSAXResult
+	extends AdjustingJAXPParser<Adjusting.XML.Result<SAXResult>>
+	implements Adjusting.XML.SAXResult
 	{
 		private SAXResult m_sr;
 
@@ -4644,9 +4787,18 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			return checkedNoOp();
 		}
+
+		@Override
+		public AdjustingSAXResult setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			return checkedNoOp();
+		}
 	}
 
-	static class AdjustingStAXSource implements Adjusting.XML.StAXSource
+	static class AdjustingStAXSource
+	extends AdjustingJAXPParser<Adjusting.XML.Source<StAXSource>>
+	implements Adjusting.XML.StAXSource
 	{
 		private XMLInputFactory m_xif;
 		private InputStream m_is;
@@ -4772,9 +4924,31 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				.externalParameterEntities(false).loadExternalDTD(false)
 				.xIncludeAware(false).expandEntityReferences(false);
 		}
+
+		@Override
+		public AdjustingStAXSource setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			XMLInputFactory xif = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					xif.setProperty(name, value);
+					break;
+				}
+				catch ( IllegalArgumentException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
 	}
 
-	static class AdjustingDOMSource implements Adjusting.XML.DOMSource
+	static class AdjustingDOMSource
+	extends AdjustingJAXPParser<Adjusting.XML.Source<DOMSource>>
+	implements Adjusting.XML.DOMSource
 	{
 		private DocumentBuilderFactory m_dbf;
 		private InputStream m_is;
@@ -4911,6 +5085,26 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return allowDTD(false).externalGeneralEntities(false)
 				.externalParameterEntities(false).loadExternalDTD(false)
 				.xIncludeAware(false).expandEntityReferences(false);
+		}
+
+		@Override
+		public AdjustingDOMSource setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			DocumentBuilderFactory dbf = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					dbf.setAttribute(name, value);
+					break;
+				}
+				catch ( IllegalArgumentException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
 		}
 	}
 }

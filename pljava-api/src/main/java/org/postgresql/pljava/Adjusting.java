@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -188,6 +188,90 @@ public final class Adjusting
 			 *</pre>
 			 */
 			T defaults();
+
+			/**
+			 * For a parser property (in DOM parlance, attribute) that may have
+			 * been identified by more than one URI in different parsers or
+			 * versions, try passing the supplied <em>value</em> with each URI
+			 * from <em>names</em> in order until one is not rejected by the
+			 * underlying parser.
+			 *<p>
+			 * A property differs from a feature in taking a value of some
+			 * specified type, rather than being simply enabled/disabled with
+			 * a boolean.
+			 */
+			T setFirstSupportedProperty(Object value, String... names);
+
+			/**
+			 * Maximum number of attributes on an element, with a negative or
+			 * zero value indicating no limit.
+			 */
+			T elementAttributeLimit(int limit);
+
+			/**
+			 * Maximum number of entity expansions, with a negative or
+			 * zero value indicating no limit.
+			 */
+			T entityExpansionLimit(int limit);
+
+			/**
+			 * Limit on total number of nodes in all entity referenced,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T entityReplacementLimit(int limit);
+
+			/**
+			 * Maximum element depth,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxElementDepth(int depth);
+
+			/**
+			 * Maximum size of any general entities,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxGeneralEntitySizeLimit(int limit);
+
+			/**
+			 * Maximum size of any parameter entities (including the result
+			 * of nesting parameter entities),
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxParameterEntitySizeLimit(int limit);
+
+			/**
+			 * Maximum size of XML names (including element and attribute names,
+			 * namespace prefix, and namespace URI even though that isn't an
+			 * XML name),
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxXMLNameLimit(int limit);
+
+			/**
+			 * Limit on total size of all entities, general or parameter,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T totalEntitySizeLimit(int limit);
+
+			/**
+			 * Protocol schemes allowed in the URL of an external DTD to be
+			 * fetched.
+			 * @param protocols Empty string to deny all external DTD access,
+			 * the string "all" to allow fetching by any protocol, or a
+			 * comma-separated, case insensitive list of protocols to allow.
+			 * A protocol name prefixed with "jar:" is also a protocol name.
+			 */
+			T accessExternalDTD(String protocols);
+
+			/**
+			 * Protocol schemes allowed in the URL of an external schema to be
+			 * fetched.
+			 * @param protocols Empty string to deny all external DTD access,
+			 * the string "all" to allow fetching by any protocol, or a
+			 * comma-separated, case insensitive list of protocols to allow.
+			 * A protocol name prefixed with "jar:" is also a protocol name.
+			 */
+			T accessExternalSchema(String protocols);
 		}
 
 		/**
