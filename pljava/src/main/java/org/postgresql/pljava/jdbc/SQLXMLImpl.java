@@ -3578,7 +3578,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		static abstract class Stream extends XMLCopier
 		{
-			protected AdjustingSAXSource m_adjustable;
+			protected Adjusting.XML.Source<SAXSource> m_adjustable;
 
 			protected Stream(Writable tgt)
 			{
@@ -4001,6 +4001,14 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			"http://javax.xml.XMLConstants/property/accessExternal";
 
 		@Override
+		public T defaults()
+		{
+			return allowDTD(false).externalGeneralEntities(false)
+				.externalParameterEntities(false).loadExternalDTD(false)
+				.xIncludeAware(false).expandEntityReferences(false);
+		}
+
+		@Override
 		public T elementAttributeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
@@ -4066,6 +4074,53 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		public T accessExternalSchema(String protocols)
 		{
 			return setFirstSupportedProperty(protocols, ACCESS + "Schema");
+		}
+	}
+
+	/**
+	 * Extends {@code AdjustingJAXPParser} with some of the older adjustments
+	 * that can be made the same way for SAX and DOM (StAX should not extend
+	 * this class, but just implement the adjustments its own different way).
+	 */
+	abstract static class SAXDOMCommon<T extends Adjusting.XML.Parsing<T>>
+	extends AdjustingJAXPParser<T>
+	{
+		@Override
+		public T allowDTD(boolean v) {
+			return setFirstSupportedFeature( !v,
+				"http://apache.org/xml/features/disallow-doctype-decl",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#disallow-doctype-decl");
+		}
+
+		@Override
+		public T externalGeneralEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-general-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-general-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-general-entities");
+		}
+
+		@Override
+		public T externalParameterEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-parameter-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-parameter-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-parameter-entities");
+		}
+
+		@Override
+		public T loadExternalDTD(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://apache.org/xml/features/" +
+					"nonvalidating/load-external-dtd");
 		}
 	}
 
@@ -4323,13 +4378,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSourceResult defaults()
-		{
-			theAdjustable().defaults();
-			return this;
-		}
-
-		@Override
 		public AdjustingSourceResult setFirstSupportedProperty(
 			Object value, String... names)
 		{
@@ -4497,7 +4545,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	static class AdjustingSAXSource
-	extends AdjustingJAXPParser<Adjusting.XML.Source<SAXSource>>
+	extends SAXDOMCommon<Adjusting.XML.Source<SAXSource>>
 	implements Adjusting.XML.SAXSource
 	{
 		private XMLReader m_xr;
@@ -4580,44 +4628,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXSource allowDTD(boolean v) {
-			return setFirstSupportedFeature( !v,
-				"http://apache.org/xml/features/disallow-doctype-decl",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#disallow-doctype-decl");
-		}
-
-		@Override
-		public AdjustingSAXSource externalGeneralEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-general-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-general-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-general-entities");
-		}
-
-		@Override
-		public AdjustingSAXSource externalParameterEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-parameter-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-parameter-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-parameter-entities");
-		}
-
-		@Override
-		public AdjustingSAXSource loadExternalDTD(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://apache.org/xml/features/" +
-					"nonvalidating/load-external-dtd");
-		}
-
-		@Override
 		public AdjustingSAXSource xIncludeAware(boolean v)
 		{
 			return setFirstSupportedFeature( v,
@@ -4656,14 +4666,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXSource defaults()
-		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
-		}
-
-		@Override
 		public AdjustingSAXSource setFirstSupportedProperty(
 			Object value, String... names)
 		{
@@ -4695,7 +4697,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * get to pick, SAX is the flavor we pick.
 	 */
 	static class AdjustingSAXResult
-	extends AdjustingJAXPParser<Adjusting.XML.Result<SAXResult>>
+	extends SAXDOMCommon<Adjusting.XML.Result<SAXResult>>
 	implements Adjusting.XML.SAXResult
 	{
 		private SAXResult m_sr;
@@ -4740,30 +4742,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXResult allowDTD(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult externalGeneralEntities(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult externalParameterEntities(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult loadExternalDTD(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
 		public AdjustingSAXResult xIncludeAware(boolean v)
 		{
 			return checkedNoOp();
@@ -4778,12 +4756,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingSAXResult setFirstSupportedFeature(
 			boolean value, String... names)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult defaults()
 		{
 			return checkedNoOp();
 		}
@@ -4918,14 +4890,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingStAXSource defaults()
-		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
-		}
-
-		@Override
 		public AdjustingStAXSource setFirstSupportedProperty(
 			Object value, String... names)
 		{
@@ -4947,7 +4911,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	static class AdjustingDOMSource
-	extends AdjustingJAXPParser<Adjusting.XML.Source<DOMSource>>
+	extends SAXDOMCommon<Adjusting.XML.Source<DOMSource>>
 	implements Adjusting.XML.DOMSource
 	{
 		private DocumentBuilderFactory m_dbf;
@@ -5007,45 +4971,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingDOMSource allowDTD(boolean v)
-		{
-			return setFirstSupportedFeature( !v,
-				"http://apache.org/xml/features/disallow-doctype-decl",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#disallow-doctype-decl");
-		}
-
-		@Override
-		public AdjustingDOMSource externalGeneralEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-general-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-general-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-general-entities");
-		}
-
-		@Override
-		public AdjustingDOMSource externalParameterEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-parameter-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-parameter-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-parameter-entities");
-		}
-
-		@Override
-		public AdjustingDOMSource loadExternalDTD(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://apache.org/xml/features/" +
-					"nonvalidating/load-external-dtd");
-		}
-
-		@Override
 		public AdjustingDOMSource xIncludeAware(boolean v)
 		{
 			theFactory().setXIncludeAware(v);
@@ -5077,14 +5002,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				}
 			}
 			return this;
-		}
-
-		@Override
-		public AdjustingDOMSource defaults()
-		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
 		}
 
 		@Override
