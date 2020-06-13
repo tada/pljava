@@ -17,6 +17,7 @@ import java.sql.SQLXML;
 import javax.xml.stream.XMLInputFactory; // for javadoc
 import javax.xml.stream.XMLResolver; // for javadoc
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.validation.Schema;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
@@ -294,6 +295,27 @@ public final class Adjusting
 			 * underlying flavor of source or result.
 			 */
 			T entityResolver(EntityResolver resolver);
+
+			/**
+			 * Set a {@link Schema} to be applied during SAX or DOM parsing
+			 *<em>(optional operation)</em>.
+			 *<p>
+			 * This method only succeeds for a {@code SAXSource} or
+			 * {@code DOMSource} (or a {@code StreamResult}, where the schema
+			 * is set on the parser that will verify the content written).
+			 * Unlike the best-effort behavior of most methods in this
+			 * interface, this one will report failure with an exception.
+			 *<p>
+			 * In the SAX case, this must be called <em>before</em> other
+			 * methods of this interface.
+			 * @param schema an instance of javax.xml.validation.Schema
+			 * @throws UnsupportedOperationException if not supported by the
+			 * underlying flavor of source or result.
+			 * @throws IllegalStateException if the underlying implementation is
+			 * SAX-based and another method from this interface has been called
+			 * already.
+			 */
+			T schema(Schema schema);
 		}
 
 		/**
