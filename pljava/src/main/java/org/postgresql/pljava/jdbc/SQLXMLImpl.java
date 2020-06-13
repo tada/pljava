@@ -3847,7 +3847,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
-			catch ( ParserConfigurationException | SAXException e )
+			catch ( ParserConfigurationException e )
+			{
+				throw new SQLDataException(e.getMessage(), "22000", e);
+			}
+			catch ( SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
 			}
