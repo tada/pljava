@@ -157,6 +157,7 @@ import org.xml.sax.ext.LexicalHandler;
 import java.io.StringReader;
 import javax.xml.parsers.ParserConfigurationException;
 import org.postgresql.pljava.Adjusting;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 
@@ -4075,6 +4076,14 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			return setFirstSupportedProperty(protocols, ACCESS + "Schema");
 		}
+
+		@Override
+		public T entityResolver(EntityResolver resolver)
+		{
+			throw new UnsupportedOperationException(
+				"A SAX EntityResolver cannot be set on a " +
+				getClass().getCanonicalName());
+		}
 	}
 
 	/**
@@ -4384,6 +4393,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			theAdjustable().setFirstSupportedProperty(value, names);
 			return this;
 		}
+
+		@Override
+		public AdjustingSourceResult entityResolver(EntityResolver resolver)
+		{
+			theAdjustable().entityResolver(resolver);
+			return this;
+		}
 	}
 
 	static class AdjustingStreamResult
@@ -4542,6 +4558,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			theVerifierSource().setFirstSupportedProperty(value, names);
 			return this;
 		}
+
+		@Override
+		public AdjustingStreamResult entityResolver(EntityResolver resolver)
+		{
+			theVerifierSource().entityResolver(resolver);
+			return this;
+		}
 	}
 
 	static class AdjustingSAXSource
@@ -4566,6 +4589,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			@Override
 			public AdjustingSAXSource setFirstSupportedProperty(
 				Object value, String... names)
+			{
+				return this;
+			}
+
+			@Override
+			public AdjustingSAXSource entityResolver(EntityResolver resolver)
 			{
 				return this;
 			}
@@ -4688,6 +4717,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 			return this;
 		}
+
+		@Override
+		public AdjustingSAXSource entityResolver(EntityResolver resolver)
+		{
+			theReader().setEntityResolver(resolver);
+			return this;
+		}
 	}
 
 	/*
@@ -4763,6 +4799,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingSAXResult setFirstSupportedProperty(
 			Object value, String... names)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult entityResolver(EntityResolver resolver)
 		{
 			return checkedNoOp();
 		}
@@ -4917,6 +4959,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private DocumentBuilderFactory m_dbf;
 		private InputStream m_is;
 		private boolean m_wrapped;
+		private EntityResolver m_resolver;
 
 		AdjustingDOMSource(InputStream is, boolean wrapped)
 		{
@@ -4957,6 +5000,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			try
 			{
 				DocumentBuilder db = m_dbf.newDocumentBuilder();
+				if ( null != m_resolver )
+					db.setEntityResolver(m_resolver);
 				DOMSource ds = new DOMSource(db.parse(m_is));
 				if ( m_wrapped )
 					domUnwrap(ds);
@@ -5021,6 +5066,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					e.printStackTrace(); // XXX
 				}
 			}
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource entityResolver(EntityResolver resolver)
+		{
+			m_resolver = resolver;
 			return this;
 		}
 	}

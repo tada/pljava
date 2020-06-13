@@ -14,7 +14,10 @@ package org.postgresql.pljava;
 import java.io.Reader;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import javax.xml.stream.XMLInputFactory; // for javadoc
+import javax.xml.stream.XMLResolver; // for javadoc
 import javax.xml.stream.XMLStreamReader;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
@@ -272,6 +275,25 @@ public final class Adjusting
 			 * A protocol name prefixed with "jar:" is also a protocol name.
 			 */
 			T accessExternalSchema(String protocols);
+
+			/**
+			 * Set an {@link EntityResolver} of the type used by SAX and DOM
+			 * <em>(optional operation)</em>.
+			 *<p>
+			 * This method only succeeds for a {@code SAXSource} or
+			 * {@code DOMSource} (or a {@code StreamResult}, where the resolver
+			 * is set on the parser that will verify the content written).
+			 * Unlike the best-effort behavior of most methods in this
+			 * interface, this one will report failure with an exception.
+			 *<p>
+			 * If the StAX API is wanted, a StAX {@link XMLResolver} should be
+			 * set instead, using {@code setFirstSupportedProperty} with the
+			 * property name {@link XMLInputFactory#RESOLVER}.
+			 * @param resolver an instance of org.xml.sax.EntityResolver
+			 * @throws UnsupportedOperationException if not supported by the
+			 * underlying flavor of source or result.
+			 */
+			T entityResolver(EntityResolver resolver);
 		}
 
 		/**
