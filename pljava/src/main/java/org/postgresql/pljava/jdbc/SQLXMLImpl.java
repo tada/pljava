@@ -70,7 +70,6 @@ import org.xml.sax.XMLReader;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.w3c.dom.Document;
@@ -778,12 +777,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 * Source.
 		 */
 		@SuppressWarnings("unchecked")
-		protected <T extends Source> Class<T> preferredSourceClass(
+		protected <T extends Source> Class<? extends T> preferredSourceClass(
 			Class<T> sourceClass)
 		{
 			return Adjusting.XML.Source.class == sourceClass
-				? (Class<T>)Adjusting.XML.SAXSource.class
-				: (Class<T>)SAXSource.class;
+				? (Class<? extends T>)Adjusting.XML.SAXSource.class
+				: (Class<? extends T>)SAXSource.class;
 		}
 
 		/**
@@ -818,47 +817,49 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( null == backing )
 				return super.getSource(sourceClass);
 
-			if ( null == sourceClass
-				|| Source.class == sourceClass
-				|| Adjusting.XML.Source.class.equals(sourceClass) )
-				sourceClass = preferredSourceClass(sourceClass);
+			Class<? extends T> sc = sourceClass;
+
+			if ( null == sc
+				|| Source.class == sc
+				|| Adjusting.XML.Source.class.equals(sc) )
+				sc = preferredSourceClass(sc);
 
 			try
 			{
-				if ( sourceClass.isAssignableFrom(StreamSource.class) )
-					return sourceClass.cast(toStreamSource(backing));
+				if ( sc.isAssignableFrom(StreamSource.class) )
+					return sc.cast(toStreamSource(backing));
 
-				if ( sourceClass.isAssignableFrom(SAXSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingSAXSource.class) )
+				if ( sc.isAssignableFrom(SAXSource.class)
+					|| sc.isAssignableFrom(AdjustingSAXSource.class) )
 				{
 					Adjusting.XML.SAXSource ss = toSAXSource(backing);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ss);
-					return sourceClass.cast(ss.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ss);
+					return sc.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(StAXSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingStAXSource.class) )
+				if ( sc.isAssignableFrom(StAXSource.class)
+					|| sc.isAssignableFrom(AdjustingStAXSource.class) )
 				{
 					Adjusting.XML.StAXSource ss = toStAXSource(backing);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ss);
-					return sourceClass.cast(ss.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ss);
+					return sc.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(DOMSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingDOMSource.class) )
+				if ( sc.isAssignableFrom(DOMSource.class)
+					|| sc.isAssignableFrom(AdjustingDOMSource.class) )
 				{
 					Adjusting.XML.DOMSource ds = toDOMSource(backing);
 					ds.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ds);
-					return sourceClass.cast(ds.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ds);
+					return sc.cast(ds.get());
 				}
 			}
 			catch ( Exception e )
@@ -868,7 +869,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			throw new SQLFeatureNotSupportedException(
 				"No support for SQLXML.getSource(" +
-				sourceClass.getName() + ".class)", "0A000");
+				sc.getName() + ".class)", "0A000");
 		}
 
 		@Override
@@ -1273,12 +1274,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 * Result.
 		 */
 		@SuppressWarnings("unchecked")
-		protected <T extends Result> Class<T> preferredResultClass(
+		protected <T extends Result> Class<? extends T> preferredResultClass(
 			Class<T> resultClass)
 		{
 			return Adjusting.XML.Result.class == resultClass
-				? (Class<T>)AdjustingSAXResult.class
-				: (Class<T>)SAXResult.class;
+				? (Class<? extends T>)AdjustingSAXResult.class
+				: (Class<? extends T>)SAXResult.class;
 		}
 
 		/*
@@ -1291,23 +1292,25 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo, Class<T> resultClass)
 			throws SQLException
 		{
-			if ( null == resultClass
-				|| Result.class == resultClass
-				|| Adjusting.XML.Result.class == resultClass )
-				resultClass = preferredResultClass(resultClass);
+			Class<? extends T> rc = resultClass;
+
+			if ( null == rc
+				|| Result.class == rc
+				|| Adjusting.XML.Result.class == rc )
+				rc = preferredResultClass(rc);
 
 			try
 			{
-				if ( resultClass.isAssignableFrom(StreamResult.class)
-					|| resultClass.isAssignableFrom(AdjustingStreamResult.class)
+				if ( rc.isAssignableFrom(StreamResult.class)
+					|| rc.isAssignableFrom(AdjustingStreamResult.class)
 				   )
 				{
 					AdjustingStreamResult sr =
 						new AdjustingStreamResult(vwo, m_serverCS).defaults();
 					if ( Adjusting.XML.Result.class
-							.isAssignableFrom(resultClass) )
-						return resultClass.cast(sr);
-					return resultClass.cast(sr.get());
+							.isAssignableFrom(rc) )
+						return rc.cast(sr);
+					return rc.cast(sr.get());
 				}
 
 				/*
@@ -1315,9 +1318,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				 * call to this method with a different result class will be
 				 * made, setting it then.
 				 */
-				if ( resultClass.isAssignableFrom(AdjustingSourceResult.class) )
+				if ( rc.isAssignableFrom(AdjustingSourceResult.class) )
 				{
-					return resultClass.cast(
+					return rc.cast(
 						new AdjustingSourceResult(this, m_serverCS));
 				}
 
@@ -1328,8 +1331,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				OutputStream os = vwo;
 				Writer w;
 
-				if ( resultClass.isAssignableFrom(SAXResult.class)
-					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
+				if ( rc.isAssignableFrom(SAXResult.class)
+					|| rc.isAssignableFrom(AdjustingSAXResult.class) )
 				{
 					SAXTransformerFactory saxtf = (SAXTransformerFactory)
 						SAXTransformerFactory.newInstance();
@@ -1342,24 +1345,24 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					th = SAXResultAdapter.newInstance(th, w);
 					SAXResult sr = new SAXResult(th);
 					if ( Adjusting.XML.Result.class
-							.isAssignableFrom(resultClass) )
-						return resultClass.cast(new AdjustingSAXResult(sr));
-					return resultClass.cast(sr);
+							.isAssignableFrom(rc) )
+						return rc.cast(new AdjustingSAXResult(sr));
+					return rc.cast(sr);
 				}
 
-				if ( resultClass.isAssignableFrom(StAXResult.class) )
+				if ( rc.isAssignableFrom(StAXResult.class) )
 				{
 					XMLOutputFactory xof = XMLOutputFactory.newInstance();
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					XMLStreamWriter xsw = xof.createXMLStreamWriter(
 						os, m_serverCS.name());
 					xsw = new StAXResultAdapter(xsw, os);
-					return resultClass.cast(new StAXResult(xsw));
+					return rc.cast(new StAXResult(xsw));
 				}
 
-				if ( resultClass.isAssignableFrom(DOMResult.class) )
+				if ( rc.isAssignableFrom(DOMResult.class) )
 				{
-					return resultClass.cast(m_domResult = new DOMResult());
+					return rc.cast(m_domResult = new DOMResult());
 				}
 			}
 			catch ( Exception e )
@@ -1369,7 +1372,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			throw new SQLFeatureNotSupportedException(
 				"No support for SQLXML.setResult(" +
-				resultClass.getName() + ".class)", "0A000");
+				rc.getName() + ".class)", "0A000");
 		}
 
 		/**
