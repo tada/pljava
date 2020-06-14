@@ -619,6 +619,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		XMLInputFactory xif = XMLInputFactory.newInstance();
 		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+		xif.setProperty(xif.SUPPORT_DTD, false);// will still report one it sees
+		xif.setProperty(xif.IS_REPLACING_ENTITY_REFERENCES, false);
+
 		XMLStreamReader xsr = null;
 		try
 		{
