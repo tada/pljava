@@ -3851,17 +3851,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Copy from a {@code SAXSource} to a {@code SAXResult}, provided the
+		 * {@code SAXSource} supplies its own {@code XMLReader}.
+		 *<p>
+		 * See {@code XMLCopier.SAX.Parsing} for when it does not.
+		 */
 		static void saxCopy(SAXSource sxs, SAXResult sxr) throws SQLException
 		{
 			XMLReader xr = sxs.getXMLReader();
 			try
 			{
-				if ( null == xr )
-				{
-					SAXParserFactory spf = SAXParserFactory.newInstance();
-					spf.setNamespaceAware(true);
-					xr = spf.newSAXParser().getXMLReader();
-				}
 				ContentHandler ch = sxr.getHandler();
 				xr.setContentHandler(ch);
 				if ( ch instanceof DTDHandler )
@@ -3874,10 +3874,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
-			catch ( ParserConfigurationException e )
-			{
-				throw new SQLDataException(e.getMessage(), "22000", e);
-			}
 			catch ( SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
@@ -3888,6 +3884,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Copier for a {@code SAXSource} that supplies its own non-null
+		 * {@code XMLReader}.
+		 */
 		static class SAX extends XMLCopier
 		{
 			private SAXSource m_source;
@@ -3905,6 +3905,41 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					m_tgt.setResult(
 						m_tgt.backingIfNotFreed(), SAXResult.class));
 				return m_tgt;
+			}
+
+			/**
+			 * Copier for a {@code SAXSource} that does not supply its own
+			 * {@code XMLReader}.
+			 *<p>
+			 * Such a source needs a parser constructed here, which may, like
+			 * any parser, require adjustment. Such a source is effectively a
+			 * stream source snuck in through the SAX API.
+			 */
+			static class Parsing extends XMLCopier
+			{
+				private AdjustingSAXSource m_source;
+
+				Parsing(Writable tgt, SAXSource src) throws SAXException
+				{
+					super(tgt);
+					InputSource is = src.getInputSource();
+					m_source = new AdjustingSAXSource(is, false);
+				}
+
+				@Override
+				AdjustingSAXSource getAdjustable()
+				{
+					return m_source;
+				}
+
+				@Override
+				Writable finish() throws IOException, SQLException
+				{
+					saxCopy(m_source.get(),
+						m_tgt.setResult(
+							m_tgt.backingIfNotFreed(), SAXResult.class));
+					return m_tgt;
+				}
 			}
 		}
 
@@ -4349,7 +4384,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingSourceResult too late to set source");
 
-			m_copier = new XMLCopier.SAX(m_result, source);
+			if ( null != source.getXMLReader() )
+				m_copier = new XMLCopier.SAX(m_result, source);
+			else
+			{
+				try
+				{
+					m_copier = new XMLCopier.SAX.Parsing(m_result, source);
+				}
+				catch ( SAXException e )
+				{
+					throw normalizedException(e);
+				}
+			}
+
 			return this;
 		}
 
