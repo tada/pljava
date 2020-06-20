@@ -409,6 +409,16 @@ with a `javax.xml.validation.Validator`.
 
 Complete details can be found [in the API documentation][adjx].
 
+#### Using XML Catalogs when running on Java 9 or later
+
+When running on Java 9 or later, a local XML Catalog can be set up to
+efficiently and securely resolve what would otherwise be external resource
+references. The registration of a Catalog on a Java 9 or later parser involves
+only existing methods for setting features/properties, as described
+[in the Catalog API documentation][catapi], and can be done with the
+`setFirstSupportedFeature` and `setFirstSupportedProperty` methods
+in PL/Java's `Adjusting` API.
+
 ### Extended API to set the content of a PL/Java `SQLXML` instance
 
 When a `SQLXML` instance is returned from a PL/Java function, or passed in to
@@ -460,6 +470,7 @@ Java's extensive support for XML.
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
 [adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
 [jaxps]: https://docs.oracle.com/en/java/javase/13/security/java-api-xml-processing-jaxp-security-guide.html
+[catapi]: https://docs.oracle.com/javase/9/core/xml-catalog-api1.htm#JSCOR-GUID-51446739-F878-4B70-A36F-47FBBE12A26A
 
 ## Known limitations
 
