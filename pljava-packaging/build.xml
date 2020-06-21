@@ -92,7 +92,7 @@ var mainsect = manifest.getMainAttributes();
 mainsect.putValue('Manifest-Version', '1.0');
 mainsect.putValue('Created-By', project.getProperty('project.name') + ' ' +
 								project.getProperty('project.version'));
-mainsect.putValue('Main-Class', 'org.gjt.cuspy.JarX');
+mainsect.putValue('Main-Class', 'org.postgresql.pljava.packaging.Extractor');
 
 /* Declare default permissions for entries that don't have their own.
  */
@@ -257,6 +257,7 @@ jos.close();
 		<!-- Now build the jar using the <jarxbuild> task just created. -->
 
 		<jarxbuild destfile="${basedir}/target/pljava-${suffix}.jar">
+			<binary dir="target/classes" includes="**/Extractor.class"/>
 			<binary dir="target/classes" includes="**/JarX.class"/>
 			<binary prefix="pljava/pkglibdir/" filemode="555" dir=
 "../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
