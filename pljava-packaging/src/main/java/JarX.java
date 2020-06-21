@@ -26,7 +26,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 
 /**
  * Distribute your work as a self-extracting jar file by including one file,
@@ -222,6 +221,22 @@ import javax.script.ScriptException;
  *   and nestable) are allowed outside of the quoted strings.
  *  </DD>
  * </DL>
+ *<H4>Alternative to {@code ScriptEngine} for a path resolver</H4>
+ * With the removal of Nashorn in Java 15, leaving no scripting language that
+ * can be assumed present in the Java runtime, a script in the manifest may
+ * no longer be the simplest way to customize the resolution of path names when
+ * extracting. This class has been refactored now to expose two methods,
+ * {@link #prepareResolver(String) prepareResolver} and
+ * {@link #resolve(String,String) resolve}, easily overridden in a subclass.
+ * The value of the {@code _JarX_PathResolver} main attribute is passed to
+ * {@code prepareResolver} as a string (so it can be parsed in any way useful to
+ * the subclass, not necessarily as described above, or ignored), and
+ * {@code resolve} is passed the stored path and platform path, and returns the
+ * platform path unchanged or a replacement. A self-extracting jar with
+ * resolution can be made without depending on any script engine, by placing
+ * <em>two</em> classes in the jar, JarX and the subclass, and naming the
+ * subclass as the jar's {@code Main-Class}. It needs a {@code main} method that
+ * simply instantiates the class and calls {@code extract()}.
  *<H3>Extracting a jar</H3>
  * The command <CODE>java -jar foo.jar</CODE> is all it takes
  * to extract a jar.  The <CODE>Main-Class</CODE> entry in the manifest
@@ -396,9 +411,6 @@ public class JarX {
     return is( type) && value.equalsIgnoreCase( this.value);
   }
 
-  /**Name of the JarX class file as stored in the jar*/
-  public static final String me
-    = JarX.class.getName().replace('.', '/') + ".class";
   /**Name of the manifest file as stored in the jar*/
   public static final String manifestName = "META-INF/MANIFEST.MF";
   /**The (fixed) encoding used for manifest content*/
@@ -438,15 +450,36 @@ public class JarX {
       	break;
       if ( null == mf ) {
         mf = jis.getManifest();
-	if ( null != mf )
-	  setDefaults( mf.getMainAttributes());
+	if ( null != mf ) {
+	  Attributes mainAttributes = mf.getMainAttributes();
+	  setDefaults( mainAttributes);
+	  if ( null != mainAttributes ) {
+	    String v = mainAttributes.getValue( PATHRESOLVER);
+	    if ( null != v )
+	      prepareResolver( v);
+	  }
+	}
       }
-      if ( ! je.getName().equals( me) )
+      if ( notMe( je.getName()) )
 	extract( je, jis);
       jis.closeEntry();
     }
     
     jis.close();
+  }
+
+  /** True if the passed <em>name</em> is not the in-jar name of this class or
+   *  related classes that should not be extracted.
+   *<p>
+   * If not overridden, this method returns false only for names matching the
+   * class of {@code this} or any ancestral superclass. Interfaces are not
+   * considered. A subclass could apply a different policy.
+   */
+  public boolean notMe( String name) {
+    for ( Class<?> c = getClass(); null != c; c = c.getSuperclass() )
+      if ( name.equals( c.getName().replace('.', '/') + ".class") )
+        return false;
+    return true;
   }
   
   /**Examine the main attributes to set any defaults.
@@ -466,14 +499,20 @@ public class JarX {
     defaultReadPermission = readPermission;
     defaultWritePermission = writePermission;
     defaultExecutePermission = executePermission;
+  }
 
-    if ( null == mainAttributes )
-      return;
-
-    String v = mainAttributes.getValue( PATHRESOLVER);
-    if ( null == v )
-      return;
-
+  /**Prepare a resolver of pathnames, given the value of the PATHRESOLVER
+   * main attribute.
+   *<p>
+   * If not overridden in a subclass, this method parses it as a MIME type and
+   * script as described in the class comments, loads a {@code ScriptEngine}
+   * for the MIME type, and saves references to the engine in
+   * {@code resolverEngine} and the script in {@code resolverScript}.
+   * @param v value of the _JarX_PathResolver main attribute
+   * @throws Exception this implementation throws no checked exceptions, but an
+   * overriding implementation may
+   */
+  public void prepareResolver( String v) throws Exception {
     JarX[] toks = structuredFieldBody( v, 0);
     if ( toks.length < 4
       || ! toks[0].is( ATOM)
@@ -510,6 +549,30 @@ public class JarX {
     }
     resolverEngine.put( "properties", System.getProperties());
     resolverScript = script.toString();
+  }
+
+  /**Called with every path to be extracted; returns a possibly-corrected path.
+   *<p>
+   * If not overridden in a subclass, this method returns <em>s</em> unchanged
+   * if no {@code resolverScript} has been set, and otherwise invokes the script
+   * with {@code storedPath} bound to <em>orig</em>, {@code platformPath} and
+   * {@code computedPath} both bound to <em>plat</em>, then returns the value
+   * bound to {@code computedPath} when the script has returned.
+   * @param orig The path as stored in the archive, always /-separated
+   * @param plat The path after only replacing / with the platform separator
+   * @return plat unchanged, or a corrected location for extracting the entry,
+   * or null to suppress extracting the entry
+   * @throws Exception this implementation may throw ScriptException, an
+   * overriding implementation may throw others
+   */
+  public String resolve(String orig, String plat) throws Exception {
+    if ( null == resolverScript )
+      return plat;
+    resolverEngine.put( "storedPath", orig);
+    resolverEngine.put( "platformPath", plat);
+    resolverEngine.put( "computedPath", plat);
+    resolverEngine.eval( resolverScript);
+    return (String)resolverEngine.get( "computedPath");
   }
 
   /**Set instance variables for text/binary and permissions treatment
@@ -649,11 +712,11 @@ public class JarX {
   /**Extract a single entry, performing any appropriate conversion
    *@param je JarEntry for the current entry
    *@param is InputStream with the current entry content
-   *@throws IOException for any problem involving I/O
-   *@throws ScriptException for any problem involving the script engine
+   *@throws Exception IOException for any problem involving I/O, ScriptException
+   * possible from the non-overridden path resolver, others possible in an
+   * overridden implementation
    */
-  public void extract( JarEntry je, InputStream is)
-  throws IOException, ScriptException {
+  public void extract( JarEntry je, InputStream is) throws Exception {
     classify( je.getAttributes(), true);
 
     String orig = je.getName();
@@ -662,13 +725,9 @@ public class JarX {
     if ( File.separatorChar != '/' )
       s = s.replace( '/', File.separatorChar);
 
-    if ( null != resolverScript ) {
-      resolverEngine.put( "storedPath", orig);
-      resolverEngine.put( "platformPath", s);
-      resolverEngine.put( "computedPath", s);
-      resolverEngine.eval( resolverScript);
-      s = (String)resolverEngine.get( "computedPath");
-    }
+    s = resolve( orig, s);
+    if ( null == s )
+      return;
 
     System.err.print( s + " ");
     
