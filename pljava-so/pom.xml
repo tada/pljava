@@ -393,17 +393,20 @@ if ( null !== jvmdflt )
 				</executions>
 			</plugin>
 
-			<!-- Reads the pg_config properties, which were extracted by an Ant task
-				in the "initialize" phase, into Maven variables. As this plugin seems to
-				get ignored in any phase other than "initialize" it must be listed after
-				the Ant task. -->
+			<!-- Reads the pg_config properties, which were extracted by an Ant
+				task in the "initialize" phase, into Maven variables. This
+				execution has been moved to process-sources (from its default of
+				initialize) because one can't rely on just placing it later than
+				the antrun task that writes the file. If a profile in the parent
+				pom also uses this plugin, it can end up running before antrun
+				in this project, despite being placed after. -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>properties-maven-plugin</artifactId>
 				<version>1.0.0</version>
 				<executions>
 					<execution>
-						<phase>initialize</phase>
+						<phase>process-sources</phase>
 						<goals>
 							<goal>read-project-properties</goal>
 						</goals>
