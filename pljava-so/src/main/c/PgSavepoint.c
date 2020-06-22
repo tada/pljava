@@ -27,7 +27,7 @@ static jmethodID s_forId;
 static jfieldID s_nestLevel;
 
 extern void PgSavepoint_initialize(void);
-static void unwind(void (*f)(void), int nestingLevel, int xid);
+static void unwind(void (*f)(void), jint xid, jint nestingLevel);
 static void assertXid(SubTransactionId);
 
 jobject pljava_PgSavepoint_forId(SubTransactionId subId)
