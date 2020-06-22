@@ -296,8 +296,8 @@ public interface VarlenaWrapper extends Closeable
 				catch ( Exception e )
 				{
 					throw new SQLException(
-						"Error verifying variable-length input data, " +
-						"not otherwise provided for", "XX000", e);
+						"Exception verifying variable-length data: " +
+						e.getMessage(), "XX000", e);
 				}
 				finally
 				{
@@ -1141,8 +1141,8 @@ public interface VarlenaWrapper extends Closeable
 				if ( t instanceof RuntimeException )
 					throw (RuntimeException) t;
 				throw new SQLException(
-					"Exception verifying variable-length data, not " +
-					"otherwise provided for", "XX000", exce);
+					"Exception verifying variable-length data: " +
+					exce.getMessage(), "XX000", exce);
 			}
 
 			if ( ! m_queue.isEmpty() )

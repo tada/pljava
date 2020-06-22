@@ -311,6 +311,21 @@ from `String` to XML uses PostgreSQL's `xml_in` function to verify the form of a
 configuration variable `xmloption` is not first set to `DOCUMENT` or `CONTENT`
 to match the type of the value.
 
+#### Validation against a schema
+
+Java's XML APIs support validation using a choice of schema languages;
+support for XML Schema 1.0 is included in the Java runtime, and implementations
+of others can be placed on the class path.
+
+A `schema` method is available through the "Extended API to configure
+XML parsers" described below, but will only work on a `SAXSource` or `DOMSource`
+(or a `StreamResult`, which uses a SAX parser to validate the stream written).
+Other limitations are described under "known limitations" below.
+
+More flexibly, `javax.xml.validation.Validator` or
+`javax.xml.validation.ValidatorHandler` can be used in more situations and with
+fewer limitations.
+
 ### Usable with or without native XML support in PostgreSQL
 
 In symmetry to using Java `String` for SQL XML types, PL/Java allows the Java
@@ -367,7 +382,42 @@ OWASP-recommended defaults, which would reject any content with a DTD. The
 second form would obtain a `SAXSource` configured to allow a DTD in the
 content, with other parser features left at the restrictive defaults.
 
+#### Additional adjustments in recent Java versions
+
+Additional security-related adjustments have appeared in various Java releases,
+and are described in the [Java API for XML Processing Security Guide][jaxps].
+They include a number of configurable limits on maximum sizes and nesting
+depths, and limits to the set of protocols allowable for fetching external
+resources. Corresponding methods are provided in [PL/Java's API][adjx].
+Also see "known limitations" below.
+
+#### Supplying a SAX or DOM `EntityResolver` or `Schema`
+
+Methods are provided to set an `EntityResolver` that controls how a SAX or DOM
+parser resolves references to external entities, or a `Schema` by which a SAX
+or DOM parser can validate content while parsing. Corresponding methods are
+supplied in PL/Java's API, but are implemented only when operating on a
+`SAXSource` or `DOMSource` (or `StreamResult`, affecting its validation of
+the content written).
+
+For StAX, control of resolution is done with a slightly different class,
+`XMLResolver`, which can be set on a StAX parser as an ordinary property;
+this can be done with PL/Java's `setFirstMatchingProperty` method.
+
+A StAX parser cannot have a `Schema` directly assigned, but can be used
+with a `javax.xml.validation.Validator`.
+
 Complete details can be found [in the API documentation][adjx].
+
+#### Using XML Catalogs when running on Java 9 or later
+
+When running on Java 9 or later, a local XML Catalog can be set up to
+efficiently and securely resolve what would otherwise be external resource
+references. The registration of a Catalog on a Java 9 or later parser involves
+only existing methods for setting features/properties, as described
+[in the Catalog API documentation][catapi], and can be done with the
+`setFirstSupportedFeature` and `setFirstSupportedProperty` methods
+in PL/Java's `Adjusting` API.
 
 ### Extended API to set the content of a PL/Java `SQLXML` instance
 
@@ -419,6 +469,8 @@ Java's extensive support for XML.
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
 [adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
+[jaxps]: https://docs.oracle.com/en/java/javase/13/security/java-api-xml-processing-jaxp-security-guide.html
+[catapi]: https://docs.oracle.com/javase/9/core/xml-catalog-api1.htm#JSCOR-GUID-51446739-F878-4B70-A36F-47FBBE12A26A
 
 ## Known limitations
 
@@ -457,3 +509,24 @@ For convenience, the `SQLXML` API allows passing a null value to `getSource`
 or `setResult`, allowing the implementation to choose the type of `Source`
 or `Result` to supply. PL/Java's implementation will never supply a `StAX`
 variant when not explicitly requested.
+
+### Pay no attention to that man behind the curtain
+
+The processing done "behind the curtain" to be able to handle `XML(CONTENT)`
+and `XML(DOCUMENT)` form, when the form is not known in advance, can have
+some visible effects when combined with the newer [security limit][jaxps]
+adjustments, or `schema` set on a SAX or DOM parser. For example, a very tight
+setting of `maxElementDepth` may reveal that elements in the input are
+nested one level deeper than expected, or a very tight `maxXMLNameLimit` may
+reject a document whose expected names are all shorter. Schema validation for
+some schemas and schema languages may likewise report an unexpected element
+at the root of the document.
+
+Issues with `maxElementDepth` or `maxXMLNameLimit` can be avoided by using
+generous settings chosen to limit extreme resource consumption rather than
+trying to set them as tightly as possible.
+
+Problems with schema validation when assigning a `Schema` directly to the
+SAX or DOM parser can be alleviated by using a `javax.xml.validation.Validator`
+or `ValidatorHandler` instead, layered over PL/Java's parser, where it will
+see the expected view of the content.

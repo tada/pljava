@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,7 +14,11 @@ package org.postgresql.pljava;
 import java.io.Reader;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import javax.xml.stream.XMLInputFactory; // for javadoc
+import javax.xml.stream.XMLResolver; // for javadoc
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.validation.Schema;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
@@ -188,6 +192,130 @@ public final class Adjusting
 			 *</pre>
 			 */
 			T defaults();
+
+			/**
+			 * For a parser property (in DOM parlance, attribute) that may have
+			 * been identified by more than one URI in different parsers or
+			 * versions, try passing the supplied <em>value</em> with each URI
+			 * from <em>names</em> in order until one is not rejected by the
+			 * underlying parser.
+			 *<p>
+			 * A property differs from a feature in taking a value of some
+			 * specified type, rather than being simply enabled/disabled with
+			 * a boolean.
+			 */
+			T setFirstSupportedProperty(Object value, String... names);
+
+			/**
+			 * Maximum number of attributes on an element, with a negative or
+			 * zero value indicating no limit.
+			 */
+			T elementAttributeLimit(int limit);
+
+			/**
+			 * Maximum number of entity expansions, with a negative or
+			 * zero value indicating no limit.
+			 */
+			T entityExpansionLimit(int limit);
+
+			/**
+			 * Limit on total number of nodes in all entity referenced,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T entityReplacementLimit(int limit);
+
+			/**
+			 * Maximum element depth,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxElementDepth(int depth);
+
+			/**
+			 * Maximum size of any general entities,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxGeneralEntitySizeLimit(int limit);
+
+			/**
+			 * Maximum size of any parameter entities (including the result
+			 * of nesting parameter entities),
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxParameterEntitySizeLimit(int limit);
+
+			/**
+			 * Maximum size of XML names (including element and attribute names,
+			 * namespace prefix, and namespace URI even though that isn't an
+			 * XML name),
+			 * with a negative or zero value indicating no limit.
+			 */
+			T maxXMLNameLimit(int limit);
+
+			/**
+			 * Limit on total size of all entities, general or parameter,
+			 * with a negative or zero value indicating no limit.
+			 */
+			T totalEntitySizeLimit(int limit);
+
+			/**
+			 * Protocol schemes allowed in the URL of an external DTD to be
+			 * fetched.
+			 * @param protocols Empty string to deny all external DTD access,
+			 * the string "all" to allow fetching by any protocol, or a
+			 * comma-separated, case insensitive list of protocols to allow.
+			 * A protocol name prefixed with "jar:" is also a protocol name.
+			 */
+			T accessExternalDTD(String protocols);
+
+			/**
+			 * Protocol schemes allowed in the URL of an external schema to be
+			 * fetched.
+			 * @param protocols Empty string to deny all external DTD access,
+			 * the string "all" to allow fetching by any protocol, or a
+			 * comma-separated, case insensitive list of protocols to allow.
+			 * A protocol name prefixed with "jar:" is also a protocol name.
+			 */
+			T accessExternalSchema(String protocols);
+
+			/**
+			 * Set an {@link EntityResolver} of the type used by SAX and DOM
+			 * <em>(optional operation)</em>.
+			 *<p>
+			 * This method only succeeds for a {@code SAXSource} or
+			 * {@code DOMSource} (or a {@code StreamResult}, where the resolver
+			 * is set on the parser that will verify the content written).
+			 * Unlike the best-effort behavior of most methods in this
+			 * interface, this one will report failure with an exception.
+			 *<p>
+			 * If the StAX API is wanted, a StAX {@link XMLResolver} should be
+			 * set instead, using {@code setFirstSupportedProperty} with the
+			 * property name {@link XMLInputFactory#RESOLVER}.
+			 * @param resolver an instance of org.xml.sax.EntityResolver
+			 * @throws UnsupportedOperationException if not supported by the
+			 * underlying flavor of source or result.
+			 */
+			T entityResolver(EntityResolver resolver);
+
+			/**
+			 * Set a {@link Schema} to be applied during SAX or DOM parsing
+			 *<em>(optional operation)</em>.
+			 *<p>
+			 * This method only succeeds for a {@code SAXSource} or
+			 * {@code DOMSource} (or a {@code StreamResult}, where the schema
+			 * is set on the parser that will verify the content written).
+			 * Unlike the best-effort behavior of most methods in this
+			 * interface, this one will report failure with an exception.
+			 *<p>
+			 * In the SAX case, this must be called <em>before</em> other
+			 * methods of this interface.
+			 * @param schema an instance of javax.xml.validation.Schema
+			 * @throws UnsupportedOperationException if not supported by the
+			 * underlying flavor of source or result.
+			 * @throws IllegalStateException if the underlying implementation is
+			 * SAX-based and another method from this interface has been called
+			 * already.
+			 */
+			T schema(Schema schema);
 		}
 
 		/**
