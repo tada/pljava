@@ -68,7 +68,7 @@ build_script:
     ELSE (
     mvn clean install -Dnar.cores=1 -Psaxon-examples --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
     )
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+#  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 before_test:
   - ps: $libjvm = "$Env:JAVA_HOME\bin\server\jvm.dll"
   - ps: $vmoptions= "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
