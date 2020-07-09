@@ -76,6 +76,30 @@
 		<plugins>
 
 			<plugin>
+				<groupId>org.postgresql</groupId>
+				<artifactId>pljava-pgxs</artifactId>
+				<version>0.0.1-SNAPSHOT</version>
+				<executions>
+					<execution>
+						<phase>initialize</phase>
+						<goals>
+							<goal>scripting</goal>
+						</goals>
+						<configuration>
+							<script>
+								setProjectProperty("PGSQL_VER_CLASSIFIER",
+								getPgConfigProperty("--version")
+								.replaceAll( "devel.*|alpha.*|beta.*|rc.*$",
+								"\\.99") .replaceAll(
+								"^[^\\d]*+(\\d++)\\.(\\d++)(?:\\.(\\d++))?.*$",
+								"pg$1.$2"));
+							</script>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
 				<executions>

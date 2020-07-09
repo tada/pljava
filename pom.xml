@@ -56,6 +56,7 @@
 		<module>pljava-ant</module>
 		<module>pljava-examples</module>
 		<module>pljava-packaging</module>
+		<module>pljava-pgxs</module>
 	</modules>
 
 	<distributionManagement>
