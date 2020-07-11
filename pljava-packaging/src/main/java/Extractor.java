@@ -18,7 +18,8 @@ import java.io.InputStream;
 import static java.lang.System.getProperty;
 import static java.lang.System.setProperty;
 
-import java.util.Scanner;
+import java.nio.ByteBuffer;
+import static java.nio.charset.Charset.defaultCharset;
 
 import java.util.regex.Matcher;
 import static java.util.regex.Pattern.compile;
@@ -69,18 +70,29 @@ public class Extractor extends JarX {
 			{
 				String pgc = getProperty("pgconfig", "pg_config");
 				ProcessBuilder pb = new ProcessBuilder(pgc, "--"+key);
-				pb.redirectErrorStream(true);
+				pb.redirectError(ProcessBuilder.Redirect.INHERIT);
 				Process proc = pb.start();
-				InputStream instream = proc.getInputStream();
-				Scanner scanner = new Scanner(instream).useDelimiter("\\A");
-				String output = scanner.next();
-				int status = proc.waitFor();
-				if ( 0 != status ) {
-					System.err.println(
-						"ERROR: pg_config status is "+status+":\n"+output);
-					System.exit(1);
+				byte[] output;
+				try ( InputStream instream = proc.getInputStream() )
+				{
+					output = instream.readAllBytes();
 				}
-				replacement = output.trim();
+				finally
+				{
+					int status = proc.waitFor();
+					if ( 0 != status )
+					{
+						System.err.println(
+							"ERROR: pg_config status is "+status);
+						System.exit(1);
+					}
+				}
+				/*
+				 * pg_config output is the saved value followed by one \n only.
+				 */
+				replacement = defaultCharset().newDecoder()
+					.decode(ByteBuffer.wrap(output, 0, output.length - 1))
+					.toString();
 				setProperty(propkey, replacement);
 			}
 			int plen = m_fsepLength - 1; /* original separator had length 1 */
