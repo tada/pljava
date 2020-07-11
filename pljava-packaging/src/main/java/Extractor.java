@@ -75,6 +75,7 @@ public class Extractor extends JarX {
 				byte[] output;
 				try ( InputStream instream = proc.getInputStream() )
 				{
+					proc.getOutputStream().close();
 					output = instream.readAllBytes();
 				}
 				finally
