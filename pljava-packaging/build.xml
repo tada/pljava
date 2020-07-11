@@ -92,7 +92,7 @@ var mainsect = manifest.getMainAttributes();
 mainsect.putValue('Manifest-Version', '1.0');
 mainsect.putValue('Created-By', project.getProperty('project.name') + ' ' +
 								project.getProperty('project.version'));
-mainsect.putValue('Main-Class', 'org.postgresql.pljava.packaging.Extractor');
+mainsect.putValue('Main-Class', 'org.postgresql.pljava.packaging.Node');
 
 /* Declare default permissions for entries that don't have their own.
  */
@@ -192,7 +192,7 @@ function storeset(fileset, jos) {
    extractor's path resolver. Anticipating the removal of Nashorn in Java 15,
    it is no longer assumed to be javax.script source or munged into the special
    format documented in JarX, but just made directly the value of the
-   _JarX_PathResolver attribute. Extractor.java ignores it, has hardcoded rules.
+   _JarX_PathResolver attribute. Node.java ignores it, has hardcoded rules.
  */
 var pathresolver = self.text.trim();
 if ( !(null === pathresolver || '' == pathresolver) ) {
@@ -251,7 +251,7 @@ jos.close();
 		<!-- Now build the jar using the <jarxbuild> task just created. -->
 
 		<jarxbuild destfile="${basedir}/target/pljava-${suffix}.jar">
-			<binary dir="target/classes" includes="**/Extractor.class"/>
+			<binary dir="target/classes" includes="**/Node.class"/>
 			<binary dir="target/classes" includes="**/JarX.class"/>
 			<binary prefix="pljava/pkglibdir/" filemode="555" dir=
 "../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
@@ -331,7 +331,7 @@ jos.close();
 	 for the lines of the script) before saving. Line-wrapped into the manifest,
 	 it looks horrible with tabs.
 -->
-(no script here; see Extractor.java for the rules to resolve using pg_config)
+(no script here; see Node.java for the rules to resolve using pg_config)
 		</jarxbuild>
 	</target>
 	

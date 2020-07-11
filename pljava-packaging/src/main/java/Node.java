@@ -29,7 +29,7 @@ import static java.util.regex.Pattern.compile;
  * replaces prefixes {@code pljava/foo/} in path names stored in the archive
  * with the result of {@code pg_config --foo}.
  */
-public class Extractor extends JarX {
+public class Node extends JarX {
 
 	private Matcher m_prefix;
 	private int m_fsepLength;
@@ -42,7 +42,7 @@ public class Extractor extends JarX {
 			System.exit(1);
 		}
 
-		new Extractor().extract();
+		new Node().extract();
 	}
 
 	/**
