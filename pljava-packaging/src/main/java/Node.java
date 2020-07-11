@@ -776,6 +776,77 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * Install the examples jar, under the name {@code examples}, and place it
+	 * on the class path for schema {@code public}.
+	 *<p>
+	 * The return of a concatenated result stream from two consecutive
+	 * statements might be likely to fail in cases where the first
+	 * statement has any appreciable data to return, but pgjdbc-ng seems to
+	 * handle it at least in this case where each statement just returns one
+	 * row / one column of {@code void}. And it is convenient.
+	 * @return a combined {@link #resultStream resultStream} from executing
+	 * the statements
+	 */
+	public static Stream<Object> installExamplesAndPath(
+		Connection c, boolean deploy)
+	throws Exception
+	{
+		Stream<Object> s1 = installExamples(c, deploy);
+		Stream<Object> s2 = setClasspath(c, "public", "examples");
+		return Stream.concat(s1, s2);
+	}
+
+	/**
+	 * Install a Saxon jar under the name {@code saxon}, given the path to a
+	 * local Maven repo and the needed version of Saxon, assuming the jar has
+	 * been downloaded there already.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> installSaxon(
+		Connection c, String repo, String version)
+	throws Exception
+	{
+		Path p = Paths.get(
+			repo, "net", "sf", "saxon", "Saxon-HE", version,
+			"Saxon-HE-" + version + ".jar");
+		return installJar(c, "file:" + p, "saxon", false);
+	}
+
+	/**
+	 * Install a Saxon jar under the name {@code saxon}, and place it on the
+	 * class path for schema {@code public}.
+	 * @return a combined {@link #resultStream resultStream} from executing
+	 * the statements
+	 */
+	public static Stream<Object> installSaxonAndPath(
+		Connection c, String repo, String version)
+	throws Exception
+	{
+		Stream<Object> s1 = installSaxon(c, repo, version);
+		Stream<Object> s2 = setClasspath(c, "public", "saxon");
+		return Stream.concat(s1, s2);
+	}
+
+	/**
+	 * A four-fer: install Saxon, add it to the class path, then install the
+	 * examples jar, and update the classpath to include both.
+	 * @param repo the base directory of a local Maven repository into which the
+	 * Saxon jar has been downloaded
+	 * @param version the needed version of Saxon
+	 * @param deploy whether to run the example jar's deployment code
+	 * @return a combined {@link #resultStream resultStream} from executing
+	 * the statements
+	 */
+	public static Stream<Object> installSaxonAndExamplesAndPath(
+		Connection c, String repo, String version, boolean deploy)
+	throws Exception
+	{
+		Stream<Object> s1 = installSaxonAndPath(c, repo, version);
+		Stream<Object> s2 = installExamplesAndPath(c, deploy);
+		return Stream.concat(s1, s2);
+	}
+
+	/**
 	 * Produce a {@code Stream} of the (in JDBC, possibly multiple) results
 	 * from an {@code execute} method on a {@code Statement}.
 	 *<p>
