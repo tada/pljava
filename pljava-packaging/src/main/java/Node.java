@@ -251,12 +251,15 @@ public class Node extends JarX {
 	/**
 	 * Return a new {@code Node} that can be used to initialize and start a
 	 * PostgreSQL instance.
+	 *<p>
+	 * Establishes a VM shutdown hook that will stop the server (if started)
+	 * and recursively remove the <em>basedir</em> before the VM exits.
 	 */
 	public static Node get_new_node(String name) throws Exception
 	{
 		byte[] pwbytes = new byte [ 6 ];
 		new Random().nextBytes(pwbytes);
-		return new Node(
+		Node n = new Node(
 			requireNonNull(name),
 			get_free_port(),
 			createTempDirectory(
@@ -264,6 +267,21 @@ public class Node extends JarX {
 				PosixFilePermissions.asFileAttribute(
 					PosixFilePermissions.fromString("rwx------"))),
 				Base64.getEncoder().encodeToString(pwbytes));
+		Thread t =
+			new Thread(() ->
+				{
+					try
+					{
+						n.stop();
+						n.clean_node();
+					}
+					catch ( Exception e )
+					{
+						e.printStackTrace();
+					}
+				}, "Node " + name + " shutdown");
+		Runtime.getRuntime().addShutdownHook(t);
+		return n;
 	}
 
 	/**
@@ -279,9 +297,19 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Recursively remove the {@code basedir} and its descendants.
+	 * Recursively remove the <em>basedir</em> and its descendants.
 	 */
 	public void clean_node() throws Exception
+	{
+		clean_node(false);
+	}
+
+	/**
+	 * Recursively remove the <em>basedir</em> and its descendants.
+	 * @param keepRoot if true, the descendants are removed, but not the basedir
+	 * itself.
+	 */
+	public void clean_node(boolean keepRoot) throws Exception
 	{
 		/*
 		 * How can Java *still* not have a deleteTree()?
@@ -293,6 +321,8 @@ public class Node extends JarX {
 				deleteIfExists(stk.pop());
 			stk.push(p);
 		}
+		if ( keepRoot )
+			stk.pollLast();
 		for ( Path p : stk )
 			deleteIfExists(p);
 	}
@@ -335,6 +365,33 @@ public class Node extends JarX {
 	public Path data_dir()
 	{
 		return m_basedir.resolve("pgdata");
+	}
+
+	/**
+	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * recursively remove the files and directories under the <em>basedir</em>
+	 * (but not the <em>basedir</em> itself) on the exit of a calling
+	 * try-with-resources scope.
+	 */
+	public AutoCloseable initialized_cluster() throws Exception
+	{
+		return initialized_cluster(Map.of());
+	}
+
+	/**
+	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * recursively remove the files and directories under the <em>basedir</em>
+	 * (but not the <em>basedir</em> itself) on the exit of a calling
+	 * try-with-resources scope.
+	 */
+	public AutoCloseable initialized_cluster(Map<String,String> suppliedOptions)
+	throws Exception
+	{
+		init(suppliedOptions);
+		return () ->
+		{
+			clean_node(true);
+		};
 	}
 
 	/**
@@ -412,6 +469,28 @@ public class Node extends JarX {
 		}
 	}
 
+	/**
+	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * stop the server on the exit of a calling try-with-resources scope.
+	 */
+	public AutoCloseable started_server() throws Exception
+	{
+		return started_server(Map.of());
+	}
+
+	/**
+	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * stop the server on the exit of a calling try-with-resources scope.
+	 */
+	public AutoCloseable started_server(Map<String,String> suppliedOptions)
+	throws Exception
+	{
+		start(suppliedOptions);
+		return () ->
+		{
+			stop();
+		};
+	}
 
 	/**
 	 * Start a PostgreSQL server for the node, passing default options
