@@ -55,18 +55,41 @@ import java.nio.file.WatchService;
 
 import java.nio.file.NoSuchFileException;
 
+import java.sql.Connection;
+import static java.sql.DriverManager.getConnection;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+
+import javax.sql.rowset.RowSetProvider;
+import javax.sql.rowset.WebRowSet;
+
 import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import static java.util.Objects.requireNonNull;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Spliterator;
+import static java.util.Spliterator.IMMUTABLE;
+import static java.util.Spliterator.NONNULL;
+import static java.util.Spliterator.ORDERED;
+import static java.util.Spliterators.spliteratorUnknownSize;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+
+import java.util.jar.JarFile;
+
 import java.util.stream.Stream;
+import static java.util.stream.StreamSupport.stream;
 
 /**
  * Subclass the JarX extraction tool to provide a {@code resolve} method that
@@ -78,7 +101,8 @@ import java.util.stream.Stream;
  * useful for tasks related to installation and testing. The idea is not to go
  * overboard, but supply a few methods largely modeled on the most basic ones of
  * PostgreSQL's {@code PostgresNode.pm}, with the idea that they can be invoked
- * from {@code jshell} if its classpath includes the installer jar (and pgjdbc).
+ * from {@code jshell} if its classpath includes the installer jar (and
+ * pgjdbc-ng).
  *<p>
  * Unlike the many capabilities of {@code PostgresNode.pm}, this only deals in
  * TCP sockets bound to {@code localhost} (Java doesn't have Unix sockets out of
@@ -95,6 +119,7 @@ public class Node extends JarX {
 
 	private static Node s_jarxHelper = new Node(null, 0, null, null);
 	private static boolean s_jarProcessed = false;
+	private static String s_examplesJar;
 
 	public static void main(String[] args) throws Exception
 	{
@@ -175,11 +200,14 @@ public class Node extends JarX {
 					.toString();
 				setProperty(propkey, replacement);
 			}
-			if ( m_dryrun )
-				return null;
 			int plen = m_fsepLength - 1; /* original separator had length 1 */
 			plen += prefixLength;
-			return replacement + platformPath.substring(plen);
+			replacement += platformPath.substring(plen);
+			if ( ! m_dryrun )
+				return replacement;
+			if ( -1 != storedPath.indexOf("/pljava-examples-") )
+				s_examplesJar = replacement;
+			return null;
 		}
 
 		System.err.println("WARNING: extraneous jar entry not extracted: "
@@ -592,6 +620,440 @@ public class Node extends JarX {
 		System.err.println("Server had already exited with status " +
 			m_server.exitValue());
 		m_server = null;
+	}
+
+	/**
+	 * Return a {@code Connection} to the server associated with this Node,
+	 * as the database superuser, using the generated password.
+	 */
+	public Connection connect() throws Exception
+	{
+		String url = "jdbc:pgsql://localhost:" + m_port + "/postgres";
+		Properties p = new Properties();
+		p.setProperty("user", "postgres");
+		p.setProperty("password", m_password);
+		return getConnection(url, p);
+	}
+
+	/**
+	 * Set a configuration variable on the server.
+	 *<p>
+	 * This deserves a convenience method because the most familiar PostgreSQL
+	 * syntax for SET doesn't lend itself to parameterization.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> setConfig(
+		Connection c, String settingName, String newValue, boolean isLocal)
+	throws Exception
+	{
+		PreparedStatement ps =
+			c.prepareStatement("SELECT pg_catalog.set_config(?,?,?)");
+		ps.setString(1, settingName);
+		ps.setString(2, newValue);
+		ps.setBoolean(3, isLocal);
+		return resultStream(ps, ps.execute());
+	}
+
+	/**
+	 * Return the {@link #resultStream resultStream} from
+	 * {@code CREATE EXTENSION pljava}.
+	 */
+	public static Stream<Object> createExtensionPLJava(Connection c)
+	throws Exception
+	{
+		Statement s = c.createStatement();
+		return resultStream(s, s.execute("CREATE EXTENSION pljava"));
+	}
+
+	/**
+	 * Install a jar.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> installJar(
+		Connection c, String uri, String jarName, boolean deploy)
+	throws Exception
+	{
+		PreparedStatement ps =
+			c.prepareStatement("SELECT sqlj.install_jar(?,?,?)");
+		ps.setString(1, uri);
+		ps.setString(2, jarName);
+		ps.setBoolean(3, deploy);
+		return resultStream(ps, ps.execute());
+	}
+
+	/**
+	 * Remove a jar.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> removeJar(
+		Connection c, String jarName, boolean undeploy)
+	throws Exception
+	{
+		PreparedStatement ps =
+			c.prepareStatement("SELECT sqlj.remove_jar(?,?)");
+		ps.setString(1, jarName);
+		ps.setBoolean(2, undeploy);
+		return resultStream(ps, ps.execute());
+	}
+
+	/**
+	 * Set the class path for a schema.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> setClasspath(
+		Connection c, String schema, String... jarNames)
+	throws Exception
+	{
+		PreparedStatement ps =
+			c.prepareStatement("SELECT sqlj.set_classpath(?,?)");
+		ps.setString(1, schema);
+		ps.setString(2, String.join(":", jarNames));
+		return resultStream(ps, ps.execute());
+	}
+
+	/**
+	 * Execute some arbitrary SQL
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> q(Connection c, String sql) throws Exception
+	{
+		Statement s = c.createStatement();
+		return resultStream(s, s.execute(sql));
+	}
+
+	/**
+	 * Execute some arbitrary SQL and pass
+	 * the {@link #resultStream resultStream}
+	 * to {@link #print(Stream<Object>) print}.
+	 */
+	public static void qp(Connection c, String sql) throws Exception
+	{
+		print(q(c, sql));
+	}
+
+	/**
+	 * Print the result of some query or operation already in the form of
+	 * a {@link #resultStream resultStream}.
+	 *<p>
+	 * This is nothing but a two-keystroke alias for
+	 * {@link #print(Stream<Object>) print}.
+	 */
+	public static void qp(Stream<Object> s) throws Exception
+	{
+		print(s);
+	}
+
+	/**
+	 * Return true if the examples jar includes the
+	 * {@code org.postgresql.pljava.example.saxon.S9} class (meaning the
+	 * appropriate Saxon jar must be installed and on the classpath first before
+	 * the examples jar can be deployed, unless {@code check_function_bodies}
+	 * is {@code off} to skip dependency checking.
+	 */
+	public static boolean examplesNeedSaxon() throws Exception
+	{
+		dryExtract();
+		try ( JarFile jf = new JarFile(s_examplesJar) )
+		{
+			return jf.stream().anyMatch(e ->
+				"org/postgresql/pljava/example/saxon/S9.class"
+				.equals(e.getName()));
+		}
+	}
+
+	/**
+	 * Install the examples jar, under the name {@code examples}.
+	 *<p>
+	 * The jar is specified by a {@code file:} URI and the path is the one where
+	 * this installer installed (or would have installed) it.
+	 * @return a {@link #resultStream resultStream} from executing the statement
+	 */
+	public static Stream<Object> installExamples(Connection c, boolean deploy)
+	throws Exception
+	{
+		dryExtract();
+		return installJar(c, "file:"+s_examplesJar, "examples", deploy);
+	}
+
+	/**
+	 * Produce a {@code Stream} of the (in JDBC, possibly multiple) results
+	 * from an {@code execute} method on a {@code Statement}.
+	 *<p>
+	 * Each result in the stream will be an instance of one of:
+	 * {@code ResultSet}, {@code Long} (an update count, positive or zero),
+	 * {@code SQLWarning}, or some other {@code SQLException}. A warning or
+	 * exception may have others chained to it, which its own {@code iterator}
+	 * or {@code forEach} methods should be used to traverse; or, use
+	 * {@code flatMap(}{@link #flattenDiagnostics Node::flattenDiagnostics}) to
+	 * obtain a stream presenting each diagnostic in a chain in turn.
+	 *<p>
+	 * Exists mainly to encapsulate the rather fiddly logic of extracting that
+	 * sequence of results using the {@code Statement} API.
+	 * @param s the Statement from which to extract results
+	 * @param isResultSet the boolean return value of the execute method whose
+	 * results are to be extracted, indicating whether the first result is
+	 * a {@code ResultSet}.
+	 * @return a Stream as described above.
+	 */
+	public static Stream<Object> resultStream(
+		final Statement s, boolean isResultSet)
+	{
+		final Object[] nextHolder = new Object [ 1 ];
+		Object seed;
+
+		final Supplier<Object> resultSet = () ->
+		{
+			try
+			{
+				return s.getResultSet();
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		final Supplier<Object> updateCount = () ->
+		{
+			try
+			{
+				long count = s.getLargeUpdateCount();
+				return ( -1 == count ) ? null : count;
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		final Supplier<Object> warnings = () ->
+		{
+			try
+			{
+				SQLWarning w = s.getWarnings();
+				if ( null != w )
+				{
+					try
+					{
+						s.clearWarnings();
+					}
+					catch ( SQLException e )
+					{
+						nextHolder [ 0 ] = e;
+					}
+				}
+				return w;
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		/*
+		 * First get warnings, if any.
+		 * There is a remote chance this can return an exception rather than a
+		 * warning, an even more remote chance it returns a warning and leaves
+		 * an exception in nextHolder.
+		 * Only if it did neither is there any point in proceeding to get an
+		 * update count or result set.
+		 * If we do, and there was a warning, we use the warning as the seed and
+		 * save the first update count or result set in nextHolder.
+		 */
+		seed = warnings.get();
+		if ( (null == seed || seed instanceof SQLWarning)
+			&& null == nextHolder [ 0 ] )
+		{
+			Object t;
+			if ( isResultSet )
+				t = resultSet.get();
+			else
+				t = updateCount.get();
+			if ( null == seed )
+				seed = t;
+			else
+				nextHolder [ 0 ] = t;
+		}
+
+		UnaryOperator<Object> next = o ->
+		{
+			if ( o instanceof SQLException && !(o instanceof SQLWarning) )
+				return null;
+
+			o = nextHolder [ 0 ];
+			if ( null != o )
+			{
+				nextHolder [ 0 ] = null;
+				return o;
+			}
+
+			o = warnings.get();
+			if ( null != o )
+				return o;
+
+			try
+			{
+				if ( s.getMoreResults() )
+					return resultSet.get();
+				else
+					return updateCount.get();
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		return Stream.iterate(seed, Objects::nonNull, next)
+			.onClose(() ->
+				{
+					try
+					{
+						s.close();
+					}
+					catch ( SQLException e )
+					{
+					}
+				}
+			);
+	}
+
+	/**
+	 * A flat-mapping function to expand any {@code SQLException} or
+	 * {@code SQLWarning} instance in a result stream into the stream of
+	 * possibly multiple linked diagnostics and causes in the encounter order
+	 * of the {@code SQLException} iterator.
+	 *<p>
+	 * Any other object is returned in a singleton stream.
+	 */
+	public static Stream<Object> flattenDiagnostics(Object oneResult)
+	{
+		if ( oneResult instanceof SQLException )
+		{
+			Spliterator<Object> s = spliteratorUnknownSize(
+				((SQLException)oneResult).iterator(),
+				IMMUTABLE | NONNULL | ORDERED);
+			return stream(s, false);
+		}
+		return Stream.of(oneResult);
+	}
+
+	/**
+	 * Print streamed results of a {@code Statement} in
+	 * (somewhat) readable fashion.
+	 *<p>
+	 * Uses {@code writeXml} of {@code WebRowSet}, which is very verbose, but
+	 * about the easiest way to readably dump a {@code ResultSet} in just a
+	 * couple lines of code.
+	 */
+	public static void print(Stream<Object> s) throws Exception
+	{
+		WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet();
+		try ( Stream<Object> flat = s.flatMap(Node::flattenDiagnostics) )
+		{
+			for ( Object o : (Iterable<Object>)flat::iterator )
+			{
+				if ( o instanceof ResultSet )
+				{
+					try (ResultSet rs = (ResultSet)o)
+					{
+						wrs.populate(rs);
+						wrs.writeXml(System.out);
+					}
+					finally
+					{
+						wrs.release();
+					}
+				}
+				else if ( o instanceof Long )
+					System.out.println("<?updateCount " + o + " ?>");
+				else if ( o instanceof Throwable )
+					print((Throwable)o);
+				else
+					System.out.println("<!-- unexpected "
+						+ o.getClass().getName()
+						+ " from resultStream() -->");
+			}
+		}
+	}
+
+	/**
+	 * Print a {@code Throwable} retrieved from a {@code resultStream}, with
+	 * special handling for {@code SQLException} and {@code SQLWarning}.
+	 *<p>
+	 * In keeping with the XMLish vibe established by
+	 * {@link #print(Stream<Object>) print} for other items in a result
+	 * stream, this will render a {@code Throwable} as an {@code error},
+	 * {@code warning}, or {@code info} element (PostgreSQL's finer
+	 * distinctions of severity are not exposed by pgjdbc-ng's API.)
+	 *<p>
+	 * An element will have a {@code message} attribute if it has a message.
+	 * It will have a {@code code} attribute containing the SQLState, if it is
+	 * an instance of {@code SQLException}, unless it is rendered as an
+	 * {@code info} element and the state is {@code 00000}. An instance of
+	 * {@code SQLWarning} will be rendered as a {@code warning} unless its class
+	 * (two leftmost code positions) is {@code 00}, in which case it will be
+	 * {@code info}. Anything else is an {@code error}.
+	 */
+	public static void print(Throwable t)
+	{
+		String msg = t.getMessage();
+		String sqlState = null;
+		String element = "error";
+		if ( t instanceof SQLException )
+		{
+			sqlState = ((SQLException)t).getSQLState();
+			if ( t instanceof SQLWarning )
+			{
+				if ( sqlState.startsWith("00") )
+				{
+					element = "info";
+					if ( "00000".equals(sqlState) )
+						sqlState = null;
+				}
+				else
+					element = "warning";
+			}
+		}
+		StringBuilder b = new StringBuilder("<" + element);
+		if ( null != sqlState )
+			b.append(" code=").append(asAttribute(sqlState));
+		if ( null != msg )
+			b.append(" message=").append(asAttribute(msg));
+		System.out.println(b.append("/>"));
+	}
+
+	/**
+	 * Escape a string as an XML attribute.
+	 *<p>
+	 * Right on the borderline of trivial enough to implement here rather than
+	 * forcing the beleaguered user to add yet one more --add-modules for
+	 * {@code java.xml} just to run this in {@code jshell}.
+	 */
+	private static String asAttribute(String s)
+	{
+		int[] aposquot = new int[2];
+		s.codePoints().forEach(c ->
+		{
+			if ( '\'' == c )
+				++ aposquot[0];
+			else if ( '"' == c )
+				++ aposquot[1];
+		});
+		char delim = aposquot[0] > aposquot[1] ? '"' : '\'';
+		Matcher m = compile('"' == delim ? "[<&\"]" : "[<&']").matcher(s);
+		s = m.replaceAll(r ->
+		{
+			switch (r.group())
+			{
+			case "<": return "&lt;";
+			case "&": return "&amp;";
+			case "'": return "&apos;";
+			case "\"": return "&quot;";
+			}
+			throw new AssertionError();
+		});
+		return delim + s + delim;
 	}
 
 	/*

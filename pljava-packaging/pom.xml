@@ -63,6 +63,23 @@
 				<module.pathname>pljava-so-${project.version}</module.pathname>
 			</properties>
 		</profile>
+
+		<!--
+		  - Activate this profile just as a convenient way to make Maven
+		  - download the pgjdbc-ng driver. It isn't needed in any way for
+		  - building, but then you will have it in your local Maven repository
+		  - if you want to add it to your classpath for some tests.
+		  -->
+		<profile>
+			<id>pgjdbc-ng</id>
+			<dependencies>
+				<dependency>
+					<groupId>com.impossibl.pgjdbc-ng</groupId>
+					<artifactId>pgjdbc-ng-all</artifactId>
+					<version>LATEST</version>
+				</dependency>
+			</dependencies>
+		</profile>
 	</profiles>
 
 	<build>
