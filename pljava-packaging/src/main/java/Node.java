@@ -60,6 +60,9 @@ import static java.sql.DriverManager.getConnection;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Types;
+
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 
@@ -1058,6 +1061,16 @@ public class Node extends JarX {
 				{
 					try (ResultSet rs = (ResultSet)o)
 					{
+						ResultSetMetaData md = rs.getMetaData();
+						if ( 1 == md.getColumnCount()
+							&& Types.OTHER == md.getColumnType(1)
+							&& "void".equals(md.getColumnTypeName(1)) )
+						{
+							rs.last();
+							System.out.println(
+								"<?void " + rs.getRow() + " row 1 col?>");
+							continue;
+						}
 						wrs.populate(rs);
 						wrs.writeXml(System.out);
 					}
