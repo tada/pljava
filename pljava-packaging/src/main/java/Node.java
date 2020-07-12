@@ -81,6 +81,7 @@ import static java.util.Spliterator.NONNULL;
 import static java.util.Spliterator.ORDERED;
 import static java.util.Spliterators.spliteratorUnknownSize;
 
+import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.util.function.Supplier;
@@ -651,7 +652,7 @@ public class Node extends JarX {
 		ps.setString(1, settingName);
 		ps.setString(2, newValue);
 		ps.setBoolean(3, isLocal);
-		return resultStream(ps, ps.execute());
+		return resultStream(ps, ps::execute);
 	}
 
 	/**
@@ -662,7 +663,7 @@ public class Node extends JarX {
 	throws Exception
 	{
 		Statement s = c.createStatement();
-		return resultStream(s, s.execute("CREATE EXTENSION pljava"));
+		return resultStream(s, () -> s.execute("CREATE EXTENSION pljava"));
 	}
 
 	/**
@@ -678,7 +679,7 @@ public class Node extends JarX {
 		ps.setString(1, uri);
 		ps.setString(2, jarName);
 		ps.setBoolean(3, deploy);
-		return resultStream(ps, ps.execute());
+		return resultStream(ps, ps::execute);
 	}
 
 	/**
@@ -693,7 +694,7 @@ public class Node extends JarX {
 			c.prepareStatement("SELECT sqlj.remove_jar(?,?)");
 		ps.setString(1, jarName);
 		ps.setBoolean(2, undeploy);
-		return resultStream(ps, ps.execute());
+		return resultStream(ps, ps::execute);
 	}
 
 	/**
@@ -708,7 +709,7 @@ public class Node extends JarX {
 			c.prepareStatement("SELECT sqlj.set_classpath(?,?)");
 		ps.setString(1, schema);
 		ps.setString(2, String.join(":", jarNames));
-		return resultStream(ps, ps.execute());
+		return resultStream(ps, ps::execute);
 	}
 
 	/**
@@ -718,7 +719,7 @@ public class Node extends JarX {
 	public static Stream<Object> q(Connection c, String sql) throws Exception
 	{
 		Statement s = c.createStatement();
-		return resultStream(s, s.execute(sql));
+		return resultStream(s, () -> s.execute(sql));
 	}
 
 	/**
@@ -856,21 +857,50 @@ public class Node extends JarX {
 	 * exception may have others chained to it, which its own {@code iterator}
 	 * or {@code forEach} methods should be used to traverse; or, use
 	 * {@code flatMap(}{@link #flattenDiagnostics Node::flattenDiagnostics}) to
-	 * obtain a stream presenting each diagnostic in a chain in turn.
+	 * obtain a stream presenting each diagnostic in a chain in turn. The
+	 * {@code Callable} interface supplying the work to be done allows any
+	 * checked exception, but any {@code Throwable} outside the
+	 * {@code SQLException} hierarchy will simply be rethrown from here rather
+	 * than delivered in the stream. Any {@code Throwable} thrown by
+	 * <em>work</em> will result in the {@code Statement} being closed.
+	 * Otherwise, it remains open until the returned stream is closed.
 	 *<p>
 	 * Exists mainly to encapsulate the rather fiddly logic of extracting that
 	 * sequence of results using the {@code Statement} API.
 	 * @param s the Statement from which to extract results
-	 * @param isResultSet the boolean return value of the execute method whose
-	 * results are to be extracted, indicating whether the first result is
-	 * a {@code ResultSet}.
+	 * @param work a Callable that will invoke one of the Statement's execute
+	 * methods returning a boolean that indicates whether the first result is a
+	 * ResultSet. Although the Callable interface requires the boolean result to
+	 * be boxed, it must not return null.
 	 * @return a Stream as described above.
 	 */
 	public static Stream<Object> resultStream(
-		final Statement s, boolean isResultSet)
+		final Statement s, Callable<Boolean> work)
+	throws Exception
 	{
 		final Object[] nextHolder = new Object [ 1 ];
 		Object seed;
+		boolean isResultSet;
+
+		/*
+		 * The Statement must not be closed in a finally, or a
+		 * try-with-resources, because if successful it needs to remain open
+		 * as long as the result stream is being read. It will be closed when
+		 * the stream is.
+		 *
+		 * However, in any exceptional exit, the Statement must be closed here.
+		 */
+		try
+		{
+			isResultSet = work.call();
+		}
+		catch (Throwable t)
+		{
+			s.close();
+			if ( t instanceof SQLException )
+				return Stream.of(t);
+			throw t;
+		}
 
 		final Supplier<Object> resultSet = () ->
 		{
