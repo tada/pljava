@@ -1136,7 +1136,7 @@ public class Node extends JarX {
 			}
 		}
 		else if ( o instanceof Long )
-			System.out.println("<?updateCount " + o + " ?>");
+			System.out.println("<success rows='" + o + "'/>");
 		else if ( o instanceof Throwable )
 			qp((Throwable)o);
 		else
@@ -1176,7 +1176,7 @@ public class Node extends JarX {
 		{
 			rs.last();
 			System.out.println(
-				"<?void " + rs.getRow() + " row " + cols + " col?>");
+				"<void rows='" + rs.getRow() + "' cols='" + cols + "'/>");
 			return;
 		}
 
