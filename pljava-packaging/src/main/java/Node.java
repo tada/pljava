@@ -120,6 +120,7 @@ public class Node extends JarX {
 
 	private Matcher m_prefix;
 	private int m_fsepLength;
+	private String m_lineSep;
 	private boolean m_dryrun = false;
 	private long m_connCount = 0;
 
@@ -164,6 +165,7 @@ public class Node extends JarX {
 	{
 		m_prefix = compile("^pljava/([^/]+dir)(?![^/])").matcher("");
 		m_fsepLength = getProperty("file.separator").length();
+		m_lineSep = getProperty("line.separator");
 	}
 
 	@Override
@@ -200,10 +202,20 @@ public class Node extends JarX {
 				}
 				/*
 				 * pg_config output is the saved value followed by one \n only.
+				 * However, on Windows, the C library treats stdout as text mode
+				 * by default, and pg_config does nothing to change that, so the
+				 * single \n written by pg_config gets turned to \r\n before it
+				 * arrives here. The earlier use of the trim() method papered
+				 * over the problem, but trim() can remove too much. Simply have
+				 * to assume that the string will end with line.separator, and
+				 * remove that.
 				 */
 				replacement = defaultCharset().newDecoder()
-					.decode(ByteBuffer.wrap(output, 0, output.length - 1))
+					.decode(ByteBuffer.wrap(output, 0, output.length))
 					.toString();
+				assert replacement.endsWith(m_lineSep);
+				replacement = replacement.substring(0,
+					replacement.length() - m_lineSep.length());
 				setProperty(propkey, replacement);
 			}
 			int plen = m_fsepLength - 1; /* original separator had length 1 */
