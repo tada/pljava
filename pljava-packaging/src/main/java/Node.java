@@ -644,7 +644,8 @@ public class Node extends JarX {
 	 *<p>
 	 * This deserves a convenience method because the most familiar PostgreSQL
 	 * syntax for SET doesn't lend itself to parameterization.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> setConfig(
 		Connection c, String settingName, String newValue, boolean isLocal)
@@ -655,23 +656,13 @@ public class Node extends JarX {
 		ps.setString(1, settingName);
 		ps.setString(2, newValue);
 		ps.setBoolean(3, isLocal);
-		return resultStream(ps, ps::execute);
-	}
-
-	/**
-	 * Return the {@link #resultStream resultStream} from
-	 * {@code CREATE EXTENSION pljava}.
-	 */
-	public static Stream<Object> createExtensionPLJava(Connection c)
-	throws Exception
-	{
-		Statement s = c.createStatement();
-		return resultStream(s, () -> s.execute("CREATE EXTENSION pljava"));
+		return q(ps, ps::execute);
 	}
 
 	/**
 	 * Install a jar.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> installJar(
 		Connection c, String uri, String jarName, boolean deploy)
@@ -682,12 +673,13 @@ public class Node extends JarX {
 		ps.setString(1, uri);
 		ps.setString(2, jarName);
 		ps.setBoolean(3, deploy);
-		return resultStream(ps, ps::execute);
+		return q(ps, ps::execute);
 	}
 
 	/**
 	 * Remove a jar.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> removeJar(
 		Connection c, String jarName, boolean undeploy)
@@ -697,12 +689,13 @@ public class Node extends JarX {
 			c.prepareStatement("SELECT sqlj.remove_jar(?,?)");
 		ps.setString(1, jarName);
 		ps.setBoolean(2, undeploy);
-		return resultStream(ps, ps::execute);
+		return q(ps, ps::execute);
 	}
 
 	/**
 	 * Set the class path for a schema.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> setClasspath(
 		Connection c, String schema, String... jarNames)
@@ -712,39 +705,48 @@ public class Node extends JarX {
 			c.prepareStatement("SELECT sqlj.set_classpath(?,?)");
 		ps.setString(1, schema);
 		ps.setString(2, String.join(":", jarNames));
-		return resultStream(ps, ps::execute);
+		return q(ps, ps::execute);
 	}
 
 	/**
 	 * Execute some arbitrary SQL
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> q(Connection c, String sql) throws Exception
 	{
 		Statement s = c.createStatement();
-		return resultStream(s, () -> s.execute(sql));
+		return q(s, () -> s.execute(sql));
 	}
 
 	/**
 	 * Execute some arbitrary SQL and pass
-	 * the {@link #resultStream resultStream}
-	 * to {@link #print(Stream<Object>) print}.
+	 * the {@link #q(Statement,Callable) result stream}
+	 * to {@link #qp(Stream<Object>)} for printing to standard output.
 	 */
 	public static void qp(Connection c, String sql) throws Exception
 	{
-		print(q(c, sql));
+		qp(q(c, sql));
 	}
 
 	/**
-	 * Print the result of some query or operation already in the form of
-	 * a {@link #resultStream resultStream}.
+	 * Invoke some {@code execute} method on a {@code Statement} and pass
+	 * the {@link #q(Statement,Callable) result stream}
+	 * to {@link #qp(Stream<Object>)} for printing to standard output.
 	 *<p>
-	 * This is nothing but a two-keystroke alias for
-	 * {@link #print(Stream<Object>) print}.
+	 * This is how, for example, to prepare, then print the results of, a
+	 * {@code PreparedStatement}:
+	 *<pre>
+	 * PreparedStatement ps = conn.prepareStatement("select foo(?,?)");
+	 * ps.setInt(1, 42);
+	 * ps.setString(2, "surprise!");
+	 * qp(ps, ps::execute);
+	 *</pre>
+	 * The {@code Statement} will be closed.
 	 */
-	public static void qp(Stream<Object> s) throws Exception
+	public static void qp(Statement s, Callable<Boolean> work) throws Exception
 	{
-		print(s);
+		qp(q(s, work));
 	}
 
 	/**
@@ -770,7 +772,8 @@ public class Node extends JarX {
 	 *<p>
 	 * The jar is specified by a {@code file:} URI and the path is the one where
 	 * this installer installed (or would have installed) it.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> installExamples(Connection c, boolean deploy)
 	throws Exception
@@ -788,8 +791,8 @@ public class Node extends JarX {
 	 * statement has any appreciable data to return, but pgjdbc-ng seems to
 	 * handle it at least in this case where each statement just returns one
 	 * row / one column of {@code void}. And it is convenient.
-	 * @return a combined {@link #resultStream resultStream} from executing
-	 * the statements
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
 	 */
 	public static Stream<Object> installExamplesAndPath(
 		Connection c, boolean deploy)
@@ -804,7 +807,8 @@ public class Node extends JarX {
 	 * Install a Saxon jar under the name {@code saxon}, given the path to a
 	 * local Maven repo and the needed version of Saxon, assuming the jar has
 	 * been downloaded there already.
-	 * @return a {@link #resultStream resultStream} from executing the statement
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
 	 */
 	public static Stream<Object> installSaxon(
 		Connection c, String repo, String version)
@@ -819,8 +823,8 @@ public class Node extends JarX {
 	/**
 	 * Install a Saxon jar under the name {@code saxon}, and place it on the
 	 * class path for schema {@code public}.
-	 * @return a combined {@link #resultStream resultStream} from executing
-	 * the statements
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
 	 */
 	public static Stream<Object> installSaxonAndPath(
 		Connection c, String repo, String version)
@@ -838,8 +842,8 @@ public class Node extends JarX {
 	 * Saxon jar has been downloaded
 	 * @param version the needed version of Saxon
 	 * @param deploy whether to run the example jar's deployment code
-	 * @return a combined {@link #resultStream resultStream} from executing
-	 * the statements
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
 	 */
 	public static Stream<Object> installSaxonAndExamplesAndPath(
 		Connection c, String repo, String version, boolean deploy)
@@ -852,7 +856,7 @@ public class Node extends JarX {
 
 	/**
 	 * Produce a {@code Stream} of the (in JDBC, possibly multiple) results
-	 * from an {@code execute} method on a {@code Statement}.
+	 * from some {@code execute} method on a {@code Statement}.
 	 *<p>
 	 * Each result in the stream will be an instance of one of:
 	 * {@code ResultSet}, {@code Long} (an update count, positive or zero),
@@ -877,8 +881,7 @@ public class Node extends JarX {
 	 * be boxed, it must not return null.
 	 * @return a Stream as described above.
 	 */
-	public static Stream<Object> resultStream(
-		final Statement s, Callable<Boolean> work)
+	public static Stream<Object> q(final Statement s, Callable<Boolean> work)
 	throws Exception
 	{
 		final Object[] nextHolder = new Object [ 1 ];
@@ -1049,54 +1052,99 @@ public class Node extends JarX {
 	 * Uses {@code writeXml} of {@code WebRowSet}, which is very verbose, but
 	 * about the easiest way to readably dump a {@code ResultSet} in just a
 	 * couple lines of code.
+	 *<p>
+	 * The supplied stream is flattened (see
+	 * {@link #flattenDiagnostics flattenDiagnostics}) so that any chained
+	 * {@code SQLException}s or {@code SQLWarning}s are printed in sequence.
 	 */
-	public static void print(Stream<Object> s) throws Exception
+	public static void qp(Stream<Object> s) throws Exception
 	{
-		WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet();
 		try ( Stream<Object> flat = s.flatMap(Node::flattenDiagnostics) )
 		{
 			for ( Object o : (Iterable<Object>)flat::iterator )
-			{
-				if ( o instanceof ResultSet )
-				{
-					try (ResultSet rs = (ResultSet)o)
-					{
-						ResultSetMetaData md = rs.getMetaData();
-						if ( 1 == md.getColumnCount()
-							&& Types.OTHER == md.getColumnType(1)
-							&& "void".equals(md.getColumnTypeName(1)) )
-						{
-							rs.last();
-							System.out.println(
-								"<?void " + rs.getRow() + " row 1 col?>");
-							continue;
-						}
-						wrs.populate(rs);
-						wrs.writeXml(System.out);
-					}
-					finally
-					{
-						wrs.release();
-					}
-				}
-				else if ( o instanceof Long )
-					System.out.println("<?updateCount " + o + " ?>");
-				else if ( o instanceof Throwable )
-					print((Throwable)o);
-				else
-					System.out.println("<!-- unexpected "
-						+ o.getClass().getName()
-						+ " from resultStream() -->");
-			}
+				qp(o);
 		}
 	}
 
 	/**
-	 * Print a {@code Throwable} retrieved from a {@code resultStream}, with
+	 * Overload of {@code qp} for direct application to any one {@code Object}
+	 * obtained from a result stream.
+	 *<p>
+	 * Simply applies the specialized treatment appropriate to the class of
+	 * the object.
+	 */
+	public static void qp(Object o) throws Exception
+	{
+		if ( o instanceof ResultSet )
+		{
+			try (ResultSet rs = (ResultSet)o)
+			{
+				qp(rs);
+			}
+		}
+		else if ( o instanceof Long )
+			System.out.println("<?updateCount " + o + " ?>");
+		else if ( o instanceof Throwable )
+			qp((Throwable)o);
+		else
+			System.out.println("<!-- unexpected "
+				+ o.getClass().getName()
+				+ " in result stream -->");
+	}
+
+	/**
+	 * Overload of {@code qp} for direct application to a {@code ResultSet}.
+	 *<p>
+	 * Sometimes one has a {@code ResultSet} that didn't come from executing
+	 * a query, such as from a JDBC metadata method. This prints it the same way
+	 * {@code qp} on a query result would. The {@code ResultSet} is not closed
+	 * (but will have been read through the last row).
+	 *<p>
+	 * A result set with no columns of type other than {@code void} will be
+	 * printed in an abbreviated form.
+	 */
+	public static void qp(ResultSet rs) throws Exception
+	{
+		ResultSetMetaData md = rs.getMetaData();
+		int cols = md.getColumnCount();
+
+		boolean allVoid = true;
+
+		for ( int c = 1; c <= cols; ++c )
+		{
+			if ( Types.OTHER == md.getColumnType(c)
+				&& "void".equals(md.getColumnTypeName(c)) )
+				continue;
+			allVoid = false;
+			break;
+		}
+
+		if ( allVoid )
+		{
+			rs.last();
+			System.out.println(
+				"<?void " + rs.getRow() + " row " + cols + " col?>");
+			return;
+		}
+
+		WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet();
+		try
+		{
+			wrs.populate(rs);
+			wrs.writeXml(System.out);
+		}
+		finally
+		{
+			wrs.close();
+		}
+	}
+
+	/**
+	 * Print a {@code Throwable} retrieved from a result stream, with
 	 * special handling for {@code SQLException} and {@code SQLWarning}.
 	 *<p>
 	 * In keeping with the XMLish vibe established by
-	 * {@link #print(Stream<Object>) print} for other items in a result
+	 * {@link #qp(Stream<Object>) qp} for other items in a result
 	 * stream, this will render a {@code Throwable} as an {@code error},
 	 * {@code warning}, or {@code info} element (PostgreSQL's finer
 	 * distinctions of severity are not exposed by pgjdbc-ng's API.)
@@ -1109,7 +1157,34 @@ public class Node extends JarX {
 	 * (two leftmost code positions) is {@code 00}, in which case it will be
 	 * {@code info}. Anything else is an {@code error}.
 	 */
-	public static void print(Throwable t)
+	public static void qp(Throwable t)
+	{
+		String[] parts = classify(t);
+		StringBuilder b = new StringBuilder("<" + parts[0]);
+		if ( null != parts[1] )
+			b.append(" code=").append(asAttribute(parts[1]));
+		if ( null != parts[2] )
+			b.append(" message=").append(asAttribute(parts[2]));
+		System.out.println(b.append("/>"));
+	}
+
+	/**
+	 * Return an array of three {@code String}s, element, sqlState, and message,
+	 * as would be printed by {@link #qp(Throwable)}.
+	 *<p>
+	 * The first string will be: (1) if the throwable is an {@code SQLWarning},
+	 * "info" if its class (leftmost two positions of SQLState) is 00, otherwise
+	 * "warning"; (2) for any other throwable, "error". These are constant
+	 * strings and therefore interned.
+	 *<p>
+	 * The second string will be null if the throwable is outside the
+	 * {@code SQLException} hierarchy, or if the first string is "info" and the
+	 * SQLState is exactly 00000; otherwise it will be the SQLState.
+	 *<p>
+	 * The third string will be as returned by {@code getMessage}, and may be
+	 * null if the throwable was not constructed with a message.
+	 */
+	public static String[] classify(Throwable t)
 	{
 		String msg = t.getMessage();
 		String sqlState = null;
@@ -1129,12 +1204,7 @@ public class Node extends JarX {
 					element = "warning";
 			}
 		}
-		StringBuilder b = new StringBuilder("<" + element);
-		if ( null != sqlState )
-			b.append(" code=").append(asAttribute(sqlState));
-		if ( null != msg )
-			b.append(" message=").append(asAttribute(msg));
-		System.out.println(b.append("/>"));
+		return new String[] { element, sqlState, msg };
 	}
 
 	/**
