@@ -35,6 +35,7 @@ import static java.lang.ProcessBuilder.Redirect.INHERIT;
 import static java.lang.Thread.interrupted;
 
 import static java.net.InetAddress.getLoopbackAddress;
+import static java.net.URLEncoder.encode;
 import java.net.ServerSocket;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
@@ -120,6 +121,7 @@ public class Node extends JarX {
 	private Matcher m_prefix;
 	private int m_fsepLength;
 	private boolean m_dryrun = false;
+	private long m_connCount = 0;
 
 	private static Node s_jarxHelper = new Node(null, 0, null, null);
 	private static boolean s_jarProcessed = false;
@@ -541,7 +543,8 @@ public class Node extends JarX {
 	 * not on any Unix-domain socket, on the port selected when this Node was
 	 * created, and for a maximum of 16 connections. Its cluster name will be
 	 * the name given to this Node, and fsync will be off to favor speed over
-	 * durability.
+	 * durability. The log line prefix will be shortened to just the node name
+	 * and (when connected) the {@code application_name}.
 	 *<p>
 	 * The server that will be run is the one in the {@code bindir}
 	 * reported by {@code pg_config} (or set by {@code -Dpgconfig.bindir}).
@@ -571,6 +574,8 @@ public class Node extends JarX {
 		options.putIfAbsent("max_connections", "16");
 		options.putIfAbsent("fsync", "off");
 		options.putIfAbsent("cluster_name", m_name);
+		options.putIfAbsent("log_line_prefix",
+			m_name.replace("%", "%%") + ":%q%a:");
 
 		String[] args =
 			Stream.concat(
@@ -628,14 +633,50 @@ public class Node extends JarX {
 
 	/**
 	 * Return a {@code Connection} to the server associated with this Node,
-	 * as the database superuser, using the generated password.
+	 * using default properties appropriate for this setting.
 	 */
 	public Connection connect() throws Exception
 	{
-		String url = "jdbc:pgsql://localhost:" + m_port + "/postgres";
+		return connect(new Properties());
+	}
+
+	/**
+	 * Return a {@code Connection} to the server associated with this Node,
+	 * with <em>suppliedProperties</em> overriding or supplementing the ones
+	 * that would be passed by default.
+	 */
+	public Connection connect(Map<String,String> suppliedProperties)
+	throws Exception
+	{
 		Properties p = new Properties();
-		p.setProperty("user", "postgres");
-		p.setProperty("password", m_password);
+		p.putAll(suppliedProperties);
+		return connect(p);
+	}
+
+	/**
+	 * Return a {@code Connection} to the server associated with this Node,
+	 * with supplied properties <em>p</em> overriding or supplementing the ones
+	 * that would be passed by default.
+	 *<p>
+	 * By default, the connection is to the {@code postgres} database as the
+	 * {@code postgres} user, using the password internally generated for this
+	 * node, and with an {@code application_name} generated from a counter of
+	 * connections for this node.
+	 */
+	public Connection connect(Properties p) throws Exception
+	{
+		String url = "jdbc:pgsql://localhost:" + m_port + '/';
+		p = (Properties)p.clone();
+		p.putIfAbsent("database.name", "postgres");
+		p.putIfAbsent("user", "postgres");
+		p.putIfAbsent("password", m_password);
+		p.computeIfAbsent("application.name", o -> "Conn" + (m_connCount++));
+		/*
+		 * Contrary to its documentation, pgjdbc-ng does *not* accept a URL with
+		 * the database name omitted. It is no use having it in the properties
+		 * here; it must be appended to the URL.
+		 */
+		url += encode(p.getProperty("database.name"));
 		return getConnection(url, p);
 	}
 
