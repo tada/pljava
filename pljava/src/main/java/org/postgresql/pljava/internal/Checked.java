@@ -29,7 +29,7 @@ import java.util.NoSuchElementException;
  * {@code boolean}. To allow a more orthogonal API for access to datum values,
  * those are provided here, again supporting checked exceptions. Because these
  * "bonus" types do not have checked-exception-less counterparts in the Java
- * API, they have no need for the wrapper methods described next.
+ * API, they do not strictly need the wrapper methods described next.
  *<p>
  * For interoperating with Java APIs that require the Java no-checked-exceptions
  * versions of these interfaces, each checked interface here (for which a Java
@@ -46,7 +46,7 @@ import java.util.NoSuchElementException;
  * Writer w = ...;
  * try {
  *   Checked.Consumer.use((String s) -&gt; w.write(s)) // throws IOException!
- *     .in(c -> strs.forEach(c));
+ *     .in(c -&gt; strs.forEach(c));
  * }
  * catch ( IOException e ) { ... }
  *</pre>
@@ -63,11 +63,18 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * cannot accept them, it can be useful as long as the intervening code through
  * which the exception may be 'flown' is simple and short.
  *<p>
+ * The functional interfaces defined here that do <em>not</em> correspond to a
+ * Java API no-checked version, while not strictly needing an {@code ederWrap}
+ * method, have one anyway, a no-op identity function. That avoids arbitrary
+ * limits on which ones can participate in the {@code use(...).in(...)} idiom.
+ *<p>
  * Static {@code composed()} methods are provided here in place of the instance
  * {@code compose} or {@code andThen} methods in Java's function API, which seem
  * to challenge {@code javac}'s type inference when exception types are thrown
  * in. A static {@code composed} method can substitute for {@code compose} or
- * {@code andThen}, by ordering the parameters as desired.
+ * {@code andThen}, by ordering the parameters as desired. Likewise, static
+ * {@code and} and {@code or} methods are provided in place of the instance
+ * methods on Java's {@code Predicate}.
  *<p>
  * Each functional interface declared here has a static {@code use(...)} method
  * that can serve, as a concise alternative to casting, to constrain the type
@@ -82,6 +89,26 @@ public interface Checked<WT, EX extends Throwable>
 	}
 
 	WT ederWrap();
+
+	/**
+	 * Superinterface of the functional interfaces declared here that do
+	 * <em>not</em> have checked-exception-less counterparts in the Java API.
+	 *<p>
+	 * These can all inherit a no-op default {@code ederWrap} that returns the
+	 * instance unchanged, allowing them also to participate in the
+	 * {@code use(...).in(...)} idiom for stylistic consistency even if it is
+	 * not strictly necessary.
+	 */
+	interface Trivial<WT extends Trivial<WT, EX>, EX extends Throwable>
+	extends Checked<WT, EX>
+	{
+		@Override
+		@SuppressWarnings("unchecked")
+		default WT ederWrap()
+		{
+			return (WT) this;
+		}
+	}
 
 	default <RX extends Throwable>
 	void in(Consumer<? super WT, RX> c)
@@ -116,6 +143,61 @@ public interface Checked<WT, EX extends Throwable>
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	boolean in(Predicate<? super WT, RX> f)
+		throws EX, RX
+	{
+		return f.test(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	byte in(ToByteFunction<? super WT, RX> f)
+		throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	short in(ToShortFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	char in(ToCharFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	float in(ToFloatFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	/*
+	 * Short-circuiting predicate combinators.
+	 */
+
+	static <T, E extends Throwable>
+		Predicate<T,E> and(
+			Predicate<? super T, ? extends E> first,
+			Predicate<? super T, ? extends E> after)
+	{
+		return t -> first.test(t) && after.test(t);
+	}
+
+	static <T, E extends Throwable>
+		Predicate<T,E> or(
+			Predicate<? super T, ? extends E> first,
+			Predicate<? super T, ? extends E> after)
+	{
+		return t -> first.test(t) || after.test(t);
 	}
 
 	/*
@@ -361,6 +443,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteSupplier<E extends Throwable>
+	extends Trivial<ByteSupplier<E>, E>
 	{
 		byte getAsByte() throws E;
 
@@ -372,6 +455,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortSupplier<E extends Throwable>
+	extends Trivial<ShortSupplier<E>, E>
 	{
 		short getAsShort() throws E;
 
@@ -383,6 +467,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharSupplier<E extends Throwable>
+	extends Trivial<CharSupplier<E>, E>
 	{
 		char getAsChar() throws E;
 
@@ -394,6 +479,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatSupplier<E extends Throwable>
+	extends Trivial<FloatSupplier<E>, E>
 	{
 		float getAsFloat() throws E;
 
@@ -523,6 +609,96 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	@FunctionalInterface
+	interface Predicate<T,E extends Throwable>
+	extends Checked<java.util.function.Predicate<T>, E>
+	{
+		boolean test(T t) throws E;
+
+		default Predicate<T,E> negate()
+		{
+			return t -> ! test(t);
+		}
+
+		@Override
+		default java.util.function.Predicate<T> ederWrap()
+		{
+			return (t) ->
+			{
+				try
+				{
+					return test(t);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, E extends Throwable>
+		Predicate<T,E> use(Predicate<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	/*
+	 * Functions without checked-exception-less Java API counterparts.
+	 */
+
+	@FunctionalInterface
+	interface ToByteFunction<T,E extends Throwable>
+	extends Trivial<ToByteFunction<T,E>, E>
+	{
+		byte apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToByteFunction<T,E> use(ToByteFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToShortFunction<T,E extends Throwable>
+	extends Trivial<ToShortFunction<T,E>, E>
+	{
+		short apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToShortFunction<T,E> use(ToShortFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToCharFunction<T,E extends Throwable>
+	extends Trivial<ToCharFunction<T,E>, E>
+	{
+		char apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToCharFunction<T,E> use(ToCharFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToFloatFunction<T,E extends Throwable>
+	extends Trivial<ToFloatFunction<T,E>, E>
+	{
+		char apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToFloatFunction<T,E> use(ToFloatFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
 	/*
 	 * Consumers that have checked-exception-less counterparts in the Java API.
 	 */
@@ -645,6 +821,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface BooleanConsumer<E extends Throwable>
+	extends Trivial<BooleanConsumer<E>, E>
 	{
 		void accept(boolean value) throws E;
 
@@ -657,6 +834,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteConsumer<E extends Throwable>
+	extends Trivial<ByteConsumer<E>, E>
 	{
 		void accept(byte value) throws E;
 
@@ -668,6 +846,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortConsumer<E extends Throwable>
+	extends Trivial<ShortConsumer<E>, E>
 	{
 		void accept(short value) throws E;
 
@@ -679,6 +858,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharConsumer<E extends Throwable>
+	extends Trivial<CharConsumer<E>, E>
 	{
 		void accept(char value) throws E;
 
@@ -690,6 +870,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatConsumer<E extends Throwable>
+	extends Trivial<FloatConsumer<E>, E>
 	{
 		void accept(float value) throws E;
 
