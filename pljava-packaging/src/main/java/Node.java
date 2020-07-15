@@ -58,6 +58,7 @@ import java.nio.file.NoSuchFileException;
 
 import java.sql.Connection;
 import static java.sql.DriverManager.getConnection;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.ResultSet;
@@ -69,6 +70,7 @@ import java.sql.SQLWarning;
 
 import javax.sql.rowset.RowSetProvider;
 import javax.sql.rowset.WebRowSet;
+import javax.sql.rowset.RowSetMetaDataImpl;
 
 import java.util.ArrayDeque;
 import java.util.Base64;
@@ -1184,6 +1186,42 @@ public class Node extends JarX {
 		try
 		{
 			wrs.populate(rs);
+			wrs.writeXml(System.out);
+		}
+		finally
+		{
+			wrs.close();
+		}
+	}
+
+	/**
+	 * Overload of {@code qp} for examining {@code ParameterMetaData}.
+	 *<p>
+	 * Continuing in the spirit of getting something reasonably usable without
+	 * a lot of code, this fakes up a {@code ResultSetMetaData} with the same
+	 * values present in the {@code ParameterMetaData} (and nothing for the
+	 * ones that aren't, like names), and then uses {@code WebRowSet.writeXml}
+	 * as if dumping a result set.
+	 *<p>
+	 * For getting a quick idea what the parameters are, it's good enough.
+	 */
+	public static void qp(ParameterMetaData md) throws Exception
+	{
+		WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet();
+		try
+		{
+			RowSetMetaDataImpl mdi = new RowSetMetaDataImpl();
+			mdi.setColumnCount(md.getParameterCount());
+			for ( int i = 1; i <= md.getParameterCount(); ++ i )
+			{
+				mdi.setColumnType(i, md.getParameterType(i));
+				mdi.setColumnTypeName(i, md.getParameterTypeName(i));
+				mdi.setPrecision(i, md.getPrecision(i));
+				mdi.setScale(i, md.getScale(i));
+				mdi.setNullable(i, md.isNullable(i));
+				mdi.setSigned(i, md.isSigned(i));
+			}
+			wrs.setMetaData(mdi);
 			wrs.writeXml(System.out);
 		}
 		finally
