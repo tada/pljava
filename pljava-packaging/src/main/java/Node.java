@@ -418,9 +418,10 @@ public class Node extends JarX {
 	 * (but not the <em>basedir</em> itself) on the exit of a calling
 	 * try-with-resources scope.
 	 */
-	public AutoCloseable initialized_cluster() throws Exception
+	public AutoCloseable initialized_cluster(Map<String,String> suppliedOptions)
+	throws Exception
 	{
-		return initialized_cluster(Map.of());
+		return initialized_cluster(suppliedOptions, UnaryOperator.identity());
 	}
 
 	/**
@@ -429,10 +430,25 @@ public class Node extends JarX {
 	 * (but not the <em>basedir</em> itself) on the exit of a calling
 	 * try-with-resources scope.
 	 */
-	public AutoCloseable initialized_cluster(Map<String,String> suppliedOptions)
+	public AutoCloseable initialized_cluster(
+		UnaryOperator<ProcessBuilder> tweaks)
 	throws Exception
 	{
-		init(suppliedOptions);
+		return initialized_cluster(Map.of(), tweaks);
+	}
+
+	/**
+	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * recursively remove the files and directories under the <em>basedir</em>
+	 * (but not the <em>basedir</em> itself) on the exit of a calling
+	 * try-with-resources scope.
+	 */
+	public AutoCloseable initialized_cluster(
+		Map<String,String> suppliedOptions,
+		UnaryOperator<ProcessBuilder> tweaks)
+	throws Exception
+	{
+		init(suppliedOptions, tweaks);
 		return () ->
 		{
 			clean_node(true);
@@ -441,11 +457,22 @@ public class Node extends JarX {
 
 	/**
 	 * Invoke {@code initdb} for the node, passing default options appropriate
-	 * for this setting.
+	 * for this setting, and optionally one or more tweaks to be applied to the
+	 * {@code ProcessBuilder} before it is started.
 	 */
-	public void init() throws Exception
+	public void init(Map<String,String> suppliedOptions) throws Exception
 	{
-		init(Map.of());
+		init(suppliedOptions, UnaryOperator.identity());
+	}
+
+	/**
+	 * Invoke {@code initdb} for the node, passing default options appropriate
+	 * for this setting, and tweaks to be applied to the
+	 * {@code ProcessBuilder} before it is started.
+	 */
+	public void init(UnaryOperator<ProcessBuilder> tweaks) throws Exception
+	{
+		init(Map.of(), tweaks);
 	}
 
 	/**
@@ -462,8 +489,12 @@ public class Node extends JarX {
 	 * reported by {@code pg_config} (or set by {@code -Dpgconfig.bindir}).
 	 * @param suppliedOptions a Map where each key is an option to initdb
 	 * (for example, --encoding), and the value corresponds.
+	 * @param tweaks a lambda applicable to the {@code ProcessBuilder} to
+	 * further configure it.
 	 */
-	public void init(Map<String,String> suppliedOptions) throws Exception
+	public void init(
+		Map<String,String> suppliedOptions,
+		UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
 		dryExtract();
 		/*
@@ -502,6 +533,7 @@ public class Node extends JarX {
 				new ProcessBuilder(args)
 				.redirectOutput(INHERIT)
 				.redirectError(INHERIT);
+			tweaks.apply(pb);
 			Process p = pb.start();
 			p.getOutputStream().close();
 			if ( 0 != p.waitFor() )
@@ -518,19 +550,32 @@ public class Node extends JarX {
 	 * Like {@code start()} but returns an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
 	 */
-	public AutoCloseable started_server() throws Exception
+	public AutoCloseable started_server(Map<String,String> suppliedOptions)
+	throws Exception
 	{
-		return started_server(Map.of());
+		return started_server(suppliedOptions, UnaryOperator.identity());
 	}
 
 	/**
 	 * Like {@code start()} but returns an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
 	 */
-	public AutoCloseable started_server(Map<String,String> suppliedOptions)
+	public AutoCloseable started_server(UnaryOperator<ProcessBuilder> tweaks)
 	throws Exception
 	{
-		start(suppliedOptions);
+		return started_server(Map.of(), tweaks);
+	}
+
+	/**
+	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * stop the server on the exit of a calling try-with-resources scope.
+	 */
+	public AutoCloseable started_server(
+		Map<String,String> suppliedOptions,
+		UnaryOperator<ProcessBuilder> tweaks)
+	throws Exception
+	{
+		start(suppliedOptions, tweaks);
 		return () ->
 		{
 			stop();
@@ -538,12 +583,22 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Start a PostgreSQL server for the node, passing default options
-	 * appropriate for this setting.
+	 * Start a PostgreSQL server for the node, with <em>suppliedOptions</em>
+	 * overriding or supplementing the ones that would be passed by default.
 	 */
-	public void start() throws Exception
+	public void start(Map<String,String> suppliedOptions) throws Exception
 	{
-		start(Map.of());
+		start(suppliedOptions, UnaryOperator.identity());
+	}
+
+	/**
+	 * Start a PostgreSQL server for the node, passing default options
+	 * appropriate for this setting, and tweaks to be
+	 * applied to the {@code ProcessBuilder} before it is started.
+	 */
+	public void start(UnaryOperator<ProcessBuilder> tweaks) throws Exception
+	{
+		start(Map.of(), tweaks);
 	}
 
 	/**
@@ -566,8 +621,12 @@ public class Node extends JarX {
 	 * @param suppliedOptions a Map where the key is a configuration variable
 	 * name as seen in {@code postgresql.conf} or passed to the server with
 	 * {@code -c} and the value corresponds.
+	 * @param tweaks a lambda applicable to the {@code ProcessBuilder} to
+	 * further configure it.
 	 */
-	public void start(Map<String,String> suppliedOptions) throws Exception
+	public void start(
+		Map<String,String> suppliedOptions,
+		UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
 		if ( null != m_server  &&  m_server.isAlive() )
 			throw new IllegalStateException(
@@ -603,6 +662,7 @@ public class Node extends JarX {
 			new ProcessBuilder(args)
 			.redirectOutput(INHERIT)
 			.redirectError(INHERIT);
+		tweaks.apply(pb);
 		Process p = pb.start();
 		p.getOutputStream().close();
 		try
