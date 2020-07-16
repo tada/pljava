@@ -310,11 +310,8 @@ public class Node extends JarX {
 		Node n = new Node(
 			requireNonNull(name),
 			get_free_port(),
-			createTempDirectory(
-				"t_pljava_" + name + "_data",
-				PosixFilePermissions.asFileAttribute(
-					PosixFilePermissions.fromString("rwx------"))),
-				Base64.getEncoder().encodeToString(pwbytes));
+			createTempDirectory("t_pljava_" + name + "_data"),
+			Base64.getEncoder().encodeToString(pwbytes));
 		Thread t =
 			new Thread(() ->
 				{
