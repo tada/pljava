@@ -478,7 +478,7 @@ public class Node extends JarX {
 			PosixFilePermissions.asFileAttribute(
 				PosixFilePermissions.fromString("rw-------")));
 
-		Map<String,String> options = new HashMap(suppliedOptions);
+		Map<String,String> options = new HashMap<>(suppliedOptions);
 		options.putIfAbsent("--pgdata", data_dir().toString());
 		options.putIfAbsent("--username", "postgres");
 		options.putIfAbsent("--encoding", "utf-8");
@@ -579,7 +579,7 @@ public class Node extends JarX {
 		dryExtract();
 		String postgres = resolve("pljava/bindir/postgres");
 
-		Map<String,String> options = new HashMap(suppliedOptions);
+		Map<String,String> options = new HashMap<>(suppliedOptions);
 		options.putIfAbsent("data_directory", data_dir().toString());
 		options.putIfAbsent("listen_addresses",
 			getLoopbackAddress().getHostAddress());
@@ -690,7 +690,7 @@ public class Node extends JarX {
 		 * the database name omitted. It is no use having it in the properties
 		 * here; it must be appended to the URL.
 		 */
-		url += encode(p.getProperty("database.name"));
+		url += encode(p.getProperty("database.name"), "UTF-8");
 		return getConnection(url, p);
 	}
 
