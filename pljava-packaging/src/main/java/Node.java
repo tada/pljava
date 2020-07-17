@@ -40,7 +40,6 @@ import java.net.ServerSocket;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
-import java.nio.file.attribute.PosixFilePermissions;
 import static java.nio.file.Files.createTempFile;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.Files.deleteIfExists;
@@ -502,9 +501,7 @@ public class Node extends JarX {
 		 * that expands keys like pljava/bindir to pg_config --bindir output.
 		 */
 		String initdb = resolve("pljava/bindir/initdb");
-		Path pwfile = createTempFile(m_basedir, "pw", "",
-			PosixFilePermissions.asFileAttribute(
-				PosixFilePermissions.fromString("rw-------")));
+		Path pwfile = createTempFile(m_basedir, "pw", "");
 
 		Map<String,String> options = new HashMap<>(suppliedOptions);
 		options.putIfAbsent("--pgdata", data_dir().toString());
