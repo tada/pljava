@@ -30,7 +30,6 @@ import static java.util.regex.Pattern.compile;
  * For "Node" behavior:
  */
 
-
 import static java.lang.ProcessBuilder.Redirect.INHERIT;
 import static java.lang.Thread.interrupted;
 
@@ -43,6 +42,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.file.Files.createTempFile;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.Files.deleteIfExists;
+import static java.nio.file.Files.getLastModifiedTime;
 import static java.nio.file.Files.lines;
 import static java.nio.file.Files.walk;
 import static java.nio.file.Files.write;
@@ -89,6 +89,7 @@ import static java.util.Spliterators.spliteratorUnknownSize;
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -123,7 +124,6 @@ public class Node extends JarX {
 	private int m_fsepLength;
 	private String m_lineSep;
 	private boolean m_dryrun = false;
-	private long m_connCount = 0;
 
 	private static Node s_jarxHelper = new Node(null, 0, null, null);
 	private static boolean s_jarProcessed = false;
@@ -264,10 +264,38 @@ public class Node extends JarX {
 	private final String m_password;
 
 	/**
+	 * The server process handle after a successful {@code start}
+	 * via {@code pg_ctl}; null again after a successful {@code stop}.
+	 *<p>
+	 * If {@code pg_ctl} was not used, this will be null and {@code m_server}
+	 * will have a value.
+	 */
+	private ProcessHandle m_serverHandle;
+
+	/**
 	 * The server process after a successful {@code start}; null again after a
 	 * successful {@code stop}.
+	 *<p>
+	 * If {@code pg_ctl} was used to start the server, this will be null and
+	 * {@code m_serverHandle} will have a value after {@code wait_for_pid_file}.
 	 */
 	private Process m_server;
+
+	/**
+	 * A count of connections, used to supply a distinct default
+	 * {@code ApplicationName} per connection.
+	 */
+	private long m_connCount = 0;
+
+	/**
+	 * Whether to invoke {@code postgres} directly when  starting the server,
+	 * or use {@code pg_ctl} to start and stop it.
+	 *<p>
+	 * On Windows, {@code pg_ctl} is able to drop administrator rights and
+	 * start the server from an account that would otherwise trigger
+	 * the server's refusal to start from a privileged account.
+	 */
+	private boolean m_usePostgres = true;
 
 	/**
 	 * Identifying information for a "node" instance, or for the singleton
@@ -629,8 +657,16 @@ public class Node extends JarX {
 			throw new IllegalStateException(
 				"node \"" + m_name + "\" is already running");
 
+		if ( null != m_serverHandle  &&  m_serverHandle.isAlive() )
+			throw new IllegalStateException(
+				"node \"" + m_name + "\" is already running");
+
 		dryExtract();
-		String postgres = resolve("pljava/bindir/postgres");
+
+		Stream<String> cmd =
+			m_usePostgres
+			? Stream.of(resolve("pljava/bindir/postgres"))
+			: Stream.of(resolve("pljava/bindir/pg_ctl"), "start");
 
 		Map<String,String> options = new HashMap<>(suppliedOptions);
 		options.putIfAbsent("data_directory", data_dir().toString());
@@ -646,12 +682,16 @@ public class Node extends JarX {
 
 		String[] args =
 			Stream.concat(
-				Stream.of(postgres),
+				cmd,
 				options.entrySet().stream()
 				.flatMap(e ->
 					"data_directory".equals(e.getKey())
 					? Stream.of("-D", e.getValue())
-					: Stream.of("-c", e.getKey() + "=" + e.getValue()))
+					:
+					m_usePostgres
+					? Stream.of("-c", e.getKey() + "=" + e.getValue())
+					: Stream.of("-o", "-c", "-o", e.getKey()+"="+e.getValue())
+				)
 			)
 			.toArray(String[]::new);
 
@@ -664,8 +704,9 @@ public class Node extends JarX {
 		p.getOutputStream().close();
 		try
 		{
-			wait_for_pid_file(p);
-			m_server = p;
+			wait_for_pid_file(p, p.info());
+			if ( m_usePostgres )
+				m_server = p; // else wait_for_pid_file has set m_serverHandle
 		}
 		finally
 		{
@@ -685,8 +726,13 @@ public class Node extends JarX {
 	 */
 	public void stop() throws Exception
 	{
-		if ( null == m_server )
+		if ( null == ( m_usePostgres ? m_server : m_serverHandle ) )
 			return;
+		if ( ! m_usePostgres )
+		{
+			stopViaPgCtl();
+			return;
+		}
 		if ( m_server.isAlive() )
 		{
 			m_server.destroy();
@@ -697,6 +743,45 @@ public class Node extends JarX {
 		System.err.println("Server had already exited with status " +
 			m_server.exitValue());
 		m_server = null;
+	}
+
+	private void stopViaPgCtl() throws Exception
+	{
+		if ( ! m_serverHandle.isAlive() )
+		{
+			System.err.println("Server had already exited");
+			m_serverHandle = null;
+			return;
+		}
+
+		String pg_ctl = resolve("pljava/bindir/pg_ctl");
+		ProcessBuilder pb = new ProcessBuilder(
+			pg_ctl, "stop", "-D", data_dir().toString(), "-m", "fast")
+			.redirectOutput(INHERIT)
+			.redirectError(INHERIT);
+		Process p = pb.start();
+		p.getOutputStream().close();
+		if ( 0 != p.waitFor() )
+			throw new AssertionError(
+				"Nonzero pg_ctl stop result: " + p.waitFor());
+		m_serverHandle = null;
+	}
+
+	/**
+	 * Indicate whether to use {@code pg_ctl} to start and stop the server
+	 * (if true), or start {@code postgres} and stop it directly (if false,
+	 * the default).
+	 *<p>
+	 * On Windows, {@code pg_ctl} is able to drop administrator rights and
+	 * start the server from an account that would otherwise trigger
+	 * the server's refusal to start from a privileged account.
+	 */
+	public void use_pg_ctl(boolean setting)
+	{
+		if ( null != m_server || null != m_serverHandle )
+			throw new IllegalStateException(
+				"use_pg_ctl may not be called while server is started");
+		m_usePostgres = ! setting;
 	}
 
 	/**
@@ -1111,8 +1196,7 @@ public class Node extends JarX {
 			{
 				if ( s.getMoreResults() )
 					return resultSet.get();
-				else
-					return updateCount.get();
+				return updateCount.get();
 			}
 			catch ( SQLException e )
 			{
@@ -1410,11 +1494,30 @@ public class Node extends JarX {
 	 * down, and waits for the file to go away; that could be implemented here,
 	 * but not today.
 	 */
-	private void wait_for_pid_file(Process p) throws Exception
+	private void wait_for_pid_file(Process p, ProcessHandle.Info info)
+	throws Exception
 	{
 		Path datadir = data_dir();
 		Path pidfile = datadir.resolve("postmaster.pid");
 		Path pidonly = pidfile.getFileName();
+
+		/*
+		 * If m_usePostgres is true, the p passed above is the actual postgres
+		 * process, and we can compare its pid to what's in the pidfile.
+		 * If pg_ctl was used, it's just the pid of the pg_ctl process, and
+		 * instead of "checking" the pid in the pidfile, construct a process
+		 * handle from it, to be saved as the handle of the server.
+		 */
+		Predicate<String[]> checkPid =
+			m_usePostgres
+			? (s -> Long.parseLong(s[LOCK_FILE_LINE_PID - 1]) == p.pid())
+			: (s ->
+				{
+					long pid = Long.parseLong(s[LOCK_FILE_LINE_PID - 1]);
+					m_serverHandle = ProcessHandle.of(pid).get();
+					return true;
+				}
+			  );
 
 		/*
 		 * Initialize a watch service just in case the postmaster.pid file
@@ -1430,16 +1533,23 @@ public class Node extends JarX {
 			{
 				try
 				{
+					if ( getLastModifiedTime(pidfile).toInstant()
+						.isBefore(info.startInstant().get()) )
+						throw new NoSuchFileException("honest!");
+						/*
+						 * That was kind of a lie, but it's older than the
+						 * process, so catching the exception below and waiting
+						 * for it to change will be the right thing to do.
+						 */
+
 					String[] status = lines(pidfile).toArray(String[]::new);
 					if ( (status.length == LOCK_FILE_LINE_PM_STATUS)
-						&& (Long.parseLong(status[LOCK_FILE_LINE_PID - 1])
-							== p.pid())
+						&& checkPid.test(status)
 						&& PM_STATUS_READY.equals(
 							status[LOCK_FILE_LINE_PM_STATUS - 1]) )
 						return;
 					if ( (status.length == LOCK_FILE_LINE_SHMEM_KEY)
-						&& (Long.parseLong(status[LOCK_FILE_LINE_PID - 1])
-							== p.pid())
+						&& checkPid.test(status)
 						&& waitPrePG10() )
 						return;
 				}
@@ -1484,6 +1594,15 @@ public class Node extends JarX {
 					k.reset();
 				}
 			}
+		}
+		catch ( final Throwable t )
+		{
+			/*
+			 * In the ! m_usePostgres case, m_serverHandle gets unconditionally
+			 * set in checkPid; don't let that escape if completing abruptly.
+			 */
+			m_serverHandle = null;
+			throw t;
 		}
 	}
 
