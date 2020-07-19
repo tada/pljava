@@ -34,22 +34,24 @@ public class ScriptingMojo extends AbstractMojo
 {
 	/**
 	 * A {@code ClassLoader} with (effectively) two parents, the inherited one
-	 * and Java's application class loader.
+	 * and Java's platform class loader.
 	 *<p>
 	 * This loader will be given to the {@code ScriptEngineManager}. The
-	 * inherited loader supplied by Maven does not have Java's application
+	 * inherited loader supplied by Maven does not have Java's platform
 	 * class loader as its parent (or ancestor), which leaves Java's
 	 * {@code ServiceLoader} mechanism unable to find Nashorn's script engine.
-	 * Therefore, this loader will declare the Java application class loader
+	 * Therefore, this loader will declare the Java platform class loader
 	 * as its actual parent, and search the Maven-supplied class loader for
-	 * whatever the application class loader does not find.
+	 * whatever the platform class loader does not find.
 	 *<p>
 	 * This could pose a risk of class version conflicts if the Maven-supplied
-	 * loader has defined classes that are also on the application class path.
+	 * loader has defined classes that are also known to the platform loader.
 	 * It would be safer to delegate to Maven's loader first and the parent as
 	 * fallback. That would require overriding more of {@code ClassLoader}'s
 	 * default functionality, though. With any luck, the targeted use of this
-	 * loader only with the {@code ScriptEngineManager} will minimize the risk.
+	 * loader only with the {@code ScriptEngineManager} will minimize the risk,
+	 * already low because it would be odd to override classes of the Java
+	 * platform itself.
 	 */
 	static class ScriptEngineLoader extends ClassLoader
 	{
@@ -57,7 +59,7 @@ public class ScriptingMojo extends AbstractMojo
 
 		private ScriptEngineLoader(ClassLoader mavenLoader)
 		{
-			super("pgxsScriptLoader", ClassLoader.getSystemClassLoader());
+			super("pgxsScriptLoader", ClassLoader.getPlatformClassLoader());
 			this.mavenLoader = mavenLoader;
 		}
 
