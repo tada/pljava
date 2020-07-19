@@ -37,62 +37,74 @@ public class ScriptingMojo extends AbstractMojo
 	 * and Java's application class loader.
 	 *<p>
 	 * This loader will be given to the {@code ScriptEngineManager}. The
-	 * inherited loader supplied by Maven omits the application class loader,
-	 * to insulate Maven builds from possible differences in the application
-	 * class path; a reasonable idea, but the Nashorn script engine was moved to
-	 * the application class path as of Java 9, so without checking there, we
-	 * will not find it. This loader (like most) delegates first to its parent,
-	 * which should be the Maven-supplied loader; only what is not found there
-	 * will be sought from the application loader.
+	 * inherited loader supplied by Maven does not have Java's application
+	 * class loader as its parent (or ancestor), which leaves Java's
+	 * {@code ServiceLoader} mechanism unable to find Nashorn's script engine.
+	 * Therefore, this loader will declare the Java application class loader
+	 * as its actual parent, and search the Maven-supplied class loader for
+	 * whatever the application class loader does not find.
+	 *<p>
+	 * This could pose a risk of class version conflicts if the Maven-supplied
+	 * loader has defined classes that are also on the application class path.
+	 * It would be safer to delegate to Maven's loader first and the parent as
+	 * fallback. That would require overriding more of {@code ClassLoader}'s
+	 * default functionality, though. With any luck, the targeted use of this
+	 * loader only with the {@code ScriptEngineManager} will minimize the risk.
 	 */
 	static class ScriptEngineLoader extends ClassLoader
 	{
-		private ScriptEngineLoader(ClassLoader parent)
+		private final ClassLoader mavenLoader;
+
+		private ScriptEngineLoader(ClassLoader mavenLoader)
 		{
-			super("pgxsScriptLoader", parent);
+			super("pgxsScriptLoader", ClassLoader.getSystemClassLoader());
+			this.mavenLoader = mavenLoader;
 		}
 
 		/**
-		 * Delegate to the application loader.
+		 * Delegate to the Maven-supplied loader.
 		 *<p>
 		 * This is called by the {@code super} implementation of
 		 * {@code loadClass} only after the parent loader has drawn a blank,
-		 * so there is nothing left to do but see if the application loader
+		 * so there is nothing left to do but see if the Maven-supplied loader
 		 * has the class.
 		 */
 		@Override
 		protected Class<?> findClass(String name) throws ClassNotFoundException
 		{
-			return findSystemClass(name);
+			Class<?> rslt = mavenLoader.loadClass(name);
+			return rslt;
 		}
 
 		/**
-		 * Delegate to the application loader for finding a resource.
+		 * Delegate to the Maven-supplied loader for finding a resource.
 		 *<p>
 		 * This is called by the {@code super} implementation of
 		 * {@code getResource} only after the parent loader has drawn a blank,
-		 * so there is nothing left to do but see if the application loader
+		 * so there is nothing left to do but see if the Maven-supplied loader
 		 * has the resource.
 		 */
 		@Override
 		protected URL findResource(String name)
 		{
-			return getSystemResource(name);
+			URL rslt = mavenLoader.getResource(name);
+			return rslt;
 		}
 
 		/**
-		 * Delegate to the application loader for finding a resource.
+		 * Delegate to the Maven-supplied loader for finding a resource.
 		 *<p>
 		 * This is called by the {@code super} implementation of
 		 * {@code getResources} after enumerating the resources available from
 		 * the parent loader. This method needs only to return the resources
-		 * available from the application loader; the caller will combine the
+		 * available from the Maven-supplied loader; the caller will combine the
 		 * two enumerations.
 		 */
 		@Override
 		protected Enumeration<URL> findResources(String name) throws IOException
 		{
-			return getSystemResources(name);
+			Enumeration<URL> rslt = mavenLoader.getResources(name);
+			return rslt;
 		}
 	}
 
