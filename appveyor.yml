@@ -98,6 +98,8 @@ test_script:
 
       Node n1 = Node.get_new_node("TestNode1")
 
+      n1.use_pg_ctl(true)
+
       try (
         AutoCloseable t1 = n1.initialized_cluster(
           p->p.redirectErrorStream(true));
