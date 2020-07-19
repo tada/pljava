@@ -11,18 +11,22 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import java.util.List;
 
-@Mojo(name = "scripting", defaultPhase = LifecyclePhase.INITIALIZE)
+@Mojo(name = "scripting", defaultPhase = LifecyclePhase.INITIALIZE,
+      requiresDependencyResolution = ResolutionScope.TEST)
 public class ScriptingMojo extends AbstractMojo
 {
 	ScriptEngine engine;
@@ -30,14 +34,22 @@ public class ScriptingMojo extends AbstractMojo
 	@Parameter(defaultValue = "${project}", required = true, readonly = true)
 	MavenProject project;
 
+	@Parameter(property = "script")
+	private String script;
+
+	@Parameter(property = "plugin.artifacts", required = true, readonly = true)
+	private List<Artifact> pluginArtifacts;
+
 	@Override
 	public void execute ()
 	{
-		ScriptEngineManager manager = new ScriptEngineManager();
-		getLog().info("Script Engines");
-		manager.getEngineFactories()
-			.forEach(it -> getLog().info(it.getEngineName()));
-		engine = manager.getEngineByName("nashorn");
+		ScriptEngineManager manager = new ScriptEngineManager(
+			ClassLoader.getSystemClassLoader());
+		engine = manager.getEngineByName("JavaScript");
+
+		getLog().debug(engine.toString());
+		getLog().debug(script);
+
 		try
 		{
 			engine.getContext().setAttribute("plugin", this,
@@ -59,6 +71,7 @@ public class ScriptingMojo extends AbstractMojo
 					"{" +
 					"return plugin.getPgConfigProperty(key);" +
 					"}");
+			engine.eval(script);
 		}
 		catch (ScriptException e)
 		{
