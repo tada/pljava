@@ -81,12 +81,13 @@
 				<version>0.0.1-SNAPSHOT</version>
 				<executions>
 					<execution>
+						<id>execute-script</id>
 						<phase>initialize</phase>
 						<goals>
 							<goal>scripting</goal>
 						</goals>
 						<configuration>
-							<script>
+							<script mimetype="application/javascript">
 								setProjectProperty("PGSQL_VER_CLASSIFIER",
 								getPgConfigProperty("--version")
 								.replaceAll( "devel.*|alpha.*|beta.*|rc.*$",

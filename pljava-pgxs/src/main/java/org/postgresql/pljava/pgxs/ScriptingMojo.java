@@ -11,13 +11,10 @@
  */
 package org.postgresql.pljava.pgxs;
 
-import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.plugins.annotations.*;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
@@ -26,7 +23,8 @@ import javax.script.ScriptException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Enumeration;
-import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 @Mojo(name = "scripting", defaultPhase = LifecyclePhase.INITIALIZE,
       requiresDependencyResolution = ResolutionScope.TEST)
@@ -110,49 +108,63 @@ public class ScriptingMojo extends AbstractMojo
 		}
 	}
 
-	ScriptEngine engine;
+	private ScriptEngine engine;
 
-	@Parameter(defaultValue = "${project}", required = true, readonly = true)
-	MavenProject project;
+	@Component
+	private MavenProject project;
 
-	@Parameter(property = "script")
-	private String script;
-
-	@Parameter(property = "plugin.artifacts", required = true, readonly = true)
-	private List<Artifact> pluginArtifacts;
+	@Parameter
+	private PlexusConfiguration script;
 
 	@Override
 	public void execute ()
 	{
-		ScriptEngineManager manager = new ScriptEngineManager(
-			new ScriptEngineLoader(ScriptingMojo.class.getClassLoader()));
-		engine = manager.getEngineByName("JavaScript");
-
-		getLog().debug(engine.toString());
-		getLog().debug(script);
-
 		try
 		{
+			String engineName = script.getAttribute("engine");
+			String mimeType = script.getAttribute("mimetype");
+			String scriptText = script.getValue();
+
+			if (engineName == null && mimeType == null)
+				throw new IllegalArgumentException("Neither script engine nor" +
+					                                   " mimetype defined.");
+			else
+			{
+				ScriptEngineManager manager = new ScriptEngineManager(
+					new ScriptEngineLoader(ScriptingMojo.class.getClassLoader()));
+
+				if (engineName != null)
+					engine = manager.getEngineByName(engineName);
+
+				if (mimeType != null)
+					if (engine != null)
+					{
+						if (engine.getFactory().getMimeTypes().contains(
+							mimeType))
+							getLog().warn("Specified engine does " +
+								              "not have given mime type : " + mimeType);
+					}
+					else
+						engine = manager.getEngineByMimeType(mimeType);
+
+				if (engine == null)
+					throw new IllegalArgumentException("No suitable engine "
+						                                   + "found for specified engine name or mime type");
+			}
+
+			getLog().debug(engine.toString());
+			getLog().debug(scriptText);
+
 			engine.getContext().setAttribute("plugin", this,
 				ScriptContext.GLOBAL_SCOPE);
-			engine.eval(
-				"function quoteStringForC(text)" +
-					"{" +
-					"return Packages.PGXSUtils.quoteStringForC(text);" +
-					"}");
+			engine.put("quoteStringForC",
+				(Function<String, String>) PGXSUtils::quoteStringForC);
+			engine.put("setProjectProperty",
+				(BiConsumer<String, String>) this::setProjectProperty);
+			engine.put("getPgConfigProperty",
+				(Function<String, String>) this::getPgConfigProperty);
+			engine.eval(scriptText);
 
-			engine.eval(
-				"function setProjectProperty(key, value)" +
-					"{" +
-					"plugin.setProjectProperty(key, value);" +
-					"}");
-
-			engine.eval(
-				"function getPgConfigProperty(key)" +
-					"{" +
-					"return plugin.getPgConfigProperty(key);" +
-					"}");
-			engine.eval(script);
 		}
 		catch (ScriptException e)
 		{
@@ -179,6 +191,4 @@ public class ScriptingMojo extends AbstractMojo
 			return null;
 		}
 	}
-
-
 }

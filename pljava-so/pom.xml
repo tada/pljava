@@ -279,13 +279,13 @@
 				<version>0.0.1-SNAPSHOT</version>
 				<executions>
 					<execution>
-						<id>test</id>
+						<id>execute-script</id>
 						<phase>initialize</phase>
 						<goals>
 							<goal>scripting</goal>
 						</goals>
 						<configuration>
-							<script>
+							<script mimetype="application/javascript">
 								setProjectProperty("PGSQL_BINDIR",
 								getPgConfigProperty("--bindir"));
 								setProjectProperty("PGSQL_LIBDIR",
