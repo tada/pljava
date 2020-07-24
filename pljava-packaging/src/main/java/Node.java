@@ -223,10 +223,10 @@ public class Node extends JarX {
 			int plen = m_fsepLength - 1; /* original separator had length 1 */
 			plen += prefixLength;
 			replacement += platformPath.substring(plen);
-			if ( ! m_dryrun )
-				return replacement;
 			if ( -1 != storedPath.indexOf("/pljava-examples-") )
 				s_examplesJar = replacement;
+			if ( ! m_dryrun )
+				return replacement;
 			return null;
 		}
 
