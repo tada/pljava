@@ -76,7 +76,7 @@
 				<dependency>
 					<groupId>com.impossibl.pgjdbc-ng</groupId>
 					<artifactId>pgjdbc-ng-all</artifactId>
-					<version>LATEST</version>
+					<version>[0.8.4,)</version>
 				</dependency>
 			</dependencies>
 		</profile>
