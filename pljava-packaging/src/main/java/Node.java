@@ -1683,7 +1683,7 @@ public class Node extends JarX {
 	 * @throws UnsupportedOperationException if the arguments passed, or system
 	 * properties in effect, produce a case this transformation cannot handle
 	 */
-	public ProcessBuilder forWindowsCRuntime(ProcessBuilder pb)
+	public static ProcessBuilder forWindowsCRuntime(ProcessBuilder pb)
 	{
 		ListIterator<String> args = pb.command().listIterator();
 		if ( ! args.hasNext() )
@@ -1846,7 +1846,7 @@ public class Node extends JarX {
 	 * @throws UnsupportedOperationException if the arguments passed
 	 * produce a case this transformation cannot handle
 	 */
-	public ProcessBuilder asPgCtlInvocation(ProcessBuilder pb)
+	public static ProcessBuilder asPgCtlInvocation(ProcessBuilder pb)
 	{
 		ListIterator<String> args = pb.command().listIterator();
 		if ( ! args.hasNext() )
