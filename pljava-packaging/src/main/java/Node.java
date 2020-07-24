@@ -488,6 +488,15 @@ public class Node extends JarX {
 
 	/**
 	 * Invoke {@code initdb} for the node, passing default options appropriate
+	 * for this setting.
+	 */
+	public void init() throws Exception
+	{
+		init(Map.of(), UnaryOperator.identity());
+	}
+
+	/**
+	 * Invoke {@code initdb} for the node, passing default options appropriate
 	 * for this setting, and optionally one or more tweaks to be applied to the
 	 * {@code ProcessBuilder} before it is started.
 	 */
@@ -613,6 +622,15 @@ public class Node extends JarX {
 		{
 			stop();
 		};
+	}
+
+	/**
+	 * Start a PostgreSQL server for the node with default options appropriate
+	 * for this setting.
+	 */
+	public void start() throws Exception
+	{
+		start(Map.of(), UnaryOperator.identity());
 	}
 
 	/**
