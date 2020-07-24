@@ -241,7 +241,7 @@ public class Node extends JarX {
 	 */
 
 	public static final boolean s_isWindows =
-		"Windows".equals(getProperty("os.name"));
+		getProperty("os.name").startsWith("Windows");
 
 	/**
 	 * Name of a "Node"; null for an ordinary Node instance.
@@ -1794,7 +1794,7 @@ public class Node extends JarX {
 			 *    \ escaping is needed so the C runtime will not see a " as
 			 *    beginning a quoted region.
 			 */
-			String transformed = arg.replaceAll("(\\\\++)(\")", "$1$1\\\\$2");
+			String transformed = arg.replaceAll("(\\\\*+)(\")", "$1$1\\\\$2");
 
 			/*
 			 * 6. Only if the Java runtime will be adding " at start and end
@@ -1854,7 +1854,7 @@ public class Node extends JarX {
 				"ProcessBuilder command must not be empty");
 
 		Matcher datadirDisallow =
-			compile(s_isWindows ? "[\"\\\\%]" : "[\"\\\\$]").matcher("");
+			compile(s_isWindows ? "[\"^%]" : "[\"\\\\$]").matcher("");
 
 		Path executable = Paths.get(args.next());
 		if ( ! executable.endsWith("postgres") )
@@ -1872,9 +1872,9 @@ public class Node extends JarX {
 			case "-D":
 				if ( datadirDisallow.reset(args.next()).find() )
 					throw new UnsupportedOperationException(
-						"datadir with \", \\, or "
-						+ (s_isWindows ? "%" : "$") + " character is likely" +
-						" to be messed up by pg_ctl");
+						"datadir with \", "
+						+ (s_isWindows ? "^, or %" : "\\, or $") +
+						" character is likely to be messed up by pg_ctl");
 				break;
 
 			case "-c":
