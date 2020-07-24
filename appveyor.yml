@@ -69,20 +69,20 @@ build_script:
 #  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 test_script:
   - ps: |
-      $packageJar = 'pljava-packaging' |
+      $packageJar = ('pljava-packaging' |
         Get-ChildItem -Recurse -Filter pljava-pg*.jar
-
-      $packageJar = $packageJar.fullName
+      ).FullName
 
       $mavenRepo = "$env:UserProfile\.m2\repository"
 
-      $saxonVer = Join-Path $mavenRepo "net\sf\saxon\Saxon-HE" |
-        Get-ChildItem
+      $saxonVer = (Join-Path $mavenRepo "net\sf\saxon\Saxon-HE" |
+        Get-ChildItem -Recurse -Filter Saxon-HE-*.jar |
+        Select-Object -Last 1
+      ).Directory.Name
 
-      $jdbcJar = Join-Path $mavenRepo "com\impossibl\pgjdbc-ng\pgjdbc-ng-all" |
+      $jdbcJar = (Join-Path $mavenRepo "com\impossibl\pgjdbc-ng\pgjdbc-ng-all" |
         Get-ChildItem -Recurse -Filter pgjdbc-ng-all-*.jar
-
-      $jdbcJar = $jdbcJar.fullName
+      ).FullName
 
       @'
       import static java.nio.file.Paths.get
