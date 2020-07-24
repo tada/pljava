@@ -75,6 +75,7 @@ import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import static java.util.Objects.requireNonNull;
@@ -238,6 +239,9 @@ public class Node extends JarX {
 	 * Members below this point represent the state and behavior of an instance
 	 * of this class that is acting as a "Node" rather than as the JarX helper.
 	 */
+
+	public static final boolean s_isWindows =
+		"Windows".equals(getProperty("os.name"));
 
 	/**
 	 * Name of a "Node"; null for an ordinary Node instance.
@@ -559,6 +563,10 @@ public class Node extends JarX {
 				.redirectOutput(INHERIT)
 				.redirectError(INHERIT);
 			tweaks.apply(pb);
+
+			if ( s_isWindows )
+				forWindowsCRuntime(pb);
+
 			Process p = pb.start();
 			p.getOutputStream().close();
 			if ( 0 != p.waitFor() )
@@ -663,10 +671,7 @@ public class Node extends JarX {
 
 		dryExtract();
 
-		Stream<String> cmd =
-			m_usePostgres
-			? Stream.of(resolve("pljava/bindir/postgres"))
-			: Stream.of(resolve("pljava/bindir/pg_ctl"), "start");
+		Stream<String> cmd = Stream.of(resolve("pljava/bindir/postgres"));
 
 		Map<String,String> options = new HashMap<>(suppliedOptions);
 		options.putIfAbsent("data_directory", data_dir().toString());
@@ -687,10 +692,7 @@ public class Node extends JarX {
 				.flatMap(e ->
 					"data_directory".equals(e.getKey())
 					? Stream.of("-D", e.getValue())
-					:
-					m_usePostgres
-					? Stream.of("-c", e.getKey() + "=" + e.getValue())
-					: Stream.of("-o", "-c", "-o", e.getKey()+"="+e.getValue())
+					: Stream.of("-c", e.getKey() + "=" + e.getValue())
 				)
 			)
 			.toArray(String[]::new);
@@ -699,7 +701,15 @@ public class Node extends JarX {
 			new ProcessBuilder(args)
 			.redirectOutput(INHERIT)
 			.redirectError(INHERIT);
+
+		if ( ! m_usePostgres )
+			asPgCtlInvocation(pb);
+
 		tweaks.apply(pb);
+
+		if ( s_isWindows )
+			forWindowsCRuntime(pb);
+
 		Process p = pb.start();
 		p.getOutputStream().close();
 		try
@@ -1630,5 +1640,283 @@ public class Node extends JarX {
 			return false;
 		Thread.sleep(2000); // and hope
 		return true;
+	}
+
+	/*
+	 * Workarounds for ProcessBuilder command argument preservation problems
+	 * in various circumstances. Each of the functions below acts on a
+	 * ProcessBuilder by possibly modifying its 'command' argument vector into
+	 * such a form that the intended target will be correctly invoked with the
+	 * original arguments.
+	 *
+	 * - Java's Windows implementation faces a near-impossible task because of
+	 *   the variety of parsing rules that could be applied by some arbitrary
+	 *   invoked program. Here, with the simplifying assumption that the program
+	 *   will be one of initdb, postgres, or pg_ctl, all C programs using the C
+	 *   run-time code to parse command lines, and checking to exclude a few
+	 *   cases that can't be reliably handled, the simpler problem is tractable.
+	 *
+	 * - pg_ctl itself is surprisingly problem-ridden. Here the starting point
+	 *   is an argument list intended for invoking postgres directly, which will
+	 *   be transformed into one to start postgres via pg_ctl. The only options
+	 *   handled here are the ones start() might supply: -D for the datadir and
+	 *   -c for options, which will be rewritten as -o values for pg_ctl.
+	 */
+
+	/**
+	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
+	 * will be recovered correctly by a target C/C++ program using the argument
+	 * parsing algorithm of the usual C run-time code, when it is known that
+	 * the command will not be handled first by {@code cmd}.
+	 *<p>
+	 * This transformation must account for the way the C runtime will
+	 * ultimately parse the parameters apart, and also for the behavior of
+	 * Java's runtime in assembling the command line that the C code
+	 * will receive.
+	 * @param pb a ProcessBuilder whose command has been set to an executable
+	 * that parses parameters using the C runtime rules, and arguments as they
+	 * should result from parsing.
+	 * @return The same ProcessBuilder, with the argument list rewritten as
+	 * necessary to produce the original list as a result of C runtime parsing,
+	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
+	 * least the first command element (the executable to run)
+	 * @throws UnsupportedOperationException if the arguments passed, or system
+	 * properties in effect, produce a case this transformation cannot handle
+	 */
+	public ProcessBuilder forWindowsCRuntime(ProcessBuilder pb)
+	{
+		ListIterator<String> args = pb.command().listIterator();
+		if ( ! args.hasNext() )
+			throw new IllegalArgumentException(
+				"ProcessBuilder command must not be empty");
+
+		/*
+		 * The transformation implemented here must reflect the parsing rules
+		 * of the C run-time code, and the rules are taken from:
+		 * http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINARGV
+		 *
+		 * It must also take careful account of what the Java runtime does to
+		 * the arguments before the target process is launched, and line numbers
+		 * in comments below refer to this version of the source:
+		 * http://hg.openjdk.java.net/jdk9/jdk9/jdk/file/65464a307408/src/java.base/windows/classes/java/lang/ProcessImpl.java
+		 *
+		 * 1. Throw Unsupported if the jdk.lang.Process.allowAmbiguousCommands
+		 *    system property is in force.
+		 *
+		 *    Why?
+		 *      a. It is never allowed under a SecurityManager, so to allow it
+		 *         at all would allow code's behavior to change depending on
+		 *         whether a SecurityManager is in place.
+		 *      b. It results in a different approach to preparing the arguments
+		 *         (line 364) that would have to be separately analyzed.
+		 *
+		 * Do not test this property with Boolean.getBoolean: that returns true
+		 * only if the value equalsIgnoreCase("true"), which does not match the
+		 * test in the Java runtime (line 362).
+		 */
+		String propVal = getProperty("jdk.lang.Process.allowAmbiguousCommands");
+		if ( null != propVal && ! "false".equalsIgnoreCase(propVal) )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime transformation does not support operation" +
+				" with jdk.lang.Process.allowAmbiguousCommands in effect");
+
+		/*
+		 * 2. Throw Unsupported if the executable path name contains a "
+		 *
+		 *    Why? Because getExecutablePath passes true, unconditionally, to
+		 *    isQuoted (line 303), so it will throw IllegalArgumentException if
+		 *    there is any " in the executable path. The catch block for that
+		 *    exception (line 383) will make a highly non-correctness-preserving
+		 *    attempt to join and reparse the arguments, using
+		 *    getTokensFromCommand (line 198), which uses a regexp (line 188)
+		 *    that does not even remotely resemble the C runtime parsing rules.
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell.
+		 */
+		String executable = args.next();
+		if ( executable.contains("\"") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking an executable" +
+				" whose name contains a \" character");
+
+		/*
+		 * 3. Throw Unsupported if the executable path ends in .cmd or .bat
+		 *    (case-insensitively).
+		 *
+		 *    Why? For those extensions, the Java runtime will select different
+		 *    rules (line 414).
+		 *    a. Those rules would need to be separately analyzed.
+		 *    b. They will reject (line 286) any argument that contains a "
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell (which is
+		 *    exactly the suggestion in the exception message that would be
+		 *    produced if an argument contains a ").
+		 */
+		if ( executable.matches(".*\\.(?i:cmd|bat)$") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking a command" +
+				" whose name ends in .cmd or .bat");
+
+		/*
+		 * 4. There is a worrisome condition in the Java needsEscaping check
+		 *    (line 277), where it would conclude that escaping is NOT needed
+		 *    if an argument both starts and ends with a " character. In other
+		 *    words, it would treat that case (and just that case) not as
+		 *    characters that are part of the content and need to be escaped,
+		 *    but as a sign that its job has somehow already been done.
+		 *
+		 *    However, that will not affect this transformation, because our
+		 *    rule 5 below will ensure that any leading " has a \ added before,
+		 *    and therefore the questionable Java code will never see from us
+		 *    an arg that both starts and ends with a ".
+		 */
+
+		while ( args.hasNext() )
+		{
+			String arg = args.next();
+
+			/*
+			 * 5. While the Java runtime code will add " at both ends of the
+			 *    argument IF the argument contains space, tab, <, or >, it does
+			 *    so with zero attention to any existing " characters in the
+			 *    content of the argument. Those must, of course, be escaped so
+			 *    the C runtime parser will not see them as ending the quoted
+			 *    region. By those rules, a " is escaped by a \ and a \ is only
+			 *    special if it is followed by a " (or in a sequence of \
+			 *    ultimately leading to a "). The needed transformation is to
+			 *    find any instance of n backslashes (n may be zero) followed
+			 *    by a ", and replace that match with 2n+1 \ followed by the ".
+			 *
+			 *    This transformation is needed whether or not the Java runtime
+			 *    will be adding " at start and end. If it does not, the same
+			 *    \ escaping is needed so the C runtime will not see a " as
+			 *    beginning a quoted region.
+			 */
+			String transformed = arg.replaceAll("(\\\\++)(\")", "$1$1\\\\$2");
+
+			/*
+			 * 6. Only if the Java runtime will be adding " at start and end
+			 *    (i.e., only if the arg contains space, tab, <, or >), there is
+			 *    one more case where \ can be special: at the very end of the
+			 *    arg (where it will end up followed by a " when the Java
+			 *    runtime has done its thing). The Java runtime is semi-aware of
+			 *    this case (line 244): it will add a single \ if it sees that
+			 *    the arg ends with a \. However, that isn't the needed action,
+			 *    which is to double ALL consecutive \ characters ending the
+			 *    arg.
+			 *
+			 *    So the action needed here is to double all-but-one of any
+			 *    consecutive \ characters at the end of the arg, leaving one
+			 *    that will be doubled by the Java code.
+			 */
+			if ( transformed.matches("(?s:[^ \\t<>]*+.++)") )
+				transformed = transformed.replaceFirst(
+					"(\\\\)(\\\\*+)$", "$1$2$2");
+
+			if ( ! transformed.equals(arg) )
+				args.set(transformed);
+		}
+
+		return pb;
+	}
+
+	/**
+	 * Adjust the command arguments of a {@code ProcessBuilder} that would
+	 * directly invoke {@code postgres} to start a server, so that it will
+	 * instead start {@code postgres} via {@code pg_ctl}.
+	 *<p>
+	 * {@code pg_ctl} constructs a command line for {@code cmd.exe} (on Windows)
+	 * or {@code /bin/sh} (elsewhere), which in turn will launch
+	 * {@code postgres}. The way {@code pg_ctl} handles options ({@code -o})
+	 * requires this transformation to be platform-aware and quote them
+	 * correctly for {@code sh} or {@code cmd} as appropriate.
+	 *<p>
+	 * The result of this transformation still has to be received intact by
+	 * {@code pg_ctl} itself, which requires (on Windows) an application of
+	 * {@code forWindowsCRuntime} as well.
+	 * @param pb a ProcessBuilder whose command has been set to an executable
+	 * path for {@code postgres}, with only {@code -D} and {@code -c} options.
+	 * @return The same ProcessBuilder, with the argument list rewritten to
+	 * invoke {@code pg_ctl start} with the same {@code -D} and any other
+	 * options supplied by {@code -o}.
+	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
+	 * least the first command element (the executable to run)
+	 * @throws UnsupportedOperationException if the arguments passed
+	 * produce a case this transformation cannot handle
+	 */
+	public ProcessBuilder asPgCtlInvocation(ProcessBuilder pb)
+	{
+		ListIterator<String> args = pb.command().listIterator();
+		if ( ! args.hasNext() )
+			throw new IllegalArgumentException(
+				"ProcessBuilder command must not be empty");
+
+		Matcher datadirDisallow =
+			compile(s_isWindows ? "[\"\\\\%]" : "[\"\\\\$]").matcher("");
+
+		Path executable = Paths.get(args.next());
+		if ( ! executable.endsWith("postgres") )
+			throw new UnsupportedOperationException(
+				"expected executable path to end with postgres");
+		executable = executable.getParent().resolve("pg_ctl");
+		args.set(executable.toString());
+		args.add("start");
+
+		while ( args.hasNext() )
+		{
+			String arg = args.next();
+			switch ( arg )
+			{
+			case "-D":
+				if ( datadirDisallow.reset(args.next()).find() )
+					throw new UnsupportedOperationException(
+						"datadir with \", \\, or "
+						+ (s_isWindows ? "%" : "$") + " character is likely" +
+						" to be messed up by pg_ctl");
+				break;
+
+			case "-c":
+				args.set("-o");
+				String setting = args.next();
+				if ( s_isWindows )
+				{
+					/*
+					 * The result of this transformation will be what pg_ctl
+					 * passes to cmd. Because it will be (a) passed to cmd, and
+					 * then (b) passed to postgres (a C program), it can use
+					 * exactly the simplified "putting it together" rules from
+					 * http://www.daviddeley.com/autohotkey/parameters/parameters.htm#CPP
+					 *
+					 * Because this is only about the handoff from pg_ctl to cmd
+					 * to postgres, it does not need to handle the tricks of
+					 * getting safely through the Java runtime. Getting what
+					 * this transformation produces safely from Java to pg_ctl
+					 * (another C program) is the job of forWindowsCRuntime.
+					 */
+					setting = setting.replaceAll("(\\\\++)(\"|$)","$1$1\\\\$2");
+					setting = setting.replaceAll("([<>|&()^])", "^$1");
+					setting = "^\"" + setting + "^\"";
+				}
+				else
+				{
+					/*
+					 * The simple Bourne-shell rule for safely quoting an
+					 * argument is like a glass of cool water on a hot day.
+					 */
+					setting = "'" + setting.replace("'", "'\\''") + "'";
+				}
+				args.set("-c " + setting);
+				break;
+
+			default:
+				throw new UnsupportedOperationException(
+					"asPgCtlInvocation does not handle postgres option \"" +
+					arg + "\"");
+			}
+		}
+
+		return pb;
 	}
 }
