@@ -449,6 +449,18 @@ public class Node extends JarX {
 	 * (but not the <em>basedir</em> itself) on the exit of a calling
 	 * try-with-resources scope.
 	 */
+	public AutoCloseable initialized_cluster()
+	throws Exception
+	{
+		return initialized_cluster(Map.of(), UnaryOperator.identity());
+	}
+
+	/**
+	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * recursively remove the files and directories under the <em>basedir</em>
+	 * (but not the <em>basedir</em> itself) on the exit of a calling
+	 * try-with-resources scope.
+	 */
 	public AutoCloseable initialized_cluster(Map<String,String> suppliedOptions)
 	throws Exception
 	{
@@ -586,6 +598,16 @@ public class Node extends JarX {
 		{
 			deleteIfExists(pwfile);
 		}
+	}
+
+	/**
+	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * stop the server on the exit of a calling try-with-resources scope.
+	 */
+	public AutoCloseable started_server()
+	throws Exception
+	{
+		return started_server(Map.of(), UnaryOperator.identity());
 	}
 
 	/**
