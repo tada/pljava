@@ -50,7 +50,7 @@ script: |
   )
 
   sudo java -Dpgconfig="$pgConfig" -jar "$packageJar"
-
+  set -x
   jshell \
     -execution local \
     "-J--class-path=$packageJar:$jdbcJar" \
