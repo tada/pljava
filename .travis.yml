@@ -74,7 +74,7 @@ script: |
     "Mac OS X".equals(System.getProperty("os.name"))
     ? Stream.of("libjli.dylib", "jli/libjli.dylib")
       .map(s -> javaLibDir.resolve(s)).filter(Files::exists).findFirst().get()
-    : javaLibDir.resolve("lib/server/libjvm.so")
+    : javaLibDir.resolve("server/libjvm.so")
   );
 
   String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
