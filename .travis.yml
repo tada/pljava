@@ -46,11 +46,13 @@ script: |
 
   jdbcJar=$(
     find "$mavenRepo/com/impossibl/pgjdbc-ng/pgjdbc-ng-all" \
-      -name 'pgjdbc-ng-all-*.jar' -print
+      -name 'pgjdbc-ng-all-*.jar' -print |
+    sort |
+    tail -n 1
   )
 
   sudo java -Dpgconfig="$pgConfig" -jar "$packageJar"
-  set -x
+
   jshell \
     -execution local \
     "-J--class-path=$packageJar:$jdbcJar" \
