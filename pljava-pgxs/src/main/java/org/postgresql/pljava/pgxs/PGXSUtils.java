@@ -11,12 +11,17 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.configuration.PlexusConfiguration;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,6 +36,54 @@ public final class PGXSUtils
 
 	private PGXSUtils ()
 	{
+	}
+
+	/**
+	 *
+	 * @param script the script block element in the configuration block of
+	 *                  the plugin in the project
+	 * @param log the logger associated with the plugin
+	 * @return ScriptEngine based on the engine and mime type set by the user
+	 * in the script block
+	 */
+	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log)
+	{
+		ScriptEngine engine = null;
+		try
+		{
+			String engineName = script.getAttribute("engine");
+			String mimeType = script.getAttribute("mimetype");
+
+			if (engineName == null && mimeType == null)
+				throw new IllegalArgumentException("Neither script engine nor" +
+					" mimetype defined.");
+			else
+			{
+				ScriptEngineManager manager = new ScriptEngineManager(
+					new ScriptEngineLoader(ScriptingMojo.class.getClassLoader()));
+
+				if (engineName != null)
+					engine = manager.getEngineByName(engineName);
+
+				if (mimeType != null)
+					if (engine != null)
+					{
+						if (engine.getFactory().getMimeTypes().contains(mimeType))
+							log.warn("Specified engine does " +
+								"not have given mime type : " + mimeType);
+					}
+					else
+						engine = manager.getEngineByMimeType(mimeType);
+
+				if (engine == null)
+					throw new IllegalArgumentException("No suitable engine "
+						+ "found for specified engine name or mime type");
+			}
+			log.debug(engine.toString());
+		} catch (Exception e) {
+			log.error(e);
+		}
+		return engine;
 	}
 
 	/**
@@ -133,6 +186,26 @@ public final class PGXSUtils
 	                                        String propertyValue)
 	{
 		project.getProperties().setProperty(property, propertyValue);
+	}
+
+	public static void executeJavadocTool(String javadocCommand,
+	                               List<String> javadocArguments)
+	throws IOException, InterruptedException
+	{
+		String[] args = new String[javadocArguments.size() + 1];
+		int index = 0;
+		args[index++] = javadocCommand;
+		for (String arg : javadocArguments)
+			args[index++] = arg;
+
+		ProcessBuilder processBuilder = new ProcessBuilder(args);
+
+		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+		Process process = processBuilder.start();
+		int exitCode = process.waitFor();
+		if (exitCode != 0)
+			throw new InterruptedException("javadoc tool failed to execute" +
+				"successfully and exited with " +exitCode);
 	}
 
 }
