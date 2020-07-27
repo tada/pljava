@@ -186,24 +186,6 @@
 				<artifactId>maven-project-info-reports-plugin</artifactId>
 				<version>3.0.0</version>
 			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.2.0</version>
-				<reportSets>
-					<reportSet>
-						<reports>
-							<report>javadoc-no-fork</report>
-						</reports>
-					</reportSet>
-				</reportSets>
-				<configuration>
-					<detectJavaApiLink>false</detectJavaApiLink>
-					<links>
-						<link>https://docs.oracle.com/javase/10/docs/api/</link>
-					</links>
-				</configuration>
-			</plugin>
 		</plugins>
 	</reporting>
 </project>

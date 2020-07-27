@@ -37,31 +37,43 @@
 	<reporting>
 		<plugins>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
+				<groupId>org.postgresql</groupId>
+				<artifactId>pljava-pgxs</artifactId>
+				<version>0.0.1-SNAPSHOT</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>
+								generate-javadoc
+							</report>
+						</reports>
+					</reportSet>
+				</reportSets>
 				<configuration>
-					<doctitle>${project.name} ${project.version}</doctitle>
-					<windowtitle>${project.name} ${project.version}</windowtitle>
-					<!-- If I tried to tell you why maven-javadoc-plugin 3.1.1 needs
-					   - this exact potpourri of weirdness just to avoid forcing
-					   - the javadoc tool to do the wrong thing, you would call me
-					   - crazy. See the git commit comment for more explanation.
-					   - Then see the git commit comment for THIS line for even
-					   - MORE explanation.
-					  -->
-					<additionalOptions>
-						<additionalOption>--module</additionalOption>
-						<additionalOption>org.postgresql.pljava.internal</additionalOption>
-						<additionalOption>--module-source-path</additionalOption>
-						<additionalOption>org.postgresql.pljava.internal=${basedir}/src/main/java</additionalOption>
-						<additionalOption>--show-module-contents</additionalOption>
-						<additionalOption>all</additionalOption>
-						<additionalOption>--show-packages</additionalOption>
-						<additionalOption>all</additionalOption>
-					</additionalOptions>
-					<sourceFileExcludes>
-						<sourceFileExclude>**/org/**/*.java</sourceFileExclude>
-					</sourceFileExcludes>
+					<script mimetype="application/javascript">
+						addJavadocArgument("-doctitle");
+						addJavadocArgument("'${project.name} ${project.version}'");
+						addJavadocArgument("-windowtitle");
+						addJavadocArgument("'${project.name} ${project.version}'");
+						addJavadocArgument("--module-path");
+						addJavadocArgument("${user.home}/org/postgresql/pljava-api/1.6.0-SNAPSHOT/pljava-api-1.6.0-SNAPSHOT.jar");
+						addJavadocArgument("--module-source-path");
+						addJavadocArgument("${basedir}/target/site/apidocs/src");
+						addJavadocArgument("--module");
+						addJavadocArgument("org.postgresql.pljava.internal");
+						addJavadocArgument("--module-source-path");
+						addJavadocArgument("org.postgresql.pljava.internal=${basedir}/src/main/java");
+						addJavadocArgument("--show-module-contents");
+						addJavadocArgument("all");
+						addJavadocArgument("--show-packages");
+						addJavadocArgument("all");
+						addJavadocArgument("-link");
+						addJavadocArgument("'https://docs.oracle.com/javase/10/docs/api'");
+						addJavadocArgument("-d");
+						addJavadocArgument("${basedir}/target/site/apidocs");
+						addJavadocArgument("-protected");
+						addJavadocArgument("${basedir}/src/main/java/module-info.java");
+					</script>
 				</configuration>
 			</plugin>
 		</plugins>

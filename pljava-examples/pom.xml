@@ -82,21 +82,46 @@
 			</plugin>
 		</plugins>
 	</build>
+
 	<reporting>
 		<plugins>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<!-- Limiting the plugin version, for this subproject only,
-				   - works around javadoc's inability to document unnamed-module
-				   - code (these examples) that depends on named-module code
-				   - (such as PL/Java's API). I hope that gets fixed soon.
-				  -->
-				<version>3.0.1</version>
+				<groupId>org.postgresql</groupId>
+				<artifactId>pljava-pgxs</artifactId>
+				<version>0.0.1-SNAPSHOT</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>
+								generate-javadoc
+							</report>
+						</reports>
+					</reportSet>
+				</reportSets>
 				<configuration>
-					<excludePackageNames>org.postgresql.pljava.example.saxon</excludePackageNames>
+					<script mimetype="application/javascript">
+						addJavadocArgument("-classpath");
+						addJavadocArgument("/home/amcap1712/.m2/repository/org/postgresql/pljava-api/1.6.0-SNAPSHOT/pljava-api-1.6.0-SNAPSHOT.jar");
+						addJavadocArgument("-doctitle");
+						addJavadocArgument("'${project.name} ${project.version}'");
+						addJavadocArgument("-windowtitle");
+						addJavadocArgument("'${project.name} ${project.version}'");
+						addJavadocArgument("-sourcepath");
+						addJavadocArgument("${basedir}/src/main/java");
+						addJavadocArgument("-link");
+						addJavadocArgument("https://docs.oracle.com/javase/10/docs/api");
+						addJavadocArgument("-d");
+						addJavadocArgument("${basedir}/target/site/apidocs");
+						addJavadocArgument("-author");
+						addJavadocArgument("-use");
+						addJavadocArgument("-version");
+						addJavadocArgument("-protected");
+						addJavadocArgument("org.postgresql.pljava.example");
+						addJavadocArgument("org.postgresql.pljava.example.annotation");
+					</script>
 				</configuration>
 			</plugin>
 		</plugins>
 	</reporting>
+
 </project>
