@@ -45,28 +45,34 @@
 					<reportSet>
 						<reports>
 							<report>
-								generate-javadoc
+								scripting-report
 							</report>
 						</reports>
 					</reportSet>
 				</reportSets>
 				<configuration>
 					<script mimetype="application/javascript">
-						addJavadocArgument("-doctitle");
-						addJavadocArgument("'${project.name} ${project.version}'");
-						addJavadocArgument("-windowtitle");
-						addJavadocArgument("'${project.name} ${project.version}'");
-						addJavadocArgument("--module");
-						addJavadocArgument("org.postgresql.pljava");
-						addJavadocArgument("--module-source-path");
-						addJavadocArgument("org.postgresql.pljava=${basedir}/src/main/java");
-						addJavadocArgument("-link");
-						addJavadocArgument("https://docs.oracle.com/javase/10/docs/api");
-						addJavadocArgument("-d");
-						addJavadocArgument("${basedir}/target/site/apidocs");
-						addJavadocArgument("-author");
-						addJavadocArgument("-use");
-						addJavadocArgument("-version");
+						var ArrayList = Java.type("java.util.ArrayList");
+						var args = new ArrayList();
+						args.add("-doctitle");
+						args.add("'${project.name} ${project.version}'");
+						args.add("-windowtitle");
+						args.add("'${project.name} ${project.version}'");
+						args.add("--module");
+						args.add("org.postgresql.pljava");
+						args.add("--module-source-path");
+						args.add("org.postgresql.pljava=${basedir}/src/main/java");
+						args.add("-link");
+						args.add("https://docs.oracle.com/javase/10/docs/api");
+						args.add("-d");
+						args.add("${basedir}/target/site/apidocs");
+						args.add("-author");
+						args.add("-use");
+						args.add("-version");
+
+						var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+						var task = tool.getTask(null, null, null, null, args, null);
+						task.call();
 					</script>
 				</configuration>
 			</plugin>

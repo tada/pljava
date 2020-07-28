@@ -16,24 +16,17 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.reporting.AbstractMavenReport;
-import org.apache.maven.reporting.MavenReportException;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
-import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
 
-@Mojo(name = "generate-javadoc")
+@Mojo(name = "scripting-report")
 @Execute(phase = LifecyclePhase.NONE)
-public class DocumentationMojo extends AbstractMavenReport
+public class ReportScriptingMojo extends AbstractMavenReport
 {
 	@Parameter
 	private PlexusConfiguration script;
-
-	private final List<String> javadocArguments = new ArrayList<>();
 
 	@Override
 	public String getOutputName ()
@@ -54,31 +47,19 @@ public class DocumentationMojo extends AbstractMavenReport
 	}
 
 	@Override
-	protected void executeReport (Locale locale) throws MavenReportException
+	protected void executeReport (Locale locale)
 	{
 		try
 		{
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
-
-			engine.getContext().setAttribute("report", this,
-			                                 ScriptContext.GLOBAL_SCOPE);
-			engine.put("addJavadocArgument",
-			           (Consumer<String>) this::addJavadocArgument);
 			engine.eval(scriptText);
-
-			PGXSUtils.executeDocumentationTool(javadocArguments);
 		}
 		catch (Exception e)
 		{
 			e.printStackTrace();
 		}
-	}
-
-	public void addJavadocArgument(String argument)
-	{
-		javadocArguments.add(argument);
 	}
 
 }

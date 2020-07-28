@@ -17,13 +17,10 @@ import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-import javax.tools.DocumentationTool;
-import javax.tools.ToolProvider;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -188,18 +185,6 @@ public final class PGXSUtils
 	                                        String propertyValue)
 	{
 		project.getProperties().setProperty(property, propertyValue);
-	}
-
-	/**
-	 *
-	 * @param javadocArguments arguments to be passed to the documentation tool
-	 */
-	public static void executeDocumentationTool(List<String> javadocArguments)
-	{
-		DocumentationTool tool = ToolProvider.getSystemDocumentationTool();
-		DocumentationTool.DocumentationTask task = tool.getTask(null,
-		null, null, null, javadocArguments, null);
-		task.call();
 	}
 
 }

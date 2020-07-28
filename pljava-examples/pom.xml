@@ -93,31 +93,37 @@
 					<reportSet>
 						<reports>
 							<report>
-								generate-javadoc
+								scripting-report
 							</report>
 						</reports>
 					</reportSet>
 				</reportSets>
 				<configuration>
 					<script mimetype="application/javascript">
-						addJavadocArgument("-classpath");
-						addJavadocArgument("/home/amcap1712/.m2/repository/org/postgresql/pljava-api/1.6.0-SNAPSHOT/pljava-api-1.6.0-SNAPSHOT.jar");
-						addJavadocArgument("-doctitle");
-						addJavadocArgument("'${project.name} ${project.version}'");
-						addJavadocArgument("-windowtitle");
-						addJavadocArgument("'${project.name} ${project.version}'");
-						addJavadocArgument("-sourcepath");
-						addJavadocArgument("${basedir}/src/main/java");
-						addJavadocArgument("-link");
-						addJavadocArgument("https://docs.oracle.com/javase/10/docs/api");
-						addJavadocArgument("-d");
-						addJavadocArgument("${basedir}/target/site/apidocs");
-						addJavadocArgument("-author");
-						addJavadocArgument("-use");
-						addJavadocArgument("-version");
-						addJavadocArgument("-protected");
-						addJavadocArgument("org.postgresql.pljava.example");
-						addJavadocArgument("org.postgresql.pljava.example.annotation");
+						var ArrayList = Java.type("java.util.ArrayList");
+						var args = new ArrayList();
+						args.add("-classpath");
+						args.add("${user.home}/.m2/repository/org/postgresql/pljava-api/1.6.0-SNAPSHOT/pljava-api-1.6.0-SNAPSHOT.jar");
+						args.add("-doctitle");
+						args.add("'${project.name} ${project.version}'");
+						args.add("-windowtitle");
+						args.add("'${project.name} ${project.version}'");
+						args.add("-sourcepath");
+						args.add("${basedir}/src/main/java");
+						args.add("-link");
+						args.add("https://docs.oracle.com/javase/10/docs/api");
+						args.add("-d");
+						args.add("${basedir}/target/site/apidocs");
+						args.add("-author");
+						args.add("-use");
+						args.add("-version");
+						args.add("-protected");
+						args.add("org.postgresql.pljava.example");
+						args.add("org.postgresql.pljava.example.annotation");
+
+						var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+						var task = tool.getTask(null, null, null, null, args, null);
+						task.call();
 					</script>
 				</configuration>
 			</plugin>
