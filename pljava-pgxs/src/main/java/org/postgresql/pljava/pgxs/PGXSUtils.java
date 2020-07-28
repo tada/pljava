@@ -17,6 +17,8 @@ import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+import javax.tools.DocumentationTool;
+import javax.tools.ToolProvider;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -188,24 +190,16 @@ public final class PGXSUtils
 		project.getProperties().setProperty(property, propertyValue);
 	}
 
-	public static void executeJavadocTool(String javadocCommand,
-	                               List<String> javadocArguments)
-	throws IOException, InterruptedException
+	/**
+	 *
+	 * @param javadocArguments arguments to be passed to the documentation tool
+	 */
+	public static void executeDocumentationTool(List<String> javadocArguments)
 	{
-		String[] args = new String[javadocArguments.size() + 1];
-		int index = 0;
-		args[index++] = javadocCommand;
-		for (String arg : javadocArguments)
-			args[index++] = arg;
-
-		ProcessBuilder processBuilder = new ProcessBuilder(args);
-
-		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
-		Process process = processBuilder.start();
-		int exitCode = process.waitFor();
-		if (exitCode != 0)
-			throw new InterruptedException("javadoc tool failed to execute" +
-				"successfully and exited with " +exitCode);
+		DocumentationTool tool = ToolProvider.getSystemDocumentationTool();
+		DocumentationTool.DocumentationTask task = tool.getTask(null,
+		null, null, null, javadocArguments, null);
+		task.call();
 	}
 
 }

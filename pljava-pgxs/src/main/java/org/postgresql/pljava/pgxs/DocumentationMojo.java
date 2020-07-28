@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 
 @Mojo(name = "generate-javadoc")
 @Execute(phase = LifecyclePhase.NONE)
-public class JavadocMojo extends AbstractMavenReport
+public class DocumentationMojo extends AbstractMavenReport
 {
 	@Parameter
 	private PlexusConfiguration script;
@@ -38,13 +38,13 @@ public class JavadocMojo extends AbstractMavenReport
 	@Override
 	public String getOutputName ()
 	{
-		return "'PL/Java' Javadoc Report";
+		return "Documentation Report";
 	}
 
 	@Override
 	public String getName (Locale locale)
 	{
-		return String.format(locale, "%s", "PL/Java Javadoc Report");
+		return String.format(locale, "%s", "Documentation Report");
 	}
 
 	@Override
@@ -60,7 +60,7 @@ public class JavadocMojo extends AbstractMavenReport
 		{
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
 			String scriptText = script.getValue();
-			getLog().error(scriptText);
+			getLog().debug(scriptText);
 
 			engine.getContext().setAttribute("report", this,
 			                                 ScriptContext.GLOBAL_SCOPE);
@@ -68,7 +68,7 @@ public class JavadocMojo extends AbstractMavenReport
 			           (Consumer<String>) this::addJavadocArgument);
 			engine.eval(scriptText);
 
-			PGXSUtils.executeJavadocTool("javadoc", javadocArguments);
+			PGXSUtils.executeDocumentationTool(javadocArguments);
 		}
 		catch (Exception e)
 		{
