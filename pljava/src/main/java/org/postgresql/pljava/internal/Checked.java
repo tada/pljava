@@ -108,63 +108,63 @@ public interface Checked<WT, EX extends Throwable>
 	}
 
 	default <RT, RX extends Throwable>
-	RT in(Function<? super WT, RT, RX> f)
+	RT inReturning(Function<? super WT, RT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	double in(ToDoubleFunction<? super WT, RX> f)
+	double inDoubleReturning(ToDoubleFunction<? super WT, RX> f)
 		throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	int in(ToIntFunction<? super WT, RX> f)
+	int inIntReturning(ToIntFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	long in(ToLongFunction<? super WT, RX> f)
+	long inLongReturning(ToLongFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	boolean in(Predicate<? super WT, RX> f)
+	boolean inBooleanReturning(Predicate<? super WT, RX> f)
 		throws EX, RX
 	{
 		return f.test(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	byte in(ToByteFunction<? super WT, RX> f)
+	byte inByteReturning(ToByteFunction<? super WT, RX> f)
 		throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	short in(ToShortFunction<? super WT, RX> f)
+	short inShortReturning(ToShortFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	char in(ToCharFunction<? super WT, RX> f)
+	char inCharReturning(ToCharFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	float in(ToFloatFunction<? super WT, RX> f)
+	float inFloatReturning(ToFloatFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
@@ -827,7 +827,7 @@ public interface Checked<WT, EX extends Throwable>
 	interface ToFloatFunction<T,E extends Throwable>
 	extends Closing.Trivial<ToFloatFunction<T,E>, E>
 	{
-		char apply(T t) throws E;
+		float apply(T t) throws E;
 
 		static <T, E extends Throwable>
 		ToFloatFunction<T,E> use(ToFloatFunction<T,E> o)
