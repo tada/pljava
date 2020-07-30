@@ -52,22 +52,26 @@
 				<configuration>
 					<script mimetype="application/javascript">
 <![CDATA[
+var pljava_api_jar_path;
+for each (var artifact in report.project.artifacts)
+	if (artifact.artifactId == "pljava-api")
+		pljava_api_jar_path = artifact.file.path;
+
 var args = java.util.List.of(
 	"--release",              "9",
-	"-encoding",              "${project.build.sourceEncoding}",
-	"-docencoding",           "${project.build.sourceEncoding}",
+	"-encoding",              report.inputEncoding,
+	"-docencoding",           report.outputEncoding,
 	"--show-module-contents", "all",
 	"--show-packages",        "all",
 	"-protected",
-	"-d",                     "${basedir}/target/site/apidocs",
+	"-d",                     report.reportOutputDirectory.toPath().resolve("apidocs").toString(),
 	"-link",                  "https://docs.oracle.com/javase/10/docs/api",
 	"--module",               "org.postgresql.pljava.internal",
 	"--module-source-path",   "org.postgresql.pljava.internal="
 	                          + "${basedir}/src/main/java",
 	"-doctitle",              "${project.name} ${project.version}",
 	"-windowtitle",           "${project.name} ${project.version}",
-	"--module-path",
-	pljava_api_jar_path
+	"--module-path",          pljava_api_jar_path
 );
 java.lang.System.out.println(args);
 var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
@@ -85,8 +89,8 @@ sink.section1();
 sink.sectionTitle();
 sink.link("apidocs/index.html");
 sink.text("Go to documentation");
-sink.sectionTitle_();
 sink.link_();
+sink.sectionTitle_();
 sink.section1_();
 sink.body_();
 ]]>

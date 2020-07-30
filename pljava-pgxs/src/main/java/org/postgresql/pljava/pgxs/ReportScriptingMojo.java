@@ -11,17 +11,16 @@
  */
 package org.postgresql.pljava.pgxs;
 
-import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugins.annotations.Execute;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
 import org.apache.maven.reporting.AbstractMavenReport;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptEngine;
 import java.util.Locale;
-import java.util.Set;
 
 @Mojo(name = "scripting-report")
 @Execute(phase = LifecyclePhase.NONE)
@@ -53,17 +52,8 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	{
 		try
 		{
-			String pljavaApiJar = null;
-			Set<Artifact> artifacts = project.getArtifacts();
-			for (Artifact artifact : artifacts)
-			{
-				String path = artifact.getFile().getAbsolutePath();
-				if (path.contains("pljava-api"))
-					pljavaApiJar = path;
-			}
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
 			engine.put("report", this);
-			engine.put("pljava_api_jar_path", pljavaApiJar);
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
 			engine.eval(scriptText);
@@ -74,4 +64,19 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		}
 	}
 
+	@Override
+	public MavenProject getProject ()
+	{
+		return super.getProject();
+	}
+
+	public String getInputEncoding ()
+	{
+		return super.getInputEncoding();
+	}
+
+	public String getOutputEncoding ()
+	{
+		return super.getOutputEncoding();
+	}
 }

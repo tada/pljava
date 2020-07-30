@@ -80,8 +80,8 @@ sink.section1();
 sink.sectionTitle();
 sink.link("apidocs/index.html");
 sink.text("Go to documentation");
-sink.sectionTitle_();
 sink.link_();
+sink.sectionTitle_();
 sink.section1_();
 sink.body_();
 ]]>
