@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugins.annotations.Execute;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -20,6 +21,7 @@ import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptEngine;
 import java.util.Locale;
+import java.util.Set;
 
 @Mojo(name = "scripting-report")
 @Execute(phase = LifecyclePhase.NONE)
@@ -51,7 +53,16 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	{
 		try
 		{
+			String pljavaApiJar = null;
+			Set<Artifact> artifacts = project.getArtifacts();
+			for (Artifact artifact : artifacts)
+			{
+				String path = artifact.getFile().getAbsolutePath();
+				if (path.contains("pljava-api"))
+					pljavaApiJar = path;
+			}
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
+			engine.put("pljava_api_jar_path", pljavaApiJar);
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
 			engine.eval(scriptText);

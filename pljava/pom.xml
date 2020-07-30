@@ -66,8 +66,8 @@ var args = java.util.List.of(
 	                          + "${basedir}/src/main/java",
 	"-doctitle",              "${project.name} ${project.version}",
 	"-windowtitle",           "${project.name} ${project.version}",
-	"--module-path", // should be obtained from Maven for pljava-api dependency
-		"${basedir}/../pljava-api/target/pljava-api-${project.version}.jar"
+	"--module-path",
+	pljava_api_jar_path
 );
 java.lang.System.out.println(args);
 var tool = javax.tools.ToolProvider.getSystemDocumentationTool();

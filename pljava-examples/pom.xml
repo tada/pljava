@@ -103,8 +103,8 @@ var args = java.util.List.of(
 	"-use",
 	"-version",
 	"-protected",
-	"-classpath", // XXX get this from Maven as pljava-api dependency classpath
-		"${basedir}/../pljava-api/target/pljava-api-${project.version}.jar",
+	"-classpath",
+	pljava_api_jar_path,
 	"org.postgresql.pljava.example",
 	"org.postgresql.pljava.example.annotation"
 );
