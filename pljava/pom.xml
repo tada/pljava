@@ -73,6 +73,22 @@ java.lang.System.out.println(args);
 var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
 var task = tool.getTask(null, null, null, null, args, null);
 task.call();
+
+var sink = report.getSink();
+sink.head();
+sink.title();
+sink.text("${project.name} Documentation Report");
+sink.title_();
+sink.head_();
+sink.body();
+sink.section1();
+sink.sectionTitle();
+sink.link("apidocs/index.html");
+sink.text("Go to documentation");
+sink.sectionTitle_();
+sink.link_();
+sink.section1_();
+sink.body_();
 ]]>
 					</script>
 				</configuration>

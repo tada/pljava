@@ -62,6 +62,7 @@ public class ReportScriptingMojo extends AbstractMavenReport
 					pljavaApiJar = path;
 			}
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
+			engine.put("report", this);
 			engine.put("pljava_api_jar_path", pljavaApiJar);
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
