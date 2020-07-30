@@ -12,6 +12,8 @@
 package org.postgresql.pljava.internal;
 
 import java.util.NoSuchElementException;
+import static java.util.Objects.requireNonNull;
+import java.util.stream.BaseStream;
 
 /**
  * Functional interfaces handling checked exceptions.
@@ -79,6 +81,11 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * Each functional interface declared here has a static {@code use(...)} method
  * that can serve, as a concise alternative to casting, to constrain the type
  * of a lambda expression when the compiler won't infer it.
+ *<p>
+ * A {@link AutoCloseable variant of AutoCloseable} with an exception-type
+ * parameter, and some {@link #closing(AutoCloseable) closing} methods (inspired
+ * by Python, for use with resources that do not already implement
+ * {@code AutoCloseable}), are also provided.
  */
 public interface Checked<WT, EX extends Throwable>
 {
@@ -89,26 +96,6 @@ public interface Checked<WT, EX extends Throwable>
 	}
 
 	WT ederWrap();
-
-	/**
-	 * Superinterface of the functional interfaces declared here that do
-	 * <em>not</em> have checked-exception-less counterparts in the Java API.
-	 *<p>
-	 * These can all inherit a no-op default {@code ederWrap} that returns the
-	 * instance unchanged, allowing them also to participate in the
-	 * {@code use(...).in(...)} idiom for stylistic consistency even if it is
-	 * not strictly necessary.
-	 */
-	interface Trivial<WT extends Trivial<WT, EX>, EX extends Throwable>
-	extends Checked<WT, EX>
-	{
-		@Override
-		@SuppressWarnings("unchecked")
-		default WT ederWrap()
-		{
-			return (WT) this;
-		}
-	}
 
 	default <RX extends Throwable>
 	void in(Consumer<? super WT, RX> c)
@@ -258,6 +245,153 @@ public interface Checked<WT, EX extends Throwable>
 			first.accept(t);
 			after.accept(t);
 		};
+	}
+
+	/**
+	 * Version of {@link java.lang.AutoCloseable} with an exception-type
+	 * parameter.
+	 *<p>
+	 * This does not need {@code use} or {@code ederWrap} methods because Java's
+	 * {@code AutoCloseable} already allows checked exceptions. The only trouble
+	 * with the Java one is it can't be parameterized to narrow the thrown type
+	 * from {@code Exception}. In Java's API docs, implementers are "strongly
+	 * encouraged" to narrow their {@code throws} clauses, but that's only
+	 * helpful where the compiler sees the specific implementing class.
+	 */
+	@FunctionalInterface
+	interface AutoCloseable<E extends Exception>
+	extends java.lang.AutoCloseable
+	{
+		@Override
+		void close() throws E;
+	}
+
+	/**
+	 * Returns its argument; shorthand for casting a suitable lambda to
+	 * {@code AutoCloseable<E>}.
+	 *<p>
+	 * Where some resource does not itself implement {@code AutoCloseable}, an
+	 * idiom like the following, inspired by Python, can be used in Java 10 or
+	 * later, and the compiler will infer that it can throw whatever
+	 * {@code thing.release()} can throw:
+	 *<pre>
+	 *  try(var ac = closing(() -&gt; thing.release()))
+	 *  {
+	 *    ...
+	 *  }
+	 *</pre>
+	 *<p>
+	 * Pre-Java 10, without {@code var}, you have to specify the exception type,
+	 * but you still get the simple idiom without needing to declare some new
+	 * interface:
+	 *<pre>
+	 *  try(Checked.AutoCloseable&lt;ThingException&gt; ac =
+	 *		closing(() -&gt; thing.release()))
+	 *  {
+	 *    ...
+	 *  }
+	 *</pre>
+	 */
+	static <E extends Exception>
+		AutoCloseable<E> closing(AutoCloseable<E> o)
+	{
+		return o;
+	}
+
+	/**
+	 * Wrap some payload and a 'closer' lambda as a {@code Closing} instance
+	 * that can supply the payload and implements {@code AutoCloseable} using
+	 * the lambda; useful in a {@code try}-with-resources when the payload
+	 * itself does not implement {@code AutoCloseable}.
+	 */
+	static <T, E extends Exception>
+		Closing<T,E> closing(T payload, AutoCloseable<E> closer)
+	{
+		return new Closing<>(payload, closer);
+	}
+
+	/**
+	 * Given a stream and a lambda that should be invoked when it is closed,
+	 * construct a new stream that runs that lambda when closed, and return a
+	 * {@code Closing} instance with the new stream as its payload, which will
+	 * be closed by the {@code close} action.
+	 *<p>
+	 * Intended for use in a {@code try}-with-resources. Any checked exception
+	 * throwable by <em>closer</em> will be remembered as throwable by the
+	 * {@code close} method of the returned {@code Closing} instance (and
+	 * therefore will be considered throwable by the {@code try}-with-resources
+	 * in which it is used. Any other code that calls {@code close} directly on
+	 * the returned stream could be surprised by the checked exception, as a
+	 * stream's {@code close} method is not declared to throw any. When used as
+	 * intended in a {@code try}-with-resources, any such surprise is bounded
+	 * by the scope of that statement.
+	 */
+	static <T, S extends BaseStream<T,S>, E extends Exception>
+		Closing<S,E> closing(S stream, Runnable<E> closer)
+	{
+		S newStream = stream.onClose(closer.ederWrap());
+		return new Closing<>(newStream, newStream::close);
+	}
+
+	/**
+	 * A class that can supply a {@code T} while also implementing
+	 * {@code AutoCloseable<E>}; suitable for use in a
+	 * {@code try}-with-resources to wrap some value that does not itself
+	 * implement {@code AutoCloseable}.
+	 *<p>
+	 * Obtained via one of the {@code closing} methods above.
+	 */
+	/*
+	 * This class also encloses the private interface Trivial, simply to make it
+	 * private (a private interface can only exist within a class) to ensure it
+	 * is only extended by other interfaces in this compilation unit (its
+	 * default method includes an unchecked cast). It did not seem worth
+	 * creating another entire class only to enclose a private interface.
+	 */
+	class Closing<T, E extends Exception>
+	implements java.util.function.Supplier<T>, AutoCloseable<E>
+	{
+		private final T m_payload;
+		private final AutoCloseable<E> m_closer;
+
+		private Closing(T payload, AutoCloseable<E> closer)
+		{
+			m_payload = payload;
+			m_closer = requireNonNull(closer);
+		}
+
+		@Override
+		public T get()
+		{
+			return m_payload;
+		}
+
+		@Override
+		public void close() throws E
+		{
+			m_closer.close();
+		}
+
+		/**
+		 * Superinterface of the functional interfaces declared here that do
+		 * <em>not</em> have checked-exception-less counterparts in Java's API.
+		 *<p>
+		 * These can all inherit a no-op default {@code ederWrap} that returns
+		 * the instance unchanged, allowing them also to participate in the
+		 * {@code use(...).in(...)} idiom for stylistic consistency even if it
+		 * is not strictly necessary.
+		 */
+		private interface Trivial
+			<WT extends Trivial<WT, EX>, EX extends Throwable>
+		extends Checked<WT, EX>
+		{
+			@Override
+			@SuppressWarnings("unchecked")
+			default WT ederWrap()
+			{
+				return (WT) this;
+			}
+		}
 	}
 
 	/*
@@ -443,7 +577,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteSupplier<E extends Throwable>
-	extends Trivial<ByteSupplier<E>, E>
+	extends Closing.Trivial<ByteSupplier<E>, E>
 	{
 		byte getAsByte() throws E;
 
@@ -455,7 +589,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortSupplier<E extends Throwable>
-	extends Trivial<ShortSupplier<E>, E>
+	extends Closing.Trivial<ShortSupplier<E>, E>
 	{
 		short getAsShort() throws E;
 
@@ -467,7 +601,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharSupplier<E extends Throwable>
-	extends Trivial<CharSupplier<E>, E>
+	extends Closing.Trivial<CharSupplier<E>, E>
 	{
 		char getAsChar() throws E;
 
@@ -479,7 +613,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatSupplier<E extends Throwable>
-	extends Trivial<FloatSupplier<E>, E>
+	extends Closing.Trivial<FloatSupplier<E>, E>
 	{
 		float getAsFloat() throws E;
 
@@ -649,7 +783,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ToByteFunction<T,E extends Throwable>
-	extends Trivial<ToByteFunction<T,E>, E>
+	extends Closing.Trivial<ToByteFunction<T,E>, E>
 	{
 		byte apply(T t) throws E;
 
@@ -662,7 +796,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ToShortFunction<T,E extends Throwable>
-	extends Trivial<ToShortFunction<T,E>, E>
+	extends Closing.Trivial<ToShortFunction<T,E>, E>
 	{
 		short apply(T t) throws E;
 
@@ -675,7 +809,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ToCharFunction<T,E extends Throwable>
-	extends Trivial<ToCharFunction<T,E>, E>
+	extends Closing.Trivial<ToCharFunction<T,E>, E>
 	{
 		char apply(T t) throws E;
 
@@ -688,7 +822,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ToFloatFunction<T,E extends Throwable>
-	extends Trivial<ToFloatFunction<T,E>, E>
+	extends Closing.Trivial<ToFloatFunction<T,E>, E>
 	{
 		char apply(T t) throws E;
 
@@ -821,7 +955,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface BooleanConsumer<E extends Throwable>
-	extends Trivial<BooleanConsumer<E>, E>
+	extends Closing.Trivial<BooleanConsumer<E>, E>
 	{
 		void accept(boolean value) throws E;
 
@@ -834,7 +968,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteConsumer<E extends Throwable>
-	extends Trivial<ByteConsumer<E>, E>
+	extends Closing.Trivial<ByteConsumer<E>, E>
 	{
 		void accept(byte value) throws E;
 
@@ -846,7 +980,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortConsumer<E extends Throwable>
-	extends Trivial<ShortConsumer<E>, E>
+	extends Closing.Trivial<ShortConsumer<E>, E>
 	{
 		void accept(short value) throws E;
 
@@ -858,7 +992,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharConsumer<E extends Throwable>
-	extends Trivial<CharConsumer<E>, E>
+	extends Closing.Trivial<CharConsumer<E>, E>
 	{
 		void accept(char value) throws E;
 
@@ -870,7 +1004,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatConsumer<E extends Throwable>
-	extends Trivial<FloatConsumer<E>, E>
+	extends Closing.Trivial<FloatConsumer<E>, E>
 	{
 		void accept(float value) throws E;
 
