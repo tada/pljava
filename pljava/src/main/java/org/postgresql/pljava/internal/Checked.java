@@ -11,6 +11,9 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.NoSuchElementException;
 import static java.util.Objects.requireNonNull;
 import java.util.stream.BaseStream;
@@ -1016,6 +1019,12 @@ public interface Checked<WT, EX extends Throwable>
 
 	/*
 	 * Optionals without checked-exception-less counterparts in the Java API.
+	 *
+	 * Rather than following Java's odd "Value-Based Class" conventions (which
+	 * would require each class to be final and therefore preclude a None/Some
+	 * implementation), these all have private constructors and constitute an
+	 * effectively sealed hierarchy. Client code can and should treat them as
+	 * value-based classes, and they will behave.
 	 */
 
 	abstract class OptionalBase
@@ -1026,9 +1035,74 @@ public interface Checked<WT, EX extends Throwable>
 		}
 
 		@Override
+		public boolean equals(Object obj)
+		{
+			/*
+			 * This is the equals() inherited by every EMPTY instance, and
+			 * therefore can only return true when obj is an instance of the
+			 * exact same type.
+			 */
+			return null != obj && getClass().equals(obj.getClass());
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return 0;
+		}
+
+		@Override
 		public String toString()
 		{
 			return getClass().getSimpleName() + ".empty";
+		}
+
+		public static OptionalDouble ofNullable(Double value)
+		{
+			return null == value ?
+				OptionalDouble.empty() : OptionalDouble.of(value);
+		}
+
+		public static OptionalInt ofNullable(Integer value)
+		{
+			return null == value ?
+				OptionalInt.empty() : OptionalInt.of(value);
+		}
+
+		public static OptionalLong ofNullable(Long value)
+		{
+			return null == value ?
+				OptionalLong.empty() : OptionalLong.of(value);
+		}
+
+		public static OptionalBoolean ofNullable(Boolean value)
+		{
+			return null == value ?
+				OptionalBoolean.EMPTY : OptionalBoolean.of(value);
+		}
+
+		public static OptionalByte ofNullable(Byte value)
+		{
+			return null == value ?
+				OptionalByte.EMPTY : OptionalByte.of(value);
+		}
+
+		public static OptionalShort ofNullable(Short value)
+		{
+			return null == value ?
+				OptionalShort.EMPTY : OptionalShort.of(value);
+		}
+
+		public static OptionalChar ofNullable(Character value)
+		{
+			return null == value ?
+				OptionalChar.EMPTY : OptionalChar.of(value);
+		}
+
+		public static OptionalFloat ofNullable(Float value)
+		{
+			return null == value ?
+				OptionalFloat.EMPTY : OptionalFloat.of(value);
 		}
 	}
 
@@ -1095,6 +1169,17 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			/*
+			 * The inherited equals() works here too; this and obj must be both
+			 * of class False or both of class True.
+			 */
+
+			@Override
+			public int hashCode()
+			{
+				return Boolean.hashCode(getAsBoolean());
 			}
 
 			@Override
@@ -1239,6 +1324,19 @@ public interface Checked<WT, EX extends Throwable>
 			}
 
 			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Byte.hashCode(m_value);
+			}
+
+			@Override
 			public String toString()
 			{
 				return "OptionalByte[" + m_value + ']';
@@ -1355,6 +1453,19 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Short.hashCode(m_value);
 			}
 
 			@Override
@@ -1476,6 +1587,19 @@ public interface Checked<WT, EX extends Throwable>
 			}
 
 			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Character.hashCode(m_value);
+			}
+
+			@Override
 			public String toString()
 			{
 				return "OptionalChar[" + (int)m_value + ']';
@@ -1591,6 +1715,19 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (0 == Float.compare(m_value, ((Present)obj).m_value));
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Float.hashCode(m_value);
 			}
 
 			@Override
