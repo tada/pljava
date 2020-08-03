@@ -20,6 +20,7 @@ import org.apache.maven.reporting.AbstractMavenReport;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptEngine;
+import java.io.File;
 import java.util.Locale;
 
 @Mojo(name = "scripting-report")
@@ -32,7 +33,13 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	@Override
 	public String getOutputName ()
 	{
-		return "Documentation Report";
+		return "apidocs" + File.separator + "index";
+	}
+
+	@Override
+	public boolean isExternalReport ()
+	{
+		return true;
 	}
 
 	@Override
