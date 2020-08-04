@@ -53,6 +53,14 @@
 				<configuration>
 					<script mimetype="application/javascript">
 <![CDATA[
+var report_defaults = Java.type("org.postgresql.pljava.pgxs.ReportScript");
+var change_defaults = Java.extend(report_defaults, {
+	getOutputName : function () {
+		return "apidocs/allclasses-index";
+	}
+});
+report.reportScript = new change_defaults();
+
 var args = java.util.List.of(
 	"-doctitle",            "${project.name} ${project.version}",
 	"-windowtitle",         "${project.name} ${project.version}",

@@ -19,8 +19,6 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.reporting.AbstractMavenReport;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
-import javax.script.ScriptEngine;
-import java.io.File;
 import java.util.Locale;
 
 @Mojo(name = "scripting-report")
@@ -28,47 +26,60 @@ import java.util.Locale;
 public class ReportScriptingMojo extends AbstractMavenReport
 {
 	@Parameter
-	private PlexusConfiguration script;
+	public PlexusConfiguration script;
+
+	public ReportScript reportScript = new ReportScript() {};
+
+	public ReportScript getReportScript ()
+	{
+		return reportScript;
+	}
+
+	public void setReportScript (ReportScript reportScript)
+	{
+		this.reportScript = reportScript;
+	}
 
 	@Override
 	public String getOutputName ()
 	{
-		return "apidocs" + File.separator + "index";
+		return reportScript.getOutputName();
 	}
 
 	@Override
 	public boolean isExternalReport ()
 	{
-		return true;
+		return reportScript.isExternalReport();
 	}
 
 	@Override
 	public String getName (Locale locale)
 	{
-		return String.format(locale, "%s", "Documentation Report");
+		return reportScript.getName(locale);
 	}
 
 	@Override
 	public String getDescription (Locale locale)
 	{
-		return "Javadoc Generation Goal";
+		return reportScript.getDescription(locale);
+	}
+
+	@Override
+	public String getCategoryName ()
+	{
+		return reportScript.getCategoryName();
+	}
+
+	@Override
+	public boolean canGenerateReport ()
+	{
+		return reportScript.canGenerateReport();
 	}
 
 	@Override
 	protected void executeReport (Locale locale)
 	{
-		try
-		{
-			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
-			engine.put("report", this);
-			String scriptText = script.getValue();
-			getLog().debug(scriptText);
-			engine.eval(scriptText);
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace();
-		}
+		reportScript.executeReport(this);
 	}
 
 	@Override
