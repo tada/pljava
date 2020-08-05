@@ -88,7 +88,9 @@ function executeReport(report, locale)
 		"-version"
 	);
 
+	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+	report.log.debug(tool.toString());
 	var task = tool.getTask(null, null, null, null, args, null);
 	task.call();
 }
