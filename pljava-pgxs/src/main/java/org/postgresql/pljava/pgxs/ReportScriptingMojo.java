@@ -35,6 +35,9 @@ public class ReportScriptingMojo extends AbstractMavenReport
 
 	private void setReportScript()
 	{
+		if ( null != reportScript )
+			return;
+
 		try
 		{
 			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
@@ -52,49 +55,48 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	@Override
 	public String getOutputName ()
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.getOutputName(this);
 	}
 
 	@Override
 	public boolean isExternalReport ()
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.isExternalReport(this);
 	}
 
 	@Override
 	public String getName (Locale locale)
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.getName(this, locale);
 	}
 
 	@Override
 	public String getDescription (Locale locale)
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.getDescription(this, locale);
 	}
 
 	@Override
 	public String getCategoryName ()
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.getCategoryName(this);
 	}
 
 	@Override
 	public boolean canGenerateReport ()
 	{
-		assert null != reportScript : "executeReport not called first";
+		setReportScript();
 		return reportScript.canGenerateReport(this);
 	}
 
 	@Override
 	protected void executeReport (Locale locale)
 	{
-		assert null == reportScript : "executeReport called more than once";
 		setReportScript();
 		reportScript.executeReport(this, locale);
 	}
