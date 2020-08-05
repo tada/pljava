@@ -90,33 +90,57 @@
 				<configuration>
 					<script mimetype="application/javascript">
 <![CDATA[
-var pljava_api_jar_path;
-for each (var artifact in report.project.artifacts)
-	if (artifact.artifactId == "pljava-api")
-		pljava_api_jar_path = artifact.file.path;
+function getName(report, locale)
+{
+	return "JavaDocs";
+}
 
-var args = java.util.List.of(
-	"--release",    "9",
-	"-encoding",    report.inputEncoding,
-	"-docencoding", report.outputEncoding,
-	"-doctitle",    "${project.name} ${project.version}",
-	"-windowtitle", "${project.name} ${project.version}",
-	"-sourcepath",  "${basedir}/src/main/java",
-	"-link",        "https://docs.oracle.com/javase/10/docs/api",
-	"-d",           report.reportOutputDirectory.toPath().resolve("apidocs").toString(),
-	"-author",
-	"-use",
-	"-version",
-	"-protected",
-	"-classpath",
-	pljava_api_jar_path,
-	"org.postgresql.pljava.example",
-	"org.postgresql.pljava.example.annotation"
-);
-java.lang.System.out.println(args);
-var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-var task = tool.getTask(null, null, null, null, args, null);
-task.call();
+function getDescription(report, locale)
+{
+	return "JavaDoc API documentation.";
+}
+
+function getOutputName(report)
+{
+	return java.nio.file.Paths.get("apidocs", "index").toString();
+}
+
+function isExternalReport(report)
+{
+	return true;
+}
+
+function executeReport(report, locale)
+{
+	var pljava_api_jar_path;
+	for each (var artifact in report.project.artifacts)
+		if (artifact.artifactId == "pljava-api")
+			pljava_api_jar_path = artifact.file.path;
+
+	var args = java.util.List.of(
+		"--release",    "9",
+		"-encoding",    report.inputEncoding,
+		"-docencoding", report.outputEncoding,
+		"-doctitle",    "${project.name} ${project.version}",
+		"-windowtitle", "${project.name} ${project.version}",
+		"-sourcepath",  "${basedir}/src/main/java",
+		"-link",        "https://docs.oracle.com/javase/10/docs/api",
+		"-d",           report.reportOutputDirectory.toPath()
+							.resolve("apidocs").toString(),
+		"-author",
+		"-use",
+		"-version",
+		"-protected",
+		"-classpath",
+		pljava_api_jar_path,
+		"org.postgresql.pljava.example",
+		"org.postgresql.pljava.example.annotation"
+	);
+	java.lang.System.out.println(args);
+	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+	var task = tool.getTask(null, null, null, null, args, null);
+	task.call();
+}
 ]]>
 					</script>
 				</configuration>

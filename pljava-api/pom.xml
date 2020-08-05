@@ -53,29 +53,45 @@
 				<configuration>
 					<script mimetype="application/javascript">
 <![CDATA[
-var report_defaults = Java.type("org.postgresql.pljava.pgxs.ReportScript");
-var change_defaults = Java.extend(report_defaults, {
-	getOutputName : function () {
-		return "apidocs/allclasses-index";
-	}
-});
-report.reportScript = new change_defaults();
+function getName(report, locale)
+{
+	return "JavaDocs";
+}
 
-var args = java.util.List.of(
-	"-doctitle",            "${project.name} ${project.version}",
-	"-windowtitle",         "${project.name} ${project.version}",
-	"--module",             "org.postgresql.pljava",
-	"--module-source-path", "org.postgresql.pljava=${basedir}/src/main/java",
-	"-link",                "https://docs.oracle.com/javase/10/docs/api",
-	"-d",                   "${basedir}/target/site/apidocs",
-	"-author",
-	"-use",
-	"-version"
-);
+function getDescription(report, locale)
+{
+	return "JavaDoc API documentation.";
+}
 
-var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-var task = tool.getTask(null, null, null, null, args, null);
-task.call();
+function getOutputName(report)
+{
+	return java.nio.file.Paths.get("apidocs", "index").toString();
+}
+
+function isExternalReport(report)
+{
+	return true;
+}
+
+function executeReport(report, locale)
+{
+	var args = java.util.List.of(
+		"-doctitle",            "${project.name} ${project.version}",
+		"-windowtitle",         "${project.name} ${project.version}",
+		"--module",             "org.postgresql.pljava",
+		"--module-source-path","org.postgresql.pljava=${basedir}/src/main/java",
+		"-link",                "https://docs.oracle.com/javase/10/docs/api",
+		"-d",                   report.reportOutputDirectory.toPath()
+									.resolve("apidocs").toString(),
+		"-author",
+		"-use",
+		"-version"
+	);
+
+	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+	var task = tool.getTask(null, null, null, null, args, null);
+	task.call();
+}
 ]]>
 					</script>
 				</configuration>
