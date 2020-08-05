@@ -65,7 +65,9 @@ function getDescription(report, locale)
 
 function getOutputName(report)
 {
-	return java.nio.file.Paths.get("apidocs", "index").toString();
+	return java.nio.file.Paths
+		.get("apidocs", "org.postgresql.pljava", "module-summary")
+		.toString();
 }
 
 function isExternalReport(report)
