@@ -48,10 +48,8 @@
 								scripting-report
 							</report>
 						</reports>
-					</reportSet>
-				</reportSets>
-				<configuration>
-					<script mimetype="application/javascript">
+						<configuration>
+							<script mimetype="application/javascript">
 <![CDATA[
 function getName(report, locale)
 {
@@ -95,8 +93,10 @@ function executeReport(report, locale)
 	task.call();
 }
 ]]>
-					</script>
-				</configuration>
+							</script>
+						</configuration>
+					</reportSet>
+				</reportSets>
 			</plugin>
 		</plugins>
 	</reporting>
