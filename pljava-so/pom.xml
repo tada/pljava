@@ -86,7 +86,6 @@
 					<plugin>
 						<groupId>org.postgresql</groupId>
 						<artifactId>pljava-pgxs</artifactId>
-						<version>0.0.1-SNAPSHOT</version>
 						<dependencies>
 							<dependency>
 								<groupId>org.graalvm.js</groupId>

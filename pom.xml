@@ -103,6 +103,53 @@
 				</plugins>
 			</build>
 		</profile>
+
+		<profile>
+			<id>nashorngone</id>
+			<activation>
+				<jdk>[15,)</jdk>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>properties-maven-plugin</artifactId>
+						<version>1.0.0</version>
+						<executions>
+							<execution>
+								<phase>initialize</phase>
+								<goals>
+									<goal>set-system-properties</goal>
+								</goals>
+								<configuration>
+									<properties>
+										<polyglot.js.nashorn-compat>
+											true
+										</polyglot.js.nashorn-compat>
+									</properties>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-antrun-plugin</artifactId>
+						<dependencies>
+							<dependency>
+								<groupId>org.graalvm.js</groupId>
+								<artifactId>js</artifactId>
+								<version>20.1.0</version>
+							</dependency>
+							<dependency>
+								<groupId>org.graalvm.js</groupId>
+								<artifactId>js-scriptengine</artifactId>
+								<version>20.1.0</version>
+							</dependency>
+						</dependencies>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 	<dependencies>

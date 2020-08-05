@@ -26,11 +26,10 @@ import java.util.regex.Pattern;
 
 public final class PGXSUtils
 {
-	static Pattern mustBeQuotedForC = Pattern.compile(
+	static final Pattern mustBeQuotedForC = Pattern.compile(
 		"([\"\\\\]|(?<=\\?)\\?(?=[=(/)'<!>-]))|" +  // (just insert backslash)
-			"([\\a\b\\f\\n\\r\\t\\x0B])|" +     // (use specific escapes)
-			"(\\p{Cc}((?=\\p{XDigit}))?)"
-		// use hex, note whether an XDigit follows
+		"([\\a\b\\f\\n\\r\\t\\x0B])|" +             // (use specific escapes)
+		"(\\p{Cc}((?=\\p{XDigit}))?)" // use hex, note whether an XDigit follows
 	);
 
 	private PGXSUtils ()
@@ -47,6 +46,20 @@ public final class PGXSUtils
 	 */
 	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log)
 	{
+		/*
+		 * Set the polyglot.js.nashorn-compat system property to true if it is
+		 * unset and this is Java >= 15. It would be preferable to set this in
+		 * a pom profile rather than hardcoding it here; properties-maven-plugin
+		 * can do it, but that doesn't happen in the 'site' lifecycle, and we
+		 * use scripting in reports too. In Java >= 15, the Nashorn JavaScript
+		 * engine isn't available, and a profile will have arranged for Graal's
+		 * JavaScript engine to be on the classpath, but it doesn't behave
+		 * compatibly with Nashorn unless this property is set.
+		 */
+		if ( 0 <= Runtime.version().compareTo(Runtime.Version.parse("15-ea")) )
+			System.getProperties()
+				.putIfAbsent("polyglot.js.nashorn-compat", "true");
+
 		ScriptEngine engine = null;
 		try
 		{
@@ -67,7 +80,8 @@ public final class PGXSUtils
 				if (mimeType != null)
 					if (engine != null)
 					{
-						if (engine.getFactory().getMimeTypes().contains(mimeType))
+						if ( ! engine.getFactory().getMimeTypes()
+							.contains(mimeType) )
 							log.warn("Specified engine does " +
 								"not have given mime type : " + mimeType);
 					}
