@@ -7,57 +7,32 @@
  * http://opensource.org/licenses/BSD-3-Clause
  *
  * Contributors:
+ *   Chapman Flack
  *   Kartik Ohri
  */
 package org.postgresql.pljava.pgxs;
 
-import javax.script.ScriptEngine;
-import java.io.File;
 import java.util.Locale;
 
 public interface ReportScript
 {
-	default boolean isExternalReport() {
-		return true;
+	default boolean isExternalReport(ReportScriptingMojo report) {
+		return report.isExternalReportDefault();
 	}
 
-	default String getOutputName ()
-	{
-		return "apidocs" + File.separator + "index";
+	default String getCategoryName(ReportScriptingMojo report) {
+		return report.getCategoryNameDefault();
 	}
 
-	default String getName (Locale locale)
-	{
-		return String.format(locale, "%s", "Documentation Report");
+	default boolean canGenerateReport(ReportScriptingMojo report) {
+		return report.canGenerateReportDefault();
 	}
 
-	default String getDescription (Locale locale)
-	{
-		return String.format(locale, "%s","Javadoc Generation Goal");
-	}
+	String getOutputName (ReportScriptingMojo report);
 
-	default String getCategoryName() {
-		return "Project Reports";
-	}
+	String getName (ReportScriptingMojo report, Locale locale);
 
-	default boolean canGenerateReport() {
-		return true;
-	}
+	String getDescription (ReportScriptingMojo report, Locale locale);
 
-	default void executeReport(ReportScriptingMojo report) {
-		try
-		{
-			ScriptEngine engine = PGXSUtils.getScriptEngine(
-				report.script, report.getLog());
-			engine.put("report", report);
-			String scriptText = report.script.getValue();
-			report.getLog().debug(scriptText);
-			engine.eval(scriptText);
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace();
-		}
-	}
-
+	void executeReport(ReportScriptingMojo report, Locale locale);
 }

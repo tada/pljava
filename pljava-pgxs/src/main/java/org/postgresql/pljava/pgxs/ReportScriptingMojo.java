@@ -7,6 +7,7 @@
  * http://opensource.org/licenses/BSD-3-Clause
  *
  * Contributors:
+ *   Chapman Flack
  *   Kartik Ohri
  */
 package org.postgresql.pljava.pgxs;
@@ -19,6 +20,8 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.reporting.AbstractMavenReport;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
+import javax.script.Invocable;
+import javax.script.ScriptEngine;
 import java.util.Locale;
 
 @Mojo(name = "scripting-report")
@@ -28,58 +31,72 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	@Parameter
 	public PlexusConfiguration script;
 
-	public ReportScript reportScript = new ReportScript() {};
+	private ReportScript reportScript;
 
-	public ReportScript getReportScript ()
+	private void setReportScript()
 	{
-		return reportScript;
-	}
-
-	public void setReportScript (ReportScript reportScript)
-	{
-		this.reportScript = reportScript;
+		try
+		{
+			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
+			String scriptText = script.getValue();
+			getLog().debug(scriptText);
+			engine.eval(scriptText);
+			reportScript = ((Invocable)engine).getInterface(ReportScript.class);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
 	}
 
 	@Override
 	public String getOutputName ()
 	{
-		return reportScript.getOutputName();
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.getOutputName(this);
 	}
 
 	@Override
 	public boolean isExternalReport ()
 	{
-		return reportScript.isExternalReport();
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.isExternalReport(this);
 	}
 
 	@Override
 	public String getName (Locale locale)
 	{
-		return reportScript.getName(locale);
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.getName(this, locale);
 	}
 
 	@Override
 	public String getDescription (Locale locale)
 	{
-		return reportScript.getDescription(locale);
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.getDescription(this, locale);
 	}
 
 	@Override
 	public String getCategoryName ()
 	{
-		return reportScript.getCategoryName();
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.getCategoryName(this);
 	}
 
 	@Override
 	public boolean canGenerateReport ()
 	{
-		return reportScript.canGenerateReport();
+		assert null != reportScript : "executeReport not called first";
+		return reportScript.canGenerateReport(this);
 	}
 
 	@Override
 	protected void executeReport (Locale locale)
 	{
-		reportScript.executeReport(this);
+		assert null == reportScript : "executeReport called more than once";
+		setReportScript();
+		reportScript.executeReport(this, locale);
 	}
 
 	@Override
@@ -88,13 +105,30 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return super.getProject();
 	}
 
+	@Override
 	public String getInputEncoding ()
 	{
 		return super.getInputEncoding();
 	}
 
+	@Override
 	public String getOutputEncoding ()
 	{
 		return super.getOutputEncoding();
+	}
+
+	boolean isExternalReportDefault ()
+	{
+		return super.isExternalReport();
+	}
+
+	String getCategoryNameDefault ()
+	{
+		return super.getCategoryName();
+	}
+
+	boolean canGenerateReportDefault ()
+	{
+		return super.canGenerateReport();
 	}
 }
