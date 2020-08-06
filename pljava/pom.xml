@@ -127,6 +127,12 @@ function executeReport(report, locale)
 
 	var srcroot = java.nio.file.Paths.get("src", "main", "java");
 
+	var bottom =
+		"Copyright &#169; " +
+		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
+		"<a href='" + report.project.organization.url + "'>" +
+		report.project.organization.name + "</a>";
+
 	var args = java.util.List.of(
 		/*
 		 * The 'standard options' that javadoc inherits from javac.
@@ -150,6 +156,8 @@ function executeReport(report, locale)
 		/*
 		 * Options that are passed to the doclet.
 		 */
+		"-author",
+		"-bottom",                bottom,
 		"-d",                     report.reportOutputDirectory.toPath()
 									.resolve("apidocs").toString(),
 		"-docencoding",           report.outputEncoding,
@@ -157,6 +165,7 @@ function executeReport(report, locale)
 		"-link",                  "https://docs.oracle.com/javase/10/docs/api",
 		"-sourcetab",             "4",
 		"-use",
+		"-version",
 		"-windowtitle",           title
 	);
 	report.log.debug(args.toString());
