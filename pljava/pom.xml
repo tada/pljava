@@ -127,6 +127,12 @@ function executeReport(report, locale)
 
 	var srcroot = java.nio.file.Paths.get("src", "main", "java");
 
+	var jdklink = "https://docs.oracle.com/" +
+		locale.language + "/java/javase/12/docs/api";
+
+	var apioffline =
+		basedir.toUri().resolve("../pljava-api/target/site/apidocs");
+
 	var bottom =
 		"Copyright &#169; " +
 		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
@@ -162,7 +168,10 @@ function executeReport(report, locale)
 									.resolve("apidocs").toString(),
 		"-docencoding",           report.outputEncoding,
 		"-doctitle",              title,
-		"-link",                  "https://docs.oracle.com/javase/10/docs/api",
+		"-link",                  jdklink,
+		"-linkoffline",
+								  "../../pljava-api/apidocs",
+								  apioffline.toString(),
 		"-sourcetab",             "4",
 		"-use",
 		"-version",
