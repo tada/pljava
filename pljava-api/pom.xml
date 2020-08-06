@@ -81,6 +81,19 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
+function canGenerateReport(report)
+{
+	/*
+	 * Javadoc is run below with the --module-source-path mod=path syntax, which
+	 * appears in javadoc 12.
+	 */
+	var v = java.lang.Runtime.version();
+	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("12")) )
+		return true;
+	report.log.warn("Skipping JavaDocs; Java >= 12 required");
+	return false;
+}
+
 function getName(report, locale)
 {
 	return "JavaDocs";
@@ -105,17 +118,55 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
+	var title = report.project.name + " " + report.project.version;
+
+	var basedir = report.project.basedir.toPath();
+
+	/*
+	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
+	 */
+	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
+
+	var jdklink = "https://docs.oracle.com/" +
+		locale.language + "/java/javase/12/docs/api";
+
+	var bottom =
+		"Copyright &#169; " +
+		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
+		"<a href='" + report.project.organization.url + "'>" +
+		report.project.organization.name + "</a>";
+
 	var args = java.util.List.of(
-		"-doctitle",            "${project.name} ${project.version}",
-		"-windowtitle",         "${project.name} ${project.version}",
+		/*
+		 * The 'standard options' that javadoc inherits from javac.
+		 * Do not add --release: it causes -encoding to be ignored (in javadoc
+		 * 12 through 15, anyway).
+		 */
+		"-encoding",            report.inputEncoding,
 		"--module",             "org.postgresql.pljava",
-		"--module-source-path","org.postgresql.pljava=${basedir}/src/main/java",
-		"-link",                "https://docs.oracle.com/javase/10/docs/api",
+		"--module-source-path", "org.postgresql.pljava="
+								+ basedir.resolve(srcroot),
+		/*
+		 * Core javadoc options.
+		 * Avoid the legacy package/private/protected/public options; they can
+		 * clobber the effects of the newer -show-...=... options.
+		 */
+		"-locale",              locale.toString(),
+		"-quiet",
+		/*
+		 * Options that are passed to the doclet.
+		 */
+		"-author",
+		"-bottom",              bottom,
 		"-d",                   report.reportOutputDirectory.toPath()
 									.resolve("apidocs").toString(),
-		"-author",
+		"-docencoding",         report.outputEncoding,
+		"-doctitle",            title,
+		"-link",                jdklink,
+		"-sourcetab",           "4",
 		"-use",
-		"-version"
+		"-version",
+		"-windowtitle",         title
 	);
 
 	report.log.debug(args.toString());

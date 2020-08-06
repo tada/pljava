@@ -142,25 +142,63 @@ function executeReport(report, locale)
 		if (artifact.artifactId == "pljava-api")
 			pljava_api_jar_path = artifact.file.path;
 
+	var title = report.project.name + " " + report.project.version;
+
+	var basedir = report.project.basedir.toPath();
+
+	/*
+	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
+	 */
+	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
+
+	var jdklink = "https://docs.oracle.com/" +
+		locale.language + "/java/javase/12/docs/api";
+
+	var bottom =
+		"Copyright &#169; " +
+		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
+		"<a href='" + report.project.organization.url + "'>" +
+		report.project.organization.name + "</a>";
+
 	var args = java.util.List.of(
-		"--release",    "9",
+		/*
+		 * The 'standard options' that javadoc inherits from javac.
+		 * Do not add --release: it causes -encoding to be ignored (in javadoc
+		 * 12 through 15, anyway).
+		 */
 		"-encoding",    report.inputEncoding,
-		"-docencoding", report.outputEncoding,
-		"-doctitle",    "${project.name} ${project.version}",
-		"-windowtitle", "${project.name} ${project.version}",
-		"-sourcepath",  "${basedir}/src/main/java",
-		"-link",        "https://docs.oracle.com/javase/10/docs/api",
+		"-classpath",   pljava_api_jar_path,
+		"-sourcepath",  basedir.resolve(srcroot).toString(),
+		/*
+		 * Core javadoc options.
+		 * Avoid the legacy package/private/protected/public options; they can
+		 * clobber the effects of the newer -show-...=... options.
+		 */
+		"-locale",              locale.toString(),
+		"-quiet",
+		/*
+		 * Options that are passed to the doclet.
+		 */
+		"-author",
+		"-bottom",      bottom,
 		"-d",           report.reportOutputDirectory.toPath()
 							.resolve("apidocs").toString(),
-		"-author",
+		"-docencoding", report.outputEncoding,
+		"-doctitle",    title,
+		"-link",        jdklink,
+		"-sourcetab",   "4",
 		"-use",
 		"-version",
-		"-protected",
-		"-classpath",
-		pljava_api_jar_path,
+		"-windowtitle", title,
+		/*
+		 * Packages to document. These could perhaps also be supplied
+		 * as JavaFileObjects in the compilationUnits parameter, but they are
+		 * accepted here among the options, so why work any harder?
+		 */
 		"org.postgresql.pljava.example",
 		"org.postgresql.pljava.example.annotation"
 	);
+
 	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
 	report.log.debug(tool.toString());

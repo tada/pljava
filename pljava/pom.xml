@@ -125,7 +125,10 @@ function executeReport(report, locale)
 
 	var basedir = report.project.basedir.toPath();
 
-	var srcroot = java.nio.file.Paths.get("src", "main", "java");
+	/*
+	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
+	 */
+	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
 
 	var jdklink = "https://docs.oracle.com/" +
 		locale.language + "/java/javase/12/docs/api";
@@ -177,6 +180,7 @@ function executeReport(report, locale)
 		"-version",
 		"-windowtitle",           title
 	);
+
 	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
 	report.log.debug(tool.toString());
