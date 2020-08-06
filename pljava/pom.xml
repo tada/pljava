@@ -79,6 +79,19 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
+function canGenerateReport(report)
+{
+	/*
+	 * Javadoc is run below with the --module-source-path mod=path syntax, which
+	 * appears in javadoc 12.
+	 */
+	var v = java.lang.Runtime.version();
+	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("12")) )
+		return true;
+	report.log.warn("Skipping JavaDocs; Java >= 12 required");
+	return false;
+}
+
 function getName(report, locale)
 {
 	return "JavaDocs";
@@ -108,22 +121,43 @@ function executeReport(report, locale)
 		if (artifact.artifactId == "pljava-api")
 			pljava_api_jar_path = artifact.file.path;
 
+	var title = report.project.name + " " + report.project.version;
+
+	var basedir = report.project.basedir.toPath();
+
+	var srcroot = java.nio.file.Paths.get("src", "main", "java");
+
 	var args = java.util.List.of(
-		"--release",              "9",
+		/*
+		 * The 'standard options' that javadoc inherits from javac.
+		 * Do not add --release: it causes -encoding to be ignored (in javadoc
+		 * 12 through 15, anyway).
+		 */
 		"-encoding",              report.inputEncoding,
-		"-docencoding",           report.outputEncoding,
+		"--module",               "org.postgresql.pljava.internal",
+		"--module-path",          pljava_api_jar_path,
+		"--module-source-path",   "org.postgresql.pljava.internal="
+								  + basedir.resolve(srcroot),
+		/*
+		 * Core javadoc options.
+		 * Avoid the legacy package/private/protected/public options; they can
+		 * clobber the effects of the newer -show-...=... options.
+		 */
+		"-locale",                locale.toString(),
+		"-quiet",
 		"--show-module-contents", "all",
 		"--show-packages",        "all",
-		"-protected",
+		/*
+		 * Options that are passed to the doclet.
+		 */
 		"-d",                     report.reportOutputDirectory.toPath()
 									.resolve("apidocs").toString(),
+		"-docencoding",           report.outputEncoding,
+		"-doctitle",              title,
 		"-link",                  "https://docs.oracle.com/javase/10/docs/api",
-		"--module",               "org.postgresql.pljava.internal",
-		"--module-source-path",   "org.postgresql.pljava.internal="
-								  + "${basedir}/src/main/java",
-		"-doctitle",              "${project.name} ${project.version}",
-		"-windowtitle",           "${project.name} ${project.version}",
-		"--module-path",          pljava_api_jar_path
+		"-sourcetab",             "4",
+		"-use",
+		"-windowtitle",           title
 	);
 	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
