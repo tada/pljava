@@ -137,10 +137,9 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
-	var pljava_api_jar_path;
-	for each (var artifact in report.project.artifacts)
-		if (artifact.artifactId == "pljava-api")
-			pljava_api_jar_path = artifact.file.path;
+	var classpath = java.lang.String.join(
+		java.lang.System.getProperty("path.separator"),
+		report.project.compileClasspathElements);
 
 	var title = report.project.name + " " + report.project.version;
 
@@ -172,7 +171,7 @@ function executeReport(report, locale)
 		 * 12 through 15, anyway).
 		 */
 		"-encoding",    report.inputEncoding,
-		"-classpath",   pljava_api_jar_path,
+		"-classpath",   classpath,
 		"-sourcepath",  basedir.resolve(srcroot).toString(),
 		/*
 		 * Core javadoc options.
@@ -208,15 +207,25 @@ function executeReport(report, locale)
 		args.addAll(of("-linkoffline",
 			"../../pljava-api/apidocs", apioffline.toString()));
 
-	args.addAll(of(
-		/*
-		 * Packages to document. These could perhaps also be supplied
-		 * as JavaFileObjects in the compilationUnits parameter, but they are
-		 * accepted here among the options, so why work any harder?
-		 */
+	var packages = [
 		"org.postgresql.pljava.example",
 		"org.postgresql.pljava.example.annotation"
-	));
+	];
+
+	var me =
+		(function(p) {return [p.groupId, p.artifactId, p.version].join(":");})
+		(report.project);
+
+	if ( report.project.injectedProfileIds.get(me)
+		.stream().anyMatch(function(p) { return 'saxon-examples' == p; }) )
+		packages.push("org.postgresql.pljava.example.saxon");
+
+	/*
+	 * Add the packages to be documented to args. They could perhaps also
+	 * be supplied as JavaFileObjects in the compilationUnits parameter,
+	 * but they are accepted among the option args, so why work any harder?
+	 */
+	packages.forEach(function(p) { args.add(p); });
 
 	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
