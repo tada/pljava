@@ -154,13 +154,18 @@ function executeReport(report, locale)
 	var jdklink = "https://docs.oracle.com/" +
 		locale.language + "/java/javase/12/docs/api";
 
+	var apioffline =
+		basedir.toUri().resolve("../pljava-api/target/site/apidocs");
+
 	var bottom =
 		"Copyright &#169; " +
 		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
 		"<a href='" + report.project.organization.url + "'>" +
 		report.project.organization.name + "</a>";
 
-	var args = java.util.List.of(
+	var of = java.util.List.of;
+
+	var args = of(
 		/*
 		 * The 'standard options' that javadoc inherits from javac.
 		 * Do not add --release: it causes -encoding to be ignored (in javadoc
@@ -189,7 +194,21 @@ function executeReport(report, locale)
 		"-sourcetab",   "4",
 		"-use",
 		"-version",
-		"-windowtitle", title,
+		"-windowtitle", title
+	);
+
+	args = new java.util.ArrayList(args);
+
+	/*
+	 * Javadoc doesn't learn how to link to modular docs from nonmodular code
+	 * until 15.
+	 */
+	var v = java.lang.Runtime.version();
+	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("15-ea")) )
+		args.addAll(of("-linkoffline",
+			"../../pljava-api/apidocs", apioffline.toString()));
+
+	args.addAll(of(
 		/*
 		 * Packages to document. These could perhaps also be supplied
 		 * as JavaFileObjects in the compilationUnits parameter, but they are
@@ -197,7 +216,7 @@ function executeReport(report, locale)
 		 */
 		"org.postgresql.pljava.example",
 		"org.postgresql.pljava.example.annotation"
-	);
+	));
 
 	report.log.debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
