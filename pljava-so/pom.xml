@@ -314,27 +314,21 @@
 						</goals>
 						<configuration>
 							<script mimetype="application/javascript">
-								setProjectProperty("PGSQL_BINDIR",
-								getPgConfigProperty("--bindir"));
-								setProjectProperty("PGSQL_LIBDIR",
-								getPgConfigProperty("--libdir"));
-								setProjectProperty("PGSQL_INCLUDEDIR",
-								getPgConfigProperty("--includedir"));
-								setProjectProperty("PGSQL_INCLUDEDIR-SERVER",
-								getPgConfigProperty("--includedir-server"));
-								setProjectProperty("PGSQL_PKGLIBDIR",
-								getPgConfigProperty("--pkglibdir"));
-								var jvmdflt =
-								java.lang.System.getProperty('pljava.libjvmdefault');
-								if ( null !== jvmdflt )
-								{
-								var jvmdfltQuoted = quoteStringForC(jvmdflt);
-								var mvnProject =
-								project.getReference("maven.project");
-								mvnProject.getProperties()
-								.setProperty("pljava.qlibjvmdefault",
-								jvmdfltQuoted);
-								}
+<![CDATA[
+	setProjectProperty("PGSQL_BINDIR", getPgConfigProperty("--bindir"));
+	setProjectProperty("PGSQL_LIBDIR", getPgConfigProperty("--libdir"));
+	setProjectProperty("PGSQL_INCLUDEDIR", getPgConfigProperty("--includedir"));
+	setProjectProperty("PGSQL_INCLUDEDIR-SERVER",
+		getPgConfigProperty("--includedir-server"));
+	setProjectProperty("PGSQL_PKGLIBDIR", getPgConfigProperty("--pkglibdir"));
+
+	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
+	if ( null !== jvmdflt )
+	{
+		var jvmdfltQuoted = quoteStringForC(jvmdflt);
+		setProjectProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
+	}
+]]>
 							</script>
 						</configuration>
 					</execution>

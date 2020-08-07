@@ -15,12 +15,19 @@ import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
+import javax.script.ScriptContext;
+import static javax.script.ScriptContext.GLOBAL_SCOPE;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+
+import javax.tools.Diagnostic;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -92,10 +99,54 @@ public final class PGXSUtils
 					throw new IllegalArgumentException("No suitable engine "
 						+ "found for specified engine name or mime type");
 			}
-			log.debug(engine.toString());
+			log.debug("Loaded script engine " + engine);
 		} catch (Exception e) {
 			log.error(e);
 		}
+
+		/*
+		 * Give the script some convenient methods for logging to the Maven log.
+		 * Only supply the versions with one CharSequence parameter, in case of
+		 * a script engine that might not handle overloads well. The script may
+		 * have another way to get access to the Log instance and use its other
+		 * methods; these are just for convenience.
+		 */
+		ScriptContext context = engine.getContext();
+		context.setAttribute("debug",
+			(Consumer<CharSequence>) log::debug, GLOBAL_SCOPE);
+		context.setAttribute("error",
+			(Consumer<CharSequence>) log::error, GLOBAL_SCOPE);
+		context.setAttribute("warn",
+			(Consumer<CharSequence>) log::warn, GLOBAL_SCOPE);
+		context.setAttribute("info",
+			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
+
+		/*
+		 * Also provide a specialized method useful for a script that may
+		 * handle diagnostics from Java tools.
+		 */
+		context.setAttribute("diag",
+			(BiConsumer<Diagnostic.Kind,CharSequence>)((kind,content) ->
+			{
+				switch ( kind )
+				{
+				case ERROR:
+					log.error(content);
+					break;
+				case MANDATORY_WARNING:
+				case WARNING:
+					log.warn(content);
+					break;
+				case NOTE:
+					log.info(content);
+					break;
+				case OTHER:
+					log.debug(content);
+					break;
+				}
+			}
+			), GLOBAL_SCOPE);
+
 		return engine;
 	}
 
@@ -187,18 +238,4 @@ public final class PGXSUtils
 		return pgConfigOutput.substring(0,
 			pgConfigOutput.length() - System.lineSeparator().length());
 	}
-
-	/**
-	 *
-	 * @param project maven project for the property key-value pair is to be set
-	 * @param property key for the property to set
-	 * @param propertyValue value of the property
-	 */
-	public static void setPgConfigProperty (MavenProject project,
-	                                        String property,
-	                                        String propertyValue)
-	{
-		project.getProperties().setProperty(property, propertyValue);
-	}
-
 }

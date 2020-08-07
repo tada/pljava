@@ -60,7 +60,7 @@ public class ScriptingMojo extends AbstractMojo
 
 	public void setProjectProperty (String property, String value)
 	{
-		PGXSUtils.setPgConfigProperty(project, property, value);
+		project.getProperties().setProperty(property, value);
 	}
 
 	public String getPgConfigProperty (String property)

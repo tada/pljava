@@ -88,7 +88,7 @@ function canGenerateReport(report)
 	var v = java.lang.Runtime.version();
 	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("12")) )
 		return true;
-	report.log.warn("Skipping JavaDocs; Java >= 12 required");
+	warn("Skipping JavaDocs; Java >= 12 required");
 	return false;
 }
 
@@ -181,9 +181,9 @@ function executeReport(report, locale)
 		"-windowtitle",           title
 	);
 
-	report.log.debug(args.toString());
+	debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-	report.log.debug(tool.toString());
+	debug(tool.toString());
 	var task = tool.getTask(null, null, null, null, args, null);
 	task.call();
 }

@@ -227,9 +227,9 @@ function executeReport(report, locale)
 	 */
 	packages.forEach(function(p) { args.add(p); });
 
-	report.log.debug(args.toString());
+	debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-	report.log.debug(tool.toString());
+	debug(tool.toString());
 	var task = tool.getTask(null, null, null, null, args, null);
 	task.call();
 }

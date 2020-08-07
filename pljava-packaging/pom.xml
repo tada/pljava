@@ -115,12 +115,12 @@
 						</goals>
 						<configuration>
 							<script mimetype="application/javascript">
-								setProjectProperty("PGSQL_VER_CLASSIFIER",
-								getPgConfigProperty("--version")
-								.replaceAll( "devel.*|alpha.*|beta.*|rc.*$",
-								"\\.99") .replaceAll(
-								"^[^\\d]*+(\\d++)\\.(\\d++)(?:\\.(\\d++))?.*$",
-								"pg$1.$2"));
+<![CDATA[
+	setProjectProperty("PGSQL_VER_CLASSIFIER",
+		getPgConfigProperty("--version")
+		.replaceAll("devel.*|alpha.*|beta.*|rc.*$", "\\.99")
+		.replaceAll("^[^\\d]*+(\\d++)\\.(\\d++)(?:\\.(\\d++))?.*$", "pg$1.$2"));
+]]>
 							</script>
 						</configuration>
 					</execution>
