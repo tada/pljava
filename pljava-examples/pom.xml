@@ -214,12 +214,8 @@ function executeReport(report, locale)
 		"org.postgresql.pljava.example.annotation"
 	];
 
-	var me =
-		(function(p) {return [p.groupId, p.artifactId, p.version].join(":");})
-		(report.project);
-
-	if ( report.project.injectedProfileIds.get(me)
-		.stream().anyMatch(function(p) { return 'saxon-examples' == p; }) )
+	if ( report.project.activeProfiles.stream()
+		.anyMatch(function(p) { return 'saxon-examples' == p.id; }) )
 		packages.push("org.postgresql.pljava.example.saxon");
 
 	/*
