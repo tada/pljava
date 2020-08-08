@@ -129,6 +129,8 @@ function executeReport(report, locale)
 	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
 	 */
 	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
+	srcroot = basedir.resolve(srcroot);
+	var srcrooturi = srcroot.toUri();
 
 	var jdklink = "https://docs.oracle.com/" +
 		locale.language + "/java/javase/12/docs/api";
@@ -151,8 +153,7 @@ function executeReport(report, locale)
 		"-encoding",              report.inputEncoding,
 		"--module",               "org.postgresql.pljava.internal",
 		"--module-path",          pljava_api_jar_path,
-		"--module-source-path",   "org.postgresql.pljava.internal="
-								  + basedir.resolve(srcroot),
+		"--module-source-path",   "org.postgresql.pljava.internal=" + srcroot,
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can
@@ -183,8 +184,23 @@ function executeReport(report, locale)
 
 	debug(args.toString());
 	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-	debug(tool.toString());
-	var task = tool.getTask(null, null, null, null, args, null);
+
+	function diagListener(d)
+	{
+		var s = d.source;
+
+		if ( null === s )
+			s = "";
+		else
+		{
+			s = srcrooturi.relativize(s.toUri()).toString();
+			s += "[" + d.lineNumber + "," + d.columnNumber + "] ";
+		}
+
+		diag(d.kind, s + d.getMessage(locale));
+	}
+
+	var task = tool.getTask(null, null, diagListener, null, args, null);
 	task.call();
 }
 ]]>
