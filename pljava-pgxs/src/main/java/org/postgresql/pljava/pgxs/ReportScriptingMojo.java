@@ -40,7 +40,8 @@ public class ReportScriptingMojo extends AbstractMavenReport
 
 		try
 		{
-			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
+			ScriptEngine engine =
+				PGXSUtils.getScriptEngine(script, getLog(), project);
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
 			engine.eval(scriptText);
@@ -48,7 +49,7 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		}
 		catch (Exception e)
 		{
-			e.printStackTrace();
+			getLog().error(e);
 		}
 	}
 

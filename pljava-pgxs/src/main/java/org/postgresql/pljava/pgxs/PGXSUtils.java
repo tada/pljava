@@ -7,6 +7,7 @@
  * http://opensource.org/licenses/BSD-3-Clause
  *
  * Contributors:
+ *   Chapman Flack
  *   Kartik Ohri
  */
 package org.postgresql.pljava.pgxs;
@@ -16,20 +17,28 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.ScriptContext;
-import static javax.script.ScriptContext.GLOBAL_SCOPE;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-
 import javax.tools.Diagnostic;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
 public final class PGXSUtils
 {
@@ -48,10 +57,13 @@ public final class PGXSUtils
 	 * @param script the script block element in the configuration block of
 	 *                  the plugin in the project
 	 * @param log the logger associated with the plugin
+	 * @param project the maven project requesting the ScriptEngine
+	 *
 	 * @return ScriptEngine based on the engine and mime type set by the user
 	 * in the script block
 	 */
-	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log)
+	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log,
+	                                    MavenProject project)
 	{
 		/*
 		 * Set the polyglot.js.nashorn-compat system property to true if it is
@@ -120,6 +132,13 @@ public final class PGXSUtils
 			(Consumer<CharSequence>) log::warn, GLOBAL_SCOPE);
 		context.setAttribute("info",
 			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
+
+		context.setAttribute("isProfileActive",
+			(Function<String, Boolean>) id -> isProfileActive(log, project, id),
+			GLOBAL_SCOPE);
+		context.setAttribute("buildPaths",
+			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
+			GLOBAL_SCOPE);
 
 		/*
 		 * Also provide a specialized method useful for a script that may
@@ -237,5 +256,93 @@ public final class PGXSUtils
 		String pgConfigOutput = defaultCharsetDecodeStrict(bytes);
 		return pgConfigOutput.substring(0,
 			pgConfigOutput.length() - System.lineSeparator().length());
+	}
+
+	/**
+	 * @param logger plugin logger instance to log warnings
+	 * @param project maven project in which to check profiles
+	 * @param profileName name of profile to check
+	 * @return true if profile exists and is active, false otherwise
+	 */
+	public static boolean isProfileActive(Log logger,
+	                                      MavenProject project,
+	                                      String profileName)
+	{
+		boolean isValidProfile =
+			project.getModel().getProfiles().stream()
+				.anyMatch(profile -> profile.getId().equals(profileName));
+
+		if (!isValidProfile)
+		{
+			logger.warn(profileName + " does not exist in " + project.getName());
+			return false;
+		}
+
+		return project.getActiveProfiles().stream()
+			       .anyMatch(profile -> profile.getId().equals(profileName));
+	}
+
+	/**
+	 * @param elements list of elements to build classpath and modulepath from
+	 * @return a map with two elements, classpath and modulepath which can be
+	 * accessed using the respective keys
+	 */
+	public static Map<String, String> buildPaths(Log logger,
+	                                             List<String> elements)
+	{
+		List<String> modulepathElements = new ArrayList<>();
+		List<String> classpathElements = new ArrayList<>();
+		String pathSeparator = System.getProperty("path.separator");
+		try
+		{
+			for (String element : elements)
+			{
+				if (element.contains(pathSeparator))
+					logger.warn(String.format("cannot add %s to path because " +
+						"it contains path separator %s", element, pathSeparator));
+				else if (shouldPlaceOnModulepath(element))
+					modulepathElements.add(element);
+				else
+					classpathElements.add(element);
+			}
+		}
+		catch (Exception e)
+		{
+			logger.error(e);
+		}
+		String modulepath = String.join(pathSeparator, modulepathElements);
+		String classpath = String.join(pathSeparator, classpathElements);
+		return Map.of("classpath", classpath, "modulepath", modulepath);
+	}
+
+	/**
+	 * @param filePath the filepath to check whether is a module
+	 * @return true if input path should go on modulepath, false otherwise
+	 */
+	public static boolean shouldPlaceOnModulepath(String filePath)
+	throws IOException
+	{
+		Path path = Paths.get(filePath);
+		if (Files.isDirectory(path))
+		{
+			Path moduleInfoFile = path.resolve("module-info.class");
+			return Files.exists(moduleInfoFile);
+		}
+
+		if (path.endsWith(".jar"))
+		{
+			try(JarFile jarFile = new JarFile(path.toFile()))
+			{
+				if (jarFile.getEntry("module-info.class") != null)
+					return true;
+				Manifest manifest = jarFile.getManifest();
+				jarFile.close();
+				if (manifest == null)
+					return false;
+				return manifest.getMainAttributes()
+					       .containsKey("Automatic-Module-Name");
+			}
+		}
+		return false;
 	}
 }

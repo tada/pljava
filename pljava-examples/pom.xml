@@ -137,9 +137,9 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
-	var classpath = java.lang.String.join(
-		java.lang.System.getProperty("path.separator"),
-		report.project.compileClasspathElements);
+	var paths = buildPaths(report.project.compileClasspathElements);
+	var classpath = paths['classpath'];
+	warn(classpath);
 
 	var title = report.project.name + " " + report.project.version;
 
@@ -214,8 +214,7 @@ function executeReport(report, locale)
 		"org.postgresql.pljava.example.annotation"
 	];
 
-	if ( report.project.activeProfiles.stream()
-		.anyMatch(function(p) { return 'saxon-examples' == p.id; }) )
+	if ( isProfileActive('saxon-examples') )
 		packages.push("org.postgresql.pljava.example.saxon");
 
 	/*

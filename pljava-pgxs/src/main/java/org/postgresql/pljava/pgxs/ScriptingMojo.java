@@ -39,7 +39,8 @@ public class ScriptingMojo extends AbstractMojo
 		try
 		{
 			String scriptText = script.getValue();
-			ScriptEngine engine = PGXSUtils.getScriptEngine(script, getLog());
+			ScriptEngine engine =
+				PGXSUtils.getScriptEngine(script, getLog(), project);
 			getLog().debug(scriptText);
 
 			engine.getContext().setAttribute("plugin", this,
@@ -73,7 +74,7 @@ public class ScriptingMojo extends AbstractMojo
 		}
 		catch (Exception e)
 		{
-			e.printStackTrace();
+			getLog().error(e);
 			return null;
 		}
 	}
