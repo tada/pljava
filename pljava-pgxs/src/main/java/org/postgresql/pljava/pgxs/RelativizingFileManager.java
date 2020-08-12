@@ -41,6 +41,13 @@ implements StandardJavaFileManager
 		return fileManager.getJavaFileObjectsFromFiles(files);
 	}
 
+	// @Override only when support horizon advances to >= Java 13
+	public Iterable<? extends JavaFileObject>
+	getJavaFileObjectsFromPaths(Collection<? extends Path> paths)
+	{
+		return fileManager.getJavaFileObjectsFromPaths(paths);
+	}
+
 	@Override
 	public Iterable<? extends JavaFileObject>
 	getJavaFileObjectsFromPaths(Iterable<? extends Path> paths)
