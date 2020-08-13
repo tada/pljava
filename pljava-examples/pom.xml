@@ -242,7 +242,17 @@ function executeReport(report, locale)
 		diag(d.kind, s + d.getMessage(locale));
 	}
 
-	var task = tool.getTask(null, null, diagListener, null, args, null);
+	var smgr = tool.getStandardFileManager(
+			diagListener,
+			locale,
+			java.nio.charset.Charset.forName(report.inputEncoding)
+		);
+
+	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(smgr);
+	rmgr.handleOption("-sourcepath",  of(srcroot.toString()).iterator());
+	rmgr.handleOption("-classpath",  of(classpath).iterator());
+
+	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
 	task.call();
 }
 ]]>
