@@ -116,10 +116,7 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
-	var pljava_api_jar_path;
-	for each (var artifact in report.project.artifacts)
-		if (artifact.artifactId == "pljava-api")
-			pljava_api_jar_path = artifact.file.path;
+	var paths = buildPaths(report.project.compileClasspathElements);
 
 	var title = report.project.name + " " + report.project.version;
 
@@ -152,7 +149,7 @@ function executeReport(report, locale)
 		 */
 		"-encoding",              report.inputEncoding,
 		"--module",               "org.postgresql.pljava.internal",
-		"--module-path",          pljava_api_jar_path,
+		"--module-path",          paths.get("modulepath"),
 		"--module-source-path",   "org.postgresql.pljava.internal=" + srcroot,
 		/*
 		 * Core javadoc options.

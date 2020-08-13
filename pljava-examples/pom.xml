@@ -138,7 +138,6 @@ function isExternalReport(report)
 function executeReport(report, locale)
 {
 	var paths = buildPaths(report.project.compileClasspathElements);
-	var classpath = paths.get('classpath');
 
 	var title = report.project.name + " " + report.project.version;
 
@@ -172,8 +171,10 @@ function executeReport(report, locale)
 		 * 12 through 15, anyway).
 		 */
 		"-encoding",    report.inputEncoding,
-		"-classpath",   classpath,
+		"--class-path", paths.get("classpath"),
+		"--module-path",paths.get("modulepath"),
 		"-sourcepath",  srcroot.toString(),
+		"--add-modules","org.postgresql.pljava",
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can

@@ -370,7 +370,7 @@ public final class PGXSUtils
 			return Files.exists(moduleInfoFile);
 		}
 
-		if (path.endsWith(".jar"))
+		if (path.getFileName().toString().endsWith(".jar"))
 		{
 			try(JarFile jarFile = new JarFile(path.toFile()))
 			{
