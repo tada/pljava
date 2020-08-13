@@ -208,7 +208,7 @@ function executeReport(report, locale)
 	var v = java.lang.Runtime.version();
 	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("15-ea")) )
 		args.addAll(of("-linkoffline",
-			"../../pljava-api/apidocs", apioffline.toString()));
+			"../../RELDOTS/pljava-api/apidocs", apioffline.toString()));
 
 	var packages = [
 		"org.postgresql.pljava.example",
@@ -249,7 +249,8 @@ function executeReport(report, locale)
 			java.nio.charset.Charset.forName(report.inputEncoding)
 		);
 
-	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(smgr);
+	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
+		smgr, java.nio.charset.Charset.forName(report.outputEncoding));
 	rmgr.handleFirstOptions(args);
 
 	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
