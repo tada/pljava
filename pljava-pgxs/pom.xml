@@ -15,11 +15,6 @@
 	<description>The maven plugin to build native code used inside PL/Java
 	</description>
 
-	<properties>
-		<maven.compiler.source>1.8</maven.compiler.source>
-		<maven.compiler.target>1.8</maven.compiler.target>
-	</properties>
-
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.maven</groupId>
@@ -83,13 +78,6 @@
 						</goals>
 					</execution>
 				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<release>9</release>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>
