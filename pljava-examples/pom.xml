@@ -168,8 +168,12 @@ function executeReport(report, locale)
 		/*
 		 * The 'standard options' that javadoc inherits from javac.
 		 * Do not add --release: it causes -encoding to be ignored (in javadoc
-		 * 12 through 15, anyway).
+		 * 12 through 15, anyway). -d is documented as a doclet option, but
+		 * included here to be seen by the RelativizingFileManager (which may
+		 * otherwise complain that no class output location has been set).
 		 */
+		"-d",           report.reportOutputDirectory.toPath()
+							.resolve("apidocs").toString(),
 		"-encoding",    report.inputEncoding,
 		"--class-path", paths.get("classpath"),
 		"--module-path",paths.get("modulepath"),
@@ -188,8 +192,6 @@ function executeReport(report, locale)
 		 */
 		"-author",
 		"-bottom",      bottom,
-		"-d",           report.reportOutputDirectory.toPath()
-							.resolve("apidocs").toString(),
 		"-docencoding", report.outputEncoding,
 		"-doctitle",    title,
 		"-link",        jdklink,
@@ -243,14 +245,22 @@ function executeReport(report, locale)
 		diag(d.kind, s + d.getMessage(locale));
 	}
 
+	var Charset = Java.type("java.nio.charset.Charset");
+
 	var smgr = tool.getStandardFileManager(
 			diagListener,
 			locale,
-			java.nio.charset.Charset.forName(report.inputEncoding)
+			Charset.forName(report.inputEncoding)
 		);
 
+	/*
+	 * A special file manager that will rewrite the RELDOTS seen in -linkoffline
+	 * above. The options a file manager recognizes must be the first ones in
+	 * args; handleFirstOptions below returns at the first one the file manager
+	 * doesn't know what to do with.
+	 */
 	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
-		smgr, java.nio.charset.Charset.forName(report.outputEncoding));
+		smgr, Charset.forName(report.outputEncoding));
 	rmgr.handleFirstOptions(args);
 
 	var task = tool.getTask(null, rmgr, diagListener, null, args, null);

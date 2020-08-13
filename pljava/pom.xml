@@ -145,12 +145,17 @@ function executeReport(report, locale)
 		/*
 		 * The 'standard options' that javadoc inherits from javac.
 		 * Do not add --release: it causes -encoding to be ignored (in javadoc
-		 * 12 through 15, anyway).
+		 * 12 through 15, anyway). -d is documented as a doclet option, but
+		 * included here to be seen by the RelativizingFileManager (which may
+		 * otherwise complain that no class output location has been set).
 		 */
+		"-d",                     report.reportOutputDirectory.toPath()
+									.resolve("apidocs").toString(),
 		"-encoding",              report.inputEncoding,
-		"--module",               "org.postgresql.pljava.internal",
 		"--module-path",          paths.get("modulepath"),
 		"--module-source-path",   "org.postgresql.pljava.internal=" + srcroot,
+		// ^^^ Options recognized by the file manager end here ^^^
+		"--module",               "org.postgresql.pljava.internal",
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can
@@ -165,13 +170,11 @@ function executeReport(report, locale)
 		 */
 		"-author",
 		"-bottom",                bottom,
-		"-d",                     report.reportOutputDirectory.toPath()
-									.resolve("apidocs").toString(),
 		"-docencoding",           report.outputEncoding,
 		"-doctitle",              title,
 		"-link",                  jdklink,
 		"-linkoffline",
-								  "../../pljava-api/apidocs",
+								  "../../RELDOTS/pljava-api/apidocs",
 								  apioffline.toString(),
 		"-sourcetab",             "4",
 		"-use",
@@ -197,7 +200,25 @@ function executeReport(report, locale)
 		diag(d.kind, s + d.getMessage(locale));
 	}
 
-	var task = tool.getTask(null, null, diagListener, null, args, null);
+	var Charset = Java.type("java.nio.charset.Charset");
+
+	var smgr = tool.getStandardFileManager(
+			diagListener,
+			locale,
+			Charset.forName(report.inputEncoding)
+		);
+
+	/*
+	 * A special file manager that will rewrite the RELDOTS seen in -linkoffline
+	 * above. The options a file manager recognizes must be the first ones in
+	 * args; handleFirstOptions below returns at the first one the file manager
+	 * doesn't know what to do with.
+	 */
+	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
+		smgr, Charset.forName(report.outputEncoding));
+	rmgr.handleFirstOptions(args);
+
+	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
 	task.call();
 }
 ]]>

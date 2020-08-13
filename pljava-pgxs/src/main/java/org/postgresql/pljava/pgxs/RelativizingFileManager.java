@@ -147,7 +147,10 @@ implements StandardJavaFileManager
 			stream(getLocationAsPaths(location).spliterator(), false)
 			.filter(p -> fp.startsWith(p)).findAny().get();
 
-		int depth = r.relativize(fp).getNameCount() - 1;
+		int depth = r.relativize(fp).getNameCount() - 1; // -1 for file name
+
+		if ( location.isModuleOrientedLocation() )
+			++ depth;
 
 		final String dots = Stream.generate(() -> "../").limit(depth)
 			.collect(Collectors.joining());
