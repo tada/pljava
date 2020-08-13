@@ -164,7 +164,7 @@ function executeReport(report, locale)
 		"-docencoding",         report.outputEncoding,
 		"-doctitle",            title,
 		"-link",                jdklink,
-		"-sourcetab",           "4",
+		//"-sourcetab",         "4", // seemed good idea but implies -linksource
 		"-use",
 		"-version",
 		"-windowtitle",         title
