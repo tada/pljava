@@ -138,8 +138,7 @@ function isExternalReport(report)
 function executeReport(report, locale)
 {
 	var paths = buildPaths(report.project.compileClasspathElements);
-	var classpath = paths['classpath'];
-	warn(classpath);
+	var classpath = paths.get('classpath');
 
 	var title = report.project.name + " " + report.project.version;
 
