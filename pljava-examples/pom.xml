@@ -174,13 +174,14 @@ function executeReport(report, locale)
 		"--class-path", paths.get("classpath"),
 		"--module-path",paths.get("modulepath"),
 		"-sourcepath",  srcroot.toString(),
+		// ^^^ Options recognized by the file manager end here ^^^
 		"--add-modules","org.postgresql.pljava",
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can
 		 * clobber the effects of the newer -show-...=... options.
 		 */
-		"-locale",              locale.toString(),
+		"-locale",      locale.toString(),
 		"-quiet",
 		/*
 		 * Options that are passed to the doclet.
@@ -249,8 +250,7 @@ function executeReport(report, locale)
 		);
 
 	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(smgr);
-	rmgr.handleOption("-sourcepath",  of(srcroot.toString()).iterator());
-	rmgr.handleOption("-classpath",  of(classpath).iterator());
+	rmgr.handleFirstOptions(args);
 
 	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
 	task.call();

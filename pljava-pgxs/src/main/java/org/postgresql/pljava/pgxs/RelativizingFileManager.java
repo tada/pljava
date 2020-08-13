@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import java.util.Collection;
+import java.util.Iterator;
 
 import javax.tools.FileObject;
 import javax.tools.ForwardingJavaFileManager;
@@ -33,6 +34,34 @@ implements StandardJavaFileManager
 	{
 		super(fileManager);
 	}
+
+	/**
+	 * Call {@link #handleOption handleOption} on as many of the first supplied
+	 * options as the file manager recognizes.
+	 *<p>
+	 * Returns when {@link #handleOption handleOption} first returns false,
+	 * indicating an option the file manager does not recognize.
+	 *<p>
+	 * As the options recognized by the standard file manager are generally
+	 * those among the "Standard Options" that javadoc inherits from javac
+	 * (including the various location-setting options such as
+	 * {@code -classpath}, as well as {@code -encoding}), with a little care to
+	 * place those first in the argument list to be passed to the tool itself,
+	 * the same list can be passed to this method to configure the file manager,
+	 * without any more complicated option recognition needed here.
+	 */
+	public void handleFirstOptions(Iterable<String> firstOptions)
+	{
+		Iterator<String> it = firstOptions.iterator();
+
+		while ( it.hasNext() )
+			if ( ! handleOption(it.next(), it) )
+				break;
+	}
+
+	/*
+	 * The boilerplate StandardJavaFileManager forwards follow.
+	 */
 
 	@Override
 	public Iterable<? extends JavaFileObject>
