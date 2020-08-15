@@ -23,6 +23,13 @@ import javax.script.ScriptException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+/**
+ * Maven plugin goal to use JavaScript during any of build lifecycle phases.
+ * <p>
+ * The Mojo provides a limited subset of the functionality provided Maven AntRun
+ * Plugin. This is intentional to simplify usage as this maven plugin is
+ * specifically targeted at building Pl/Java native code.
+ */
 @Mojo(name = "scripting", defaultPhase = LifecyclePhase.INITIALIZE,
       requiresDependencyResolution = ResolutionScope.TEST)
 public class ScriptingMojo extends AbstractMojo
@@ -33,6 +40,10 @@ public class ScriptingMojo extends AbstractMojo
 	@Parameter
 	private PlexusConfiguration script;
 
+	/**
+	 * Executes the javascript code inside {@code script} tag inside plugin
+	 * configuration.
+	 */
 	@Override
 	public void execute ()
 	{
@@ -59,11 +70,23 @@ public class ScriptingMojo extends AbstractMojo
 		}
 	}
 
+	/**
+	 * Sets the value of a property for the current project.
+	 *
+	 * @param property key to use for property
+	 * @param value the value of property to set
+	 */
 	public void setProjectProperty (String property, String value)
 	{
 		project.getProperties().setProperty(property, value);
 	}
 
+	/**
+	 * Returns the value of a pg_config property.
+	 *
+	 * @param property property whose value is to be retrieved from pg_config
+	 * @return output of pg_config executed with the input property as argument
+	 */
 	public String getPgConfigProperty (String property)
 	{
 		try

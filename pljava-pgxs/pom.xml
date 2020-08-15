@@ -13,7 +13,7 @@
 	<packaging>maven-plugin</packaging>
 
 	<name>PL/Java PGXS</name>
-	<description>The plugin to build native code used inside PL/Java
+	<description>The maven plugin to build native code used inside PL/Java
 	</description>
 
 	<properties>

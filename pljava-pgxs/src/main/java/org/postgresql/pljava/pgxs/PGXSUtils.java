@@ -40,6 +40,10 @@ import java.util.regex.Pattern;
 
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
+/**
+ * Utility methods to simplify and hide the bland implementation details
+ * for writing JavaScript snippets.
+ */
 public final class PGXSUtils
 {
 	static final Pattern mustBeQuotedForC = Pattern.compile(
@@ -53,14 +57,15 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns a ScriptEngine with some basic utilities for scripting.
 	 *
 	 * @param script the script block element in the configuration block of
 	 *                  the plugin in the project
 	 * @param log the logger associated with the plugin
 	 * @param project the maven project requesting the ScriptEngine
 	 *
-	 * @return ScriptEngine based on the engine and mime type set by the user
-	 * in the script block
+	 * @return ScriptEngine based on the engine and mime type provided in the
+	 * script block
 	 */
 	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log,
 	                                    MavenProject project)
@@ -170,9 +175,11 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns the input wrapped in double quotes and with internal characters
+	 * escaped where appropriate using the C conventions.
+	 *
 	 * @param s string to be escaped
-	 * @return s wrapped in double quotes and with internal characters
-	 * escaped where appropriate using the C conventions
+	 * @return a C compatible String enclosed in double quotes
 	 */
 	public static String quoteStringForC (String s)
 	{
@@ -223,8 +230,10 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns the string decoded from input bytes using default platform charset.
+	 *
 	 * @param bytes byte array to be decoded
-	 * @return string decoded from input bytes using default platform charset
+	 * @return string decoded from input bytes
 	 * @throws CharacterCodingException if unable to decode bytes using
 	 *                                  default platform charset
 	 */
@@ -235,6 +244,22 @@ public final class PGXSUtils
 			       .decode(ByteBuffer.wrap(bytes)).toString();
 	}
 
+	/**
+	 * Returns the output, decoded using default platform charset, of the input
+	 * command executed with the input argument.
+	 * <p>
+	 * If the input parameter {@code pgConfigCommand} is empty or null,
+	 * {@code pg_config} is used as the default value. If multiple version of
+	 * {@code pg_config} are available or {@code pg_config} is not present on
+	 * the path, consider passing an absolute path to {@code pg_config}. It is
+	 * also recommended that only a single property be passed at a time.
+	 *
+	 * @param pgConfigCommand pg_config command to execute
+	 * @param pgConfigArgument argument to be passed to the command
+	 * @return output of the input command executed with the input argument
+	 * @throws IOException if unable to read output of the command
+	 * @throws InterruptedException if command does not complete successfully
+	 */
 	public static String getPgConfigProperty (String pgConfigCommand,
 	                                          String pgConfigArgument)
 		throws IOException, InterruptedException
@@ -259,6 +284,12 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns true if the profile with given name exists and is active, false
+	 * otherwise.
+	 * <p>
+	 * A warning is logged if the no profile with the input name exists in the
+	 * current project.
+	 *
 	 * @param logger plugin logger instance to log warnings
 	 * @param project maven project in which to check profiles
 	 * @param profileName name of profile to check
@@ -283,9 +314,12 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns a map with two elements with {@code classpath} and {@code modulepath}
+	 * as keys and their joined string paths as the respective values.
+	 *
 	 * @param elements list of elements to build classpath and modulepath from
-	 * @return a map with two elements, classpath and modulepath which can be
-	 * accessed using the respective keys
+	 * @return a map containing the {@code classpath} and {@code modulepath}
+	 * as separate elements
 	 */
 	public static Map<String, String> buildPaths(Log logger,
 	                                             List<String> elements)
@@ -316,6 +350,13 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns true if the element should be placed on the module path.
+	 * <p>
+	 * An file path element should be placed on the module path if it points to
+	 * 1) a directory with a top level {@code module-info.class} file
+	 * 2) a {@code JAR} file having a {@code module-info.class} entry or the
+	 * {@code Automatic-Module-Name} as a manifest attribute
+	 *
 	 * @param filePath the filepath to check whether is a module
 	 * @return true if input path should go on modulepath, false otherwise
 	 */

@@ -12,6 +12,7 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.doxia.sink.Sink;
 import org.apache.maven.plugins.annotations.Execute;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -24,6 +25,15 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.util.Locale;
 
+/**
+ * Maven plugin goal to use JavaScript for configuring
+ * {@link org.apache.maven.reporting.MavenReport} during the
+ * {@link LifecyclePhase#SITE}.
+ * <p>
+ * This plugin goal intends to allow the use of JavaScript during {@code SITE}
+ * lifecycle phase with the help of {@link ReportScript}. The motivation behind
+ * this is the inability to use Maven AntRun during {@code SITE} phase.
+ */
 @Mojo(name = "scripting-report")
 @Execute(phase = LifecyclePhase.NONE)
 public class ReportScriptingMojo extends AbstractMavenReport
@@ -33,6 +43,11 @@ public class ReportScriptingMojo extends AbstractMavenReport
 
 	private ReportScript reportScript;
 
+	/**
+	 * Creates an instance of {@link ReportScript} using methods defined in
+	 * the JavaScript snippet in configuration of the report in {@code pom.xml}.
+	 * Does nothing if the instance is already initialized.
+	 */
 	private void setReportScript()
 	{
 		if ( null != reportScript )
@@ -53,6 +68,17 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		}
 	}
 
+	/**
+	 * Returns the path relative to the target site directory of the this report.
+	 * This value will be used by {@code Maven} to provide a link to the report
+	 * from {@code index.html}.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun getOutputName(report)} defined in the JavaScript snippet
+	 * associated with the report. No default implementation is provided. User
+	 * must implement the method in JavaScript.
+	 */
 	@Override
 	public String getOutputName ()
 	{
@@ -60,6 +86,17 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.getOutputName(this);
 	}
 
+	/**
+	 * Returns false if this report will produce output through a
+	 * supplied {@link Sink}, true if it is 'external', producing its output
+	 * some other way.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun isExternalReport(report)} if defined in the javascript
+	 * snippet associated with the report. Otherwise, the {@code super}
+	 * implementation is invoked effectively.
+	 */
 	@Override
 	public boolean isExternalReport ()
 	{
@@ -67,6 +104,16 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.isExternalReport(this);
 	}
 
+	/**
+	 * Returns the name of this report used by {@code Maven} for displaying in
+	 * {@code index.html}.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun getName(report, locale)} defined in the javascript
+	 * snippet associated with the report. No default implementation is provided
+	 * . User must implement the method in javascript.
+	 */
 	@Override
 	public String getName (Locale locale)
 	{
@@ -74,6 +121,16 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.getName(this, locale);
 	}
 
+	/**
+	 * Returns the description of this report, used by {@code Maven} to display
+	 * report description in {@code index.html}.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun getDescription(report, locale)} defined in the javascript
+	 * snippet associated with the report. No default implementation is provided
+	 * . User must implement the method in javascript.
+	 */
 	@Override
 	public String getDescription (Locale locale)
 	{
@@ -81,6 +138,16 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.getDescription(this, locale);
 	}
 
+	/**
+	 * Returns the category name of this report, used by {@code Maven} to display
+	 * the report under the correct in {@code index.html}.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun getCategoryName(report)} if defined in the javascript
+	 * snippet associated with the report. Otherwise, the {@code super}
+	 * implementation is invoked effectively.
+	 */
 	@Override
 	public String getCategoryName ()
 	{
@@ -88,6 +155,15 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.getCategoryName(this);
 	}
 
+	/**
+	 * Returns true if a report can be generated, false otherwise.
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes
+	 * {@code fun canGenerateReport(report)} if defined in the javascript
+	 * snippet. Otherwise, the {@code super} implementation is invoked
+	 * effectively.
+	 */
 	@Override
 	public boolean canGenerateReport ()
 	{
@@ -95,6 +171,14 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		return reportScript.canGenerateReport(this);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * Calls {@code setReportScript} to ensure that the instance of
+	 * {@link ReportScript} is available. Invokes the
+	 * {@code fun executeReport(report, locale)} with the instance of the
+	 * current report.
+	 */
 	@Override
 	protected void executeReport (Locale locale)
 	{
@@ -102,34 +186,61 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		reportScript.executeReport(this, locale);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public MavenProject getProject ()
 	{
 		return super.getProject();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public String getInputEncoding ()
 	{
 		return super.getInputEncoding();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public String getOutputEncoding ()
 	{
 		return super.getOutputEncoding();
 	}
 
+	/**
+	 * Default implementation for
+	 * {@link ReportScript#isExternalReport(ReportScriptingMojo)}. Invoked if
+	 * {@code fun isExternalReport(report)} is not defined in the javascript
+	 * snippet associated with the report.
+	 */
 	boolean isExternalReportDefault ()
 	{
 		return super.isExternalReport();
 	}
 
+	/**
+	 * Default implementation of
+	 * {@link ReportScript#getCategoryName(ReportScriptingMojo)}. Invoked if
+	 * {@code fun getCategoryName(report)} is not defined in the javascript
+	 * snippet associated with the report.
+	 */
 	String getCategoryNameDefault ()
 	{
 		return super.getCategoryName();
 	}
 
+	/**
+	 * Default implementation of
+	 * {@link ReportScript#canGenerateReport(ReportScriptingMojo)}. Invoked if
+	 * {@code fun canGenerateReport(report)} is not defined in the javascript
+	 * snippet associated with the report.
+	 */
 	boolean canGenerateReportDefault ()
 	{
 		return super.canGenerateReport();
