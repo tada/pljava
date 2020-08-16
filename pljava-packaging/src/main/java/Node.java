@@ -1705,9 +1705,9 @@ public class Node extends JarX {
 
 	/**
 	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
-	 * will be recovered correctly by a target C/C++ program using the argument
-	 * parsing algorithm of the usual C run-time code, when it is known that
-	 * the command will not be handled first by {@code cmd}.
+	 * will be recovered correctly on Windows by a target C/C++ program using
+	 * the argument parsing algorithm of the usual C run-time code, when it is
+	 * known that the command will not be handled first by {@code cmd}.
 	 *<p>
 	 * This transformation must account for the way the C runtime will
 	 * ultimately parse the parameters apart, and also for the behavior of
@@ -1811,6 +1811,9 @@ public class Node extends JarX {
 		 *    rule 5 below will ensure that any leading " has a \ added before,
 		 *    and therefore the questionable Java code will never see from us
 		 *    an arg that both starts and ends with a ".
+		 *
+		 *    There is one edge case where this behavior of the Java runtime
+		 *    will be relied on (see rule 7 below).
 		 */
 
 		while ( args.hasNext() )
@@ -1854,6 +1857,23 @@ public class Node extends JarX {
 			if ( transformed.matches("(?s:[^ \\t<>]*+.++)") )
 				transformed = transformed.replaceFirst(
 					"(\\\\)(\\\\*+)$", "$1$2$2");
+
+			/*
+			 * 7. If the argument is the empty string, it must be represented
+			 *    as "" or it will simply disappear. The Java runtime will not
+			 *    do that for us (after all, the empty string does not contain
+			 *    space, tab, <, or >), so it has to be done here, replacing the
+			 *    arg with exactly "".
+			 *
+			 *    This is the one case where we produce a value that both starts
+			 *    and ends with a " character, thereby triggering the Java
+			 *    runtime behavior described in (4) above, so the Java runtime
+			 *    will avoid trying to further "protect" the string we have
+			 *    produced here. For this one case, that 'worrisome' behavior is
+			 *    just what we want.
+			 */
+			if ( transformed.isEmpty() )
+				transformed = "\"\"";
 
 			if ( ! transformed.equals(arg) )
 				args.set(transformed);
