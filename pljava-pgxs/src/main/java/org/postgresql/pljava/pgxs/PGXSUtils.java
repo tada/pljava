@@ -377,7 +377,6 @@ public final class PGXSUtils
 				if (jarFile.getEntry("module-info.class") != null)
 					return true;
 				Manifest manifest = jarFile.getManifest();
-				jarFile.close();
 				if (manifest == null)
 					return false;
 				return manifest.getMainAttributes()
