@@ -34,33 +34,6 @@
 				</plugins>
 			</build>
 		</profile>
-
-		<profile>
-			<id>nashorngone</id>
-			<activation>
-				<jdk>[15,)</jdk>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.postgresql</groupId>
-						<artifactId>pljava-pgxs</artifactId>
-						<dependencies>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js-scriptengine</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-						</dependencies>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
 	</profiles>
 
 	<dependencies>
@@ -70,6 +43,7 @@
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
+
 	<build>
 		<plugins>
 			<plugin>
@@ -104,7 +78,7 @@
 			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
-				<version>0.0.1-SNAPSHOT</version>
+				<version>${pljava.pgxs.version}</version>
 				<reportSets>
 					<reportSet>
 						<reports>
@@ -138,8 +112,6 @@ function isExternalReport(report)
 function executeReport(report, locale)
 {
 	var paths = buildPaths(report.project.compileClasspathElements);
-	var classpath = paths['classpath'];
-	warn(classpath);
 
 	var title = report.project.name + " " + report.project.version;
 
@@ -170,25 +142,30 @@ function executeReport(report, locale)
 		/*
 		 * The 'standard options' that javadoc inherits from javac.
 		 * Do not add --release: it causes -encoding to be ignored (in javadoc
-		 * 12 through 15, anyway).
+		 * 12 through 15, anyway). -d is documented as a doclet option, but
+		 * included here to be seen by the RelativizingFileManager (which may
+		 * otherwise complain that no class output location has been set).
 		 */
+		"-d",           report.reportOutputDirectory.toPath()
+							.resolve("apidocs").toString(),
 		"-encoding",    report.inputEncoding,
-		"-classpath",   classpath,
+		"--class-path", paths.get("classpath"),
+		"--module-path",paths.get("modulepath"),
 		"-sourcepath",  srcroot.toString(),
+		// ^^^ Options recognized by the file manager end here ^^^
+		"--add-modules","org.postgresql.pljava",
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can
 		 * clobber the effects of the newer -show-...=... options.
 		 */
-		"-locale",              locale.toString(),
+		"-locale",      locale.toString(),
 		"-quiet",
 		/*
 		 * Options that are passed to the doclet.
 		 */
 		"-author",
 		"-bottom",      bottom,
-		"-d",           report.reportOutputDirectory.toPath()
-							.resolve("apidocs").toString(),
 		"-docencoding", report.outputEncoding,
 		"-doctitle",    title,
 		"-link",        jdklink,
@@ -207,7 +184,7 @@ function executeReport(report, locale)
 	var v = java.lang.Runtime.version();
 	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("15-ea")) )
 		args.addAll(of("-linkoffline",
-			"../../pljava-api/apidocs", apioffline.toString()));
+			"../../RELDOTS/pljava-api/apidocs", apioffline.toString()));
 
 	var packages = [
 		"org.postgresql.pljava.example",
@@ -242,7 +219,25 @@ function executeReport(report, locale)
 		diag(d.kind, s + d.getMessage(locale));
 	}
 
-	var task = tool.getTask(null, null, diagListener, null, args, null);
+	var Charset = Java.type("java.nio.charset.Charset");
+
+	var smgr = tool.getStandardFileManager(
+			diagListener,
+			locale,
+			Charset.forName(report.inputEncoding)
+		);
+
+	/*
+	 * A special file manager that will rewrite the RELDOTS seen in -linkoffline
+	 * above. The options a file manager recognizes must be the first ones in
+	 * args; handleFirstOptions below returns at the first one the file manager
+	 * doesn't know what to do with.
+	 */
+	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
+		smgr, Charset.forName(report.outputEncoding));
+	rmgr.handleFirstOptions(args);
+
+	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
 	task.call();
 }
 ]]>

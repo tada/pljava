@@ -370,14 +370,13 @@ public final class PGXSUtils
 			return Files.exists(moduleInfoFile);
 		}
 
-		if (path.endsWith(".jar"))
+		if (path.getFileName().toString().endsWith(".jar"))
 		{
 			try(JarFile jarFile = new JarFile(path.toFile()))
 			{
 				if (jarFile.getEntry("module-info.class") != null)
 					return true;
 				Manifest manifest = jarFile.getManifest();
-				jarFile.close();
 				if (manifest == null)
 					return false;
 				return manifest.getMainAttributes()

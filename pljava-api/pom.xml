@@ -10,35 +10,6 @@
 	<name>PL/Java API</name>
 	<description>The API for Java stored procedures in PostgreSQL using PL/Java</description>
 
-	<profiles>
-		<profile>
-			<id>nashorngone</id>
-			<activation>
-				<jdk>[15,)</jdk>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.postgresql</groupId>
-						<artifactId>pljava-pgxs</artifactId>
-						<dependencies>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js-scriptengine</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-						</dependencies>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -70,7 +41,7 @@
 			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
-				<version>0.0.1-SNAPSHOT</version>
+				<version>${pljava.pgxs.version}</version>
 				<reportSets>
 					<reportSet>
 						<reports>
@@ -164,7 +135,7 @@ function executeReport(report, locale)
 		"-docencoding",         report.outputEncoding,
 		"-doctitle",            title,
 		"-link",                jdklink,
-		"-sourcetab",           "4",
+		//"-sourcetab",         "4", // seemed good idea but implies -linksource
 		"-use",
 		"-version",
 		"-windowtitle",         title
