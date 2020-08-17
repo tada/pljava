@@ -17,35 +17,6 @@
 		</dependency>
 	</dependencies>
 
-	<profiles>
-		<profile>
-			<id>nashorngone</id>
-			<activation>
-				<jdk>[15,)</jdk>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.postgresql</groupId>
-						<artifactId>pljava-pgxs</artifactId>
-						<dependencies>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js-scriptengine</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-						</dependencies>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
-
 	<build>
 		<plugins>
 			<plugin>

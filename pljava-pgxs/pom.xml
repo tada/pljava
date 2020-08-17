@@ -22,22 +22,6 @@
 			<version>${maven.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.maven</groupId>
-			<artifactId>maven-core</artifactId>
-			<version>${maven.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.maven</groupId>
-			<artifactId>maven-artifact</artifactId>
-			<version>${maven.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.maven</groupId>
-			<artifactId>maven-compat</artifactId>
-			<version>${maven.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>org.apache.maven.plugin-tools</groupId>
 			<artifactId>maven-plugin-annotations</artifactId>
 			<version>3.6.0</version>
@@ -53,6 +37,27 @@
 			<version>3.0</version>
 		</dependency>
 	</dependencies>
+
+	<profiles>
+		<profile>
+			<id>nashorngone</id>
+			<activation>
+				<jdk>[15,)</jdk>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>org.graalvm.js</groupId>
+					<artifactId>js</artifactId>
+					<version>20.1.0</version>
+				</dependency>
+				<dependency>
+					<groupId>org.graalvm.js</groupId>
+					<artifactId>js-scriptengine</artifactId>
+					<version>20.1.0</version>
+				</dependency>
+			</dependencies>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
@@ -81,5 +86,139 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.postgresql</groupId>
+				<artifactId>pljava-pgxs</artifactId>
+				<version>${project.version}</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>
+								scripting-report
+							</report>
+						</reports>
+						<configuration>
+							<script mimetype="application/javascript">
+<![CDATA[
+function getName(report, locale)
+{
+	return "JavaDocs";
+}
+
+function getDescription(report, locale)
+{
+	return "JavaDoc API documentation.";
+}
+
+function getOutputName(report)
+{
+	return java.nio.file.Paths.get("apidocs", "index").toString();
+}
+
+function isExternalReport(report)
+{
+	return true;
+}
+
+function executeReport(report, locale)
+{
+	var paths = buildPaths(report.project.compileClasspathElements);
+
+	var title = report.project.name + " " + report.project.version;
+
+	var basedir = report.project.basedir.toPath();
+
+	/*
+	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
+	 */
+	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
+	srcroot = basedir.resolve(srcroot);
+	var srcrooturi = srcroot.toUri();
+
+	var jdklink = "https://docs.oracle.com/" +
+		locale.language + "/java/javase/12/docs/api";
+
+	var bottom =
+		"Copyright &#169; " +
+		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
+		"<a href='" + report.project.organization.url + "'>" +
+		report.project.organization.name + "</a>";
+
+	var of = java.util.List.of;
+
+	var args = of(
+		/*
+		 * The 'standard options' that javadoc inherits from javac.
+		 * Do not add --release: it causes -encoding to be ignored (in javadoc
+		 * 12 through 15, anyway). -d is documented as a doclet option, but
+		 * included here to be seen by the RelativizingFileManager (which may
+		 * otherwise complain that no class output location has been set).
+		 */
+		"-d",           report.reportOutputDirectory.toPath()
+							.resolve("apidocs").toString(),
+		"-encoding",    report.inputEncoding,
+		"--class-path", paths.get("classpath"),
+		"--module-path",paths.get("modulepath"),
+		"-sourcepath",  srcroot.toString(),
+		/*
+		 * Core javadoc options.
+		 * Avoid the legacy package/private/protected/public options; they can
+		 * clobber the effects of the newer -show-...=... options.
+		 */
+		"-locale",      locale.toString(),
+		"-quiet",
+		/*
+		 * Options that are passed to the doclet.
+		 */
+		"-author",
+		"-bottom",      bottom,
+		"-docencoding", report.outputEncoding,
+		"-doctitle",    title,
+		"-link",        jdklink,
+		"-use",
+		"-version",
+		"-windowtitle", title
+	);
+
+	args = new java.util.ArrayList(args);
+
+	var packages = [
+		"org.postgresql.pljava.pgxs"
+	];
+
+	packages.forEach(function(p) { args.add(p); });
+
+	debug(args.toString());
+	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+
+	function diagListener(d)
+	{
+		var s = d.source;
+
+		if ( null === s )
+			s = "";
+		else
+		{
+			s = srcrooturi.relativize(s.toUri()).toString();
+			s += "[" + d.lineNumber + "," + d.columnNumber + "] ";
+		}
+
+		diag(d.kind, s + d.getMessage(locale));
+	}
+
+	var task = tool.getTask(null, null, diagListener, null, args, null);
+	task.call();
+}
+]]>
+							</script>
+						</configuration>
+					</reportSet>
+				</reportSets>
+			</plugin>
+		</plugins>
+	</reporting>
 
 </project>
