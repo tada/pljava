@@ -108,10 +108,10 @@
 				<version>${pljava.pgxs.version}</version>
 				<executions>
 					<execution>
-						<id>execute-script</id>
+						<id>set-ver-classifier</id>
 						<phase>initialize</phase>
 						<goals>
-							<goal>scripting</goal>
+							<goal>scripted-goal</goal>
 						</goals>
 						<configuration>
 							<script mimetype="application/javascript">

@@ -96,9 +96,7 @@
 				<reportSets>
 					<reportSet>
 						<reports>
-							<report>
-								scripting-report
-							</report>
+							<report>scripted-report</report>
 						</reports>
 						<configuration>
 							<script mimetype="application/javascript">

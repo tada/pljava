@@ -34,7 +34,7 @@ import java.util.Locale;
  * lifecycle phase with the help of {@link ReportScript}. The motivation behind
  * this is the inability to use Maven AntRun during {@code SITE} phase.
  */
-@Mojo(name = "scripting-report")
+@Mojo(name = "scripted-report")
 @Execute(phase = LifecyclePhase.NONE)
 public class ReportScriptingMojo extends AbstractMavenReport
 {

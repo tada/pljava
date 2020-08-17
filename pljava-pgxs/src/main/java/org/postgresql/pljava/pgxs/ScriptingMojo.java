@@ -30,7 +30,7 @@ import java.util.function.Function;
  * Plugin. This is intentional to simplify usage as this maven plugin is
  * specifically targeted at building Pl/Java native code.
  */
-@Mojo(name = "scripting", defaultPhase = LifecyclePhase.INITIALIZE,
+@Mojo(name = "scripted-goal", defaultPhase = LifecyclePhase.INITIALIZE,
       requiresDependencyResolution = ResolutionScope.TEST)
 public class ScriptingMojo extends AbstractMojo
 {
