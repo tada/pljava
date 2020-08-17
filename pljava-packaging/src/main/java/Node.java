@@ -1344,29 +1344,17 @@ public class Node extends JarX {
 	 * (but will have been read through the last row).
 	 *<p>
 	 * A result set with no columns of type other than {@code void} will be
-	 * printed in an abbreviated form.
+	 * printed in an abbreviated form, showing its number of rows and columns
+	 * as reported by {@link #voidResultSetDims voidResultSetDims}.
 	 */
 	public static void qp(ResultSet rs) throws Exception
 	{
-		ResultSetMetaData md = rs.getMetaData();
-		int cols = md.getColumnCount();
+		int[] dims = voidResultSetDims(rs);
 
-		boolean allVoid = true;
-
-		for ( int c = 1; c <= cols; ++c )
+		if ( null != dims )
 		{
-			if ( Types.OTHER == md.getColumnType(c)
-				&& "void".equals(md.getColumnTypeName(c)) )
-				continue;
-			allVoid = false;
-			break;
-		}
-
-		if ( allVoid )
-		{
-			rs.last();
 			System.out.println(
-				"<void rows='" + rs.getRow() + "' cols='" + cols + "'/>");
+				"<void rows='" + dims[0] + "' cols='" + dims[1] + "'/>");
 			return;
 		}
 
@@ -1517,6 +1505,57 @@ public class Node extends JarX {
 			throw new AssertionError();
 		});
 		return delim + s + delim;
+	}
+
+	/**
+	 * Determines whether an object is a {@code ResultSet} with no columns of
+	 * any type other than {@code void}, to allow abbreviated output of result
+	 * sets produced by the common case of queries that call {@code void}
+	 * functions.
+	 *<p>
+	 * Returns null if <em>o</em> is not a {@code ResultSet}, or if its columns
+	 * are not all of {@code void} type. Otherwise, returns a two-element
+	 * integer array giving the rows (index 0 in the array) and columns (index
+	 * 1) of the result set.
+	 *<p>
+	 * If this method returns non-null, the result set is left positioned on its
+	 * last row.
+	 * @param o Object to check
+	 * @return null or a two-element int[], as described above
+	 */
+	public static int[] voidResultSetDims(Object o) throws Exception
+	{
+		if ( ! (o instanceof ResultSet) )
+			return null;
+
+		ResultSet rs = (ResultSet)o;
+		ResultSetMetaData md = rs.getMetaData();
+		int cols = md.getColumnCount();
+
+		for ( int c = 1; c <= cols; ++c )
+			if ( Types.OTHER != md.getColumnType(c)
+				||  ! "void".equals(md.getColumnTypeName(c)) )
+				return null;
+
+		rs.last(); // last(), getRow() appears to work, in pgjdbc-ng
+		return new int[] { rs.getRow(), cols };
+	}
+
+	/**
+	 * Predicate testing that an object is a {@code ResultSet} that has only
+	 * columns of {@code void} type, and the expected number of rows
+	 * and columns.
+	 *<p>
+	 * The expected result of a query that calls one {@code void}-typed,
+	 * non-set-returning function could be checked with
+	 * {@code isVoid(rs, 1, 1)}.
+	 */
+	public static boolean isVoidResultSet(Object o, int rows, int columns)
+	throws Exception
+	{
+		int[] dims = voidResultSetDims(o);
+
+		return null != dims && rows == dims[0] && columns == dims[1];
 	}
 
 	/*
