@@ -70,7 +70,7 @@
 			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
-				<version>0.0.1-SNAPSHOT</version>
+				<version>${pljava.pgxs.version}</version>
 				<reportSets>
 					<reportSet>
 						<reports>
