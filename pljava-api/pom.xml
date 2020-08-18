@@ -9,6 +9,7 @@
 	<artifactId>pljava-api</artifactId>
 	<name>PL/Java API</name>
 	<description>The API for Java stored procedures in PostgreSQL using PL/Java</description>
+
 	<build>
 		<plugins>
 			<plugin>
@@ -38,28 +39,132 @@
 	<reporting>
 		<plugins>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<configuration>
-					<doctitle>${project.name} ${project.version}</doctitle>
-					<windowtitle>${project.name} ${project.version}</windowtitle>
-					<!-- If I tried to tell you why maven-javadoc-plugin 3.1.1 needs
-					   - this exact potpourri of weirdness just to avoid forcing
-					   - the javadoc tool to do the wrong thing, you would call me
-					   - crazy. See the git commit comment for more explanation.
-					   - Then see the git commit comment for THIS line for even
-					   - MORE explanation.
-					  -->
-					<additionalOptions>
-						<additionalOption>--module</additionalOption>
-						<additionalOption>org.postgresql.pljava</additionalOption>
-						<additionalOption>--module-source-path</additionalOption>
-						<additionalOption>org.postgresql.pljava=${basedir}/src/main/java</additionalOption>
-					</additionalOptions>
-					<sourceFileExcludes>
-						<sourceFileExclude>**/org/**/*.java</sourceFileExclude>
-					</sourceFileExcludes>
-				</configuration>
+				<groupId>org.postgresql</groupId>
+				<artifactId>pljava-pgxs</artifactId>
+				<version>${pljava.pgxs.version}</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>scripted-report</report>
+						</reports>
+						<configuration>
+							<script mimetype="application/javascript">
+<![CDATA[
+function canGenerateReport(report)
+{
+	/*
+	 * Javadoc is run below with the --module-source-path mod=path syntax, which
+	 * appears in javadoc 12.
+	 */
+	var v = java.lang.Runtime.version();
+	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("12")) )
+		return true;
+	warn("Skipping JavaDocs; Java >= 12 required");
+	return false;
+}
+
+function getName(report, locale)
+{
+	return "JavaDocs";
+}
+
+function getDescription(report, locale)
+{
+	return "JavaDoc API documentation.";
+}
+
+function getOutputName(report)
+{
+	return java.nio.file.Paths
+		.get("apidocs", "org.postgresql.pljava", "module-summary")
+		.toString();
+}
+
+function isExternalReport(report)
+{
+	return true;
+}
+
+function executeReport(report, locale)
+{
+	var title = report.project.name + " " + report.project.version;
+
+	var basedir = report.project.basedir.toPath();
+
+	/*
+	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
+	 */
+	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
+	srcroot = basedir.resolve(srcroot);
+	var srcrooturi = srcroot.toUri();
+
+	var jdklink = "https://docs.oracle.com/" +
+		locale.language + "/java/javase/12/docs/api";
+
+	var bottom =
+		"Copyright &#169; " +
+		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
+		"<a href='" + report.project.organization.url + "'>" +
+		report.project.organization.name + "</a>";
+
+	var args = java.util.List.of(
+		/*
+		 * The 'standard options' that javadoc inherits from javac.
+		 * Do not add --release: it causes -encoding to be ignored (in javadoc
+		 * 12 through 15, anyway).
+		 */
+		"-encoding",            report.inputEncoding,
+		"--module",             "org.postgresql.pljava",
+		"--module-source-path", "org.postgresql.pljava=" + srcroot,
+		/*
+		 * Core javadoc options.
+		 * Avoid the legacy package/private/protected/public options; they can
+		 * clobber the effects of the newer -show-...=... options.
+		 */
+		"-locale",              locale.toString(),
+		"-quiet",
+		/*
+		 * Options that are passed to the doclet.
+		 */
+		"-author",
+		"-bottom",              bottom,
+		"-d",                   report.reportOutputDirectory.toPath()
+									.resolve("apidocs").toString(),
+		"-docencoding",         report.outputEncoding,
+		"-doctitle",            title,
+		"-link",                jdklink,
+		//"-sourcetab",         "4", // seemed good idea but implies -linksource
+		"-use",
+		"-version",
+		"-windowtitle",         title
+	);
+
+	debug(args.toString());
+	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+
+	function diagListener(d)
+	{
+		var s = d.source;
+
+		if ( null === s )
+			s = "";
+		else
+		{
+			s = srcrooturi.relativize(s.toUri()).toString();
+			s += "[" + d.lineNumber + "," + d.columnNumber + "] ";
+		}
+
+		diag(d.kind, s + d.getMessage(locale));
+	}
+
+	var task = tool.getTask(null, null, diagListener, null, args, null);
+	task.call();
+}
+]]>
+							</script>
+						</configuration>
+					</reportSet>
+				</reportSets>
 			</plugin>
 		</plugins>
 	</reporting>
