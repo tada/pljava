@@ -60,6 +60,7 @@ public interface ReportScript
 
 	/**
 	 * @param report instance of {@link ReportScriptingMojo}
+	 * @param locale preferred locale for the name
 	 * @return name of the report
 	 * @see ReportScriptingMojo#getName(Locale)
 	 */
@@ -67,6 +68,7 @@ public interface ReportScript
 
 	/**
 	 * @param report instance of {@link ReportScriptingMojo}
+	 * @param locale preferred locale for the description
 	 * @return description of the report
 	 * @see ReportScriptingMojo#getDescription(Locale)
 	 */
@@ -74,6 +76,8 @@ public interface ReportScript
 
 	/**
 	 * @param report instance of {@link ReportScriptingMojo}
+	 * @param locale Locale to use for any locale-sensitive content in
+	 * the report
 	 * @see ReportScriptingMojo#executeReport(Locale)
 	 */
 	void executeReport(ReportScriptingMojo report, Locale locale);

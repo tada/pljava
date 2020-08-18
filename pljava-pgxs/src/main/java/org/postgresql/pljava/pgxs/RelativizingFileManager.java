@@ -109,6 +109,9 @@ implements StandardJavaFileManager
 	 * The file manager constructed here must still be configured by passing
 	 * the necessary subset of the desired javadoc options to
 	 * {@link #handleFirstOptions handleFirstOptions}.
+	 * @param fileManager the original file manager to be wrapped by this one
+	 * @param outputEncoding the encoding that the caller will be using when
+	 * writing bytes to an output file from this manager
 	 */
 	public RelativizingFileManager(
 		StandardJavaFileManager fileManager,
@@ -205,6 +208,8 @@ implements StandardJavaFileManager
 	 * place those first in the argument list to be passed to the tool itself,
 	 * the same list can be passed to this method to configure the file manager,
 	 * without any more complicated option recognition needed here.
+	 * @param firstOptions an Iterable of options, where those recognized by a
+	 * file manager must be first
 	 */
 	public void handleFirstOptions(Iterable<String> firstOptions)
 	{
