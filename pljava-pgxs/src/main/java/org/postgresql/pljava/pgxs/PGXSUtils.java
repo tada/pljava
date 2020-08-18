@@ -317,6 +317,7 @@ public final class PGXSUtils
 	 * Returns a map with two elements with {@code classpath} and {@code modulepath}
 	 * as keys and their joined string paths as the respective values.
 	 *
+	 * @param logger Maven Log instance for diagnostics
 	 * @param elements list of elements to build classpath and modulepath from
 	 * @return a map containing the {@code classpath} and {@code modulepath}
 	 * as separate elements
@@ -359,6 +360,7 @@ public final class PGXSUtils
 	 *
 	 * @param filePath the filepath to check whether is a module
 	 * @return true if input path should go on modulepath, false otherwise
+	 * @throws IOException any thrown by the underlying file operations
 	 */
 	public static boolean shouldPlaceOnModulepath(String filePath)
 	throws IOException

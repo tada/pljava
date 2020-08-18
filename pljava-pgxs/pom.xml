@@ -90,15 +90,19 @@
 	<reporting>
 		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-plugin-plugin</artifactId>
+				<version>3.6.0</version>
+			</plugin>
+
+			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
 				<version>${project.version}</version>
 				<reportSets>
 					<reportSet>
 						<reports>
-							<report>
-								scripting-report
-							</report>
+							<report>scripted-report</report>
 						</reports>
 						<configuration>
 							<script mimetype="application/javascript">

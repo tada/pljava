@@ -34,10 +34,19 @@ import java.util.Locale;
  * lifecycle phase with the help of {@link ReportScript}. The motivation behind
  * this is the inability to use Maven AntRun during {@code SITE} phase.
  */
-@Mojo(name = "scripting-report")
+@Mojo(name = "scripted-report")
 @Execute(phase = LifecyclePhase.NONE)
 public class ReportScriptingMojo extends AbstractMavenReport
 {
+	/**
+	 * The script to be used to produce the report, in the scripting language
+	 * identified by its {@code mimetype} or {@code engine} attribute.
+	 *<p>
+	 * The scripting language must be supported by an engine that implements
+	 * {@link Invocable}, and the script, when evaluated, must define functions
+	 * that correspond to all of the abstract methods of {@link ReportScript},
+	 * and any of the default methods that it wishes to override.
+	 */
 	@Parameter
 	public PlexusConfiguration script;
 
