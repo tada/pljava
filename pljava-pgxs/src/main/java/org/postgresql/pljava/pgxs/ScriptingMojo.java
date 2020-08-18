@@ -34,7 +34,7 @@ import java.util.function.Function;
       requiresDependencyResolution = ResolutionScope.TEST)
 public class ScriptingMojo extends AbstractMojo
 {
-	@Component
+	@Parameter(defaultValue = "${project}", readonly = true)
 	private MavenProject project;
 
 	@Parameter

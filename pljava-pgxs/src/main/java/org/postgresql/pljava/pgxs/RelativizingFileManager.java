@@ -155,7 +155,7 @@ implements StandardJavaFileManager
 		final String dots = Stream.generate(() -> "../").limit(depth)
 			.collect(Collectors.joining());
 
-		return new ForwardingJavaFileObject(jfo)
+		return new ForwardingJavaFileObject<>(jfo)
 		{
 			@Override
 			public OutputStream openOutputStream() throws IOException
