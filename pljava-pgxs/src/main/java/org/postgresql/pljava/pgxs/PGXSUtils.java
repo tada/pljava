@@ -20,6 +20,7 @@ import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.tools.Diagnostic;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.jar.JarFile;
@@ -143,6 +145,11 @@ public final class PGXSUtils
 			GLOBAL_SCOPE);
 		context.setAttribute("buildPaths",
 			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
+			GLOBAL_SCOPE);
+
+		context.setAttribute("runCommand",
+			(BiFunction<String, List<String>, ProcessBuilder>)
+				(command, args) -> runCommand(project, command, args),
 			GLOBAL_SCOPE);
 
 		/*
@@ -281,6 +288,35 @@ public final class PGXSUtils
 		String pgConfigOutput = defaultCharsetDecodeStrict(bytes);
 		return pgConfigOutput.substring(0,
 			pgConfigOutput.length() - System.lineSeparator().length());
+	}
+
+	/**
+	 * @param project maven project invoking the method
+	 * @param command the command to be executed
+	 * @param argumentsList list of arguments to pass to the command
+	 *
+	 * @return ProcessBuilder with input command and arguments
+	 */
+	public static ProcessBuilder runCommand(MavenProject project,
+	                                        String command,
+	                                        List<String> argumentsList)
+	{
+		List<String> commandList = new ArrayList<>();
+		commandList.add(command);
+		commandList.addAll(argumentsList);
+		ProcessBuilder processBuilder = new ProcessBuilder(commandList);
+		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+		processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+		File outputDirectory = new File(project.getBuild().getDirectory(), "pljava-pgxs");
+		try
+		{
+			Files.createDirectories(outputDirectory.toPath());
+			processBuilder.directory(outputDirectory);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		return processBuilder;
 	}
 
 	/**

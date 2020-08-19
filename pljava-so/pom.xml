@@ -301,6 +301,71 @@
 		var jvmdfltQuoted = quoteStringForC(jvmdflt);
 		setProjectProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
 	}
+
+	var source_path = java.nio.file.Paths.get("${basedir}", "src", "main", "c");
+	var files = java.nio.file.Files
+		.walk(source_path)
+		.parallel()
+		.filter(function(e) java.nio.file.Files.isRegularFile(e))
+		.map(function(e) e.toAbsolutePath().toString())
+		.filter(function(e) e.endsWith(".c"))
+		.collect(java.util.stream.Collectors.toList());
+
+	var includes = java.util.List.of(
+		"-I${java.home}/include",
+		"-I${java.home}/include/linux",
+		"-I" + getPgConfigProperty("--includedir"),
+		"-I" + getPgConfigProperty("--includedir-server"),
+		"-I${basedir}/src/main/include/",
+		"-I${basedir}/src/main/include/fallback/jdbc",
+		"-I${javah.include}");
+
+	var defines = java.util.List.of(
+		"-DGNU_GCC",
+		"-DLinux",
+		"-DPLJAVA_SO_VERSION=${project.parent.version}");
+
+	var flags = java.util.List.of(
+		"-Wall",
+		"-Wno-long-long",
+		"-Wpointer-arith",
+		"-Wconversion",
+		"-fPIC",
+		"-c",
+		"-fPIC");
+
+	var ArrayList = Java.type("java.util.ArrayList");
+
+	var compileArgs = new ArrayList();
+	compileArgs.addAll(flags);
+	compileArgs.addAll(defines);
+	compileArgs.addAll(includes);
+	compileArgs.addAll(files);
+
+	var compileProcess = runCommand("gcc", compileArgs);
+	var outputDirectory = compileProcess.directory();
+	var process = compileProcess.start();
+	process.waitFor();
+
+	var objectFiles = java.nio.file.Files
+		.walk(outputDirectory.toPath())
+		.parallel()
+		.map(function(e) e.toAbsolutePath().toString())
+		.filter(function(e) e.endsWith(".o"))
+		.collect(java.util.stream.Collectors.toList());
+
+	var linkingArgs = new ArrayList();
+	linkingArgs.add("-shared");
+	linkingArgs.add("-o");
+	linkingArgs.add("libpljava-so-1.6.0-SNAPSHOT.so");
+	linkingArgs.addAll(objectFiles);
+	linkingArgs.add("-shared-libgcc");
+
+	var linkingProcess = runCommand("g++", linkingArgs);
+	linkingProcess.directory(outputDirectory);
+	var exit = linkingProcess.start().waitFor();
+	error("Exit code" + exit);
+
 ]]>
 							</script>
 						</configuration>
