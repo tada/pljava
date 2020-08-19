@@ -91,8 +91,7 @@ public class ScriptingMojo extends AbstractMojo
 	{
 		try
 		{
-			String pgConfigCommand = project.getProperties()
-				                         .getProperty("pgsql.pgconfig");
+			String pgConfigCommand = System.getProperty("pgsql.pgconfig");
 			return PGXSUtils.getPgConfigProperty(pgConfigCommand, property);
 		}
 		catch (Exception e)
