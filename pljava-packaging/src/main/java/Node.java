@@ -90,6 +90,7 @@ import static java.util.Spliterators.spliteratorUnknownSize;
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -1289,20 +1290,61 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Print streamed results of a {@code Statement} in
-	 * (somewhat) readable fashion.
+	 * A flat-mapping function to expand any {@code SQLException} or
+	 * {@code SQLWarning} instance in a result stream into the stream of
+	 * possibly multiple linked diagnostics in the order produced by
+	 * {@code getNextException} or {@code getNextWarning}.
+	 *<p>
+	 * Unlike {@code flattenDiagnostics}, this method does not descend into
+	 * chains of causes; those may be retrieved in the usual way from the
+	 * throwables returned on this stream.
+	 *<p>
+	 * Any other object is returned in a singleton stream.
+	 */
+	public static Stream<Object> semiFlattenDiagnostics(Object oneResult)
+	{
+		UnaryOperator<Object> next;
+
+		if ( oneResult instanceof SQLWarning )
+			next = o -> ((SQLWarning)o).getNextWarning();
+		else if ( oneResult instanceof SQLException )
+			next = o -> ((SQLException)o).getNextException();
+		else
+			return Stream.of(oneResult);
+
+		return Stream.iterate(oneResult, Objects::nonNull, next);
+	}
+
+	/**
+	 * Print streamed results of a {@code Statement} in (somewhat) readable
+	 * fashion.
 	 *<p>
 	 * Uses {@code writeXml} of {@code WebRowSet}, which is very verbose, but
 	 * about the easiest way to readably dump a {@code ResultSet} in just a
 	 * couple lines of code.
 	 *<p>
 	 * The supplied stream is flattened (see
-	 * {@link #flattenDiagnostics flattenDiagnostics}) so that any chained
-	 * {@code SQLException}s or {@code SQLWarning}s are printed in sequence.
+	 * {@link #semiFlattenDiagnostics semiFlattenDiagnostics}) so that any
+	 * chained {@code SQLException}s or {@code SQLWarning}s are printed
+	 * in sequence.
 	 */
 	public static void qp(Stream<Object> s) throws Exception
 	{
-		try ( Stream<Object> flat = s.flatMap(Node::flattenDiagnostics) )
+		qp(s, Node::semiFlattenDiagnostics);
+	}
+
+	/**
+	 * Print streamed results of a {@code Statement} in (somewhat) readable
+	 * fashion, with a choice of flattener for diagnostics.
+	 *<p>
+	 * For <em>flattener</em>, see {@link flattenDiagnostics flattenDiagnostics}
+	 * or {@link semiFlattenDiagnostics semiFlattenDiagnostics}.
+	 */
+	public static void qp(
+		Stream<Object> s, Function<Object,Stream<Object>> flattener)
+	throws Exception
+	{
+		try ( Stream<Object> flat = s.flatMap(flattener) )
 		{
 			for ( Object o : (Iterable<Object>)flat::iterator )
 				qp(o);
