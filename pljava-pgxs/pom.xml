@@ -1,74 +1,88 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.postgresql</groupId>
 		<artifactId>pljava.app</artifactId>
 		<version>1.6.0-SNAPSHOT</version>
 	</parent>
-	<artifactId>pljava-examples</artifactId>
-	<name>PL/Java examples</name>
-	<description>Examples of Java stored procedures using PL/Java</description>
 
-	<profiles>
-		<profile>
-			<id>saxon-examples</id>
-			<dependencies>
-				<dependency>
-					<groupId>net.sf.saxon</groupId>
-					<artifactId>Saxon-HE</artifactId>
-					<version>[9.9.1-5,9.10)</version>
-				</dependency>
-			</dependencies>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-compiler-plugin</artifactId>
-						<configuration>
-							<includes combine.children='append'>
-								<include>org/postgresql/pljava/example/saxon/*.java</include>
-							</includes>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
+	<artifactId>pljava-pgxs</artifactId>
+	<packaging>maven-plugin</packaging>
+
+	<name>PL/Java PGXS</name>
+	<description>The maven plugin to build native code used inside PL/Java
+	</description>
 
 	<dependencies>
 		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>pljava-api</artifactId>
-			<version>${project.version}</version>
+			<groupId>org.apache.maven</groupId>
+			<artifactId>maven-plugin-api</artifactId>
+			<version>${maven.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.maven.plugin-tools</groupId>
+			<artifactId>maven-plugin-annotations</artifactId>
+			<version>3.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.maven.reporting</groupId>
+			<artifactId>maven-reporting-impl</artifactId>
+			<version>3.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.maven.reporting</groupId>
+			<artifactId>maven-reporting-api</artifactId>
+			<version>3.0</version>
 		</dependency>
 	</dependencies>
+
+	<profiles>
+		<profile>
+			<id>nashorngone</id>
+			<activation>
+				<jdk>[15,)</jdk>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>org.graalvm.js</groupId>
+					<artifactId>js</artifactId>
+					<version>20.1.0</version>
+				</dependency>
+				<dependency>
+					<groupId>org.graalvm.js</groupId>
+					<artifactId>js-scriptengine</artifactId>
+					<version>20.1.0</version>
+				</dependency>
+			</dependencies>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
+				<artifactId>maven-plugin-plugin</artifactId>
+				<version>3.6.0</version>
 				<configuration>
-					<includes>
-						<include>org/postgresql/pljava/example/*.java</include>
-						<include>org/postgresql/pljava/example/annotation/*.java</include>
-					</includes>
-					<compilerArgs>
-						<arg>--processor-module-path</arg>
-						<arg>${basedir}/../pljava-api/target/pljava-api-${project.version}.jar</arg>
-					</compilerArgs>
+					<skipErrorNoDescriptorsFound>true
+					</skipErrorNoDescriptorsFound>
 				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<version>2.2</version>
-				<configuration>
-					<archive>
-						<manifestFile>src/main/resources/META-INF/MANIFEST.MF</manifestFile>
-					</archive>
-				</configuration>
+				<executions>
+					<execution>
+						<id>mojo-descriptor</id>
+						<goals>
+							<goal>descriptor</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>help-goal</id>
+						<goals>
+							<goal>helpmojo</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
@@ -76,9 +90,15 @@
 	<reporting>
 		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-plugin-plugin</artifactId>
+				<version>3.6.0</version>
+			</plugin>
+
+			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
-				<version>${pljava.pgxs.version}</version>
+				<version>${project.version}</version>
 				<reportSets>
 					<reportSet>
 						<reports>
@@ -125,9 +145,6 @@ function executeReport(report, locale)
 	var jdklink = "https://docs.oracle.com/" +
 		locale.language + "/java/javase/12/docs/api";
 
-	var apioffline =
-		basedir.toUri().resolve("../pljava-api/target/site/apidocs");
-
 	var bottom =
 		"Copyright &#169; " +
 		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
@@ -150,8 +167,6 @@ function executeReport(report, locale)
 		"--class-path", paths.get("classpath"),
 		"--module-path",paths.get("modulepath"),
 		"-sourcepath",  srcroot.toString(),
-		// ^^^ Options recognized by the file manager end here ^^^
-		"--add-modules","org.postgresql.pljava",
 		/*
 		 * Core javadoc options.
 		 * Avoid the legacy package/private/protected/public options; they can
@@ -167,7 +182,6 @@ function executeReport(report, locale)
 		"-docencoding", report.outputEncoding,
 		"-doctitle",    title,
 		"-link",        jdklink,
-		"-sourcetab",   "4",
 		"-use",
 		"-version",
 		"-windowtitle", title
@@ -175,28 +189,10 @@ function executeReport(report, locale)
 
 	args = new java.util.ArrayList(args);
 
-	/*
-	 * Javadoc doesn't learn how to link to modular docs from nonmodular code
-	 * until 15.
-	 */
-	var v = java.lang.Runtime.version();
-	if ( 0 <= v.compareTo(java.lang.Runtime.Version.parse("15-ea")) )
-		args.addAll(of("-linkoffline",
-			"../../RELDOTS/pljava-api/apidocs", apioffline.toString()));
-
 	var packages = [
-		"org.postgresql.pljava.example",
-		"org.postgresql.pljava.example.annotation"
+		"org.postgresql.pljava.pgxs"
 	];
 
-	if ( isProfileActive('saxon-examples') )
-		packages.push("org.postgresql.pljava.example.saxon");
-
-	/*
-	 * Add the packages to be documented to args. They could perhaps also
-	 * be supplied as JavaFileObjects in the compilationUnits parameter,
-	 * but they are accepted among the option args, so why work any harder?
-	 */
 	packages.forEach(function(p) { args.add(p); });
 
 	debug(args.toString());
@@ -217,25 +213,7 @@ function executeReport(report, locale)
 		diag(d.kind, s + d.getMessage(locale));
 	}
 
-	var Charset = Java.type("java.nio.charset.Charset");
-
-	var smgr = tool.getStandardFileManager(
-			diagListener,
-			locale,
-			Charset.forName(report.inputEncoding)
-		);
-
-	/*
-	 * A special file manager that will rewrite the RELDOTS seen in -linkoffline
-	 * above. The options a file manager recognizes must be the first ones in
-	 * args; handleFirstOptions below returns at the first one the file manager
-	 * doesn't know what to do with.
-	 */
-	var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
-		smgr, Charset.forName(report.outputEncoding));
-	rmgr.handleFirstOptions(args);
-
-	var task = tool.getTask(null, rmgr, diagListener, null, args, null);
+	var task = tool.getTask(null, null, diagListener, null, args, null);
 	task.call();
 }
 ]]>

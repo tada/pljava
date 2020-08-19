@@ -10,6 +10,7 @@
 	<description>Java stored procedures for PostgreSQL</description>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<pljava.pgxs.version>${project.version}</pljava.pgxs.version>
 	</properties>
 
 	<organization>
@@ -56,6 +57,7 @@
 		<module>pljava-ant</module>
 		<module>pljava-examples</module>
 		<module>pljava-packaging</module>
+		<module>pljava-pgxs</module>
 	</modules>
 
 	<distributionManagement>
@@ -130,7 +132,6 @@
 							</execution>
 						</executions>
 					</plugin>
-
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-antrun-plugin</artifactId>
@@ -232,24 +233,6 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-project-info-reports-plugin</artifactId>
 				<version>3.0.0</version>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.2.0</version>
-				<reportSets>
-					<reportSet>
-						<reports>
-							<report>javadoc-no-fork</report>
-						</reports>
-					</reportSet>
-				</reportSets>
-				<configuration>
-					<detectJavaApiLink>false</detectJavaApiLink>
-					<links>
-						<link>https://docs.oracle.com/javase/10/docs/api/</link>
-					</links>
-				</configuration>
 			</plugin>
 		</plugins>
 	</reporting>

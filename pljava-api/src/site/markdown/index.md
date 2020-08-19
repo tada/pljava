@@ -7,4 +7,4 @@ If you arrived here from a search for PL/Java API, you probably want
 [the user guide][ug], or [the API documentation][tad].
 
 [ug]: ../use/use.html
-[tad]: apidocs/index.html
+[tad]: apidocs/org.postgresql.pljava/module-summary.html

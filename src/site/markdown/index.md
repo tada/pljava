@@ -47,9 +47,9 @@ deployment descriptor, making the new types/functions/triggers available for
 use.
 
 [JDBC]: https://docs.oracle.com/javase/tutorial/jdbc/
-[pljapi]: pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description
+[pljapi]: pljava-api/apidocs/org.postgresql.pljava/module-summary.html
 [annotations]: https://docs.oracle.com/javase/tutorial/java/annotations/
-[oppa]: pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/package-summary.html#package_description
+[oppa]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#package_description
 [trgann]: https://github.com/tada/pljava/blob/master/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
 [jar]: https://docs.oracle.com/javase/tutorial/deployment/jar/index.html

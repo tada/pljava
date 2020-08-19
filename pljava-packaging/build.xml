@@ -8,18 +8,17 @@
 		<pathconvert property="narpath" refid="narloc" dirsep="/"/>
 
         <loadresource property="naraol">
-            <string value="${narpath}" />
-            <filterchain>
-                <tokenfilter>
-                    <!--containsregex pattern=".*SNAPSHOT-(.*)-shared.*$" replace="\1" /-->
-                    <containsregex pattern=".*/lib/(.*)/plugin/.*$" replace="\1" />
-                </tokenfilter>
-				<striplinebreaks/>
-            </filterchain>
+	        <string value="${narpath}"/>
+	        <filterchain>
+		        <tokenfilter>
+			        <!--containsregex pattern=".*SNAPSHOT-(.*)-shared.*$" replace="\1" /-->
+			        <containsregex pattern=".*/lib/(.*)/plugin/.*$"
+			                       replace="\1"/>
+		        </tokenfilter>
+		        <striplinebreaks/>
+	        </filterchain>
         </loadresource>
-		
-		<loadproperties srcFile="../pljava-so/target/pgsql.properties"/>
-		
+
 		<property name="suffix" value="${PGSQL_VER_CLASSIFIER}-${naraol}"/>
 	</target>
 
