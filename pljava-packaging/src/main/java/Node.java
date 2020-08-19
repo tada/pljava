@@ -119,6 +119,10 @@ import static java.util.stream.StreamSupport.stream;
  *<p>
  * As in JarX itself, some liberties with coding style may be taken here to keep
  * this one extra {@code .class} file from proliferating into a bunch of them.
+ *<p>
+ * As the testing-related methods here are intended for ad-hoc or scripted use
+ * in {@code jshell}, they are typically declared to throw any checked
+ * exception, without further specifics.
  */
 public class Node extends JarX {
 
@@ -131,6 +135,11 @@ public class Node extends JarX {
 	private static boolean s_jarProcessed = false;
 	private static String s_examplesJar;
 
+	/**
+	 * Perform an ordinary installation, using {@code pg_config} or the
+	 * corresponding system properties to learn where the files belong, and
+	 * unpacking the files (not including this class or its ancestors) there.
+	 */
 	public static void main(String[] args) throws Exception
 	{
 		if ( args.length > 0 )
@@ -171,6 +180,13 @@ public class Node extends JarX {
 		m_lineSep = getProperty("line.separator");
 	}
 
+	/**
+	 * Replaces a prefix {@code pljava/}<em>key</em> in a path to be extracted
+	 * with the value of the {@code pgconfig.}<em>key</em> system property, or
+	 * the result of invoking {@code pg_config} (or the exact executable named
+	 * in the {@code pgconfig} system property, if present) with the option
+	 * {@code --}<em>key</em>.
+	 */
 	@Override
 	public String resolve(String storedPath, String platformPath)
 	throws Exception
@@ -241,6 +257,17 @@ public class Node extends JarX {
 	 * of this class that is acting as a "Node" rather than as the JarX helper.
 	 */
 
+	/**
+	 * True if the platform is determined to be Windows.
+	 *<p>
+	 * On Windows, {@link #forWindowsCRuntime forWindowsCRuntime} should be
+	 * applied to any {@code ProcessBuilder} before invoking it; the details of
+	 * the transformation applied by
+	 * {@link #asPgCtlInvocation asPgCtlInvocation} change, and
+	 * {@link #use_pg_ctl use_pg_ctl} may prove useful, as {@code pg_ctl} on
+	 * Windows is able to drop administrative privileges that would otherwise
+	 * prevent {@code postgres} from starting.
+	 */
 	public static final boolean s_isWindows =
 		getProperty("os.name").startsWith("Windows");
 
@@ -509,9 +536,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke {@code initdb} for the node, passing default options appropriate
-	 * for this setting, and optionally one or more tweaks to be applied to the
-	 * {@code ProcessBuilder} before it is started.
+	 * Invoke {@code initdb} for the node, with <em>suppliedOptions</em>
+	 * overriding or supplementing the ones that would be passed by default.
 	 */
 	public void init(Map<String,String> suppliedOptions) throws Exception
 	{
@@ -530,7 +556,9 @@ public class Node extends JarX {
 
 	/**
 	 * Invoke {@code initdb} for the node, with <em>suppliedOptions</em>
-	 * overriding or supplementing the ones that would be passed by default.
+	 * overriding or supplementing the ones that would be passed by default,
+	 * and <em>tweaks</em> to be applied to the {@code ProcessBuilder}
+	 * before it is started.
 	 *<p>
 	 * By default, {@code postgres} will be the name of the superuser, UTF-8
 	 * will be the encoding, {@code auth-local} will be {@code peer} and
@@ -677,7 +705,9 @@ public class Node extends JarX {
 
 	/**
 	 * Start a PostgreSQL server for the node, with <em>suppliedOptions</em>
-	 * overriding or supplementing the ones that would be passed by default.
+	 * overriding or supplementing the ones that would be passed by default, and
+	 * <em>tweaks</em> to be applied to the {@code ProcessBuilder} before it
+	 * is started.
 	 *<p>
 	 * By default, the server will listen only on the loopback interface and
 	 * not on any Unix-domain socket, on the port selected when this Node was
@@ -965,141 +995,6 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Execute some arbitrary SQL and pass
-	 * the {@link #q(Statement,Callable) result stream}
-	 * to {@link #qp(Stream<Object>)} for printing to standard output.
-	 */
-	public static void qp(Connection c, String sql) throws Exception
-	{
-		qp(q(c, sql));
-	}
-
-	/**
-	 * Invoke some {@code execute} method on a {@code Statement} and pass
-	 * the {@link #q(Statement,Callable) result stream}
-	 * to {@link #qp(Stream<Object>)} for printing to standard output.
-	 *<p>
-	 * This is how, for example, to prepare, then print the results of, a
-	 * {@code PreparedStatement}:
-	 *<pre>
-	 * PreparedStatement ps = conn.prepareStatement("select foo(?,?)");
-	 * ps.setInt(1, 42);
-	 * ps.setString(2, "surprise!");
-	 * qp(ps, ps::execute);
-	 *</pre>
-	 * The {@code Statement} will be closed.
-	 */
-	public static void qp(Statement s, Callable<Boolean> work) throws Exception
-	{
-		qp(q(s, work));
-	}
-
-	/**
-	 * Return true if the examples jar includes the
-	 * {@code org.postgresql.pljava.example.saxon.S9} class (meaning the
-	 * appropriate Saxon jar must be installed and on the classpath first before
-	 * the examples jar can be deployed, unless {@code check_function_bodies}
-	 * is {@code off} to skip dependency checking.
-	 */
-	public static boolean examplesNeedSaxon() throws Exception
-	{
-		dryExtract();
-		try ( JarFile jf = new JarFile(s_examplesJar) )
-		{
-			return jf.stream().anyMatch(e ->
-				"org/postgresql/pljava/example/saxon/S9.class"
-				.equals(e.getName()));
-		}
-	}
-
-	/**
-	 * Install the examples jar, under the name {@code examples}.
-	 *<p>
-	 * The jar is specified by a {@code file:} URI and the path is the one where
-	 * this installer installed (or would have installed) it.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
-	 */
-	public static Stream<Object> installExamples(Connection c, boolean deploy)
-	throws Exception
-	{
-		dryExtract();
-		return installJar(c, "file:"+s_examplesJar, "examples", deploy);
-	}
-
-	/**
-	 * Install the examples jar, under the name {@code examples}, and place it
-	 * on the class path for schema {@code public}.
-	 *<p>
-	 * The return of a concatenated result stream from two consecutive
-	 * statements might be likely to fail in cases where the first
-	 * statement has any appreciable data to return, but pgjdbc-ng seems to
-	 * handle it at least in this case where each statement just returns one
-	 * row / one column of {@code void}. And it is convenient.
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
-	 * executing the statements
-	 */
-	public static Stream<Object> installExamplesAndPath(
-		Connection c, boolean deploy)
-	throws Exception
-	{
-		Stream<Object> s1 = installExamples(c, deploy);
-		Stream<Object> s2 = setClasspath(c, "public", "examples");
-		return Stream.concat(s1, s2);
-	}
-
-	/**
-	 * Install a Saxon jar under the name {@code saxon}, given the path to a
-	 * local Maven repo and the needed version of Saxon, assuming the jar has
-	 * been downloaded there already.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
-	 */
-	public static Stream<Object> installSaxon(
-		Connection c, String repo, String version)
-	throws Exception
-	{
-		Path p = Paths.get(
-			repo, "net", "sf", "saxon", "Saxon-HE", version,
-			"Saxon-HE-" + version + ".jar");
-		return installJar(c, "file:" + p, "saxon", false);
-	}
-
-	/**
-	 * Install a Saxon jar under the name {@code saxon}, and place it on the
-	 * class path for schema {@code public}.
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
-	 * executing the statements
-	 */
-	public static Stream<Object> installSaxonAndPath(
-		Connection c, String repo, String version)
-	throws Exception
-	{
-		Stream<Object> s1 = installSaxon(c, repo, version);
-		Stream<Object> s2 = setClasspath(c, "public", "saxon");
-		return Stream.concat(s1, s2);
-	}
-
-	/**
-	 * A four-fer: install Saxon, add it to the class path, then install the
-	 * examples jar, and update the classpath to include both.
-	 * @param repo the base directory of a local Maven repository into which the
-	 * Saxon jar has been downloaded
-	 * @param version the needed version of Saxon
-	 * @param deploy whether to run the example jar's deployment code
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
-	 * executing the statements
-	 */
-	public static Stream<Object> installSaxonAndExamplesAndPath(
-		Connection c, String repo, String version, boolean deploy)
-	throws Exception
-	{
-		Stream<Object> s1 = installSaxonAndPath(c, repo, version);
-		Stream<Object> s2 = installExamplesAndPath(c, deploy);
-		return Stream.concat(s1, s2);
-	}
-
-	/**
 	 * Produce a {@code Stream} of the (in JDBC, possibly multiple) results
 	 * from some {@code execute} method on a {@code Statement}.
 	 *<p>
@@ -1270,12 +1165,151 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * Execute some arbitrary SQL and pass
+	 * the {@link #q(Statement,Callable) result stream}
+	 * to {@link #qp(Stream<Object>)} for printing to standard output.
+	 */
+	public static void qp(Connection c, String sql) throws Exception
+	{
+		qp(q(c, sql));
+	}
+
+	/**
+	 * Invoke some {@code execute} method on a {@code Statement} and pass
+	 * the {@link #q(Statement,Callable) result stream}
+	 * to {@link #qp(Stream<Object>)} for printing to standard output.
+	 *<p>
+	 * This is how, for example, to prepare, then print the results of, a
+	 * {@code PreparedStatement}:
+	 *<pre>
+	 * PreparedStatement ps = conn.prepareStatement("select foo(?,?)");
+	 * ps.setInt(1, 42);
+	 * ps.setString(2, "surprise!");
+	 * qp(ps, ps::execute);
+	 *</pre>
+	 * The {@code Statement} will be closed.
+	 */
+	public static void qp(Statement s, Callable<Boolean> work) throws Exception
+	{
+		qp(q(s, work));
+	}
+
+	/**
+	 * Return true if the examples jar includes the
+	 * {@code org.postgresql.pljava.example.saxon.S9} class (meaning the
+	 * appropriate Saxon jar must be installed and on the classpath first before
+	 * the examples jar can be deployed, unless {@code check_function_bodies}
+	 * is {@code off} to skip dependency checking).
+	 */
+	public static boolean examplesNeedSaxon() throws Exception
+	{
+		dryExtract();
+		try ( JarFile jf = new JarFile(s_examplesJar) )
+		{
+			return jf.stream().anyMatch(e ->
+				"org/postgresql/pljava/example/saxon/S9.class"
+				.equals(e.getName()));
+		}
+	}
+
+	/**
+	 * Install the examples jar, under the name {@code examples}.
+	 *<p>
+	 * The jar is specified by a {@code file:} URI and the path is the one where
+	 * this installer installed (or would have installed) it.
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
+	 */
+	public static Stream<Object> installExamples(Connection c, boolean deploy)
+	throws Exception
+	{
+		dryExtract();
+		return installJar(c, "file:"+s_examplesJar, "examples", deploy);
+	}
+
+	/**
+	 * Install the examples jar, under the name {@code examples}, and place it
+	 * on the class path for schema {@code public}.
+	 *<p>
+	 * The return of a concatenated result stream from two consecutive
+	 * statements might be likely to fail in cases where the first
+	 * statement has any appreciable data to return, but pgjdbc-ng seems to
+	 * handle it at least in this case where each statement just returns one
+	 * row / one column of {@code void}. And it is convenient.
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
+	 */
+	public static Stream<Object> installExamplesAndPath(
+		Connection c, boolean deploy)
+	throws Exception
+	{
+		Stream<Object> s1 = installExamples(c, deploy);
+		Stream<Object> s2 = setClasspath(c, "public", "examples");
+		return Stream.concat(s1, s2);
+	}
+
+	/**
+	 * Install a Saxon jar under the name {@code saxon}, given the path to a
+	 * local Maven repo and the needed version of Saxon, assuming the jar has
+	 * been downloaded there already.
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
+	 */
+	public static Stream<Object> installSaxon(
+		Connection c, String repo, String version)
+	throws Exception
+	{
+		Path p = Paths.get(
+			repo, "net", "sf", "saxon", "Saxon-HE", version,
+			"Saxon-HE-" + version + ".jar");
+		return installJar(c, "file:" + p, "saxon", false);
+	}
+
+	/**
+	 * Install a Saxon jar under the name {@code saxon}, and place it on the
+	 * class path for schema {@code public}.
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
+	 */
+	public static Stream<Object> installSaxonAndPath(
+		Connection c, String repo, String version)
+	throws Exception
+	{
+		Stream<Object> s1 = installSaxon(c, repo, version);
+		Stream<Object> s2 = setClasspath(c, "public", "saxon");
+		return Stream.concat(s1, s2);
+	}
+
+	/**
+	 * A four-fer: install Saxon, add it to the class path, then install the
+	 * examples jar, and update the classpath to include both.
+	 * @param repo the base directory of a local Maven repository into which the
+	 * Saxon jar has been downloaded
+	 * @param version the needed version of Saxon
+	 * @param deploy whether to run the example jar's deployment code
+	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * executing the statements
+	 */
+	public static Stream<Object> installSaxonAndExamplesAndPath(
+		Connection c, String repo, String version, boolean deploy)
+	throws Exception
+	{
+		Stream<Object> s1 = installSaxonAndPath(c, repo, version);
+		Stream<Object> s2 = installExamplesAndPath(c, deploy);
+		return Stream.concat(s1, s2);
+	}
+
+	/**
 	 * A flat-mapping function to expand any {@code SQLException} or
 	 * {@code SQLWarning} instance in a result stream into the stream of
 	 * possibly multiple linked diagnostics and causes in the encounter order
 	 * of the {@code SQLException} iterator.
 	 *<p>
 	 * Any other object is returned in a singleton stream.
+	 *<p>
+	 * To flatten just the chain of {@code SQLWarning} or {@code SQLException}
+	 * but with each of those retaining its own list of {@code cause}s, see
+	 * {@link #semiFlattenDiagnostics semiFlattenDiagnostics}.
 	 */
 	public static Stream<Object> flattenDiagnostics(Object oneResult)
 	{
@@ -1590,7 +1624,7 @@ public class Node extends JarX {
 	 *<p>
 	 * The expected result of a query that calls one {@code void}-typed,
 	 * non-set-returning function could be checked with
-	 * {@code isVoid(rs, 1, 1)}.
+	 * {@code isVoidResultSet(rs, 1, 1)}.
 	 */
 	public static boolean isVoidResultSet(Object o, int rows, int columns)
 	throws Exception
@@ -1792,13 +1826,14 @@ public class Node extends JarX {
 	 *<p>
 	 * This transformation must account for the way the C runtime will
 	 * ultimately parse the parameters apart, and also for the behavior of
-	 * Java's runtime in assembling the command line that the C code
+	 * Java's runtime in assembling the command line that the invoked process
 	 * will receive.
 	 * @param pb a ProcessBuilder whose command has been set to an executable
 	 * that parses parameters using the C runtime rules, and arguments as they
 	 * should result from parsing.
 	 * @return The same ProcessBuilder, with the argument list rewritten as
-	 * necessary to produce the original list as a result of C runtime parsing,
+	 * necessary to produce the original list as a result of Windows C runtime
+	 * parsing,
 	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
 	 * least the first command element (the executable to run)
 	 * @throws UnsupportedOperationException if the arguments passed, or system
@@ -1975,8 +2010,8 @@ public class Node extends JarX {
 	 * correctly for {@code sh} or {@code cmd} as appropriate.
 	 *<p>
 	 * The result of this transformation still has to be received intact by
-	 * {@code pg_ctl} itself, which requires (on Windows) an application of
-	 * {@code forWindowsCRuntime} as well.
+	 * {@code pg_ctl} itself, which requires (on Windows) a subsequent
+	 * application of {@code forWindowsCRuntime} as well.
 	 * @param pb a ProcessBuilder whose command has been set to an executable
 	 * path for {@code postgres}, with only {@code -D} and {@code -c} options.
 	 * @return The same ProcessBuilder, with the argument list rewritten to
