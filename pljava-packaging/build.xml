@@ -1,28 +1,7 @@
 <?xml version="1.0"?>
-<project name="project" default="init" basedir=".">
+<project name="project" default="package" basedir=".">
 
-	<target name="init">
-		<fileset dir="../pljava-so/target/nar" id="narloc">
-			<include name="**/history.xml"/>
-		</fileset>
-		<pathconvert property="narpath" refid="narloc" dirsep="/"/>
-
-        <loadresource property="naraol">
-	        <string value="${narpath}"/>
-	        <filterchain>
-		        <tokenfilter>
-			        <!--containsregex pattern=".*SNAPSHOT-(.*)-shared.*$" replace="\1" /-->
-			        <containsregex pattern=".*/lib/(.*)/plugin/.*$"
-			                       replace="\1"/>
-		        </tokenfilter>
-		        <striplinebreaks/>
-	        </filterchain>
-        </loadresource>
-
-		<property name="suffix" value="${PGSQL_VER_CLASSIFIER}-${naraol}"/>
-	</target>
-
-	<target name="package" depends="init">
+	<target name="package">
 
 		<!--
 			Create a new ant task <jarxbuild> for building a jar that self-
@@ -249,11 +228,11 @@ jos.close();
 
 		<!-- Now build the jar using the <jarxbuild> task just created. -->
 
-		<jarxbuild destfile="${basedir}/target/pljava-${suffix}.jar">
+		<jarxbuild destfile="${basedir}/target/pljava-${project.version}.jar">
 			<binary dir="target/classes" includes="**/Node.class"/>
 			<binary dir="target/classes" includes="**/JarX.class"/>
-			<binary prefix="pljava/pkglibdir/" filemode="555" dir=
-"../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
+			<binary prefix="pljava/pkglibdir/" filemode="555"
+				dir="../pljava-so/target/pljava-pgxs/"
 				includes="**/*pljava-so*"/>
 			<binary dir="../pljava/target" includes="pljava*.jar"
 				prefix="pljava/sharedir/pljava/"/>

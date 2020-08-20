@@ -31,7 +31,7 @@
 			<groupId>org.postgresql</groupId>
 			<artifactId>pljava-so</artifactId>
 			<version>${project.version}</version>
-			<type>nar</type>
+			<type>pom</type>
 		</dependency>
 	</dependencies>
 

@@ -11,11 +11,9 @@
 	<description>
 		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
 	</description>
-	<packaging>nar</packaging>
+	<packaging>pom</packaging>
 
 	<properties>
-		<!-- use -Dnar.cores=1 if non-interleaved warning messages wanted -->
-		<nar.cores>0</nar.cores>
 		<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
 	</properties>
 
@@ -273,7 +271,6 @@
 
 	<build>
 		<plugins>
-
 			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
@@ -371,55 +368,6 @@
 						</configuration>
 					</execution>
 				</executions>
-			</plugin>
-
-			<!-- Compiles and links the C library. -->
-			<plugin>
-				<groupId>com.github.maven-nar</groupId>
-				<artifactId>nar-maven-plugin</artifactId>
-				<version>3.2.3</version>
-				<extensions>true</extensions>
-
-				<configuration>
-					<maxCores>${nar.cores}</maxCores>
-
-					<!-- Compiles the C sources to object files. -->
-					<c>
-				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
-						<name>${CPP_COMPILER}</name>
-				-->
-						<defines>
-							<define>PLJAVA_SO_VERSION=${project.version}</define>
-						</defines>
-						<includePaths>
-							<!-- TODO: hardcoded paths -->
-							<includePath>${PGSQL_INCLUDEDIR}</includePath>
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
-							<includePath>${basedir}/src/main/include/</includePath>
-							<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
-							<includePath>${javah.include}</includePath>
-						</includePaths>
-						<debug>${so.debug}</debug>
-						<optimize>${so.optimize}</optimize>
-					</c>
-
-					<java>
-						<include>true</include>
-					</java>
-
-					<!-- Options/extra libs/etc. for the linker go here. -->
-					<linker>
-					</linker>
-
-					<!-- Builds a *.so library. -->
-					<libraries>
-						<library>
-							<type>plugin</type>
-							<!-- Do not add "-lstdc++". Adds "-shared-libgcc" though. -->
-							<linkCPP>false</linkCPP>
-						</library>
-					</libraries>
-				</configuration>
 			</plugin>
 
 			<!-- The deploy goal will be hijacked by an ant task so the original plugin
