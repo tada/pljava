@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
@@ -143,6 +144,9 @@ public final class PGXSUtils
 			GLOBAL_SCOPE);
 		context.setAttribute("buildPaths",
 			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
+			GLOBAL_SCOPE);
+		context.setAttribute("runCommand",
+			(ToIntFunction<ProcessBuilder>) process -> runCommand(log, process),
 			GLOBAL_SCOPE);
 
 		/* Work around for using passing javascript function as a SAM to a java
@@ -311,9 +315,11 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * @param project maven project invoking the method
-	 * @param consumer function which adds arguments to the ProcessBuilder
+	 * Returns a ProcessBuilder with suitable defaults and arguments added from
+	 * input function.
 	 *
+	 * @param project maven project from which the method is invoked
+	 * @param consumer function which adds arguments to the ProcessBuilder
 	 * @return ProcessBuilder with input arguments and suitable defaults
 	 */
 	public static ProcessBuilder processBuilder(MavenProject project,
@@ -323,16 +329,32 @@ public final class PGXSUtils
 		consumer.accept(processBuilder.command());
 		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
 		processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-		File outputDirectory = new File(project.getBuild().getDirectory(), "pljava-pgxs");
+		processBuilder.directory(new File(project.getBuild().getDirectory(),
+			"pljava-pgxs"));
+		return processBuilder;
+	}
+
+	/**
+	 * Executes a ProcessBuilder and returns the exit code of the process.
+	 *
+	 * @param logger Maven Log instance for diagnostics
+	 * @param processBuilder to execute
+	 * @return exit code of the executed process or -1 if an exception occurs
+	 * during execution
+	 */
+	public static int runCommand(Log logger, ProcessBuilder processBuilder)
+	{
+		Path outputDirectoryPath = processBuilder.directory().toPath();
 		try
 		{
-			Files.createDirectories(outputDirectory.toPath());
-			processBuilder.directory(outputDirectory);
-		} catch (IOException e) {
-			e.printStackTrace();
+			if (!Files.exists(outputDirectoryPath))
+				Files.createDirectories(outputDirectoryPath);
+			Process process = processBuilder.start();
+			return process.waitFor();
+		} catch (Exception e) {
+			logger.error(e);
 		}
-
-		return processBuilder;
+		return -1;
 	}
 
 	/**

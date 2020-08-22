@@ -340,8 +340,7 @@
 		I.addAll(files);
 	});
 	var outputDirectory = compileProcess.directory();
-	var process = compileProcess.start();
-	process.waitFor();
+	info("Exit code: " + runCommand(compileProcess));
 
 	var objectFiles = java.nio.file.Files
 		.walk(outputDirectory.toPath())
@@ -359,9 +358,7 @@
 		I.add("-shared-libgcc");
 	});
 	linkingProcess.directory(outputDirectory);
-	var exit = linkingProcess.start().waitFor();
-	error("Exit code" + exit);
-
+	info("Exit code: " + runCommand(linkingProcess));
 ]]>
 							</script>
 						</configuration>
