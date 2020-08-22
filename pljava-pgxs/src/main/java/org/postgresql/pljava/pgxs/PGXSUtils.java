@@ -145,10 +145,32 @@ public final class PGXSUtils
 			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
 			GLOBAL_SCOPE);
 
-		context.setAttribute("processBuilder",
-			(Function<Consumer<List<String>>, ProcessBuilder>)
-				consumer -> processBuilder(project, consumer),
-			GLOBAL_SCOPE);
+		/* Work around for using passing javascript function as a SAM to a java
+		 * method. Both Nashorn and Graal Scripting crash at Runtime if the
+		 * following approach is used
+		 *
+		 * context.setAttribute("processBuilder",
+		 *	(Function<Consumer<List<String>>, ProcessBuilder>)
+		 *		consumer -> processBuilder(project, consumer),
+		 *	GLOBAL_SCOPE);
+		 *
+		 * for reasons unknown. This is either a bug or an unsupported operation.
+		 * Even if it is a bug it will not be worthwhile to use the above
+		 * approach, since Nashorn is already deprecated and a bug fix is highly
+		 * unlikely to be made and backported.
+		 */
+		context.setAttribute("project", project, GLOBAL_SCOPE);
+		String processBuilder  =
+			"function processBuilder(consumer) {" +
+				"return Packages.org.postgresql.pljava.pgxs.PGXSUtils." +
+					"processBuilder(project, consumer);" +
+			"}";
+		try
+		{
+			engine.eval(processBuilder);
+		} catch (Exception e) {
+			log.error(e);
+		}
 
 		/*
 		 * Also provide a specialized method useful for a script that may

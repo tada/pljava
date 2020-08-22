@@ -13,7 +13,10 @@
 package org.postgresql.pljava.pgxs;
 
 import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugins.annotations.*;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
@@ -66,7 +69,7 @@ public class ScriptingMojo extends AbstractMojo
 		}
 		catch (ScriptException e)
 		{
-			e.printStackTrace();
+			getLog().error(e);
 		}
 	}
 
