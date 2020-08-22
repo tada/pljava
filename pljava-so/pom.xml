@@ -333,13 +333,12 @@
 
 	var ArrayList = Java.type("java.util.ArrayList");
 
-	var compileArgs = new ArrayList();
-	compileArgs.addAll(flags);
-	compileArgs.addAll(defines);
-	compileArgs.addAll(includes);
-	compileArgs.addAll(files);
-
-	var compileProcess = runCommand("gcc", compileArgs);
+	var compileProcess = processBuilder(function(I) {
+		I.add("gcc");
+		I.addAll(flags);
+		I.addAll(includes);
+		I.addAll(files);
+	});
 	var outputDirectory = compileProcess.directory();
 	var process = compileProcess.start();
 	process.waitFor();
@@ -351,14 +350,14 @@
 		.filter(function(e) e.endsWith(".o"))
 		.collect(java.util.stream.Collectors.toList());
 
-	var linkingArgs = new ArrayList();
-	linkingArgs.add("-shared");
-	linkingArgs.add("-o");
-	linkingArgs.add("libpljava-so-1.6.0-SNAPSHOT.so");
-	linkingArgs.addAll(objectFiles);
-	linkingArgs.add("-shared-libgcc");
-
-	var linkingProcess = runCommand("g++", linkingArgs);
+	var linkingProcess = processBuilder(function(I) {
+		I.add("g++");
+		I.add("-shared");
+		I.add("-o");
+		I.add("libpljava-so-1.6.0-SNAPSHOT.so");
+		I.addAll(objectFiles);
+		I.add("-shared-libgcc");
+	});
 	linkingProcess.directory(outputDirectory);
 	var exit = linkingProcess.start().waitFor();
 	error("Exit code" + exit);

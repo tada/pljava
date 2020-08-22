@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.jar.JarFile;
@@ -139,7 +138,6 @@ public final class PGXSUtils
 			(Consumer<CharSequence>) log::warn, GLOBAL_SCOPE);
 		context.setAttribute("info",
 			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
-
 		context.setAttribute("isProfileActive",
 			(Function<String, Boolean>) id -> isProfileActive(log, project, id),
 			GLOBAL_SCOPE);
@@ -147,9 +145,9 @@ public final class PGXSUtils
 			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
 			GLOBAL_SCOPE);
 
-		context.setAttribute("runCommand",
-			(BiFunction<String, List<String>, ProcessBuilder>)
-				(command, args) -> runCommand(project, command, args),
+		context.setAttribute("processBuilder",
+			(Function<Consumer<List<String>>, ProcessBuilder>)
+				consumer -> processBuilder(project, consumer),
 			GLOBAL_SCOPE);
 
 		/*
@@ -292,19 +290,15 @@ public final class PGXSUtils
 
 	/**
 	 * @param project maven project invoking the method
-	 * @param command the command to be executed
-	 * @param argumentsList list of arguments to pass to the command
+	 * @param consumer function which adds arguments to the ProcessBuilder
 	 *
-	 * @return ProcessBuilder with input command and arguments
+	 * @return ProcessBuilder with input arguments and suitable defaults
 	 */
-	public static ProcessBuilder runCommand(MavenProject project,
-	                                        String command,
-	                                        List<String> argumentsList)
+	public static ProcessBuilder processBuilder(MavenProject project,
+	                                            Consumer<List<String>> consumer)
 	{
-		List<String> commandList = new ArrayList<>();
-		commandList.add(command);
-		commandList.addAll(argumentsList);
-		ProcessBuilder processBuilder = new ProcessBuilder(commandList);
+		ProcessBuilder processBuilder = new ProcessBuilder();
+		consumer.accept(processBuilder.command());
 		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
 		processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 		File outputDirectory = new File(project.getBuild().getDirectory(), "pljava-pgxs");
