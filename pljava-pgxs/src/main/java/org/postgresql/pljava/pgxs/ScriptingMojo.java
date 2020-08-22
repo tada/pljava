@@ -43,6 +43,8 @@ public class ScriptingMojo extends AbstractMojo
 	@Parameter
 	private PlexusConfiguration script;
 
+	private PGXSUtils utils;
+
 	/**
 	 * Executes the javascript code inside {@code script} tag inside plugin
 	 * configuration.
@@ -52,15 +54,15 @@ public class ScriptingMojo extends AbstractMojo
 	{
 		try
 		{
+			utils = new PGXSUtils(project, getLog());
 			String scriptText = script.getValue();
-			ScriptEngine engine =
-				PGXSUtils.getScriptEngine(script, getLog(), project);
+			ScriptEngine engine = utils.getScriptEngine(script);
 			getLog().debug(scriptText);
 
 			engine.getContext().setAttribute("plugin", this,
 				ScriptContext.GLOBAL_SCOPE);
 			engine.put("quoteStringForC",
-				(Function<String, String>) PGXSUtils::quoteStringForC);
+				(Function<String, String>) utils::quoteStringForC);
 			engine.put("setProjectProperty",
 				(BiConsumer<String, String>) this::setProjectProperty);
 			engine.put("getPgConfigProperty",
@@ -95,7 +97,7 @@ public class ScriptingMojo extends AbstractMojo
 		try
 		{
 			String pgConfigCommand = System.getProperty("pgsql.pgconfig");
-			return PGXSUtils.getPgConfigProperty(pgConfigCommand, property);
+			return utils.getPgConfigProperty(pgConfigCommand, property);
 		}
 		catch (Exception e)
 		{

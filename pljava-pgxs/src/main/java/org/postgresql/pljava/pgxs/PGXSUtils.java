@@ -48,29 +48,37 @@ import static javax.script.ScriptContext.GLOBAL_SCOPE;
  */
 public final class PGXSUtils
 {
-	static final Pattern mustBeQuotedForC = Pattern.compile(
+	/**
+	 * maven project for which plugin is executed
+	 */
+	private final MavenProject project;
+
+	/**
+	 * maven plugin logger for diagnostics
+	 */
+	private final Log log;
+
+	private static final Pattern mustBeQuotedForC = Pattern.compile(
 		"([\"\\\\]|(?<=\\?)\\?(?=[=(/)'<!>-]))|" +  // (just insert backslash)
 		"([\\a\b\\f\\n\\r\\t\\x0B])|" +             // (use specific escapes)
 		"(\\p{Cc}((?=\\p{XDigit}))?)" // use hex, note whether an XDigit follows
 	);
 
-	private PGXSUtils ()
+	public PGXSUtils (MavenProject project, Log log)
 	{
+		this.project = project;
+		this.log = log;
 	}
 
 	/**
 	 * Returns a ScriptEngine with some basic utilities for scripting.
 	 *
-	 * @param script the script block element in the configuration block of
-	 *                  the plugin in the project
-	 * @param log the logger associated with the plugin
-	 * @param project the maven project requesting the ScriptEngine
-	 *
+	 * @param script the script block element in the configuration block of the
+	 *               plugin in the project
 	 * @return ScriptEngine based on the engine and mime type provided in the
 	 * script block
 	 */
-	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log,
-	                                    MavenProject project)
+	ScriptEngine getScriptEngine(PlexusConfiguration script)
 	{
 		/*
 		 * Set the polyglot.js.nashorn-compat system property to true if it is
@@ -140,41 +148,16 @@ public final class PGXSUtils
 		context.setAttribute("info",
 			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
 		context.setAttribute("isProfileActive",
-			(Function<String, Boolean>) id -> isProfileActive(log, project, id),
+			(Function<String, Boolean>) this::isProfileActive,
 			GLOBAL_SCOPE);
 		context.setAttribute("buildPaths",
-			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
+			(Function<List<String>, Map<String, String>>) this::buildPaths,
 			GLOBAL_SCOPE);
 		context.setAttribute("runCommand",
-			(ToIntFunction<ProcessBuilder>) process -> runCommand(log, process),
+			(ToIntFunction<ProcessBuilder>) this::runCommand,
 			GLOBAL_SCOPE);
-
-		/* Work around for using passing javascript function as a SAM to a java
-		 * method. Both Nashorn and Graal Scripting crash at Runtime if the
-		 * following approach is used
-		 *
-		 * context.setAttribute("processBuilder",
-		 *	(Function<Consumer<List<String>>, ProcessBuilder>)
-		 *		consumer -> processBuilder(project, consumer),
-		 *	GLOBAL_SCOPE);
-		 *
-		 * for reasons unknown. This is either a bug or an unsupported operation.
-		 * Even if it is a bug it will not be worthwhile to use the above
-		 * approach, since Nashorn is already deprecated and a bug fix is highly
-		 * unlikely to be made and backported.
-		 */
 		context.setAttribute("project", project, GLOBAL_SCOPE);
-		String processBuilder  =
-			"function processBuilder(consumer) {" +
-				"return Packages.org.postgresql.pljava.pgxs.PGXSUtils." +
-					"processBuilder(project, consumer);" +
-			"}";
-		try
-		{
-			engine.eval(processBuilder);
-		} catch (Exception e) {
-			log.error(e);
-		}
+		context.setAttribute("utils", this, GLOBAL_SCOPE);
 
 		/*
 		 * Also provide a specialized method useful for a script that may
@@ -212,7 +195,7 @@ public final class PGXSUtils
 	 * @param s string to be escaped
 	 * @return a C compatible String enclosed in double quotes
 	 */
-	public static String quoteStringForC (String s)
+	public String quoteStringForC (String s)
 	{
 		Matcher m = mustBeQuotedForC.matcher(s);
 		StringBuffer b = new StringBuffer();
@@ -268,7 +251,7 @@ public final class PGXSUtils
 	 * @throws CharacterCodingException if unable to decode bytes using
 	 *                                  default platform charset
 	 */
-	public static String defaultCharsetDecodeStrict (byte[] bytes)
+	public String defaultCharsetDecodeStrict (byte[] bytes)
 		throws CharacterCodingException
 	{
 		return Charset.defaultCharset().newDecoder()
@@ -291,8 +274,8 @@ public final class PGXSUtils
 	 * @throws IOException if unable to read output of the command
 	 * @throws InterruptedException if command does not complete successfully
 	 */
-	public static String getPgConfigProperty (String pgConfigCommand,
-	                                          String pgConfigArgument)
+	public String getPgConfigProperty (String pgConfigCommand,
+	                                   String pgConfigArgument)
 		throws IOException, InterruptedException
 	{
 		if (pgConfigCommand == null || pgConfigCommand.isEmpty())
@@ -318,12 +301,10 @@ public final class PGXSUtils
 	 * Returns a ProcessBuilder with suitable defaults and arguments added from
 	 * input function.
 	 *
-	 * @param project maven project from which the method is invoked
 	 * @param consumer function which adds arguments to the ProcessBuilder
 	 * @return ProcessBuilder with input arguments and suitable defaults
 	 */
-	public static ProcessBuilder processBuilder(MavenProject project,
-	                                            Consumer<List<String>> consumer)
+	public ProcessBuilder processBuilder(Consumer<List<String>> consumer)
 	{
 		ProcessBuilder processBuilder = new ProcessBuilder();
 		consumer.accept(processBuilder.command());
@@ -337,12 +318,11 @@ public final class PGXSUtils
 	/**
 	 * Executes a ProcessBuilder and returns the exit code of the process.
 	 *
-	 * @param logger Maven Log instance for diagnostics
 	 * @param processBuilder to execute
 	 * @return exit code of the executed process or -1 if an exception occurs
 	 * during execution
 	 */
-	public static int runCommand(Log logger, ProcessBuilder processBuilder)
+	public int runCommand(ProcessBuilder processBuilder)
 	{
 		Path outputDirectoryPath = processBuilder.directory().toPath();
 		try
@@ -352,7 +332,7 @@ public final class PGXSUtils
 			Process process = processBuilder.start();
 			return process.waitFor();
 		} catch (Exception e) {
-			logger.error(e);
+			log.error(e);
 		}
 		return -1;
 	}
@@ -364,14 +344,10 @@ public final class PGXSUtils
 	 * A warning is logged if the no profile with the input name exists in the
 	 * current project.
 	 *
-	 * @param logger plugin logger instance to log warnings
-	 * @param project maven project in which to check profiles
 	 * @param profileName name of profile to check
 	 * @return true if profile exists and is active, false otherwise
 	 */
-	public static boolean isProfileActive(Log logger,
-	                                      MavenProject project,
-	                                      String profileName)
+	public boolean isProfileActive(String profileName)
 	{
 		boolean isValidProfile =
 			project.getModel().getProfiles().stream()
@@ -379,7 +355,7 @@ public final class PGXSUtils
 
 		if (!isValidProfile)
 		{
-			logger.warn(profileName + " does not exist in " + project.getName());
+			log.warn(profileName + " does not exist in " + project.getName());
 			return false;
 		}
 
@@ -391,13 +367,11 @@ public final class PGXSUtils
 	 * Returns a map with two elements with {@code classpath} and {@code modulepath}
 	 * as keys and their joined string paths as the respective values.
 	 *
-	 * @param logger Maven Log instance for diagnostics
 	 * @param elements list of elements to build classpath and modulepath from
 	 * @return a map containing the {@code classpath} and {@code modulepath}
 	 * as separate elements
 	 */
-	public static Map<String, String> buildPaths(Log logger,
-	                                             List<String> elements)
+	public Map<String, String> buildPaths(List<String> elements)
 	{
 		List<String> modulepathElements = new ArrayList<>();
 		List<String> classpathElements = new ArrayList<>();
@@ -407,7 +381,7 @@ public final class PGXSUtils
 			for (String element : elements)
 			{
 				if (element.contains(pathSeparator))
-					logger.warn(String.format("cannot add %s to path because " +
+					log.warn(String.format("cannot add %s to path because " +
 						"it contains path separator %s", element, pathSeparator));
 				else if (shouldPlaceOnModulepath(element))
 					modulepathElements.add(element);
@@ -417,7 +391,7 @@ public final class PGXSUtils
 		}
 		catch (Exception e)
 		{
-			logger.error(e);
+			log.error(e);
 		}
 		String modulepath = String.join(pathSeparator, modulepathElements);
 		String classpath = String.join(pathSeparator, classpathElements);
@@ -436,7 +410,7 @@ public final class PGXSUtils
 	 * @return true if input path should go on modulepath, false otherwise
 	 * @throws IOException any thrown by the underlying file operations
 	 */
-	public static boolean shouldPlaceOnModulepath(String filePath)
+	public boolean shouldPlaceOnModulepath(String filePath)
 	throws IOException
 	{
 		Path path = Paths.get(filePath);

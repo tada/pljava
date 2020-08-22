@@ -302,7 +302,6 @@
 	var source_path = java.nio.file.Paths.get("${basedir}", "src", "main", "c");
 	var files = java.nio.file.Files
 		.walk(source_path)
-		.parallel()
 		.filter(function(e) java.nio.file.Files.isRegularFile(e))
 		.map(function(e) e.toAbsolutePath().toString())
 		.filter(function(e) e.endsWith(".c"))
@@ -333,7 +332,7 @@
 
 	var ArrayList = Java.type("java.util.ArrayList");
 
-	var compileProcess = processBuilder(function(I) {
+	var compileProcess = utils.processBuilder(function(I) {
 		I.add("gcc");
 		I.addAll(flags);
 		I.addAll(includes);
@@ -344,16 +343,15 @@
 
 	var objectFiles = java.nio.file.Files
 		.walk(outputDirectory.toPath())
-		.parallel()
 		.map(function(e) e.toAbsolutePath().toString())
 		.filter(function(e) e.endsWith(".o"))
 		.collect(java.util.stream.Collectors.toList());
 
-	var linkingProcess = processBuilder(function(I) {
+	var linkingProcess = utils.processBuilder(function(I) {
 		I.add("g++");
 		I.add("-shared");
 		I.add("-o");
-		I.add("libpljava-so-1.6.0-SNAPSHOT.so");
+		I.add("libpljava-so-${project.parent.version}.so");
 		I.addAll(objectFiles);
 		I.add("-shared-libgcc");
 	});
