@@ -299,29 +299,25 @@
 		setProjectProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
 	}
 
+	var ArrayList = Java.type("java.util.ArrayList");
+
 	var source_path = java.nio.file.Paths.get("${basedir}", "src", "main", "c");
-	var files = java.nio.file.Files
-		.walk(source_path)
-		.filter(function(e) java.nio.file.Files.isRegularFile(e))
-		.map(function(e) e.toAbsolutePath().toString())
-		.filter(function(e) e.endsWith(".c"))
-		.collect(java.util.stream.Collectors.toList());
+	var target_path = java.nio.file.Paths.get("${project.build.directory}", "pljava-pgxs");
 
-	var includes = java.util.List.of(
-		"-I${java.home}/include",
-		"-I${java.home}/include/linux",
-		"-I" + getPgConfigProperty("--includedir"),
-		"-I" + getPgConfigProperty("--includedir-server"),
-		"-I${basedir}/src/main/include/",
-		"-I${basedir}/src/main/include/fallback/jdbc",
-		"-I${javah.include}");
+	var base_includes = new ArrayList(java.util.List.of(
+		"${java.home}/include",
+		getPgConfigProperty("--includedir"),
+		getPgConfigProperty("--includedir-server"),
+		"${basedir}/src/main/include/",
+		"${basedir}/src/main/include/fallback/jdbc",
+		"${javah.include}"
+	));
 
-	var defines = java.util.List.of(
-		"-DGNU_GCC",
-		"-DLinux",
-		"-DPLJAVA_SO_VERSION=${project.parent.version}");
+	var base_defines = new ArrayList(java.util.List.of(
+		"PLJAVA_SO_VERSION=${project.parent.version}"
+	));
 
-	var flags = java.util.List.of(
+	var base_flags = java.util.List.of(
 		"-Wall",
 		"-Wno-long-long",
 		"-Wpointer-arith",
@@ -330,33 +326,70 @@
 		"-c",
 		"-fPIC");
 
-	var ArrayList = Java.type("java.util.ArrayList");
+	var configuration = {
+		Linux : {
+			extension : ".so",
+			probe: function() {},
+			compile : function(source_dir, output_dir, includes, defines, flags) {
+				var files = utils.getFilesWithExtension(source_dir, ".c");
+				includes.add("${java.home}/include/linux");
+				defines.add("GNU_GCC");
+				defines.add("-DLinux");
 
-	var compileProcess = utils.processBuilder(function(I) {
-		I.add("gcc");
-		I.addAll(flags);
-		I.addAll(includes);
-		I.addAll(files);
-	});
-	var outputDirectory = compileProcess.directory();
-	info("Exit code: " + runCommand(compileProcess));
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add("gcc");
+					I.addAll(utils.formatDefines(defines));
+					I.addAll(utils.formatIncludes(includes));
+					I.addAll(flags);
+					I.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				info("Exit code: " + runCommand(compileProcess));
+			},
+			link : function(object_path) {
+				var objectFiles = utils.getFilesWithExtension(object_path, ".o");
 
-	var objectFiles = java.nio.file.Files
-		.walk(outputDirectory.toPath())
-		.map(function(e) e.toAbsolutePath().toString())
-		.filter(function(e) e.endsWith(".o"))
-		.collect(java.util.stream.Collectors.toList());
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add("g++");
+					I.add("-shared");
+					I.add("-o");
+					I.add("libpljava-so-${project.parent.version}.so");
+					I.addAll(objectFiles);
+					I.add("-shared-libgcc");
+				});
+				linkingProcess.directory(object_path.toFile());
+				info("Exit code: " + runCommand(linkingProcess));
+			}
+		},
+		Windows : {
+			probe : function() {},
+			compile : function() {},
+			link : function() {}
+		},
+		"Mac OS X" : {
+			probe : function() {},
+			compile : function() {},
+			link : function() {}
+		},
 
-	var linkingProcess = utils.processBuilder(function(I) {
-		I.add("g++");
-		I.add("-shared");
-		I.add("-o");
-		I.add("libpljava-so-${project.parent.version}.so");
-		I.addAll(objectFiles);
-		I.add("-shared-libgcc");
-	});
-	linkingProcess.directory(outputDirectory);
-	info("Exit code: " + runCommand(linkingProcess));
+		dispatcher : function(os_name) {
+			var name = os_name.toLowerCase();
+			if(name.contains("windows"))
+				return this["Windows"];
+			else if(name.contains("linux"))
+				return this["Linux"];
+			else if(name.contains("mac os x"))
+				return this["Mac OS X"];
+		}
+	};
+
+	var os_name = java.lang.System.getProperty("os.name");
+	var implementation = configuration.dispatcher(os_name);
+	var template = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
+
+	template.probe();
+	template.compile(source_path, target_path, base_includes, base_defines, base_flags);
+	template.link(target_path);
 ]]>
 							</script>
 						</configuration>

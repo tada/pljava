@@ -39,6 +39,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
@@ -434,5 +435,42 @@ public final class PGXSUtils
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns the list of files with given extension in the input directory.
+	 *
+	 * @param sourceDirectory to list files inside
+	 * @param extension to filter files to be selected
+	 * @return list of strings of absolute paths of files
+	 */
+	public List<String> getFilesWithExtension(Path sourceDirectory,
+	                                          String extension)
+	{
+		try
+		{
+			return Files
+				       .walk(sourceDirectory)
+				       .filter(Files::isRegularFile)
+				       .map(Path::toAbsolutePath)
+				       .map(Path::toString)
+				       .filter(path -> path.endsWith(extension))
+				       .collect(java.util.stream.Collectors.toList());
+		} catch (Exception e) {
+			log.error(e);
+		}
+		return null;
+	}
+
+	public List<String> formatIncludes(List<String> includesList)
+	{
+		return includesList.stream().map(s -> s.startsWith("-I") ? s : "-I" + s)
+			       .collect(Collectors.toList());
+	}
+
+	public List<String> formatDefines(List<String> definesList)
+	{
+		return definesList.stream().map(s -> s.startsWith("-D") ? s : "-D" + s)
+			       .collect(Collectors.toList());
 	}
 }
