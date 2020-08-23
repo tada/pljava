@@ -100,6 +100,7 @@ import java.util.function.UnaryOperator;
 
 import java.util.jar.JarFile;
 
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import static java.util.stream.StreamSupport.stream;
 
@@ -125,7 +126,9 @@ import static java.util.stream.StreamSupport.stream;
  *<p>
  * As the testing-related methods here are intended for ad-hoc or scripted use
  * in {@code jshell}, they are typically declared to throw any checked
- * exception, without further specifics.
+ * exception, without further specifics. There are many overloads of methods
+ * named {@code q} and {@code qp} (mnemonic of query and query-print), to make
+ * interactive use in {@code jshell} comfortable with just a few static imports.
  */
 public class Node extends JarX {
 
@@ -998,7 +1001,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Produce a {@code Stream} of the (in JDBC, possibly multiple) results
+	 * Produces a {@code Stream} of the (in JDBC, possibly multiple) results
 	 * from some {@code execute} method on a {@code Statement}.
 	 *<p>
 	 * Each result in the stream will be an instance of one of:
@@ -1165,6 +1168,197 @@ public class Node extends JarX {
 					}
 				}
 			);
+	}
+
+	/**
+	 * Analogously to {@link #q(Statement,Callable) q(Statement,...)}, produces
+	 * a {@code Stream} with an element for each row of a {@code ResultSet},
+	 * interleaved with any {@code SQLWarning}s reported on the result set, or
+	 * an {@code SQLException} if one is thrown.
+	 *<p>
+	 * This is supplied chiefly for use driving a {@link #dfa DFA} to verify
+	 * contents of a result set. For each row, the element in the stream will be
+	 * an instance of {@code Long}, counting up from 1 (intended to match the
+	 * result set's {@code getRow} but without relying on it, as JDBC does not
+	 * require every implementation to support it). By itself, of course, this
+	 * does not convey any of the content of the row; the lambdas representing
+	 * the DFA states should close over the result set and query it for content,
+	 * perhaps not even using the object supplied here (except to detect when it
+	 * is a warning or exception rather than a row number).
+	 * The row position of the result set will have been updated, and should not
+	 * be otherwise modified when this method is being used to walk through the
+	 * results.
+	 *<p>
+	 * For the same reason, don't try any funny business like sorting the stream
+	 * in any way. The {@code ResultSet} will only be read forward, and each row
+	 * only once. Simple filtering, {@code dropWhile}/{@code takeWhile}, and so
+	 * on will work, but may be more conveniently rolled into the design of a
+	 * {@link #dfa DFA}, as nearly any use of a {@code ResultSet} can throw
+	 * {@code SQLException} and therefore isn't convenient in the stream API.
+	 *<p>
+	 * Passing this result to {@code qp} as if it came from a {@code Statement}
+	 * could lead to confusion, as the {@code Long} elements would be printed as
+	 * update counts rather than row numbers.
+	 * @param rs a ResultSet
+	 * @return a Stream as described above
+	 */
+	public static Stream<Object> q(final ResultSet rs)
+	throws Exception
+	{
+		final Object[] nextHolder = new Object [ 1 ];
+		final long[] nextRowNumber = new long [ 1 ];
+		nextRowNumber [ 0 ] = 1L;
+		Object seed;
+
+		/*
+		 * The ResultSet must not be closed in a finally, or a
+		 * try-with-resources, because if successful it needs to remain open
+		 * as long as the result stream is being read. It will be closed when
+		 * the stream is.
+		 *
+		 * However, in any exceptional exit, the ResultSet must be closed here.
+		 */
+
+		final Supplier<Object> row = () ->
+		{
+			try
+			{
+				if ( rs.next() )
+					return nextRowNumber [ 0 ] ++;
+				return null;
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		final Supplier<Object> warnings = () ->
+		{
+			try
+			{
+				SQLWarning w = rs.getWarnings();
+				if ( null != w )
+				{
+					try
+					{
+						rs.clearWarnings();
+					}
+					catch ( SQLException e )
+					{
+						nextHolder [ 0 ] = e;
+					}
+				}
+				return w;
+			}
+			catch ( SQLException e )
+			{
+				return e;
+			}
+		};
+
+		/*
+		 * First get warnings, if any.
+		 * There is a remote chance this can return an exception rather than a
+		 * warning, an even more remote chance it returns a warning and leaves
+		 * an exception in nextHolder.
+		 * Only if it did neither is there any point in proceeding to get a row.
+		 * If we do, and there was a warning, we use the warning as the seed and
+		 * save the first row in nextHolder.
+		 */
+		seed = warnings.get();
+		if ( (null == seed || seed instanceof SQLWarning)
+			&& null == nextHolder [ 0 ] )
+		{
+			Object t = row.get();
+			if ( null == seed )
+				seed = t;
+			else
+				nextHolder [ 0 ] = t;
+		}
+
+		UnaryOperator<Object> next = o ->
+		{
+			if ( o instanceof SQLException && !(o instanceof SQLWarning) )
+				return null;
+
+			o = nextHolder [ 0 ];
+			if ( null != o )
+			{
+				nextHolder [ 0 ] = null;
+				return o;
+			}
+
+			o = warnings.get();
+			if ( null != o )
+				return o;
+
+			return row.get();
+		};
+
+		return Stream.iterate(seed, Objects::nonNull, next)
+			.onClose(() ->
+				{
+					try
+					{
+						rs.close();
+					}
+					catch ( SQLException e )
+					{
+					}
+				}
+			);
+	}
+
+	/**
+	 * Produces a {@code Stream} with an element for each column of a
+	 * {@code ResultSet}.
+	 *<p>
+	 * This is another convenience method for use chiefly in driving a
+	 * {@link #dfa DFA} to check per-column values or metadata for a
+	 * {@code ResultSet}. It is, in fact, nothing other than
+	 * {@code IntStream.rangeClosed(1, rsmd.getColumnCount()).boxed()} but typed
+	 * as {@code Stream<Object>}.
+	 *<p>
+	 * As with {@link #q(ResultSet) q(ResultSet)}, the column number supplied
+	 * here conveys no actual column data or metadata. The lambdas representing
+	 * the DFA states should close over the {@code ResultSetMetaData} or
+	 * corresponding {@code ResultSet} object, or both, and use the column
+	 * number from this stream to index them.
+	 * @param rsmd a ResultSetMetaData object
+	 * @return a Stream as described above
+	 */
+	public static Stream<Object> q(final ResultSetMetaData rsmd)
+	throws Exception
+	{
+		return
+			IntStream.rangeClosed(1, rsmd.getColumnCount())
+			.mapToObj(i -> (Object)i);
+	}
+
+	/**
+	 * Produces a {@code Stream} with an element for each parameter of a
+	 * {@code PreparedStatement}.
+	 *<p>
+	 * This is another convenience method for use chiefly in driving a
+	 * {@link #dfa DFA} to check per-parameter metadata. It is, in fact,
+	 * nothing other than
+	 * {@code IntStream.rangeClosed(1, rsmd.getParameterCount()).boxed()}
+	 * but typed as {@code Stream<Object>}.
+	 *<p>
+	 * As with {@link #q(ResultSet) q(ResultSet)}, the column number supplied
+	 * here conveys no actual parameter metadata. The lambdas representing
+	 * the DFA states should close over the {@code ParameterMetaData} object
+	 * and use the parameter number from this stream to index it.
+	 * @param pmd a ParameterMetaData object
+	 * @return a Stream as described above
+	 */
+	public static Stream<Object> q(final ParameterMetaData pmd)
+	throws Exception
+	{
+		return
+			IntStream.rangeClosed(1, pmd.getParameterCount())
+			.mapToObj(i -> (Object)i);
 	}
 
 	/**
