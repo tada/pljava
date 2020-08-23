@@ -91,7 +91,7 @@ var mainsect = manifest.getMainAttributes();
 mainsect.putValue('Manifest-Version', '1.0');
 mainsect.putValue('Created-By', project.getProperty('project.name') + ' ' +
 								project.getProperty('project.version'));
-mainsect.putValue('Main-Class', 'org.gjt.cuspy.JarX');
+mainsect.putValue('Main-Class', 'org.postgresql.pljava.packaging.Node');
 
 /* Declare default permissions for entries that don't have their own.
  */
@@ -187,21 +187,15 @@ function storeset(fileset, jos) {
 	}
 }
 
-/* If there is text nested in the <jarxbuild> element, it is a path-resolver
-   script. Munge it to the manifest-attribute-linewrap-resistant style JarX
-   expects (first \-escape every \ and " then turn every line ending to the
-   three characters "/" then add " at start and end), and place into the main
-   manifest section as _JarX_PathResolver, with the language tag
-   application/javascript (hardcoded here, you weren't thinking of using
-   a different script language anyway).
+/* If there is text nested in the <jarxbuild> element, it is input to the
+   extractor's path resolver. Anticipating the removal of Nashorn in Java 15,
+   it is no longer assumed to be javax.script source or munged into the special
+   format documented in JarX, but just made directly the value of the
+   _JarX_PathResolver attribute. Node.java ignores it, has hardcoded rules.
  */
 var pathresolver = self.text.trim();
 if ( !(null === pathresolver || '' == pathresolver) ) {
-	pathresolver = new String(pathresolver).replace(/["\\]/g, "\\$&");
-	pathresolver = pathresolver.replace(/\r\n?|\n/g, '"/"');
-	pathresolver = '"' + pathresolver + '"';
-	mainsect.putValue('_JarX_PathResolver',
-						'application/javascript' + pathresolver);
+	mainsect.putValue('_JarX_PathResolver', pathresolver);
 }
 
 /* For each element name that can be used to supply a zipfileset, get all the
@@ -256,6 +250,7 @@ jos.close();
 		<!-- Now build the jar using the <jarxbuild> task just created. -->
 
 		<jarxbuild destfile="${basedir}/target/pljava-${suffix}.jar">
+			<binary dir="target/classes" includes="**/Node.class"/>
 			<binary dir="target/classes" includes="**/JarX.class"/>
 			<binary prefix="pljava/pkglibdir/" filemode="555" dir=
 "../pljava-so/target/nar/pljava-so-${project.version}-${naraol}-plugin/lib/${naraol}/plugin"
@@ -335,51 +330,7 @@ jos.close();
 	 for the lines of the script) before saving. Line-wrapped into the manifest,
 	 it looks horrible with tabs.
 -->
-<![CDATA[
-/*
-    At extraction time, JarX invokes this for each entry, with these bindings:
-    properties   - the Java system properties object
-    storedPath   - the full path of the archive member as stored
-                   in the archive
-    platformPath - the name after changing only file.separator
-                   for the platform (if different from /)
-    computedPath - initially the same as platformPath
-    If the script updates computedPath, that is where the member
-    will be extracted.
-*/
-var re = new RegExp('^pljava/([^/]+dir)(?![^/])');
-var found = re.exec(storedPath);
-if (found) {
-    var prefix = found[0];
-    var key = found[1];
-    var propkey = 'pgconfig.' + key;
-    var replacement = properties.getProperty(propkey);
-    if ( null === replacement ) {
-        var pgc = properties.getProperty('pgconfig');
-        if ( null === pgc )
-            pgc = 'pg_config';
-        var pb = new java.lang.ProcessBuilder(pgc, '--'+key);
-        pb.redirectErrorStream(true);
-        var proc = pb.start();
-        var instream = proc.getInputStream();
-        var scanner =
-            new java.util.Scanner(instream).useDelimiter('\\A');
-        var output = scanner.next();
-        var status = proc.waitFor();
-        if ( 0 != status ) {
-            java.lang.System.err.println(
-                'ERROR: pg_config status is '+status+':\n'+output);
-            java.lang.System.exit(1);
-        }
-        replacement = output.trim();
-        properties.setProperty(propkey, replacement);
-    }
-    var fsep = properties.getProperty('file.separator');
-    var plen = fsep.length() - 1; /* original separator had length 1 */
-    plen += prefix.length;
-    computedPath = String(replacement + computedPath.slice(plen));
-}
-]]>
+(no script here; see Node.java for the rules to resolve using pg_config)
 		</jarxbuild>
 	</target>
 	

@@ -26,7 +26,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 
 /**
  * Distribute your work as a self-extracting jar file by including one file,
@@ -38,7 +37,7 @@ import javax.script.ScriptException;
  * The text conversion offered by JarX is useful if your distribution will
  * include text files, source, documentation, scripts, etc., and your recipients
  * have platforms with different newline conventions.
- *<H3>Text conversion background</H3>
+ *<H2>Text conversion background</H2>
  * There are two issues in the cross-platform delivery of text files.
  *<OL><LI>Different platforms indicate the end of a line differently.
  * The UNIX convention uses the single character LINE FEED; the (old) Macintosh
@@ -57,7 +56,7 @@ import javax.script.ScriptException;
  * within the archive that are actually <EM>known</EM> to contain text.
  * Passing binary data or class files through character and newline
  * transformations will corrupt them.
- *<H4>The ZIP approach and why it loses</H4>
+ *<H3>The ZIP approach and why it loses</H3>
  * The popular zip format on which jar is based already has a provision for
  * newline (but not character set) conversion. Each entry includes a text/binary
  * bit, and the unzip program applies newline conversion while extracting, but
@@ -79,7 +78,7 @@ import javax.script.ScriptException;
  * the text bit.  That can happen, and has happened, to class files in zip
  * archives if the recipient uses unzip -a, and causes significant misery if
  * the package is widely distributed.
- *<H4>A better way</H4>
+ *<H3>A better way</H3>
  * Even though the jar format is based on zip, it would be a mistake to make jar
  * tools that rely on the zip text/binary bit, because common
  * practice has made that bit unreliable.  What's needed is a standard way for
@@ -109,7 +108,7 @@ import javax.script.ScriptException;
  * allows explicit specification of the character encoding used in a jar entry,
  * and the extracting program can automatically convert into the encoding used
  * on the local system. (But see <STRONG>Call to action</STRONG> below.)
- *<H3>What JarX Does</H3>
+ *<H2>What JarX Does</H2>
  * <CODE>Content-Type</CODE> entries in a Manifest were introduced in Java 1.3
  * but are compatible with earlier jar specifications; a jar file containing
  * such entries can be processed without any trouble by any jar tool compliant
@@ -133,7 +132,7 @@ import javax.script.ScriptException;
  * archive that can be executed to unpack itself on any Java 1.6 or later
  * virtual machine, performing all automatic conversions and requiring no jar
  * tool at all.
- *<H3>Building a Jar</H3>
+ *<H2>Building a Jar</H2>
  * To build a jar file, first prepare the manifest, using any text editor or,
  * more likely, a script.  Include a <CODE>Name:</CODE> entry for every file
  * to be included in the jar.  JarX.Build archives only the files named in
@@ -157,7 +156,7 @@ import javax.script.ScriptException;
  * <CODE>foo.jar</CODE> names the jar you want to create.
  * The order of files in the jar will be the order of their names in the
  * manifest.
- *<H4>Special manifest attributes</H4>
+ *<H3>Special manifest attributes</H3>
  * For 2016, JarX now recognizes some special manifest attributes:
  * <DL>
  *  <DT>_JarX_CharsetInArchive</DT>
@@ -222,13 +221,27 @@ import javax.script.ScriptException;
  *   and nestable) are allowed outside of the quoted strings.
  *  </DD>
  * </DL>
- *<H3>Extracting a jar</H3>
+ *<H3>Alternative to {@code ScriptEngine} for a path resolver</H3>
+ * With the removal of Nashorn in Java 15, leaving no scripting language that
+ * can be assumed present in the Java runtime, a script in the manifest may
+ * no longer be the simplest way to customize the resolution of path names when
+ * extracting. This class has been refactored now to expose two methods,
+ * {@link #prepareResolver(String) prepareResolver} and
+ * {@link #resolve(String,String) resolve}, easily overridden in a subclass.
+ * The value of the {@code _JarX_PathResolver} main attribute is passed to
+ * {@code prepareResolver} as a string (so it can be parsed in any way useful to
+ * the subclass, not necessarily as described above, or ignored), and
+ * {@code resolve} is passed the stored path and platform path, and returns the
+ * platform path unchanged or a replacement. A self-extracting jar with
+ * resolution can be made without depending on any script engine, by placing
+ * <em>two</em> classes in the jar, JarX and the subclass, and naming the
+ * subclass as the jar's {@code Main-Class}. It needs a {@code main} method that
+ * simply instantiates the class and calls {@code extract()}.
+ *<H2>Extracting a jar</H2>
  * The command <CODE>java -jar foo.jar</CODE> is all it takes
  * to extract a jar.  The <CODE>Main-Class</CODE> entry in the manifest
  * identifies the entry point of JarX so it does not need to be specified.
- *<P>
- * JarX
- *<H3>Call to action</H3>
+ *<H2>Call to action</H2>
  * At the moment, Sun's Jar File Specification contains a mistake in the
  * description of a content type that could lead to implementations
  * that reject valid content types.  Squash this bug before it bites:
@@ -238,7 +251,7 @@ import javax.script.ScriptException;
  * for
  *<A HREF="http://developer.java.sun.com/developer/bugParade/bugs/4310708.html">
  *Bug #4310708</A>.
- *<H3>Miscellany</H3>
+ *<H2>Miscellany</H2>
  * This class is a little sloppy and relatively slow, especially the Build side
  * when converting plain text files.  The idea for JarX is a natural outgrowth
  * of the Java 1.3 manifest standard and I have suggested that the functionality
@@ -396,9 +409,6 @@ public class JarX {
     return is( type) && value.equalsIgnoreCase( this.value);
   }
 
-  /**Name of the JarX class file as stored in the jar*/
-  public static final String me
-    = JarX.class.getName().replace('.', '/') + ".class";
   /**Name of the manifest file as stored in the jar*/
   public static final String manifestName = "META-INF/MANIFEST.MF";
   /**The (fixed) encoding used for manifest content*/
@@ -438,15 +448,36 @@ public class JarX {
       	break;
       if ( null == mf ) {
         mf = jis.getManifest();
-	if ( null != mf )
-	  setDefaults( mf.getMainAttributes());
+	if ( null != mf ) {
+	  Attributes mainAttributes = mf.getMainAttributes();
+	  setDefaults( mainAttributes);
+	  if ( null != mainAttributes ) {
+	    String v = mainAttributes.getValue( PATHRESOLVER);
+	    if ( null != v )
+	      prepareResolver( v);
+	  }
+	}
       }
-      if ( ! je.getName().equals( me) )
+      if ( notMe( je.getName()) )
 	extract( je, jis);
       jis.closeEntry();
     }
     
     jis.close();
+  }
+
+  /** True if the passed <em>name</em> is not the in-jar name of this class or
+   *  related classes that should not be extracted.
+   *<p>
+   * If not overridden, this method returns false only for names matching the
+   * class of {@code this} or any ancestral superclass. Interfaces are not
+   * considered. A subclass could apply a different policy.
+   */
+  public boolean notMe( String name) {
+    for ( Class<?> c = getClass(); null != c; c = c.getSuperclass() )
+      if ( name.equals( c.getName().replace('.', '/') + ".class") )
+        return false;
+    return true;
   }
   
   /**Examine the main attributes to set any defaults.
@@ -466,14 +497,20 @@ public class JarX {
     defaultReadPermission = readPermission;
     defaultWritePermission = writePermission;
     defaultExecutePermission = executePermission;
+  }
 
-    if ( null == mainAttributes )
-      return;
-
-    String v = mainAttributes.getValue( PATHRESOLVER);
-    if ( null == v )
-      return;
-
+  /**Prepare a resolver of pathnames, given the value of the PATHRESOLVER
+   * main attribute.
+   *<p>
+   * If not overridden in a subclass, this method parses it as a MIME type and
+   * script as described in the class comments, loads a {@code ScriptEngine}
+   * for the MIME type, and saves references to the engine in
+   * {@code resolverEngine} and the script in {@code resolverScript}.
+   * @param v value of the _JarX_PathResolver main attribute
+   * @throws Exception this implementation throws no checked exceptions, but an
+   * overriding implementation may
+   */
+  public void prepareResolver( String v) throws Exception {
     JarX[] toks = structuredFieldBody( v, 0);
     if ( toks.length < 4
       || ! toks[0].is( ATOM)
@@ -510,6 +547,30 @@ public class JarX {
     }
     resolverEngine.put( "properties", System.getProperties());
     resolverScript = script.toString();
+  }
+
+  /**Called with every path to be extracted; returns a possibly-corrected path.
+   *<p>
+   * If not overridden in a subclass, this method returns <em>s</em> unchanged
+   * if no {@code resolverScript} has been set, and otherwise invokes the script
+   * with {@code storedPath} bound to <em>orig</em>, {@code platformPath} and
+   * {@code computedPath} both bound to <em>plat</em>, then returns the value
+   * bound to {@code computedPath} when the script has returned.
+   * @param orig The path as stored in the archive, always /-separated
+   * @param plat The path after only replacing / with the platform separator
+   * @return plat unchanged, or a corrected location for extracting the entry,
+   * or null to suppress extracting the entry
+   * @throws Exception this implementation may throw ScriptException, an
+   * overriding implementation may throw others
+   */
+  public String resolve(String orig, String plat) throws Exception {
+    if ( null == resolverScript )
+      return plat;
+    resolverEngine.put( "storedPath", orig);
+    resolverEngine.put( "platformPath", plat);
+    resolverEngine.put( "computedPath", plat);
+    resolverEngine.eval( resolverScript);
+    return (String)resolverEngine.get( "computedPath");
   }
 
   /**Set instance variables for text/binary and permissions treatment
@@ -649,11 +710,11 @@ public class JarX {
   /**Extract a single entry, performing any appropriate conversion
    *@param je JarEntry for the current entry
    *@param is InputStream with the current entry content
-   *@throws IOException for any problem involving I/O
-   *@throws ScriptException for any problem involving the script engine
+   *@throws Exception IOException for any problem involving I/O, ScriptException
+   * possible from the non-overridden path resolver, others possible in an
+   * overridden implementation
    */
-  public void extract( JarEntry je, InputStream is)
-  throws IOException, ScriptException {
+  public void extract( JarEntry je, InputStream is) throws Exception {
     classify( je.getAttributes(), true);
 
     String orig = je.getName();
@@ -662,13 +723,9 @@ public class JarX {
     if ( File.separatorChar != '/' )
       s = s.replace( '/', File.separatorChar);
 
-    if ( null != resolverScript ) {
-      resolverEngine.put( "storedPath", orig);
-      resolverEngine.put( "platformPath", s);
-      resolverEngine.put( "computedPath", s);
-      resolverEngine.eval( resolverScript);
-      s = (String)resolverEngine.get( "computedPath");
-    }
+    s = resolve( orig, s);
+    if ( null == s )
+      return;
 
     System.err.print( s + " ");
     
