@@ -31,6 +31,7 @@ import static java.util.regex.Pattern.compile;
  */
 
 import static java.lang.ProcessBuilder.Redirect.INHERIT;
+import java.lang.reflect.InvocationHandler; // flexible SAM allowing exceptions
 import static java.lang.Thread.interrupted;
 
 import static java.net.InetAddress.getLoopbackAddress;
@@ -74,6 +75,7 @@ import javax.sql.rowset.RowSetMetaDataImpl;
 import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -90,6 +92,7 @@ import static java.util.Spliterators.spliteratorUnknownSize;
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -1167,7 +1170,7 @@ public class Node extends JarX {
 	/**
 	 * Execute some arbitrary SQL and pass
 	 * the {@link #q(Statement,Callable) result stream}
-	 * to {@link #qp(Stream<Object>)} for printing to standard output.
+	 * to {@link #qp(Stream)} for printing to standard output.
 	 */
 	public static void qp(Connection c, String sql) throws Exception
 	{
@@ -1177,7 +1180,7 @@ public class Node extends JarX {
 	/**
 	 * Invoke some {@code execute} method on a {@code Statement} and pass
 	 * the {@link #q(Statement,Callable) result stream}
-	 * to {@link #qp(Stream<Object>)} for printing to standard output.
+	 * to {@link #qp(Stream)} for printing to standard output.
 	 *<p>
 	 * This is how, for example, to prepare, then print the results of, a
 	 * {@code PreparedStatement}:
@@ -1412,6 +1415,40 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * Prints an object in the manner of {@link #qp(Object) qp}, but in a way
+	 * suitable for use in {@link Stream#peek Stream.peek}.
+	 *<p>
+	 * If <em>o</em> is a {@code ResultSet}, only its metadata will be printed;
+	 * its position will not be disturbed and it will not be closed. This method
+	 * throws no checked exceptions, as the {@code Stream} API requires; any
+	 * that is caught will be printed as if by {@link #qp(Throwable) qp}.
+	 */
+	public static void peek(Object o)
+	{
+		try
+		{
+			int[] dims = voidResultSetDims(o);
+
+			if ( null != dims )
+			{
+				System.out.printf(voidResultSet, dims[0], dims[1]);
+				return;
+			}
+
+			if ( o instanceof ResultSet )
+				qp(((ResultSet)o).getMetaData());
+			else
+				qp(o);
+		}
+		catch ( Exception e )
+		{
+			qp(e);
+		}
+	}
+
+	private static final String voidResultSet = "<void rows='%d' cols='%d'/>%n";
+
+	/**
 	 * Overload of {@code qp} for direct application to a {@code ResultSet}.
 	 *<p>
 	 * Sometimes one has a {@code ResultSet} that didn't come from executing
@@ -1429,8 +1466,7 @@ public class Node extends JarX {
 
 		if ( null != dims )
 		{
-			System.out.println(
-				"<void rows='" + dims[0] + "' cols='" + dims[1] + "'/>");
+			System.out.printf(voidResultSet, dims[0], dims[1]);
 			return;
 		}
 
@@ -1459,26 +1495,73 @@ public class Node extends JarX {
 	 */
 	public static void qp(ParameterMetaData md) throws Exception
 	{
-		WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet();
-		try
+		RowSetMetaDataImpl mdi = new RowSetMetaDataImpl();
+		mdi.setColumnCount(md.getParameterCount());
+		for ( int i = 1; i <= md.getParameterCount(); ++ i )
 		{
-			RowSetMetaDataImpl mdi = new RowSetMetaDataImpl();
-			mdi.setColumnCount(md.getParameterCount());
-			for ( int i = 1; i <= md.getParameterCount(); ++ i )
-			{
-				mdi.setColumnType(i, md.getParameterType(i));
-				mdi.setColumnTypeName(i, md.getParameterTypeName(i));
-				mdi.setPrecision(i, md.getPrecision(i));
-				mdi.setScale(i, md.getScale(i));
-				mdi.setNullable(i, md.isNullable(i));
-				mdi.setSigned(i, md.isSigned(i));
-			}
+			mdi.setColumnType(i, md.getParameterType(i));
+			mdi.setColumnTypeName(i, md.getParameterTypeName(i));
+			mdi.setPrecision(i, md.getPrecision(i));
+			mdi.setScale(i, md.getScale(i));
+			mdi.setNullable(i, md.isNullable(i));
+			mdi.setSigned(i, md.isSigned(i));
+		}
+		qp(mdi);
+	}
+
+	/**
+	 * Overload of {@code qp} for examining {@code ResultSetMetaData}.
+	 *<p>
+	 * This makes an empty {@code WebRowSet} with the copied metadata, and dumps
+	 * it with {@code writeXml}. Owing to a few missing setters on Java's
+	 * {@link RowSetMetaDataImpl}, a few {@code ResultSetMetaData} attributes
+	 * will not have been copied; they'll be wrong (unless the real values
+	 * happen to match the defaults). That could be fixed by extending that
+	 * class, but that would require yet another extra class file added to the
+	 * installer jar.
+	 */
+	public static void qp(ResultSetMetaData md) throws Exception
+	{
+		RowSetMetaDataImpl mdi = new RowSetMetaDataImpl();
+		mdi.setColumnCount(md.getColumnCount());
+		for ( int i = 1; i <= md.getColumnCount(); ++ i )
+		{
+			mdi.setColumnType(i, md.getColumnType(i));
+			mdi.setColumnTypeName(i, md.getColumnTypeName(i));
+			mdi.setPrecision(i, md.getPrecision(i));
+			mdi.setScale(i, md.getScale(i));
+			mdi.setNullable(i, md.isNullable(i));
+			mdi.setSigned(i, md.isSigned(i));
+
+			mdi.setAutoIncrement(i, md.isAutoIncrement(i));
+			mdi.setCaseSensitive(i, md.isCaseSensitive(i));
+			mdi.setCatalogName(i, md.getCatalogName(i));
+			mdi.setColumnDisplaySize(i, md.getColumnDisplaySize(i));
+			mdi.setColumnLabel(i, md.getColumnLabel(i));
+			mdi.setColumnName(i, md.getColumnName(i));
+			mdi.setCurrency(i, md.isCurrency(i));
+			mdi.setSchemaName(i, md.getSchemaName(i));
+			mdi.setSearchable(i, md.isSearchable(i));
+			mdi.setTableName(i, md.getTableName(i));
+
+			/*
+			 * Attributes that RowSetMetaDataImpl simply forgets to provide
+			 * setters for. It is what it is.
+			columnClassName
+			isDefinitelyWritable
+			isReadOnly
+			isWritable
+			 */
+		}
+		qp(mdi);
+	}
+
+	private static void qp(RowSetMetaDataImpl mdi) throws Exception
+	{
+		try (WebRowSet wrs = RowSetProvider.newFactory().createWebRowSet())
+		{
 			wrs.setMetaData(mdi);
 			wrs.writeXml(System.out);
-		}
-		finally
-		{
-			wrs.close();
 		}
 	}
 
@@ -1487,7 +1570,7 @@ public class Node extends JarX {
 	 * special handling for {@code SQLException} and {@code SQLWarning}.
 	 *<p>
 	 * In keeping with the XMLish vibe established by
-	 * {@link #qp(Stream<Object>) qp} for other items in a result
+	 * {@link #qp(Stream) qp} for other items in a result
 	 * stream, this will render a {@code Throwable} as an {@code error},
 	 * {@code warning}, or {@code info} element (PostgreSQL's finer
 	 * distinctions of severity are not exposed by pgjdbc-ng's API.)
@@ -1632,6 +1715,190 @@ public class Node extends JarX {
 		int[] dims = voidResultSetDims(o);
 
 		return null != dims && rows == dims[0] && columns == dims[1];
+	}
+
+	/**
+	 * Executes a deterministic finite automaton (DFA) specified in the form of
+	 * a list of lambdas representing states of the DFA, to verify that a
+	 * {@link #q(Statement,Callable) result stream} is as expected.
+	 *<p>
+	 * Treats the list of lambdas as a set of consecutively-numbered states
+	 * (the first in the list is state number 1, and is the initial state).
+	 * At each automaton step, the current state is applied to the current
+	 * input object, and may return an {@code Integer} or a {@code Boolean}.
+	 *<p>
+	 * If an integer, its absolute value selects the next state. A positive
+	 * integer consumes the current input item, so the next state will be
+	 * applied to the next item of input. A negative integer transitions to the
+	 * selected next state without consuming the current input item, so it will
+	 * be examined again in the newly selected state.
+	 *<p>
+	 * If boolean, {@code false} indicates that the DFA cannot proceed; the
+	 * supplied <em>reporter</em> will be passed an explanatory string and this
+	 * method returns false. A state that returns {@code true} indicates the
+	 * automaton has reached an accepting state.
+	 *<p>
+	 * No item of input is allowed to be null; null is reserved to be the
+	 * end-of-input symbol. If a state returns {@code true} (accept)
+	 * when applied to null at the end of input, the DFA has matched and this
+	 * method returns true. A state may also return a negative integer in
+	 * this case, to shift to another state while looking at the end of input.
+	 * A positive integer (attempting to consume the end of input), or a false,
+	 * return will cause an explanatory message to the <em>reporter</em> and a
+	 * false return from this method.
+	 *<p>
+	 * A state may return {@code true} (accept) when looking at a non-null
+	 * input item, but the input will be checked to confirm it has no more
+	 * elements. Otherwise, the automaton has tried to accept before matching
+	 * all the input, and this method will return false.
+	 *<p>
+	 * To avoid defining a new functional interface, each state is represented
+	 * by {@link InvocationHandler}, an existing functional interface with a
+	 * versatile argument list and permissive {@code throws} clause. Each state
+	 * must be represented as a lambda with three parameters (the convention
+	 * {@code (o,p,q)} is suggested), of which only the first is used. If Java
+	 * ever completes the transition to {@code _} as an unused-parameter marker,
+	 * the suggested convention will be {@code (o,_,_)}.
+	 *<p>
+	 * As the input item passed to each state is typed {@code Object}, and as
+	 * null can only represent the end of input, it may be common for a state to
+	 * both cast an input to an expected type and confirm it is not null.
+	 * The {@link #as as} method combines those operations. If its argument
+	 * either is null or cannot be cast to the wanted type, {@code as} will
+	 * throw a specific instance of {@code ClassCastException}, which will be
+	 * treated, when caught by {@code dfa}, just as if the state had returned
+	 * {@code false}.
+	 * @param name A name for this dfa, used only in exception messages if it
+	 * fails to match
+	 * @param reporter a Consumer to accept a diagnostic string if the DFA fails
+	 * to match, defaulting if null to System.err::println
+	 * @param input A Stream of input items, of which none may be null
+	 * @param states Lambdas representing states of the DFA
+	 * @return true if an accepting state was reached coinciding with the end
+	 * of input
+	 * @throws Exception Anything that could be thrown during evaluation of the
+	 * input stream or any state
+	 */
+	public static boolean dfa(
+		String name, Consumer<String> reporter, Stream<Object> input,
+		InvocationHandler... states)
+	throws Exception
+	{
+		if ( null == reporter )
+			reporter = System.err::println;
+
+		try ( input )
+		{
+			Iterator<Object> in = input.iterator();
+			int currentState = 0;
+			int stepCount = 0;
+			int inputCount = 0;
+			Object currentInput = null;
+			boolean hasCurrent = false;
+			Object result;
+
+			while ( hasCurrent  ||  in.hasNext() )
+			{
+				++ stepCount;
+				if ( ! hasCurrent )
+				{
+					currentInput = in.next();
+					++ inputCount;
+					if ( null == currentInput )
+						throw new UnsupportedOperationException(
+							"Input to dfa() must not contain null values");
+					hasCurrent = true;
+				}
+
+				result = invoke(states[currentState], currentInput);
+
+				if ( result instanceof Boolean )
+				{
+					if ( (Boolean)result  &&  ! in.hasNext() )
+						return true;
+					reporter.accept(String.format(
+						"dfa \"%s\" in state %d at step %d: %s",
+						name, 1 + currentState, stepCount, (Boolean)result
+						? String.format(
+							"transitioned to ACCEPT after %d input items but " +
+							"with input remaining", inputCount)
+						: String.format(
+							"could not proceed, looking at input %d: %s",
+							inputCount, currentInput)));
+					return false;
+				}
+
+				currentState = (Integer)result;
+				if ( currentState > 0 )
+					hasCurrent = false;
+				else
+					currentState *= -1;
+
+				-- currentState;
+			}
+
+			for ( ;; )
+			{
+				++ stepCount;
+				result = invoke(states[currentState], null);
+				if ( result instanceof Boolean  &&  (Boolean)result )
+					return true;
+				else if ( result instanceof Integer  &&  0 > (Integer)result )
+				{
+					currentState = -1 - (Integer)result;
+					continue;
+				}
+				break;
+			}
+
+			reporter.accept(String.format(
+				"dfa \"%s\" in state %d at step %d: " +
+				"does not accept at end of input after %d items",
+				name, 1 + currentState, stepCount, inputCount));
+			return false;
+		}
+	}
+
+	/**
+	 * Casts <em>o</em> to class <em>clazz</em>, testing it also for null.
+	 *<p>
+	 * This is meant as a shorthand in implementing states for
+	 * {@link #dfa dfa}. If <em>o</em> either is null or is not castable to the
+	 * desired type, a distinguished instance of {@code ClassCastException} will
+	 * be thrown, which is treated specially if caught by {@code dfa} while
+	 * evaluating a state.
+	 */
+	public static <T> T as(Class<T> clazz, Object o)
+	{
+		if ( clazz.isInstance(o) )
+			return clazz.cast(o);
+		throw failedAsException;
+	}
+
+	private static final ClassCastException failedAsException =
+		new ClassCastException();
+
+	private static Object invoke(InvocationHandler h, Object o)
+	throws Exception
+	{
+		try
+		{
+			return h.invoke(o, null, null);
+		}
+		catch ( ClassCastException e )
+		{
+			if ( failedAsException == e )
+				return false;
+			throw e;
+		}
+		catch ( Exception e )
+		{
+			throw e;
+		}
+		catch ( Throwable t )
+		{
+			throw (Error)t;
+		}
 	}
 
 	/*
