@@ -81,7 +81,8 @@ test_script:
       ).Directory.Name
 
       $jdbcJar = (Join-Path $mavenRepo "com\impossibl\pgjdbc-ng\pgjdbc-ng-all" |
-        Get-ChildItem -Recurse -Filter pgjdbc-ng-all-*.jar
+        Get-ChildItem -Recurse -Filter pgjdbc-ng-all-*.jar |
+        Select-Object -Last 1
       ).FullName
 
       @'
