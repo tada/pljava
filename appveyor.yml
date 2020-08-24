@@ -69,6 +69,12 @@ build_script:
 #  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 test_script:
   - ps: |
+      if ($Env:SYS -eq 'MINGW') {
+        $pgConfig = 'C:\msys64\mingw64\bin\pg_config'
+      } else {
+        $pgConfig = 'pg_config'
+      }
+
       $packageJar = ('pljava-packaging' |
         Get-ChildItem -Recurse -Filter pljava-pg*.jar
       ).FullName
@@ -214,5 +220,6 @@ test_script:
         "--class-path=$packageJar" `
         "-J--add-modules=java.sql,java.sql.rowset" `
         "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" `
+        "-J-Dpgconfig=$pgConfig" `
         "-J-DmavenRepo=$mavenRepo" `
         "-J-DsaxonVer=$saxonVer" -
