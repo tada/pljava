@@ -92,6 +92,7 @@ import static java.util.Spliterators.spliteratorUnknownSize;
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -2146,6 +2147,25 @@ public class Node extends JarX {
 			  );
 
 		/*
+		 * The isAlive check is a simple check on p in the m_usePostgres case.
+		 * Otherwise, p is the pg_ctl process and probably has exited already;
+		 * the handle assigned to m_serverHandle must be checked. If no handle
+		 * has been assigned yet, just assume alive. The prospect of an
+		 * unbounded wait (server process exiting before its pid could be
+		 * collected from the pid file) should not be realizable, as long as
+		 * pg_ctl itself waits long enough for the file to be present.
+		 */
+		BooleanSupplier isAlive =
+			m_usePostgres
+			? (() -> p.isAlive())
+			: (() -> null != m_serverHandle ? m_serverHandle.isAlive() : true);
+
+		if ( ! m_usePostgres )
+			if ( 0 != p.waitFor() )
+				throw new IllegalStateException(
+					"pg_ctl exited with status " + p.exitValue());
+
+		/*
 		 * Initialize a watch service just in case the postmaster.pid file
 		 * isn't there or has the wrong contents when we first look,
 		 * and we need to wait for something to happen to it.
@@ -2188,10 +2208,15 @@ public class Node extends JarX {
 				 */
 				for ( ;; )
 				{
-					if ( ! p.isAlive() )
+					if ( ! isAlive.getAsBoolean() )
 						throw new IllegalStateException(
-							"Server process exited while awaiting \"ready\" " +
-							"with status " + p.exitValue());
+							"Server process exited while awaiting \"ready\"" +
+							(
+								m_usePostgres
+								? " with status " + p.exitValue()
+								: ""
+							)
+						);
 					WatchKey k = watcher.poll(250, MILLISECONDS);
 					if ( interrupted() )
 						throw new InterruptedException();
