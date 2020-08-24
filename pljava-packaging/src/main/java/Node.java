@@ -2210,7 +2210,12 @@ public class Node extends JarX {
 						&& PM_STATUS_READY.equals(
 							status[LOCK_FILE_LINE_PM_STATUS - 1]) )
 						return;
-					if ( (status.length == LOCK_FILE_LINE_SHMEM_KEY)
+					if (
+						(
+							status.length == LOCK_FILE_LINE_SHMEM_KEY
+							|| s_isWindows
+							&& status.length == LOCK_FILE_LINE_LISTEN_ADDR
+						)
 						&& checkPid.test(status)
 						&& waitPrePG10() )
 						return;
