@@ -5,9 +5,9 @@ environment:
   PGUSER: postgres
   PGPASSWORD: Password12!
   matrix:
-    - SYS: MINGW
-      JDK: 9
-      PG: 12
+#   - SYS: MINGW
+#     JDK: 9
+#     PG: 12
     - SYS: MINGW
       JDK: 10
       PG: 12
@@ -38,9 +38,9 @@ environment:
     - SYS: MSVC
       JDK: 10
       PG: 12
-    - SYS: MSVC
-      JDK: 9
-      PG: 12
+#   - SYS: MSVC
+#     JDK: 9
+#     PG: 12
     - SYS: MSVC
       JDK: 14
       PG: 11
