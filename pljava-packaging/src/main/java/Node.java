@@ -43,6 +43,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.file.Files.createTempFile;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.Files.deleteIfExists;
+import static java.nio.file.Files.exists;
 import static java.nio.file.Files.getLastModifiedTime;
 import static java.nio.file.Files.lines;
 import static java.nio.file.Files.walk;
@@ -590,6 +591,21 @@ public class Node extends JarX {
 		 * that expands keys like pljava/bindir to pg_config --bindir output.
 		 */
 		String initdb = resolve("pljava/bindir/initdb");
+
+		if ( s_isWindows )
+		{
+			/*
+			 * This is irksome. The mingw64 postgresql package has both
+			 * initdb.exe and initdb, a bash script that runs it under winpty.
+			 * If the script were not there, the .exe suffix would be added
+			 * implicitly, but with both there, we try to exec the bash script.
+			 */
+			Path p1 = Paths.get(initdb);
+			Path p2 = Paths.get(initdb + ".exe");
+			if ( exists(p1)  &&  exists(p2) )
+				initdb = p2.toString();
+		}
+
 		Path pwfile = createTempFile(m_basedir, "pw", "");
 
 		Map<String,String> options = new HashMap<>(suppliedOptions);
