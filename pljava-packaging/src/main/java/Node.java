@@ -55,6 +55,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 
 import java.sql.Connection;
@@ -430,7 +431,23 @@ public class Node extends JarX {
 		for ( Path p : (Iterable<Path>)walk(m_basedir)::iterator )
 		{
 			while ( ! stk.isEmpty()  &&  ! p.startsWith(stk.peek()) )
-				deleteIfExists(stk.pop());
+			{
+				Path toDelete = stk.pop();
+				try
+				{
+					deleteIfExists(toDelete);
+				}
+				catch ( AccessDeniedException e )
+				{
+					if (!toDelete.equals(data_dir().resolve("postmaster.pid")))
+						throw e;
+					/*
+					 * See comments for stopViaPgCtl regarding this weirdness.
+					 */
+					Thread.sleep(500);
+					deleteIfExists(toDelete);
+				}
+			}
 			stk.push(p);
 		}
 		if ( keepRoot )
@@ -635,10 +652,10 @@ public class Node extends JarX {
 				new ProcessBuilder(args)
 				.redirectOutput(INHERIT)
 				.redirectError(INHERIT);
-			tweaks.apply(pb);
+			pb = tweaks.apply(pb);
 
 			if ( s_isWindows )
-				forWindowsCRuntime(pb);
+				pb = forWindowsCRuntime(pb);
 
 			Process p = pb.start();
 			p.getOutputStream().close();
@@ -685,6 +702,10 @@ public class Node extends JarX {
 	/**
 	 * Like {@code start()} but returns an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
+	 *<p>
+	 * Supplied <em>tweaks</em> will be applied to the {@code ProcessBuilder}
+	 * used to start the server; if {@code pg_ctl} is being used, they will also
+	 * be applied when running {@code pg_ctl stop} to stop it.
 	 */
 	public AutoCloseable started_server(
 		Map<String,String> suppliedOptions,
@@ -694,7 +715,7 @@ public class Node extends JarX {
 		start(suppliedOptions, tweaks);
 		return () ->
 		{
-			stop();
+			stop(tweaks);
 		};
 	}
 
@@ -797,12 +818,12 @@ public class Node extends JarX {
 			.redirectError(INHERIT);
 
 		if ( ! m_usePostgres )
-			asPgCtlInvocation(pb);
+			pb = asPgCtlInvocation(pb);
 
-		tweaks.apply(pb);
+		pb = tweaks.apply(pb);
 
 		if ( s_isWindows )
-			forWindowsCRuntime(pb);
+			pb = forWindowsCRuntime(pb);
 
 		Process p = pb.start();
 		p.getOutputStream().close();
@@ -821,20 +842,34 @@ public class Node extends JarX {
 		}
 	}
 
+
+	/**
+	 * Stop the server instance associated with this Node.
+	 *<p>
+	 * Has the effect of {@link #stop(UnaryOperator) stop(tweaks)} without
+	 * any tweaks.
+	 */
+	public void stop() throws Exception
+	{
+		stop(UnaryOperator.identity());
+	}
+
 	/**
 	 * Stop the server instance associated with this Node.
 	 *<p>
 	 * No effect if it has not been started or has already been stopped, but
 	 * a message to standard error is logged if the server had been started and
 	 * the process is found to have exited unexpectedly.
+	 * @param tweaks tweaks to apply to a ProcessBuilder; unused unless pg_ctl
+	 * will be used to stop the server
 	 */
-	public void stop() throws Exception
+	public void stop(UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
 		if ( null == ( m_usePostgres ? m_server : m_serverHandle ) )
 			return;
 		if ( ! m_usePostgres )
 		{
-			stopViaPgCtl();
+			stopViaPgCtl(tweaks);
 			return;
 		}
 		if ( m_server.isAlive() )
@@ -849,7 +884,8 @@ public class Node extends JarX {
 		m_server = null;
 	}
 
-	private void stopViaPgCtl() throws Exception
+	private void stopViaPgCtl(UnaryOperator<ProcessBuilder> tweaks)
+	throws Exception
 	{
 		if ( ! m_serverHandle.isAlive() )
 		{
@@ -863,11 +899,29 @@ public class Node extends JarX {
 			pg_ctl, "stop", "-D", data_dir().toString(), "-m", "fast")
 			.redirectOutput(INHERIT)
 			.redirectError(INHERIT);
+		pb = tweaks.apply(pb);
 		Process p = pb.start();
 		p.getOutputStream().close();
+
 		if ( 0 != p.waitFor() )
-			throw new AssertionError(
-				"Nonzero pg_ctl stop result: " + p.waitFor());
+		{
+			/*
+			 * Here is a complication. On Windows, pg_ctl suffers from a race
+			 * condition that can occasionally cause it to exit with a nonzero
+			 * status and a "permission denied" message about postmaster.pid,
+			 * while the server is otherwise successfully stopped:
+			 * www.postgresql.org/message-id/16922.1520722108%40sss.pgh.pa.us
+			 *
+			 * Without capturing the stderr of the process (too much bother), we
+			 * won't know for sure if that is the message, but if the exit value
+			 * was nonzero, just wait a bit and see if the server has gone away;
+			 * if it has, don't worry about it.
+			 */
+			Thread.sleep(1000);
+			if ( m_serverHandle.isAlive() )
+				throw new AssertionError(
+					"Nonzero pg_ctl stop result: " + p.waitFor());
+		}
 		m_serverHandle = null;
 	}
 
