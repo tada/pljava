@@ -285,7 +285,6 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	setProjectProperty("PGSQL_BINDIR", getPgConfigProperty("--bindir"));
 	setProjectProperty("PGSQL_LIBDIR", getPgConfigProperty("--libdir"));
 	setProjectProperty("PGSQL_PKGLIBDIR", getPgConfigProperty("--pkglibdir"));
 
@@ -323,7 +322,6 @@
 
 	var configuration = {
 		Linux : {
-			extension : ".so",
 			probe: function() {},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add("${java.home}/include/linux");
@@ -362,8 +360,36 @@
 		},
 		"Mac OS X" : {
 			probe : function() {},
-			compile : function() {},
-			link : function() {}
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add("${java.home}/include/darwin");
+				if ( cc.equalsIgnoreCase("gcc") )
+					defines.add("GNU_GCC");
+				defines.add("Darwin");
+
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.addAll(template.formatDefines(defines));
+					I.addAll(template.formatIncludes(includes));
+					I.addAll(flags);
+					I.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				info("Exit code: " + runCommand(compileProcess));
+			},
+			link : function(cc, flags, files, target_path) {
+
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.add("-bundle_loader");
+					I.add(getPgConfigProperty("--bindir") + "/postgres");
+					I.add("-bundle");
+					I.add("-o");
+					I.add("libpljava-so-${project.parent.version}.bundle");
+					I.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				info("Exit code: " + runCommand(linkingProcess));
+			}
 		},
 
 		dispatcher : function(os_name) {
