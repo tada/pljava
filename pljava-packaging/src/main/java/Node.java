@@ -92,6 +92,7 @@ import static java.util.Spliterator.ORDERED;
 import static java.util.Spliterators.spliteratorUnknownSize;
 
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
+import java.util.concurrent.CancellationException;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.util.function.BooleanSupplier;
@@ -2230,10 +2231,28 @@ public class Node extends JarX {
 			? (() -> p.isAlive())
 			: (() -> null != m_serverHandle ? m_serverHandle.isAlive() : true);
 
+		StringBuilder tracepoints = new StringBuilder();
+		Matcher dejavu = compile("(.+?)(?:\\1){16,}").matcher(tracepoints);
+		Consumer<Character> trace = c ->
+		{
+			tracepoints.insert(0, c);
+			if ( ! dejavu.reset().lookingAt() )
+				return;
+			tracepoints.reverse();
+			String preamble =
+				tracepoints.substring(0, tracepoints.length() - dejavu.end());
+			String cycle =
+				tracepoints.substring(tracepoints.length() - dejavu.end(1));
+			throw new CancellationException(
+				"Guru Meditation #" + preamble + "." + cycle);
+		};
+
+		trace.accept('A');
 		if ( ! m_usePostgres )
 			if ( 0 != p.waitFor() )
 				throw new IllegalStateException(
 					"pg_ctl exited with status " + p.exitValue());
+		trace.accept('B');
 
 		/*
 		 * Initialize a watch service just in case the postmaster.pid file
@@ -2247,9 +2266,10 @@ public class Node extends JarX {
 
 			for ( ;; )
 			{
+				trace.accept('C');
 				try
 				{
-					if ( getLastModifiedTime(pidfile).toInstant()
+					if ( getLastModifiedTime(pidfile).toInstant().plusSeconds(1)
 						.isBefore(info.startInstant().get()) )
 						throw new NoSuchFileException("honest!");
 						/*
@@ -2258,6 +2278,7 @@ public class Node extends JarX {
 						 * for it to change will be the right thing to do.
 						 */
 
+					trace.accept('D');
 					String[] status;
 					try ( Stream<String> lines = lines(pidfile) )
 					{
@@ -2268,6 +2289,7 @@ public class Node extends JarX {
 						&& PM_STATUS_READY.equals(
 							status[LOCK_FILE_LINE_PM_STATUS - 1]) )
 						return;
+					trace.accept('E');
 					if (
 						(
 							status.length == LOCK_FILE_LINE_SHMEM_KEY
@@ -2277,9 +2299,11 @@ public class Node extends JarX {
 						&& checkPid.test(status)
 						&& waitPrePG10() )
 						return;
+					trace.accept('F');
 				}
 				catch (NoSuchFileException e)
 				{
+					trace.accept('G');
 				}
 
 				/*
@@ -2296,11 +2320,15 @@ public class Node extends JarX {
 								: ""
 							)
 						);
+					trace.accept('H');
 					WatchKey k = watcher.poll(250, MILLISECONDS);
+					trace.accept('I');
 					if ( interrupted() )
 						throw new InterruptedException();
+					trace.accept('J');
 					if ( null == k )
 						break; // timed out; check again just in case
+					trace.accept('K');
 					assert key.equals(k); // it's the only one we registered
 					boolean recheck = k.pollEvents().stream()
 						.anyMatch(e ->
@@ -2319,8 +2347,10 @@ public class Node extends JarX {
 								return false;
 							}
 						);
+					trace.accept('L');
 					if ( recheck )
 						break;
+					trace.accept('M');
 					k.reset();
 				}
 			}
