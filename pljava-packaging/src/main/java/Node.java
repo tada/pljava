@@ -2258,7 +2258,11 @@ public class Node extends JarX {
 						 * for it to change will be the right thing to do.
 						 */
 
-					String[] status = lines(pidfile).toArray(String[]::new);
+					String[] status;
+					try ( Stream<String> lines = lines(pidfile) )
+					{
+						status = lines.toArray(String[]::new);
+					}
 					if ( (status.length == LOCK_FILE_LINE_PM_STATUS)
 						&& checkPid.test(status)
 						&& PM_STATUS_READY.equals(
