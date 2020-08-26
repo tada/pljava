@@ -287,9 +287,6 @@
 <![CDATA[
 	setProjectProperty("PGSQL_BINDIR", getPgConfigProperty("--bindir"));
 	setProjectProperty("PGSQL_LIBDIR", getPgConfigProperty("--libdir"));
-	setProjectProperty("PGSQL_INCLUDEDIR", getPgConfigProperty("--includedir"));
-	setProjectProperty("PGSQL_INCLUDEDIR-SERVER",
-		getPgConfigProperty("--includedir-server"));
 	setProjectProperty("PGSQL_PKGLIBDIR", getPgConfigProperty("--pkglibdir"));
 
 	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
@@ -302,7 +299,14 @@
 	var ArrayList = Java.type("java.util.ArrayList");
 
 	var source_path = java.nio.file.Paths.get("${basedir}", "src", "main", "c");
+	var files = utils.getFilesWithExtension(source_path, ".c");
+
 	var target_path = java.nio.file.Paths.get("${project.build.directory}", "pljava-pgxs");
+
+	var cc = getPgConfigProperty("--cc");
+	var cflags = getPgConfigProperty("--cflags");
+	var cflags_sl = getPgConfigProperty("--cflags_sl");
+	var ldflags = getPgConfigProperty("--ldflags");
 
 	var base_includes = new ArrayList(java.util.List.of(
 		"${java.home}/include",
@@ -317,47 +321,37 @@
 		"PLJAVA_SO_VERSION=${project.parent.version}"
 	));
 
-	var base_flags = java.util.List.of(
-		"-Wall",
-		"-Wno-long-long",
-		"-Wpointer-arith",
-		"-Wconversion",
-		"-fPIC",
-		"-c",
-		"-fPIC");
-
 	var configuration = {
 		Linux : {
 			extension : ".so",
 			probe: function() {},
-			compile : function(source_dir, output_dir, includes, defines, flags) {
-				var files = utils.getFilesWithExtension(source_dir, ".c");
+			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add("${java.home}/include/linux");
-				defines.add("GNU_GCC");
-				defines.add("-DLinux");
+				if ( cc.equalsIgnoreCase("gcc") )
+					defines.add("GNU_GCC");
+				defines.add("Linux");
 
 				var compileProcess = utils.processBuilder(function(I) {
-					I.add("gcc");
-					I.addAll(utils.formatDefines(defines));
-					I.addAll(utils.formatIncludes(includes));
+					I.add(cc);
+					I.addAll(template.formatDefines(defines));
+					I.addAll(template.formatIncludes(includes));
 					I.addAll(flags);
 					I.addAll(files);
 				});
 				compileProcess.directory(output_dir.toFile());
 				info("Exit code: " + runCommand(compileProcess));
 			},
-			link : function(object_path) {
-				var objectFiles = utils.getFilesWithExtension(object_path, ".o");
+			link : function(cc, flags, files, target_path) {
 
 				var linkingProcess = utils.processBuilder(function(I) {
-					I.add("g++");
+					I.add(cc);
 					I.add("-shared");
 					I.add("-o");
 					I.add("libpljava-so-${project.parent.version}.so");
-					I.addAll(objectFiles);
+					I.addAll(files);
 					I.add("-shared-libgcc");
 				});
-				linkingProcess.directory(object_path.toFile());
+				linkingProcess.directory(target_path.toFile());
 				info("Exit code: " + runCommand(linkingProcess));
 			}
 		},
@@ -388,8 +382,16 @@
 	var template = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
 	template.probe();
-	template.compile(source_path, target_path, base_includes, base_defines, base_flags);
-	template.link(target_path);
+	var flags = new ArrayList();
+	flags.addAll(template.getPgConfigPropertyAsList(cflags));
+	flags.addAll(template.getPgConfigPropertyAsList(cflags_sl));
+	flags.add("-c");
+	template.compile(cc, files, target_path, base_includes, base_defines, flags);
+
+	var object_files =  utils.getFilesWithExtension(target_path, ".o");
+	var link_flags = new ArrayList(template.getPgConfigPropertyAsList(ldflags));
+	template.link(cc, link_flags, object_files, target_path);
+
 ]]>
 							</script>
 						</configuration>

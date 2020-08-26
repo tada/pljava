@@ -39,7 +39,6 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
@@ -462,15 +461,4 @@ public final class PGXSUtils
 		return null;
 	}
 
-	public List<String> formatIncludes(List<String> includesList)
-	{
-		return includesList.stream().map(s -> s.startsWith("-I") ? s : "-I" + s)
-			       .collect(Collectors.toList());
-	}
-
-	public List<String> formatDefines(List<String> definesList)
-	{
-		return definesList.stream().map(s -> s.startsWith("-D") ? s : "-D" + s)
-			       .collect(Collectors.toList());
-	}
 }
