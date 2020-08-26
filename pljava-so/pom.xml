@@ -1,5 +1,5 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.postgresql</groupId>
@@ -285,9 +285,6 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	setProjectProperty("PGSQL_LIBDIR", getPgConfigProperty("--libdir"));
-	setProjectProperty("PGSQL_PKGLIBDIR", getPgConfigProperty("--pkglibdir"));
-
 	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
 	if ( null !== jvmdflt )
 	{
@@ -296,11 +293,11 @@
 	}
 
 	var ArrayList = Java.type("java.util.ArrayList");
-
-	var source_path = java.nio.file.Paths.get("${basedir}", "src", "main", "c");
+	var base_dir_path = project.getBasedir().getAbsolutePath();
+	var source_path = java.nio.file.Paths.get(base_dir_path, "src", "main", "c");
 	var files = utils.getFilesWithExtension(source_path, ".c");
 
-	var target_path = java.nio.file.Paths.get("${project.build.directory}", "pljava-pgxs");
+	var target_path = java.nio.file.Paths.get(project.getBuild().getDirectory(), "pljava-pgxs");
 
 	var cc = getPgConfigProperty("--cc");
 	var cflags = getPgConfigProperty("--cflags");
@@ -308,12 +305,12 @@
 	var ldflags = getPgConfigProperty("--ldflags");
 
 	var base_includes = new ArrayList(java.util.List.of(
-		"${java.home}/include",
+		java.lang.System.getProperty("java.home") + "/include",
 		getPgConfigProperty("--includedir"),
 		getPgConfigProperty("--includedir-server"),
-		"${basedir}/src/main/include/",
-		"${basedir}/src/main/include/fallback/jdbc",
-		"${javah.include}"
+		base_dir_path + "/src/main/include/",
+		base_dir_path + "/src/main/include/fallback/jdbc",
+		java.nio.file.Paths.get(project.getBasedir().getAbsolutePath(), "..", "pljava", "target", "javah-include").toString()
 	));
 
 	var base_defines = new ArrayList(java.util.List.of(
@@ -353,10 +350,100 @@
 				info("Exit code: " + runCommand(linkingProcess));
 			}
 		},
-		Windows : {
+		"Windows-MSVC" : {
 			probe : function() {},
-			compile : function() {},
-			link : function() {}
+			formatIncludes : function(includes_list) {
+				return includes_list.stream().map(function(s) {
+					return s.startsWith("/I") ? s : "/I" + s;
+				}).collect(java.util.stream.Collectors.toList());
+			},
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java.lang.System.getProperty("java.home") + "/include/win32");
+				var includedir = getPgConfigProperty("--includedir-server");
+				includes.add(includedir + "/port/win32");
+				includes.add(includedir + "/port/win32_msvc");
+				includes.add(base_dir_path + "/src/main/include/fallback/win32");
+
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add("cl");
+					I.add("/c");
+					I.add("/nologo");
+					I.add("/EHsc");
+					I.add("/DNDEBUG");
+					I.add("/MD");
+					I.add("/GR");
+					I.add("/DPLJAVA_SO_VERSION=1.6.0-SNAPSHOT");
+					I.add("/DWindows");
+					I.add("/DWIN32");
+					I.addAll(template.formatIncludes(includes));
+					I.addAll(files);
+				});
+
+				compileProcess.directory(output_dir.toFile());
+				info("Exit code: " + runCommand(compileProcess));
+			},
+			link : function(cc, flags, files, target_path) {
+
+				var _files =  utils.getFilesWithExtension(target_path, ".obj");
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add("link");
+					I.add("/MANIFEST");
+					I.add("/NOLOGO");
+					I.add("/DLL");
+					I.add("/SUBSYSTEM:CONSOLE");
+					I.add("/INCREMENTAL:NO");
+					I.add("/OUT:pljava-so-${project.parent.version}.dll");
+
+					// From compiler-msvc profile
+					I.add(getPgConfigProperty("--pkglibdir") + "/postgres.lib");
+					I.addAll(_files);
+
+				});
+				linkingProcess.directory(target_path.toFile());
+				info("Exit code: " + runCommand(linkingProcess));
+			}
+		},
+		"Windows-MinGW-w64" : {
+			probe : function() {},
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java.lang.System.getProperty("java.home") + "/include/win32");
+				if ( cc.equalsIgnoreCase("gcc") )
+					defines.add("GNU_GCC");
+				defines.add("Windows");
+				var includedir = getPgConfigProperty("--includedir-server");
+				includes.add(includedir + "/port/win32");
+				includes.add(base_dir_path + "/src/main/include/fallback/win32");
+
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.addAll(template.formatDefines(defines));
+					I.addAll(template.formatIncludes(includes));
+					I.addAll(flags);
+					I.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				info("Exit code: " + runCommand(compileProcess));
+			},
+			link : function(cc, flags, files, target_path) {
+
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.add("-Wl,--export-all-symbols");
+					I.add("-shared");
+					I.add("-o");
+					I.add("libpljava-so-${project.parent.version}.dll");
+					I.addAll(files);
+
+					// From compiler-mingw64 profile
+					I.add("-L" + getPgConfigProperty("--pkglibdir"));
+					I.add("-Bdynamic");
+					I.add("-lpostgres");
+
+					I.add("-shared-libgcc");
+				});
+				linkingProcess.directory(target_path.toFile());
+				info("Exit code: " + runCommand(linkingProcess));
+			}
 		},
 		"Mac OS X" : {
 			probe : function() {},
@@ -394,8 +481,13 @@
 
 		dispatcher : function(os_name) {
 			var name = os_name.toLowerCase();
-			if(name.contains("windows"))
-				return this["Windows"];
+			if(name.contains("windows")) {
+				var env_sys = java.lang.System.getenv().get("MSYSTEM");
+				if (env_sys != null && env_sys.equalsIgnoreCase("MINGW64"))
+					return this["Windows-MinGW-w64"];
+				else
+					return this["Windows-MSVC"];
+			}
 			else if(name.contains("linux"))
 				return this["Linux"];
 			else if(name.contains("mac os x"))
@@ -407,7 +499,6 @@
 	var implementation = configuration.dispatcher(os_name);
 	var template = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
-	template.probe();
 	var flags = new ArrayList();
 	flags.addAll(template.getPgConfigPropertyAsList(cflags));
 	flags.addAll(template.getPgConfigPropertyAsList(cflags_sl));
