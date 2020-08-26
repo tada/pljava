@@ -2,8 +2,6 @@ image: Visual Studio 2019
 environment:
   APPVEYOR_RDP_PASSWORD: MrRobot@2020
   VCVARSALL: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat
-  PGUSER: postgres
-  PGPASSWORD: Password12!
   matrix:
 #   - SYS: MINGW
 #     JDK: 9
@@ -53,27 +51,17 @@ environment:
 before_build:
   - ps: .appveyor/./appveyor_download_java.ps1
   - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%
-  - set PGROOT=%ProgramFiles%\PostgreSQL\%PG%
-  - path %JAVA_HOME%\bin;%PGROOT%\bin;%PATH%
+  - path %JAVA_HOME%\bin;%PATH%
   - '"%VCVARSALL%" x86'
   - '"%VCVARSALL%" amd64'
   - ps: $Env:JAVA_HOME = "C:\Program Files\Java\jdk$Env:JDK"
-  - ps: $Env:PGROOT = "C:\Program Files\PostgreSQL\$Env:PG"
-  - ps: $Env:Path = "$Env:JAVA_HOME\bin;$Env:PGROOT\bin;" + $Env:Path
+  - ps: $Env:Path = "$Env:JAVA_HOME\bin;" + $Env:Path
 build_script:
-  - IF %SYS%==MINGW (
-    C:\msys64\usr\bin\env MSYSTEM=MINGW64 C:\msys64\usr\bin\bash -l -c "/c/projects/pljava/.appveyor/appveyor_mingw.sh %JDK%")
-    ELSE (
-    mvn clean install -Dnar.cores=1 -Psaxon-examples -Ppgjdbc-ng --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-    )
+  - .appveyor\appveyor_mingw_or_msvc.bat
 #  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 test_script:
   - ps: |
-      if ($Env:SYS -eq 'MINGW') {
-        $pgConfig = 'C:\msys64\mingw64\bin\pg_config'
-      } else {
-        $pgConfig = 'pg_config'
-      }
+      $pgConfig = $Env:pgConfig
 
       $packageJar = ('pljava-packaging' |
         Get-ChildItem -Recurse -Filter pljava-pg*.jar

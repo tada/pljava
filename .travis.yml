@@ -21,17 +21,14 @@ before_install:
   - . .travis/travis_install_openssl.sh
 
 install: |
+  $pgConfig
+
   mvn clean install --batch-mode \
+   -Dpgsql.pgconfig="$pgConfig" \
    -Dnar.cores=1 -Pwnosign -Psaxon-examples -Ppgjdbc-ng \
    -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
 script: |
-  if [[ "$POSTGRESQL_VERSION" == "SOURCE" ]]; then
-    pgConfig=/usr/local/pgsql/bin/pg_config
-  else
-    pgConfig=pg_config
-  fi
-
   packageJar=$(find pljava-packaging -name pljava-pg*.jar -print)
 
   mavenRepo="$HOME/.m2/repository"

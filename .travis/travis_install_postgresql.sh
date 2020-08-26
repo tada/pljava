@@ -8,10 +8,7 @@ if [ "$TRAVIS_OS_NAME" = "osx" ]; then
     fi
     brew install "postgresql${POSTGRESQL_VERSION}"
 
-    export PATH="/usr/local/opt/postgresql${POSTGRESQL_VERSION}/bin:${PATH}"
-    export LDFLAGS="-L/usr/local/opt/postgresql${POSTGRESQL_VERSION}/lib"
-    export CPPFLAGS="-I/usr/local/opt/postgresql${POSTGRESQL_VERSION}/include"
-    export PKG_CONFIG_PATH="/usr/local/opt/postgresql${POSTGRESQL_VERSION}/lib/pkgconfig"
+    pgConfig="/usr/local/opt/postgresql${POSTGRESQL_VERSION}/bin/pg_config"
 else
     sudo chmod 777 /home/travis
     sudo service postgresql stop
@@ -29,9 +26,7 @@ else
         cd contrib
         make --silent && sudo make install
 
-        export LD_LIBRARY_PATH="/usr/local/pgsql/lib"
-        sudo /sbin/ldconfig /usr/local/pgsql/lib
-        export PATH="/usr/local/pgsql/bin:${PATH}"
+        pgConfig="/usr/local/pgsql/bin/pg_config"
 
         cd ../../pljava
     else
@@ -41,5 +36,6 @@ else
         wget --quiet -O - https://apt.postgresql.org/pub/repos/apt/ACCC4CF8.asc | sudo apt-key add -
         sudo apt-get -qq update
         sudo apt-get -qq install "postgresql-${POSTGRESQL_VERSION}" "postgresql-server-dev-${POSTGRESQL_VERSION}" libecpg-dev libkrb5-dev
+        pgConfig=pg_config
     fi
 fi
