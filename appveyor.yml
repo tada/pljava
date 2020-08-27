@@ -2,12 +2,10 @@ image: Visual Studio 2019
 environment:
   APPVEYOR_RDP_PASSWORD: MrRobot@2020
   VCVARSALL: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat
-  PGUSER: postgres
-  PGPASSWORD: Password12!
   matrix:
-    - SYS: MINGW
-      JDK: 9
-      PG: 12
+#   - SYS: MINGW
+#     JDK: 9
+#     PG: 12
     - SYS: MINGW
       JDK: 10
       PG: 12
@@ -38,9 +36,9 @@ environment:
     - SYS: MSVC
       JDK: 10
       PG: 12
-    - SYS: MSVC
-      JDK: 9
-      PG: 12
+#   - SYS: MSVC
+#     JDK: 9
+#     PG: 12
     - SYS: MSVC
       JDK: 14
       PG: 11
@@ -53,37 +51,163 @@ environment:
 before_build:
   - ps: .appveyor/./appveyor_download_java.ps1
   - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%
-  - set PGROOT=%ProgramFiles%\PostgreSQL\%PG%
-  - path %JAVA_HOME%\bin;%PGROOT%\bin;%PATH%
+  - path %JAVA_HOME%\bin;%PATH%
   - '"%VCVARSALL%" x86'
   - '"%VCVARSALL%" amd64'
   - ps: $Env:JAVA_HOME = "C:\Program Files\Java\jdk$Env:JDK"
-  - ps: $Env:PGROOT = "C:\Program Files\PostgreSQL\$Env:PG"
-  - ps: $Env:Path = "$Env:JAVA_HOME\bin;$Env:PGROOT\bin;" + $Env:Path
-  - ps: $Env:PGDATA = "$Env:PGROOT\data"
-  - ps: Start-Process -FilePath "$Env:PGROOT\bin\pg_ctl.exe" -ArgumentList "start" -RedirectStandardError "error.txt"
+  - ps: $Env:Path = "$Env:JAVA_HOME\bin;" + $Env:Path
 build_script:
-  - IF %SYS%==MINGW (
-    C:\msys64\usr\bin\env MSYSTEM=MINGW64 C:\msys64\usr\bin\bash -l -c "/c/projects/pljava/.appveyor/appveyor_mingw.sh %JDK%")
-    ELSE (
-    mvn clean install -Dnar.cores=1 -Psaxon-examples --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-    )
+  - .appveyor\appveyor_mingw_or_msvc.bat
 #  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-before_test:
-  - ps: $libjvm = "$Env:JAVA_HOME\bin\server\jvm.dll"
-  - ps: $vmoptions= "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
-  - ps: Get-ChildItem -Recurse -Path pljava-packaging -Filter pljava-pg*.jar | %{java -jar $_.fullName}
-  - ps: psql -c "SET pljava.libjvm_location to '$libjvm'; ALTER USER postgres SET pljava.libjvm_location to '$libjvm'; SELECT pg_reload_conf();" -U postgres
-  - ps: psql -c "SET pljava.vmoptions  to '$vmoptions'; ALTER USER postgres SET pljava.vmoptions  to '$vmoptions'; SELECT pg_reload_conf();" -U postgres
-  - ps: psql -c "CREATE EXTENSION pljava;" -U postgres
 test_script:
-  - ps: $saxonJar = Get-ChildItem -Recurse -Path "$env:UserProfile\.m2\repository\net\sf\saxon\Saxon-HE\" -Filter Saxon-HE-*.jar | Select-Object -First 1 | %{$_.fullName}
-  - ps: $examplesJar =  Get-ChildItem -Recurse -Path "pljava-examples" -Filter pljava-*.jar | %{$_.fullName}
-  - ps: $saxon = "file:$saxonJar"
-  - ps: $examples = "file:$examplesJar"
-  - ps: psql -c "SELECT sqlj.install_jar('$saxon','saxon',true);" -U postgres
-  - ps: psql -c "SELECT sqlj.set_classpath('public', 'saxon');" -U postgres
-  - ps: psql -c "SET client_min_messages TO WARNING; SELECT sqlj.install_jar('$examples','examples',true);" -U postgres
-  - ps: psql -c "SELECT sqlj.get_classpath('javatest');" -U postgres
-  - ps: psql -c "SELECT sqlj.set_classpath('javatest', 'examples');" -U postgres
-  - ps: psql -c "SELECT javatest.java_addone(3);" -U postgres
+  - ps: |
+      $pgConfig = $Env:pgConfig
+
+      $packageJar = ('pljava-packaging' |
+        Get-ChildItem -Recurse -Filter pljava-pg*.jar
+      ).FullName
+
+      $mavenRepo = "$env:UserProfile\.m2\repository"
+
+      $saxonVer = (Join-Path $mavenRepo "net\sf\saxon\Saxon-HE" |
+        Get-ChildItem -Recurse -Filter Saxon-HE-*.jar |
+        Select-Object -Last 1
+      ).Directory.Name
+
+      $jdbcJar = (Join-Path $mavenRepo "com\impossibl\pgjdbc-ng\pgjdbc-ng-all" |
+        Get-ChildItem -Recurse -Filter pgjdbc-ng-all-*.jar |
+        Select-Object -Last 1
+      ).FullName
+
+      @'
+      boolean succeeding = false; // begin pessimistic
+
+      import static java.nio.file.Paths.get
+      import java.sql.Connection
+      import org.postgresql.pljava.packaging.Node
+      import static org.postgresql.pljava.packaging.Node.q
+      import static org.postgresql.pljava.packaging.Node.dfa
+      import static org.postgresql.pljava.packaging.Node.isVoidResultSet
+
+      System.setErr(System.out); // PowerShell makes a mess of stderr output
+
+      Node.main(new String[0]); // Extract the files (with output to stdout)
+
+      String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
+
+      Node n1 = Node.get_new_node("TestNode1")
+
+      n1.use_pg_ctl(true)
+
+      /*
+       * Keep a tally of the three types of diagnostic notices that may be
+       * received, and, independently, how many represent no-good test results
+       * (error always, but also warning if seen from the tests in the
+       * examples.jar deployment descriptor).
+       */
+      Map<String,Integer> results =
+        Stream.of("info", "warning", "error", "ng").collect(
+          LinkedHashMap<String,Integer>::new, (m,k) -> m.put(k, 0), (r,s) -> {})
+
+      boolean isDiagnostic(Object o, Set<String> whatIsNG)
+      {
+        if ( ! ( o instanceof Throwable ) )
+          return false;
+        String[] parts = Node.classify((Throwable)o);
+        String type = parts[0];
+        results.compute(type, (k,v) -> 1 + v);
+        if ( whatIsNG.contains(type) )
+          results.compute("ng", (k,v) -> 1 + v);
+        return true;
+      }
+
+      try (
+        AutoCloseable t1 = n1.initialized_cluster(
+          p->p.redirectErrorStream(true));
+        AutoCloseable t2 = n1.started_server(Map.of(
+          "client_min_messages", "info",
+          "pljava.vmoptions", vmopts,
+          "pljava.libjvm_location",
+          get(System.getProperty("java.home"), "bin", "server", "jvm.dll")
+            .toString()
+        ), p->p.redirectErrorStream(true));
+      )
+      {
+        try ( Connection c = n1.connect() )
+        {
+          succeeding = true; // become optimistic, will be using &= below
+
+          succeeding &= dfa(
+            "create extension no result",
+            null,
+
+            q(c, "create extension pljava")
+            .flatMap(Node::semiFlattenDiagnostics)
+            .peek(Node::peek),
+
+            // state 1: consume any diagnostics, or show same item to state 2
+            (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+
+            // state 2: must be end of input
+            (o,p,q) -> null == o
+          );
+        }
+
+        /*
+         * Get a new connection; 'create extension' always sets a near-silent
+         * logging level, and PL/Java only checks once at VM start time, so in
+         * the same session where 'create extension' was done, logging is
+         * somewhat suppressed.
+         */
+        try ( Connection c = n1.connect() )
+        {
+          succeeding &= dfa(
+            "saxon path examples path",
+            null,
+
+            Node.installSaxonAndExamplesAndPath(c,
+              System.getProperty("mavenRepo"),
+              System.getProperty("saxonVer"),
+              true)
+            .flatMap(Node::semiFlattenDiagnostics)
+            .peek(Node::peek),
+
+            // states 1,2: diagnostics* then a void result set (saxon install)
+            (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+            (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+
+            // states 3,4: diagnostics* then a void result set (set classpath)
+            (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 3 : -4,
+            (o,p,q) -> isVoidResultSet(o, 1, 1) ? 5 : false,
+
+            // states 5,6: diagnostics* then void result set (example install)
+            (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 5 : -6,
+            (o,p,q) -> isVoidResultSet(o, 1, 1) ? 7 : false,
+
+            // states 7,8: diagnostics* then a void result set (set classpath)
+            (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 7 : -8,
+            (o,p,q) -> isVoidResultSet(o, 1, 1) ? 9 : false,
+
+            // state 9: must be end of input
+            (o,p,q) -> null == o
+          );
+        }
+      } catch ( Throwable t )
+      {
+        succeeding = false;
+        throw t;
+      }
+
+      System.out.println(results);
+      succeeding &= (0 == results.get("ng"));
+      System.exit(succeeding ? 0 : 1)
+      '@ |
+      jshell `
+        -execution local `
+        "-J--class-path=$packageJar;$jdbcJar" `
+        "--class-path=$packageJar" `
+        "-J--add-modules=java.sql,java.sql.rowset" `
+        "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" `
+        "-J-Dpgconfig=$pgConfig" `
+        "-J-DmavenRepo=$mavenRepo" `
+        "-J-DsaxonVer=$saxonVer" -

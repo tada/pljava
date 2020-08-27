@@ -43,6 +43,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.file.Files.createTempFile;
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.Files.deleteIfExists;
+import static java.nio.file.Files.exists;
 import static java.nio.file.Files.getLastModifiedTime;
 import static java.nio.file.Files.lines;
 import static java.nio.file.Files.walk;
@@ -54,6 +55,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 
 import java.sql.Connection;
@@ -90,8 +92,10 @@ import static java.util.Spliterator.ORDERED;
 import static java.util.Spliterators.spliteratorUnknownSize;
 
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
+import java.util.concurrent.CancellationException;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -428,7 +432,23 @@ public class Node extends JarX {
 		for ( Path p : (Iterable<Path>)walk(m_basedir)::iterator )
 		{
 			while ( ! stk.isEmpty()  &&  ! p.startsWith(stk.peek()) )
-				deleteIfExists(stk.pop());
+			{
+				Path toDelete = stk.pop();
+				try
+				{
+					deleteIfExists(toDelete);
+				}
+				catch ( AccessDeniedException e )
+				{
+					if (!toDelete.equals(data_dir().resolve("postmaster.pid")))
+						throw e;
+					/*
+					 * See comments for stopViaPgCtl regarding this weirdness.
+					 */
+					Thread.sleep(500);
+					deleteIfExists(toDelete);
+				}
+			}
 			stk.push(p);
 		}
 		if ( keepRoot )
@@ -589,6 +609,21 @@ public class Node extends JarX {
 		 * that expands keys like pljava/bindir to pg_config --bindir output.
 		 */
 		String initdb = resolve("pljava/bindir/initdb");
+
+		if ( s_isWindows )
+		{
+			/*
+			 * This is irksome. The mingw64 postgresql package has both
+			 * initdb.exe and initdb, a bash script that runs it under winpty.
+			 * If the script were not there, the .exe suffix would be added
+			 * implicitly, but with both there, we try to exec the bash script.
+			 */
+			Path p1 = Paths.get(initdb);
+			Path p2 = Paths.get(initdb + ".exe");
+			if ( exists(p1)  &&  exists(p2) )
+				initdb = p2.toString();
+		}
+
 		Path pwfile = createTempFile(m_basedir, "pw", "");
 
 		Map<String,String> options = new HashMap<>(suppliedOptions);
@@ -618,10 +653,10 @@ public class Node extends JarX {
 				new ProcessBuilder(args)
 				.redirectOutput(INHERIT)
 				.redirectError(INHERIT);
-			tweaks.apply(pb);
+			pb = tweaks.apply(pb);
 
 			if ( s_isWindows )
-				forWindowsCRuntime(pb);
+				pb = forWindowsCRuntime(pb);
 
 			Process p = pb.start();
 			p.getOutputStream().close();
@@ -668,6 +703,10 @@ public class Node extends JarX {
 	/**
 	 * Like {@code start()} but returns an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
+	 *<p>
+	 * Supplied <em>tweaks</em> will be applied to the {@code ProcessBuilder}
+	 * used to start the server; if {@code pg_ctl} is being used, they will also
+	 * be applied when running {@code pg_ctl stop} to stop it.
 	 */
 	public AutoCloseable started_server(
 		Map<String,String> suppliedOptions,
@@ -677,7 +716,7 @@ public class Node extends JarX {
 		start(suppliedOptions, tweaks);
 		return () ->
 		{
-			stop();
+			stop(tweaks);
 		};
 	}
 
@@ -780,12 +819,12 @@ public class Node extends JarX {
 			.redirectError(INHERIT);
 
 		if ( ! m_usePostgres )
-			asPgCtlInvocation(pb);
+			pb = asPgCtlInvocation(pb);
 
-		tweaks.apply(pb);
+		pb = tweaks.apply(pb);
 
 		if ( s_isWindows )
-			forWindowsCRuntime(pb);
+			pb = forWindowsCRuntime(pb);
 
 		Process p = pb.start();
 		p.getOutputStream().close();
@@ -804,20 +843,34 @@ public class Node extends JarX {
 		}
 	}
 
+
+	/**
+	 * Stop the server instance associated with this Node.
+	 *<p>
+	 * Has the effect of {@link #stop(UnaryOperator) stop(tweaks)} without
+	 * any tweaks.
+	 */
+	public void stop() throws Exception
+	{
+		stop(UnaryOperator.identity());
+	}
+
 	/**
 	 * Stop the server instance associated with this Node.
 	 *<p>
 	 * No effect if it has not been started or has already been stopped, but
 	 * a message to standard error is logged if the server had been started and
 	 * the process is found to have exited unexpectedly.
+	 * @param tweaks tweaks to apply to a ProcessBuilder; unused unless pg_ctl
+	 * will be used to stop the server
 	 */
-	public void stop() throws Exception
+	public void stop(UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
 		if ( null == ( m_usePostgres ? m_server : m_serverHandle ) )
 			return;
 		if ( ! m_usePostgres )
 		{
-			stopViaPgCtl();
+			stopViaPgCtl(tweaks);
 			return;
 		}
 		if ( m_server.isAlive() )
@@ -832,7 +885,8 @@ public class Node extends JarX {
 		m_server = null;
 	}
 
-	private void stopViaPgCtl() throws Exception
+	private void stopViaPgCtl(UnaryOperator<ProcessBuilder> tweaks)
+	throws Exception
 	{
 		if ( ! m_serverHandle.isAlive() )
 		{
@@ -846,11 +900,29 @@ public class Node extends JarX {
 			pg_ctl, "stop", "-D", data_dir().toString(), "-m", "fast")
 			.redirectOutput(INHERIT)
 			.redirectError(INHERIT);
+		pb = tweaks.apply(pb);
 		Process p = pb.start();
 		p.getOutputStream().close();
+
 		if ( 0 != p.waitFor() )
-			throw new AssertionError(
-				"Nonzero pg_ctl stop result: " + p.waitFor());
+		{
+			/*
+			 * Here is a complication. On Windows, pg_ctl suffers from a race
+			 * condition that can occasionally cause it to exit with a nonzero
+			 * status and a "permission denied" message about postmaster.pid,
+			 * while the server is otherwise successfully stopped:
+			 * www.postgresql.org/message-id/16922.1520722108%40sss.pgh.pa.us
+			 *
+			 * Without capturing the stderr of the process (too much bother), we
+			 * won't know for sure if that is the message, but if the exit value
+			 * was nonzero, just wait a bit and see if the server has gone away;
+			 * if it has, don't worry about it.
+			 */
+			Thread.sleep(1000);
+			if ( m_serverHandle.isAlive() )
+				throw new AssertionError(
+					"Nonzero pg_ctl stop result: " + p.waitFor());
+		}
 		m_serverHandle = null;
 	}
 
@@ -1003,6 +1075,15 @@ public class Node extends JarX {
 	/**
 	 * Produces a {@code Stream} of the (in JDBC, possibly multiple) results
 	 * from some {@code execute} method on a {@code Statement}.
+	 *<p>
+	 * This is how, for example, to prepare, then examine the results of, a
+	 * {@code PreparedStatement}:
+	 *<pre>
+	 * PreparedStatement ps = conn.prepareStatement("select foo(?,?)");
+	 * ps.setInt(1, 42);
+	 * ps.setString(2, "surprise!");
+	 * q(ps, ps::execute);
+	 *</pre>
 	 *<p>
 	 * Each result in the stream will be an instance of one of:
 	 * {@code ResultSet}, {@code Long} (an update count, positive or zero),
@@ -2146,6 +2227,43 @@ public class Node extends JarX {
 			  );
 
 		/*
+		 * The isAlive check is a simple check on p in the m_usePostgres case.
+		 * Otherwise, p is the pg_ctl process and probably has exited already;
+		 * the handle assigned to m_serverHandle must be checked. If no handle
+		 * has been assigned yet, just assume alive. The prospect of an
+		 * unbounded wait (server process exiting before its pid could be
+		 * collected from the pid file) should not be realizable, as long as
+		 * pg_ctl itself waits long enough for the file to be present.
+		 */
+		BooleanSupplier isAlive =
+			m_usePostgres
+			? (() -> p.isAlive())
+			: (() -> null != m_serverHandle ? m_serverHandle.isAlive() : true);
+
+		StringBuilder tracepoints = new StringBuilder();
+		Matcher dejavu = compile("(.+?)(?:\\1){16,}").matcher(tracepoints);
+		Consumer<Character> trace = c ->
+		{
+			tracepoints.insert(0, c);
+			if ( ! dejavu.reset().lookingAt() )
+				return;
+			tracepoints.reverse();
+			String preamble =
+				tracepoints.substring(0, tracepoints.length() - dejavu.end());
+			String cycle =
+				tracepoints.substring(tracepoints.length() - dejavu.end(1));
+			throw new CancellationException(
+				"Guru Meditation #" + preamble + "." + cycle);
+		};
+
+		trace.accept('A');
+		if ( ! m_usePostgres )
+			if ( 0 != p.waitFor() )
+				throw new IllegalStateException(
+					"pg_ctl exited with status " + p.exitValue());
+		trace.accept('B');
+
+		/*
 		 * Initialize a watch service just in case the postmaster.pid file
 		 * isn't there or has the wrong contents when we first look,
 		 * and we need to wait for something to happen to it.
@@ -2157,9 +2275,10 @@ public class Node extends JarX {
 
 			for ( ;; )
 			{
+				trace.accept('C');
 				try
 				{
-					if ( getLastModifiedTime(pidfile).toInstant()
+					if ( getLastModifiedTime(pidfile).toInstant().plusSeconds(1)
 						.isBefore(info.startInstant().get()) )
 						throw new NoSuchFileException("honest!");
 						/*
@@ -2168,19 +2287,32 @@ public class Node extends JarX {
 						 * for it to change will be the right thing to do.
 						 */
 
-					String[] status = lines(pidfile).toArray(String[]::new);
+					trace.accept('D');
+					String[] status;
+					try ( Stream<String> lines = lines(pidfile) )
+					{
+						status = lines.toArray(String[]::new);
+					}
 					if ( (status.length == LOCK_FILE_LINE_PM_STATUS)
 						&& checkPid.test(status)
 						&& PM_STATUS_READY.equals(
 							status[LOCK_FILE_LINE_PM_STATUS - 1]) )
 						return;
-					if ( (status.length == LOCK_FILE_LINE_SHMEM_KEY)
+					trace.accept('E');
+					if (
+						(
+							status.length == LOCK_FILE_LINE_SHMEM_KEY
+							|| s_isWindows
+							&& status.length == LOCK_FILE_LINE_LISTEN_ADDR
+						)
 						&& checkPid.test(status)
 						&& waitPrePG10() )
 						return;
+					trace.accept('F');
 				}
 				catch (NoSuchFileException e)
 				{
+					trace.accept('G');
 				}
 
 				/*
@@ -2188,15 +2320,24 @@ public class Node extends JarX {
 				 */
 				for ( ;; )
 				{
-					if ( ! p.isAlive() )
+					if ( ! isAlive.getAsBoolean() )
 						throw new IllegalStateException(
-							"Server process exited while awaiting \"ready\" " +
-							"with status " + p.exitValue());
+							"Server process exited while awaiting \"ready\"" +
+							(
+								m_usePostgres
+								? " with status " + p.exitValue()
+								: ""
+							)
+						);
+					trace.accept('H');
 					WatchKey k = watcher.poll(250, MILLISECONDS);
+					trace.accept('I');
 					if ( interrupted() )
 						throw new InterruptedException();
+					trace.accept('J');
 					if ( null == k )
 						break; // timed out; check again just in case
+					trace.accept('K');
 					assert key.equals(k); // it's the only one we registered
 					boolean recheck = k.pollEvents().stream()
 						.anyMatch(e ->
@@ -2215,8 +2356,10 @@ public class Node extends JarX {
 								return false;
 							}
 						);
+					trace.accept('L');
 					if ( recheck )
 						break;
+					trace.accept('M');
 					k.reset();
 				}
 			}
