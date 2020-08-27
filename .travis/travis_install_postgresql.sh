@@ -1,4 +1,7 @@
 if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+    HOMEBREW_NO_AUTO_UPDATE=1
+    export HOMEBREW_NO_AUTO_UPDATE
+
     brew uninstall postgis postgresql
 
     if [ "$POSTGRESQL_VERSION" = "12" ]; then

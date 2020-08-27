@@ -121,8 +121,6 @@ test_script:
         return true;
       }
 
-      succeeding = true; // become optimistic, will be using &= below
-
       try (
         AutoCloseable t1 = n1.initialized_cluster(
           p->p.redirectErrorStream(true));
@@ -137,6 +135,8 @@ test_script:
       {
         try ( Connection c = n1.connect() )
         {
+          succeeding = true; // become optimistic, will be using &= below
+
           succeeding &= dfa(
             "create extension no result",
             null,
@@ -145,7 +145,7 @@ test_script:
             .flatMap(Node::semiFlattenDiagnostics)
             .peek(Node::peek),
 
-            // state 1: consume any diagnostics, or go to state 2
+            // state 1: consume any diagnostics, or show same item to state 2
             (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
 
             // state 2: must be end of input

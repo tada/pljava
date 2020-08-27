@@ -1076,6 +1076,15 @@ public class Node extends JarX {
 	 * Produces a {@code Stream} of the (in JDBC, possibly multiple) results
 	 * from some {@code execute} method on a {@code Statement}.
 	 *<p>
+	 * This is how, for example, to prepare, then examine the results of, a
+	 * {@code PreparedStatement}:
+	 *<pre>
+	 * PreparedStatement ps = conn.prepareStatement("select foo(?,?)");
+	 * ps.setInt(1, 42);
+	 * ps.setString(2, "surprise!");
+	 * q(ps, ps::execute);
+	 *</pre>
+	 *<p>
 	 * Each result in the stream will be an instance of one of:
 	 * {@code ResultSet}, {@code Long} (an update count, positive or zero),
 	 * {@code SQLWarning}, or some other {@code SQLException}. A warning or
