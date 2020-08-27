@@ -220,6 +220,82 @@
 		},
 		{
 			probe: function(os_name) {
+				return os_name.toLowerCase().contains("mac os x");
+			},
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_home + "/include/darwin");
+				defines.put("Darwin", null);
+
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.addAll(pgxs.formatDefines(defines));
+					I.addAll(pgxs.formatIncludes(includes));
+					I.addAll(flags);
+					I.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				info("Compile Process Exit code: " + runCommand(compileProcess));
+			},
+			link : function(cc, flags, files, target_path) {
+
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.add("-bundle_loader");
+					I.add(bindir + "/postgres");
+					I.add("-bundle");
+					I.add("-o");
+					I.add("lib" + library_name + ".bundle");
+					I.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				info("Linking Process Exit code: " + runCommand(linkingProcess));
+			}
+		},
+		{
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("windows")
+					&& java.lang.System.getenv().containsKey("MSYSTEM")
+					&& java.lang.System.getenv().get("MSYSTEM").equalsIgnoreCase("MINGW64");
+			},
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_home + "/include/win32");
+				defines.put("Windows", null);
+				includes.add(includedir_server + "/port/win32");
+				includes.add(base_dir_path + "/src/main/include/fallback/win32");
+
+				var compileProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.addAll(pgxs.formatDefines(defines));
+					I.addAll(pgxs.formatIncludes(includes));
+					I.addAll(flags);
+					I.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				info("Exit code: " + runCommand(compileProcess));
+			},
+			link : function(cc, flags, files, target_path) {
+
+				var linkingProcess = utils.processBuilder(function(I) {
+					I.add(cc);
+					I.add("-Wl,--export-all-symbols");
+					I.add("-shared");
+					I.add("-o");
+					I.add(library_name + ".dll");
+					I.addAll(files);
+
+					// From compiler-mingw64 profile
+					I.add("-L" + pkglibdir);
+					I.add("-Bdynamic");
+					I.add("-lpostgres");
+
+					I.add("-shared-libgcc");
+				});
+				linkingProcess.directory(target_path.toFile());
+				info("Exit code: " + runCommand(linkingProcess));
+			}
+		},
+		{
+			probe: function(os_name) {
 				return os_name.toLowerCase().contains("windows")
 					&& java.lang.System.getenv().containsKey("VCINSTALLDIR");
 			},
@@ -278,82 +354,6 @@
 				});
 				linkingProcess.directory(target_path.toFile());
 				info("Exit code: " + runCommand(linkingProcess));
-			}
-		},
-		{
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("windows")
-					&& java.lang.System.getenv().containsKey("MSYSTEM")
-					&& java.lang.System.getenv().get("MSYSTEM").equalsIgnoreCase("MINGW64");
-			},
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_home + "/include/win32");
-				defines.put("Windows", null);
-				includes.add(includedir_server + "/port/win32");
-				includes.add(base_dir_path + "/src/main/include/fallback/win32");
-
-				var compileProcess = utils.processBuilder(function(I) {
-					I.add(cc);
-					I.addAll(pgxs.formatDefines(defines));
-					I.addAll(pgxs.formatIncludes(includes));
-					I.addAll(flags);
-					I.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				info("Exit code: " + runCommand(compileProcess));
-			},
-			link : function(cc, flags, files, target_path) {
-
-				var linkingProcess = utils.processBuilder(function(I) {
-					I.add(cc);
-					I.add("-Wl,--export-all-symbols");
-					I.add("-shared");
-					I.add("-o");
-					I.add(library_name + ".dll");
-					I.addAll(files);
-
-					// From compiler-mingw64 profile
-					I.add("-L" + pkglibdir);
-					I.add("-Bdynamic");
-					I.add("-lpostgres");
-
-					I.add("-shared-libgcc");
-				});
-				linkingProcess.directory(target_path.toFile());
-				info("Exit code: " + runCommand(linkingProcess));
-			}
-		},
-		{
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("mac os x");
-			},
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_home + "/include/darwin");
-				defines.put("Darwin", null);
-
-				var compileProcess = utils.processBuilder(function(I) {
-					I.add(cc);
-					I.addAll(pgxs.formatDefines(defines));
-					I.addAll(pgxs.formatIncludes(includes));
-					I.addAll(flags);
-					I.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				info("Compile Process Exit code: " + runCommand(compileProcess));
-			},
-			link : function(cc, flags, files, target_path) {
-
-				var linkingProcess = utils.processBuilder(function(I) {
-					I.add(cc);
-					I.add("-bundle_loader");
-					I.add(bindir + "/postgres");
-					I.add("-bundle");
-					I.add("-o");
-					I.add("lib" + library_name + ".bundle");
-					I.addAll(files);
-				});
-				linkingProcess.directory(target_path.toFile());
-				info("Linking Process Exit code: " + runCommand(linkingProcess));
 			}
 		}
 	];
