@@ -70,124 +70,6 @@
 			</build>
 		</profile>
 
-		<profile>
-			<id>osx</id>
-			<activation>
-				<os>
-					<name>mac os x</name>
-				</os>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<linker>
-								<options combine.children='append'>
-									<option>-bundle_loader</option>
-									<option>${PGSQL_BINDIR}/postgres</option>
-								</options>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>compiler-msvc</id>
-			<activation>
-				<property>
-					<name>env.VCINSTALLDIR</name>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<includePaths combine.children='append'>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32_msvc</includePath>
-									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
-								</includePaths>
-							</c>
-							<linker>
-								<libs combine.children='append'>
-									<lib>
-										<name>postgres</name>
-										<type>shared</type>
-										<directory>${PGSQL_PKGLIBDIR}</directory>
-									</lib>
-								</libs>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>compiler-mingw64</id>
-			<activation>
-				<property>
-					<name>env.MSYSTEM</name>
-					<value>MINGW64</value>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<includePaths combine.children='append'>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
-									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
-								</includePaths>
-							</c>
-							<linker>
-								<name>g++</name>
-								<options combine.children='append'>
-									<option>-Wl,--export-all-symbols</option>
-								</options>
-								<libs combine.children='append'>
-									<lib>
-										<name>postgres</name>
-										<type>shared</type>
-										<directory>${PGSQL_PKGLIBDIR}</directory>
-									</lib>
-								</libs>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>wnosign</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<options>
-									<option>-Wno-sign-conversion</option>
-								</options>
-							</c>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
 		<!-- If the pljava.so must include a RUNPATH for the runtime linker,
 			activate this profile by setting -Dpgsql.runpath to the needed path.
 			If the prefix for the option is something other than -Wl,-rpath=
@@ -228,29 +110,6 @@
 			on the mvn command line with -Dpljava.libjvmdefault=<full path>
 			so that users on that distro can have PL/Java work right out of
 			the box. -->
-		<profile>
-			<id>haslibjvmdefault</id>
-			<activation>
-				<property>
-					<name>pljava.libjvmdefault</name>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<defines combine.children='append'>
-									<define>PLJAVA_LIBJVMDEFAULT=${pljava.qlibjvmdefault}</define>
-								</defines>
-							</c>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
 
 		<profile>
 			<id>needsdefaultpgconfig</id>
@@ -281,13 +140,6 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
-	if ( null !== jvmdflt )
-	{
-		var jvmdfltQuoted = quoteStringForC(jvmdflt);
-		setProjectProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
-	}
-
 	var ArrayList = Java.type("java.util.ArrayList");
 	var HashMap = Java.type("java.util.HashMap");
 
@@ -325,6 +177,13 @@
 	base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
 	if ( cc.equalsIgnoreCase("gcc") )
 		base_defines.put("GNU_GCC", null);
+
+	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
+	if ( null !== jvmdflt )
+	{
+		var jvmdfltQuoted = quoteStringForC(jvmdflt);
+		base_defines.put("PLJAVA_LIBJVMDEFAULT", jvmdfltQuoted);
+	}
 
 	var configuration = [
 		{

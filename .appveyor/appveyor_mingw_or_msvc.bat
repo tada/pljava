@@ -15,6 +15,6 @@ IF %SYS%==MINGW (
   "%pgConfig%"
   mvn clean install ^
     -Dpgsql.pgconfig="%pgConfig%" ^
-    -Dnar.cores=1 -Psaxon-examples -Ppgjdbc-ng --batch-mode ^
+    -Psaxon-examples -Ppgjdbc-ng --batch-mode ^
     -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 )

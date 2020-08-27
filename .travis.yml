@@ -25,11 +25,11 @@ install: |
 
   mvn clean install --batch-mode \
    -Dpgsql.pgconfig="$pgConfig" \
-   -Dnar.cores=1 -Pwnosign -Psaxon-examples -Ppgjdbc-ng \
+   -Psaxon-examples -Ppgjdbc-ng \
    -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
 script: |
-  packageJar=$(find pljava-packaging -name pljava-pg*.jar -print)
+  packageJar=$(find pljava-packaging -name pljava*.jar -print)
 
   mavenRepo="$HOME/.m2/repository"
 
