@@ -295,7 +295,7 @@
 
 	var target_path = java.nio.file.Paths.get(project.build.directory, "pljava-pgxs");
 
-	var library_name = "libpljava-so-" + project.parent.version;
+	var library_name = "pljava-so-" + project.parent.version;
 
 	var cc = getPgConfigProperty("--cc");
 	var cflags = getPgConfigProperty("--cflags");
@@ -348,7 +348,7 @@
 					I.add(cc);
 					I.add("-shared");
 					I.add("-o");
-					I.add(library_name + ".so");
+					I.add("lib" + library_name + ".so");
 					I.addAll(files);
 					I.add("-shared-libgcc");
 				});
@@ -475,7 +475,7 @@
 					I.add(bindir + "/postgres");
 					I.add("-bundle");
 					I.add("-o");
-					I.add(library_name + ".bundle");
+					I.add("lib" + library_name + ".bundle");
 					I.addAll(files);
 				});
 				linkingProcess.directory(target_path.toFile());
