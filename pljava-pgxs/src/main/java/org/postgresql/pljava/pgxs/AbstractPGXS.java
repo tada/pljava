@@ -2,6 +2,7 @@ package org.postgresql.pljava.pgxs;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -9,22 +10,27 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractPGXS
 {
-	public abstract void probe();
 	public abstract void compile(String compiler, List<String> files, Path targetPath,
-								 List<String> includes, List<String> defines,
+								 List<String> includes, Map<String, String> defines,
 								 List<String> flags);
 
-	public abstract void link(String linker, List<String> flags,List<String> files, Path targetPath);
+	public abstract void link(String linker, List<String> flags, List<String> files, Path targetPath);
 
 	public List<String> formatIncludes(List<String> includesList)
 	{
-		return includesList.stream().map(s -> s.startsWith("-I") ? s : "-I" + s)
+		return includesList.stream().map(s -> "-I" + s)
 			.collect(Collectors.toList());
 	}
 
-	public List<String> formatDefines(List<String> definesList)
+	public List<String> formatDefines(Map<String, String> definesMap)
 	{
-		return definesList.stream().map(s -> s.startsWith("-D") ? s : "-D" + s)
+		return definesMap.entrySet().stream()
+			.map(entry -> {
+				String define = "-D" + entry.getKey();
+				if (entry.getValue() != null)
+					define += "=" + entry.getValue();
+				return define;
+			})
 			.collect(Collectors.toList());
 	}
 

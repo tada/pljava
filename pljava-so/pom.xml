@@ -289,6 +289,8 @@
 	}
 
 	var ArrayList = Java.type("java.util.ArrayList");
+	var HashMap = Java.type("java.util.HashMap");
+
 	var base_dir_path = project.basedir.getAbsolutePath();
 	var source_path = java.nio.file.Paths.get(base_dir_path, "src", "main", "c");
 	var files = utils.getFilesWithExtension(source_path, ".c");
@@ -319,9 +321,10 @@
 		javah_include
 	));
 
-	var base_defines = new ArrayList(java.util.List.of(
-		"PLJAVA_SO_VERSION=" + project.parent.version
-	));
+	var base_defines = new HashMap();
+	base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
+	if ( cc.equalsIgnoreCase("gcc") )
+		base_defines.put("GNU_GCC", null);
 
 	var configuration = [
 		{
@@ -330,9 +333,7 @@
 			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/linux");
-				if ( cc.equalsIgnoreCase("gcc") )
-					defines.add("GNU_GCC");
-				defines.add("Linux");
+				defines.put("Linux", null);
 
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add(cc);
@@ -368,23 +369,30 @@
 					return s.startsWith("/I") ? s : "/I" + s;
 				}).collect(java.util.stream.Collectors.toList());
 			},
+			formatDefines : function(defines_map) {
+				return defines_map.entrySet().stream().map(function(s) {
+					var define = "/D" + s.getKey();
+					if (s.getValue() != null)
+						define += "=" + s.getValue();
+					return define;
+				}).collect(java.util.stream.Collectors.toList());
+			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/win32");
 				includes.add(includedir_server + "/port/win32");
 				includes.add(includedir_server + "/port/win32_msvc");
 				includes.add(base_dir_path + "/src/main/include/fallback/win32");
 
+				defines.put("Windows", null);
+				defines.put("WIN32", null);
+				defines.put("NDEBUG", null);
+
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add("cl");
 					I.add("/c");
 					I.add("/nologo");
-					I.add("/EHsc");
-					I.add("/DNDEBUG");
 					I.add("/MD");
-					I.add("/GR");
-					I.add("/DPLJAVA_SO_VERSION=1.6.0-SNAPSHOT");
-					I.add("/DWindows");
-					I.add("/DWIN32");
+					I.addAll(pgxs.formatDefines(defines));
 					I.addAll(pgxs.formatIncludes(includes));
 					I.addAll(files);
 				});
@@ -421,9 +429,7 @@
 			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/win32");
-				if ( cc.equalsIgnoreCase("gcc") )
-					defines.add("GNU_GCC");
-				defines.add("Windows");
+				defines.put("Windows", null);
 				includes.add(includedir_server + "/port/win32");
 				includes.add(base_dir_path + "/src/main/include/fallback/win32");
 
@@ -464,9 +470,7 @@
 			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/darwin");
-				if ( cc.equalsIgnoreCase("gcc") )
-					defines.add("GNU_GCC");
-				defines.add("Darwin");
+				defines.put("Darwin", null);
 
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add(cc);
