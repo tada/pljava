@@ -13,10 +13,6 @@
 	</description>
 	<packaging>pom</packaging>
 
-	<properties>
-		<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
-	</properties>
-
 	<profiles>
 		<!-- I still have an inner voice telling me it should never (well,
 			hardly ever) be necessary to mention these PostgreSQL libraries
@@ -293,35 +289,45 @@
 	}
 
 	var ArrayList = Java.type("java.util.ArrayList");
-	var base_dir_path = project.getBasedir().getAbsolutePath();
+	var base_dir_path = project.basedir.getAbsolutePath();
 	var source_path = java.nio.file.Paths.get(base_dir_path, "src", "main", "c");
 	var files = utils.getFilesWithExtension(source_path, ".c");
 
-	var target_path = java.nio.file.Paths.get(project.getBuild().getDirectory(), "pljava-pgxs");
+	var target_path = java.nio.file.Paths.get(project.build.directory, "pljava-pgxs");
+
+	var library_name = "libpljava-so-" + project.parent.version;
 
 	var cc = getPgConfigProperty("--cc");
 	var cflags = getPgConfigProperty("--cflags");
 	var cflags_sl = getPgConfigProperty("--cflags_sl");
 	var ldflags = getPgConfigProperty("--ldflags");
+	var includedir = getPgConfigProperty("--includedir");
+	var includedir_server = getPgConfigProperty("--includedir-server");
+	var bindir = getPgConfigProperty("--bindir");
+	var pkglibdir = getPgConfigProperty("--pkglibdir");
+
+	var java_home = java.lang.System.getProperty("java.home");
+	var java_include =  java_home + "/include";
+	var javah_include = base_dir_path + "/../pljava/target/javah-include";
 
 	var base_includes = new ArrayList(java.util.List.of(
-		java.lang.System.getProperty("java.home") + "/include",
-		getPgConfigProperty("--includedir"),
-		getPgConfigProperty("--includedir-server"),
+		java_include,
+		includedir,
+		includedir_server,
 		base_dir_path + "/src/main/include/",
 		base_dir_path + "/src/main/include/fallback/jdbc",
-		java.nio.file.Paths.get(project.getBasedir().getAbsolutePath(), "..", "pljava", "target", "javah-include").toString()
+		javah_include
 	));
 
 	var base_defines = new ArrayList(java.util.List.of(
-		"PLJAVA_SO_VERSION=${project.parent.version}"
+		"PLJAVA_SO_VERSION=" + project.parent.version
 	));
 
 	var configuration = {
 		Linux : {
 			probe: function() {},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add("${java.home}/include/linux");
+				includes.add(java_home + "/include/linux");
 				if ( cc.equalsIgnoreCase("gcc") )
 					defines.add("GNU_GCC");
 				defines.add("Linux");
@@ -342,7 +348,7 @@
 					I.add(cc);
 					I.add("-shared");
 					I.add("-o");
-					I.add("libpljava-so-${project.parent.version}.so");
+					I.add(library_name + ".so");
 					I.addAll(files);
 					I.add("-shared-libgcc");
 				});
@@ -358,10 +364,9 @@
 				}).collect(java.util.stream.Collectors.toList());
 			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java.lang.System.getProperty("java.home") + "/include/win32");
-				var includedir = getPgConfigProperty("--includedir-server");
-				includes.add(includedir + "/port/win32");
-				includes.add(includedir + "/port/win32_msvc");
+				includes.add(java_home + "/include/win32");
+				includes.add(includedir_server + "/port/win32");
+				includes.add(includedir_server + "/port/win32_msvc");
 				includes.add(base_dir_path + "/src/main/include/fallback/win32");
 
 				var compileProcess = utils.processBuilder(function(I) {
@@ -392,10 +397,10 @@
 					I.add("/DLL");
 					I.add("/SUBSYSTEM:CONSOLE");
 					I.add("/INCREMENTAL:NO");
-					I.add("/OUT:pljava-so-${project.parent.version}.dll");
+					I.add("/OUT:" + library_name + ".dll");
 
 					// From compiler-msvc profile
-					I.add(getPgConfigProperty("--pkglibdir") + "/postgres.lib");
+					I.add(pkglibdir + "/postgres.lib");
 					I.addAll(_files);
 
 				});
@@ -406,12 +411,11 @@
 		"Windows-MinGW-w64" : {
 			probe : function() {},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java.lang.System.getProperty("java.home") + "/include/win32");
+				includes.add(java_home + "/include/win32");
 				if ( cc.equalsIgnoreCase("gcc") )
 					defines.add("GNU_GCC");
 				defines.add("Windows");
-				var includedir = getPgConfigProperty("--includedir-server");
-				includes.add(includedir + "/port/win32");
+				includes.add(includedir_server + "/port/win32");
 				includes.add(base_dir_path + "/src/main/include/fallback/win32");
 
 				var compileProcess = utils.processBuilder(function(I) {
@@ -431,11 +435,11 @@
 					I.add("-Wl,--export-all-symbols");
 					I.add("-shared");
 					I.add("-o");
-					I.add("libpljava-so-${project.parent.version}.dll");
+					I.add(library_name + ".dll");
 					I.addAll(files);
 
 					// From compiler-mingw64 profile
-					I.add("-L" + getPgConfigProperty("--pkglibdir"));
+					I.add("-L" + pkglibdir);
 					I.add("-Bdynamic");
 					I.add("-lpostgres");
 
@@ -448,7 +452,7 @@
 		"Mac OS X" : {
 			probe : function() {},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add("${java.home}/include/darwin");
+				includes.add(java_home + "/include/darwin");
 				if ( cc.equalsIgnoreCase("gcc") )
 					defines.add("GNU_GCC");
 				defines.add("Darwin");
@@ -468,10 +472,10 @@
 				var linkingProcess = utils.processBuilder(function(I) {
 					I.add(cc);
 					I.add("-bundle_loader");
-					I.add(getPgConfigProperty("--bindir") + "/postgres");
+					I.add(bindir + "/postgres");
 					I.add("-bundle");
 					I.add("-o");
-					I.add("libpljava-so-${project.parent.version}.bundle");
+					I.add(library_name + ".bundle");
 					I.addAll(files);
 				});
 				linkingProcess.directory(target_path.toFile());
