@@ -323,9 +323,11 @@
 		"PLJAVA_SO_VERSION=" + project.parent.version
 	));
 
-	var configuration = {
-		Linux : {
-			probe: function() {},
+	var configuration = [
+		{
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("linux");
+			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/linux");
 				if ( cc.equalsIgnoreCase("gcc") )
@@ -334,8 +336,8 @@
 
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add(cc);
-					I.addAll(template.formatDefines(defines));
-					I.addAll(template.formatIncludes(includes));
+					I.addAll(pgxs.formatDefines(defines));
+					I.addAll(pgxs.formatIncludes(includes));
 					I.addAll(flags);
 					I.addAll(files);
 				});
@@ -356,8 +358,11 @@
 				info("Exit code: " + runCommand(linkingProcess));
 			}
 		},
-		"Windows-MSVC" : {
-			probe : function() {},
+		{
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("windows")
+					&& java.lang.System.getenv().containsKey("VCINSTALLDIR");
+			},
 			formatIncludes : function(includes_list) {
 				return includes_list.stream().map(function(s) {
 					return s.startsWith("/I") ? s : "/I" + s;
@@ -380,7 +385,7 @@
 					I.add("/DPLJAVA_SO_VERSION=1.6.0-SNAPSHOT");
 					I.add("/DWindows");
 					I.add("/DWIN32");
-					I.addAll(template.formatIncludes(includes));
+					I.addAll(pgxs.formatIncludes(includes));
 					I.addAll(files);
 				});
 
@@ -408,8 +413,12 @@
 				info("Exit code: " + runCommand(linkingProcess));
 			}
 		},
-		"Windows-MinGW-w64" : {
-			probe : function() {},
+		{
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("windows")
+					&& java.lang.System.getenv().containsKey("MSYSTEM")
+					&& java.lang.System.getenv().get("MSYSTEM").equalsIgnoreCase("MINGW64");
+			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/win32");
 				if ( cc.equalsIgnoreCase("gcc") )
@@ -420,8 +429,8 @@
 
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add(cc);
-					I.addAll(template.formatDefines(defines));
-					I.addAll(template.formatIncludes(includes));
+					I.addAll(pgxs.formatDefines(defines));
+					I.addAll(pgxs.formatIncludes(includes));
 					I.addAll(flags);
 					I.addAll(files);
 				});
@@ -449,8 +458,10 @@
 				info("Exit code: " + runCommand(linkingProcess));
 			}
 		},
-		"Mac OS X" : {
-			probe : function() {},
+		{
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("mac os x");
+			},
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_home + "/include/darwin");
 				if ( cc.equalsIgnoreCase("gcc") )
@@ -459,13 +470,13 @@
 
 				var compileProcess = utils.processBuilder(function(I) {
 					I.add(cc);
-					I.addAll(template.formatDefines(defines));
-					I.addAll(template.formatIncludes(includes));
+					I.addAll(pgxs.formatDefines(defines));
+					I.addAll(pgxs.formatIncludes(includes));
 					I.addAll(flags);
 					I.addAll(files);
 				});
 				compileProcess.directory(output_dir.toFile());
-				info("Exit code: " + runCommand(compileProcess));
+				info("Compile Process Exit code: " + runCommand(compileProcess));
 			},
 			link : function(cc, flags, files, target_path) {
 
@@ -479,39 +490,31 @@
 					I.addAll(files);
 				});
 				linkingProcess.directory(target_path.toFile());
-				info("Exit code: " + runCommand(linkingProcess));
+				info("Linking Process Exit code: " + runCommand(linkingProcess));
 			}
-		},
-
-		dispatcher : function(os_name) {
-			var name = os_name.toLowerCase();
-			if(name.contains("windows")) {
-				var env_sys = java.lang.System.getenv().get("MSYSTEM");
-				if (env_sys != null && env_sys.equalsIgnoreCase("MINGW64"))
-					return this["Windows-MinGW-w64"];
-				else
-					return this["Windows-MSVC"];
-			}
-			else if(name.contains("linux"))
-				return this["Linux"];
-			else if(name.contains("mac os x"))
-				return this["Mac OS X"];
 		}
-	};
+	];
 
 	var os_name = java.lang.System.getProperty("os.name");
-	var implementation = configuration.dispatcher(os_name);
-	var template = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
+	var implementation = null;
+	for (var index = 0; index < configuration.length; index ++) {
+		if(configuration[index].probe(os_name)) {
+			implementation = configuration[index];
+			break;
+		}
+	}
+
+	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
 	var flags = new ArrayList();
-	flags.addAll(template.getPgConfigPropertyAsList(cflags));
-	flags.addAll(template.getPgConfigPropertyAsList(cflags_sl));
+	flags.addAll(pgxs.getPgConfigPropertyAsList(cflags));
+	flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
 	flags.add("-c");
-	template.compile(cc, files, target_path, base_includes, base_defines, flags);
+	pgxs.compile(cc, files, target_path, base_includes, base_defines, flags);
 
 	var object_files =  utils.getFilesWithExtension(target_path, ".o");
-	var link_flags = new ArrayList(template.getPgConfigPropertyAsList(ldflags));
-	template.link(cc, link_flags, object_files, target_path);
+	var link_flags = new ArrayList(pgxs.getPgConfigPropertyAsList(ldflags));
+	pgxs.link(cc, link_flags, object_files, target_path);
 
 ]]>
 							</script>
