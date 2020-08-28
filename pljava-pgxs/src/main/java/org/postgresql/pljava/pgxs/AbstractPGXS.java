@@ -10,11 +10,11 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractPGXS
 {
-	public abstract void compile(String compiler, List<String> files, Path targetPath,
+	public abstract int compile(String compiler, List<String> files, Path targetPath,
 								 List<String> includes, Map<String, String> defines,
 								 List<String> flags);
 
-	public abstract void link(String linker, List<String> flags, List<String> files, Path targetPath);
+	public abstract int link(String linker, List<String> flags, List<String> files, Path targetPath);
 
 	public List<String> formatIncludes(List<String> includesList)
 	{
