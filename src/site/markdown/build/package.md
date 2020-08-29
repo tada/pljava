@@ -149,22 +149,6 @@ version. (The same effect was always possible by making sure that `bin`
 directory was at the front of the `PATH` when invoking `mvn`, but this option
 on the `mvn` command makes it more explicit.)
 
-`-Pwnosign`
-: If `gcc` is used in the build, adding this option on the `mvn` command line
-will suppress a large number of nuisance warnings `gcc` would otherwise
-produce, keeping the build log manageable in case any actual problem needs to
-be found. (The nuisance warnings can be traced upstream to PostgreSQL headers,
-and have been [deemed not pressing to fix there][notgoingthere], as upstream
-also builds with those warnings suppressed.)
-
-`-Dnar.cores=1`
-: This option also helps to make the build log more intelligible in case any
-problem needs to be found, by avoiding the interleaving of messages from
-simultaneous compilations. PL/Java builds quickly enough that there is little
-cost in wall time to do the compiles on one core.
-
-[notgoingthere]: https://www.postgresql.org/message-id/19039.1496353285%40sss.pgh.pa.us
-
 ## Patching PL/Java
 
 If your packaging project requires patches to PL/Java, and not simply the

@@ -82,8 +82,6 @@ Please review any of the following that apply to your situation:
 * Building on an EnterpriseDB PostgreSQL distribution that bundles system
     libraries, or other situations where
     [a linker runpath](runpath.html) can help
-* Building on a platform that
-    [requires PostgreSQL libraries at link time](linkpglibs.html)
 * Building if you are
     [making a package for a software distribution](package.html)
 * Building [with debugging or optimization options](debugopt.html)
@@ -248,33 +246,12 @@ type/String.c:132:43: warning: conversion to 'jlong' from 'Size' may change
 
 If the compiler reports any actual errors, the build will fail.
 
-#### Disable nuisance warnings where possible
-
-The Maven plugin that drives the C compiler enables, by default, many
-types of warning that would be impractical to fix. Those can clutter the
-output (especially with Maven tagging them with `[ERROR]`) so that if the
-build does fail because of an actual error, it is difficult to read back
-through the `[ERROR]`s that were not errors, to find the one that was.
-
-If the compiler is `gcc`, an extra option `-Pwnosign` can be given on the
-`mvn` command line, and will suppress the most voluminous and least useful
-warnings. It adds the compiler option `-Wno-sign-conversion` which might not
-be understood by other compilers, so may not have the intended effect if the
-compiler is not `gcc`.
-
-#### Compile with a single core, for clarity of messages
-
-On a machine with many cores, messages from several compilation threads may be
-intermingled in the output so that related messages are hard to identify.
-The option `-Dnar.cores=1` will force the messages into a sequential order
-(and has little effect on the speed of a PL/Java build).
-
 #### Capture the output of `mvn -X`
 
 The `-X` option will add a lot of information on the details of Maven's
 build activities.
 
-    mvn  -X  -Pwnosign  -Dnar.cores=1  clean  install
+    mvn  -X  clean  install
 
 #### Avoid capturing the first run of Maven
 

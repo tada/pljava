@@ -73,17 +73,6 @@ Note that on Mac OS X, the variable should point to a `libjli.dylib` file if it
 is available (Java 7 and later), not to a `libjvm.dylib` as you would otherwise
 expect. See `No Java runtime present` below for details.
 
-$h2 Troubleshooting the build
-
-$h3 Aggressive compiler warnings
-
-On OS X, it seems the `-Pwnosign` Maven build option does not succeed in
-suppressing the many useless sign-conversion warnings, so if the build does
-fail, it can be difficult to find the real problem because of so many
-surrounding messages. One technique is to direct the `mvn -X -Dnar.cores=1 clean
-install` output into a file, then search that file for the strings `fatal error`
-or `error generated`.
-
 $h2 Troubleshooting installation
 
 $h3 `No Java runtime present, requesting install` or `Java SE 6` download dialog
