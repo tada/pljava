@@ -316,7 +316,7 @@ Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jclass c
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader(JNIEnv *env, jclass cls)
 {
-	jobject result;
+	jobject result = NULL;
 	BEGIN_NATIVE
 	result = Function_currentLoader();
 	END_NATIVE

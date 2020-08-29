@@ -236,7 +236,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_jdbc_SQLXMLImpl__1newWritable
 	(JNIEnv *env, jclass sqlxml_class)
 {
-	jobject sqlxml;
+	jobject sqlxml = NULL;
 	jobject vwo;
 	BEGIN_NATIVE
 	vwo = pljava_VarlenaWrapper_Output(
