@@ -902,7 +902,7 @@ JNIEXPORT jboolean JNICALL
 	int i = 0;
 	uint16 refParams = 0;
 	uint16 primParams = 0;
-	bool returnTypeIsOutParameter;
+	bool returnTypeIsOutParameter = false;
 
 	p2l.longVal = wrappedPtr;
 	self = (Function)p2l.ptrVal;
@@ -983,7 +983,6 @@ JNIEXPORT jboolean JNICALL
 		Exception_throw_ERROR(PG_FUNCNAME_MACRO);
 	}
 	PG_END_TRY();
-	END_NATIVE
 
 	if ( returnTypeIsOutParameter  &&  JNI_TRUE != isMultiCall )
 		++ refParams;
@@ -991,6 +990,7 @@ JNIEXPORT jboolean JNICALL
 	self->func.nonudt.numRefParams = refParams;
 	self->func.nonudt.numPrimParams = primParams;
 
+	END_NATIVE
 	return returnTypeIsOutParameter;
 }
 
