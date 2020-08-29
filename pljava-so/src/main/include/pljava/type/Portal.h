@@ -29,7 +29,7 @@ extern "C" {
  * @author Thomas Hallgren
  *****************************************************************/
 
-extern void pljava_Portal_initialize();
+extern void pljava_Portal_initialize(void);
 
 /*
  * Create the org.postgresql.pljava.Portal instance
