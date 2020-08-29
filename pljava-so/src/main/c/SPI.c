@@ -30,7 +30,41 @@ StaticAssertStmt((c) == (org_postgresql_pljava_internal_##c), \
 extern void SPI_initialize(void);
 void SPI_initialize(void)
 {
-	/* Statically assert that the Java code has the right values for these. */
+	JNINativeMethod methods[] = {
+		{
+		"_exec",
+		"(Ljava/lang/String;I)I",
+		Java_org_postgresql_pljava_internal_SPI__1exec
+		},
+		{
+		"_getProcessed",
+		"()J",
+		Java_org_postgresql_pljava_internal_SPI__1getProcessed
+		},
+		{
+		"_getResult",
+		"()I",
+		Java_org_postgresql_pljava_internal_SPI__1getResult
+		},
+		{
+		"_getTupTable",
+		"(Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;",
+		Java_org_postgresql_pljava_internal_SPI__1getTupTable
+		},
+		{
+		"_freeTupTable",
+		"()V",
+		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
+		},
+		{ 0, 0, 0 }};
+
+	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
+
+	/*
+	 * Statically assert that the Java code has the right values for these.
+	 * I would rather have this at the top, but these count as statements and
+	 * would trigger a declaration-after-statment warning.
+	 */
 	CONFIRMCONST(SPI_ERROR_CONNECT);
 	CONFIRMCONST(SPI_ERROR_COPY);
 	CONFIRMCONST(SPI_ERROR_OPUNKNOWN);
@@ -68,36 +102,6 @@ void SPI_initialize(void)
 	CONFIRMCONST(SPI_OK_REL_UNREGISTER);
 	CONFIRMCONST(SPI_OK_TD_REGISTER);
 #endif
-
-	JNINativeMethod methods[] = {
-		{
-		"_exec",
-		"(Ljava/lang/String;I)I",
-	  	Java_org_postgresql_pljava_internal_SPI__1exec
-		},
-		{
-		"_getProcessed",
-		"()J",
-		Java_org_postgresql_pljava_internal_SPI__1getProcessed
-		},
-		{
-		"_getResult",
-		"()I",
-		Java_org_postgresql_pljava_internal_SPI__1getResult
-		},
-		{
-		"_getTupTable",
-		"(Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;",
-		Java_org_postgresql_pljava_internal_SPI__1getTupTable
-		},
-		{
-		"_freeTupTable",
-		"()V",
-		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
-		},
-		{ 0, 0, 0 }};
-
-	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
 }
 
 /****************************************

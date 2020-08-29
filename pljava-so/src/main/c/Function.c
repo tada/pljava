@@ -790,6 +790,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		 * it is created in the upper context (even after connecting SPI, should
 		 * that be necessary).
 		 */
+		MemoryContext currCtx;
 #if PG_VERSION_NUM >= 100000
 		/* If the invoked trigger function didn't connect SPI, do that here
 		 * (getTriggerReturnTuple now needs it), but there will be no need to
@@ -798,7 +799,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		currentInvocation->triggerData = NULL;
 		Invocation_assertConnect();
 #endif
-		MemoryContext currCtx = Invocation_switchToUpperContext();
+		currCtx = Invocation_switchToUpperContext();
 		ret = PointerGetDatum(
 				pljava_TriggerData_getTriggerReturnTuple(
 					jtd, &fcinfo->isnull));
@@ -929,9 +930,10 @@ JNIEXPORT jboolean JNICALL
 
 		if ( 0 < numParams )
 		{
+			jint *paramOids;
 			self->func.nonudt.paramTypes =
 				(Type *)MemoryContextAlloc(ctx, numParams * sizeof (Type));
-			jint *paramOids = JNI_getIntArrayElements(paramTypes, NULL);
+			paramOids = JNI_getIntArrayElements(paramTypes, NULL);
 			for ( i = 0 ; i < numParams ; ++ i )
 			{
 				if ( NULL != paramJTypes )
