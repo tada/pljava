@@ -40,6 +40,7 @@
 
 	var cc = getPgConfigProperty("--cc");
 	var cflags = getPgConfigProperty("--cflags");
+	var cppflags = getPgConfigProperty("--cppflags");
 	var cflags_sl = getPgConfigProperty("--cflags_sl");
 	var ldflags = getPgConfigProperty("--ldflags");
 	var ldflags_sl = getPgConfigProperty("--ldflags_sl");
@@ -276,6 +277,7 @@
 	var files = utils.getFilesWithExtension(source_path, ".c");
 	var compile_flags = new ArrayList();
 	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags));
+	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cppflags));
 	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
 	var exitCode = pgxs.compile(cc, files, target_path, base_includes, base_defines, compile_flags);
 	if (exitCode != 0)
