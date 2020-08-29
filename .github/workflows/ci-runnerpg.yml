@@ -1,0 +1,43 @@
+# This workflow will build and test PL/Java against the version of PostgreSQL
+# preinstalled in the GitHub Actions runner environment.
+
+name: PL/Java CI with PostgreSQL version supplied by the runner
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    if: true
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        java: [9] # , 11, 12, 14, 15-ea]
+
+    steps:
+    - name: Check out PL/Java
+      uses: actions/checkout@v2
+      with:
+        path: pljava
+    - name: Set up JDK
+      uses: actions/setup-java@v1
+      with:
+        java-version: ${{ matrix.java }}
+    - name: Report Java, Maven, and PostgreSQL versions
+      run: |
+        java -version
+        mvn --version
+        pg_config
+        ls $(pg_config --includedir-server)
+    - name: Build PL/Java
+      if: false
+      working-directory: pljava
+      run: |
+        mvn clean install --batch-mode \
+          -Dnar.cores=1 -Pwnosign -Psaxon-examples -Ppgjdbc-ng \
+          -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn

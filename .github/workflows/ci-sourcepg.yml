@@ -1,0 +1,41 @@
+# This workflow will build and test PL/Java against versions of PostgreSQL
+# built from source.
+
+name: PL/Java CI with PostgreSQL versions built from source
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    if: false
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        java: [9, 11, 12, 14, 15-ea]
+        pgsql: [REL_12_4, REL_11_9, REL_10_14, REL9_6_19, REL9_5_23]
+
+    steps:
+    - name: Check out PL/Java
+      uses: actions/checkout@v2
+      with:
+        path: pljava
+    - name: Check out PostgreSQL
+      uses: actions/checkout@v2
+      with:
+        path: postgresql
+        repository: postgres/postgres
+        ref: ${{ matrix.pgsql }}
+    - name: Set up JDK
+      uses: actions/setup-java@v1
+      with:
+        java-version: ${{ matrix.java }}
+    - name: Report Java and Maven versions
+      run: |
+        java -version
+        mvn --version
