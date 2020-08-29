@@ -513,7 +513,7 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 	Ptr2Long p2ldetoasted;
 	_VL_TYPE detoasted;
 	MemoryContext prevcxt;
-	jobject dbb;
+	jobject dbb = NULL;
 
 	BEGIN_NATIVE_NO_ERRCHECK
 
@@ -570,18 +570,18 @@ JNIEXPORT jlong JNICALL Java_org_postgresql_pljava_internal_VarlenaWrapper_00024
 	MemoryContext prevcxt;
 	_VL_TYPE fetched;
 
-	BEGIN_NATIVE_NO_ERRCHECK;
 	p2lvl.longVal = varlena;
 	p2lcxt.longVal = memContext;
 
+	BEGIN_NATIVE_NO_ERRCHECK;
 	prevcxt = MemoryContextSwitchTo((MemoryContext) p2lcxt.ptrVal);
 	fetched = heap_tuple_fetch_attr((_VL_TYPE) p2lvl.ptrVal);
 	pfree(p2lvl.ptrVal);
 	p2lvl.longVal = 0L;
 	p2lvl.ptrVal = fetched;
 	MemoryContextSwitchTo(prevcxt);
-
 	END_NATIVE;
+
 	return p2lvl.longVal;
 }
 
@@ -599,7 +599,7 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Output_00024State__1next
 	ExpandedVarlenaOutputStreamNode *node;
 	Ptr2Long p2l;
 	Datum d;
-	jobject dbb;
+	jobject dbb = NULL;
 
 	p2l.longVal = varlenaPtr;
 	d = PointerGetDatum(p2l.ptrVal);

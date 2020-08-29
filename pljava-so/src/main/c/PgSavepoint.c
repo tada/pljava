@@ -38,9 +38,6 @@ jobject pljava_PgSavepoint_forId(SubTransactionId subId)
 
 void PgSavepoint_initialize(void)
 {
-	StaticAssertStmt(sizeof(SubTransactionId) <= sizeof(jint),
-		"SubTransactionId wider than jint?!");
-
 	JNINativeMethod methods[] =
 	{
 		{
@@ -63,7 +60,14 @@ void PgSavepoint_initialize(void)
 	PgObject_registerNatives("org/postgresql/pljava/internal/PgSavepoint",
 		methods);
 
-	jclass s_PgSavepoint_class = JNI_newGlobalRef(PgObject_getJavaClass(
+	/*
+	 * I would rather put this at the top, but it counts as a statement, and
+	 * would trigger a declaration-after-statement warning.
+	 */
+	StaticAssertStmt(sizeof(SubTransactionId) <= sizeof(jint),
+		"SubTransactionId wider than jint?!");
+
+	s_PgSavepoint_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/PgSavepoint"));
 	s_forId =
 		PgObject_getStaticJavaMethod(s_PgSavepoint_class, "forId",

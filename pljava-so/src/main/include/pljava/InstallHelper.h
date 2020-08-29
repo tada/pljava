@@ -76,13 +76,13 @@ extern bool InstallHelper_isPLJavaFunction(Oid fn);
  * In a background worker, there's no MyProcPort, and the name is found another
  * way and strdup'd in TopMemoryContext, it'll keep, don't bother freeing it.
  */
-extern char *pljavaDbName();
+extern char *pljavaDbName(void);
 
 /*
  * Return the name of the cluster if it has been set (only possible in 9.5+),
  * or an empty string, never NULL.
  */
-extern char const *pljavaClusterName();
+extern char const *pljavaClusterName(void);
 
 /*
  * Construct a default for pljava.module_path ($sharedir/pljava/pljava-$VER.jar
@@ -113,7 +113,7 @@ extern char const *InstallHelper_defaultModulePath(char *, char);
  * and disrupt the abort. The trickiest bit was finding available API to
  * recognize the ABORT_PENDING cases.
  */
-extern bool pljavaViableXact();
+extern bool pljavaViableXact(void);
 
 /*
  * Backend's initsequencer needs to know whether it's being called in a 9.3+
@@ -123,10 +123,10 @@ extern bool pljavaViableXact();
  * version-specific Windows visibility issues, so the ugly details are in
  * InstallHelper, and Backend just asks this nice function.
  */
-extern bool InstallHelper_shouldDeferInit();
+extern bool InstallHelper_shouldDeferInit(void);
 
-extern char *InstallHelper_hello();
+extern char *InstallHelper_hello(void);
 
-extern void InstallHelper_groundwork();
+extern void InstallHelper_groundwork(void);
 
-extern void InstallHelper_initialize();
+extern void InstallHelper_initialize(void);

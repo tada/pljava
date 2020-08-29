@@ -2021,7 +2021,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		INPUT("in", null, "pg_catalog.cstring", "pg_catalog.oid", "integer"),
 		OUTPUT("out", "pg_catalog.cstring", (String[])null),
 		RECEIVE("recv", null, "pg_catalog.internal","pg_catalog.oid","integer"),
-		SEND("send", "pg_catalog.bytea", null);
+		SEND("send", "pg_catalog.bytea", (String[])null);
 		BaseUDTFunctionID( String suffix, String ret, String... param)
 		{
 			this.suffix = suffix;

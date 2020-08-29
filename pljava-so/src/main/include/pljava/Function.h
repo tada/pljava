@@ -87,7 +87,7 @@ extern void pljava_Function_setParameter(Function self, int idx, jvalue val);
 /*
  * Not intended for any caller other than Invocation_popInvocation.
  */
-extern void pljava_Function_popFrame();
+extern void pljava_Function_popFrame(void);
 
 /*
  * These actually invoke a target Java method (returning, respectively, a

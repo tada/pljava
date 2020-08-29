@@ -119,7 +119,7 @@ static jmethodID s_InstallHelper_groundwork;
 static bool extensionExNihilo = false;
 
 static void checkLoadPath( bool *livecheck);
-static void getExtensionLoadPath();
+static void getExtensionLoadPath(void);
 static char *origUserName();
 
 char const *pljavaLoadPath = NULL;
