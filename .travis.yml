@@ -18,7 +18,6 @@ cache:
     - $HOME/.m2
 before_install:
   - . .travis/travis_install_postgresql.sh
-  - . .travis/travis_install_openssl.sh
 
 install: |
   $pgConfig
