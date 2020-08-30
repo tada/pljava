@@ -51,6 +51,8 @@ jobs:
     - name: Install and test PL/Java
       working-directory: pljava
       run: |
+        pgConfig=pg_config # runner-supplied, just get it from the PATH
+
         packageJar=$(find pljava-packaging -name pljava-pg*.jar -print)
 
         mavenRepo="$HOME/.m2/repository"
