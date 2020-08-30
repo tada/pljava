@@ -33,7 +33,9 @@ jobs:
         java -version
         mvn --version
         pg_config
-        ls $(pg_config --includedir-server)
+    - name: Obtain PG development files (Ubuntu, PGDG)
+      if: ${{ 'Linux' == runner.os }}
+      run: sudo apt-get install postgresql-server-dev-12 libkrb5-dev
     - name: Build PL/Java
       if: false
       working-directory: pljava
