@@ -1,11 +1,9 @@
 package org.postgresql.pljava.pgxs;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public abstract class AbstractPGXS
@@ -35,8 +33,25 @@ public abstract class AbstractPGXS
 	}
 
 	public List<String> getPgConfigPropertyAsList(String properties) {
-		Pattern pattern = Pattern.compile("[^\\s']+|'([^']*)'");
-		Matcher matcher = pattern.matcher(properties);
-		return matcher.results().map(MatchResult::group).collect(Collectors.toList());
+		List<String> propertyList = new ArrayList<>();
+		StringBuilder builder = new StringBuilder();
+		boolean isInsideQuotes = false;
+
+		for (char x : properties.toCharArray())
+		{
+			if (x == '\'')
+				isInsideQuotes = !isInsideQuotes;
+			else if (!isInsideQuotes && x == ' ')
+			{
+				propertyList.add(builder.toString());
+				builder.setLength(0);
+			}
+			else
+				builder.append(x);
+		}
+
+		if (builder.length() != 0)
+			propertyList.add(builder.toString());
+		return propertyList;
 	}
 }
