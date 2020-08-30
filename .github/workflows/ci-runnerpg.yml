@@ -73,7 +73,11 @@ jobs:
           tail -n 1
         )
 
-        sudo java -Dpgconfig="$pgConfig" -jar "$packageJar"
+        env | fgrep JAVA
+        java -version
+        sudo -E env | fgrep JAVA
+        sudo -E java -version
+        sudo -E java -Dpgconfig="$pgConfig" -jar "$packageJar"
 
         jshell \
           -execution local \
