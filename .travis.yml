@@ -22,8 +22,19 @@ before_install:
 install: |
   $pgConfig
 
+{ libjvm=$(jshell -execution local -); } << ENDJSHELL
+import static java.nio.file.Paths.get;
+Path javaLibDir = get(System.getProperty("java.home"), "lib");
+Path libjvm = ("Mac OS X".equals(System.getProperty("os.name"))
+? Stream.of("libjli.dylib", "jli/libjli.dylib")
+.map(s -> javaLibDir.resolve(s)).filter(Files::exists).findFirst().get()
+: javaLibDir.resolve("server/libjvm.so"));
+System.out.print(libjvm.toString());
+ENDJSHELL
+
   mvn clean install --batch-mode \
    -Dpgsql.pgconfig="$pgConfig" \
+   -Dpljava.libjvmdefault="$libjvm"
    -Psaxon-examples -Ppgjdbc-ng \
    -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
@@ -68,15 +79,6 @@ script: |
   import static org.postgresql.pljava.packaging.Node.dfa
   import static org.postgresql.pljava.packaging.Node.isVoidResultSet
 
-  Path javaLibDir = get(System.getProperty("java.home"), "lib")
-
-  Path libjvm = (
-    "Mac OS X".equals(System.getProperty("os.name"))
-    ? Stream.of("libjli.dylib", "jli/libjli.dylib")
-      .map(s -> javaLibDir.resolve(s)).filter(Files::exists).findFirst().get()
-    : javaLibDir.resolve("server/libjvm.so")
-  );
-
   String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
 
   Node n1 = Node.get_new_node("TestNode1")
@@ -107,8 +109,7 @@ script: |
     AutoCloseable t1 = n1.initialized_cluster();
     AutoCloseable t2 = n1.started_server(Map.of(
       "client_min_messages", "info",
-      "pljava.vmoptions", vmopts,
-      "pljava.libjvm_location", libjvm.toString()
+      "pljava.vmoptions", vmopts
     ));
   )
   {
