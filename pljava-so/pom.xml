@@ -9,7 +9,7 @@
 	<artifactId>pljava-so</artifactId>
 	<name>PL/Java backend native code</name>
 	<description>
-		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
+		Generates the pljava (.so, .dll, etc.) library which gets loaded by the PostgreSQL backend
 	</description>
 	<packaging>pom</packaging>
 
@@ -27,7 +27,7 @@
 						</goals>
 						<configuration>
 							<script mimetype="application/javascript">
-								<![CDATA[
+<![CDATA[
 	var ArrayList = Java.type("java.util.ArrayList");
 	var HashMap = Java.type("java.util.HashMap");
 	var Paths = Java.type("java.nio.file.Paths");
@@ -168,6 +168,9 @@
 				includes.add(pljava_include.resolve(Paths.get("fallback", "win32")).toString());
 				defines.put("Windows", null);
 				flags.add("-c");
+
+				// due to some reason -DBUILDING_DLL causes the linker to fail
+				flags.remove("-DBUILDING_DLL");
 
 				var compileProcess = utils.processBuilder(function(l) {
 					l.add(cc);
