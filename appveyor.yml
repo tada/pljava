@@ -64,7 +64,7 @@ test_script:
       $pgConfig = $Env:pgConfig
 
       $packageJar = ('pljava-packaging' |
-        Get-ChildItem -Recurse -Filter pljava*.jar
+        Get-ChildItem -Recurse -Filter pljava-pg*.jar
       ).FullName
 
       $mavenRepo = "$env:UserProfile\.m2\repository"

@@ -20,7 +20,7 @@ $h2 For the impatient
 
 After completing the [build][bld]:
 
-    java -jar pljava-packaging/target/pljava-pgX.Y-arch-os-link.jar
+    java -jar pljava-packaging/target/pljava-pgX.jar
 
        (run the above with sufficient privilege to write in the PostgreSQL
         installation directories, or read further for how to install in
@@ -30,8 +30,8 @@ After completing the [build][bld]:
     CREATE EXTENSION pljava;
     GRANT USAGE ON LANGUAGE java TO ...; -- see "Usage permission" below
 
-where *pgX.Y* represents the PostgreSQL version, and *arch*, *os*, and
-*link* are ... wait, you're impatient, just look in the directory, you'll
+where *pgX* represents the PostgreSQL version, and
+... wait, you're impatient, just look in the directory, you'll
 see the jar file there.
 
 *Upgrading an older PL/Java installation? Use

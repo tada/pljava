@@ -106,10 +106,20 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	setProjectProperty("PGSQL_VER_CLASSIFIER",
+	var twocomp =
 		getPgConfigProperty("--version")
 		.replaceAll("devel.*|alpha.*|beta.*|rc.*$", "\\.99")
-		.replaceAll("^[^\\d]*+(\\d++)\\.(\\d++)(?:\\.(\\d++))?.*$", "pg$1.$2"));
+		.replaceAll("^[^\\d]*+(\\d++)\\.(\\d++)(?:\\.(\\d++))?.*$", "pg$1.$2");
+	/*
+	 * Use a two-component version classifier only for PG 9 and earlier.
+	 * For 10 and later, use only the major component.
+	 */
+	if ( twocomp.matches("pg\\d\\.\\d+") )
+		setProjectProperty("PGSQL_VER_CLASSIFIER", twocomp);
+	else {
+		var onecomp = twocomp.replaceAll("\\.\\d+", "");
+		setProjectProperty("PGSQL_VER_CLASSIFIER", onecomp);
+	}
 ]]>
 							</script>
 						</configuration>

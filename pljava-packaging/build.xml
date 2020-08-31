@@ -228,7 +228,8 @@ jos.close();
 
 		<!-- Now build the jar using the <jarxbuild> task just created. -->
 
-		<jarxbuild destfile="${basedir}/target/pljava-${project.version}.jar">
+		<jarxbuild
+			destfile="${basedir}/target/pljava-${PGSQL_VER_CLASSIFIER}.jar">
 			<binary dir="target/classes" includes="**/Node.class"/>
 			<binary dir="target/classes" includes="**/JarX.class"/>
 			<binary prefix="pljava/pkglibdir/" filemode="555"
