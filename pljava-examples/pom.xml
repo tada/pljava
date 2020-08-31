@@ -115,11 +115,8 @@ function executeReport(report, locale)
 
 	var basedir = report.project.basedir.toPath();
 
-	/*
-	 * The toString() here is a sop to a graaljs bug; nashorn doesn't need it.
-	 */
-	var srcroot = java.nio.file.Paths.get("src", "main", "java").toString();
-	srcroot = basedir.resolve(srcroot);
+	var srcroot = java.nio.file.Paths.get("src", "main", "java");
+	srcroot = resolve(basedir, srcroot);
 	var srcrooturi = srcroot.toUri();
 
 	var jdklink = "https://docs.oracle.com/" +

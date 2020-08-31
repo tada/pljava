@@ -58,7 +58,7 @@
 		includedir,
 		includedir_server,
 		pljava_include.toString(),
-		pljava_include.resolve(Paths.get("fallback", "jdbc")).toString(),
+		resolve(pljava_include, Paths.get("fallback", "jdbc")).toString(),
 		Paths.get(base_dir_path, "..", "pljava", "target", "javah-include").toString()
 	));
 
@@ -165,7 +165,8 @@
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_include.resolve("win32").toString());
 				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(pljava_include.resolve(Paths.get("fallback", "win32")).toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
 				defines.put("Windows", null);
 				flags.add("-c");
 
@@ -233,7 +234,8 @@
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_include.resolve("win32").toString());
 				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(pljava_include.resolve(Paths.get("fallback", "win32")).toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
 				includes.add(Paths.get(includedir_server, "port", "win32_msvc").toString());
 
 				defines.put("Windows", null);
