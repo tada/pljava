@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
@@ -158,8 +159,6 @@ public final class PGXSUtils
 		context.setAttribute("runCommand",
 			(ToIntFunction<ProcessBuilder>) this::runCommand,
 			GLOBAL_SCOPE);
-		context.setAttribute("project", project, GLOBAL_SCOPE);
-		context.setAttribute("utils", this, GLOBAL_SCOPE);
 
 		/*
 		 * Also provide a specialized method useful for a script that may
@@ -186,6 +185,22 @@ public final class PGXSUtils
 				}
 			}
 			), GLOBAL_SCOPE);
+
+		/*
+		 * Give the script convenient access to the Maven project and this
+		 * object.
+		 */
+		context.setAttribute("project", project, GLOBAL_SCOPE);
+		context.setAttribute("utils", this, GLOBAL_SCOPE);
+
+		/*
+		 * A graaljs bug (graalvm/graaljs#254) means that when you are passing
+		 * a Path object to Path.resolve (which has overloads taking a Path or
+		 * a String), graaljs can't decide which one you mean. Provide a resolve
+		 * (Path,Path) function to make it a little more blindingly obvious.
+		 */
+		context.setAttribute("resolve", (BinaryOperator<Path>)Path::resolve,
+			GLOBAL_SCOPE);
 
 		return engine;
 	}

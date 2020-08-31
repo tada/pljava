@@ -58,7 +58,7 @@
 		includedir,
 		includedir_server,
 		pljava_include.toString(),
-		pljava_include.resolve(Paths.get("fallback", "jdbc")).toString(),
+		resolve(pljava_include, Paths.get("fallback", "jdbc")).toString(),
 		Paths.get(base_dir_path, "..", "pljava", "target", "javah-include").toString()
 	));
 
@@ -165,13 +165,18 @@
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_include.resolve("win32").toString());
 				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(pljava_include.resolve(Paths.get("fallback", "win32")).toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
 				defines.put("Windows", null);
 				flags.add("-c");
 
-				// -DBUILDING_DLL causes the linker to fail due to incorrect
-				// behaviour regarding importing PostgreSQL symbols. See related
-				// commit for details.
+				/*
+				 * -DBUILDING_DLL appears in the flags reported by pg_config
+				 * because it was used when building PostgreSQL itself; it
+				 * causes PostgreSQL's importable symbols to be marked as
+				 * exports. To us, those symbols are imports, not exports; in
+				 * building an extension, this is incorrect and must be removed.
+				 */
 				flags.remove("-DBUILDING_DLL");
 
 				var compileProcess = utils.processBuilder(function(l) {
@@ -229,7 +234,8 @@
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_include.resolve("win32").toString());
 				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(pljava_include.resolve(Paths.get("fallback", "win32")).toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
 				includes.add(Paths.get(includedir_server, "port", "win32_msvc").toString());
 
 				defines.put("Windows", null);
