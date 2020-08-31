@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        java: [9] # , 11, 12, 14, 15-ea]
+        java: [9, 11] # , 12, 14, 15-ea]
 
     steps:
 
@@ -73,11 +73,7 @@ jobs:
           tail -n 1
         )
 
-        env | fgrep JAVA
-        java -version
-        sudo -E env | fgrep JAVA
-        sudo -E java -version
-        sudo -E java -Dpgconfig="$pgConfig" -jar "$packageJar"
+        sudo "$JAVA_HOME"/bin/java -Dpgconfig="$pgConfig" -jar "$packageJar"
 
         jshell \
           -execution local \
