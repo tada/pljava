@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -40,6 +41,7 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.lang.System.getProperty;
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
 /**
@@ -459,6 +461,191 @@ public final class PGXSUtils
 			log.error(e);
 		}
 		return null;
+	}
+
+	/*
+	 * The same method is duplicated in pljava-packaging/Node.java . While making
+	 * changes to this method, review the other occurrence also and replicate the
+	 * changes there if desirable.
+	 */
+	/**
+	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
+	 * will be recovered correctly on Windows by a target C/C++ program using
+	 * the argument parsing algorithm of the usual C run-time code, when it is
+	 * known that the command will not be handled first by {@code cmd}.
+	 *<p>
+	 * This transformation must account for the way the C runtime will
+	 * ultimately parse the parameters apart, and also for the behavior of
+	 * Java's runtime in assembling the command line that the invoked process
+	 * will receive.
+	 * @param pb a ProcessBuilder whose command has been set to an executable
+	 * that parses parameters using the C runtime rules, and arguments as they
+	 * should result from parsing.
+	 * @return The same ProcessBuilder, with the argument list rewritten as
+	 * necessary to produce the original list as a result of Windows C runtime
+	 * parsing,
+	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
+	 * least the first command element (the executable to run)
+	 * @throws UnsupportedOperationException if the arguments passed, or system
+	 * properties in effect, produce a case this transformation cannot handle
+	 */
+	public ProcessBuilder forWindowsCRuntime(ProcessBuilder pb)
+	{
+		ListIterator<String> args = pb.command().listIterator();
+		if ( ! args.hasNext() )
+			throw new IllegalArgumentException(
+				"ProcessBuilder command must not be empty");
+
+		/*
+		 * The transformation implemented here must reflect the parsing rules
+		 * of the C run-time code, and the rules are taken from:
+		 * http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINARGV
+		 *
+		 * It must also take careful account of what the Java runtime does to
+		 * the arguments before the target process is launched, and line numbers
+		 * in comments below refer to this version of the source:
+		 * http://hg.openjdk.java.net/jdk9/jdk9/jdk/file/65464a307408/src/java.base/windows/classes/java/lang/ProcessImpl.java
+		 *
+		 * 1. Throw Unsupported if the jdk.lang.Process.allowAmbiguousCommands
+		 *    system property is in force.
+		 *
+		 *    Why?
+		 *      a. It is never allowed under a SecurityManager, so to allow it
+		 *         at all would allow code's behavior to change depending on
+		 *         whether a SecurityManager is in place.
+		 *      b. It results in a different approach to preparing the arguments
+		 *         (line 364) that would have to be separately analyzed.
+		 *
+		 * Do not test this property with Boolean.getBoolean: that returns true
+		 * only if the value equalsIgnoreCase("true"), which does not match the
+		 * test in the Java runtime (line 362).
+		 */
+		String propVal = getProperty("jdk.lang.Process.allowAmbiguousCommands");
+		if ( null != propVal && ! "false".equalsIgnoreCase(propVal) )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime transformation does not support operation" +
+					" with jdk.lang.Process.allowAmbiguousCommands in effect");
+
+		/*
+		 * 2. Throw Unsupported if the executable path name contains a "
+		 *
+		 *    Why? Because getExecutablePath passes true, unconditionally, to
+		 *    isQuoted (line 303), so it will throw IllegalArgumentException if
+		 *    there is any " in the executable path. The catch block for that
+		 *    exception (line 383) will make a highly non-correctness-preserving
+		 *    attempt to join and reparse the arguments, using
+		 *    getTokensFromCommand (line 198), which uses a regexp (line 188)
+		 *    that does not even remotely resemble the C runtime parsing rules.
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell.
+		 */
+		String executable = args.next();
+		if ( executable.contains("\"") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking an executable" +
+					" whose name contains a \" character");
+
+		/*
+		 * 3. Throw Unsupported if the executable path ends in .cmd or .bat
+		 *    (case-insensitively).
+		 *
+		 *    Why? For those extensions, the Java runtime will select different
+		 *    rules (line 414).
+		 *    a. Those rules would need to be separately analyzed.
+		 *    b. They will reject (line 286) any argument that contains a "
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell (which is
+		 *    exactly the suggestion in the exception message that would be
+		 *    produced if an argument contains a ").
+		 */
+		if ( executable.matches(".*\\.(?i:cmd|bat)$") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking a command" +
+					" whose name ends in .cmd or .bat");
+
+		/*
+		 * 4. There is a worrisome condition in the Java needsEscaping check
+		 *    (line 277), where it would conclude that escaping is NOT needed
+		 *    if an argument both starts and ends with a " character. In other
+		 *    words, it would treat that case (and just that case) not as
+		 *    characters that are part of the content and need to be escaped,
+		 *    but as a sign that its job has somehow already been done.
+		 *
+		 *    However, that will not affect this transformation, because our
+		 *    rule 5 below will ensure that any leading " has a \ added before,
+		 *    and therefore the questionable Java code will never see from us
+		 *    an arg that both starts and ends with a ".
+		 *
+		 *    There is one edge case where this behavior of the Java runtime
+		 *    will be relied on (see rule 7 below).
+		 */
+
+		while ( args.hasNext() )
+		{
+			String arg = args.next();
+
+			/*
+			 * 5. While the Java runtime code will add " at both ends of the
+			 *    argument IF the argument contains space, tab, <, or >, it does
+			 *    so with zero attention to any existing " characters in the
+			 *    content of the argument. Those must, of course, be escaped so
+			 *    the C runtime parser will not see them as ending the quoted
+			 *    region. By those rules, a " is escaped by a \ and a \ is only
+			 *    special if it is followed by a " (or in a sequence of \
+			 *    ultimately leading to a "). The needed transformation is to
+			 *    find any instance of n backslashes (n may be zero) followed
+			 *    by a ", and replace that match with 2n+1 \ followed by the ".
+			 *
+			 *    This transformation is needed whether or not the Java runtime
+			 *    will be adding " at start and end. If it does not, the same
+			 *    \ escaping is needed so the C runtime will not see a " as
+			 *    beginning a quoted region.
+			 */
+			String transformed = arg.replaceAll("(\\\\*+)(\")", "$1$1\\\\$2");
+
+			/*
+			 * 6. Only if the Java runtime will be adding " at start and end
+			 *    (i.e., only if the arg contains space, tab, <, or >), there is
+			 *    one more case where \ can be special: at the very end of the
+			 *    arg (where it will end up followed by a " when the Java
+			 *    runtime has done its thing). The Java runtime is semi-aware of
+			 *    this case (line 244): it will add a single \ if it sees that
+			 *    the arg ends with a \. However, that isn't the needed action,
+			 *    which is to double ALL consecutive \ characters ending the
+			 *    arg.
+			 *
+			 *    So the action needed here is to double all-but-one of any
+			 *    consecutive \ characters at the end of the arg, leaving one
+			 *    that will be doubled by the Java code.
+			 */
+			if ( transformed.matches("(?s:[^ \\t<>]*+.++)") )
+				transformed = transformed.replaceFirst(
+					"(\\\\)(\\\\*+)$", "$1$2$2");
+
+			/*
+			 * 7. If the argument is the empty string, it must be represented
+			 *    as "" or it will simply disappear. The Java runtime will not
+			 *    do that for us (after all, the empty string does not contain
+			 *    space, tab, <, or >), so it has to be done here, replacing the
+			 *    arg with exactly "".
+			 *
+			 *    This is the one case where we produce a value that both starts
+			 *    and ends with a " character, thereby triggering the Java
+			 *    runtime behavior described in (4) above, so the Java runtime
+			 *    will avoid trying to further "protect" the string we have
+			 *    produced here. For this one case, that 'worrisome' behavior is
+			 *    just what we want.
+			 */
+			if ( transformed.isEmpty() )
+				transformed = "\"\"";
+
+			if ( ! transformed.equals(arg) )
+				args.set(transformed);
+		}
+
+		return pb;
 	}
 
 }

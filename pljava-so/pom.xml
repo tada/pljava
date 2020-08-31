@@ -182,7 +182,7 @@
 					l.addAll(files);
 				});
 				compileProcess.directory(output_dir.toFile());
-				return runCommand(compileProcess);
+				return runCommand(utils.forWindowsCRuntime(compileProcess));
 			},
 
 			link : function(cc, flags, files, target_path) {
@@ -197,7 +197,7 @@
 					l.addAll(of("-L" + pkglibdir, "-Bdynamic", "-lpostgres"));
 				});
 				linkingProcess.directory(target_path.toFile());
-				return runCommand(linkingProcess);
+				return runCommand(utils.forWindowsCRuntime(linkingProcess));
 			}
 		},
 
@@ -245,7 +245,7 @@
 				});
 
 				compileProcess.directory(output_dir.toFile());
-				return runCommand(compileProcess);
+				return runCommand(utils.forWindowsCRuntime(compileProcess));
 			},
 
 			link : function(cc, flags, files, target_path) {
@@ -260,7 +260,7 @@
 					l.addAll(files);
 				});
 				linkingProcess.directory(target_path.toFile());
-				return runCommand(linkingProcess);
+				return runCommand(utils.forWindowsCRuntime(linkingProcess));
 			}
 		}
 	];

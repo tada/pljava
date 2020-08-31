@@ -5,6 +5,7 @@ IF %SYS%==MINGW (
   set pgConfig=C:\msys64\mingw64\bin\pg_config
 ) ELSE (
   set pgConfig=%ProgramFiles%\PostgreSQL\%PG%\bin\pg_config
+  set libjvm=%JAVA_HOME%/bin/server/jvm.dll
 )
 
 IF %SYS%==MINGW (
@@ -15,6 +16,7 @@ IF %SYS%==MINGW (
   "%pgConfig%"
   mvn clean install ^
     -Dpgsql.pgconfig="%pgConfig%" ^
+    -Dpljava.libjvmdefault="%libjvm%" ^
     -Psaxon-examples -Ppgjdbc-ng --batch-mode ^
     -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 )

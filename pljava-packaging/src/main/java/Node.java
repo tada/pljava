@@ -2422,6 +2422,11 @@ public class Node extends JarX {
 	 *   -c for options, which will be rewritten as -o values for pg_ctl.
 	 */
 
+	/*
+	 * The same method is duplicated in pljava-pgxs/PGXSUtils.java . While making
+	 * changes to this method, review the other occurrence also and replicate the
+	 * changes there if desirable.
+	 */
 	/**
 	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
 	 * will be recovered correctly on Windows by a target C/C++ program using
