@@ -49,7 +49,7 @@ environment:
       JDK: 14
       PG: 9.6
 before_build:
-  - ps: .appveyor/./appveyor_download_java.ps1
+  - ps: .appveyor/appveyor_download_java.ps1
   - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%
   - path %JAVA_HOME%\bin;%PATH%
   - '"%VCVARSALL%" x86'
@@ -126,10 +126,7 @@ test_script:
           p->p.redirectErrorStream(true));
         AutoCloseable t2 = n1.started_server(Map.of(
           "client_min_messages", "info",
-          "pljava.vmoptions", vmopts,
-          "pljava.libjvm_location",
-          get(System.getProperty("java.home"), "bin", "server", "jvm.dll")
-            .toString()
+          "pljava.vmoptions", vmopts
         ), p->p.redirectErrorStream(true));
       )
       {

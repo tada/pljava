@@ -52,6 +52,8 @@ public class ReportScriptingMojo extends AbstractMavenReport
 
 	private ReportScript reportScript;
 
+	private PGXSUtils utils;
+
 	/**
 	 * Creates an instance of {@link ReportScript} using methods defined in
 	 * the JavaScript snippet in configuration of the report in {@code pom.xml}.
@@ -64,8 +66,8 @@ public class ReportScriptingMojo extends AbstractMavenReport
 
 		try
 		{
-			ScriptEngine engine =
-				PGXSUtils.getScriptEngine(script, getLog(), project);
+			utils = new PGXSUtils(project, getLog());
+			ScriptEngine engine = utils.getScriptEngine(script);
 			String scriptText = script.getValue();
 			getLog().debug(scriptText);
 			engine.eval(scriptText);

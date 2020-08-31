@@ -81,24 +81,3 @@ Other platform-specific options for solving the same problem, such as
 `ldconfig` on Linux, may be available. Before there was
 `pljava.libjvm_location`, it used to be common to have to know these tricks.
 Now it should be uncommon, but in rare cases can still be useful.
-
-## Other situations where a RUNPATH may be needed
-
-On a system where several versions of PostgreSQL are installed, and one of
-them has been made the default, there may be entries in the standard system
-library directories that point to PostgreSQL-specific libraries (like
-`libpgtypes`, `libpq`, `libecpg`) *for the version selected as default*.
-
-It is possible that when you load PL/Java into one of the non-default
-PostgreSQL installations, it will find the wrong versions of those libraries
-by looking in the system locations first.
-
-*This should only be possible if, for some reason, you needed the
-`-Plinkpglibs` option when building PL/Java.* Without that option, those
-PostgreSQL-specific libraries should be resolved within the PostgreSQL
-backend itself, where the correct versions will be found.
-
-If your platform requires you to use `-Plinkpglibs`, and a problem with the
-wrong library versions being found at run time results, it also can be solved
-by explicitly using the `pg_config --libdir` value from the appropriate
-PostgreSQL version, using any of the methods described above.

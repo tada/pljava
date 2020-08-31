@@ -1,5 +1,5 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.postgresql</groupId>
@@ -9,352 +9,307 @@
 	<artifactId>pljava-so</artifactId>
 	<name>PL/Java backend native code</name>
 	<description>
-		Generates the pljava (.so, .dll, etc.) library which gets loaded		by the PostgreSQL backend
+		Generates the pljava (.so, .dll, etc.) library which gets loaded by the PostgreSQL backend
 	</description>
-	<packaging>nar</packaging>
-
-	<properties>
-		<!-- use -Dnar.cores=1 if non-interleaved warning messages wanted -->
-		<nar.cores>0</nar.cores>
-		<javah.include>${basedir}/../pljava/target/javah-include/</javah.include>
-	</properties>
-
-	<profiles>
-		<!-- I still have an inner voice telling me it should never (well,
-			hardly ever) be necessary to mention these PostgreSQL libraries
-			during the PL/Java link, and on any platform where it isn't
-			necessary, it is better not to. Leaving them unresolved should
-			allow them to be resolved within the backend process itself, where
-			the correct versions will be found, whereas if they are seen at
-			link time and DT_NEEDED entries are made for them, the runtime
-			linker may pull in *wrong* versions if there are links in the system
-			library locations to a different, default-selected PG version.
-
-			However, they were put here by someone, so were probably needed on
-			some platform for some reason, so it would be reckless to take them
-			out completely. Here they are as a profile. If you can build without
-			activating this profile and nothing goes wrong, profit. Otherwise,
-			add -Plinkpglibs on the command line and see if that helps. If it
-			does, please report your platform and configuration so we know
-			where these are actually needed. If it doesn't help, the trouble
-			is somewhere else.
-
-			This profile is placed first to avoid changing the resulting
-			library order when another profile that adds to libraries (like
-			compiler-mingw64) are also active.
-			-->
-		<profile>
-			<id>linkpglibs</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<linker>
-								<libs combine.children='append'>
-									<lib>
-										<name>ecpg</name>
-										<type>shared</type>
-										<directory>${PGSQL_LIBDIR}</directory>
-									</lib>
-									<lib>
-										<name>pgtypes</name>
-										<type>shared</type>
-										<directory>${PGSQL_LIBDIR}</directory>
-									</lib>
-									<lib>
-										<name>pq</name>
-										<type>shared</type>
-										<directory>${PGSQL_LIBDIR}</directory>
-									</lib>
-								</libs>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>osx</id>
-			<activation>
-				<os>
-					<name>mac os x</name>
-				</os>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<linker>
-								<options combine.children='append'>
-									<option>-bundle_loader</option>
-									<option>${PGSQL_BINDIR}/postgres</option>
-								</options>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>compiler-msvc</id>
-			<activation>
-				<property>
-					<name>env.VCINSTALLDIR</name>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<includePaths combine.children='append'>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32_msvc</includePath>
-									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
-								</includePaths>
-							</c>
-							<linker>
-								<libs combine.children='append'>
-									<lib>
-										<name>postgres</name>
-										<type>shared</type>
-										<directory>${PGSQL_PKGLIBDIR}</directory>
-									</lib>
-								</libs>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>compiler-mingw64</id>
-			<activation>
-				<property>
-					<name>env.MSYSTEM</name>
-					<value>MINGW64</value>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<includePaths combine.children='append'>
-									<includePath>${PGSQL_INCLUDEDIR-SERVER}/port/win32</includePath>
-									<includePath>${basedir}/src/main/include/fallback/win32</includePath>
-								</includePaths>
-							</c>
-							<linker>
-								<name>g++</name>
-								<options combine.children='append'>
-									<option>-Wl,--export-all-symbols</option>
-								</options>
-								<libs combine.children='append'>
-									<lib>
-										<name>postgres</name>
-										<type>shared</type>
-										<directory>${PGSQL_PKGLIBDIR}</directory>
-									</lib>
-								</libs>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>wnosign</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<options>
-									<option>-Wno-sign-conversion</option>
-								</options>
-							</c>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<!-- If the pljava.so must include a RUNPATH for the runtime linker,
-			activate this profile by setting -Dpgsql.runpath to the needed path.
-			If the prefix for the option is something other than -Wl,-rpath=
-			then also set -Dpgsql.runpathpfx to the necessary prefix (including
-			the = if there is one). If this scheme is not flexible enough to
-			accommodate your linker, then you may as well just edit this file
-			and add the right linker options directly. -->
-		<profile>
-			<id>needsrunpath</id>
-			<activation>
-				<property>
-					<name>pgsql.runpath</name>
-				</property>
-			</activation>
-			<properties>
-				<pgsql.runpathpfx>-Wl,-rpath=</pgsql.runpathpfx>
-			</properties>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<linker>
-								<options combine.children='append'>
-									<option>${pgsql.runpathpfx}${pgsql.runpath}</option>
-								</options>
-							</linker>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<!-- When building a package for a known distro, if there is a good
-			default to use for pljava.libjvm_location in that distro, a
-			downstream package maintainer is encouraged to set that default
-			on the mvn command line with -Dpljava.libjvmdefault=<full path>
-			so that users on that distro can have PL/Java work right out of
-			the box. -->
-		<profile>
-			<id>haslibjvmdefault</id>
-			<activation>
-				<property>
-					<name>pljava.libjvmdefault</name>
-				</property>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>com.github.maven-nar</groupId>
-						<artifactId>nar-maven-plugin</artifactId>
-						<configuration>
-							<c>
-								<defines combine.children='append'>
-									<define>PLJAVA_LIBJVMDEFAULT=${pljava.qlibjvmdefault}</define>
-								</defines>
-							</c>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>needsdefaultpgconfig</id>
-			<activation>
-				<property>
-					<name>!pgsql.pgconfig</name>
-				</property>
-			</activation>
-			<properties>
-				<pgsql.pgconfig>pg_config</pgsql.pgconfig>
-			</properties>
-		</profile>
-	</profiles>
+	<packaging>pom</packaging>
 
 	<build>
 		<plugins>
-
 			<plugin>
 				<groupId>org.postgresql</groupId>
 				<artifactId>pljava-pgxs</artifactId>
 				<version>${pljava.pgxs.version}</version>
 				<executions>
 					<execution>
-						<id>set-properties</id>
-						<phase>initialize</phase>
+						<id>build-shared-object</id>
 						<goals>
 							<goal>scripted-goal</goal>
 						</goals>
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	setProjectProperty("PGSQL_BINDIR", getPgConfigProperty("--bindir"));
-	setProjectProperty("PGSQL_LIBDIR", getPgConfigProperty("--libdir"));
-	setProjectProperty("PGSQL_INCLUDEDIR", getPgConfigProperty("--includedir"));
-	setProjectProperty("PGSQL_INCLUDEDIR-SERVER",
-		getPgConfigProperty("--includedir-server"));
-	setProjectProperty("PGSQL_PKGLIBDIR", getPgConfigProperty("--pkglibdir"));
+	var ArrayList = Java.type("java.util.ArrayList");
+	var HashMap = Java.type("java.util.HashMap");
+	var Paths = Java.type("java.nio.file.Paths");
+	var of = java.util.List.of;
+
+	var base_dir_path = project.basedir.getAbsolutePath();
+	var source_path = Paths.get(base_dir_path, "src", "main", "c");
+	var target_path = Paths.get(project.build.directory, "pljava-pgxs");
+	var library_name = "pljava-so-" + project.parent.version;
+
+	var cc = getPgConfigProperty("--cc");
+	var cflags = getPgConfigProperty("--cflags");
+	var cppflags = getPgConfigProperty("--cppflags");
+	var cflags_sl = getPgConfigProperty("--cflags_sl");
+	var ldflags = getPgConfigProperty("--ldflags");
+	var ldflags_sl = getPgConfigProperty("--ldflags_sl");
+	var ldflags_ex = getPgConfigProperty("--ldflags_ex");
+	var includedir = getPgConfigProperty("--includedir");
+	var includedir_server = getPgConfigProperty("--includedir-server");
+	var bindir = getPgConfigProperty("--bindir");
+	var pkglibdir = getPgConfigProperty("--pkglibdir");
+
+	var java_home = java.lang.System.getProperty("java.home");
+	var java_include =  Paths.get(java_home, "include");
+	var pljava_include = Paths.get(base_dir_path, "src", "main", "include");
+	var base_includes = new ArrayList(java.util.List.of(
+		java_include.toString(),
+		includedir,
+		includedir_server,
+		pljava_include.toString(),
+		resolve(pljava_include, Paths.get("fallback", "jdbc")).toString(),
+		Paths.get(base_dir_path, "..", "pljava", "target", "javah-include").toString()
+	));
+
+	var base_defines = new HashMap();
+	base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
+	if ( cc.equalsIgnoreCase("gcc") )
+		base_defines.put("GNU_GCC", null);
 
 	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
 	if ( null !== jvmdflt )
 	{
 		var jvmdfltQuoted = quoteStringForC(jvmdflt);
-		setProjectProperty("pljava.qlibjvmdefault", jvmdfltQuoted);
+		base_defines.put("PLJAVA_LIBJVMDEFAULT", jvmdfltQuoted);
 	}
+
+	var configuration = [
+		{
+			name : "Linux",
+			
+			object_extension : ".o",
+
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("linux");
+			},
+
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("linux").toString());
+				defines.put("Linux", null);
+				flags.add("-c");
+
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(flags);
+					l.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(compileProcess);
+			},
+
+			link : function(cc, flags, files, target_path) {
+				flags.add("-shared-libgcc");
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(flags);
+					l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
+					l.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(linkingProcess);
+			}
+		},
+
+		{
+			name : "Mac OS X",
+
+			object_extension : ".o",
+
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("mac os x");
+			},
+
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("darwin").toString());
+				defines.put("Darwin", null);
+				flags.add("-c");
+
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(flags);
+					l.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(compileProcess);
+			},
+
+			link : function(cc, flags, files, target_path) {
+				flags.addAll(of("-bundle_loader", Paths.get(bindir, "postgres").toString()));
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(flags);
+					l.addAll(of("-bundle", "-o", "lib" + library_name + ".bundle"));
+					l.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(linkingProcess);
+			}
+		},
+
+		{
+			name : "Windows MinGW",
+
+			object_extension : ".o",
+
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("windows")
+					&& java.lang.System.getenv().containsKey("MSYSTEM")
+					&& java.lang.System.getenv().get("MSYSTEM").equalsIgnoreCase("MINGW64");
+			},
+
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("win32").toString());
+				includes.add(Paths.get(includedir_server, "port", "win32").toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
+				defines.put("Windows", null);
+				flags.add("-c");
+
+				/*
+				 * -DBUILDING_DLL appears in the flags reported by pg_config
+				 * because it was used when building PostgreSQL itself; it
+				 * causes PostgreSQL's importable symbols to be marked as
+				 * exports. To us, those symbols are imports, not exports; in
+				 * building an extension, this is incorrect and must be removed.
+				 */
+				flags.remove("-DBUILDING_DLL");
+
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(flags);
+					l.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(utils.forWindowsCRuntime(compileProcess));
+			},
+
+			link : function(cc, flags, files, target_path) {
+				flags.addAll(of("-Wl,--export-all-symbols","-shared-libgcc"));
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(flags);
+					l.addAll(of("-shared", "-o", library_name + ".dll"));
+					l.addAll(files);
+
+					// From compiler-mingw64 profile
+					l.addAll(of("-L" + pkglibdir, "-Bdynamic", "-lpostgres"));
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(utils.forWindowsCRuntime(linkingProcess));
+			}
+		},
+
+		{
+			name : "Windows MSVC",
+
+			object_extension : ".obj",
+
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("windows")
+					&& java.lang.System.getenv().containsKey("VCINSTALLDIR");
+			},
+
+			formatIncludes : function(includes_list) {
+				return includes_list.stream().map(function(s) {
+					return "/I" + s;
+				}).collect(java.util.stream.Collectors.toList());
+			},
+
+			formatDefines : function(defines_map) {
+				return defines_map.entrySet().stream().map(function(s) {
+					var define = "/D" + s.getKey();
+					if (s.getValue() != null)
+						define += "=" + s.getValue();
+					return define;
+				}).collect(java.util.stream.Collectors.toList());
+			},
+
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("win32").toString());
+				includes.add(Paths.get(includedir_server, "port", "win32").toString());
+				includes.add(resolve(pljava_include,
+					Paths.get("fallback", "win32")).toString());
+				includes.add(Paths.get(includedir_server, "port", "win32_msvc").toString());
+
+				defines.put("Windows", null);
+				defines.put("WIN32", null);
+				defines.put("NDEBUG", null);
+
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add("cl");
+					l.addAll(of("/c", "/nologo", "/MD"));
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(files);
+				});
+
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(utils.forWindowsCRuntime(compileProcess));
+			},
+
+			link : function(cc, flags, files, target_path) {
+
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add("link");
+					l.addAll(of("/MANIFEST", "/NOLOGO", "/DLL", "/SUBSYSTEM:CONSOLE", "/INCREMENTAL:NO"));
+					l.add("/OUT:" + library_name + ".dll");
+
+					// From compiler-msvc profile
+					l.add(Paths.get(pkglibdir, "postgres.lib").toString());
+					l.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(utils.forWindowsCRuntime(linkingProcess));
+			}
+		}
+	];
+
+	var os_name = java.lang.System.getProperty("os.name");
+	var implementation = null;
+	var extension = null;
+	for (var index = 0; index < configuration.length; index ++) {
+		if(configuration[index].probe(os_name)) {
+			implementation = configuration[index];
+			extension = implementation.object_extension;
+			info("Using compiling/linking rules for " + implementation.name);
+			break;
+		}
+	}
+
+	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
+
+	var files = utils.getFilesWithExtension(source_path, ".c");
+	var compile_flags = new ArrayList();
+	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags));
+	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cppflags));
+	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
+	var exitCode = pgxs.compile(cc, files, target_path, base_includes, base_defines, compile_flags);
+	if (exitCode != 0)
+		throw new org.apache.maven.plugin
+			.MojoExecutionException("Compilation failed with exit code: " + exitCode);
+
+	var object_files =  utils.getFilesWithExtension(target_path, extension);
+	var link_flags = new ArrayList();
+	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags));
+	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_sl));
+	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_ex));
+	exitCode = pgxs.link(cc, link_flags, object_files, target_path);
+	if (exitCode != 0)
+		throw new org.apache.maven.plugin
+			.MojoExecutionException("Linking failed with exit code: " + exitCode);
+
 ]]>
 							</script>
 						</configuration>
 					</execution>
 				</executions>
-			</plugin>
-
-			<!-- Compiles and links the C library. -->
-			<plugin>
-				<groupId>com.github.maven-nar</groupId>
-				<artifactId>nar-maven-plugin</artifactId>
-				<version>3.2.3</version>
-				<extensions>true</extensions>
-
-				<configuration>
-					<maxCores>${nar.cores}</maxCores>
-
-					<!-- Compiles the C sources to object files. -->
-					<c>
-				<!-- uncomment the next line if you need to configure your compiler (e.g. clang)
-						<name>${CPP_COMPILER}</name>
-				-->
-						<defines>
-							<define>PLJAVA_SO_VERSION=${project.version}</define>
-						</defines>
-						<includePaths>
-							<!-- TODO: hardcoded paths -->
-							<includePath>${PGSQL_INCLUDEDIR}</includePath>
-							<includePath>${PGSQL_INCLUDEDIR-SERVER}</includePath>
-							<includePath>${basedir}/src/main/include/</includePath>
-							<includePath>${basedir}/src/main/include/fallback/jdbc</includePath>
-							<includePath>${javah.include}</includePath>
-						</includePaths>
-						<debug>${so.debug}</debug>
-						<optimize>${so.optimize}</optimize>
-					</c>
-
-					<java>
-						<include>true</include>
-					</java>
-
-					<!-- Options/extra libs/etc. for the linker go here. -->
-					<linker>
-					</linker>
-
-					<!-- Builds a *.so library. -->
-					<libraries>
-						<library>
-							<type>plugin</type>
-							<!-- Do not add "-lstdc++". Adds "-shared-libgcc" though. -->
-							<linkCPP>false</linkCPP>
-						</library>
-					</libraries>
-				</configuration>
 			</plugin>
 
 			<!-- The deploy goal will be hijacked by an ant task so the original plugin

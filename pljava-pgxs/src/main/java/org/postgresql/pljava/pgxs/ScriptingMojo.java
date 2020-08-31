@@ -13,7 +13,10 @@
 package org.postgresql.pljava.pgxs;
 
 import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugins.annotations.*;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
@@ -30,7 +33,7 @@ import java.util.function.Function;
  * Plugin. This is intentional to simplify usage as this maven plugin is
  * specifically targeted at building Pl/Java native code.
  */
-@Mojo(name = "scripted-goal", defaultPhase = LifecyclePhase.INITIALIZE,
+@Mojo(name = "scripted-goal", defaultPhase = LifecyclePhase.COMPILE,
       requiresDependencyResolution = ResolutionScope.TEST)
 public class ScriptingMojo extends AbstractMojo
 {
@@ -39,6 +42,8 @@ public class ScriptingMojo extends AbstractMojo
 
 	@Parameter
 	private PlexusConfiguration script;
+
+	private PGXSUtils utils;
 
 	/**
 	 * Executes the javascript code inside {@code script} tag inside plugin
@@ -49,15 +54,15 @@ public class ScriptingMojo extends AbstractMojo
 	{
 		try
 		{
+			utils = new PGXSUtils(project, getLog());
 			String scriptText = script.getValue();
-			ScriptEngine engine =
-				PGXSUtils.getScriptEngine(script, getLog(), project);
+			ScriptEngine engine = utils.getScriptEngine(script);
 			getLog().debug(scriptText);
 
 			engine.getContext().setAttribute("plugin", this,
 				ScriptContext.GLOBAL_SCOPE);
 			engine.put("quoteStringForC",
-				(Function<String, String>) PGXSUtils::quoteStringForC);
+				(Function<String, String>) utils::quoteStringForC);
 			engine.put("setProjectProperty",
 				(BiConsumer<String, String>) this::setProjectProperty);
 			engine.put("getPgConfigProperty",
@@ -66,7 +71,7 @@ public class ScriptingMojo extends AbstractMojo
 		}
 		catch (ScriptException e)
 		{
-			e.printStackTrace();
+			getLog().error(e);
 		}
 	}
 
@@ -92,7 +97,7 @@ public class ScriptingMojo extends AbstractMojo
 		try
 		{
 			String pgConfigCommand = System.getProperty("pgsql.pgconfig");
-			return PGXSUtils.getPgConfigProperty(pgConfigCommand, property);
+			return utils.getPgConfigProperty(pgConfigCommand, property);
 		}
 		catch (Exception e)
 		{

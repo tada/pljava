@@ -20,6 +20,7 @@ import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.tools.Diagnostic;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -29,15 +30,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.lang.System.getProperty;
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
 /**
@@ -46,29 +51,37 @@ import static javax.script.ScriptContext.GLOBAL_SCOPE;
  */
 public final class PGXSUtils
 {
-	static final Pattern mustBeQuotedForC = Pattern.compile(
+	/**
+	 * maven project for which plugin is executed
+	 */
+	private final MavenProject project;
+
+	/**
+	 * maven plugin logger for diagnostics
+	 */
+	private final Log log;
+
+	private static final Pattern mustBeQuotedForC = Pattern.compile(
 		"([\"\\\\]|(?<=\\?)\\?(?=[=(/)'<!>-]))|" +  // (just insert backslash)
 		"([\\a\b\\f\\n\\r\\t\\x0B])|" +             // (use specific escapes)
 		"(\\p{Cc}((?=\\p{XDigit}))?)" // use hex, note whether an XDigit follows
 	);
 
-	private PGXSUtils ()
+	public PGXSUtils (MavenProject project, Log log)
 	{
+		this.project = project;
+		this.log = log;
 	}
 
 	/**
 	 * Returns a ScriptEngine with some basic utilities for scripting.
 	 *
-	 * @param script the script block element in the configuration block of
-	 *                  the plugin in the project
-	 * @param log the logger associated with the plugin
-	 * @param project the maven project requesting the ScriptEngine
-	 *
+	 * @param script the script block element in the configuration block of the
+	 *               plugin in the project
 	 * @return ScriptEngine based on the engine and mime type provided in the
 	 * script block
 	 */
-	static ScriptEngine getScriptEngine(PlexusConfiguration script, Log log,
-	                                    MavenProject project)
+	ScriptEngine getScriptEngine(PlexusConfiguration script)
 	{
 		/*
 		 * Set the polyglot.js.nashorn-compat system property to true if it is
@@ -137,12 +150,14 @@ public final class PGXSUtils
 			(Consumer<CharSequence>) log::warn, GLOBAL_SCOPE);
 		context.setAttribute("info",
 			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
-
 		context.setAttribute("isProfileActive",
-			(Function<String, Boolean>) id -> isProfileActive(log, project, id),
+			(Function<String, Boolean>) this::isProfileActive,
 			GLOBAL_SCOPE);
 		context.setAttribute("buildPaths",
-			(Function<List<String>, Map<String, String>>) elements -> buildPaths(log, elements),
+			(Function<List<String>, Map<String, String>>) this::buildPaths,
+			GLOBAL_SCOPE);
+		context.setAttribute("runCommand",
+			(ToIntFunction<ProcessBuilder>) this::runCommand,
 			GLOBAL_SCOPE);
 
 		/*
@@ -171,6 +186,22 @@ public final class PGXSUtils
 			}
 			), GLOBAL_SCOPE);
 
+		/*
+		 * Give the script convenient access to the Maven project and this
+		 * object.
+		 */
+		context.setAttribute("project", project, GLOBAL_SCOPE);
+		context.setAttribute("utils", this, GLOBAL_SCOPE);
+
+		/*
+		 * A graaljs bug (graalvm/graaljs#254) means that when you are passing
+		 * a Path object to Path.resolve (which has overloads taking a Path or
+		 * a String), graaljs can't decide which one you mean. Provide a resolve
+		 * (Path,Path) function to make it a little more blindingly obvious.
+		 */
+		context.setAttribute("resolve", (BinaryOperator<Path>)Path::resolve,
+			GLOBAL_SCOPE);
+
 		return engine;
 	}
 
@@ -181,7 +212,7 @@ public final class PGXSUtils
 	 * @param s string to be escaped
 	 * @return a C compatible String enclosed in double quotes
 	 */
-	public static String quoteStringForC (String s)
+	public String quoteStringForC (String s)
 	{
 		Matcher m = mustBeQuotedForC.matcher(s);
 		StringBuffer b = new StringBuffer();
@@ -237,7 +268,7 @@ public final class PGXSUtils
 	 * @throws CharacterCodingException if unable to decode bytes using
 	 *                                  default platform charset
 	 */
-	public static String defaultCharsetDecodeStrict (byte[] bytes)
+	public String defaultCharsetDecodeStrict (byte[] bytes)
 		throws CharacterCodingException
 	{
 		return Charset.defaultCharset().newDecoder()
@@ -260,8 +291,8 @@ public final class PGXSUtils
 	 * @throws IOException if unable to read output of the command
 	 * @throws InterruptedException if command does not complete successfully
 	 */
-	public static String getPgConfigProperty (String pgConfigCommand,
-	                                          String pgConfigArgument)
+	public String getPgConfigProperty (String pgConfigCommand,
+	                                   String pgConfigArgument)
 		throws IOException, InterruptedException
 	{
 		if (pgConfigCommand == null || pgConfigCommand.isEmpty())
@@ -284,20 +315,56 @@ public final class PGXSUtils
 	}
 
 	/**
+	 * Returns a ProcessBuilder with suitable defaults and arguments added from
+	 * input function.
+	 *
+	 * @param consumer function which adds arguments to the ProcessBuilder
+	 * @return ProcessBuilder with input arguments and suitable defaults
+	 */
+	public ProcessBuilder processBuilder(Consumer<List<String>> consumer)
+	{
+		ProcessBuilder processBuilder = new ProcessBuilder();
+		consumer.accept(processBuilder.command());
+		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+		processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+		processBuilder.directory(new File(project.getBuild().getDirectory(),
+			"pljava-pgxs"));
+		return processBuilder;
+	}
+
+	/**
+	 * Executes a ProcessBuilder and returns the exit code of the process.
+	 *
+	 * @param processBuilder to execute
+	 * @return exit code of the executed process or -1 if an exception occurs
+	 * during execution
+	 */
+	public int runCommand(ProcessBuilder processBuilder)
+	{
+		Path outputDirectoryPath = processBuilder.directory().toPath();
+		try
+		{
+			if (!Files.exists(outputDirectoryPath))
+				Files.createDirectories(outputDirectoryPath);
+			Process process = processBuilder.start();
+			return process.waitFor();
+		} catch (Exception e) {
+			log.error(e);
+		}
+		return -1;
+	}
+
+	/**
 	 * Returns true if the profile with given name exists and is active, false
 	 * otherwise.
 	 * <p>
 	 * A warning is logged if the no profile with the input name exists in the
 	 * current project.
 	 *
-	 * @param logger plugin logger instance to log warnings
-	 * @param project maven project in which to check profiles
 	 * @param profileName name of profile to check
 	 * @return true if profile exists and is active, false otherwise
 	 */
-	public static boolean isProfileActive(Log logger,
-	                                      MavenProject project,
-	                                      String profileName)
+	public boolean isProfileActive(String profileName)
 	{
 		boolean isValidProfile =
 			project.getModel().getProfiles().stream()
@@ -305,7 +372,7 @@ public final class PGXSUtils
 
 		if (!isValidProfile)
 		{
-			logger.warn(profileName + " does not exist in " + project.getName());
+			log.warn(profileName + " does not exist in " + project.getName());
 			return false;
 		}
 
@@ -317,13 +384,11 @@ public final class PGXSUtils
 	 * Returns a map with two elements with {@code classpath} and {@code modulepath}
 	 * as keys and their joined string paths as the respective values.
 	 *
-	 * @param logger Maven Log instance for diagnostics
 	 * @param elements list of elements to build classpath and modulepath from
 	 * @return a map containing the {@code classpath} and {@code modulepath}
 	 * as separate elements
 	 */
-	public static Map<String, String> buildPaths(Log logger,
-	                                             List<String> elements)
+	public Map<String, String> buildPaths(List<String> elements)
 	{
 		List<String> modulepathElements = new ArrayList<>();
 		List<String> classpathElements = new ArrayList<>();
@@ -333,7 +398,7 @@ public final class PGXSUtils
 			for (String element : elements)
 			{
 				if (element.contains(pathSeparator))
-					logger.warn(String.format("cannot add %s to path because " +
+					log.warn(String.format("cannot add %s to path because " +
 						"it contains path separator %s", element, pathSeparator));
 				else if (shouldPlaceOnModulepath(element))
 					modulepathElements.add(element);
@@ -343,7 +408,7 @@ public final class PGXSUtils
 		}
 		catch (Exception e)
 		{
-			logger.error(e);
+			log.error(e);
 		}
 		String modulepath = String.join(pathSeparator, modulepathElements);
 		String classpath = String.join(pathSeparator, classpathElements);
@@ -362,7 +427,7 @@ public final class PGXSUtils
 	 * @return true if input path should go on modulepath, false otherwise
 	 * @throws IOException any thrown by the underlying file operations
 	 */
-	public static boolean shouldPlaceOnModulepath(String filePath)
+	public boolean shouldPlaceOnModulepath(String filePath)
 	throws IOException
 	{
 		Path path = Paths.get(filePath);
@@ -387,4 +452,215 @@ public final class PGXSUtils
 		}
 		return false;
 	}
+
+	/**
+	 * Returns the list of files with given extension in the input directory.
+	 *
+	 * @param sourceDirectory to list files inside
+	 * @param extension to filter files to be selected
+	 * @return list of strings of absolute paths of files
+	 */
+	public List<String> getFilesWithExtension(Path sourceDirectory,
+	                                          String extension)
+	{
+		try
+		{
+			return Files
+				       .walk(sourceDirectory)
+				       .filter(Files::isRegularFile)
+				       .map(Path::toAbsolutePath)
+				       .map(Path::toString)
+				       .filter(path -> path.endsWith(extension))
+				       .collect(java.util.stream.Collectors.toList());
+		} catch (Exception e) {
+			log.error(e);
+		}
+		return null;
+	}
+
+	/*
+	 * The same method is duplicated in pljava-packaging/Node.java . While making
+	 * changes to this method, review the other occurrence also and replicate the
+	 * changes there if desirable.
+	 */
+	/**
+	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
+	 * will be recovered correctly on Windows by a target C/C++ program using
+	 * the argument parsing algorithm of the usual C run-time code, when it is
+	 * known that the command will not be handled first by {@code cmd}.
+	 *<p>
+	 * This transformation must account for the way the C runtime will
+	 * ultimately parse the parameters apart, and also for the behavior of
+	 * Java's runtime in assembling the command line that the invoked process
+	 * will receive.
+	 * @param pb a ProcessBuilder whose command has been set to an executable
+	 * that parses parameters using the C runtime rules, and arguments as they
+	 * should result from parsing.
+	 * @return The same ProcessBuilder, with the argument list rewritten as
+	 * necessary to produce the original list as a result of Windows C runtime
+	 * parsing,
+	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
+	 * least the first command element (the executable to run)
+	 * @throws UnsupportedOperationException if the arguments passed, or system
+	 * properties in effect, produce a case this transformation cannot handle
+	 */
+	public ProcessBuilder forWindowsCRuntime(ProcessBuilder pb)
+	{
+		ListIterator<String> args = pb.command().listIterator();
+		if ( ! args.hasNext() )
+			throw new IllegalArgumentException(
+				"ProcessBuilder command must not be empty");
+
+		/*
+		 * The transformation implemented here must reflect the parsing rules
+		 * of the C run-time code, and the rules are taken from:
+		 * http://www.daviddeley.com/autohotkey/parameters/parameters.htm#WINARGV
+		 *
+		 * It must also take careful account of what the Java runtime does to
+		 * the arguments before the target process is launched, and line numbers
+		 * in comments below refer to this version of the source:
+		 * http://hg.openjdk.java.net/jdk9/jdk9/jdk/file/65464a307408/src/java.base/windows/classes/java/lang/ProcessImpl.java
+		 *
+		 * 1. Throw Unsupported if the jdk.lang.Process.allowAmbiguousCommands
+		 *    system property is in force.
+		 *
+		 *    Why?
+		 *      a. It is never allowed under a SecurityManager, so to allow it
+		 *         at all would allow code's behavior to change depending on
+		 *         whether a SecurityManager is in place.
+		 *      b. It results in a different approach to preparing the arguments
+		 *         (line 364) that would have to be separately analyzed.
+		 *
+		 * Do not test this property with Boolean.getBoolean: that returns true
+		 * only if the value equalsIgnoreCase("true"), which does not match the
+		 * test in the Java runtime (line 362).
+		 */
+		String propVal = getProperty("jdk.lang.Process.allowAmbiguousCommands");
+		if ( null != propVal && ! "false".equalsIgnoreCase(propVal) )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime transformation does not support operation" +
+					" with jdk.lang.Process.allowAmbiguousCommands in effect");
+
+		/*
+		 * 2. Throw Unsupported if the executable path name contains a "
+		 *
+		 *    Why? Because getExecutablePath passes true, unconditionally, to
+		 *    isQuoted (line 303), so it will throw IllegalArgumentException if
+		 *    there is any " in the executable path. The catch block for that
+		 *    exception (line 383) will make a highly non-correctness-preserving
+		 *    attempt to join and reparse the arguments, using
+		 *    getTokensFromCommand (line 198), which uses a regexp (line 188)
+		 *    that does not even remotely resemble the C runtime parsing rules.
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell.
+		 */
+		String executable = args.next();
+		if ( executable.contains("\"") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking an executable" +
+					" whose name contains a \" character");
+
+		/*
+		 * 3. Throw Unsupported if the executable path ends in .cmd or .bat
+		 *    (case-insensitively).
+		 *
+		 *    Why? For those extensions, the Java runtime will select different
+		 *    rules (line 414).
+		 *    a. Those rules would need to be separately analyzed.
+		 *    b. They will reject (line 286) any argument that contains a "
+		 *
+		 *    Possible future work: this case could be handled by rewriting the
+		 *    entire command as an invocation via CMD or another shell (which is
+		 *    exactly the suggestion in the exception message that would be
+		 *    produced if an argument contains a ").
+		 */
+		if ( executable.matches(".*\\.(?i:cmd|bat)$") )
+			throw new UnsupportedOperationException(
+				"forWindowsCRuntime does not support invoking a command" +
+					" whose name ends in .cmd or .bat");
+
+		/*
+		 * 4. There is a worrisome condition in the Java needsEscaping check
+		 *    (line 277), where it would conclude that escaping is NOT needed
+		 *    if an argument both starts and ends with a " character. In other
+		 *    words, it would treat that case (and just that case) not as
+		 *    characters that are part of the content and need to be escaped,
+		 *    but as a sign that its job has somehow already been done.
+		 *
+		 *    However, that will not affect this transformation, because our
+		 *    rule 5 below will ensure that any leading " has a \ added before,
+		 *    and therefore the questionable Java code will never see from us
+		 *    an arg that both starts and ends with a ".
+		 *
+		 *    There is one edge case where this behavior of the Java runtime
+		 *    will be relied on (see rule 7 below).
+		 */
+
+		while ( args.hasNext() )
+		{
+			String arg = args.next();
+
+			/*
+			 * 5. While the Java runtime code will add " at both ends of the
+			 *    argument IF the argument contains space, tab, <, or >, it does
+			 *    so with zero attention to any existing " characters in the
+			 *    content of the argument. Those must, of course, be escaped so
+			 *    the C runtime parser will not see them as ending the quoted
+			 *    region. By those rules, a " is escaped by a \ and a \ is only
+			 *    special if it is followed by a " (or in a sequence of \
+			 *    ultimately leading to a "). The needed transformation is to
+			 *    find any instance of n backslashes (n may be zero) followed
+			 *    by a ", and replace that match with 2n+1 \ followed by the ".
+			 *
+			 *    This transformation is needed whether or not the Java runtime
+			 *    will be adding " at start and end. If it does not, the same
+			 *    \ escaping is needed so the C runtime will not see a " as
+			 *    beginning a quoted region.
+			 */
+			String transformed = arg.replaceAll("(\\\\*+)(\")", "$1$1\\\\$2");
+
+			/*
+			 * 6. Only if the Java runtime will be adding " at start and end
+			 *    (i.e., only if the arg contains space, tab, <, or >), there is
+			 *    one more case where \ can be special: at the very end of the
+			 *    arg (where it will end up followed by a " when the Java
+			 *    runtime has done its thing). The Java runtime is semi-aware of
+			 *    this case (line 244): it will add a single \ if it sees that
+			 *    the arg ends with a \. However, that isn't the needed action,
+			 *    which is to double ALL consecutive \ characters ending the
+			 *    arg.
+			 *
+			 *    So the action needed here is to double all-but-one of any
+			 *    consecutive \ characters at the end of the arg, leaving one
+			 *    that will be doubled by the Java code.
+			 */
+			if ( transformed.matches("(?s:[^ \\t<>]*+.++)") )
+				transformed = transformed.replaceFirst(
+					"(\\\\)(\\\\*+)$", "$1$2$2");
+
+			/*
+			 * 7. If the argument is the empty string, it must be represented
+			 *    as "" or it will simply disappear. The Java runtime will not
+			 *    do that for us (after all, the empty string does not contain
+			 *    space, tab, <, or >), so it has to be done here, replacing the
+			 *    arg with exactly "".
+			 *
+			 *    This is the one case where we produce a value that both starts
+			 *    and ends with a " character, thereby triggering the Java
+			 *    runtime behavior described in (4) above, so the Java runtime
+			 *    will avoid trying to further "protect" the string we have
+			 *    produced here. For this one case, that 'worrisome' behavior is
+			 *    just what we want.
+			 */
+			if ( transformed.isEmpty() )
+				transformed = "\"\"";
+
+			if ( ! transformed.equals(arg) )
+				args.set(transformed);
+		}
+
+		return pb;
+	}
+
 }
