@@ -13,10 +13,19 @@ jobs:
   build:
     if: true
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.oscc.os }}
+    continue-on-error: true
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        oscc:
+#         - os: ubuntu-latest
+#           cc: gcc
+#         - os: macos-latest
+#           cc: clang
+#         - os: windows-latest
+#           cc: msvc
+          - os: windows-latest
+            cc: mingw
         java: [9, 11] # , 12, 14, 15-ea]
 
     steps:
@@ -41,15 +50,25 @@ jobs:
       if: ${{ 'Linux' == runner.os }}
       run: sudo apt-get install postgresql-server-dev-12 libkrb5-dev
 
-    - name: Build PL/Java
+    - name: Build PL/Java (Linux, macOS)
+      if: ${{ 'Windows' != runner.os }}
       working-directory: pljava
       run: |
         mvn clean install --batch-mode \
           -Psaxon-examples -Ppgjdbc-ng \
           -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
+    - name: Build PL/Java (Windows, MinGW-w64)
+      if: ${{ 'Windows' == runner.os && 'mingw' == matrix.oscc.cc }}
+      working-directory: pljava
+      shell: bash
+      run: |
+        mount
+        env
+
     - name: Install and test PL/Java
       working-directory: pljava
+      shell: bash
       run: |
         pgConfig=pg_config # runner-supplied, just get it from the PATH
 
