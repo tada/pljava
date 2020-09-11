@@ -192,7 +192,7 @@ try
 }
 catch(e)
 {
-	return new org.apache.maven.reporting.MavenReportException(e);
+	return report.exceptionWrap(e);
 }
 }
 ]]>

@@ -109,7 +109,8 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
-try {
+try
+{
 	var paths = buildPaths(report.project.compileClasspathElements);
 
 	var title = report.project.name + " " + report.project.version;
@@ -239,7 +240,7 @@ try {
 }
 catch(e)
 {
-	return new org.apache.maven.reporting.MavenReportException(e);
+	return report.exceptionWrap(e);
 }
 }
 ]]>
