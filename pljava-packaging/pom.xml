@@ -221,6 +221,8 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
+try
+{
 	var title = report.project.name + " " + report.project.version;
 
 	var basedir = report.project.basedir.toPath();
@@ -295,6 +297,12 @@ function executeReport(report, locale)
 
 	var task = tool.getTask(null, null, diagListener, null, args, null);
 	task.call();
+	return null;
+}
+catch(e)
+{
+	return new org.apache.maven.reporting.MavenReportException(e);
+}
 }
 ]]>
 							</script>

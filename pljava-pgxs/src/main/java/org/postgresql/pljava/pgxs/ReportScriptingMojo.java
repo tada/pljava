@@ -19,6 +19,7 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.reporting.AbstractMavenReport;
+import org.apache.maven.reporting.MavenReportException;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.Invocable;
@@ -191,10 +192,12 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	 * current report.
 	 */
 	@Override
-	protected void executeReport (Locale locale)
+	protected void executeReport (Locale locale) throws MavenReportException
 	{
 		setReportScript();
-		reportScript.executeReport(this, locale);
+		MavenReportException exception = reportScript.executeReport(this, locale);
+		if (exception != null)
+			throw exception;
 	}
 
 	/**
