@@ -1257,15 +1257,16 @@ public class Node extends JarX {
 	 * interleaved with any {@code SQLWarning}s reported on the result set, or
 	 * an {@code SQLException} if one is thrown.
 	 *<p>
-	 * This is supplied chiefly for use driving a {@link #dfa DFA} to verify
+	 * This is supplied chiefly for use driving a
+	 * {@link #stateMachine state machine} to verify
 	 * contents of a result set. For each row, the element in the stream will be
 	 * an instance of {@code Long}, counting up from 1 (intended to match the
 	 * result set's {@code getRow} but without relying on it, as JDBC does not
 	 * require every implementation to support it). By itself, of course, this
 	 * does not convey any of the content of the row; the lambdas representing
-	 * the DFA states should close over the result set and query it for content,
-	 * perhaps not even using the object supplied here (except to detect when it
-	 * is a warning or exception rather than a row number).
+	 * the machine states should close over the result set and query it for
+	 * content, perhaps not even using the object supplied here (except to
+	 * detect when it is a warning or exception rather than a row number).
 	 * The row position of the result set will have been updated, and should not
 	 * be otherwise modified when this method is being used to walk through the
 	 * results.
@@ -1274,8 +1275,9 @@ public class Node extends JarX {
 	 * in any way. The {@code ResultSet} will only be read forward, and each row
 	 * only once. Simple filtering, {@code dropWhile}/{@code takeWhile}, and so
 	 * on will work, but may be more conveniently rolled into the design of a
-	 * {@link #dfa DFA}, as nearly any use of a {@code ResultSet} can throw
-	 * {@code SQLException} and therefore isn't convenient in the stream API.
+	 * {@link #stateMachine state machine}, as nearly any use of a
+	 * {@code ResultSet} can throw {@code SQLException} and therefore isn't
+	 * convenient in the stream API.
 	 *<p>
 	 * Passing this result to {@code qp} as if it came from a {@code Statement}
 	 * could lead to confusion, as the {@code Long} elements would be printed as
@@ -1396,14 +1398,14 @@ public class Node extends JarX {
 	 * {@code ResultSet}.
 	 *<p>
 	 * This is another convenience method for use chiefly in driving a
-	 * {@link #dfa DFA} to check per-column values or metadata for a
-	 * {@code ResultSet}. It is, in fact, nothing other than
+	 * {@link #stateMachine state machine} to check per-column values
+	 * or metadata for a {@code ResultSet}. It is, in fact, nothing other than
 	 * {@code IntStream.rangeClosed(1, rsmd.getColumnCount()).boxed()} but typed
 	 * as {@code Stream<Object>}.
 	 *<p>
 	 * As with {@link #q(ResultSet) q(ResultSet)}, the column number supplied
 	 * here conveys no actual column data or metadata. The lambdas representing
-	 * the DFA states should close over the {@code ResultSetMetaData} or
+	 * the machine states should close over the {@code ResultSetMetaData} or
 	 * corresponding {@code ResultSet} object, or both, and use the column
 	 * number from this stream to index them.
 	 * @param rsmd a ResultSetMetaData object
@@ -1422,14 +1424,14 @@ public class Node extends JarX {
 	 * {@code PreparedStatement}.
 	 *<p>
 	 * This is another convenience method for use chiefly in driving a
-	 * {@link #dfa DFA} to check per-parameter metadata. It is, in fact,
-	 * nothing other than
+	 * {@link #stateMachine state machine} to check per-parameter metadata.
+	 * It is, in fact, nothing other than
 	 * {@code IntStream.rangeClosed(1, rsmd.getParameterCount()).boxed()}
 	 * but typed as {@code Stream<Object>}.
 	 *<p>
 	 * As with {@link #q(ResultSet) q(ResultSet)}, the column number supplied
 	 * here conveys no actual parameter metadata. The lambdas representing
-	 * the DFA states should close over the {@code ParameterMetaData} object
+	 * the machine states should close over the {@code ParameterMetaData} object
 	 * and use the parameter number from this stream to index it.
 	 * @param pmd a ParameterMetaData object
 	 * @return a Stream as described above
@@ -1993,13 +1995,13 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Executes a deterministic finite automaton (DFA) specified in the form of
-	 * a list of lambdas representing states of the DFA, to verify that a
+	 * Executes a state machine specified in the form of
+	 * a list of lambdas representing its states, to verify that a
 	 * {@link #q(Statement,Callable) result stream} is as expected.
 	 *<p>
 	 * Treats the list of lambdas as a set of consecutively-numbered states
 	 * (the first in the list is state number 1, and is the initial state).
-	 * At each automaton step, the current state is applied to the current
+	 * At each step of the machine, the current state is applied to the current
 	 * input object, and may return an {@code Integer} or a {@code Boolean}.
 	 *<p>
 	 * If an integer, its absolute value selects the next state. A positive
@@ -2008,15 +2010,15 @@ public class Node extends JarX {
 	 * selected next state without consuming the current input item, so it will
 	 * be examined again in the newly selected state.
 	 *<p>
-	 * If boolean, {@code false} indicates that the DFA cannot proceed; the
+	 * If boolean, {@code false} indicates that the machine cannot proceed; the
 	 * supplied <em>reporter</em> will be passed an explanatory string and this
 	 * method returns false. A state that returns {@code true} indicates the
-	 * automaton has reached an accepting state.
+	 * machine has reached an accepting state.
 	 *<p>
 	 * No item of input is allowed to be null; null is reserved to be the
 	 * end-of-input symbol. If a state returns {@code true} (accept)
-	 * when applied to null at the end of input, the DFA has matched and this
-	 * method returns true. A state may also return a negative integer in
+	 * when applied to null at the end of input, the machine has matched and
+	 * this method returns true. A state may also return a negative integer in
 	 * this case, to shift to another state while looking at the end of input.
 	 * A positive integer (attempting to consume the end of input), or a false,
 	 * return will cause an explanatory message to the <em>reporter</em> and a
@@ -2024,7 +2026,7 @@ public class Node extends JarX {
 	 *<p>
 	 * A state may return {@code true} (accept) when looking at a non-null
 	 * input item, but the input will be checked to confirm it has no more
-	 * elements. Otherwise, the automaton has tried to accept before matching
+	 * elements. Otherwise, the machine has tried to accept before matching
 	 * all the input, and this method will return false.
 	 *<p>
 	 * To avoid defining a new functional interface, each state is represented
@@ -2041,20 +2043,20 @@ public class Node extends JarX {
 	 * The {@link #as as} method combines those operations. If its argument
 	 * either is null or cannot be cast to the wanted type, {@code as} will
 	 * throw a specific instance of {@code ClassCastException}, which will be
-	 * treated, when caught by {@code dfa}, just as if the state had returned
-	 * {@code false}.
-	 * @param name A name for this dfa, used only in exception messages if it
-	 * fails to match
-	 * @param reporter a Consumer to accept a diagnostic string if the DFA fails
-	 * to match, defaulting if null to System.err::println
+	 * treated, when caught by {@code stateMachine}, just as if the state
+	 * had returned {@code false}.
+	 * @param name A name for this state machine, used only in exception
+	 * messages if it fails to match all the input
+	 * @param reporter a Consumer to accept a diagnostic string if the machine
+	 * fails to match, defaulting if null to System.err::println
 	 * @param input A Stream of input items, of which none may be null
-	 * @param states Lambdas representing states of the DFA
+	 * @param states Lambdas representing states of the machine
 	 * @return true if an accepting state was reached coinciding with the end
 	 * of input
 	 * @throws Exception Anything that could be thrown during evaluation of the
 	 * input stream or any state
 	 */
-	public static boolean dfa(
+	public static boolean stateMachine(
 		String name, Consumer<String> reporter, Stream<Object> input,
 		InvocationHandler... states)
 	throws Exception
@@ -2081,7 +2083,8 @@ public class Node extends JarX {
 					++ inputCount;
 					if ( null == currentInput )
 						throw new UnsupportedOperationException(
-							"Input to dfa() must not contain null values");
+							"Input to stateMachine() must " +
+							"not contain null values");
 					hasCurrent = true;
 				}
 
@@ -2092,7 +2095,7 @@ public class Node extends JarX {
 					if ( (Boolean)result  &&  ! in.hasNext() )
 						return true;
 					reporter.accept(String.format(
-						"dfa \"%s\" in state %d at step %d: %s",
+						"stateMachine \"%s\" in state %d at step %d: %s",
 						name, 1 + currentState, stepCount, (Boolean)result
 						? String.format(
 							"transitioned to ACCEPT after %d input items but " +
@@ -2127,7 +2130,7 @@ public class Node extends JarX {
 			}
 
 			reporter.accept(String.format(
-				"dfa \"%s\" in state %d at step %d: " +
+				"stateMachine \"%s\" in state %d at step %d: " +
 				"does not accept at end of input after %d items",
 				name, 1 + currentState, stepCount, inputCount));
 			return false;
@@ -2138,10 +2141,10 @@ public class Node extends JarX {
 	 * Casts <em>o</em> to class <em>clazz</em>, testing it also for null.
 	 *<p>
 	 * This is meant as a shorthand in implementing states for
-	 * {@link #dfa dfa}. If <em>o</em> either is null or is not castable to the
-	 * desired type, a distinguished instance of {@code ClassCastException} will
-	 * be thrown, which is treated specially if caught by {@code dfa} while
-	 * evaluating a state.
+	 * {@link #stateMachine stateMachine}. If <em>o</em> either is null or
+	 * is not castable to the desired type, a distinguished instance of
+	 * {@code ClassCastException} will be thrown, which is treated specially
+	 * if caught by {@code stateMachine} while evaluating a state.
 	 */
 	public static <T> T as(Class<T> clazz, Object o)
 	{
