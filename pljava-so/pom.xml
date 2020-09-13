@@ -286,7 +286,19 @@
 	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
 	var files = utils.getFilesWithExtension(source_path, ".c");
+
 	var compile_flags = new ArrayList();
+	var link_flags = new ArrayList();
+	/*
+	 * pg_config can sometimes sneak options into the value of CC (for example,
+	 * gcc -std=gnu99). Add it to compile_flags as a list, then snatch the first
+	 * element back out to use as the CC executable. Copy any remaining flags
+	 * to link_flags also.
+	 */
+	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cc));
+	cc = compile_flags.remove(0);
+	link_flags.addAll(compile_flags);
+
 	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags));
 	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cppflags));
 	compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
@@ -296,7 +308,6 @@
 			.MojoExecutionException("Compilation failed with exit code: " + exitCode);
 
 	var object_files =  utils.getFilesWithExtension(target_path, extension);
-	var link_flags = new ArrayList();
 	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags));
 	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_sl));
 	link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_ex));
