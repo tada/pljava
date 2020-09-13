@@ -169,7 +169,8 @@ static void JVMOptList_addVisualVMName(JVMOptList*);
 static void JVMOptList_addModuleMain(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static char* getModulePath(const char*);
-static jint JNICALL my_vfprintf(FILE*, const char*, va_list);
+static jint JNICALL my_vfprintf(FILE*, const char*, va_list)
+	pg_attribute_printf(2, 0);
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
