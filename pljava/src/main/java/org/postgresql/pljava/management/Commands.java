@@ -1026,7 +1026,7 @@ public class Commands
 	throws SQLException
 	{
 		Oid typeId = Oid.forTypeName(sqlTypeName);
-		s_logger.info("Type id = " + typeId.toString());
+		s_logger.finer("Type id = " + typeId.toString());
 
 		AclId invoker = AclId.getOuterUser();
 
