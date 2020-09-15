@@ -278,7 +278,7 @@ public interface Checked<WT, EX extends Throwable>
 	 * later, and the compiler will infer that it can throw whatever
 	 * {@code thing.release()} can throw:
 	 *<pre>
-	 *  try(var ac = closing(() -&gt; thing.release()))
+	 *  try(var ac = closing(() -&gt; { thing.release(); }))
 	 *  {
 	 *    ...
 	 *  }
@@ -289,7 +289,7 @@ public interface Checked<WT, EX extends Throwable>
 	 * interface:
 	 *<pre>
 	 *  try(Checked.AutoCloseable&lt;ThingException&gt; ac =
-	 *		closing(() -&gt; thing.release()))
+	 *		closing(() -&gt; { thing.release(); }))
 	 *  {
 	 *    ...
 	 *  }
