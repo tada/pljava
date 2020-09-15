@@ -11,7 +11,12 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.NoSuchElementException;
+import static java.util.Objects.requireNonNull;
+import java.util.stream.BaseStream;
 
 /**
  * Functional interfaces handling checked exceptions.
@@ -29,7 +34,7 @@ import java.util.NoSuchElementException;
  * {@code boolean}. To allow a more orthogonal API for access to datum values,
  * those are provided here, again supporting checked exceptions. Because these
  * "bonus" types do not have checked-exception-less counterparts in the Java
- * API, they have no need for the wrapper methods described next.
+ * API, they do not strictly need the wrapper methods described next.
  *<p>
  * For interoperating with Java APIs that require the Java no-checked-exceptions
  * versions of these interfaces, each checked interface here (for which a Java
@@ -46,7 +51,7 @@ import java.util.NoSuchElementException;
  * Writer w = ...;
  * try {
  *   Checked.Consumer.use((String s) -&gt; w.write(s)) // throws IOException!
- *     .in(c -> strs.forEach(c));
+ *     .in(c -&gt; strs.forEach(c));
  * }
  * catch ( IOException e ) { ... }
  *</pre>
@@ -63,15 +68,27 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * cannot accept them, it can be useful as long as the intervening code through
  * which the exception may be 'flown' is simple and short.
  *<p>
+ * The functional interfaces defined here that do <em>not</em> correspond to a
+ * Java API no-checked version, while not strictly needing an {@code ederWrap}
+ * method, have one anyway, a no-op identity function. That avoids arbitrary
+ * limits on which ones can participate in the {@code use(...).in(...)} idiom.
+ *<p>
  * Static {@code composed()} methods are provided here in place of the instance
  * {@code compose} or {@code andThen} methods in Java's function API, which seem
  * to challenge {@code javac}'s type inference when exception types are thrown
  * in. A static {@code composed} method can substitute for {@code compose} or
- * {@code andThen}, by ordering the parameters as desired.
+ * {@code andThen}, by ordering the parameters as desired. Likewise, static
+ * {@code and} and {@code or} methods are provided in place of the instance
+ * methods on Java's {@code Predicate}.
  *<p>
  * Each functional interface declared here has a static {@code use(...)} method
  * that can serve, as a concise alternative to casting, to constrain the type
  * of a lambda expression when the compiler won't infer it.
+ *<p>
+ * A {@link AutoCloseable variant of AutoCloseable} with an exception-type
+ * parameter, and some {@link #closing(AutoCloseable) closing} methods (inspired
+ * by Python, for use with resources that do not already implement
+ * {@code AutoCloseable}), are also provided.
  */
 public interface Checked<WT, EX extends Throwable>
 {
@@ -91,31 +108,86 @@ public interface Checked<WT, EX extends Throwable>
 	}
 
 	default <RT, RX extends Throwable>
-	RT in(Function<? super WT, RT, RX> f)
+	RT inReturning(Function<? super WT, RT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	double in(ToDoubleFunction<? super WT, RX> f)
+	double inDoubleReturning(ToDoubleFunction<? super WT, RX> f)
 		throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	int in(ToIntFunction<? super WT, RX> f)
+	int inIntReturning(ToIntFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
 	}
 
 	default <RX extends Throwable>
-	long in(ToLongFunction<? super WT, RX> f)
+	long inLongReturning(ToLongFunction<? super WT, RX> f)
 	throws EX, RX
 	{
 		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	boolean inBooleanReturning(Predicate<? super WT, RX> f)
+		throws EX, RX
+	{
+		return f.test(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	byte inByteReturning(ToByteFunction<? super WT, RX> f)
+		throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	short inShortReturning(ToShortFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	char inCharReturning(ToCharFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	default <RX extends Throwable>
+	float inFloatReturning(ToFloatFunction<? super WT, RX> f)
+	throws EX, RX
+	{
+		return f.apply(ederWrap());
+	}
+
+	/*
+	 * Short-circuiting predicate combinators.
+	 */
+
+	static <T, E extends Throwable>
+		Predicate<T,E> and(
+			Predicate<? super T, ? extends E> first,
+			Predicate<? super T, ? extends E> after)
+	{
+		return t -> first.test(t) && after.test(t);
+	}
+
+	static <T, E extends Throwable>
+		Predicate<T,E> or(
+			Predicate<? super T, ? extends E> first,
+			Predicate<? super T, ? extends E> after)
+	{
+		return t -> first.test(t) || after.test(t);
 	}
 
 	/*
@@ -176,6 +248,153 @@ public interface Checked<WT, EX extends Throwable>
 			first.accept(t);
 			after.accept(t);
 		};
+	}
+
+	/**
+	 * Version of {@link java.lang.AutoCloseable} with an exception-type
+	 * parameter.
+	 *<p>
+	 * This does not need {@code use} or {@code ederWrap} methods because Java's
+	 * {@code AutoCloseable} already allows checked exceptions. The only trouble
+	 * with the Java one is it can't be parameterized to narrow the thrown type
+	 * from {@code Exception}. In Java's API docs, implementers are "strongly
+	 * encouraged" to narrow their {@code throws} clauses, but that's only
+	 * helpful where the compiler sees the specific implementing class.
+	 */
+	@FunctionalInterface
+	interface AutoCloseable<E extends Exception>
+	extends java.lang.AutoCloseable
+	{
+		@Override
+		void close() throws E;
+	}
+
+	/**
+	 * Returns its argument; shorthand for casting a suitable lambda to
+	 * {@code AutoCloseable<E>}.
+	 *<p>
+	 * Where some resource does not itself implement {@code AutoCloseable}, an
+	 * idiom like the following, inspired by Python, can be used in Java 10 or
+	 * later, and the compiler will infer that it can throw whatever
+	 * {@code thing.release()} can throw:
+	 *<pre>
+	 *  try(var ac = closing(() -&gt; { thing.release(); }))
+	 *  {
+	 *    ...
+	 *  }
+	 *</pre>
+	 *<p>
+	 * Pre-Java 10, without {@code var}, you have to specify the exception type,
+	 * but you still get the simple idiom without needing to declare some new
+	 * interface:
+	 *<pre>
+	 *  try(Checked.AutoCloseable&lt;ThingException&gt; ac =
+	 *		closing(() -&gt; { thing.release(); }))
+	 *  {
+	 *    ...
+	 *  }
+	 *</pre>
+	 */
+	static <E extends Exception>
+		AutoCloseable<E> closing(AutoCloseable<E> o)
+	{
+		return o;
+	}
+
+	/**
+	 * Wrap some payload and a 'closer' lambda as a {@code Closing} instance
+	 * that can supply the payload and implements {@code AutoCloseable} using
+	 * the lambda; useful in a {@code try}-with-resources when the payload
+	 * itself does not implement {@code AutoCloseable}.
+	 */
+	static <T, E extends Exception>
+		Closing<T,E> closing(T payload, AutoCloseable<E> closer)
+	{
+		return new Closing<>(payload, closer);
+	}
+
+	/**
+	 * Given a stream and a lambda that should be invoked when it is closed,
+	 * construct a new stream that runs that lambda when closed, and return a
+	 * {@code Closing} instance with the new stream as its payload, which will
+	 * be closed by the {@code close} action.
+	 *<p>
+	 * Intended for use in a {@code try}-with-resources. Any checked exception
+	 * throwable by <em>closer</em> will be remembered as throwable by the
+	 * {@code close} method of the returned {@code Closing} instance (and
+	 * therefore will be considered throwable by the {@code try}-with-resources
+	 * in which it is used. Any other code that calls {@code close} directly on
+	 * the returned stream could be surprised by the checked exception, as a
+	 * stream's {@code close} method is not declared to throw any. When used as
+	 * intended in a {@code try}-with-resources, any such surprise is bounded
+	 * by the scope of that statement.
+	 */
+	static <T, S extends BaseStream<T,S>, E extends Exception>
+		Closing<S,E> closing(S stream, Runnable<E> closer)
+	{
+		S newStream = stream.onClose(closer.ederWrap());
+		return new Closing<>(newStream, newStream::close);
+	}
+
+	/**
+	 * A class that can supply a {@code T} while also implementing
+	 * {@code AutoCloseable<E>}; suitable for use in a
+	 * {@code try}-with-resources to wrap some value that does not itself
+	 * implement {@code AutoCloseable}.
+	 *<p>
+	 * Obtained via one of the {@code closing} methods above.
+	 */
+	/*
+	 * This class also encloses the private interface Trivial, simply to make it
+	 * private (a private interface can only exist within a class) to ensure it
+	 * is only extended by other interfaces in this compilation unit (its
+	 * default method includes an unchecked cast). It did not seem worth
+	 * creating another entire class only to enclose a private interface.
+	 */
+	class Closing<T, E extends Exception>
+	implements java.util.function.Supplier<T>, AutoCloseable<E>
+	{
+		private final T m_payload;
+		private final AutoCloseable<E> m_closer;
+
+		private Closing(T payload, AutoCloseable<E> closer)
+		{
+			m_payload = payload;
+			m_closer = requireNonNull(closer);
+		}
+
+		@Override
+		public T get()
+		{
+			return m_payload;
+		}
+
+		@Override
+		public void close() throws E
+		{
+			m_closer.close();
+		}
+
+		/**
+		 * Superinterface of the functional interfaces declared here that do
+		 * <em>not</em> have checked-exception-less counterparts in Java's API.
+		 *<p>
+		 * These can all inherit a no-op default {@code ederWrap} that returns
+		 * the instance unchanged, allowing them also to participate in the
+		 * {@code use(...).in(...)} idiom for stylistic consistency even if it
+		 * is not strictly necessary.
+		 */
+		private interface Trivial
+			<WT extends Trivial<WT, EX>, EX extends Throwable>
+		extends Checked<WT, EX>
+		{
+			@Override
+			@SuppressWarnings("unchecked")
+			default WT ederWrap()
+			{
+				return (WT) this;
+			}
+		}
 	}
 
 	/*
@@ -361,6 +580,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteSupplier<E extends Throwable>
+	extends Closing.Trivial<ByteSupplier<E>, E>
 	{
 		byte getAsByte() throws E;
 
@@ -372,6 +592,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortSupplier<E extends Throwable>
+	extends Closing.Trivial<ShortSupplier<E>, E>
 	{
 		short getAsShort() throws E;
 
@@ -383,6 +604,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharSupplier<E extends Throwable>
+	extends Closing.Trivial<CharSupplier<E>, E>
 	{
 		char getAsChar() throws E;
 
@@ -394,6 +616,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatSupplier<E extends Throwable>
+	extends Closing.Trivial<FloatSupplier<E>, E>
 	{
 		float getAsFloat() throws E;
 
@@ -523,6 +746,96 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	@FunctionalInterface
+	interface Predicate<T,E extends Throwable>
+	extends Checked<java.util.function.Predicate<T>, E>
+	{
+		boolean test(T t) throws E;
+
+		default Predicate<T,E> negate()
+		{
+			return t -> ! test(t);
+		}
+
+		@Override
+		default java.util.function.Predicate<T> ederWrap()
+		{
+			return (t) ->
+			{
+				try
+				{
+					return test(t);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, E extends Throwable>
+		Predicate<T,E> use(Predicate<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	/*
+	 * Functions without checked-exception-less Java API counterparts.
+	 */
+
+	@FunctionalInterface
+	interface ToByteFunction<T,E extends Throwable>
+	extends Closing.Trivial<ToByteFunction<T,E>, E>
+	{
+		byte apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToByteFunction<T,E> use(ToByteFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToShortFunction<T,E extends Throwable>
+	extends Closing.Trivial<ToShortFunction<T,E>, E>
+	{
+		short apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToShortFunction<T,E> use(ToShortFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToCharFunction<T,E extends Throwable>
+	extends Closing.Trivial<ToCharFunction<T,E>, E>
+	{
+		char apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToCharFunction<T,E> use(ToCharFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
+	@FunctionalInterface
+	interface ToFloatFunction<T,E extends Throwable>
+	extends Closing.Trivial<ToFloatFunction<T,E>, E>
+	{
+		float apply(T t) throws E;
+
+		static <T, E extends Throwable>
+		ToFloatFunction<T,E> use(ToFloatFunction<T,E> o)
+		{
+			return o;
+		}
+	}
+
 	/*
 	 * Consumers that have checked-exception-less counterparts in the Java API.
 	 */
@@ -645,6 +958,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface BooleanConsumer<E extends Throwable>
+	extends Closing.Trivial<BooleanConsumer<E>, E>
 	{
 		void accept(boolean value) throws E;
 
@@ -657,6 +971,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ByteConsumer<E extends Throwable>
+	extends Closing.Trivial<ByteConsumer<E>, E>
 	{
 		void accept(byte value) throws E;
 
@@ -668,6 +983,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface ShortConsumer<E extends Throwable>
+	extends Closing.Trivial<ShortConsumer<E>, E>
 	{
 		void accept(short value) throws E;
 
@@ -679,6 +995,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface CharConsumer<E extends Throwable>
+	extends Closing.Trivial<CharConsumer<E>, E>
 	{
 		void accept(char value) throws E;
 
@@ -690,6 +1007,7 @@ public interface Checked<WT, EX extends Throwable>
 
 	@FunctionalInterface
 	interface FloatConsumer<E extends Throwable>
+	extends Closing.Trivial<FloatConsumer<E>, E>
 	{
 		void accept(float value) throws E;
 
@@ -701,6 +1019,12 @@ public interface Checked<WT, EX extends Throwable>
 
 	/*
 	 * Optionals without checked-exception-less counterparts in the Java API.
+	 *
+	 * Rather than following Java's odd "Value-Based Class" conventions (which
+	 * would require each class to be final and therefore preclude a None/Some
+	 * implementation), these all have private constructors and constitute an
+	 * effectively sealed hierarchy. Client code can and should treat them as
+	 * value-based classes, and they will behave.
 	 */
 
 	abstract class OptionalBase
@@ -711,9 +1035,74 @@ public interface Checked<WT, EX extends Throwable>
 		}
 
 		@Override
+		public boolean equals(Object obj)
+		{
+			/*
+			 * This is the equals() inherited by every EMPTY instance, and
+			 * therefore can only return true when obj is an instance of the
+			 * exact same type.
+			 */
+			return null != obj && getClass().equals(obj.getClass());
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return 0;
+		}
+
+		@Override
 		public String toString()
 		{
 			return getClass().getSimpleName() + ".empty";
+		}
+
+		public static OptionalDouble ofNullable(Double value)
+		{
+			return null == value ?
+				OptionalDouble.empty() : OptionalDouble.of(value);
+		}
+
+		public static OptionalInt ofNullable(Integer value)
+		{
+			return null == value ?
+				OptionalInt.empty() : OptionalInt.of(value);
+		}
+
+		public static OptionalLong ofNullable(Long value)
+		{
+			return null == value ?
+				OptionalLong.empty() : OptionalLong.of(value);
+		}
+
+		public static OptionalBoolean ofNullable(Boolean value)
+		{
+			return null == value ?
+				OptionalBoolean.EMPTY : OptionalBoolean.of(value);
+		}
+
+		public static OptionalByte ofNullable(Byte value)
+		{
+			return null == value ?
+				OptionalByte.EMPTY : OptionalByte.of(value);
+		}
+
+		public static OptionalShort ofNullable(Short value)
+		{
+			return null == value ?
+				OptionalShort.EMPTY : OptionalShort.of(value);
+		}
+
+		public static OptionalChar ofNullable(Character value)
+		{
+			return null == value ?
+				OptionalChar.EMPTY : OptionalChar.of(value);
+		}
+
+		public static OptionalFloat ofNullable(Float value)
+		{
+			return null == value ?
+				OptionalFloat.EMPTY : OptionalFloat.of(value);
 		}
 	}
 
@@ -780,6 +1169,17 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			/*
+			 * The inherited equals() works here too; this and obj must be both
+			 * of class False or both of class True.
+			 */
+
+			@Override
+			public int hashCode()
+			{
+				return Boolean.hashCode(getAsBoolean());
 			}
 
 			@Override
@@ -924,6 +1324,19 @@ public interface Checked<WT, EX extends Throwable>
 			}
 
 			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Byte.hashCode(m_value);
+			}
+
+			@Override
 			public String toString()
 			{
 				return "OptionalByte[" + m_value + ']';
@@ -1040,6 +1453,19 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Short.hashCode(m_value);
 			}
 
 			@Override
@@ -1161,6 +1587,19 @@ public interface Checked<WT, EX extends Throwable>
 			}
 
 			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (m_value == ((Present)obj).m_value);
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Character.hashCode(m_value);
+			}
+
+			@Override
 			public String toString()
 			{
 				return "OptionalChar[" + (int)m_value + ']';
@@ -1276,6 +1715,19 @@ public interface Checked<WT, EX extends Throwable>
 			public boolean isPresent()
 			{
 				return true;
+			}
+
+			@Override
+			public boolean equals(Object obj)
+			{
+				return obj instanceof Present
+					&& (0 == Float.compare(m_value, ((Present)obj).m_value));
+			}
+
+			@Override
+			public int hashCode()
+			{
+				return Float.hashCode(m_value);
 			}
 
 			@Override
