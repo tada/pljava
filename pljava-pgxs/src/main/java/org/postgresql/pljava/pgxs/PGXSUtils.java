@@ -12,6 +12,9 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.plugin.AbstractMojoExecutionException;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
@@ -661,6 +664,61 @@ public final class PGXSUtils
 		}
 
 		return pb;
+	}
+
+	/**
+	 * Wraps the input object in a {@link MojoExecutionException}.
+	 *
+	 * The returned exception is constructed as follows:
+	 * 1) If {@code object} is null, the exception message indicates the same.
+	 * 2) If {@code object} is already a {@link MojoExecutionException}, return it
+	 * as is.
+	 * 3) If {@code object} is any other {@link Throwable}, set it as the cause
+	 * for the exception.
+	 * {@link MojoExecutionException} with {@code object} as its cause.
+	 * 4) If {@code object} is a {@link String}, set it as the message of the
+	 * exception.
+	 * 5) For all other case, the message of the exception is set in this format
+	 * , Class Name of object: String representation of object.
+	 *
+	 * @param object to wrap in MojoExecutionException
+	 * @return object wrapped inside a {@link MojoExecutionException}
+	 */
+	public AbstractMojoExecutionException exceptionWrap(Object object,
+														boolean scriptFailure)
+	{
+		AbstractMojoExecutionException exception;
+		if (object == null)
+			exception = new MojoExecutionException("Script threw a null value");
+		else if (object instanceof MojoExecutionException)
+			exception = (MojoExecutionException) object;
+		else if (object instanceof MojoFailureException)
+			exception = (MojoFailureException) object;
+		else if (object instanceof Throwable)
+		{
+			Throwable t = (Throwable) object;
+			if (scriptFailure)
+				exception = new MojoExecutionException(t.getMessage(), t);
+			else
+				exception = new MojoFailureException(t.getMessage(), t);
+		}
+		else if (object instanceof String)
+		{
+			if (scriptFailure)
+				exception = new MojoExecutionException((String) object);
+			else
+				exception = new MojoFailureException((String) object);
+		}
+		else
+		{
+			String message = object.getClass().getCanonicalName()
+				+ ": " + object.toString();
+			if (scriptFailure)
+				exception = new MojoExecutionException(message);
+			else
+				exception = new MojoFailureException(message);
+		}
+		return exception;
 	}
 
 }

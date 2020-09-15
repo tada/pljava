@@ -285,6 +285,10 @@
 
 	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
+function execute()
+{
+try
+{
 	var files = utils.getFilesWithExtension(source_path, ".c");
 
 	var compile_flags = new ArrayList();
@@ -315,7 +319,13 @@
 	if (exitCode != 0)
 		throw new org.apache.maven.plugin
 			.MojoExecutionException("Linking failed with exit code: " + exitCode);
-
+	return null;
+}
+catch(e)
+{
+	return utils.exceptionWrap(e);
+}
+}
 ]]>
 							</script>
 						</configuration>

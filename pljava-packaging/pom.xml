@@ -106,6 +106,8 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
+function execute()
+{
 	var twocomp =
 		getPgConfigProperty("--version")
 		.replaceAll("devel.*|alpha.*|beta.*|rc.*$", "\\.99")
@@ -120,6 +122,8 @@
 		var onecomp = twocomp.replaceAll("\\.\\d+", "");
 		setProjectProperty("PGSQL_VER_CLASSIFIER", onecomp);
 	}
+	return null;
+}
 ]]>
 							</script>
 						</configuration>

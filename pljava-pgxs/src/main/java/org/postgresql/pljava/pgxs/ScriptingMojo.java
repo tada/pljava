@@ -13,6 +13,9 @@
 package org.postgresql.pljava.pgxs;
 
 import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.AbstractMojoExecutionException;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -20,6 +23,7 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
+import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
@@ -50,7 +54,7 @@ public class ScriptingMojo extends AbstractMojo
 	 * configuration.
 	 */
 	@Override
-	public void execute ()
+	public void execute () throws MojoExecutionException, MojoFailureException
 	{
 		try
 		{
@@ -68,6 +72,16 @@ public class ScriptingMojo extends AbstractMojo
 			engine.put("getPgConfigProperty",
 				(Function<String, String>) this::getPgConfigProperty);
 			engine.eval(scriptText);
+
+			GoalScript goal = ((Invocable) engine).getInterface(GoalScript.class);
+			AbstractMojoExecutionException exception = goal.execute();
+			if (exception != null)
+			{
+				if (exception instanceof MojoExecutionException)
+					throw (MojoExecutionException) exception;
+				else if (exception instanceof MojoFailureException)
+					throw (MojoFailureException) exception;
+			}
 		}
 		catch (ScriptException e)
 		{
