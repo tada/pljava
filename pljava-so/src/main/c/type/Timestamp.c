@@ -406,7 +406,7 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
 static int32 Timestamp_getTimeZone(pg_time_t time)
 {
 #if defined(_MSC_VER) && ( \
-	100000<=PG_VERSION_NUM && PG_VERSION_NUM<102000 || \
+	100000<=PG_VERSION_NUM && PG_VERSION_NUM<100002 || \
 	 90600<=PG_VERSION_NUM && PG_VERSION_NUM< 90607 || \
 	 90500<=PG_VERSION_NUM && PG_VERSION_NUM< 90511 || \
 	 90400<=PG_VERSION_NUM && PG_VERSION_NUM< 90416 || \
