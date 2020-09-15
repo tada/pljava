@@ -43,10 +43,6 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 	// server, etc.
 	permission java.io.FilePermission
 		"<<ALL FILES>>", "read";
-
-	// Required here as well as for sqlj:examples, as both will be on the stack
-	// when the PreJSR310 example needs it.
-	permission java.util.PropertyPermission "user.timezone", "write";
 };
 
 // These grants apply to the supplied examples, if sqlj.install_jar is given the

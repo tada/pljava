@@ -18,6 +18,7 @@ import static java.lang.invoke.MethodHandles.arrayElementGetter;
 import static java.lang.invoke.MethodHandles.arrayElementSetter;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
+import static java.lang.invoke.MethodHandles.empty;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
@@ -27,6 +28,7 @@ import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.lang.invoke.MethodHandles.publicLookup;
+import static java.lang.invoke.MethodHandles.zero;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 import java.lang.invoke.WrongMethodTypeException;
@@ -40,6 +42,8 @@ import java.lang.reflect.TypeVariable;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+
+import java.security.PrivilegedAction;
 
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -62,6 +66,7 @@ import static java.util.regex.Pattern.compile;
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import static org.postgresql.pljava.internal.EntryPoints.invoker;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
 import org.postgresql.pljava.management.Commands;
@@ -79,21 +84,19 @@ import org.postgresql.pljava.sqlj.Loader;
  * if the function has not already been called. That C function calls the
  * {@link #create create} method here, which ultimately (after all parsing of
  * the {@code CREATE FUNCTION ... AS ...} information, matching up of parameter
- * and return types, etc.) will return a {@code MethodHandle} to use when
+ * and return types, etc.) will return a {@code PrivilegedAction} to use when
  * invoking the function.
  *<p>
  * This remains a hybrid approach, in which PL/Java's legacy C {@code Type}
  * infrastructure is used for converting the parameter and return values, and a
  * C {@code Function_} structure kept in a C hash table holds the details
- * needed for invocation, including the {@code MethodHandle} created here. The
- * methods in this class also use some JNI calls to contribute and retrieve
+ * needed for invocation, including the {@code PrivilegedAction} created here.
+ * The methods in this class also use some JNI calls to contribute and retrieve
  * additional details that belong in the C structure.
  *<p>
- * The method handle returned here by {@code create} will have return type of
- * either {@code Object} (for a target method returning any reference type) or
- * {@code void} (for a target method of any other return type, including
- * {@code void}), and no formal parameters. The method handle can contain bound
- * references to the static {@code s_referenceParameters} and
+ * The {@code PrivilegedAction} returned here by {@code create} will have return
+ * type {@code Object} and no formal parameters. The method handle can contain
+ * bound references to the static {@code s_referenceParameters} and
  * {@code s_primitiveParameters} declared in this class, and will fetch the
  * parameters from there (where invocation code in {@code Function.c} will have
  * put them) at the time of invocation. The parameter areas are static, but
@@ -101,7 +104,8 @@ import org.postgresql.pljava.sqlj.Loader;
  * here will have fetched all of the values to push on the stack before the
  * (potentially reentrant) target method is invoked. If the method has a
  * primitive return type, its return value will be placed in the first slot of
- * {@code s_primitiveParameters} and the method handle returns {@code void}.
+ * {@code s_primitiveParameters} and the {@code PrivilegedAction}
+ * ({@code Object}-typed as always) returns null.
  * Naturally, the (potentially reentrant) target method has already returned
  * before that value is placed in the static slot.
  */
@@ -352,14 +356,11 @@ public class Function
 	 * return a method handle that takes no parameters, and invokes the original
 	 * handle with the parameter values unpacked to their proper positions.
 	 *<p>
-	 * The handle's return type will be {@code void} if primitive, or, if any
-	 * reference type, erased to {@code Object}. The erasure allows a single
-	 * wrapper method for reference return types that can be declared to return
-	 * {@code Object} and still use {@code invokeExact} on the method handle.
-	 * For any (non-{@code void}) primitive type, the handle will store the
-	 * actual returned value back into the first static primitive-parameters
-	 * slot, allowing a single {@code void}-returning invocation wrapper for all
-	 * of the primitive return types.
+	 * The handle's return type will always be {@code Object}. If the target
+	 * has {@code void} or a primitive return type, null will be returned. Any
+	 * primitive value returned by the target will be found in the first static
+	 * primitive parameter slot. This convention allows a single wrapper method
+	 * for all return types.
 	 */
 	private static MethodHandle adaptHandle(MethodHandle mh)
 	{
@@ -501,7 +502,9 @@ public class Function
 		 * value of reference type is simply returned.
 		 */
 		Class<?> rt = mt.returnType();
-		if ( void.class != rt  &&  rt.isPrimitive() )
+		if ( void.class == rt )
+			mh = filterReturnValue(mh, s_voidToNull);
+		else if ( rt.isPrimitive() )
 		{
 			MethodHandle primReturn;
 			switch ( rt.getSimpleName() )
@@ -538,6 +541,7 @@ public class Function
 	private static final MethodHandle s_floatReturn;
 	private static final MethodHandle s_longReturn;
 	private static final MethodHandle s_doubleReturn;
+	private static final MethodHandle s_voidToNull;
 	private static final MethodHandle s_booleanGetter;
 	private static final MethodHandle s_byteGetter;
 	private static final MethodHandle s_shortGetter;
@@ -568,13 +572,12 @@ public class Function
 	 * that happens before the target is invoked, and calls must happen on the
 	 * PG thread, the static areas are safe for reentrant calls.
 	 *
-	 * Such a constructed method handle will be passed to EntryPoints.refInvoke
-	 * if the invocation target returns a reference type (which becomes the
-	 * return value of refInvoke). If the target has a primitive or void return
-	 * type, the handle will be passed to EntryPoints.invoke, which has void
-	 * return type. If the target returns a primitive value, the last act of the
-	 * constructed method handle will be to store that in the first slot of
-	 * s_primitiveParameters, where the C code will find it.
+	 * Such a constructed method handle will be passed, wrapped in
+	 * a PrivilegedAction, to EntryPoints.invoke, which is declared to return
+	 * Object always. If the target returns a primitive value, the last act of
+	 * the constructed method handle will be to store that in the first slot of
+	 * s_primitiveParameters, where the C code will find it, and return null as
+	 * its "Object" return value.
 	 *
 	 * The primitive parameters area is slightly larger than 255 jvalues; the
 	 * next two bytes contain the numbers of actual parameters in the call (as
@@ -678,8 +681,8 @@ public class Function
 	{
 		Lookup l = publicLookup();
 		Lookup myL = lookup();
-		MethodHandle toVoid = identity(ByteBuffer.class)
-			.asType(methodType(void.class, ByteBuffer.class));
+		MethodHandle toVoid = empty(methodType(void.class, ByteBuffer.class));
+		MethodHandle toNull = empty(methodType(Object.class, ByteBuffer.class));
 		MethodHandle longSetter = null;
 		MethodType mt = methodType(byte.class, int.class);
 		MethodHandle mh;
@@ -719,44 +722,46 @@ public class Function
 			mh = myL.findStatic(Function.class, "paramCountsAre", mt);
 			s_paramCountsAre = mh;
 
+			s_voidToNull = zero(Object.class);
+
 			mt = methodType(ByteBuffer.class, int.class, byte.class);
 			mh = l.findVirtual(ByteBuffer.class, "put", mt)
 				.bindTo(s_primitiveParameters);
-			s_byteReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_byteReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, short.class);
 			mh = l.findVirtual(ByteBuffer.class, "putShort", mt)
 				.bindTo(s_primitiveParameters);
 			s_shortReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, char.class);
 			mh = l.findVirtual(ByteBuffer.class, "putChar", mt)
 				.bindTo(s_primitiveParameters);
-			s_charReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_charReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, int.class);
 			mh = l.findVirtual(ByteBuffer.class, "putInt", mt)
 				.bindTo(s_primitiveParameters);
-			s_intReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_intReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, float.class);
 			mh = l.findVirtual(ByteBuffer.class, "putFloat", mt)
 				.bindTo(s_primitiveParameters);
 			s_floatReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, long.class);
 			mh = l.findVirtual(ByteBuffer.class, "putLong", mt)
 				.bindTo(s_primitiveParameters);
 			longSetter = filterReturnValue(mh, toVoid);
-			s_longReturn = insertArguments(longSetter, 0, 0);
+			s_longReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, double.class);
 			mh = l.findVirtual(ByteBuffer.class, "putDouble", mt)
 				.bindTo(s_primitiveParameters);
 			s_doubleReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mh = s_byteReturn;
 			s_booleanReturn = guardWithTest(identity(boolean.class),
@@ -874,10 +879,10 @@ public class Function
 	/**
 	 * Parse the function specification in {@code procTup}, initializing most
 	 * fields of the C {@code Function} structure, and returning a
-	 * {@code MethodHandle} for invoking the method, or null in the case of
-	 * a UDT.
+	 * {@code PrivilegedAction<Object>} for invoking the method, or null in the
+	 * case of a UDT.
 	 */
-	public static MethodHandle create(
+	public static PrivilegedAction<Object> create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger, boolean forValidator, boolean checkBody)
 	throws SQLException
@@ -912,10 +917,10 @@ public class Function
 	 * object from {@code parse}, determine the type of function being created
 	 * (ordinary, UDT, trigger) and initialize most of the C structure
 	 * accordingly.
-	 * @return a MethodHandle to invoke the implementing method, or null in the
-	 * case of a UDT
+	 * @return a PrivilegedAction<Object> to invoke the implementing method, or
+	 * null in the case of a UDT
 	 */
-	private static MethodHandle init(
+	private static PrivilegedAction<Object> init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger, boolean forValidator)
 	throws SQLException
@@ -968,11 +973,11 @@ public class Function
 		String methodName = info.group("meth");
 
 		return
-			adaptHandle(
+			invoker(adaptHandle(
 				getMethodHandle(schemaLoader, clazz, methodName,
 					resolvedTypes, retTypeIsOutParameter, isMultiCall)
 				.asFixedArity()
-			);
+			));
 	}
 
 	/**

@@ -964,6 +964,11 @@ static void initPLJavaClasses(void)
 		"()Z",
 		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads
 		},
+		{
+		"_defineClass",
+		"(Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;",
+		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass
+		},
 		{ 0, 0, 0 }
 	};
 	jclass cls;
@@ -2004,4 +2009,31 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads(JNIEnv *env, jclass cls)
 {
 	return (java_thread_pg_entry & 4) ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
+ * Method:    _defineClass
+ * Signature: (Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;
+ */
+JNIEXPORT jclass JNICALL
+Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass(JNIEnv *env, jclass cls, jstring name, jobject loader, jbyteArray image)
+{
+	const char *utfName;
+	jbyte *bytes;
+	jsize nbytes;
+	jclass newcls;
+	static bool oneShot = false;
+
+	if ( oneShot )
+		return NULL;
+	oneShot = true;
+
+	utfName = (*env)->GetStringUTFChars(env, name, NULL);
+	bytes = (*env)->GetByteArrayElements(env, image, NULL);
+	nbytes = (*env)->GetArrayLength(env, image);
+	newcls = (*env)->DefineClass(env, utfName, loader, bytes, nbytes);
+	(*env)->ReleaseByteArrayElements(env, image, bytes, JNI_ABORT);
+	(*env)->ReleaseStringUTFChars(env, name, utfName);
+	return newcls;
 }

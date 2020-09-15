@@ -12,6 +12,9 @@
  */
 package org.postgresql.pljava.internal;
 
+import java.io.InputStream;
+import java.io.IOException;
+
 import java.sql.SQLException;
 import java.sql.SQLDataException;
 import java.util.ArrayList;
@@ -53,7 +56,20 @@ public class Backend
 		 * cause JIT to quickly specialize the doInPG() methods to one or the
 		 * other branch of their code.
 		 */
-	}
+
+		try  ( InputStream is =
+		   Backend.class.getResourceAsStream("EntryPoints.class") )
+		{
+			byte[] image = is.readAllBytes();
+			EarlyNatives._defineClass(
+				"org/postgresql/pljava/internal/EntryPoints",
+				Backend.class.getClassLoader(), image);
+		}
+		catch ( IOException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+   }
 
 	private static Session s_session;
 
@@ -303,6 +319,8 @@ public class Backend
 
 	private static class EarlyNatives
 	{
-		private native static boolean _forbidOtherThreads();
+		private static native boolean _forbidOtherThreads();
+		private static native Class<?> _defineClass(
+			String name, ClassLoader loader, byte[] buf);
 	}
 }
