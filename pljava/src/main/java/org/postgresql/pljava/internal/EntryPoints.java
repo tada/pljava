@@ -15,6 +15,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
+import java.security.AccessControlContext;
 import static java.security.AccessController.doPrivileged;
 import java.security.PrivilegedAction;
 
@@ -62,10 +63,17 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  */
 class EntryPoints
 {
+	/**
+	 * Prevent instantiation.
+	 */
+	private EntryPoints()
+	{
+	}
+
 	private static final MethodType s_expectedType = methodType(Object.class);
 
 	/**
-	 * Wrap a {@code MethodHandle} in a {@code PrivilegedAction} suitable for
+	 * Wrap a {@code MethodHandle} in an {@code Invocable} suitable for
 	 * passing directly to {@link #invoke invoke()}.
 	 *<p>
 	 * The supplied method handle must have type {@code ()Object}, and fetch any
@@ -74,16 +82,12 @@ class EntryPoints
 	 * has {@code void} or a primitive return type, the handle must be
 	 * constructed to return null, storing any primitive value returned into
 	 * the first static primitive-parameter slot.
-	 *<p>
-	 * The invoker is a {@code PrivilegedAction} and therefore can throw only
-	 * unchecked exceptions, but can throw {@code UncheckedException},
-	 * which may wrap anything. The {@code invoke} method will unwrap it.
 	 */
-	static PrivilegedAction<Object> invoker(MethodHandle mh)
+	static Invocable invocable(MethodHandle mh, AccessControlContext acc)
 	{
 		if ( ! s_expectedType.equals(mh.type()) )
 			throw new IllegalArgumentException(
-				"invoker() requires a MethodHandle with type ()Object");
+				"invocable() requires a MethodHandle with type ()Object");
 
 		/*
 		 * The EntryPoints class is specially loaded early in PL/Java's startup
@@ -97,7 +101,7 @@ class EntryPoints
 		 * class, so the lambda created here shares the EntryPoints class's own
 		 * specialness, making the scheme Just Work.
 		 */
-		return () ->
+		PrivilegedAction<Object> a = () ->
 		{
 			try
 			{
@@ -108,6 +112,8 @@ class EntryPoints
 				throw unchecked(t);
 			}
 		};
+
+		return new Invocable(a, acc);
 	}
 
 	/**
@@ -118,12 +124,12 @@ class EntryPoints
 	 * has void type or returns a primitive (which will have been returned in
 	 * the first static primitive parameter slot).
 	 */
-	private static Object invoke(PrivilegedAction<Object> target)
+	private static Object invoke(Invocable target)
 	throws Throwable
 	{
 		try
 		{
-			return doPrivileged(target);
+			return doPrivileged(target.action, target.acc);
 		}
 		catch ( UncheckedException e )
 		{
@@ -184,5 +190,17 @@ class EntryPoints
 	throws Throwable
 	{
 		return (SQLData)mh.invokeExact(textRep, typeName);
+	}
+
+	static final class Invocable
+	{
+		final PrivilegedAction<Object> action;
+		final AccessControlContext acc;
+
+		Invocable(PrivilegedAction<Object> action, AccessControlContext acc)
+		{
+			this.action = requireNonNull(action);
+			this.acc = acc;
+		}
 	}
 }

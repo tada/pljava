@@ -48,6 +48,7 @@ import static java.util.stream.Collectors.groupingBy;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Oid;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
@@ -260,7 +261,8 @@ public class Loader extends ClassLoader
 			loader = schemaName.equals(PUBLIC_SCHEMA)
 				? parent : getSchemaLoader(PUBLIC_SCHEMA);
 		else
-			loader = new Loader(classImages, codeSources, parent);
+			loader = doPrivileged(() ->
+				new Loader(classImages, codeSources, parent));
 
 		s_schemaLoaders.put(schemaName, loader);
 		return loader;

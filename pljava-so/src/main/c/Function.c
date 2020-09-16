@@ -147,10 +147,10 @@ struct Function_
 		jobject typeMap;
 
 		/**
-		 * PrivilegedAction to the resolved Java method implementing
+		 * EntryPoints.Invocable to the resolved Java method implementing
 		 * the function.
 		 */
-		jobject invoker;
+		jobject invocable;
 		} nonudt;
 		
 		struct
@@ -187,7 +187,7 @@ static void _Function_finalize(PgObject func)
 	JNI_deleteGlobalRef(self->clazz);
 	if(!self->isUDT)
 	{
-		JNI_deleteGlobalRef(self->func.nonudt.invoker);
+		JNI_deleteGlobalRef(self->func.nonudt.invocable);
 		if(self->func.nonudt.typeMap != 0)
 			JNI_deleteGlobalRef(self->func.nonudt.typeMap);
 		if(self->func.nonudt.paramTypes != 0)
@@ -259,7 +259,7 @@ void Function_initialize(void)
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
 		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;ZZZ)"
-		"Ljava/security/PrivilegedAction;");
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_getClassIfUDT = PgObject_getStaticJavaMethod(s_Function_class,
 		"getClassIfUDT",
 		"(Ljava/sql/ResultSet;Ljava/lang/String;)"
@@ -269,7 +269,9 @@ void Function_initialize(void)
 		"org/postgresql/pljava/internal/EntryPoints"));
 	s_EntryPoints_invoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
-		"invoke", "(Ljava/security/PrivilegedAction;)Ljava/lang/Object;");
+		"invoke",
+		"(Lorg/postgresql/pljava/internal/EntryPoints$Invocable;)"
+		"Ljava/lang/Object;");
 
 	s_EntryPoints_udtWriteInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
@@ -302,68 +304,68 @@ void Function_initialize(void)
 jobject pljava_Function_refInvoke(Function self)
 {
 	return JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 }
 
 void pljava_Function_voidInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 }
 
 jboolean pljava_Function_booleanInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].z;
 }
 
 jbyte pljava_Function_byteInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].b;
 }
 
 jshort pljava_Function_shortInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].s;
 }
 
 jchar pljava_Function_charInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].c;
 }
 
 jint pljava_Function_intInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].i;
 }
 
 jfloat pljava_Function_floatInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].f;
 }
 
 jlong pljava_Function_longInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].j;
 }
 
 jdouble pljava_Function_doubleInvoke(Function self)
 {
 	JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_invoke, self->func.nonudt.invoker);
+		s_EntryPoints_invoke, self->func.nonudt.invocable);
 	return s_primitiveParameters[0].d;
 }
 
@@ -466,7 +468,7 @@ static Function Function_create(
 	jstring schemaName;
 	Ptr2Long p2l;
 	Datum d;
-	jobject invoker;
+	jobject invocable;
 
 	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
@@ -479,7 +481,8 @@ static Function Function_create(
 
 	PG_TRY();
 	{
-		invoker = JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
+		invocable =
+			JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
 			p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
 			schemaName,
 			forTrigger ? JNI_TRUE : JNI_FALSE,
@@ -524,10 +527,10 @@ static Function Function_create(
 	 * the Java code bailed early.
 	 */
 
-	if ( NULL != invoker )
+	if ( NULL != invocable )
 	{
-		self->func.nonudt.invoker = JNI_newGlobalRef(invoker);
-		JNI_deleteLocalRef(invoker);
+		self->func.nonudt.invocable = JNI_newGlobalRef(invocable);
+		JNI_deleteLocalRef(invocable);
 	}
 	else if ( ! self->isUDT )
 	{

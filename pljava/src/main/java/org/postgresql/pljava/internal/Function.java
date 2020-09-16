@@ -43,7 +43,11 @@ import java.lang.reflect.TypeVariable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import java.security.PrivilegedAction;
+import java.security.AccessControlContext;
+import java.security.CodeSigner;
+import java.security.CodeSource;
+import java.security.Principal;
+import java.security.ProtectionDomain;
 
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -66,7 +70,8 @@ import static java.util.regex.Pattern.compile;
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import static org.postgresql.pljava.internal.Backend.doInPG;
-import static org.postgresql.pljava.internal.EntryPoints.invoker;
+import org.postgresql.pljava.internal.EntryPoints.Invocable;
+import static org.postgresql.pljava.internal.EntryPoints.invocable;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
 import org.postgresql.pljava.management.Commands;
@@ -84,19 +89,19 @@ import org.postgresql.pljava.sqlj.Loader;
  * if the function has not already been called. That C function calls the
  * {@link #create create} method here, which ultimately (after all parsing of
  * the {@code CREATE FUNCTION ... AS ...} information, matching up of parameter
- * and return types, etc.) will return a {@code PrivilegedAction} to use when
+ * and return types, etc.) will return an {@code Invocable} to use when
  * invoking the function.
  *<p>
  * This remains a hybrid approach, in which PL/Java's legacy C {@code Type}
  * infrastructure is used for converting the parameter and return values, and a
  * C {@code Function_} structure kept in a C hash table holds the details
- * needed for invocation, including the {@code PrivilegedAction} created here.
- * The methods in this class also use some JNI calls to contribute and retrieve
+ * needed for invocation, including the {@code Invocable} created here. The
+ * methods in this class also use some JNI calls to contribute and retrieve
  * additional details that belong in the C structure.
  *<p>
- * The {@code PrivilegedAction} returned here by {@code create} will have return
- * type {@code Object} and no formal parameters. The method handle can contain
- * bound references to the static {@code s_referenceParameters} and
+ * The {@code Invocable} returned here by {@code create} will have return type
+ * {@code Object} in all cases, and no formal parameters. It can
+ * contain bound references to the static {@code s_referenceParameters} and
  * {@code s_primitiveParameters} declared in this class, and will fetch the
  * parameters from there (where invocation code in {@code Function.c} will have
  * put them) at the time of invocation. The parameter areas are static, but
@@ -104,8 +109,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * here will have fetched all of the values to push on the stack before the
  * (potentially reentrant) target method is invoked. If the method has a
  * primitive return type, its return value will be placed in the first slot of
- * {@code s_primitiveParameters} and the {@code PrivilegedAction}
- * ({@code Object}-typed as always) returns null.
+ * {@code s_primitiveParameters} and the {@code Invocable} returns null.
  * Naturally, the (potentially reentrant) target method has already returned
  * before that value is placed in the static slot.
  */
@@ -558,6 +562,19 @@ public class Function
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 	private static final MethodHandle s_readSQL_mh;
 
+	/**
+	 * An {@code AccessControlContext} representing "nobody special": it should
+	 * enjoy whatever permissions the {@code Policy} grants to everyone, but no
+	 * others.
+	 *
+	 * This will be clapped on top of any {@code Invocable} whose target isn't
+	 * in a PL/Java-managed jar or in PL/Java itself; PL/Java has always allowed
+	 * {@code CREATE FUNCTION} to name some Java library class directly, but in
+	 * such a case, the permissions should still be limited to what the policy
+	 * would allow a PL/Java function.
+	 */
+	private static final AccessControlContext s_lid;
+
 	/*
 	 * Static areas for passing reference and primitive parameters. A Java
 	 * method can have no more than 255 parameters, so each area gets the
@@ -573,7 +590,7 @@ public class Function
 	 * PG thread, the static areas are safe for reentrant calls.
 	 *
 	 * Such a constructed method handle will be passed, wrapped in
-	 * a PrivilegedAction, to EntryPoints.invoke, which is declared to return
+	 * an Invocable, to EntryPoints.invoke, which is declared to return
 	 * Object always. If the target returns a primitive value, the last act of
 	 * the constructed method handle will be to store that in the first slot of
 	 * s_primitiveParameters, where the C code will find it, and return null as
@@ -786,6 +803,30 @@ public class Function
 
 		s_countsZeroer =
 			insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
+
+		/*
+		 * The lid is a "nobody special" AccessControlContext: it isn't allowed
+		 * any permission that isn't granted by the Policy to everybody.
+		 *
+		 * A null CodeSource is too strict; if your code source is null, you are
+		 * somebody special in a bad way: no dynamic permissions for you! At
+		 * least according to the default policy provider.
+		 *
+		 * So, to achieve mere "nobody special"-ness requires a real CodeSource
+		 * with null URL and null code signers.
+		 *
+		 * The ProtectionDomain constructor allows the permissions parameter
+		 * to be null, and says so in the javadocs. It seems to allow
+		 * the principals parameter to be null too, but doesn't say that, so why
+		 * take a chance....
+		 */
+		s_lid =
+			new AccessControlContext(new ProtectionDomain[] {
+				new ProtectionDomain(
+					new CodeSource(null, (CodeSigner[])null),
+					null, ClassLoader.getSystemClassLoader(),
+					new Principal[0])
+				});
 	}
 
 	/**
@@ -878,11 +919,11 @@ public class Function
 
 	/**
 	 * Parse the function specification in {@code procTup}, initializing most
-	 * fields of the C {@code Function} structure, and returning a
-	 * {@code PrivilegedAction<Object>} for invoking the method, or null in the
+	 * fields of the C {@code Function} structure, and returning an
+	 * {@code Invocable} for invoking the method, or null in the
 	 * case of a UDT.
 	 */
-	public static PrivilegedAction<Object> create(
+	public static Invocable create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean calledAsTrigger, boolean forValidator, boolean checkBody)
 	throws SQLException
@@ -917,10 +958,10 @@ public class Function
 	 * object from {@code parse}, determine the type of function being created
 	 * (ordinary, UDT, trigger) and initialize most of the C structure
 	 * accordingly.
-	 * @return a PrivilegedAction<Object> to invoke the implementing method, or
+	 * @return an Invocable to invoke the implementing method, or
 	 * null in the case of a UDT
 	 */
-	private static PrivilegedAction<Object> init(
+	private static Invocable init(
 		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
 		boolean calledAsTrigger, boolean forValidator)
 	throws SQLException
@@ -928,6 +969,7 @@ public class Function
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
 		String className = info.group("udtcls");
 		boolean isUDT = (null != className);
+		AccessControlContext acc = null; // assume no lid needed on permissions
 
 		if ( ! isUDT )
 		{
@@ -939,6 +981,10 @@ public class Function
 
 		ClassLoader schemaLoader = Loader.getSchemaLoader(schemaName);
 		Class<?> clazz = loadClass(schemaLoader, className);
+
+		if ( clazz != Commands.class
+			&& ! (clazz.getClassLoader() instanceof Loader) )
+			acc = s_lid; // put a lid on permissions if calling JRE directly
 
 		if ( isUDT )
 		{
@@ -973,11 +1019,14 @@ public class Function
 		String methodName = info.group("meth");
 
 		return
-			invoker(adaptHandle(
-				getMethodHandle(schemaLoader, clazz, methodName,
-					resolvedTypes, retTypeIsOutParameter, isMultiCall)
-				.asFixedArity()
-			));
+			invocable(
+				adaptHandle(
+					getMethodHandle(schemaLoader, clazz, methodName,
+						resolvedTypes, retTypeIsOutParameter, isMultiCall)
+					.asFixedArity()
+				),
+				acc
+			);
 	}
 
 	/**
