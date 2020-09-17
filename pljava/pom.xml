@@ -187,8 +187,9 @@ function executeReport(report, locale)
 		rmgr.handleFirstOptions(args);
 
 		var task = tool.getTask(null, rmgr, diagListener, null, args, null);
-		task.call();
-		return null;
+		if (task.call())
+			return null;
+		return report.exceptionWrap("Javadoc errors were reported");
 	}
 	catch(e)
 	{

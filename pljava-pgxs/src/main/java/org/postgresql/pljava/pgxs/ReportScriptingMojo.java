@@ -259,4 +259,15 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	{
 		return super.canGenerateReport();
 	}
+
+	/**
+	 * Default implementation of
+	 * {@link ReportScript#exceptionWrap(Object)}. Invoked if
+	 * {@code fun exceptionWrap(object)} is not defined in the javascript
+	 * snippet associated with the report.
+	 */
+	public MavenReportException exceptionWrap(Object object)
+	{
+		return reportScript.exceptionWrap(object);
+	}
 }
