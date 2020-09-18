@@ -129,6 +129,9 @@ public class InstallHelper
 			InstallHelper.class.getProtectionDomain().getCodeSource()
 				.getLocation().toString());
 
+		Security.setProperty( "policy.url.2",
+			"file:${org.postgresql.sysconfdir}/pljava.policy");
+
 		/*
 		 * Construct the strings announcing the versions in use.
 		 */

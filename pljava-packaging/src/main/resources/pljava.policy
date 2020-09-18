@@ -1,0 +1,58 @@
+grant {
+	// "standard" properties that can be read by anyone, by analogy to the
+	// ones so treated in Java itself
+
+	permission java.util.PropertyPermission
+		"org.postgresql.version", "read";
+	permission java.util.PropertyPermission
+		"org.postgresql.pljava.version", "read";
+	permission java.util.PropertyPermission
+		"org.postgresql.pljava.native.version", "read";
+
+	permission java.util.PropertyPermission
+		"org.postgresql.pljava.udt.byteorder.*", "read";
+
+	permission java.util.PropertyPermission
+		"org.postgresql.server.encoding", "read";
+
+	// PostgreSQL allows SELECT current_database() or SHOW cluster_name anyway
+
+	permission java.util.PropertyPermission
+		"org.postgresql.database", "read";
+	permission java.util.PropertyPermission
+		"org.postgresql.cluster", "read";
+
+	// SQL/JRT specifies this property
+
+	permission java.util.PropertyPermission
+		"sqlj.defaultconnection", "read";
+};
+
+grant codebase "${org.postgresql.pljava.codesource}" {
+	permission java.lang.RuntimePermission
+		"createClassLoader";
+	permission java.util.logging.LoggingPermission
+		"control";
+
+	// This gives the PL/Java implementation code permission to read
+	// any file, which it only exercises on behalf of sqlj.install_jar()
+	// or sqlj.replace_jar() calls with a file: URL.
+	// There would be nothing wrong with restricting this permission to
+	// a specific directory, if all jar files to be loaded will be found there,
+	// or replacing it with a URLPermission if they will be hosted on a remote
+	// server, etc.
+	permission java.io.FilePermission
+		"<<ALL FILES>>", "read";
+
+	// Required here as well as for sqlj:examples, as both will be on the stack
+	// when the PreJSR310 example needs it.
+	permission java.util.PropertyPermission "user.timezone", "write";
+};
+
+// These grants apply to the supplied examples, if sqlj.install_jar is given the
+// exact name 'examples' as the desired jar name. (Otherwise, they will apply to
+// any other jar that is installed with the name 'examples'. Beware!)
+grant codebase "sqlj:examples" {
+	// the PreJSR310 test involves setting the time zone
+	permission java.util.PropertyPermission "user.timezone", "write";
+};

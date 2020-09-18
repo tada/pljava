@@ -310,6 +310,9 @@ jos.close();
 			<utf8 dir="target/classes" prefix="pljava/sharedir/pljava/"
 				includes="*.sql"
 				excludes="pljava.sql pljava--.sql pljava--unpackaged--.sql"/>			
+			<!-- Java Default Policy Implementation and ... Syntax says UTF8 -->
+			<utf8 dir="target/classes" prefix="pljava/sysconfdir/"
+				includes="pljava.policy"/>
 <!-- If editing the script below, expand tabs to spaces (at 4 columns, and only
 	 for the lines of the script) before saving. Line-wrapped into the manifest,
 	 it looks horrible with tabs.
