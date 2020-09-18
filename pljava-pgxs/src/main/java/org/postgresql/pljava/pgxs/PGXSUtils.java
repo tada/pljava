@@ -667,22 +667,32 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Wraps the input object in a {@link MojoExecutionException}.
+	 * Wraps the input object in a {@link AbstractMojoExecutionException}.
 	 *
 	 * The returned exception is constructed as follows:
-	 * 1) If {@code object} is null, the exception message indicates the same.
-	 * 2) If {@code object} is already a {@link MojoExecutionException}, return it
+	 * 1) If {@code object} is null, then {@link MojoExecutionException} is used
+	 * to wrap and the message indicates that null value was thrown by the script.
+	 * 2) If {@code object} is already a {@link MojoExecutionException}, return
+	 * it as is.
+	 * 3) If {@code object} is already a {@link MojoFailureException}, return it
 	 * as is.
-	 * 3) If {@code object} is any other {@link Throwable}, set it as the cause
+	 *
+	 * For the steps, below the wrapping exception is chosen according to the
+	 * the value of {@code scriptFailure} parameter.
+	 *
+	 * 4) If {@code object} is any other {@link Throwable}, set it as the cause
 	 * for the exception.
-	 * {@link MojoExecutionException} with {@code object} as its cause.
-	 * 4) If {@code object} is a {@link String}, set it as the message of the
+	 * 5) If {@code object} is a {@link String}, set it as the message of the
 	 * exception.
-	 * 5) For all other case, the message of the exception is set in this format
+	 * 6) For all other case, the message of the exception is set in this format
 	 * , Class Name of object: String representation of object.
 	 *
-	 * @param object to wrap in MojoExecutionException
-	 * @return object wrapped inside a {@link MojoExecutionException}
+	 * @param object to wrap in AbstractMojoExecutionException
+	 * @param scriptFailure if true, use a MojoExecutionException for wrapping
+	 *                      otherwise use MojoFailureException. this parameter
+	 *                      is ignored, if the object is null or instance of
+	 *                      MojoExecutionException or MojoFailureException
+	 * @return object wrapped inside a {@link AbstractMojoExecutionException}
 	 */
 	public AbstractMojoExecutionException exceptionWrap(Object object,
 														boolean scriptFailure)

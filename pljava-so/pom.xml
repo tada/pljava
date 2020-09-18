@@ -305,8 +305,7 @@ function execute()
 		compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
 		var exitCode = pgxs.compile(cc, files, target_path, base_includes, base_defines, compile_flags);
 		if (exitCode != 0)
-			throw new org.apache.maven.plugin
-				.MojoExecutionException("Compilation failed with exit code: " + exitCode);
+			throw "Compilation failed with exit code: " + exitCode;
 
 		var object_files =  utils.getFilesWithExtension(target_path, extension);
 		link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags));
@@ -314,13 +313,12 @@ function execute()
 		link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_ex));
 		exitCode = pgxs.link(cc, link_flags, object_files, target_path);
 		if (exitCode != 0)
-			throw new org.apache.maven.plugin
-				.MojoExecutionException("Linking failed with exit code: " + exitCode);
+			throw "Linking failed with exit code: " + exitCode;
 		return null;
 	}
 	catch(e)
 	{
-		return utils.exceptionWrap(e);
+		return utils.exceptionWrap(e, false);
 	}
 }
 ]]>
