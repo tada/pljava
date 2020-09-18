@@ -71,7 +71,8 @@ class EntryPoints
 	{
 	}
 
-	private static final MethodType s_generalType = methodType(Object.class);
+	private static final MethodType s_generalType =
+		methodType(Object.class, AccessControlContext.class);
 	private static final MethodType s_udtCtor = methodType(SQLData.class);
 	private static final MethodType s_udtParse =
 		methodType(SQLData.class, String.class, String.class);
@@ -80,12 +81,19 @@ class EntryPoints
 	 * Wrap a {@code MethodHandle} in an {@code Invocable} suitable for
 	 * passing directly to {@link #invoke invoke()}.
 	 *<p>
-	 * The supplied method handle must have type {@code ()Object}, and fetch any
+	 * The supplied method handle must have type
+	 * {@code (AccessControlContext)Object}, and fetch any
 	 * parameter values needed by its target from bound-in references to the
 	 * static reference and primitive parameter areas. If its ultimate target
 	 * has {@code void} or a primitive return type, the handle must be
 	 * constructed to return null, storing any primitive value returned into
 	 * the first static primitive-parameter slot.
+	 *<p>
+	 * The {@code AccessControlContext} passed to the handle will be the same
+	 * one under which it will be invoked, and so can be ignored in most cases.
+	 * A handle for a value-per-call set-returning function can copy it into the
+	 * {@code Invocable} that it creates from this function's result, to be used
+	 * for iteratively retrieving the results.
 	 */
 	static Invocable<?> invocable(MethodHandle mh, AccessControlContext acc)
 	{
@@ -113,7 +121,7 @@ class EntryPoints
 		{
 			try
 			{
-				return mh.invokeExact();
+				return mh.invokeExact(acc);
 			}
 			catch ( Throwable t )
 			{
@@ -126,7 +134,7 @@ class EntryPoints
 
 	/**
 	 * Entry point for a general PL/Java function.
-	 * @param target PrivilegedAction obtained from Function.create that will
+	 * @param target Invocable obtained from Function.create that will
 	 * push the actual parameters and call the target method.
 	 * @return The value returned by the target method, or null if the method
 	 * has void type or returns a primitive (which will have been returned in

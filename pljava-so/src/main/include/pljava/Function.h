@@ -107,6 +107,10 @@ extern jfloat pljava_Function_floatInvoke(Function self);
 extern jlong pljava_Function_longInvoke(Function self);
 extern jdouble pljava_Function_doubleInvoke(Function self);
 
+extern jboolean pljava_Function_vpcInvoke(
+	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
+	jobject *result);
+
 extern void pljava_Function_udtWriteInvoke(
 	jobject invocable, jobject value, jobject stream);
 extern jstring pljava_Function_udtToStringInvoke(

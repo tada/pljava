@@ -426,6 +426,26 @@ static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 	*s_countCheck = newCounts;
 }
 
+/*
+ * Invoke an Invocable that was obtained by invoking an Invocable for a
+ * set-returning-function that returns results in value-per-call style.
+ * Pass true for 'close' when no more results are wanted. Will always overwrite
+ * *result; check the boolean return value to determine whether that is a real
+ * result (true) or the end of results was reached (false).
+ */
+jboolean pljava_Function_vpcInvoke(
+	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
+	jobject *result)
+{
+	reserveParameterFrame(1, 2);
+	JNI_setObjectArrayElement(s_referenceParameters, 0, rowcollect);
+	s_primitiveParameters[0].j = call_cntr;
+	s_primitiveParameters[1].z = close;
+	*result = JNI_callStaticObjectMethod(s_EntryPoints_class,
+		s_EntryPoints_invoke, invocable);
+	return s_primitiveParameters[0].z;
+}
+
 void pljava_Function_udtWriteInvoke(
 	jobject invocable, jobject value, jobject stream)
 {

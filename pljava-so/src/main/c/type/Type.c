@@ -775,22 +775,26 @@ static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return 0;
 }
 
+static jobject testingStash;
+
 static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
 {
-	return (JNI_callBooleanMethod(rowProducer, s_Iterator_hasNext) == JNI_TRUE);
+	return (JNI_TRUE == pljava_Function_vpcInvoke(
+		rowProducer, rowCollector, callCounter, JNI_FALSE, &testingStash));
 }
 
 static Datum _Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
 {
-	/* XXX make an entry point */
-	jobject tmp = JNI_callObjectMethod(rowProducer, s_Iterator_next);
-	Datum result = Type_coerceObject(self, tmp);
-	JNI_deleteLocalRef(tmp);
+	/* XXX make an entry point
+	jobject tmp = JNI_callObjectMethod(rowProducer, s_Iterator_next); */
+	Datum result = Type_coerceObject(self, testingStash);
+	JNI_deleteLocalRef(testingStash);
 	return result;
 }
 
 static void _Type_closeSRF(Type self, jobject rowProducer)
 {
+	pljava_Function_vpcInvoke(rowProducer, NULL, 0, JNI_TRUE, &testingStash);
 }
 
 jobject Type_getSRFProducer(Type self, Function fn)

@@ -19,6 +19,7 @@ import static java.lang.invoke.MethodHandles.arrayElementSetter;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.empty;
+import static java.lang.invoke.MethodHandles.exactInvoker;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
@@ -63,6 +64,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import static java.util.regex.Pattern.compile;
@@ -72,6 +74,7 @@ import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.EntryPoints;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
@@ -359,7 +362,7 @@ public class Function
 	 * incoming parameters into an {@code Object} array for all those of
 	 * reference type, and a C array of {@code jvalue} for the primitives.
 	 * Those arrays are static, and will be bound into the method handle
-	 * produced here, from which it will fetch values when invoked.
+	 * produced here, which will fetch values from them when invoked.
 	 *<p>
 	 * The job of this method is to take any static method handle {@code mh} and
 	 * return a method handle that takes no parameters, and invokes the original
@@ -564,6 +567,15 @@ public class Function
 	private static final MethodHandle s_primitiveZeroer;
 	private static final MethodHandle s_paramCountsAre;
 	private static final MethodHandle s_countsZeroer;
+	private static final MethodHandle s_nonNull;
+
+	/*
+	 * Handles that fit the SFRM_ValuePerCall entry point, from a function that
+	 * returns an Iterator or ResultSetProvider, respectively.
+	 */
+	private static final MethodHandle s_iteratorVPC;
+	private static final MethodHandle s_resultSetProviderVPC;
+
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 
 	/**
@@ -793,20 +805,153 @@ public class Function
 					insertArguments(mh, 0, (byte)1), 0, boolean.class),
 				dropArguments(
 					insertArguments(mh, 0, (byte)0), 0, boolean.class));
+
+			s_referenceNuller =
+				insertArguments(
+					arrayElementSetter(Object[].class), 2, (Object)null)
+				.bindTo(s_referenceParameters);
+
+			s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
+
+			s_countsZeroer =
+				insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
+
+			s_nonNull = l.findStatic(Objects.class, "nonNull",
+				methodType(boolean.class, Object.class));
+
+			/*
+			 * Build a bit of MethodHandle tree for invoking a set-returning
+			 * user function that will implement the ValuePerCall protocol.
+			 * Such a function will return either an Iterator or a
+			 * ResultSetProvider (or a ResultSetHandle, more on that further
+			 * below). Its MethodHandle, as obtained from AdaptHandle, of course
+			 * has type ()Object (changed to (acc)Object before init() returns
+			 * it, but ordinarily it will ignore the acc passed to it).
+			 *
+			 * The handle tree being built here will go on top of that, and will
+			 * also ultimately have type (acc)Object. What it returns will be
+			 * a new Invocable, carrying the same acc, and a handle tree built
+			 * over the Iterator or ResultSetProvider that the user function
+			 * returned. Part of that tree must depend on whether the return
+			 * type is Iterator or ResultSet; the part being built here is the
+			 * common part. It will have an extra first argument of type
+			 * MethodHandle that can be bound to the ResultSetProvider- or
+			 * Iterator-specific handle. If the user function returns null, so
+			 * will this.
+			 */
+
+			MethodHandle invocableMH =
+				myL.findStatic(EntryPoints.class, "invocable", methodType(
+					Invocable.class,
+					MethodHandle.class, AccessControlContext.class));
+
+			mh = l.findVirtual(MethodHandle.class, "bindTo",
+					methodType(MethodHandle.class, Object.class));
+
+			mh = collectArguments(invocableMH, 0, mh);
+			// (hdl, obj, acc) -> Invocable(hdl-bound-to-obj, acc)
+
+			mh = guardWithTest(dropArguments(s_nonNull, 0, MethodHandle.class),
+				mh, empty(methodType(Invocable.class,
+					MethodHandle.class, Object.class, AccessControlContext.class
+				))
+			);
+
+			mh = filterArguments(mh, 1, exactInvoker(methodType(Object.class)));
+			/*
+			 * We are left with type (MethodHandle,MethodHandle,acc) ->
+			 * Invocable. A first bindTo, passing the ResultSetProvider- or
+			 * Iterator-specific tree fragment, will leave us with
+			 * (MethodHandle,acc)Invocable, and that can be bound to any
+			 * set-returning user function handle, leaving (acc)Invocable, which
+			 * is just what we want. Keep this as vpcCommon (only erasing its
+			 * return type to Object as EntryPoints.invoke will expect).
+			 */
+			MethodHandle vpcCommon =
+				mh.asType(mh.type().changeReturnType(Object.class));
+
+			/*
+			 * Build the ValuePerCall adapter handle for a function that
+			 * returns Iterator. ValuePerCall adapters will be invoked through
+			 * the general mechanism, and fetch their arguments from the static
+			 * area. They'll be passed one reference argument (a "row collector"
+			 * for the ResultSetProvider case) and two primitives: a long
+			 * call counter (zero on the first call) and a boolean (true when
+			 * the caller wants to stop iteration, perhaps early). An Iterator
+			 * has no use for the row collector or the call counter, so they
+			 * simply won't be fetched; the end-iteration boolean will be
+			 * fetched and will cause false+null to be returned, but will not
+			 * necessarily release any resources promptly, as Iterator has no
+			 * close() method.
+			 *
+			 * These adapters change up the return-value protocol a bit: they
+			 * will return a reference (the value for the row) *and also* a
+			 * boolean via the first primitive slot (false if the end of rows
+			 * has been reached, in which case the reference returned is simply
+			 * null and is not part of the result set). If the boolean is true
+			 * and null is returned, the null is part of the result.
+			 *
+			 * mh1 and mh2 both have type (Iterator)Object and side effect of
+			 * storing to primitive slot 0. Let mh1 be the hasNext case,
+			 * returning a value and storing true, and mh2 the no-more case,
+			 * storing false and returning null. (They don't have a primitive-
+			 * zeroer for either argument, as the return will clobber the first
+			 * slot anyway, and they can only be reached if the 'close' argument
+			 * is already zero. This is the Iterator case, so the row-collector
+			 * reference argument is assumed already null.)
+			 *
+			 * Start with a few constants for parameter getters (else it is
+			 * easy to forget the (sizeof jvalue) for the primitive getters!).
+			 */
+			final int REF0 = 0;
+			final int REF1 = 1;
+			final int PRIM0 = 0;
+			final int PRIM1 = 1 * s_sizeof_jvalue;
+
+			MethodHandle mh1 = identity(Object.class);
+			mh1 = dropArguments(mh1, 1, Object.class); // the null from boolRet
+			mh1 = collectArguments(mh1, 1,
+				insertArguments(s_booleanReturn, 0, true));
+			mt = methodType(Object.class);
+			mh = l.findVirtual(Iterator.class, "next", mt);
+			mh1 = filterArguments(mh1, 0, mh);
+
+			MethodHandle mh2 = insertArguments(s_booleanReturn, 0, false);
+			mh2 = dropArguments(mh2, 0, Iterator.class);
+
+			mt = methodType(boolean.class);
+			mh = l.findVirtual(Iterator.class, "hasNext", mt);
+			mh = guardWithTest(mh, mh1, mh2);
+			mh = foldArguments(mh, 0, s_countsZeroer);
+
+			/*
+			 * The next (in construction order; first in execution) test is of
+			 * the 'close' argument. Tack a primitiveZeroer onto mh2 for this
+			 * one, as it'll execute in the argument-isn't-zero case.
+			 */
+			mh2 = foldArguments(mh2, 0,
+				insertArguments(s_primitiveZeroer, 0, PRIM1));
+			mh2 = foldArguments(mh2, 0, s_countsZeroer);
+
+			mh = guardWithTest(
+				insertArguments(s_booleanGetter, 0, PRIM1), mh2, mh);
+
+			/*
+			 * mh now has type (Iterator)Object. Erase the Iterator to Object
+			 * (so this and the ResultSetProvider one can have a common type),
+			 * give it an acc argument that it will ignore, bind it into
+			 * vpcCommon, and we'll have the Iterator VPC adapter.
+			 */
+			mh = mh.asType(mh.type().erase());
+			mh = dropArguments(mh, 1, AccessControlContext.class);
+			s_iteratorVPC = vpcCommon.bindTo(mh);
+
+			s_resultSetProviderVPC = null;
 		}
 		catch ( ReflectiveOperationException e )
 		{
 			throw new ExceptionInInitializerError(e);
 		}
-
-		s_referenceNuller =
-			insertArguments(arrayElementSetter(Object[].class), 2, (Object)null)
-			.bindTo(s_referenceParameters);
-
-		s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
-
-		s_countsZeroer =
-			insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
 
 		/*
 		 * The lid is a "nobody special" AccessControlContext: it isn't allowed
@@ -1063,15 +1208,19 @@ public class Function
 
 		String methodName = info.group("meth");
 
-		return
-			invocable(
-				adaptHandle(
-					getMethodHandle(schemaLoader, clazz, methodName,
-						resolvedTypes, retTypeIsOutParameter, isMultiCall)
-					.asFixedArity()
-				),
-				accessControlContextFor(clazz)
+		MethodHandle handle =
+			adaptHandle(
+				getMethodHandle(schemaLoader, clazz, methodName,
+					resolvedTypes, retTypeIsOutParameter, isMultiCall)
+				.asFixedArity()
 			);
+
+		if ( isMultiCall  &&  ! retTypeIsOutParameter )
+			handle = s_iteratorVPC.bindTo(handle);
+		else
+			handle = dropArguments(handle, 0, AccessControlContext.class);
+
+		return invocable(handle, accessControlContextFor(clazz));
 	}
 
 	/**
