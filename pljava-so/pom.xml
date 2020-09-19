@@ -305,7 +305,8 @@ function execute()
 		compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
 		var exitCode = pgxs.compile(cc, files, target_path, base_includes, base_defines, compile_flags);
 		if (exitCode != 0)
-			throw "Compilation failed with exit code: " + exitCode;
+			return plugin.exceptionWrap("Compilation failed with exit code: "
+				+ exitCode, false);
 
 		var object_files =  utils.getFilesWithExtension(target_path, extension);
 		link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags));
@@ -313,12 +314,13 @@ function execute()
 		link_flags.addAll(pgxs.getPgConfigPropertyAsList(ldflags_ex));
 		exitCode = pgxs.link(cc, link_flags, object_files, target_path);
 		if (exitCode != 0)
-			throw "Linking failed with exit code: " + exitCode;
+			return plugin.exceptionWrap("Linking failed with exit code: "
+				+ exitCode, false);
 		return null;
 	}
 	catch(e)
 	{
-		return utils.exceptionWrap(e, false);
+		return plugin.exceptionWrap(e, true);
 	}
 }
 ]]>
