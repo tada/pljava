@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,18 +12,25 @@
  */
 package org.postgresql.pljava.internal;
 
-import static org.postgresql.pljava.internal.Backend.doInPG;
-
-import java.sql.SQLException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-
 import org.postgresql.pljava.TransactionListener;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.EntryPoints.Invocable;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
+
+import static java.security.AccessController.getContext;
+
+import java.sql.SQLException;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+import static java.util.Objects.requireNonNull;
+
+import static java.util.stream.Collectors.toList;
 
 /**
- * Class that enables registrations using the PostgreSQL <code>RegisterXactCallback</code>
- * function.
+ * Class that enables registrations using the PostgreSQL
+ * {@code RegisterXactCallback} function.
  *
  * @author Thomas Hallgren
  */
@@ -34,38 +41,50 @@ class XactListener
 	 * PG thread (even though actually calling into PG is necessary only when
 	 * the size changes from 0 to 1 or 1 to 0).
 	 */
-	private static final Deque<TransactionListener> s_listeners =
+	private static final Deque<Invocable<TransactionListener>> s_listeners =
 		new ArrayDeque<>();
 
 	static void onAbort() throws SQLException
 	{
-		// Take a snapshot. Handlers might unregister during event processing
-		for ( TransactionListener listener :
-			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
-			listener.onAbort(Backend.getSession());
+		invokeListeners(TransactionListener::onAbort);
 	}
 
 	static void onCommit() throws SQLException
 	{
-		for ( TransactionListener listener :
-			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
-			listener.onCommit(Backend.getSession());
+		invokeListeners(TransactionListener::onCommit);
 	}
 
 	static void onPrepare() throws SQLException
 	{
-		for ( TransactionListener listener :
-			s_listeners.toArray(new TransactionListener[s_listeners.size()]) )
-			listener.onPrepare(Backend.getSession());
+		invokeListeners(TransactionListener::onPrepare);
+	}
+
+	private static void invokeListeners(
+		Checked.BiConsumer<TransactionListener,Session,SQLException> target)
+	throws SQLException
+	{
+		Session session = Backend.getSession();
+
+		// Take a snapshot. Handlers might unregister during event processing
+		for ( Invocable<TransactionListener> listener :
+			s_listeners.stream().collect(toList()) )
+		{
+			doPrivileged(() ->
+			{
+				target.accept(listener.payload, session);
+			}, listener.acc);
+		}
 	}
 	
 	static void addListener(TransactionListener listener)
 	{
+		Invocable<TransactionListener> invocable =
+			new Invocable<>(requireNonNull(listener), getContext());
+
 		doInPG(() ->
 		{
-			if ( s_listeners.contains(listener) )
-				return;
-			s_listeners.push(listener);
+			s_listeners.removeIf(v -> v.payload.equals(listener));
+			s_listeners.push(invocable);
 			if( 1 == s_listeners.size() )
 				_register();
 		});
@@ -75,7 +94,7 @@ class XactListener
 	{
 		doInPG(() ->
 		{
-			if ( ! s_listeners.remove(listener) )
+			if ( ! s_listeners.removeIf(v -> v.payload.equals(listener)) )
 				return;
 			if ( 0 == s_listeners.size() )
 				_unregister();

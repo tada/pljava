@@ -202,6 +202,18 @@ public interface Checked<WT, EX extends Throwable>
 		return t -> after.apply(first.apply(t));
 	}
 
+	static <T, U, E extends Throwable>
+		BiConsumer<T,U,E> composed(
+			BiConsumer<? super T, ? super U, ? extends E> first,
+			BiConsumer<? super T, ? super U, ? extends E> after)
+	{
+		return (t, u) ->
+		{
+			first.accept(t, u);
+			after.accept(t, u);
+		};
+	}
+
 	static <T, E extends Throwable>
 		Consumer<T,E> composed(
 			Consumer<? super T, ? extends E> first,
@@ -839,6 +851,35 @@ public interface Checked<WT, EX extends Throwable>
 	/*
 	 * Consumers that have checked-exception-less counterparts in the Java API.
 	 */
+
+	@FunctionalInterface
+	interface BiConsumer<T,U,E extends Throwable>
+	extends Checked<java.util.function.BiConsumer<T,U>, E>
+	{
+		void accept(T t, U u) throws E;
+
+		@Override
+		default java.util.function.BiConsumer<T,U> ederWrap()
+		{
+			return (t, u) ->
+			{
+				try
+				{
+					accept(t, u);
+				}
+				catch ( Throwable thw )
+				{
+					throw Checked.<RuntimeException>ederThrow(thw);
+				}
+			};
+		}
+
+		static <T, U, E extends Throwable> BiConsumer<T,U,E>
+		use(BiConsumer<T,U,E> o)
+		{
+			return o;
+		}
+	}
 
 	@FunctionalInterface
 	interface Consumer<T,E extends Throwable>
