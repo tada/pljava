@@ -13,6 +13,9 @@
 package org.postgresql.pljava.pgxs;
 
 import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.AbstractMojoExecutionException;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -20,10 +23,11 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
+import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -50,7 +54,7 @@ public class ScriptingMojo extends AbstractMojo
 	 * configuration.
 	 */
 	@Override
-	public void execute ()
+	public void execute () throws MojoExecutionException, MojoFailureException
 	{
 		try
 		{
@@ -68,10 +72,19 @@ public class ScriptingMojo extends AbstractMojo
 			engine.put("getPgConfigProperty",
 				(Function<String, String>) this::getPgConfigProperty);
 			engine.eval(scriptText);
+
+			GoalScript goal = ((Invocable) engine).getInterface(GoalScript.class);
+			AbstractMojoExecutionException exception = goal.execute();
+			if (exception != null)
+				throw exception;
 		}
-		catch (ScriptException e)
+		catch (MojoFailureException | MojoExecutionException e)
 		{
-			getLog().error(e);
+			throw e;
+		}
+		catch (Exception e)
+		{
+			throw (MojoExecutionException) exceptionWrap(e, true);
 		}
 	}
 
@@ -105,4 +118,63 @@ public class ScriptingMojo extends AbstractMojo
 			return null;
 		}
 	}
+
+	/**
+	 * Wraps the input object in a {@link AbstractMojoExecutionException}.
+	 *
+	 * The returned exception is constructed as follows:
+	 * 1) If {@code object} is null, then {@link MojoExecutionException} is used
+	 * to wrap and the message indicates that null value was thrown by the script.
+	 * 2) If {@code object} is already a {@link MojoExecutionException}, return
+	 * it as is.
+	 * 3) If {@code object} is already a {@link MojoFailureException}, return it
+	 * as is.
+	 *
+	 * For the steps, below the wrapping exception is chosen according to the
+	 * the value of {@code scriptFailure} parameter.
+	 *
+	 * 4) If {@code object} is any other {@link Throwable}, set it as the cause
+	 * for the exception.
+	 * 5) If {@code object} is a {@link String}, set it as the message of the
+	 * exception.
+	 * 6) For all other case, the message of the exception is set in this format
+	 * , Class Name of object: String representation of object.
+	 *
+	 * @param object to wrap in AbstractMojoExecutionException
+	 * @param scriptFailure if true, use a MojoExecutionException for wrapping
+	 *                      otherwise use MojoFailureException. this parameter
+	 *                      is ignored, if the object is null or instance of
+	 *                      MojoExecutionException or MojoFailureException
+	 * @return object wrapped inside a {@link AbstractMojoExecutionException}
+	 */
+	public AbstractMojoExecutionException exceptionWrap(Object object,
+														boolean scriptFailure)
+	{
+		BiFunction<String, Throwable, ? extends AbstractMojoExecutionException>
+			createException = scriptFailure ? MojoExecutionException::new :
+			MojoFailureException::new;
+
+		AbstractMojoExecutionException exception;
+		if (object == null)
+			exception = new MojoExecutionException("Script threw a null value");
+		else if (object instanceof MojoExecutionException)
+			exception = (MojoExecutionException) object;
+		else if (object instanceof MojoFailureException)
+			exception = (MojoFailureException) object;
+		else if (object instanceof Throwable)
+		{
+			Throwable t = (Throwable) object;
+			exception = createException.apply(t.getMessage(), t);
+		}
+		else if (object instanceof String)
+			exception = createException.apply((String) object, null);
+		else
+		{
+			String message = object.getClass().getCanonicalName() + ": "
+				+ object.toString();
+			exception = createException.apply(message, null);
+		}
+		return exception;
+	}
+
 }

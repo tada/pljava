@@ -12,6 +12,8 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.reporting.MavenReportException;
+
 import java.util.Locale;
 
 /**
@@ -78,7 +80,9 @@ public interface ReportScript
 	 * @param report instance of {@link ReportScriptingMojo}
 	 * @param locale Locale to use for any locale-sensitive content in
 	 * the report
+	 * @return null if execution completed successfully, Exception that occurred
+	 * during execution otherwise
 	 * @see ReportScriptingMojo#executeReport(Locale)
 	 */
-	void executeReport(ReportScriptingMojo report, Locale locale);
+	MavenReportException executeReport(ReportScriptingMojo report, Locale locale);
 }

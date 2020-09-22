@@ -19,6 +19,7 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.reporting.AbstractMavenReport;
+import org.apache.maven.reporting.MavenReportException;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.Invocable;
@@ -191,10 +192,12 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	 * current report.
 	 */
 	@Override
-	protected void executeReport (Locale locale)
+	protected void executeReport (Locale locale) throws MavenReportException
 	{
 		setReportScript();
-		reportScript.executeReport(this, locale);
+		MavenReportException exception = reportScript.executeReport(this, locale);
+		if (exception != null)
+			throw exception;
 	}
 
 	/**
@@ -255,5 +258,43 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	boolean canGenerateReportDefault ()
 	{
 		return super.canGenerateReport();
+	}
+
+	/**
+	 * Wraps the input object in a {@link MavenReportException}.
+	 *
+	 * The exception returned is constructed as follows:
+	 * 1) If {@code object} is null, the exception message indicates the same.
+	 * 2) If {@code object} is already a {@link MavenReportException}, return it
+	 * as is.
+	 * 3) If {@code object} is any other {@link Throwable}, set it as the cause
+	 * for the exception.
+	 * {@link MavenReportException} with {@code object} as its cause.
+	 * 4) If {@code object} is a {@link String}, set it as the message of the
+	 * exception.
+	 * 5) For all other case, the message of the exception is set in this format
+	 * , Class Name of object: String representation of object.
+	 *
+	 * @param object to wrap in MavenReportException
+	 * @return object wrapped inside a {@link MavenReportException}
+	 */
+	public MavenReportException exceptionWrap(Object object)
+	{
+		if (object == null)
+			return new MavenReportException("Script threw a null value");
+		else if (object instanceof MavenReportException)
+			return (MavenReportException) object;
+		else if (object instanceof Throwable)
+		{
+			Throwable t = (Throwable) object;
+			MavenReportException exception = new MavenReportException(t.getMessage());
+			exception.initCause(t);
+			return exception;
+		}
+		else if (object instanceof String)
+			return new MavenReportException((String) object);
+		else
+			return new MavenReportException(object.getClass().getCanonicalName()
+				+ ": " + object.toString());
 	}
 }

@@ -106,6 +106,8 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
+function execute()
+{
 	var twocomp =
 		getPgConfigProperty("--version")
 		.replaceAll("devel.*|alpha.*|beta.*|rc.*$", "\\.99")
@@ -120,6 +122,8 @@
 		var onecomp = twocomp.replaceAll("\\.\\d+", "");
 		setProjectProperty("PGSQL_VER_CLASSIFIER", onecomp);
 	}
+	return null;
+}
 ]]>
 							</script>
 						</configuration>
@@ -221,80 +225,91 @@ function isExternalReport(report)
 
 function executeReport(report, locale)
 {
-	var title = report.project.name + " " + report.project.version;
-
-	var basedir = report.project.basedir.toPath();
-
-	var srcroot = java.nio.file.Paths.get("src", "main", "java");
-	srcroot = resolve(basedir, srcroot);
-	var srcrooturi = srcroot.toUri();
-
-	var jdklink = "https://docs.oracle.com/" +
-		locale.language + "/java/javase/12/docs/api";
-
-	var bottom =
-		"Copyright &#169; " +
-		report.project.inceptionYear + "&#x2013;" + new Date().getFullYear() +
-		"<a href='" + report.project.organization.url + "'>" +
-		report.project.organization.name + "</a>";
-
-	var args = java.util.List.of(
-		/*
-		 * The 'standard options' that javadoc inherits from javac.
-		 * Do not add --release: it causes -encoding to be ignored (in javadoc
-		 * 12 through 15, anyway). -d is documented as a doclet option, but
-		 * included here to be seen by the RelativizingFileManager (which may
-		 * otherwise complain that no class output location has been set).
-		 */
-		"-d",           report.reportOutputDirectory.toPath()
-							.resolve("apidocs").toString(),
-		"-encoding",    report.inputEncoding,
-		"-sourcepath",  srcroot.toString(),
-		/*
-		 * Core javadoc options.
-		 * Avoid the legacy package/private/protected/public options; they can
-		 * clobber the effects of the newer -show-...=... options.
-		 */
-		"-locale",      locale.toString(),
-		"-quiet",
-		/*
-		 * Options that are passed to the doclet.
-		 */
-		"-author",
-		"-bottom",      bottom,
-		"-docencoding", report.outputEncoding,
-		"-doctitle",    title,
-		"-link",        jdklink,
-		"-use",
-		"-version",
-		"-windowtitle", title,
-		/*
-		 * Source files to document
-		 */
-		srcroot.resolve("Node.java").toString(),
-		srcroot.resolve("JarX.java").toString()
-	);
-
-	debug(args.toString());
-	var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
-
-	function diagListener(d)
+	try
 	{
-		var s = d.source;
+		var title = report.project.name + " " + report.project.version;
 
-		if ( null === s )
-			s = "";
-		else
+		var basedir = report.project.basedir.toPath();
+
+		var srcroot = java.nio.file.Paths.get("src", "main", "java");
+		srcroot = resolve(basedir, srcroot);
+		var srcrooturi = srcroot.toUri();
+
+		var jdklink = "https://docs.oracle.com/" +
+			locale.language + "/java/javase/12/docs/api";
+
+		var bottom =
+			"Copyright &#169; " +
+			report.project.inceptionYear +
+			"&#x2013;" + new Date().getFullYear() +
+			"<a href='" + report.project.organization.url + "'>" +
+			report.project.organization.name + "</a>";
+
+		var args = java.util.List.of(
+			/*
+			 * The 'standard options' that javadoc inherits from javac.
+			 * Do not add --release: it causes -encoding to be ignored (in
+			 * javadoc 12 through 15, anyway). -d is documented as a doclet
+			 * option, but included here to be seen by the
+			 * RelativizingFileManager (which may otherwise complain that no
+			 * class output location has been set).
+			 */
+			"-d",           report.reportOutputDirectory.toPath()
+								.resolve("apidocs").toString(),
+			"-encoding",    report.inputEncoding,
+			"-sourcepath",  srcroot.toString(),
+			/*
+			 * Core javadoc options.
+			 * Avoid the legacy package/private/protected/public options; they
+			 * can clobber the effects of the newer -show-...=... options.
+			 */
+			"-locale",      locale.toString(),
+			"-quiet",
+			/*
+			 * Options that are passed to the doclet.
+			 */
+			"-author",
+			"-bottom",      bottom,
+			"-docencoding", report.outputEncoding,
+			"-doctitle",    title,
+			"-link",        jdklink,
+			"-use",
+			"-version",
+			"-windowtitle", title,
+			/*
+			 * Source files to document
+			 */
+			srcroot.resolve("Node.java").toString(),
+			srcroot.resolve("JarX.java").toString()
+		);
+
+		debug(args.toString());
+		var tool = javax.tools.ToolProvider.getSystemDocumentationTool();
+
+		function diagListener(d)
 		{
-			s = srcrooturi.relativize(s.toUri()).toString();
-			s += "[" + d.lineNumber + "," + d.columnNumber + "] ";
+			var s = d.source;
+
+			if ( null === s )
+				s = "";
+			else
+			{
+				s = srcrooturi.relativize(s.toUri()).toString();
+				s += "[" + d.lineNumber + "," + d.columnNumber + "] ";
+			}
+
+			diag(d.kind, s + d.getMessage(locale));
 		}
 
-		diag(d.kind, s + d.getMessage(locale));
+		var task = tool.getTask(null, null, diagListener, null, args, null);
+		if (task.call())
+			return null;
+		return report.exceptionWrap("Javadoc errors were reported");
 	}
-
-	var task = tool.getTask(null, null, diagListener, null, args, null);
-	task.call();
+	catch(e)
+	{
+		return report.exceptionWrap(e);
+	}
 }
 ]]>
 							</script>
