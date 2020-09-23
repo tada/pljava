@@ -565,7 +565,6 @@ public class Function
 	private static final MethodHandle s_paramCountsAre;
 	private static final MethodHandle s_countsZeroer;
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
-	private static final MethodHandle s_readSQL_mh;
 
 	/**
 	 * An {@code AccessControlContext} representing "nobody special": it should
@@ -592,7 +591,10 @@ public class Function
 	 * desired invocation targets. Such a constructed method handle will take
 	 * care of pushing the arguments from the appropriate static slots. Because
 	 * that happens before the target is invoked, and calls must happen on the
-	 * PG thread, the static areas are safe for reentrant calls.
+	 * PG thread, the static areas are safe for reentrant calls (but for an edge
+	 * case involving UDTs among the parameters and a UDT function that incurs
+	 * a reentrant call; it may never happen, but that's what the ParameterFrame
+	 * class is for, below).
 	 *
 	 * Such a constructed method handle will be passed, wrapped in
 	 * an Invocable, to EntryPoints.invoke, which is declared to return
@@ -791,9 +793,6 @@ public class Function
 					insertArguments(mh, 0, (byte)1), 0, boolean.class),
 				dropArguments(
 					insertArguments(mh, 0, (byte)0), 0, boolean.class));
-
-			s_readSQL_mh = l.findVirtual(SQLData.class, "readSQL",
-					methodType(void.class, SQLInput.class, String.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -864,14 +863,53 @@ public class Function
 	}
 
 	/**
-	 * Return a "construct+readSQL" method handle for a given UDT class.
+	 * Return an {@code Invocable} for the {@code writeSQL} method of
+	 * a given UDT class.
 	 *<p>
-	 * The method handle will expect the two non-receiver arguments for
-	 * {@code readSQL}, construct a new instance of the class, invoke
-	 * {@code readSQL} on that instance and the two supplied arguments,
-	 * and return the instance.
+	 * While this is not expected to be used while transforming parameters for
+	 * another function call as the UDT-read handle would be, it can still be
+	 * used during a function's execution and without being separately wrapped
+	 * in {@code pushInvocation}/{@code popInvocation}. The pushing and popping
+	 * of {@code ParameterFrame} rely on invocation scoping, so it is better for
+	 * the UDT-write method also to avoid using the static parameter area.
+	 *<p>
+	 * The access control context of the {@code Invocable} returned here is used
+	 * at the corresponding entry point; the payload is not.
 	 */
-	private static MethodHandle udtReadHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtWriteHandle(Class<? extends SQLData> clazz)
+	throws SQLException
+	{
+		return invocable(null, accessControlContextFor(clazz));
+	}
+
+	/**
+	 * Return an {@code Invocable} for the {@code toString} method of
+	 * a given UDT class (or any class, really).
+	 *<p>
+	 * The access control context of the {@code Invocable} returned here is used
+	 * at the corresponding entry point; the payload is not.
+	 */
+	private static Invocable udtToStringHandle(Class<? extends SQLData> clazz)
+	throws SQLException
+	{
+		return invocable(null, accessControlContextFor(clazz));
+	}
+
+	/**
+	 * Return a special {@code Invocable} for the {@code readSQL} method of
+	 * a given UDT class.
+	 *<p>
+	 * Because this can commonly be invoked while transforming parameters for
+	 * another function call, it has a dedicated corresponding
+	 * {@code EntryPoints} method and does not use the static parameter area.
+	 * The {@code Invocable} created here is bound to the constructor of the
+	 * type, takes no parameters, and simply returns the constructed instance;
+	 * the {@code EntryPoints} method will then call {@code readSQL} on it and
+	 * pass the stream and type-name arguments. The {@code AccessControlContext}
+	 * assigned here will be in effect for both the constructor and the
+	 * {@code readSQL} call.
+	 */
+	private static Invocable udtReadHandle(Class<? extends SQLData> clazz)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
@@ -879,7 +917,9 @@ public class Function
 
 		try
 		{
-			ctor = l.findConstructor(clazz, methodType(void.class));
+			ctor =
+				l.findConstructor(clazz, methodType(void.class))
+				.asType(methodType(SQLData.class)); // invocable() enforces this
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -888,29 +928,32 @@ public class Function
 				" must have a no-argument public constructor", "38000", e);
 		}
 
-		MethodHandle mh = identity(SQLData.class); // o -> o
-		mh = collectArguments(mh, 1, s_readSQL_mh); // (o, o, stream, type) -> o
-		mh = permuteArguments(mh, methodType(
-			SQLData.class, SQLData.class, SQLInput.class, String.class),
-			0, 0, 1, 2); // (o, stream, type) -> o
-		ctor = ctor.asType(methodType(SQLData.class));
-		mh = collectArguments(mh, 0, ctor); // (stream, type) -> o
-		return mh;
+		return invocable(ctor, accessControlContextFor(clazz));
 	}
 
 	/**
-	 * Return a "parse" method handle for a given UDT class.
+	 * Return a "parse" {@code Invocable} for a given UDT class.
+	 *<p>
+	 * The method can be invoked during the preparation of a parameter that has
+	 * a NUL-terminated storage form, so it gets its own dedicated entry point
+	 * and does not use the static parameter area.
 	 */
-	private static MethodHandle udtParseHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtParseHandle(Class<? extends SQLData> clazz)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
 
 		try
 		{
-			return l.findStatic(clazz, "parse",
-				methodType(clazz, String.class, String.class))
-				.asType(methodType(SQLData.class, String.class, String.class));
+			MethodHandle mh =
+				l.findStatic(clazz, "parse",
+					methodType(clazz, String.class, String.class));
+
+			return
+				invocable(
+					mh.asType(mh.type().changeReturnType(SQLData.class)),
+					accessControlContextFor(clazz)
+				);
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -976,7 +1019,6 @@ public class Function
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
 		String className = info.group("udtcls");
 		boolean isUDT = (null != className);
-		AccessControlContext acc = null; // assume no lid needed on permissions
 
 		if ( ! isUDT )
 		{
@@ -988,10 +1030,6 @@ public class Function
 
 		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
 		Class<?> clazz = loadClass(schemaLoader, className);
-
-		if ( clazz != Commands.class
-			&& ! (clazz.getClassLoader() instanceof Loader) )
-			acc = s_lid; // put a lid on permissions if calling JRE directly
 
 		if ( isUDT )
 		{
@@ -1032,7 +1070,7 @@ public class Function
 						resolvedTypes, retTypeIsOutParameter, isMultiCall)
 					.asFixedArity()
 				),
-				acc
+				accessControlContextFor(clazz)
 			);
 	}
 
@@ -1049,6 +1087,27 @@ public class Function
 		return 0 == procTup.getInt("pronargs")
 			&& TRIGGEROID ==
 				procTup.getInt("prorettype"); // type Oid, but implements Number
+	}
+
+	/**
+	 * Select the {@code AccessControlContext} to be in effect when invoking
+	 * a function.
+	 *<p>
+	 * At present, the only choices are null (no additional restrictions) when
+	 * the target class is in a PL/Java-loaded jar file, or the 'lid' when
+	 * invoking anything else (such as code of the JRE itself, which would
+	 * otherwise have all permissions). The 'lid' is constructed to be 'nobody
+	 * special', so will have only those permissions the policy grants without
+	 * conditions. No exception is made here for the few functions supplied by
+	 * PL/Java's own {@code Commands} class; they get a lid. It is reasonable to
+	 * ask them to use {@code doPrivileged} when appropriate.
+	 */
+	private static AccessControlContext accessControlContextFor(Class<?> clazz)
+	{
+		if ( clazz.getClassLoader() instanceof Loader )
+			return null; // policy already applies appropriate permissions
+
+		return s_lid; // put a lid on permissions if calling JRE directly
 	}
 
 	/**
@@ -1077,12 +1136,20 @@ public class Function
 			throw new SQLException("internal error in PL/Java UDT parsing");
 		}
 
-		MethodHandle parseMH = 'i' == udtInitial ? udtParseHandle(clazz) : null;
-		MethodHandle readMH = udtReadHandle(clazz);
+		Invocable readMH = udtReadHandle(clazz);
+		Invocable writeMH = udtWriteHandle(clazz);
+		/*
+		 * A Base UDT will have an 'i' (parse) and an 'o' (toString) function
+		 * to register. We'll look them both up here when resolving the 'i'
+		 * case, and they'll be registered at one time, saving upcalls if the
+		 * 'i' case is first to be resolved.
+		 */
+		Invocable parseMH    = 'i' == udtInitial? udtParseHandle(clazz)   :null;
+		Invocable toStringMH = 'i' == udtInitial? udtToStringHandle(clazz):null;
 
 		doInPG(() -> _storeToUDT(wrappedPtr, schemaLoader,
 			clazz, readOnly, udtInitial, udtId.intValue(),
-			parseMH, readMH));
+			parseMH, readMH, writeMH, toStringMH));
 	}
 
 	/**
@@ -1568,7 +1635,8 @@ public class Function
 		long wrappedPtr, ClassLoader schemaLoader,
 		Class<? extends SQLData> clazz,
 		boolean readOnly, int funcInitial, int udtOid,
-		MethodHandle readMH, MethodHandle parseMH);
+		Invocable readMH, Invocable parseMH,
+		Invocable writeMH, Invocable toStringMH);
 
 	private static native void _reconcileTypes(
 		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);

@@ -20,6 +20,7 @@ import static java.security.AccessController.doPrivileged;
 import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
+import java.sql.SQLException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
 
@@ -70,7 +71,10 @@ class EntryPoints
 	{
 	}
 
-	private static final MethodType s_expectedType = methodType(Object.class);
+	private static final MethodType s_generalType = methodType(Object.class);
+	private static final MethodType s_udtCtor = methodType(SQLData.class);
+	private static final MethodType s_udtParse =
+		methodType(SQLData.class, String.class, String.class);
 
 	/**
 	 * Wrap a {@code MethodHandle} in an {@code Invocable} suitable for
@@ -83,11 +87,15 @@ class EntryPoints
 	 * constructed to return null, storing any primitive value returned into
 	 * the first static primitive-parameter slot.
 	 */
-	static Invocable invocable(MethodHandle mh, AccessControlContext acc)
+	static Invocable<?> invocable(MethodHandle mh, AccessControlContext acc)
 	{
-		if ( ! s_expectedType.equals(mh.type()) )
+		if ( null == mh
+			|| s_udtCtor.equals(mh.type()) ||  s_udtParse.equals(mh.type()) )
+			return new Invocable<MethodHandle>(mh, acc);
+
+		if ( ! s_generalType.equals(mh.type()) )
 			throw new IllegalArgumentException(
-				"invocable() requires a MethodHandle with type ()Object");
+				"invocable() passed a MethodHandle with unexpected type");
 
 		/*
 		 * The EntryPoints class is specially loaded early in PL/Java's startup
@@ -113,7 +121,7 @@ class EntryPoints
 			}
 		};
 
-		return new Invocable(a, acc);
+		return new Invocable<PrivilegedAction<Object>>(a, acc);
 	}
 
 	/**
@@ -124,12 +132,157 @@ class EntryPoints
 	 * has void type or returns a primitive (which will have been returned in
 	 * the first static primitive parameter slot).
 	 */
-	private static Object invoke(Invocable target)
+	private static Object invoke(Invocable<PrivilegedAction<Object>> target)
+	throws Throwable
+	{
+		assert PrivilegedAction.class.isInstance(target.payload);
+
+		return doPrivilegedAndUnwrap(target.payload, target.acc);
+	}
+
+	/**
+	 * Entry point for calling the {@code writeSQL} method of a UDT.
+	 *<p>
+	 * Like {@code udtReadInvoke}, this is a distinct entry point in order to
+	 * avoid use of the static parameter area. While this operation is not
+	 * expected during preparation of a function's parameter list, it can occur
+	 * during a function's execution, if it stores values of user-defined type
+	 * into result sets, prepared-statement bindings, etc. Such uses are not
+	 * individually surrounded by {@code pushInvocation}/{@code popInvocation}
+	 * as ordinary function calls are, and the {@code ParameterFrame} save and
+	 * restore mechanism relies on those, so it is better for this entry point
+	 * also to be handled specially.
+	 * @param t Invocable carrying the appropriate AccessControlContext (t's
+	 * action is unused and expected to be null)
+	 * @param o the UDT instance
+	 * @param stream the SQLOutput stream on which the type's internal
+	 * representation will be written
+	 */
+	private static void udtWriteInvoke(
+		Invocable<Void> target, SQLData o, SQLOutput stream)
+	throws Throwable
+	{
+		PrivilegedAction<Void> action = () ->
+		{
+			try
+			{
+				o.writeSQL(stream);
+				return null;
+			}
+			catch ( SQLException e )
+			{
+				throw unchecked(e);
+			}
+		};
+
+		doPrivilegedAndUnwrap(action, target.acc);
+	}
+
+	/**
+	 * Entry point for calling the {@code toString} method of a UDT.
+	 *<p>
+	 * This can be called during transformation of a UDT that has a
+	 * NUL-terminated storage form, and without being separately wrapped in
+	 * {@code pushInvocation}/{@code popInvocation}, so it gets its own entry
+	 * point here to avoid use of the static parameter area.
+	 * @param target Invocable carrying the appropriate AccessControlContext
+	 * (target's action is unused and expected to be null)
+	 * @param o the UDT instance
+	 * @return the UDT's text representation
+	 */
+	private static String udtToStringInvoke(Invocable<Void> target, SQLData o)
+	{
+		PrivilegedAction<String> action = () ->
+		{
+			return o.toString();
+		};
+
+		return doPrivileged(action, target.acc);
+	}
+
+	/**
+	 * Entry point for calling the {@code readSQL} method of a UDT, after
+	 * constructing an instance first.
+	 *<p>
+	 * This gets its own entry point so parameters can be passed to it
+	 * independently of the static parameter area used for ordinary function
+	 * invocations. Should an ordinary function have a parameter that is of a
+	 * user-defined type, this entry point is used to instantiate the Java
+	 * form of that parameter <em>during</em> the assembly of the function's
+	 * parameter list, so the static area is not touched here.
+	 * @param target an Invocable that returns a new instance, on which readSQL
+	 * will then be called. The Invocable's access control context will be in
+	 * effect for both operations.
+	 * @param stream the SQLInput stream from which to read the UDT's internal
+	 * representation
+	 * @param typeName the SQL type name to be associated with the instance
+	 * @return the allocated and initialized instance
+	 */
+	private static SQLData udtReadInvoke(
+		Invocable<MethodHandle> target, SQLInput stream, String typeName)
+	throws Throwable
+	{
+		PrivilegedAction<SQLData> action = () ->
+		{
+			try
+			{
+				SQLData o = (SQLData)target.payload.invokeExact();
+				o.readSQL(stream, typeName);
+				return o;
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
+		};
+
+		return doPrivilegedAndUnwrap(action, target.acc);
+	}
+
+	/**
+	 * Entry point for calling the {@code parse} method of a UDT, which will
+	 * construct an instance given its text representation.
+	 *<p>
+	 * This can be called during transformation of a UDT that has a
+	 * NUL-terminated storage form, and without being separately wrapped in
+	 * {@code pushInvocation}/{@code popInvocation}, so it gets its own entry
+	 * point here to avoid use of the static parameter area.
+	 * @param mh a MethodHandle to the class's static parse method, which will
+	 * allocate and return an instance.
+	 * @param textRep the text representation
+	 * @param typeName the SQL type name to be associated with the instance
+	 * @return the allocated and initialized instance
+	 */
+	private static SQLData udtParseInvoke(
+		Invocable<MethodHandle> target, String textRep, String typeName)
+	throws Throwable
+	{
+		PrivilegedAction<SQLData> action = () ->
+		{
+			try
+			{
+				return (SQLData)target.payload.invokeExact(textRep, typeName);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
+		};
+
+		return doPrivilegedAndUnwrap(action, target.acc);
+	}
+
+	/**
+	 * Factors out the common {@code doPrivileged} and unwrapping of possible
+	 * wrapped checked exceptions for the above entry points.
+	 */
+	private static <T> T doPrivilegedAndUnwrap(
+		PrivilegedAction<T> action, AccessControlContext context)
 	throws Throwable
 	{
 		try
 		{
-			return doPrivileged(target.action, target.acc);
+			return doPrivileged(action, context);
 		}
 		catch ( UncheckedException e )
 		{
@@ -138,68 +291,20 @@ class EntryPoints
 	}
 
 	/**
-	 * Entry point for calling the {@code writeSQL} method of a UDT.
-	 * @param o the UDT instance
-	 * @param stream the SQLOutput stream on which the type's internal
-	 * representation will be written
+	 * A class carrying a payload of some kind and an access control context
+	 * to impose when it is invoked.
+	 *<p>
+	 * The type of the payload will be specific to which entry point above
+	 * will be used to invoke it.
 	 */
-	private static void udtWriteInvoke(SQLData o, SQLOutput stream)
-	throws Throwable
+	static final class Invocable<T>
 	{
-		o.writeSQL(stream);
-	}
-
-	/**
-	 * Entry point for calling the {@code toString} method of a UDT.
-	 * @param o the UDT instance
-	 * @return the UDT's text representation
-	 */
-	private static String udtToStringInvoke(SQLData o)
-	{
-		return o.toString();
-	}
-
-	/**
-	 * Entry point for calling the {@code readSQL} method of a UDT, after
-	 * constructing an instance first.
-	 * @param mh a MethodHandle that composes the allocation of a new instance
-	 * by its no-arg constructor with the call of readSQL.
-	 * @param stream the SQLInput stream from which to read the UDT's internal
-	 * representation
-	 * @param typeName the SQL type name to be associated with the instance
-	 * @return the allocated and initialized instance
-	 */
-	private static SQLData udtReadInvoke(
-		MethodHandle mh, SQLInput stream, String typeName)
-	throws Throwable
-	{
-		return (SQLData)mh.invokeExact(stream, typeName);
-	}
-
-	/**
-	 * Entry point for calling the {@code parse} method of a UDT, which will
-	 * construct an instance given its text representation.
-	 * @param mh a MethodHandle to the class's static parse method, which will
-	 * allocate and return an instance.
-	 * @param textRep the text representation
-	 * @param typeName the SQL type name to be associated with the instance
-	 * @return the allocated and initialized instance
-	 */
-	private static SQLData udtParseInvoke(
-		MethodHandle mh, String textRep, String typeName)
-	throws Throwable
-	{
-		return (SQLData)mh.invokeExact(textRep, typeName);
-	}
-
-	static final class Invocable
-	{
-		final PrivilegedAction<Object> action;
+		final T payload;
 		final AccessControlContext acc;
 
-		Invocable(PrivilegedAction<Object> action, AccessControlContext acc)
+		Invocable(T payload, AccessControlContext acc)
 		{
-			this.action = requireNonNull(action);
+			this.payload = payload;
 			this.acc = acc;
 		}
 	}

@@ -107,13 +107,17 @@ extern jfloat pljava_Function_floatInvoke(Function self);
 extern jlong pljava_Function_longInvoke(Function self);
 extern jdouble pljava_Function_doubleInvoke(Function self);
 
-extern void pljava_Function_udtWriteInvoke(jobject value, jobject stream);
-extern jstring pljava_Function_udtToStringInvoke(jobject value);
+extern void pljava_Function_udtWriteInvoke(
+	jobject invocable, jobject value, jobject stream);
+extern jstring pljava_Function_udtToStringInvoke(
+	jobject invocable, jobject value);
 extern jobject pljava_Function_udtReadInvoke(
-	jobject readMH, jobject stream, jstring typeName);
+	jobject invocable, jobject stream, jstring typeName);
 extern jobject pljava_Function_udtParseInvoke(
-	jobject parseMH, jstring stringRep, jstring typeName);
+	jobject invocable, jstring stringRep, jstring typeName);
 
+extern jobject pljava_Function_udtWriteHandle(jclass clazz);
+extern jobject pljava_Function_udtToStringHandle(jclass clazz);
 extern jobject pljava_Function_udtReadHandle(jclass clazz);
 extern jobject pljava_Function_udtParseHandle(jclass clazz);
 

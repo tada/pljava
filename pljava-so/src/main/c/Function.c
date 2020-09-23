@@ -59,6 +59,8 @@ static jmethodID s_Function_create;
 static jmethodID s_Function_getClassIfUDT;
 static jmethodID s_Function_udtReadHandle;
 static jmethodID s_Function_udtParseHandle;
+static jmethodID s_Function_udtWriteHandle;
+static jmethodID s_Function_udtToStringHandle;
 static jmethodID s_ParameterFrame_push;
 static jmethodID s_ParameterFrame_pop;
 static jmethodID s_EntryPoints_invoke;
@@ -210,7 +212,11 @@ void Function_initialize(void)
 		{
 		"_storeToUDT",
 		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII"
-		"Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V",
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		")V",
 		Java_org_postgresql_pljava_internal_Function__1storeToUDT
 		},
 		{
@@ -260,24 +266,41 @@ void Function_initialize(void)
 
 	s_EntryPoints_udtWriteInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
-		"udtWriteInvoke", "(Ljava/sql/SQLData;Ljava/sql/SQLOutput;"
+		"udtWriteInvoke",
+		"(Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Ljava/sql/SQLData;Ljava/sql/SQLOutput;"
 		")V");
 	s_EntryPoints_udtToStringInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
-		"udtToStringInvoke", "(Ljava/sql/SQLData;)Ljava/lang/String;");
+		"udtToStringInvoke",
+		"(Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Ljava/sql/SQLData;)Ljava/lang/String;");
 	s_EntryPoints_udtReadInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
-		"udtReadInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/sql/SQLInput;"
+		"udtReadInvoke",
+		"(Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Ljava/sql/SQLInput;"
 		"Ljava/lang/String;)Ljava/sql/SQLData;");
 	s_EntryPoints_udtParseInvoke = PgObject_getStaticJavaMethod(
 		s_EntryPoints_class,
-		"udtParseInvoke", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/String;"
+		"udtParseInvoke",
+		"(Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
+		"Ljava/lang/String;"
 		"Ljava/lang/String;)Ljava/sql/SQLData;");
 
 	s_Function_udtReadHandle = PgObject_getStaticJavaMethod(s_Function_class,
-		"udtReadHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
+		"udtReadHandle", "(Ljava/lang/Class;)"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_udtParseHandle = PgObject_getStaticJavaMethod(s_Function_class,
-		"udtParseHandle", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;");
+		"udtParseHandle", "(Ljava/lang/Class;)"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
+	s_Function_udtWriteHandle = PgObject_getStaticJavaMethod(s_Function_class,
+		"udtWriteHandle", "(Ljava/lang/Class;)"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
+	s_Function_udtToStringHandle =
+		PgObject_getStaticJavaMethod(s_Function_class,
+		"udtToStringHandle", "(Ljava/lang/Class;)"
+		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
 
@@ -354,30 +377,80 @@ jdouble pljava_Function_doubleInvoke(Function self)
 	return s_primitiveParameters[0].d;
 }
 
-void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
+/*
+ * 'Reserve' the static parameter frame for (refArgCount,primArgCount) reference
+ * and primitive parameters, respectively, pushing temporarily out of the way
+ * any current contents, detected by a non-(0,0) existing reservation.
+ *
+ * The corresponding pop of the earlier contents will happen at
+ * Invocation_popInvocation time, so this scheme is only appropriately used for
+ * calls that happen within the scope of an Invocation, as conventional PL/Java
+ * function calls do.
+ *
+ * It is possible to reserve (0,0) space, though no existing frame will be
+ * saved/restored in that case. Caution: the two count arguments here count only
+ * parameters, not the possibility that a primitive-returning function uses a
+ * slot in the frame for its return. The primitive call wrappers must make their
+ * own arrangements to save the typically-only-one-jvalue affected by that use
+ * and restore it on both normal and exceptional return paths. To streamline the
+ * most common case, Invocation_{push,pop}Invocation will unconditionally save
+ * the first jvalue slot, and restore it if the more heavyweight frame-pushing
+ * has not been used. That spares a primitive call wrapper the cycles of
+ * managing another PG_TRY block. Any wrapper that will use more than the first
+ * jvalue slot for returns, though, must handle its own normal and exceptional
+ * cleanup.
+ */
+static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 {
-	JNI_callStaticVoidMethod(s_EntryPoints_class,
-		s_EntryPoints_udtWriteInvoke, value, stream);
+	jshort newCounts = COUNTCHECK(refArgCount, primArgCount);
+
+	/* The *s_countCheck field in the parameter area will be zero unless
+	 * this is a recursive invocation (believed only possible via a UDT
+	 * function called while converting the parameters for some outer
+	 * invocation). It could also be zero if this is a recursive invocation
+	 * but the outer one involves no parameters, which won't happen if UDT
+	 * conversion for a parameter is the only way to get here, and even if
+	 * it happens, we still don't need to save its frame because there is
+	 * nothing there that we'll clobber.
+	 */
+	if ( 0 != newCounts  &&  0 != *s_countCheck )
+	{
+		JNI_callStaticVoidMethodLocked(
+			s_ParameterFrame_class, s_ParameterFrame_push);
+		/* Record, in currentInvocation, that a frame was pushed; the pop
+		 * will happen in Invocation_popInvocation, which our caller
+		 * arranges for both normal return and PG_CATCH cases.
+		 */
+		currentInvocation->frameLimits = FRAME_LIMITS_PUSHED;
+	}
+	*s_countCheck = newCounts;
 }
 
-jstring pljava_Function_udtToStringInvoke(jobject value)
+void pljava_Function_udtWriteInvoke(
+	jobject invocable, jobject value, jobject stream)
+{
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
+		s_EntryPoints_udtWriteInvoke, invocable, value, stream);
+}
+
+jstring pljava_Function_udtToStringInvoke(jobject invocable, jobject value)
 {
 	return JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_udtToStringInvoke, value);
+		s_EntryPoints_udtToStringInvoke, invocable, value);
 }
 
 jobject pljava_Function_udtReadInvoke(
-	jobject readMH, jobject stream, jstring typeName)
+	jobject invocable, jobject stream, jstring typeName)
 {
 	return JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_udtReadInvoke, readMH, stream, typeName);
+		s_EntryPoints_udtReadInvoke, invocable, stream, typeName);
 }
 
 jobject pljava_Function_udtParseInvoke(
-	jobject parseMH, jstring stringRep, jstring typeName)
+	jobject parseInvocable, jstring stringRep, jstring typeName)
 {
 	return JNI_callStaticObjectMethod(s_EntryPoints_class,
-		s_EntryPoints_udtParseInvoke, parseMH, stringRep, typeName);
+		s_EntryPoints_udtParseInvoke, parseInvocable, stringRep, typeName);
 }
 
 jobject pljava_Function_udtReadHandle(jclass clazz)
@@ -390,6 +463,18 @@ jobject pljava_Function_udtParseHandle(jclass clazz)
 {
 	return JNI_callStaticObjectMethod(s_Function_class,
 		s_Function_udtParseHandle, clazz);
+}
+
+jobject pljava_Function_udtWriteHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtWriteHandle, clazz);
+}
+
+jobject pljava_Function_udtToStringHandle(jclass clazz)
+{
+	return JNI_callStaticObjectMethod(s_Function_class,
+		s_Function_udtToStringHandle, clazz);
 }
 
 static jstring getSchemaName(int namespaceOid)
@@ -433,8 +518,8 @@ Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
 	ReleaseSysCache(procTup);
 
 	if ( NULL != clazz )
-		t = (Type)
-			UDT_registerUDT(clazz, typeId, typeStruct, 0, true, NULL, NULL);
+		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true,
+			NULL, NULL, NULL, NULL);
 
 	return t;
 }
@@ -653,31 +738,8 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	}
 
 	if ( ! skipParameterConversion )
-	{
-		jsize refArgCount = self->func.nonudt.numRefParams;
-		jsize primArgCount = self->func.nonudt.numPrimParams;
-
-		/* The *s_countCheck field in the parameter area will be zero unless
-		 * this is a recursive invocation (believed only possible via a UDT
-		 * function called while converting the parameters for some outer
-		 * invocation). It could also be zero if this is a recursive invocation
-		 * but the outer one involves no parameters, which won't happen if UDT
-		 * conversion for a parameter is the only way to get here, and even if
-		 * it happens, we still don't need to save its frame because there is
-		 * nothing there that we'll clobber.
-		 */
-		if ( 0 != *s_countCheck )
-		{
-			JNI_callStaticVoidMethodLocked(
-				s_ParameterFrame_class, s_ParameterFrame_push);
-			/* Record, in currentInvocation, that a frame was pushed; the pop
-			 * will happen in Invocation_popInvocation, which our caller
-			 * arranges for both normal return and PG_CATCH cases.
-			 */
-			currentInvocation->pushedFrame = true;
-		}
-		*s_countCheck = COUNTCHECK(refArgCount, primArgCount);
-	}
+		reserveParameterFrame(
+			self->func.nonudt.numRefParams, self->func.nonudt.numPrimParams);
 
 	invokerType = self->func.nonudt.returnType;
 
@@ -743,16 +805,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 	if(jtd == 0)
 		return 0;
 
-	/*
-	 * See comments for this block in Function_invoke.
-	 */
-	if ( 0 != *s_countCheck )
-	{
-		JNI_callStaticVoidMethodLocked(
-			s_ParameterFrame_class, s_ParameterFrame_push);
-		currentInvocation->pushedFrame = true;
-	}
-	*s_countCheck = COUNTCHECK(1, 0);
+	reserveParameterFrame(1, 0);
 
 	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
 
@@ -865,6 +918,7 @@ JNIEXPORT jobject JNICALL
 	 * it is only called once in early initialization on the primordial thread.
 	 */
 	s_referenceParameters = (*env)->NewGlobalRef(env, referenceParams);
+	pljava_Invocation_shareFrame(s_primitiveParameters, s_countCheck);
 	return (*env)->NewDirectByteBuffer(
 		env, &s_primitiveParameters, sizeof s_primitiveParameters);
 }
@@ -983,13 +1037,13 @@ JNIEXPORT jboolean JNICALL
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToUDT
- * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZIILjava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)V
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZIILorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;)V
  */
 JNIEXPORT void JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
 	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId,
-	jobject parseMH, jobject readMH)
+	jobject parseMH, jobject readMH, jobject writeMH, jobject toStringMH)
 {
 	Ptr2Long p2l;
 	Function self;
@@ -1022,8 +1076,8 @@ JNIEXPORT void JNICALL
 			self->clazz = JNI_newGlobalRef(clazz);
 
 			self->func.udt.udt =
-				UDT_registerUDT(
-					self->clazz, udtId, pgType, 0, true, parseMH, readMH);
+				UDT_registerUDT(self->clazz, udtId, pgType, 0, true,
+					parseMH, readMH, writeMH, toStringMH);
 
 			switch ( funcInitial )
 			{

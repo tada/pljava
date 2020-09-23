@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -151,7 +151,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		 * produce the human-used external representation, is being called here
 		 * to produce this UDT's internal representation.
 		 */
-		jstring jstr = pljava_Function_udtToStringInvoke(value);
+		jstring jstr = pljava_Function_udtToStringInvoke(self->toString, value);
 		char* tmp = String_createNTS(jstr);
 		result = CStringGetDatum(tmp);
 		JNI_deleteLocalRef(jstr);
@@ -176,7 +176,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 			enlargeStringInfo(&buffer, dataLen);
 
 		outputStream = SQLOutputToChunk_create(&buffer, isJavaBasedScalar);
-		pljava_Function_udtWriteInvoke(value, outputStream);
+		pljava_Function_udtWriteInvoke(self->writeSQL, value, outputStream);
 		SQLOutputToChunk_close(outputStream);
 
 		if(dataLen < 0)
@@ -223,7 +223,7 @@ static Datum coerceTupleObject(UDT self, jobject value)
 		TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
 		jobject sqlOutput = SQLOutputToTuple_create(tupleDesc);
 		ReleaseTupleDesc(tupleDesc);
-		pljava_Function_udtWriteInvoke(value, sqlOutput);
+		pljava_Function_udtWriteInvoke(self->writeSQL, value, sqlOutput);
 		tuple = SQLOutputToTuple_getTuple(sqlOutput);
 		if(tuple != 0)
 			result = HeapTupleGetDatum(tuple);
@@ -355,7 +355,7 @@ Datum UDT_output(UDT udt, PG_FUNCTION_ARGS)
 		 * toString to get the external representation from the object.
 		 */
 		jobject value = _UDT_coerceDatum((Type)udt, PG_GETARG_DATUM(0)).l;
-		jstring jstr  = pljava_Function_udtToStringInvoke(value);
+		jstring jstr  = pljava_Function_udtToStringInvoke(udt->toString, value);
 
 		MemoryContext currCtx = Invocation_switchToUpperContext();
 		txt = String_createNTS(jstr);
@@ -429,7 +429,8 @@ bool UDT_isScalar(UDT udt)
 /* Make this datatype available to the postgres system.
  */
 UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
-	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH)
+	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH,
+	jobject writeMH, jobject toStringMH)
 {
 	jstring jcn;
 	MemoryContext currCtx;
@@ -527,19 +528,28 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 		 */
 		if ( NULL == parseMH )
 			parseMH = pljava_Function_udtParseHandle(clazz);
+		if ( NULL == toStringMH )
+			toStringMH = pljava_Function_udtToStringHandle(clazz);
 		udt->parse = JNI_newGlobalRef(parseMH);
+		udt->toString = JNI_newGlobalRef(toStringMH);
 		JNI_deleteLocalRef(parseMH);
+		JNI_deleteLocalRef(toStringMH);
 	}
 	else
 	{
 		udt->parse = NULL;
+		udt->toString = NULL;
 	}
 
 	udt->hasTupleDesc = hasTupleDesc;
 	if ( NULL == readMH )
 		readMH = pljava_Function_udtReadHandle(clazz);
+	if ( NULL == writeMH )
+		writeMH = pljava_Function_udtWriteHandle(clazz);
 	udt->readSQL = JNI_newGlobalRef(readMH);
+	udt->writeSQL = JNI_newGlobalRef(writeMH);
 	JNI_deleteLocalRef(readMH);
+	JNI_deleteLocalRef(writeMH);
 	Type_registerType(className, (Type)udt);
 	return udt;
 }
