@@ -24,6 +24,7 @@ import java.sql.SQLException;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 import static java.util.stream.Collectors.toList;
@@ -37,6 +38,33 @@ import static java.util.stream.Collectors.toList;
 class XactListener
 {
 	/*
+	 * These do not need to match the values of the PostgreSQL enum (which, over
+	 * the years, has had members not merely added but reordered). The C code
+	 * will map those to these.
+	 */
+	private static final int COMMIT              = 0;
+	private static final int ABORT               = 1;
+	private static final int PREPARE             = 2;
+	private static final int PRE_COMMIT          = 3;
+	private static final int PRE_PREPARE         = 4;
+	private static final int PARALLEL_COMMIT     = 5;
+	private static final int PARALLEL_ABORT      = 6;
+	private static final int PARALLEL_PRE_COMMIT = 7;
+
+	private static final
+	List<Checked.BiConsumer<TransactionListener,Session,SQLException>> s_refs =
+	List.of(
+		TransactionListener::onCommit,
+		TransactionListener::onAbort,
+		TransactionListener::onPrepare,
+		TransactionListener::onPreCommit,
+		TransactionListener::onPrePrepare,
+		TransactionListener::onParallelCommit,
+		TransactionListener::onParallelAbort,
+		TransactionListener::onParallelPreCommit
+	);
+
+	/*
 	 * A non-thread-safe Deque; will be made safe by doing all mutations on the
 	 * PG thread (even though actually calling into PG is necessary only when
 	 * the size changes from 0 to 1 or 1 to 0).
@@ -44,25 +72,11 @@ class XactListener
 	private static final Deque<Invocable<TransactionListener>> s_listeners =
 		new ArrayDeque<>();
 
-	static void onAbort() throws SQLException
-	{
-		invokeListeners(TransactionListener::onAbort);
-	}
-
-	static void onCommit() throws SQLException
-	{
-		invokeListeners(TransactionListener::onCommit);
-	}
-
-	static void onPrepare() throws SQLException
-	{
-		invokeListeners(TransactionListener::onPrepare);
-	}
-
-	private static void invokeListeners(
-		Checked.BiConsumer<TransactionListener,Session,SQLException> target)
+	private static void invokeListeners(int eventIndex)
 	throws SQLException
 	{
+		Checked.BiConsumer<TransactionListener,Session,SQLException> target =
+			s_refs.get(eventIndex);
 		Session session = Backend.getSession();
 
 		// Take a snapshot. Handlers might unregister during event processing

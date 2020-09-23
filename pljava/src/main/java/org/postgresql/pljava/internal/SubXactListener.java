@@ -46,6 +46,24 @@ class SubXactListener
 	}
 
 	/*
+	 * These must match the values of the PostgreSQL enum; StaticAssertStmt
+	 * is used in the C source to produce errors (from compilers with the
+	 * feature) if they do not.
+	 */
+	private static final int      START_SUB = 0;
+	private static final int     COMMIT_SUB = 1;
+	private static final int      ABORT_SUB = 2;
+	private static final int PRE_COMMIT_SUB = 3;
+
+	private static final Target[] s_refs =
+	{
+		SavepointListener::onStart,
+		SavepointListener::onCommit,
+		SavepointListener::onAbort,
+		SavepointListener::onPreCommit
+	};
+
+	/*
 	 * A non-thread-safe Deque; will be made safe by doing all mutations on the
 	 * PG thread (even though actually calling into PG is necessary only when
 	 * the size changes from 0 to 1 or 1 to 0).
@@ -53,28 +71,11 @@ class SubXactListener
 	private static final Deque<Invocable<SavepointListener>> s_listeners =
 		new ArrayDeque<>();
 
-	static void onAbort(PgSavepoint sp, PgSavepoint parent)
-	throws SQLException
-	{
-		invokeListeners(SavepointListener::onAbort, sp, parent);
-	}
-
-	static void onCommit(PgSavepoint sp, PgSavepoint parent)
-	throws SQLException
-	{
-		invokeListeners(SavepointListener::onCommit, sp, parent);
-	}
-
-	static void onStart(PgSavepoint sp, PgSavepoint parent)
-	throws SQLException
-	{
-		invokeListeners(SavepointListener::onStart, sp, parent);
-	}
-
 	private static void invokeListeners(
-		Target target, Savepoint sp, Savepoint parent)
+		int eventIndex, PgSavepoint sp, PgSavepoint parent)
 	throws SQLException
 	{
+		Target target = s_refs[eventIndex];
 		Session session = Backend.getSession();
 
 		// Take a snapshot. Handlers might unregister during event processing
