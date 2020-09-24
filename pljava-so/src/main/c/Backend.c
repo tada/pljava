@@ -116,6 +116,7 @@ static char* libjvmlocation;
 static char* vmoptions;
 static char* modulepath;
 static char* implementors;
+static char* policy_urls;
 static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
@@ -189,6 +190,7 @@ enum initstage
 	IS_FORMLESS_VOID,
 	IS_GUCS_REGISTERED,
 	IS_CAND_JVMLOCATION,
+	IS_CAND_POLICYURLS,
 	IS_PLJAVA_ENABLED,
 	IS_CAND_JVMOPENED,
 	IS_CREATEVM_SYM_FOUND,
@@ -233,6 +235,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	static bool check_vmoptions(
 		char **newval, void **extra, GucSource source);
 	static bool check_modulepath(
+		char **newval, void **extra, GucSource source);
+	static bool check_policy_urls(
 		char **newval, void **extra, GucSource source);
 	static bool check_enabled(
 		bool *newval, void **extra, GucSource source);
@@ -294,6 +298,25 @@ static void initsequencer(enum initstage is, bool tolerant);
 			return true;
 		GUC_check_errmsg(
 			"too late to change \"pljava.module_path\" setting");
+		GUC_check_errdetail(
+			"Changing the setting has no effect after "
+			"PL/Java has started the Java virtual machine.");
+		GUC_check_errhint(
+			"To try a different value, exit this session and start a new one.");
+		return false;
+	}
+
+	static bool check_policy_urls(
+		char **newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_JAVAVM_OPTLIST )
+			return true;
+		if ( policy_urls == *newval )
+			return true;
+		if ( policy_urls && *newval && 0 == strcmp(policy_urls, *newval) )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.policy_urls\" setting");
 		GUC_check_errdetail(
 			"Changing the setting has no effect after "
 			"PL/Java has started the Java virtual machine.");
@@ -429,6 +452,19 @@ ASSIGNSTRINGHOOK(modulepath)
 	ASSIGNRETURN(newval);
 }
 
+ASSIGNSTRINGHOOK(policy_urls)
+{
+	ASSIGNRETURNIFCHECK(newval);
+	policy_urls = (char *)newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
+	{
+		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(newval);
+}
+
 ASSIGNHOOK(enabled, bool)
 {
 	ASSIGNRETURNIFCHECK(true);
@@ -525,6 +561,18 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_CAND_JVMLOCATION;
 
 	case IS_CAND_JVMLOCATION:
+		if ( NULL == policy_urls )
+		{
+			ereport(WARNING, (
+				errmsg("Java virtual machine not yet loaded"),
+				errdetail("Java policy URL(s) not configured"),
+				errhint("SET pljava.policy_urls TO the security policy "
+						"files PL/Java is to use.")));
+			goto check_tolerant;
+		}
+		initstage = IS_CAND_POLICYURLS;
+
+	case IS_CAND_POLICYURLS:
 		if ( ! pljavaEnabled )
 		{
 			ereport(WARNING, (
@@ -1640,6 +1688,24 @@ static void registerGUCOptions(void)
 		0,    /* flags */
 		check_modulepath,
 		assign_modulepath,
+		NULL); /* show hook */
+
+	STRING_GUC(
+		"pljava.policy_urls",
+		"URLs to Java security policy file(s) for PL/Java's use",
+		"Quote each URL and separate with commas. Any URL may begin (inside "
+		"the quotes) with n= where n is the index of the Java "
+		"policy.url.n property to set. If not specified, the first will "
+		"become policy.url.2 (following the JRE-installed policy) with "
+		"subsequent entries following in sequence. The last entry may be a "
+		"bare = (still quoted) to prevent use of any higher-numbered policy "
+		"URLs from the java.security file.",
+		&policy_urls,
+		"\"file:${org.postgresql.sysconfdir}/pljava.policy\",\"=\"",
+		PGC_SUSET,
+		PLJAVA_IMPLEMENTOR_FLAGS,
+		check_policy_urls, /* check hook */
+		assign_policy_urls,
 		NULL); /* show hook */
 
 	BOOL_GUC(

@@ -247,11 +247,11 @@ public class Backend
 		return doInPG(() -> _getConfigOption(key));
 	}
 
-	public static List<Identifier> getListConfigOption(String key)
+	public static List<Identifier.Simple> getListConfigOption(String key)
 	throws SQLException
 	{
 		final Matcher m = s_gucList.matcher(getConfigOption(key));
-		ArrayList<Identifier> al = new ArrayList<>();
+		ArrayList<Identifier.Simple> al = new ArrayList<>();
 		while ( m.find() )
 		{
 			al.add(identifierFrom(m));
