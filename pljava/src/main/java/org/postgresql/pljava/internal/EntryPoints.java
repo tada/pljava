@@ -21,6 +21,7 @@ import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
 
@@ -122,6 +123,10 @@ class EntryPoints
 			try
 			{
 				return mh.invokeExact(acc);
+			}
+			catch ( Error | RuntimeException e )
+			{
+				throw e;
 			}
 			catch ( Throwable t )
 			{
@@ -238,6 +243,10 @@ class EntryPoints
 				o.readSQL(stream, typeName);
 				return o;
 			}
+			catch ( Error | RuntimeException e )
+			{
+				throw e;
+			}
 			catch ( Throwable t )
 			{
 				throw unchecked(t);
@@ -271,6 +280,10 @@ class EntryPoints
 			{
 				return (SQLData)target.payload.invokeExact(textRep, typeName);
 			}
+			catch ( Error | RuntimeException e )
+			{
+				throw e;
+			}
 			catch ( Throwable t )
 			{
 				throw unchecked(t);
@@ -288,14 +301,35 @@ class EntryPoints
 		PrivilegedAction<T> action, AccessControlContext context)
 	throws Throwable
 	{
+		Throwable t;
 		try
 		{
 			return doPrivileged(action, context);
 		}
+		catch ( Error e )
+		{
+			throw e;
+		}
 		catch ( UncheckedException e )
 		{
-			throw e.unwrap();
+			t = e.unwrap();
 		}
+		catch ( Throwable e )
+		{
+			t = e;
+		}
+
+		if ( t instanceof SQLException )
+			throw t;
+
+		if ( t instanceof SecurityException )
+			/*
+			 * Yes, SQL and JDBC lump syntax errors and access violations
+			 * together, and this is the right exception class for 42xxx.
+			 */
+			throw new SQLSyntaxErrorException(t.getMessage(), "42501", t);
+
+		throw new SQLException(t.getMessage(), t);
 	}
 
 	/**
