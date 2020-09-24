@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -102,14 +102,14 @@ category</a>
 
 	/**
 	 * Estimated cost in units of cpu_operator_cost.
-	 *
+	 *<p>
 	 * If left unspecified (-1) the backend's default will apply.
 	 */
 	int cost() default -1;
 
 	/**
 	 * Estimated number of rows returned (only for functions returning set).
-	 *
+	 *<p>
 	 * If left unspecified (-1) the backend's default will apply.
 	 */
 	int rows() default -1;
@@ -137,7 +137,7 @@ category</a>
 	
 	/**
 	 * What the query optimizer is allowed to assume about this function.
-	 *
+	 *<p>
 	 * IMMUTABLE describes a pure function whose return will always be the same
 	 * for the same parameter values, with no side effects and no dependency on
 	 * anything in the environment. STABLE describes a function that has no
@@ -154,6 +154,23 @@ category</a>
 	 * in the "untrusted" language instance.
 	 */
 	Trust trust() default Trust.SANDBOXED;
+
+	/**
+	 * The name of the PostgreSQL procedural language to which this function
+	 * should be declared, as an alternative to specifying {@link #trust trust}.
+	 *<p>
+	 * Ordinarily, PL/Java installs two procedural languages, {@code java} and
+	 * {@code javau}, and a function is declared in one or the other by giving
+	 * {@code trust} the value {@code SANDBOXED} or {@code UNSANDBOXED},
+	 * respectively. It is possible to declare other named procedural languages
+	 * sharing PL/Java's handler functions, and assign customized permissions
+	 * to them in {@code pljava.policy}. A function can be declared in the
+	 * specific language named with this element.
+	 *<p>
+	 * It is an error to specify both {@code language} and {@code trust} in
+	 * the same annotation.
+	 */
+	String language() default "";
 
 	/** 
 	 * Whether the function is UNSAFE to use in any parallel query plan at all
@@ -195,7 +212,7 @@ category</a>
 	 * configuration_parameter FROM CURRENT. The latter will ensure that the
 	 * function executes with the same setting for configuration_parameter that
 	 * was in effect when the function was created.
-	 * 
+	 *<p>
 	 * Appeared in PostgreSQL 8.3.
 	 */
 	String[] settings() default {};

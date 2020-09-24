@@ -191,8 +191,8 @@ class DDRProcessorImpl
 
 	// Options obtained from the invocation
 	//	
-	final String nameTrusted;
-	final String nameUntrusted;
+	final Identifier.Simple nameTrusted;
+	final Identifier.Simple nameUntrusted;
 	final String output;
 	final Identifier.Simple defaultImplementor;
 	final boolean reproducible;
@@ -255,15 +255,15 @@ class DDRProcessorImpl
 		
 		optv = opts.get( "ddr.name.trusted");
 		if ( null != optv )
-			nameTrusted = optv;
+			nameTrusted = Identifier.Simple.fromJava(optv);
 		else
-			nameTrusted = "java";
+			nameTrusted = Identifier.Simple.fromJava("java");
 		
 		optv = opts.get( "ddr.name.untrusted");
 		if ( null != optv )
-			nameUntrusted = optv;
+			nameUntrusted = Identifier.Simple.fromJava(optv);
 		else
-			nameUntrusted = "javaU";
+			nameUntrusted = Identifier.Simple.fromJava("javaU");
 		
 		optv = opts.get( "ddr.implementor");
 		if ( null != optv )
@@ -442,7 +442,7 @@ class DDRProcessorImpl
 			else
 			{
 				msg( Kind.WARNING, te,
-					"pljava annotation processor version may be older than " +
+					"PL/Java annotation processor version may be older than " +
 					"this annotation:\n%s", te.toString());
 				willClaim = false;
 			}
@@ -793,18 +793,18 @@ queuerunning:
 			case ANNOTATION_TYPE:
 			case ENUM:
 			case INTERFACE:
-				msg( Kind.ERROR, e, "A pljava UDT must be a class");
+				msg( Kind.ERROR, e, "A PL/Java UDT must be a class");
 			default:
 				return;
 		}
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
 		{
-			msg( Kind.ERROR, e, "A pljava UDT must be public");
+			msg( Kind.ERROR, e, "A PL/Java UDT must be public");
 		}
 		if ( mods.contains( Modifier.ABSTRACT) )
 		{
-			msg( Kind.ERROR, e, "A pljava UDT must not be abstract");
+			msg( Kind.ERROR, e, "A PL/Java UDT must not be abstract");
 		}
 		if ( ! ((TypeElement)e).getNestingKind().equals(
 			NestingKind.TOP_LEVEL) )
@@ -812,13 +812,13 @@ queuerunning:
 			if ( ! mods.contains( Modifier.STATIC) )
 			{
 				msg( Kind.ERROR, e,
-					"When nested, a pljava UDT must be static (not inner)");
+					"When nested, a PL/Java UDT must be static (not inner)");
 			}
 			for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
 			{
 				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
 					msg( Kind.ERROR, ee,
-						"A pljava UDT must not have a non-public " +
+						"A PL/Java UDT must not have a non-public " +
 						"enclosing class");
 				if ( ((TypeElement)ee).getNestingKind().equals(
 					NestingKind.TOP_LEVEL) )
@@ -891,7 +891,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 	/**
 	 * Process a single element annotated with @Function. After checking that
-	 * it has the right modifiers to be called via pljava, analyze its type
+	 * it has the right modifiers to be called via PL/Java, analyze its type
 	 * information and annotations and register an appropriate SQL code snippet.
 	 */
 	void processFunction( Element e)
@@ -909,7 +909,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		Set<Modifier> mods = e.getModifiers();
 		if ( ! mods.contains( Modifier.PUBLIC) )
 		{
-			msg( Kind.ERROR, e, "A pljava function must be public");
+			msg( Kind.ERROR, e, "A PL/Java function must be public");
 		}
 
 		for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
@@ -918,7 +918,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
 					msg( Kind.ERROR, ee,
-						"A pljava function must not have a non-public " +
+						"A PL/Java function must not have a non-public " +
 						"enclosing class");
 				if ( ((TypeElement)ee).getNestingKind().equals(
 					NestingKind.TOP_LEVEL) )
@@ -1581,6 +1581,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[]       provides() { return _provides; }
 		public String[]       requires() { return _requires; }
 		public Trigger[]      triggers() { return _triggers; }
+		public String         language()
+		{
+			return _languageIdent.toString();
+		}
 
 		ExecutableElement func;
 
@@ -1601,6 +1605,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[]    _requires;
 		Trigger[]          _triggers;
 
+		public Identifier.Simple _languageIdent;
+
 		boolean complexViaInOut = false;
 		boolean setof = false;
 		TypeMirror setofComponent = null;
@@ -1616,6 +1622,19 @@ hunt:	for ( ExecutableElement ee : ees )
 		FunctionImpl(ExecutableElement e)
 		{
 			func = e;
+		}
+
+		public void setTrust( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_trust = Trust.valueOf(
+					((VariableElement)o).getSimpleName().toString());
+		}
+
+		public void setLanguage( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_languageIdent = Identifier.Simple.fromJava((String)o);
 		}
 
 		public void setCost( Object o, boolean explicit, Element e)
@@ -1650,10 +1669,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( "".equals( _name) )
 				_name = func.getSimpleName().toString();
 
+			resolveLanguage();
+
 			Set<Modifier> mods = func.getModifiers();
 			if ( ! mods.contains( Modifier.STATIC) )
 			{
-				msg( Kind.ERROR, func, "A pljava function must be static");
+				msg( Kind.ERROR, func, "A PL/Java function must be static");
 			}
 
 			TypeMirror ret = func.getReturnType();
@@ -1754,6 +1775,20 @@ hunt:	for ( ExecutableElement ee : ees )
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
 			return true;
+		}
+
+		void resolveLanguage()
+		{
+			if ( null != _trust  &&  null != _languageIdent )
+				msg( Kind.ERROR, func, "A PL/Java function may specify " +
+					"only one of trust, language");
+			if ( null == _languageIdent )
+			{
+				if ( null == _trust  ||  Trust.SANDBOXED == _trust )
+					_languageIdent = nameTrusted;
+				else
+					_languageIdent = nameUntrusted;
+			}
 		}
 
 		/*
@@ -1942,10 +1977,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( returnType);
 			}
 			sb.append( "\n\tLANGUAGE ");
-			if ( Trust.SANDBOXED.equals( trust()) )
-				sb.append( nameTrusted);
-			else
-				sb.append( nameUntrusted);
+			sb.append( _languageIdent.toString());
 			sb.append( ' ').append( effects());
 			if ( leakproof() )
 				sb.append( " LEAKPROOF");
@@ -2093,7 +2125,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			_onNullInput = OnNullInput.CALLED;
 			_security = Security.INVOKER;
 			_effects = Effects.VOLATILE;
-			_trust = Trust.SANDBOXED;
 			_parallel = Parallel.UNSAFE;
 			_leakproof = false;
 			_settings = new String[0];
@@ -2132,6 +2163,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		@Override
 		public boolean characterize()
 		{
+			resolveLanguage();
 			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);
 			return true;
@@ -2223,7 +2255,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			if ( ! typu.isAssignable( e.asType(), TY_SQLDATA) )
 			{
-				msg( Kind.ERROR, e,	"A pljava UDT must implement %s",
+				msg( Kind.ERROR, e,	"A PL/Java UDT must implement %s",
 					TY_SQLDATA);
 			}
 
@@ -2234,7 +2266,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( null == niladicCtor )
 			{
 				msg( Kind.ERROR, tclass,
-					"A pljava UDT must have a public no-arg constructor");
+					"A PL/Java UDT must have a public no-arg constructor");
 			}
 		}
 
@@ -2474,7 +2506,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( null == staticParse )
 			{
 				msg( Kind.ERROR, tclass,
-					"A pljava UDT must have a public static " +
+					"A PL/Java UDT must have a public static " +
 					"parse(String,String) method that returns the UDT");
 			}
 			else
@@ -2743,7 +2775,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * to avoid looking up the Class<?>es later and getting different
 		 * mirrors.
 		 *
-		 * This should work as long as all the sources containg pljava
+		 * This should work as long as all the sources containg PL/Java
 		 * annotations will be found in round 1. That would only not be the case
 		 * if some other annotation processor is in use that could generate new
 		 * sources with pljava annotations in them, requiring additional rounds.
