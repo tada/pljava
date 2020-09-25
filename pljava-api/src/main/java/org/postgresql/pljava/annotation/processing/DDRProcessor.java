@@ -3972,9 +3972,9 @@ restart:for ( ;; )
 
 	static final class Named extends DBType
 	{
-		private final Identifier.Qualified m_ident;
+		private final Identifier.Qualified<Identifier.Simple> m_ident;
 
-		Named(Identifier.Qualified ident)
+		Named(Identifier.Qualified<Identifier.Simple> ident)
 		{
 			m_ident = ident;
 		}
@@ -4234,19 +4234,22 @@ abstract class DependTag<T>
 		}
 	}
 
-	static final class Type extends Named<Identifier.Qualified>
+	static final class Type
+	extends Named<Identifier.Qualified<Identifier.Simple>>
 	{
-		Type(Identifier.Qualified value)
+		Type(Identifier.Qualified<Identifier.Simple> value)
 		{
 			super(requireNonNull(value));
 		}
 	}
 
-	static final class Function extends Named<Identifier.Qualified>
+	static final class Function
+	extends Named<Identifier.Qualified<Identifier.Simple>>
 	{
 		private DBType[] m_signature;
 
-		Function(Identifier.Qualified value, DBType[] signature)
+		Function(
+			Identifier.Qualified<Identifier.Simple> value, DBType[] signature)
 		{
 			super(requireNonNull(value));
 			m_signature = signature.clone();

@@ -1273,6 +1273,7 @@ public abstract class Lexicals
 			 * or null if not in a compilation context.
 			 * @return the Identifier.Qualified&lt;Simple&gt;
 			 */
+			@SuppressWarnings("fallthrough")
 			public static Qualified<Simple> nameFromJava(
 				String s, Messager msgr)
 			{
@@ -1483,7 +1484,7 @@ public abstract class Lexicals
 			{
 				if ( ! (other instanceof Qualified) )
 					return false;
-				Qualified oi = (Qualified)other;
+				Qualified<?> oi = (Qualified)other;
 
 				return (null == m_qualifier
 						? null == oi.m_qualifier

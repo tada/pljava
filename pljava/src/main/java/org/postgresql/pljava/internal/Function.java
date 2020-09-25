@@ -194,7 +194,7 @@ public class Function
 		if ( ! isMultiCall  &&  retTypeIsOutParameter )
 			++ rtIdx;
 
-		Class<?>[] pTypes = new Class[ rtIdx ];
+		Class<?>[] pTypes = new Class<?>[ rtIdx ];
 
 		for ( int i = 0 ; i < rtIdx ; ++ i )
 			pTypes[i] = loadClass(schemaLoader, jTypes[i]);
@@ -1112,7 +1112,7 @@ public class Function
 	 * The access control context of the {@code Invocable} returned here is used
 	 * at the corresponding entry point; the payload is not.
 	 */
-	private static Invocable udtWriteHandle(
+	private static Invocable<?> udtWriteHandle(
 		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
@@ -1127,7 +1127,7 @@ public class Function
 	 * The access control context of the {@code Invocable} returned here is used
 	 * at the corresponding entry point; the payload is not.
 	 */
-	private static Invocable udtToStringHandle(
+	private static Invocable<?> udtToStringHandle(
 		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
@@ -1149,7 +1149,7 @@ public class Function
 	 * assigned here will be in effect for both the constructor and the
 	 * {@code readSQL} call.
 	 */
-	private static Invocable udtReadHandle(
+	private static Invocable<?> udtReadHandle(
 		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
@@ -1180,7 +1180,7 @@ public class Function
 	 * a NUL-terminated storage form, so it gets its own dedicated entry point
 	 * and does not use the static parameter area.
 	 */
-	private static Invocable udtParseHandle(
+	private static Invocable<?> udtParseHandle(
 		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
@@ -1212,7 +1212,7 @@ public class Function
 	 * {@code Invocable} for invoking the method, or null in the
 	 * case of a UDT.
 	 */
-	public static Invocable create(
+	public static Invocable<?> create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
 		boolean trusted, boolean calledAsTrigger,
 		boolean forValidator, boolean checkBody)
@@ -1253,7 +1253,7 @@ public class Function
 	 * @return an Invocable to invoke the implementing method, or
 	 * null in the case of a UDT
 	 */
-	private static Invocable init(
+	private static Invocable<?> init(
 		long wrappedPtr, Matcher info, ResultSet procTup,
 		Identifier.Simple schema, boolean calledAsTrigger, boolean forValidator,
 		String language, boolean trusted)
@@ -1836,7 +1836,7 @@ public class Function
 			}
 		}
 
-		Type resolve(TypeVariable v)
+		Type resolve(TypeVariable<?> v)
 		{
 			for ( int i = 0; i < formalTypeParams.length; ++ i )
 				if ( formalTypeParams[i].equals(v) )
