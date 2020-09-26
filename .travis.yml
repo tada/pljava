@@ -1,23 +1,98 @@
-language: java
+language: minimal
 os:
   - linux
-  - osx
+arch:
+  - amd64
+  - ppc64le
 dist: bionic
-osx_image: xcode11
-jdk:
-  - openjdk14
-  - openjdk13
-  - openjdk12
-  - openjdk11
-  - openjdk10
-  - openjdk9
 env:
-  - POSTGRESQL_VERSION=12
+  - POSTGRESQL_VERSION: 12
+    JAVA_VERSION: 14
+    JVM_IMPL: hotspot
+    MVN_VERSION: 3.5.2
+# - POSTGRESQL_VERSION: 12
+#   JAVA_VERSION: 14
+#   JVM_IMPL: openj9
+#   MVN_VERSION: 3.6.3
+  - POSTGRESQL_VERSION: 12
+    JAVA_VERSION: 11
+    JVM_IMPL: hotspot
+    MVN_VERSION: 3.6.3
+  - POSTGRESQL_VERSION: 12
+    JAVA_VERSION: 9
+    JVM_IMPL: hotspot
+    MVN_VERSION: 3.6.3
+  - POSTGRESQL_VERSION: 10
+    JAVA_VERSION: 14
+    JVM_IMPL: hotspot
+    MVN_VERSION: 3.6.3
+  - POSTGRESQL_VERSION: 9.5
+    JAVA_VERSION: 14
+    JVM_IMPL: hotspot
+    MVN_VERSION: 3.6.3
+
+jobs:
+  include:
+    - os: osx
+      osx_image: xcode11
+      arch: amd64
+      env:
+        - POSTGRESQL_VERSION: 11
+          JAVA_VERSION: 14
+          JVM_IMPL: hotspot
+          MVN_VERSION: 3.6.3
+    - os: osx
+      osx_image: xcode11
+      arch: amd64
+      env:
+        - POSTGRESQL_VERSION: 10
+          JAVA_VERSION: 14
+          JVM_IMPL: hotspot
+          MVN_VERSION: 3.6.3
+    - os: osx
+      osx_image: xcode11
+      arch: amd64
+      env:
+        - POSTGRESQL_VERSION: 9.5
+          JAVA_VERSION: 14
+          JVM_IMPL: hotspot
+          MVN_VERSION: 3.6.3
+
 cache:
   directories:
     - $HOME/.m2
-before_install:
-  - . .travis/travis_install_postgresql.sh
+
+before_install: |
+  javaUrl=https://api.adoptopenjdk.net/v3/binary/latest
+  javaUrl="$javaUrl/$JAVA_VERSION/ga/${TRAVIS_OS_NAME//osx/mac}"
+  javaUrl="$javaUrl/${TRAVIS_CPU_ARCH//amd64/x64}/jdk"
+  javaUrl="$javaUrl/$JVM_IMPL/normal/adoptopenjdk"
+
+  installJdk=$(which install-jdk.sh) || {
+    wget https://raw.githubusercontent.com/sormuras/bach/8c457fd6e46bd9f3f575867dd0c9af1d7edfd5b4/install-jdk.sh
+    installJdk=./install-jdk.sh
+
+    printf '%s\n%s\n%s\n%s\n%s\n' \
+      '--- install-jdk.sh' \
+      '+++ install-jdk.sh' \
+      '@@ -257 +257 @@' \
+      '-            target="${workspace}"/$(tar --list ${tar_options} | head -2 | tail -1 | cut -f 2 -d '"'/' -)/Contents/Home" \
+      '+            target="${workspace}"/$(tar --list ${tar_options} | sed -n '"'/\/bin\/javac/s///p')" \
+    | patch "$installJdk"
+  }
+
+  [[ $JAVA_VERSION == 9 ]] && certs=--cacerts || unset certs
+
+  . "$installJdk" --url "$javaUrl" ${certs+"$certs"}
+
+  mvnUrl=https://archive.apache.org/dist/maven/maven-3
+  mvnUrl="$mvnUrl/$MVN_VERSION/binaries/apache-maven-$MVN_VERSION-bin.tar.gz"
+
+  wget --no-verbose "$mvnUrl" && tar xzf "apache-maven-$MVN_VERSION-bin.tar.gz"
+  mvn="./apache-maven-$MVN_VERSION/bin/mvn"
+  "$mvn" --version
+
+  . .travis/travis_install_postgresql.sh
 
 install: |
   $pgConfig
@@ -29,7 +104,7 @@ install: |
   fi
   libjvm=$(find "$JAVA_HOME" -mindepth 2 -name $libjvm_name | head -n 1)
 
-  mvn clean install --batch-mode \
+  "$mvn" clean install --batch-mode \
    -Dpgsql.pgconfig="$pgConfig" \
    -Dpljava.libjvmdefault="$libjvm" \
    -Psaxon-examples -Ppgjdbc-ng \
@@ -55,9 +130,9 @@ script: |
     tail -n 1
   )
 
-  sudo java -Dpgconfig="$pgConfig" -jar "$packageJar"
+  sudo "$JAVA_HOME"/bin/java -Dpgconfig="$pgConfig" -jar "$packageJar"
 
-  jshell \
+  "$JAVA_HOME"/bin/jshell \
     -execution local \
     "-J--class-path=$packageJar:$jdbcJar" \
     "--class-path=$packageJar" \
@@ -65,7 +140,7 @@ script: |
     "-J-Dpgconfig=$pgConfig" \
     "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
     "-J-DmavenRepo=$mavenRepo" \
-    "-J-DsaxonVer=$saxonVer" - <<\ENDJSHELL
+    "-J-DsaxonVer=$saxonVer" - <<\ENDJSHELL && # continues after here document
 
   boolean succeeding = false; // begin pessimistic
 
@@ -179,27 +254,4 @@ script: |
   succeeding &= (0 == results.get("ng"));
   System.exit(succeeding ? 0 : 1)
   ENDJSHELL
-
-jobs:
-  include:
-    - os: linux
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=11
-    - os: linux
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=10
-    - os: linux
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=9.5
-    - os: osx
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=11
-    - os: osx
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=10
-    - os: osx
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=9.5
-    - os: linux
-      jdk: openjdk14
-      env: POSTGRESQL_VERSION=SOURCE
+  : travis wants something after the end of the here document

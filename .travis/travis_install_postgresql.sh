@@ -13,8 +13,7 @@ if [ "$TRAVIS_OS_NAME" = "osx" ]; then
 
     pgConfig="/usr/local/opt/postgresql${POSTGRESQL_VERSION}/bin/pg_config"
 else
-    sudo chmod 777 /home/travis
-    sudo service postgresql stop
+    sudo sh -c 'service postgresql stop || true'
     sudo apt-get -qq remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common --purge
     if [ "$POSTGRESQL_VERSION" = "SOURCE" ]; then
         sudo apt-get -qq install build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc
