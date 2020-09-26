@@ -32,6 +32,13 @@ env:
     MVN_VERSION: 3.6.3
 
 jobs:
+  exclude:
+    - arch: ppc64le
+      env:
+        POSTGRESQL_VERSION: 12
+        JAVA_VERSION: 9
+        JVM_IMPL: hotspot
+        MVN_VERSION: 3.6.3
   include:
     - os: osx
       osx_image: xcode11
