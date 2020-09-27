@@ -12,6 +12,7 @@
  */
 package org.postgresql.pljava.pgxs;
 
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.AbstractMojoExecutionException;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -44,6 +45,10 @@ public class ScriptingMojo extends AbstractMojo
 	@Parameter(defaultValue = "${project}", readonly = true)
 	private MavenProject project;
 
+	@Parameter(defaultValue = "${session}", readonly = true)
+	private MavenSession session;
+
+
 	@Parameter
 	private PlexusConfiguration script;
 
@@ -63,6 +68,8 @@ public class ScriptingMojo extends AbstractMojo
 			ScriptEngine engine = utils.getScriptEngine(script);
 			getLog().debug(scriptText);
 
+			engine.getContext().setAttribute("session", session,
+				ScriptContext.GLOBAL_SCOPE);
 			engine.getContext().setAttribute("plugin", this,
 				ScriptContext.GLOBAL_SCOPE);
 			engine.put("quoteStringForC",

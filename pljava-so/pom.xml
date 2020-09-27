@@ -33,6 +33,8 @@
 	var Paths = Java.type("java.nio.file.Paths");
 	var of = java.util.List.of;
 
+	var isDebugEnabled =  java.lang.Boolean.valueOf(session.userProperties.getProperty("so.debug"));
+
 	var base_dir_path = project.basedir.getAbsolutePath();
 	var source_path = Paths.get(base_dir_path, "src", "main", "c");
 	var target_path = Paths.get(project.build.directory, "pljava-pgxs");
@@ -88,7 +90,8 @@
 				includes.add(java_include.resolve("linux").toString());
 				defines.put("Linux", null);
 				flags.add("-c");
-
+				if(isDebugEnabled)
+					flags.add("-g");
 				var compileProcess = utils.processBuilder(function(l) {
 					l.add(cc);
 					l.addAll(pgxs.formatDefines(defines));
@@ -101,6 +104,8 @@
 			},
 
 			link : function(cc, flags, files, target_path) {
+				if(isDebugEnabled)
+					flags.add("-g");
 				flags.add("-shared-libgcc");
 				var linkingProcess = utils.processBuilder(function(l) {
 					l.add(cc);
@@ -126,7 +131,8 @@
 				includes.add(java_include.resolve("darwin").toString());
 				defines.put("Darwin", null);
 				flags.add("-c");
-
+				if(isDebugEnabled)
+					flags.add("-g");
 				var compileProcess = utils.processBuilder(function(l) {
 					l.add(cc);
 					l.addAll(pgxs.formatDefines(defines));
@@ -140,6 +146,8 @@
 
 			link : function(cc, flags, files, target_path) {
 				flags.addAll(of("-bundle_loader", Paths.get(bindir, "postgres").toString()));
+				if(isDebugEnabled)
+					flags.add("-g");
 				var linkingProcess = utils.processBuilder(function(l) {
 					l.add(cc);
 					l.addAll(flags);
@@ -169,7 +177,8 @@
 					Paths.get("fallback", "win32")).toString());
 				defines.put("Windows", null);
 				flags.add("-c");
-
+				if(isDebugEnabled)
+					flags.add("-g");
 				/*
 				 * -DBUILDING_DLL appears in the flags reported by pg_config
 				 * because it was used when building PostgreSQL itself; it
@@ -192,6 +201,8 @@
 
 			link : function(cc, flags, files, target_path) {
 				flags.addAll(of("-Wl,--export-all-symbols","-shared-libgcc"));
+				if(isDebugEnabled)
+					flags.add("-g");
 				var linkingProcess = utils.processBuilder(function(l) {
 					l.add(cc);
 					l.addAll(flags);
@@ -244,7 +255,11 @@
 
 				var compileProcess = utils.processBuilder(function(l) {
 					l.add("cl");
-					l.addAll(of("/c", "/nologo", "/MD"));
+					l.addAll(of("/c", "/nologo"));
+					if(isDebugEnabled)
+						l.addAll(of("/Zi", "/Od", "/RTC1", "/D_DEBUG", "/MDd"));
+					else
+						l.add("/MD");
 					l.addAll(pgxs.formatDefines(defines));
 					l.addAll(pgxs.formatIncludes(includes));
 					l.addAll(files);
@@ -260,7 +275,8 @@
 					l.add("link");
 					l.addAll(of("/MANIFEST", "/NOLOGO", "/DLL", "/SUBSYSTEM:CONSOLE", "/INCREMENTAL:NO"));
 					l.add("/OUT:" + library_name + ".dll");
-
+					if(isDebugEnabled)
+						l.add("/DEBUG");
 					// From compiler-msvc profile
 					l.add(Paths.get(pkglibdir, "postgres.lib").toString());
 					l.addAll(files);
