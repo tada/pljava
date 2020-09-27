@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -23,6 +23,7 @@
 
 jclass Class_class;
 jmethodID Class_getName;
+jmethodID Class_getCanonicalName;
 
 jclass    ServerException_class;
 jmethodID ServerException_getErrorData;
@@ -199,6 +200,8 @@ void Exception_initialize(void)
 	NoSuchMethodError_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/NoSuchMethodError"));
 
 	Class_getName = PgObject_getJavaMethod(Class_class, "getName", "()Ljava/lang/String;");
+	Class_getCanonicalName = PgObject_getJavaMethod(Class_class,
+		"getCanonicalName", "()Ljava/lang/String;");
 }
 
 extern void Exception_initialize2(void);
