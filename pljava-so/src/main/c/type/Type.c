@@ -290,6 +290,8 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	jstring rqcname;
 	char *rqcname0;
 	Type rqtype;
+	Type selfElem;
+	Type rqElem;
 
 	if ( NULL == rqcls  ||  Type_getJavaClass(self) == rqcls )
 		return Type_coerceDatum(self, value);
@@ -301,6 +303,26 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	pfree(rqcname0);
 	if ( Type_canReplaceType(rqtype, self) )
 		return Type_coerceDatum(rqtype, value);
+	else if ( ( 0 != (selfElem = Type_getElementType(self  ) ) )
+		   && ( 0 != (  rqElem = Type_getElementType(rqtype) ) ) )
+	{
+		/*
+		 * self and rqtype are both array types. One might be the boxed form of
+		 * the other. If rqtype were the boxed form, Type_canReplaceType would
+		 * have been true (_Array_canReplaceType defers to the canReplaceType
+		 * methods of the element types, and those are set up so the boxed form
+		 * canReplace the primitive, but not vice versa) so we wouldn't be here.
+		 *
+		 * So check whether selfElem is the boxed form of rqElem. If so, we can
+		 * still use coerceDatum(rqtype, ...) because the primitive Types do all
+		 * know how to produce Java primitive arrays of themselves. It seems
+		 * safer to make this change here (where we know we are being asked to
+		 * coerce an array Datum) than to fiddle with the canReplaceType
+		 * implementations, which could have more wide-ranging effects.
+		 */
+		if ( selfElem == Type_getObjectType(rqElem) )
+			return Type_coerceDatum(rqtype, value);
+	}
 	return Type_coerceDatum(self, value);
 }
 
