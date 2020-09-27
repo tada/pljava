@@ -371,7 +371,7 @@ jdouble pljava_Function_doubleInvoke(Function self)
 
 void pljava_Function_udtWriteInvoke(jobject value, jobject stream)
 {
-	JNI_callStaticObjectMethod(s_EntryPoints_class,
+	JNI_callStaticVoidMethod(s_EntryPoints_class,
 		s_EntryPoints_udtWriteInvoke, value, stream);
 }
 
