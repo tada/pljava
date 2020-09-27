@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import java.lang.reflect.Modifier;
 import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
 
+import java.lang.reflect.Array;
+
 import java.sql.Connection;
 import static java.sql.DriverManager.getConnection;
 import java.sql.PreparedStatement;
@@ -26,6 +28,9 @@ import static java.sql.Types.VARCHAR;
 
 import java.sql.SQLException;
 import java.sql.SQLDataException;
+import java.sql.SQLNonTransientException;
+
+import java.util.Arrays;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -173,16 +178,7 @@ public class TypeRoundTripper
 
 		Class<?> clazz = null;
 		if ( ! "".equals(classname) )
-		{
-			try
-			{
-				clazz = Class.forName(classname);
-			}
-			catch ( ClassNotFoundException cnfe )
-			{
-				throw new SQLException(cnfe.getMessage(), cnfe);
-			}
-		}
+			clazz = loadClass(classname);
 
 		if ( 1 != inmd.getColumnCount() )
 			throw new SQLDataException(
@@ -238,7 +234,7 @@ public class TypeRoundTripper
 			else if ( "TOSTRING".equalsIgnoreCase(what) )
 			{
 				assertTypeJDBC(outmd, i, VARCHAR);
-				out.updateObject(i, val.toString());
+				out.updateObject(i, toString(val));
 			}
 			else if ( "ROUNDTRIPPED".equalsIgnoreCase(what) )
 			{
@@ -282,5 +278,65 @@ public class TypeRoundTripper
 				catch ( IllegalAccessException e ) { }
 		}
 		return String.valueOf(t);
+	}
+
+	private static Class<?> loadClass(String className)
+	throws SQLException
+	{
+		String noBrackets = className.replaceFirst("(?:\\[\\])++$", "");
+		int ndims = (className.length() - noBrackets.length()) / 2;
+		Class<?> c;
+
+		switch ( noBrackets )
+		{
+		case "boolean": c = boolean.class; break;
+		case    "byte": c =    byte.class; break;
+		case   "short": c =   short.class; break;
+		case     "int": c =     int.class; break;
+		case    "long": c =    long.class; break;
+		case    "char": c =    char.class; break;
+		case   "float": c =   float.class; break;
+		case  "double": c =  double.class; break;
+		default:
+			try
+			{
+				c = Class.forName(noBrackets);
+			}
+			catch ( ClassNotFoundException e )
+			{
+				throw new SQLNonTransientException(
+					"No such class: " + noBrackets, "46103", e);
+			}
+		}
+
+		if ( 0 != ndims )
+			c = Array.newInstance(c, new int[ndims]).getClass();
+
+		return c;
+	}
+
+	private static String toString(Object o)
+	{
+		if ( ! o.getClass().isArray() )
+			return o.toString();
+		if (Object[].class.isInstance(o))
+			return Arrays.deepToString(Object[].class.cast(o));
+		if (boolean[].class.isInstance(o))
+			return Arrays.toString(boolean[].class.cast(o));
+		if (byte[].class.isInstance(o))
+			return Arrays.toString(byte[].class.cast(o));
+		if (short[].class.isInstance(o))
+			return Arrays.toString(short[].class.cast(o));
+		if (int[].class.isInstance(o))
+			return Arrays.toString(int[].class.cast(o));
+		if (long[].class.isInstance(o))
+			return Arrays.toString(long[].class.cast(o));
+		if (char[].class.isInstance(o))
+			return Arrays.toString(char[].class.cast(o));
+		if (float[].class.isInstance(o))
+			return Arrays.toString(float[].class.cast(o));
+		if (double[].class.isInstance(o))
+			return Arrays.toString(double[].class.cast(o));
+		return null;
 	}
 }
