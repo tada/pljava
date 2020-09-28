@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Array.h"
@@ -139,12 +143,21 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 	PG_RETURN_ARRAYTYPE_P(v);
 }
 
+/*
+ * For an array, canReplaceType can be computed a bit more generously.
+ * The primitive types are coded so that a boxed scalar can replace its
+ * corresponding primitive but not vice versa. For primitive arrays, we can also
+ * accept the other direction, that is, when getObjectType(self) == other. That
+ * will work because every primitive Type foo does contain _fooArray_coerceDatum
+ * and _fooArray_coerceObject and can handle both directions.
+ */
 static bool _Array_canReplaceType(Type self, Type other)
 {
 	Type oe = Type_getElementType(other);
 	if ( oe == 0 )
 		return false;
-	return Type_canReplaceType(Type_getElementType(self), oe);
+	return Type_canReplaceType(Type_getElementType(self), oe)
+		|| Type_getObjectType(self) == other;
 }
 
 Type Array_fromOid(Oid typeId, Type elementType)

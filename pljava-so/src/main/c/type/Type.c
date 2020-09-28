@@ -301,26 +301,6 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	pfree(rqcname0);
 	if ( Type_canReplaceType(rqtype, self) )
 		return Type_coerceDatum(rqtype, value);
-	else if (0 != Type_getElementType(self) && 0 != Type_getElementType(rqtype))
-	{
-		/*
-		 * self and rqtype are both array types. One might be the boxed form of
-		 * the other. If rqtype were the boxed form, Type_canReplaceType would
-		 * have been true (_Array_canReplaceType defers to the canReplaceType
-		 * methods of the element types, and those are set up so the boxed form
-		 * canReplace the primitive, but not vice versa) so we wouldn't be here.
-		 *
-		 * So check whether self is the boxed form of rqtype (getObjectType for
-		 * a primitive array returns the array of the boxed type). If so, we can
-		 * still use coerceDatum(rqtype, ...) because the primitive Types do all
-		 * know how to produce Java primitive arrays of themselves. It seems
-		 * safer to make this change here (where we know we are being asked to
-		 * coerce an array Datum) than to fiddle with the canReplaceType
-		 * implementations, which could have more wide-ranging effects.
-		 */
-		if ( self == Type_getObjectType(rqtype) )
-			return Type_coerceDatum(rqtype, value);
-	}
 	return Type_coerceDatum(self, value);
 }
 
@@ -343,16 +323,17 @@ Datum Type_coerceObjectBridged(Type self, jobject object)
 	JNI_deleteLocalRef(rqcname);
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
 	pfree(rqcname0);
-	/*
-	 * Type_canReplaceType between primitives and boxed types is only set up in
-	 * one direction (the boxed type canReplace the primitive). In the case of
-	 * two array types, we can allow the other direction too; the primitive Type
-	 * implementations are all able to coerce from a primitive Java array.
-	 */
-	if ( ! Type_canReplaceType(rqtype, self)
-		&& (0 == Type_getElementType(self) || 0 == Type_getElementType(rqtype)
-			|| Type_getObjectType(rqtype) != self ) )
-		elog(ERROR, "type bridge failure");
+	if ( ! Type_canReplaceType(rqtype, self) )
+	{
+		/*
+		 * Ignore the TypeBridge in this one oddball case that results from the
+		 * existence of two Types both mapping Java's byte[].
+		 */
+		if ( BYTEAOID == self->typeId  &&  CHARARRAYOID == rqtype->typeId )
+			rqtype = self;
+		else
+			elog(ERROR, "type bridge failure");
+	}
 	object = JNI_callObjectMethod(object, s_TypeBridge_Holder_payload);
 	return Type_coerceObject(rqtype, object);
 }
