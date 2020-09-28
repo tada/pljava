@@ -92,8 +92,7 @@ public class SingleRowWriter extends SingleRowResultSet
 		Class c = m_tupleDesc.getColumnClass(columnIndex);
 		TypeBridge<?>.Holder xAlt = TypeBridge.wrap(x);
 		if(null == xAlt  &&  !c.isInstance(x)
-		&& !(c == byte[].class && (x instanceof BlobValue))
-		&& !(isBoxedArray(c, x.getClass())))
+		&& !(c == byte[].class && (x instanceof BlobValue)))
 		{
 			if(Number.class.isAssignableFrom(c))
 				x = SPIConnection.basicNumericCoercion(c, x);
@@ -177,20 +176,4 @@ public class SingleRowWriter extends SingleRowResultSet
 	// End of implementation of JDBC 4 methods.
 	// ************************************************************
 
-	private boolean isBoxedArray(Class<?> b, Class<?> p)
-	{
-		if ( ! p.isArray() || ! p.getComponentType().isPrimitive() )
-			return false;
-		switch ( p.getName().charAt(1) )
-		{
-		case 'Z': return b ==   Boolean[].class;
-		case 'B': return b ==      Byte[].class;
-		case 'S': return b ==     Short[].class;
-		case 'C': return b == Character[].class;
-		case 'I': return b ==   Integer[].class;
-		case 'J': return b ==      Long[].class;
-		case 'F': return b ==     Float[].class;
-		default : return b ==    Double[].class;
-		}
-	}
 }

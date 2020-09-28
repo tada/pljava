@@ -290,8 +290,6 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	jstring rqcname;
 	char *rqcname0;
 	Type rqtype;
-	Type selfElem;
-	Type rqElem;
 
 	if ( NULL == rqcls  ||  Type_getJavaClass(self) == rqcls )
 		return Type_coerceDatum(self, value);
@@ -303,8 +301,7 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	pfree(rqcname0);
 	if ( Type_canReplaceType(rqtype, self) )
 		return Type_coerceDatum(rqtype, value);
-	else if ( ( 0 != (selfElem = Type_getElementType(self  ) ) )
-		   && ( 0 != (  rqElem = Type_getElementType(rqtype) ) ) )
+	else if (0 != Type_getElementType(self) && 0 != Type_getElementType(rqtype))
 	{
 		/*
 		 * self and rqtype are both array types. One might be the boxed form of
@@ -313,14 +310,15 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 		 * methods of the element types, and those are set up so the boxed form
 		 * canReplace the primitive, but not vice versa) so we wouldn't be here.
 		 *
-		 * So check whether selfElem is the boxed form of rqElem. If so, we can
+		 * So check whether self is the boxed form of rqtype (getObjectType for
+		 * a primitive array returns the array of the boxed type). If so, we can
 		 * still use coerceDatum(rqtype, ...) because the primitive Types do all
 		 * know how to produce Java primitive arrays of themselves. It seems
 		 * safer to make this change here (where we know we are being asked to
 		 * coerce an array Datum) than to fiddle with the canReplaceType
 		 * implementations, which could have more wide-ranging effects.
 		 */
-		if ( selfElem == Type_getObjectType(rqElem) )
+		if ( self == Type_getObjectType(rqtype) )
 			return Type_coerceDatum(rqtype, value);
 	}
 	return Type_coerceDatum(self, value);
@@ -345,7 +343,15 @@ Datum Type_coerceObjectBridged(Type self, jobject object)
 	JNI_deleteLocalRef(rqcname);
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
 	pfree(rqcname0);
-	if ( ! Type_canReplaceType(rqtype, self) )
+	/*
+	 * Type_canReplaceType between primitives and boxed types is only set up in
+	 * one direction (the boxed type canReplace the primitive). In the case of
+	 * two array types, we can allow the other direction too; the primitive Type
+	 * implementations are all able to coerce from a primitive Java array.
+	 */
+	if ( ! Type_canReplaceType(rqtype, self)
+		&& (0 == Type_getElementType(self) || 0 == Type_getElementType(rqtype)
+			|| Type_getObjectType(rqtype) != self ) )
 		elog(ERROR, "type bridge failure");
 	object = JNI_callObjectMethod(object, s_TypeBridge_Holder_payload);
 	return Type_coerceObject(rqtype, object);
@@ -861,6 +867,28 @@ static void initializeTypeBridges()
 	addTypeBridge(cls, ofClass, "java.time.LocalTime", TIMEOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetDateTime", TIMESTAMPTZOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetTime", TIMETZOID);
+
+	/*
+	 * TypeBridges that allow Java primitive array types to be passed to things
+	 * expecting their boxed counterparts. An oddball case is byte[], given the
+	 * default oid BYTEAOID here instead of CHARARRAYOID following the pattern,
+	 * because there is a whole 'nother (see byte_array.c) Type that also maps
+	 * byte[] on the Java side, but bytea for PostgreSQL (I am not at all sure
+	 * what I think of that), and bridging it to a different Oid here would
+	 * break it as a parameter to prepared statements that were working. So
+	 * cater to that use, while possibly complicating the new use that was not
+	 * formerly possible.
+	 *
+	 * There is no bridge for char[], because PL/Java has no Type that maps it
+	 * to anything in PostgreSQL.
+	 */
+	addTypeBridge(cls, ofClass, "boolean[]", BOOLARRAYOID);
+	addTypeBridge(cls, ofClass,    "byte[]", BYTEAOID);
+	addTypeBridge(cls, ofClass,   "short[]", INT2ARRAYOID);
+	addTypeBridge(cls, ofClass,     "int[]", INT4ARRAYOID);
+	addTypeBridge(cls, ofClass,    "long[]", INT8ARRAYOID);
+	addTypeBridge(cls, ofClass,   "float[]", FLOAT4ARRAYOID);
+	addTypeBridge(cls, ofClass,  "double[]", FLOAT8ARRAYOID);
 
 	addTypeBridge(cls, ofInterface, "java.sql.SQLXML",
 #if defined(XMLOID)
