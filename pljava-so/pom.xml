@@ -34,6 +34,8 @@
 	var of = java.util.List.of;
 
 	var isDebugEnabled =  java.lang.Boolean.valueOf(session.userProperties.getProperty("so.debug"));
+	if (!session.userProperties.getProperty("so.optimize", "none").equalsIgnoreCase("none"))
+		warn("Property so.optimize is currently not supported and will be ignored.");
 
 	var base_dir_path = project.basedir.getAbsolutePath();
 	var source_path = Paths.get(base_dir_path, "src", "main", "c");

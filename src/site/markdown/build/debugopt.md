@@ -26,6 +26,10 @@ and built with `--enable-debug`.
 
 ## Compiler optimization in the native portion of PL/Java
 
+PL/Java used to support a `-Dso.optimize` option earlier. However, it is not
+yet implemented in the current build system. Following is the description
+of how the option worked when it was supported.
+
 `-Dso.optimize=` can be given on the `mvn` command line, with a value
 chosen from `none`, `size`, `speed`, `minimal`, `full`, `aggressive`,
 `extreme`, or `unsafe`. Depending on the compiler, these settings may
