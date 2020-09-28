@@ -717,7 +717,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 					"the working settings are saved, exit this session, and "
 					"in a new session, either: "
 					"1. if committed, run "
-					"\"CREATE EXTENSION pljava FROM unpackaged\", or 2. "
+#if PG_VERSION_NUM < 130000
+					"\"CREATE EXTENSION pljava FROM unpackaged\""
+#else
+					"\"CREATE EXTENSION pljava VERSION unpackaged\", "
+					"then (after starting another new session) "
+					"\"ALTER EXTENSION pljava UPDATE\""
+#endif
+					", or 2. "
 					"if rolled back, simply \"CREATE EXTENSION pljava\" again."
 					)));
 			}
