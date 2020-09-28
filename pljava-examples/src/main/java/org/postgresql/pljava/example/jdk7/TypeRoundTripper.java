@@ -75,7 +75,8 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
  *<tr>
  *<td>TOSTRING</td><td>any text/varchar</td>
  *<td>Result of {@code toString()} on the object returned by
- * {@code ResultSet.getObject()}</td>
+ * {@code ResultSet.getObject()} ({@code Arrays.toString} if it is a primitive
+ * array, {@code Arrays.deepToString} if an array of reference type)</td>
  *</tr>
  *<tr>
  *<td>ROUNDTRIPPED</td><td>same as input column</td>
@@ -150,7 +151,10 @@ public class TypeRoundTripper
 	 * @param in The input row value (required to have exactly one column).
 	 * @param classname Name of class to be explicitly requested (JDBC 4.1
 	 * feature) from {@code getObject}; pass an empty string (the default) to
-	 * make no such explicit request.
+	 * make no such explicit request. Accepts the form {@code Class.getName}
+	 * would produce: canonical names or spelled-out primitives if not an array
+	 * type, otherwise prefix left-brackets and primitive letter codes or
+	 * {@code L}<em>classname</em>{@code ;}.
 	 * @param prepare Whether the object retrieved from {@code in} should be
 	 * passed as a parameter to an identity {@code PreparedStatement} and the
 	 * result of that be returned. If false (the default), the value from
@@ -283,24 +287,46 @@ public class TypeRoundTripper
 	private static Class<?> loadClass(String className)
 	throws SQLException
 	{
-		String noBrackets = className.replaceFirst("(?:\\[\\])++$", "");
-		int ndims = (className.length() - noBrackets.length()) / 2;
+		String noBrackets = className.replaceFirst("^\\[++", "");
+		int ndims = (className.length() - noBrackets.length());
+
+		/*
+		 * The naming conventions from Class.getName() could hardly be less
+		 * convenient. If *not* an array, it's the same as the canonical name,
+		 * with the primitive names spelled out. If it *is* an array, the
+		 * primitives get their one-letter codes, and other class names have L
+		 * prefix and ; suffix. Check the arrayness here to normalize the form
+		 * so that, after this check, any primitive will be represented by its
+		 * one-letter code, and any other type will have an L in front (but
+		 * no ; at the end).
+		 */
+		if ( 0 == ndims )
+			noBrackets =
+				("L" + noBrackets +
+				":booleanZ:byteB:shortS:charC:intI:longJ:floatF:doubleD")
+				.replaceFirst(
+					"^L(boolean|byte|short|char|int|long|float|double)(?=:)" +
+					"(?:\\w*+:)*\\1(\\w)(?::.*+)?+$|:.++$",
+					"$2");
+		else
+			noBrackets = noBrackets.replaceFirst(";$", "");
+
 		Class<?> c;
 
-		switch ( noBrackets )
+		switch ( noBrackets.charAt(0) )
 		{
-		case "boolean": c = boolean.class; break;
-		case    "byte": c =    byte.class; break;
-		case   "short": c =   short.class; break;
-		case     "int": c =     int.class; break;
-		case    "long": c =    long.class; break;
-		case    "char": c =    char.class; break;
-		case   "float": c =   float.class; break;
-		case  "double": c =  double.class; break;
+		case 'Z': c = boolean.class; break;
+		case 'B': c =    byte.class; break;
+		case 'S': c =   short.class; break;
+		case 'C': c =    char.class; break;
+		case 'I': c =     int.class; break;
+		case 'J': c =    long.class; break;
+		case 'F': c =   float.class; break;
+		case 'D': c =  double.class; break;
 		default:
 			try
 			{
-				c = Class.forName(noBrackets);
+				c = Class.forName(noBrackets.substring(1));
 			}
 			catch ( ClassNotFoundException e )
 			{
