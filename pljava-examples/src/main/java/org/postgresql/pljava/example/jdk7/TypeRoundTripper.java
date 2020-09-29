@@ -135,6 +135,146 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	" FROM" +
 	"  (VALUES (point '0,0')) AS p," +
 	"  roundtrip(p) AS (classjdbc text)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'boolean[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'boolean[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{t,null,f}'::boolean[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Boolean;'), ('[Z')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped boolean[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, false)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    '\"char\"[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', '\"char\"[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{A,null,B}'::\"char\"[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Byte;'), ('[B')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped \"char\"[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::\"char\")" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'bytea passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'bytea fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '\\x010203'::bytea) AS p(orig)," +
+	"  (VALUES (''), ('[B')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped bytea)," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped = orig" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'int2[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'int2[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{1,null,3}'::int2[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Short;'), ('[S')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped int2[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::int2)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'int4[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'int4[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{1,null,3}'::int4[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Integer;'), ('[I')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped int4[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::int4)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'int8[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'int8[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{1,null,3}'::int8[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Long;'), ('[J')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped int8[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::int8)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'float4[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'float4[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{1,null,3}'::float4[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Float;'), ('[F')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped float4[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::float4)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'float8[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'float8[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{1,null,3}'::float8[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.Double;'), ('[D')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped float8[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped =" +
+	"   CASE WHEN class LIKE '[_' THEN array_replace(orig, null, 0::float8)" +
+	"   ELSE orig END" +
+	"  ) AS outcome(ok)",
+
+	" SELECT" +
+	"  CASE WHEN every(outcome.ok)" +
+	"  THEN javatest.logmessage('INFO',    'text[] passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'text[] fails')" +
+	"  END" +
+	" FROM" +
+	"  (SELECT '{foo,null,bar}'::text[]) AS p(orig)," +
+	"  (VALUES (''), ('[Ljava.lang.String;')) as q(rqcls)," +
+	"  roundtrip(p, rqcls) AS (class text, roundtripped text[])," +
+	"  LATERAL (SELECT" +
+	"   (rqcls = class OR rqcls = '')" +
+	"   AND roundtripped = orig" +
+	"  ) AS outcome(ok)",
 	}
 )
 public class TypeRoundTripper
