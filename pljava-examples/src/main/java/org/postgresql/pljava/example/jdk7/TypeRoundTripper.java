@@ -435,21 +435,25 @@ public class TypeRoundTripper
 		 * convenient. If *not* an array, it's the same as the canonical name,
 		 * with the primitive names spelled out. If it *is* an array, the
 		 * primitives get their one-letter codes, and other class names have L
-		 * prefix and ; suffix. Check the arrayness here to normalize the form
-		 * so that, after this check, any primitive will be represented by its
-		 * one-letter code, and any other type will have an L in front (but
-		 * no ; at the end).
+		 * prefix and ; suffix. Condense the two cases here into one offbeat
+		 * hybrid form that will be used below.
 		 */
 		if ( 0 == ndims )
 			noBrackets =
 				("L" + noBrackets +
 				":booleanZ:byteB:shortS:charC:intI:longJ:floatF:doubleD")
 				.replaceFirst(
-					"^L(boolean|byte|short|char|int|long|float|double)(?=:)" +
-					"(?:\\w*+:)*\\1(\\w)(?::.*+)?+$|:.++$",
+					"^L(\\w++)(?=:)(?:\\w*+:)*\\1(\\w)(?::.*+)?+$|:.++$",
 					"$2");
 		else
 			noBrackets = noBrackets.replaceFirst(";$", "");
+
+		/*
+		 * Invariant: thanks to the above normalization, whether array or not,
+		 * noBrackets will now have this form: either the first (and only)
+		 * character is one of the primitive character codes, or the first
+		 * character is L and the rest is a class name (with no ; at the end).
+		 */
 
 		Class<?> c;
 
@@ -466,7 +470,8 @@ public class TypeRoundTripper
 		default:
 			try
 			{
-				c = Class.forName(noBrackets.substring(1));
+				noBrackets = noBrackets.substring(1);
+				c = Class.forName(noBrackets);
 			}
 			catch ( ClassNotFoundException e )
 			{
