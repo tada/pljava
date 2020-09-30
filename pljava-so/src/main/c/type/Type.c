@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -294,7 +294,7 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	if ( NULL == rqcls  ||  Type_getJavaClass(self) == rqcls )
 		return Type_coerceDatum(self, value);
 
-	rqcname = JNI_callObjectMethod(rqcls, Class_getName);
+	rqcname = JNI_callObjectMethod(rqcls, Class_getCanonicalName);
 	rqcname0 = String_createNTS(rqcname);
 	JNI_deleteLocalRef(rqcname);
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
@@ -324,7 +324,16 @@ Datum Type_coerceObjectBridged(Type self, jobject object)
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
 	pfree(rqcname0);
 	if ( ! Type_canReplaceType(rqtype, self) )
-		elog(ERROR, "type bridge failure");
+	{
+		/*
+		 * Ignore the TypeBridge in this one oddball case that results from the
+		 * existence of two Types both mapping Java's byte[].
+		 */
+		if ( BYTEAOID == self->typeId  &&  CHARARRAYOID == rqtype->typeId )
+			rqtype = self;
+		else
+			elog(ERROR, "type bridge failure");
+	}
 	object = JNI_callObjectMethod(object, s_TypeBridge_Holder_payload);
 	return Type_coerceObject(rqtype, object);
 }
@@ -839,6 +848,28 @@ static void initializeTypeBridges()
 	addTypeBridge(cls, ofClass, "java.time.LocalTime", TIMEOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetDateTime", TIMESTAMPTZOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetTime", TIMETZOID);
+
+	/*
+	 * TypeBridges that allow Java primitive array types to be passed to things
+	 * expecting their boxed counterparts. An oddball case is byte[], given the
+	 * default oid BYTEAOID here instead of CHARARRAYOID following the pattern,
+	 * because there is a whole 'nother (see byte_array.c) Type that also maps
+	 * byte[] on the Java side, but bytea for PostgreSQL (I am not at all sure
+	 * what I think of that), and bridging it to a different Oid here would
+	 * break it as a parameter to prepared statements that were working. So
+	 * cater to that use, while possibly complicating the new use that was not
+	 * formerly possible.
+	 *
+	 * There is no bridge for char[], because PL/Java has no Type that maps it
+	 * to anything in PostgreSQL.
+	 */
+	addTypeBridge(cls, ofClass, "boolean[]", BOOLARRAYOID);
+	addTypeBridge(cls, ofClass,    "byte[]", BYTEAOID);
+	addTypeBridge(cls, ofClass,   "short[]", INT2ARRAYOID);
+	addTypeBridge(cls, ofClass,     "int[]", INT4ARRAYOID);
+	addTypeBridge(cls, ofClass,    "long[]", INT8ARRAYOID);
+	addTypeBridge(cls, ofClass,   "float[]", FLOAT4ARRAYOID);
+	addTypeBridge(cls, ofClass,  "double[]", FLOAT8ARRAYOID);
 
 	addTypeBridge(cls, ofInterface, "java.sql.SQLXML",
 #if defined(XMLOID)

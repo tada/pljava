@@ -17,7 +17,6 @@
 
 static TypeClass s_doubleClass;
 static jclass    s_Double_class;
-static jclass    s_DoubleArray_class;
 static jmethodID s_Double_init;
 static jmethodID s_Double_doubleValue;
 
@@ -83,21 +82,8 @@ static Datum _doubleArray_coerceObject(Type self, jobject doubleArray)
 
 	nElems = JNI_getArrayLength((jarray)doubleArray);
 	v = createArrayType(nElems, sizeof(jdouble), FLOAT8OID, false);
-	if(!JNI_isInstanceOf( doubleArray, s_DoubleArray_class))
-		JNI_getDoubleArrayRegion((jdoubleArray)doubleArray, 0,
+	JNI_getDoubleArrayRegion((jdoubleArray)doubleArray, 0,
 					 nElems, (jdouble*)ARR_DATA_PTR(v));
-	else
-	{
-		int idx = 0;
-		jdouble *array = (jdouble*)ARR_DATA_PTR(v);
-
-		for(idx = 0; idx < nElems; ++idx)
-		{
-			jobject e = JNI_getObjectArrayElement(doubleArray, idx);
-			array[idx] = JNI_callDoubleMethod(e, s_Double_doubleValue);
-			JNI_deleteLocalRef(e);
-		}
-	}
 
 	PG_RETURN_ARRAYTYPE_P(v);
 }
@@ -138,7 +124,6 @@ void Double_initialize(void)
 	TypeClass cls;
 
 	s_Double_class = JNI_newGlobalRef(PgObject_getJavaClass("java/lang/Double"));
-	s_DoubleArray_class = JNI_newGlobalRef(PgObject_getJavaClass("[Ljava/lang/Double;"));
 	s_Double_init = PgObject_getJavaMethod(s_Double_class, "<init>", "(D)V");
 	s_Double_doubleValue = PgObject_getJavaMethod(s_Double_class, "doubleValue", "()D");
 
