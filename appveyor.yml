@@ -1,0 +1,9 @@
+# We have no useful AppVeyor CI configuration for 1.5.x and related branches.
+# This is just here to stop AppVeyor from marking every commit red simply
+# because there is nothing to do. (This does not mean the real AppVeyor CI will
+# only happen on 'master', because this version of this file only appears in
+# branches where there is nothing to do.)
+
+branches:
+  only:
+    - master
