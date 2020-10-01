@@ -58,6 +58,16 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 #define DomainHasConstraints(x) true
 #endif
 
+#if PG_VERSION_NUM < 110000
+static Oid BOOLARRAYOID;
+static Oid CHARARRAYOID;
+static Oid FLOAT8ARRAYOID;
+static Oid INT8ARRAYOID;
+#if PG_VERSION_NUM < 80400
+static Oid INT2ARRAYOID;
+#endif
+#endif
+
 static HashMap s_typeByOid;
 static HashMap s_obtainerByOid;
 static HashMap s_obtainerByJavaName;
@@ -964,6 +974,16 @@ void Type_initialize(void)
 	s_Iterator_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Iterator"));
 	s_Iterator_hasNext = PgObject_getJavaMethod(s_Iterator_class, "hasNext", "()Z");
 	s_Iterator_next = PgObject_getJavaMethod(s_Iterator_class, "next", "()Ljava/lang/Object;");
+
+#if PG_VERSION_NUM < 110000
+	BOOLARRAYOID   = get_array_type(BOOLOID);
+	CHARARRAYOID   = get_array_type(CHAROID);
+	FLOAT8ARRAYOID = get_array_type(FLOAT8OID);
+	INT8ARRAYOID   = get_array_type(INT8OID);
+#if PG_VERSION_NUM < 80400
+	INT2ARRAYOID   = get_array_type(INT2OID);
+#endif
+#endif
 
 	initializeTypeBridges();
 }

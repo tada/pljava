@@ -1029,7 +1029,11 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 			}
 			ereport(INFO, (
 				errmsg_internal(cap_format, lastlive, lastcap),
+#if PG_VERSION_NUM < 90100
+				errdetail("%s", detail),
+#else
 				errdetail_internal("%s", detail),
+#endif
 				errhint(
 					"To pinpoint location, set a breakpoint on this ereport "
 					"and follow stacktrace to a functionExit(), its caller "
