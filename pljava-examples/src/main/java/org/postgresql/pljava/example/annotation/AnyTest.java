@@ -27,20 +27,11 @@ import org.postgresql.pljava.annotation.SQLType;
  * This SQLAction declares a function that refers to Java's own String.format
  * method, which is variadic, and tests its behavior.
  *
- * It has a 'provides' string, and makeArray below 'requires' it, because there
- * is a bug in the C Type caching that will make this test fail if the
- * makeArray function has been initialized first. (Until that bug is fixed, the
- * time is not ripe to outright advertise that variadic functions like this are
- * supported. But this test is here to ensure at least the support does not
- * regress.)
- *
- * The bug is that PL/Java treats java.lang.Object[] as anyarray, intended to be
- * adaptable to whatever array type is passed, but once the Type caching logic
- * has already associated the Oid for anyarray upon seeing the return type of
- * makeArray below, it cannot later supply a Type for text[] as seen in the
- * parameter list of format().
+ * Its presence in this file is an artifact of history: it isn't much related
+ * to the functions otherwise defined here, but once had an ordering dependency
+ * with one of them because of a bug in the type system.
  */
-@SQLAction(provides = "String.format tested",
+@SQLAction(
 	install = {
 		"CREATE FUNCTION javatest.format(" +
 		"  format pg_catalog.text," +
@@ -98,7 +89,7 @@ public class AnyTest {
 	 * one-element array with the object's class as its element type.
 	 */
 	@Function(schema="javatest", effects=IMMUTABLE, onNullInput=RETURNS_NULL,
-		type="pg_catalog.anyarray", requires="String.format tested")
+		type="pg_catalog.anyarray")
 	public static Object[] makeArray(
 		@SQLType("pg_catalog.anyelement") Object param)
 	{
