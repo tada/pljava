@@ -596,7 +596,23 @@ bool Type_isPrimitive(Type self)
 
 Type Type_fromJavaType(Oid typeId, const char* javaTypeName)
 {
-	CacheEntry ce = (CacheEntry)HashMap_getByString(s_obtainerByJavaName, javaTypeName);
+	/*
+	 * Do an initial lookup with InvalidOid as the oid part of the key. Multiple
+	 * entries for the same Java name and distinct oids are not anticipated
+	 * except for arrays.
+	 */
+	CacheEntry ce = (CacheEntry)HashMap_getByStringOid(
+		s_obtainerByJavaName, javaTypeName, InvalidOid);
+
+	/*
+	 * If no entry was found using InvalidOid and a valid typeId is provided
+	 * and the wanted Java type is an array, repeat the lookup using the typeId.
+	 */
+	if ( NULL == ce  &&  InvalidOid != typeId
+			&&  NULL != strchr(javaTypeName, ']') )
+		ce = (CacheEntry)HashMap_getByStringOid(
+			s_obtainerByJavaName, javaTypeName, typeId);
+
 	if(ce == 0)
 	{
 		size_t jtlen = strlen(javaTypeName) - 2;
@@ -1075,7 +1091,19 @@ static void _registerType(Oid typeId, const char* javaTypeName, Type type, TypeO
 	ce->obtainer = obtainer;
 
 	if(javaTypeName != 0)
-		HashMap_putByString(s_obtainerByJavaName, javaTypeName, ce);
+	{
+		/*
+		 * The s_obtainerByJavaName cache is now keyed by Java name and an oid,
+		 * rather than Java name alone, to address an issue affecting arrays.
+		 * To avoid changing other behavior, the oid used in the hash key will
+		 * be InvalidOid always, unless the Java name being registered is
+		 * an array type and the caller has passed a valid oid.
+		 */
+		Oid keyOid = (NULL == strchr(javaTypeName, ']'))
+			? InvalidOid
+			: typeId;
+		HashMap_putByStringOid(s_obtainerByJavaName, javaTypeName, keyOid, ce);
+	}
 
 	if(typeId != InvalidOid && HashMap_getByOid(s_obtainerByOid, typeId) == 0)
 		HashMap_putByOid(s_obtainerByOid, typeId, ce);
