@@ -5,12 +5,140 @@
 #set($h4 = '####')
 #set($h5 = '#####')
 #set($gborgbug = 'http://web.archive.org/web/20061208113236/http://gborg.postgresql.org/project/pljava/bugs/bugupdate.php?')
-#set($pgfbug = 'http://pgfoundry.org/tracker/?func=detail&amp;atid=334&amp;group_id=1000038&amp;aid=')
-#set($pgffeat = 'http://pgfoundry.org/tracker/?func=detail&amp;atid=337&amp;group_id=1000038&amp;aid=')
+#set($pgfbug = 'https://web.archive.org/web/*/http://pgfoundry.org/tracker/?func=detail&amp;atid=334&amp;group_id=1000038&amp;aid=')
+#set($pgffeat = 'https://web.archive.org/web/*/http://pgfoundry.org/tracker/?func=detail&amp;atid=337&amp;group_id=1000038&amp;aid=')
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.5
+$h2 PL/Java 1.5.6
+
+This release adds support for PostgreSQL 13.
+
+It includes improvements to the JDBC 4.0 `java.sql.SQLXML` API that first became
+available in 1.5.1, an update of the ISO SQL/XML examples based on the Saxon
+product to Saxon 10 (which now includes support for XML Query higher-order
+functions in the freely-licensed Saxon-HE), some improvements to internals,
+and a number of bug fixes.
+
+$h3 Version compatibility
+
+PL/Java 1.5.6 can be built against recent PostgreSQL versions including 13,
+and older ones back to 8.2, using Java SE 8 or later. The source code avoids
+features newer than Java 6, so building with Java 7 or 6 should also be
+possible, but is no longer routinely tested. The Java version used at runtime
+does not have to be the same version used for building. PL/Java itself can run
+on any Java version 6 or later if built with Java 11 or earlier; it can run
+on Java 7 or later if built with Java 12 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+PL/Java 1.5.6 cannot be built with Java 15 or later, as the Nashorn JavaScript
+engine used in the build process no longer ships with Java 15. It can be built
+with [GraalVM][], if `-Dpolyglot.js.nashorn-compat` is added to the `mvn`
+command line. It will run on Java 15 if built with an earlier JDK or with Graal.
+
+When used with GraalVM as the runtime VM, PL/Java functions can use Graal's
+"polyglot" capabilities to execute code in any other language available on
+GraalVM. In this release, it is not yet possible to directly declare a function
+in a language other than Java.
+
+$h3 Changes
+
+$h4 Improvements to the `java.sql.SQLXML` type
+
+Additions to the `Adjusting.XML` API support
+[limiting resource usage][xmlreslim] in XML processing, controlling
+[resolution][xmlresolv] of external documents and resources,
+[validation against a schema][xmlschema], and integration of an
+[XML catalog][xmlcatalog] to locally satisfy requests for external documents.
+
+Corrections and new documentation of [whitespace handling][xmlws] in XML values
+of `CONTENT` form, and implementation [limitations][xmlimpl].
+
+$h4 Improvements to the Saxon-based ISO SQL/XML example functions
+
+Updated the dependency for these optional examples to Saxon 10. Probably the
+most significant of the [Saxon 10 changes][saxon10], for PostgreSQL's purposes,
+will be that the XQuery [higher-order function feature][xqhof] is now included
+in the freely-licensed Saxon-HE, so that it is now possible without cost to
+integrate a modern XQuery 3.1 implementation that is lacking only the
+[schema-aware feature][xqsaf] and the [typed data feature][xqtdf] (for those,
+the paid Saxon-EE product is needed), and the [static typing feature][xqstf]
+(which is not in any Saxon edition).
+
+To compensate for delivering the higher-order function support in -HE,
+Saxonica moved certain optimizations to -EE. This seems a justifiable trade, as
+it is better for development purposes to have the more complete implementation
+of the language, leaving better optimization to be bought if and when needed.
+
+Thanks to a tip from Saxon's developer, the returning of results to SQL is now
+done in a way that may incur less copying in some cases.
+
+$h4 Internals
+
+* Many sources of warnings reported by the Java VM's `-Xcheck:jni` option have
+    been tracked down, making it practical to use `-Xcheck:jni` in testing.
+* Reduced pressure on the garbage collector in management of references to
+    PostgreSQL native state.
+
+$h3 Enhancement requests addressed
+
+* Work around PostgreSQL [API breakage in EnterpriseDB 11](${ghbug}260)
+ 
+$h3 Bugs fixed
+
+* [Support of arrays in composite types](${ghbug}300)
+* [Date conversion errors possible with PostgreSQL 10 on Windows/MSVC](${ghbug}297)
+* [Build issue with Windows/MinGW-w64](${ghbug}282)
+* ["xmltable" with XML output column or parameter](${ghbug}280)
+* [Google Summer of Code catches 15-year-old PL/Java bug](${ghbug}274)
+* [Several bugs in SQLXML handling](${ghbug}272)
+* Work around an exception from `Reference.clear` on OpenJ9 JVM
+* Bugs in SQL generator when supplying a function parameter name, or the
+    `category`, `delimiter`, or `storage` attribute of a user-defined type.
+
+$h3 Updated PostgreSQL APIs tracked
+
+* Removal of `CREATE EXTENSION ... FROM unpackaged`
+* `numvals` in `SPITupleTable`
+* `detoast.h`
+* `detoast_external_attr`
+
+$h3 Credits
+
+There is a PL/Java 1.5.6 thanks in part to
+Christoph Berg,
+Chapman Flack,
+Kartik Ohri,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+The work of Kartik Ohri in summer 2020 was supported by Google Summer of Code.
+
+[xmlreslim]: use/sqlxml.html#Additional_adjustments_in_recent_Java_versions
+[xmlresolv]: use/sqlxml.html#Supplying_a_SAX_or_DOM_EntityResolver_or_Schema
+[xmlschema]: use/sqlxml.html#Validation_against_a_schema
+[xmlcatalog]: use/sqlxml.html#Using_XML_Catalogs_when_running_on_Java_9_or_later
+[xmlws]: use/sqlxml.html#Effect_on_parsing_of_whitespace
+[xmlimpl]: use/sqlxml.html#Known_limitations
+[saxon10]: https://www.saxonica.com/html/documentation/changes/v10/installation.html
+[xqhof]: https://www.w3.org/TR/xquery-31/#id-higher-order-function-feature
+[xqsaf]: https://www.w3.org/TR/xquery-31/#id-schema-aware-feature
+[xqtdf]: https://www.w3.org/TR/xquery-31/#id-typed-data-feature
+[xqstf]: https://www.w3.org/TR/xquery-31/#id-static-typing-feature
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.5 (4 November 2019)
 
 This bug-fix release fixes runtime issues reported in 32-bit `i386` builds, some
 of which would not affect a more common 64-bit architecture, but some of which
@@ -25,17 +153,6 @@ Thanks to Christoph Berg for the `i386` testing that exposed these issues.
 $h3 Bugs fixed
 
 * [32bit i386 segfault](${ghbug}246)
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.4 (29 October 2019)
 

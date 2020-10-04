@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of June 2019, the following version constraints are known.
+As of mid-2020, the following version constraints are known.
 
 ## Java
 
@@ -34,6 +34,11 @@ As of Java 12, the Java compiler can no longer generate code targeting a Java 6
 runtime. If PL/Java is built with Java 12 or newer, it will not run with a JRE
 older than 7. If it is necessary to build a PL/Java that will run on 6, it must
 be built with 11 or earlier.
+
+PL/Java 1.5.x cannot be built with Java 15 or later, as the Nashorn JavaScript
+engine used in the build process no longer ships with Java 15. It can be built
+with GraalVM, if `-Dpolyglot.js.nashorn-compat` is added to the `mvn`
+command line. It will run on Java 15 if built with an earlier JDK or with Graal.
 
 ### Maven failures when downloading dependencies
 

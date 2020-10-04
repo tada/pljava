@@ -489,7 +489,7 @@ while ( streamReader.hasNext() )
 
 It would be unexpected to reorder that pattern so that queries of the current
 event occur after `hasNext` but before `next`, and may produce
-`IllegalStateExceptions` or incorrect results from a `StAXSource` supplied
+`IllegalStateException`s or incorrect results from a `StAXSource` supplied
 by PL/Java.
 
 ### Compatibility of `StAX` with `TrAX` (Java's transformation API)
