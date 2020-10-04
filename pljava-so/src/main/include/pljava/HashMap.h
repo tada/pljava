@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #ifndef __pljava_HashMap_h
 #define __pljava_HashMap_h
@@ -77,6 +81,12 @@ extern void* HashMap_getByString(HashMap self, const char* key);
 extern void* HashMap_getByOid(HashMap self, Oid key);
 
 /*
+ * Returns the object stored using the given null
+ * terminated string and Oid, or NULL if no such object can be found.
+ */
+extern void* HashMap_getByStringOid(HashMap self, const char* string, Oid oid);
+
+/*
  * Returns the object stored using the given Opaque pointer or NULL
  * if no such object can be found.
  */
@@ -112,6 +122,14 @@ extern void* HashMap_putByOid(HashMap self, Oid key, void* value);
 extern void* HashMap_putByOpaque(HashMap self, void* key, void* value);
 
 /*
+ * Stores the given value under the given null terminated string and oid. If
+ * an old value was stored using this key, the old value is returned.
+ * Otherwise this method returns NULL.
+ */
+extern void* HashMap_putByStringOid(HashMap self, const char* string, Oid oid,
+	void* value);
+
+/*
  * Removes the value stored under the given key. The the old value
  * (if any) is returned.
  */
@@ -134,6 +152,12 @@ extern void* HashMap_removeByOid(HashMap self, Oid key);
  * (if any) is returned.
  */
 extern void* HashMap_removeByOpaque(HashMap self, void* key);
+
+/*
+ * Removes the value stored under the given key. The the old value
+ * (if any) is returned. The key associated with the value is deleted.
+ */
+extern void* HashMap_removeByStringOid(HashMap self, const char* str, Oid oid);
 
 /*
  * Returns the number of entries currently in the HashMap
@@ -161,8 +185,8 @@ extern void* Entry_setValue(Entry self, void* value);
 extern HashKey Entry_getKey(Entry self);
 
 /*************************************************************
- * The HashKey is an abstract class. Currently, three different
- * implementations are used. Oid, Opaque (void*), and String.
+ * The HashKey is an abstract class. Currently, four different
+ * implementations are used. Oid, Opaque (void*), String, and StringOid.
  *************************************************************/
 
 /*
