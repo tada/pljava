@@ -22,6 +22,27 @@
 #include "pljava/type/String.h"
 #include "pljava/SPI.h"
 
+/*
+ * Workaround for issue #260, PostgreSQL API breakage by EnterpriseDB. They
+ * added a ReleaseCurrentSubTransactionEx function with an added argument, and
+ * made ReleaseCurrentSubTransaction call it, passing false. But instead of
+ * leaving ReleaseCurrentSubTransaction an actual function that does so, which
+ * would not have been an API break, they made it a macro instead, with the
+ * result that its address cannot be taken. The reporter of the issue had an
+ * inquiry open with EDB for four months trying to get specifics on what
+ * versions have that issue, with no useful response. So this workaround is just
+ * conditioned on finding ReleaseCurrentSubTransaction defined as a macro.
+ */
+#ifdef ReleaseCurrentSubTransaction
+static void addressableRelease(void);
+static void addressableRelease()
+{
+	ReleaseCurrentSubTransaction();
+}
+#undef ReleaseCurrentSubTransaction
+#define ReleaseCurrentSubTransaction addressableRelease
+#endif
+
 static jclass s_PgSavepoint_class;
 static jmethodID s_forId;
 static jfieldID s_nestLevel;

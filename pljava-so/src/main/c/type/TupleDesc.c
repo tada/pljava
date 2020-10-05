@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -81,7 +81,7 @@ Type pljava_TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 			"Invalid attribute index \"%d\"", (int)index);
 		type = 0;
 	}
-	else
+	else /* Type_objectTypeFromOid returns boxed types, when that matters */
 		type = Type_objectTypeFromOid(typeId, Invocation_getTypeMap());
 	return type;
 }
@@ -243,7 +243,8 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 			jobject value = JNI_getObjectArrayElement(jvalues, idx);
 			if(value != 0)
 			{
-				Type type = Type_fromOid(SPI_gettypeid(self, idx + 1), typeMap);
+				/* Obtain boxed types here too, when that matters. */
+				Type type = Type_objectTypeFromOid(SPI_gettypeid(self, idx + 1), typeMap);
 				values[idx] = Type_coerceObjectBridged(type, value);
 				nulls[idx] = false;
 				JNI_deleteLocalRef(value);

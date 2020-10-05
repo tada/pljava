@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,14 +12,21 @@
  */
 
 #include <postgres.h>
+
+#if PG_VERSION_NUM < 130000
 #include <access/tuptoaster.h>
+#define detoast_external_attr heap_tuple_fetch_attr
+#else
+#include <access/detoast.h>
+#endif
+
 #include <utils/datum.h>
 
-#if PG_VERSION_NUM >= 80400
+#if PG_VERSION_NUM < 80400
+#define RegisterSnapshotOnOwner(s,o) NULL
+#else
 #include <utils/snapshot.h>
 #include <utils/snapmgr.h>
-#else
-#define RegisterSnapshotOnOwner(s,o) NULL
 #endif
 
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Input_State.h"
@@ -215,7 +222,7 @@ jobject pljava_VarlenaWrapper_Input(
 			parked = toast_pointer.va_extsize + VARHDRSZ;
 			if ( (actual >> 1) < parked ) /* not compressed enough to bother */
 				goto justDetoastEagerly;
-			vl = heap_tuple_fetch_attr(vl); /* fetch without decompressing */
+			vl = detoast_external_attr(vl); /* fetch without decompressing */
 			d = PointerGetDatum(vl);
 			dbb = NULL;
 			goto constructResult;
@@ -575,7 +582,7 @@ JNIEXPORT jlong JNICALL Java_org_postgresql_pljava_internal_VarlenaWrapper_00024
 
 	BEGIN_NATIVE_NO_ERRCHECK;
 	prevcxt = MemoryContextSwitchTo((MemoryContext) p2lcxt.ptrVal);
-	fetched = heap_tuple_fetch_attr((_VL_TYPE) p2lvl.ptrVal);
+	fetched = detoast_external_attr((_VL_TYPE) p2lvl.ptrVal);
 	pfree(p2lvl.ptrVal);
 	p2lvl.longVal = 0L;
 	p2lvl.ptrVal = fetched;

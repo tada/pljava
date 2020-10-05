@@ -247,7 +247,7 @@ jos.close();
 			<utf8 dir="target/classes" includes="pljava.sql"
 				fullpath="pljava/sharedir/pljava/pljava--${project.version}.sql"
 			/>
-			<utf8 dir="target/classes" includes="pljava--unpackaged.sql"
+			<utf8 dir="target/classes" includes="pljava--unpackaged--.sql"
 				fullpath=
 			"pljava/sharedir/pljava/pljava--unpackaged--${project.version}.sql"
 			/>
@@ -255,6 +255,10 @@ jos.close();
 			     simple update is possible, just repeat the next entry, with
 				 the from-version changed.
 			  -->
+			<utf8 dir="target/classes" includes="pljava--.sql"
+				fullpath=
+			"pljava/sharedir/pljava/pljava--1.5.6--${project.version}.sql"
+			/>
 			<utf8 dir="target/classes" includes="pljava--.sql"
 				fullpath=
 			"pljava/sharedir/pljava/pljava--1.5.5--${project.version}.sql"
@@ -305,7 +309,7 @@ jos.close();
 			/>
 			<utf8 dir="target/classes" prefix="pljava/sharedir/pljava/"
 				includes="*.sql"
-				excludes="pljava.sql pljava--.sql pljava--unpackaged.sql"/>			
+				excludes="pljava.sql pljava--.sql pljava--unpackaged--.sql"/>			
 <!-- If editing the script below, expand tabs to spaces (at 4 columns, and only
 	 for the lines of the script) before saving. Line-wrapped into the manifest,
 	 it looks horrible with tabs.

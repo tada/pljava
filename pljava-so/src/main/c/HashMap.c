@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include "pljava/HashMap_priv.h"
 
@@ -42,6 +46,7 @@ HashKeyClass HashKeyClass_alloc(const char* className, Size instanceSize, Finali
 static HashKeyClass s_OidKeyClass;
 static HashKeyClass s_StringKeyClass;
 static HashKeyClass s_OpaqueKeyClass;
+static HashKeyClass s_StringOidKeyClass;
 
 static PgObjectClass s_EntryClass;
 static PgObjectClass s_HashMapClass;
@@ -125,7 +130,7 @@ static void StringKey_init(StringKey self, const char* keyVal)
 }
 
 /*
- * We use the Oid itself as the hashCode.
+ * We use the pointer itself (32 bits of it, without the low 3) as the hashCode.
  */
 static uint32 _OpaqueKey_hashCode(HashKey self)
 {
@@ -148,6 +153,41 @@ static void OpaqueKey_init(OpaqueKey self, void* keyVal)
 {
 	((HashKey)self)->m_class = s_OpaqueKeyClass;
 	self->key = keyVal;
+}
+
+/*
+ * Create a copy of this StringOidKey
+ */
+static HashKey _StringOidKey_clone(HashKey self, MemoryContext ctx)
+{
+	HashKey clone = _StringKey_clone(self, ctx);
+	((StringOidKey)clone)->oid = ((StringOidKey)self)->oid;
+	return clone;
+}
+
+/*
+ * Compare with another HashKey.
+ */
+static bool _StringOidKey_equals(HashKey self, HashKey other)
+{
+	return other->m_class == self->m_class /* Same class */
+		&& strcmp(((StringKey)self)->key, ((StringKey)other)->key) == 0
+		&& ((StringOidKey)self)->oid == ((StringOidKey)other)->oid;
+}
+
+/*
+ * @return  a hash code value for this object.
+ */
+static uint32 _StringOidKey_hashCode(HashKey self)
+{
+	return ((uint32)((StringOidKey)self)->oid) ^ _StringKey_hashCode(self);
+}
+
+static void StringOidKey_init(StringOidKey self, const char* string, Oid oid)
+{
+	StringKey_init((StringKey)self, string);
+	((HashKey)self)->m_class = s_StringOidKeyClass;
+	self->oid = oid;
 }
 
 /*
@@ -369,6 +409,13 @@ void* HashMap_getByString(HashMap self, const char* key)
 	return HashMap_get(self, (HashKey)&stringKey);
 }
 
+void* HashMap_getByStringOid(HashMap self, const char* string, Oid oid)
+{
+	struct StringOidKey_ stringOidKey;
+	StringOidKey_init(&stringOidKey, string, oid);
+	return HashMap_get(self, (HashKey)&stringOidKey);
+}
+
 void* HashMap_putByOid(HashMap self, Oid oid, void* value)
 {
 	struct OidKey_ oidKey;
@@ -390,6 +437,14 @@ void* HashMap_putByString(HashMap self, const char* key, void* value)
 	return HashMap_put(self, (HashKey)&stringKey, value);
 }
 
+void* HashMap_putByStringOid(HashMap self, const char* string, Oid oid,
+	void* value)
+{
+	struct StringOidKey_ stringOidKey;
+	StringOidKey_init(&stringOidKey, string, oid);
+	return HashMap_put(self, (HashKey)&stringOidKey, value);
+}
+
 void* HashMap_removeByOid(HashMap self, Oid oid)
 {
 	struct OidKey_ oidKey;
@@ -409,6 +464,13 @@ void* HashMap_removeByString(HashMap self, const char* key)
 	struct StringKey_ stringKey;
 	StringKey_init(&stringKey, key);
 	return HashMap_remove(self, (HashKey)&stringKey);
+}
+
+void* HashMap_removeByStringOid(HashMap self, const char* string, Oid oid)
+{
+	struct StringOidKey_ stringOidKey;
+	StringOidKey_init(&stringOidKey, string, oid);
+	return HashMap_remove(self, (HashKey)&stringOidKey);
 }
 
 uint32 HashMap_size(HashMap self)
@@ -437,4 +499,10 @@ void HashMap_initialize(void)
 	s_StringKeyClass->hashCode = _StringKey_hashCode;
 	s_StringKeyClass->equals   = _StringKey_equals;
 	s_StringKeyClass->clone    = _StringKey_clone;
+
+	s_StringOidKeyClass = HashKeyClass_alloc("StringOidKey",
+		sizeof(struct StringOidKey_), _StringKey_finalize); /* same finalize */
+	s_StringOidKeyClass->hashCode = _StringOidKey_hashCode;
+	s_StringOidKeyClass->equals   = _StringOidKey_equals;
+	s_StringOidKeyClass->clone    = _StringOidKey_clone;
 }

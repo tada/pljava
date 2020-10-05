@@ -338,6 +338,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 #endif
 
 #if PG_VERSION_NUM < 90100
+#define errdetail_internal errdetail
 #define ASSIGNHOOK(name,type) \
 	static bool \
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
@@ -745,6 +746,15 @@ static void initsequencer(enum initstage is, bool tolerant)
 #undef MOREHINT
 			if ( loadAsExtensionFailed )
 			{
+#if PG_VERSION_NUM < 130000
+#define MOREHINT \
+					"\"CREATE EXTENSION pljava FROM unpackaged\""
+#else
+#define MOREHINT \
+					"\"CREATE EXTENSION pljava VERSION unpackaged\", " \
+					"then (after starting another new session) " \
+					"\"ALTER EXTENSION pljava UPDATE\""
+#endif
 				ereport(NOTICE, (errmsg(
 					"PL/Java load successful after failed CREATE EXTENSION"),
 					errdetail(
@@ -754,9 +764,11 @@ static void initsequencer(enum initstage is, bool tolerant)
 					"the working settings are saved, exit this session, and "
 					"in a new session, either: "
 					"1. if committed, run "
-					"\"CREATE EXTENSION pljava FROM unpackaged\", or 2. "
+					MOREHINT
+					", or 2. "
 					"if rolled back, simply \"CREATE EXTENSION pljava\" again."
 					)));
+#undef MOREHINT
 			}
 		}
 		return;

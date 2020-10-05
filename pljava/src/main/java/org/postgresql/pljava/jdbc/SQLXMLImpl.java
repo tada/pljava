@@ -72,7 +72,6 @@ import org.xml.sax.XMLReader;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.w3c.dom.Document;
@@ -85,6 +84,11 @@ import static org.postgresql.pljava.internal.Session.implServerCharset;
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
 import java.sql.SQLFeatureNotSupportedException;
+
+/* ... for SQLXMLImpl.WhitespaceAccumulator */
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /* ... for SQLXMLImpl.DeclProbe */
 
@@ -120,13 +124,17 @@ import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.Transformer;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
+import org.xml.sax.ext.DefaultHandler2;
 import org.xml.sax.helpers.XMLFilterImpl;
+
+import org.postgresql.pljava.internal.SyntheticXMLReader.SAX2PROPERTY;
 
 /* ... for SQLXMLImpl.StAXResultAdapter and .StAXUnwrapFilter */
 
 import java.util.NoSuchElementException;
 
 import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.XMLEvent;
 import javax.xml.stream.util.StreamReaderDelegate;
@@ -150,9 +158,18 @@ import org.xml.sax.ext.LexicalHandler;
 
 import java.io.StringReader;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.validation.Schema;
 import org.postgresql.pljava.Adjusting;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
+
+/* ... for error handling */
+
+import static java.util.logging.Level.WARNING;
+import java.util.logging.Logger;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXParseException;
 
 /* ... for SQLXMLImpl.Readable.Synthetic */
 
@@ -405,7 +422,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * {@code DOCUMENT}, or was simply inconclusive}, a synthetic wrapper
 	 * will be added, as it will not break anything.
 	 *<p>
-	 * As a side effect, this method sets {@code m_wrapped} tp {@code true}
+	 * As a side effect, this method sets {@code m_wrapped} to {@code true}
 	 * if it applies a wrapper element. When returning a type of
 	 * {@code Source} that presents parsed results, it will be configured
 	 * to present them with the wrapper element filtered out.
@@ -616,6 +633,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		XMLInputFactory xif = XMLInputFactory.newInstance();
 		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
+		xif.setProperty(xif.SUPPORT_DTD, false);// will still report one it sees
+		xif.setProperty(xif.IS_REPLACING_ENTITY_REFERENCES, false);
+
 		XMLStreamReader xsr = null;
 		try
 		{
@@ -628,7 +648,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				int evt = xsr.next();
 
 				if ( COMMENT == evt || PROCESSING_INSTRUCTION == evt
-					|| SPACE == evt || START_DOCUMENT == evt )
+					|| START_DOCUMENT == evt )
 					continue;
 
 				if ( DTD == evt )
@@ -797,12 +817,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 * Source.
 		 */
 		@SuppressWarnings("unchecked")
-		protected <T extends Source> Class<T> preferredSourceClass(
+		protected <T extends Source> Class<? extends T> preferredSourceClass(
 			Class<T> sourceClass)
 		{
 			return Adjusting.XML.Source.class == sourceClass
-				? (Class<T>)Adjusting.XML.SAXSource.class
-				: (Class<T>)SAXSource.class;
+				? (Class<? extends T>)Adjusting.XML.SAXSource.class
+				: (Class<? extends T>)SAXSource.class;
 		}
 
 		/**
@@ -837,47 +857,60 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			if ( null == backing )
 				return super.getSource(sourceClass);
 
-			if ( null == sourceClass
-				|| Source.class == sourceClass
-				|| Adjusting.XML.Source.class.equals(sourceClass) )
-				sourceClass = preferredSourceClass(sourceClass);
+			Class<? extends T> sc = sourceClass;
+
+			if ( null == sc
+				|| Source.class == sc
+				|| Adjusting.XML.Source.class.equals(sc) )
+				sc = preferredSourceClass(sc);
 
 			try
 			{
-				if ( sourceClass.isAssignableFrom(StreamSource.class) )
-					return sourceClass.cast(toStreamSource(backing));
+				if ( sc.isAssignableFrom(StreamSource.class) )
+					return sc.cast(toStreamSource(backing));
 
-				if ( sourceClass.isAssignableFrom(SAXSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingSAXSource.class) )
+				if ( sc.isAssignableFrom(SAXSource.class)
+					|| sc.isAssignableFrom(AdjustingSAXSource.class) )
 				{
 					Adjusting.XML.SAXSource ss = toSAXSource(backing);
-					ss.defaults();
+					/*
+					 * Caution: while StAXSource and DOMSource have defaults()
+					 * called right here, SAXSource does not, because there is
+					 * an irksome ordering constraint such that schema() can't
+					 * work if any XMLReader adjustments have been made first.
+					 * Instead, SAXSource (and only SAXSource, so much for
+					 * consistency) must do its own tracking of whether
+					 * defaults() has been called, and do so if it hasn't been,
+					 * either before the first explicit adjustment, or at get()
+					 * time if none.
+					 */
+					// ss.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ss);
-					return sourceClass.cast(ss.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ss);
+					return sc.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(StAXSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingStAXSource.class) )
+				if ( sc.isAssignableFrom(StAXSource.class)
+					|| sc.isAssignableFrom(AdjustingStAXSource.class) )
 				{
 					Adjusting.XML.StAXSource ss = toStAXSource(backing);
 					ss.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ss);
-					return sourceClass.cast(ss.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ss);
+					return sc.cast(ss.get());
 				}
 
-				if ( sourceClass.isAssignableFrom(DOMSource.class)
-					|| sourceClass.isAssignableFrom(AdjustingDOMSource.class) )
+				if ( sc.isAssignableFrom(DOMSource.class)
+					|| sc.isAssignableFrom(AdjustingDOMSource.class) )
 				{
 					Adjusting.XML.DOMSource ds = toDOMSource(backing);
 					ds.defaults();
 					if ( Adjusting.XML.Source.class
-							.isAssignableFrom(sourceClass) )
-						return sourceClass.cast(ds);
-					return sourceClass.cast(ds.get());
+							.isAssignableFrom(sc) )
+						return sc.cast(ds);
+					return sc.cast(ds.get());
 				}
 			}
 			catch ( Exception e )
@@ -887,7 +920,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			throw new SQLFeatureNotSupportedException(
 				"No support for SQLXML.getSource(" +
-				sourceClass.getName() + ".class)", "0A000");
+				sc.getName() + ".class)", "0A000");
 		}
 
 		@Override
@@ -1084,6 +1117,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
+	static final Pattern s_entirelyWS = Pattern.compile("\\A[ \\t\\n\\r]*+\\z");
+
 	/**
 	 * Unwrap a DOM tree parsed from input that was wrapped in a synthetic
 	 * root element in case it had the form of {@code XML(CONTENT)}.
@@ -1111,8 +1146,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		Document newDoc =
 			d.getImplementation().createDocument(null, null, null);
 		DocumentFragment docFrag = newDoc.createDocumentFragment();
+
+		Matcher entirelyWhitespace = s_entirelyWS.matcher("");
+
 		boolean isDocument = true;
 		boolean seenElement = false;
+		boolean seenText = false;
 		for ( Node n = wrapper.getFirstChild(), next = null;
 			  null != n; n = next )
 		{
@@ -1134,8 +1173,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			case Node.PROCESSING_INSTRUCTION_NODE:
 				break;
 			case Node.TEXT_NODE:
-				if ( ! ((Text)n).isElementContentWhitespace() )
-					isDocument = false;
+				if ( isDocument )
+				{
+					seenText = true;
+					entirelyWhitespace.reset(n.getNodeValue());
+					if ( ! entirelyWhitespace.matches() )
+						isDocument = false;
+				}
 				break;
 			default:
 				isDocument = false;
@@ -1144,8 +1188,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			docFrag.appendChild(newDoc.adoptNode(n));
 		}
 
+		if ( ! seenElement )
+			isDocument = false;
+
 		if ( isDocument )
 		{
+			if ( seenText )
+			{
+				/*
+				 * At least one text node was seen at top level, but none
+				 * containing anything but whitespace (else isDocument would
+				 * be false and we wouldn't be here). Such nodes have to go.
+				 */
+				for ( Node n = docFrag.getFirstChild(), next = null;
+					  null != n; n = next )
+				{
+					next = n.getNextSibling();
+					if ( Node.TEXT_NODE == n.getNodeType() )
+						docFrag.removeChild(n);
+				}
+			}
+
 			newDoc.appendChild(docFrag);
 			ds.setNode(newDoc);
 		}
@@ -1278,12 +1341,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		 * Result.
 		 */
 		@SuppressWarnings("unchecked")
-		protected <T extends Result> Class<T> preferredResultClass(
+		protected <T extends Result> Class<? extends T> preferredResultClass(
 			Class<T> resultClass)
 		{
 			return Adjusting.XML.Result.class == resultClass
-				? (Class<T>)AdjustingSAXResult.class
-				: (Class<T>)SAXResult.class;
+				? (Class<? extends T>)AdjustingSAXResult.class
+				: (Class<? extends T>)SAXResult.class;
 		}
 
 		/*
@@ -1296,23 +1359,29 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			VarlenaWrapper.Output vwo, Class<T> resultClass)
 			throws SQLException
 		{
-			if ( null == resultClass
-				|| Result.class == resultClass
-				|| Adjusting.XML.Result.class == resultClass )
-				resultClass = preferredResultClass(resultClass);
+			Class<? extends T> rc = resultClass;
+
+			if ( null == rc
+				|| Result.class == rc
+				|| Adjusting.XML.Result.class == rc )
+				rc = preferredResultClass(rc);
 
 			try
 			{
-				if ( resultClass.isAssignableFrom(StreamResult.class)
-					|| resultClass.isAssignableFrom(AdjustingStreamResult.class)
+				if ( rc.isAssignableFrom(StreamResult.class)
+					|| rc.isAssignableFrom(AdjustingStreamResult.class)
 				   )
 				{
+					/*
+					 * As with AdjustingSAXSource, defaults() cannot be called
+					 * here, but must be deferred in case schema() is called.
+					 */
 					AdjustingStreamResult sr =
-						new AdjustingStreamResult(vwo, m_serverCS).defaults();
+						new AdjustingStreamResult(vwo, m_serverCS);
 					if ( Adjusting.XML.Result.class
-							.isAssignableFrom(resultClass) )
-						return resultClass.cast(sr);
-					return resultClass.cast(sr.get());
+							.isAssignableFrom(rc) )
+						return rc.cast(sr);
+					return rc.cast(sr.get());
 				}
 
 				/*
@@ -1320,9 +1389,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				 * call to this method with a different result class will be
 				 * made, setting it then.
 				 */
-				if ( resultClass.isAssignableFrom(AdjustingSourceResult.class) )
+				if ( rc.isAssignableFrom(AdjustingSourceResult.class) )
 				{
-					return resultClass.cast(
+					return rc.cast(
 						new AdjustingSourceResult(this, m_serverCS));
 				}
 
@@ -1333,8 +1402,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				OutputStream os = vwo;
 				Writer w;
 
-				if ( resultClass.isAssignableFrom(SAXResult.class)
-					|| resultClass.isAssignableFrom(AdjustingSAXResult.class) )
+				if ( rc.isAssignableFrom(SAXResult.class)
+					|| rc.isAssignableFrom(AdjustingSAXResult.class) )
 				{
 					SAXTransformerFactory saxtf = (SAXTransformerFactory)
 						SAXTransformerFactory.newInstance();
@@ -1347,24 +1416,24 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					th = SAXResultAdapter.newInstance(th, w);
 					SAXResult sr = new SAXResult(th);
 					if ( Adjusting.XML.Result.class
-							.isAssignableFrom(resultClass) )
-						return resultClass.cast(new AdjustingSAXResult(sr));
-					return resultClass.cast(sr);
+							.isAssignableFrom(rc) )
+						return rc.cast(new AdjustingSAXResult(sr));
+					return rc.cast(sr);
 				}
 
-				if ( resultClass.isAssignableFrom(StAXResult.class) )
+				if ( rc.isAssignableFrom(StAXResult.class) )
 				{
 					XMLOutputFactory xof = XMLOutputFactory.newInstance();
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					XMLStreamWriter xsw = xof.createXMLStreamWriter(
 						os, m_serverCS.name());
 					xsw = new StAXResultAdapter(xsw, os);
-					return resultClass.cast(new StAXResult(xsw));
+					return rc.cast(new StAXResult(xsw));
 				}
 
-				if ( resultClass.isAssignableFrom(DOMResult.class) )
+				if ( rc.isAssignableFrom(DOMResult.class) )
 				{
-					return resultClass.cast(m_domResult = new DOMResult());
+					return rc.cast(m_domResult = new DOMResult());
 				}
 			}
 			catch ( Exception e )
@@ -1374,7 +1443,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			throw new SQLFeatureNotSupportedException(
 				"No support for SQLXML.setResult(" +
-				resultClass.getName() + ".class)", "0A000");
+				rc.getName() + ".class)", "0A000");
 		}
 
 		/**
@@ -1620,9 +1689,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * transformer, at least, to accept the input and faithfully reproduce the
 	 * non-document content.
 	 */
-	static class SAXUnwrapFilter extends XMLFilterImpl
+	static class SAXUnwrapFilter extends XMLFilterImpl implements LexicalHandler
 	{
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
 
 		SAXUnwrapFilter(XMLReader parent)
 		{
@@ -1630,10 +1702,27 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public void endDocument() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  ! m_topElementSeen )
+				commitToContent();
+			super.endDocument();
+		}
+
+		@Override
 		public void startElement(
 			String uri, String localName, String qName, Attributes atts)
 			throws SAXException
 		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				if ( m_topElementSeen ) // a second top-level element?
+					commitToContent();  // ==> has to be CONTENT.
+				else
+					m_wsAcc.discard();
+				m_topElementSeen = true;
+			}
+
 			if ( 0 < m_nestLevel++ )
 				super.startElement(uri, localName, qName, atts);
 		}
@@ -1644,6 +1733,178 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( 0 < --m_nestLevel )
 				super.endElement(uri, localName, qName);
+		}
+
+		@Override
+		public void characters(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+			{
+				int mismatchIndex = m_wsAcc.accumulate(ch, start, length);
+				if ( -1 == mismatchIndex )
+					return;
+				commitToContent(); // they weren't all whitespace ==> CONTENT.
+				start = mismatchIndex;
+			}
+			super.characters(ch, start, length);
+		}
+
+		@Override
+		public void processingInstruction(String target, String data)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			super.processingInstruction(target, data);
+		}
+
+		@Override
+		public void skippedEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent(); // an entity at the top level? CONTENT.
+			super.skippedEntity(name);
+		}
+
+		/**
+		 * Called whenever, at "top level" (really nesting level 1, inside our
+		 * wrapping element), a parse event that could not appear there in
+		 * {@code XML(DOCUMENT)} form is encountered.
+		 *<p>
+		 * Forces {@code m_couldBeDocument} false, and disburses any whitespace
+		 * that may be held in the accumulator.
+		 *<p>
+		 * The occurrence of a parse event that <em>could</em> occur in the
+		 * {@code XML(DOCUMENT)} form should be handled not by calling this
+		 * method, but by simply discarding any held whitespace instead.
+		 */
+		private void commitToContent() throws SAXException
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int length;
+			m_couldBeDocument = false;
+			while ( 0 < (length = m_wsAcc.disburse(buf)) )
+				super.characters(buf, 0, length);
+		}
+
+		/*
+		 * Implementation of the LexicalHandler interface (and the property
+		 * interception to set and retrieve the handler). No help from
+		 * XMLFilterImpl there.
+		 */
+
+		private static final LexicalHandler s_dummy = new DefaultHandler2();
+		private LexicalHandler m_consumersLexHandler;
+		private LexicalHandler m_realLexHandler;
+		private boolean m_lexHandlerIsRegistered = false;
+
+		@Override
+		public void setContentHandler(ContentHandler handler)
+		{
+			super.setContentHandler(handler);
+			if ( m_lexHandlerIsRegistered )
+				return;
+
+			/*
+			 * The downstream consumer might never register a LexicalHandler of
+			 * its own, but those events still matter here, so trigger the
+			 * registration of 'this' if necessary.
+			 */
+			try
+			{
+				setProperty(SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(),
+					m_consumersLexHandler);
+			}
+			catch ( SAXException e )
+			{
+			}
+		}
+
+		@Override
+		public Object getProperty(String name)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+				return m_consumersLexHandler;
+			return super.getProperty(name);
+		}
+
+		@Override
+		public void setProperty(String name, Object value)
+			throws SAXNotRecognizedException, SAXNotSupportedException
+		{
+			if ( SAX2PROPERTY.LEXICAL_HANDLER.propertyUri().equals(name) )
+			{
+				if ( ! SAX2PROPERTY.LEXICAL_HANDLER.valueOk(value) )
+					throw new SAXNotSupportedException(name);
+				/*
+				 * Make sure 'this' is registered as the upstream parser's
+				 * lexical handler, done here to avoid publishing 'this' early
+				 * from the constructor, and also to make sure the consumer gets
+				 * an appropriate exception if it doesn't work for some reason.
+				 */
+				if ( ! m_lexHandlerIsRegistered )
+				{
+					super.setProperty(name, this);
+					m_lexHandlerIsRegistered = true;
+				}
+				m_consumersLexHandler = (LexicalHandler)value;
+				m_realLexHandler =
+					null != value ? m_consumersLexHandler : s_dummy;
+				return;
+			}
+			super.setProperty(name, value);
+		}
+
+		@Override
+		public void startDTD(String name, String publicId, String systemId)
+			throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void endDTD() throws SAXException
+		{
+			assert false; // this filter is never used on input with a DTD
+		}
+
+		@Override
+		public void startEntity(String name) throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startEntity(name);
+		}
+
+		@Override
+		public void endEntity(String name) throws SAXException
+		{
+			m_realLexHandler.endEntity(name);
+		}
+
+		@Override
+		public void startCDATA() throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				commitToContent();
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void endCDATA() throws SAXException
+		{
+			m_realLexHandler.startCDATA();
+		}
+
+		@Override
+		public void comment(char[] ch, int start, int length)
+			throws SAXException
+		{
+			if ( m_couldBeDocument  &&  1 == m_nestLevel )
+				m_wsAcc.discard();
+			m_realLexHandler.comment(ch, start, length);
 		}
 	}
 
@@ -1805,10 +2066,99 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private boolean m_hasPeeked;
 		private int m_nestLevel = 0;
+		private WhitespaceAccumulator m_wsAcc = new WhitespaceAccumulator();
+		private boolean m_topElementSeen = false;
+		private boolean m_couldBeDocument = true;
+		private int m_disbursed = 0;
+		private int m_disburseOffset = 0;
+		private char[] m_disburseBuffer;
+		private int m_tailFrom = -1;
+		private Matcher m_allWhiteSpace = s_entirelyWS.matcher("");
 
 		StAXUnwrapFilter(XMLStreamReader reader)
 		{
 			super(reader);
+		}
+
+		/**
+		 * Wrap upstream {@code hasNext} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private boolean wrappedHasNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer, return true;
+			 * the next event will be either another disburse buffer from the
+			 * accumulator, or the upstream event that's still under the cursor.
+			 * That one is either a CHARACTERS event (from which some tail
+			 * characters still need to be emitted), or whatever following event
+			 * triggered the commitToContent.
+			 *
+			 * Otherwise, defer to the upstream's hasNext().
+			 */
+			if ( 0 < m_disbursed )
+				return true;
+
+			return super.hasNext();
+		}
+
+		/**
+		 * Wrap upstream {@code next} to account for possible accumulated
+		 * whitespace being disbursed.
+		 *<p>
+		 * This method and {@code wrappedHasNext} are responsible for the
+		 * illusion of additional {@code CHARACTERS} events before the next real
+		 * upstream event, if there was accumulated whitespace that is now being
+		 * disbursed because the input has been determined to have
+		 * {@code CONTENT} form.
+		 */
+		private int wrappedNext() throws XMLStreamException
+		{
+			/*
+			 * If we are currently looking at a 'disburse' buffer and there is
+			 * another one, get that one and return CHARACTERS. If there isn't,
+			 * and m_tailFrom is -1, then the event now under the upstream
+			 * cursor is the one that triggered the commitToContent; return its
+			 * event type. A nonnegative m_tailFrom indicates that the event
+			 * under the cursor is still the CHARACTERS event that turned out
+			 * not to be all whitespace, and still has a tail of characters to
+			 * emit. Store a reference to its upstream array in m_disburseBuffer
+			 * and the proper offset and length values to fake it up as one last
+			 * disburse array; this requires less work in the many other methods
+			 * that must be overridden to sustain the illusion. Set m_tailFrom
+			 * to another negative value in that case (-2), to be replaced with
+			 * -1 on the next iteration and returning to your regularly
+			 * scheduled programming.
+			 *
+			 * Otherwise, defer to the upstream's next().
+			 */
+			if ( 0 < m_disbursed )
+			{
+				m_disbursed = m_wsAcc.disburse(m_disburseBuffer);
+				if ( 0 < m_disbursed )
+					return CHARACTERS;
+				if ( -1 == m_tailFrom )
+					return super.getEventType();
+				if ( 0 <= m_tailFrom )
+				{
+					m_disburseBuffer = super.getTextCharacters();
+					m_disburseOffset = super.getTextStart() + m_tailFrom;
+					m_disbursed = super.getTextLength() - m_tailFrom;
+					m_tailFrom = -2;
+					return CHARACTERS;
+				}
+				m_tailFrom = -1;
+				m_disburseBuffer = null;
+				m_disburseOffset = m_disbursed = 0;
+			}
+
+			return super.next();
 		}
 
 		@Override
@@ -1816,57 +2166,77 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			if ( m_hasPeeked )
 				return true;
-			if ( ! super.hasNext() )
-				return false;
-			int evt = super.next();
 
-			if ( START_ELEMENT == evt )
+			while ( wrappedHasNext() )
 			{
-				if ( 0 < m_nestLevel++ )
+				/*
+				 * Set hasPeeked = true *just before* peeking. Even if next()
+				 * throws an exception, hasNext() must be idempotent: another
+				 * call shouldn't try another next(), which could advance
+				 * the cursor to the wrong location for the error.
+				 */
+				m_hasPeeked = true;
+				switch ( wrappedNext() )
 				{
-					m_hasPeeked = true;
+				case START_ELEMENT:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						if ( m_topElementSeen )
+						{
+							commitToContent();
+							if ( 0 < m_disbursed )
+								return true; // no nestLevel++; we'll be back
+						}
+						else
+							m_wsAcc.discard();
+						m_topElementSeen = true;
+					}
+					if ( 0 < m_nestLevel++ )
+						return true;
+					continue;
+
+				case END_ELEMENT:
+					if ( 0 < --m_nestLevel )
+						return true;
+					continue;
+
+				case END_DOCUMENT:
+					if ( m_couldBeDocument  &&  ! m_topElementSeen )
+						commitToContent();
+					return true;
+
+				case CHARACTERS:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+					{
+						int mismatchIndex = m_wsAcc.accumulate(
+							super.getTextCharacters(),
+							super.getTextStart(), super.getTextLength());
+						if ( -1 == mismatchIndex )
+							continue;
+						commitToContent();
+						m_tailFrom = mismatchIndex;
+					}
+					return true;
+
+				case COMMENT:
+				case PROCESSING_INSTRUCTION:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						m_wsAcc.discard();
+					return true;
+
+				case CDATA:
+				case ENTITY_REFERENCE:
+					if ( m_couldBeDocument  &&  1 == m_nestLevel )
+						commitToContent();
+					return true;
+
+				default:
 					return true;
 				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
 			}
 
-			/*
-			 * If the above if() matched, we saw a START_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It could also be a START_ELEMENT, but it can't
-			 * be the hidden one, so needs no special treatment other than to
-			 * increment nestLevel. It could be an END_ELEMENT, checked next.
-			 */
-
-			if ( START_ELEMENT == evt )
-				++ m_nestLevel;
-			else if ( END_ELEMENT == evt )
-			{
-				if ( 0 < --m_nestLevel )
-				{
-					m_hasPeeked = true;
-					return true;
-				}
-				if ( ! super.hasNext() )
-					return false;
-				evt = super.next();
-			}
-
-			/*
-			 * If the above if() matched, we saw an END_ELEMENT, and if it
-			 * wasn't the hidden one, we returned and are not here. If the if()
-			 * matched and we're here, it was the hidden one, and we are looking
-			 * at the next event. It can't really be an END_ELEMENT (the hidden
-			 * one had better be the last one) at all, much less the hidden one.
-			 * It also can't really be a START_ELEMENT. So, no more bookkeeping,
-			 * other than to set hasPeeked.
-			 */
-
-			m_hasPeeked = true;
-			return true;
+			m_hasPeeked = false;
+			return false;
 		}
 
 		@Override
@@ -1876,6 +2246,170 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new NoSuchElementException();
 			m_hasPeeked = false;
 			return getEventType();
+		}
+
+		@Override
+		public int getEventType()
+		{
+			if ( 0 < m_disbursed )
+				return CHARACTERS;
+			return super.getEventType();
+		}
+
+		private void commitToContent()
+		{
+			char[] buf = new char [ WhitespaceAccumulator.MAX_RUN ];
+			int got = m_wsAcc.disburse(buf);
+			m_couldBeDocument = false;
+			if ( 0 == got )
+				return;
+			m_disburseBuffer = buf;
+			m_disbursed = got;
+		}
+
+		/*
+		 * The methods specific to CHARACTERS events must be overridden here
+		 * to handle 'extra' CHARACTERS events after commitToContent. That's
+		 * the bare-metal ones getTextCharacters, getTextStart, getTextLength
+		 * for sure, but also getText and the copying getTextCharacters, because
+		 * the StAX API spec does not guarantee that those are implemented with
+		 * virtual calls to the bare ones.
+		 */
+
+		@Override
+		public char[] getTextCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseBuffer;
+			return super.getTextCharacters();
+		}
+
+		@Override
+		public int getTextStart()
+		{
+			if ( 0 < m_disbursed )
+				return m_disburseOffset;
+			return super.getTextStart();
+		}
+
+		@Override
+		public int getTextLength()
+		{
+			if ( 0 < m_disbursed )
+				return m_disbursed;
+			return super.getTextLength();
+		}
+
+		@Override
+		public String getText()
+		{
+			if ( 0 < m_disbursed )
+				return new String(
+					m_disburseBuffer, m_disburseOffset, m_disbursed);
+			return super.getText();
+		}
+
+		@Override
+		public int getTextCharacters(
+			int sourceStart, char[] target, int targetStart, int length)
+			throws XMLStreamException
+		{
+			int internalStart = getTextStart();
+			int internalLength = getTextLength();
+			if ( sourceStart < 0 ) // arraycopy might not catch this, check here
+				throw new IndexOutOfBoundsException();
+			internalStart += sourceStart;
+			internalLength -= sourceStart;
+			if ( length > internalLength )
+				length = internalLength;
+			System.arraycopy( // let arraycopy do the other index checks
+				getTextCharacters(), internalStart,
+				target, targetStart, length);
+			return length;
+		}
+
+		/*
+		 * But wait, there's more: some methods that are valid in "All States"
+		 * need adjustments to play along with 'inserted' CHARACTERS events.
+		 */
+
+		@Override
+		public void require(int type, String namespaceURI, String localName)
+			throws XMLStreamException
+		{
+			if ( 0 < m_disbursed )
+				if ( CHARACTERS != type
+					|| null != namespaceURI || null != localName )
+					throw new XMLStreamException(
+						"Another event expected, parsed CHARACTERS");
+			super.require(type, namespaceURI, localName);
+		}
+
+		@Override
+		public String getNamespaceURI()
+		{
+			if ( 0 < m_disbursed )
+				return null;
+			return super.getNamespaceURI();
+		}
+
+		@Override
+		public boolean isStartElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isStartElement();
+		}
+
+		@Override
+		public boolean isEndElement()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.isEndElement();
+		}
+
+		@Override
+		public boolean isCharacters()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.isCharacters();
+		}
+
+		@Override
+		public boolean isWhiteSpace()
+		{
+			if ( 0 == m_disbursed )
+				return super.isWhiteSpace();
+			/*
+			 * If you are about to change the below to a simple 'return true'
+			 * because things are disbursed by the WhitespaceAccumulator, don't
+			 * forget that one last 'disbursement' can be faked up containing
+			 * the tail of the CHARACTERS event that was not all whitespace.
+			 */
+			CharBuffer cb = CharBuffer.wrap(
+				m_disburseBuffer, m_disburseOffset, m_disbursed);
+			m_allWhiteSpace.reset(cb);
+			boolean result = m_allWhiteSpace.matches();
+			m_allWhiteSpace.reset("");
+			return result;
+		}
+
+		@Override
+		public boolean hasText()
+		{
+			if ( 0 < m_disbursed )
+				return true;
+			return super.hasText();
+		}
+
+		@Override
+		public boolean hasName()
+		{
+			if ( 0 < m_disbursed )
+				return false;
+			return super.hasName();
 		}
 
 		@Override
@@ -1898,6 +2432,117 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new XMLStreamException(
 					"expected start or end tag", getLocation());
 			return evt;
+		}
+
+		/*
+		 * It ain't over till it's over: the methods that must throw
+		 * IllegalStateException when positioned on a CHARACTERS event
+		 * must do so on an 'inserted' one also.
+		 */
+
+		private void illegalForCharacters()
+		{
+			if ( 0 < m_disbursed )
+				throw new IllegalStateException(
+					"XML parsing method inappropriate for a CHARACTERS event.");
+		}
+
+		@Override
+		public String getAttributeValue(String namespaceURI, String localName)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(namespaceURI, localName);
+		}
+
+		@Override
+		public int getAttributeCount()
+		{
+			illegalForCharacters();
+			return super.getAttributeCount();
+		}
+
+		@Override
+		public QName getAttributeName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeName(index);
+		}
+
+		@Override
+		public String getAttributeNamespace(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeNamespace(index);
+		}
+
+		@Override
+		public String getAttributeLocalName(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeLocalName(index);
+		}
+
+		@Override
+		public String getAttributePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributePrefix(index);
+		}
+
+		@Override
+		public String getAttributeType(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeType(index);
+		}
+
+		@Override
+		public String getAttributeValue(int index)
+		{
+			illegalForCharacters();
+			return super.getAttributeValue(index);
+		}
+
+		@Override
+		public boolean isAttributeSpecified(int index)
+		{
+			illegalForCharacters();
+			return super.isAttributeSpecified(index);
+		}
+
+		@Override
+		public int getNamespaceCount()
+		{
+			illegalForCharacters();
+			return super.getNamespaceCount();
+		}
+
+		@Override
+		public String getNamespacePrefix(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespacePrefix(index);
+		}
+
+		@Override
+		public String getNamespaceURI(int index)
+		{
+			illegalForCharacters();
+			return super.getNamespaceURI(index);
+		}
+
+		@Override
+		public QName getName()
+		{
+			illegalForCharacters();
+			return super.getName();
+		}
+
+		@Override
+		public String getLocalName()
+		{
+			illegalForCharacters();
+			return super.getLocalName();
 		}
 	}
 
@@ -2147,6 +2792,195 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		public Object getProperty(String name) throws IllegalArgumentException
 		{
 			return m_xsw.getProperty(name);
+		}
+	}
+
+	/**
+	 * Accumulate whitespace at top level (outside any element) pending
+	 * determination of what to do with it.
+	 *<p>
+	 * The handling of whitespace at the top level is a subtle business. Per the
+	 * XML spec "Character Data and Markup" section (in either spec version),
+	 * whitespace is considered, when at the top level, "markup" rather than
+	 * "character data". And the section on "White Space Handling" spells out
+	 * that an XML processor "MUST always pass all characters in a document that
+	 * are not markup through to the application." A sharp-eyed language lawyer
+	 * will see right away that whitespace at the top level does not fall
+	 * under that mandate. (It took me longer.) Indeed, a bit of experimenting
+	 * with a SAX parser will show that it doesn't invoke any handler callbacks
+	 * at all for whitespace at the top level. The whitespace could as well not
+	 * even be there. Some applications rely on that and will report an error if
+	 * the parser shows them any whitespace outside the element they expect.
+	 *<p>
+	 * Our application of a wrapping element, to avoid parse errors for the
+	 * {@code XML(CONTENT)} form, alters the treatment of whitespace that would
+	 * otherwise have been at the top level. As it will now be inside of
+	 * an element, Java's parser will want to pass it on, and our unwrap filter
+	 * will have to fix that.
+	 *<p>
+	 * Complicating matters, our determination whether to apply a wrapping
+	 * element is lazy. It looks only far enough into the start of the stream
+	 * to conclude one of: (1) it is definitely {@code XML(DOCUMENT)},
+	 * (2) it is definitely {@code XML(CONTENT)}, or (3) it could be either and
+	 * has to be be wrapped in case it turns out to be {@code XML(CONTENT)}.
+	 *<p>
+	 * The first two cases are simple. In case (1), we apply no wrapping and
+	 * no filter, and the underlying parser does the right thing. In case (2)
+	 * we know this is not a document, and no whitespace should be filtered out.
+	 *<p>
+	 * Case (3) is the tricky one, and as long as PostgreSQL does not store any
+	 * {@code DOCUMENT}/{@code CONTENT} flag with the value and we have no API
+	 * for the application to say what's expected, unless we are willing to
+	 * pre-parse what could end up being the whole stream just to decide how
+	 * to parse it, we'll have to settle for an approximate behavior.
+	 *<p>
+	 * What's implemented here is to handle character data reported by the
+	 * parser, if it is at "top level" (within our added wrapping element), by
+	 * accumulating any whitespace here until we see what comes next.
+	 *<p>
+	 * This must be applied above the parser (that is, to character events that
+	 * the parser reports), because it applies the XML definition of whitespace,
+	 * which includes only the four characters " \t\n\r" but recognizes them
+	 * <em>after</em> the parser has normalized various newline styles to '\n'.
+	 * The exact set of those newline styles depends on the XML version, and the
+	 * XML 1.1 set includes non-ASCII characters and therefore depend on the
+	 * parser's knowledge of the input stream encoding.
+	 *<p>
+	 * If the character data includes anything other than whitespace, we emit
+	 * it intact including the whitespace, and note that the input is now known
+	 * to be {@code CONTENT} and gets no more special whitespace treatment.
+	 *<p>
+	 * If all whitespace, and followed by the end of input or by an element that
+	 * is <em>not</em> the first one to be seen, we emit it intact and turn off
+	 * special whitespace handling for the remainder of the stream (if any).
+	 *<p>
+	 * If all whitespace and followed by a comment, PI, or the first element
+	 * to be seen it is discarded.
+	 *<p>
+	 * This strategy will produce correct results for any case (3) input that
+	 * turns out to be {@code XML(DOCUMENT)}. In the case of input that turns
+	 * out to be {@code XML(CONTENT)}, it can fail to preserve whitespace ahead
+	 * of the first point where the input is definitely known to be
+	 * {@code CONTENT}.
+	 *<p>
+	 * That may be good enough for many cases. To cover those where it isn't,
+	 * it may be necessary to offer a nonstandard API to specify what the
+	 * application expects, or observe the PostgreSQL {@code XMLOPTION} setting
+	 * in case 3, or both.
+	 */
+	static class WhitespaceAccumulator
+	{
+		/**
+		 * A Pattern to walk through some character data in runs of the same
+		 * whitespace character, allowing a rudimentary run-length encoding.
+		 */
+		static final Pattern s_wsChunk = Pattern.compile(
+			"\\G([ \\t\\n\\r])\\1*+(?![^ \\t\\n\\r])");
+
+		private static final char[] s_runValToChar = {' ', '\t', '\n', '\r'};
+		static final int MAX_RUN = 1 + (0xff >>> 2);
+
+		byte[] m_rleBuffer = new byte [ 8 ];
+		int m_bufPos = 0;
+		int m_disbursePos = 0;
+		Matcher m_matcher = s_wsChunk.matcher("");
+
+		/**
+		 * Given an array with reported character data, return -1 if exclusively
+		 * whitespace characters were seen and have been added to the
+		 * accumulator; otherwise return an index into the input array from
+		 * which the caller should emit the tail unprocessed after using
+		 * {@link #disburse disburse} here to emit any earlier-accumulated
+		 * whitespace.
+		 *<p>
+		 * Java's XML parsing APIs generally do not promise to supply all
+		 * characters of contiguous text in one parse event, so this method
+		 * may be called more than once accumulating whitespace from several
+		 * consecutive events.
+		 */
+		int accumulate(char[] content, int start, int length)
+		{
+			CharBuffer cb = CharBuffer.wrap(content, start, length);
+			int tailPos = 0;
+
+			m_matcher.reset(cb);
+			while ( m_matcher.find() )
+			{
+				tailPos = m_matcher.end();
+				char c = m_matcher.group(1).charAt(0);
+				int runVal = (c & 3) | (c >>> 1 & 2); // index in s_runValToChar
+				int runLength = tailPos - m_matcher.start();
+
+				newRun();
+				while ( runLength > MAX_RUN )
+				{
+					m_rleBuffer [m_bufPos - 1] =
+						(byte)(runVal | (MAX_RUN - 1) << 2);
+					runLength -= MAX_RUN;
+					newRun();
+				}
+				m_rleBuffer [m_bufPos - 1] =
+					(byte)(runVal | (runLength - 1) << 2);
+			}
+
+			m_matcher.reset(""); // don't hold a reference to caller's array
+			if ( tailPos == length )
+				return -1;
+			return start + tailPos;
+		}
+
+		private final void newRun()
+		{
+			++ m_bufPos;
+			if ( m_rleBuffer.length == m_bufPos )
+				m_rleBuffer = Arrays.copyOf(m_rleBuffer, 2*m_rleBuffer.length);
+		}
+
+		/**
+		 * Retrieve the accumulated whitespace if it is not to be discarded.
+		 *<p>
+		 * If the caller detects that the whitespace is significant (either
+		 * because {@link #accumulate accumulate} returned a nonnegative result
+		 * or because the next parse event was a second top-level element or
+		 * the end-event of the wrapping element), the caller should allocate
+		 * a {@code char} array of length at least {@code MAX_RUN} and supply it
+		 * to this method until zero is returned; for each non-zero value
+		 * returned, that many {@code char}s at the head of the array should be
+		 * passed to the application as a character event.
+		 *<p>
+		 * After this method has returned zero, if the caller had received a
+		 * non-negative result from {@code accumulate}, it should present one
+		 * more character event to the application, containing the tail of the
+		 * the array that was given to {@code accumulate}, starting at the index
+		 * {@code accumulate} returned.
+		 */
+		int disburse(char[] into)
+		{
+			assert into.length >= MAX_RUN;
+			if ( m_disbursePos == m_bufPos )
+			{
+				m_bufPos = m_disbursePos = 0;
+				return 0;
+			}
+			int runVal = m_rleBuffer [ m_disbursePos ] & 3;
+			int runLength = 1 + ((m_rleBuffer [ m_disbursePos ] & 0xff) >>> 2);
+			++ m_disbursePos;
+			char c = s_runValToChar [ runVal ];
+			Arrays.fill(into, 0, runLength, c);
+			return runLength;
+		}
+
+		/**
+		 * Discard the accumulated whitespace.
+		 *<p>
+		 * This should be called if some whitespace was successfully accumulated
+		 * ({@code accumulate} returned -1) but the following parse event is one
+		 * that must be passed to the application and does not force the input
+		 * to be classified as {@code XML(CONTENT)}.
+		 */
+		void discard()
+		{
+			m_bufPos = m_disbursePos = 0;
 		}
 	}
 
@@ -2832,7 +3666,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		static abstract class Stream extends XMLCopier
 		{
-			protected AdjustingSAXSource m_adjustable;
+			protected Adjusting.XML.Source<SAXSource> m_adjustable;
 
 			protected Stream(Writable tgt)
 			{
@@ -2922,7 +3756,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				m_asr = m_tgt.setResult(
 					m_tgt.backingIfNotFreed(),
 					AdjustingStreamResult.class);
-				m_adjustable = m_asr.theVerifierSource();
+				m_adjustable = m_asr.theVerifierSource(false);
 				return this;
 			}
 
@@ -3011,9 +3845,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					boolean[] wrapping = new boolean[] { false };
 					is = correctedDeclStream(
 						is, probe, /* neverWrap */ false, m_srcCS, wrapping);
-					m_adjustable =
-						new AdjustingSAXSource(new InputSource(is), wrapping[0])
-						.defaults();
+					m_adjustable = /* again without defaults() */
+						new AdjustingSAXSource(new InputSource(is),wrapping[0]);
 				}
 				catch ( SAXException e )
 				{
@@ -3031,8 +3864,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					boolean[] wrapping = new boolean[] { false };
 					r = correctedDeclReader(r, probe, m_srcCS, wrapping);
 					m_adjustable =
-						new AdjustingSAXSource(new InputSource(r), wrapping[0])
-						.defaults();
+						new AdjustingSAXSource(new InputSource(r), wrapping[0]);
 				}
 				catch ( SAXException e )
 				{
@@ -3051,17 +3883,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Copy from a {@code SAXSource} to a {@code SAXResult}, provided the
+		 * {@code SAXSource} supplies its own {@code XMLReader}.
+		 *<p>
+		 * See {@code XMLCopier.SAX.Parsing} for when it does not.
+		 */
 		static void saxCopy(SAXSource sxs, SAXResult sxr) throws SQLException
 		{
 			XMLReader xr = sxs.getXMLReader();
 			try
 			{
-				if ( null == xr )
-				{
-					SAXParserFactory spf = SAXParserFactory.newInstance();
-					spf.setNamespaceAware(true);
-					xr = spf.newSAXParser().getXMLReader();
-				}
 				ContentHandler ch = sxr.getHandler();
 				xr.setContentHandler(ch);
 				if ( ch instanceof DTDHandler )
@@ -3071,10 +3903,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					lh = (LexicalHandler)ch;
 				if ( null != lh )
 					xr.setProperty(
-						"http://xml.org/sax/properties/lexical-handler", lh);
+						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
-			catch ( ParserConfigurationException | SAXException e )
+			catch ( SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
 			}
@@ -3084,6 +3916,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Copier for a {@code SAXSource} that supplies its own non-null
+		 * {@code XMLReader}.
+		 */
 		static class SAX extends XMLCopier
 		{
 			private SAXSource m_source;
@@ -3101,6 +3937,41 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					m_tgt.setResult(
 						m_tgt.backingIfNotFreed(), SAXResult.class));
 				return m_tgt;
+			}
+
+			/**
+			 * Copier for a {@code SAXSource} that does not supply its own
+			 * {@code XMLReader}.
+			 *<p>
+			 * Such a source needs a parser constructed here, which may, like
+			 * any parser, require adjustment. Such a source is effectively a
+			 * stream source snuck in through the SAX API.
+			 */
+			static class Parsing extends XMLCopier
+			{
+				private AdjustingSAXSource m_source;
+
+				Parsing(Writable tgt, SAXSource src) throws SAXException
+				{
+					super(tgt);
+					InputSource is = src.getInputSource();
+					m_source = new AdjustingSAXSource(is, false);
+				}
+
+				@Override
+				AdjustingSAXSource getAdjustable()
+				{
+					return m_source;
+				}
+
+				@Override
+				Writable finish() throws IOException, SQLException
+				{
+					saxCopy(m_source.get(),
+						m_tgt.setResult(
+							m_tgt.backingIfNotFreed(), SAXResult.class));
+					return m_tgt;
+				}
 			}
 		}
 
@@ -3131,8 +4002,56 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				try
 				{
 					if ( null == xer )
-						xer = xif.createXMLEventReader(
-							m_source.getXMLStreamReader());
+					{
+						XMLStreamReader xsr = m_source.getXMLStreamReader();
+						/*
+						 * Before wrapping this XMLStreamReader in an
+						 * XMLEventReader, wrap it in this trivial delegate
+						 * first. The authors of XMLEventReaderImpl found
+						 * themselves with a problem to solve, namely that
+						 * XMLEventReader's hasNext() method isn't declared to
+						 * throw any exceptions (XMLEventReader implements
+						 * Iterator). So they solved it by just swallowing any
+						 * exception thrown by the stream reader's hasNext, and
+						 * returning false, so it just seems the XML abruptly
+						 * ends for no reported reason.
+						 *
+						 * So, just wrap hasNext here to save any exception from
+						 * below, and return true, thereby inviting the consumer
+						 * to go ahead and call next, where we'll re-throw it.
+						 */
+						xsr = new StreamReaderDelegate(xsr)
+						{
+							XMLStreamException savedException;
+
+							@Override
+							public boolean hasNext() throws XMLStreamException
+							{
+								try
+								{
+									return super.hasNext();
+								}
+								catch ( XMLStreamException e )
+								{
+									savedException = e;
+									return true;
+								}
+							}
+
+							@Override
+							public int next() throws XMLStreamException
+							{
+								XMLStreamException e = savedException;
+								if ( null != e )
+								{
+									savedException = null;
+									throw e;
+								}
+								return super.next();
+							}
+						};
+						xer = xif.createXMLEventReader(xsr);
+					}
 					/*
 					 * Were you thinking the above could be simply
 					 * createXMLEventReader(m_source) by analogy with
@@ -3188,7 +4107,213 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 	}
 
-	static class AdjustingSourceResult implements Adjusting.XML.SourceResult
+	/**
+	 * Implements setters for the later JAXP security properties, which use the
+	 * same names for SAX, StAX, and DOM, so the individual setters can all be
+	 * here with only the {@code setFirstSupportedProperty} method abstract.
+	 */
+	abstract static class
+	AdjustingJAXPParser<T extends Adjusting.XML.Parsing<T>>
+	implements Adjusting.XML.Parsing<T>
+	{
+		private static final String LIMIT =
+			"http://www.oracle.com/xml/jaxp/properties/";
+
+		/*
+		 * Can get these from javax.xml.XMLConstants once assuming Java >= 7.
+		 */
+		private static final String ACCESS =
+			"http://javax.xml.XMLConstants/property/accessExternal";
+
+		@Override
+		public T defaults()
+		{
+			return allowDTD(false).externalGeneralEntities(false)
+				.externalParameterEntities(false).loadExternalDTD(false)
+				.xIncludeAware(false).expandEntityReferences(false);
+		}
+
+		@Override
+		public T elementAttributeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "elementAttributeLimit");
+		}
+
+		@Override
+		public T entityExpansionLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "entityExpansionLimit");
+		}
+
+		@Override
+		public T entityReplacementLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "entityReplacementLimit");
+		}
+
+		@Override
+		public T maxElementDepth(int depth)
+		{
+			return setFirstSupportedProperty(depth,
+				LIMIT + "maxElementDepth");
+		}
+
+		@Override
+		public T maxGeneralEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxGeneralEntitySizeLimit");
+		}
+
+		@Override
+		public T maxParameterEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxParameterEntitySizeLimit");
+		}
+
+		@Override
+		public T maxXMLNameLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "maxXMLNameLimit");
+		}
+
+		@Override
+		public T totalEntitySizeLimit(int limit)
+		{
+			return setFirstSupportedProperty(limit,
+				LIMIT + "totalEntitySizeLimit");
+		}
+
+		@Override
+		public T accessExternalDTD(String protocols)
+		{
+			return setFirstSupportedProperty(protocols, ACCESS + "DTD");
+		}
+
+		@Override
+		public T accessExternalSchema(String protocols)
+		{
+			return setFirstSupportedProperty(protocols, ACCESS + "Schema");
+		}
+
+		@Override
+		public T entityResolver(EntityResolver resolver)
+		{
+			throw new UnsupportedOperationException(
+				"A SAX EntityResolver cannot be set on a " +
+				getClass().getCanonicalName());
+		}
+
+		@Override
+		public T schema(Schema schema)
+		{
+			throw new UnsupportedOperationException(
+				"A Schema cannot be set on a " +
+				getClass().getCanonicalName());
+		}
+	}
+
+	/**
+	 * Extends {@code AdjustingJAXPParser} with some of the older adjustments
+	 * that can be made the same way for SAX and DOM (StAX should not extend
+	 * this class, but just implement the adjustments its own different way).
+	 */
+	abstract static class SAXDOMCommon<T extends Adjusting.XML.Parsing<T>>
+	extends AdjustingJAXPParser<T>
+	{
+		@Override
+		public T allowDTD(boolean v) {
+			return setFirstSupportedFeature( !v,
+				"http://apache.org/xml/features/disallow-doctype-decl",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#disallow-doctype-decl");
+		}
+
+		@Override
+		public T externalGeneralEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-general-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-general-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-general-entities");
+		}
+
+		@Override
+		public T externalParameterEntities(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://xml.org/sax/features/external-parameter-entities",
+				"http://xerces.apache.org/xerces2-j/features.html" +
+					"#external-parameter-entities",
+				"http://xerces.apache.org/xerces-j/features.html" +
+					"#external-parameter-entities");
+		}
+
+		@Override
+		public T loadExternalDTD(boolean v)
+		{
+			return setFirstSupportedFeature( v,
+				"http://apache.org/xml/features/" +
+					"nonvalidating/load-external-dtd");
+		}
+	}
+
+	/**
+	 * Error handler for SAX/DOM parsing that treats both "error" and
+	 * "fatal error" as exception-worthy, and logs warnings at {@code WARNING}
+	 * level.
+	 */
+	static class SAXDOMErrorHandler implements ErrorHandler
+	{
+		static final SAXDOMErrorHandler INSTANCE = new SAXDOMErrorHandler();
+		static final Pattern s_wrapelement = Pattern.compile(
+			"^cvc-elt\\.1(?:\\.a)?+:.*'pljava-content-wrap'");
+		final Logger m_logger = Logger.getLogger("org.postgresql.pljava.jdbc");
+
+		private SAXDOMErrorHandler()
+		{
+		}
+
+		@Override
+		public void error(SAXParseException exception) throws SAXException
+		{
+			/*
+			 * When validating with XML Schema against a value being parsed as
+			 * CONTENT, the 'invisible' pljava-content-wrap element may produce
+			 * an error. This hack keeps it invisible; however, the validator is
+			 * then more lenient if the 'visible' top-level element isn't found,
+			 * and simply validates the elements that are declared in the schema
+			 * wherever it happens to find them.
+			 */
+			Matcher m = s_wrapelement.matcher(exception.getMessage());
+			if ( ! m.lookingAt() )
+				throw exception;
+		}
+
+		@Override
+		public void fatalError(SAXParseException exception) throws SAXException
+		{
+			throw exception;
+		}
+
+		@Override
+		public void warning(SAXParseException exception) throws SAXException
+		{
+			m_logger.log(WARNING, exception.getMessage(), exception);
+		}
+	}
+
+	static class AdjustingSourceResult
+	extends
+		AdjustingJAXPParser<Adjusting.XML.Result<Adjusting.XML.SourceResult>>
+	implements Adjusting.XML.SourceResult
 	{
 		private Writable m_result;
 		private Charset m_serverCS;
@@ -3291,7 +4416,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingSourceResult too late to set source");
 
-			m_copier = new XMLCopier.SAX(m_result, source);
+			if ( null != source.getXMLReader() )
+				m_copier = new XMLCopier.SAX(m_result, source);
+			else
+			{
+				try
+				{
+					m_copier = new XMLCopier.SAX.Parsing(m_result, source);
+				}
+				catch ( SAXException e )
+				{
+					throw normalizedException(e);
+				}
+			}
+
 			return this;
 		}
 
@@ -3439,19 +4577,37 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSourceResult defaults()
+		public AdjustingSourceResult setFirstSupportedProperty(
+			Object value, String... names)
 		{
-			theAdjustable().defaults();
+			theAdjustable().setFirstSupportedProperty(value, names);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult entityResolver(EntityResolver resolver)
+		{
+			theAdjustable().entityResolver(resolver);
+			return this;
+		}
+
+		@Override
+		public AdjustingSourceResult schema(Schema schema)
+		{
+			theAdjustable().schema(schema);
 			return this;
 		}
 	}
 
-	static class AdjustingStreamResult implements Adjusting.XML.StreamResult
+	static class AdjustingStreamResult
+	extends AdjustingJAXPParser<Adjusting.XML.Result<StreamResult>>
+	implements Adjusting.XML.StreamResult
 	{
 		private VarlenaWrapper.Output m_vwo;
 		private Charset m_serverCS;
 		private AdjustingSAXSource m_verifierSource;
 		private boolean m_preferWriter = false;
+		private boolean m_hasCalledDefaults;
 
 		AdjustingStreamResult(VarlenaWrapper.Output vwo, Charset serverCS)
 		throws SQLException
@@ -3484,16 +4640,29 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		private AdjustingSAXSource theVerifierSource()
 		{
+			return theVerifierSource(true);
+		}
+
+		private AdjustingSAXSource theVerifierSource(boolean afterDefaults)
+		{
 			if ( null == m_verifierSource )
 				throw new IllegalStateException(
 					"AdjustingStreamResult too late to adjust after get()");
+
+			if ( afterDefaults  &&  ! m_hasCalledDefaults )
+			{
+				m_hasCalledDefaults = true;
+				m_verifierSource.defaults();
+				/* Don't touch m_preferWriter here, only in real defaults() */
+			}
+
 			return m_verifierSource;
 		}
 
 		@Override
 		public AdjustingStreamResult preferBinaryStream()
 		{
-			theVerifierSource(); // shorthand error check
+			theVerifierSource(false); // shorthand error check
 			m_preferWriter = false;
 			return this;
 		}
@@ -3501,7 +4670,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingStreamResult preferCharacterStream()
 		{
-			theVerifierSource(); // shorthand error check
+			theVerifierSource(false); // shorthand error check
 			m_preferWriter = true;
 			return this;
 		}
@@ -3513,7 +4682,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingStreamResult get() called more than once");
 
-			XMLReader xr = m_verifierSource.get().getXMLReader();
+			XMLReader xr = theVerifierSource().get().getXMLReader();
 			OutputStream os;
 			try
 			{
@@ -3589,15 +4758,44 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@Override
 		public AdjustingStreamResult defaults()
 		{
+			m_hasCalledDefaults = true;
 			theVerifierSource().defaults();
 			return preferBinaryStream();
 		}
+
+		@Override
+		public AdjustingStreamResult setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			theVerifierSource().setFirstSupportedProperty(value, names);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult entityResolver(EntityResolver resolver)
+		{
+			theVerifierSource().entityResolver(resolver);
+			return this;
+		}
+
+		@Override
+		public AdjustingStreamResult schema(Schema schema)
+		{
+			theVerifierSource(false).schema(schema);
+			return this;
+		}
 	}
 
-	static class AdjustingSAXSource implements Adjusting.XML.SAXSource
+	static class AdjustingSAXSource
+	extends SAXDOMCommon<Adjusting.XML.Source<SAXSource>>
+	implements Adjusting.XML.SAXSource
 	{
+		private SAXParserFactory m_spf;
 		private XMLReader m_xr;
 		private InputSource m_is;
+		private boolean m_wrapped;
+		private SAXException m_except;
+		private boolean m_hasCalledDefaults;
 
 		static class Dummy extends AdjustingSAXSource
 		{
@@ -3607,6 +4805,25 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			@Override
 			public AdjustingSAXSource setFirstSupportedFeature(
 				boolean value, String... names)
+			{
+				return this;
+			}
+
+			@Override
+			public AdjustingSAXSource setFirstSupportedProperty(
+				Object value, String... names)
+			{
+				return this;
+			}
+
+			@Override
+			public AdjustingSAXSource entityResolver(EntityResolver resolver)
+			{
+				return this;
+			}
+
+			@Override
+			public AdjustingSAXSource schema(Schema schema)
 			{
 				return this;
 			}
@@ -3620,18 +4837,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		throws SAXException
 		{
 			m_is = is;
-			try
-			{
-				SAXParserFactory spf = SAXParserFactory.newInstance();
-				spf.setNamespaceAware(true);
-				m_xr = spf.newSAXParser().getXMLReader();
-			}
-			catch ( ParserConfigurationException e )
-			{
-				throw new SAXException(e.getMessage(), e);
-			}
-			if ( wrapped )
-				m_xr = new SAXUnwrapFilter(m_xr);
+			m_wrapped = wrapped;
+			m_spf = SAXParserFactory.newInstance();
+			m_spf.setNamespaceAware(true);
 		}
 
 		AdjustingSAXSource(XMLReader xr, InputSource is)
@@ -3655,62 +4863,76 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				"AdjustingSAXSource used before get()");
 		}
 
+		private SAXParserFactory theFactory()
+		{
+			if ( null == m_spf )
+				throw new IllegalStateException(
+					"AdjustingSAXSource too late to set schema after " +
+					"other adjustments");
+			return m_spf;
+		}
+
 		private XMLReader theReader()
 		{
+			if ( null != m_except )
+				return null;
+
+			if ( null != m_spf )
+			{
+				try
+				{
+					m_xr = m_spf.newSAXParser().getXMLReader();
+				}
+				catch ( SAXException e )
+				{
+					m_except = e;
+					return null;
+				}
+				catch ( ParserConfigurationException e )
+				{
+					m_except = new SAXException(e.getMessage(), e);
+					return null;
+				}
+				m_spf = null;
+				if ( m_wrapped )
+					m_xr = new SAXUnwrapFilter(m_xr);
+
+				m_xr.setErrorHandler(SAXDOMErrorHandler.INSTANCE);
+
+				if ( ! m_hasCalledDefaults )
+					defaults();
+			}
+
 			if ( null == m_xr )
 				throw new IllegalStateException(
 					"AdjustingSAXSource too late to adjust after get()");
+
 			return m_xr;
 		}
 
 		@Override
-		public SAXSource get()
+		public SAXSource get() throws SQLException
 		{
-			if ( null == m_xr )
+			if ( null == m_xr  &&  null == m_spf )
 				throw new IllegalStateException(
 					"AdjustingSAXSource get() called more than once");
-			SAXSource ss = new SAXSource(m_xr, m_is);
+
+			XMLReader xr;
+			if ( null != m_except  ||  null == (xr = theReader()) )
+				throw normalizedException(m_except);
+
+			SAXSource ss = new SAXSource(xr, m_is);
 			m_xr = null;
 			m_is = null;
 			return ss;
 		}
 
 		@Override
-		public AdjustingSAXSource allowDTD(boolean v) {
-			return setFirstSupportedFeature( !v,
-				"http://apache.org/xml/features/disallow-doctype-decl",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#disallow-doctype-decl");
-		}
-
-		@Override
-		public AdjustingSAXSource externalGeneralEntities(boolean v)
+		public AdjustingSAXSource defaults()
 		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-general-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-general-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-general-entities");
-		}
-
-		@Override
-		public AdjustingSAXSource externalParameterEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-parameter-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-parameter-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-parameter-entities");
-		}
-
-		@Override
-		public AdjustingSAXSource loadExternalDTD(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://apache.org/xml/features/" +
-					"nonvalidating/load-external-dtd");
+			m_hasCalledDefaults = true;
+			super.defaults();
+			return this;
 		}
 
 		@Override
@@ -3732,6 +4954,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			boolean value, String... names)
 		{
 			XMLReader r = theReader();
+			if ( null == r ) // pending exception, nothing to be done
+				return this;
+
 			for ( String name : names )
 			{
 				try
@@ -3748,11 +4973,46 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXSource defaults()
+		public AdjustingSAXSource setFirstSupportedProperty(
+			Object value, String... names)
 		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
+			XMLReader r = theReader();
+			if ( null == r ) // pending exception, nothing to be done
+				return this;
+
+			for ( String name : names )
+			{
+				try
+				{
+					r.setProperty(name, value);
+					break;
+				}
+				catch ( SAXNotRecognizedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+				catch ( SAXNotSupportedException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingSAXSource entityResolver(EntityResolver resolver)
+		{
+			XMLReader r = theReader();
+			if ( null != r )
+				r.setEntityResolver(resolver);
+			return this;
+		}
+
+		@Override
+		public AdjustingSAXSource schema(Schema schema)
+		{
+			theFactory().setSchema(schema);
+			return this;
 		}
 	}
 
@@ -3762,7 +5022,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * just because if the client asks only for Adjusting.XML.Result, meaning we
 	 * get to pick, SAX is the flavor we pick.
 	 */
-	static class AdjustingSAXResult implements Adjusting.XML.SAXResult
+	static class AdjustingSAXResult
+	extends SAXDOMCommon<Adjusting.XML.Result<SAXResult>>
+	implements Adjusting.XML.SAXResult
 	{
 		private SAXResult m_sr;
 
@@ -3806,30 +5068,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXResult allowDTD(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult externalGeneralEntities(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult externalParameterEntities(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
-		public AdjustingSAXResult loadExternalDTD(boolean v)
-		{
-			return checkedNoOp();
-		}
-
-		@Override
 		public AdjustingSAXResult xIncludeAware(boolean v)
 		{
 			return checkedNoOp();
@@ -3849,13 +5087,28 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXResult defaults()
+		public AdjustingSAXResult setFirstSupportedProperty(
+			Object value, String... names)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult entityResolver(EntityResolver resolver)
+		{
+			return checkedNoOp();
+		}
+
+		@Override
+		public AdjustingSAXResult schema(Schema schema)
 		{
 			return checkedNoOp();
 		}
 	}
 
-	static class AdjustingStAXSource implements Adjusting.XML.StAXSource
+	static class AdjustingStAXSource
+	extends AdjustingJAXPParser<Adjusting.XML.Source<StAXSource>>
+	implements Adjusting.XML.StAXSource
 	{
 		private XMLInputFactory m_xif;
 		private InputStream m_is;
@@ -3975,19 +5228,34 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingStAXSource defaults()
+		public AdjustingStAXSource setFirstSupportedProperty(
+			Object value, String... names)
 		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
+			XMLInputFactory xif = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					xif.setProperty(name, value);
+					break;
+				}
+				catch ( IllegalArgumentException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
 		}
 	}
 
-	static class AdjustingDOMSource implements Adjusting.XML.DOMSource
+	static class AdjustingDOMSource
+	extends SAXDOMCommon<Adjusting.XML.Source<DOMSource>>
+	implements Adjusting.XML.DOMSource
 	{
 		private DocumentBuilderFactory m_dbf;
 		private InputStream m_is;
 		private boolean m_wrapped;
+		private EntityResolver m_resolver;
 
 		AdjustingDOMSource(InputStream is, boolean wrapped)
 		{
@@ -4028,6 +5296,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			try
 			{
 				DocumentBuilder db = m_dbf.newDocumentBuilder();
+				db.setErrorHandler(SAXDOMErrorHandler.INSTANCE);
+				if ( null != m_resolver )
+					db.setEntityResolver(m_resolver);
 				DOMSource ds = new DOMSource(db.parse(m_is));
 				if ( m_wrapped )
 					domUnwrap(ds);
@@ -4039,45 +5310,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				throw normalizedException(e);
 			}
-		}
-
-		@Override
-		public AdjustingDOMSource allowDTD(boolean v)
-		{
-			return setFirstSupportedFeature( !v,
-				"http://apache.org/xml/features/disallow-doctype-decl",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#disallow-doctype-decl");
-		}
-
-		@Override
-		public AdjustingDOMSource externalGeneralEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-general-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-general-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-general-entities");
-		}
-
-		@Override
-		public AdjustingDOMSource externalParameterEntities(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://xml.org/sax/features/external-parameter-entities",
-				"http://xerces.apache.org/xerces2-j/features.html" +
-					"#external-parameter-entities",
-				"http://xerces.apache.org/xerces-j/features.html" +
-					"#external-parameter-entities");
-		}
-
-		@Override
-		public AdjustingDOMSource loadExternalDTD(boolean v)
-		{
-			return setFirstSupportedFeature( v,
-				"http://apache.org/xml/features/" +
-					"nonvalidating/load-external-dtd");
 		}
 
 		@Override
@@ -4115,11 +5347,37 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
-		public AdjustingDOMSource defaults()
+		public AdjustingDOMSource setFirstSupportedProperty(
+			Object value, String... names)
 		{
-			return allowDTD(false).externalGeneralEntities(false)
-				.externalParameterEntities(false).loadExternalDTD(false)
-				.xIncludeAware(false).expandEntityReferences(false);
+			DocumentBuilderFactory dbf = theFactory();
+			for ( String name : names )
+			{
+				try
+				{
+					dbf.setAttribute(name, value);
+					break;
+				}
+				catch ( IllegalArgumentException e )
+				{
+					e.printStackTrace(); // XXX
+				}
+			}
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource entityResolver(EntityResolver resolver)
+		{
+			m_resolver = resolver;
+			return this;
+		}
+
+		@Override
+		public AdjustingDOMSource schema(Schema schema)
+		{
+			theFactory().setSchema(schema);
+			return this;
 		}
 	}
 }

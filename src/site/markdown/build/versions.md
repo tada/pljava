@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of January 2020, the following version constraints are known.
+As of mid-2020, the following version constraints are known.
 
 ## Java
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -56,6 +56,16 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 
 #if PG_VERSION_NUM < 90500
 #define DomainHasConstraints(x) true
+#endif
+
+#if PG_VERSION_NUM < 110000
+static Oid BOOLARRAYOID;
+static Oid CHARARRAYOID;
+static Oid FLOAT8ARRAYOID;
+static Oid INT8ARRAYOID;
+#if PG_VERSION_NUM < 80400
+static Oid INT2ARRAYOID;
+#endif
 #endif
 
 static HashMap s_typeByOid;
@@ -294,7 +304,7 @@ jvalue Type_coerceDatumAs(Type self, Datum value, jclass rqcls)
 	if ( NULL == rqcls  ||  Type_getJavaClass(self) == rqcls )
 		return Type_coerceDatum(self, value);
 
-	rqcname = JNI_callObjectMethod(rqcls, Class_getName);
+	rqcname = JNI_callObjectMethod(rqcls, Class_getCanonicalName);
 	rqcname0 = String_createNTS(rqcname);
 	JNI_deleteLocalRef(rqcname);
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
@@ -324,7 +334,16 @@ Datum Type_coerceObjectBridged(Type self, jobject object)
 	rqtype = Type_fromJavaType(self->typeId, rqcname0);
 	pfree(rqcname0);
 	if ( ! Type_canReplaceType(rqtype, self) )
-		elog(ERROR, "type bridge failure");
+	{
+		/*
+		 * Ignore the TypeBridge in this one oddball case that results from the
+		 * existence of two Types both mapping Java's byte[].
+		 */
+		if ( BYTEAOID == self->typeId  &&  CHARARRAYOID == rqtype->typeId )
+			rqtype = self;
+		else
+			elog(ERROR, "type bridge failure");
+	}
 	object = JNI_callObjectMethod(object, s_TypeBridge_Holder_payload);
 	return Type_coerceObject(rqtype, object);
 }
@@ -572,7 +591,23 @@ bool Type_isPrimitive(Type self)
 
 Type Type_fromJavaType(Oid typeId, const char* javaTypeName)
 {
-	CacheEntry ce = (CacheEntry)HashMap_getByString(s_obtainerByJavaName, javaTypeName);
+	/*
+	 * Do an initial lookup with InvalidOid as the oid part of the key. Multiple
+	 * entries for the same Java name and distinct oids are not anticipated
+	 * except for arrays.
+	 */
+	CacheEntry ce = (CacheEntry)HashMap_getByStringOid(
+		s_obtainerByJavaName, javaTypeName, InvalidOid);
+
+	/*
+	 * If no entry was found using InvalidOid and a valid typeId is provided
+	 * and the wanted Java type is an array, repeat the lookup using the typeId.
+	 */
+	if ( NULL == ce  &&  InvalidOid != typeId
+			&&  NULL != strchr(javaTypeName, ']') )
+		ce = (CacheEntry)HashMap_getByStringOid(
+			s_obtainerByJavaName, javaTypeName, typeId);
+
 	if(ce == 0)
 	{
 		size_t jtlen = strlen(javaTypeName) - 2;
@@ -832,6 +867,28 @@ static void initializeTypeBridges()
 	addTypeBridge(cls, ofClass, "java.time.OffsetDateTime", TIMESTAMPTZOID);
 	addTypeBridge(cls, ofClass, "java.time.OffsetTime", TIMETZOID);
 
+	/*
+	 * TypeBridges that allow Java primitive array types to be passed to things
+	 * expecting their boxed counterparts. An oddball case is byte[], given the
+	 * default oid BYTEAOID here instead of CHARARRAYOID following the pattern,
+	 * because there is a whole 'nother (see byte_array.c) Type that also maps
+	 * byte[] on the Java side, but bytea for PostgreSQL (I am not at all sure
+	 * what I think of that), and bridging it to a different Oid here would
+	 * break it as a parameter to prepared statements that were working. So
+	 * cater to that use, while possibly complicating the new use that was not
+	 * formerly possible.
+	 *
+	 * There is no bridge for char[], because PL/Java has no Type that maps it
+	 * to anything in PostgreSQL.
+	 */
+	addTypeBridge(cls, ofClass, "boolean[]", BOOLARRAYOID);
+	addTypeBridge(cls, ofClass,    "byte[]", BYTEAOID);
+	addTypeBridge(cls, ofClass,   "short[]", INT2ARRAYOID);
+	addTypeBridge(cls, ofClass,     "int[]", INT4ARRAYOID);
+	addTypeBridge(cls, ofClass,    "long[]", INT8ARRAYOID);
+	addTypeBridge(cls, ofClass,   "float[]", FLOAT4ARRAYOID);
+	addTypeBridge(cls, ofClass,  "double[]", FLOAT8ARRAYOID);
+
 	addTypeBridge(cls, ofInterface, "java.sql.SQLXML",
 #if defined(XMLOID)
 		XMLOID
@@ -926,6 +983,16 @@ void Type_initialize(void)
 	s_Iterator_hasNext = PgObject_getJavaMethod(s_Iterator_class, "hasNext", "()Z");
 	s_Iterator_next = PgObject_getJavaMethod(s_Iterator_class, "next", "()Ljava/lang/Object;");
 
+#if PG_VERSION_NUM < 110000
+	BOOLARRAYOID   = get_array_type(BOOLOID);
+	CHARARRAYOID   = get_array_type(CHAROID);
+	FLOAT8ARRAYOID = get_array_type(FLOAT8OID);
+	INT8ARRAYOID   = get_array_type(INT8OID);
+#if PG_VERSION_NUM < 80400
+	INT2ARRAYOID   = get_array_type(INT2OID);
+#endif
+#endif
+
 	initializeTypeBridges();
 }
 
@@ -1015,7 +1082,19 @@ static void _registerType(Oid typeId, const char* javaTypeName, Type type, TypeO
 	ce->obtainer = obtainer;
 
 	if(javaTypeName != 0)
-		HashMap_putByString(s_obtainerByJavaName, javaTypeName, ce);
+	{
+		/*
+		 * The s_obtainerByJavaName cache is now keyed by Java name and an oid,
+		 * rather than Java name alone, to address an issue affecting arrays.
+		 * To avoid changing other behavior, the oid used in the hash key will
+		 * be InvalidOid always, unless the Java name being registered is
+		 * an array type and the caller has passed a valid oid.
+		 */
+		Oid keyOid = (NULL == strchr(javaTypeName, ']'))
+			? InvalidOid
+			: typeId;
+		HashMap_putByStringOid(s_obtainerByJavaName, javaTypeName, keyOid, ce);
+	}
 
 	if(typeId != InvalidOid && HashMap_getByOid(s_obtainerByOid, typeId) == 0)
 		HashMap_putByOid(s_obtainerByOid, typeId, ce);

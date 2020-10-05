@@ -60,6 +60,9 @@ import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stax.StAXResult;
 import javax.xml.transform.stax.StAXSource;
 
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+
 import org.postgresql.pljava.Adjusting;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
@@ -166,6 +169,48 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" END " +
 		"FROM" +
 		" r"
+	),
+
+	@SQLAction(implementor="postgresql_xml_ge84", requires="lowLevelXMLEcho",
+		install={
+		"SELECT" +
+		" preparexmlschema('schematest', $$" +
+		"<xs:schema" +
+		" xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+		" targetNamespace='urn:testme'" +
+		" elementFormDefault='qualified'>" +
+		" <xs:element name='row'>" +
+		"  <xs:complexType>" +
+		"   <xs:sequence>" +
+		"    <xs:element name='textcol' type='xs:string' nillable='true'/>" +
+		"    <xs:element name='intcol' type='xs:integer' nillable='true'/>" +
+		"   </xs:sequence>" +
+		"  </xs:complexType>" +
+		" </xs:element>" +
+		"</xs:schema>" +
+		"$$, 'http://www.w3.org/2001/XMLSchema', 5)",
+
+		"WITH" +
+		" s(how) AS (SELECT unnest('{4,5,7}'::int[]))," +
+		" r(isdoc) AS (" +
+		" SELECT" +
+		"  javatest.lowlevelxmlecho(" +
+		"   query_to_xml(" +
+		"    'SELECT ''hi'' AS textcol, 1 AS intcol', true, true, 'urn:testme'"+
+		"   ), how, params) IS DOCUMENT" +
+		" FROM" +
+		"  s," +
+		"  (SELECT 'schematest' AS schema) AS params" +
+		" )" +
+		"SELECT" +
+		" CASE WHEN every(isdoc)" +
+		"  THEN javatest.logmessage('INFO', 'XML Schema tests succeeded')" +
+		"  ELSE javatest.logmessage('WARNING'," +
+		"       'XML Schema tests had problems')" +
+		" END " +
+		"FROM" +
+		" r"
+		}
 	)
 })
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
@@ -178,6 +223,8 @@ public class PassXML implements SQLData
 	static TransformerFactory s_tf = TransformerFactory.newInstance();
 
 	static Map<String,Templates> s_tpls = new HashMap<>();
+
+	static Map<String,Schema> s_schemas = new HashMap<>();
 
 	@Function(schema="javatest", implementor="postgresql_xml")
 	public static String inXMLoutString(SQLXML in) throws SQLException
@@ -366,6 +413,35 @@ public class PassXML implements SQLData
 		return ensureClosed(rlt, result, howout);
 	}
 
+	/**
+	 * Precompile a schema {@code source} in schema language {@code lang}
+	 * and save it (for the current session) as {@code name}.
+	 *<p>
+	 * Each value of {@code how}, 1-7, selects a different way of presenting
+	 * the {@code SQLXML} object to the schema parser.
+	 *<p>
+	 * The {@code lang} parameter is a URI that identifies a known schema
+	 * language. The only language a Java runtime is required to support is
+	 * W3C XML Schema 1.0, with URI {@code http://www.w3.org/2001/XMLSchema}.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml")
+	public static void prepareXMLSchema(
+		String name, SQLXML source, String lang, int how)
+	throws SQLException
+	{
+		try
+		{
+			s_schemas.put(name,
+				SchemaFactory.newInstance(lang)
+				.newSchema(sxToSource(source, how)));
+		}
+		catch ( SAXException e )
+		{
+			throw new SQLException(
+				"failed to prepare schema: " + e.getMessage(), e);
+		}
+	}
+
 	private static SQLXML echoSQLXML(SQLXML sx, int howin, int howout)
 	throws SQLException
 	{
@@ -421,7 +497,8 @@ public class PassXML implements SQLData
 	 * still be exercised by calling this method, explicitly passing
 	 * {@code adjust => NULL}.
 	 */
-	@Function(schema="javatest", implementor="postgresql_xml_ge84")
+	@Function(schema="javatest", implementor="postgresql_xml_ge84",
+		provides="lowLevelXMLEcho")
 	public static SQLXML lowLevelXMLEcho(
 		SQLXML sx, int how, @SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
@@ -519,6 +596,36 @@ public class PassXML implements SQLData
 				axp.xIncludeAware(adjust.getBoolean(i));
 			else if ( "expandEntityReferences".equalsIgnoreCase(k) )
 				axp.expandEntityReferences(adjust.getBoolean(i));
+			else if ( "elementAttributeLimit".equalsIgnoreCase(k) )
+				axp.elementAttributeLimit(adjust.getInt(i));
+			else if ( "entityExpansionLimit".equalsIgnoreCase(k) )
+				axp.entityExpansionLimit(adjust.getInt(i));
+			else if ( "entityReplacementLimit".equalsIgnoreCase(k) )
+				axp.entityReplacementLimit(adjust.getInt(i));
+			else if ( "maxElementDepth".equalsIgnoreCase(k) )
+				axp.maxElementDepth(adjust.getInt(i));
+			else if ( "maxGeneralEntitySizeLimit".equalsIgnoreCase(k) )
+				axp.maxGeneralEntitySizeLimit(adjust.getInt(i));
+			else if ( "maxParameterEntitySizeLimit".equalsIgnoreCase(k) )
+				axp.maxParameterEntitySizeLimit(adjust.getInt(i));
+			else if ( "maxXMLNameLimit".equalsIgnoreCase(k) )
+				axp.maxXMLNameLimit(adjust.getInt(i));
+			else if ( "totalEntitySizeLimit".equalsIgnoreCase(k) )
+				axp.totalEntitySizeLimit(adjust.getInt(i));
+			else if ( "accessExternalDTD".equalsIgnoreCase(k) )
+				axp.accessExternalDTD(adjust.getString(i));
+			else if ( "accessExternalSchema".equalsIgnoreCase(k) )
+				axp.accessExternalSchema(adjust.getString(i));
+			else if ( "schema".equalsIgnoreCase(k) )
+			{
+				try
+				{
+					axp.schema(s_schemas.get(adjust.getString(i)));
+				}
+				catch (UnsupportedOperationException e)
+				{
+				}
+			}
 			else
 				throw new SQLDataException(
 					"unrecognized name \"" + k + "\" for parser adjustment",

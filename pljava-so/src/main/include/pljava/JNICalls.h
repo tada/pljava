@@ -49,6 +49,7 @@ extern jmethodID ServerException_init;
 
 extern jclass    Class_class;
 extern jmethodID Class_getName;
+extern jmethodID Class_getCanonicalName;
 
 extern jclass    Throwable_class;
 extern jmethodID Throwable_getMessage;
