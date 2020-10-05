@@ -84,10 +84,11 @@ $h4 Internals
 $h3 Enhancement requests addressed
 
 * Work around PostgreSQL [API breakage in EnterpriseDB 11](${ghbug}260)
- 
+
 $h3 Bugs fixed
 
 * [Support of arrays in composite types](${ghbug}300)
+* [Order-dependent behavior caching array types](${ghbug}310)
 * [Date conversion errors possible with PostgreSQL 10 on Windows/MSVC](${ghbug}297)
 * [Build issue with Windows/MinGW-w64](${ghbug}282)
 * ["xmltable" with XML output column or parameter](${ghbug}280)
