@@ -312,6 +312,7 @@ static void initsequencer(enum initstage is, bool tolerant);
 #endif
 
 #if PG_VERSION_NUM < 90100
+#define errdetail_internal errdetail
 #define ASSIGNHOOK(name,type) \
 	static bool \
 	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
@@ -708,6 +709,15 @@ static void initsequencer(enum initstage is, bool tolerant)
 #undef MOREHINT
 			if ( loadAsExtensionFailed )
 			{
+#if PG_VERSION_NUM < 130000
+#define MOREHINT \
+					"\"CREATE EXTENSION pljava FROM unpackaged\""
+#else
+#define MOREHINT \
+					"\"CREATE EXTENSION pljava VERSION unpackaged\", " \
+					"then (after starting another new session) " \
+					"\"ALTER EXTENSION pljava UPDATE\""
+#endif
 				ereport(NOTICE, (errmsg(
 					"PL/Java load successful after failed CREATE EXTENSION"),
 					errdetail(
@@ -717,16 +727,11 @@ static void initsequencer(enum initstage is, bool tolerant)
 					"the working settings are saved, exit this session, and "
 					"in a new session, either: "
 					"1. if committed, run "
-#if PG_VERSION_NUM < 130000
-					"\"CREATE EXTENSION pljava FROM unpackaged\""
-#else
-					"\"CREATE EXTENSION pljava VERSION unpackaged\", "
-					"then (after starting another new session) "
-					"\"ALTER EXTENSION pljava UPDATE\""
-#endif
+					MOREHINT
 					", or 2. "
 					"if rolled back, simply \"CREATE EXTENSION pljava\" again."
 					)));
+#undef MOREHINT
 			}
 		}
 		return;
@@ -1029,11 +1034,7 @@ static jint JNICALL my_vfprintf(FILE* fp, const char* format, va_list args)
 			}
 			ereport(INFO, (
 				errmsg_internal(cap_format, lastlive, lastcap),
-#if PG_VERSION_NUM < 90100
-				errdetail("%s", detail),
-#else
 				errdetail_internal("%s", detail),
-#endif
 				errhint(
 					"To pinpoint location, set a breakpoint on this ereport "
 					"and follow stacktrace to a functionExit(), its caller "
