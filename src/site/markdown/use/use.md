@@ -36,6 +36,12 @@ PL/Java's own.
 
 ## Special topics
 
+### Configuring permissions
+
+The permissions in effect for PL/Java functions can be tailored, independently
+for functions declared to the `TRUSTED` or untrusted language, as described
+[here](policy.html).
+
 ### Choices when mapping data types
 
 #### Date and time types

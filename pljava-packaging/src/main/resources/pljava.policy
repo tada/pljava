@@ -1,7 +1,17 @@
+//
+// Security policy for PL/Java. These grants are intended to add to those
+// contained in the java.policy file of the standard Java installation.
+//
+
+
+//
+// This grant is unconditional. It adds these properties to the standard Java
+// list of system properties that any code may read.
+//
 grant {
 	// "standard" properties that can be read by anyone, by analogy to the
-	// ones so treated in Java itself
-
+	// ones so treated in Java itself.
+	//
 	permission java.util.PropertyPermission
 		"org.postgresql.version", "read";
 	permission java.util.PropertyPermission
@@ -15,19 +25,28 @@ grant {
 	permission java.util.PropertyPermission
 		"org.postgresql.server.encoding", "read";
 
-	// PostgreSQL allows SELECT current_database() or SHOW cluster_name anyway
-
+	// PostgreSQL allows SELECT current_database() or SHOW cluster_name anyway.
+	//
 	permission java.util.PropertyPermission
 		"org.postgresql.database", "read";
 	permission java.util.PropertyPermission
 		"org.postgresql.cluster", "read";
 
-	// SQL/JRT specifies this property
-
+	// SQL/JRT specifies this property.
+	//
 	permission java.util.PropertyPermission
 		"sqlj.defaultconnection", "read";
 };
 
+
+//
+// This grant is specific to the internal implementation of PL/Java itself,
+// which needs these permissions for its own operations.
+//
+// Historically, PL/Java has been able to read any file on the server filesystem
+// when a file: URL is passed to sqlj.install_jar or sqlj.replace_jar. Such a
+// broad grant is not necessary, and can be narrowed below if desired.
+//
 grant codebase "${org.postgresql.pljava.codesource}" {
 	permission java.lang.RuntimePermission
 		"createClassLoader";
@@ -38,39 +57,54 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 
 	// This gives the PL/Java implementation code permission to read
 	// any file, which it only exercises on behalf of sqlj.install_jar()
-	// or sqlj.replace_jar() calls with a file: URL.
+	// or sqlj.replace_jar() when called with a file: URL.
+	//
 	// There would be nothing wrong with restricting this permission to
 	// a specific directory, if all jar files to be loaded will be found there,
 	// or replacing it with a URLPermission if they will be hosted on a remote
 	// server, etc.
+	//
 	permission java.io.FilePermission
 		"<<ALL FILES>>", "read";
 };
 
-// These grants apply to the supplied examples, if sqlj.install_jar is given the
-// exact name 'examples' as the desired jar name. (Otherwise, they will apply to
+
+//
+// This grant applies to the supplied examples, if sqlj.install_jar is given the
+// exact name 'examples' as the desired jar name. (Otherwise, it will apply to
 // any other jar that is installed with the name 'examples'. Beware!)
+//
 grant codebase "sqlj:examples" {
-	// the PreJSR310 test involves setting the time zone
+
+	// The PreJSR310 test involves setting the time zone.
+	//
 	permission java.util.PropertyPermission "user.timezone", "write";
 };
 
+
+//
+// This grant defines the mapping onto Java of PostgreSQL's "trusted language"
+// category. When PL/Java executes a function whose SQL declaration names
+// a language that was declared WITH the TRUSTED keyword, it will have these
+// permissions, if any (in addition to whatever others might be granted to all
+// code, or to its specific jar, etc.).
+//
+grant principal org.postgresql.pljava.PLPrincipal$Sandboxed * {
+};
+
+
+//
 // This grant defines the mapping onto Java of PostgreSQL's "untrusted language"
-// category. When PL/Java executes a function whose SQL declaration names a
-// language that was declared without the TRUSTED keyword, it will have these
+// category. When PL/Java executes a function whose SQL declaration names
+// a language that was declared WITHOUT the TRUSTED keyword, it will have these
 // permissions (in addition to whatever others might be granted to all code, or
 // to its specific jar, etc.).
 //
 grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed * {
-	permission java.io.FilePermission
-		"<<ALL FILES>>", "read,write,delete,readlink";
-};
 
-// This grant defines the mapping onto Java of PostgreSQL's "trusted language"
-// category. When PL/Java executes a function whose SQL declaration names a
-// language that was declared WITH the TRUSTED keyword, it will have these
-// permissions (in addition to whatever others might be granted to all code, or
-// to its specific jar, etc.).
-//
-grant principal org.postgresql.pljava.PLPrincipal$Sandboxed * {
+	// Java does not circumvent operating system access controls; this grant
+	// will still be limited to what the OS allows a PostgreSQL backend process
+	// to do.
+	permission java.io.FilePermission
+		"<<ALL FILES>>", "read,readlink,write,delete";
 };
