@@ -93,6 +93,14 @@ category</a>
 	String schema() default "";
 
 	/**
+	 * Whether PostgreSQL should gather trailing arguments into an array that
+	 * will be bound to the last (non-output) Java parameter (which must have an
+	 * array type).
+	 * Appeared in PostgreSQL 8.4.
+	 */
+	boolean variadic() default false;
+
+	/**
 	 * Estimated cost in units of cpu_operator_cost.
 	 *
 	 * If left unspecified (-1) the backend's default will apply.
@@ -161,7 +169,7 @@ category</a>
 	 * please see <a href=
 '../../../../../../use/parallel.html'>the users' guide</a>.
 	 *<p>
-	 * Appeared in 9.6.
+	 * Appeared in PostgreSQL 9.6.
 	 */
 	Parallel parallel() default Parallel.UNSAFE;
 	
