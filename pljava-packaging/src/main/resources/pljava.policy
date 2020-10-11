@@ -36,6 +36,12 @@ grant {
 	//
 	permission java.util.PropertyPermission
 		"sqlj.defaultconnection", "read";
+
+	// This property is read in the innards of Java 9 and 10, but they forgot
+	// to add a permission for it. Not needed for Java 11 and later.
+	//
+	permission java.util.PropertyPermission
+		"jdk.lang.ref.disableClearBeforeEnqueue", "read";
 };
 
 
@@ -70,19 +76,6 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 
 
 //
-// This grant applies to the supplied examples, if sqlj.install_jar is given the
-// exact name 'examples' as the desired jar name. (Otherwise, it will apply to
-// any other jar that is installed with the name 'examples'. Beware!)
-//
-grant codebase "sqlj:examples" {
-
-	// The PreJSR310 test involves setting the time zone.
-	//
-	permission java.util.PropertyPermission "user.timezone", "write";
-};
-
-
-//
 // This grant defines the mapping onto Java of PostgreSQL's "trusted language"
 // category. When PL/Java executes a function whose SQL declaration names
 // a language that was declared WITH the TRUSTED keyword, it will have these
@@ -107,4 +100,18 @@ grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed * {
 	// to do.
 	permission java.io.FilePermission
 		"<<ALL FILES>>", "read,readlink,write,delete";
+};
+
+
+//
+// This grant applies to a specific PL/Java sandboxed language named java_tzset
+// (if such a language exists) and grants functions created in that language
+// permission to adjust the time zone. There is an example method in the
+// org.postgresql.pljava.example.annotation.PreJSR310 class, which needs to
+// temporarily adjust the time zone for a test. That example also uses
+// sqlj.alias_java_language to create the java_tzset "language" when deployed,
+// and DROP LANGUAGE to remove it when undeployed.
+//
+grant principal org.postgresql.pljava.PLPrincipal$Sandboxed "java_tzset" {
+	permission java.util.PropertyPermission "user.timezone", "write";
 };

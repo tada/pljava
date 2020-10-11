@@ -215,8 +215,8 @@ grant principal org.postgresql.pljava.PLPrincipal$Sandboxed "java_tzset" {
 ```
 
 If the JSR-310 test example in PL/Java's examples jar is declared with
-`LANGUAGE java_tzset` rather than `LANGUAGE java`, it will be able to set
-the time zone and succeed.
+`LANGUAGE java_tzset` rather than `LANGUAGE java` (as, in fact, it is),
+it will be able to set the time zone and succeed.
 
 The [`SQLJ.ALIAS_JAVA_LANGUAGE`][sqljajl] function can be used to create such
 aliases conveniently.
