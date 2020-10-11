@@ -122,11 +122,7 @@ static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static bool  pljavaEnabled;
 
-#if PG_VERSION_NUM >= 80400
 static int   java_thread_pg_entry;
-#else
-static char* java_thread_pg_entry;
-#endif
 
 static int   s_javaLogLevel;
 
@@ -387,21 +383,9 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
-#if PG_VERSION_NUM >= 80400
 #define ASSIGNENUMHOOK(name) ASSIGNHOOK(name,int)
 #define ENUMBOOTVAL(entry) ((entry).val)
 #define ENUMHOOKRET true
-#else
-#define ASSIGNENUMHOOK(name) ASSIGNSTRINGHOOK(name)
-#define ENUMBOOTVAL(entry) ((char *)((entry).name))
-#define ENUMHOOKRET newval
-struct config_enum_entry
-{
-	const char *name;
-	int 		val;
-	bool		hidden;
-};
-#endif
 
 static const struct config_enum_entry java_thread_pg_entry_options[] = {
 	{"allow", 0, false}, /* numeric value is bit-coded: */
@@ -480,21 +464,7 @@ ASSIGNHOOK(enabled, bool)
 
 ASSIGNENUMHOOK(java_thread_pg_entry)
 {
-#if PG_VERSION_NUM >= 80400
 	int val = newval;
-#else
-	int val = -1;
-	struct config_enum_entry const *e;
-	for ( e = java_thread_pg_entry_options; NULL != e->name; ++ e )
-	{
-		if ( 0 == strcmp(e->name, newval) )
-		{
-			val = e->val;
-		}
-	}
-	if ( -1 == val )
-		ASSIGNRETURN(NULL);
-#endif
 	ASSIGNRETURNIFCHECK(ENUMHOOKRET);
 	pljava_JNI_setThreadPolicy( !!(val&1) /*error*/, !(val&2) /*monitorops*/);
 	ASSIGNRETURN(ENUMHOOKRET);
@@ -891,11 +861,7 @@ static void reLogWithChangedLevel(int level)
 	FreeErrorData(edata);
 #else
 	if (!errstart(level, edata->filename, edata->lineno,
-				  edata->funcname
-#if PG_VERSION_NUM >= 80400
-				  , NULL
-#endif
-				 ))
+				  edata->funcname, NULL))
 	{
 		FreeErrorData(edata);
 		return;
@@ -906,10 +872,8 @@ static void reLogWithChangedLevel(int level)
 		errmsg("%s", edata->message);
 	if (edata->detail)
 		errdetail("%s", edata->detail);
-#if PG_VERSION_NUM >= 80400
 	if (edata->detail_log)
 		errdetail_log("%s", edata->detail_log);
-#endif
 	if (edata->hint)
 		errhint("%s", edata->hint);
 	if (edata->context)
@@ -1589,21 +1553,9 @@ static jint initializeJavaVM(JVMOptList *optList)
 	return jstat;
 }
 
-#if PG_VERSION_NUM >= 80400
 #define GUCBOOTVAL(v) (v),
 #define GUCBOOTASSIGN(a, v)
 #define GUCFLAGS(f) (f),
-#else
-#define GUCBOOTVAL(v)
-#define GUCBOOTASSIGN(a, v) \
-	StaticAssertStmt(NULL != (valueAddr), "NULL valueAddr for GUC"); \
-	*(a) = (v);
-#define GUCFLAGS(f)
-#define DefineCustomEnumVariable(name, short_desc, long_desc, valueAddr, \
-		options, context, assign_hook, show_hook) \
-	DefineCustomStringVariable((name), (short_desc), (long_desc), (valueAddr), \
-		(context), (assign_hook), (show_hook))
-#endif
 
 #if PG_VERSION_NUM >= 90100
 #define GUCCHECK(h) (h),
@@ -1666,7 +1618,7 @@ static void registerGUCOptions(void)
 		&libjvmlocation,
 		PLJAVA_LIBJVMDEFAULT,
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_libjvm_location,
 		assign_libjvm_location,
 		NULL); /* show hook */
@@ -1678,7 +1630,7 @@ static void registerGUCOptions(void)
 		&vmoptions,
 		NULL, /* boot value */
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_vmoptions,
 		assign_vmoptions,
 		NULL); /* show hook */
@@ -1690,7 +1642,7 @@ static void registerGUCOptions(void)
 		&modulepath,
 		InstallHelper_defaultModulePath(pathbuf,s_path_var_sep),/* boot value */
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_modulepath,
 		assign_modulepath,
 		NULL); /* show hook */
@@ -1708,7 +1660,7 @@ static void registerGUCOptions(void)
 		&policy_urls,
 		"\"file:${org.postgresql.sysconfdir}/pljava.policy\",\"=\"",
 		PGC_SUSET,
-		PLJAVA_IMPLEMENTOR_FLAGS,
+		PLJAVA_IMPLEMENTOR_FLAGS | GUC_SUPERUSER_ONLY,
 		check_policy_urls, /* check hook */
 		assign_policy_urls,
 		NULL); /* show hook */
