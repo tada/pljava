@@ -2087,6 +2087,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			_name = Identifier.Simple.fromJava(ui.name())
 				.concat("_", id.getSuffix()).toString();
 			_schema = ui.schema();
+			_variadic = false;
 			_cost = -1;
 			_rows = -1;
 			_onNullInput = OnNullInput.CALLED;
@@ -2146,7 +2147,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public void setVariadic( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				msg( Kind.ERROR, e,	"A UDT function is not variadic");
+				msg( Kind.ERROR, e,	"A UDT function is never variadic");
 		}
 
 		public void setRows( Object o, boolean explicit, Element e)
