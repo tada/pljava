@@ -48,7 +48,11 @@ import java.util.zip.ZipInputStream;
 import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 
+import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified.nameFromCatalog;
 
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
@@ -60,6 +64,8 @@ import org.postgresql.pljava.sqlj.Loader;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
+import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
@@ -247,6 +253,41 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <td>The name of the SQL type. The name can be qualified with a
  * schema (namespace). If the schema is omitted, it will be resolved according
  * to the current setting of the search_path.</td>
+ * </tr>
+ * </table></blockquote>
+ * <h3><a id='alias_java_language'>alias_java_language</a></h3>
+ * The {@link #aliasJavaLanguage alias_java_language command} issues
+ * a PostgreSQL {@code CREATE LANGUAGE} command to define a named "language"
+ * that is an alias for PL/Java. The name can appear in the
+ * <a href="../../RELDOTS/use/policy.html">Java security policy</a> to grant
+ * specific permissions to functions created in this "language".
+ * <h4>Usage</h4>
+ * <blockquote>
+ * {@code SELECT sqlj.alias_java_language(<alias>, sandboxed => <boolean>);}
+ * </blockquote>
+ * <h4>Parameters</h4>
+ * <blockquote><table><caption>Parameters for sqlj.alias_java_language</caption>
+ * <tr>
+ * <td><b>alias</b></td>
+ * <td>The name desired for the language alias. Language names are not
+ * schema-qualified.</td>
+ * </tr>
+ * <tr>
+ * <td><b>sandboxed</b></td>
+ * <td>Whether to create a sandboxed "{@code TRUSTED}" language, in which
+ * functions can be created by any role granted {@code USAGE} permission (true),
+ * or an unsandboxed one in which only superusers may create functions (false).
+ * </td>
+ * </tr>
+ * <tr>
+ * <td><b>orReplace</b></td>
+ * <td>Optional parameter, default false.
+ * See {@link #aliasJavaLanguage the method documentation} for details.</td>
+ * </tr>
+ * <tr>
+ * <td><b>comment</b></td>
+ * <td>Optional parameter. If empty string (the default), a comment is supplied.
+ * See {@link #aliasJavaLanguage the method documentation} for details.</td>
  * </tr>
  * </table></blockquote>
  * 
@@ -958,6 +999,126 @@ public class Commands
 			{
 				if ( ! schemaMayVanish ||  ! "3F000".equals(e.getSQLState()) )
 					throw e;
+			}
+		}
+	}
+
+	/**
+	 * Creates a named PostgreSQL {@code LANGUAGE} that refers to PL/Java;
+	 * its name may be referred to in the Java security policy to grant selected
+	 * permissions to functions created in this "language".
+	 *<p>
+	 * More on configuring Java permissions specific to this alias can be found
+	 * <a href="../../RELDOTS/use/policy.html">in the policy documentation</a>.
+	 *<p>
+	 * PostgreSQL normally grants {@code USAGE} to {@code PUBLIC} if a sandboxed
+	 * language is created. This routine does not, so that {@code USAGE} on the
+	 * new alias can then be {@code GRANT}ed to specific roles or to
+	 * {@code PUBLIC} as desired.
+	 * @param alias Name for this "language".
+	 * @param sandboxed Whether this alias should be a sandboxed/"TRUSTED"
+	 * language that USAGE can be granted on, or an unsandboxed one that only
+	 * superusers can create functions in. Must be specified.
+	 * @param orReplace Whether to succeed even if a language by the same name
+	 * already exists; if so, the sandboxed bit, handler entry points, and
+	 * comment may all be changed. Default is false.
+	 * @param comment A comment to associate with the alias "language". If an
+	 * empty string (the default), a default comment will be constructed. Pass
+	 * null explicitly to avoid setting any comment (or changing any existing
+	 * comment, in the orReplace case).
+	 */
+	@Function(
+		schema="sqlj", name="alias_java_language", onNullInput=CALLED,
+		requires="sqlj.tables"
+	)
+	public static void aliasJavaLanguage(
+		String alias,
+		Boolean sandboxed,
+		@SQLType(defaultValue="false") Boolean orReplace,
+		@SQLType(defaultValue="") String comment)
+	throws SQLException
+	{
+		if ( null == alias )
+			throw new SQLDataException(
+				"parameter \"alias\" may not be null", "22004");
+		if ( null == sandboxed )
+			throw new SQLDataException(
+				"parameter \"sandboxed\" may not be null", "22004");
+		if ( null == orReplace )
+			throw new SQLDataException(
+				"parameter \"orReplace\" may not be null", "22004");
+
+		if ( "".equals(comment) )
+			comment = "PL/Java language alias that may be assigned " +
+				"distinct permissions in the security policy. Routines may " +
+				"be created in this \"language\" by " + ( sandboxed
+					? "any role with USAGE permission." : "superusers only." );
+
+		Identifier.Simple aliasIdent = Identifier.Simple.fromJava(alias);
+
+		String libraryPath = Backend.myLibraryPath();
+
+		try (
+			Connection conn = getDefaultConnection();
+			PreparedStatement ps = conn.prepareStatement(
+				"SELECT DISTINCT" +
+				"  cn.nspname, cf.proname, vn.nspname, vf.proname" +
+				" FROM" +
+				"  (VALUES (?,?)) AS params(sandboxed, libpath)," +
+				"  pg_catalog.pg_language AS lan" +
+				"  JOIN pg_catalog.pg_proc AS cf" +
+				"   ON lan.lanplcallfoid OPERATOR(pg_catalog.=) cf.oid" +
+				"  JOIN pg_catalog.pg_namespace AS cn" +
+				"   ON cf.pronamespace OPERATOR(pg_catalog.=) cn.oid" +
+				"  JOIN pg_catalog.pg_proc AS vf" +
+				"   ON lan.lanvalidator OPERATOR(pg_catalog.=) vf.oid" +
+				"  JOIN pg_catalog.pg_namespace AS vn" +
+				"   ON vf.pronamespace OPERATOR(pg_catalog.=) vn.oid" +
+				" WHERE" +
+				"  lanispl AND lanpltrusted OPERATOR(pg_catalog.=) sandboxed" +
+				"  AND cf.probin OPERATOR(pg_catalog.=) libpath" +
+				"  AND vf.probin OPERATOR(pg_catalog.=) libpath");
+		)
+		{
+			Identifier.Qualified<Identifier.Simple> callHandler;
+			Identifier.Qualified<Identifier.Simple> valHandler;
+
+			ps.setBoolean(1, sandboxed);
+			ps.setString(2, libraryPath);
+			try ( ResultSet rs = ps.executeQuery() )
+			{
+				if ( ! rs.next() )
+					throw new SQLException(
+						"Failed to find handlers for " +
+						(sandboxed ? "" : "un") + "sandboxed PL/Java");
+
+				callHandler = nameFromCatalog(rs.getString(1), rs.getString(2));
+				valHandler  = nameFromCatalog(rs.getString(3), rs.getString(4));
+
+				if ( rs.next() )
+					throw new SQLException(
+						"Failed to find handlers uniquely for " +
+						(sandboxed ? "" : "un") + "sandboxed PL/Java");
+			}
+
+			try ( Statement s = conn.createStatement() )
+			{
+				s.execute(
+					"CREATE " +
+					( orReplace ? "OR REPLACE " : "" ) +
+					( sandboxed ? "TRUSTED " : "" ) + "LANGUAGE " +
+					aliasIdent +
+					" HANDLER " + callHandler +
+					" VALIDATOR " + valHandler);
+				if ( sandboxed ) // GRANT/REVOKE not even allowed on unTRUSTED
+					s.execute(
+						"REVOKE USAGE ON LANGUAGE " + aliasIdent +
+						" FROM PUBLIC");
+				if ( null == comment )
+					return;
+				s.execute(
+					"COMMENT ON LANGUAGE " + aliasIdent + " IS " +
+					eQuote(comment));
 			}
 		}
 	}

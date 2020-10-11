@@ -218,6 +218,9 @@ If the JSR-310 test example in PL/Java's examples jar is declared with
 `LANGUAGE java_tzset` rather than `LANGUAGE java`, it will be able to set
 the time zone and succeed.
 
+The [`SQLJ.ALIAS_JAVA_LANGUAGE`][sqljajl] function can be used to create such
+aliases conveniently.
+
 When grants to specific named languages and grants with the wildcard are
 present, code will have all of the permissions granted to the specific
 language by name, in addition to all permissions that appear in grants to the
@@ -325,3 +328,4 @@ release, so relying on it is not recommended.
 [jdkperms]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-1E8E213A-D7F2-49F1-A2F0-EFB3397A8C95
 [confvar]: variables.html
 [dopriv]: https://docs.oracle.com/en/java/javase/14/security/java-se-platform-security-architecture.html#GUID-E8898CB5-65BB-4D1A-A574-8F7112FC353F
+[sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language

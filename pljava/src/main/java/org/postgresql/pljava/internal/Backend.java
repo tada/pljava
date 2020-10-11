@@ -297,25 +297,40 @@ public class Backend
 	}
 
 	/**
+	 * Returns the path of PL/Java's shared library.
+	 * @throws SQLException if for some reason it can't be determined.
+	 */
+	public static String myLibraryPath() throws SQLException
+	{
+		String result = doInPG(Backend::_myLibraryPath);
+
+		if ( null != result )
+			return result;
+
+		throw new SQLException("Unable to retrieve PL/Java's library path");
+	}
+
+	/**
 	 * Returns <code>true</code> if the backend is awaiting a return from a
 	 * call into the JVM. This method will only return <code>false</code>
 	 * when called from a thread other then the main thread and the main
 	 * thread has returned from the call into the JVM.
 	 */
-	public native static boolean isCallingJava();
+	public static native boolean isCallingJava();
 
 	/**
 	 * Returns the value of the GUC custom variable <code>
 	 * pljava.release_lingering_savepoints</code>.
 	 */
-	public native static boolean isReleaseLingeringSavepoints();
+	public static native boolean isReleaseLingeringSavepoints();
 
-	private native static String _getConfigOption(String key);
+	private static native String _getConfigOption(String key);
 
-	private native static int  _getStatementCacheSize();
-	private native static void _log(int logLevel, String str);
-	private native static void _clearFunctionCache();
-	private native static boolean _isCreatingExtension();
+	private static native int  _getStatementCacheSize();
+	private static native void _log(int logLevel, String str);
+	private static native void _clearFunctionCache();
+	private static native boolean _isCreatingExtension();
+	private static native String _myLibraryPath();
 
 	private static class EarlyNatives
 	{

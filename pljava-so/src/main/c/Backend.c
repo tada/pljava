@@ -1002,6 +1002,11 @@ static void initPLJavaClasses(void)
 		"()Z",
 		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
 		},
+		{
+		"_myLibraryPath",
+		"()Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -2065,6 +2070,41 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 	bool inExtension = false;
 	pljavaCheckExtension( &inExtension);
 	return inExtension ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _myLibraryPath
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass cls)
+{
+	jstring result = NULL;
+
+	BEGIN_NATIVE
+
+	if ( NULL == pljavaLoadPath )
+	{
+		Oid funcoid = pljavaTrustedOid;
+
+		if ( InvalidOid == funcoid )
+			funcoid = pljavaUntrustedOid;
+		if ( InvalidOid == funcoid )
+			return NULL;
+
+		/*
+		 * Result not needed, but pljavaLoadPath is set as a side effect.
+		 */
+		InstallHelper_isPLJavaFunction(funcoid, NULL, NULL);
+	}
+
+	if ( NULL != pljavaLoadPath )
+		result = String_createJavaStringFromNTS(pljavaLoadPath);
+
+	END_NATIVE
+
+	return result;
 }
 
 /*
