@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharacterCodingException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -54,7 +55,7 @@ import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Oid;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
-import org.postgresql.pljava.jdbc.SQLUtils;
+import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
 import org.postgresql.pljava.sqlj.Loader;
 
 import org.postgresql.pljava.annotation.Function;
@@ -388,41 +389,39 @@ public class Commands
 	static void addClassImages(int jarId, InputStream urlStream, long sz)
 	throws SQLException
 	{
-		PreparedStatement stmt = null;
-		PreparedStatement descIdFetchStmt = null;
-		PreparedStatement descIdStoreStmt = null;
-		ResultSet rs = null;
-
-		try
+		try (
+			Connection conn = getDefaultConnection();
+			PreparedStatement stmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) " +
+				"VALUES (?, ?, ?)");
+			PreparedStatement descIdFetchStmt = conn.prepareStatement(
+				"SELECT entryId FROM sqlj.jar_entry " +
+				"WHERE jarId OPERATOR(pg_catalog.=) ?" +
+				"  AND entryName OPERATOR(pg_catalog.=) ?");
+			PreparedStatement descIdStoreStmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_descriptor (jarId, entryId, ordinal)" +
+				" VALUES ( ?, ?, ? )");
+		)
 		{
 			byte[] buf = new byte[1024];
 			ByteArrayOutputStream img = new ByteArrayOutputStream();
-			stmt = SQLUtils
-				.getDefaultConnection()
-				.prepareStatement(
-					"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) VALUES(?, ?, ?)");
 
 			BufferedInputStream bis = new BufferedInputStream( urlStream);
 			String manifest = rawManifest( bis, sz);
 			JarInputStream jis = new JarInputStream(bis);
 			if(manifest != null)
 			{
-				PreparedStatement us = SQLUtils
-					.getDefaultConnection()
+				try ( PreparedStatement us = conn
 					.prepareStatement(
 						"UPDATE sqlj.jar_repository SET jarManifest = ? " +
 						"WHERE jarId OPERATOR(pg_catalog.=) ?");
-				try
+				)
 				{
 					us.setString(1, manifest);
 					us.setInt(2, jarId);
 					if(us.executeUpdate() != 1)
 						throw new SQLException(
 							"Jar repository update did not update 1 row");
-				}
-				finally
-				{
-					SQLUtils.close(us);
 				}
 			}
 
@@ -452,31 +451,24 @@ public class Commands
 			}
 
 			Matcher ddr = ddrSection.matcher( null != manifest ? manifest : "");
-			Matcher cnt = mfCont.matcher( "");
+			Matcher continuations = mfCont.matcher( "");
 			for ( int ordinal = 0; ddr.find(); ++ ordinal )
 			{
-				String entryName = cnt.reset( ddr.group( 1)).replaceAll( "");
-				if ( descIdFetchStmt == null )
-					descIdFetchStmt = SQLUtils.getDefaultConnection()
-						.prepareStatement(
-							"SELECT entryId FROM sqlj.jar_entry " +
-							"WHERE jarId OPERATOR(pg_catalog.=) ?" +
-							"  AND entryName OPERATOR(pg_catalog.=) ?");
+				String entryName =
+					continuations.reset( ddr.group( 1)).replaceAll( "");
 				descIdFetchStmt.setInt(1, jarId);
 				descIdFetchStmt.setString(2, entryName);
-				rs = descIdFetchStmt.executeQuery();
-				if(!rs.next())
-					throw new SQLException(
-						"Failed to refetch row in sqlj.jar_entry");
 
-				int deployImageId = rs.getInt(1);
+				int deployImageId;
+				try ( ResultSet rs = descIdFetchStmt.executeQuery() )
+				{
+					if ( ! rs.next() )
+						throw new SQLException(
+							"Failed to refetch row in sqlj.jar_entry");
 
-				if ( descIdStoreStmt == null )
-					descIdStoreStmt = SQLUtils.getDefaultConnection()
-						.prepareStatement(
-							"INSERT INTO sqlj.jar_descriptor"
-								+ " (jarId, entryId, ordinal) VALUES"
-								+ " ( ?, ?, ? )");
+					deployImageId = rs.getInt(1);
+				}
+
 				descIdStoreStmt.setInt(1, jarId);
 				descIdStoreStmt.setInt(2, deployImageId);
 				descIdStoreStmt.setInt(3, ordinal);
@@ -490,13 +482,6 @@ public class Commands
 		{
 			throw new SQLException("I/O exception reading jar file: "
 				+ e.getMessage(), "58030", e);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(descIdStoreStmt);
-			SQLUtils.close(descIdFetchStmt);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -577,7 +562,7 @@ public class Commands
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
 	throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"INSERT INTO sqlj.typemap_entry(javaName, sqlName)" +
 				" VALUES(?,?)"))
@@ -615,7 +600,7 @@ public class Commands
 		requires="sqlj.tables")
 	public static void dropTypeMapping(String sqlTypeName) throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.typemap_entry " +
 				"WHERE sqlName OPERATOR(pg_catalog.=) ?"))
@@ -647,7 +632,7 @@ public class Commands
 	public static String getClassPath(Identifier.Simple schema)
 	throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT r.jarName" +
 				" FROM" +
@@ -747,7 +732,7 @@ public class Commands
 		AclId[] ownerRet = new AclId[1];
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)
-			throw new SQLException("No Jar named '" + jarName
+			throw new SQLException("No jar named '" + jarName
 					       + "' is known to the system", 
 					       "4600B");
 
@@ -759,21 +744,16 @@ public class Commands
 		if(undeploy)
 			deployRemove(jarId, jarName);
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.jar_repository " +
 				"WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
 			if(stmt.executeUpdate() != 1)
 				throw new SQLException(
 					"Jar repository update did not update 1 row");
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 		Loader.clearSchemaLoaders();
 	}
@@ -870,7 +850,7 @@ public class Commands
 			// valid jar
 			//
 			entries = new ArrayList<>();
-			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			try(PreparedStatement stmt = getDefaultConnection()
 				.prepareStatement(
 					"SELECT jarId FROM sqlj.jar_repository " +
 					"WHERE jarName OPERATOR(pg_catalog.=) ?"))
@@ -901,7 +881,7 @@ public class Commands
 
 		// Delete the old classpath
 		//
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.classpath_entry " +
 				"WHERE schemaName OPERATOR(pg_catalog.=) ?"))
@@ -915,7 +895,7 @@ public class Commands
 			// Insert the new path.
 			//
 			;
-			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			try(PreparedStatement stmt = getDefaultConnection()
 				.prepareStatement(
 					"INSERT INTO sqlj.classpath_entry("+
 					" schemaName, ordinal, jarId) VALUES(?, ?, ?)"))
@@ -1017,7 +997,7 @@ public class Commands
 		withJarInPath(jarName, false, () ->
 		{
 			for ( SQLDeploymentDescriptor dd : depDesc )
-				dd.install(SQLUtils.getDefaultConnection());
+				dd.install(getDefaultConnection());
 		});
 	}
 
@@ -1029,36 +1009,37 @@ public class Commands
 		withJarInPath(jarName, true, () ->
 		{
 			for ( int i = depDesc.length ; i --> 0 ; )
-				depDesc[i].remove(SQLUtils.getDefaultConnection());
+				depDesc[i].remove(getDefaultConnection());
 		});
 	}
 
 	private static SQLDeploymentDescriptor[] getDeploymentDescriptors(int jarId)
 	throws SQLException
 	{
-		ResultSet rs = null;
-		PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT e.entryImage"
 					+ " FROM sqlj.jar_descriptor d INNER JOIN sqlj.jar_entry e"
 					+ "   ON d.entryId OPERATOR(pg_catalog.=) e.entryId"
 					+ " WHERE d.jarId OPERATOR(pg_catalog.=) ?"
 					+ " ORDER BY d.ordinal");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
-			rs = stmt.executeQuery();
-			ArrayList<SQLDeploymentDescriptor> sdds = new ArrayList<>();
-			while(rs.next())
+			try ( ResultSet rs = stmt.executeQuery() )
 			{
-				ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));
-				// According to the SQLJ standard, this entry must be
-				// UTF8 encoded.
-				//
-				sdds.add( new SQLDeploymentDescriptor(
-					UTF_8.newDecoder().decode(bytes).toString()));
+				ArrayList<SQLDeploymentDescriptor> sdds = new ArrayList<>();
+				while ( rs.next() )
+				{
+					ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));
+					// According to the SQLJ standard, this entry must be
+					// UTF8 encoded.
+					//
+					sdds.add( new SQLDeploymentDescriptor(
+						UTF_8.newDecoder().decode(bytes).toString()));
+				}
+				return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 			}
-			return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 		}
 		catch(CharacterCodingException e)
 		{
@@ -1070,11 +1051,6 @@ public class Commands
 			throw new SQLSyntaxErrorException(String.format(
 				"%1$s at %2$s", e.getMessage(), e.getErrorOffset()),
 				"42601", e);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -1091,7 +1067,7 @@ public class Commands
 
 		AclId invoker = AclId.getOuterUser();
 
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT n.nspname, t.typname,"
 					+ " pg_catalog.pg_has_role(?, t.typowner, 'USAGE')"
@@ -1148,7 +1124,7 @@ public class Commands
 	private static int getJarId(String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT jarId, jarOwner FROM sqlj.jar_repository"+
 				" WHERE jarName OPERATOR(pg_catalog.=) ?"))
@@ -1167,7 +1143,7 @@ public class Commands
 	 */
 	private static Oid getSchemaId(Identifier.Simple schema) throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT oid FROM pg_catalog.pg_namespace " +
 				"WHERE nspname OPERATOR(pg_catalog.=) ?"))
@@ -1197,11 +1173,10 @@ public class Commands
 					       + "' already exists",
 					       "46002");
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
-			.prepareStatement(
-				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner) VALUES(?, ?, ?)");
-		try
+		try ( PreparedStatement stmt = getDefaultConnection().prepareStatement(
+			"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner)" +
+			" VALUES(?, ?, ?)");
+		)
 		{
 			stmt.setString(1, jarName);
 			stmt.setString(2, urlString);
@@ -1209,10 +1184,6 @@ public class Commands
 			if(stmt.executeUpdate() != 1)
 				throw new SQLException(
 					"Jar repository insert did not insert 1 row");
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 
 		AclId[] ownerRet = new AclId[1];
@@ -1260,13 +1231,12 @@ public class Commands
 		if(redeploy)
 			deployRemove(jarId, jarName);
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"UPDATE sqlj.jar_repository "
 				+ "SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL "
 				+ "WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setString(1, urlString);
 			stmt.setString(2, user.getName());
@@ -1275,22 +1245,15 @@ public class Commands
 				throw new SQLException(
 					"Jar repository update did not update 1 row");
 		}
-		finally
-		{
-			SQLUtils.close(stmt);
-		}
 
-		stmt = SQLUtils.getDefaultConnection().prepareStatement(
+		try ( PreparedStatement stmt = getDefaultConnection().prepareStatement(
 			"DELETE FROM sqlj.jar_entry WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
 			stmt.executeUpdate();
 		}
-		finally
-		{
-			SQLUtils.close(stmt);
-		}
+
 		if(image == null)
 			addClassImages(jarId, urlString);
 		else
@@ -1298,7 +1261,9 @@ public class Commands
 			InputStream imageStream = new ByteArrayInputStream(image);
 			addClassImages(jarId, imageStream, image.length);
 		}
+
 		Loader.clearSchemaLoaders();
+
 		if(!redeploy)
 			return;
 
