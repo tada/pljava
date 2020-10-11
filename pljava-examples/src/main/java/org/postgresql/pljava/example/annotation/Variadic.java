@@ -31,7 +31,8 @@ import org.postgresql.pljava.annotation.SQLType;
 	install = {
 		"CREATE FUNCTION javatest.javaformat(" +
 		"  format pg_catalog.text," +
-		"  VARIADIC args pg_catalog.anyarray DEFAULT CAST(ARRAY[] AS text[]))" +
+		"  VARIADIC args pg_catalog.anyarray" +
+		"  DEFAULT CAST(ARRAY[] AS pg_catalog.text[]))" +
 		" RETURNS pg_catalog.text" +
 		" RETURNS NULL ON NULL INPUT" +
 		" LANGUAGE java" +
@@ -60,7 +61,7 @@ import org.postgresql.pljava.annotation.SQLType;
 		"  END" +
 		" FROM" +
 		"  (SELECT" +
-		"    every(expect IS NOT DISTINCT FROM got)" +
+		"    pg_catalog.every(expect IS NOT DISTINCT FROM got)" +
 		"   FROM" +
 		"    (VALUES" +
 		"     (" +
@@ -70,7 +71,7 @@ import org.postgresql.pljava.annotation.SQLType;
 		"    ) AS t(expect, got)" +
 		"  ) AS s(ok)," +
 		"  (SELECT" +
-		"    every(expect IS NOT DISTINCT FROM got)" +
+		"    pg_catalog.every(expect IS NOT DISTINCT FROM got)" +
 		"   FROM" +
 		"    (VALUES" +
 		"     (14.0, javatest.sumOfSquares(1, 2, 3))," +
