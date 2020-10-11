@@ -159,7 +159,7 @@ public class Function
 
 		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
 		return
-			loadClass(Loader.getSchemaLoader(schema), className)
+			loadClass(Loader.getSchemaLoader(schema), className, false)
 				.asSubclass(SQLData.class);
 	}
 
@@ -170,7 +170,7 @@ public class Function
 	 * The return type is the last element of {@code jTypes}.
 	 */
 	private static MethodType buildSignature(
-		ClassLoader schemaLoader, String[] jTypes,
+		ClassLoader schemaLoader, String[] jTypes, boolean forValidator,
 		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -197,10 +197,10 @@ public class Function
 		Class<?>[] pTypes = new Class<?>[ rtIdx ];
 
 		for ( int i = 0 ; i < rtIdx ; ++ i )
-			pTypes[i] = loadClass(schemaLoader, jTypes[i]);
+			pTypes[i] = loadClass(schemaLoader, jTypes[i], forValidator);
 
 		Class<?> returnType =
-			getReturnSignature(schemaLoader, retJType,
+			getReturnSignature(schemaLoader, retJType, forValidator,
 				retTypeIsOutParameter, isMultiCall, altForm);
 
 		return methodType(returnType, pTypes);
@@ -220,7 +220,7 @@ public class Function
 	 * {@code ResultSetProvider} depending on {@code altForm}.
 	 */
 	private static Class<?> getReturnSignature(
-		ClassLoader schemaLoader, String retJType,
+		ClassLoader schemaLoader, String retJType, boolean forValidator,
 		boolean isComposite, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -228,7 +228,7 @@ public class Function
 		{
 			if ( isMultiCall )
 				return Iterator.class;
-			return loadClass(schemaLoader, retJType);
+			return loadClass(schemaLoader, retJType, forValidator);
 		}
 
 		/* The composite case */
@@ -273,12 +273,13 @@ public class Function
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
+		boolean forValidator,
 		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
 	throws SQLException
 	{
 		MethodType mt =
-			buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
-				isMultiCall, false); // first try altForm = false
+			buildSignature(schemaLoader, jTypes, forValidator,
+				retTypeIsOutParameter, isMultiCall, false); // try altForm false
 
 		ReflectiveOperationException ex1 = null;
 		try
@@ -292,7 +293,8 @@ public class Function
 
 		MethodType origMT = mt;
 		Class<?> altType = null;
-		Class<?> realRetType = loadClass(schemaLoader, jTypes[jTypes.length-1]);
+		Class<?> realRetType =
+			loadClass(schemaLoader, jTypes[jTypes.length-1], forValidator);
 
 		/* COPIED COMMENT:
 		 * One valid reason for not finding the method is when
@@ -318,8 +320,8 @@ public class Function
 		if ( null != altType )
 		{
 			jTypes[jTypes.length - 1] = altType.getCanonicalName();
-			mt = buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
-					isMultiCall, true); // this time altForm = true
+			mt = buildSignature(schemaLoader, jTypes, forValidator,
+				retTypeIsOutParameter, isMultiCall, true); // retry altForm true
 			try
 			{
 				MethodHandle h =
@@ -1290,7 +1292,7 @@ public class Function
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
 		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
-		Class<?> clazz = loadClass(schemaLoader, className);
+		Class<?> clazz = loadClass(schemaLoader, className, forValidator);
 
 		if ( isUDT )
 		{
@@ -1326,7 +1328,7 @@ public class Function
 
 		MethodHandle handle =
 			adaptHandle(
-				getMethodHandle(schemaLoader, clazz, methodName,
+				getMethodHandle(schemaLoader, clazz, methodName, forValidator,
 					resolvedTypes, retTypeIsOutParameter, isMultiCall)
 				.asFixedArity()
 			);
@@ -1592,9 +1594,12 @@ public class Function
 	 * in explicit signatures in the AS string. Just a bit of gymnastics to
 	 * turn that form of name into the right class, including for primitives,
 	 * void, and arrays.
+	 *
+	 * @param forValidator if true, force initialization of the loaded class, in
+	 * an effort to bring forward as many possible errors as can be.
 	 */
 	private static Class<?> loadClass(
-		ClassLoader schemaLoader, String className)
+		ClassLoader schemaLoader, String className, boolean forValidator)
 	throws SQLException
 	{
 		Matcher m = typeNameInAS.matcher(className);
@@ -1616,12 +1621,12 @@ public class Function
 		default:
 			try
 			{
-				c = schemaLoader.loadClass(className);
+				c = Class.forName(className, forValidator, schemaLoader);
 			}
-			catch ( ClassNotFoundException e )
+			catch ( ClassNotFoundException | LinkageError e )
 			{
 				throw new SQLNonTransientException(
-					"No such class: " + className, "46103", e);
+					"Resolving class " + className + ": " + e, "46103", e);
 			}
 		}
 
