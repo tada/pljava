@@ -1568,6 +1568,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String             type() { return _type; }
 		public String             name() { return _name; }
 		public String           schema() { return _schema; }
+		public boolean        variadic() { return _variadic; }
 		public OnNullInput onNullInput() { return _onNullInput; }
 		public Security       security() { return _security; }
 		public Effects         effects() { return _effects; }
@@ -1586,6 +1587,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String      _type;
 		public String      _name;
 		public String      _schema;
+		public boolean     _variadic;
 		public OnNullInput _onNullInput;
 		public Security    _security;
 		public Effects     _effects;
@@ -1736,6 +1738,15 @@ hunt:	for ( ExecutableElement ee : ees )
 			 */
 			resolveParameterAndReturnTypes();
 
+			if ( _variadic )
+			{
+				int last = parameterTypes.length - 1;
+				if ( 0 > last  ||  ! parameterTypes[last].isArray() )
+					msg( Kind.ERROR, func,
+						"VARIADIC function must have a last, non-output " +
+						"parameter that is an array");
+			}
+
 			recordImplicitTags();
 
 			recordExplicitTags(_provides, _requires);
@@ -1880,17 +1891,26 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		void appendParams( StringBuilder sb, boolean dflts)
 		{
-			sb.append(parameterInfo()
-				.map(
-					i ->
-					{
-						String name = null == i.st ? null : i.st.name();
-						if ( null == name )
-							name = i.ve.getSimpleName().toString();
-						return "\n\t" + name + " " + i.dt.toString(dflts);
-					})
-				.collect(joining(","))
-			);
+			int count = parameterTypes.length;
+			for ( ParameterInfo i
+				: (Iterable<ParameterInfo>)parameterInfo()::iterator )
+			{
+				-- count;
+
+				String name = null == i.st ? null : i.st.name();
+				if ( null == name )
+					name = i.ve.getSimpleName().toString();
+
+				sb.append("\n\t");
+
+				if ( _variadic  &&  0 == count )
+					sb.append("VARIADIC ");
+
+				sb.append(name).append(' ').append(i.dt.toString(dflts));
+
+				if ( 0 < count )
+					sb.append(',');
+			}
 		}
 
 		void appendAS( StringBuilder sb)
@@ -2067,6 +2087,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			_name = Identifier.Simple.fromJava(ui.name())
 				.concat("_", id.getSuffix()).toString();
 			_schema = ui.schema();
+			_variadic = false;
 			_cost = -1;
 			_rows = -1;
 			_onNullInput = OnNullInput.CALLED;
@@ -2121,6 +2142,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( explicit )
 				msg( Kind.ERROR, e,
 					"The type of a UDT function may not be changed");
+		}
+
+		public void setVariadic( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR, e,	"A UDT function is never variadic");
 		}
 
 		public void setRows( Object o, boolean explicit, Element e)

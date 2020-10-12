@@ -23,35 +23,6 @@ import static
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
-/*
- * This SQLAction declares a function that refers to Java's own String.format
- * method, which is variadic, and tests its behavior.
- *
- * Its presence in this file is an artifact of history: it isn't much related
- * to the functions otherwise defined here, but once had an ordering dependency
- * with one of them because of a bug in the type system.
- */
-@SQLAction(
-	install = {
-		"CREATE FUNCTION javatest.format(" +
-		"  format pg_catalog.text," +
-		"  VARIADIC args pg_catalog.text[])" +
-		" RETURNS pg_catalog.text" +
-		" LANGUAGE java" +
-		" AS 'java.lang.String=" +
-		"     java.lang.String.format(java.lang.String,java.lang.Object[])'",
-
-		"SELECT" +
-		"  CASE" +
-		"   WHEN result OPERATOR(pg_catalog.=) 'Hello, world'" +
-		"   THEN javatest.logmessage('INFO', 'variadic call ok')" +
-		"   ELSE javatest.logmessage('WARNING', 'variadic call ng')" +
-		"  END" +
-		" FROM" +
-		"  javatest.format('Hello, %s', 'world') AS result"
-	},
-	remove = "DROP FUNCTION javatest.format(pg_catalog.text,pg_catalog.text[])"
-)
 /**
  * Provides example methods to illustrate the polymorphic types {@code any},
  * {@code anyarray}, and {@code anyelement}.
