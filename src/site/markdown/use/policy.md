@@ -304,11 +304,8 @@ installation by declaring an SQL function that directly calls
 `java.lang.System.getProperty`.
 
 Such declarations are allowed, but will execute as if called from a protection
-domain with no permissions other than those the policy grants unconditionally.
-If the target method is in a Java runtime class that Java's bootstrap loader
-loads, it will also not be able to exercise permissions granted by principal
-(because a bootstrap class has no protection domain with which the per-principal
-permissions could be combined).
+domain with the same `Principal`s, if any, that PL/Java would normally supply,
+and no other permissions but those the policy grants unconditionally.
 
 _Note: many of the how-to articles that can be found on the
 web happen to demonstrate their `System.getProperty`-calling example functions

@@ -1039,34 +1039,52 @@ public class Function
 		}
 
 		/*
-		 * The lid is a "nobody special" AccessControlContext: it isn't allowed
-		 * any permission that isn't granted by the Policy to everybody.
-		 *
-		 * A null CodeSource is too strict; if your code source is null, you are
-		 * somebody special in a bad way: no dynamic permissions for you! At
-		 * least according to the default policy provider.
-		 *
-		 * So, to achieve mere "nobody special"-ness requires a real CodeSource
-		 * with null URL and null code signers.
-		 *
-		 * The ProtectionDomain constructor allows the permissions parameter
-		 * to be null, and says so in the javadocs. It seems to allow
-		 * the principals parameter to be null too, but doesn't say that, so why
-		 * take a chance?
-		 *
 		 * An empty ProtectionDomain array is all it takes to make s_noLid.
 		 * (As far as doPrivileged is concerned, a null AccessControlContext has
 		 * the same effect, but one can't attach a DomainCombiner to that.)
+		 *
+		 * A lid is a bit more work, but there's a method for that.
 		 */
-		s_lid =
-			new AccessControlContext(new ProtectionDomain[] {
-				new ProtectionDomain(
-					new CodeSource(null, (CodeSigner[])null),
-					null, ClassLoader.getSystemClassLoader(),
-					new Principal[0])
-				});
-		s_noLid =
-			new AccessControlContext(new ProtectionDomain[] {});
+		s_noLid = new AccessControlContext(new ProtectionDomain[] {});
+		s_lid = lidWithPrincipals(new Principal[0]);
+	}
+
+	/**
+	 * Construct a 'lid' {@code AccessControlContext}, optionally with
+	 * associated {@code Principal}s.
+	 *<p>
+	 * A 'lid' is a "nobody special" {@code AccessControlContext}: it isn't
+	 * allowed any permission that isn't granted by the Policy to everybody,
+	 * unless it also has a nonempty array of principals. With an empty array,
+	 * there need be only one such lid, so it can be kept in a static.
+	 *<p>
+	 * This method also allows creating a lid with associated principals,
+	 * because a {@code SubjectDomainCombiner} does not combine its subject into
+	 * the domains of its <em>inherited</em> {@code AccessControlContext}, and
+	 * that strains the principle of least astonishment if the code is being
+	 * invoked through an SQL declaration that one expects would have a
+	 * {@code PLPrincipal} associated.
+	 *<p>
+	 * A null CodeSource is too strict; if your code source is null, you are
+	 * somebody special in a bad way: no dynamic permissions for you! At
+	 * least according to the default policy provider.
+	 *<p>
+	 * So, to achieve mere "nobody special"-ness requires a real CodeSource
+	 * with null URL and null code signers.
+	 *<p>
+	 * The ProtectionDomain constructor allows the permissions parameter
+	 * to be null, and says so in the javadocs. It seems to allow
+	 * the principals parameter to be null too, but doesn't say that, so an
+	 * array will always be expected here.
+	 */
+	private static AccessControlContext lidWithPrincipals(Principal[] ps)
+	{
+		return new AccessControlContext(new ProtectionDomain[] {
+			new ProtectionDomain(
+				new CodeSource(null, (CodeSigner[])null),
+				null, ClassLoader.getSystemClassLoader(),
+				Objects.requireNonNull(ps))
+			});
 	}
 
 	/**
@@ -1366,7 +1384,9 @@ public class Function
 
 		AccessControlContext acc = clazz.getClassLoader() instanceof Loader
 			? s_noLid // policy already applies appropriate permissions
-			: s_lid;  // put a lid on permissions if calling JRE directly
+			: p.isEmpty() // put a lid on permissions if calling JRE directly
+			? s_lid
+			: lidWithPrincipals(p.toArray(new Principal[1]));
 
 		/*
 		 * A cache to avoid the following machinations might be good.
