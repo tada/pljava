@@ -65,10 +65,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import static java.util.regex.Pattern.compile;
 
+import javax.security.auth.Subject;
+import javax.security.auth.SubjectDomainCombiner;
+
+import org.postgresql.pljava.PLPrincipal;
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
@@ -77,6 +82,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.EntryPoints;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
 import org.postgresql.pljava.management.Commands;
@@ -596,6 +602,14 @@ public class Function
 	 */
 	private static final AccessControlContext s_lid;
 
+	/**
+	 * An {@code AccessControlContext} representing "no other restrictions":
+	 * it will be used to build the initial context for any {@code Invocable}
+	 * whose target is in a PL/Java-managed jar, so that it will enjoy whatever
+	 * permissions the policy grants to its jar directly.
+	 */
+	private static final AccessControlContext s_noLid;
+
 	/*
 	 * Static areas for passing reference and primitive parameters. A Java
 	 * method can have no more than 255 parameters, so each area gets the
@@ -1038,7 +1052,11 @@ public class Function
 		 * The ProtectionDomain constructor allows the permissions parameter
 		 * to be null, and says so in the javadocs. It seems to allow
 		 * the principals parameter to be null too, but doesn't say that, so why
-		 * take a chance....
+		 * take a chance?
+		 *
+		 * An empty ProtectionDomain array is all it takes to make s_noLid.
+		 * (As far as doPrivileged is concerned, a null AccessControlContext has
+		 * the same effect, but one can't attach a DomainCombiner to that.)
 		 */
 		s_lid =
 			new AccessControlContext(new ProtectionDomain[] {
@@ -1047,6 +1065,8 @@ public class Function
 					null, ClassLoader.getSystemClassLoader(),
 					new Principal[0])
 				});
+		s_noLid =
+			new AccessControlContext(new ProtectionDomain[] {});
 	}
 
 	/**
@@ -1092,10 +1112,12 @@ public class Function
 	 * The access control context of the {@code Invocable} returned here is used
 	 * at the corresponding entry point; the payload is not.
 	 */
-	private static Invocable udtWriteHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtWriteHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
-		return invocable(null, accessControlContextFor(clazz));
+		return invocable(
+			null, accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -1105,10 +1127,12 @@ public class Function
 	 * The access control context of the {@code Invocable} returned here is used
 	 * at the corresponding entry point; the payload is not.
 	 */
-	private static Invocable udtToStringHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtToStringHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
-		return invocable(null, accessControlContextFor(clazz));
+		return invocable(
+			null, accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -1125,7 +1149,8 @@ public class Function
 	 * assigned here will be in effect for both the constructor and the
 	 * {@code readSQL} call.
 	 */
-	private static Invocable udtReadHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtReadHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
@@ -1144,7 +1169,8 @@ public class Function
 				" must have a no-argument public constructor", "38000", e);
 		}
 
-		return invocable(ctor, accessControlContextFor(clazz));
+		return invocable(
+			ctor, accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -1154,22 +1180,17 @@ public class Function
 	 * a NUL-terminated storage form, so it gets its own dedicated entry point
 	 * and does not use the static parameter area.
 	 */
-	private static Invocable udtParseHandle(Class<? extends SQLData> clazz)
+	private static Invocable udtParseHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
+		MethodHandle mh;
 
 		try
 		{
-			MethodHandle mh =
-				l.findStatic(clazz, "parse",
-					methodType(clazz, String.class, String.class));
-
-			return
-				invocable(
-					mh.asType(mh.type().changeReturnType(SQLData.class)),
-					accessControlContextFor(clazz)
-				);
+			mh = l.findStatic(clazz, "parse",
+				methodType(clazz, String.class, String.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -1179,6 +1200,10 @@ public class Function
 				" must have a public static parse(String,String) method",
 				"38000", e);
 		}
+
+		return invocable(
+			mh.asType(mh.type().changeReturnType(SQLData.class)),
+			accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -1189,7 +1214,8 @@ public class Function
 	 */
 	public static Invocable create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
-		boolean calledAsTrigger, boolean forValidator, boolean checkBody)
+		boolean trusted, boolean calledAsTrigger,
+		boolean forValidator, boolean checkBody)
 	throws SQLException
 	{
 		Matcher info = parse(procTup);
@@ -1200,7 +1226,7 @@ public class Function
 		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
 
 		return init(wrappedPtr, info, procTup, schema, calledAsTrigger,
-				forValidator);
+				forValidator, langName, trusted);
 	}
 
 	/**
@@ -1229,7 +1255,8 @@ public class Function
 	 */
 	private static Invocable init(
 		long wrappedPtr, Matcher info, ResultSet procTup,
-		Identifier.Simple schema, boolean calledAsTrigger, boolean forValidator)
+		Identifier.Simple schema, boolean calledAsTrigger, boolean forValidator,
+		String language, boolean trusted)
 	throws SQLException
 	{
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
@@ -1293,7 +1320,8 @@ public class Function
 		else
 			handle = dropArguments(handle, 0, AccessControlContext.class);
 
-		return invocable(handle, accessControlContextFor(clazz));
+		return invocable(handle,
+			accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -1324,16 +1352,42 @@ public class Function
 	 * PL/Java's own {@code Commands} class; they get a lid. It is reasonable to
 	 * ask them to use {@code doPrivileged} when appropriate.
 	 */
-	private static AccessControlContext accessControlContextFor(Class<?> clazz)
+	private static AccessControlContext accessControlContextFor(
+		Class<?> clazz, String language, boolean trusted)
 	{
-		if ( clazz.getClassLoader() instanceof Loader )
-			return null; // policy already applies appropriate permissions
+		Set<Principal> p =
+			(null == language)
+			? Set.of()
+			: Set.of(
+				trusted
+				? new PLPrincipal.Sandboxed(language)
+				: new PLPrincipal.Unsandboxed(language)
+			);
 
-		return s_lid; // put a lid on permissions if calling JRE directly
+		AccessControlContext acc = clazz.getClassLoader() instanceof Loader
+			? s_noLid // policy already applies appropriate permissions
+			: s_lid;  // put a lid on permissions if calling JRE directly
+
+		/*
+		 * A cache to avoid the following machinations might be good.
+		 */
+		return doPrivileged(() ->
+			new AccessControlContext(acc, new SubjectDomainCombiner(
+				new Subject(true, p, Set.of(), Set.of()))));
 	}
 
 	/**
 	 * The initialization specific to a UDT function.
+	 */
+	/*
+	 * A MappedUDT will not have PL/Java I/O functions declared in SQL,
+	 * and therefore will never reach this method. Ergo, this is handling a
+	 * BaseUDT, which must have all four functions, not just the one
+	 * happening to be looked up at this instant. Rather than looking up one
+	 * handle here and leaving the C code to find the rest anyway, simply let
+	 * the C code look up all four; Function.c already contains logic for doing
+	 * that, which it has to have in case the UDT is first encountered by the
+	 * Type machinery rather than in an explicit function call.
 	 */
 	private static void setupUDT(
 		long wrappedPtr, Matcher info, ResultSet procTup,
@@ -1344,34 +1398,23 @@ public class Function
 		String udtFunc = info.group("udtfun");
 		int udtInitial = Character.toLowerCase(udtFunc.charAt(0));
 		Oid udtId;
+
 		switch ( udtInitial )
 		{
 		case 'i':
 		case 'r':
 			udtId = (Oid)procTup.getObject("prorettype");
 			break;
-		case 'o':
 		case 's':
+		case 'o':
 			udtId = ((Oid[])procTup.getObject("proargtypes"))[0];
 			break;
 		default:
 			throw new SQLException("internal error in PL/Java UDT parsing");
 		}
 
-		Invocable readMH = udtReadHandle(clazz);
-		Invocable writeMH = udtWriteHandle(clazz);
-		/*
-		 * A Base UDT will have an 'i' (parse) and an 'o' (toString) function
-		 * to register. We'll look them both up here when resolving the 'i'
-		 * case, and they'll be registered at one time, saving upcalls if the
-		 * 'i' case is first to be resolved.
-		 */
-		Invocable parseMH    = 'i' == udtInitial? udtParseHandle(clazz)   :null;
-		Invocable toStringMH = 'i' == udtInitial? udtToStringHandle(clazz):null;
-
 		doInPG(() -> _storeToUDT(wrappedPtr, schemaLoader,
-			clazz, readOnly, udtInitial, udtId.intValue(),
-			parseMH, readMH, writeMH, toStringMH));
+			clazz, readOnly, udtInitial, udtId.intValue()));
 	}
 
 	/**
@@ -1856,9 +1899,7 @@ public class Function
 	private static native void _storeToUDT(
 		long wrappedPtr, ClassLoader schemaLoader,
 		Class<? extends SQLData> clazz,
-		boolean readOnly, int funcInitial, int udtOid,
-		Invocable readMH, Invocable parseMH,
-		Invocable writeMH, Invocable toStringMH);
+		boolean readOnly, int funcInitial, int udtOid);
 
 	private static native void _reconcileTypes(
 		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);

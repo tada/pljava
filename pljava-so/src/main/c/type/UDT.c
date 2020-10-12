@@ -426,7 +426,8 @@ bool UDT_isScalar(UDT udt)
 	return ! udt->hasTupleDesc;
 }
 
-/* Make this datatype available to the postgres system.
+/* Make this datatype available to the postgres system. The four ...MH arguments
+ * are passed to JNI_deleteLocalRef after being saved as global references.
  */
 UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH,
@@ -456,6 +457,10 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 				errcode(ERRCODE_CANNOT_COERCE),
 				errmsg("Attempt to register UDT with Oid %d failed. Oid appoints a non UDT type", typeId)));
 		}
+		JNI_deleteLocalRef(parseMH);
+		JNI_deleteLocalRef(readMH);
+		JNI_deleteLocalRef(writeMH);
+		JNI_deleteLocalRef(toStringMH);
 		return (UDT)existing;
 	}
 
@@ -526,10 +531,10 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 		/* The parse method is a static method on the class with the signature
 		 * (Ljava/lang/String;Ljava/lang/String;)<classSignature>
 		 */
-		if ( NULL == parseMH )
-			parseMH = pljava_Function_udtParseHandle(clazz);
-		if ( NULL == toStringMH )
-			toStringMH = pljava_Function_udtToStringHandle(clazz);
+		if ( NULL == parseMH  ||  NULL == toStringMH )
+			elog(ERROR,
+				"PL/Java UDT with oid %u registered without both i/o handles",
+				typeId);
 		udt->parse = JNI_newGlobalRef(parseMH);
 		udt->toString = JNI_newGlobalRef(toStringMH);
 		JNI_deleteLocalRef(parseMH);
@@ -542,10 +547,10 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 	}
 
 	udt->hasTupleDesc = hasTupleDesc;
-	if ( NULL == readMH )
-		readMH = pljava_Function_udtReadHandle(clazz);
-	if ( NULL == writeMH )
-		writeMH = pljava_Function_udtWriteHandle(clazz);
+	if ( NULL == readMH  ||  NULL == writeMH )
+		elog(ERROR,
+			"PL/Java UDT with oid %u registered without both r/w handles",
+			typeId);
 	udt->readSQL = JNI_newGlobalRef(readMH);
 	udt->writeSQL = JNI_newGlobalRef(writeMH);
 	JNI_deleteLocalRef(readMH);

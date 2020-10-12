@@ -33,6 +33,8 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 		"createClassLoader";
 	permission java.util.logging.LoggingPermission
 		"control";
+	permission java.security.SecurityPermission
+		"createAccessControlContext";
 
 	// This gives the PL/Java implementation code permission to read
 	// any file, which it only exercises on behalf of sqlj.install_jar()
@@ -51,4 +53,24 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 grant codebase "sqlj:examples" {
 	// the PreJSR310 test involves setting the time zone
 	permission java.util.PropertyPermission "user.timezone", "write";
+};
+
+// This grant defines the mapping onto Java of PostgreSQL's "untrusted language"
+// category. When PL/Java executes a function whose SQL declaration names a
+// language that was declared without the TRUSTED keyword, it will have these
+// permissions (in addition to whatever others might be granted to all code, or
+// to its specific jar, etc.).
+//
+grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed * {
+	permission java.io.FilePermission
+		"<<ALL FILES>>", "read,write,delete,readlink";
+};
+
+// This grant defines the mapping onto Java of PostgreSQL's "trusted language"
+// category. When PL/Java executes a function whose SQL declaration names a
+// language that was declared WITH the TRUSTED keyword, it will have these
+// permissions (in addition to whatever others might be granted to all code, or
+// to its specific jar, etc.).
+//
+grant principal org.postgresql.pljava.PLPrincipal$Sandboxed * {
 };

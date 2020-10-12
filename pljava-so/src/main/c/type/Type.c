@@ -675,18 +675,33 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	if(typeMap != 0)
 	{
 		jobject joid      = Oid_create(typeId);
-		jclass  typeClass = (jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
+		jclass  typeClass =
+			(jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
 
 		JNI_deleteLocalRef(joid);
 		if(typeClass != 0)
 		{
-			TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+			/*
+			 * We have found a MappedUDT. It doesn't have SQL-declared I/O
+			 * functions, so we need to look up only the read and write handles,
+			 * and there will be no PLPrincipal to associate them with,
+			 * indicated by passing NULL as the language name.
+			 */
+			jobject readMH =
+				pljava_Function_udtReadHandle(typeClass, NULL, true);
+			jobject writeMH =
+				pljava_Function_udtWriteHandle(typeClass, NULL, true);
+			TupleDesc tupleDesc =
+				lookup_rowtype_tupdesc_noerror(typeId, -1, true);
 			bool hasTupleDesc = NULL != tupleDesc;
 			if ( hasTupleDesc )
 				ReleaseTupleDesc(tupleDesc);
 			type = (Type)UDT_registerUDT(
 				typeClass, typeId, typeStruct, hasTupleDesc, false,
-				NULL, NULL, NULL, NULL);
+				NULL, readMH, writeMH, NULL);
+			/*
+			 * UDT_registerUDT calls JNI_deleteLocalRef on readMH and writeMH.
+			 */
 			JNI_deleteLocalRef(typeClass);
 			goto finally;
 		}
@@ -694,7 +709,8 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	/* Composite and record types will not have a TypeObtainer registered
 	 */
-	if(typeStruct->typtype == 'c' || (typeStruct->typtype == 'p' && typeId == RECORDOID))
+	if(typeStruct->typtype == 'c'
+		|| (typeStruct->typtype == 'p' && typeId == RECORDOID))
 	{
 		type = Composite_obtain(typeId);
 		goto finally;
@@ -703,11 +719,15 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	ce = (CacheEntry)HashMap_getByOid(s_obtainerByOid, typeId);
 	if(ce == 0)
 	{
-		type = Function_checkTypeUDT(typeId, typeStruct);
+		/*
+		 * Perhaps we have found a BaseUDT. If so, this check will register and
+		 * return it.
+		 */
+		type = Function_checkTypeBaseUDT(typeId, typeStruct);
 		if ( 0 != type )
 			goto finally;
 		/*
-		 * Default to String and standard textin/textout coersion.
+		 * Default to String and standard textin/textout coercion.
 		 * Note: if the AS spec includes a Java signature, and the corresponding
 		 * Java type is not String, that will trigger a call to
 		 * Type_fromJavaType to see if a mapping is registered that way. If not,

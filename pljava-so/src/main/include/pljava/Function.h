@@ -55,9 +55,15 @@ extern void Function_clearFunctionCache(void);
  * meaning.
  */
 extern Function Function_getFunction(
-	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody);
+	Oid funcOid, bool trusted, bool forTrigger,
+	bool forValidator, bool checkBody);
 
-extern Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct);
+/*
+ * Determine whether the type represented by typeId is declared as a
+ * "Java-based scalar" a/k/a BaseUDT and, if so, return a freshly-registered
+ * UDT Type for it; otherwise return NULL.
+ */
+extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
  * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
@@ -127,10 +133,14 @@ extern jobject pljava_Function_udtReadInvoke(
 extern jobject pljava_Function_udtParseInvoke(
 	jobject invocable, jstring stringRep, jstring typeName);
 
-extern jobject pljava_Function_udtWriteHandle(jclass clazz);
-extern jobject pljava_Function_udtToStringHandle(jclass clazz);
-extern jobject pljava_Function_udtReadHandle(jclass clazz);
-extern jobject pljava_Function_udtParseHandle(jclass clazz);
+extern jobject pljava_Function_udtWriteHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtToStringHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtReadHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtParseHandle(
+	jclass clazz, char *langName, bool trusted);
 
 /*
  * Returns the Type Map that is associated with the function

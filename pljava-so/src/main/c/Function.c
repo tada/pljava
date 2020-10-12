@@ -212,10 +212,6 @@ void Function_initialize(void)
 		{
 		"_storeToUDT",
 		"(JLjava/lang/ClassLoader;Ljava/lang/Class;ZII"
-		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
-		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
-		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
-		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;"
 		")V",
 		Java_org_postgresql_pljava_internal_Function__1storeToUDT
 		},
@@ -249,7 +245,7 @@ void Function_initialize(void)
 	s_Function_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/Function"));
 	s_Function_create = PgObject_getStaticJavaMethod(s_Function_class, "create",
-		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;ZZZ)"
+		"(JLjava/sql/ResultSet;Ljava/lang/String;Ljava/lang/String;ZZZZ)"
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_getClassIfUDT = PgObject_getStaticJavaMethod(s_Function_class,
 		"getClassIfUDT",
@@ -289,17 +285,17 @@ void Function_initialize(void)
 		"Ljava/lang/String;)Ljava/sql/SQLData;");
 
 	s_Function_udtReadHandle = PgObject_getStaticJavaMethod(s_Function_class,
-		"udtReadHandle", "(Ljava/lang/Class;)"
+		"udtReadHandle", "(Ljava/lang/Class;Ljava/lang/String;Z)"
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_udtParseHandle = PgObject_getStaticJavaMethod(s_Function_class,
-		"udtParseHandle", "(Ljava/lang/Class;)"
+		"udtParseHandle", "(Ljava/lang/Class;Ljava/lang/String;Z)"
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_udtWriteHandle = PgObject_getStaticJavaMethod(s_Function_class,
-		"udtWriteHandle", "(Ljava/lang/Class;)"
+		"udtWriteHandle", "(Ljava/lang/Class;Ljava/lang/String;Z)"
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 	s_Function_udtToStringHandle =
 		PgObject_getStaticJavaMethod(s_Function_class,
-		"udtToStringHandle", "(Ljava/lang/Class;)"
+		"udtToStringHandle", "(Ljava/lang/Class;Ljava/lang/String;Z)"
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
@@ -484,28 +480,45 @@ jobject pljava_Function_udtParseInvoke(
 		s_EntryPoints_udtParseInvoke, parseInvocable, stringRep, typeName);
 }
 
-jobject pljava_Function_udtReadHandle(jclass clazz)
+static jobject obtainUDTHandle(
+	jmethodID which, jclass clazz, char *langName, bool trusted);
+
+jobject pljava_Function_udtReadHandle(
+	jclass clazz, char *langName, bool trusted)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtReadHandle, clazz);
+	return obtainUDTHandle(
+		s_Function_udtReadHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtParseHandle(jclass clazz)
+jobject pljava_Function_udtParseHandle(
+	jclass clazz, char *langName, bool trusted)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtParseHandle, clazz);
+	return obtainUDTHandle(
+		s_Function_udtParseHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtWriteHandle(jclass clazz)
+jobject pljava_Function_udtWriteHandle(
+	jclass clazz, char *langName, bool trusted)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtWriteHandle, clazz);
+	return obtainUDTHandle(
+		s_Function_udtWriteHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtToStringHandle(jclass clazz)
+jobject pljava_Function_udtToStringHandle(
+	jclass clazz, char *langName, bool trusted)
 {
-	return JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_udtToStringHandle, clazz);
+	return obtainUDTHandle(
+		s_Function_udtToStringHandle, clazz, langName, trusted);
+}
+
+static jobject obtainUDTHandle(
+	jmethodID which, jclass clazz, char *langName, bool trusted)
+{
+	jstring jname = String_createJavaStringFromNTS(langName);
+	jobject result = JNI_callStaticObjectMethod(s_Function_class,
+		which, clazz, jname, trusted ? JNI_TRUE : JNI_FALSE);
+	JNI_deleteLocalRef(jname);
+	return result;
 }
 
 static jstring getSchemaName(int namespaceOid)
@@ -517,46 +530,102 @@ static jstring getSchemaName(int namespaceOid)
 	return schemaName;
 }
 
-Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct)
+/*
+ * This checks specifically for a "Java-based scalar" a/k/a BaseUDT,
+ * and will call UDT_registerUDT accordingly if it is.
+ */
+Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 {
 	HeapTuple procTup;
 	Datum d;
 	Form_pg_proc procStruct;
 	Type t = NULL;
 	jstring schemaName;
-	jclass clazz;
+	jclass clazz = NULL;
+	jclass t_clazz = NULL;
 
-	if (   ! InstallHelper_isPLJavaFunction(typeStruct->typinput)
-		|| ! InstallHelper_isPLJavaFunction(typeStruct->typoutput)
-		|| ! InstallHelper_isPLJavaFunction(typeStruct->typreceive)
-		|| ! InstallHelper_isPLJavaFunction(typeStruct->typsend) )
+	Oid procId[4] =
+	{
+		typeStruct->typinput, typeStruct->typreceive,
+		typeStruct->typsend,  typeStruct->typoutput
+	};
+	jobject (*getter[4])(jclass, char *, bool) =
+	{
+		pljava_Function_udtParseHandle, pljava_Function_udtReadHandle,
+		pljava_Function_udtWriteHandle, pljava_Function_udtToStringHandle
+	};
+	char *langName[4] = {};
+	bool trusted[4];
+	jobject handle[4];
+	int i;
+
+	for ( i = 0; i < 4; ++ i )
+	{
+		if ( ! InstallHelper_isPLJavaFunction(
+				procId[i], &langName[i], &trusted[i]) )
+			break;
+	}
+
+	if ( i < 4 )
+	{
+		for ( ; i >= 0 ; -- i )
+			if ( NULL != langName[i] )
+				pfree(langName[i]);
 		return NULL;
+	}
 
-	/* typinput as good as any, all four had better be in same class */
-	procTup = PgObject_getValidTuple(PROCOID, typeStruct->typinput, "function");
-
-	procStruct = (Form_pg_proc)GETSTRUCT(procTup);
-	schemaName = getSchemaName(procStruct->pronamespace);
-
-	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
-
-	clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
-		s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
-		schemaName);
-
-	pfree((void *)d);
-	JNI_deleteLocalRef(schemaName);
-	ReleaseSysCache(procTup);
+	for ( i = 0; i < 4; ++ i )
+	{
+		procTup = PgObject_getValidTuple(PROCOID, procId[i], "function");
+		procStruct = (Form_pg_proc)GETSTRUCT(procTup);
+		schemaName = getSchemaName(procStruct->pronamespace);
+		d = heap_copy_tuple_as_datum(
+			procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+		t_clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
+			s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
+			schemaName);
+		pfree((void *)d);
+		JNI_deleteLocalRef(schemaName);
+		ReleaseSysCache(procTup);
+		if ( 0 == i )
+			clazz = t_clazz;
+		else
+		{
+			if ( JNI_FALSE == JNI_isSameObject(clazz, t_clazz) )
+				goto classMismatch;
+			JNI_deleteLocalRef(t_clazz);
+		}
+		handle[i] = (getter[i])(clazz, langName[i], trusted[i]);
+	}
 
 	if ( NULL != clazz )
 		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true,
-			NULL, NULL, NULL, NULL);
+			handle[0], handle[1], handle[2], handle[3]);
+	/*
+	 * UDT_registerUDT will already have called JNI_deleteLocalRef on the
+	 * four handles.
+	 */
+	JNI_deleteLocalRef(clazz);
+	for ( i = 0; i < 4; ++ i )
+		pfree(langName[i]);
 
 	return t;
+
+classMismatch:
+	while ( i --> 0 )
+		JNI_deleteLocalRef(handle[i]);
+	for ( i = 0; i < 4; ++ i )
+		pfree(langName[i]);
+	JNI_deleteLocalRef(clazz);
+	JNI_deleteLocalRef(t_clazz);
+	ereport(ERROR, (errmsg(
+		"PL/Java UDT with oid %u declares input/output/send/recv functions "
+		"in more than one class", typeId)));
 }
 
 static Function Function_create(
-	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
+	Oid funcOid, bool trusted, bool forTrigger,
+	bool forValidator, bool checkBody)
 {
 	Function self;
 	HeapTuple procTup =
@@ -566,10 +635,17 @@ static Function Function_create(
 		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
 	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
 	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
+	bool ltrust = lngStruct->lanpltrusted;
 	jstring schemaName;
 	Ptr2Long p2l;
 	Datum d;
 	jobject invocable;
+
+	if ( trusted != ltrust )
+		elog(ERROR,
+			"function with oid %u invoked through wrong call handler "
+			"for %strusted language %s", funcOid, ltrust ? "" : "un",
+			NameStr(lngStruct->lanname));
 
 	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
@@ -586,6 +662,7 @@ static Function Function_create(
 			JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
 			p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
 			schemaName,
+			trusted ? JNI_TRUE : JNI_FALSE,
 			forTrigger ? JNI_TRUE : JNI_FALSE,
 			forValidator ? JNI_TRUE : JNI_FALSE,
 			checkBody ? JNI_TRUE : JNI_FALSE);
@@ -654,14 +731,16 @@ static Function Function_create(
  * use the result.
  */
 Function Function_getFunction(
-	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
+	Oid funcOid, bool trusted, bool forTrigger,
+	bool forValidator, bool checkBody)
 {
 	Function func =
 		forValidator ? NULL : (Function)HashMap_getByOid(s_funcMap, funcOid);
 
 	if ( NULL == func )
 	{
-		func = Function_create(funcOid, forTrigger, forValidator, checkBody);
+		func = Function_create(
+			funcOid, trusted, forTrigger, forValidator, checkBody);
 		if ( NULL != func )
 			HashMap_putByOid(s_funcMap, funcOid, func);
 	}
@@ -1068,13 +1147,12 @@ JNIEXPORT jboolean JNICALL
 /*
  * Class:     org_postgresql_pljava_internal_Function
  * Method:    _storeToUDT
- * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZIILorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;Lorg/postgresql/pljava/internal/EntryPoints$Invocable;)V
+ * Signature: (JLjava/lang/ClassLoader;Ljava/lang/Class;ZII)V
  */
 JNIEXPORT void JNICALL
 	Java_org_postgresql_pljava_internal_Function__1storeToUDT(
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
-	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId,
-	jobject parseMH, jobject readMH, jobject writeMH, jobject toStringMH)
+	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId)
 {
 	Ptr2Long p2l;
 	Function self;
@@ -1106,9 +1184,15 @@ JNIEXPORT void JNICALL
 			self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
 			self->clazz = JNI_newGlobalRef(clazz);
 
-			self->func.udt.udt =
-				UDT_registerUDT(self->clazz, udtId, pgType, 0, true,
-					parseMH, readMH, writeMH, toStringMH);
+			/*
+			 * Only a BaseUDT has SQL-declared PL/Java I/O functions, so only
+			 * a BaseUDT can arrive at this code. Its four I/O functions are
+			 * most easily looked up by Function_checkTypeBaseUDT, which has to
+			 * exist separately anyway in case the UDT is first encountered by
+			 * the Type machinery instead of an explicit function invocation.
+			 */
+			self->func.udt.udt = (UDT)
+				Function_checkTypeBaseUDT((Oid)udtId, pgType);
 
 			switch ( funcInitial )
 			{

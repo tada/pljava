@@ -1783,7 +1783,7 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	PG_TRY();
 	{
 		Function function =
-			Function_getFunction(funcoid, forTrigger, false, true);
+			Function_getFunction(funcoid, trusted, forTrigger, false, true);
 		if(forTrigger)
 		{
 			/* Called as a trigger procedure
@@ -1841,7 +1841,7 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	 * we decide we don't like this function, which would make the Oid we just
 	 * stashed for it invalid, and frustrate getting the load path later.
 	 */
-	if ( ! InstallHelper_isPLJavaFunction(funcoid) )
+	if ( ! InstallHelper_isPLJavaFunction(funcoid, NULL, NULL) )
 		elog(ERROR, "unexpected error validating PL/Java function");
 
 
@@ -1863,7 +1863,8 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		Function_getFunction(funcoid, false, true, check_function_bodies);
+		Function_getFunction(
+			funcoid, trusted, false, true, check_function_bodies);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
