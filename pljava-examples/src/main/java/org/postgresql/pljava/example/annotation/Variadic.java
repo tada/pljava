@@ -21,14 +21,24 @@ import static
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
-/*
- * This SQLAction declares a function that refers to Java's own String.format
- * method, which is variadic, and tests its behavior, as well as the locally-
- * defined sumOfSquares and sumOfSquaresBoxed functions below.
+/**
+ * Provides example methods to illustrate variadic functions.
+ *<p>
+ * The key is the {@code @Function} annotation declaring the function variadic
+ * to PostgreSQL. The Java method parameter is declared as an ordinary array,
+ * not with Java's {@code ...} syntax; in fact, that would be impossible for a
+ * function with a composite return type (where the Java signature would have to
+ * include a {@code ResultSet} parameter after the variadic input parameter).
  */
 @SQLAction(
 	requires = { "sumOfSquares", "sumOfSquaresBoxed" },
 	install = {
+		/*
+		 * In addition to the two sumOfSquares functions that are defined in
+		 * this class using annotations, emit some direct SQL to declare a
+		 * javaformat function that refers directly to java.lang.String.format,
+		 * which is a function declared variadic in Java.
+		 */
 		"CREATE FUNCTION javatest.javaformat(" +
 		"  format pg_catalog.text," +
 		"  VARIADIC args pg_catalog.anyarray" +
@@ -53,6 +63,9 @@ import org.postgresql.pljava.annotation.SQLType;
 		"supplied; to allow calls that don''t pass any, give the variadic " +
 		"parameter an empty-array default, as done here.'",
 
+		/*
+		 * Test a bunch of variadic calls.
+		 */
 		"SELECT" +
 		"  CASE" +
 		"   WHEN s.ok AND d.ok" +
@@ -85,16 +98,9 @@ import org.postgresql.pljava.annotation.SQLType;
 
 	remove = "DROP FUNCTION javatest.javaformat(pg_catalog.text,anyarray)"
 )
-/**
- * Provides example methods to illustrate variadic functions.
- *<p>
- * The key is the {@code @Function} annotation declaring the function variadic
- * to PostgreSQL. The Java method parameter is declared as an ordinary array,
- * not with Java's {@code ...} syntax; in fact, that would be impossible for a
- * function with a composite return type (where the Java signature would have to
- * include a {@code ResultSet} parameter after the variadic input parameter).
- */
 public class Variadic {
+	private Variadic() { } // do not instantiate
+
 	/**
 	 * Compute a double-precision sum of squares, returning null if any input
 	 * value is null.
@@ -126,8 +132,11 @@ public class Variadic {
 	 * the Java parameter type here is primitive and cannot represent nulls,
 	 * PL/Java will have silently replaced any nulls in the input with zeros.
 	 *<p>
-	 * This version can be called with no arguments (returning zero, naturally),
-	 * because it is given an empty-array default.
+	 * This version also demonstrates using {@link SQLType @SQLType} to give
+	 * the variadic parameter an empty-array default, so PostgreSQL will allow
+	 * the function to be called with no corresponding arguments. Without that,
+	 * PostgreSQL won't recognize a call to the function unless at least one
+	 * argument corresponding to the variadic parameter is supplied.
 	 */
 	@Function(
 		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL,
