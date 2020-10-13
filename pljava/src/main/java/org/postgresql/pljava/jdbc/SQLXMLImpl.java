@@ -4273,8 +4273,40 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	static class SAXDOMErrorHandler implements ErrorHandler
 	{
 		static final SAXDOMErrorHandler INSTANCE = new SAXDOMErrorHandler();
-		static final Pattern s_wrapelement = Pattern.compile(
-			"^cvc-elt\\.1(?:\\.a)?+:.*'pljava-content-wrap'");
+		static final String s_xmlNameChar =
+			/*
+			 * Issue #312: localized error messages from the schema validator
+			 * don't always use the same punctuation around the offending
+			 * element name! One option is to ignore the punctuation; the
+			 * wrapper element name is unlikely to appear as part of some other
+			 * element name by chance. But then ... a validation error matched
+			 * by s_wrapelement will be ignored. Could anything devious be
+			 * achieved by faking an element name that gets its validation error
+			 * ignored? Not that I can think of, but am I devious enough?
+			 *
+			 * Rather than looking for punctuation, just use negative lookbehind
+			 * and lookahead to ensure that the element name in this pattern
+			 * is neither preceded nor followed by another XML NameChar. Simple
+			 * enough, except XML NameChar isn't a category built in to
+			 * java.util.regex, and I haven't found anything in the XML APIs
+			 * exporting it (even though I bet it's buried in there in a dozen
+			 * different places), and it has a fairly messy definition:
+			 *
+			 * https://www.w3.org/TR/REC-xml/#NT-NameStartChar
+			 * https://www.w3.org/TR/xml11/#NT-NameStartChar
+			 */
+			"[:A-Z_a-z\\xC0-\\xD6\\xD8-\\xF6\\xF8-\\u02FF\\u0370-\\u037D" +
+			"\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF" +
+			"\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD" +
+			"\\x{10000}-\\x{EFFFF}" +
+			/*
+			 * https://www.w3.org/TR/REC-xml/#NT-NameChar
+			 * https://www.w3.org/TR/xml11/#NT-NameChar
+			 */
+			"\\x2D.0-9\\xB7\\u0300-\\u036F\\u203F-\\u2040]";
+		static final Pattern s_wrapelement = Pattern.compile(String.format(
+			"^cvc-elt\\.1(?:\\.a)?+:.*(?<!%1$s)pljava-content-wrap(?!%1$s)",
+			s_xmlNameChar));
 		final Logger m_logger = Logger.getLogger("org.postgresql.pljava.jdbc");
 
 		private SAXDOMErrorHandler()
