@@ -203,7 +203,7 @@ test_script:
         -execution local `
         "-J--class-path=$packageJar;$jdbcJar" `
         "--class-path=$packageJar" `
-        "-J--add-modules=java.sql,java.sql.rowset" `
+        "-J--add-modules=java.sql.rowset" `
         "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" `
         "-J-Dpgconfig=$pgConfig" `
         "-J-DmavenRepo=$mavenRepo" `

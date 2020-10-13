@@ -75,7 +75,7 @@ before_install: |
   javaUrl="$javaUrl/${TRAVIS_CPU_ARCH//amd64/x64}/jdk"
   javaUrl="$javaUrl/$JVM_IMPL/normal/adoptopenjdk"
 
-  installJdk=$(which install-jdk.sh) || {
+  installJdk=$(false && which install-jdk.sh) || {
     wget https://raw.githubusercontent.com/sormuras/bach/8c457fd6e46bd9f3f575867dd0c9af1d7edfd5b4/install-jdk.sh
     installJdk=./install-jdk.sh
 
@@ -102,7 +102,7 @@ before_install: |
   . .travis/travis_install_postgresql.sh
 
 install: |
-  $pgConfig
+  "$pgConfig"
 
   if [ "$TRAVIS_OS_NAME" = "osx" ]; then
       libjvm_name="libjli.dylib"
@@ -143,7 +143,7 @@ script: |
     -execution local \
     "-J--class-path=$packageJar:$jdbcJar" \
     "--class-path=$packageJar" \
-    "-J--add-modules=java.sql,java.sql.rowset" \
+    "-J--add-modules=java.sql.rowset" \
     "-J-Dpgconfig=$pgConfig" \
     "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
     "-J-DmavenRepo=$mavenRepo" \
