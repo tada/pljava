@@ -1455,6 +1455,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private XMLReader m_xr;
 
+		/**
+		 * Constructor called only from {@code adopt()} when an untouched
+		 * {@code Readable} is being bounced back to PostgreSQL with a type Oid
+		 * different from its original.
+		 */
 		Verifier() throws SQLException
 		{
 			try
@@ -1472,6 +1477,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 		}
 
+		/**
+		 * Constructor called with an already-constructed {@code XMLReader}.
+		 *<p>
+		 * Adjustments may have been made to the {@code XMLReader}.
+		 */
 		Verifier(XMLReader xr)
 		{
 			m_xr = xr;
@@ -1483,6 +1493,16 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			boolean[] wrapped = { false };
 			is = correctedDeclStream(
 				is, false, implServerCharset(), wrapped);
+
+			/*
+			 * The supplied XMLReader is never set up to do unwrapping, which is
+			 * ok; it never needs to. But it will have had its error handler set
+			 * on that assumption, which must be changed here if wrapping is in
+			 * effect, just in case schema validation has been requested.
+			 */
+			if ( wrapped[0] )
+				m_xr.setErrorHandler(SAXDOMErrorHandler.instance(true));
+
 			/*
 			 * What does an XMLReader do if no handlers have been set for
 			 * content events? Parses everything and discards the events.
@@ -3923,6 +3943,11 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				{
 					super(tgt);
 					InputSource is = src.getInputSource();
+					/*
+					 * No correctedDeclStream, no check for unwrapping: if some
+					 * random {@code SQLXML} implementation is passing a stream
+					 * to parse, it had better make sense to a vanilla parser.
+					 */
 					m_source = new AdjustingSAXSource(is, false);
 				}
 
@@ -4240,13 +4265,32 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 */
 	static class SAXDOMErrorHandler implements ErrorHandler
 	{
-		static final SAXDOMErrorHandler INSTANCE = new SAXDOMErrorHandler();
+		private static final SAXDOMErrorHandler s_nonWrappedInstance =
+			new SAXDOMErrorHandler(false);
+		/*
+		 * Issue #312: localized error messages from the schema validator
+		 * don't always use the same punctuation around the offending
+		 * element name! Simplest to look for the element name (it's distinctive
+		 * enough) and not for any punctuation--and check that only when
+		 * wrapping is being applied, and then only once (the wrapping element,
+		 * of course, will be first), and so avoid suppressing a later error by
+		 * mistake should a document somehow happen to contain an element with
+		 * the same name used here.
+		 */
 		static final Pattern s_wrapelement = Pattern.compile(
-			"^cvc-elt\\.1(?:\\.a)?+:.*'pljava-content-wrap'");
+			"^cvc-elt\\.1(?:\\.a)?+:.*pljava-content-wrap");
 		final Logger m_logger = Logger.getLogger("org.postgresql.pljava.jdbc");
+		private int m_wrapCount;
 
-		private SAXDOMErrorHandler()
+		static SAXDOMErrorHandler instance(boolean wrapped)
 		{
+			return
+				wrapped ? new SAXDOMErrorHandler(true) : s_nonWrappedInstance;
+		}
+
+		private SAXDOMErrorHandler(boolean wrap)
+		{
+			m_wrapCount = wrap ? 1 : 0;
 		}
 
 		@Override
@@ -4259,10 +4303,21 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			 * then more lenient if the 'visible' top-level element isn't found,
 			 * and simply validates the elements that are declared in the schema
 			 * wherever it happens to find them.
+			 *
+			 * The check is only applied when the input has been wrapped, and
+			 * then only once (after all, the wrapping element will be the first
+			 * to be seen). The "only once" part may be futile inasmuch as the
+			 * validator switches to the lenient mode described above and may
+			 * not even report subsequent mismatched elements. But the check
+			 * still needs to be conditional (we do know whether we applied a
+			 * wrapper or not), so the condition may as well be the right one.
 			 */
+			if ( 0 == m_wrapCount )
+				throw exception;
 			Matcher m = s_wrapelement.matcher(exception.getMessage());
 			if ( ! m.lookingAt() )
 				throw exception;
+			-- m_wrapCount;
 		}
 
 		@Override
@@ -4584,6 +4639,14 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			m_serverCS = serverCS;
 			try
 			{
+				/*
+				 * When used as a verifier, an AdjustingSAXSource can be created
+				 * with wrapping=false unconditionally, as it won't be using the
+				 * result for anything and has no need to unwrap it. At verify
+				 * time, the presence of wrapping still gets checked, if only to
+				 * set up the ErrorHandler correctly in case schema validation
+				 * has been requested.
+				 */
 				m_verifierSource = new AdjustingSAXSource(null, false);
 			}
 			catch ( SAXException e )
@@ -4865,7 +4928,15 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( m_wrapped )
 					m_xr = new SAXUnwrapFilter(m_xr);
 
-				m_xr.setErrorHandler(SAXDOMErrorHandler.INSTANCE);
+				/*
+				 * If this AdjustingSAXSource has been created for use as a
+				 * verifier, it was passed false for m_wrapped unconditionally,
+				 * which is mostly harmless, but may mean this is the wrong
+				 * error handler, if schema validation has been requested.
+				 * That's ok; the verifier checks for wrapping and will set the
+				 * right error handler if need be.
+				 */
+				m_xr.setErrorHandler(SAXDOMErrorHandler.instance(m_wrapped));
 
 				if ( ! m_hasCalledDefaults )
 					defaults();
@@ -5268,7 +5339,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			try
 			{
 				DocumentBuilder db = m_dbf.newDocumentBuilder();
-				db.setErrorHandler(SAXDOMErrorHandler.INSTANCE);
+				db.setErrorHandler(SAXDOMErrorHandler.instance(m_wrapped));
 				if ( null != m_resolver )
 					db.setEntityResolver(m_resolver);
 				DOMSource ds = new DOMSource(db.parse(m_is));
