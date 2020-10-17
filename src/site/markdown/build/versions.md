@@ -62,17 +62,13 @@ versions 4.3.0 or later are recommended in order to avoid a
 
 ## PostgreSQL
 
-PL/Java does not currently support PostgreSQL releases before 8.2.
-Recent work is known to have introduced dependencies on 8.2 features.
-
-The current aim is to avoid deliberately breaking compatibility back
-to 8.2. (A former commercial fork of PostgreSQL 8.2 recently returned
-to the open-source fold with a *really* old version of PL/Java, so
-the aim is that the current PL/Java should be a possible upgrade there.)
+PL/Java 1.6.0 does not commit to support PostgreSQL earlier than 9.5.
+(Support for 9.4 or even 9.3 might be feasible to add if there is a pressing
+need.)
 
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
 
-PL/Java 1.5.1 has been successfully built and run on at least one platform
-with PostgreSQL versions from 11 to 8.2, the latest maintenance
+PL/Java 1.6.0 has been successfully built and run on at least one platform
+with PostgreSQL versions from 13 to 9.5, the latest maintenance
 release for each.

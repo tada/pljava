@@ -121,6 +121,10 @@ import static java.util.stream.StreamSupport.stream;
  * from {@code jshell} if its classpath includes the installer jar (and
  * pgjdbc-ng).
  *<p>
+ * An
+ * <a href="../../../../../../develop/node.html">introduction with examples</a>
+ * is available.
+ *<p>
  * Unlike the many capabilities of {@code PostgresNode.pm}, this only deals in
  * TCP sockets bound to {@code localhost} (Java doesn't have Unix sockets out of
  * the box yet) and only a few of the most basic operations.

@@ -10,6 +10,128 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.0
+
+This is the first release of a significantly refactored PL/Java 1.6 branch
+with a number of new features and changes. It requires Java 9 or later at
+build and run time, but retains the ability to run PL/Java application code
+built for earlier versions. It should be used with PostgreSQL 9.5 or later.
+For applications _requiring_ an older Java or PostgreSQL version, the latest
+release in the PL/Java 1.5 line remains an option.
+
+**Note to package maintainers**: these release notes should be reviewed before
+an installation moves to 1.6.0 from a 1.5 or earlier version, so it is best
+packaged in a way that requires an affirmative choice to upgrade.
+
+$h3 Version compatibility
+
+PL/Java 1.6.0 can be built against recent PostgreSQL versions including 13, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later if built with Java 9 or with 12 or later
+(bugs in the Java 10 and 11 compilers prevent running on 9 if built with 10,
+or on 9 or 10 if built with 11). PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+When used with GraalVM as the runtime VM, PL/Java functions can use Graal's
+"polyglot" capabilities to execute code in any other language available on
+GraalVM. In this release, it is not yet possible to directly declare a function
+in a language other than Java.
+
+$h3 Changes
+
+$h4 Validation at `CREATE FUNCTION` time
+
+PL/Java can now detect problems with a function declaration, including missing
+dependencies, at the time of `CREATE FUNCTION`, rather than allowing the
+function to be created and reporting failure later when it is called.
+
+This change may have an impact on some established procedures. For example,
+when installing a jar that contains deployment commands, deployment may
+fail if another required jar has not been installed and added to the class
+path first; in the past, the order did not matter. For details, see
+[this section][linkage] in the documentation for the supplied examples,
+and the description of `check_function_bodies` in the
+[configuration variable reference](use/variables.html).
+
+$h4 Improvements to the annotation-driven SQL generator
+
+$h5 Infers additional implicit ordering dependencies
+
+The SQL generator can now respect the implicit ordering constraints among
+user-defined types and functions that either use the types or are used in their
+definitions, which can eliminate many `provides`/`requires` annotation elements
+that had to be added by hand for PL/Java 1.5. The reduction in boilerplate
+needed for a realistic example can be seen by comparing the annotated version
+of Bear Giles's `pljava-udt-type-extension` example at
+[this commit][udtd32f84e] (pre-1.6) and [this one][udt0066a1e] (1.6.0).
+
+$h5 Generates variadic function declarations
+
+PL/Java 1.6 can declare functions that can be called from SQL with varying
+numbers of arguments. [Example code][variadic] is provided.
+
+$h4 Build system and continuous integration
+
+* The `nar-maven-plugin` formerly used in the build has been replaced with
+    a newly-developed Maven plugin tailored to PostgreSQL extension building.
+
+* The new plugin respects the flags reported by `pg_config` when building
+    the native library.
+
+* Building with the same flags used for PostgreSQL has eliminated the flood
+    of uninformative warnings that, in prior versions, made troubleshooting
+    actual build problems difficult.
+
+* Travis-CI and AppVeyor now regularly build and test PL/Java for
+    Linux (x86_64 and ppc64le), Mac OS, and Windows (using MSVC
+    and MinGW-w64), with results visible at GitHub.
+
+* PL/Java's self-installer jar now includes utilities to simplify
+    integration testing, similar to the `PostgresNode` Perl module provided
+    with PostgreSQL. It is used in the Travis and AppVeyor builds to keep
+    platform-specific code to a minimum, and may be useful for other purposes.
+    Some [documentation](develop/node.html) is included.
+
+$h3 Enhancement requests addressed
+
+* [Add regression testing](${ghbug}11)
+* [`CFLAGS` from `pg_config` when building `pljava-so`](${ghbug}152)
+
+$h3 Bugs fixed
+
+* [`-Dpljava.libjvmlocation` breaks Windows build](${ghbug}190)
+* [XML Schema regression-test failure in de_DE locale](${ghbug}312)
+
+$h3 Credits
+
+There is a PL/Java 1.6.0 thanks in part to
+Christoph Berg,
+Chapman Flack,
+Kartik Ohri,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+The work of Kartik Ohri in summer 2020 on the build system renovation and
+continuous integration was supported by Google Summer of Code.
+
+[linkage]: examples/examples.html#Exception_resolving_class_or_method_.28message_when_installing_examples.29
+[udtd32f84e]: https://github.com/jcflack/pljava-udt-type-extension/commit/d32f84e
+[udt0066a1e]: https://github.com/jcflack/pljava-udt-type-extension/commit/0066a1e
+[variadic]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Variadic.html#method.detail
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.5.6
 
 This release adds support for PostgreSQL 13.
@@ -127,17 +249,6 @@ The work of Kartik Ohri in summer 2020 was supported by Google Summer of Code.
 [xqsaf]: https://www.w3.org/TR/xquery-31/#id-schema-aware-feature
 [xqtdf]: https://www.w3.org/TR/xquery-31/#id-typed-data-feature
 [xqstf]: https://www.w3.org/TR/xquery-31/#id-static-typing-feature
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.5 (4 November 2019)
 

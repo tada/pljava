@@ -45,6 +45,8 @@ import javax.tools.Diagnostic.Kind;
  */
 public abstract class Lexicals
 {
+	private Lexicals() { } // do not instantiate
+
 	/** Allowed as the first character of a regular identifier by ISO.
 	 */
 	public static final Pattern ISO_REGULAR_IDENTIFIER_START = Pattern.compile(
@@ -438,6 +440,8 @@ public abstract class Lexicals
 	 */
 	public static abstract class Identifier implements Serializable
 	{
+		Identifier() { } // not API
+
 		/**
 		 * This Identifier represented as it would be in SQL source.
 		 *<p>
@@ -449,6 +453,9 @@ public abstract class Lexicals
 		 */
 		public abstract String deparse(Charset cs);
 
+		/**
+		 * Indicates whether some other object is "equal to" this one.
+		 */
 		@Override
 		public boolean equals(Object other)
 		{
@@ -498,9 +505,16 @@ public abstract class Lexicals
 					+ c.getName());
 		}
 
+		/**
+		 * Class representing a non-schema-qualified identifier, either the
+		 * {@link Simple Simple} form used for naming most things, or the
+		 * {@link Operator Operator} form specific to PostgreSQL operators.
+		 */
 		public static abstract class Unqualified<T extends Unqualified<T>>
 		extends Identifier
 		{
+			Unqualified() { } // not API
+
 			/**
 			 * Produce the deparsed form of a qualified identifier with the
 			 * given <em>qualifier</em> and this as the local part.
@@ -514,6 +528,11 @@ public abstract class Lexicals
 			public abstract Qualified<T> withQualifier(Simple qualifier);
 		}
 
+		/**
+		 * Class representing an unqualified identifier in the form of a name
+		 * (whether a case-insensitive "regular identifier" without quotes,
+		 * or a delimited form).
+		 */
 		public static class Simple extends Unqualified<Simple>
 		{
 			protected final String m_nonFolded;
@@ -979,8 +998,22 @@ public abstract class Lexicals
 		 */
 		public static class Pseudo extends Simple
 		{
+			/**
+			 * Instance intended to represent {@code PUBLIC} when used as a
+			 * privilege grantee.
+			 *<p>
+			 * It would not be correct to use this instance for other special
+			 * things that happen to be named {@code PUBLIC}, such as the
+			 * {@code PUBLIC} schema. That is a real catalog object that has
+			 * the actual name {@code PUBLIC}, and should be represented as a
+			 * {@code Simple} with that name.
+			 */
 			public static final Pseudo PUBLIC = new Pseudo("PUBLIC");
 
+			/**
+			 * A {@code Pseudo} identifier instance is <em>only</em> equal
+			 * to itself.
+			 */
 			@Override
 			public boolean equals(Object other)
 			{
@@ -1084,6 +1117,9 @@ public abstract class Lexicals
 				return new Qualified<>(qualifier, this);
 			}
 
+			/**
+			 * Returns a hash code value for the object.
+			 */
 			@Override
 			public int hashCode()
 			{
@@ -1412,6 +1448,13 @@ public abstract class Lexicals
 				return m_local.deparse(m_qualifier, cs);
 			}
 
+			/**
+			 * Combines the hash codes of the qualifier and local part.
+			 *<p>
+			 * Equal to the local part's hash if the qualifier is null, though a
+			 * {@code Qualified} with null qualifier is still not considered
+			 * "equal" to an {@code Unqualified} with the same name.
+			 */
 			@Override
 			public int hashCode()
 			{
@@ -1432,11 +1475,18 @@ public abstract class Lexicals
 						&& m_local.equals(oi.m_local, msgr);
 			}
 
+			/**
+			 * Returns the qualifier, possibly null, as a {@code Simple}.
+			 */
 			public Simple qualifier()
 			{
 				return m_qualifier;
 			}
 
+			/**
+			 * Returns the local part, a {@code Simple} or an {@code Operator},
+			 * as the case may be.
+			 */
 			public T local()
 			{
 				return m_local;
