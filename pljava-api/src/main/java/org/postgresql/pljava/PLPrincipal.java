@@ -20,6 +20,15 @@ import java.io.Serializable;
 import org.postgresql.pljava.annotation.Function.Trust;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
+/**
+ * Java {@code Principal} representing a PostgreSQL {@code PROCEDURAL LANGUAGE},
+ * which has a name (a simple identifier, not schema-qualified) and is either
+ * {@code Sandboxed} (declared with SQL {@code CREATE TRUSTED LANGUAGE} or
+ * {@code Unsandboxed}.
+ *<p>
+ * Only the subclasses, {@code Sandboxed} or {@code Unsandboxed} can be
+ * instantiated, or granted permissions in policy.
+ */
 public abstract class PLPrincipal extends BasePrincipal
 {
 	private static final long serialVersionUID = 4876111394761861189L;
@@ -45,21 +54,50 @@ public abstract class PLPrincipal extends BasePrincipal
 				+ c.getName());
 	}
 
+	/**
+	 * Returns either {@link Trust#SANDBOXED SANDBOXED} or
+	 * {@link Trust#UNSANDBOXED UNSANDBOXED}
+	 * according to PostgreSQL's catalog entry for the language.
+	 */
 	public abstract Trust trust();
 
+	/**
+	 * Java {@code Principal} representing a PostgreSQL
+	 * {@code PROCEDURAL LANGUAGE} that was declared with the {@code TRUSTED}
+	 * keyword and can be used to declare new functions by any role that has
+	 * been granted {@code USAGE} permission on it.
+	 *<p>
+	 * A Java security policy can grant permissions to this {@code Principal}
+	 * by class and wildcard name, or by class and the specific name given in
+	 * SQL to the language.
+	 */
 	public static final class Sandboxed extends PLPrincipal
 	{
 		private static final long serialVersionUID = 55704990613451177L;
 
+		/**
+		 * Construct an instance given its name in {@code String} form.
+		 *<p>
+		 * The name will be parsed as described for
+		 * {@link Simple#fromJava Identifier.Simple.fromJava}.
+		 */
 		public Sandboxed(String name)
 		{
 			super(name);
 		}
+
+		/**
+		 * Construct an instance given its name already as an
+		 * {@code Identifier.Simple}.
+		 */
 		public Sandboxed(Simple name)
 		{
 			super(name);
 		}
 
+		/**
+		 * Returns {@code SANDBOXED}.
+		 */
 		@Override
 		public Trust trust()
 		{
@@ -67,19 +105,43 @@ public abstract class PLPrincipal extends BasePrincipal
 		}
 	}
 
+	/**
+	 * Java {@code Principal} representing a PostgreSQL
+	 * {@code PROCEDURAL LANGUAGE} that was declared <em>without</em> the
+	 * {@code TRUSTED} keyword, and can be used to declare new functions only
+	 * by a PostgreSQL superuser.
+	 *<p>
+	 * A Java security policy can grant permissions to this {@code Principal}
+	 * by class and wildcard name, or by class and the specific name given in
+	 * SQL to the language.
+	 */
 	public static final class Unsandboxed extends PLPrincipal
 	{
 		private static final long serialVersionUID = 7487230786813048525L;
 
+		/**
+		 * Construct an instance given its name in {@code String} form.
+		 *<p>
+		 * The name will be parsed as described for
+		 * {@link Simple#fromJava Identifier.Simple.fromJava}.
+		 */
 		public Unsandboxed(String name)
 		{
 			super(name);
 		}
+
+		/**
+		 * Construct an instance given its name already as an
+		 * {@code Identifier.Simple}.
+		 */
 		public Unsandboxed(Simple name)
 		{
 			super(name);
 		}
 
+		/**
+		 * Returns {@code UNSANDBOXED}.
+		 */
 		@Override
 		public Trust trust()
 		{

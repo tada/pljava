@@ -89,17 +89,57 @@ href='https://wiki.sei.cmu.edu/confluence/display/java/ERR06-J.+Do+not+throw+und
  * parameter, and some {@link #closing(AutoCloseable) closing} methods (inspired
  * by Python, for use with resources that do not already implement
  * {@code AutoCloseable}), are also provided.
+ *
+ * @param <WT> The type this functional interface can be wrapped as by
+ * ederWrap(), which may be a corresponding Java functional interface that does
+ * not allow checked exceptions.
+ * @param <EX> The checked exception type (or least upper bound of the checked
+ * exception types) that the body of this functional interface may throw.
  */
 public interface Checked<WT, EX extends Throwable>
 {
+	/**
+	 * Throw an exception, unsafely cast to a different exception type, chiefly
+	 * as used by Lukas Eder to fly a checked exception through a section of
+	 * code that does not accept it.
+	 *<p>
+	 * In PL/Java, this method is not intended to be called directly, but used
+	 * transparently within the {@link #in in(...)} construct, which re-exposes
+	 * the checked exception type {@code EX} to the compiler.
+	 * @param <E> The throwable type the argument t should be presented as.
+	 * @param t A throwable.
+	 * @throws E The argument t, represented to the compiler as of type E.
+	 */
 	@SuppressWarnings("unchecked")
 	static <E extends Throwable> E ederThrow(Throwable t) throws E
 	{
 		throw (E) t;
 	}
 
+	/**
+	 * Wraps this {@code Checked} functional interfaces as its
+	 * corresponding Java functional interface {@code WT}, which possibly
+	 * does not allow checked exceptions.
+	 *<p>
+	 * Checked exceptions of type {@code EX} may still, in reality, be thrown.
+	 * This method is not intended to be called directly; it is used
+	 * transparently by {@link #in in(...)}, which passes the wrapper type into
+	 * code that requires it, but re-exposes the original checked exception type
+	 * to the compiler.
+	 */
 	WT ederWrap();
 
+	/**
+	 * Passes this functional interface, wrapped as its wrapper type {@code WT},
+	 * into a code body that requires that wrapper type, while remembering for
+	 * the compiler the checked exception type that may, in fact, be thrown.
+	 *
+	 * @param <RX> Any exception type that the body, c, detectably can throw.
+	 * @param c A Consumer to which this instance, wrapped as its corresponding
+	 * functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body c.
+	 */
 	default <RX extends Throwable>
 	void in(Consumer<? super WT, RX> c)
 	throws EX, RX
@@ -107,6 +147,16 @@ public interface Checked<WT, EX extends Throwable>
 		c.accept(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a non-primitive type.
+	 *
+	 * @param <RT> Return type of the body f.
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToDoubleFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RT, RX extends Throwable>
 	RT inReturning(Function<? super WT, RT, RX> f)
 	throws EX, RX
@@ -114,6 +164,15 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code double}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToDoubleFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	double inDoubleReturning(ToDoubleFunction<? super WT, RX> f)
 		throws EX, RX
@@ -121,6 +180,15 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns an {@code int}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToIntFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	int inIntReturning(ToIntFunction<? super WT, RX> f)
 	throws EX, RX
@@ -128,6 +196,15 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code long}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToLongFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	long inLongReturning(ToLongFunction<? super WT, RX> f)
 	throws EX, RX
@@ -135,6 +212,15 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code boolean}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A Predicate to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	boolean inBooleanReturning(Predicate<? super WT, RX> f)
 		throws EX, RX
@@ -142,6 +228,20 @@ public interface Checked<WT, EX extends Throwable>
 		return f.test(ederWrap());
 	}
 
+
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code byte}.
+	 *<p>
+	 * This method is provided for consistency of notation, even though it is
+	 * not strictly needed because Java has no checked-exception-less
+	 * counterpart of {@code ToByteFunction}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToByteFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	byte inByteReturning(ToByteFunction<? super WT, RX> f)
 		throws EX, RX
@@ -149,6 +249,19 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code short}.
+	 *<p>
+	 * This method is provided for consistency of notation, even though it is
+	 * not strictly needed because Java has no checked-exception-less
+	 * counterpart of {@code ToShortFunction}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToShortFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	short inShortReturning(ToShortFunction<? super WT, RX> f)
 	throws EX, RX
@@ -156,6 +269,19 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code char}.
+	 *<p>
+	 * This method is provided for consistency of notation, even though it is
+	 * not strictly needed because Java has no checked-exception-less
+	 * counterpart of {@code ToCharFunction}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToCharFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	char inCharReturning(ToCharFunction<? super WT, RX> f)
 	throws EX, RX
@@ -163,6 +289,19 @@ public interface Checked<WT, EX extends Throwable>
 		return f.apply(ederWrap());
 	}
 
+	/**
+	 * Like {@link #in in(...)} but where the body returns a {@code float}.
+	 *<p>
+	 * This method is provided for consistency of notation, even though it is
+	 * not strictly needed because Java has no checked-exception-less
+	 * counterpart of {@code ToFloatFunction}.
+	 *
+	 * @param <RX> Any exception type that the body, f, detectably can throw.
+	 * @param f A ToFloatFunction to which this instance, wrapped as its
+	 * corresponding functional interface WT, will be passed.
+	 * @throws EX whatever can be thrown by the body of this instance
+	 * @throws RX whatever can be thrown by the body f.
+	 */
 	default <RX extends Throwable>
 	float inFloatReturning(ToFloatFunction<? super WT, RX> f)
 	throws EX, RX
@@ -174,6 +313,17 @@ public interface Checked<WT, EX extends Throwable>
 	 * Short-circuiting predicate combinators.
 	 */
 
+	/**
+	 * Returns a {@code Predicate} that is the short-circuiting {@code AND} of
+	 * two others.
+	 * @param <T> Greatest-lower-bound parameter type acceptable to first and
+	 * after, and the parameter type of the resulting predicate.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * predicate.
+	 * @param first The predicate to be tested first.
+	 * @param after The predicate to be tested next.
+	 */
 	static <T, E extends Throwable>
 		Predicate<T,E> and(
 			Predicate<? super T, ? extends E> first,
@@ -182,6 +332,17 @@ public interface Checked<WT, EX extends Throwable>
 		return t -> first.test(t) && after.test(t);
 	}
 
+	/**
+	 * Returns a {@code Predicate} that is the short-circuiting {@code OR} of
+	 * two others.
+	 * @param <T> Greatest-lower-bound parameter type acceptable to first and
+	 * after, and the parameter type of the resulting predicate.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * predicate.
+	 * @param first The predicate to be tested first.
+	 * @param after The predicate to be tested next.
+	 */
 	static <T, E extends Throwable>
 		Predicate<T,E> or(
 			Predicate<? super T, ? extends E> first,
@@ -194,6 +355,21 @@ public interface Checked<WT, EX extends Throwable>
 	 * composed() methods.
 	 */
 
+	/**
+	 * Returns a {@code Function} that is the composition of
+	 * two others.
+	 * @param <T> Parameter type of the resulting function, and acceptable as
+	 * parameter of first.
+	 * @param <V> Type subsuming the return type of first, and acceptable as
+	 * parameter of after.
+	 * @param <R> Return type of the composed function, subsuming the return
+	 * type of after.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * function.
+	 * @param first The first function to be applied.
+	 * @param after The function applied to the result of first.
+	 */
 	static <T, R, V, E extends Throwable>
 		Function<T,R,E> composed(
 			Function<? super T, ? extends V, ? extends E> first,
@@ -202,6 +378,19 @@ public interface Checked<WT, EX extends Throwable>
 		return t -> after.apply(first.apply(t));
 	}
 
+	/**
+	 * Returns a {@code BiConsumer} that is the composition of
+	 * two others.
+	 * @param <T> First parameter type of the resulting BiConsumer, acceptable
+	 * as first parameter to both first and after.
+	 * @param <U> Second parameter type of the resulting BiConsumer, acceptable
+	 * as second parameter to both first and after.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * biconsumer.
+	 * @param first The first consumer to be applied.
+	 * @param after The consumer next applied to the same inputs.
+	 */
 	static <T, U, E extends Throwable>
 		BiConsumer<T,U,E> composed(
 			BiConsumer<? super T, ? super U, ? extends E> first,
@@ -214,6 +403,17 @@ public interface Checked<WT, EX extends Throwable>
 		};
 	}
 
+	/**
+	 * Returns a {@code Consumer} that is the composition of
+	 * two others.
+	 * @param <T> Parameter type of the resulting Consumer, acceptable
+	 * as parameter to both first and after.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * consumer.
+	 * @param first The first consumer to be applied.
+	 * @param after The consumer next applied to the same input.
+	 */
 	static <T, E extends Throwable>
 		Consumer<T,E> composed(
 			Consumer<? super T, ? extends E> first,
@@ -226,6 +426,15 @@ public interface Checked<WT, EX extends Throwable>
 		};
 	}
 
+	/**
+	 * Returns a {@code DoubleConsumer} that is the composition of
+	 * two others.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * consumer.
+	 * @param first The first consumer to be applied.
+	 * @param after The consumer next applied to the same input.
+	 */
 	static <E extends Throwable>
 		DoubleConsumer<E> composed(
 			DoubleConsumer<? extends E> first,
@@ -238,6 +447,15 @@ public interface Checked<WT, EX extends Throwable>
 		};
 	}
 
+	/**
+	 * Returns an {@code IntConsumer} that is the composition of
+	 * two others.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * consumer.
+	 * @param first The first consumer to be applied.
+	 * @param after The consumer next applied to the same input.
+	 */
 	static <E extends Throwable>
 		IntConsumer<E> composed(
 			IntConsumer<? extends E> first,
@@ -250,6 +468,15 @@ public interface Checked<WT, EX extends Throwable>
 		};
 	}
 
+	/**
+	 * Returns a {@code LongConsumer} that is the composition of
+	 * two others.
+	 * @param <E> Least upper bound of the exception types thrown by first and
+	 * after, representing the exception types thrown by the resulting
+	 * consumer.
+	 * @param first The first consumer to be applied.
+	 * @param after The consumer next applied to the same input.
+	 */
 	static <E extends Throwable>
 		LongConsumer<E> composed(
 			LongConsumer<? extends E> first,
@@ -306,6 +533,8 @@ public interface Checked<WT, EX extends Throwable>
 	 *    ...
 	 *  }
 	 *</pre>
+	 * @param <E> Least upper bound of exceptions that can be thrown by o
+	 * @param o Lambda or method reference to serve as the close operation.
 	 */
 	static <E extends Exception>
 		AutoCloseable<E> closing(AutoCloseable<E> o)
@@ -318,6 +547,10 @@ public interface Checked<WT, EX extends Throwable>
 	 * that can supply the payload and implements {@code AutoCloseable} using
 	 * the lambda; useful in a {@code try}-with-resources when the payload
 	 * itself does not implement {@code AutoCloseable}.
+	 * @param <T> Type of the payload.
+	 * @param <E> Least upper bound of exceptions that may be thrown at close.
+	 * @param payload Any object.
+	 * @param closer Lambda or method reference to serve as the close operation.
 	 */
 	static <T, E extends Exception>
 		Closing<T,E> closing(T payload, AutoCloseable<E> closer)
@@ -340,6 +573,13 @@ public interface Checked<WT, EX extends Throwable>
 	 * stream's {@code close} method is not declared to throw any. When used as
 	 * intended in a {@code try}-with-resources, any such surprise is bounded
 	 * by the scope of that statement.
+	 * @param <T> Type of the stream elements
+	 * @param <S> Type of the stream
+	 * @param <E> Least upper bound of exceptions that can be thrown by closer,
+	 * and the declared throwable type of the close method of the returned
+	 * Closing instance.
+	 * @param stream Stream to have closer added as an action on close.
+	 * @param closer Runnable to be executed when the returned stream is closed.
 	 */
 	static <T, S extends BaseStream<T,S>, E extends Exception>
 		Closing<S,E> closing(S stream, Runnable<E> closer)
@@ -413,10 +653,18 @@ public interface Checked<WT, EX extends Throwable>
 	 * Runnable.
 	 */
 
+	/**
+	 * Like {@link java.lang.Runnable} but with a body that can throw checked
+	 * exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface Runnable<E extends Throwable>
 	extends Checked<java.lang.Runnable, E>
 	{
+		/**
+		 * Execute the body of this {@code Runnable}.
+		 */
 		void run() throws E;
 
 		@Override
@@ -435,6 +683,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> Runnable<E> use(Runnable<E> o)
 		{
 			return o;
@@ -445,10 +702,19 @@ public interface Checked<WT, EX extends Throwable>
 	 * Suppliers that have checked-exception-less counterparts in the Java API.
 	 */
 
+	/**
+	 * Like {@link java.util.function.Supplier} but with a body that can throw
+	 * checked exceptions.
+	 * @param <T> Type the supplier will supply.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface Supplier<T, E extends Throwable>
 	extends Checked<java.util.function.Supplier<T>, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		T get() throws E;
 
 		@Override
@@ -467,16 +733,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable> Supplier<T,E> use(Supplier<T,E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.BooleanSupplier} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface BooleanSupplier<E extends Throwable>
 	extends Checked<java.util.function.BooleanSupplier, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		boolean getAsBoolean() throws E;
 
 		@Override
@@ -495,6 +778,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable>
 		BooleanSupplier<E> use(BooleanSupplier<E> o)
 		{
@@ -502,10 +794,18 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.DoubleSupplier} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface DoubleSupplier<E extends Throwable>
 	extends Checked<java.util.function.DoubleSupplier, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		double getAsDouble() throws E;
 
 		@Override
@@ -524,16 +824,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> DoubleSupplier<E> use(DoubleSupplier<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.IntSupplier} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface IntSupplier<E extends Throwable>
 	extends Checked<java.util.function.IntSupplier, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		int getAsInt() throws E;
 
 		@Override
@@ -552,16 +869,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> IntSupplier<E> use(IntSupplier<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.LongSupplier} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface LongSupplier<E extends Throwable>
 	extends Checked<java.util.function.LongSupplier, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		long getAsLong() throws E;
 
 		@Override
@@ -580,6 +914,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> LongSupplier<E> use(LongSupplier<E> o)
 		{
 			return o;
@@ -590,48 +933,116 @@ public interface Checked<WT, EX extends Throwable>
 	 * Suppliers without checked-exception-less Java API counterparts.
 	 */
 
+	/**
+	 * A supplier of byte-valued results, with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ByteSupplier<E extends Throwable>
 	extends Closing.Trivial<ByteSupplier<E>, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		byte getAsByte() throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> ByteSupplier<E> use(ByteSupplier<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * A supplier of short-valued results, with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ShortSupplier<E extends Throwable>
 	extends Closing.Trivial<ShortSupplier<E>, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		short getAsShort() throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> ShortSupplier<E> use(ShortSupplier<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * A supplier of char-valued results, with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface CharSupplier<E extends Throwable>
 	extends Closing.Trivial<CharSupplier<E>, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		char getAsChar() throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> CharSupplier<E> use(CharSupplier<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * A supplier of float-valued results, with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface FloatSupplier<E extends Throwable>
 	extends Closing.Trivial<FloatSupplier<E>, E>
 	{
+		/**
+		 * Get the supplied value.
+		 */
 		float getAsFloat() throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> FloatSupplier<E> use(FloatSupplier<E> o)
 		{
 			return o;
@@ -642,10 +1053,20 @@ public interface Checked<WT, EX extends Throwable>
 	 * Functions that have checked-exception-less counterparts in the Java API.
 	 */
 
+	/**
+	 * Like {@link java.util.function.Function} but with a body that can throw
+	 * checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <R> Type of the function's result.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface Function<T,R,E extends Throwable>
 	extends Checked<java.util.function.Function<T,R>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		R apply(T t) throws E;
 
 		@Override
@@ -664,6 +1085,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, R, E extends Throwable>
 		Function<T,R,E> use(Function<T,R,E> o)
 		{
@@ -671,10 +1101,19 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.ToDoubleFunction} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToDoubleFunction<T,E extends Throwable>
 	extends Checked<java.util.function.ToDoubleFunction<T>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		double apply(T t) throws E;
 
 		@Override
@@ -693,6 +1132,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToDoubleFunction<T,E> use(ToDoubleFunction<T,E> o)
 		{
@@ -700,10 +1148,19 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.ToIntFunction} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToIntFunction<T,E extends Throwable>
 	extends Checked<java.util.function.ToIntFunction<T>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		int apply(T t) throws E;
 
 		@Override
@@ -722,6 +1179,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToIntFunction<T,E> use(ToIntFunction<T,E> o)
 		{
@@ -729,10 +1195,19 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.ToLongFunction} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToLongFunction<T,E extends Throwable>
 	extends Checked<java.util.function.ToLongFunction<T>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		long apply(T t) throws E;
 
 		@Override
@@ -751,6 +1226,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToLongFunction<T,E> use(ToLongFunction<T,E> o)
 		{
@@ -758,12 +1242,21 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.Predicate} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the predicate's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface Predicate<T,E extends Throwable>
 	extends Checked<java.util.function.Predicate<T>, E>
 	{
 		boolean test(T t) throws E;
 
+		/**
+		 * Evaluates this predicate on the given argument.
+		 */
 		default Predicate<T,E> negate()
 		{
 			return t -> ! test(t);
@@ -785,6 +1278,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		Predicate<T,E> use(Predicate<T,E> o)
 		{
@@ -796,12 +1298,30 @@ public interface Checked<WT, EX extends Throwable>
 	 * Functions without checked-exception-less Java API counterparts.
 	 */
 
+	/**
+	 * Represents a function that produces a byte-valued result and can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToByteFunction<T,E extends Throwable>
 	extends Closing.Trivial<ToByteFunction<T,E>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		byte apply(T t) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToByteFunction<T,E> use(ToByteFunction<T,E> o)
 		{
@@ -809,12 +1329,30 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Represents a function that produces a short-valued result and can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToShortFunction<T,E extends Throwable>
 	extends Closing.Trivial<ToShortFunction<T,E>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		short apply(T t) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToShortFunction<T,E> use(ToShortFunction<T,E> o)
 		{
@@ -822,12 +1360,30 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Represents a function that produces a char-valued result and can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToCharFunction<T,E extends Throwable>
 	extends Closing.Trivial<ToCharFunction<T,E>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		char apply(T t) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToCharFunction<T,E> use(ToCharFunction<T,E> o)
 		{
@@ -835,12 +1391,30 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Represents a function that produces a float-valued result and can
+	 * throw checked exceptions.
+	 * @param <T> Type of the function's parameter.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ToFloatFunction<T,E extends Throwable>
 	extends Closing.Trivial<ToFloatFunction<T,E>, E>
 	{
+		/**
+		 * Applies this function to the given argument.
+		 */
 		float apply(T t) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable>
 		ToFloatFunction<T,E> use(ToFloatFunction<T,E> o)
 		{
@@ -852,10 +1426,20 @@ public interface Checked<WT, EX extends Throwable>
 	 * Consumers that have checked-exception-less counterparts in the Java API.
 	 */
 
+	/**
+	 * Like {@link java.util.function.BiConsumer} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the first argument to the operation.
+	 * @param <U> Type of the second argument to the operation.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface BiConsumer<T,U,E extends Throwable>
 	extends Checked<java.util.function.BiConsumer<T,U>, E>
 	{
+		/**
+		 * Performs this operation on the given arguments.
+		 */
 		void accept(T t, U u) throws E;
 
 		@Override
@@ -874,6 +1458,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, U, E extends Throwable> BiConsumer<T,U,E>
 		use(BiConsumer<T,U,E> o)
 		{
@@ -881,10 +1474,19 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.Consumer} but with a body that can
+	 * throw checked exceptions.
+	 * @param <T> Type of the input to the operation.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface Consumer<T,E extends Throwable>
 	extends Checked<java.util.function.Consumer<T>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(T t) throws E;
 
 		@Override
@@ -903,16 +1505,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <T, E extends Throwable> Consumer<T,E> use(Consumer<T,E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.DoubleConsumer} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface DoubleConsumer<E extends Throwable>
 	extends Checked<java.util.function.DoubleConsumer, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(double value) throws E;
 
 		@Override
@@ -931,16 +1550,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> DoubleConsumer<E> use(DoubleConsumer<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.IntConsumer} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface IntConsumer<E extends Throwable>
 	extends Checked<java.util.function.IntConsumer, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(int value) throws E;
 
 		@Override
@@ -959,16 +1595,33 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> IntConsumer<E> use(IntConsumer<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Like {@link java.util.function.LongConsumer} but with a body that can
+	 * throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface LongConsumer<E extends Throwable>
 	extends Checked<java.util.function.LongConsumer, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(long value) throws E;
 
 		@Override
@@ -987,6 +1640,15 @@ public interface Checked<WT, EX extends Throwable>
 			};
 		}
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> LongConsumer<E> use(LongConsumer<E> o)
 		{
 			return o;
@@ -997,12 +1659,29 @@ public interface Checked<WT, EX extends Throwable>
 	 * Consumers without checked-exception-less counterparts in the Java API.
 	 */
 
+	/**
+	 * Represents an operation that accepts a single boolean-valued argument
+	 * and can throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface BooleanConsumer<E extends Throwable>
 	extends Closing.Trivial<BooleanConsumer<E>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(boolean value) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable>
 		BooleanConsumer<E> use(BooleanConsumer<E> o)
 		{
@@ -1010,48 +1689,116 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * Represents an operation that accepts a single byte-valued argument
+	 * and can throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ByteConsumer<E extends Throwable>
 	extends Closing.Trivial<ByteConsumer<E>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(byte value) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> ByteConsumer<E> use(ByteConsumer<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Represents an operation that accepts a single short-valued argument
+	 * and can throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface ShortConsumer<E extends Throwable>
 	extends Closing.Trivial<ShortConsumer<E>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(short value) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> ShortConsumer<E> use(ShortConsumer<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Represents an operation that accepts a single char-valued argument
+	 * and can throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface CharConsumer<E extends Throwable>
 	extends Closing.Trivial<CharConsumer<E>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(char value) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> CharConsumer<E> use(CharConsumer<E> o)
 		{
 			return o;
 		}
 	}
 
+	/**
+	 * Represents an operation that accepts a single float-valued argument
+	 * and can throw checked exceptions.
+	 * @param <E> Exception type that can be thrown by the body.
+	 */
 	@FunctionalInterface
 	interface FloatConsumer<E extends Throwable>
 	extends Closing.Trivial<FloatConsumer<E>, E>
 	{
+		/**
+		 * Performs this operation on the given argument.
+		 */
 		void accept(float value) throws E;
 
+		/**
+		 * Shapes a lambda or method reference into an instance of this
+		 * functional interface.
+		 *<p>
+		 * This is simply an identity function that can take the place of a
+		 * more unwieldy cast.
+		 * @param <E> Least upper bound of exception types o can throw.
+		 * @param o The implementing lambda or method reference.
+		 */
 		static <E extends Throwable> FloatConsumer<E> use(FloatConsumer<E> o)
 		{
 			return o;
@@ -1068,8 +1815,25 @@ public interface Checked<WT, EX extends Throwable>
 	 * value-based classes, and they will behave.
 	 */
 
+	/**
+	 * Head of a family of {@link java.util.Optional Optional}-like types
+	 * covering the Java primitives that the {@code java.util.Optional...}
+	 * classes do not cover, and whose methods that expect functional interfaces
+	 * will accept the checked-exception versions declared here.
+	 *<p>
+	 * Each {@code Optional}<em>Foo</em> class here should be treated as if
+	 * it were a Java "value-based" class; that they might have this class as
+	 * an ancestor, or any superclass/subclass relationships at all, may change
+	 * and should not be relied on. It may be convenient to
+	 * {@code import static} the {@code ofNullable} methods of this class,
+	 * however, which even cover the {@code java.util}-supplied primitive
+	 * optionals.
+	 */
 	abstract class OptionalBase
 	{
+		/**
+		 * If a value is present, returns true, otherwise false.
+		 */
 		public boolean isPresent()
 		{
 			return false;
@@ -1098,48 +1862,80 @@ public interface Checked<WT, EX extends Throwable>
 			return getClass().getSimpleName() + ".empty";
 		}
 
+		/**
+		 * Return an {@code OptionalDouble} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalDouble ofNullable(Double value)
 		{
 			return null == value ?
 				OptionalDouble.empty() : OptionalDouble.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalInt} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalInt ofNullable(Integer value)
 		{
 			return null == value ?
 				OptionalInt.empty() : OptionalInt.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalLong} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalLong ofNullable(Long value)
 		{
 			return null == value ?
 				OptionalLong.empty() : OptionalLong.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalBoolean} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalBoolean ofNullable(Boolean value)
 		{
 			return null == value ?
 				OptionalBoolean.EMPTY : OptionalBoolean.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalByte} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalByte ofNullable(Byte value)
 		{
 			return null == value ?
 				OptionalByte.EMPTY : OptionalByte.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalShort} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalShort ofNullable(Short value)
 		{
 			return null == value ?
 				OptionalShort.EMPTY : OptionalShort.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalChar} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalChar ofNullable(Character value)
 		{
 			return null == value ?
 				OptionalChar.EMPTY : OptionalChar.of(value);
 		}
 
+		/**
+		 * Return an {@code OptionalFloat} representing the argument, empty
+		 * if the argument is null.
+		 */
 		public static OptionalFloat ofNullable(Float value)
 		{
 			return null == value ?
@@ -1147,10 +1943,27 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * A container object which may or may not contain a {@code boolean} value.
+	 */
 	class OptionalBoolean extends OptionalBase
 	{
+		/**
+		 * An empty {@code OptionalBoolean}, for convenience; not to be used in
+		 * identity-sensitive operations.
+		 */
 		public static final OptionalBoolean EMPTY = new OptionalBoolean();
+
+		/**
+		 * An {@code OptionalBoolean} containing {@code false}, for convenience;
+		 * not to be used in identity-sensitive operations.
+		 */
 		public static final OptionalBoolean FALSE = new False();
+
+		/**
+		 * An {@code OptionalBoolean} containing {@code true}, for convenience;
+		 * not to be used in identity-sensitive operations.
+		 */
 		public static final OptionalBoolean TRUE  = new True();
 
 		private OptionalBoolean()
@@ -1299,8 +2112,15 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * A container object which may or may not contain a {@code byte} value.
+	 */
 	class OptionalByte extends OptionalBase
 	{
+		/**
+		 * An empty {@code OptionalByte}, for convenience; not to be used in
+		 * identity-sensitive operations.
+		 */
 		public static final OptionalByte EMPTY = new OptionalByte();
 
 		private OptionalByte()
@@ -1430,8 +2250,15 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * A container object which may or may not contain a {@code short} value.
+	 */
 	class OptionalShort extends OptionalBase
 	{
+		/**
+		 * An empty {@code OptionalShort}, for convenience; not to be used in
+		 * identity-sensitive operations.
+		 */
 		public static final OptionalShort EMPTY = new OptionalShort();
 
 		private OptionalShort()
@@ -1562,8 +2389,15 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * A container object which may or may not contain a {@code char} value.
+	 */
 	class OptionalChar extends OptionalBase
 	{
+		/**
+		 * An empty {@code OptionalChar}, for convenience; not to be used in
+		 * identity-sensitive operations.
+		 */
 		public static final OptionalChar EMPTY = new OptionalChar();
 
 		private OptionalChar()
@@ -1693,8 +2527,15 @@ public interface Checked<WT, EX extends Throwable>
 		}
 	}
 
+	/**
+	 * A container object which may or may not contain a {@code float} value.
+	 */
 	class OptionalFloat extends OptionalBase
 	{
+		/**
+		 * An empty {@code OptionalFloat}, for convenience; not to be used in
+		 * identity-sensitive operations.
+		 */
 		public static final OptionalFloat EMPTY = new OptionalFloat();
 
 		private OptionalFloat()
