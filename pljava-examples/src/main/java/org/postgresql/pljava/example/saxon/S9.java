@@ -291,7 +291,7 @@ import org.xml.sax.SAXException;
 public class S9 implements ResultSetProvider
 {
 	private S9(
-		XdmSequenceIterator xsi,
+		XdmSequenceIterator<XdmItem> xsi,
 		XQueryEvaluator[] columnXQEs,
 		SequenceType[] columnStaticTypes,
 		XMLBinary enc)
@@ -303,7 +303,7 @@ public class S9 implements ResultSetProvider
 		m_xmlbinary = enc;
 	}
 
-	final XdmSequenceIterator m_sequenceIterator;
+	final XdmSequenceIterator<XdmItem> m_sequenceIterator;
 	final XQueryEvaluator[] m_columnXQEs;
 	final SequenceType[] m_columnStaticTypes;
 	final SequenceType s_01untypedAtomic = makeSequenceType(
@@ -529,7 +529,7 @@ public class S9 implements ResultSetProvider
 			}
 			ItemType xsbt =
 				mapSQLDataTypeToXMLSchemaDataType(op, enc, Nulls.ABSENT);
-			XdmSequenceIterator tv = (XdmSequenceIterator)
+			Iterator<XdmItem> tv =
 				xmlCastAsSequence(v, enc, xsbt).iterator();
 			try
 			{
@@ -558,18 +558,13 @@ public class S9 implements ResultSetProvider
 					PredefinedQueryHolders.DocumentWrapUnwrap.INSTANCE.load();
 				xqe.setExternalVariable(PredefinedQueryHolders.s_qEXPR, xv);
 				xv = xqe.evaluate();
-				XdmSequenceIterator si = (XdmSequenceIterator)xv.iterator();
-				if ( ! si.hasNext() )
+				/*
+				 * It's zero-or-one, or XPTY0004 was thrown here.
+				 */
+				if ( 0 == xv.size() )
 				{
 					target.updateNull(1);
 					return true;
-				}
-				xv = si.next();
-				if ( si.hasNext() )
-				{
-					si.close();
-					throw new XPathException(
-						"Atomized sequence has more than one item", "XPTY0004");
 				}
 				XdmAtomicValue av = (XdmAtomicValue)xv;
 				xmlCastAsNonXML(
@@ -756,7 +751,7 @@ public class S9 implements ResultSetProvider
 	 * as {@code $EXPR} to {@code document{$EXPR}}.
 	 */
 	private static SQLXML returnContent(
-		XdmSequenceIterator<XdmItem> x, boolean nullOnEmpty)
+		Iterator<XdmItem> x, boolean nullOnEmpty)
 	throws SQLException, SaxonApiException, XPathException
 	{
 		if ( nullOnEmpty  &&  ! x.hasNext() )
@@ -895,9 +890,9 @@ public class S9 implements ResultSetProvider
 			}
 
 			XQueryEvaluator rowXQE = rowXQX.load();
-			XdmSequenceIterator rowIterator;
+			XdmSequenceIterator<XdmItem> rowIterator;
 			if ( storePassedValuesInDynamicContext(rowXQE, rowBindings, true) )
-				rowIterator = (XdmSequenceIterator)
+				rowIterator = (XdmSequenceIterator<XdmItem>)
 					XdmEmptySequence.getInstance().iterator();
 			else
 				rowIterator = rowXQE.iterator();
@@ -909,6 +904,9 @@ public class S9 implements ResultSetProvider
 		}
 	}
 
+	/**
+	 * Called when PostgreSQL has no need for more rows of the tabular result.
+	 */
 	@Override
 	public void close()
 	{
@@ -1207,10 +1205,26 @@ public class S9 implements ResultSetProvider
 				 */
 				if ( null == m_columnXQEs [ i ] )
 					continue;
+
 				if ( Types.SQLXML == p.typeJDBC() )
 					continue;
+
 				/*
-				 * Ok, the output column type is non-XML. If the column
+				 * Ok, the output column type is non-XML; choose an atomizer,
+				 * either a simple identity if the result type is statically
+				 * known to be zero-or-one atomic, or the long way through the
+				 * general-purpose one. If the type is statically known to be
+				 * the empty sequence (weird, but not impossible), the identity
+				 * atomizer suffices and we're on to the next column.
+				 */
+				OccurrenceIndicator occur = staticType.getOccurrenceIndicator();
+				if ( OccurrenceIndicator.ZERO == occur )
+				{
+					m_atomize [ i ] = (v, col) -> v;
+					continue;
+				}
+
+				/* So, it isn't known to be empty. If the column
 				 * expression type isn't known to be atomic, or isn't known to
 				 * be zero-or-one, then the general-purpose atomizer--a trip
 				 * through data(document { ... } / child::node())--must be used.
@@ -1221,9 +1235,9 @@ public class S9 implements ResultSetProvider
 				 *    BUT NO ... Saxon is more likely to find a converter from
 				 * xs:untypedAtomic than from xs:anyAtomicType.
 				 */
-				if ( staticType.getOccurrenceIndicator().allowsMany()
-					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(
-						staticType.getItemType())
+				ItemType itemType = staticType.getItemType();
+				if ( occur.allowsMany()
+					|| ! ItemType.ANY_ATOMIC_VALUE.subsumes(itemType)
 					/*
 					 * The following tests may be punctilious to a fault. If we
 					 * have a bare Saxon atomic type of either xs:base64Binary
@@ -1237,9 +1251,9 @@ public class S9 implements ResultSetProvider
 					 * succeed) in the cases where the specified, unoptimized
 					 * behavior would be to fail.
 					 */
-					|| ItemType.HEX_BINARY.subsumes(staticType.getItemType())
+					|| ItemType.HEX_BINARY.subsumes(itemType)
 						&& (XMLBinary.HEX != m_xmlbinary)
-					|| ItemType.BASE64_BINARY.subsumes(staticType.getItemType())
+					|| ItemType.BASE64_BINARY.subsumes(itemType)
 						&& (XMLBinary.BASE64 != m_xmlbinary)
 				   )
 				{
@@ -1252,17 +1266,10 @@ public class S9 implements ResultSetProvider
 							docWrapUnwrap.setExternalVariable(
 								PredefinedQueryHolders.s_qEXPR, v);
 							v = docWrapUnwrap.evaluate();
-							XdmSequenceIterator si =
-								(XdmSequenceIterator)v.iterator();
-							if ( ! si.hasNext() )
-								return v;
-							v = si.next();
-							if ( ! si.hasNext() )
-								return v;
-							si.close();
-							throw new XPathException(
-								"Atomized sequence has more than one item " +
-								"(column " + col + ")", "XPTY0004");
+							/*
+							 * It's already zero-or-one, or XPTY0004 was thrown
+							 */
+							return v;
 						};
 					}
 					m_atomize [ i ] = atomizer;
@@ -1280,7 +1287,7 @@ public class S9 implements ResultSetProvider
 					 * We know we'll be getting zero-or-one atomic value, so
 					 * the atomizing function can be the identity.
 					 */
-					 m_atomize [ i ] = (v, col) -> v;
+					m_atomize [ i ] = (v, col) -> v;
 				}
 			}
 		}
@@ -1586,6 +1593,7 @@ public class S9 implements ResultSetProvider
 		return xftn;
 	}
 
+	@SuppressWarnings("fallthrough")
 	private static ItemType mapSQLDataTypeToXMLSchemaDataType(
 		Binding b, XMLBinary xmlbinary, Nulls nulls)
 		throws SQLException
@@ -1645,6 +1653,7 @@ public class S9 implements ResultSetProvider
 			return ItemType.FLOAT; // could check P, MINEXP, MAXEXP here.
 		case Types.FLOAT:
 			assert false; // PG should always report either REAL or DOUBLE
+			/*FALLTHROUGH*/
 		case Types.DOUBLE:
 			return ItemType.DOUBLE;
 
@@ -2442,6 +2451,7 @@ public class S9 implements ResultSetProvider
 		 * @throws SQLException if numbers of columns and expressions don't
 		 * match, or there is an ordinality column and its type is not suitable.
 		 */
+		@SuppressWarnings("fallthrough")
 		BindingsFromResultSet(ResultSet rs, XQueryEvaluator[] exprs)
 		throws SQLException
 		{
@@ -2474,6 +2484,7 @@ public class S9 implements ResultSetProvider
 						int scale = p.scale();
 						if ( 0 == scale  ||  -1 == scale )
 							break;
+						/*FALLTHROUGH*/
 					default:
 						throw new SQLSyntaxErrorException(
 							"Column FOR ORDINALITY must have an exact numeric" +
