@@ -43,7 +43,7 @@ import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Oid;
 
 /**
- *
+ * Implementation of {@link PreparedStatement} for the SPI connection.
  * @author Thomas Hallgren
  */
 public class SPIPreparedStatement extends SPIStatement implements PreparedStatement

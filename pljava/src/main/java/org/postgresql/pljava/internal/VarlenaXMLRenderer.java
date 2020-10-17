@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,10 @@ import java.nio.charset.CharsetDecoder;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
+/**
+ * Class adapting a {@code ByteBufferXMLReader} to a
+ * {@code VarlenaWrapper.Input}.
+ */
 public abstract class VarlenaXMLRenderer
 extends ByteBufferXMLReader implements VarlenaWrapper
 {

@@ -176,6 +176,9 @@ import org.xml.sax.SAXParseException;
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
 import static org.postgresql.pljava.jdbc.TypeOid.PGNODETREEOID;
 
+/**
+ * Implementation of {@link SQLXML} for the SPI connection.
+ */
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
 	private static final VarHandle s_backingVH;

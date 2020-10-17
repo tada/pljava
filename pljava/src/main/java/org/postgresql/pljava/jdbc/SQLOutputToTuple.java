@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -41,6 +41,7 @@ import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
+ * Implementation of {@link SQLOutput} for the case of a composite data type.
  * @author Thomas Hallgren
  */
 public class SQLOutputToTuple implements SQLOutput

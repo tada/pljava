@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
  * Portions Copyright (c) 1996-2019, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -31,6 +31,12 @@ import org.xml.sax.SAXException;
 import org.postgresql.pljava.internal.VarlenaWrapper;
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
 
+/**
+ * An adapter presenting PostgreSQL's {@code pg_node_tree} type (a serialized
+ * representation of a tree data structure) through the XML API (in, currently,
+ * an ad-hoc, schemaless rendering, but one with which some practical use might
+ * be made of the information, after a little study).
+ */
 public class PgNodeTreeAsXML extends VarlenaXMLRenderer
 {
 	PgNodeTreeAsXML(VarlenaWrapper.Input vwi) throws SQLException

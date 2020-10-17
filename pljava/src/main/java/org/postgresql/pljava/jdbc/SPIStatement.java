@@ -27,7 +27,7 @@ import org.postgresql.pljava.internal.SPI;
 import org.postgresql.pljava.internal.SPIException;
 
 /**
- *
+ * Implementation of {@link Statement} for the SPI connection.
  * @author Thomas Hallgren
  */
 public class SPIStatement implements Statement, SPIReadOnlyControl

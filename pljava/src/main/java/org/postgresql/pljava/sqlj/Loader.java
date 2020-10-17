@@ -73,6 +73,8 @@ import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
 import org.postgresql.pljava.jdbc.SPIReadOnlyControl;
 
 /**
+ * Class loader to load from jars installed in the database with
+ * {@code SQLJ.INSTALL_JAR}.
  * @author Thomas Hallgren
  */
 public class Loader extends ClassLoader

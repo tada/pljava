@@ -17,7 +17,7 @@ import java.sql.SQLException;
 import org.postgresql.pljava.internal.Oid;
 
 /**
- *
+ * Representation of a field to be presented in a {@link SyntheticResultSet}.
  * @author Filip Hrbek
  */
 

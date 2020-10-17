@@ -782,6 +782,9 @@ public abstract class SyntheticXMLReader implements XMLReader
 		}
 	}
 
+	/**
+	 * An immutable and empty collection of attributes.
+	 */
 	public static class EmptyAttributes2 extends Attributes2Impl
 	{
 		@Override

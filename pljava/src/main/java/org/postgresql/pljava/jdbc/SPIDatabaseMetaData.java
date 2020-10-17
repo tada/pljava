@@ -14,9 +14,6 @@
 
 package org.postgresql.pljava.jdbc;
 
-/**
- * @author Filip Hrbek
- */
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -33,6 +30,10 @@ import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.Oid;
 
+/**
+ * Implementation of {@link DatabaseMetaData} for the SPI connection.
+ * @author Filip Hrbek
+ */
 public class SPIDatabaseMetaData implements DatabaseMetaData
 {
 	public SPIDatabaseMetaData(SPIConnection conn)
