@@ -437,6 +437,17 @@ jboolean pljava_Function_vpcInvoke(
 	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
 	jobject *result)
 {
+	/*
+	 * When retrieving the very first row, this call happens under the same
+	 * Invocation as the call to the user function itself that returned this
+	 * invocable (and may, rarely, have pushed a ParameterFrame). What does
+	 * the reservation below imply for ParameterFrame management?
+	 *
+	 * It's ok, because the user function's invocation will have cleared the
+	 * static area parameter counts; this reservation will therefore not see a
+	 * need to push a frame. If one was pushed for the user function itself, it
+	 * remains on top, to be popped when the Invocation is.
+	 */
 	reserveParameterFrame(1, 2);
 	JNI_setObjectArrayElement(s_referenceParameters, 0, rowcollect);
 	s_primitiveParameters[0].j = call_cntr;

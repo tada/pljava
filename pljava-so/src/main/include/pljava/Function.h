@@ -107,6 +107,13 @@ extern jfloat pljava_Function_floatInvoke(Function self);
 extern jlong pljava_Function_longInvoke(Function self);
 extern jdouble pljava_Function_doubleInvoke(Function self);
 
+/*
+ * Call the invocable that was returned by the invocation of a set-returning
+ * user function that observes the SFRM_ValuePerCall protocol. Call with
+ * close == JNI_FALSE to retrieve the next row if any, JNI_TRUE when done (which
+ * may be before all rows have been retrieved). Returns JNI_TRUE/JNI_FALSE to
+ * indicate whether a row was retrieved, AND puts a value (or null) in *result.
+ */
 extern jboolean pljava_Function_vpcInvoke(
 	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
 	jobject *result);

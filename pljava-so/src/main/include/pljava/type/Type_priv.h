@@ -107,11 +107,8 @@ struct TypeClass_
 	 */
 	Datum (*invoke)(Type self, Function fn, PG_FUNCTION_ARGS);
 
-	jobject (*getSRFProducer)(Type self, Function fn);
 	jobject (*getSRFCollector)(Type self, PG_FUNCTION_ARGS);
-	bool (*hasNextSRF)(Type self, jobject producer, jobject collector, jlong counter);
-	Datum (*nextSRF)(Type self, jobject producer, jobject collector);
-	void (*closeSRF)(Type self, jobject producer);
+	Datum (*datumFromSRF)(Type self, jobject row, jobject collector);
 	const char* (*getJNISignature)(Type self);
 
 	/*

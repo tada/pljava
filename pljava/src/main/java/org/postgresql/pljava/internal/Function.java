@@ -316,7 +316,9 @@ public class Function
 					isMultiCall, true); // this time altForm = true
 			try
 			{
-				return lookupFor(clazz).findStatic(clazz, methodName, mt);
+				MethodHandle h =
+					lookupFor(clazz).findStatic(clazz, methodName, mt);
+				return filterReturnValue(h, s_wrapWithPicker);
 			}
 			catch ( ReflectiveOperationException e )
 			{
@@ -570,11 +572,14 @@ public class Function
 	private static final MethodHandle s_nonNull;
 
 	/*
-	 * Handles that fit the SFRM_ValuePerCall entry point, from a function that
-	 * returns an Iterator or ResultSetProvider, respectively.
+	 * Handles used to retrieve rows using SFRM_ValuePerCall protocol, from a
+	 * function that returns an Iterator or ResultSetProvider, respectively.
+	 * (One that returns a ResultSetHandle gets its return value wrapped with a
+	 * ResultSetPicker and is then treated as in the ResultSetProvider case.)
 	 */
 	private static final MethodHandle s_iteratorVPC;
 	private static final MethodHandle s_resultSetProviderVPC;
+	private static final MethodHandle s_wrapWithPicker;
 
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 
@@ -871,6 +876,8 @@ public class Function
 				mh.asType(mh.type().changeReturnType(Object.class));
 
 			/*
+			 * VALUE-PER-CALL Iterator DRIVER
+			 *
 			 * Build the ValuePerCall adapter handle for a function that
 			 * returns Iterator. ValuePerCall adapters will be invoked through
 			 * the general mechanism, and fetch their arguments from the static
@@ -946,7 +953,71 @@ public class Function
 			mh = dropArguments(mh, 1, AccessControlContext.class);
 			s_iteratorVPC = vpcCommon.bindTo(mh);
 
-			s_resultSetProviderVPC = null;
+			/*
+			 * VALUE-PER-CALL ResultSetProvider DRIVER
+			 *
+			 * The same drill as above, only to drive a ResultSetProvider.
+			 * For now, this will always return a null reference, even when
+			 * a row is retrieved; the thing it would return is just the
+			 * row collector, which the C caller already has, and must extract
+			 * the tuple from. If that could be done in Java, it would be
+			 * a different story.
+			 */
+			mt = methodType(boolean.class, ResultSet.class, long.class);
+			mh1 = collectArguments(s_booleanReturn, 0,
+				l.findVirtual(ResultSetProvider.class, "assignRowValues", mt));
+			mh1 = dropArguments(mh1, 0, boolean.class);
+
+			/*
+			 * The next (in construction order; first in execution) test is of
+			 * the 'close' argument. If it is true, use mh2 to zero that prim
+			 * slot, call close, and return false.
+			 */
+			mh2 = insertArguments(s_booleanReturn, 0, false);
+			mh2 = collectArguments(mh2, 0,
+				l.findVirtual(ResultSetProvider.class, "close",
+					methodType(void.class)));
+			mh2 = foldArguments(mh2, 0,
+				insertArguments(s_primitiveZeroer, 0, PRIM1));
+			mh2 = dropArguments(mh2, 0, boolean.class);
+			mh2 = dropArguments(mh2, 2, ResultSet.class, long.class);
+
+			mh = guardWithTest(identity(boolean.class), mh2, mh1);
+			mh = foldArguments(mh, 0, s_countsZeroer);
+			mh = foldArguments(mh, 0,
+				insertArguments(s_booleanGetter, 0, PRIM1));
+			// ^^^ Test the 'close' flag, prim slot 1 (insert as arg 0) ^^^
+
+			mh = foldArguments(mh, 2, insertArguments(s_longGetter, 0, PRIM0));
+			// ^^^ Get the row count, prim slot 0; return will clobber ^^^
+
+			/*
+			 * mh now has type (ResultSetProvider,ResultSet)Object. Erase both
+			 * argument types to Object now (so the ResultSet will match the
+			 * refGetter here, and the result will be (Object)Object as expected
+			 * below.
+			 */
+			mh = mh.asType(mh.type().erase());
+			mh = foldArguments(mh, 1,
+				insertArguments(s_referenceNuller, 0, REF0));
+			mh = foldArguments(mh, 1, insertArguments(s_refGetter, 0, REF0));
+			// ^^^ Get and then null the row collector, ref slot 0 ^^^
+
+			/*
+			 * mh now has type (Object)Object. Give it an acc argument that it
+			 * will ignore, bind it into vpcCommon, and we'll have the
+			 * ResultSetProvider VPC adapter.
+			 */
+			mh = dropArguments(mh, 1, AccessControlContext.class);
+			s_resultSetProviderVPC = vpcCommon.bindTo(mh);
+
+			/*
+			 * WRAPPER for ResultSetHandle to present it as ResultSetProvider
+			 */
+			mt = methodType(void.class, ResultSetHandle.class);
+			mh = myL.findConstructor(ResultSetPicker.class, mt);
+			s_wrapWithPicker =
+				mh.asType(mh.type().changeReturnType(ResultSetProvider.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -1215,8 +1286,10 @@ public class Function
 				.asFixedArity()
 			);
 
-		if ( isMultiCall  &&  ! retTypeIsOutParameter )
-			handle = s_iteratorVPC.bindTo(handle);
+		if ( isMultiCall )
+			handle = (
+				retTypeIsOutParameter ? s_resultSetProviderVPC : s_iteratorVPC
+			).bindTo(handle);
 		else
 			handle = dropArguments(handle, 0, AccessControlContext.class);
 
