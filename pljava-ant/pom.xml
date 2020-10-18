@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.postgresql</groupId>
 		<artifactId>pljava.app</artifactId>
-		<version>1.6.0-SNAPSHOT</version>
+		<version>1.6-SNAPSHOT</version>
 	</parent>
 	<artifactId>pljava-ant</artifactId>
 	<name>PL/Java Ant tasks</name>
