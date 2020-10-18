@@ -230,7 +230,7 @@ import org.xml.sax.SAXException;
  *	 'let $e := PREMIER_NAME
  *	  return if ( empty($e) )then $DPREMIER else $e'
  *	]) AS (
- *	 id int, ordinality int, "COUNTRY_NAME" text, country_id text,
+ *	 id int, ordinality int8, "COUNTRY_NAME" text, country_id text,
  *	 size_sq_km float, size_other text, premier_name text
  *	);
  *</pre>
@@ -288,7 +288,7 @@ import org.xml.sax.SAXException;
  * XQuery regular-expression methods provided here.
  * @author Chapman Flack
  */
-public class S9 implements ResultSetProvider
+public class S9 implements ResultSetProvider.Large
 {
 	private S9(
 		XdmSequenceIterator<XdmItem> xsi,
@@ -803,8 +803,9 @@ public class S9 implements ResultSetProvider
 	 * columns in the column definition list that follows the SQL call to this
 	 * function. This array must not be null. It is allowed for one element (and
 	 * no more than one) to be null, marking the corresponding column to be
-	 * "FOR ORDINALITY" (the column must be of integer, or, ahem, "exact numeric
-	 * with scale zero", type).
+	 * "FOR ORDINALITY" (the column must be of "exact numeric with scale zero"
+	 * type; PostgreSQL supports 64-bit row counters, so {@code int8} is
+	 * recommended).
 	 * @param passing A row value whose columns will be supplied to the query
 	 * as parameters, just as described for
 	 * {@link #xq_ret_content xq_ret_content()}. If a context item is supplied,
@@ -1188,7 +1189,7 @@ public class S9 implements ResultSetProvider
 	 * be changed to match a future clarification of the spec.
 	 */
 	@Override
-	public boolean assignRowValues(ResultSet receive, int currentRow)
+	public boolean assignRowValues(ResultSet receive, long currentRow)
 	throws SQLException
 	{
 		if ( 0 == currentRow )
@@ -1308,7 +1309,7 @@ public class S9 implements ResultSetProvider
 
 			if ( null == xqe )
 			{
-				receive.updateInt( i, currentRow);
+				receive.updateLong( i, currentRow);
 				continue;
 			}
 
