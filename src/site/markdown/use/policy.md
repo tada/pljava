@@ -316,6 +316,20 @@ on some property that isn't readable under Java's default policy.
 Those examples should be changed to use a property that is normally readable,
 such as `java.version` or `org.postgresql.pljava.version`._
 
+## Troubleshooting
+
+When in doubt what permissions are needed to get some existing PL/Java code
+working again, it may be helpful to add `-Djava.security.debug=access` in
+the setting of `pljava.vmoptions`, and observe the messages on the PostgreSQL
+backend's standard error (which should be included in the log file,
+if `logging_collector` is `on`). It is not necessary to change the
+`pljava.vmoptions` setting cluster-wide, such as in `postgresql.conf`; it can
+be set in a single session for troubleshooting purposes.
+
+Other options for `java.security.debug` can be found in
+[Troubleshooting Security][tssec]. Some can be used to filter the logging down
+to requests for specific permissions or from a specific codebase.
+
 ## Forward compatibility
 
 The current implementation makes use of the Java classes
@@ -329,3 +343,4 @@ release, so relying on it is not recommended.
 [confvar]: variables.html
 [dopriv]: https://docs.oracle.com/en/java/javase/14/security/java-se-platform-security-architecture.html#GUID-E8898CB5-65BB-4D1A-A574-8F7112FC353F
 [sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
+[tssec]: https://docs.oracle.com/en/java/javase/14/security/troubleshooting-security.html

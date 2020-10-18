@@ -38,6 +38,9 @@ PL/Java has been successfully used with [Oracle Java][orj] and with
 [either the Hotspot or the OpenJ9 JVM][hsj9]. It can also be built and used
 with [GraalVM][].
 
+If building with GraalVM, please add `-Dpolyglot.js.nashorn-compat=true` on
+the `mvn` command line.
+
 [jvml]: ../use/variables.html
 [cds]:  ../install/vmoptions.html#Class_data_sharing
 [orj]: https://www.oracle.com/technetwork/java/javase/downloads/index.html

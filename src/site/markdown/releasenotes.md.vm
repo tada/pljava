@@ -39,9 +39,48 @@ When used with GraalVM as the runtime VM, PL/Java functions can use Graal's
 GraalVM. In this release, it is not yet possible to directly declare a function
 in a language other than Java.
 
+If building with GraalVM, please add `-Dpolyglot.js.nashorn-compat=true` on
+the `mvn` command line.
+
 $h3 Changes
 
-$h4 Validation at `CREATE FUNCTION` time
+$h4 New configurable permissions may require configuration
+
+Prior to 1.6.0, PL/Java hard-coded the permissions that were available to
+functions declared in the 'trusted' language `java` or the 'untrusted' language
+`javaU`. With 1.6.0, the exact permissions available for both cases can be
+configured in the `pljava.policy` file (found in the directory reported by
+`pg_config --sysconfdir`) as described in the
+[new policy documentation][policy].
+
+Java's policy language can conditionally grant permissions but not deny them
+if another clause grants them. Therefore, the default policy must be somewhat
+restrictive, so a desired policy can be built from it with grant clauses.
+
+In the 1.6.0 default policy, 'trusted' (`java`) code has minimal permissions,
+suitable for general computation and interacting with the database, and
+'untrusted' (`javaU`) code has only the additional permission to access the
+file system. Existing user functions that worked in PL/Java 1.5.x and performed
+other actions, such as making network connections, will need the appropriate
+permissions (such as `java.net.URLPermission` or `java.net.SocketPermission`)
+granted via the policy file.
+
+The policy can grant permissions more selectively than just to `java`
+or `javaU`. The [new documentation][policy] covers the details, and also how
+to log, for troubleshooting purposes, the permissions being requested.
+
+Whatever the reason, all down the years, a favorite "is PL/Java working?" check
+found online has been to read a Java system property with `System.getProperty`.
+Not all of those examples pick properties that can be read under the default
+policy. So, even some familiar habits like that may need revision, at least to
+use a property like `java.version` that is readable by default.
+
+The former hard-coded permissions were by turns too lax or too strict, depending
+on what was needed, and interfered in some cases with the operation of the Java
+runtime itself, breaking (at least) its XSLT implementation and the profiling
+functions of `visualvm`. This release fixes those issues.
+
+$h4 Validation at `CREATE FUNCTION` time may force changes to deployment procedures
 
 PL/Java can now detect problems with a function declaration, including missing
 dependencies, at the time of `CREATE FUNCTION`, rather than allowing the
@@ -54,6 +93,20 @@ path first; in the past, the order did not matter. For details, see
 [this section][linkage] in the documentation for the supplied examples,
 and the description of `check_function_bodies` in the
 [configuration variable reference](use/variables.html).
+
+$h4 Java 9 module system; `pljava.classpath` -> `pljava.module_path`
+
+Because PL/Java itself is now modular code conforming to the module system
+introduced with Java 9, one configuration variable has changed:
+`pljava.classpath` is now `pljava.module_path`.
+
+As before, its default value will be correct when PL/Java is installed to
+the usual locations. It should be rare for any installation to have needed
+to think about the old one, or to need to think about the new one. For a
+rare installation that does, the details are [in the documentation][jpms].
+
+In this release, user code is not treated as modular; the `SQLJ.INSTALL_JAR`
+routine still treats its jars as unnamed-module code on a class path, as before.
 
 $h4 Improvements to the annotation-driven SQL generator
 
@@ -72,7 +125,18 @@ $h5 Generates variadic function declarations
 PL/Java 1.6 can declare functions that can be called from SQL with varying
 numbers of arguments. [Example code][variadic] is provided.
 
-$h4 Build system and continuous integration
+$h4 Better support for PostgreSQL's `SQL_ASCII` encoding
+
+PostgreSQL's legacy `SQL_ASCII` encoding is difficult to use in Java because
+128 of its code points have no defined mapping to Unicode, which Java uses.
+The page on [database character set encodings][charsets] has a section
+suggesting workable approaches if PL/Java is used in a database with that
+encoding. A new addition among those options is a Java `Charset` supporting
+the encoding names `X-PGSQL_ASCII` or `SQL_ASCII`, which maps the ASCII
+characters as expected, and reversibly encodes the others using Unicode
+permanently-undefined codepoints.
+
+$h4 Build system, continuous integration, quality assurance
 
 * The `nar-maven-plugin` formerly used in the build has been replaced with
     a newly-developed Maven plugin tailored to PostgreSQL extension building.
@@ -94,6 +158,10 @@ $h4 Build system and continuous integration
     platform-specific code to a minimum, and may be useful for other purposes.
     Some [documentation](develop/node.html) is included.
 
+* Having fixed the permission issues that were breaking the profiling functions
+    of `visualvm`, it will be easier to incorporate profiling into future
+    development.
+
 $h3 Enhancement requests addressed
 
 * [Add regression testing](${ghbug}11)
@@ -103,6 +171,11 @@ $h3 Bugs fixed
 
 * [`-Dpljava.libjvmlocation` breaks Windows build](${ghbug}190)
 * [XML Schema regression-test failure in de_DE locale](${ghbug}312)
+
+$h3 Updated PostgreSQL APIs tracked
+
+* 64-bit `FuncCallContext.call_cntr` (`ResultSetProvider`/`ResultSetHandle`
+    can now return more than `INT_MAX` rows)
 
 $h3 Credits
 
@@ -116,10 +189,13 @@ and the many contributors to earlier versions.
 The work of Kartik Ohri in summer 2020 on the build system renovation and
 continuous integration was supported by Google Summer of Code.
 
+[policy]: use/policy.html
 [linkage]: examples/examples.html#Exception_resolving_class_or_method_.28message_when_installing_examples.29
 [udtd32f84e]: https://github.com/jcflack/pljava-udt-type-extension/commit/d32f84e
 [udt0066a1e]: https://github.com/jcflack/pljava-udt-type-extension/commit/0066a1e
 [variadic]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Variadic.html#method.detail
+[charsets]: use/charsets.html
+[jpms]: use/jpms.html
 
 $h2 Earlier releases
 

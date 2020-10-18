@@ -101,6 +101,8 @@ except `UTF8`:
     > The Unicode escape syntax works only when the server encoding is UTF8.
     > When other server encodings are used, only code points in the ASCII range
     > (up to \007F) can be specified.
+
+    PostgreSQL 13 eliminates this limitation.
 * The [`ascii` and `chr` functions][acfns] behave two different ways, depending
     on whether the server encoding is *a single-byte encoding*, or *any
     multi-byte encoding other than `UTF8`*.
