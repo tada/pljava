@@ -39,11 +39,26 @@ The encoding `SQL_ASCII`, as described [in the PostgreSQL documentation][mbc],
 
 ### Using PL/Java with server encoding `SQL_ASCII`
 
-When the server encoding is `SQL_ASCII`, the only safe way for PL/Java to treat
-it is as strict ASCII, throwing exceptions if asked to convert any string
-involving characters outside of ASCII.
+Java strings are Unicode by definition; PL/Java must not create strings where
+some of the characters have their Unicode meanings while others mean something
+else. PL/Java does supply a `Charset` with encoder and decoder for `SQL_ASCII`,
+which behaves as follows:
 
-If PL/Java must be used with `SQL_ASCII` as the server encoding, the cases are
+* Encoded bytes in the ASCII range map to the corresponding Unicode characters.
+* Other encoded bytes are stuffed, two `char`s for each byte, into a range of
+    codepoints Unicode defines as permanently unassigned. For those codepoints,
+    `Character.getType` returns `UNASSIGNED`, `Character.getName` returns null,
+    `Character.UnicodeScript.of` returns `UNKNOWN`, and they will not match
+    patterns for letters, digits, punctuation, or generally anything else
+    interesting (other than `\p{Cn}`, the exact test for noncharacters).
+
+The mapping is transparently reversed when such a Java string is returned
+to PostgreSQL. With this convention, Java code can work usefully with
+`SQL_ASCII` encoded data, matching and manipulating the ASCII parts, while
+treating the non-defined subsequences as opaque and returning them to PostgreSQL
+unchanged.
+
+If PL/Java is used with `SQL_ASCII` as the server encoding, the cases are
 (by increasing complexity):
 
 0. The database contains no non-ASCII data (or none that will be touched
@@ -52,15 +67,19 @@ If PL/Java must be used with `SQL_ASCII` as the server encoding, the cases are
 0. The database contains non-ASCII data all known to be in one standard
     encoding. It would be simplest for the database to be recreated with
     this encoding selected, but that may be impractical for various reasons.
-    In that case, this can be handled in the same way as the next case.
+    In that case, this can be handled in the same way as the next case, or
+    PL/Java can be 'lied to' about the server encoding by including a
+    `-Dorg.postgresql.server.encoding=...` in `pljava.vmoptions` that names
+    the known correct encoding instead.
 
 0. The database contains non-ASCII data in _more than one_ encoding, with
     the application somehow knowing which encoding is used where. That is
     completely possible because `SQL_ASCII` does not guarantee or validate
     anything (which means it can also happen over time without being intended).
-    The rigorous approach in this case is to write Java code expecting and
-    returning `bytea` and some indication of the encoding to be used, and
-    perform explicit conversions.
+    Java code can find regions of strings that match the pattern
+    `(?:[\ufdd8-\ufddf][\ufde0-\ufdef])++` and pass those regions back through
+    the `SQL_ASCII` encoder, and then the decoder for whatever other encoding
+    it determines should apply.
 
 ## Using PL/Java with standard (not `SQL_ASCII`) encodings other than `UTF8`
 

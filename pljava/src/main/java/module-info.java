@@ -26,6 +26,9 @@ module org.postgresql.pljava.internal
 	provides java.net.spi.URLStreamHandlerProvider
 		with org.postgresql.pljava.sqlj.Handler;
 
+	provides java.nio.charset.spi.CharsetProvider
+		with org.postgresql.pljava.internal.SQL_ASCII.Provider;
+
 	provides java.sql.Driver with org.postgresql.pljava.jdbc.SPIDriver;
 
 	provides org.postgresql.pljava.Session
