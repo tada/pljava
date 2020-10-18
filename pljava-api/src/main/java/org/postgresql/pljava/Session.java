@@ -118,8 +118,8 @@ public interface Session
 	 * unconditionally, which is incorrect for any PostgreSQL version newer
 	 * than 8.0, because it was unaware of {@code SET ROLE} introduced in
 	 * 8.1. Any actual use case for a method that ignores roles and reports
-	 * only the session ID should be
-	 * <a href='../../../../issue-tracking.html'>reported as an issue.</a>
+	 * only the session ID should be <a href=
+'../../../../../../issue-management.html'>reported as an issue.</a>
 	 */
 	@Deprecated(since="1.5.0", forRemoval=true)
 	String getSessionUserName();
@@ -147,8 +147,8 @@ public interface Session
 	 * which is incorrect for any PostgreSQL version newer than 8.0, because
 	 * it was unaware of {@code SET ROLE} introduced in 8.1. Any actual use
 	 * case for a method that ignores roles and uses only the session ID
-	 * should be <a href='../../../../issue-tracking.html'>reported as an
-	 * issue</a>.
+	 * should be <a href=
+'../../../../../../issue-management.html'>reported as an issue</a>.
 	 */
 	@Deprecated(since="1.5.0", forRemoval=true)
 	void executeAsSessionUser(Connection conn, String statement)

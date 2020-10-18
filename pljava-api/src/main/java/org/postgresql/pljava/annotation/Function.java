@@ -184,7 +184,7 @@ category</a>
 	 *<p>
 	 * For much more on the practicalities of parallel query and PL/Java,
 	 * please see <a href=
-'../../../../../../use/parallel.html'>the users' guide</a>.
+'../../../../../../../use/parallel.html'>the users' guide</a>.
 	 *<p>
 	 * Appeared in PostgreSQL 9.6.
 	 */
