@@ -31,7 +31,7 @@ import org.postgresql.pljava.SessionManager;
  * of PL/Java's {@code ObjectPool} facility.
  * @author Thomas Hallgren
  */
-public class UsingProperties implements ResultSetProvider, PooledObject {
+public class UsingProperties implements ResultSetProvider.Large, PooledObject {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 
 	public static ResultSetProvider getProperties() throws SQLException {
@@ -71,7 +71,7 @@ public class UsingProperties implements ResultSetProvider, PooledObject {
 	}
 
 	@Override
-	public boolean assignRowValues(ResultSet receiver, int currentRow)
+	public boolean assignRowValues(ResultSet receiver, long currentRow)
 			throws SQLException {
 		if (m_propertyIterator == null || !m_propertyIterator.hasMoreElements()) {
 			s_logger.fine("no more rows, returning false");

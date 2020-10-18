@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,6 +9,7 @@
  * Contributors:
  *   Tada AB
  *   Purdue University
+ *   Chapman Flack
  */
 package org.postgresql.pljava.example.annotation;
 
@@ -32,7 +33,7 @@ import org.postgresql.pljava.ResultSetProvider;
  * interface.
  * @author Thomas Hallgren
  */
-public class UsingProperties implements ResultSetProvider
+public class UsingProperties implements ResultSetProvider.Large
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
 	private final Iterator m_propertyIterator;
@@ -56,7 +57,7 @@ public class UsingProperties implements ResultSetProvider
 		}
 	}
 
-	public boolean assignRowValues(ResultSet receiver, int currentRow)
+	public boolean assignRowValues(ResultSet receiver, long currentRow)
 			throws SQLException
 	{
 		if(!m_propertyIterator.hasNext())
