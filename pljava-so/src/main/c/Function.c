@@ -554,7 +554,7 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 		pljava_Function_udtParseHandle, pljava_Function_udtReadHandle,
 		pljava_Function_udtWriteHandle, pljava_Function_udtToStringHandle
 	};
-	char *langName[4] = {};
+	char *langName[4] = { NULL, NULL, NULL, NULL };
 	bool trusted[4];
 	jobject handle[4];
 	int i;
