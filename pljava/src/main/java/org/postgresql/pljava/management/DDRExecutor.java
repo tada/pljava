@@ -98,7 +98,7 @@ public abstract class DDRExecutor
 		if ( null == name )
 			return PLAIN;
 
-		Iterable<Identifier> imps =
+		Iterable<Identifier.Simple> imps =
 			Backend.getListConfigOption( "pljava.implementors");
 
 		for ( Identifier i : imps )

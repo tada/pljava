@@ -55,9 +55,15 @@ extern void Function_clearFunctionCache(void);
  * meaning.
  */
 extern Function Function_getFunction(
-	Oid funcOid, bool forTrigger, bool forValidator, bool checkBody);
+	Oid funcOid, bool trusted, bool forTrigger,
+	bool forValidator, bool checkBody);
 
-extern Type Function_checkTypeUDT(Oid typeId, Form_pg_type typeStruct);
+/*
+ * Determine whether the type represented by typeId is declared as a
+ * "Java-based scalar" a/k/a BaseUDT and, if so, return a freshly-registered
+ * UDT Type for it; otherwise return NULL.
+ */
+extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
  * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
@@ -107,15 +113,34 @@ extern jfloat pljava_Function_floatInvoke(Function self);
 extern jlong pljava_Function_longInvoke(Function self);
 extern jdouble pljava_Function_doubleInvoke(Function self);
 
-extern void pljava_Function_udtWriteInvoke(jobject value, jobject stream);
-extern jstring pljava_Function_udtToStringInvoke(jobject value);
-extern jobject pljava_Function_udtReadInvoke(
-	jobject readMH, jobject stream, jstring typeName);
-extern jobject pljava_Function_udtParseInvoke(
-	jobject parseMH, jstring stringRep, jstring typeName);
+/*
+ * Call the invocable that was returned by the invocation of a set-returning
+ * user function that observes the SFRM_ValuePerCall protocol. Call with
+ * close == JNI_FALSE to retrieve the next row if any, JNI_TRUE when done (which
+ * may be before all rows have been retrieved). Returns JNI_TRUE/JNI_FALSE to
+ * indicate whether a row was retrieved, AND puts a value (or null) in *result.
+ */
+extern jboolean pljava_Function_vpcInvoke(
+	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
+	jobject *result);
 
-extern jobject pljava_Function_udtReadHandle(jclass clazz);
-extern jobject pljava_Function_udtParseHandle(jclass clazz);
+extern void pljava_Function_udtWriteInvoke(
+	jobject invocable, jobject value, jobject stream);
+extern jstring pljava_Function_udtToStringInvoke(
+	jobject invocable, jobject value);
+extern jobject pljava_Function_udtReadInvoke(
+	jobject invocable, jobject stream, jstring typeName);
+extern jobject pljava_Function_udtParseInvoke(
+	jobject invocable, jstring stringRep, jstring typeName);
+
+extern jobject pljava_Function_udtWriteHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtToStringHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtReadHandle(
+	jclass clazz, char *langName, bool trusted);
+extern jobject pljava_Function_udtParseHandle(
+	jclass clazz, char *langName, bool trusted);
 
 /*
  * Returns the Type Map that is associated with the function

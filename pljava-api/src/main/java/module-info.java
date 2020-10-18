@@ -18,7 +18,7 @@ module org.postgresql.pljava
 {
 	requires java.base;
 	requires transitive java.sql;
-	requires java.compiler;
+	requires transitive java.compiler;
 
 	exports org.postgresql.pljava;
 	exports org.postgresql.pljava.annotation;

@@ -200,12 +200,6 @@ extern Oid Type_getOid(Type self);
 extern TupleDesc Type_getTupleDesc(Type self, PG_FUNCTION_ARGS);
 
 /*
- * Obtains the Java object that acts as the SRF producer. This instance will be
- * called once for each row that should be produced.
- */
-extern jobject Type_getSRFProducer(Type self, Function fn);
-
-/*
  * Obtains the optional Java object that will act as the value collector for
  * the SRF producer. The collector typically manifest itself as an OUT
  * parameter of type java.sql.ResultSet in calls to the SRF producer.
@@ -213,19 +207,10 @@ extern jobject Type_getSRFProducer(Type self, Function fn);
 extern jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS);
 
 /*
- * Called to determine if the producer will produce another row.
+ * Return a Datum of the expected type, from the row collector (if any) and/or
+ * the value returned by the row producer.
  */
-extern bool Type_hasNextSRF(Type self, jobject producer, jobject collector, jlong counter);
-
-/*
- * Converts the next row into a Datum of the expected type.
- */
-extern Datum Type_nextSRF(Type self, jobject producer, jobject collector);
-
-/*
- * Called at the end of an SRF iteration.
- */
-extern void Type_closeSRF(Type self, jobject producer);
+extern Datum Type_datumFromSRF(Type self, jobject row, jobject rowCollector);
 
 /*
  * Function used when obtaining a type based on an Oid

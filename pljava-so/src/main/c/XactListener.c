@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,27 +17,39 @@
 #include "access/xact.h"
 
 static jclass s_XactListener_class;
-static jmethodID s_XactListener_onAbort;
-static jmethodID s_XactListener_onCommit;
-static jmethodID s_XactListener_onPrepare;
+static jmethodID s_XactListener_invokeListeners;
 
 static void xactCB(XactEvent event, void* arg)
 {
+	/*
+	 * Upstream has, regrettably, not merely added events over the years, but
+	 * changed their order, so a mapping is needed. Use a switch with the known
+	 * cases enumerated, to improve the chance that a clever compiler will warn
+	 * if yet more have been added, and initialize 'mapped' to a value that the
+	 * Java code won't mistake for a real one.
+	 */
+#define CASE(c) \
+case XACT_EVENT_##c: \
+	mapped = org_postgresql_pljava_internal_XactListener_##c; \
+	break
+
+	jint mapped = -1;
 	switch(event)
 	{
-		case XACT_EVENT_ABORT:
-			JNI_callStaticVoidMethod(s_XactListener_class,
-				s_XactListener_onAbort);
-			break;
-		case XACT_EVENT_COMMIT:
-			JNI_callStaticVoidMethod(s_XactListener_class,
-				s_XactListener_onCommit);
-			break;
-		case XACT_EVENT_PREPARE:
-			JNI_callStaticVoidMethod(s_XactListener_class,
-				s_XactListener_onPrepare);
-			break;
+		CASE( COMMIT );
+		CASE( ABORT );
+		CASE( PREPARE );
+		CASE( PRE_COMMIT );
+		CASE( PRE_PREPARE );
+#if PG_VERSION_NUM >= 90500
+		CASE( PARALLEL_COMMIT );
+		CASE( PARALLEL_ABORT );
+		CASE( PARALLEL_PRE_COMMIT );
+#endif
 	}
+
+	JNI_callStaticVoidMethod(s_XactListener_class,
+		s_XactListener_invokeListeners, mapped);
 }
 
 extern void XactListener_initialize(void);
@@ -59,10 +71,10 @@ void XactListener_initialize(void)
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/XactListener", methods);
 
-	s_XactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/XactListener"));
-	s_XactListener_onAbort = PgObject_getStaticJavaMethod(s_XactListener_class, "onAbort", "()V");
-	s_XactListener_onCommit = PgObject_getStaticJavaMethod(s_XactListener_class, "onCommit", "()V");
-	s_XactListener_onPrepare = PgObject_getStaticJavaMethod(s_XactListener_class, "onPrepare", "()V");
+	s_XactListener_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/XactListener"));
+	s_XactListener_invokeListeners = PgObject_getStaticJavaMethod(
+		s_XactListener_class, "invokeListeners", "(I)V");
 }
 
 /*

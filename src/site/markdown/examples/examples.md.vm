@@ -126,7 +126,7 @@ The Saxon example [documentation is here](../examples/saxon.html).
 
 [Saxon-HE]: http://www.saxonica.com/html/products/products.html
 
-$h2 Unable to find class or method (message when installing examples)
+$h2 Exception resolving class or method (message when installing examples)
 
 As described above, there are some optionally-built examples included
 in the source. For example, there are XML Query examples that are not built
@@ -135,10 +135,9 @@ by default because they depend on the Saxon jar.
 If your examples jar was built with the optional examples enabled, then
 PL/Java will normally validate that all of the functions it creates can be used.
 That validation will fail if a needed dependency, such as the Saxon jar, is
-not already installed and on the classpath. The error message can be puzzling,
-as it won't say the Saxon jar is missing, it will say it can't find a method
-that is clearly present in the examples jar. The explanation is that Java does
-not resolve the method, because a dependency is missing.
+not already installed and on the classpath. The error message will not directly
+say the Saxon jar is missing, but will say it failed to find a class (whose name
+will suggest it should be part of Saxon).
 
 There are two ways to proceed:
 

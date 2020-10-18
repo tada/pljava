@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,10 +18,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharacterCodingException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -45,14 +48,24 @@ import java.util.zip.ZipInputStream;
 import org.postgresql.pljava.Session;
 import org.postgresql.pljava.SessionManager;
 
+import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
+
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import static
+	org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified.nameFromCatalog;
+
 import org.postgresql.pljava.internal.AclId;
 import org.postgresql.pljava.internal.Backend;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Oid;
-import org.postgresql.pljava.jdbc.SQLUtils;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
+import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
 import org.postgresql.pljava.sqlj.Loader;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
+import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
@@ -242,6 +255,41 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * to the current setting of the search_path.</td>
  * </tr>
  * </table></blockquote>
+ * <h3><a id='alias_java_language'>alias_java_language</a></h3>
+ * The {@link #aliasJavaLanguage alias_java_language command} issues
+ * a PostgreSQL {@code CREATE LANGUAGE} command to define a named "language"
+ * that is an alias for PL/Java. The name can appear in the
+ * <a href="../../RELDOTS/use/policy.html">Java security policy</a> to grant
+ * specific permissions to functions created in this "language".
+ * <h4>Usage</h4>
+ * <blockquote>
+ * {@code SELECT sqlj.alias_java_language(<alias>, sandboxed => <boolean>);}
+ * </blockquote>
+ * <h4>Parameters</h4>
+ * <blockquote><table><caption>Parameters for sqlj.alias_java_language</caption>
+ * <tr>
+ * <td><b>alias</b></td>
+ * <td>The name desired for the language alias. Language names are not
+ * schema-qualified.</td>
+ * </tr>
+ * <tr>
+ * <td><b>sandboxed</b></td>
+ * <td>Whether to create a sandboxed "{@code TRUSTED}" language, in which
+ * functions can be created by any role granted {@code USAGE} permission (true),
+ * or an unsandboxed one in which only superusers may create functions (false).
+ * </td>
+ * </tr>
+ * <tr>
+ * <td><b>orReplace</b></td>
+ * <td>Optional parameter, default false.
+ * See {@link #aliasJavaLanguage the method documentation} for details.</td>
+ * </tr>
+ * <tr>
+ * <td><b>comment</b></td>
+ * <td>Optional parameter. If empty string (the default), a comment is supplied.
+ * See {@link #aliasJavaLanguage the method documentation} for details.</td>
+ * </tr>
+ * </table></blockquote>
  * 
  * @author Thomas Hallgren
  * @author Chapman Flack
@@ -329,55 +377,92 @@ public class Commands
 	private final static Logger s_logger = Logger.getLogger(Commands.class
 		.getName());
 
+	private static final Identifier.Simple s_public_schema =
+		Identifier.Simple.fromCatalog("public");
+
 	/**
 	 * Reads the jar found at the specified URL and stores the entries in the
 	 * jar_entry table.
 	 * 
 	 * @param jarId The id used for the foreign key to the jar_repository table
+	 * @param urlString The url to be read
+	 */
+	static void addClassImages(int jarId, String urlString)
+	throws SQLException
+	{
+		try
+		{
+			URL url = new URL(urlString);
+			URLConnection uc = url.openConnection();
+			long[] sz = new long[1];
+
+			/*
+			 * Do uc.connect() with PL/Java implementation's permissions, but
+			 * narrowed to only what uc says it needs to make this connection.
+			 */
+			try (
+				InputStream urlStream = doPrivileged(() ->
+				{
+					uc.connect();
+					sz[0] = uc.getContentLengthLong();
+					return uc.getInputStream();
+				}, null, uc.getPermission())
+			)
+			{
+				addClassImages(jarId, urlStream, sz[0]);
+			}
+		}
+		catch(IOException e)
+		{
+			throw new SQLException("I/O exception reading jar file: " +
+				e.getMessage());
+		}
+	}
+
+	/**
+	 * Add class images from an already opened stream.
 	 * @param urlStream An InputStream (opened on what may have been a URL)
 	 * @param sz The expected size of the stream, used as a worst-case
 	 * mark/reset limit. The caller might pass -1 if the URLConnection can't
 	 * determine a size in advance (a generous guess will be made in that case).
 	 * @throws SQLException
 	 */
-	public static void addClassImages(int jarId, InputStream urlStream, int sz)
+	static void addClassImages(int jarId, InputStream urlStream, long sz)
 	throws SQLException
 	{
-		PreparedStatement stmt = null;
-		PreparedStatement descIdFetchStmt = null;
-		PreparedStatement descIdStoreStmt = null;
-		ResultSet rs = null;
-
-		try
+		try (
+			Connection conn = getDefaultConnection();
+			PreparedStatement stmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) " +
+				"VALUES (?, ?, ?)");
+			PreparedStatement descIdFetchStmt = conn.prepareStatement(
+				"SELECT entryId FROM sqlj.jar_entry " +
+				"WHERE jarId OPERATOR(pg_catalog.=) ?" +
+				"  AND entryName OPERATOR(pg_catalog.=) ?");
+			PreparedStatement descIdStoreStmt = conn.prepareStatement(
+				"INSERT INTO sqlj.jar_descriptor (jarId, entryId, ordinal)" +
+				" VALUES ( ?, ?, ? )");
+		)
 		{
 			byte[] buf = new byte[1024];
 			ByteArrayOutputStream img = new ByteArrayOutputStream();
-			stmt = SQLUtils
-				.getDefaultConnection()
-				.prepareStatement(
-					"INSERT INTO sqlj.jar_entry(entryName, jarId, entryImage) VALUES(?, ?, ?)");
 
 			BufferedInputStream bis = new BufferedInputStream( urlStream);
 			String manifest = rawManifest( bis, sz);
 			JarInputStream jis = new JarInputStream(bis);
 			if(manifest != null)
 			{
-				PreparedStatement us = SQLUtils
-					.getDefaultConnection()
+				try ( PreparedStatement us = conn
 					.prepareStatement(
 						"UPDATE sqlj.jar_repository SET jarManifest = ? " +
 						"WHERE jarId OPERATOR(pg_catalog.=) ?");
-				try
+				)
 				{
 					us.setString(1, manifest);
 					us.setInt(2, jarId);
 					if(us.executeUpdate() != 1)
 						throw new SQLException(
 							"Jar repository update did not update 1 row");
-				}
-				finally
-				{
-					SQLUtils.close(us);
 				}
 			}
 
@@ -407,31 +492,24 @@ public class Commands
 			}
 
 			Matcher ddr = ddrSection.matcher( null != manifest ? manifest : "");
-			Matcher cnt = mfCont.matcher( "");
+			Matcher continuations = mfCont.matcher( "");
 			for ( int ordinal = 0; ddr.find(); ++ ordinal )
 			{
-				String entryName = cnt.reset( ddr.group( 1)).replaceAll( "");
-				if ( descIdFetchStmt == null )
-					descIdFetchStmt = SQLUtils.getDefaultConnection()
-						.prepareStatement(
-							"SELECT entryId FROM sqlj.jar_entry " +
-							"WHERE jarId OPERATOR(pg_catalog.=) ?" +
-							"  AND entryName OPERATOR(pg_catalog.=) ?");
+				String entryName =
+					continuations.reset( ddr.group( 1)).replaceAll( "");
 				descIdFetchStmt.setInt(1, jarId);
 				descIdFetchStmt.setString(2, entryName);
-				rs = descIdFetchStmt.executeQuery();
-				if(!rs.next())
-					throw new SQLException(
-						"Failed to refetch row in sqlj.jar_entry");
 
-				int deployImageId = rs.getInt(1);
+				int deployImageId;
+				try ( ResultSet rs = descIdFetchStmt.executeQuery() )
+				{
+					if ( ! rs.next() )
+						throw new SQLException(
+							"Failed to refetch row in sqlj.jar_entry");
 
-				if ( descIdStoreStmt == null )
-					descIdStoreStmt = SQLUtils.getDefaultConnection()
-						.prepareStatement(
-							"INSERT INTO sqlj.jar_descriptor"
-								+ " (jarId, entryId, ordinal) VALUES"
-								+ " ( ?, ?, ? )");
+					deployImageId = rs.getInt(1);
+				}
+
 				descIdStoreStmt.setInt(1, jarId);
 				descIdStoreStmt.setInt(2, deployImageId);
 				descIdStoreStmt.setInt(3, ordinal);
@@ -445,13 +523,6 @@ public class Commands
 		{
 			throw new SQLException("I/O exception reading jar file: "
 				+ e.getMessage(), "58030", e);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(descIdStoreStmt);
-			SQLUtils.close(descIdFetchStmt);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -486,12 +557,14 @@ public class Commands
 	 * leaves little choice but to sneak in ahead of the JarInputStream and
 	 * pluck out the original manifest as a zip entry.
 	 */
-	private static String rawManifest( BufferedInputStream bis, int markLimit)
+	private static String rawManifest( BufferedInputStream bis, long markLimit)
 	throws IOException
 	{
+		if ( Integer.MAX_VALUE < markLimit )
+			markLimit = -1; // just pretend it wasn't specified
 		// If the caller can't say how long the stream is, this mark() limit
 		// should be plenty
-		bis.mark( markLimit > 0 ? markLimit : 32*1024*1024);
+		bis.mark( markLimit > 0 ? (int)markLimit : 32*1024*1024);
 		ZipInputStream zis = new ZipInputStream( bis);
 		for ( ZipEntry ze; null != (ze = zis.getNextEntry()); )
 		{
@@ -530,7 +603,7 @@ public class Commands
 	public static void addTypeMapping(String sqlTypeName, String javaClassName)
 	throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"INSERT INTO sqlj.typemap_entry(javaName, sqlName)" +
 				" VALUES(?,?)"))
@@ -568,7 +641,7 @@ public class Commands
 		requires="sqlj.tables")
 	public static void dropTypeMapping(String sqlTypeName) throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.typemap_entry " +
 				"WHERE sqlName OPERATOR(pg_catalog.=) ?"))
@@ -594,7 +667,13 @@ public class Commands
 		requires="sqlj.tables")
 	public static String getClassPath(String schemaName) throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		return getClassPath(Identifier.Simple.fromJava(schemaName));
+	}
+
+	public static String getClassPath(Identifier.Simple schema)
+	throws SQLException
+	{
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT r.jarName" +
 				" FROM" +
@@ -604,11 +683,7 @@ public class Commands
 				" WHERE c.schemaName OPERATOR(pg_catalog.=) ?" +
 				" ORDER BY c.ordinal"))
 		{
-			if(schemaName == null || schemaName.length() == 0)
-				schemaName = "public";
-			else
-				schemaName = schemaName.toLowerCase();
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			StringBuffer buf = null;
 			try(ResultSet rs = stmt.executeQuery())
 			{
@@ -625,7 +700,7 @@ public class Commands
 		}
 	}
 
-	static String getCurrentSchema() throws SQLException
+	static Identifier.Simple getCurrentSchema() throws SQLException
 	{
 		Session session = SessionManager.current();
 		return ((org.postgresql.pljava.internal.Session)session)
@@ -698,7 +773,7 @@ public class Commands
 		AclId[] ownerRet = new AclId[1];
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)
-			throw new SQLException("No Jar named '" + jarName
+			throw new SQLException("No jar named '" + jarName
 					       + "' is known to the system", 
 					       "4600B");
 
@@ -710,21 +785,16 @@ public class Commands
 		if(undeploy)
 			deployRemove(jarId, jarName);
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.jar_repository " +
 				"WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
 			if(stmt.executeUpdate() != 1)
 				throw new SQLException(
 					"Jar repository update did not update 1 row");
-		}
-		finally
-		{
-			SQLUtils.close(stmt);
 		}
 		Loader.clearSchemaLoaders();
 	}
@@ -789,9 +859,13 @@ public class Commands
 	{
 		if(schemaName == null || schemaName.length() == 0)
 			schemaName = "public";
+		setClassPath(Identifier.Simple.fromJava(schemaName), path);
+	}
 
-		schemaName = schemaName.toLowerCase();
-		if("public".equals(schemaName))
+	public static void setClassPath(Identifier.Simple schema, String path)
+	throws SQLException
+	{
+		if(s_public_schema.equals(schema))
 		{
 			if(!AclId.getOuterUser().isSuperuser())
 				throw new SQLSyntaxErrorException( // yeah, for 42501, really
@@ -800,10 +874,10 @@ public class Commands
 		}
 		else
 		{
-			Oid schemaId = getSchemaId(schemaName);
+			Oid schemaId = getSchemaId(schema);
 			if(schemaId == null)
 				throw new SQLNonTransientException(
-					"No such schema: " + schemaName, "3F000");
+					"No such schema: " + schema, "3F000");
 			if(!AclId.getOuterUser().hasSchemaCreatePermission(schemaId))
 				throw new SQLSyntaxErrorException(
 					"Permission denied. User must have create permission on " +
@@ -817,7 +891,7 @@ public class Commands
 			// valid jar
 			//
 			entries = new ArrayList<>();
-			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			try(PreparedStatement stmt = getDefaultConnection()
 				.prepareStatement(
 					"SELECT jarId FROM sqlj.jar_repository " +
 					"WHERE jarName OPERATOR(pg_catalog.=) ?"))
@@ -848,12 +922,12 @@ public class Commands
 
 		// Delete the old classpath
 		//
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"DELETE FROM sqlj.classpath_entry " +
 				"WHERE schemaName OPERATOR(pg_catalog.=) ?"))
 		{
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			stmt.executeUpdate();
 		}
 
@@ -862,7 +936,7 @@ public class Commands
 			// Insert the new path.
 			//
 			;
-			try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+			try(PreparedStatement stmt = getDefaultConnection()
 				.prepareStatement(
 					"INSERT INTO sqlj.classpath_entry("+
 					" schemaName, ordinal, jarId) VALUES(?, ?, ?)"))
@@ -871,7 +945,7 @@ public class Commands
 				for(int idx = 0; idx < top; ++idx)
 				{
 					int jarId = entries.get(idx);
-					stmt.setString(1, schemaName);
+					stmt.setString(1, schema.pgFolded());
 					stmt.setInt(2, idx + 1);
 					stmt.setInt(3, jarId);
 					stmt.executeUpdate();
@@ -881,34 +955,172 @@ public class Commands
 		Loader.clearSchemaLoaders();
 	}
 
-	private static boolean assertInPath(String jarName,
-		String[] originalSchemaAndPath) throws SQLException
+	private static void withJarInPath(String jarName, boolean schemaMayVanish,
+		Checked.Runnable<SQLException> runnable) throws SQLException
 	{
-		String currentSchema = getCurrentSchema();
-		String currentClasspath = getClassPath(currentSchema);
-		originalSchemaAndPath[0] = currentSchema;
-		originalSchemaAndPath[1] = currentClasspath;
-		if(currentClasspath == null)
+		Identifier.Simple originalSchema = getCurrentSchema();
+		String originalClasspath = getClassPath(originalSchema);
+		boolean changed;
+		if(originalClasspath == null)
 		{
-			setClassPath(currentSchema, jarName);
-			return true;
+			setClassPath(originalSchema, jarName);
+			changed = true;
+		}
+		else
+		{
+			String[] elems = originalClasspath.split(":");
+			int idx = elems.length;
+			boolean found = false;
+			while(--idx >= 0)
+				if(elems[idx].equals(jarName))
+				{
+					found = true;
+					break;
+				}
+
+			if(found)
+				changed = false;
+			else
+			{
+				setClassPath(originalSchema, jarName + ':' + originalClasspath);
+				changed = true;
+			}
 		}
 
-		String[] elems = currentClasspath.split(":");
-		int idx = elems.length;
-		boolean found = false;
-		while(--idx >= 0)
-			if(elems[idx].equals(jarName))
+		runnable.run();
+
+		if ( changed )
+		{
+			try
 			{
-				found = true;
-				break;
+				setClassPath(originalSchema, originalClasspath);
+			}
+			catch ( SQLException e )
+			{
+				if ( ! schemaMayVanish ||  ! "3F000".equals(e.getSQLState()) )
+					throw e;
+			}
+		}
+	}
+
+	/**
+	 * Creates a named PostgreSQL {@code LANGUAGE} that refers to PL/Java;
+	 * its name may be referred to in the Java security policy to grant selected
+	 * permissions to functions created in this "language".
+	 *<p>
+	 * More on configuring Java permissions specific to this alias can be found
+	 * <a href="../../RELDOTS/use/policy.html">in the policy documentation</a>.
+	 *<p>
+	 * PostgreSQL normally grants {@code USAGE} to {@code PUBLIC} if a sandboxed
+	 * language is created. This routine does not, so that {@code USAGE} on the
+	 * new alias can then be {@code GRANT}ed to specific roles or to
+	 * {@code PUBLIC} as desired.
+	 * @param alias Name for this "language".
+	 * @param sandboxed Whether this alias should be a sandboxed/"TRUSTED"
+	 * language that USAGE can be granted on, or an unsandboxed one that only
+	 * superusers can create functions in. Must be specified.
+	 * @param orReplace Whether to succeed even if a language by the same name
+	 * already exists; if so, the sandboxed bit, handler entry points, and
+	 * comment may all be changed. Default is false.
+	 * @param comment A comment to associate with the alias "language". If an
+	 * empty string (the default), a default comment will be constructed. Pass
+	 * null explicitly to avoid setting any comment (or changing any existing
+	 * comment, in the orReplace case).
+	 */
+	@Function(
+		schema="sqlj", name="alias_java_language", onNullInput=CALLED,
+		requires="sqlj.tables"
+	)
+	public static void aliasJavaLanguage(
+		String alias,
+		Boolean sandboxed,
+		@SQLType(defaultValue="false") Boolean orReplace,
+		@SQLType(defaultValue="") String comment)
+	throws SQLException
+	{
+		if ( null == alias )
+			throw new SQLDataException(
+				"parameter \"alias\" may not be null", "22004");
+		if ( null == sandboxed )
+			throw new SQLDataException(
+				"parameter \"sandboxed\" may not be null", "22004");
+		if ( null == orReplace )
+			throw new SQLDataException(
+				"parameter \"orReplace\" may not be null", "22004");
+
+		if ( "".equals(comment) )
+			comment = "PL/Java language alias that may be assigned " +
+				"distinct permissions in the security policy. Routines may " +
+				"be created in this \"language\" by " + ( sandboxed
+					? "any role with USAGE permission." : "superusers only." );
+
+		Identifier.Simple aliasIdent = Identifier.Simple.fromJava(alias);
+
+		String libraryPath = Backend.myLibraryPath();
+
+		try (
+			Connection conn = getDefaultConnection();
+			PreparedStatement ps = conn.prepareStatement(
+				"SELECT DISTINCT" +
+				"  cn.nspname, cf.proname, vn.nspname, vf.proname" +
+				" FROM" +
+				"  (VALUES (?,?)) AS params(sandboxed, libpath)," +
+				"  pg_catalog.pg_language AS lan" +
+				"  JOIN pg_catalog.pg_proc AS cf" +
+				"   ON lan.lanplcallfoid OPERATOR(pg_catalog.=) cf.oid" +
+				"  JOIN pg_catalog.pg_namespace AS cn" +
+				"   ON cf.pronamespace OPERATOR(pg_catalog.=) cn.oid" +
+				"  JOIN pg_catalog.pg_proc AS vf" +
+				"   ON lan.lanvalidator OPERATOR(pg_catalog.=) vf.oid" +
+				"  JOIN pg_catalog.pg_namespace AS vn" +
+				"   ON vf.pronamespace OPERATOR(pg_catalog.=) vn.oid" +
+				" WHERE" +
+				"  lanispl AND lanpltrusted OPERATOR(pg_catalog.=) sandboxed" +
+				"  AND cf.probin OPERATOR(pg_catalog.=) libpath" +
+				"  AND vf.probin OPERATOR(pg_catalog.=) libpath");
+		)
+		{
+			Identifier.Qualified<Identifier.Simple> callHandler;
+			Identifier.Qualified<Identifier.Simple> valHandler;
+
+			ps.setBoolean(1, sandboxed);
+			ps.setString(2, libraryPath);
+			try ( ResultSet rs = ps.executeQuery() )
+			{
+				if ( ! rs.next() )
+					throw new SQLException(
+						"Failed to find handlers for " +
+						(sandboxed ? "" : "un") + "sandboxed PL/Java");
+
+				callHandler = nameFromCatalog(rs.getString(1), rs.getString(2));
+				valHandler  = nameFromCatalog(rs.getString(3), rs.getString(4));
+
+				if ( rs.next() )
+					throw new SQLException(
+						"Failed to find handlers uniquely for " +
+						(sandboxed ? "" : "un") + "sandboxed PL/Java");
 			}
 
-		if(found)
-			return false;
-
-		setClassPath(currentSchema, jarName + ':' + currentClasspath);
-		return true;
+			try ( Statement s = conn.createStatement() )
+			{
+				s.execute(
+					"CREATE " +
+					( orReplace ? "OR REPLACE " : "" ) +
+					( sandboxed ? "TRUSTED " : "" ) + "LANGUAGE " +
+					aliasIdent +
+					" HANDLER " + callHandler +
+					" VALIDATOR " + valHandler);
+				if ( sandboxed ) // GRANT/REVOKE not even allowed on unTRUSTED
+					s.execute(
+						"REVOKE USAGE ON LANGUAGE " + aliasIdent +
+						" FROM PUBLIC");
+				if ( null == comment )
+					return;
+				s.execute(
+					"COMMENT ON LANGUAGE " + aliasIdent + " IS " +
+					eQuote(comment));
+			}
+		}
 	}
 
 	/**
@@ -943,12 +1155,11 @@ public class Commands
 	{
 		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
-		String[] originalSchemaAndPath = new String[2];
-		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		for ( SQLDeploymentDescriptor dd : depDesc )
-			dd.install(SQLUtils.getDefaultConnection());
-		if (classpathChanged)
-			setClassPath(originalSchemaAndPath[0], originalSchemaAndPath[1]);
+		withJarInPath(jarName, false, () ->
+		{
+			for ( SQLDeploymentDescriptor dd : depDesc )
+				dd.install(getDefaultConnection());
+		});
 	}
 
 	private static void deployRemove(int jarId, String jarName)
@@ -956,48 +1167,40 @@ public class Commands
 	{
 		SQLDeploymentDescriptor[] depDesc = getDeploymentDescriptors(jarId);
 
-		String[] originalSchemaAndPath = new String[2];
-		boolean classpathChanged = assertInPath(jarName, originalSchemaAndPath);
-		for ( int i = depDesc.length ; i --> 0 ; )
-			depDesc[i].remove(SQLUtils.getDefaultConnection());
-		try
+		withJarInPath(jarName, true, () ->
 		{
-			if (classpathChanged)
-				setClassPath(originalSchemaAndPath[0],originalSchemaAndPath[1]);
-		}
-		catch ( SQLException sqle )
-		{
-			if ( ! "3F000".equals(sqle.getSQLState()) )
-				throw sqle;
-		}
+			for ( int i = depDesc.length ; i --> 0 ; )
+				depDesc[i].remove(getDefaultConnection());
+		});
 	}
 
 	private static SQLDeploymentDescriptor[] getDeploymentDescriptors(int jarId)
 	throws SQLException
 	{
-		ResultSet rs = null;
-		PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT e.entryImage"
 					+ " FROM sqlj.jar_descriptor d INNER JOIN sqlj.jar_entry e"
 					+ "   ON d.entryId OPERATOR(pg_catalog.=) e.entryId"
 					+ " WHERE d.jarId OPERATOR(pg_catalog.=) ?"
 					+ " ORDER BY d.ordinal");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
-			rs = stmt.executeQuery();
-			ArrayList<SQLDeploymentDescriptor> sdds = new ArrayList<>();
-			while(rs.next())
+			try ( ResultSet rs = stmt.executeQuery() )
 			{
-				ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));
-				// According to the SQLJ standard, this entry must be
-				// UTF8 encoded.
-				//
-				sdds.add( new SQLDeploymentDescriptor(
-					UTF_8.newDecoder().decode(bytes).toString()));
+				ArrayList<SQLDeploymentDescriptor> sdds = new ArrayList<>();
+				while ( rs.next() )
+				{
+					ByteBuffer bytes = ByteBuffer.wrap(rs.getBytes(1));
+					// According to the SQLJ standard, this entry must be
+					// UTF8 encoded.
+					//
+					sdds.add( new SQLDeploymentDescriptor(
+						UTF_8.newDecoder().decode(bytes).toString()));
+				}
+				return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 			}
-			return sdds.toArray( new SQLDeploymentDescriptor[sdds.size()]);
 		}
 		catch(CharacterCodingException e)
 		{
@@ -1009,11 +1212,6 @@ public class Commands
 			throw new SQLSyntaxErrorException(String.format(
 				"%1$s at %2$s", e.getMessage(), e.getErrorOffset()),
 				"42601", e);
-		}
-		finally
-		{
-			SQLUtils.close(rs);
-			SQLUtils.close(stmt);
 		}
 	}
 
@@ -1030,7 +1228,7 @@ public class Commands
 
 		AclId invoker = AclId.getOuterUser();
 
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT n.nspname, t.typname,"
 					+ " pg_catalog.pg_has_role(?, t.typowner, 'USAGE')"
@@ -1087,7 +1285,7 @@ public class Commands
 	private static int getJarId(String jarName, AclId[] ownerRet)
 	throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT jarId, jarOwner FROM sqlj.jar_repository"+
 				" WHERE jarName OPERATOR(pg_catalog.=) ?"))
@@ -1104,14 +1302,14 @@ public class Commands
 	 *         schema is found.
 	 * @throws SQLException
 	 */
-	private static Oid getSchemaId(String schemaName) throws SQLException
+	private static Oid getSchemaId(Identifier.Simple schema) throws SQLException
 	{
-		try(PreparedStatement stmt = SQLUtils.getDefaultConnection()
+		try(PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"SELECT oid FROM pg_catalog.pg_namespace " +
 				"WHERE nspname OPERATOR(pg_catalog.=) ?"))
 		{
-			stmt.setString(1, schemaName);
+			stmt.setString(1, schema.pgFolded());
 			try(ResultSet rs = stmt.executeQuery())
 			{
 				if(!rs.next())
@@ -1136,11 +1334,10 @@ public class Commands
 					       + "' already exists",
 					       "46002");
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
-			.prepareStatement(
-				"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner) VALUES(?, ?, ?)");
-		try
+		try ( PreparedStatement stmt = getDefaultConnection().prepareStatement(
+			"INSERT INTO sqlj.jar_repository(jarName, jarOrigin, jarOwner)" +
+			" VALUES(?, ?, ?)");
+		)
 		{
 			stmt.setString(1, jarName);
 			stmt.setString(2, urlString);
@@ -1149,10 +1346,6 @@ public class Commands
 				throw new SQLException(
 					"Jar repository insert did not insert 1 row");
 		}
-		finally
-		{
-			SQLUtils.close(stmt);
-		}
 
 		AclId[] ownerRet = new AclId[1];
 		int jarId = getJarId(jarName, ownerRet);
@@ -1160,7 +1353,7 @@ public class Commands
 			throw new SQLException("Unable to obtain id of '" + jarName + "'");
 
 		if(image == null)
-			Backend.addClassImages(jarId, urlString);
+			addClassImages(jarId, urlString);
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);
@@ -1199,13 +1392,12 @@ public class Commands
 		if(redeploy)
 			deployRemove(jarId, jarName);
 
-		PreparedStatement stmt = SQLUtils
-			.getDefaultConnection()
+		try ( PreparedStatement stmt = getDefaultConnection()
 			.prepareStatement(
 				"UPDATE sqlj.jar_repository "
 				+ "SET jarOrigin = ?, jarOwner = ?, jarManifest = NULL "
 				+ "WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setString(1, urlString);
 			stmt.setString(2, user.getName());
@@ -1214,30 +1406,25 @@ public class Commands
 				throw new SQLException(
 					"Jar repository update did not update 1 row");
 		}
-		finally
-		{
-			SQLUtils.close(stmt);
-		}
 
-		stmt = SQLUtils.getDefaultConnection().prepareStatement(
+		try ( PreparedStatement stmt = getDefaultConnection().prepareStatement(
 			"DELETE FROM sqlj.jar_entry WHERE jarId OPERATOR(pg_catalog.=) ?");
-		try
+		)
 		{
 			stmt.setInt(1, jarId);
 			stmt.executeUpdate();
 		}
-		finally
-		{
-			SQLUtils.close(stmt);
-		}
+
 		if(image == null)
-			Backend.addClassImages(jarId, urlString);
+			addClassImages(jarId, urlString);
 		else
 		{
 			InputStream imageStream = new ByteArrayInputStream(image);
 			addClassImages(jarId, imageStream, image.length);
 		}
+
 		Loader.clearSchemaLoaders();
+
 		if(!redeploy)
 			return;
 

@@ -110,18 +110,6 @@ static Datum _Composite_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 	return result;
 }
 
-static jobject _Composite_getSRFProducer(Type self, Function fn)
-{
-	jobject tmp = pljava_Function_refInvoke(fn);
-	if(tmp != 0 && JNI_isInstanceOf(tmp, s_ResultSetHandle_class))
-	{
-		jobject wrapper = JNI_newObject(s_ResultSetPicker_class, s_ResultSetPicker_init, tmp);
-		JNI_deleteLocalRef(tmp);
-		tmp = wrapper;
-	}
-	return tmp;
-}
-
 static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 {
 	jobject tmp1;
@@ -136,34 +124,14 @@ static jobject _Composite_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return tmp2;
 }
 
-static bool _Composite_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
-{
-	/* Obtain next row using the RowCollector as a parameter to the
-	 * ResultSetProvider.assignRowValues method.
-	 */
-	if ( callCounter > PG_INT32_MAX )
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("the ResultSetProvider cannot return more than "
-					"INT32_MAX rows")));
-	return (JNI_callBooleanMethod(rowProducer,
-			s_ResultSetProvider_assignRowValues,
-			rowCollector,
-			(jint)callCounter) == JNI_TRUE);
-}
-
-static Datum _Composite_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
+static Datum _Composite_datumFromSRF(
+	Type self, jobject row, jobject rowCollector)
 {
 	Datum result = 0;
 	HeapTuple tuple = _getTupleAndClear(rowCollector);
 	if(tuple != 0)
 		result = HeapTupleGetDatum(tuple);
 	return result;
-}
-
-static void _Composite_closeSRF(Type self, jobject rowProducer)
-{
-	JNI_callVoidMethod(rowProducer, s_ResultSetProvider_close);
 }
 
 /* Assume that the Datum is a HeapTupleHeader and convert it into
@@ -266,11 +234,8 @@ void Composite_initialize(void)
 	s_CompositeClass->getTupleDesc    = _Composite_getTupleDesc;
 	s_CompositeClass->coerceDatum     = _Composite_coerceDatum;
 	s_CompositeClass->invoke          = _Composite_invoke;
-	s_CompositeClass->getSRFProducer  = _Composite_getSRFProducer;
 	s_CompositeClass->getSRFCollector = _Composite_getSRFCollector;
-	s_CompositeClass->hasNextSRF      = _Composite_hasNextSRF;
-	s_CompositeClass->nextSRF         = _Composite_nextSRF;
-	s_CompositeClass->closeSRF        = _Composite_closeSRF;
+	s_CompositeClass->datumFromSRF    = _Composite_datumFromSRF;
 	s_CompositeClass->outParameter    = true;
 
 	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);

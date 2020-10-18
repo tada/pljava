@@ -29,6 +29,32 @@ static unsigned int s_callLevel = 0;
 
 Invocation* currentInvocation;
 
+/*
+ * Two features of the calling convention for PL/Java functions will be handled
+ * here in Invocation to keep wrappers in Function simple. A PL/Java function
+ * may use static primitive slot 0 to return a primitive value, so that will
+ * always be saved in an Invocation struct and restored on both normal and
+ * exceptional return paths, when the heavier-weight full pushing of a Java
+ * ParameterFrame has not occurred. Likewise, the heavy full push is skipped if
+ * either the current or the new frame limits are (0,0), which means for such
+ * cases the frame limits themselves must be saved and restored the same way.
+ */
+static jvalue *s_primSlot0;
+static jshort *s_frameLimits;
+
+/*
+ * To keep these values somewhat encapsulated, Function.c calls this function
+ * during its initialization to share them, rather than simply making them
+ * global.
+ */
+void pljava_Invocation_shareFrame(jvalue *slot0, jshort *limits)
+{
+	if ( 0 != s_primSlot0  ||  0 != s_frameLimits )
+		return;
+	s_primSlot0 = slot0;
+	s_frameLimits = limits;
+}
+
 extern void Invocation_initialize(void);
 void Invocation_initialize(void)
 {
@@ -106,8 +132,8 @@ void Invocation_pushBootContext(Invocation* ctx)
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
-	ctx->pushedFrame     = false;
-	ctx->trusted         = false;
+	ctx->frameLimits     = 0;
+	ctx->primSlot0.j     = 0L;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -127,13 +153,13 @@ void Invocation_popBootContext(void)
 	--s_callLevel;
 }
 
-void Invocation_pushInvocation(Invocation* ctx, bool trusted)
+void Invocation_pushInvocation(Invocation* ctx)
 {
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
 	ctx->invocation      = 0;
 	ctx->function        = 0;
-	ctx->pushedFrame     = false;
-	ctx->trusted         = trusted;
+	ctx->frameLimits     = *s_frameLimits;
+	ctx->primSlot0       = *s_primSlot0;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -143,7 +169,6 @@ void Invocation_pushInvocation(Invocation* ctx, bool trusted)
 	ctx->triggerData     = 0;
 #endif
 	currentInvocation   = ctx;
-	Backend_setJavaSecurity(trusted);
 	++s_callLevel;
 }
 
@@ -151,8 +176,19 @@ void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
 
-	if ( currentInvocation->pushedFrame )
+	/*
+	 * If the more heavyweight parameter-frame push got done, undo it.
+	 */
+	if ( FRAME_LIMITS_PUSHED == currentInvocation->frameLimits )
 		pljava_Function_popFrame();
+	else
+	{
+		/*
+		 * The lighter-weight cleanup.
+		 */
+		*s_frameLimits = currentInvocation->frameLimits;
+		*s_primSlot0   = currentInvocation->primSlot0;
+	}
 
 	/*
 	 * If a Java Invocation instance was created and associated with this
@@ -182,17 +218,9 @@ void Invocation_popInvocation(bool wasException)
 		SPI_finish();
 
 	JNI_popLocalFrame(0);
+
 	if(ctx != 0)
 	{
-		PG_TRY();
-		{
-			Backend_setJavaSecurity(ctx->trusted);
-		}
-		PG_CATCH();
-		{
-			elog(FATAL, "Failed to reinstate untrusted security after a trusted call or vice versa");
-		}
-		PG_END_TRY();
 		MemoryContextSwitchTo(ctx->upperContext);
 	}
 

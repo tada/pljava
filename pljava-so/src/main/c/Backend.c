@@ -108,7 +108,6 @@ MemoryContext JavaMemoryContext;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
-static jmethodID s_setTrusted;
 
 /*
  * GUC states
@@ -117,18 +116,14 @@ static char* libjvmlocation;
 static char* vmoptions;
 static char* modulepath;
 static char* implementors;
+static char* policy_urls;
 static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static bool  pljavaEnabled;
 
-#if PG_VERSION_NUM >= 80400
 static int   java_thread_pg_entry;
-#else
-static char* java_thread_pg_entry;
-#endif
 
-static bool  s_currentTrust;
 static int   s_javaLogLevel;
 
 #if PG_VERSION_NUM < 100000
@@ -191,6 +186,7 @@ enum initstage
 	IS_FORMLESS_VOID,
 	IS_GUCS_REGISTERED,
 	IS_CAND_JVMLOCATION,
+	IS_CAND_POLICYURLS,
 	IS_PLJAVA_ENABLED,
 	IS_CAND_JVMOPENED,
 	IS_CREATEVM_SYM_FOUND,
@@ -235,6 +231,8 @@ static void initsequencer(enum initstage is, bool tolerant);
 	static bool check_vmoptions(
 		char **newval, void **extra, GucSource source);
 	static bool check_modulepath(
+		char **newval, void **extra, GucSource source);
+	static bool check_policy_urls(
 		char **newval, void **extra, GucSource source);
 	static bool check_enabled(
 		bool *newval, void **extra, GucSource source);
@@ -296,6 +294,25 @@ static void initsequencer(enum initstage is, bool tolerant);
 			return true;
 		GUC_check_errmsg(
 			"too late to change \"pljava.module_path\" setting");
+		GUC_check_errdetail(
+			"Changing the setting has no effect after "
+			"PL/Java has started the Java virtual machine.");
+		GUC_check_errhint(
+			"To try a different value, exit this session and start a new one.");
+		return false;
+	}
+
+	static bool check_policy_urls(
+		char **newval, void **extra, GucSource source)
+	{
+		if ( initstage < IS_JAVAVM_OPTLIST )
+			return true;
+		if ( policy_urls == *newval )
+			return true;
+		if ( policy_urls && *newval && 0 == strcmp(policy_urls, *newval) )
+			return true;
+		GUC_check_errmsg(
+			"too late to change \"pljava.policy_urls\" setting");
 		GUC_check_errdetail(
 			"Changing the setting has no effect after "
 			"PL/Java has started the Java virtual machine.");
@@ -366,21 +383,9 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
 #endif
 
-#if PG_VERSION_NUM >= 80400
 #define ASSIGNENUMHOOK(name) ASSIGNHOOK(name,int)
 #define ENUMBOOTVAL(entry) ((entry).val)
 #define ENUMHOOKRET true
-#else
-#define ASSIGNENUMHOOK(name) ASSIGNSTRINGHOOK(name)
-#define ENUMBOOTVAL(entry) ((char *)((entry).name))
-#define ENUMHOOKRET newval
-struct config_enum_entry
-{
-	const char *name;
-	int 		val;
-	bool		hidden;
-};
-#endif
 
 static const struct config_enum_entry java_thread_pg_entry_options[] = {
 	{"allow", 0, false}, /* numeric value is bit-coded: */
@@ -431,6 +436,19 @@ ASSIGNSTRINGHOOK(modulepath)
 	ASSIGNRETURN(newval);
 }
 
+ASSIGNSTRINGHOOK(policy_urls)
+{
+	ASSIGNRETURNIFCHECK(newval);
+	policy_urls = (char *)newval;
+	if ( IS_FORMLESS_VOID < initstage && initstage < IS_JAVAVM_OPTLIST )
+	{
+		alteredSettingsWereNeeded = true;
+		ASSIGNRETURNIFNXACT(newval);
+		initsequencer( initstage, true);
+	}
+	ASSIGNRETURN(newval);
+}
+
 ASSIGNHOOK(enabled, bool)
 {
 	ASSIGNRETURNIFCHECK(true);
@@ -446,21 +464,7 @@ ASSIGNHOOK(enabled, bool)
 
 ASSIGNENUMHOOK(java_thread_pg_entry)
 {
-#if PG_VERSION_NUM >= 80400
 	int val = newval;
-#else
-	int val = -1;
-	struct config_enum_entry const *e;
-	for ( e = java_thread_pg_entry_options; NULL != e->name; ++ e )
-	{
-		if ( 0 == strcmp(e->name, newval) )
-		{
-			val = e->val;
-		}
-	}
-	if ( -1 == val )
-		ASSIGNRETURN(NULL);
-#endif
 	ASSIGNRETURNIFCHECK(ENUMHOOKRET);
 	pljava_JNI_setThreadPolicy( !!(val&1) /*error*/, !(val&2) /*monitorops*/);
 	ASSIGNRETURN(ENUMHOOKRET);
@@ -527,6 +531,18 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_CAND_JVMLOCATION;
 
 	case IS_CAND_JVMLOCATION:
+		if ( NULL == policy_urls )
+		{
+			ereport(WARNING, (
+				errmsg("Java virtual machine not yet loaded"),
+				errdetail("Java policy URL(s) not configured"),
+				errhint("SET pljava.policy_urls TO the security policy "
+						"files PL/Java is to use.")));
+			goto check_tolerant;
+		}
+		initstage = IS_CAND_POLICYURLS;
+
+	case IS_CAND_POLICYURLS:
 		if ( ! pljavaEnabled )
 		{
 			ereport(WARNING, (
@@ -845,11 +861,7 @@ static void reLogWithChangedLevel(int level)
 	FreeErrorData(edata);
 #else
 	if (!errstart(level, edata->filename, edata->lineno,
-				  edata->funcname
-#if PG_VERSION_NUM >= 80400
-				  , NULL
-#endif
-				 ))
+				  edata->funcname, NULL))
 	{
 		FreeErrorData(edata);
 		return;
@@ -860,10 +872,8 @@ static void reLogWithChangedLevel(int level)
 		errmsg("%s", edata->message);
 	if (edata->detail)
 		errdetail("%s", edata->detail);
-#if PG_VERSION_NUM >= 80400
 	if (edata->detail_log)
 		errdetail_log("%s", edata->detail_log);
-#endif
 	if (edata->hint)
 		errhint("%s", edata->hint);
 	if (edata->context)
@@ -956,6 +966,11 @@ static void initPLJavaClasses(void)
 		"()Z",
 		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
 		},
+		{
+		"_myLibraryPath",
+		"()Ljava/lang/String;",
+		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -965,6 +980,11 @@ static void initPLJavaClasses(void)
 		"_forbidOtherThreads",
 		"()Z",
 		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads
+		},
+		{
+		"_defineClass",
+		"(Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;",
+		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass
 		},
 		{ 0, 0, 0 }
 	};
@@ -1007,33 +1027,6 @@ static void initPLJavaClasses(void)
 	SQLOutputToTuple_initialize();
 
 	InstallHelper_initialize();
-
-	s_setTrusted = PgObject_getStaticJavaMethod(s_Backend_class, "setTrusted", "(Z)V");
-}
-
-/**
- *  Initialize security
- */
-void Backend_setJavaSecurity(bool trusted)
-{
-	if(trusted != s_currentTrust)
-	{
-		/* GCJ has major issues here. Real work on SecurityManager and
-		 * related classes has just started in version 4.0.0.
-		 */
-#ifndef GCJ
-		JNI_callStaticVoidMethod(s_Backend_class, s_setTrusted, (jboolean)trusted);
-		if(JNI_exceptionCheck())
-		{
-			JNI_exceptionDescribe();
-			JNI_exceptionClear();
-			ereport(ERROR, (
-				errcode(ERRCODE_INTERNAL_ERROR),
-				errmsg("Unable to initialize java security")));
-		}
-#endif
-		s_currentTrust = trusted;
-	}
 }
 
 int Backend_setJavaLogLevel(int logLevel)
@@ -1313,7 +1306,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 		pqsigfunc saveSigAlrm;
 #endif
 
-		Invocation_pushInvocation(&ctx, false);
+		Invocation_pushInvocation(&ctx);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
 			elog(DEBUG2,
@@ -1340,7 +1333,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 #endif
 
 #else
-		Invocation_pushInvocation(&ctx, false);
+		Invocation_pushInvocation(&ctx);
 		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
@@ -1560,21 +1553,9 @@ static jint initializeJavaVM(JVMOptList *optList)
 	return jstat;
 }
 
-#if PG_VERSION_NUM >= 80400
 #define GUCBOOTVAL(v) (v),
 #define GUCBOOTASSIGN(a, v)
 #define GUCFLAGS(f) (f),
-#else
-#define GUCBOOTVAL(v)
-#define GUCBOOTASSIGN(a, v) \
-	StaticAssertStmt(NULL != (valueAddr), "NULL valueAddr for GUC"); \
-	*(a) = (v);
-#define GUCFLAGS(f)
-#define DefineCustomEnumVariable(name, short_desc, long_desc, valueAddr, \
-		options, context, assign_hook, show_hook) \
-	DefineCustomStringVariable((name), (short_desc), (long_desc), (valueAddr), \
-		(context), (assign_hook), (show_hook))
-#endif
 
 #if PG_VERSION_NUM >= 90100
 #define GUCCHECK(h) (h),
@@ -1637,7 +1618,7 @@ static void registerGUCOptions(void)
 		&libjvmlocation,
 		PLJAVA_LIBJVMDEFAULT,
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_libjvm_location,
 		assign_libjvm_location,
 		NULL); /* show hook */
@@ -1649,7 +1630,7 @@ static void registerGUCOptions(void)
 		&vmoptions,
 		NULL, /* boot value */
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_vmoptions,
 		assign_vmoptions,
 		NULL); /* show hook */
@@ -1661,9 +1642,27 @@ static void registerGUCOptions(void)
 		&modulepath,
 		InstallHelper_defaultModulePath(pathbuf,s_path_var_sep),/* boot value */
 		PGC_SUSET,
-		0,    /* flags */
+		GUC_SUPERUSER_ONLY,    /* flags */
 		check_modulepath,
 		assign_modulepath,
+		NULL); /* show hook */
+
+	STRING_GUC(
+		"pljava.policy_urls",
+		"URLs to Java security policy file(s) for PL/Java's use",
+		"Quote each URL and separate with commas. Any URL may begin (inside "
+		"the quotes) with n= where n is the index of the Java "
+		"policy.url.n property to set. If not specified, the first will "
+		"become policy.url.2 (following the JRE-installed policy) with "
+		"subsequent entries following in sequence. The last entry may be a "
+		"bare = (still quoted) to prevent use of any higher-numbered policy "
+		"URLs from the java.security file.",
+		&policy_urls,
+		"\"file:${org.postgresql.sysconfdir}/pljava.policy\",\"=\"",
+		PGC_SUSET,
+		PLJAVA_IMPLEMENTOR_FLAGS | GUC_SUPERUSER_ONLY,
+		check_policy_urls, /* check hook */
+		assign_policy_urls,
 		NULL); /* show hook */
 
 	BOOL_GUC(
@@ -1801,17 +1800,13 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	{
 		deferInit = false;
 		initsequencer( initstage, false);
-
-		/* Force initial setting
- 		 */
-		s_currentTrust = !trusted;
 	}
 
-	Invocation_pushInvocation(&ctx, trusted);
+	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
 		Function function =
-			Function_getFunction(funcoid, forTrigger, false, true);
+			Function_getFunction(funcoid, trusted, forTrigger, false, true);
 		if(forTrigger)
 		{
 			/* Called as a trigger procedure
@@ -1869,7 +1864,7 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	 * we decide we don't like this function, which would make the Oid we just
 	 * stashed for it invalid, and frustrate getting the load path later.
 	 */
-	if ( ! InstallHelper_isPLJavaFunction(funcoid) )
+	if ( ! InstallHelper_isPLJavaFunction(funcoid, NULL, NULL) )
 		elog(ERROR, "unexpected error validating PL/Java function");
 
 
@@ -1886,16 +1881,13 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 			if ( IS_PLJAVA_INSTALLING > initstage )
 				PG_RETURN_VOID();
 		}
-
-		/* Force initial setting
-		 */
-		s_currentTrust = !trusted;
 	}
 
-	Invocation_pushInvocation(&ctx, trusted);
+	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		Function_getFunction(funcoid, false, true, check_function_bodies);
+		Function_getFunction(
+			funcoid, trusted, false, true, check_function_bodies);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -2033,6 +2025,41 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 }
 
 /*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _myLibraryPath
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass cls)
+{
+	jstring result = NULL;
+
+	BEGIN_NATIVE
+
+	if ( NULL == pljavaLoadPath )
+	{
+		Oid funcoid = pljavaTrustedOid;
+
+		if ( InvalidOid == funcoid )
+			funcoid = pljavaUntrustedOid;
+		if ( InvalidOid == funcoid )
+			return NULL;
+
+		/*
+		 * Result not needed, but pljavaLoadPath is set as a side effect.
+		 */
+		InstallHelper_isPLJavaFunction(funcoid, NULL, NULL);
+	}
+
+	if ( NULL != pljavaLoadPath )
+		result = String_createJavaStringFromNTS(pljavaLoadPath);
+
+	END_NATIVE
+
+	return result;
+}
+
+/*
  * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
  * Method:    _forbidOtherThreads
  * Signature: ()Z
@@ -2041,4 +2068,31 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1forbidOtherThreads(JNIEnv *env, jclass cls)
 {
 	return (java_thread_pg_entry & 4) ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
+ * Method:    _defineClass
+ * Signature: (Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;
+ */
+JNIEXPORT jclass JNICALL
+Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass(JNIEnv *env, jclass cls, jstring name, jobject loader, jbyteArray image)
+{
+	const char *utfName;
+	jbyte *bytes;
+	jsize nbytes;
+	jclass newcls;
+	static bool oneShot = false;
+
+	if ( oneShot )
+		return NULL;
+	oneShot = true;
+
+	utfName = (*env)->GetStringUTFChars(env, name, NULL);
+	bytes = (*env)->GetByteArrayElements(env, image, NULL);
+	nbytes = (*env)->GetArrayLength(env, image);
+	newcls = (*env)->DefineClass(env, utfName, loader, bytes, nbytes);
+	(*env)->ReleaseByteArrayElements(env, image, bytes, JNI_ABORT);
+	(*env)->ReleaseStringUTFChars(env, name, utfName);
+	return newcls;
 }

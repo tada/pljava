@@ -64,12 +64,16 @@ extern bool pljavaLoadingAsExtension;
  * isPLJavaFunction can use the stashed information to determine whether an
  * arbitrary function Oid is a function built on PL/Java, without relying on
  * assumptions about the language name, etc.
+ *
+ * It can return the language name and/or trusted flag if non-null pointers
+ * are supplied, as it will be looking up the language anyway.
  */
-extern char *pljavaFnOidToLibPath(Oid fn);
+extern char *pljavaFnOidToLibPath(Oid fn, char **langName, bool *trusted);
 
 extern Oid pljavaTrustedOid, pljavaUntrustedOid;
 
-extern bool InstallHelper_isPLJavaFunction(Oid fn);
+extern bool InstallHelper_isPLJavaFunction(
+	Oid fn, char **langName, bool *trusted);
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.

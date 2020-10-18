@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,11 +18,11 @@
 #include <access/xact.h>
 
 static jclass s_SubXactListener_class;
-static jmethodID s_SubXactListener_onStart;
-static jmethodID s_SubXactListener_onCommit;
-static jmethodID s_SubXactListener_onAbort;
+static jmethodID s_SubXactListener_invokeListeners;
 
-static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransactionId parentSubid, void* arg)
+static void subXactCB(
+	SubXactEvent event, SubTransactionId mySubid, SubTransactionId parentSubid,
+	void* arg)
 {
 	/*
 	 * Map the subids to PgSavepoints first - this function upcalls into Java
@@ -41,20 +41,19 @@ static void subXactCB(SubXactEvent event, SubTransactionId mySubid, SubTransacti
 	 * thread from stepping in. These methods should not blindly assert
 	 * Backend.threadMayEnterPG(), as for some java_thread_pg_entry settings it
 	 * won't be true. This is the legacy behavior, so not changed for 1.5.x.
+	 *
+	 * The event ordinal can simply be passed to Java, as long as upstream
+	 * hasn't changed the order; list the known ones in a switch, for a better
+	 * chance that a clever compiler will warn if upstream has added any.
 	 */
 	switch(event)
 	{
 		case SUBXACT_EVENT_START_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class,
-				s_SubXactListener_onStart, sp, parent);
-			break;
 		case SUBXACT_EVENT_COMMIT_SUB:
-			JNI_callStaticVoidMethod(s_SubXactListener_class,
-				s_SubXactListener_onCommit, sp, parent);
-			break;
 		case SUBXACT_EVENT_ABORT_SUB:
+		case SUBXACT_EVENT_PRE_COMMIT_SUB:
 			JNI_callStaticVoidMethod(s_SubXactListener_class,
-				s_SubXactListener_onAbort, sp, parent);
+				s_SubXactListener_invokeListeners, (jint)event, sp, parent);
 	}
 }
 
@@ -77,19 +76,22 @@ void SubXactListener_initialize(void)
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SubXactListener", methods);
 
-	s_SubXactListener_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/SubXactListener"));
-	s_SubXactListener_onAbort  =
-		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onAbort",
-			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
+	s_SubXactListener_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/SubXactListener"));
+	s_SubXactListener_invokeListeners  =
+		PgObject_getStaticJavaMethod(s_SubXactListener_class, "invokeListeners",
+			"(ILorg/postgresql/pljava/internal/PgSavepoint;"
 			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
-	s_SubXactListener_onCommit =
-		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onCommit",
-			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
-			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
-	s_SubXactListener_onStart  =
-		PgObject_getStaticJavaMethod(s_SubXactListener_class, "onStart",
-			"(Lorg/postgresql/pljava/internal/PgSavepoint;"
-			"Lorg/postgresql/pljava/internal/PgSavepoint;)V");
+
+#define CONFIRMCONST(c) \
+StaticAssertStmt((SUBXACT_EVENT_##c) == \
+(org_postgresql_pljava_internal_SubXactListener_##c), \
+	"Java/C value mismatch for " #c)
+
+	CONFIRMCONST(      START_SUB );
+	CONFIRMCONST(     COMMIT_SUB );
+	CONFIRMCONST(      ABORT_SUB );
+	CONFIRMCONST( PRE_COMMIT_SUB );
 }
 
 /*

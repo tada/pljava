@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -40,13 +46,15 @@ extern bool UDT_isScalar(UDT udt);
  * argument is only used in the scalar case. A readMH is needed for the scalar
  * or the composite case.
  *
- * If null is supplied for readMH, or for parseMH in the scalar case, an upcall
- * to Java will be made to obtain the handle. Handles can be passed as arguments
+ * Non-null values for {parse,read,write,toString}MH can be passed as arguments
  * here as a shortcut in case the registration is coming from Function.c and the
- * handles are already known.
+ * handles are already known (they are in fact Invocables, but were method
+ * handles before, and MH still suggests their purpose and makes shorter names).
+ * If passed as NULL and needed, upcalls will be made to obtain them.
  */
 extern UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
-	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH);
+	bool hasTupleDesc, bool isJavaBasedScalar, jobject parseMH, jobject readMH,
+	jobject writeMH, jobject toStringMH);
 
 typedef Datum (*UDTFunction)(UDT udt, PG_FUNCTION_ARGS);
 

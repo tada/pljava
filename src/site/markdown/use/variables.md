@@ -107,6 +107,40 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     For more on PL/Java's "module path" and "class path", see
     [PL/Java and the Java Platform Module System](jpms.html).
 
+`pljava.policy_urls`
+: A list of URLs to Java security [policy files](policy.html) determining
+    the permissions available to PL/Java functions. Each URL should be
+    enclosed in double quotes; any double quote that is literally part of
+    the URL may be represented as two double quotes (in SQL style) or as
+    `%22` in the URL convention. Between double-quoted URLs, a comma is the
+    list delimiter.
+
+    The Java installation's `java.security` file usually defines two policy
+    file locations:
+
+    0. A systemwide policy from the Java vendor, sufficient for the Java runtime
+        itself to function as expected
+    0. A per-user location, where a policy file, if found, can add to the policy
+        from the systemwide file.
+
+    The list in `pljava.policy_urls` will modify the list from the Java
+    installation, by default after the first entry, keeping the Java-supplied
+    systemwide policy but replacing the customary per-user file (there
+    probably isn't one in the home of the `postgres` user, and if there is
+    it is probably not tailored for PL/Java).
+
+    Any entry in this list can start with _n_`=` (inside the quotes) for a
+    positive integer _n_, to specify which entry of Java's policy location list
+    it will replace (entry 1 is the systemwide policy, 2 the customary user
+    location). URLs not prefixed with _n_`=` will follow consecutively. If the
+    first entry is not so prefixed, `2=` is assumed.
+
+    A final entry of `=` (in the required double quotes) will prevent
+    use of any remaining entries in the Java site-configured list.
+
+    This setting defaults to
+    `"file:${org.postgresql.sysconfdir}/pljava.policy","="`
+
 `pljava.release_lingering_savepoints`
 : How the return from a PL/Java function will treat any savepoints created
     within it that have not been explicitly either released (the savepoint
@@ -149,3 +183,4 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [jow]: https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html
 [jou]: https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html
 [vmop]: ../install/vmoptions.html
+

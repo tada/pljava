@@ -354,7 +354,7 @@ static void getExtensionLoadPath()
  *
  * If a string is returned, it has been palloc'd in the current context.
  */
-char *pljavaFnOidToLibPath(Oid fnOid)
+char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 {
 	bool isnull;
 	HeapTuple procTup;
@@ -394,13 +394,15 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 		elog(ERROR, "cache lookup failed for language %u", langId);
 	langStruct = (Form_pg_language) GETSTRUCT(langTup);
 	handlerOid = langStruct->lanplcallfoid;
-	ReleaseSysCache(langTup);
 	/*
 	 * PL/Java has certainly got a function call handler, so if this language
 	 * hasn't, PL/Java it's not.
 	 */
 	if ( InvalidOid == handlerOid )
+	{
+		ReleaseSysCache(langTup);
 		return NULL;
+	}
 
 	/*
 	 * Da capo al coda ... handlerOid is another function to be looked up.
@@ -413,7 +415,10 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 	 * If the call handler's not a C function, this isn't PL/Java....
 	 */
 	if ( ClanguageId != procStruct->prolang )
+	{
+		ReleaseSysCache(langTup);
 		return NULL;
+	}
 
 	/*
 	 * Now that the handler is known to be a C function, it should have a
@@ -423,6 +428,11 @@ char *pljavaFnOidToLibPath(Oid fnOid)
 		SysCacheGetAttr(PROCOID, procTup, Anum_pg_proc_probin, &isnull);
 	if ( isnull )
 		elog(ERROR, "null probin for C function %u", handlerOid);
+	if ( NULL != langName )
+		*langName = pstrdup(NameStr(langStruct->lanname));
+	if ( NULL != trusted )
+		*trusted = langStruct->lanpltrusted;
+	ReleaseSysCache(langTup);
 	probinstring = /* TextDatumGetCString(probinattr); */
 		DatumGetCString(DirectFunctionCall1(textout, probinattr)); /*archaic*/
 	ReleaseSysCache(procTup);
@@ -443,13 +453,13 @@ bool InstallHelper_shouldDeferInit()
 	return IsBackgroundWorker || IsBinaryUpgrade;
 }
 
-bool InstallHelper_isPLJavaFunction(Oid fn)
+bool InstallHelper_isPLJavaFunction(Oid fn, char **langName, bool *trusted)
 {
 	char *itsPath;
 	char *pljPath;
 	bool result = false;
 
-	itsPath = pljavaFnOidToLibPath(fn);
+	itsPath = pljavaFnOidToLibPath(fn, langName, trusted);
 	if ( NULL == itsPath )
 		return false;
 
@@ -457,9 +467,9 @@ bool InstallHelper_isPLJavaFunction(Oid fn)
 	{
 		pljPath = NULL;
 		if ( InvalidOid != pljavaTrustedOid )
-			pljPath = pljavaFnOidToLibPath(pljavaTrustedOid);
+			pljPath = pljavaFnOidToLibPath(pljavaTrustedOid, NULL, NULL);
 		if ( NULL == pljPath && InvalidOid != pljavaUntrustedOid )
-			pljPath = pljavaFnOidToLibPath(pljavaUntrustedOid);
+			pljPath = pljavaFnOidToLibPath(pljavaUntrustedOid, NULL, NULL);
 		if ( NULL == pljPath )
 		{
 			elog(WARNING, "unable to determine PL/Java's load path");
@@ -595,7 +605,7 @@ void InstallHelper_groundwork()
 {
 	Invocation ctx;
 	bool snapshot_set = false;
-	Invocation_pushInvocation(&ctx, false);
+	Invocation_pushInvocation(&ctx);
 	ctx.function = Function_INIT_WRITER;
 #if PG_VERSION_NUM >= 80400
 	if ( ! ActiveSnapshotSet() )

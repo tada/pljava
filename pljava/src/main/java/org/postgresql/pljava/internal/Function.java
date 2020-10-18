@@ -18,6 +18,8 @@ import static java.lang.invoke.MethodHandles.arrayElementGetter;
 import static java.lang.invoke.MethodHandles.arrayElementSetter;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
+import static java.lang.invoke.MethodHandles.empty;
+import static java.lang.invoke.MethodHandles.exactInvoker;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
@@ -27,6 +29,7 @@ import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.lang.invoke.MethodHandles.publicLookup;
+import static java.lang.invoke.MethodHandles.zero;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 import java.lang.invoke.WrongMethodTypeException;
@@ -40,6 +43,12 @@ import java.lang.reflect.TypeVariable;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+
+import java.security.AccessControlContext;
+import java.security.CodeSigner;
+import java.security.CodeSource;
+import java.security.Principal;
+import java.security.ProtectionDomain;
 
 import java.sql.ResultSet;
 import java.sql.SQLData;
@@ -55,13 +64,25 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import static java.util.regex.Pattern.compile;
 
+import javax.security.auth.Subject;
+import javax.security.auth.SubjectDomainCombiner;
+
+import org.postgresql.pljava.PLPrincipal;
 import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.EntryPoints;
+import org.postgresql.pljava.internal.EntryPoints.Invocable;
+import static org.postgresql.pljava.internal.EntryPoints.invocable;
+import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
 import org.postgresql.pljava.management.Commands;
@@ -79,21 +100,19 @@ import org.postgresql.pljava.sqlj.Loader;
  * if the function has not already been called. That C function calls the
  * {@link #create create} method here, which ultimately (after all parsing of
  * the {@code CREATE FUNCTION ... AS ...} information, matching up of parameter
- * and return types, etc.) will return a {@code MethodHandle} to use when
+ * and return types, etc.) will return an {@code Invocable} to use when
  * invoking the function.
  *<p>
  * This remains a hybrid approach, in which PL/Java's legacy C {@code Type}
  * infrastructure is used for converting the parameter and return values, and a
  * C {@code Function_} structure kept in a C hash table holds the details
- * needed for invocation, including the {@code MethodHandle} created here. The
+ * needed for invocation, including the {@code Invocable} created here. The
  * methods in this class also use some JNI calls to contribute and retrieve
  * additional details that belong in the C structure.
  *<p>
- * The method handle returned here by {@code create} will have return type of
- * either {@code Object} (for a target method returning any reference type) or
- * {@code void} (for a target method of any other return type, including
- * {@code void}), and no formal parameters. The method handle can contain bound
- * references to the static {@code s_referenceParameters} and
+ * The {@code Invocable} returned here by {@code create} will have return type
+ * {@code Object} in all cases, and no formal parameters. It can
+ * contain bound references to the static {@code s_referenceParameters} and
  * {@code s_primitiveParameters} declared in this class, and will fetch the
  * parameters from there (where invocation code in {@code Function.c} will have
  * put them) at the time of invocation. The parameter areas are static, but
@@ -101,7 +120,7 @@ import org.postgresql.pljava.sqlj.Loader;
  * here will have fetched all of the values to push on the stack before the
  * (potentially reentrant) target method is invoked. If the method has a
  * primitive return type, its return value will be placed in the first slot of
- * {@code s_primitiveParameters} and the method handle returns {@code void}.
+ * {@code s_primitiveParameters} and the {@code Invocable} returns null.
  * Naturally, the (potentially reentrant) target method has already returned
  * before that value is placed in the static slot.
  */
@@ -134,10 +153,13 @@ public class Function
 	{
 		Matcher info = parse(procTup);
 		String className = info.group("udtcls");
+
 		if ( null == className )
 			return null;
+
+		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
 		return
-			loadClass(Loader.getSchemaLoader(schemaName), className)
+			loadClass(Loader.getSchemaLoader(schema), className, false)
 				.asSubclass(SQLData.class);
 	}
 
@@ -148,7 +170,7 @@ public class Function
 	 * The return type is the last element of {@code jTypes}.
 	 */
 	private static MethodType buildSignature(
-		ClassLoader schemaLoader, String[] jTypes,
+		ClassLoader schemaLoader, String[] jTypes, boolean forValidator,
 		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -172,13 +194,13 @@ public class Function
 		if ( ! isMultiCall  &&  retTypeIsOutParameter )
 			++ rtIdx;
 
-		Class<?>[] pTypes = new Class[ rtIdx ];
+		Class<?>[] pTypes = new Class<?>[ rtIdx ];
 
 		for ( int i = 0 ; i < rtIdx ; ++ i )
-			pTypes[i] = loadClass(schemaLoader, jTypes[i]);
+			pTypes[i] = loadClass(schemaLoader, jTypes[i], forValidator);
 
 		Class<?> returnType =
-			getReturnSignature(schemaLoader, retJType,
+			getReturnSignature(schemaLoader, retJType, forValidator,
 				retTypeIsOutParameter, isMultiCall, altForm);
 
 		return methodType(returnType, pTypes);
@@ -198,7 +220,7 @@ public class Function
 	 * {@code ResultSetProvider} depending on {@code altForm}.
 	 */
 	private static Class<?> getReturnSignature(
-		ClassLoader schemaLoader, String retJType,
+		ClassLoader schemaLoader, String retJType, boolean forValidator,
 		boolean isComposite, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -206,7 +228,7 @@ public class Function
 		{
 			if ( isMultiCall )
 				return Iterator.class;
-			return loadClass(schemaLoader, retJType);
+			return loadClass(schemaLoader, retJType, forValidator);
 		}
 
 		/* The composite case */
@@ -251,12 +273,13 @@ public class Function
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
+		boolean forValidator,
 		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
 	throws SQLException
 	{
 		MethodType mt =
-			buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
-				isMultiCall, false); // first try altForm = false
+			buildSignature(schemaLoader, jTypes, forValidator,
+				retTypeIsOutParameter, isMultiCall, false); // try altForm false
 
 		ReflectiveOperationException ex1 = null;
 		try
@@ -270,7 +293,8 @@ public class Function
 
 		MethodType origMT = mt;
 		Class<?> altType = null;
-		Class<?> realRetType = loadClass(schemaLoader, jTypes[jTypes.length-1]);
+		Class<?> realRetType =
+			loadClass(schemaLoader, jTypes[jTypes.length-1], forValidator);
 
 		/* COPIED COMMENT:
 		 * One valid reason for not finding the method is when
@@ -296,11 +320,13 @@ public class Function
 		if ( null != altType )
 		{
 			jTypes[jTypes.length - 1] = altType.getCanonicalName();
-			mt = buildSignature(schemaLoader, jTypes, retTypeIsOutParameter,
-					isMultiCall, true); // this time altForm = true
+			mt = buildSignature(schemaLoader, jTypes, forValidator,
+				retTypeIsOutParameter, isMultiCall, true); // retry altForm true
 			try
 			{
-				return lookupFor(clazz).findStatic(clazz, methodName, mt);
+				MethodHandle h =
+					lookupFor(clazz).findStatic(clazz, methodName, mt);
+				return filterReturnValue(h, s_wrapWithPicker);
 			}
 			catch ( ReflectiveOperationException e )
 			{
@@ -346,20 +372,17 @@ public class Function
 	 * incoming parameters into an {@code Object} array for all those of
 	 * reference type, and a C array of {@code jvalue} for the primitives.
 	 * Those arrays are static, and will be bound into the method handle
-	 * produced here, from which it will fetch values when invoked.
+	 * produced here, which will fetch values from them when invoked.
 	 *<p>
 	 * The job of this method is to take any static method handle {@code mh} and
 	 * return a method handle that takes no parameters, and invokes the original
 	 * handle with the parameter values unpacked to their proper positions.
 	 *<p>
-	 * The handle's return type will be {@code void} if primitive, or, if any
-	 * reference type, erased to {@code Object}. The erasure allows a single
-	 * wrapper method for reference return types that can be declared to return
-	 * {@code Object} and still use {@code invokeExact} on the method handle.
-	 * For any (non-{@code void}) primitive type, the handle will store the
-	 * actual returned value back into the first static primitive-parameters
-	 * slot, allowing a single {@code void}-returning invocation wrapper for all
-	 * of the primitive return types.
+	 * The handle's return type will always be {@code Object}. If the target
+	 * has {@code void} or a primitive return type, null will be returned. Any
+	 * primitive value returned by the target will be found in the first static
+	 * primitive parameter slot. This convention allows a single wrapper method
+	 * for all return types.
 	 */
 	private static MethodHandle adaptHandle(MethodHandle mh)
 	{
@@ -501,7 +524,9 @@ public class Function
 		 * value of reference type is simply returned.
 		 */
 		Class<?> rt = mt.returnType();
-		if ( void.class != rt  &&  rt.isPrimitive() )
+		if ( void.class == rt )
+			mh = filterReturnValue(mh, s_voidToNull);
+		else if ( rt.isPrimitive() )
 		{
 			MethodHandle primReturn;
 			switch ( rt.getSimpleName() )
@@ -538,6 +563,7 @@ public class Function
 	private static final MethodHandle s_floatReturn;
 	private static final MethodHandle s_longReturn;
 	private static final MethodHandle s_doubleReturn;
+	private static final MethodHandle s_voidToNull;
 	private static final MethodHandle s_booleanGetter;
 	private static final MethodHandle s_byteGetter;
 	private static final MethodHandle s_shortGetter;
@@ -551,8 +577,40 @@ public class Function
 	private static final MethodHandle s_primitiveZeroer;
 	private static final MethodHandle s_paramCountsAre;
 	private static final MethodHandle s_countsZeroer;
+	private static final MethodHandle s_nonNull;
+
+	/*
+	 * Handles used to retrieve rows using SFRM_ValuePerCall protocol, from a
+	 * function that returns an Iterator or ResultSetProvider, respectively.
+	 * (One that returns a ResultSetHandle gets its return value wrapped with a
+	 * ResultSetPicker and is then treated as in the ResultSetProvider case.)
+	 */
+	private static final MethodHandle s_iteratorVPC;
+	private static final MethodHandle s_resultSetProviderVPC;
+	private static final MethodHandle s_wrapWithPicker;
+
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
-	private static final MethodHandle s_readSQL_mh;
+
+	/**
+	 * An {@code AccessControlContext} representing "nobody special": it should
+	 * enjoy whatever permissions the {@code Policy} grants to everyone, but no
+	 * others.
+	 *
+	 * This will be clapped on top of any {@code Invocable} whose target isn't
+	 * in a PL/Java-managed jar or in PL/Java itself; PL/Java has always allowed
+	 * {@code CREATE FUNCTION} to name some Java library class directly, but in
+	 * such a case, the permissions should still be limited to what the policy
+	 * would allow a PL/Java function.
+	 */
+	private static final AccessControlContext s_lid;
+
+	/**
+	 * An {@code AccessControlContext} representing "no other restrictions":
+	 * it will be used to build the initial context for any {@code Invocable}
+	 * whose target is in a PL/Java-managed jar, so that it will enjoy whatever
+	 * permissions the policy grants to its jar directly.
+	 */
+	private static final AccessControlContext s_noLid;
 
 	/*
 	 * Static areas for passing reference and primitive parameters. A Java
@@ -566,15 +624,17 @@ public class Function
 	 * desired invocation targets. Such a constructed method handle will take
 	 * care of pushing the arguments from the appropriate static slots. Because
 	 * that happens before the target is invoked, and calls must happen on the
-	 * PG thread, the static areas are safe for reentrant calls.
+	 * PG thread, the static areas are safe for reentrant calls (but for an edge
+	 * case involving UDTs among the parameters and a UDT function that incurs
+	 * a reentrant call; it may never happen, but that's what the ParameterFrame
+	 * class is for, below).
 	 *
-	 * Such a constructed method handle will be passed to EntryPoints.refInvoke
-	 * if the invocation target returns a reference type (which becomes the
-	 * return value of refInvoke). If the target has a primitive or void return
-	 * type, the handle will be passed to EntryPoints.invoke, which has void
-	 * return type. If the target returns a primitive value, the last act of the
-	 * constructed method handle will be to store that in the first slot of
-	 * s_primitiveParameters, where the C code will find it.
+	 * Such a constructed method handle will be passed, wrapped in
+	 * an Invocable, to EntryPoints.invoke, which is declared to return
+	 * Object always. If the target returns a primitive value, the last act of
+	 * the constructed method handle will be to store that in the first slot of
+	 * s_primitiveParameters, where the C code will find it, and return null as
+	 * its "Object" return value.
 	 *
 	 * The primitive parameters area is slightly larger than 255 jvalues; the
 	 * next two bytes contain the numbers of actual parameters in the call (as
@@ -678,8 +738,8 @@ public class Function
 	{
 		Lookup l = publicLookup();
 		Lookup myL = lookup();
-		MethodHandle toVoid = identity(ByteBuffer.class)
-			.asType(methodType(void.class, ByteBuffer.class));
+		MethodHandle toVoid = empty(methodType(void.class, ByteBuffer.class));
+		MethodHandle toNull = empty(methodType(Object.class, ByteBuffer.class));
 		MethodHandle longSetter = null;
 		MethodType mt = methodType(byte.class, int.class);
 		MethodHandle mh;
@@ -719,44 +779,46 @@ public class Function
 			mh = myL.findStatic(Function.class, "paramCountsAre", mt);
 			s_paramCountsAre = mh;
 
+			s_voidToNull = zero(Object.class);
+
 			mt = methodType(ByteBuffer.class, int.class, byte.class);
 			mh = l.findVirtual(ByteBuffer.class, "put", mt)
 				.bindTo(s_primitiveParameters);
-			s_byteReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_byteReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, short.class);
 			mh = l.findVirtual(ByteBuffer.class, "putShort", mt)
 				.bindTo(s_primitiveParameters);
 			s_shortReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, char.class);
 			mh = l.findVirtual(ByteBuffer.class, "putChar", mt)
 				.bindTo(s_primitiveParameters);
-			s_charReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_charReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, int.class);
 			mh = l.findVirtual(ByteBuffer.class, "putInt", mt)
 				.bindTo(s_primitiveParameters);
-			s_intReturn = filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+			s_intReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, float.class);
 			mh = l.findVirtual(ByteBuffer.class, "putFloat", mt)
 				.bindTo(s_primitiveParameters);
 			s_floatReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, long.class);
 			mh = l.findVirtual(ByteBuffer.class, "putLong", mt)
 				.bindTo(s_primitiveParameters);
 			longSetter = filterReturnValue(mh, toVoid);
-			s_longReturn = insertArguments(longSetter, 0, 0);
+			s_longReturn = filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mt = mt.changeParameterType(1, double.class);
 			mh = l.findVirtual(ByteBuffer.class, "putDouble", mt)
 				.bindTo(s_primitiveParameters);
 			s_doubleReturn =
-				filterReturnValue(insertArguments(mh, 0, 0), toVoid);
+				filterReturnValue(insertArguments(mh, 0, 0), toNull);
 
 			mh = s_byteReturn;
 			s_booleanReturn = guardWithTest(identity(boolean.class),
@@ -765,22 +827,266 @@ public class Function
 				dropArguments(
 					insertArguments(mh, 0, (byte)0), 0, boolean.class));
 
-			s_readSQL_mh = l.findVirtual(SQLData.class, "readSQL",
-					methodType(void.class, SQLInput.class, String.class));
+			s_referenceNuller =
+				insertArguments(
+					arrayElementSetter(Object[].class), 2, (Object)null)
+				.bindTo(s_referenceParameters);
+
+			s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
+
+			s_countsZeroer =
+				insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
+
+			s_nonNull = l.findStatic(Objects.class, "nonNull",
+				methodType(boolean.class, Object.class));
+
+			/*
+			 * Build a bit of MethodHandle tree for invoking a set-returning
+			 * user function that will implement the ValuePerCall protocol.
+			 * Such a function will return either an Iterator or a
+			 * ResultSetProvider (or a ResultSetHandle, more on that further
+			 * below). Its MethodHandle, as obtained from AdaptHandle, of course
+			 * has type ()Object (changed to (acc)Object before init() returns
+			 * it, but ordinarily it will ignore the acc passed to it).
+			 *
+			 * The handle tree being built here will go on top of that, and will
+			 * also ultimately have type (acc)Object. What it returns will be
+			 * a new Invocable, carrying the same acc, and a handle tree built
+			 * over the Iterator or ResultSetProvider that the user function
+			 * returned. Part of that tree must depend on whether the return
+			 * type is Iterator or ResultSet; the part being built here is the
+			 * common part. It will have an extra first argument of type
+			 * MethodHandle that can be bound to the ResultSetProvider- or
+			 * Iterator-specific handle. If the user function returns null, so
+			 * will this.
+			 */
+
+			MethodHandle invocableMH =
+				myL.findStatic(EntryPoints.class, "invocable", methodType(
+					Invocable.class,
+					MethodHandle.class, AccessControlContext.class));
+
+			mh = l.findVirtual(MethodHandle.class, "bindTo",
+					methodType(MethodHandle.class, Object.class));
+
+			mh = collectArguments(invocableMH, 0, mh);
+			// (hdl, obj, acc) -> Invocable(hdl-bound-to-obj, acc)
+
+			mh = guardWithTest(dropArguments(s_nonNull, 0, MethodHandle.class),
+				mh, empty(methodType(Invocable.class,
+					MethodHandle.class, Object.class, AccessControlContext.class
+				))
+			);
+
+			mh = filterArguments(mh, 1, exactInvoker(methodType(Object.class)));
+			/*
+			 * We are left with type (MethodHandle,MethodHandle,acc) ->
+			 * Invocable. A first bindTo, passing the ResultSetProvider- or
+			 * Iterator-specific tree fragment, will leave us with
+			 * (MethodHandle,acc)Invocable, and that can be bound to any
+			 * set-returning user function handle, leaving (acc)Invocable, which
+			 * is just what we want. Keep this as vpcCommon (only erasing its
+			 * return type to Object as EntryPoints.invoke will expect).
+			 */
+			MethodHandle vpcCommon =
+				mh.asType(mh.type().changeReturnType(Object.class));
+
+			/*
+			 * VALUE-PER-CALL Iterator DRIVER
+			 *
+			 * Build the ValuePerCall adapter handle for a function that
+			 * returns Iterator. ValuePerCall adapters will be invoked through
+			 * the general mechanism, and fetch their arguments from the static
+			 * area. They'll be passed one reference argument (a "row collector"
+			 * for the ResultSetProvider case) and two primitives: a long
+			 * call counter (zero on the first call) and a boolean (true when
+			 * the caller wants to stop iteration, perhaps early). An Iterator
+			 * has no use for the row collector or the call counter, so they
+			 * simply won't be fetched; the end-iteration boolean will be
+			 * fetched and will cause false+null to be returned, but will not
+			 * necessarily release any resources promptly, as Iterator has no
+			 * close() method.
+			 *
+			 * These adapters change up the return-value protocol a bit: they
+			 * will return a reference (the value for the row) *and also* a
+			 * boolean via the first primitive slot (false if the end of rows
+			 * has been reached, in which case the reference returned is simply
+			 * null and is not part of the result set). If the boolean is true
+			 * and null is returned, the null is part of the result.
+			 *
+			 * mh1 and mh2 both have type (Iterator)Object and side effect of
+			 * storing to primitive slot 0. Let mh1 be the hasNext case,
+			 * returning a value and storing true, and mh2 the no-more case,
+			 * storing false and returning null. (They don't have a primitive-
+			 * zeroer for either argument, as the return will clobber the first
+			 * slot anyway, and they can only be reached if the 'close' argument
+			 * is already zero. This is the Iterator case, so the row-collector
+			 * reference argument is assumed already null.)
+			 *
+			 * Start with a few constants for parameter getters (else it is
+			 * easy to forget the (sizeof jvalue) for the primitive getters!).
+			 */
+			final int REF0 = 0;
+			final int REF1 = 1;
+			final int PRIM0 = 0;
+			final int PRIM1 = 1 * s_sizeof_jvalue;
+
+			MethodHandle mh1 = identity(Object.class);
+			mh1 = dropArguments(mh1, 1, Object.class); // the null from boolRet
+			mh1 = collectArguments(mh1, 1,
+				insertArguments(s_booleanReturn, 0, true));
+			mt = methodType(Object.class);
+			mh = l.findVirtual(Iterator.class, "next", mt);
+			mh1 = filterArguments(mh1, 0, mh);
+
+			MethodHandle mh2 = insertArguments(s_booleanReturn, 0, false);
+			mh2 = dropArguments(mh2, 0, Iterator.class);
+
+			mt = methodType(boolean.class);
+			mh = l.findVirtual(Iterator.class, "hasNext", mt);
+			mh = guardWithTest(mh, mh1, mh2);
+			mh = foldArguments(mh, 0, s_countsZeroer);
+
+			/*
+			 * The next (in construction order; first in execution) test is of
+			 * the 'close' argument. Tack a primitiveZeroer onto mh2 for this
+			 * one, as it'll execute in the argument-isn't-zero case.
+			 */
+			mh2 = foldArguments(mh2, 0,
+				insertArguments(s_primitiveZeroer, 0, PRIM1));
+			mh2 = foldArguments(mh2, 0, s_countsZeroer);
+
+			mh = guardWithTest(
+				insertArguments(s_booleanGetter, 0, PRIM1), mh2, mh);
+
+			/*
+			 * mh now has type (Iterator)Object. Erase the Iterator to Object
+			 * (so this and the ResultSetProvider one can have a common type),
+			 * give it an acc argument that it will ignore, bind it into
+			 * vpcCommon, and we'll have the Iterator VPC adapter.
+			 */
+			mh = mh.asType(mh.type().erase());
+			mh = dropArguments(mh, 1, AccessControlContext.class);
+			s_iteratorVPC = vpcCommon.bindTo(mh);
+
+			/*
+			 * VALUE-PER-CALL ResultSetProvider DRIVER
+			 *
+			 * The same drill as above, only to drive a ResultSetProvider.
+			 * For now, this will always return a null reference, even when
+			 * a row is retrieved; the thing it would return is just the
+			 * row collector, which the C caller already has, and must extract
+			 * the tuple from. If that could be done in Java, it would be
+			 * a different story.
+			 */
+			mt = methodType(boolean.class, ResultSet.class, long.class);
+			mh1 = collectArguments(s_booleanReturn, 0,
+				l.findVirtual(ResultSetProvider.class, "assignRowValues", mt));
+			mh1 = dropArguments(mh1, 0, boolean.class);
+
+			/*
+			 * The next (in construction order; first in execution) test is of
+			 * the 'close' argument. If it is true, use mh2 to zero that prim
+			 * slot, call close, and return false.
+			 */
+			mh2 = insertArguments(s_booleanReturn, 0, false);
+			mh2 = collectArguments(mh2, 0,
+				l.findVirtual(ResultSetProvider.class, "close",
+					methodType(void.class)));
+			mh2 = foldArguments(mh2, 0,
+				insertArguments(s_primitiveZeroer, 0, PRIM1));
+			mh2 = dropArguments(mh2, 0, boolean.class);
+			mh2 = dropArguments(mh2, 2, ResultSet.class, long.class);
+
+			mh = guardWithTest(identity(boolean.class), mh2, mh1);
+			mh = foldArguments(mh, 0, s_countsZeroer);
+			mh = foldArguments(mh, 0,
+				insertArguments(s_booleanGetter, 0, PRIM1));
+			// ^^^ Test the 'close' flag, prim slot 1 (insert as arg 0) ^^^
+
+			mh = foldArguments(mh, 2, insertArguments(s_longGetter, 0, PRIM0));
+			// ^^^ Get the row count, prim slot 0; return will clobber ^^^
+
+			/*
+			 * mh now has type (ResultSetProvider,ResultSet)Object. Erase both
+			 * argument types to Object now (so the ResultSet will match the
+			 * refGetter here, and the result will be (Object)Object as expected
+			 * below.
+			 */
+			mh = mh.asType(mh.type().erase());
+			mh = foldArguments(mh, 1,
+				insertArguments(s_referenceNuller, 0, REF0));
+			mh = foldArguments(mh, 1, insertArguments(s_refGetter, 0, REF0));
+			// ^^^ Get and then null the row collector, ref slot 0 ^^^
+
+			/*
+			 * mh now has type (Object)Object. Give it an acc argument that it
+			 * will ignore, bind it into vpcCommon, and we'll have the
+			 * ResultSetProvider VPC adapter.
+			 */
+			mh = dropArguments(mh, 1, AccessControlContext.class);
+			s_resultSetProviderVPC = vpcCommon.bindTo(mh);
+
+			/*
+			 * WRAPPER for ResultSetHandle to present it as ResultSetProvider
+			 */
+			mt = methodType(void.class, ResultSetHandle.class);
+			mh = myL.findConstructor(ResultSetPicker.class, mt);
+			s_wrapWithPicker =
+				mh.asType(mh.type().changeReturnType(ResultSetProvider.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
 			throw new ExceptionInInitializerError(e);
 		}
 
-		s_referenceNuller =
-			insertArguments(arrayElementSetter(Object[].class), 2, (Object)null)
-			.bindTo(s_referenceParameters);
+		/*
+		 * An empty ProtectionDomain array is all it takes to make s_noLid.
+		 * (As far as doPrivileged is concerned, a null AccessControlContext has
+		 * the same effect, but one can't attach a DomainCombiner to that.)
+		 *
+		 * A lid is a bit more work, but there's a method for that.
+		 */
+		s_noLid = new AccessControlContext(new ProtectionDomain[] {});
+		s_lid = lidWithPrincipals(new Principal[0]);
+	}
 
-		s_primitiveZeroer = insertArguments(longSetter, 1, 0L);
-
-		s_countsZeroer =
-			insertArguments(s_primitiveZeroer, 0, s_offset_paramCounts);
+	/**
+	 * Construct a 'lid' {@code AccessControlContext}, optionally with
+	 * associated {@code Principal}s.
+	 *<p>
+	 * A 'lid' is a "nobody special" {@code AccessControlContext}: it isn't
+	 * allowed any permission that isn't granted by the Policy to everybody,
+	 * unless it also has a nonempty array of principals. With an empty array,
+	 * there need be only one such lid, so it can be kept in a static.
+	 *<p>
+	 * This method also allows creating a lid with associated principals,
+	 * because a {@code SubjectDomainCombiner} does not combine its subject into
+	 * the domains of its <em>inherited</em> {@code AccessControlContext}, and
+	 * that strains the principle of least astonishment if the code is being
+	 * invoked through an SQL declaration that one expects would have a
+	 * {@code PLPrincipal} associated.
+	 *<p>
+	 * A null CodeSource is too strict; if your code source is null, you are
+	 * somebody special in a bad way: no dynamic permissions for you! At
+	 * least according to the default policy provider.
+	 *<p>
+	 * So, to achieve mere "nobody special"-ness requires a real CodeSource
+	 * with null URL and null code signers.
+	 *<p>
+	 * The ProtectionDomain constructor allows the permissions parameter
+	 * to be null, and says so in the javadocs. It seems to allow
+	 * the principals parameter to be null too, but doesn't say that, so an
+	 * array will always be expected here.
+	 */
+	private static AccessControlContext lidWithPrincipals(Principal[] ps)
+	{
+		return new AccessControlContext(new ProtectionDomain[] {
+			new ProtectionDomain(
+				new CodeSource(null, (CodeSigner[])null),
+				null, ClassLoader.getSystemClassLoader(),
+				Objects.requireNonNull(ps))
+			});
 	}
 
 	/**
@@ -813,14 +1119,58 @@ public class Function
 	}
 
 	/**
-	 * Return a "construct+readSQL" method handle for a given UDT class.
+	 * Return an {@code Invocable} for the {@code writeSQL} method of
+	 * a given UDT class.
 	 *<p>
-	 * The method handle will expect the two non-receiver arguments for
-	 * {@code readSQL}, construct a new instance of the class, invoke
-	 * {@code readSQL} on that instance and the two supplied arguments,
-	 * and return the instance.
+	 * While this is not expected to be used while transforming parameters for
+	 * another function call as the UDT-read handle would be, it can still be
+	 * used during a function's execution and without being separately wrapped
+	 * in {@code pushInvocation}/{@code popInvocation}. The pushing and popping
+	 * of {@code ParameterFrame} rely on invocation scoping, so it is better for
+	 * the UDT-write method also to avoid using the static parameter area.
+	 *<p>
+	 * The access control context of the {@code Invocable} returned here is used
+	 * at the corresponding entry point; the payload is not.
 	 */
-	private static MethodHandle udtReadHandle(Class<? extends SQLData> clazz)
+	private static Invocable<?> udtWriteHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
+	throws SQLException
+	{
+		return invocable(
+			null, accessControlContextFor(clazz, language, trusted));
+	}
+
+	/**
+	 * Return an {@code Invocable} for the {@code toString} method of
+	 * a given UDT class (or any class, really).
+	 *<p>
+	 * The access control context of the {@code Invocable} returned here is used
+	 * at the corresponding entry point; the payload is not.
+	 */
+	private static Invocable<?> udtToStringHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
+	throws SQLException
+	{
+		return invocable(
+			null, accessControlContextFor(clazz, language, trusted));
+	}
+
+	/**
+	 * Return a special {@code Invocable} for the {@code readSQL} method of
+	 * a given UDT class.
+	 *<p>
+	 * Because this can commonly be invoked while transforming parameters for
+	 * another function call, it has a dedicated corresponding
+	 * {@code EntryPoints} method and does not use the static parameter area.
+	 * The {@code Invocable} created here is bound to the constructor of the
+	 * type, takes no parameters, and simply returns the constructed instance;
+	 * the {@code EntryPoints} method will then call {@code readSQL} on it and
+	 * pass the stream and type-name arguments. The {@code AccessControlContext}
+	 * assigned here will be in effect for both the constructor and the
+	 * {@code readSQL} call.
+	 */
+	private static Invocable<?> udtReadHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
@@ -828,7 +1178,9 @@ public class Function
 
 		try
 		{
-			ctor = l.findConstructor(clazz, methodType(void.class));
+			ctor =
+				l.findConstructor(clazz, methodType(void.class))
+				.asType(methodType(SQLData.class)); // invocable() enforces this
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -837,29 +1189,28 @@ public class Function
 				" must have a no-argument public constructor", "38000", e);
 		}
 
-		MethodHandle mh = identity(SQLData.class); // o -> o
-		mh = collectArguments(mh, 1, s_readSQL_mh); // (o, o, stream, type) -> o
-		mh = permuteArguments(mh, methodType(
-			SQLData.class, SQLData.class, SQLInput.class, String.class),
-			0, 0, 1, 2); // (o, stream, type) -> o
-		ctor = ctor.asType(methodType(SQLData.class));
-		mh = collectArguments(mh, 0, ctor); // (stream, type) -> o
-		return mh;
+		return invocable(
+			ctor, accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
-	 * Return a "parse" method handle for a given UDT class.
+	 * Return a "parse" {@code Invocable} for a given UDT class.
+	 *<p>
+	 * The method can be invoked during the preparation of a parameter that has
+	 * a NUL-terminated storage form, so it gets its own dedicated entry point
+	 * and does not use the static parameter area.
 	 */
-	private static MethodHandle udtParseHandle(Class<? extends SQLData> clazz)
+	private static Invocable<?> udtParseHandle(
+		Class<? extends SQLData> clazz, String language, boolean trusted)
 	throws SQLException
 	{
 		Lookup l = lookupFor(clazz);
+		MethodHandle mh;
 
 		try
 		{
-			return l.findStatic(clazz, "parse",
-				methodType(clazz, String.class, String.class))
-				.asType(methodType(SQLData.class, String.class, String.class));
+			mh = l.findStatic(clazz, "parse",
+				methodType(clazz, String.class, String.class));
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -869,17 +1220,22 @@ public class Function
 				" must have a public static parse(String,String) method",
 				"38000", e);
 		}
+
+		return invocable(
+			mh.asType(mh.type().changeReturnType(SQLData.class)),
+			accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
 	 * Parse the function specification in {@code procTup}, initializing most
-	 * fields of the C {@code Function} structure, and returning a
-	 * {@code MethodHandle} for invoking the method, or null in the case of
-	 * a UDT.
+	 * fields of the C {@code Function} structure, and returning an
+	 * {@code Invocable} for invoking the method, or null in the
+	 * case of a UDT.
 	 */
-	public static MethodHandle create(
+	public static Invocable<?> create(
 		long wrappedPtr, ResultSet procTup, String langName, String schemaName,
-		boolean calledAsTrigger, boolean forValidator, boolean checkBody)
+		boolean trusted, boolean calledAsTrigger,
+		boolean forValidator, boolean checkBody)
 	throws SQLException
 	{
 		Matcher info = parse(procTup);
@@ -887,8 +1243,10 @@ public class Function
 		if ( forValidator  &&  ! checkBody )
 			return null;
 
-		return init(wrappedPtr, info, procTup, schemaName, calledAsTrigger,
-				forValidator);
+		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
+
+		return init(wrappedPtr, info, procTup, schema, calledAsTrigger,
+				forValidator, langName, trusted);
 	}
 
 	/**
@@ -912,12 +1270,13 @@ public class Function
 	 * object from {@code parse}, determine the type of function being created
 	 * (ordinary, UDT, trigger) and initialize most of the C structure
 	 * accordingly.
-	 * @return a MethodHandle to invoke the implementing method, or null in the
-	 * case of a UDT
+	 * @return an Invocable to invoke the implementing method, or
+	 * null in the case of a UDT
 	 */
-	private static MethodHandle init(
-		long wrappedPtr, Matcher info, ResultSet procTup, String schemaName,
-		boolean calledAsTrigger, boolean forValidator)
+	private static Invocable<?> init(
+		long wrappedPtr, Matcher info, ResultSet procTup,
+		Identifier.Simple schema, boolean calledAsTrigger, boolean forValidator,
+		String language, boolean trusted)
 	throws SQLException
 	{
 		Map<Oid,Class<? extends SQLData>> typeMap = null;
@@ -927,13 +1286,13 @@ public class Function
 		if ( ! isUDT )
 		{
 			className = info.group("cls");
-			typeMap = Loader.getTypeMap(schemaName);
+			typeMap = Loader.getTypeMap(schema);
 		}
 
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
-		ClassLoader schemaLoader = Loader.getSchemaLoader(schemaName);
-		Class<?> clazz = loadClass(schemaLoader, className);
+		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
+		Class<?> clazz = loadClass(schemaLoader, className, forValidator);
 
 		if ( isUDT )
 		{
@@ -967,12 +1326,22 @@ public class Function
 
 		String methodName = info.group("meth");
 
-		return
+		MethodHandle handle =
 			adaptHandle(
-				getMethodHandle(schemaLoader, clazz, methodName,
+				getMethodHandle(schemaLoader, clazz, methodName, forValidator,
 					resolvedTypes, retTypeIsOutParameter, isMultiCall)
 				.asFixedArity()
 			);
+
+		if ( isMultiCall )
+			handle = (
+				retTypeIsOutParameter ? s_resultSetProviderVPC : s_iteratorVPC
+			).bindTo(handle);
+		else
+			handle = dropArguments(handle, 0, AccessControlContext.class);
+
+		return invocable(handle,
+			accessControlContextFor(clazz, language, trusted));
 	}
 
 	/**
@@ -991,7 +1360,56 @@ public class Function
 	}
 
 	/**
+	 * Select the {@code AccessControlContext} to be in effect when invoking
+	 * a function.
+	 *<p>
+	 * At present, the only choices are null (no additional restrictions) when
+	 * the target class is in a PL/Java-loaded jar file, or the 'lid' when
+	 * invoking anything else (such as code of the JRE itself, which would
+	 * otherwise have all permissions). The 'lid' is constructed to be 'nobody
+	 * special', so will have only those permissions the policy grants without
+	 * conditions. No exception is made here for the few functions supplied by
+	 * PL/Java's own {@code Commands} class; they get a lid. It is reasonable to
+	 * ask them to use {@code doPrivileged} when appropriate.
+	 */
+	private static AccessControlContext accessControlContextFor(
+		Class<?> clazz, String language, boolean trusted)
+	{
+		Set<Principal> p =
+			(null == language)
+			? Set.of()
+			: Set.of(
+				trusted
+				? new PLPrincipal.Sandboxed(language)
+				: new PLPrincipal.Unsandboxed(language)
+			);
+
+		AccessControlContext acc = clazz.getClassLoader() instanceof Loader
+			? s_noLid // policy already applies appropriate permissions
+			: p.isEmpty() // put a lid on permissions if calling JRE directly
+			? s_lid
+			: lidWithPrincipals(p.toArray(new Principal[1]));
+
+		/*
+		 * A cache to avoid the following machinations might be good.
+		 */
+		return doPrivileged(() ->
+			new AccessControlContext(acc, new SubjectDomainCombiner(
+				new Subject(true, p, Set.of(), Set.of()))));
+	}
+
+	/**
 	 * The initialization specific to a UDT function.
+	 */
+	/*
+	 * A MappedUDT will not have PL/Java I/O functions declared in SQL,
+	 * and therefore will never reach this method. Ergo, this is handling a
+	 * BaseUDT, which must have all four functions, not just the one
+	 * happening to be looked up at this instant. Rather than looking up one
+	 * handle here and leaving the C code to find the rest anyway, simply let
+	 * the C code look up all four; Function.c already contains logic for doing
+	 * that, which it has to have in case the UDT is first encountered by the
+	 * Type machinery rather than in an explicit function call.
 	 */
 	private static void setupUDT(
 		long wrappedPtr, Matcher info, ResultSet procTup,
@@ -1002,26 +1420,23 @@ public class Function
 		String udtFunc = info.group("udtfun");
 		int udtInitial = Character.toLowerCase(udtFunc.charAt(0));
 		Oid udtId;
+
 		switch ( udtInitial )
 		{
 		case 'i':
 		case 'r':
 			udtId = (Oid)procTup.getObject("prorettype");
 			break;
-		case 'o':
 		case 's':
+		case 'o':
 			udtId = ((Oid[])procTup.getObject("proargtypes"))[0];
 			break;
 		default:
 			throw new SQLException("internal error in PL/Java UDT parsing");
 		}
 
-		MethodHandle parseMH = 'i' == udtInitial ? udtParseHandle(clazz) : null;
-		MethodHandle readMH = udtReadHandle(clazz);
-
 		doInPG(() -> _storeToUDT(wrappedPtr, schemaLoader,
-			clazz, readOnly, udtInitial, udtId.intValue(),
-			parseMH, readMH));
+			clazz, readOnly, udtInitial, udtId.intValue()));
 	}
 
 	/**
@@ -1179,9 +1594,12 @@ public class Function
 	 * in explicit signatures in the AS string. Just a bit of gymnastics to
 	 * turn that form of name into the right class, including for primitives,
 	 * void, and arrays.
+	 *
+	 * @param forValidator if true, force initialization of the loaded class, in
+	 * an effort to bring forward as many possible errors as can be.
 	 */
 	private static Class<?> loadClass(
-		ClassLoader schemaLoader, String className)
+		ClassLoader schemaLoader, String className, boolean forValidator)
 	throws SQLException
 	{
 		Matcher m = typeNameInAS.matcher(className);
@@ -1203,12 +1621,12 @@ public class Function
 		default:
 			try
 			{
-				c = schemaLoader.loadClass(className);
+				c = Class.forName(className, forValidator, schemaLoader);
 			}
-			catch ( ClassNotFoundException e )
+			catch ( ClassNotFoundException | LinkageError e )
 			{
 				throw new SQLNonTransientException(
-					"No such class: " + className, "46103", e);
+					"Resolving class " + className + ": " + e, "46103", e);
 			}
 		}
 
@@ -1443,7 +1861,7 @@ public class Function
 			}
 		}
 
-		Type resolve(TypeVariable v)
+		Type resolve(TypeVariable<?> v)
 		{
 			for ( int i = 0; i < formalTypeParams.length; ++ i )
 				if ( formalTypeParams[i].equals(v) )
@@ -1506,8 +1924,7 @@ public class Function
 	private static native void _storeToUDT(
 		long wrappedPtr, ClassLoader schemaLoader,
 		Class<? extends SQLData> clazz,
-		boolean readOnly, int funcInitial, int udtOid,
-		MethodHandle readMH, MethodHandle parseMH);
+		boolean readOnly, int funcInitial, int udtOid);
 
 	private static native void _reconcileTypes(
 		long wrappedPtr, String[] resolvedTypes, String[] explicitTypes, int i);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,6 +11,8 @@
  *   Chapman Flack
  */
 package org.postgresql.pljava;
+
+import java.security.AccessControlContext; // linked from javadoc
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -34,17 +36,23 @@ import java.sql.SQLException;
 public interface Session
 {
 	/**
-	 * Adds the specified <code>listener</code> to the list of listeners that will
-	 * receive savepoint events. This method does nothing if the listener
-	 * was already added.
+	 * Adds the specified {@code listener} to the list of listeners that will
+	 * receive savepoint events. An {@link AccessControlContext} saved by this
+	 * method will be used when the listener is invoked. If the listener was
+	 * already registered, it remains registered just once, though the
+	 * {@code AccessControlContext} is updated and its order of invocation
+	 * relative to other listeners may change.
 	 * @param listener The listener to be added.
 	 */
 	void addSavepointListener(SavepointListener listener);
 
 	/**
-	 * Adds the specified <code>listener</code> to the list of listeners that will
-	 * receive transactional events. This method does nothing if the listener
-	 * was already added.
+	 * Adds the specified {@code listener} to the list of listeners that will
+	 * receive transaction events. An {@link AccessControlContext} saved by this
+	 * method will be used when the listener is invoked. If the listener was
+	 * already registered, it remains registered just once, though the
+	 * {@code AccessControlContext} is updated and its order of invocation
+	 * relative to other listeners may change.
 	 * @param listener The listener to be added.
 	 */
 	void addTransactionListener(TransactionListener listener);
@@ -162,17 +170,17 @@ public interface Session
 	void removeAttribute(String attributeName);
 
 	/**
-	 * Removes the specified <code>listener</code> from the list of listeners that will
-	 * receive savepoint events. This method does nothing unless the listener is
-	 * found.
+	 * Removes the specified {@code listener} from the list of listeners that
+	 * will receive savepoint events. This method does nothing unless
+	 * the listener is found.
 	 * @param listener The listener to be removed.
 	 */
 	void removeSavepointListener(SavepointListener listener);
 
 	/**
-	 * Removes the specified <code>listener</code> from the list of listeners that will
-	 * receive transactional events. This method does nothing unless the listener is
-	 * found.
+	 * Removes the specified {@code listener} from the list of listeners that
+	 * will receive transaction events. This method does nothing unless
+	 * the listener is found.
 	 * @param listener The listener to be removed.
 	 */
 	void removeTransactionListener(TransactionListener listener);

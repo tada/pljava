@@ -52,15 +52,24 @@ struct Invocation_
 	bool          inExprContextCB;
 
 	/**
-	 * Set to true if the executing function is trusted
+	 * The saved limits reserved in Function.c's static parameter frame, as a
+	 * count of reference and primitive parameters combined in a short.
+	 * FRAME_LIMITS_PUSHED is an otherwise invalid value used to record that the
+	 * more heavyweight saving of the frame as a Java ParameterFrame instance
+	 * has occurred. Otherwise, this value (and the primitive slot 0 value
+	 * below) are simply restored when this Invocation is exited normally or
+	 * exceptionally.
 	 */
-	bool          trusted;
+	jshort frameLimits;
+#define FRAME_LIMITS_PUSHED ((jshort)-1)
 
 	/**
-	 * Whether nested invocation of a Function has required pushing a parameter
-	 * frame that will have to be popped when the Invocation is.
+	 * The saved value of the first primitive slot in Function's static
+	 * parameter frame. Unless frameLimits above is FRAME_LIMITS_PUSHED, this
+	 * value is simply restored when this Invocation is exited normally or
+	 * exceptionally.
 	 */
-	bool pushedFrame;
+	jvalue primSlot0;
 
 	/**
 	 * The currently executing Function.
@@ -102,7 +111,7 @@ extern void Invocation_pushBootContext(Invocation* ctx);
 
 extern void Invocation_popBootContext(void);
 
-extern void Invocation_pushInvocation(Invocation* ctx, bool trusted);
+extern void Invocation_pushInvocation(Invocation* ctx);
 
 extern void Invocation_popInvocation(bool wasException);
 
@@ -117,6 +126,13 @@ extern jobject Invocation_getTypeMap(void);
  * is the context returned from this call.
  */
 extern MemoryContext Invocation_switchToUpperContext(void);
+
+/*
+ * Called only during Function's initialization to supply these values, making
+ * them cheap to access during pushInvocation/popInvocation, while still a bit
+ * more encapsulated than if they were made global.
+ */
+extern void pljava_Invocation_shareFrame(jvalue *slot0, jshort *limits);
 
 #ifdef __cplusplus
 }

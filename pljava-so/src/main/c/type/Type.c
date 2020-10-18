@@ -126,18 +126,12 @@ typedef struct
 	 */
 	MemoryContext spiContext;
 	bool          hasConnected;
-	/*
-	 * Copy of Invocation's 'trusted' flag. In normal calls through the handler,
-	 * the value is known (implicit in which handler entry point was called),
-	 * but that isn't available to the _endOfSetCB, so must be remembered here.
-	 */
-	bool          trusted;
 } CallContextData;
 
 /*
  * Called during evaluation of a set-returning function, at various points after
  * calls into Java code could have instantiated an Invocation, or connected SPI.
- * Does not stash elemType, rowProducer, rowCollector, or trusted; those are all
+ * Does not stash elemType, rowProducer, or rowCollector; those are all
  * unconditionally set in the first-call initialization, and spiContext to zero.
  */
 static void stashCallContext(CallContextData *ctxData)
@@ -165,10 +159,11 @@ static void stashCallContext(CallContextData *ctxData)
  */
 static void _closeIteration(CallContextData* ctxData)
 {
+	jobject dummy;
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	Type_closeSRF(ctxData->elemType, ctxData->rowProducer);
+	pljava_Function_vpcInvoke(ctxData->rowProducer, NULL, 0, JNI_TRUE, &dummy);
 	JNI_deleteGlobalRef(ctxData->rowProducer);
 	if(ctxData->rowCollector != 0)
 		JNI_deleteGlobalRef(ctxData->rowCollector);
@@ -202,7 +197,7 @@ static void _endOfSetCB(Datum arg)
 	bool saveInExprCtxCB;
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
 	if(currentInvocation == 0)
-		Invocation_pushInvocation(&topCall, ctxData->trusted);
+		Invocation_pushInvocation(&topCall);
 
 	saveInExprCtxCB = currentInvocation->inExprContextCB;
 	currentInvocation->inExprContextCB = true;
@@ -462,7 +457,7 @@ Datum Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 
 Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 {
-	bool hasRow;
+	jobject row;
 	CallContextData* ctxData;
 	FuncCallContext* context;
 	MemoryContext currCtx;
@@ -489,10 +484,10 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 		 */
 		currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
 
-		/* Call the declared Java function. It returns an instance that can produce
-		 * the rows.
+		/* Call the declared Java function. It returns an instance
+		 * that can produce the rows.
 		 */
-		tmp = Type_getSRFProducer(self, fn);
+		tmp = pljava_Function_refInvoke(fn);
 		if(tmp == 0)
 		{
 			Invocation_assertDisconnect();
@@ -518,7 +513,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 			JNI_deleteLocalRef(tmp);
 		}		
 
-		ctxData->trusted    = currentInvocation->trusted;
 		stashCallContext(ctxData);
 
 		/* Register callback to be called when the function ends
@@ -548,12 +542,12 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	hasRow = Type_hasNextSRF(self, ctxData->rowProducer, ctxData->rowCollector,
-		(jlong)context->call_cntr);
-
-	if(hasRow)
+	if(JNI_TRUE == pljava_Function_vpcInvoke(
+		ctxData->rowProducer, ctxData->rowCollector, (jlong)context->call_cntr,
+		JNI_FALSE, &row))
 	{
-		Datum result = Type_nextSRF(self, ctxData->rowProducer, ctxData->rowCollector);
+		Datum result = Type_datumFromSRF(self, row, ctxData->rowCollector);
+		JNI_deleteLocalRef(row);
 		stashCallContext(ctxData);
 		currentInvocation->hasConnected = false;
 		currentInvocation->invocation   = 0;
@@ -681,17 +675,33 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	if(typeMap != 0)
 	{
 		jobject joid      = Oid_create(typeId);
-		jclass  typeClass = (jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
+		jclass  typeClass =
+			(jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
 
 		JNI_deleteLocalRef(joid);
 		if(typeClass != 0)
 		{
-			TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+			/*
+			 * We have found a MappedUDT. It doesn't have SQL-declared I/O
+			 * functions, so we need to look up only the read and write handles,
+			 * and there will be no PLPrincipal to associate them with,
+			 * indicated by passing NULL as the language name.
+			 */
+			jobject readMH =
+				pljava_Function_udtReadHandle(typeClass, NULL, true);
+			jobject writeMH =
+				pljava_Function_udtWriteHandle(typeClass, NULL, true);
+			TupleDesc tupleDesc =
+				lookup_rowtype_tupdesc_noerror(typeId, -1, true);
 			bool hasTupleDesc = NULL != tupleDesc;
 			if ( hasTupleDesc )
 				ReleaseTupleDesc(tupleDesc);
 			type = (Type)UDT_registerUDT(
-				typeClass, typeId, typeStruct, hasTupleDesc, false, NULL, NULL);
+				typeClass, typeId, typeStruct, hasTupleDesc, false,
+				NULL, readMH, writeMH, NULL);
+			/*
+			 * UDT_registerUDT calls JNI_deleteLocalRef on readMH and writeMH.
+			 */
 			JNI_deleteLocalRef(typeClass);
 			goto finally;
 		}
@@ -699,7 +709,8 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	/* Composite and record types will not have a TypeObtainer registered
 	 */
-	if(typeStruct->typtype == 'c' || (typeStruct->typtype == 'p' && typeId == RECORDOID))
+	if(typeStruct->typtype == 'c'
+		|| (typeStruct->typtype == 'p' && typeId == RECORDOID))
 	{
 		type = Composite_obtain(typeId);
 		goto finally;
@@ -708,11 +719,15 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	ce = (CacheEntry)HashMap_getByOid(s_obtainerByOid, typeId);
 	if(ce == 0)
 	{
-		type = Function_checkTypeUDT(typeId, typeStruct);
+		/*
+		 * Perhaps we have found a BaseUDT. If so, this check will register and
+		 * return it.
+		 */
+		type = Function_checkTypeBaseUDT(typeId, typeStruct);
 		if ( 0 != type )
 			goto finally;
 		/*
-		 * Default to String and standard textin/textout coersion.
+		 * Default to String and standard textin/textout coercion.
 		 * Note: if the AS spec includes a Java signature, and the corresponding
 		 * Java type is not String, that will trigger a call to
 		 * Type_fromJavaType to see if a mapping is registered that way. If not,
@@ -771,37 +786,14 @@ static Type _Type_createArrayType(Type self, Oid arrayTypeId)
 	return Array_fromOid(arrayTypeId, self);
 }
 
-static jobject _Type_getSRFProducer(Type self, Function fn)
-{
-	return pljava_Function_refInvoke(fn);
-}
-
 static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 {
 	return 0;
 }
 
-static bool _Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
+static Datum _Type_datumFromSRF(Type self, jobject row, jobject rowCollector)
 {
-	return (JNI_callBooleanMethod(rowProducer, s_Iterator_hasNext) == JNI_TRUE);
-}
-
-static Datum _Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
-{
-	/* XXX make an entry point */
-	jobject tmp = JNI_callObjectMethod(rowProducer, s_Iterator_next);
-	Datum result = Type_coerceObject(self, tmp);
-	JNI_deleteLocalRef(tmp);
-	return result;
-}
-
-static void _Type_closeSRF(Type self, jobject rowProducer)
-{
-}
-
-jobject Type_getSRFProducer(Type self, Function fn)
-{
-	return self->typeClass->getSRFProducer(self, fn);
+	return Type_coerceObject(self, row);
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
@@ -809,19 +801,9 @@ jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return self->typeClass->getSRFCollector(self, fcinfo);
 }
 
-bool Type_hasNextSRF(Type self, jobject rowProducer, jobject rowCollector, jlong callCounter)
+Datum Type_datumFromSRF(Type self, jobject row, jobject rowCollector)
 {
-	return self->typeClass->hasNextSRF(self, rowProducer, rowCollector, callCounter);
-}
-
-Datum Type_nextSRF(Type self, jobject rowProducer, jobject rowCollector)
-{
-	return self->typeClass->nextSRF(self, rowProducer, rowCollector);
-}
-
-void Type_closeSRF(Type self, jobject rowProducer)
-{
-	self->typeClass->closeSRF(self, rowProducer);
+	return self->typeClass->datumFromSRF(self, row, rowCollector);
 }
 
 static Type _Type_getRealType(Type self, Oid realId, jobject typeMap)
@@ -1016,11 +998,8 @@ TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSi
 	self->coerceObject    = (ObjectCoercer)_PgObject_pureVirtualCalled;
 	self->createArrayType = _Type_createArrayType;
 	self->invoke          = _Type_invoke;
-	self->getSRFProducer  = _Type_getSRFProducer;
 	self->getSRFCollector = _Type_getSRFCollector;
-	self->hasNextSRF      = _Type_hasNextSRF;
-	self->nextSRF         = _Type_nextSRF;
-	self->closeSRF        = _Type_closeSRF;
+	self->datumFromSRF    = _Type_datumFromSRF;
 	self->getTupleDesc    = _Type_getTupleDesc;
 	self->getJNISignature = _Type_getJNISignature;
 	self->dynamic         = false;

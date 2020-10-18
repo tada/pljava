@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -33,6 +39,16 @@ struct UDT_
 	bool      hasTupleDesc;
 	jobject parse;
 	jobject readSQL;
+
+	/*
+	 * At first glance, one might not retain writeSQL and toString handles
+	 * per-UDT, as they are both inherited methods common to all UDTs and so
+	 * do not depend on the class of the receiver. What these jobjects hold,
+	 * though, is an Invocable, which carries an AccessControlContext, which is
+	 * chosen at resolution time per-UDT or per-function, so they must be here.
+	 */
+	jobject writeSQL;
+	jobject toString;
 };
 
 extern Datum _UDT_coerceObject(Type self, jobject jstr);

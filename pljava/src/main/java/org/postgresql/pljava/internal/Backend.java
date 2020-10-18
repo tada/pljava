@@ -12,27 +12,18 @@
  */
 package org.postgresql.pljava.internal;
 
-import java.io.File;
-import java.io.FilePermission;
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
-import java.security.Permission;
+import java.io.IOException;
+
 import java.sql.SQLException;
 import java.sql.SQLDataException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.PropertyPermission;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.postgresql.pljava.elog.ELogHandler; // for javadoc
-
-import org.postgresql.pljava.management.Commands;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import static org.postgresql.pljava.sqlgen.Lexicals.identifierFrom;
@@ -65,7 +56,20 @@ public class Backend
 		 * cause JIT to quickly specialize the doInPG() methods to one or the
 		 * other branch of their code.
 		 */
-	}
+
+		try  ( InputStream is =
+		   Backend.class.getResourceAsStream("EntryPoints.class") )
+		{
+			byte[] image = is.readAllBytes();
+			EarlyNatives._defineClass(
+				"org/postgresql/pljava/internal/EntryPoints",
+				Backend.class.getClassLoader(), image);
+		}
+		catch ( IOException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+   }
 
 	private static Session s_session;
 
@@ -243,11 +247,11 @@ public class Backend
 		return doInPG(() -> _getConfigOption(key));
 	}
 
-	public static List<Identifier> getListConfigOption(String key)
+	public static List<Identifier.Simple> getListConfigOption(String key)
 	throws SQLException
 	{
 		final Matcher m = s_gucList.matcher(getConfigOption(key));
-		ArrayList<Identifier> al = new ArrayList<>();
+		ArrayList<Identifier.Simple> al = new ArrayList<>();
 		while ( m.find() )
 		{
 			al.add(identifierFrom(m));
@@ -282,158 +286,6 @@ public class Backend
 		doInPG(() -> _log(logLevel, str));
 	}
 
-	private static class PLJavaSecurityManager extends SecurityManager
-	{
-		private boolean m_recursion = false;
-
-		public void checkPermission(Permission perm)
-		{
-			this.nonRecursiveCheck(perm);
-		}
-
-		public void checkPermission(Permission perm, Object context)
-		{
-			this.nonRecursiveCheck(perm);
-		}
-
-		private synchronized void nonRecursiveCheck(Permission perm)
-		{
-			if(m_recursion)
-				//
-				// Something, probably a ClassLoader
-				// loading one of the referenced
-				// classes, caused a recursion. Well
-				// everything done within this method
-				// is permitted so we just return
-				// here.
-				//
-				return;
-
-			m_recursion = true;
-			try
-			{
-				this.assertPermission(perm);
-			}
-			finally
-			{
-				m_recursion = false;
-			}
-		}
-
-		void assertPermission(Permission perm)
-		{
-			if(perm instanceof RuntimePermission)
-			{
-				String name = perm.getName();
-				if("*".equals(name) || "exitVM".equals(name))
-					throw new SecurityException();
-				else if("setSecurityManager".equals(name) 
-					&& !s_inSetTrusted)
-					//
-					// Attempt to set another
-					// security manager while not
-					// in the setTrusted method
-					//
-					throw new SecurityException();
-			}
-			else if(perm instanceof PropertyPermission)
-			{
-				if(perm.getActions().indexOf("write") >= 0)
-				{
-					// We never allow this to be changed.
-					// As for UDT byteorder, the classes that use it only check
-					// once so it would be misleading to allow runtime changes;
-					// use pljava.vmoptions to provide an initial value.
-					//
-					String propName = perm.getName();
-					if ( propName.equals("java.home") || propName.matches(
-						"org\\.postgresql\\.pljava\\.udt\\.byteorder(?:\\..*)?")
-					)
-						throw new SecurityException();
-				}
-			}
-		}
-	}
-
-	private static boolean s_inSetTrusted = false;
-
-	private static final SecurityManager s_untrustedSecurityManager = new PLJavaSecurityManager();
-
-	/**
-	 * This security manager will block all attempts to access the file system
-	 */
-	private static final SecurityManager s_trustedSecurityManager = new PLJavaSecurityManager()
-	{
-		void assertPermission(Permission perm)
-		{
-			if(perm instanceof FilePermission)
-			{
-				String actions = perm.getActions();
-				if("read".equals(actions))
-				{
-					// Allow read of /dev/random
-					// and /dev/urandom
-
-					String fileName = perm.getName();
-
-					if ( "/dev/random".equals( fileName )
-					     || 
-					     "/dev/urandom".equals( fileName )
-						)
-						return;
-					
-					// Must be able to read
-					// timezone info etc. in the
-					// java installation
-					// directory.
-					//
-					File javaHome = new File(System.getProperty("java.home"));
-					File accessedFile = new File(perm.getName());
-					File fileDir = accessedFile.getParentFile();
-					while(fileDir != null)
-					{
-						if(fileDir.equals(javaHome))
-							return;
-						fileDir = fileDir.getParentFile();
-					}
-				}
-				throw new SecurityException(perm.getActions() + " on " + perm.getName());
-			}
-			super.assertPermission(perm);
-		}
-	};
-
-	public static void addClassImages(int jarId, String urlString)
-	throws SQLException
-	{
-		InputStream urlStream = null;
-		boolean wasTrusted = (System.getSecurityManager() == s_trustedSecurityManager);
-
-		if(wasTrusted)
-			setTrusted(false);
-
-		try
-		{
-			URL url = new URL(urlString);
-			URLConnection uc = url.openConnection();
-			uc.connect();
-			int sz = uc.getContentLength(); // once java6 obsolete, use ...Long
-			urlStream = uc.getInputStream();
-			Commands.addClassImages(jarId, urlStream, sz);
-		}
-		catch(IOException e)
-		{
-			throw new SQLException("I/O exception reading jar file: " + e.getMessage());
-		}
-		finally
-		{
-			if(urlStream != null)
-				try { urlStream.close(); } catch(IOException e) {}
-			if(wasTrusted)
-				setTrusted(true);
-		}
-	}
-
 	public static void clearFunctionCache()
 	{
 		doInPG(Backend::_clearFunctionCache);
@@ -445,24 +297,17 @@ public class Backend
 	}
 
 	/**
-	 * Called when the JVM is first booted and then everytime a switch
-	 * is made between calling a trusted function versus an untrusted
-	 * function.
+	 * Returns the path of PL/Java's shared library.
+	 * @throws SQLException if for some reason it can't be determined.
 	 */
-	private static void setTrusted(boolean trusted)
+	public static String myLibraryPath() throws SQLException
 	{
-		s_inSetTrusted = true;
-		try
-		{
-			Logger log = Logger.getAnonymousLogger();
-			if(log.isLoggable(Level.FINER))
-				log.finer("Using SecurityManager for " + (trusted ? "trusted" : "untrusted") + " language");
-			System.setSecurityManager(trusted ? s_trustedSecurityManager : s_untrustedSecurityManager);
-		}
-		finally
-		{
-			s_inSetTrusted = false;
-		}
+		String result = doInPG(Backend::_myLibraryPath);
+
+		if ( null != result )
+			return result;
+
+		throw new SQLException("Unable to retrieve PL/Java's library path");
 	}
 
 	/**
@@ -471,23 +316,26 @@ public class Backend
 	 * when called from a thread other then the main thread and the main
 	 * thread has returned from the call into the JVM.
 	 */
-	public native static boolean isCallingJava();
+	public static native boolean isCallingJava();
 
 	/**
 	 * Returns the value of the GUC custom variable <code>
 	 * pljava.release_lingering_savepoints</code>.
 	 */
-	public native static boolean isReleaseLingeringSavepoints();
+	public static native boolean isReleaseLingeringSavepoints();
 
-	private native static String _getConfigOption(String key);
+	private static native String _getConfigOption(String key);
 
-	private native static int  _getStatementCacheSize();
-	private native static void _log(int logLevel, String str);
-	private native static void _clearFunctionCache();
-	private native static boolean _isCreatingExtension();
+	private static native int  _getStatementCacheSize();
+	private static native void _log(int logLevel, String str);
+	private static native void _clearFunctionCache();
+	private static native boolean _isCreatingExtension();
+	private static native String _myLibraryPath();
 
 	private static class EarlyNatives
 	{
-		private native static boolean _forbidOtherThreads();
+		private static native boolean _forbidOtherThreads();
+		private static native Class<?> _defineClass(
+			String name, ClassLoader loader, byte[] buf);
 	}
 }

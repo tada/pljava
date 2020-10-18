@@ -440,6 +440,8 @@ public abstract class Lexicals
 	 */
 	public static abstract class Identifier implements Serializable
 	{
+		private static final long serialVersionUID = 8963213648466350967L;
+
 		Identifier() { } // not API
 
 		/**
@@ -513,6 +515,8 @@ public abstract class Lexicals
 		public static abstract class Unqualified<T extends Unqualified<T>>
 		extends Identifier
 		{
+			private static final long serialVersionUID = -6580227110716782079L;
+
 			Unqualified() { } // not API
 
 			/**
@@ -535,6 +539,8 @@ public abstract class Lexicals
 		 */
 		public static class Simple extends Unqualified<Simple>
 		{
+			private static final long serialVersionUID = 8571819710429273206L;
+
 			protected final String m_nonFolded;
 
 			/**
@@ -843,6 +849,8 @@ public abstract class Lexicals
 		 */
 		static class Foldable extends Simple
 		{
+			private static final long serialVersionUID = 108336518899180185L;
+
 			private transient /*otherwise final*/ int m_hashCode;
 
 			private Foldable(String nonFolded)
@@ -918,6 +926,8 @@ public abstract class Lexicals
 		 */
 		static class Folding extends Foldable
 		{
+			private static final long serialVersionUID = -1222773531891296743L;
+
 			private transient /*otherwise final*/ String m_pgFolded;
 			private transient /*otherwise final*/ String m_isoFolded;
 
@@ -998,6 +1008,8 @@ public abstract class Lexicals
 		 */
 		public static class Pseudo extends Simple
 		{
+			private static final long serialVersionUID = 4760344682650087583L;
+
 			/**
 			 * Instance intended to represent {@code PUBLIC} when used as a
 			 * privilege grantee.
@@ -1042,6 +1054,8 @@ public abstract class Lexicals
 		 */
 		public static class Operator extends Unqualified<Operator>
 		{
+			private static final long serialVersionUID = -7230613628520513783L;
+
 			private final String m_name;
 
 			private Operator(String name)
@@ -1162,6 +1176,8 @@ public abstract class Lexicals
 		public static class Qualified<T extends Unqualified<T>>
 		extends Identifier
 		{
+			private static final long serialVersionUID = 4834510180698247396L;
+
 			private final Simple m_qualifier;
 			private final T m_local;
 
@@ -1257,6 +1273,7 @@ public abstract class Lexicals
 			 * or null if not in a compilation context.
 			 * @return the Identifier.Qualified&lt;Simple&gt;
 			 */
+			@SuppressWarnings("fallthrough")
 			public static Qualified<Simple> nameFromJava(
 				String s, Messager msgr)
 			{
@@ -1467,7 +1484,7 @@ public abstract class Lexicals
 			{
 				if ( ! (other instanceof Qualified) )
 					return false;
-				Qualified oi = (Qualified)other;
+				Qualified<?> oi = (Qualified)other;
 
 				return (null == m_qualifier
 						? null == oi.m_qualifier

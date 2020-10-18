@@ -27,6 +27,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import static java.util.concurrent.Executors.privilegedCallable;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -938,18 +939,11 @@ public interface VarlenaWrapper extends Closeable
 		@Override
 		public final Void call() throws Exception
 		{
-			InputStream is = null;
-			try
+			try ( InputStream is = new MarkableSequenceInputStream(m_queue) )
 			{
-				is = new MarkableSequenceInputStream(m_queue);
 				verify(is);
+				return null;
 			}
-			finally
-			{
-				if ( null != is )
-					is.close();
-			}
-			return null;
 		}
 
 		/**
@@ -1037,7 +1031,9 @@ public interface VarlenaWrapper extends Closeable
 			{
 				if ( 1 == m_latch.getCount() )
 				{
-					m_future = LazyExecutorService.INSTANCE.submit(this);
+					m_future =
+						LazyExecutorService.INSTANCE
+							.submit(privilegedCallable(this));
 					m_latch.countDown();
 				}
 			}

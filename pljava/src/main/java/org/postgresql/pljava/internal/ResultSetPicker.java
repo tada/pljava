@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root directory of this distribution or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB - Thomas Hallgren
+ *   Chapman Flack
  */
 package org.postgresql.pljava.internal;
 
@@ -28,7 +34,7 @@ import org.postgresql.pljava.jdbc.SingleRowWriter;
  * should be declared to return {@code ResultSetProvider} and do this work
  * itself.
  */
-public class ResultSetPicker implements ResultSetProvider
+public class ResultSetPicker implements ResultSetProvider.Large
 {
 	private final ResultSetHandle m_resultSetHandle;
 	private final ResultSet m_resultSet;
@@ -40,7 +46,7 @@ public class ResultSetPicker implements ResultSetProvider
 		m_resultSet = resultSetHandle.getResultSet();
 	}
 
-	public boolean assignRowValues(ResultSet receiver, int currentRow)
+	public boolean assignRowValues(ResultSet receiver, long currentRow)
 	throws SQLException
 	{
 		if(m_resultSet == null || !m_resultSet.next())
