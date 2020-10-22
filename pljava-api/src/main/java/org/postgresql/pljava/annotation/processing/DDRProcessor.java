@@ -763,7 +763,8 @@ queuerunning:
 		{
 			if ( am.getAnnotationType().asElement().equals( AN_SQLACTIONS) )
 			{
-				SQLActionsImpl sas = new SQLActionsImpl();
+				Container<SQLActionImpl> sas =
+					new Container<>(SQLActionImpl.class);
 				populateAnnotationImpl( sas, e, am);
 				for ( SQLAction sa : sas.value() )
 					putSnippet( sa, (Snippet)sa);
@@ -1265,22 +1266,42 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
-	class SQLActionsImpl extends AbstractAnnotationImpl	implements SQLActions
+	class Container<T extends AbstractAnnotationImpl>
+	extends AbstractAnnotationImpl
 	{
-		public SQLAction[] value() { return _value; }
+		public T[] value() { return _value; }
 		
-		SQLAction[] _value;
+		T[] _value;
+		final Class<T> _clazz;
+
+		Container(Class<T> clazz)
+		{
+			_clazz = clazz;
+		}
 		
 		public void setValue( Object o, boolean explicit, Element e)
 		{
 			AnnotationMirror[] ams = avToArray( o, AnnotationMirror.class);
-			_value = new SQLAction [ ams.length ];
+
+			@SuppressWarnings("unchecked")
+			T[] t = (T[])Array.newInstance( _clazz, ams.length);
+			_value = t;
+
 			int i = 0;
 			for ( AnnotationMirror am : ams )
 			{
-			  SQLActionImpl a = new SQLActionImpl();
-			  populateAnnotationImpl( a, e, am);
-			  _value [ i++ ] = a;
+				try
+				{
+					T a = _clazz.getDeclaredConstructor(DDRProcessorImpl.class)
+						.newInstance(DDRProcessorImpl.this);
+					populateAnnotationImpl( a, e, am);
+					_value [ i++ ] = a;
+				}
+				catch ( ReflectiveOperationException re )
+				{
+					throw new RuntimeException(
+						"Incorrect implementation of annotation processor", re);
+				}
 			}
 		}
 	}
