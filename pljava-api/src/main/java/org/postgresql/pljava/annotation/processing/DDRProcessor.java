@@ -419,7 +419,6 @@ class DDRProcessorImpl
 	{
 		boolean functionPresent = false;
 		boolean sqlActionPresent = false;
-		boolean sqlActionsPresent = false;
 		boolean baseUDTPresent = false;
 		boolean mappedUDTPresent = false;
 		
@@ -429,10 +428,8 @@ class DDRProcessorImpl
 		{
 			if ( AN_FUNCTION.equals( te) )
 				functionPresent = true;
-			else if ( AN_SQLACTION.equals( te) )
+			else if ( AN_SQLACTION.equals( te) || AN_SQLACTIONS.equals( te) )
 				sqlActionPresent = true;
-			else if ( AN_SQLACTIONS.equals( te) )
-				sqlActionsPresent = true;
 			else if ( AN_BASEUDT.equals( te) )
 				baseUDTPresent = true;
 			else if ( AN_MAPPEDUDT.equals( te) )
@@ -461,14 +458,12 @@ class DDRProcessorImpl
 				processFunction( e);
 		
 		if ( sqlActionPresent )
-			for ( Element e : re.getElementsAnnotatedWith( AN_SQLACTION) )
-				processSQLAction( e);
-		
-		if ( sqlActionsPresent )
-			for ( Element e : re.getElementsAnnotatedWith( AN_SQLACTIONS) )
-				processSQLActions( e);
+			for ( Element e
+				: re.getElementsAnnotatedWithAny( AN_SQLACTION, AN_SQLACTIONS) )
+				processRepeatable(
+					e, AN_SQLACTION, AN_SQLACTIONS, SQLActionImpl.class);
 
-		tmpr.workAroundJava7Breakage(); // perhaps it will be fixed in Java 9?
+		tmpr.workAroundJava7Breakage(); // perhaps to be fixed in Java 9? nope.
 
 		if ( ! re.processingOver() )
 			defensiveEarlyCharacterize();
@@ -739,35 +734,44 @@ queuerunning:
 	}
 	
 	/**
-	 * Process a single element annotated with @SQLAction.
+	 * Process an element carrying a repeatable annotation, the container
+	 * of that repeatable annotation, or both.
+	 *<p>
+	 * Snippets corresponding to repeatable annotations are not entered in the
+	 * {@code snippets} map keyed by the target element, as that might not be
+	 * unique. Each snippet is entered with a key made from its class and
+	 * itself. They are not expected to be looked up, only processed when all of
+	 * the map entries are enumerated.
 	 */
-	void processSQLAction( Element e)
-	{
-		SQLActionImpl sa =
-			getSnippet( e, SQLActionImpl.class, SQLActionImpl::new);
-		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
-		{
-			if ( am.getAnnotationType().asElement().equals( AN_SQLACTION) )
-				populateAnnotationImpl( sa, e, am);
-		}
-	}
-	
-	/**
-	 * Process a single element annotated with @SQLActions (which simply takes
-	 * an array of @SQLAction as a way to associate more than one SQLAction with
-	 * a single program element)..
-	 */
-	void processSQLActions( Element e)
+	<T extends Repeatable> void processRepeatable(
+		Element e, TypeElement annot, TypeElement container, Class<T> clazz)
 	{
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
-			if ( am.getAnnotationType().asElement().equals( AN_SQLACTIONS) )
+			Element asElement = am.getAnnotationType().asElement();
+			if ( asElement.equals( annot) )
 			{
-				Container<SQLActionImpl> sas =
-					new Container<>(SQLActionImpl.class);
-				populateAnnotationImpl( sas, e, am);
-				for ( SQLAction sa : sas.value() )
-					putSnippet( sa, (Snippet)sa);
+				T snip;
+				try
+				{
+					snip = clazz.getDeclaredConstructor( DDRProcessorImpl.class,
+						Element.class, AnnotationMirror.class)
+						.newInstance( DDRProcessorImpl.this, e, am);
+				}
+				catch ( ReflectiveOperationException re )
+				{
+					throw new RuntimeException(
+						"Incorrect implementation of annotation processor", re);
+				}
+				populateAnnotationImpl( snip, e, am);
+				putSnippet( snip, (Snippet)snip);
+			}
+			else if ( asElement.equals( container) )
+			{
+				Container<T> c = new Container<>(clazz);
+				populateAnnotationImpl( c, e, am);
+				for ( T snip : c.value() )
+					putSnippet( snip, (Snippet)snip);
 			}
 		}
 	}
@@ -1099,6 +1103,18 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	class Repeatable extends AbstractAnnotationImpl
+	{
+		final Element m_targetElement;
+		final AnnotationMirror m_origin;
+
+		Repeatable(Element e, AnnotationMirror am)
+		{
+			m_targetElement = e;
+			m_origin = am;
+		}
+	}
+
 	/**
 	 * Populate an AbstractAnnotationImpl-derived Annotation implementation
 	 * from the element-value pairs in an AnnotationMirror. For each element
@@ -1266,7 +1282,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
-	class Container<T extends AbstractAnnotationImpl>
+	class Container<T extends Repeatable>
 	extends AbstractAnnotationImpl
 	{
 		public T[] value() { return _value; }
@@ -1292,8 +1308,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				try
 				{
-					T a = _clazz.getDeclaredConstructor(DDRProcessorImpl.class)
-						.newInstance(DDRProcessorImpl.this);
+					T a = _clazz.getDeclaredConstructor(DDRProcessorImpl.class,
+						Element.class, AnnotationMirror.class)
+						.newInstance(DDRProcessorImpl.this, e, am);
 					populateAnnotationImpl( a, e, am);
 					_value [ i++ ] = a;
 				}
@@ -1307,9 +1324,14 @@ hunt:	for ( ExecutableElement ee : ees )
 	}
 
 	class SQLActionImpl
-	extends AbstractAnnotationImpl
+	extends Repeatable
 	implements SQLAction, Snippet
 	{
+		SQLActionImpl(Element e, AnnotationMirror am)
+		{
+			super(e, am);
+		}
+
 		public String[]  install() { return _install;  }
 		public String[]   remove() { return _remove;   }
 		public String[] provides() { return _provides; }
