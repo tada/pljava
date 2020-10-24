@@ -34,16 +34,16 @@ import org.postgresql.pljava.annotation.SQLActions;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example.
  */
-	@SQLAction(provides="language java_tzset", install={
-		"SELECT sqlj.alias_java_language('java_tzset', true)"
-	}, remove={
-		"DROP LANGUAGE java_tzset"
-	})
+@SQLAction(provides="language java_tzset", install={
+	"SELECT sqlj.alias_java_language('java_tzset', true)"
+}, remove={
+	"DROP LANGUAGE java_tzset"
+})
 
-	@SQLAction(implementor="postgresql_ge_90300", // needs LATERAL
-		requires="issue199", install={
-		"SELECT javatest.issue199()"
-	})
+@SQLAction(implementor="postgresql_ge_90300", // needs LATERAL
+	requires="issue199", install={
+	"SELECT javatest.issue199()"
+})
 public class PreJSR310
 {
 	private static final String TZPRAGUE = "Europe/Prague";

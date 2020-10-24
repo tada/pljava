@@ -105,150 +105,150 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
  * Everything mentioning the type XML here needs a conditional implementor tag
  * in case of being loaded into a PostgreSQL instance built without that type.
  */
-	@SQLAction(provides="postgresql_xml", install=
-		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-		" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
-		" current_setting('pljava.implementors'), true) " +
-		"END"
-	)
+@SQLAction(provides="postgresql_xml", install=
+	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+	" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
 
-	@SQLAction(implementor="postgresql_ge_80400",
-		provides="postgresql_xml_ge84",
-		install=
-		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-		" THEN set_config('pljava.implementors', 'postgresql_xml_ge84,' || " +
-		" current_setting('pljava.implementors'), true) " +
-		"END"
-	)
+@SQLAction(implementor="postgresql_ge_80400",
+	provides="postgresql_xml_ge84",
+	install=
+	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+	" THEN set_config('pljava.implementors', 'postgresql_xml_ge84,' || " +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
 
-	@SQLAction(implementor="postgresql_xml_ge84", requires="echoXMLParameter",
-		install=
-		"WITH" +
-		" s(how) AS (SELECT generate_series(1, 7))," +
-		" t(x) AS (" +
-		"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
-		" )," +
-		" r(howin, howout, isdoc) AS (" +
-		"  SELECT" +
-		"   i.how, o.how," +
-		"   javatest.echoxmlparameter(x, i.how, o.how) IS DOCUMENT" +
-		"  FROM" +
-		"   t, s AS i, s AS o" +
-		"  WHERE" +
-		"   NOT (i.how = 6 and o.how = 7)" + // 6->7 unreliable in some JREs
-		" ) " +
+@SQLAction(implementor="postgresql_xml_ge84", requires="echoXMLParameter",
+	install=
+	"WITH" +
+	" s(how) AS (SELECT generate_series(1, 7))," +
+	" t(x) AS (" +
+	"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
+	" )," +
+	" r(howin, howout, isdoc) AS (" +
+	"  SELECT" +
+	"   i.how, o.how," +
+	"   javatest.echoxmlparameter(x, i.how, o.how) IS DOCUMENT" +
+	"  FROM" +
+	"   t, s AS i, s AS o" +
+	"  WHERE" +
+	"   NOT (i.how = 6 and o.how = 7)" + // 6->7 unreliable in some JREs
+	" ) " +
+	"SELECT" +
+	" CASE WHEN every(isdoc)" +
+	"  THEN javatest.logmessage('INFO', 'SQLXML echos succeeded')" +
+	"  ELSE javatest.logmessage('WARNING', 'SQLXML echos had problems')" +
+	" END " +
+	"FROM" +
+	" r"
+)
+
+@SQLAction(implementor="postgresql_xml_ge84", requires="proxiedXMLEcho",
+	install=
+	"WITH" +
+	" s(how) AS (SELECT unnest('{1,2,4,5,6,7}'::int[]))," +
+	" t(x) AS (" +
+	"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
+	" )," +
+	" r(how, isdoc) AS (" +
+	"  SELECT" +
+	"	how," +
+	"	javatest.proxiedxmlecho(x, how) IS DOCUMENT" +
+	"  FROM" +
+	"	t, s" +
+	" )" +
+	"SELECT" +
+	" CASE WHEN every(isdoc)" +
+	"  THEN javatest.logmessage('INFO', 'proxied SQLXML echos succeeded')" +
+	"  ELSE javatest.logmessage('WARNING'," +
+	"       'proxied SQLXML echos had problems')" +
+	" END " +
+	"FROM" +
+	" r"
+)
+
+@SQLAction(implementor="postgresql_xml_ge84", requires="lowLevelXMLEcho",
+	install={
+	"SELECT" +
+	" preparexmlschema('schematest', $$" +
+	"<xs:schema" +
+	" xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+	" targetNamespace='urn:testme'" +
+	" elementFormDefault='qualified'>" +
+	" <xs:element name='row'>" +
+	"  <xs:complexType>" +
+	"   <xs:sequence>" +
+	"    <xs:element name='textcol' type='xs:string' nillable='true'/>" +
+	"    <xs:element name='intcol' type='xs:integer' nillable='true'/>" +
+	"   </xs:sequence>" +
+	"  </xs:complexType>" +
+	" </xs:element>" +
+	"</xs:schema>" +
+	"$$, 'http://www.w3.org/2001/XMLSchema', 5)",
+
+	"WITH" +
+	" s(how) AS (SELECT unnest('{4,5,7}'::int[]))," +
+	" r(isdoc) AS (" +
+	" SELECT" +
+	"  javatest.lowlevelxmlecho(" +
+	"   query_to_xml(" +
+	"    'SELECT ''hi'' AS textcol, 1 AS intcol', true, true, 'urn:testme'"+
+	"   ), how, params) IS DOCUMENT" +
+	" FROM" +
+	"  s," +
+	"  (SELECT 'schematest' AS schema) AS params" +
+	" )" +
+	"SELECT" +
+	" CASE WHEN every(isdoc)" +
+	"  THEN javatest.logmessage('INFO', 'XML Schema tests succeeded')" +
+	"  ELSE javatest.logmessage('WARNING'," +
+	"       'XML Schema tests had problems')" +
+	" END " +
+	"FROM" +
+	" r"
+	}
+)
+
+@SQLAction(implementor="postgresql_xml",
+		   requires={"prepareXMLTransform", "transformXML"},
+	install={
 		"SELECT" +
-		" CASE WHEN every(isdoc)" +
-		"  THEN javatest.logmessage('INFO', 'SQLXML echos succeeded')" +
-		"  ELSE javatest.logmessage('WARNING', 'SQLXML echos had problems')" +
-		" END " +
-		"FROM" +
-		" r"
-	)
+		" javatest.prepareXMLTransform('distinctElementNames'," +
+		"'<xsl:transform version=''1.0''" +
+		" xmlns:xsl=''http://www.w3.org/1999/XSL/Transform''" +
+		" xmlns:exsl=''http://exslt.org/common''" +
+		" xmlns:set=''http://exslt.org/sets''" +
+		" extension-element-prefixes=''exsl set''" +
+		">" +
+		" <xsl:output method=''xml'' indent=''no''/>" +
+		" <xsl:template match=''/''>" +
+		"  <xsl:variable name=''enames''>" +
+		"   <xsl:for-each select=''//*''>" +
+		"    <ename><xsl:value-of select=''local-name()''/></ename>" +
+		"   </xsl:for-each>" +
+		"  </xsl:variable>" +
+		"  <xsl:for-each" +
+		"   select=''set:distinct(exsl:node-set($enames)/ename)''>" +
+		"   <xsl:sort select=''string()''/>" +
+		"   <den><xsl:value-of select=''.''/></den>" +
+		"  </xsl:for-each>" +
+		" </xsl:template>" +
+		"</xsl:transform>', 5, true)",
 
-	@SQLAction(implementor="postgresql_xml_ge84", requires="proxiedXMLEcho",
-		install=
-		"WITH" +
-		" s(how) AS (SELECT unnest('{1,2,4,5,6,7}'::int[]))," +
-		" t(x) AS (" +
-		"  SELECT table_to_xml('pg_catalog.pg_operator', true, false, '')" +
-		" )," +
-		" r(how, isdoc) AS (" +
-		"  SELECT" +
-		"	how," +
-		"	javatest.proxiedxmlecho(x, how) IS DOCUMENT" +
-		"  FROM" +
-		"	t, s" +
-		" )" +
 		"SELECT" +
-		" CASE WHEN every(isdoc)" +
-		"  THEN javatest.logmessage('INFO', 'proxied SQLXML echos succeeded')" +
-		"  ELSE javatest.logmessage('WARNING'," +
-		"       'proxied SQLXML echos had problems')" +
-		" END " +
-		"FROM" +
-		" r"
-	)
-
-	@SQLAction(implementor="postgresql_xml_ge84", requires="lowLevelXMLEcho",
-		install={
-		"SELECT" +
-		" preparexmlschema('schematest', $$" +
-		"<xs:schema" +
-		" xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
-		" targetNamespace='urn:testme'" +
-		" elementFormDefault='qualified'>" +
-		" <xs:element name='row'>" +
-		"  <xs:complexType>" +
-		"   <xs:sequence>" +
-		"    <xs:element name='textcol' type='xs:string' nillable='true'/>" +
-		"    <xs:element name='intcol' type='xs:integer' nillable='true'/>" +
-		"   </xs:sequence>" +
-		"  </xs:complexType>" +
-		" </xs:element>" +
-		"</xs:schema>" +
-		"$$, 'http://www.w3.org/2001/XMLSchema', 5)",
-
-		"WITH" +
-		" s(how) AS (SELECT unnest('{4,5,7}'::int[]))," +
-		" r(isdoc) AS (" +
-		" SELECT" +
-		"  javatest.lowlevelxmlecho(" +
-		"   query_to_xml(" +
-		"    'SELECT ''hi'' AS textcol, 1 AS intcol', true, true, 'urn:testme'"+
-		"   ), how, params) IS DOCUMENT" +
-		" FROM" +
-		"  s," +
-		"  (SELECT 'schematest' AS schema) AS params" +
-		" )" +
-		"SELECT" +
-		" CASE WHEN every(isdoc)" +
-		"  THEN javatest.logmessage('INFO', 'XML Schema tests succeeded')" +
-		"  ELSE javatest.logmessage('WARNING'," +
-		"       'XML Schema tests had problems')" +
-		" END " +
-		"FROM" +
-		" r"
-		}
-	)
-
-	@SQLAction(implementor="postgresql_xml",
-			   requires={"prepareXMLTransform", "transformXML"},
-		install={
-			"SELECT" +
-			" javatest.prepareXMLTransform('distinctElementNames'," +
-			"'<xsl:transform version=''1.0''" +
-			" xmlns:xsl=''http://www.w3.org/1999/XSL/Transform''" +
-			" xmlns:exsl=''http://exslt.org/common''" +
-			" xmlns:set=''http://exslt.org/sets''" +
-			" extension-element-prefixes=''exsl set''" +
-			">" +
-			" <xsl:output method=''xml'' indent=''no''/>" +
-			" <xsl:template match=''/''>" +
-			"  <xsl:variable name=''enames''>" +
-			"   <xsl:for-each select=''//*''>" +
-			"    <ename><xsl:value-of select=''local-name()''/></ename>" +
-			"   </xsl:for-each>" +
-			"  </xsl:variable>" +
-			"  <xsl:for-each" +
-			"   select=''set:distinct(exsl:node-set($enames)/ename)''>" +
-			"   <xsl:sort select=''string()''/>" +
-			"   <den><xsl:value-of select=''.''/></den>" +
-			"  </xsl:for-each>" +
-			" </xsl:template>" +
-			"</xsl:transform>', 5, true)",
-
-			"SELECT" +
-			" CASE WHEN" +
-			"  javatest.transformXML('distinctElementNames'," +
-			"   '<a><c/><e/><b/><b/><d/></a>', 5, 5)::text" +
-			"  =" +
-			"   '<den>a</den><den>b</den><den>c</den><den>d</den><den>e</den>'"+
-			"  THEN javatest.logmessage('INFO', 'XSLT 1.0 test succeeded')" +
-			"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 test failed')" +
-			" END"
-		}
-	)
+		" CASE WHEN" +
+		"  javatest.transformXML('distinctElementNames'," +
+		"   '<a><c/><e/><b/><b/><d/></a>', 5, 5)::text" +
+		"  =" +
+		"   '<den>a</den><den>b</den><den>c</den><den>d</den><den>e</den>'"+
+		"  THEN javatest.logmessage('INFO', 'XSLT 1.0 test succeeded')" +
+		"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 test failed')" +
+		" END"
+	}
+)
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
 		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")

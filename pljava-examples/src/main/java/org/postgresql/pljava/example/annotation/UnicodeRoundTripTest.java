@@ -39,17 +39,17 @@ import org.postgresql.pljava.annotation.Function;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example, and also sets its own.
  */
-	@SQLAction(provides="postgresql_unicodetest",
-		implementor="postgresql_ge_90000", install=
-		"SELECT CASE" +
-		" WHEN 'UTF8' = current_setting('server_encoding')" +
-		" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +
-		" current_setting('pljava.implementors'), true) " +
-		"END"
-	)
-	@SQLAction(requires="unicodetest fn",
-	implementor="postgresql_unicodetest",
-	install=
+@SQLAction(provides="postgresql_unicodetest",
+	implementor="postgresql_ge_90000", install=
+	"SELECT CASE" +
+	" WHEN 'UTF8' = current_setting('server_encoding')" +
+	" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
+@SQLAction(requires="unicodetest fn",
+implementor="postgresql_unicodetest",
+install=
 "   with " +
 "    usable_codepoints ( cp ) as ( " +
 "     select generate_series(1,x'd7ff'::int) " +
@@ -87,14 +87,14 @@ import org.postgresql.pljava.annotation.Function;
 "        'all Unicode codepoint ranges roundtripped successfully.') " +
 "    end " +
 "    from test_summary"
-	)
-	@SQLAction(
-		install=
-			"CREATE TYPE unicodetestrow AS " +
-			"(matched boolean, cparray integer[], s text)",
-		remove="DROP TYPE unicodetestrow",
-		provides="unicodetestrow type"
-	)
+)
+@SQLAction(
+	install=
+		"CREATE TYPE unicodetestrow AS " +
+		"(matched boolean, cparray integer[], s text)",
+	remove="DROP TYPE unicodetestrow",
+	provides="unicodetestrow type"
+)
 public class UnicodeRoundTripTest {
 	/**
 	 * This function takes a string and an array of ints constructed in PG,

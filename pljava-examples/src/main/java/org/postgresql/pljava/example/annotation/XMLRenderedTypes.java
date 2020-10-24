@@ -30,14 +30,14 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * in case of being loaded into a PostgreSQL instance built without that type.
  * The {@code pg_node_tree} type appears in 9.1.
  */
-	@SQLAction(implementor="postgresql_ge_90100",
-		provides="postgresql_xml_ge91",
-		install=
-		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-		" THEN set_config('pljava.implementors', 'postgresql_xml_ge91,' || " +
-		" current_setting('pljava.implementors'), true) " +
-		"END"
-	)
+@SQLAction(implementor="postgresql_ge_90100",
+	provides="postgresql_xml_ge91",
+	install=
+	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
+	" THEN set_config('pljava.implementors', 'postgresql_xml_ge91,' || " +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
 public class XMLRenderedTypes
 {
 	@Function(schema="javatest", implementor="postgresql_xml_ge91")

@@ -33,17 +33,17 @@ import org.postgresql.pljava.annotation.SQLType;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example.
  */
-	@SQLAction(
-		provides = "paramtypeinfo type", // created in Triggers.java
-		install = {
-			"CREATE TYPE javatest.paramtypeinfo AS (" +
-			" name text, pgtypename text, javaclass text, tostring text" +
-			")"
-		},
-		remove = {
-			"DROP TYPE javatest.paramtypeinfo"
-		}
-	)
+@SQLAction(
+	provides = "paramtypeinfo type", // created in Triggers.java
+	install = {
+		"CREATE TYPE javatest.paramtypeinfo AS (" +
+		" name text, pgtypename text, javaclass text, tostring text" +
+		")"
+	},
+	remove = {
+		"DROP TYPE javatest.paramtypeinfo"
+	}
+)
 public class RecordParameterDefaults implements ResultSetProvider
 {
 	/**
