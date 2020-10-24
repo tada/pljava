@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -104,6 +105,7 @@ import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.TriggerData;
 
+import org.postgresql.pljava.annotation.Cast;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
@@ -214,15 +216,19 @@ class DDRProcessorImpl
 	// Our own annotations
 	//
 	final TypeElement  AN_FUNCTION;
-	final TypeElement  AN_SQLACTION;
-	final TypeElement  AN_SQLACTIONS;
 	final TypeElement  AN_SQLTYPE;
 	final TypeElement  AN_TRIGGER;
 	final TypeElement  AN_BASEUDT;
 	final TypeElement  AN_MAPPEDUDT;
+	final TypeElement  AN_SQLACTION;
+	final TypeElement  AN_SQLACTIONS;
+	final TypeElement  AN_CAST;
+	final TypeElement  AN_CASTS;
 
 	// Certain familiar DBTypes (capitalized as this file historically has)
 	//
+	final DBType DT_BOOLEAN = new DBType.Reserved("boolean");
+	final DBType DT_INTEGER = new DBType.Reserved("integer");
 	final DBType DT_RECORD  = new DBType.Named(
 		Identifier.Qualified.nameFromJava("pg_catalog.RECORD"));
 	final DBType DT_TRIGGER = new DBType.Named(
@@ -234,8 +240,7 @@ class DDRProcessorImpl
 	//
 	final DBType[] SIG_TYPMODIN =
 		{ DBType.fromSQLTypeAnnotation("pg_catalog.cstring[]") };
-	final DBType[] SIG_TYPMODOUT =
-		{ DBType.fromSQLTypeAnnotation("integer") };
+	final DBType[] SIG_TYPMODOUT = { DT_INTEGER };
 	final DBType[] SIG_ANALYZE =
 		{ DBType.fromSQLTypeAnnotation("pg_catalog.internal") };
 	
@@ -309,12 +314,18 @@ class DDRProcessorImpl
 		TY_VOID = typu.getNoType( TypeKind.VOID);
 
 		AN_FUNCTION    = elmu.getTypeElement( Function.class.getName());
-		AN_SQLACTION   = elmu.getTypeElement( SQLAction.class.getName());
-		AN_SQLACTIONS  = elmu.getTypeElement( SQLActions.class.getName());
 		AN_SQLTYPE     = elmu.getTypeElement( SQLType.class.getName());
 		AN_TRIGGER     = elmu.getTypeElement( Trigger.class.getName());
 		AN_BASEUDT     = elmu.getTypeElement( BaseUDT.class.getName());
 		AN_MAPPEDUDT   = elmu.getTypeElement( MappedUDT.class.getName());
+
+		// Repeatable annotations and their containers.
+		//
+		AN_SQLACTION   = elmu.getTypeElement( SQLAction.class.getName());
+		AN_SQLACTIONS  = elmu.getTypeElement( SQLActions.class.getName());
+		AN_CAST   = elmu.getTypeElement( Cast.class.getName());
+		AN_CASTS  = elmu.getTypeElement(
+			Cast.Container.class.getCanonicalName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -377,7 +388,13 @@ class DDRProcessorImpl
 	 * one round), keyed by the object for which each snippet has been
 	 * generated.
 	 */
-	Map<SnippetsKey, Snippet> snippets = new HashMap<>();
+	/*
+	 * This is a LinkedHashMap so that the order of handling annotation types
+	 * in process() below will be preserved in calling their characterize()
+	 * methods at end-of-round, and so, for example, characterize() on a Cast
+	 * can use values set by characterize() on an associated Function.
+	 */
+	Map<SnippetsKey, Snippet> snippets = new LinkedHashMap<>();
 
 	<S extends Snippet> S getSnippet(Object o, Class<S> c, Supplier<S> ctor)
 	{
@@ -421,6 +438,7 @@ class DDRProcessorImpl
 		boolean sqlActionPresent = false;
 		boolean baseUDTPresent = false;
 		boolean mappedUDTPresent = false;
+		boolean castPresent = false;
 		
 		boolean willClaim = true;
 		
@@ -428,14 +446,16 @@ class DDRProcessorImpl
 		{
 			if ( AN_FUNCTION.equals( te) )
 				functionPresent = true;
-			else if ( AN_SQLACTION.equals( te) || AN_SQLACTIONS.equals( te) )
-				sqlActionPresent = true;
 			else if ( AN_BASEUDT.equals( te) )
 				baseUDTPresent = true;
 			else if ( AN_MAPPEDUDT.equals( te) )
 				mappedUDTPresent = true;
 			else if ( AN_SQLTYPE.equals( te) )
 				; // these are handled within FunctionImpl
+			else if ( AN_SQLACTION.equals( te) || AN_SQLACTIONS.equals( te) )
+				sqlActionPresent = true;
+			else if ( AN_CAST.equals( te) || AN_CASTS.equals( te) )
+				castPresent = true;
 			else
 			{
 				msg( Kind.WARNING, te,
@@ -462,6 +482,12 @@ class DDRProcessorImpl
 				: re.getElementsAnnotatedWithAny( AN_SQLACTION, AN_SQLACTIONS) )
 				processRepeatable(
 					e, AN_SQLACTION, AN_SQLACTIONS, SQLActionImpl.class);
+
+		if ( castPresent )
+			for ( Element e
+				: re.getElementsAnnotatedWithAny( AN_CAST, AN_CASTS) )
+				processRepeatable(
+					e, AN_CAST, AN_CASTS, CastImpl.class);
 
 		tmpr.workAroundJava7Breakage(); // perhaps to be fixed in Java 9? nope.
 
@@ -1571,7 +1597,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( _when) )
 				sb.append( "\n\tWHEN ").append( _when); 
 			sb.append( "\n\tEXECUTE PROCEDURE ");
-			func.appendNameAndParams( sb, false);
+			func.appendNameAndParams( sb, true, false);
 			sb.setLength( sb.length() - 1); // drop closing )
 			s = _arguments.length;
 			for ( String a : _arguments )
@@ -1959,15 +1985,15 @@ hunt:	for ( ExecutableElement ee : ees )
 		 *
 		 * @param dflts Whether to include the defaults, if any.
 		 */
-		void appendNameAndParams( StringBuilder sb, boolean dflts)
+		void appendNameAndParams(StringBuilder sb, boolean names, boolean dflts)
 		{
 			sb.append(qnameFrom(name(), schema())).append( '(');
-			appendParams( sb, dflts);
+			appendParams( sb, names, dflts);
 			// TriggerImpl relies on ) being the very last character
 			sb.append( ')');
 		}
 
-		void appendParams( StringBuilder sb, boolean dflts)
+		void appendParams( StringBuilder sb, boolean names, boolean dflts)
 		{
 			int count = parameterTypes.length;
 			for ( ParameterInfo i
@@ -1984,7 +2010,10 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( _variadic  &&  0 == count )
 					sb.append("VARIADIC ");
 
-				sb.append(name).append(' ').append(i.dt.toString(dflts));
+				if ( names )
+					sb.append(name).append(' ');
+
+				sb.append(i.dt.toString(dflts));
 
 				if ( 0 < count )
 					sb.append(',');
@@ -2009,7 +2038,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			ArrayList<String> al = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
-			appendNameAndParams( sb, true);
+			appendNameAndParams( sb, true, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
 				sb.append( DT_TRIGGER.toString());
@@ -2047,7 +2076,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				sb.setLength( 0);
 				sb.append( "COMMENT ON FUNCTION ");
-				appendNameAndParams( sb, false);
+				appendNameAndParams( sb, true, false);
 				sb.append( "\nIS ");
 				sb.append( DDRWriter.eQuote( comm));
 				al.add( sb.toString());
@@ -2072,7 +2101,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			StringBuilder sb = new StringBuilder();
 			sb.append( "DROP FUNCTION ");
-			appendNameAndParams( sb, false);
+			appendNameAndParams( sb, true, false);
 			rslt [ rslt.length - 1 ] = sb.toString();
 			return rslt;
 		}
@@ -2181,7 +2210,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		BaseUDTFunctionID id;
 
 		@Override
-		void appendParams( StringBuilder sb, boolean dflts)
+		void appendParams( StringBuilder sb, boolean names, boolean dflts)
 		{
 			sb.append(
 				Arrays.stream(id.getParam( ui))
@@ -2740,6 +2769,216 @@ hunt:	for ( ExecutableElement ee : ees )
 			v.indegree = 0;
 
 			return v; // use this vertex itself in the undeploy case
+		}
+	}
+
+	class CastImpl
+	extends Repeatable
+	implements Cast, Snippet, Commentable
+	{
+		CastImpl(Element e, AnnotationMirror am)
+		{
+			super(e, am);
+		}
+
+		public String                   from() { return _from; }
+		public String                     to() { return _to;   }
+		public Cast.Path                path() { return _path; }
+		public Cast.Application  application() { return _application; }
+		public String[]             provides() { return _provides; }
+		public String[]             requires() { return _requires; }
+
+		public String _from;
+		public String _to;
+		public Cast.Path _path;
+		public Cast.Application _application;
+		public String[] _provides;
+		public String[] _requires;
+
+		FunctionImpl func;
+		DBType fromType;
+		DBType toType;
+
+		public void setPath( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_path = Path.valueOf(
+					((VariableElement)o).getSimpleName().toString());
+		}
+
+		public boolean characterize()
+		{
+			boolean ok = true;
+
+			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
+			{
+				func = getSnippet(m_targetElement, FunctionImpl.class,
+					() -> (FunctionImpl)null);
+				if ( null == func )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A method annotated with @Cast must also have @Function"
+					);
+					ok = false;
+				}
+			}
+
+			if ( null == func  &&  "".equals(_from) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Cast not annotating a method must specify from="
+				);
+				ok = false;
+			}
+
+			if ( null == func  &&  "".equals(_to) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Cast not annotating a method must specify to="
+				);
+				ok = false;
+			}
+
+			if ( null == func  &&  null == _path )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Cast not annotating a method, and without path=, " +
+					"is not yet supported"
+				);
+				ok = false;
+			}
+
+			if ( ok )
+			{
+				fromType = ("".equals(_from))
+					? func.parameterTypes[0]
+					: DBType.fromSQLTypeAnnotation(_from);
+
+				toType = ("".equals(_to))
+					? func.returnType
+					: DBType.fromSQLTypeAnnotation(_to);
+			}
+
+			if ( null != _path )
+			{
+				if ( ok  &&  Path.BINARY == _path  &&  fromType.equals(toType) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A cast with from and to types the same can only " +
+						"apply a type modifier; path=BINARY will have " +
+						"no effect");
+					ok = false;
+				}
+			}
+			else if ( null != func )
+			{
+				int nparams = func.parameterTypes.length;
+
+				if ( ok  &&  2 > nparams  &&  fromType.equals(toType) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A cast with from and to types the same can only " +
+						"apply a type modifier, therefore must have at least " +
+						"two parameters");
+					ok = false;
+				}
+
+				if ( 1 > nparams || nparams > 3 )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A cast function must have 1, 2, or 3 parameters");
+					ok = false;
+				}
+
+				if (1 < nparams && ! DT_INTEGER.equals(func.parameterTypes[1]))
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Parameter 2 of a cast function must have integer type"
+					);
+					ok = false;
+				}
+
+				if (3 == nparams && ! DT_BOOLEAN.equals(func.parameterTypes[2]))
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Parameter 3 of a cast function must have boolean type"
+					);
+					ok = false;
+				}
+			}
+
+			if ( ! ok )
+				return false;
+
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+			return true;
+		}
+
+		void recordImplicitTags()
+		{
+			Set<DependTag> requires = requireTags();
+
+			DependTag<?> dt = fromType.dependTag();
+			if ( null != dt )
+				requires.add(dt);
+
+			dt = toType.dependTag();
+			if ( null != dt )
+				requires.add(dt);
+
+			if ( null == _path )
+			{
+				dt = func.provideTags().stream()
+					.filter(DependTag.Function.class::isInstance)
+					.findAny().get();
+				requires.add(dt);
+			}
+		}
+
+		public String[] deployStrings()
+		{
+			List<String> al = new ArrayList<>();
+
+			StringBuilder sb = new StringBuilder();
+
+			sb.append("CREATE CAST (")
+				.append(fromType).append(" AS ").append(toType).append(")\n\t");
+
+			if ( Path.BINARY == _path )
+				sb.append("WITHOUT FUNCTION");
+			else if ( Path.INOUT == _path )
+				sb.append("WITH INOUT");
+			else
+			{
+				sb.append("WITH FUNCTION ");
+				func.appendNameAndParams(sb, false, false);
+			}
+
+			switch ( _application )
+			{
+			case ASSIGNMENT: sb.append("\n\tAS ASSIGNMENT"); break;
+			case EXPLICIT:   break;
+			case IMPLICIT:   sb.append("\n\tAS IMPLICIT");
+			}
+
+			al.add(sb.toString());
+
+			if ( null != comment() )
+				al.add(
+					"COMMENT ON CAST (" +
+					fromType + " AS " + toType + ") IS " +
+					DDRWriter.eQuote(comment()));
+
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			return new String[]
+			{
+				"DROP CAST (" + fromType + " AS " + toType + ")"
+			};
 		}
 	}
 
