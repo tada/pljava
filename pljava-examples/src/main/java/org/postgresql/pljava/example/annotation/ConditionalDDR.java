@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -68,7 +68,6 @@ import org.postgresql.pljava.annotation.SQLActions;
  * several statements setting PostgreSQL-version-based implementor tags that
  * are relied on by various other examples in this directory.
  */
-@SQLActions({
 	@SQLAction(provides={"LifeIsGood","LifeIsNotGood"}, install=
 		"SELECT CASE 42 WHEN 42 THEN " +
 		" set_config('pljava.implementors', 'LifeIsGood,' || " +
@@ -77,15 +76,15 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" set_config('pljava.implementors', 'LifeIsNotGood,' || " +
 		"  current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(implementor="LifeIsGood", install=
 		"SELECT javatest.logmessage('INFO', 'Looking good!')"
-	),
+	)
 
 	@SQLAction(implementor="LifeIsNotGood", install=
 		"SELECT javatest.logmessage('WARNING', 'This should not be executed')"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_80300", install=
 		"SELECT CASE WHEN" +
@@ -93,7 +92,7 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_80300,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_80400", install=
 		"SELECT CASE WHEN" +
@@ -101,7 +100,7 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_80400,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_90000", install=
 		"SELECT CASE WHEN" +
@@ -109,7 +108,7 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_90000,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_90100", install=
 		"SELECT CASE WHEN" +
@@ -117,7 +116,7 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_90100,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_90300", install=
 		"SELECT CASE WHEN" +
@@ -125,7 +124,7 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_90300,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(provides="postgresql_ge_100000", install=
 		"SELECT CASE WHEN" +
@@ -133,6 +132,5 @@ import org.postgresql.pljava.annotation.SQLActions;
 		" THEN set_config('pljava.implementors', 'postgresql_ge_100000,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
-})
+	)
 public class ConditionalDDR { }

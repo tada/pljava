@@ -105,13 +105,12 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
  * Everything mentioning the type XML here needs a conditional implementor tag
  * in case of being loaded into a PostgreSQL instance built without that type.
  */
-@SQLActions({
 	@SQLAction(provides="postgresql_xml", install=
 		"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
 		" THEN set_config('pljava.implementors', 'postgresql_xml,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(implementor="postgresql_ge_80400",
 		provides="postgresql_xml_ge84",
@@ -120,7 +119,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" THEN set_config('pljava.implementors', 'postgresql_xml_ge84,' || " +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 
 	@SQLAction(implementor="postgresql_xml_ge84", requires="echoXMLParameter",
 		install=
@@ -145,7 +144,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" END " +
 		"FROM" +
 		" r"
-	),
+	)
 
 	@SQLAction(implementor="postgresql_xml_ge84", requires="proxiedXMLEcho",
 		install=
@@ -169,7 +168,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" END " +
 		"FROM" +
 		" r"
-	),
+	)
 
 	@SQLAction(implementor="postgresql_xml_ge84", requires="lowLevelXMLEcho",
 		install={
@@ -211,7 +210,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"FROM" +
 		" r"
 		}
-	),
+	)
 
 	@SQLAction(implementor="postgresql_xml",
 			   requires={"prepareXMLTransform", "transformXML"},
@@ -250,7 +249,6 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 			" END"
 		}
 	)
-})
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
 		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")

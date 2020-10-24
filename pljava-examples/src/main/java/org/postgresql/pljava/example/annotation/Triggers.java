@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,6 +9,7 @@
  * Contributors:
  *   Tada AB
  *   Purdue University
+ *   Chapman Flack
  */
 package org.postgresql.pljava.example.annotation;
 
@@ -41,7 +42,6 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * version, set up in the {@link ConditionalDDR} example. Constraint triggers
  * appear in PG 9.1, transition tables in PG 10.
  */
-@SQLActions({
 	@SQLAction(
 		provides = "foobar tables",
 		install = {
@@ -52,16 +52,16 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
 			"DROP TABLE javatest.foobar_2",
 			"DROP TABLE javatest.foobar_1"
 		}
-	),
+	)
 	@SQLAction(
 		requires = "constraint triggers",
 		install = "INSERT INTO javatest.foobar_2(value) VALUES (45)"
-	),
+	)
 	@SQLAction(
 		requires = "foobar triggers",
 		provides = "foobar2_42",
 		install = "INSERT INTO javatest.foobar_2(value) VALUES (42)"
-	),
+	)
 	@SQLAction(
 		requires = { "transition triggers", "foobar2_42" },
 		install = "UPDATE javatest.foobar_2 SET value = 43 WHERE value = 42"
@@ -75,7 +75,6 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
 	 * A proper test for it will have to wait for a proper testing harness
 	 * invoking tests from outside PL/Java itself.
 	 */
-})
 public class Triggers
 {
 	/**

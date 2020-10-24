@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -34,18 +34,16 @@ import org.postgresql.pljava.annotation.SQLActions;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLActions({
 	@SQLAction(provides="language java_tzset", install={
 		"SELECT sqlj.alias_java_language('java_tzset', true)"
 	}, remove={
 		"DROP LANGUAGE java_tzset"
-	}),
+	})
 
 	@SQLAction(implementor="postgresql_ge_90300", // needs LATERAL
 		requires="issue199", install={
 		"SELECT javatest.issue199()"
 	})
-})
 public class PreJSR310
 {
 	private static final String TZPRAGUE = "Europe/Prague";

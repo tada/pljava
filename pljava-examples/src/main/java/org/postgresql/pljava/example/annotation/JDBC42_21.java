@@ -27,7 +27,6 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
  * Relies on PostgreSQL-version-specific implementor tags set up in the
  * {@link ConditionalDDR} example.
  */
-@SQLActions({
 	@SQLAction(
 		implementor="postgresql_ge_90300",requires="TypeRoundTripper.roundTrip",
 		install={
@@ -123,7 +122,6 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 		"  javatest.roundtrip(p, 'java.time.OffsetTime', true)" +
 		"  AS r(roundtripped timetz)"
 	})
-})
 public class JDBC42_21
 {
 	/**

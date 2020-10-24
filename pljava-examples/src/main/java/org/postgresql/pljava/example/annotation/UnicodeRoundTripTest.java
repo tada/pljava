@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -39,7 +39,6 @@ import org.postgresql.pljava.annotation.Function;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example, and also sets its own.
  */
-@SQLActions({
 	@SQLAction(provides="postgresql_unicodetest",
 		implementor="postgresql_ge_90000", install=
 		"SELECT CASE" +
@@ -47,7 +46,7 @@ import org.postgresql.pljava.annotation.Function;
 		" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +
 		" current_setting('pljava.implementors'), true) " +
 		"END"
-	),
+	)
 	@SQLAction(requires="unicodetest fn",
 	implementor="postgresql_unicodetest",
 	install=
@@ -88,7 +87,7 @@ import org.postgresql.pljava.annotation.Function;
 "        'all Unicode codepoint ranges roundtripped successfully.') " +
 "    end " +
 "    from test_summary"
-	),
+	)
 	@SQLAction(
 		install=
 			"CREATE TYPE unicodetestrow AS " +
@@ -96,7 +95,6 @@ import org.postgresql.pljava.annotation.Function;
 		remove="DROP TYPE unicodetestrow",
 		provides="unicodetestrow type"
 	)
-})
 public class UnicodeRoundTripTest {
 	/**
 	 * This function takes a string and an array of ints constructed in PG,

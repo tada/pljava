@@ -38,7 +38,6 @@ import org.postgresql.pljava.annotation.SQLActions;
  *
  * @author Thomas Hallgren
  */
-@SQLActions({
 	@SQLAction(provides = "employees tables", install = {
 		"CREATE TABLE javatest.employees1" +
 		" (" +
@@ -59,9 +58,8 @@ import org.postgresql.pljava.annotation.SQLActions;
 		"DROP TABLE javatest.employees2",
 		"DROP TABLE javatest.employees1"
 	}
-	),
+	)
 	@SQLAction(requires = "issue228", install = "SELECT javatest.issue228()")
-})
 public class SPIActions {
 	private static final String SP_CHECKSTATE = "sp.checkState";
 

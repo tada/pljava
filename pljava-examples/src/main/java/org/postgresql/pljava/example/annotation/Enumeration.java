@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -27,11 +27,10 @@ import org.postgresql.pljava.annotation.Function;
  * version, set up in the {@link ConditionalDDR} example. PostgreSQL before 8.3
  * did not have enum types.
  */
-@SQLActions({
 	@SQLAction(provides="mood type", implementor="postgresql_ge_80300",
 		install="CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
 		remove="DROP TYPE mood"
-	),
+	)
 	@SQLAction(implementor="postgresql_ge_80300",
 		requires={"textToMood", "moodToText", "textsToMoods", "moodsToTexts"},
 		install={
@@ -41,7 +40,6 @@ import org.postgresql.pljava.annotation.Function;
 			"SELECT moodsToTexts(array['happy','happy','sad','ok']::mood[])"
 		}
 	)
-})
 public class Enumeration
 {
 	@Function(requires="mood type", provides="textToMood", type="mood",
