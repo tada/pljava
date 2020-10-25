@@ -250,6 +250,22 @@ script: |
         // state 9: must be end of input
         (o,p,q) -> null == o
       );
+
+      /*
+       * Also confirm that the generated undeploy actions work.
+       */
+      succeeding &= stateMachine(
+        "remove jar void result",
+        null,
+
+        q(c, "SELECT sqlj.remove_jar('examples', true)")
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+        (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+        (o,p,q) -> null == o
+      );
     }
   } catch ( Throwable t )
   {

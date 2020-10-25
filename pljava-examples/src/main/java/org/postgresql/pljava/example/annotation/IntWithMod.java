@@ -21,6 +21,7 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 import java.sql.Statement;
 
+import org.postgresql.pljava.annotation.Cast;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
@@ -51,32 +52,13 @@ import static
  *<p>
  * Of course this example more or less duplicates what you could do in two lines
  * with CREATE DOMAIN. But it is enough to illustrate the process.
- *<p>
- * Certainly, it would be less tedious with some more annotation support and
- * autogeneration of the ordering dependencies that are now added by hand here.
- *<p>
- * Most of this must be suppressed (using conditional implementor tags) if the
- * PostgreSQL instance is older than 8.3, because it won't have the cstring[]
- * type, so the typeModifierInput function can't be declared, and so neither
- * can the type, or functions that accept or return it. See the
- * {@link ConditionalDDR} example for where the implementor tag is set up.
  */
-@SQLAction(requires={"IntWithMod type", "IntWithMod modApply"},
-	implementor="postgresql_ge_80300",
-	remove="DROP CAST (javatest.IntWithMod AS javatest.IntWithMod)",
+@SQLAction(requires="IntWithMod modCast",
 	install={
-		"CREATE CAST (javatest.IntWithMod AS javatest.IntWithMod)" +
-		" WITH FUNCTION javatest.intwithmod_typmodapply(" +
-		" javatest.IntWithMod, integer, boolean)",
-
-		"COMMENT ON CAST (javatest.IntWithMod AS javatest.IntWithMod) IS '" +
-		"Cast that applies/verifies the type modifier on an IntWithMod.'",
-
 		"SELECT CAST('42' AS javatest.IntWithMod(even))"
 	}
 )
 @BaseUDT(schema="javatest", provides="IntWithMod type",
-	implementor="postgresql_ge_80300",
 	typeModifierInput="javatest.intwithmod_typmodin",
 	typeModifierOutput="javatest.intwithmod_typmodout",
 	like="pg_catalog.int4")
@@ -146,7 +128,6 @@ public class IntWithMod implements SQLData {
 	 * "even" or "odd". The modifier value is 0 for even or 1 for odd.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodin",
-		implementor="postgresql_ge_80300",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	public static int modIn(@SQLType("pg_catalog.cstring[]") String[] toks)
 		throws SQLException {
@@ -180,9 +161,10 @@ public class IntWithMod implements SQLData {
 	 * Function backing the type-modifier application cast for IntWithMod type.
 	 */
 	@Function(schema="javatest", name="intwithmod_typmodapply",
-		implementor="postgresql_ge_80300",
-		provides="IntWithMod modApply",
 		effects=IMMUTABLE, onNullInput=RETURNS_NULL)
+	@Cast(comment=
+		"Cast that applies/verifies the type modifier on an IntWithMod.",
+		provides="IntWithMod modCast")
 	public static IntWithMod modApply(IntWithMod iwm, int mod, boolean explicit)
 		throws SQLException
 	{

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,7 +20,6 @@ import static java.util.Arrays.fill;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**
@@ -33,19 +32,17 @@ import org.postgresql.pljava.annotation.SQLType;
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
  * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLActions({
-	@SQLAction(
-		provides = "paramtypeinfo type", // created in Triggers.java
-		install = {
-			"CREATE TYPE javatest.paramtypeinfo AS (" +
-			" name text, pgtypename text, javaclass text, tostring text" +
-			")"
-		},
-		remove = {
-			"DROP TYPE javatest.paramtypeinfo"
-		}
-	)
-})
+@SQLAction(
+	provides = "paramtypeinfo type", // created in Triggers.java
+	install = {
+		"CREATE TYPE javatest.paramtypeinfo AS (" +
+		" name text, pgtypename text, javaclass text, tostring text" +
+		")"
+	},
+	remove = {
+		"DROP TYPE javatest.paramtypeinfo"
+	}
+)
 public class RecordParameterDefaults implements ResultSetProvider
 {
 	/**
