@@ -17,7 +17,6 @@ import java.sql.SQLException;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;

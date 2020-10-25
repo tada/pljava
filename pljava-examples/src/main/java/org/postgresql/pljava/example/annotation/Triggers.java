@@ -23,7 +23,6 @@ import java.sql.Statement;
 import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.Trigger;
 import static org.postgresql.pljava.annotation.Trigger.Called.*;
 import static org.postgresql.pljava.annotation.Trigger.Constraint.*;

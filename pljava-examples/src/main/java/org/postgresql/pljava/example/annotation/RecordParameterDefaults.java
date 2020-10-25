@@ -20,7 +20,6 @@ import static java.util.Arrays.fill;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**

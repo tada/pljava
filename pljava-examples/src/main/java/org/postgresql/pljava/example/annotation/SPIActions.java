@@ -31,7 +31,6 @@ import org.postgresql.pljava.TransactionListener;
 import org.postgresql.pljava.annotation.Function;
 import static org.postgresql.pljava.annotation.Function.Effects.*;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 
 /**
  * Some methods used for testing the SPI JDBC driver.

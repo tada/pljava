@@ -12,7 +12,6 @@
 package org.postgresql.pljava.example.annotation;
 
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 
 /**
  * Test of a very simple form of conditional execution in the deployment

@@ -15,7 +15,6 @@ import java.util.Iterator;
 import java.util.Arrays;
 
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
 import org.postgresql.pljava.annotation.Function;
 

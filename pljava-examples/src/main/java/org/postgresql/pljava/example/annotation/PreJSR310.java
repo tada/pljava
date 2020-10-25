@@ -24,7 +24,6 @@ import java.util.TimeZone;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 
 /**
  * Some tests of pre-JSR 310 date/time/timestamp conversions.
