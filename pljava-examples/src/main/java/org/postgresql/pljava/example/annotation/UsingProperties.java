@@ -26,6 +26,7 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.annotation.SQLAction;
 
 /**
  * An example that retrieves a {@code Properties} resource, and returns
@@ -33,6 +34,20 @@ import org.postgresql.pljava.ResultSetProvider;
  * interface.
  * @author Thomas Hallgren
  */
+@SQLAction(requires = "propertyExampleAnno", install = {
+	"WITH" +
+	" expected AS (VALUES" +
+	"  ('adjective' ::varchar(200), 'avaricious' ::varchar(200))," +
+	"  ('noun',                     'platypus')" +
+	" )" +
+	"SELECT" +
+	"  CASE WHEN every(prop IN (SELECT expected FROM expected))" +
+	"  THEN javatest.logmessage('INFO',    'get resource passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'get resource fails')" +
+	"  END" +
+	" FROM" +
+	"  propertyexampleanno() AS prop"
+})
 public class UsingProperties implements ResultSetProvider.Large
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
@@ -42,7 +57,9 @@ public class UsingProperties implements ResultSetProvider.Large
 	throws IOException
 	{
 		Properties v = new Properties();
-		InputStream propStream = this.getClass().getResourceAsStream("example.properties");
+		InputStream propStream =
+			this.getClass().getResourceAsStream("example.properties");
+
 		if(propStream == null)
 		{
 			s_logger.fine("example.properties was null");
@@ -76,7 +93,7 @@ public class UsingProperties implements ResultSetProvider.Large
 	 * Return the contents of the {@code example.properties} resource,
 	 * one (key,value) row per entry.
 	 */
-	@Function( type = "javatest._properties")
+	@Function(type = "javatest._properties", provides = "propertyExampleAnno")
 	public static ResultSetProvider propertyExampleAnno()
 	throws SQLException
 	{
