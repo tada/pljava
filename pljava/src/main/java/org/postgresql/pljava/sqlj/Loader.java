@@ -342,12 +342,12 @@ public class Loader extends ClassLoader
 	{
 		try
 		{
-			return new URL(
+			return doPrivileged(() -> new URL(
 					"dbf",
 					"localhost",
 					-1,
 					"/" + entryId,
-					EntryStreamHandler.getInstance());
+					EntryStreamHandler.getInstance()));
 		}
 		catch(MalformedURLException e)
 		{
