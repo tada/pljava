@@ -23,9 +23,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
+import java.util.ResourceBundle;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.ResultSetProvider;
+import org.postgresql.pljava.annotation.SQLAction;
 
 /**
  * An example that retrieves a {@code Properties} resource, and returns
@@ -33,6 +35,33 @@ import org.postgresql.pljava.ResultSetProvider;
  * interface.
  * @author Thomas Hallgren
  */
+@SQLAction(requires = {"propertyExampleAnno", "propertyExampleRB"}, install = {
+	"WITH" +
+	" expected AS (VALUES" +
+	"  ('adjective' ::varchar(200), 'avaricious' ::varchar(200))," +
+	"  ('noun',                     'platypus')" +
+	" )" +
+	"SELECT" +
+	"  CASE WHEN every(prop IN (SELECT expected FROM expected))" +
+	"  THEN javatest.logmessage('INFO',    'get resource passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'get resource fails')" +
+	"  END" +
+	" FROM" +
+	"  propertyExampleAnno() AS prop",
+
+	"WITH" +
+	" expected AS (VALUES" +
+	"  ('adjective' ::varchar(200), 'avaricious' ::varchar(200))," +
+	"  ('noun',                     'platypus')" +
+	" )" +
+	"SELECT" +
+	"  CASE WHEN every(prop IN (SELECT expected FROM expected))" +
+	"  THEN javatest.logmessage('INFO',    'get ResourceBundle passes')" +
+	"  ELSE javatest.logmessage('WARNING', 'get ResourceBundle fails')" +
+	"  END" +
+	" FROM" +
+	"  propertyExampleRB() AS prop"
+})
 public class UsingProperties implements ResultSetProvider.Large
 {
 	private static Logger s_logger = Logger.getAnonymousLogger();
@@ -42,7 +71,9 @@ public class UsingProperties implements ResultSetProvider.Large
 	throws IOException
 	{
 		Properties v = new Properties();
-		InputStream propStream = this.getClass().getResourceAsStream("example.properties");
+		InputStream propStream =
+			this.getClass().getResourceAsStream("example.properties");
+
 		if(propStream == null)
 		{
 			s_logger.fine("example.properties was null");
@@ -55,6 +86,33 @@ public class UsingProperties implements ResultSetProvider.Large
 			s_logger.fine("example.properties has " + v.size() + " entries");
 			m_propertyIterator = v.entrySet().iterator();
 		}
+	}
+
+	/**
+	 * This constructor (distinguished by signature) reads the same property
+	 * file, but using the {@code ResourceBundle} machinery instead of
+	 * {@code Properties}.
+	 */
+	private UsingProperties(Void usingResourceBundle)
+	{
+		ResourceBundle b =
+			ResourceBundle.getBundle(getClass().getPackageName() + ".example");
+
+		Iterator<String> keys = b.getKeys().asIterator();
+
+		m_propertyIterator = new Iterator<Map.Entry<String,String>>()
+		{
+			public boolean hasNext()
+			{
+				return keys.hasNext();
+			}
+
+			public Map.Entry<String,String> next()
+			{
+				String k = keys.next();
+				return Map.entry(k, b.getString(k));
+			}
+		};
 	}
 
 	public boolean assignRowValues(ResultSet receiver, long currentRow)
@@ -76,7 +134,7 @@ public class UsingProperties implements ResultSetProvider.Large
 	 * Return the contents of the {@code example.properties} resource,
 	 * one (key,value) row per entry.
 	 */
-	@Function( type = "javatest._properties")
+	@Function(type = "javatest._properties", provides = "propertyExampleAnno")
 	public static ResultSetProvider propertyExampleAnno()
 	throws SQLException
 	{
@@ -88,6 +146,17 @@ public class UsingProperties implements ResultSetProvider.Large
 		{
 			throw new SQLException("Error reading properties", e.getMessage());
 		}
+	}
+
+	/**
+	 * Return the contents of the {@code example.properties} resource,
+	 * one (key,value) row per entry, using {@code ResourceBundle} to load it.
+	 */
+	@Function(type = "javatest._properties", provides = "propertyExampleRB")
+	public static ResultSetProvider propertyExampleRB()
+	throws SQLException
+	{
+		return new UsingProperties(null);
 	}
 
 	public void close()
