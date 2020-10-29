@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import static java.util.Objects.hash;
 import static java.util.Objects.requireNonNull;
 import java.util.PriorityQueue;
@@ -65,6 +66,7 @@ import java.util.function.Supplier;
 
 import java.util.stream.Stream;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1597,7 +1599,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! "".equals( _when) )
 				sb.append( "\n\tWHEN ").append( _when); 
 			sb.append( "\n\tEXECUTE PROCEDURE ");
-			func.appendNameAndParams( sb, true, false);
+			func.appendNameAndParams( sb, true, false, false);
 			sb.setLength( sb.length() - 1); // drop closing )
 			s = _arguments.length;
 			for ( String a : _arguments )
@@ -1635,6 +1637,7 @@ hunt:	for ( ExecutableElement ee : ees )
 	implements Function, Snippet, Commentable
 	{
 		public String             type() { return _type; }
+		public String[]            out() { return _out; }
 		public String             name() { return _name; }
 		public String           schema() { return _schema; }
 		public boolean        variadic() { return _variadic; }
@@ -1658,6 +1661,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		ExecutableElement func;
 
 		public String      _type;
+		public String[]    _out;
 		public String      _name;
 		public String      _schema;
 		public boolean     _variadic;
@@ -1685,12 +1689,25 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		DBType returnType;
 		DBType[] parameterTypes;
+		List<Map.Entry<Identifier.Simple,DBType>> outParameters;
 
 		boolean subsumed = false;
 
 		FunctionImpl(ExecutableElement e)
 		{
 			func = e;
+		}
+
+		public void setType( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_type = (String)o;
+		}
+
+		public void setOut( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_out = avToArray( o, String.class);
 		}
 
 		public void setTrust( Object o, boolean explicit, Element e)
@@ -1759,7 +1776,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			List<? extends TypeMirror> typeArgs;
 			int arity = ptms.size();
 
-			if ( ! "".equals( type())
+			if ( ( null != _type  ||  null != _out )
 				&& ret.getKind().equals( TypeKind.BOOLEAN) )
 			{
 				complexViaInOut = true;
@@ -1931,8 +1948,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void resolveParameterAndReturnTypes()
 		{
-			if ( ! "".equals( type()) )
-				returnType = DBType.fromSQLTypeAnnotation( type());
+			if ( null != _type  &&  null != _out )
+				msg( Kind.ERROR, func, "A PL/Java function may specify " +
+					"only one of type, out");
+
+			if ( null != _type )
+				returnType = DBType.fromSQLTypeAnnotation( _type);
 			else if ( null != setofComponent )
 				returnType = tmpr.getSQLType( setofComponent, func);
 			else if ( setof )
@@ -1943,6 +1964,14 @@ hunt:	for ( ExecutableElement ee : ees )
 			parameterTypes = parameterInfo()
 				.map(i -> tmpr.getSQLType(i.tm, i.ve, i.st, true, true))
 				.toArray(DBType[]::new);
+
+			if ( null != _out )
+			{
+				returnType = DT_RECORD;
+				outParameters = Arrays.stream(_out)
+					.map(DBType::fromNameAndType)
+					.collect(toList());
+			}
 		}
 
 		/**
@@ -1970,6 +1999,12 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != t )
 					requires.add(t);
 			}
+
+			if ( null != outParameters )
+				outParameters.stream()
+					.map(m -> m.getValue().dependTag())
+					.filter(Objects::nonNull)
+					.forEach(requires::add);
 		}
 
 		@Override
@@ -1985,16 +2020,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		 *
 		 * @param dflts Whether to include the defaults, if any.
 		 */
-		void appendNameAndParams(StringBuilder sb, boolean names, boolean dflts)
+		void appendNameAndParams(
+			StringBuilder sb, boolean names, boolean outs, boolean dflts)
 		{
 			sb.append(qnameFrom(name(), schema())).append( '(');
-			appendParams( sb, names, dflts);
+			appendParams( sb, names, outs, dflts);
 			// TriggerImpl relies on ) being the very last character
 			sb.append( ')');
 		}
 
-		void appendParams( StringBuilder sb, boolean names, boolean dflts)
+		void appendParams(
+			StringBuilder sb, boolean names, boolean outs, boolean dflts)
 		{
+			int lengthOnEntry = sb.length();
+
 			int count = parameterTypes.length;
 			for ( ParameterInfo i
 				: (Iterable<ParameterInfo>)parameterInfo()::iterator )
@@ -2015,9 +2054,21 @@ hunt:	for ( ExecutableElement ee : ees )
 
 				sb.append(i.dt.toString(dflts));
 
-				if ( 0 < count )
-					sb.append(',');
+				sb.append(',');
 			}
+
+			if ( outs  &&  null != outParameters )
+			{
+				outParameters.forEach(e -> {
+					sb.append("\n\tOUT ");
+					if ( null != e.getKey() )
+						sb.append(e.getKey()).append(' ');
+					sb.append(e.getValue().toString(false)).append(',');
+				});
+			}
+
+			if ( lengthOnEntry < sb.length() )
+				sb.setLength(sb.length() - 1); // that last pesky comma
 		}
 
 		void appendAS( StringBuilder sb)
@@ -2038,7 +2089,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			ArrayList<String> al = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
-			appendNameAndParams( sb, true, true);
+			appendNameAndParams( sb, true, true, true);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
 				sb.append( DT_TRIGGER.toString());
@@ -2076,7 +2127,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				sb.setLength( 0);
 				sb.append( "COMMENT ON FUNCTION ");
-				appendNameAndParams( sb, true, false);
+				appendNameAndParams( sb, true, false, false);
 				sb.append( "\nIS ");
 				sb.append( DDRWriter.eQuote( comm));
 				al.add( sb.toString());
@@ -2101,7 +2152,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			StringBuilder sb = new StringBuilder();
 			sb.append( "DROP FUNCTION ");
-			appendNameAndParams( sb, true, false);
+			appendNameAndParams( sb, true, false, false);
 			rslt [ rslt.length - 1 ] = sb.toString();
 			return rslt;
 		}
@@ -2210,7 +2261,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		BaseUDTFunctionID id;
 
 		@Override
-		void appendParams( StringBuilder sb, boolean names, boolean dflts)
+		void appendParams(
+			StringBuilder sb, boolean names, boolean outs, boolean dflts)
 		{
 			sb.append(
 				Arrays.stream(id.getParam( ui))
@@ -2242,6 +2294,13 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		public void setType( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				msg( Kind.ERROR, e,
+					"The type of a UDT function may not be changed");
+		}
+
+		public void setOut( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
 				msg( Kind.ERROR, e,
@@ -2952,7 +3011,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			else
 			{
 				sb.append("WITH FUNCTION ");
-				func.appendNameAndParams(sb, false, false);
+				func.appendNameAndParams(sb, false, false, false);
 			}
 
 			switch ( _application )
@@ -3965,6 +4024,28 @@ abstract class DBType
 		"BOOLEAN|BIT|CHARACTER|CHAR|VARCHAR|TIMESTAMP|TIME|INTERVAL" +
 		")"
 	);
+
+	/**
+	 * Parse a string, representing an optional parameter/column name followed
+	 * by a type, into an {@code Identifier.Simple}, possibly null, and a
+	 * {@code DBType}.
+	 *<p>
+	 * Whitespace (or, strictly, separator; comments would be accepted) must
+	 * separate the name from the type, if the name is not quoted. To omit a
+	 * name and supply only the type, the string must begin with whitespace
+	 * (ahem, separator).
+	 */
+	static Map.Entry<Identifier.Simple,DBType> fromNameAndType(String nandt)
+	{
+		Identifier.Simple name = null;
+		Matcher m = ISO_AND_PG_IDENTIFIER_CAPTURING.matcher(nandt);
+		if ( m.lookingAt() )
+		{
+			nandt = nandt.substring(m.end());
+			name = identifierFrom(m);
+		}
+		return Map.entry(name, fromSQLTypeAnnotation(nandt));
+	}
 
 	/**
 	 * Make a {@code DBType} from whatever might appear in an {@code SQLType}
