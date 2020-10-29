@@ -42,7 +42,8 @@ import org.postgresql.pljava.annotation.SQLAction;
 	"  ('noun',                     'platypus')" +
 	" )" +
 	"SELECT" +
-	"  CASE WHEN every(prop IN (SELECT expected FROM expected))" +
+	"  CASE WHEN" +
+	"   2 = count(prop) AND every(prop IN (SELECT expected FROM expected))" +
 	"  THEN javatest.logmessage('INFO',    'get resource passes')" +
 	"  ELSE javatest.logmessage('WARNING', 'get resource fails')" +
 	"  END" +
@@ -55,7 +56,8 @@ import org.postgresql.pljava.annotation.SQLAction;
 	"  ('noun',                     'platypus')" +
 	" )" +
 	"SELECT" +
-	"  CASE WHEN every(prop IN (SELECT expected FROM expected))" +
+	"  CASE WHEN" +
+	"   2 = count(prop) AND every(prop IN (SELECT expected FROM expected))" +
 	"  THEN javatest.logmessage('INFO',    'get ResourceBundle passes')" +
 	"  ELSE javatest.logmessage('WARNING', 'get ResourceBundle fails')" +
 	"  END" +
