@@ -4044,7 +4044,9 @@ abstract class DBType
 			nandt = nandt.substring(m.end());
 			name = identifierFrom(m);
 		}
-		return Map.entry(name, fromSQLTypeAnnotation(nandt));
+		return
+			new AbstractMap.SimpleImmutableEntry<>(
+				name, fromSQLTypeAnnotation(nandt));
 	}
 
 	/**
@@ -4085,6 +4087,7 @@ abstract class DBType
 
 		Matcher m = SEPARATOR.matcher(value);
 		separator(m, false);
+		int postSeparator = m.regionStart();
 
 		if ( m.usePattern(ISO_AND_PG_IDENTIFIER_CAPTURING).lookingAt() )
 		{
@@ -4184,7 +4187,8 @@ abstract class DBType
 		DBType result;
 
 		if ( reserved )
-			result = new DBType.Reserved(value.substring(0, m.regionEnd()));
+			result = new DBType.Reserved(
+				value.substring(postSeparator, m.regionEnd()));
 		else
 		{
 			result = new DBType.Named(qname);
@@ -4638,6 +4642,12 @@ abstract class DependTag<T>
 					return false;
 			}
 			return true;
+		}
+
+		@Override
+		public String toString()
+		{
+			return super.toString() + Arrays.toString(m_signature);
 		}
 	}
 }
