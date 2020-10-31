@@ -3197,7 +3197,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			// array of arguments (length 0 for (*)). No check needed here; the
 			// annotation declares those without defaults.
 
-			// Could check argument count agains FUNC_MAX_ARGS, but that would
+			// Could check argument count against FUNC_MAX_ARGS, but that would
 			// hardcode an assumed value for PostgreSQL's FUNC_MAX_ARGS.
 
 			// Check that, if a stateType is polymorphic, there are compatible
@@ -3391,27 +3391,9 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			if ( moving )
 			{
-				accumulatorSig =
-					Stream.of(
-						Stream.of(_movingPlan[0].stateType),
-						aggregateArgs.stream().map(Map.Entry::getValue))
-					.flatMap(identity()).toArray(DBType[]::new);
-
-				combinerSig = new DBType[]
-					{ _movingPlan[0].stateType, _movingPlan[0].stateType };
-
-				finisherSig =
-					Stream.of(
-						Stream.of(_movingPlan[0].stateType),
-						orderedSet ?
-							directArgs.stream().map(Map.Entry::getValue)
-							: Stream.of(),
-						_movingPlan[0]._polymorphic
-							? aggregateArgs.stream().map(Map.Entry::getValue)
-							: Stream.of()
-					)
-					.flatMap(identity())
-					.toArray(DBType[]::new);
+				accumulatorSig[0] = _movingPlan[0].stateType;
+				Arrays.fill(combinerSig, _movingPlan[0].stateType);
+				finisherSig[0] = _movingPlan[0].stateType;
 
 				requires.add(new DependTag.Function(
 					_movingPlan[0].accumulate, accumulatorSig));

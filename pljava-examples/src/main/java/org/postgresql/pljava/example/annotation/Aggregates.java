@@ -74,7 +74,32 @@ import org.postgresql.pljava.annotation.SQLAction;
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		/*
+		 * State size is merely a hint to PostgreSQL's planner and can
+		 * be omitted. Perhaps it is worth hinting, as the state type
+		 * "double precision[]" does not tell PostgreSQL how large the array
+		 * might be. Anyway, this is an example and should show how to do it.
+		 * For this aggregate, the state never grows; the size of the initial
+		 * value is the size forever.
+		 *
+		 * To get a quick sense of the size, one can assign the initial state
+		 * as the default for a table column, then consult the pg_node_tree for
+		 * the attribute default entry:
+		 *
+		 * CREATE TEMPORARY TABLE
+		 *   foo (bar DOUBLE PRECISION[] DEFAULT '{0,0,0,0,0,0}');
+		 *
+		 * SELECT
+		 *   xpath('/CONST/member[@name="constvalue"]/@length',
+		 *         javatest.pgNodeTreeAsXML(adbin)             )
+		 *  FROM pg_attrdef
+		 *  WHERE adrelid = 'foo'::regclass;
+		 *
+		 * In this case the 72 that comes back represents 48 bytes for six
+		 * float8s, plus 24 for varlena and array overhead, with no null bitmap
+		 * because no element is null.
+		 */
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		finish = { "javatest", "finishAvgX" }
@@ -85,7 +110,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		finish = { "javatest", "finishAvgY" }
@@ -96,7 +121,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		finish = { "javatest", "finishSlope" }
@@ -107,7 +132,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		finish = { "javatest", "finishIntercept" }
@@ -118,7 +143,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		finish = { "javatest", "finishRegr" }
@@ -129,7 +154,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	 */
 	movingPlan = @Aggregate.Plan(
 		stateType = "double precision[]",
-		stateSize = 82,
+		stateSize = 72,
 		initialState = "{0,0,0,0,0,0}",
 		accumulate = { "javatest", "accumulateXY" },
 		remove = { "javatest", "removeXY" },
