@@ -35,6 +35,13 @@ import java.lang.annotation.Target;
 public @interface Operator
 {
 	/**
+	 * Distinguished value usable for {@link #commutator commutator=} to
+	 * indicate that an operator is its own commutator without having to
+	 * repeat its schema and name.
+	 */
+	String SELF = "self";
+
+	/**
 	 * Name for this operator.
 	 *<p>
 	 * May be specified in explicit {@code {"schema","operatorname"}} form, or
@@ -71,7 +78,9 @@ public @interface Operator
 	/**
 	 * Name of an operator that is the commutator of this one.
 	 *<p>
-	 * Specified in the same ways as {@code name}.
+	 * Specified in the same ways as {@code name}. The value
+	 * {@link #SELF SELF} can be used to avoid repeating the schema and name
+	 * for the common case of an operator that is its own commutator.
 	 */
 	String[] commutator() default {};
 

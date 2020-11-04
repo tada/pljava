@@ -3108,6 +3108,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		Identifier.Qualified<Identifier.Operator> negator;
 		Identifier.Qualified<Identifier.Simple> restrict;
 		Identifier.Qualified<Identifier.Simple> join;
+		boolean selfCommutator;
 
 		private String operand(int i)
 		{
@@ -3140,7 +3141,13 @@ hunt:	for ( ExecutableElement ee : ees )
 		public void setCommutator( Object o, boolean explicit, Element e)
 		{
 			if ( explicit )
-				commutator = operatorNameFrom(avToArray( o, String.class));
+			{
+				String[] ss = avToArray( o, String.class);
+				if ( 1 == ss.length  &&  SELF.equals(ss[0]) )
+					selfCommutator = true;
+				else
+					commutator = operatorNameFrom(ss);
+			}
 		}
 
 		public void setNegator( Object o, boolean explicit, Element e)
@@ -3166,6 +3173,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		public boolean characterize()
 		{
 			boolean ok = true;
+
+			if ( selfCommutator )
+				commutator = qname;
 
 			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
 			{
@@ -3273,6 +3283,14 @@ hunt:	for ( ExecutableElement ee : ees )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"unary @Operator cannot have a commutator"
+					);
+					ok = false;
+				}
+				else if ( selfCommutator && ! operands[0].equals(operands[1]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator with different left and right operand " +
+						"types cannot be its own commutator"
 					);
 					ok = false;
 				}
