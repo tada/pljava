@@ -38,8 +38,32 @@ public @interface Operator
 	 * Distinguished value usable for {@link #commutator commutator=} to
 	 * indicate that an operator is its own commutator without having to
 	 * repeat its schema and name.
+	 *<p>
+	 * This value strictly declares that the operator is its own commutator, and
+	 * therefore is only allowed for an operator with two operands of the same
+	 * type. If the types are different, a commutator with the same
+	 * <em>name</em> would in fact be a different operator with the operand
+	 * types exchanged; use {@link #TWIN TWIN} for that.
 	 */
-	String SELF = "self";
+	String SELF = ".self.";
+
+	/**
+	 * Distinguished value usable for {@link #commutator commutator=} to
+	 * indicate that an operator's commutator is another operator with the same
+	 * schema and name, without having to repeat them.
+	 *<p>
+	 * This value strictly declares that the commutator is a different
+	 * operator, and therefore is only allowed for an operator with two
+	 * operands of different types. As commutators, this operator and its twin
+	 * will have those operand types in opposite orders, so PostgreSQL
+	 * overloading will allow them to have the same name.
+	 *<p>
+	 * This value may also be used with {@link #synthetic synthetic=} to give
+	 * the synthesized function the same schema and name as the one it is based
+	 * on; this also is possible only for a function synthesized by commutation
+	 * where the commuted parameter types differ.
+	 */
+	String TWIN = ".twin.";
 
 	/**
 	 * Name for this operator.
@@ -83,6 +107,14 @@ public @interface Operator
 	 *<p>
 	 * Only allowed in an annotation on a Java method, and where
 	 * {@code function} is not specified.
+	 *<p>
+	 * The special value {@link #TWIN TWIN} is allowed, to avoid repeating the
+	 * schema and name when the desired name for the synthesized function is the
+	 * same as the one it is derived from (which is only possible if the
+	 * derivation involves commuting the arguments and their types are
+	 * different, so the two functions can be distinguished by overloading). A
+	 * typical case would be the twin of a cross-type function like {@code add}
+	 * that is commutative, so using the same name makes sense.
 	 */
 	String[] synthetic() default {};
 
@@ -91,7 +123,12 @@ public @interface Operator
 	 *<p>
 	 * Specified in the same ways as {@code name}. The value
 	 * {@link #SELF SELF} can be used to avoid repeating the schema and name
-	 * for the common case of an operator that is its own commutator.
+	 * for the common case of an operator that is its own commutator. The value
+	 * {@link #TWIN TWIN} can likewise declare that the commutator is the
+	 * different operator with the same name and schema but the operand types
+	 * (which must be different) reversed. A typical case would be the twin of a
+	 * cross-type operator like {@code +} that is commutative, so using the same
+	 * name makes sense.
 	 */
 	String[] commutator() default {};
 

@@ -3267,7 +3267,10 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		if ( null != snip )
 		{
-			(null == snip.synthetic ? m_nonSynthetic : m_synthetic).add(snip);
+			if ( snip.selfCommutator  ||  snip.twinCommutator )
+				snip.commutator = snip.qname;
+
+			(snip.isSynthetic ? m_synthetic : m_nonSynthetic).add(snip);
 			return;
 		}
 
@@ -3343,7 +3346,7 @@ hunt:	for ( ExecutableElement ee : ees )
 	boolean maybeAddPath(
 		OperatorImpl from, OperatorImpl to, OperatorPath.Transform how)
 	{
-		if ( null == to.synthetic )
+		if ( ! to.isSynthetic )
 			return false; // don't add paths to a non-synthetic operator
 
 		switch ( how )
@@ -3460,7 +3463,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		Identifier.Qualified<Identifier.Simple> restrict;
 		Identifier.Qualified<Identifier.Simple> join;
 		Identifier.Qualified<Identifier.Simple> synthetic;
+		boolean isSynthetic;
 		boolean selfCommutator;
+		boolean twinCommutator;
 		List<OperatorPath> paths;
 
 		private String operand(int i)
@@ -3493,20 +3498,46 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public void setSynthetic( Object o, boolean explicit, Element e)
 		{
-			if ( explicit )
-				synthetic = qnameFrom(avToArray( o, String.class));
+			if ( ! explicit )
+				return;
+
+			/*
+			 * Use isSynthetic to indicate that synthetic= has been used at all.
+			 * Set synthetic to the supplied qname only if it is a qname, and
+			 * not the distinguished value TWIN.
+			 *
+			 * Most of the processing below only needs to look at isSynthetic.
+			 * The TWIN case, recognized by isSynthetic && null == synthetic,
+			 * will be handled late in the game by copying the base function's
+			 * qname.
+			 */
+
+			isSynthetic = true;
+			String[] ss = avToArray( o, String.class);
+			if ( 1 != ss.length  ||  ! TWIN.equals(ss[0]) )
+				synthetic = qnameFrom(ss);
 		}
 
 		public void setCommutator( Object o, boolean explicit, Element e)
 		{
-			if ( explicit )
+			if ( ! explicit )
+				return;
+
+			String[] ss = avToArray( o, String.class);
+			if ( 1 == ss.length )
 			{
-				String[] ss = avToArray( o, String.class);
-				if ( 1 == ss.length  &&  SELF.equals(ss[0]) )
+				if ( SELF.equals(ss[0]) )
+				{
 					selfCommutator = true;
-				else
-					commutator = operatorNameFrom(ss);
+					return;
+				}
+				if ( TWIN.equals(ss[0]) )
+				{
+					twinCommutator = true;
+					return;
+				}
 			}
+			commutator = operatorNameFrom(ss);
 		}
 
 		public void setNegator( Object o, boolean explicit, Element e)
@@ -3534,16 +3565,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			boolean ok = true;
 			Snippet syntheticFunction = null;
 
-			if ( selfCommutator )
-				commutator = qname;
-
 			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
 			{
 				func = getSnippet(m_targetElement, FunctionImpl.class,
 					() -> (FunctionImpl)null);
 			}
 
-			if ( null != synthetic )
+			if ( isSynthetic )
 			{
 				if ( null != funcName )
 				{
@@ -3553,10 +3581,10 @@ hunt:	for ( ExecutableElement ee : ees )
 					);
 					ok = false;
 				}
-				funcName = synthetic;
+				funcName = synthetic; // can be null (the TWIN case)
 			}
 
-			if ( null == func  &&  null == funcName )
+			if ( null == func  &&  null == funcName  &&  ! isSynthetic )
 			{
 				msg(Kind.ERROR, m_targetElement, m_origin,
 					"@Operator not annotating a method must specify function="
@@ -3582,7 +3610,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 				if ( null == funcName )
 					funcName = fn;
-				else if ( ! funcName.equals(fn)  &&  null == synthetic )
+				else if ( ! funcName.equals(fn)  &&  ! isSynthetic )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"@Operator annotates a method but function= gives a " +
@@ -3594,7 +3622,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				long explicit =
 					Arrays.stream(operands).filter(Objects::nonNull).count();
 
-				if ( 0 != explicit  &&  null != synthetic )
+				if ( 0 != explicit  &&  ! isSynthetic )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"@Operator with synthetic= must not specify " +
@@ -3642,7 +3670,12 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 
 			/*
-			 * At this point, ok ==> there is a non-null funcName
+			 * At this point, ok ==> there is a non-null funcName ... UNLESS
+			 * isSynthetic is true, synthetic=TWIN was given, and we are not
+			 * annotating a method (that last condition is currently not
+			 * supported, so we could in fact rely on having a funcName here,
+			 * but that condition may be worth supporting in the future, so
+			 * better to keep the exception in mind).
 			 */
 
 			if ( ! ok )
@@ -3672,7 +3705,15 @@ hunt:	for ( ExecutableElement ee : ees )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"@Operator with different left and right operand " +
-						"types cannot be its own commutator"
+						"types cannot have commutator=SELF"
+					);
+					ok = false;
+				}
+				else if ( twinCommutator && operands[0].equals(operands[1]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator with matching left and right operand " +
+						"types cannot have commutator=TWIN"
 					);
 					ok = false;
 				}
@@ -3769,7 +3810,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! ok )
 				return Set.of();
 
-			if ( null != synthetic )
+			if ( isSynthetic )
 			{
 				if ( null == func )
 				{
@@ -3816,7 +3857,8 @@ hunt:	for ( ExecutableElement ee : ees )
 							p -> ! p.fromBase.contains(
 								OperatorPath.Transform.COMMUTATION))
 						.collect(toList());
-					if ( 2 != arity || selfCommutator ||
+					if ( 2 != arity || selfCommutator
+						|| null == synthetic ||
 						synthetic.equals(qnameFrom(func.name(), func.schema())))
 					{
 						if ( filtered.isEmpty() )
@@ -3914,17 +3956,28 @@ hunt:	for ( ExecutableElement ee : ees )
 				 * over this method. (That's currently guaranteed by the way
 				 * operatorPreSynthesize generates paths, but may as well check
 				 * here to ensure sanity during future maintenance.)
+				 *
+				 * For synthetic=TWIN (represented here by null==synthetic),
+				 * also filter out paths that don't involve commutation (without
+				 * it, the synthetic function would collide with the base one).
 				 */
 
+				boolean nonCommutedOK = null != synthetic;
+				
 				paths = paths.stream()
-					.filter(p -> p.base.func == func).collect(toList());
+					.filter(
+						p -> p.base.func == func
+						&& (nonCommutedOK || p.fromBase.contains(
+							OperatorPath.Transform.COMMUTATION))
+					).collect(toList());
 
 				if ( 0 == paths.size() )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"Synthetic operator %s has no derivation path " +
-						"from an operator that is based on this method",
-						qnameUnwrapped());
+						"from an operator that is based on this method%s",
+						qnameUnwrapped(),
+						nonCommutedOK ? "" : " and involves commutation");
 					ok = false;
 				}
 
@@ -3948,6 +4001,16 @@ hunt:	for ( ExecutableElement ee : ees )
 							.max().getAsInt())
 						.thenComparing(p -> p.base.qnameUnwrapped()))
 					.findFirst().get();
+
+				/*
+				 * At last, the possibly null funcName (synthetic=TWIN case)
+				 * can be fixed up.
+				 */
+				if ( null == synthetic )
+				{
+					FunctionImpl f = selected.base.func;
+					funcName = synthetic = qnameFrom(f.name(), f.schema());
+				}
 
 				replaceCommentIfDerived("Operator " + qnameUnwrapped()
 						+ " automatically derived by "

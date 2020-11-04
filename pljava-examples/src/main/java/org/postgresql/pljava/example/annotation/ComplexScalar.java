@@ -28,6 +28,7 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.Operator;
 import static org.postgresql.pljava.annotation.Operator.SELF;
+import static org.postgresql.pljava.annotation.Operator.TWIN;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.BaseUDT;
 
@@ -124,6 +125,19 @@ public class ComplexScalar implements SQLData {
 	{
 		return new ComplexScalar(
 			a.m_x + b.m_x, a.m_y + b.m_y, a.m_typeName);
+	}
+
+	/**
+	 * Add a {@code ComplexScalar} and a real (supplied as a {@code double}).
+	 */
+	@Operator(name = {"javatest","+"}, commutator = TWIN)
+	@Operator(name = {"javatest","+"},  synthetic = TWIN)
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static ComplexScalar add(ComplexScalar a, double b)
+	{
+		return new ComplexScalar(a.m_x + b, a.m_y, a.m_typeName);
 	}
 
 	/**
