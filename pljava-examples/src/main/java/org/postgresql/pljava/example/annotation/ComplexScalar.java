@@ -15,10 +15,14 @@ package org.postgresql.pljava.example.annotation;
 import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
+
+import static java.lang.Math.hypot;
+
 import java.sql.SQLData;
 import java.sql.SQLException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
+
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.annotation.Function;
@@ -120,6 +124,52 @@ public class ComplexScalar implements SQLData {
 	{
 		return new ComplexScalar(
 			a.m_x + b.m_x, a.m_y + b.m_y, a.m_typeName);
+	}
+
+	/**
+	 * True if the left argument is smaller than the right in magnitude
+	 * (Euclidean distance from the origin).
+	 */
+	@Operator(
+		name = "javatest.<",
+		commutator = "javatest.>", negator = "javatest.>="
+	)
+	@Operator(
+		name = "javatest.<=", synthetic = "javatest.magnitudeLE"
+	)
+	@Operator(
+		name = "javatest.>=", synthetic = "javatest.magnitudeGE",
+		commutator = "javatest.<="
+	)
+	@Operator(
+		name = "javatest.>", synthetic = "javatest.magnitudeGT",
+		negator = "javatest.<="
+	)
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static boolean magnitudeLT(ComplexScalar a, ComplexScalar b)
+	{
+		return hypot(a.m_x, a.m_y) < hypot(b.m_x, b.m_y);
+	}
+
+	/**
+	 * True if the left argument and the right are componentwise equal.
+	 */
+	@Operator(
+		name = "javatest.=",
+		commutator = SELF, negator = "javatest.<>"
+	)
+	@Operator(
+		name = "javatest.<>", synthetic = "javatest.magnitudeNE",
+		commutator = SELF
+	)
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static boolean componentsEQ(ComplexScalar a, ComplexScalar b)
+	{
+		return a.m_x == b.m_x  &&  a.m_y == b.m_y;
 	}
 
 	public ComplexScalar(double x, double y, String typeName) {

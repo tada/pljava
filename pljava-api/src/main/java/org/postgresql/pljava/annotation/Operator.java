@@ -76,6 +76,17 @@ public @interface Operator
 	String[] function() default {};
 
 	/**
+	 * Name of a function to be synthesized by PL/Java based on the method this
+	 * annotation appears on and this operator's {@code commutator} or
+	 * {@code negator} relationship to another operator declared on the same
+	 * method.
+	 *<p>
+	 * Only allowed in an annotation on a Java method, and where
+	 * {@code function} is not specified.
+	 */
+	String[] synthetic() default {};
+
+	/**
 	 * Name of an operator that is the commutator of this one.
 	 *<p>
 	 * Specified in the same ways as {@code name}. The value
