@@ -112,6 +112,7 @@ import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Aggregate;
 import org.postgresql.pljava.annotation.Cast;
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.Operator;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
@@ -231,6 +232,8 @@ class DDRProcessorImpl
 	final TypeElement  AN_CASTS;
 	final TypeElement  AN_AGGREGATE;
 	final TypeElement  AN_AGGREGATES;
+	final TypeElement  AN_OPERATOR;
+	final TypeElement  AN_OPERATORS;
 
 	// Certain familiar DBTypes (capitalized as this file historically has)
 	//
@@ -338,6 +341,9 @@ class DDRProcessorImpl
 		AN_AGGREGATE   = elmu.getTypeElement( Aggregate.class.getName());
 		AN_AGGREGATES  = elmu.getTypeElement(
 			Aggregate.Container.class.getCanonicalName());
+		AN_OPERATOR   = elmu.getTypeElement( Operator.class.getName());
+		AN_OPERATORS  = elmu.getTypeElement(
+			Operator.Container.class.getCanonicalName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -452,6 +458,7 @@ class DDRProcessorImpl
 		boolean mappedUDTPresent = false;
 		boolean castPresent = false;
 		boolean aggregatePresent = false;
+		boolean operatorPresent = false;
 		
 		boolean willClaim = true;
 		
@@ -471,6 +478,8 @@ class DDRProcessorImpl
 				castPresent = true;
 			else if ( AN_AGGREGATE.equals( te) || AN_AGGREGATES.equals( te) )
 				aggregatePresent = true;
+			else if ( AN_OPERATOR.equals( te) || AN_OPERATORS.equals( te) )
+				operatorPresent = true;
 			else
 			{
 				msg( Kind.WARNING, te,
@@ -503,6 +512,12 @@ class DDRProcessorImpl
 				: re.getElementsAnnotatedWithAny( AN_CAST, AN_CASTS) )
 				processRepeatable(
 					e, AN_CAST, AN_CASTS, CastImpl.class);
+
+		if ( operatorPresent )
+			for ( Element e
+				: re.getElementsAnnotatedWithAny( AN_OPERATOR, AN_OPERATORS) )
+				processRepeatable(
+					e, AN_OPERATOR, AN_OPERATORS, OperatorImpl.class);
 
 		if ( aggregatePresent )
 			for ( Element e
@@ -3058,6 +3073,424 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	class OperatorImpl
+	extends Repeatable
+	implements Operator, Snippet, Commentable
+	{
+		OperatorImpl(Element e, AnnotationMirror am)
+		{
+			super(e, am);
+		}
+
+		public String[]                 name() { return qstrings(qname); }
+		public String                   left() { return operand(0); }
+		public String                  right() { return operand(1);   }
+		public String[]             function() { return qstrings(funcName); }
+		public String[]           commutator() { return qstrings(commutator); }
+		public String[]              negator() { return qstrings(negator); }
+		public boolean                hashes() { return _hashes; }
+		public boolean                merges() { return _merges; }
+		public String[]             restrict() { return qstrings(restrict); }
+		public String[]                 join() { return qstrings(join); }
+		public String[]             provides() { return _provides; }
+		public String[]             requires() { return _requires; }
+
+		public String[] _provides;
+		public String[] _requires;
+		public boolean  _hashes;
+		public boolean  _merges;
+
+		Identifier.Qualified<Identifier.Operator> qname;
+		DBType[] operands = { null, null };
+		FunctionImpl func;
+		Identifier.Qualified<Identifier.Simple> funcName;
+		Identifier.Qualified<Identifier.Operator> commutator;
+		Identifier.Qualified<Identifier.Operator> negator;
+		Identifier.Qualified<Identifier.Simple> restrict;
+		Identifier.Qualified<Identifier.Simple> join;
+
+		private String operand(int i)
+		{
+			return null == operands[i] ? null : operands[i].toString();
+		}
+
+		public void setName( Object o, boolean explicit, Element e)
+		{
+			qname = operatorNameFrom(avToArray( o, String.class));
+		}
+
+		public void setLeft( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				operands[0] = DBType.fromSQLTypeAnnotation((String)o);
+		}
+
+		public void setRight( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				operands[1] = DBType.fromSQLTypeAnnotation((String)o);
+		}
+
+		public void setFunction( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				funcName = qnameFrom(avToArray( o, String.class));
+		}
+
+		public void setCommutator( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				commutator = operatorNameFrom(avToArray( o, String.class));
+		}
+
+		public void setNegator( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				negator = operatorNameFrom(avToArray( o, String.class));
+		}
+
+		public void setRestrict(
+			Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				restrict = qnameFrom(avToArray( o, String.class));
+		}
+
+		public void setJoin(
+			Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				join = qnameFrom(avToArray( o, String.class));
+		}
+
+		public boolean characterize()
+		{
+			boolean ok = true;
+
+			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
+			{
+				func = getSnippet(m_targetElement, FunctionImpl.class,
+					() -> (FunctionImpl)null);
+			}
+
+			if ( null == func  &&  null == funcName )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Operator not annotating a method must specify function="
+				);
+				ok = false;
+			}
+
+			if ( null == func )
+			{
+				if ( null == operands[0]  &&  null == operands[1] )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator not annotating a method must specify " +
+						"left= or right= or both"
+					);
+					ok = false;
+				}
+			}
+			else
+			{
+				Identifier.Qualified<Identifier.Simple> fn =
+					qnameFrom(func.name(), func.schema());
+
+				if ( null == funcName )
+					funcName = fn;
+				else if ( ! funcName.equals(fn) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but function= gives a " +
+						"different name"
+					);
+					ok = false;
+				}
+
+				long explicit =
+					Arrays.stream(operands).filter(Objects::nonNull).count();
+
+				if ( 0 == explicit )
+				{
+					int nparams = func.parameterTypes.length;
+					if ( 1 > nparams  ||  nparams > 2 )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"method annotated with @Operator must take one " +
+							"or two parameters"
+						);
+						ok = false;
+					}
+					if ( 1 == nparams )
+						operands[1] = func.parameterTypes[0];
+					else
+						System.arraycopy(func.parameterTypes,0, operands,0,2);
+				}
+				else if ( explicit != func.parameterTypes.length )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but specifies " +
+						"a different number of operands"
+					);
+					ok = false;
+				}
+				else if ( 2 == explicit
+						&& ! Arrays.equals(operands, func.parameterTypes)
+					|| 1 == explicit
+						&& ! Arrays.asList(operands)
+							.contains(func.parameterTypes[0]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but specifies " +
+						"different operand types"
+					);
+					ok = false;
+				}
+			}
+
+			/*
+			 * At this point, ok ==> there is a non-null funcName
+			 */
+
+			if ( ! ok )
+				return false;
+
+			long arity =
+				Arrays.stream(operands).filter(Objects::nonNull).count();
+
+			if ( 1 == arity  &&  null == operands[1] )
+			{
+				msg(Kind.WARNING, m_targetElement, m_origin,
+					"Right unary (postfix) operators are deprecated and will " +
+					"be removed in PostgreSQL version 14."
+				);
+			}
+
+			if ( null != commutator )
+			{
+				if ( 2 != arity )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"unary @Operator cannot have a commutator"
+					);
+					ok = false;
+				}
+			}
+
+			boolean knownNotBoolean =
+				null != func && ! DT_BOOLEAN.equals(func.returnType);
+
+			if ( null != negator )
+			{
+				if ( knownNotBoolean )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"negator= only belongs on a boolean @Operator"
+					);
+					ok = false;
+				}
+				else if ( negator.equals(qname) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator can never be its own negator"
+					);
+					ok = false;
+				}
+			}
+
+			boolean knownNotBinaryBoolean = 2 != arity || knownNotBoolean;
+			boolean knownVolatile =
+				null != func && Function.Effects.VOLATILE == func.effects();
+			boolean operandTypesDiffer =
+				2 == arity && ! operands[0].equals(operands[1]);
+			boolean selfCommutates =
+				null != commutator && commutator.equals(qname);
+
+			ok &= Stream.of(
+				_hashes ? "hashes"  : null,
+				_merges ? "merges" : null)
+				.filter(Objects::nonNull)
+				.map(s ->
+				{
+					boolean inner_ok = true;
+					if ( knownNotBinaryBoolean )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= only belongs on a boolean " +
+							"binary @Operator", s
+						);
+						inner_ok = false;
+					}
+					if ( null == commutator )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires that the @Operator " +
+							"have a commutator", s
+						);
+						inner_ok = false;
+					}
+					else if ( ! (operandTypesDiffer || selfCommutates) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires the @Operator to be its own" +
+							"commutator as its operand types are the same", s
+						);
+						inner_ok = false;
+					}
+					if ( knownVolatile )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires an underlying function " +
+							"declared IMMUTABLE or STABLE", s
+						);
+						inner_ok = false;
+					}
+					return inner_ok;
+				})
+				.allMatch(t -> t);
+
+			if ( null != restrict && knownNotBinaryBoolean )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"restrict= only belongs on a boolean binary @Operator"
+				);
+				ok = false;
+			}
+
+			if ( null != join && knownNotBinaryBoolean )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"join= only belongs on a boolean binary @Operator"
+				);
+				ok = false;
+			}
+
+			if ( ! ok )
+				return false;
+
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+			return true;
+		}
+
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			provides.add(new DependTag.Operator(qname, operands));
+
+			/*
+			 * Commutator and negator often involve cycles. PostgreSQL already
+			 * has its own means of breaking them, so it is not necessary here
+			 * even to declare dependencies based on them.
+			 *
+			 * There is also, for now, no point in declaring dependencies on
+			 * selectivity estimators; they can't be written in Java, so they
+			 * won't be products of this compilation.
+			 *
+			 * So, just require the operand types and the function.
+			 */
+
+			Arrays.stream(operands)
+				.filter(Objects::nonNull)
+				.map(DBType::dependTag)
+				.filter(Objects::nonNull)
+				.forEach(requires::add);
+
+			if ( null != func )
+			{
+				func.provideTags().stream()
+					.filter(DependTag.Function.class::isInstance)
+					.forEach(requires::add);
+			}
+			else
+			{
+				requires.add(new DependTag.Function(funcName,
+					Arrays.stream(operands)
+					.filter(Objects::nonNull)
+					.toArray(DBType[]::new)));
+			}
+		}
+
+		/**
+		 * Just to keep things interesting, a schema-qualified operator name is
+		 * wrapped in OPERATOR(...) pretty much everywhere, except as the guest
+		 * of honor in a CREATE OPERATOR or DROP OPERATOR, where the unwrapped
+		 * form is needed.
+		 */
+		private String qnameUnwrapped()
+		{
+			String local = qname.local().toString();
+			Identifier.Simple qualifier = qname.qualifier();
+			return null == qualifier ? local : qualifier + "." + local;
+		}
+
+		/**
+		 * An operator is identified this way in a COMMENT or DROP.
+		 */
+		private String commentDropForm()
+		{
+			return qnameUnwrapped() + " (" +
+				(null == operands[0] ? "NONE" : operands[0]) + ", " +
+				(null == operands[1] ? "NONE" : operands[1]) + ")";
+		}
+
+		public String[] deployStrings()
+		{
+			List<String> al = new ArrayList<>();
+
+			StringBuilder sb = new StringBuilder();
+
+			sb.append("CREATE OPERATOR ").append(qnameUnwrapped());
+			sb.append(" (\n\tPROCEDURE = ").append(funcName);
+
+			if ( null != operands[0] )
+				sb.append(",\n\tLEFTARG = ").append(operands[0]);
+
+			if ( null != operands[1] )
+				sb.append(",\n\tRIGHTARG = ").append(operands[1]);
+
+			if ( null != commutator )
+				sb.append(",\n\tCOMMUTATOR = ").append(commutator);
+
+			if ( null != negator )
+				sb.append(",\n\tNEGATOR = ").append(negator);
+
+			if ( null != restrict )
+				sb.append(",\n\tRESTRICT = ").append(restrict);
+
+			if ( null != join )
+				sb.append(",\n\tJOIN = ").append(join);
+
+			if ( _hashes )
+				sb.append(",\n\tHASHES");
+
+			if ( _merges )
+				sb.append(",\n\tMERGES");
+
+			sb.append(')');
+
+			al.add(sb.toString());
+
+			if ( null != comment() )
+				al.add(
+					"COMMENT ON OPERATOR " + commentDropForm() + " IS " +
+					DDRWriter.eQuote(comment()));
+
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			return new String[]
+			{
+				"DROP OPERATOR " + commentDropForm()
+			};
+		}
+	}
+
 	class AggregateImpl
 	extends Repeatable
 	implements Aggregate, Snippet, Commentable
@@ -4350,6 +4783,27 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	/**
+	 * Like {@link #qnameFrom(String[])} but for an operator name.
+	 */
+	Identifier.Qualified<Identifier.Operator> operatorNameFrom(String[] names)
+	{
+		switch ( names.length )
+		{
+		case 2:
+			Identifier.Simple qualifier = null;
+			if ( ! names[0].isEmpty() )
+				qualifier = Identifier.Simple.fromJava(names[0], msgr);
+			return Identifier.Operator.from(names[1], msgr)
+				.withQualifier(qualifier);
+		case 1:
+			return Identifier.Qualified.operatorFromJava(names[0], msgr);
+		default:
+			throw new IllegalArgumentException(
+				"Only a one- or two-element String array is accepted");
+		}
+	}
+
 	String[] qstrings(Identifier.Qualified<?> qname)
 	{
 		if ( null == qname )
@@ -5482,6 +5936,48 @@ abstract class DependTag<T>
 					continue;
 				}
 				if ( ! m_signature[i].equals(f.m_signature[i], msgr) )
+					return false;
+			}
+			return true;
+		}
+
+		@Override
+		public String toString()
+		{
+			return super.toString() + Arrays.toString(m_signature);
+		}
+	}
+
+	static final class Operator
+	extends Named<Identifier.Qualified<Identifier.Operator>>
+	{
+		private DBType[] m_signature;
+
+		Operator(
+			Identifier.Qualified<Identifier.Operator> value, DBType[] signature)
+		{
+			super(requireNonNull(value));
+			assert 2 == signature.length : "invalid Operator signature length";
+			m_signature = signature.clone();
+		}
+
+		@Override
+		public boolean equals(Object o, Messager msgr)
+		{
+			if ( ! super.equals(o, msgr) )
+				return false;
+			Operator op = (Operator)o;
+			if ( m_signature.length != op.m_signature.length )
+				return false;
+			for ( int i = 0; i < m_signature.length; ++ i )
+			{
+				if ( null == m_signature[i]  ||  null == op.m_signature[i] )
+				{
+					if ( m_signature[i] != op.m_signature[i] )
+						return false;
+					continue;
+				}
+				if ( ! m_signature[i].equals(op.m_signature[i], msgr) )
 					return false;
 			}
 			return true;
