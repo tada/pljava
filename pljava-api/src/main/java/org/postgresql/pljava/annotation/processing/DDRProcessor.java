@@ -445,10 +445,14 @@ class DDRProcessorImpl
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
-	 * that 'provides' it. Has to be out here as an instance field for the
-	 * same reason {@code snippetVPairs} does.
+	 * that 'provides' it (snippets, in some cases). Has to be out here as an
+	 * instance field for the same reason {@code snippetVPairs} does.
+	 *<p>
+	 * Originally limited each tag to have only one provider; that is still
+	 * enforced for implicitly-generated tags, but relaxed for explicit ones
+	 * supplied in annotations, hence the list.
 	 */
-	Map<DependTag, VertexPair<Snippet>> provider = new HashMap<>();
+	Map<DependTag, List<VertexPair<Snippet>>> provider = new HashMap<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -560,9 +564,18 @@ class DDRProcessorImpl
 			{
 				VertexPair<Snippet> v = new VertexPair<>( readySnip);
 				snippetVPairs.add( v);
-				for ( DependTag s : readySnip.provideTags() )
-					if ( null != provider.put( s, v) )
-						msg(Kind.ERROR, "tag %s has more than one provider", s);
+				for ( DependTag t : readySnip.provideTags() )
+				{
+					List<VertexPair<Snippet>> ps =
+						provider.computeIfAbsent(t, k -> new ArrayList<>());
+					/*
+					 * Explicit tags are allowed more than one provider.
+					 */
+					if ( t instanceof DependTag.Explicit  ||  ps.isEmpty() )
+						ps.add(v);
+					else
+						msg(Kind.ERROR, "tag %s has more than one provider", t);
+				}
 			}
 		}
 		snippets.clear();
@@ -581,7 +594,7 @@ class DDRProcessorImpl
 
 		for ( VertexPair<Snippet> v : snippetVPairs )
 		{
-			VertexPair<Snippet> p;
+			List<VertexPair<Snippet>> ps;
 
 			/*
 			 * First handle the implicit requires(implementor()). This is unlike
@@ -594,23 +607,26 @@ class DDRProcessorImpl
 			DependTag imp = v.payload().implementorTag();
 			if ( null != imp )
 			{
-				p = provider.get( imp);
-				if ( null != p )
+				ps = provider.get( imp);
+				if ( null != ps )
 				{
 					fwdConsumers.add( imp);
 					revConsumers.add( imp);
 
-					p.fwd.precede( v.fwd);
-					p.rev.precede( v.rev);
+					ps.forEach(p ->
+					{
+						p.fwd.precede( v.fwd);
+						p.rev.precede( v.rev);
 
-					/*
-					 * A snippet providing an implementor tag probably has no
-					 * undeployStrings, because its deployStrings should be used
-					 * on both occasions; if so, replace it with a proxy that
-					 * returns deployStrings for undeployStrings.
-					 */
-					if ( 0 == p.rev.payload.undeployStrings().length )
-						p.rev.payload = new ImpProvider( p.rev.payload);
+						/*
+						 * A snippet providing an implementor tag probably has
+						 * no undeployStrings, because its deployStrings should
+						 * be used on both occasions; if so, replace it with a
+						 * proxy that returns deployStrings for undeployStrings.
+						 */
+						if ( 0 == p.rev.payload.undeployStrings().length )
+							p.rev.payload = new ImpProvider( p.rev.payload);
+					});
 				}
 				else if ( ! defaultImplementor.equals( impName, msgr) )
 				{
@@ -629,13 +645,16 @@ class DDRProcessorImpl
 			}
 			for ( DependTag s : v.payload().requireTags() )
 			{
-				p = provider.get( s);
-				if ( null != p )
+				ps = provider.get( s);
+				if ( null != ps )
 				{
 					fwdConsumers.add( s);
 					revConsumers.add( s);
-					p.fwd.precede( v.fwd);
-					v.rev.precede( p.rev); // these relationships do reverse
+					ps.forEach(p ->
+					{
+						p.fwd.precede( v.fwd);
+						v.rev.precede( p.rev); // these relationships do reverse
+					});
 				}
 				else if ( s instanceof DependTag.Explicit )
 				{

@@ -38,11 +38,31 @@ import static
 
 /**
  * Complex (re and im parts are doubles) implemented in Java as a scalar UDT.
+ *<p>
+ * The {@code SQLAction} here demonstrates a {@code requires} tag
+ * ("complex relationals"} that has multiple providers, something not allowed
+ * prior to PL/Java 1.6.1. It is more succinct to require one tag and have each
+ * of the relational operators 'provide' it than to have to define and require
+ * several different tags to accomplish the same thing.
  */
-@SQLAction(requires = "complex assertHasValues",
+@SQLAction(requires = { "complex assertHasValues", "complex relationals" },
 	install = {
 		"SELECT javatest.assertHasValues(" +
-		" CAST('(1,2)' AS javatest.complex), 1, 2)"
+		" CAST('(1,2)' AS javatest.complex), 1, 2)",
+
+		"SELECT javatest.assertHasValues(" +
+		" 2.0 + CAST('(1,2)' AS javatest.complex) + 3.0, 6, 2)",
+
+		"SELECT" +
+		" CASE WHEN" +
+		"  '(1,2)'::javatest.complex < '(2,2)'::javatest.complex" +
+		" AND" +
+		"  '(2,2)'::javatest.complex > '(1,2)'::javatest.complex" +
+		" AND" +
+		"  '(1,2)'::javatest.complex <= '(2,2)'::javatest.complex" +
+		" THEN javatest.logmessage('INFO', 'ComplexScalar operators ok')" +
+		" ELSE javatest.logmessage('WARNING', 'ComplexScalar operators ng')" +
+		" END"
 	}
 )
 @BaseUDT(schema="javatest", name="complex",
@@ -146,18 +166,20 @@ public class ComplexScalar implements SQLData {
 	 */
 	@Operator(
 		name = "javatest.<",
-		commutator = "javatest.>", negator = "javatest.>="
+		commutator = "javatest.>", negator = "javatest.>=",
+		provides = "complex relationals"
 	)
 	@Operator(
-		name = "javatest.<=", synthetic = "javatest.magnitudeLE"
+		name = "javatest.<=", synthetic = "javatest.magnitudeLE",
+		provides = "complex relationals"
 	)
 	@Operator(
 		name = "javatest.>=", synthetic = "javatest.magnitudeGE",
-		commutator = "javatest.<="
+		commutator = "javatest.<=", provides = "complex relationals"
 	)
 	@Operator(
 		name = "javatest.>", synthetic = "javatest.magnitudeGT",
-		negator = "javatest.<="
+		negator = "javatest.<=", provides = "complex relationals"
 	)
 	@Function(
 		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
@@ -172,11 +194,12 @@ public class ComplexScalar implements SQLData {
 	 */
 	@Operator(
 		name = "javatest.=",
-		commutator = SELF, negator = "javatest.<>"
+		commutator = SELF, negator = "javatest.<>",
+		provides = "complex relationals"
 	)
 	@Operator(
 		name = "javatest.<>", synthetic = "javatest.magnitudeNE",
-		commutator = SELF
+		commutator = SELF, provides = "complex relationals"
 	)
 	@Function(
 		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
