@@ -52,6 +52,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -63,6 +64,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import java.util.function.Supplier;
+import static java.util.function.UnaryOperator.identity;
 
 import java.util.stream.Stream;
 import static java.util.stream.Collectors.joining;
@@ -107,6 +109,7 @@ import org.postgresql.pljava.ResultSetHandle;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.TriggerData;
 
+import org.postgresql.pljava.annotation.Aggregate;
 import org.postgresql.pljava.annotation.Cast;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -226,6 +229,8 @@ class DDRProcessorImpl
 	final TypeElement  AN_SQLACTIONS;
 	final TypeElement  AN_CAST;
 	final TypeElement  AN_CASTS;
+	final TypeElement  AN_AGGREGATE;
+	final TypeElement  AN_AGGREGATES;
 
 	// Certain familiar DBTypes (capitalized as this file historically has)
 	//
@@ -237,6 +242,8 @@ class DDRProcessorImpl
 		Identifier.Qualified.nameFromJava("pg_catalog.trigger"));
 	final DBType DT_VOID = new DBType.Named(
 		Identifier.Qualified.nameFromJava("pg_catalog.void"));
+	final DBType DT_ANY = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.\"any\""));
 
 	// Function signatures for certain known functions
 	//
@@ -328,6 +335,9 @@ class DDRProcessorImpl
 		AN_CAST   = elmu.getTypeElement( Cast.class.getName());
 		AN_CASTS  = elmu.getTypeElement(
 			Cast.Container.class.getCanonicalName());
+		AN_AGGREGATE   = elmu.getTypeElement( Aggregate.class.getName());
+		AN_AGGREGATES  = elmu.getTypeElement(
+			Aggregate.Container.class.getCanonicalName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -441,6 +451,7 @@ class DDRProcessorImpl
 		boolean baseUDTPresent = false;
 		boolean mappedUDTPresent = false;
 		boolean castPresent = false;
+		boolean aggregatePresent = false;
 		
 		boolean willClaim = true;
 		
@@ -458,6 +469,8 @@ class DDRProcessorImpl
 				sqlActionPresent = true;
 			else if ( AN_CAST.equals( te) || AN_CASTS.equals( te) )
 				castPresent = true;
+			else if ( AN_AGGREGATE.equals( te) || AN_AGGREGATES.equals( te) )
+				aggregatePresent = true;
 			else
 			{
 				msg( Kind.WARNING, te,
@@ -490,6 +503,12 @@ class DDRProcessorImpl
 				: re.getElementsAnnotatedWithAny( AN_CAST, AN_CASTS) )
 				processRepeatable(
 					e, AN_CAST, AN_CASTS, CastImpl.class);
+
+		if ( aggregatePresent )
+			for ( Element e
+				: re.getElementsAnnotatedWithAny( AN_AGGREGATE, AN_AGGREGATES) )
+				processRepeatable(
+					e, AN_AGGREGATE, AN_AGGREGATES, AggregateImpl.class);
 
 		tmpr.workAroundJava7Breakage(); // perhaps to be fixed in Java 9? nope.
 
@@ -2040,9 +2059,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				-- count;
 
-				String name = null == i.st ? null : i.st.name();
-				if ( null == name )
-					name = i.ve.getSimpleName().toString();
+				String name = i.name();
 
 				sb.append("\n\t");
 
@@ -3041,6 +3058,802 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	class AggregateImpl
+	extends Repeatable
+	implements Aggregate, Snippet, Commentable
+	{
+		AggregateImpl(Element e, AnnotationMirror am)
+		{
+			super(e, am);
+		}
+
+		public String[]                name() { return qstrings(qname); }
+		public String[]           arguments() { return argsOut(aggregateArgs); }
+		public String[]     directArguments() { return argsOut(directArgs); }
+		public boolean         hypothetical() { return _hypothetical; }
+		public boolean[]           variadic() { return _variadic; }
+		public Plan[]                  plan() { return new Plan[]{_plan}; }
+		public Plan[]            movingPlan() { return _movingPlan; }
+		public Function.Parallel   parallel() { return _parallel; }
+		public String[]            provides() { return _provides; }
+		public String[]            requires() { return _requires; }
+
+		public boolean           _hypothetical;
+		public boolean[]             _variadic = {false, false};
+		public Plan                      _plan;
+		public Plan[]              _movingPlan;
+		public Function.Parallel     _parallel;
+		public String[]              _provides;
+		public String[]              _requires;
+
+		FunctionImpl func;
+		Identifier.Qualified<Identifier.Simple> qname;
+		List<Map.Entry<Identifier.Simple,DBType>> aggregateArgs;
+		List<Map.Entry<Identifier.Simple,DBType>> directArgs;
+		static final int DIRECT_ARGS = 0; // index into _variadic[]
+		static final int AGG_ARGS = 1;    // likewise
+		boolean directVariadicExplicit;
+
+		private List<Map.Entry<Identifier.Simple,DBType>>
+			argsIn(String[] names)
+		{
+			return Arrays.stream(names)
+				.map(DBType::fromNameAndType)
+				.collect(toList());
+		}
+
+		private String[]
+			argsOut(List<Map.Entry<Identifier.Simple,DBType>> names)
+		{
+			return names.stream()
+				.map(e -> e.getKey() + " " + e.getValue())
+				.toArray(String[]::new);
+		}
+
+		@Override
+		public String derivedComment( Element e)
+		{
+			/*
+			 * When this annotation targets a TYPE, just as a
+			 * place to hang it, there's no particular reason to believe a
+			 * doc comment on the type is a good choice for this aggregate.
+			 * When the annotation is on a method, the chances are better.
+			 */
+			if ( ElementKind.METHOD.equals(e.getKind()) )
+				return super.derivedComment(e);
+			return null;
+		}
+
+		public void setName( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				qname = qnameFrom(avToArray( o, String.class));
+		}
+
+		public void setArguments( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				aggregateArgs = argsIn( avToArray( o, String.class));
+		}
+
+		public void setDirectArguments( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				directArgs = argsIn( avToArray( o, String.class));
+		}
+
+		public void setVariadic( Object o, boolean explicit, Element e)
+		{
+			if ( ! explicit )
+				return;
+
+			Boolean[] a = avToArray( o, Boolean.class);
+
+			if ( 1 > a.length  ||  a.length > 2 )
+				throw new IllegalArgumentException(
+					"supply only boolean or {boolean,boolean} for variadic");
+
+			if ( ! Arrays.asList(a).contains(true) )
+				throw new IllegalArgumentException(
+					"supply variadic= only if aggregated arguments, direct " +
+					"arguments, or both, are variadic");
+
+			_variadic[AGG_ARGS] = a[a.length - 1];
+			if ( 2 == a.length )
+			{
+				directVariadicExplicit = true;
+				_variadic[DIRECT_ARGS] = a[0];
+			}
+		}
+
+		public void setPlan( Object o, boolean explicit, Element e)
+		{
+			_plan = new Plan(); // always a plan, even if members uninitialized
+
+			if ( explicit )
+				_plan = planFrom( _plan, o, e, "plan");
+		}
+
+		public void setMovingPlan( Object o, boolean explicit, Element e)
+		{
+			if ( ! explicit )
+				return;
+
+			_movingPlan = new Plan[1];
+			_movingPlan [ 0 ] = planFrom( new Moving(), o, e, "movingPlan");
+		}
+
+		Plan planFrom( Plan p, Object o, Element e, String which)
+		{
+			AnnotationMirror[] ams = avToArray( o, AnnotationMirror.class);
+
+			if ( 1 != ams.length )
+				throw new IllegalArgumentException(
+					which + " must be given exactly one @Plan");
+
+			populateAnnotationImpl( p, e, ams[0]);
+			return p;
+		}
+
+		public boolean characterize()
+		{
+			boolean ok = true;
+			boolean orderedSet = null != directArgs;
+			boolean moving = null != _movingPlan;
+			boolean checkAccumulatorSig = false;
+			boolean checkFinisherSig = false;
+
+			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
+			{
+				func = getSnippet(m_targetElement, FunctionImpl.class,
+					() -> (FunctionImpl)null);
+				if ( null == func )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A method annotated with @Aggregate must " +
+						"also have @Function"
+					);
+					ok = false;
+				}
+			}
+
+			if ( null != func )
+			{
+				Identifier.Qualified<Identifier.Simple> funcName =
+					qnameFrom(func.name(), func.schema());
+				boolean inferAccumulator =
+					null == _plan.accumulate  ||  null == aggregateArgs;
+				boolean inferFinisher =
+					null == _plan.finish  &&  ! inferAccumulator;
+
+				if ( null == qname )
+				{
+
+					if ( inferFinisher && 1 == aggregateArgs.size()
+						&& 1 == func.parameterTypes.length
+						&& func.parameterTypes[0] ==
+							aggregateArgs.get(0).getValue() )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Default name %s for this aggregate would " +
+							"collide with finish function; use name= to " +
+							"specify a name", funcName
+						);
+						ok = false;
+					}
+					else
+						qname = funcName;
+				}
+
+				if ( 1 > func.parameterTypes.length )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Function with no arguments cannot be @Aggregate " +
+						"accumulate or finish function"
+					);
+					ok = false;
+				}
+				else if ( null == _plan.stateType )
+				{
+					_plan.stateType = func.parameterTypes[0];
+					if (null != _movingPlan
+						&& null == _movingPlan[0].stateType)
+						_movingPlan[0].stateType = func.parameterTypes[0];
+				}
+
+				if ( inferAccumulator  ||  inferFinisher )
+				{
+					if ( ok )
+					{
+						if ( inferAccumulator )
+						{
+							if ( null == aggregateArgs )
+							{
+								aggregateArgs =
+									func.parameterInfo()
+									.skip(1) // skip the state argument
+									.map(pi ->
+										(Map.Entry<Identifier.Simple, DBType>)
+										new AbstractMap.SimpleImmutableEntry(
+											Identifier.Simple.fromJava(
+												pi.name()
+											),
+											pi.dt
+										)
+									)
+									.collect(toList());
+							}
+							_plan.accumulate = funcName;
+							if ( null != _movingPlan
+								&& null == _movingPlan[0].accumulate )
+								_movingPlan[0].accumulate = funcName;
+						}
+						else // inferFinisher
+						{
+							_plan.finish = funcName;
+							if ( null != _movingPlan
+								&& null == _movingPlan[0].finish )
+								_movingPlan[0].finish = funcName;
+						}
+					}
+				}
+				else if ( funcName.equals(_plan.accumulate) )
+					checkAccumulatorSig = true;
+				else if ( funcName.equals(_plan.finish) )
+					checkFinisherSig = true;
+				else
+				{
+					msg(Kind.WARNING, m_targetElement, m_origin,
+						"@Aggregate annotation on a method not recognized " +
+						"as either the accumulate or the finish function " +
+						"for the aggregate");
+				}
+
+				// If the method is the accumulator and is RETURNS_NULL, ensure
+				// there is either an initialState or a first aggregate arg that
+				// matches the stateType.
+				if ( ok && ( inferAccumulator || checkAccumulatorSig ) )
+				{
+					if ( Function.OnNullInput.RETURNS_NULL == func.onNullInput()
+						&& ( 0 == aggregateArgs.size()
+							|| ! _plan.stateType.equals(
+									aggregateArgs.get(0).getValue()) )
+						&& null == _plan._initialState )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"@Aggregate without initialState= must have " +
+							"either a first argument matching the stateType " +
+							"or an accumulate method with onNullInput=CALLED.");
+						ok = false;
+					}
+				}
+			}
+
+			if ( null == qname )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing name=");
+				ok = false;
+			}
+
+			if ( null == aggregateArgs )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing arguments=");
+				ok = false;
+			}
+
+			if ( null == _plan.stateType )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing stateType=");
+				ok = false;
+			}
+
+			if ( null == _plan.accumulate )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate plan missing accumulate=");
+				ok = false;
+			}
+
+			// Could check argument count against FUNC_MAX_ARGS, but that would
+			// hardcode an assumed value for PostgreSQL's FUNC_MAX_ARGS.
+
+			// Check that, if a stateType is polymorphic, there are compatible
+			// polymorphic arg types? Not today.
+
+			// If a plan has no initialState, then either the accumulate
+			// function must NOT be RETURNS NULL ON NULL INPUT, or the first
+			// aggregated argument type must be the same as the state type.
+			// The type check is easy, but the returnsNull check on the
+			// accumulate function would require looking up the function (and
+			// still we wouldn't know, if it's not seen in this compilation).
+			// For another day.
+
+			// Allow hypothetical only for ordered-set aggregate.
+			if ( _hypothetical && ! orderedSet )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"hypothetical=true is only allowed for an ordered-set " +
+					"aggregate (one with directArguments specified, " +
+					"even if only {})");
+				ok = false;
+			}
+
+			// Allow two-element variadic= only for ordered-set aggregate.
+			if ( directVariadicExplicit && ! orderedSet )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"Two values for variadic= are only allowed for an " +
+					"ordered-set aggregate (one with directArguments " +
+					"specified, even if only {})");
+				ok = false;
+			}
+
+			// Require a movingPlan to have a remove function.
+			if ( moving && null == _movingPlan[0].remove )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"a movingPlan must include a remove function");
+				ok = false;
+			}
+
+			// Checks if the aggregated argument list is declared variadic.
+			// The last element must be an array type or "any"; an ordered-set
+			// aggregate allows only one argument and it must be "any".
+			if ( _variadic[AGG_ARGS] )
+			{
+				if ( 1 > aggregateArgs.size() )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"To declare the aggregated argument list variadic, " +
+						"there must be at least one argument.");
+					ok = false;
+				}
+				else
+				{
+					DBType t =
+						aggregateArgs.get(aggregateArgs.size() - 1).getValue();
+					boolean isAny = // allow omission of pg_catalog namespace
+						DT_ANY.equals(t)  ||  "\"any\"".equals(t.toString());
+					if ( orderedSet && (! isAny || 1 != aggregateArgs.size()) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"If variadic, an ordered-set aggregate's " +
+							"aggregated argument list must be only one " +
+							"argument and of type \"any\".");
+						ok = false;
+					}
+					else if ( ! isAny  &&  ! t.isArray() )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"If variadic, the last aggregated argument must " +
+							"be an array type (or \"any\").");
+						ok = false;
+					}
+				}
+			}
+
+			// Checks specific to ordered-set aggregates.
+			if ( orderedSet )
+			{
+				if ( 0 == aggregateArgs.size() )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"An ordered-set aggregate needs at least one " +
+						"aggregated argument");
+					ok = false;
+				}
+
+				// Checks specific to hypothetical-set aggregates.
+				// The aggregated argument types must match the trailing direct
+				// arguments, and the two variadic declarations must match.
+				if ( _hypothetical )
+				{
+					if ( _variadic[DIRECT_ARGS] != _variadic[AGG_ARGS] )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"For a hypothetical-set aggregate, neither or " +
+							"both the direct and aggregated argument lists " +
+							"must be declared variadic.");
+						ok = false;
+					}
+					if ( directArgs.size() < aggregateArgs.size()
+						||
+						! directArgs.subList(
+							directArgs.size() - aggregateArgs.size(),
+							directArgs.size())
+							.equals(aggregateArgs) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"The last direct arguments of a hypothetical-set " +
+							"aggregate must match the types of the " +
+							"aggregated arguments");
+						ok = false;
+					}
+				}
+			}
+
+			// It is allowed to omit a finisher function, but some things
+			// make no sense without one.
+			if ( orderedSet && null == _plan.finish && 0 < directArgs.size() )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"Direct arguments serve no purpose without a finisher");
+				ok = false;
+			}
+
+			if ( null == _plan.finish && _plan._polymorphic )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"The polymorphic flag is meaningless with no finisher");
+				ok = false;
+			}
+
+			// The same finisher checks for a movingPlan, if present.
+			if ( moving )
+			{
+				if ( orderedSet
+					&& null == _movingPlan[0].finish
+					&& directArgs.size() > 0 )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Direct arguments serve no purpose without a finisher");
+					ok = false;
+				}
+
+				if ( null == _movingPlan[0].finish
+					&& _movingPlan[0]._polymorphic )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"The polymorphic flag is meaningless with no finisher");
+					ok = false;
+				}
+			}
+
+			if ( ! ok )
+				return false;
+
+			Set<DependTag> requires = requireTags();
+
+			DBType[] accumulatorSig =
+				Stream.of(
+					Stream.of(_plan.stateType),
+					aggregateArgs.stream().map(Map.Entry::getValue))
+				.flatMap(identity()).toArray(DBType[]::new);
+
+			DBType[] combinerSig = { _plan.stateType, _plan.stateType };
+
+			DBType[] finisherSig =
+				Stream.of(
+					Stream.of(_plan.stateType),
+					orderedSet
+						? directArgs.stream().map(Map.Entry::getValue)
+						: Stream.of(),
+					_plan._polymorphic
+						? aggregateArgs.stream().map(Map.Entry::getValue)
+						: Stream.of()
+				)
+				.flatMap(identity())
+				.toArray(DBType[]::new);
+
+			if ( checkAccumulatorSig
+				&& ! Arrays.equals(accumulatorSig, func.parameterTypes) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate annotation on a method that matches the name " +
+					"but not argument types expected for the aggregate's " +
+					"accumulate function");
+				ok = false;
+			}
+
+			if ( checkFinisherSig
+				&& ! Arrays.equals(finisherSig, func.parameterTypes) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate annotation on a method that matches the name " +
+					"but not argument types expected for the aggregate's " +
+					"finish function");
+				ok = false;
+			}
+
+			requires.add(
+				new DependTag.Function(_plan.accumulate, accumulatorSig));
+
+			if ( null != _plan.combine )
+				requires.add(
+					new DependTag.Function(_plan.combine, combinerSig));
+
+			if ( null != _plan.finish )
+				requires.add(
+					new DependTag.Function(_plan.finish, finisherSig));
+
+			if ( moving )
+			{
+				accumulatorSig[0] = _movingPlan[0].stateType;
+				Arrays.fill(combinerSig, _movingPlan[0].stateType);
+				finisherSig[0] = _movingPlan[0].stateType;
+
+				requires.add(new DependTag.Function(
+					_movingPlan[0].accumulate, accumulatorSig));
+
+				requires.add(new DependTag.Function(
+					_movingPlan[0].remove, accumulatorSig));
+
+				if ( null != _movingPlan[0].combine )
+					requires.add(new DependTag.Function(
+						_movingPlan[0].combine, combinerSig));
+
+				if ( null != _movingPlan[0].finish )
+					requires.add(new DependTag.Function(
+						_movingPlan[0].finish, finisherSig));
+			}
+
+			/*
+			 * That establishes dependency on the various support functions,
+			 * which should, transitively, depend on all of the types. But it is
+			 * possible we do not have a whole-program view (perhaps some
+			 * support functions are implemented in other languages, and there
+			 * are @SQLActions setting them up?). Therefore also, redundantly as
+			 * it may be, declare dependency on the types.
+			 */
+
+			Stream.of(
+				aggregateArgs.stream().map(Map.Entry::getValue),
+				orderedSet
+					? directArgs.stream().map(Map.Entry::getValue)
+					: Stream.<DBType>of(),
+				Stream.of(_plan.stateType),
+				moving
+					? Stream.of(_movingPlan[0].stateType)
+					: Stream.<DBType>of()
+				)
+				.flatMap(identity())
+				.map(DBType::dependTag)
+				.filter(Objects::nonNull)
+				.forEach(requires::add);
+
+			recordExplicitTags(_provides, _requires);
+			return true;
+		}
+
+		public String[] deployStrings()
+		{
+			List<String> al = new ArrayList<>();
+
+			StringBuilder sb = new StringBuilder("CREATE AGGREGATE ");
+			appendNameAndArguments(sb);
+			sb.append(" (");
+
+			String[] planStrings = _plan.deployStrings();
+			int n = planStrings.length;
+			for ( String s : planStrings )
+			{
+				sb.append("\n\t").append(s);
+				if ( 0 < -- n )
+					sb.append(',');
+			}
+
+			if ( null != _movingPlan )
+			{
+				planStrings = _movingPlan[0].deployStrings();
+				for ( String s : planStrings )
+					sb.append(",\n\tM").append(s);
+			}
+
+			if ( Function.Parallel.UNSAFE != _parallel )
+				sb.append(",\n\tPARALLEL = ").append(_parallel);
+
+			if ( _hypothetical )
+				sb.append(",\n\tHYPOTHETICAL");
+
+			sb.append(')');
+
+			al.add(sb.toString());
+
+			if ( null != comment() )
+			{
+				sb = new StringBuilder("COMMENT ON AGGREGATE ");
+				appendNameAndArguments(sb);
+				sb.append(" IS ").append(DDRWriter.eQuote(comment()));
+				al.add(sb.toString());
+			}
+
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			StringBuilder sb = new StringBuilder("DROP AGGREGATE ");
+			appendNameAndArguments(sb);
+			return new String[] { sb.toString() };
+		}
+
+		private void appendNameAndArguments(StringBuilder sb)
+		{
+			ListIterator<Map.Entry<Identifier.Simple,DBType>> iter;
+			Map.Entry<Identifier.Simple,DBType> entry;
+
+			sb.append(qname).append('(');
+			if ( null != directArgs )
+			{
+				iter = directArgs.listIterator();
+				while ( iter.hasNext() )
+				{
+					entry = iter.next();
+					sb.append("\n\t");
+					if ( _variadic[DIRECT_ARGS]  &&  ! iter.hasNext() )
+						sb.append("VARIADIC ");
+					if ( null != entry.getKey() )
+						sb.append(entry.getKey()).append(' ');
+					sb.append(entry.getValue());
+					if ( iter.hasNext() )
+						sb.append(',');
+					else
+						sb.append("\n\t");
+				}
+				sb.append("ORDER BY");
+			}
+			else if ( 0 == aggregateArgs.size() )
+				sb.append('*');
+
+			iter = aggregateArgs.listIterator();
+			while ( iter.hasNext() )
+			{
+				entry = iter.next();
+				sb.append("\n\t");
+				if ( _variadic[AGG_ARGS]  &&  ! iter.hasNext() )
+					sb.append("VARIADIC ");
+				if ( null != entry.getKey() )
+					sb.append(entry.getKey()).append(' ');
+				sb.append(entry.getValue());
+				if ( iter.hasNext() )
+					sb.append(',');
+			}
+			sb.append(')');
+		}
+
+		class Plan extends AbstractAnnotationImpl implements Aggregate.Plan
+		{
+			public String          stateType() { return stateType.toString(); }
+			public int             stateSize() { return _stateSize; }
+			public String       initialState() { return _initialState; }
+			public String[]       accumulate() { return qstrings(accumulate); }
+			public String[]          combine() { return qstrings(combine); }
+			public String[]           finish() { return qstrings(finish); }
+			public String[]           remove() { return qstrings(remove); }
+			public boolean       polymorphic() { return _polymorphic; }
+			public FinishEffect finishEffect() { return _finishEffect; }
+
+			public int             _stateSize;
+			public String       _initialState;
+			public boolean       _polymorphic;
+			public FinishEffect _finishEffect;
+
+			DBType stateType;
+			Identifier.Qualified<Identifier.Simple> accumulate;
+			Identifier.Qualified<Identifier.Simple> combine;
+			Identifier.Qualified<Identifier.Simple> finish;
+			Identifier.Qualified<Identifier.Simple> remove;
+
+			public void setStateType(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					stateType = DBType.fromSQLTypeAnnotation((String)o);
+			}
+
+			public void setStateSize(Object o, boolean explicit, Element e)
+			{
+				_stateSize = (Integer)o;
+				if ( explicit  &&  0 >= _stateSize )
+					throw new IllegalArgumentException(
+						"An explicit stateSize must be positive");
+			}
+
+			public void setInitialState(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					_initialState = (String)o;
+			}
+
+			public void setAccumulate(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					accumulate = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setCombine(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					combine = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setFinish(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					finish = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setRemove(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					throw new IllegalArgumentException(
+						"Only a movingPlan may have a remove function");
+			}
+
+			public void setFinishEffect( Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					_finishEffect = FinishEffect.valueOf(
+						((VariableElement)o).getSimpleName().toString());
+			}
+
+			public boolean characterize()
+			{
+				return false;
+			}
+
+			/**
+			 * Returns one string per plan element (not per SQL statement).
+			 *<p>
+			 * This method has to be here anyway because the class extends
+			 * {@code AbstractAnnotationImpl}, but it will never be processed as
+			 * an actual SQL snippet. This will be called by the containing
+			 * {@code AggregateImpl} and return the individual plan elements
+			 * that it will build into its own deploy strings.
+			 *<p>
+			 * When this class represents a moving plan, the caller will prefix
+			 * each of these strings with {@code M}.
+			 */
+			public String[] deployStrings()
+			{
+				List<String> al = new ArrayList<>();
+
+				al.add("STYPE = " + stateType);
+
+				if ( 0 != _stateSize )
+					al.add("SSPACE = " + _stateSize);
+
+				if ( null != _initialState )
+					al.add("INITCOND = " + DDRWriter.eQuote(_initialState));
+
+				al.add("SFUNC = " + accumulate);
+
+				if ( null != remove )
+					al.add("INVFUNC = " + remove);
+
+				if ( null != finish )
+					al.add("FINALFUNC = " + finish);
+
+				if ( _polymorphic )
+					al.add("FINALFUNC_EXTRA");
+
+				if ( null != _finishEffect )
+					al.add("FINALFUNC_MODIFY = " + _finishEffect);
+
+				if ( null != combine )
+					al.add("COMBINEFUNC = " + combine);
+
+				return al.toArray( new String [ al.size() ]);
+			}
+
+			public String[] undeployStrings()
+			{
+				return null;
+			}
+		}
+
+		class Moving extends Plan
+		{
+			public void setRemove(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					remove = qnameFrom(avToArray( o, String.class));
+			}
+		}
+	}
+
 	/**
 	 * Provides the default mappings from Java types to SQL types.
 	 */
@@ -3514,6 +4327,36 @@ hunt:	for ( ExecutableElement ee : ees )
 	Identifier.Qualified<Identifier.Simple> qnameFrom(String name)
 	{
 		return Identifier.Qualified.nameFromJava(name, msgr);
+	}
+
+	/**
+	 * Return an {@code Identifier.Qualified} from an array of Java strings
+	 * representing schema and local name separately if of length two, or as by
+	 * {@link #qnameFrom(String)} if of length one; invalid if of any other
+	 * length.
+	 *<p>
+	 * The first of two elements may be explicitly {@code ""} to produce a
+	 * qualified name with null qualifier.
+	 */
+	Identifier.Qualified<Identifier.Simple> qnameFrom(String[] names)
+	{
+		switch ( names.length )
+		{
+		case 2: return qnameFrom(names[1], names[0]);
+		case 1: return qnameFrom(names[0]);
+		default:
+			throw new IllegalArgumentException(
+				"Only a one- or two-element String array is accepted");
+		}
+	}
+
+	String[] qstrings(Identifier.Qualified<?> qname)
+	{
+		if ( null == qname )
+			return null;
+		Identifier.Simple q = qname.qualifier();
+		String local = qname.local().toString();
+		return new String[] { null == q ? null : q.toString(), local };
 	}
 }
 
@@ -4662,6 +5505,14 @@ class ParameterInfo
 	final VariableElement ve;
 	final SQLType st;
 	final DBType dt;
+
+	String name()
+	{
+		String name = null == st ? null : st.name();
+		if ( null == name )
+			name = ve.getSimpleName().toString();
+		return name;
+	}
 
 	ParameterInfo(TypeMirror m, VariableElement e, SQLType t, DBType d)
 	{
