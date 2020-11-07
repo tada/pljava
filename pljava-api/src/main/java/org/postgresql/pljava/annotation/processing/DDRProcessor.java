@@ -2059,9 +2059,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				-- count;
 
-				String name = null == i.st ? null : i.st.name();
-				if ( null == name )
-					name = i.ve.getSimpleName().toString();
+				String name = i.name();
 
 				sb.append("\n\t");
 
@@ -3074,7 +3072,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[]     directArguments() { return argsOut(directArgs); }
 		public boolean         hypothetical() { return _hypothetical; }
 		public boolean[]           variadic() { return _variadic; }
-		public Plan                    plan() { return _plan; }
+		public Plan[]                  plan() { return new Plan[]{_plan}; }
 		public Plan[]            movingPlan() { return _movingPlan; }
 		public Function.Parallel   parallel() { return _parallel; }
 		public String[]            provides() { return _provides; }
@@ -3088,6 +3086,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[]              _provides;
 		public String[]              _requires;
 
+		FunctionImpl func;
 		Identifier.Qualified<Identifier.Simple> qname;
 		List<Map.Entry<Identifier.Simple,DBType>> aggregateArgs;
 		List<Map.Entry<Identifier.Simple,DBType>> directArgs;
@@ -3115,21 +3114,26 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String derivedComment( Element e)
 		{
 			/*
-			 * For the time being, this annotation targets a TYPE, just as a
-			 * place to hang it, and there's no particular reason to believe a
-			 * doc comment on the type has anything to do with this aggregate.
+			 * When this annotation targets a TYPE, just as a
+			 * place to hang it, there's no particular reason to believe a
+			 * doc comment on the type is a good choice for this aggregate.
+			 * When the annotation is on a method, the chances are better.
 			 */
+			if ( ElementKind.METHOD.equals(e.getKind()) )
+				return super.derivedComment(e);
 			return null;
 		}
 
 		public void setName( Object o, boolean explicit, Element e)
 		{
-			qname = qnameFrom(avToArray( o, String.class));
+			if ( explicit )
+				qname = qnameFrom(avToArray( o, String.class));
 		}
 
 		public void setArguments( Object o, boolean explicit, Element e)
 		{
-			aggregateArgs = argsIn( avToArray( o, String.class));
+			if ( explicit )
+				aggregateArgs = argsIn( avToArray( o, String.class));
 		}
 
 		public void setDirectArguments( Object o, boolean explicit, Element e)
@@ -3164,9 +3168,10 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		public void setPlan( Object o, boolean explicit, Element e)
 		{
-			Plan p = new Plan();
-			populateAnnotationImpl( p, e, (AnnotationMirror)o);
-			_plan = p;
+			_plan = new Plan(); // always a plan, even if members uninitialized
+
+			if ( explicit )
+				_plan = planFrom( _plan, o, e, "plan");
 		}
 
 		public void setMovingPlan( Object o, boolean explicit, Element e)
@@ -3174,17 +3179,20 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! explicit )
 				return;
 
+			_movingPlan = new Plan[1];
+			_movingPlan [ 0 ] = planFrom( new Moving(), o, e, "movingPlan");
+		}
+
+		Plan planFrom( Plan p, Object o, Element e, String which)
+		{
 			AnnotationMirror[] ams = avToArray( o, AnnotationMirror.class);
 
 			if ( 1 != ams.length )
 				throw new IllegalArgumentException(
-					"movingPlan must be given exactly one @Plan");
+					which + " must be given exactly one @Plan");
 
-			_movingPlan = new Plan[1];
-
-			Plan p = new Moving();
 			populateAnnotationImpl( p, e, ams[0]);
-			_movingPlan [ 0 ] = p;
+			return p;
 		}
 
 		public boolean characterize()
@@ -3192,10 +3200,162 @@ hunt:	for ( ExecutableElement ee : ees )
 			boolean ok = true;
 			boolean orderedSet = null != directArgs;
 			boolean moving = null != _movingPlan;
+			boolean checkAccumulatorSig = false;
+			boolean checkFinisherSig = false;
 
-			// Must have a name, a plan with an accumulate function, and an
-			// array of arguments (length 0 for (*)). No check needed here; the
-			// annotation declares those without defaults.
+			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
+			{
+				func = getSnippet(m_targetElement, FunctionImpl.class,
+					() -> (FunctionImpl)null);
+				if ( null == func )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"A method annotated with @Aggregate must " +
+						"also have @Function"
+					);
+					ok = false;
+				}
+			}
+
+			if ( null != func )
+			{
+				Identifier.Qualified<Identifier.Simple> funcName =
+					qnameFrom(func.name(), func.schema());
+				boolean inferAccumulator =
+					null == _plan.accumulate  ||  null == aggregateArgs;
+				boolean inferFinisher =
+					null == _plan.finish  &&  ! inferAccumulator;
+
+				if ( null == qname )
+				{
+
+					if ( inferFinisher && 1 == aggregateArgs.size()
+						&& 1 == func.parameterTypes.length
+						&& func.parameterTypes[0] ==
+							aggregateArgs.get(0).getValue() )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Default name %s for this aggregate would " +
+							"collide with finish function; use name= to " +
+							"specify a name", funcName
+						);
+						ok = false;
+					}
+					else
+						qname = funcName;
+				}
+
+				if ( 1 > func.parameterTypes.length )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Function with no arguments cannot be @Aggregate " +
+						"accumulate or finish function"
+					);
+					ok = false;
+				}
+				else if ( null == _plan.stateType )
+				{
+					_plan.stateType = func.parameterTypes[0];
+					if (null != _movingPlan
+						&& null == _movingPlan[0].stateType)
+						_movingPlan[0].stateType = func.parameterTypes[0];
+				}
+
+				if ( inferAccumulator  ||  inferFinisher )
+				{
+					if ( ok )
+					{
+						if ( inferAccumulator )
+						{
+							if ( null == aggregateArgs )
+							{
+								aggregateArgs =
+									func.parameterInfo()
+									.skip(1) // skip the state argument
+									.map(pi ->
+										(Map.Entry<Identifier.Simple, DBType>)
+										new AbstractMap.SimpleImmutableEntry(
+											Identifier.Simple.fromJava(
+												pi.name()
+											),
+											pi.dt
+										)
+									)
+									.collect(toList());
+							}
+							_plan.accumulate = funcName;
+							if ( null != _movingPlan
+								&& null == _movingPlan[0].accumulate )
+								_movingPlan[0].accumulate = funcName;
+						}
+						else // inferFinisher
+						{
+							_plan.finish = funcName;
+							if ( null != _movingPlan
+								&& null == _movingPlan[0].finish )
+								_movingPlan[0].finish = funcName;
+						}
+					}
+				}
+				else if ( funcName.equals(_plan.accumulate) )
+					checkAccumulatorSig = true;
+				else if ( funcName.equals(_plan.finish) )
+					checkFinisherSig = true;
+				else
+				{
+					msg(Kind.WARNING, m_targetElement, m_origin,
+						"@Aggregate annotation on a method not recognized " +
+						"as either the accumulate or the finish function " +
+						"for the aggregate");
+				}
+
+				// If the method is the accumulator and is RETURNS_NULL, ensure
+				// there is either an initialState or a first aggregate arg that
+				// matches the stateType.
+				if ( ok && ( inferAccumulator || checkAccumulatorSig ) )
+				{
+					if ( Function.OnNullInput.RETURNS_NULL == func.onNullInput()
+						&& ( 0 == aggregateArgs.size()
+							|| ! _plan.stateType.equals(
+									aggregateArgs.get(0).getValue()) )
+						&& null == _plan._initialState )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"@Aggregate without initialState= must have " +
+							"either a first argument matching the stateType " +
+							"or an accumulate method with onNullInput=CALLED.");
+						ok = false;
+					}
+				}
+			}
+
+			if ( null == qname )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing name=");
+				ok = false;
+			}
+
+			if ( null == aggregateArgs )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing arguments=");
+				ok = false;
+			}
+
+			if ( null == _plan.stateType )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate missing stateType=");
+				ok = false;
+			}
+
+			if ( null == _plan.accumulate )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate plan missing accumulate=");
+				ok = false;
+			}
 
 			// Could check argument count against FUNC_MAX_ARGS, but that would
 			// hardcode an assumed value for PostgreSQL's FUNC_MAX_ARGS.
@@ -3378,6 +3538,26 @@ hunt:	for ( ExecutableElement ee : ees )
 				.flatMap(identity())
 				.toArray(DBType[]::new);
 
+			if ( checkAccumulatorSig
+				&& ! Arrays.equals(accumulatorSig, func.parameterTypes) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate annotation on a method that matches the name " +
+					"but not argument types expected for the aggregate's " +
+					"accumulate function");
+				ok = false;
+			}
+
+			if ( checkFinisherSig
+				&& ! Arrays.equals(finisherSig, func.parameterTypes) )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Aggregate annotation on a method that matches the name " +
+					"but not argument types expected for the aggregate's " +
+					"finish function");
+				ok = false;
+			}
+
 			requires.add(
 				new DependTag.Function(_plan.accumulate, accumulatorSig));
 
@@ -3559,7 +3739,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			public void setStateType(Object o, boolean explicit, Element e)
 			{
-				stateType = DBType.fromSQLTypeAnnotation((String)o);
+				if ( explicit )
+					stateType = DBType.fromSQLTypeAnnotation((String)o);
 			}
 
 			public void setStateSize(Object o, boolean explicit, Element e)
@@ -5324,6 +5505,14 @@ class ParameterInfo
 	final VariableElement ve;
 	final SQLType st;
 	final DBType dt;
+
+	String name()
+	{
+		String name = null == st ? null : st.name();
+		if ( null == name )
+			name = ve.getSimpleName().toString();
+		return name;
+	}
 
 	ParameterInfo(TypeMirror m, VariableElement e, SQLType t, DBType d)
 	{

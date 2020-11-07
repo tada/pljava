@@ -70,7 +70,7 @@ import org.postgresql.pljava.annotation.SQLAction;
     "  expected, got"
 })
 @Aggregate(provides = "avgx",
-	name = "avgx",
+	name = { "javatest", "avgx" },
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
@@ -106,7 +106,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	)
 )
 @Aggregate(provides = "avgy",
-	name = "avgy",
+	name = { "javatest", "avgy" },
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
@@ -117,7 +117,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	)
 )
 @Aggregate(provides = "slope",
-	name = "slope",
+	name = { "javatest", "slope" },
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
@@ -128,7 +128,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	)
 )
 @Aggregate(provides = "intercept",
-	name = "intercept",
+	name = { "javatest", "intercept" },
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
@@ -139,7 +139,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	)
 )
 @Aggregate(
-	name = "regression",
+	name = "javatest.regression",
 	arguments = { "y double precision", "x double precision" },
 	plan = @Aggregate.Plan(
 		stateType = "double precision[]",
@@ -163,6 +163,8 @@ import org.postgresql.pljava.annotation.SQLAction;
 )
 public class Aggregates
 {
+	private Aggregates() { } // do not instantiate
+
 	private static final int N   = 0;
 	private static final int SX  = 1;
 	private static final int SXX = 2;
@@ -212,11 +214,31 @@ public class Aggregates
 
 	/**
 	 * Finisher that returns the count of non-null rows accumulated.
+	 *<p>
+	 * As an alternative to collecting all {@code @Aggregate} annotations up at
+	 * the top of the class and specifying everything explicitly, an
+	 * {@code @Aggregate} annotation can be placed on a method, either
+	 * the accumulator or the finisher, in which case less needs to be
+	 * specified. The state type can always be determined from the annotated
+	 * method (whether it is the accumulator or the finisher), and its SQL name
+	 * will be the default name for the aggregate also. When the method is the
+	 * accumulator, the aggregate's arguments are also determined.
+	 *<p>
+	 * This being a finisher method, the {@code @Aggregate} annotation placed
+	 * here does need to specify the arguments, initial state, and accumulator.
 	 */
+	@Aggregate(
+		arguments = { "y double precision", "x double precision" },
+		plan = @Aggregate.Plan(
+			stateSize = 72,
+			initialState = "{0,0,0,0,0,0}",
+			accumulate = { "javatest", "accumulateXY" }
+		)
+	)
 	@Function(
 		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
 	)
-	public static long finishCount(double[] state)
+	public static long count(double[] state)
 	{
 		return (long)state[N];
 	}
@@ -297,5 +319,21 @@ public class Aggregates
 		out.updateObject(1, finishSlope(state));
 		out.updateObject(2, finishIntercept(state));
 		return true;
+	}
+
+	/**
+	 * An example aggregate that sums its input.
+	 *<p>
+	 * The simplest kind of aggregate, having only an accumulate function,
+	 * default initial state, and no finisher (the state value is the return)
+	 * can be declared very concisely by annotating the accumulate method.
+	 */
+	@Aggregate
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static double sum(double state, double x)
+	{
+		return state + x;
 	}
 }

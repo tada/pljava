@@ -82,7 +82,7 @@ import java.lang.annotation.Target;
  * @author Chapman Flack
  */
 @Documented
-@Target(ElementType.TYPE)
+@Target({ElementType.TYPE,ElementType.METHOD})
 @Repeatable(Aggregate.Container.class)
 @Retention(RetentionPolicy.CLASS)
 public @interface Aggregate
@@ -135,7 +135,7 @@ public @interface Aggregate
 		 * (both argument types for {@code combine}) and also, if there is no
 		 * {@code finish} function, the result type of the aggregate.
 		 */
-		String stateType();
+		String stateType() default "";
 
 		/**
 		 * An optional estimate of the size in bytes that the state may grow
@@ -164,7 +164,7 @@ public @interface Aggregate
 		 * {@code arguments}. It does not receive the {@code directArguments},
 		 * if any.
 		 */
-		String[] accumulate();
+		String[] accumulate() default {};
 
 		/**
 		 * Name of an optional function to combine two instances of the state
@@ -245,8 +245,19 @@ public @interface Aggregate
 	 * schema-qualified name. In the explicit form, {@code ""} as the schema
 	 * will make the name explicitly unqualified (in case the local name might
 	 * contain a dot and be misread as a qualified name).
+	 *<p>
+	 * When this annotation is not placed on a method, there is no default, and
+	 * a name must be supplied. When the annotation is on a method (which can be
+	 * either the {@code accumulate} or the {@code finish} function for the
+	 * aggregate), the default name will be the same as the SQL name given for
+	 * the function. That is typically possible because the parameter signature
+	 * for the aggregate function will not be the same as either the
+	 * {@code accumulate} or the {@code finish} function. The exception is if
+	 * the annotation is on the {@code finish} function and the aggregate has
+	 * exactly one parameter of the same type as the state; in that case another
+	 * name must be given here.
 	 */
-	String[] name();
+	String[] name() default {};
 
 	/**
 	 * Names and types of the arguments to be aggregated: the ones passed to the
@@ -257,8 +268,14 @@ public @interface Aggregate
 	 * name, only a type. The name is an ordinary SQL identifier; if it would
 	 * be quoted in SQL, naturally each double-quote must be represented as
 	 * {@code \"} in Java.
+	 *<p>
+	 * When this annotation does not appear on a method, there is no default,
+	 * and arguments must be declared here. If the annotation appears on a
+	 * method supplying the {@code accumulate} function, this element can be
+	 * omitted, and the arguments will be those of the function (excepting the
+	 * first one, which corresponds to the state).
 	 */
-	String[] arguments();
+	String[] arguments() default {};
 
 	/**
 	 * Names and types of the "direct arguments" to an ordered-set or
@@ -310,10 +327,13 @@ public @interface Aggregate
 	 * except possibly in a moving-window context if {@code movingPlan} is also
 	 * supplied.
 	 *<p>
-	 * Required. This plan may not name a {@code remove} function; only
-	 * a {@code movingPlan} can do that.
+	 * Though declared as an array, only one plan is allowed here. It may not
+	 * name a {@code remove} function; only a {@code movingPlan} can do that.
+	 * This plan can be omitted only if the {@code @Aggregate} annotation
+	 * appears on a Java method intended as the {@code accumulate} function and
+	 * the rest of the plan is all to be inferred or defaulted.
 	 */
-	Plan plan();
+	Plan[] plan() default {};
 
 
 	/**
@@ -364,8 +384,9 @@ public @interface Aggregate
 	String implementor() default "";
 
 	/**
-	 * A comment to be associated with the aggregate. The default is to create
-	 * no comment.
+	 * A comment to be associated with the aggregate. The default is no comment
+	 * if the annotation does not appear on a method, or the first sentence of
+	 * the method's Javadoc comment, if any, if it does.
 	 */
 	String comment() default "";
 
