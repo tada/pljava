@@ -71,8 +71,7 @@ import java.lang.annotation.Target;
  * {@code requires}.
  *<p>
  * While this annotation can generate {@code CREATE AGGREGATE} deployment
- * commands with most of the features available in PostgreSQL (currently not
- * covered are {@code SERIALFUNC}, {@code DESERIALFUNC}, and {@code SORTOP}),
+ * commands with the features available in PostgreSQL,
  * at present there are limits to which aggregate features can be implemented
  * purely in PL/Java. In particular, PL/Java functions currently have no access
  * to the PostgreSQL data structures needed for an ordered-set or
@@ -132,8 +131,9 @@ public @interface Aggregate
 		 * The data type to be used to hold the accumulating state.
 		 *<p>
 		 * This will be the first argument type for all of the support functions
-		 * (both argument types for {@code combine}) and also, if there is no
-		 * {@code finish} function, the result type of the aggregate.
+		 * except {@code deserialize} (both argument types for {@code combine})
+		 * and also, if there is no {@code finish} function, the result type
+		 * of the aggregate.
 		 */
 		String stateType() default "";
 
@@ -235,6 +235,25 @@ public @interface Aggregate
 		 * hypothetical-set aggregate.
 		 */
 		FinishEffect finishEffect() default FinishEffect.READ_ONLY;
+
+		/**
+		 * Name of a serializing function ({@code internal} to {@code bytea}),
+		 * usable only if a {@link #combine() combine} function is specified and
+		 * the aggregate's state type is {@code internal}.
+		 *<p>
+		 * Not allowed in a {@code movingPlan}. Not allowed without
+		 * {@code deserialize}.
+		 */
+		String[] serialize() default {};
+
+		/**
+		 * Name of a deserializing function (({@code bytea}, {@code internal})
+		 * to {@code internal}), usable only if a {@code serialize} function is
+		 * also specified.
+		 *<p>
+		 * Not allowed in a {@code movingPlan}.
+		 */
+		String[] deserialize() default {};
 	}
 
 	/**
@@ -342,6 +361,9 @@ public @interface Aggregate
 	 *<p>
 	 * Though declared as an array, only one plan is allowed here. It must
 	 * name a {@code remove} function.
+	 *<p>
+	 * A {@code movingPlan} may not have {@code serialize}/{@code deserialize}
+	 * functions; only {@code plan} can have those.
 	 */
 	Plan[] movingPlan() default {};
 
@@ -356,7 +378,23 @@ public @interface Aggregate
 	 */
 	Function.Parallel parallel() default Function.Parallel.UNSAFE;
 
-	// not yet here: serialfunc, deserialfunc, sortop
+	/**
+	 * Name of an operator (declared as either the less-than or greater-than
+	 * strategy member of a {@code btree} operator class) such that the result
+	 * of this aggregate is the same as the first result from {@code ORDER BY}
+	 * over the aggregated values, using this operator.
+	 *<p>
+	 * May be specified in explicit {@code {"schema","localname"}} form, or as
+	 * a single string that will be leniently parsed as an optionally
+	 * schema-qualified name. In the explicit form, {@code ""} as the schema
+	 * will make the name explicitly unqualified. The operator will be assumed
+	 * to have two operands of the same type as the argument to the aggregate
+	 * (which must have exactly one aggregated argument, and no direct
+	 * arguments). The operator's membership in a {@code btree} operator class
+	 * is not (currently) checked at compile time, but if it does not hold at
+	 * run time, the optimization will not be used.
+	 */
+	String[] sortOperator() default {};
 
 	/**
 	 * One or more arbitrary labels that will be considered 'provided' by the

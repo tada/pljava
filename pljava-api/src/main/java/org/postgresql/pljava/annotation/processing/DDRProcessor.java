@@ -252,14 +252,17 @@ class DDRProcessorImpl
 		Identifier.Qualified.nameFromJava("pg_catalog.void"));
 	final DBType DT_ANY = new DBType.Named(
 		Identifier.Qualified.nameFromJava("pg_catalog.\"any\""));
+	final DBType DT_BYTEA = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.bytea"));
+	final DBType DT_INTERNAL = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.internal"));
 
 	// Function signatures for certain known functions
 	//
 	final DBType[] SIG_TYPMODIN =
 		{ DBType.fromSQLTypeAnnotation("pg_catalog.cstring[]") };
 	final DBType[] SIG_TYPMODOUT = { DT_INTEGER };
-	final DBType[] SIG_ANALYZE =
-		{ DBType.fromSQLTypeAnnotation("pg_catalog.internal") };
+	final DBType[] SIG_ANALYZE = { DT_INTERNAL };
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -4191,6 +4194,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Plan[]                  plan() { return new Plan[]{_plan}; }
 		public Plan[]            movingPlan() { return _movingPlan; }
 		public Function.Parallel   parallel() { return _parallel; }
+		public String[]        sortOperator() { return qstrings(sortop); }
 		public String[]            provides() { return _provides; }
 		public String[]            requires() { return _requires; }
 
@@ -4206,6 +4210,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		Identifier.Qualified<Identifier.Simple> qname;
 		List<Map.Entry<Identifier.Simple,DBType>> aggregateArgs;
 		List<Map.Entry<Identifier.Simple,DBType>> directArgs;
+		Identifier.Qualified<Identifier.Operator> sortop;
 		static final int DIRECT_ARGS = 0; // index into _variadic[]
 		static final int AGG_ARGS = 1;    // likewise
 		boolean directVariadicExplicit;
@@ -4256,6 +4261,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				directArgs = argsIn( avToArray( o, String.class));
+		}
+
+		public void setSortOperator( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				sortop = operatorNameFrom(avToArray( o, String.class));
 		}
 
 		public void setVariadic( Object o, boolean explicit, Element e)
@@ -4318,6 +4329,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			boolean moving = null != _movingPlan;
 			boolean checkAccumulatorSig = false;
 			boolean checkFinisherSig = false;
+			boolean unary = false;
 
 			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
 			{
@@ -4341,6 +4353,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					null == _plan.accumulate  ||  null == aggregateArgs;
 				boolean inferFinisher =
 					null == _plan.finish  &&  ! inferAccumulator;
+				boolean stateTypeExplicit = false;
 
 				if ( null == qname )
 				{
@@ -4376,6 +4389,8 @@ hunt:	for ( ExecutableElement ee : ees )
 						&& null == _movingPlan[0].stateType)
 						_movingPlan[0].stateType = func.parameterTypes[0];
 				}
+				else
+					stateTypeExplicit = true;
 
 				if ( inferAccumulator  ||  inferFinisher )
 				{
@@ -4399,6 +4414,8 @@ hunt:	for ( ExecutableElement ee : ees )
 									)
 									.collect(toList());
 							}
+							else
+								checkAccumulatorSig = true;
 							_plan.accumulate = funcName;
 							if ( null != _movingPlan
 								&& null == _movingPlan[0].accumulate )
@@ -4411,6 +4428,16 @@ hunt:	for ( ExecutableElement ee : ees )
 								&& null == _movingPlan[0].finish )
 								_movingPlan[0].finish = funcName;
 						}
+					}
+
+					if ( stateTypeExplicit
+						&& ! _plan.stateType.equals(func.parameterTypes[0]) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"First function argument does not match " +
+							"stateType specified with @Aggregate"
+						);
+						ok = false;
 					}
 				}
 				else if ( funcName.equals(_plan.accumulate) )
@@ -4458,6 +4485,8 @@ hunt:	for ( ExecutableElement ee : ees )
 					"@Aggregate missing arguments=");
 				ok = false;
 			}
+			else
+				unary = 1 == aggregateArgs.size();
 
 			if ( null == _plan.stateType )
 			{
@@ -4628,6 +4657,54 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
+			// Checks involving sortOperator
+			if ( null != sortop )
+			{
+				if ( orderedSet )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"The sortOperator optimization is not available for " +
+						"an ordered-set aggregate (one with directArguments)");
+					ok = false;
+				}
+
+				if ( ! unary || _variadic[AGG_ARGS] )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"The sortOperator optimization is only available for " +
+						"a one-argument (and non-variadic) aggregate");
+					ok = false;
+				}
+			}
+
+			// Checks involving serialize / deserialize
+			if ( null != _plan.serialize  ||  null != _plan.deserialize )
+			{
+				if ( null == _plan.combine )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"An aggregate plan without combine= may not have " +
+						"serialize= or deserialize=");
+					ok = false;
+				}
+
+				if ( null == _plan.serialize  ||  null == _plan.deserialize )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"An aggregate plan must have both " +
+						"serialize= and deserialize= or neither");
+					ok = false;
+				}
+
+				if ( ! DT_INTERNAL.equals(_plan.stateType) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Only an aggregate plan with stateType " +
+						"pg_catalog.internal may have serialize=/deserialize=");
+					ok = false;
+				}
+			}
+
 			if ( ! ok )
 				return Set.of();
 
@@ -4678,8 +4755,21 @@ hunt:	for ( ExecutableElement ee : ees )
 				new DependTag.Function(_plan.accumulate, accumulatorSig));
 
 			if ( null != _plan.combine )
+			{
+				DBType[]   serialSig = { DT_INTERNAL };
+				DBType[] deserialSig = { DT_BYTEA, DT_INTERNAL };
+
 				requires.add(
 					new DependTag.Function(_plan.combine, combinerSig));
+
+				if ( null != _plan.serialize )
+				{
+					requires.add(
+						new DependTag.Function(_plan.serialize, serialSig));
+					requires.add(
+						new DependTag.Function(_plan.deserialize, deserialSig));
+				}
+			}
 
 			if ( null != _plan.finish )
 				requires.add(
@@ -4704,6 +4794,13 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != _movingPlan[0].finish )
 					requires.add(new DependTag.Function(
 						_movingPlan[0].finish, finisherSig));
+			}
+
+			if ( null != sortop )
+			{
+				DBType arg = aggregateArgs.get(0).getValue();
+				DBType[] opSig = { arg, arg };
+				requires.add(new DependTag.Operator(sortop, opSig));
 			}
 
 			/*
@@ -4757,6 +4854,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				for ( String s : planStrings )
 					sb.append(",\n\tM").append(s);
 			}
+
+			if ( null != sortop )
+				sb.append(",\n\tSORTOP = ").append(sortop);
 
 			if ( Function.Parallel.UNSAFE != _parallel )
 				sb.append(",\n\tPARALLEL = ").append(_parallel);
@@ -4839,6 +4939,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			public String[]          combine() { return qstrings(combine); }
 			public String[]           finish() { return qstrings(finish); }
 			public String[]           remove() { return qstrings(remove); }
+			public String[]        serialize() { return qstrings(serialize); }
+			public String[]      deserialize() { return qstrings(deserialize); }
 			public boolean       polymorphic() { return _polymorphic; }
 			public FinishEffect finishEffect() { return _finishEffect; }
 
@@ -4852,6 +4954,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			Identifier.Qualified<Identifier.Simple> combine;
 			Identifier.Qualified<Identifier.Simple> finish;
 			Identifier.Qualified<Identifier.Simple> remove;
+			Identifier.Qualified<Identifier.Simple> serialize;
+			Identifier.Qualified<Identifier.Simple> deserialize;
 
 			public void setStateType(Object o, boolean explicit, Element e)
 			{
@@ -4896,6 +5000,18 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( explicit )
 					throw new IllegalArgumentException(
 						"Only a movingPlan may have a remove function");
+			}
+
+			public void setSerialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					serialize = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setDeserialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					deserialize = qnameFrom(avToArray( o, String.class));
 			}
 
 			public void setFinishEffect( Object o, boolean explicit, Element e)
@@ -4951,6 +5067,12 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != combine )
 					al.add("COMBINEFUNC = " + combine);
 
+				if ( null != serialize )
+					al.add("SERIALFUNC = " + serialize);
+
+				if ( null != deserialize )
+					al.add("DESERIALFUNC = " + deserialize);
+
 				return al.toArray( new String [ al.size() ]);
 			}
 
@@ -4966,6 +5088,22 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				if ( explicit )
 					remove = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setSerialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					throw new IllegalArgumentException(
+						"Only a (non-moving) plan may have a " +
+						"serialize function");
+			}
+
+			public void setDeserialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					throw new IllegalArgumentException(
+						"Only a (non-moving) plan may have a " +
+						"deserialize function");
 			}
 		}
 	}
@@ -4984,8 +5122,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Primitives (these need not, indeed cannot, be schema-qualified)
 			//
-			this.addMap(boolean.class, "boolean");
-			this.addMap(Boolean.class, "boolean");
+			this.addMap(boolean.class, DT_BOOLEAN);
+			this.addMap(Boolean.class, DT_BOOLEAN);
 			this.addMap(byte.class, "smallint");
 			this.addMap(Byte.class, "smallint");
 			this.addMap(char.class, "smallint");
@@ -4994,8 +5132,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(Double.class, "double precision");
 			this.addMap(float.class, "real");
 			this.addMap(Float.class, "real");
-			this.addMap(int.class, "integer");
-			this.addMap(Integer.class, "integer");
+			this.addMap(int.class, DT_INTEGER);
+			this.addMap(Integer.class, DT_INTEGER);
 			this.addMap(long.class, "bigint");
 			this.addMap(Long.class, "bigint");
 			this.addMap(short.class, "smallint");
@@ -5012,10 +5150,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(java.sql.SQLXML.class, "pg_catalog", "xml");
 			this.addMap(BigInteger.class, "pg_catalog", "numeric");
 			this.addMap(BigDecimal.class, "pg_catalog", "numeric");
-			this.addMap(ResultSet.class, "pg_catalog", "record");
-			this.addMap(Object.class, "pg_catalog", "\"any\"");
+			this.addMap(ResultSet.class, DT_RECORD);
+			this.addMap(Object.class, DT_ANY);
 
-			this.addMap(byte[].class, "pg_catalog", "bytea");
+			this.addMap(byte[].class, DT_BYTEA);
 
 			this.addMap(LocalDate.class, "pg_catalog", "date");
 			this.addMap(LocalTime.class, "pg_catalog", "time");
@@ -5172,6 +5310,18 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			addMap( typeMirrorFromClass( k),
 				new DBType.Named(qnameFrom(local, schema)));
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type
+		 * already in the form of a {@code DBType}.
+		 *
+		 * @param k Class representing the Java type
+		 * @param DBType representing the SQL type to be used
+		 */
+		void addMap(Class<?> k, DBType type)
+		{
+			addMap( typeMirrorFromClass( k), type);
 		}
 
 		/**

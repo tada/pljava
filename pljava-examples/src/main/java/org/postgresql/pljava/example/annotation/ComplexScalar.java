@@ -25,6 +25,7 @@ import java.sql.SQLOutput;
 
 import java.util.logging.Logger;
 
+import org.postgresql.pljava.annotation.Aggregate;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.Operator;
 import static org.postgresql.pljava.annotation.Operator.SELF;
@@ -44,9 +45,30 @@ import static
  * prior to PL/Java 1.6.1. It is more succinct to require one tag and have each
  * of the relational operators 'provide' it than to have to define and require
  * several different tags to accomplish the same thing.
+ *<p>
+ * The operator class created here is not actively used for anything (the
+ * examples will not break if it is removed), but the {@code minMagnitude}
+ * example aggregate does specify a {@code sortOperator}, which PostgreSQL will
+ * not exploit in query optimization without finding it as a member of
+ * a {@code btree} operator class.
+ *<p>
+ * Note that {@code CREATE OPERATOR CLASS} implicitly creates an operator family
+ * as well (unless one is explicitly specified), so the correct {@code remove}
+ * action to clean everything up is {@code DROP OPERATOR FAMILY} (which takes
+ * care of dropping the class).
  */
 @SQLAction(requires = { "complex assertHasValues", "complex relationals" },
 	install = {
+        "CREATE OPERATOR CLASS javatest.complex_ops" +
+        "  DEFAULT FOR TYPE javatest.complex USING btree" +
+		" AS" +
+        "  OPERATOR 1 javatest.<  ," +
+        "  OPERATOR 2 javatest.<= ," +
+        "  OPERATOR 3 javatest.=  ," +
+        "  OPERATOR 4 javatest.>= ," +
+        "  OPERATOR 5 javatest.>  ," +
+        "  FUNCTION 1 javatest.cmpMagnitude(javatest.complex,javatest.complex)",
+
 		"SELECT javatest.assertHasValues(" +
 		" CAST('(1,2)' AS javatest.complex), 1, 2)",
 
@@ -63,6 +85,10 @@ import static
 		" THEN javatest.logmessage('INFO', 'ComplexScalar operators ok')" +
 		" ELSE javatest.logmessage('WARNING', 'ComplexScalar operators ng')" +
 		" END"
+	},
+
+	remove = {
+		"DROP OPERATOR FAMILY javatest.complex_ops USING btree"
 	}
 )
 @BaseUDT(schema="javatest", name="complex",
@@ -207,6 +233,47 @@ public class ComplexScalar implements SQLData {
 	public static boolean componentsEQ(ComplexScalar a, ComplexScalar b)
 	{
 		return a.m_x == b.m_x  &&  a.m_y == b.m_y;
+	}
+
+	/**
+	 * As an ordinary function, returns the lesser in magnitude of two
+	 * arguments; as a simple aggregate, returns the least in magnitude over its
+	 * aggregated arguments.
+	 *<p>
+	 * As an aggregate, this is a simple example where this method serves as the
+	 * {@code accumulate} function, the state (<em>a</em> here) has the same
+	 * type as the argument (here <em>b</em>), there is no {@code finish}
+	 * function, and the final value of the state is the result.
+	 *<p>
+	 * An optimization is available in case there is an index on the aggregated
+	 * values based on the {@code <} operator above; in that case, the first
+	 * value found in a scan of that index is the aggregate result. That is
+	 * indicated here by naming the {@code <} operator as {@code sortOperator}.
+	 */
+	@Aggregate(sortOperator = "javatest.<")
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static ComplexScalar minMagnitude(ComplexScalar a, ComplexScalar b)
+	{
+		return magnitudeLT(a, b) ? a : b;
+	}
+
+	/**
+	 * An integer-returning comparison function by complex magnitude, usable to
+	 * complete an example {@code btree} operator class.
+	 */
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL,
+		provides = "complex relationals"
+	)
+	public static int cmpMagnitude(ComplexScalar a, ComplexScalar b)
+	{
+		if ( magnitudeLT(a, b) )
+			return -1;
+		if ( magnitudeLT(b, a) )
+			return 1;
+		return 0;
 	}
 
 	public ComplexScalar(double x, double y, String typeName) {
