@@ -139,7 +139,7 @@ public class ComplexScalar implements SQLData {
 						&& tz.nextToken() == StreamTokenizer.TT_NUMBER) {
 					double y = tz.nval;
 					if (tz.nextToken() == ')') {
-						s_logger.info(typeName + " from string");
+						s_logger.fine(typeName + " from string");
 						return new ComplexScalar(x, y, typeName);
 					}
 				}
@@ -290,7 +290,7 @@ public class ComplexScalar implements SQLData {
 	@Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public void readSQL(SQLInput stream, String typeName) throws SQLException {
-		s_logger.info(typeName + " from SQLInput");
+		s_logger.fine(typeName + " from SQLInput");
 		m_x = stream.readDouble();
 		m_y = stream.readDouble();
 		m_typeName = typeName;
@@ -299,7 +299,7 @@ public class ComplexScalar implements SQLData {
 	@Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public String toString() {
-		s_logger.info(m_typeName + " toString");
+		s_logger.fine(m_typeName + " toString");
 		StringBuffer sb = new StringBuffer();
 		sb.append('(');
 		sb.append(m_x);
@@ -312,7 +312,7 @@ public class ComplexScalar implements SQLData {
 	@Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)
 	@Override
 	public void writeSQL(SQLOutput stream) throws SQLException {
-		s_logger.info(m_typeName + " to SQLOutput");
+		s_logger.fine(m_typeName + " to SQLOutput");
 		stream.writeDouble(m_x);
 		stream.writeDouble(m_y);
 	}
