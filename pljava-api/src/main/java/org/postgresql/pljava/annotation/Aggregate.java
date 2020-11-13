@@ -123,6 +123,7 @@ public @interface Aggregate
 	 * explicit. The two-string form with {@code ""} as the schema represents
 	 * an explicitly non-schema-qualified name.
 	 */
+	@Documented
 	@Target({})
 	@Retention(RetentionPolicy.CLASS)
 	@interface Plan

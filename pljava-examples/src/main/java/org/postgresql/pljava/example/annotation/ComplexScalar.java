@@ -224,7 +224,7 @@ public class ComplexScalar implements SQLData {
 		provides = "complex relationals"
 	)
 	@Operator(
-		name = "javatest.<>", synthetic = "javatest.magnitudeNE",
+		name = "javatest.<>", synthetic = "javatest.componentsNE",
 		commutator = SELF, provides = "complex relationals"
 	)
 	@Function(
