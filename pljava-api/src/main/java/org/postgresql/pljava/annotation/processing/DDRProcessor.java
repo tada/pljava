@@ -45,6 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import static java.util.Collections.unmodifiableSet;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -63,12 +64,16 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import static java.util.function.UnaryOperator.identity;
 
 import java.util.stream.Stream;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -112,6 +117,7 @@ import org.postgresql.pljava.TriggerData;
 import org.postgresql.pljava.annotation.Aggregate;
 import org.postgresql.pljava.annotation.Cast;
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.Operator;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLActions;
 import org.postgresql.pljava.annotation.SQLType;
@@ -231,6 +237,8 @@ class DDRProcessorImpl
 	final TypeElement  AN_CASTS;
 	final TypeElement  AN_AGGREGATE;
 	final TypeElement  AN_AGGREGATES;
+	final TypeElement  AN_OPERATOR;
+	final TypeElement  AN_OPERATORS;
 
 	// Certain familiar DBTypes (capitalized as this file historically has)
 	//
@@ -244,14 +252,17 @@ class DDRProcessorImpl
 		Identifier.Qualified.nameFromJava("pg_catalog.void"));
 	final DBType DT_ANY = new DBType.Named(
 		Identifier.Qualified.nameFromJava("pg_catalog.\"any\""));
+	final DBType DT_BYTEA = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.bytea"));
+	final DBType DT_INTERNAL = new DBType.Named(
+		Identifier.Qualified.nameFromJava("pg_catalog.internal"));
 
 	// Function signatures for certain known functions
 	//
 	final DBType[] SIG_TYPMODIN =
 		{ DBType.fromSQLTypeAnnotation("pg_catalog.cstring[]") };
 	final DBType[] SIG_TYPMODOUT = { DT_INTEGER };
-	final DBType[] SIG_ANALYZE =
-		{ DBType.fromSQLTypeAnnotation("pg_catalog.internal") };
+	final DBType[] SIG_ANALYZE = { DT_INTERNAL };
 	
 	DDRProcessorImpl( ProcessingEnvironment processingEnv)
 	{
@@ -338,6 +349,9 @@ class DDRProcessorImpl
 		AN_AGGREGATE   = elmu.getTypeElement( Aggregate.class.getName());
 		AN_AGGREGATES  = elmu.getTypeElement(
 			Aggregate.Container.class.getCanonicalName());
+		AN_OPERATOR   = elmu.getTypeElement( Operator.class.getName());
+		AN_OPERATORS  = elmu.getTypeElement(
+			Operator.Container.class.getCanonicalName());
 	}
 	
 	void msg( Kind kind, String fmt, Object... args)
@@ -434,10 +448,14 @@ class DDRProcessorImpl
 
 	/**
 	 * Map from each arbitrary provides/requires label to the snippet
-	 * that 'provides' it. Has to be out here as an instance field for the
-	 * same reason {@code snippetVPairs} does.
+	 * that 'provides' it (snippets, in some cases). Has to be out here as an
+	 * instance field for the same reason {@code snippetVPairs} does.
+	 *<p>
+	 * Originally limited each tag to have only one provider; that is still
+	 * enforced for implicitly-generated tags, but relaxed for explicit ones
+	 * supplied in annotations, hence the list.
 	 */
-	Map<DependTag, VertexPair<Snippet>> provider = new HashMap<>();
+	Map<DependTag, List<VertexPair<Snippet>>> provider = new HashMap<>();
 	
 	/**
 	 * Find the elements in each round that carry any of the annotations of
@@ -452,6 +470,7 @@ class DDRProcessorImpl
 		boolean mappedUDTPresent = false;
 		boolean castPresent = false;
 		boolean aggregatePresent = false;
+		boolean operatorPresent = false;
 		
 		boolean willClaim = true;
 		
@@ -471,6 +490,8 @@ class DDRProcessorImpl
 				castPresent = true;
 			else if ( AN_AGGREGATE.equals( te) || AN_AGGREGATES.equals( te) )
 				aggregatePresent = true;
+			else if ( AN_OPERATOR.equals( te) || AN_OPERATORS.equals( te) )
+				operatorPresent = true;
 			else
 			{
 				msg( Kind.WARNING, te,
@@ -496,19 +517,26 @@ class DDRProcessorImpl
 			for ( Element e
 				: re.getElementsAnnotatedWithAny( AN_SQLACTION, AN_SQLACTIONS) )
 				processRepeatable(
-					e, AN_SQLACTION, AN_SQLACTIONS, SQLActionImpl.class);
+					e, AN_SQLACTION, AN_SQLACTIONS, SQLActionImpl.class, null);
 
 		if ( castPresent )
 			for ( Element e
 				: re.getElementsAnnotatedWithAny( AN_CAST, AN_CASTS) )
 				processRepeatable(
-					e, AN_CAST, AN_CASTS, CastImpl.class);
+					e, AN_CAST, AN_CASTS, CastImpl.class, null);
+
+		if ( operatorPresent )
+			for ( Element e
+				: re.getElementsAnnotatedWithAny( AN_OPERATOR, AN_OPERATORS) )
+				processRepeatable(
+					e, AN_OPERATOR, AN_OPERATORS, OperatorImpl.class,
+					this::operatorPreSynthesize);
 
 		if ( aggregatePresent )
 			for ( Element e
 				: re.getElementsAnnotatedWithAny( AN_AGGREGATE, AN_AGGREGATES) )
 				processRepeatable(
-					e, AN_AGGREGATE, AN_AGGREGATES, AggregateImpl.class);
+					e, AN_AGGREGATE, AN_AGGREGATES, AggregateImpl.class, null);
 
 		tmpr.workAroundJava7Breakage(); // perhaps to be fixed in Java 9? nope.
 
@@ -534,13 +562,24 @@ class DDRProcessorImpl
 	{
 		for ( Snippet snip : snippets.values() )
 		{
-			if ( ! snip.characterize() )
-				continue;
-			VertexPair<Snippet> v = new VertexPair<>( snip);
-			snippetVPairs.add( v);
-			for ( DependTag s : snip.provideTags() )
-				if ( null != provider.put( s, v) )
-					msg( Kind.ERROR, "tag %s has more than one provider", s);
+			Set<Snippet> ready = snip.characterize();
+			for ( Snippet readySnip : ready )
+			{
+				VertexPair<Snippet> v = new VertexPair<>( readySnip);
+				snippetVPairs.add( v);
+				for ( DependTag t : readySnip.provideTags() )
+				{
+					List<VertexPair<Snippet>> ps =
+						provider.computeIfAbsent(t, k -> new ArrayList<>());
+					/*
+					 * Explicit tags are allowed more than one provider.
+					 */
+					if ( t instanceof DependTag.Explicit  ||  ps.isEmpty() )
+						ps.add(v);
+					else
+						msg(Kind.ERROR, "tag %s has more than one provider", t);
+				}
+			}
 		}
 		snippets.clear();
 	}
@@ -558,7 +597,7 @@ class DDRProcessorImpl
 
 		for ( VertexPair<Snippet> v : snippetVPairs )
 		{
-			VertexPair<Snippet> p;
+			List<VertexPair<Snippet>> ps;
 
 			/*
 			 * First handle the implicit requires(implementor()). This is unlike
@@ -571,23 +610,26 @@ class DDRProcessorImpl
 			DependTag imp = v.payload().implementorTag();
 			if ( null != imp )
 			{
-				p = provider.get( imp);
-				if ( null != p )
+				ps = provider.get( imp);
+				if ( null != ps )
 				{
 					fwdConsumers.add( imp);
 					revConsumers.add( imp);
 
-					p.fwd.precede( v.fwd);
-					p.rev.precede( v.rev);
+					ps.forEach(p ->
+					{
+						p.fwd.precede( v.fwd);
+						p.rev.precede( v.rev);
 
-					/*
-					 * A snippet providing an implementor tag probably has no
-					 * undeployStrings, because its deployStrings should be used
-					 * on both occasions; if so, replace it with a proxy that
-					 * returns deployStrings for undeployStrings.
-					 */
-					if ( 0 == p.rev.payload.undeployStrings().length )
-						p.rev.payload = new ImpProvider( p.rev.payload);
+						/*
+						 * A snippet providing an implementor tag probably has
+						 * no undeployStrings, because its deployStrings should
+						 * be used on both occasions; if so, replace it with a
+						 * proxy that returns deployStrings for undeployStrings.
+						 */
+						if ( 0 == p.rev.payload.undeployStrings().length )
+							p.rev.payload = new ImpProvider( p.rev.payload);
+					});
 				}
 				else if ( ! defaultImplementor.equals( impName, msgr) )
 				{
@@ -606,13 +648,16 @@ class DDRProcessorImpl
 			}
 			for ( DependTag s : v.payload().requireTags() )
 			{
-				p = provider.get( s);
-				if ( null != p )
+				ps = provider.get( s);
+				if ( null != ps )
 				{
 					fwdConsumers.add( s);
 					revConsumers.add( s);
-					p.fwd.precede( v.fwd);
-					v.rev.precede( p.rev); // these relationships do reverse
+					ps.forEach(p ->
+					{
+						p.fwd.precede( v.fwd);
+						v.rev.precede( p.rev); // these relationships do reverse
+					});
 				}
 				else if ( s instanceof DependTag.Explicit )
 				{
@@ -779,20 +824,37 @@ queuerunning:
 		}
 		return snips.toArray(new Snippet[snips.size()]);
 	}
+
+	<T extends Repeatable> void putRepeatableSnippet(Element e, T snip)
+	{
+		if ( null != snip )
+			putSnippet( snip, (Snippet)snip);
+	}
 	
 	/**
 	 * Process an element carrying a repeatable annotation, the container
 	 * of that repeatable annotation, or both.
 	 *<p>
-	 * Snippets corresponding to repeatable annotations are not entered in the
+	 * Snippets corresponding to repeatable annotations might not be entered in the
 	 * {@code snippets} map keyed by the target element, as that might not be
-	 * unique. Each snippet is entered with a key made from its class and
-	 * itself. They are not expected to be looked up, only processed when all of
-	 * the map entries are enumerated.
+	 * unique. Each populated snippet is passed to <em>putter</em> along with
+	 * the element it annotates, and <em>putter</em> determines what to do with
+	 * it. If <em>putter</em> is null, the default enters the snippet with a key
+	 * made from its class and itself, as typical repeatable snippets are are
+	 * not expected to be looked up, only processed when all of the map entries
+	 * are enumerated.
+	 *<p>
+	 * After all snippets of the desired class have been processed for a given
+	 * element, a final call to <em>putter</em> is made passing the element and
+	 * null for the snippet.
 	 */
 	<T extends Repeatable> void processRepeatable(
-		Element e, TypeElement annot, TypeElement container, Class<T> clazz)
+		Element e, TypeElement annot, TypeElement container, Class<T> clazz,
+		BiConsumer<Element,T> putter)
 	{
+		if ( null == putter )
+			putter = this::putRepeatableSnippet;
+
 		for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( e) )
 		{
 			Element asElement = am.getAnnotationType().asElement();
@@ -811,16 +873,18 @@ queuerunning:
 						"Incorrect implementation of annotation processor", re);
 				}
 				populateAnnotationImpl( snip, e, am);
-				putSnippet( snip, (Snippet)snip);
+				putter.accept( e, snip);
 			}
 			else if ( asElement.equals( container) )
 			{
 				Container<T> c = new Container<>(clazz);
 				populateAnnotationImpl( c, e, am);
 				for ( T snip : c.value() )
-					putSnippet( snip, (Snippet)snip);
+					putter.accept( e, snip);
 			}
 		}
+
+		putter.accept( e, null);
 	}
 
 	static enum UDTKind { BASE, MAPPED }
@@ -1065,6 +1129,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		Identifier.Simple _implementor = defaultImplementor;
 		String _comment;
+		boolean commentDerived;
 
 		public void setImplementor( Object o, boolean explicit, Element e)
 		{
@@ -1091,7 +1156,18 @@ hunt:	for ( ExecutableElement ee : ees )
 					_comment = null;
 			}
 			else
+			{
 				_comment = ((Commentable)this).derivedComment( e);
+				commentDerived = true;
+			}
+		}
+
+		protected void replaceCommentIfDerived( String comment)
+		{
+			if ( ! commentDerived )
+				return;
+			commentDerived = false;
+			_comment = comment;
 		}
 
 		public String derivedComment( Element e)
@@ -1392,10 +1468,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		public String[] _provides;
 		public String[] _requires;
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			recordExplicitTags(_provides, _requires);
-			return true;
+			return Set.of(this);
 		}
 	}
 	
@@ -1465,7 +1541,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			origin = am;
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			if ( Scope.ROW.equals( _scope) )
 			{
@@ -1547,7 +1623,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			if ( "".equals( _name) )
 				_name = TriggerNamer.synthesizeName( this);
-			return false;
+			return Set.of();
 		}
 		
 		public String[] deployStrings()
@@ -1769,7 +1845,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			if ( "".equals( _name) )
 				_name = func.getSimpleName().toString();
@@ -1787,7 +1863,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				msg( Kind.ERROR, func,
 					"Unable to resolve return type of function");
-				return false;
+				return Set.of();
 			}
 
 			ExecutableType et = (ExecutableType)func.asType();
@@ -1807,7 +1883,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					msg( Kind.ERROR, func.getParameters().get( arity - 1),
 						"Last parameter of complex-type-returning function " +
 						"must be ResultSet");
-					return false;
+					return Set.of();
 				}
 			}
 			else if ( null != (typeArgs = specialization( ret, TY_ITERATOR)) )
@@ -1817,14 +1893,14 @@ hunt:	for ( ExecutableElement ee : ees )
 				{
 					msg( Kind.ERROR, func,
 						"Need one type argument for Iterator return type");
-					return false;
+					return Set.of();
 				}
 				setofComponent = typeArgs.get( 0);
 				if ( null == setofComponent )
 				{
 					msg( Kind.ERROR, func,
 						"Failed to find setof component type");
-					return false;
+					return Set.of();
 				}
 			}
 			else if ( typu.isAssignable( ret, TY_RESULTSETPROVIDER)
@@ -1879,7 +1955,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			for ( Trigger t : triggers() )
 				((TriggerImpl)t).characterize();
-			return true;
+			return Set.of(this);
 		}
 
 		void resolveLanguage()
@@ -2042,28 +2118,46 @@ hunt:	for ( ExecutableElement ee : ees )
 		void appendNameAndParams(
 			StringBuilder sb, boolean names, boolean outs, boolean dflts)
 		{
-			sb.append(qnameFrom(name(), schema())).append( '(');
-			appendParams( sb, names, outs, dflts);
+			appendNameAndParams(sb, names, outs, dflts,
+				qnameFrom(name(), schema()), parameterInfo().collect(toList()));
+		}
+
+		/**
+		 * Internal version taking name and parameter stream as extra arguments
+		 * so they can be overridded from {@link Transformed}.
+		 */
+		void appendNameAndParams(
+			StringBuilder sb, boolean names, boolean outs, boolean dflts,
+			Identifier.Qualified<Identifier.Simple> qname,
+			Iterable<ParameterInfo> params)
+		{
+			sb.append(qname).append( '(');
+			appendParams( sb, names, outs, dflts, params);
 			// TriggerImpl relies on ) being the very last character
 			sb.append( ')');
 		}
 
+		/**
+		 * Takes the parameter stream as an extra argument
+		 * so it can be overridded from {@link Transformed}.
+		 */
 		void appendParams(
-			StringBuilder sb, boolean names, boolean outs, boolean dflts)
+			StringBuilder sb, boolean names, boolean outs, boolean dflts,
+			Iterable<ParameterInfo> params)
 		{
 			int lengthOnEntry = sb.length();
 
-			int count = parameterTypes.length;
-			for ( ParameterInfo i
-				: (Iterable<ParameterInfo>)parameterInfo()::iterator )
+			Iterator<ParameterInfo> iter = params.iterator();
+			ParameterInfo i;
+			while ( iter.hasNext() )
 			{
-				-- count;
+				i = iter.next();
 
 				String name = i.name();
 
 				sb.append("\n\t");
 
-				if ( _variadic  &&  0 == count )
+				if ( _variadic  &&  ! iter.hasNext() )
 					sb.append("VARIADIC ");
 
 				if ( names )
@@ -2088,8 +2182,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.setLength(sb.length() - 1); // that last pesky comma
 		}
 
-		void appendAS( StringBuilder sb)
+		String makeAS()
 		{
+			StringBuilder sb = new StringBuilder();
 			if ( ! ( complexViaInOut || setof || trigger ) )
 				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
@@ -2099,14 +2194,29 @@ hunt:	for ( ExecutableElement ee : ees )
 					"than a class");
 			sb.append( e.toString()).append( '.');
 			sb.append( trigger ? func.getSimpleName() : func.toString());
+			return sb.toString();
 		}
 
 		public String[] deployStrings()
 		{
+			return deployStrings(
+				qnameFrom(name(), schema()), parameterInfo().collect(toList()),
+				makeAS(), comment());
+		}
+
+		/**
+		 * Internal version taking the function name, parameter stream,
+		 * AS string, and comment (if any) as extra arguments so they can be
+		 * overridden from {@link Transformed}.
+		 */
+		String[] deployStrings(
+			Identifier.Qualified<Identifier.Simple> qname,
+			Iterable<ParameterInfo> params, String as, String comment)
+		{
 			ArrayList<String> al = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append( "CREATE OR REPLACE FUNCTION ");
-			appendNameAndParams( sb, true, true, true);
+			appendNameAndParams( sb, true, true, true, qname, params);
 			sb.append( "\n\tRETURNS ");
 			if ( trigger )
 				sb.append( DT_TRIGGER.toString());
@@ -2134,19 +2244,16 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( "\tROWS ").append( rows()).append( '\n');
 			for ( String s : settings() )
 				sb.append( "\tSET ").append( s).append( '\n');
-			sb.append( "\tAS '");
-			appendAS( sb);
-			sb.append( '\'');
+			sb.append( "\tAS ").append( DDRWriter.eQuote( as));
 			al.add( sb.toString());
 
-			String comm = comment();
-			if ( null != comm )
+			if ( null != comment )
 			{
 				sb.setLength( 0);
 				sb.append( "COMMENT ON FUNCTION ");
-				appendNameAndParams( sb, true, false, false);
+				appendNameAndParams( sb, true, false, false, qname, params);
 				sb.append( "\nIS ");
-				sb.append( DDRWriter.eQuote( comm));
+				sb.append( DDRWriter.eQuote( comment));
 				al.add( sb.toString());
 			}
 			
@@ -2157,6 +2264,14 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 		
 		public String[] undeployStrings()
+		{
+			return undeployStrings(
+				qnameFrom(name(), schema()), parameterInfo().collect(toList()));
+		}
+
+		String[] undeployStrings(
+			Identifier.Qualified<Identifier.Simple> qname,
+			Iterable<ParameterInfo> params)
 		{
 			if ( subsumed )
 				return new String[0];
@@ -2169,7 +2284,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			StringBuilder sb = new StringBuilder();
 			sb.append( "DROP FUNCTION ");
-			appendNameAndParams( sb, true, false, false);
+			appendNameAndParams( sb, true, false, false, qname, params);
 			rslt [ rslt.length - 1 ] = sb.toString();
 			return rslt;
 		}
@@ -2205,6 +2320,85 @@ hunt:	for ( ExecutableElement ee : ees )
 			 * compiled.
 			 */
 			return Collections.emptyList();
+		}
+
+		class Transformed implements Snippet
+		{
+			final Identifier.Qualified<Identifier.Simple> m_qname;
+			final boolean m_commute;
+			final boolean m_negate;
+			final String  m_comment;
+
+			Transformed(
+				Identifier.Qualified<Identifier.Simple> qname,
+				boolean commute, boolean negate, String comment)
+			{
+				assert commute || negate : "no transformation to apply";
+				m_qname = requireNonNull(qname);
+				m_commute = commute;
+				m_negate = negate;
+				m_comment = comment;
+			}
+
+			List<ParameterInfo> parameterInfo()
+			{
+				List<ParameterInfo> params =
+					FunctionImpl.this.parameterInfo().collect(toList());
+				if ( ! m_commute )
+					return params;
+				assert 2 == params.size() : "commute with arity != 2";
+				Collections.reverse(params);
+				return params;
+			}
+
+			@Override
+			public Set<Snippet> characterize()
+			{
+				return Set.of();
+			}
+
+			@Override
+			public Identifier.Simple implementorName()
+			{
+				return FunctionImpl.this.implementorName();
+			}
+
+			@Override
+			public Set<DependTag> requireTags()
+			{
+				return FunctionImpl.this.requireTags();
+			}
+
+			@Override
+			public Set<DependTag> provideTags()
+			{
+				DBType[] sig =
+					parameterInfo().stream()
+					.map(p -> p.dt)
+					.toArray(DBType[]::new);
+				return Set.of(new DependTag.Function(m_qname, sig));
+			}
+
+			@Override
+			public String[] deployStrings()
+			{
+				String as = Stream.of(
+					m_commute ? "commute" : (String)null,
+					m_negate  ? "negate"  : (String)null)
+					.filter(Objects::nonNull)
+					.collect(joining(",", "[", "]"))
+					+ FunctionImpl.this.makeAS();
+
+				return FunctionImpl.this.deployStrings(
+					m_qname, parameterInfo(), as, m_comment);
+			}
+
+			@Override
+			public String[] undeployStrings()
+			{
+				return FunctionImpl.this.undeployStrings(
+					m_qname, parameterInfo());
+			}
 		}
 	}
 
@@ -2278,21 +2472,33 @@ hunt:	for ( ExecutableElement ee : ees )
 		BaseUDTFunctionID id;
 
 		@Override
+		public String[] deployStrings()
+		{
+			return deployStrings(
+				qnameFrom(name(), schema()),
+				null, // parameter iterable unused in appendParams below
+				"UDT[" + te + "] " + id.name(),
+				comment());
+		}
+
+		@Override
+		public String[] undeployStrings()
+		{
+			return undeployStrings(
+				qnameFrom(name(), schema()),
+				null); // parameter iterable unused in appendParams below
+		}
+
+		@Override
 		void appendParams(
-			StringBuilder sb, boolean names, boolean outs, boolean dflts)
+			StringBuilder sb, boolean names, boolean outs, boolean dflts,
+			Iterable<ParameterInfo> params)
 		{
 			sb.append(
 				Arrays.stream(id.getParam( ui))
 				.map(Object::toString)
 				.collect(joining(", "))
 			);
-		}
-
-		@Override
-		void appendAS( StringBuilder sb)
-		{
-			sb.append( "UDT[").append( te.toString()).append( "] ");
-			sb.append( id.name());
 		}
 
 		StringBuilder appendTypeOp( StringBuilder sb)
@@ -2302,12 +2508,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		@Override
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			resolveLanguage();
 			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);
-			return true;
+			return Set.of(this);
 		}
 
 		public void setType( Object o, boolean explicit, Element e)
@@ -2463,7 +2669,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			setQname();
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			if ( null != structure() )
 			{
@@ -2472,7 +2678,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					provideTags().add(t);
 			}
 			recordExplicitTags(_provides, _requires);
-			return true;
+			return Set.of(this);
 		}
 
 		public String[] deployStrings()
@@ -2544,9 +2750,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 
 			@Override
-			public boolean characterize()
+			public Set<Snippet> characterize()
 			{
-				return false;
+				return Set.of();
 			}
 		}
 
@@ -2678,7 +2884,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				send);
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			if ( "".equals( typeModifierInput())
 				&& ! "".equals( typeModifierOutput()) )
@@ -2711,7 +2917,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);
 
-			return true;
+			return Set.of(this);
 		}
 
 		void recordImplicitTags()
@@ -2882,7 +3088,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					((VariableElement)o).getSimpleName().toString());
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			boolean ok = true;
 
@@ -2984,11 +3190,11 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 
 			if ( ! ok )
-				return false;
+				return Set.of();
 
 			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);
-			return true;
+			return Set.of(this);
 		}
 
 		void recordImplicitTags()
@@ -3058,6 +3264,919 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	/*
+	 * Called by processRepeatable for each @Operator processed.
+	 * This happens before characterize, but after populating, so the
+	 * operator's name and commutator/negator/synthetic elements can be
+	 * inspected. All operators annotating a given element e are processed
+	 * consecutively, and followed by a call with the same e and null snip.
+	 *
+	 * This will accumulate the snippets onto two lists, for non-synthetic and
+	 * synthetic ones and, on the final call, process the lists to find possible
+	 * paths from non-synthetic to synthetic ones via commutation and/or
+	 * negation. The possible paths will be recorded on each synthetic operator.
+	 * They will have to be confirmed during characterize after things like
+	 * operand types and arity have been resolved.
+	 */
+	void operatorPreSynthesize( Element e, OperatorImpl snip)
+	{
+		if ( ! ElementKind.METHOD.equals(e.getKind()) )
+		{
+			if ( null != snip )
+				putSnippet( snip, (Snippet)snip);
+			return;
+		}
+
+		if ( null != snip )
+		{
+			if ( snip.selfCommutator  ||  snip.twinCommutator )
+				snip.commutator = snip.qname;
+
+			(snip.isSynthetic ? m_synthetic : m_nonSynthetic).add(snip);
+			return;
+		}
+
+		/*
+		 * Initially:
+		 *  processed: is empty
+		 *      ready: contains all non-synthetic snippets
+		 *    pending: contains all synthetic snippets
+		 * Step:
+		 *  A snippet s is removed from ready and added to processed.
+		 *  If s.commutator or s.negator matches a synthetic snippet in pending
+		 *  or ready, a corresponding path is recorded on that snippet. If it is
+		 *  the first path recorded on that snippet (which must have been found
+		 *  on pending), that snippet is moved to ready.
+		 */
+
+		List<OperatorImpl> processed =
+			new ArrayList<>(m_nonSynthetic.size() + m_synthetic.size());
+		Queue<OperatorImpl> ready = new LinkedList<>(m_nonSynthetic);
+		LinkedList<OperatorImpl> pending = new LinkedList<>(m_synthetic);
+		m_nonSynthetic.clear();
+		m_synthetic.clear();
+
+		while ( null != (snip = ready.poll()) )
+		{
+			processed.add(snip);
+			if ( null != snip.commutator )
+			{
+				for ( OperatorImpl other : ready )
+					maybeAddPath(snip, other,
+						OperatorPath.Transform.COMMUTATION);
+				ListIterator<OperatorImpl> it = pending.listIterator();
+				while ( it.hasNext() )
+				{
+					OperatorImpl other = it.next();
+					if ( maybeAddPath(snip, other,
+						OperatorPath.Transform.COMMUTATION) )
+					{
+						it.remove();
+						ready.add(other);
+					}
+				}
+			}
+			if ( null != snip.negator )
+			{
+				for ( OperatorImpl other : ready )
+					maybeAddPath(snip, other,
+						OperatorPath.Transform.NEGATION);
+				ListIterator<OperatorImpl> it = pending.listIterator();
+				while ( it.hasNext() )
+				{
+					OperatorImpl other = it.next();
+					if ( maybeAddPath(snip, other,
+						OperatorPath.Transform.NEGATION) )
+					{
+						it.remove();
+						ready.add(other);
+					}
+				}
+			}
+		}
+
+		if ( ! pending.isEmpty() )
+			msg(Kind.ERROR, e, "Cannot synthesize operator(s) (%s)",
+				pending.stream()
+					.map(o -> o.qname.toString())
+					.collect(joining(" ")));
+
+		for ( OperatorImpl s : processed )
+			putSnippet( s, (Snippet)s);
+	}
+
+	boolean maybeAddPath(
+		OperatorImpl from, OperatorImpl to, OperatorPath.Transform how)
+	{
+		if ( ! to.isSynthetic )
+			return false; // don't add paths to a non-synthetic operator
+
+		switch ( how )
+		{
+		case COMMUTATION:
+			if ( ! from.commutator.equals(to.qname) )
+				return false; // this is not the operator you're looking for
+			if ( null != to.commutator && ! to.commutator.equals(from.qname) )
+				return false; // you're not the one it's looking for
+			break;
+		case NEGATION:
+			if ( ! from.negator.equals(to.qname) )
+				return false; // move along
+			if ( null != to.negator && ! to.negator.equals(from.qname) )
+				return false; // move along
+			break;
+		}
+
+		if ( null == to.paths )
+			to.paths = new ArrayList<>();
+
+		if ( null == from.synthetic )
+			to.paths.add(new OperatorPath(from, from, null, EnumSet.of(how)));
+		else
+		{
+			for ( OperatorPath path : from.paths )
+			{
+				to.paths.add(new OperatorPath(
+					path.base, from, path.fromBase, EnumSet.of(how)));
+			}
+		}
+
+		return true;
+	}
+
+	List<OperatorImpl> m_nonSynthetic = new ArrayList<>();
+	List<OperatorImpl> m_synthetic = new ArrayList<>();
+
+	static class OperatorPath
+	{
+		OperatorImpl base;
+		OperatorImpl proximate;
+		EnumSet<Transform> fromBase;
+		EnumSet<Transform> fromProximate;
+
+		enum Transform { NEGATION, COMMUTATION }
+
+		OperatorPath(
+			OperatorImpl base, OperatorImpl proximate,
+			EnumSet<Transform> baseToProximate,
+			EnumSet<Transform> proximateToNew)
+		{
+			this.base = base;
+			this.proximate = proximate;
+			fromProximate = proximateToNew.clone();
+
+			if ( base == proximate )
+				fromBase = proximateToNew;
+			else
+			{
+				fromBase = baseToProximate.clone();
+				fromBase.removeAll(proximateToNew);
+				proximateToNew = proximateToNew.clone();
+				proximateToNew.removeAll(fromBase);
+				fromBase.addAll(proximateToNew);
+			}
+		}
+
+		public String toString()
+		{
+			return
+				base.commentDropForm() + " " + fromBase +
+				(base == proximate
+					? ""
+					: " (... " + proximate.commentDropForm() +
+					  " " + fromProximate);
+		}
+	}
+
+	class OperatorImpl
+	extends Repeatable
+	implements Operator, Snippet, Commentable
+	{
+		OperatorImpl(Element e, AnnotationMirror am)
+		{
+			super(e, am);
+		}
+
+		public String[]                 name() { return qstrings(qname); }
+		public String                   left() { return operand(0); }
+		public String                  right() { return operand(1);   }
+		public String[]             function() { return qstrings(funcName); }
+		public String[]            synthetic() { return qstrings(synthetic); }
+		public String[]           commutator() { return qstrings(commutator); }
+		public String[]              negator() { return qstrings(negator); }
+		public boolean                hashes() { return _hashes; }
+		public boolean                merges() { return _merges; }
+		public String[]             restrict() { return qstrings(restrict); }
+		public String[]                 join() { return qstrings(join); }
+		public String[]             provides() { return _provides; }
+		public String[]             requires() { return _requires; }
+
+		public String[] _provides;
+		public String[] _requires;
+		public boolean  _hashes;
+		public boolean  _merges;
+
+		Identifier.Qualified<Identifier.Operator> qname;
+		DBType[] operands = { null, null };
+		FunctionImpl func;
+		Identifier.Qualified<Identifier.Simple> funcName;
+		Identifier.Qualified<Identifier.Operator> commutator;
+		Identifier.Qualified<Identifier.Operator> negator;
+		Identifier.Qualified<Identifier.Simple> restrict;
+		Identifier.Qualified<Identifier.Simple> join;
+		Identifier.Qualified<Identifier.Simple> synthetic;
+		boolean isSynthetic;
+		boolean selfCommutator;
+		boolean twinCommutator;
+		List<OperatorPath> paths;
+
+		private String operand(int i)
+		{
+			return null == operands[i] ? null : operands[i].toString();
+		}
+
+		public void setName( Object o, boolean explicit, Element e)
+		{
+			qname = operatorNameFrom(avToArray( o, String.class));
+		}
+
+		public void setLeft( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				operands[0] = DBType.fromSQLTypeAnnotation((String)o);
+		}
+
+		public void setRight( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				operands[1] = DBType.fromSQLTypeAnnotation((String)o);
+		}
+
+		public void setFunction( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				funcName = qnameFrom(avToArray( o, String.class));
+		}
+
+		public void setSynthetic( Object o, boolean explicit, Element e)
+		{
+			if ( ! explicit )
+				return;
+
+			/*
+			 * Use isSynthetic to indicate that synthetic= has been used at all.
+			 * Set synthetic to the supplied qname only if it is a qname, and
+			 * not the distinguished value TWIN.
+			 *
+			 * Most of the processing below only needs to look at isSynthetic.
+			 * The TWIN case, recognized by isSynthetic && null == synthetic,
+			 * will be handled late in the game by copying the base function's
+			 * qname.
+			 */
+
+			isSynthetic = true;
+			String[] ss = avToArray( o, String.class);
+			if ( 1 != ss.length  ||  ! TWIN.equals(ss[0]) )
+				synthetic = qnameFrom(ss);
+		}
+
+		public void setCommutator( Object o, boolean explicit, Element e)
+		{
+			if ( ! explicit )
+				return;
+
+			String[] ss = avToArray( o, String.class);
+			if ( 1 == ss.length )
+			{
+				if ( SELF.equals(ss[0]) )
+				{
+					selfCommutator = true;
+					return;
+				}
+				if ( TWIN.equals(ss[0]) )
+				{
+					twinCommutator = true;
+					return;
+				}
+			}
+			commutator = operatorNameFrom(ss);
+		}
+
+		public void setNegator( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				negator = operatorNameFrom(avToArray( o, String.class));
+		}
+
+		public void setRestrict(
+			Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				restrict = qnameFrom(avToArray( o, String.class));
+		}
+
+		public void setJoin(
+			Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				join = qnameFrom(avToArray( o, String.class));
+		}
+
+		public Set<Snippet> characterize()
+		{
+			boolean ok = true;
+			Snippet syntheticFunction = null;
+
+			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
+			{
+				func = getSnippet(m_targetElement, FunctionImpl.class,
+					() -> (FunctionImpl)null);
+			}
+
+			if ( isSynthetic )
+			{
+				if ( null != funcName )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator may not specify both function= and " +
+						"synthetic="
+					);
+					ok = false;
+				}
+				funcName = synthetic; // can be null (the TWIN case)
+			}
+
+			if ( null == func  &&  null == funcName  &&  ! isSynthetic )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"@Operator not annotating a method must specify function="
+				);
+				ok = false;
+			}
+
+			if ( null == func )
+			{
+				if ( null == operands[0]  &&  null == operands[1] )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator not annotating a method must specify " +
+						"left= or right= or both"
+					);
+					ok = false;
+				}
+			}
+			else
+			{
+				Identifier.Qualified<Identifier.Simple> fn =
+					qnameFrom(func.name(), func.schema());
+
+				if ( null == funcName )
+					funcName = fn;
+				else if ( ! funcName.equals(fn)  &&  ! isSynthetic )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but function= gives a " +
+						"different name"
+					);
+					ok = false;
+				}
+
+				long explicit =
+					Arrays.stream(operands).filter(Objects::nonNull).count();
+
+				if ( 0 != explicit  &&  ! isSynthetic )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator with synthetic= must not specify " +
+						"operand types"
+					);
+					ok = false;
+				}
+
+				if ( 0 == explicit )
+				{
+					int nparams = func.parameterTypes.length;
+					if ( 1 > nparams  ||  nparams > 2 )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"method annotated with @Operator must take one " +
+							"or two parameters"
+						);
+						ok = false;
+					}
+					if ( 1 == nparams )
+						operands[1] = func.parameterTypes[0];
+					else
+						System.arraycopy(func.parameterTypes,0, operands,0,2);
+				}
+				else if ( explicit != func.parameterTypes.length )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but specifies " +
+						"a different number of operands"
+					);
+					ok = false;
+				}
+				else if ( 2 == explicit
+						&& ! Arrays.equals(operands, func.parameterTypes)
+					|| 1 == explicit
+						&& ! Arrays.asList(operands)
+							.contains(func.parameterTypes[0]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator annotates a method but specifies " +
+						"different operand types"
+					);
+					ok = false;
+				}
+			}
+
+			/*
+			 * At this point, ok ==> there is a non-null funcName ... UNLESS
+			 * isSynthetic is true, synthetic=TWIN was given, and we are not
+			 * annotating a method (that last condition is currently not
+			 * supported, so we could in fact rely on having a funcName here,
+			 * but that condition may be worth supporting in the future, so
+			 * better to keep the exception in mind).
+			 */
+
+			if ( ! ok )
+				return Set.of();
+
+			long arity =
+				Arrays.stream(operands).filter(Objects::nonNull).count();
+
+			if ( 1 == arity  &&  null == operands[1] )
+			{
+				msg(Kind.WARNING, m_targetElement, m_origin,
+					"Right unary (postfix) operators are deprecated and will " +
+					"be removed in PostgreSQL version 14."
+				);
+			}
+
+			if ( null != commutator )
+			{
+				if ( 2 != arity )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"unary @Operator cannot have a commutator"
+					);
+					ok = false;
+				}
+				else if ( selfCommutator && ! operands[0].equals(operands[1]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator with different left and right operand " +
+						"types cannot have commutator=SELF"
+					);
+					ok = false;
+				}
+				else if ( twinCommutator && operands[0].equals(operands[1]) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator with matching left and right operand " +
+						"types cannot have commutator=TWIN"
+					);
+					ok = false;
+				}
+			}
+
+			boolean knownNotBoolean =
+				null != func && ! DT_BOOLEAN.equals(func.returnType);
+
+			if ( null != negator )
+			{
+				if ( knownNotBoolean )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"negator= only belongs on a boolean @Operator"
+					);
+					ok = false;
+				}
+				else if ( negator.equals(qname) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"@Operator can never be its own negator"
+					);
+					ok = false;
+				}
+			}
+
+			boolean knownNotBinaryBoolean = 2 != arity || knownNotBoolean;
+			boolean knownVolatile =
+				null != func && Function.Effects.VOLATILE == func.effects();
+			boolean operandTypesDiffer =
+				2 == arity && ! operands[0].equals(operands[1]);
+			boolean selfCommutates =
+				null != commutator && commutator.equals(qname);
+
+			ok &= Stream.of(
+				_hashes ? "hashes"  : null,
+				_merges ? "merges" : null)
+				.filter(Objects::nonNull)
+				.map(s ->
+				{
+					boolean inner_ok = true;
+					if ( knownNotBinaryBoolean )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= only belongs on a boolean " +
+							"binary @Operator", s
+						);
+						inner_ok = false;
+					}
+					if ( null == commutator )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires that the @Operator " +
+							"have a commutator", s
+						);
+						inner_ok = false;
+					}
+					else if ( ! (operandTypesDiffer || selfCommutates) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires the @Operator to be its own" +
+							"commutator as its operand types are the same", s
+						);
+						inner_ok = false;
+					}
+					if ( knownVolatile )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"%s= requires an underlying function " +
+							"declared IMMUTABLE or STABLE", s
+						);
+						inner_ok = false;
+					}
+					return inner_ok;
+				})
+				.allMatch(t -> t);
+
+			if ( null != restrict && knownNotBinaryBoolean )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"restrict= only belongs on a boolean binary @Operator"
+				);
+				ok = false;
+			}
+
+			if ( null != join && knownNotBinaryBoolean )
+			{
+				msg(Kind.ERROR, m_targetElement, m_origin,
+					"join= only belongs on a boolean binary @Operator"
+				);
+				ok = false;
+			}
+
+			if ( ! ok )
+				return Set.of();
+
+			if ( isSynthetic )
+			{
+				if ( null == func )
+				{
+					/*
+					 * It could be possible to relax this requirement if there
+					 * is a need, but this way is easier.
+					 */
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Synthetic operator annotation must appear " +
+						"on the method to be used as the base");
+					ok = false;
+				}
+
+				if ( paths.isEmpty() )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Synthetic operator %s has no derivation path " +
+						"involving negation or commutation from another " +
+						"operator", qnameUnwrapped());
+					/*
+					 * If no paths at all, return empty from here; no point in
+					 * further checks.
+					 */
+					return Set.of();
+				}
+
+				/*
+				 * Check for conditions where deriving by commutation wouldn't
+				 * make sense. Any of these three conditions will trigger the
+				 * test of available paths. The conditions are rechecked but the
+				 * third one is changed, so either of the first two will always
+				 * preclude commutation, but ! operandTypesDiffer only does if
+				 * the synthetic function's name will be the same as the base's.
+				 * (If the types were different, PostgreSQL overloading would
+				 * allow the functions to share a name, but that's not possible
+				 * if the types are the same.) In those cases, any commutation
+				 * paths are filtered out; if no path remains, that's an error.
+				 */
+				if ( 2 != arity || selfCommutator || ! operandTypesDiffer )
+				{
+					List<OperatorPath> filtered =
+						paths.stream()
+						.filter(
+							p -> ! p.fromBase.contains(
+								OperatorPath.Transform.COMMUTATION))
+						.collect(toList());
+					if ( 2 != arity || selfCommutator
+						|| null == synthetic ||
+						synthetic.equals(qnameFrom(func.name(), func.schema())))
+					{
+						if ( filtered.isEmpty() )
+						{
+							msg(Kind.ERROR, m_targetElement, m_origin,
+								"Synthetic operator %s cannot be another " +
+								"operator's commutator, but found only " +
+								"path(s) involving commutation: %s",
+								qnameUnwrapped(), paths.toString());
+							ok = false;
+						}
+						else
+							paths = filtered;
+					}
+				}
+
+				ok &= paths.stream().collect(
+					groupingBy(p -> p.base,
+						mapping(p -> p.fromBase, toSet())))
+					.entrySet().stream()
+					.filter(e -> 1 < e.getValue().size())
+					.map(e ->
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Synthetic operator %s found paths with " +
+							"different transforms %s from same base %s",
+							qnameUnwrapped(),
+							e.getValue(), e.getKey().qnameUnwrapped());
+						return false;
+					})
+					.allMatch(t -> t);
+
+				ok &= paths.stream().collect(
+					groupingBy(p -> p.proximate,
+						mapping(p -> p.fromProximate, toSet())))
+					.entrySet().stream()
+					.filter(e -> 1 < e.getValue().size())
+					.map(e ->
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Synthetic operator %s found paths with " +
+							"different transforms %s from %s",
+							qnameUnwrapped(),
+							e.getValue(), e.getKey().qnameUnwrapped());
+						return false;
+					})
+					.allMatch(t -> t);
+
+				Set<Identifier.Qualified<Identifier.Operator>>
+					commutatorCandidates =
+						paths.stream()
+						.filter(
+							p -> p.fromProximate.contains(
+								OperatorPath.Transform.COMMUTATION))
+						.map(p -> p.proximate.qname)
+						.collect(toSet());
+				if ( null == commutator  &&  0 < commutatorCandidates.size() )
+				{
+					if ( 1 == commutatorCandidates.size() )
+						commutator = commutatorCandidates.iterator().next();
+					else
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Synthetic operator %s has muliple commutator " +
+							"candidates %s",
+							qnameUnwrapped(), commutatorCandidates);
+						ok = false;
+					}
+				}
+
+				Set<Identifier.Qualified<Identifier.Operator>>
+					negatorCandidates =
+						paths.stream()
+						.filter(
+							p -> p.fromProximate.contains(
+								OperatorPath.Transform.NEGATION))
+						.map(p -> p.proximate.qname)
+						.collect(toSet());
+				if ( null == negator  &&  0 < negatorCandidates.size() )
+				{
+					if ( 1 == negatorCandidates.size() )
+						negator = negatorCandidates.iterator().next();
+					else
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"Synthetic operator %s has muliple negator " +
+							"candidates %s",
+							qnameUnwrapped(), negatorCandidates);
+						ok = false;
+					}
+				}
+
+				/*
+				 * Filter paths to only those based on an operator that is built
+				 * over this method. (That's currently guaranteed by the way
+				 * operatorPreSynthesize generates paths, but may as well check
+				 * here to ensure sanity during future maintenance.)
+				 *
+				 * For synthetic=TWIN (represented here by null==synthetic),
+				 * also filter out paths that don't involve commutation (without
+				 * it, the synthetic function would collide with the base one).
+				 */
+
+				boolean nonCommutedOK = null != synthetic;
+				
+				paths = paths.stream()
+					.filter(
+						p -> p.base.func == func
+						&& (nonCommutedOK || p.fromBase.contains(
+							OperatorPath.Transform.COMMUTATION))
+					).collect(toList());
+
+				if ( 0 == paths.size() )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Synthetic operator %s has no derivation path " +
+						"from an operator that is based on this method%s",
+						qnameUnwrapped(),
+						nonCommutedOK ? "" : " and involves commutation");
+					ok = false;
+				}
+
+				if ( ! ok )
+					return Set.of();
+
+				/*
+				 * Select a base. Could there be more than one? As the checks
+				 * for transform inconsistencies above found none, we will
+				 * assume any should be ok, and choose one semi-arbitrarily.
+				 */
+
+				OperatorPath selected =
+					paths.stream()
+					.sorted(
+						Comparator.<OperatorPath>comparingInt(
+							p -> p.fromBase.size())
+						.thenComparingInt(
+							p -> p.fromBase.stream()
+							.mapToInt(Enum::ordinal)
+							.max().getAsInt())
+						.thenComparing(p -> p.base.qnameUnwrapped()))
+					.findFirst().get();
+
+				/*
+				 * At last, the possibly null funcName (synthetic=TWIN case)
+				 * can be fixed up.
+				 */
+				if ( null == synthetic )
+				{
+					FunctionImpl f = selected.base.func;
+					funcName = synthetic = qnameFrom(f.name(), f.schema());
+				}
+
+				replaceCommentIfDerived("Operator " + qnameUnwrapped()
+						+ " automatically derived by "
+						+ selected.fromBase + " from "
+						+ selected.base.qnameUnwrapped());
+
+				boolean commute = selected.fromBase
+					.contains(OperatorPath.Transform.COMMUTATION);
+				boolean negate = selected.fromBase
+					.contains(OperatorPath.Transform.NEGATION);
+
+				if ( operandTypesDiffer  &&  commute )
+				{
+					DBType t = operands[0];
+					operands[0] = operands[1];
+					operands[1] = t;
+				}
+
+				syntheticFunction =
+					func.new Transformed(synthetic, commute, negate, comment());
+			}
+
+			recordImplicitTags();
+			recordExplicitTags(_provides, _requires);
+			return null == syntheticFunction
+				? Set.of(this) : Set.of(syntheticFunction, this);
+		}
+
+		void recordImplicitTags()
+		{
+			Set<DependTag> provides = provideTags();
+			Set<DependTag> requires = requireTags();
+
+			provides.add(new DependTag.Operator(qname, operands));
+
+			/*
+			 * Commutator and negator often involve cycles. PostgreSQL already
+			 * has its own means of breaking them, so it is not necessary here
+			 * even to declare dependencies based on them.
+			 *
+			 * There is also, for now, no point in declaring dependencies on
+			 * selectivity estimators; they can't be written in Java, so they
+			 * won't be products of this compilation.
+			 *
+			 * So, just require the operand types and the function.
+			 */
+
+			Arrays.stream(operands)
+				.filter(Objects::nonNull)
+				.map(DBType::dependTag)
+				.filter(Objects::nonNull)
+				.forEach(requires::add);
+
+			if ( null != func &&  null == synthetic )
+			{
+				func.provideTags().stream()
+					.filter(DependTag.Function.class::isInstance)
+					.forEach(requires::add);
+			}
+			else
+			{
+				requires.add(new DependTag.Function(funcName,
+					Arrays.stream(operands)
+					.filter(Objects::nonNull)
+					.toArray(DBType[]::new)));
+			}
+		}
+
+		/**
+		 * Just to keep things interesting, a schema-qualified operator name is
+		 * wrapped in OPERATOR(...) pretty much everywhere, except as the guest
+		 * of honor in a CREATE OPERATOR or DROP OPERATOR, where the unwrapped
+		 * form is needed.
+		 */
+		private String qnameUnwrapped()
+		{
+			String local = qname.local().toString();
+			Identifier.Simple qualifier = qname.qualifier();
+			return null == qualifier ? local : qualifier + "." + local;
+		}
+
+		/**
+		 * An operator is identified this way in a COMMENT or DROP.
+		 */
+		private String commentDropForm()
+		{
+			return qnameUnwrapped() + " (" +
+				(null == operands[0] ? "NONE" : operands[0]) + ", " +
+				(null == operands[1] ? "NONE" : operands[1]) + ")";
+		}
+
+		public String[] deployStrings()
+		{
+			List<String> al = new ArrayList<>();
+
+			StringBuilder sb = new StringBuilder();
+
+			sb.append("CREATE OPERATOR ").append(qnameUnwrapped());
+			sb.append(" (\n\tPROCEDURE = ").append(funcName);
+
+			if ( null != operands[0] )
+				sb.append(",\n\tLEFTARG = ").append(operands[0]);
+
+			if ( null != operands[1] )
+				sb.append(",\n\tRIGHTARG = ").append(operands[1]);
+
+			if ( null != commutator )
+				sb.append(",\n\tCOMMUTATOR = ").append(commutator);
+
+			if ( null != negator )
+				sb.append(",\n\tNEGATOR = ").append(negator);
+
+			if ( null != restrict )
+				sb.append(",\n\tRESTRICT = ").append(restrict);
+
+			if ( null != join )
+				sb.append(",\n\tJOIN = ").append(join);
+
+			if ( _hashes )
+				sb.append(",\n\tHASHES");
+
+			if ( _merges )
+				sb.append(",\n\tMERGES");
+
+			sb.append(')');
+
+			al.add(sb.toString());
+			if ( null != comment() )
+				al.add(
+					"COMMENT ON OPERATOR " + commentDropForm() + " IS " +
+					DDRWriter.eQuote(comment()));
+
+			return al.toArray( new String [ al.size() ]);
+		}
+
+		public String[] undeployStrings()
+		{
+			return new String[]
+			{
+				"DROP OPERATOR " + commentDropForm()
+			};
+		}
+	}
+
 	class AggregateImpl
 	extends Repeatable
 	implements Aggregate, Snippet, Commentable
@@ -3075,6 +4194,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		public Plan[]                  plan() { return new Plan[]{_plan}; }
 		public Plan[]            movingPlan() { return _movingPlan; }
 		public Function.Parallel   parallel() { return _parallel; }
+		public String[]        sortOperator() { return qstrings(sortop); }
 		public String[]            provides() { return _provides; }
 		public String[]            requires() { return _requires; }
 
@@ -3090,6 +4210,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		Identifier.Qualified<Identifier.Simple> qname;
 		List<Map.Entry<Identifier.Simple,DBType>> aggregateArgs;
 		List<Map.Entry<Identifier.Simple,DBType>> directArgs;
+		Identifier.Qualified<Identifier.Operator> sortop;
 		static final int DIRECT_ARGS = 0; // index into _variadic[]
 		static final int AGG_ARGS = 1;    // likewise
 		boolean directVariadicExplicit;
@@ -3140,6 +4261,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				directArgs = argsIn( avToArray( o, String.class));
+		}
+
+		public void setSortOperator( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				sortop = operatorNameFrom(avToArray( o, String.class));
 		}
 
 		public void setVariadic( Object o, boolean explicit, Element e)
@@ -3195,13 +4322,14 @@ hunt:	for ( ExecutableElement ee : ees )
 			return p;
 		}
 
-		public boolean characterize()
+		public Set<Snippet> characterize()
 		{
 			boolean ok = true;
 			boolean orderedSet = null != directArgs;
 			boolean moving = null != _movingPlan;
 			boolean checkAccumulatorSig = false;
 			boolean checkFinisherSig = false;
+			boolean unary = false;
 
 			if ( ElementKind.METHOD.equals(m_targetElement.getKind()) )
 			{
@@ -3225,6 +4353,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					null == _plan.accumulate  ||  null == aggregateArgs;
 				boolean inferFinisher =
 					null == _plan.finish  &&  ! inferAccumulator;
+				boolean stateTypeExplicit = false;
 
 				if ( null == qname )
 				{
@@ -3260,6 +4389,8 @@ hunt:	for ( ExecutableElement ee : ees )
 						&& null == _movingPlan[0].stateType)
 						_movingPlan[0].stateType = func.parameterTypes[0];
 				}
+				else
+					stateTypeExplicit = true;
 
 				if ( inferAccumulator  ||  inferFinisher )
 				{
@@ -3283,6 +4414,8 @@ hunt:	for ( ExecutableElement ee : ees )
 									)
 									.collect(toList());
 							}
+							else
+								checkAccumulatorSig = true;
 							_plan.accumulate = funcName;
 							if ( null != _movingPlan
 								&& null == _movingPlan[0].accumulate )
@@ -3295,6 +4428,16 @@ hunt:	for ( ExecutableElement ee : ees )
 								&& null == _movingPlan[0].finish )
 								_movingPlan[0].finish = funcName;
 						}
+					}
+
+					if ( stateTypeExplicit
+						&& ! _plan.stateType.equals(func.parameterTypes[0]) )
+					{
+						msg(Kind.ERROR, m_targetElement, m_origin,
+							"First function argument does not match " +
+							"stateType specified with @Aggregate"
+						);
+						ok = false;
 					}
 				}
 				else if ( funcName.equals(_plan.accumulate) )
@@ -3342,6 +4485,8 @@ hunt:	for ( ExecutableElement ee : ees )
 					"@Aggregate missing arguments=");
 				ok = false;
 			}
+			else
+				unary = 1 == aggregateArgs.size();
 
 			if ( null == _plan.stateType )
 			{
@@ -3512,8 +4657,56 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 			}
 
+			// Checks involving sortOperator
+			if ( null != sortop )
+			{
+				if ( orderedSet )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"The sortOperator optimization is not available for " +
+						"an ordered-set aggregate (one with directArguments)");
+					ok = false;
+				}
+
+				if ( ! unary || _variadic[AGG_ARGS] )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"The sortOperator optimization is only available for " +
+						"a one-argument (and non-variadic) aggregate");
+					ok = false;
+				}
+			}
+
+			// Checks involving serialize / deserialize
+			if ( null != _plan.serialize  ||  null != _plan.deserialize )
+			{
+				if ( null == _plan.combine )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"An aggregate plan without combine= may not have " +
+						"serialize= or deserialize=");
+					ok = false;
+				}
+
+				if ( null == _plan.serialize  ||  null == _plan.deserialize )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"An aggregate plan must have both " +
+						"serialize= and deserialize= or neither");
+					ok = false;
+				}
+
+				if ( ! DT_INTERNAL.equals(_plan.stateType) )
+				{
+					msg(Kind.ERROR, m_targetElement, m_origin,
+						"Only an aggregate plan with stateType " +
+						"pg_catalog.internal may have serialize=/deserialize=");
+					ok = false;
+				}
+			}
+
 			if ( ! ok )
-				return false;
+				return Set.of();
 
 			Set<DependTag> requires = requireTags();
 
@@ -3562,8 +4755,21 @@ hunt:	for ( ExecutableElement ee : ees )
 				new DependTag.Function(_plan.accumulate, accumulatorSig));
 
 			if ( null != _plan.combine )
+			{
+				DBType[]   serialSig = { DT_INTERNAL };
+				DBType[] deserialSig = { DT_BYTEA, DT_INTERNAL };
+
 				requires.add(
 					new DependTag.Function(_plan.combine, combinerSig));
+
+				if ( null != _plan.serialize )
+				{
+					requires.add(
+						new DependTag.Function(_plan.serialize, serialSig));
+					requires.add(
+						new DependTag.Function(_plan.deserialize, deserialSig));
+				}
+			}
 
 			if ( null != _plan.finish )
 				requires.add(
@@ -3588,6 +4794,13 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != _movingPlan[0].finish )
 					requires.add(new DependTag.Function(
 						_movingPlan[0].finish, finisherSig));
+			}
+
+			if ( null != sortop )
+			{
+				DBType arg = aggregateArgs.get(0).getValue();
+				DBType[] opSig = { arg, arg };
+				requires.add(new DependTag.Operator(sortop, opSig));
 			}
 
 			/*
@@ -3615,7 +4828,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				.forEach(requires::add);
 
 			recordExplicitTags(_provides, _requires);
-			return true;
+			return Set.of(this);
 		}
 
 		public String[] deployStrings()
@@ -3641,6 +4854,9 @@ hunt:	for ( ExecutableElement ee : ees )
 				for ( String s : planStrings )
 					sb.append(",\n\tM").append(s);
 			}
+
+			if ( null != sortop )
+				sb.append(",\n\tSORTOP = ").append(sortop);
 
 			if ( Function.Parallel.UNSAFE != _parallel )
 				sb.append(",\n\tPARALLEL = ").append(_parallel);
@@ -3723,6 +4939,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			public String[]          combine() { return qstrings(combine); }
 			public String[]           finish() { return qstrings(finish); }
 			public String[]           remove() { return qstrings(remove); }
+			public String[]        serialize() { return qstrings(serialize); }
+			public String[]      deserialize() { return qstrings(deserialize); }
 			public boolean       polymorphic() { return _polymorphic; }
 			public FinishEffect finishEffect() { return _finishEffect; }
 
@@ -3736,6 +4954,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			Identifier.Qualified<Identifier.Simple> combine;
 			Identifier.Qualified<Identifier.Simple> finish;
 			Identifier.Qualified<Identifier.Simple> remove;
+			Identifier.Qualified<Identifier.Simple> serialize;
+			Identifier.Qualified<Identifier.Simple> deserialize;
 
 			public void setStateType(Object o, boolean explicit, Element e)
 			{
@@ -3782,6 +5002,18 @@ hunt:	for ( ExecutableElement ee : ees )
 						"Only a movingPlan may have a remove function");
 			}
 
+			public void setSerialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					serialize = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setDeserialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					deserialize = qnameFrom(avToArray( o, String.class));
+			}
+
 			public void setFinishEffect( Object o, boolean explicit, Element e)
 			{
 				if ( explicit )
@@ -3789,9 +5021,9 @@ hunt:	for ( ExecutableElement ee : ees )
 						((VariableElement)o).getSimpleName().toString());
 			}
 
-			public boolean characterize()
+			public Set<Snippet> characterize()
 			{
-				return false;
+				return Set.of();
 			}
 
 			/**
@@ -3835,6 +5067,12 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != combine )
 					al.add("COMBINEFUNC = " + combine);
 
+				if ( null != serialize )
+					al.add("SERIALFUNC = " + serialize);
+
+				if ( null != deserialize )
+					al.add("DESERIALFUNC = " + deserialize);
+
 				return al.toArray( new String [ al.size() ]);
 			}
 
@@ -3850,6 +5088,22 @@ hunt:	for ( ExecutableElement ee : ees )
 			{
 				if ( explicit )
 					remove = qnameFrom(avToArray( o, String.class));
+			}
+
+			public void setSerialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					throw new IllegalArgumentException(
+						"Only a (non-moving) plan may have a " +
+						"serialize function");
+			}
+
+			public void setDeserialize(Object o, boolean explicit, Element e)
+			{
+				if ( explicit )
+					throw new IllegalArgumentException(
+						"Only a (non-moving) plan may have a " +
+						"deserialize function");
 			}
 		}
 	}
@@ -3868,8 +5122,8 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			// Primitives (these need not, indeed cannot, be schema-qualified)
 			//
-			this.addMap(boolean.class, "boolean");
-			this.addMap(Boolean.class, "boolean");
+			this.addMap(boolean.class, DT_BOOLEAN);
+			this.addMap(Boolean.class, DT_BOOLEAN);
 			this.addMap(byte.class, "smallint");
 			this.addMap(Byte.class, "smallint");
 			this.addMap(char.class, "smallint");
@@ -3878,8 +5132,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(Double.class, "double precision");
 			this.addMap(float.class, "real");
 			this.addMap(Float.class, "real");
-			this.addMap(int.class, "integer");
-			this.addMap(Integer.class, "integer");
+			this.addMap(int.class, DT_INTEGER);
+			this.addMap(Integer.class, DT_INTEGER);
 			this.addMap(long.class, "bigint");
 			this.addMap(Long.class, "bigint");
 			this.addMap(short.class, "smallint");
@@ -3896,10 +5150,10 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(java.sql.SQLXML.class, "pg_catalog", "xml");
 			this.addMap(BigInteger.class, "pg_catalog", "numeric");
 			this.addMap(BigDecimal.class, "pg_catalog", "numeric");
-			this.addMap(ResultSet.class, "pg_catalog", "record");
-			this.addMap(Object.class, "pg_catalog", "\"any\"");
+			this.addMap(ResultSet.class, DT_RECORD);
+			this.addMap(Object.class, DT_ANY);
 
-			this.addMap(byte[].class, "pg_catalog", "bytea");
+			this.addMap(byte[].class, DT_BYTEA);
 
 			this.addMap(LocalDate.class, "pg_catalog", "date");
 			this.addMap(LocalTime.class, "pg_catalog", "time");
@@ -4056,6 +5310,18 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			addMap( typeMirrorFromClass( k),
 				new DBType.Named(qnameFrom(local, schema)));
+		}
+
+		/**
+		 * Add a custom mapping from a Java class to an SQL type
+		 * already in the form of a {@code DBType}.
+		 *
+		 * @param k Class representing the Java type
+		 * @param DBType representing the SQL type to be used
+		 */
+		void addMap(Class<?> k, DBType type)
+		{
+			addMap( typeMirrorFromClass( k), type);
 		}
 
 		/**
@@ -4350,6 +5616,27 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	/**
+	 * Like {@link #qnameFrom(String[])} but for an operator name.
+	 */
+	Identifier.Qualified<Identifier.Operator> operatorNameFrom(String[] names)
+	{
+		switch ( names.length )
+		{
+		case 2:
+			Identifier.Simple qualifier = null;
+			if ( ! names[0].isEmpty() )
+				qualifier = Identifier.Simple.fromJava(names[0], msgr);
+			return Identifier.Operator.from(names[1], msgr)
+				.withQualifier(qualifier);
+		case 1:
+			return Identifier.Qualified.operatorFromJava(names[0], msgr);
+		default:
+			throw new IllegalArgumentException(
+				"Only a one- or two-element String array is accepted");
+		}
+	}
+
 	String[] qstrings(Identifier.Qualified<?> qname)
 	{
 		if ( null == qname )
@@ -4425,10 +5712,14 @@ interface Snippet
 	 * undeployStrings() can be called. May also check for and report semantic
 	 * errors that are not easily checked earlier while populating the
 	 * element/value pairs.
-	 * @return true if this Snippet is standalone and should be scheduled and
-	 * emitted based on provides/requires; false if something else will emit it.
+	 * @return A set of snippets that are now prepared and should be added to
+	 * the graph to be scheduled and emitted according to provides/requires.
+	 * Typically Set.of(this) if all went well, or Set.of() in case of an error
+	 * or when the snippet will be emitted by something else. In some cases a
+	 * characterize method can return additional snippets that are ready to be
+	 * scheduled.
 	 */
-	public boolean characterize();
+	public Set<Snippet> characterize();
 
 	/**
 	 * If it is possible to break an ordering cycle at this snippet, return a
@@ -4700,7 +5991,7 @@ class ImpProvider implements Snippet
 	@Override public String[] undeployStrings() { return s.deployStrings(); }
 	@Override public Set<DependTag> provideTags() { return s.provideTags(); }
 	@Override public Set<DependTag> requireTags() { return s.requireTags(); }
-	@Override public boolean     characterize() { return s.characterize(); }
+	@Override public Set<Snippet> characterize() { return s.characterize(); }
 }
 
 /**
@@ -5482,6 +6773,48 @@ abstract class DependTag<T>
 					continue;
 				}
 				if ( ! m_signature[i].equals(f.m_signature[i], msgr) )
+					return false;
+			}
+			return true;
+		}
+
+		@Override
+		public String toString()
+		{
+			return super.toString() + Arrays.toString(m_signature);
+		}
+	}
+
+	static final class Operator
+	extends Named<Identifier.Qualified<Identifier.Operator>>
+	{
+		private DBType[] m_signature;
+
+		Operator(
+			Identifier.Qualified<Identifier.Operator> value, DBType[] signature)
+		{
+			super(requireNonNull(value));
+			assert 2 == signature.length : "invalid Operator signature length";
+			m_signature = signature.clone();
+		}
+
+		@Override
+		public boolean equals(Object o, Messager msgr)
+		{
+			if ( ! super.equals(o, msgr) )
+				return false;
+			Operator op = (Operator)o;
+			if ( m_signature.length != op.m_signature.length )
+				return false;
+			for ( int i = 0; i < m_signature.length; ++ i )
+			{
+				if ( null == m_signature[i]  ||  null == op.m_signature[i] )
+				{
+					if ( m_signature[i] != op.m_signature[i] )
+						return false;
+					continue;
+				}
+				if ( ! m_signature[i].equals(op.m_signature[i], msgr) )
 					return false;
 			}
 			return true;

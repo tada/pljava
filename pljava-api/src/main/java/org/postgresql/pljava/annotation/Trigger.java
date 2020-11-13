@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2013 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,9 +9,11 @@
  * Contributors:
  *   Tada AB
  *   Purdue University
+ *   Chapman Flack
  */
 package org.postgresql.pljava.annotation;
 
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -40,7 +42,7 @@ import java.lang.annotation.Target;
  * the complete transition tables on each invocation.
  * @author Thomas Hallgren
  */
-@Target({}) @Retention(RetentionPolicy.CLASS)
+@Target({}) @Retention(RetentionPolicy.CLASS) @Documented
 public @interface Trigger
 {
 	/**
