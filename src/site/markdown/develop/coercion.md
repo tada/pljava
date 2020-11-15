@@ -20,13 +20,13 @@ begin. The standard also provides an `SQLJ.ALTER_JAVA_PATH` function that
 gives complete control, based on the jar where a search begins, of which
 other jars should be searched for dependencies.
 
-By contrast, PL/Java (through and including 1.5) *does not* include the
+By contrast, PL/Java (through and including 1.6) *does not* include the
 jar name in `AS` clauses, and provides an [`SQLJ.SET_CLASSPATH`][scp] function
 that can set a distinct class path for any schema in the database. The
 schema `public` can also have a class path, which becomes the fallback for
 any search that is not resolved on another schema's class path.
 
-[scp]: ../pljava/apidocs/index.html?org/postgresql/pljava/management/Commands.html#setClassPath(java.lang.String,%20java.lang.String)
+[scp]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#set_classpath
 
 The class named in an SQL function declaration's `AS` clause is looked up
 on the *class path for the schema in which the function is declared*, with
@@ -41,8 +41,8 @@ in PL/Java with the [@BaseUDT annotation][baseudt]), which is completely
 integrated into PostgreSQL's type system and is usable from in or out
 of Java just like any other PostgreSQL type.
 
-[basetype]: http://www.postgresql.org/docs/current/static/sql-createtype.html#AEN80283
-[baseudt]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/BaseUDT.html
+[basetype]: http://www.postgresql.org/docs/9.5/static/sql-createtype.html#AEN81321
+[baseudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/BaseUDT.html
 
 For the other flavors of user-defined type (described below),
 [`SQLJ.ADD_TYPE_MAPPING`][atm] (a PL/Java function, not in the standard) must
@@ -50,8 +50,8 @@ be called to record the connection between the new type's SQL name and the
 Java class that implements it. The [@MappedUDT annotation][mappedudt] generates
 a call to this function along with any other SQL commands declaring the type.
 
-[atm]: ../pljava/apidocs/index.html?org/postgresql/pljava/management/Commands.html#addTypeMapping(java.lang.String,%20java.lang.String)
-[mappedudt]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/MappedUDT.html
+[atm]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#add_type_mapping
+[mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
 
 What it records is simply the SQL type name as a string, and the Java class
 name as a string, and these mappings apply database-wide. But internally,

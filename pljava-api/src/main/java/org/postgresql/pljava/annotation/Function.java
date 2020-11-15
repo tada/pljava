@@ -191,7 +191,8 @@ category</a>
 	String language() default "";
 
 	/** 
-	 * Whether the function is UNSAFE to use in any parallel query plan at all
+	 * Whether the function is <a id='parallel'>UNSAFE</a> to use in any
+	 * parallel query plan at all
 	 * (the default), or avoids all disqualifying operations and so is SAFE to
 	 * execute anywhere in a parallel plan, or, by avoiding <em>some</em> such
 	 * operations, may appear in parallel plans but RESTRICTED to execute only

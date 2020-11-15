@@ -915,7 +915,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Produce and return one row of the {@code XMLTABLE} result table per call.
+	 * <a id='assignRowValues'>Produce and return one row</a> of
+	 * the {@code XMLTABLE} result table per call.
 	 *<p>
 	 * The row expression has already been compiled and its evaluation begun,
 	 * producing a sequence iterator. The column XQuery expressions have all
@@ -2941,7 +2942,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Function form of the ISO SQL {@code <regex like predicate>}.
+	 * Function form of the ISO SQL
+	 * <a id='like_regex'>{@code <regex like predicate>}</a>.
 	 *<p>
 	 * Rewrite the standard form
 	 *<pre>
@@ -2995,7 +2997,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Syntax-sugar-free form of the ISO SQL {@code OCCURRENCES_REGEX} function:
+	 * Syntax-sugar-free form of the ISO SQL
+	 * <a id='occurrences_regex'>{@code OCCURRENCES_REGEX}</a> function:
 	 * how many times does a pattern occur in a string?
 	 *<p>
 	 * Rewrite the standard form
@@ -3056,7 +3059,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Syntax-sugar-free form of the ISO SQL {@code POSITION_REGEX} function:
+	 * Syntax-sugar-free form of the ISO SQL
+	 * <a id='position_regex'>{@code POSITION_REGEX}</a> function:
 	 * where does a pattern, or part of it, occur in a string?
 	 *<p>
 	 * Rewrite the standard forms
@@ -3143,7 +3147,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Syntax-sugar-free form of the ISO SQL {@code SUBSTRING_REGEX} function:
+	 * Syntax-sugar-free form of the ISO SQL
+	 * <a id='substring_regex'>{@code SUBSTRING_REGEX}</a> function:
 	 * return a substring specified by a pattern match in a string.
 	 *<p>
 	 * Rewrite the standard form
@@ -3229,7 +3234,8 @@ public class S9 implements ResultSetProvider.Large
 	}
 
 	/**
-	 * Syntax-sugar-free form of the ISO SQL {@code TRANSLATE_REGEX} function:
+	 * Syntax-sugar-free form of the ISO SQL
+	 * <a id='translate_regex'>{@code TRANSLATE_REGEX}</a> function:
 	 * return a string constructed from the input string by replacing one
 	 * specified occurrence, or all occurrences, of a matching pattern.
 	 *<p>

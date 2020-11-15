@@ -294,7 +294,7 @@ The [@Function annotation][funcanno] declares that the `hello` function should
 be available from SQL, so a `pljava.ddr` file will be added to the jar,
 containing the SQL commands to make that happen.
 
-[funcanno]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/Function.html
+[funcanno]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Function.html
 
 One more try with `mvn clean package` and there it is:
 
