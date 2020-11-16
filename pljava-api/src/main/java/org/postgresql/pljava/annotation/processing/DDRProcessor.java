@@ -89,6 +89,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.ModuleElement;
 import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.Name;
 import javax.lang.model.element.TypeElement;
@@ -311,27 +312,17 @@ class DDRProcessorImpl
 
 		snippetTiebreaker = reproducible ? new SnippetTiebreaker() : null;
 		
-		TY_ITERATOR = typu.getDeclaredType(
-			elmu.getTypeElement( java.util.Iterator.class.getName()));
-		TY_OBJECT = typu.getDeclaredType(
-			elmu.getTypeElement( Object.class.getName()));
-		TY_RESULTSET = typu.getDeclaredType(
-			elmu.getTypeElement( java.sql.ResultSet.class.getName()));
-		TY_RESULTSETPROVIDER = typu.getDeclaredType(
-			elmu.getTypeElement( ResultSetProvider.class.getName()));
-		TY_RESULTSETHANDLE = typu.getDeclaredType(
-			elmu.getTypeElement( ResultSetHandle.class.getName()));
-		TY_SQLDATA = typu.getDeclaredType(
-			elmu.getTypeElement( SQLData.class.getName()));
-		TY_SQLINPUT = typu.getDeclaredType(
-			elmu.getTypeElement( SQLInput.class.getName()));
-		TY_SQLOUTPUT = typu.getDeclaredType(
-			elmu.getTypeElement( SQLOutput.class.getName()));
-		TY_STRING = typu.getDeclaredType(
-			elmu.getTypeElement( String.class.getName()));
-		TY_TRIGGERDATA = typu.getDeclaredType(
-			elmu.getTypeElement( TriggerData.class.getName()));
-		TY_VOID = typu.getNoType( TypeKind.VOID);
+		TY_ITERATOR          = declaredTypeForClass(java.util.Iterator.class);
+		TY_OBJECT            = declaredTypeForClass(Object.class);
+		TY_RESULTSET         = declaredTypeForClass(java.sql.ResultSet.class);
+		TY_RESULTSETPROVIDER = declaredTypeForClass(ResultSetProvider.class);
+		TY_RESULTSETHANDLE   = declaredTypeForClass(ResultSetHandle.class);
+		TY_SQLDATA           = declaredTypeForClass(SQLData.class);
+		TY_SQLINPUT          = declaredTypeForClass(SQLInput.class);
+		TY_SQLOUTPUT         = declaredTypeForClass(SQLOutput.class);
+		TY_STRING            = declaredTypeForClass(String.class);
+		TY_TRIGGERDATA       = declaredTypeForClass(TriggerData.class);
+		TY_VOID              = typu.getNoType(TypeKind.VOID);
 
 		AN_FUNCTION    = elmu.getTypeElement( Function.class.getName());
 		AN_SQLTYPE     = elmu.getTypeElement( SQLType.class.getName());
@@ -374,6 +365,52 @@ class DDRProcessorImpl
 		String fmt, Object... args)
 	{
 		msgr.printMessage( kind, String.format( fmt, args), e, a, v);
+	}
+
+	/**
+	 * Map a {@code Class} to a {@code TypeElement} and from there to a
+	 * {@code DeclaredType}.
+	 *<p>
+	 * This needs to work around some weird breakage in javac 10 and 11 when
+	 * given a {@code --release} option naming an earlier release, as described
+	 * in commit c763cee. The version of of {@code getTypeElement} with a module
+	 * parameter is needed then, because the other version will go bonkers and
+	 * think it found the class <em>in every module that transitively requires
+	 * its actual module</em> and then return null because the result wasn't
+	 * unique. That got fixed in Java 12, but because 11 is the LTS release and
+	 * there won't be another for a while yet, it is better to work around the
+	 * issue here.
+	 *<p>
+	 * If not supporting Java 10 or 11, this could be simplified to
+	 * {@code typu.getDeclaredType(elmu.getTypeElement(className))}.
+	 */
+	private DeclaredType declaredTypeForClass(Class<?> clazz)
+	{
+		String className = clazz.getName();
+		String moduleName = clazz.getModule().getName();
+
+		TypeElement e;
+
+		if ( null == moduleName )
+			e = elmu.getTypeElement(className);
+		else
+		{
+			ModuleElement m = elmu.getModuleElement(moduleName);
+			if ( null == m )
+				e = elmu.getTypeElement(className);
+			else
+				e = elmu.getTypeElement(m, className);
+		}
+
+		if ( null == e )
+			throw new AssertionError("Boo!");
+
+		DeclaredType t = typu.getDeclaredType(e);
+
+		if ( null == t )
+			throw new AssertionError("No TypeElement for " + e + "?");
+
+		return t;
 	}
 
 	/**
@@ -5274,13 +5311,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				return null;
 			}
 
-			TypeElement te = elmu.getTypeElement( cname);
-			if ( null == te )
-			{
-				msg( Kind.WARNING, "Found no TypeElement for %s", cname);
-				return null; // hope it wasn't one we'll need!
-			}
-			return te.asType();
+			return declaredTypeForClass(k);
 		}
 
 		/**
