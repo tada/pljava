@@ -402,13 +402,13 @@ class DDRProcessorImpl
 				e = elmu.getTypeElement(m, className);
 		}
 
-		if ( null == e )
-			throw new AssertionError("Boo!");
+		requireNonNull(e,
+			() -> "unexpected failure to resolve TypeElement " + className);
 
 		DeclaredType t = typu.getDeclaredType(e);
 
-		if ( null == t )
-			throw new AssertionError("No TypeElement for " + e + "?");
+		requireNonNull(t,
+			() -> "unexpected failure to resolve DeclaredType " + e);
 
 		return t;
 	}
