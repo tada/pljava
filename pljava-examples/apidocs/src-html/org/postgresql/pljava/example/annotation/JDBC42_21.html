@@ -25,134 +25,131 @@
 <span class="source-line-no">013</span><span id="line.13"></span>
 <span class="source-line-no">014</span><span id="line.14">import org.postgresql.pljava.annotation.Function;</span>
 <span class="source-line-no">015</span><span id="line.15">import org.postgresql.pljava.annotation.SQLAction;</span>
-<span class="source-line-no">016</span><span id="line.16">import org.postgresql.pljava.annotation.SQLActions;</span>
-<span class="source-line-no">017</span><span id="line.17"></span>
-<span class="source-line-no">018</span><span id="line.18">import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc</span>
-<span class="source-line-no">019</span><span id="line.19"></span>
-<span class="source-line-no">020</span><span id="line.20">/**</span>
-<span class="source-line-no">021</span><span id="line.21"> * Exercise new mappings between date/time types and java.time classes</span>
-<span class="source-line-no">022</span><span id="line.22"> * (JDBC 4.2 change 21).</span>
-<span class="source-line-no">023</span><span id="line.23"> *&lt;p&gt;</span>
-<span class="source-line-no">024</span><span id="line.24"> * Defines a method {@link #javaSpecificationGE javaSpecificationGE} that may be</span>
-<span class="source-line-no">025</span><span id="line.25"> * of use for other examples.</span>
-<span class="source-line-no">026</span><span id="line.26"> *&lt;p&gt;</span>
-<span class="source-line-no">027</span><span id="line.27"> * Relies on PostgreSQL-version-specific implementor tags set up in the</span>
-<span class="source-line-no">028</span><span id="line.28"> * {@link ConditionalDDR} example.</span>
-<span class="source-line-no">029</span><span id="line.29"> */</span>
-<span class="source-line-no">030</span><span id="line.30">@SQLActions({</span>
-<span class="source-line-no">031</span><span id="line.31">    @SQLAction(</span>
-<span class="source-line-no">032</span><span id="line.32">        implementor="postgresql_ge_90300",requires="TypeRoundTripper.roundTrip",</span>
-<span class="source-line-no">033</span><span id="line.33">        install={</span>
-<span class="source-line-no">034</span><span id="line.34">        " SELECT" +</span>
-<span class="source-line-no">035</span><span id="line.35">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">036</span><span id="line.36">        "  THEN javatest.logmessage('INFO', 'java.time.LocalDate passes')" +</span>
-<span class="source-line-no">037</span><span id="line.37">        "  ELSE javatest.logmessage('WARNING', 'java.time.LocalDate fails')" +</span>
-<span class="source-line-no">038</span><span id="line.38">        "  END" +</span>
-<span class="source-line-no">039</span><span id="line.39">        " FROM" +</span>
-<span class="source-line-no">040</span><span id="line.40">        "  (VALUES" +</span>
-<span class="source-line-no">041</span><span id="line.41">        "   (date '2017-08-21')," +</span>
-<span class="source-line-no">042</span><span id="line.42">        "   (date '1970-03-07')," +</span>
-<span class="source-line-no">043</span><span id="line.43">        "   (date '1919-05-29')" +</span>
-<span class="source-line-no">044</span><span id="line.44">        "  ) AS p(orig)," +</span>
-<span class="source-line-no">045</span><span id="line.45">        "  javatest.roundtrip(p, 'java.time.LocalDate')" +</span>
-<span class="source-line-no">046</span><span id="line.46">        "  AS r(roundtripped date)",</span>
-<span class="source-line-no">047</span><span id="line.47"></span>
-<span class="source-line-no">048</span><span id="line.48">        " SELECT" +</span>
-<span class="source-line-no">049</span><span id="line.49">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">050</span><span id="line.50">        "  THEN javatest.logmessage('INFO', 'java.time.LocalTime passes')" +</span>
-<span class="source-line-no">051</span><span id="line.51">        "  ELSE javatest.logmessage('WARNING', 'java.time.LocalTime fails')" +</span>
-<span class="source-line-no">052</span><span id="line.52">        "  END" +</span>
-<span class="source-line-no">053</span><span id="line.53">        " FROM" +</span>
-<span class="source-line-no">054</span><span id="line.54">        "  (SELECT current_time::time) AS p(orig)," +</span>
-<span class="source-line-no">055</span><span id="line.55">        "  javatest.roundtrip(p, 'java.time.LocalTime')" +</span>
-<span class="source-line-no">056</span><span id="line.56">        "  AS r(roundtripped time)",</span>
-<span class="source-line-no">057</span><span id="line.57"></span>
-<span class="source-line-no">058</span><span id="line.58">        " SELECT" +</span>
-<span class="source-line-no">059</span><span id="line.59">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">060</span><span id="line.60">        "  THEN javatest.logmessage('INFO', 'java.time.OffsetTime passes')" +</span>
-<span class="source-line-no">061</span><span id="line.61">        "  ELSE javatest.logmessage('WARNING', 'java.time.OffsetTime fails')" +</span>
-<span class="source-line-no">062</span><span id="line.62">        "  END" +</span>
-<span class="source-line-no">063</span><span id="line.63">        " FROM" +</span>
-<span class="source-line-no">064</span><span id="line.64">        "  (SELECT current_time::timetz) AS p(orig)," +</span>
-<span class="source-line-no">065</span><span id="line.65">        "  javatest.roundtrip(p, 'java.time.OffsetTime')" +</span>
-<span class="source-line-no">066</span><span id="line.66">        "  AS r(roundtripped timetz)",</span>
-<span class="source-line-no">067</span><span id="line.67"></span>
-<span class="source-line-no">068</span><span id="line.68">        " SELECT" +</span>
-<span class="source-line-no">069</span><span id="line.69">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">070</span><span id="line.70">        "  THEN javatest.logmessage('INFO', 'java.time.LocalDateTime passes')" +</span>
-<span class="source-line-no">071</span><span id="line.71">        "  ELSE javatest.logmessage('WARNING','java.time.LocalDateTime fails')"+</span>
-<span class="source-line-no">072</span><span id="line.72">        "  END" +</span>
-<span class="source-line-no">073</span><span id="line.73">        " FROM" +</span>
-<span class="source-line-no">074</span><span id="line.74">        "  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +</span>
-<span class="source-line-no">075</span><span id="line.75">        "  LATERAL (" +</span>
-<span class="source-line-no">076</span><span id="line.76">        "   SELECT" +</span>
-<span class="source-line-no">077</span><span id="line.77">        "    value" +</span>
-<span class="source-line-no">078</span><span id="line.78">        "   FROM" +</span>
-<span class="source-line-no">079</span><span id="line.79">        "    (VALUES" +</span>
-<span class="source-line-no">080</span><span id="line.80">        "     (true, timestamp '2017-08-21 18:25:29.900005')," +</span>
-<span class="source-line-no">081</span><span id="line.81">        "     (true, timestamp '1970-03-07 17:37:49.300009')," +</span>
-<span class="source-line-no">082</span><span id="line.82">        "     (true, timestamp '1919-05-29 13:08:33.600001')," +</span>
-<span class="source-line-no">083</span><span id="line.83">        "     (idt,  timestamp  'infinity')," +</span>
-<span class="source-line-no">084</span><span id="line.84">        "     (idt,  timestamp '-infinity')" +</span>
-<span class="source-line-no">085</span><span id="line.85">        "    ) AS vs(cond, value)" +</span>
-<span class="source-line-no">086</span><span id="line.86">        "   WHERE cond" +</span>
-<span class="source-line-no">087</span><span id="line.87">        "  ) AS p(orig)," +</span>
-<span class="source-line-no">088</span><span id="line.88">        "  javatest.roundtrip(p, 'java.time.LocalDateTime')" +</span>
-<span class="source-line-no">089</span><span id="line.89">        "  AS r(roundtripped timestamp)",</span>
-<span class="source-line-no">090</span><span id="line.90"></span>
-<span class="source-line-no">091</span><span id="line.91">        " SELECT" +</span>
-<span class="source-line-no">092</span><span id="line.92">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">093</span><span id="line.93">        "  THEN javatest.logmessage('INFO', 'java.time.OffsetDateTime passes')"+</span>
-<span class="source-line-no">094</span><span id="line.94">        "  ELSE javatest.logmessage(" +</span>
-<span class="source-line-no">095</span><span id="line.95">        "         'WARNING','java.time.OffsetDateTime fails')"+</span>
-<span class="source-line-no">096</span><span id="line.96">        "  END" +</span>
-<span class="source-line-no">097</span><span id="line.97">        " FROM" +</span>
-<span class="source-line-no">098</span><span id="line.98">        "  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +</span>
-<span class="source-line-no">099</span><span id="line.99">        "  LATERAL (" +</span>
-<span class="source-line-no">100</span><span id="line.100">        "   SELECT" +</span>
-<span class="source-line-no">101</span><span id="line.101">        "    value" +</span>
-<span class="source-line-no">102</span><span id="line.102">        "   FROM" +</span>
-<span class="source-line-no">103</span><span id="line.103">        "    (VALUES" +</span>
-<span class="source-line-no">104</span><span id="line.104">        "     (true, timestamptz '2017-08-21 18:25:29.900005Z')," +</span>
-<span class="source-line-no">105</span><span id="line.105">        "     (true, timestamptz '1970-03-07 17:37:49.300009Z')," +</span>
-<span class="source-line-no">106</span><span id="line.106">        "     (true, timestamptz '1919-05-29 13:08:33.600001Z')," +</span>
-<span class="source-line-no">107</span><span id="line.107">        "     (idt,  timestamptz  'infinity')," +</span>
-<span class="source-line-no">108</span><span id="line.108">        "     (idt,  timestamptz '-infinity')" +</span>
-<span class="source-line-no">109</span><span id="line.109">        "    ) AS vs(cond, value)" +</span>
-<span class="source-line-no">110</span><span id="line.110">        "   WHERE cond" +</span>
-<span class="source-line-no">111</span><span id="line.111">        "  ) AS p(orig)," +</span>
-<span class="source-line-no">112</span><span id="line.112">        "  javatest.roundtrip(p, 'java.time.OffsetDateTime')" +</span>
-<span class="source-line-no">113</span><span id="line.113">        "  AS r(roundtripped timestamptz)",</span>
-<span class="source-line-no">114</span><span id="line.114"></span>
-<span class="source-line-no">115</span><span id="line.115">        " SELECT" +</span>
-<span class="source-line-no">116</span><span id="line.116">        "  CASE WHEN every(orig = roundtripped)" +</span>
-<span class="source-line-no">117</span><span id="line.117">        "  THEN javatest.logmessage('INFO', 'OffsetTime as stmt param passes')"+</span>
-<span class="source-line-no">118</span><span id="line.118">        "  ELSE javatest.logmessage(" +</span>
-<span class="source-line-no">119</span><span id="line.119">        "         'WARNING','java.time.OffsetTime as stmt param fails')"+</span>
-<span class="source-line-no">120</span><span id="line.120">        "  END" +</span>
-<span class="source-line-no">121</span><span id="line.121">        " FROM" +</span>
-<span class="source-line-no">122</span><span id="line.122">        "  (SELECT current_time::timetz) AS p(orig)," +</span>
-<span class="source-line-no">123</span><span id="line.123">        "  javatest.roundtrip(p, 'java.time.OffsetTime', true)" +</span>
-<span class="source-line-no">124</span><span id="line.124">        "  AS r(roundtripped timetz)"</span>
-<span class="source-line-no">125</span><span id="line.125">    })</span>
-<span class="source-line-no">126</span><span id="line.126">})</span>
-<span class="source-line-no">127</span><span id="line.127">public class JDBC42_21</span>
-<span class="source-line-no">128</span><span id="line.128">{</span>
-<span class="source-line-no">129</span><span id="line.129">    /**</span>
-<span class="source-line-no">130</span><span id="line.130">     * Return true if running under a Java specification version at least as</span>
-<span class="source-line-no">131</span><span id="line.131">     * recent as the argument ('1.6', '1.7', '1.8', '9', '10', '11', ...).</span>
-<span class="source-line-no">132</span><span id="line.132">     */</span>
-<span class="source-line-no">133</span><span id="line.133">    @Function(schema="javatest", provides="javaSpecificationGE")</span>
-<span class="source-line-no">134</span><span id="line.134">    public static boolean javaSpecificationGE(String want)</span>
-<span class="source-line-no">135</span><span id="line.135">    {</span>
-<span class="source-line-no">136</span><span id="line.136">        String got = System.getProperty("java.specification.version");</span>
-<span class="source-line-no">137</span><span id="line.137">        if ( want.startsWith("1.") )</span>
-<span class="source-line-no">138</span><span id="line.138">            want = want.substring(2);</span>
-<span class="source-line-no">139</span><span id="line.139">        if ( got.startsWith("1.") )</span>
-<span class="source-line-no">140</span><span id="line.140">            got = got.substring(2);</span>
-<span class="source-line-no">141</span><span id="line.141">        return 0 &lt;= Integer.valueOf(got).compareTo(Integer.valueOf(want));</span>
-<span class="source-line-no">142</span><span id="line.142">    }</span>
-<span class="source-line-no">143</span><span id="line.143">}</span>
+<span class="source-line-no">016</span><span id="line.16"></span>
+<span class="source-line-no">017</span><span id="line.17">import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc</span>
+<span class="source-line-no">018</span><span id="line.18"></span>
+<span class="source-line-no">019</span><span id="line.19">/**</span>
+<span class="source-line-no">020</span><span id="line.20"> * Exercise new mappings between date/time types and java.time classes</span>
+<span class="source-line-no">021</span><span id="line.21"> * (JDBC 4.2 change 21).</span>
+<span class="source-line-no">022</span><span id="line.22"> *&lt;p&gt;</span>
+<span class="source-line-no">023</span><span id="line.23"> * Defines a method {@link #javaSpecificationGE javaSpecificationGE} that may be</span>
+<span class="source-line-no">024</span><span id="line.24"> * of use for other examples.</span>
+<span class="source-line-no">025</span><span id="line.25"> *&lt;p&gt;</span>
+<span class="source-line-no">026</span><span id="line.26"> * Relies on PostgreSQL-version-specific implementor tags set up in the</span>
+<span class="source-line-no">027</span><span id="line.27"> * {@link ConditionalDDR} example.</span>
+<span class="source-line-no">028</span><span id="line.28"> */</span>
+<span class="source-line-no">029</span><span id="line.29">@SQLAction(</span>
+<span class="source-line-no">030</span><span id="line.30">    implementor="postgresql_ge_90300",requires="TypeRoundTripper.roundTrip",</span>
+<span class="source-line-no">031</span><span id="line.31">    install={</span>
+<span class="source-line-no">032</span><span id="line.32">    " SELECT" +</span>
+<span class="source-line-no">033</span><span id="line.33">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">034</span><span id="line.34">    "  THEN javatest.logmessage('INFO', 'java.time.LocalDate passes')" +</span>
+<span class="source-line-no">035</span><span id="line.35">    "  ELSE javatest.logmessage('WARNING', 'java.time.LocalDate fails')" +</span>
+<span class="source-line-no">036</span><span id="line.36">    "  END" +</span>
+<span class="source-line-no">037</span><span id="line.37">    " FROM" +</span>
+<span class="source-line-no">038</span><span id="line.38">    "  (VALUES" +</span>
+<span class="source-line-no">039</span><span id="line.39">    "   (date '2017-08-21')," +</span>
+<span class="source-line-no">040</span><span id="line.40">    "   (date '1970-03-07')," +</span>
+<span class="source-line-no">041</span><span id="line.41">    "   (date '1919-05-29')" +</span>
+<span class="source-line-no">042</span><span id="line.42">    "  ) AS p(orig)," +</span>
+<span class="source-line-no">043</span><span id="line.43">    "  javatest.roundtrip(p, 'java.time.LocalDate')" +</span>
+<span class="source-line-no">044</span><span id="line.44">    "  AS r(roundtripped date)",</span>
+<span class="source-line-no">045</span><span id="line.45"></span>
+<span class="source-line-no">046</span><span id="line.46">    " SELECT" +</span>
+<span class="source-line-no">047</span><span id="line.47">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">048</span><span id="line.48">    "  THEN javatest.logmessage('INFO', 'java.time.LocalTime passes')" +</span>
+<span class="source-line-no">049</span><span id="line.49">    "  ELSE javatest.logmessage('WARNING', 'java.time.LocalTime fails')" +</span>
+<span class="source-line-no">050</span><span id="line.50">    "  END" +</span>
+<span class="source-line-no">051</span><span id="line.51">    " FROM" +</span>
+<span class="source-line-no">052</span><span id="line.52">    "  (SELECT current_time::time) AS p(orig)," +</span>
+<span class="source-line-no">053</span><span id="line.53">    "  javatest.roundtrip(p, 'java.time.LocalTime')" +</span>
+<span class="source-line-no">054</span><span id="line.54">    "  AS r(roundtripped time)",</span>
+<span class="source-line-no">055</span><span id="line.55"></span>
+<span class="source-line-no">056</span><span id="line.56">    " SELECT" +</span>
+<span class="source-line-no">057</span><span id="line.57">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">058</span><span id="line.58">    "  THEN javatest.logmessage('INFO', 'java.time.OffsetTime passes')" +</span>
+<span class="source-line-no">059</span><span id="line.59">    "  ELSE javatest.logmessage('WARNING', 'java.time.OffsetTime fails')" +</span>
+<span class="source-line-no">060</span><span id="line.60">    "  END" +</span>
+<span class="source-line-no">061</span><span id="line.61">    " FROM" +</span>
+<span class="source-line-no">062</span><span id="line.62">    "  (SELECT current_time::timetz) AS p(orig)," +</span>
+<span class="source-line-no">063</span><span id="line.63">    "  javatest.roundtrip(p, 'java.time.OffsetTime')" +</span>
+<span class="source-line-no">064</span><span id="line.64">    "  AS r(roundtripped timetz)",</span>
+<span class="source-line-no">065</span><span id="line.65"></span>
+<span class="source-line-no">066</span><span id="line.66">    " SELECT" +</span>
+<span class="source-line-no">067</span><span id="line.67">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">068</span><span id="line.68">    "  THEN javatest.logmessage('INFO', 'java.time.LocalDateTime passes')" +</span>
+<span class="source-line-no">069</span><span id="line.69">    "  ELSE javatest.logmessage('WARNING','java.time.LocalDateTime fails')"+</span>
+<span class="source-line-no">070</span><span id="line.70">    "  END" +</span>
+<span class="source-line-no">071</span><span id="line.71">    " FROM" +</span>
+<span class="source-line-no">072</span><span id="line.72">    "  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +</span>
+<span class="source-line-no">073</span><span id="line.73">    "  LATERAL (" +</span>
+<span class="source-line-no">074</span><span id="line.74">    "   SELECT" +</span>
+<span class="source-line-no">075</span><span id="line.75">    "    value" +</span>
+<span class="source-line-no">076</span><span id="line.76">    "   FROM" +</span>
+<span class="source-line-no">077</span><span id="line.77">    "    (VALUES" +</span>
+<span class="source-line-no">078</span><span id="line.78">    "     (true, timestamp '2017-08-21 18:25:29.900005')," +</span>
+<span class="source-line-no">079</span><span id="line.79">    "     (true, timestamp '1970-03-07 17:37:49.300009')," +</span>
+<span class="source-line-no">080</span><span id="line.80">    "     (true, timestamp '1919-05-29 13:08:33.600001')," +</span>
+<span class="source-line-no">081</span><span id="line.81">    "     (idt,  timestamp  'infinity')," +</span>
+<span class="source-line-no">082</span><span id="line.82">    "     (idt,  timestamp '-infinity')" +</span>
+<span class="source-line-no">083</span><span id="line.83">    "    ) AS vs(cond, value)" +</span>
+<span class="source-line-no">084</span><span id="line.84">    "   WHERE cond" +</span>
+<span class="source-line-no">085</span><span id="line.85">    "  ) AS p(orig)," +</span>
+<span class="source-line-no">086</span><span id="line.86">    "  javatest.roundtrip(p, 'java.time.LocalDateTime')" +</span>
+<span class="source-line-no">087</span><span id="line.87">    "  AS r(roundtripped timestamp)",</span>
+<span class="source-line-no">088</span><span id="line.88"></span>
+<span class="source-line-no">089</span><span id="line.89">    " SELECT" +</span>
+<span class="source-line-no">090</span><span id="line.90">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">091</span><span id="line.91">    "  THEN javatest.logmessage('INFO', 'java.time.OffsetDateTime passes')"+</span>
+<span class="source-line-no">092</span><span id="line.92">    "  ELSE javatest.logmessage(" +</span>
+<span class="source-line-no">093</span><span id="line.93">    "         'WARNING','java.time.OffsetDateTime fails')"+</span>
+<span class="source-line-no">094</span><span id="line.94">    "  END" +</span>
+<span class="source-line-no">095</span><span id="line.95">    " FROM" +</span>
+<span class="source-line-no">096</span><span id="line.96">    "  (SELECT 'on' = current_setting('integer_datetimes')) AS ck(idt)," +</span>
+<span class="source-line-no">097</span><span id="line.97">    "  LATERAL (" +</span>
+<span class="source-line-no">098</span><span id="line.98">    "   SELECT" +</span>
+<span class="source-line-no">099</span><span id="line.99">    "    value" +</span>
+<span class="source-line-no">100</span><span id="line.100">    "   FROM" +</span>
+<span class="source-line-no">101</span><span id="line.101">    "    (VALUES" +</span>
+<span class="source-line-no">102</span><span id="line.102">    "     (true, timestamptz '2017-08-21 18:25:29.900005Z')," +</span>
+<span class="source-line-no">103</span><span id="line.103">    "     (true, timestamptz '1970-03-07 17:37:49.300009Z')," +</span>
+<span class="source-line-no">104</span><span id="line.104">    "     (true, timestamptz '1919-05-29 13:08:33.600001Z')," +</span>
+<span class="source-line-no">105</span><span id="line.105">    "     (idt,  timestamptz  'infinity')," +</span>
+<span class="source-line-no">106</span><span id="line.106">    "     (idt,  timestamptz '-infinity')" +</span>
+<span class="source-line-no">107</span><span id="line.107">    "    ) AS vs(cond, value)" +</span>
+<span class="source-line-no">108</span><span id="line.108">    "   WHERE cond" +</span>
+<span class="source-line-no">109</span><span id="line.109">    "  ) AS p(orig)," +</span>
+<span class="source-line-no">110</span><span id="line.110">    "  javatest.roundtrip(p, 'java.time.OffsetDateTime')" +</span>
+<span class="source-line-no">111</span><span id="line.111">    "  AS r(roundtripped timestamptz)",</span>
+<span class="source-line-no">112</span><span id="line.112"></span>
+<span class="source-line-no">113</span><span id="line.113">    " SELECT" +</span>
+<span class="source-line-no">114</span><span id="line.114">    "  CASE WHEN every(orig = roundtripped)" +</span>
+<span class="source-line-no">115</span><span id="line.115">    "  THEN javatest.logmessage('INFO', 'OffsetTime as stmt param passes')"+</span>
+<span class="source-line-no">116</span><span id="line.116">    "  ELSE javatest.logmessage(" +</span>
+<span class="source-line-no">117</span><span id="line.117">    "         'WARNING','java.time.OffsetTime as stmt param fails')"+</span>
+<span class="source-line-no">118</span><span id="line.118">    "  END" +</span>
+<span class="source-line-no">119</span><span id="line.119">    " FROM" +</span>
+<span class="source-line-no">120</span><span id="line.120">    "  (SELECT current_time::timetz) AS p(orig)," +</span>
+<span class="source-line-no">121</span><span id="line.121">    "  javatest.roundtrip(p, 'java.time.OffsetTime', true)" +</span>
+<span class="source-line-no">122</span><span id="line.122">    "  AS r(roundtripped timetz)"</span>
+<span class="source-line-no">123</span><span id="line.123">})</span>
+<span class="source-line-no">124</span><span id="line.124">public class JDBC42_21</span>
+<span class="source-line-no">125</span><span id="line.125">{</span>
+<span class="source-line-no">126</span><span id="line.126">    /**</span>
+<span class="source-line-no">127</span><span id="line.127">     * Return true if running under a Java specification version at least as</span>
+<span class="source-line-no">128</span><span id="line.128">     * recent as the argument ('1.6', '1.7', '1.8', '9', '10', '11', ...).</span>
+<span class="source-line-no">129</span><span id="line.129">     */</span>
+<span class="source-line-no">130</span><span id="line.130">    @Function(schema="javatest", provides="javaSpecificationGE")</span>
+<span class="source-line-no">131</span><span id="line.131">    public static boolean javaSpecificationGE(String want)</span>
+<span class="source-line-no">132</span><span id="line.132">    {</span>
+<span class="source-line-no">133</span><span id="line.133">        String got = System.getProperty("java.specification.version");</span>
+<span class="source-line-no">134</span><span id="line.134">        if ( want.startsWith("1.") )</span>
+<span class="source-line-no">135</span><span id="line.135">            want = want.substring(2);</span>
+<span class="source-line-no">136</span><span id="line.136">        if ( got.startsWith("1.") )</span>
+<span class="source-line-no">137</span><span id="line.137">            got = got.substring(2);</span>
+<span class="source-line-no">138</span><span id="line.138">        return 0 &lt;= Integer.valueOf(got).compareTo(Integer.valueOf(want));</span>
+<span class="source-line-no">139</span><span id="line.139">    }</span>
+<span class="source-line-no">140</span><span id="line.140">}</span>
 
 
 

@@ -11,7 +11,7 @@
 <main role="main">
 <div class="source-container">
 <pre><span class="source-line-no">001</span><span id="line.1">/*</span>
-<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2018- Tada AB and other contributors, as listed below.</span>
+<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.</span>
 <span class="source-line-no">003</span><span id="line.3"> *</span>
 <span class="source-line-no">004</span><span id="line.4"> * All rights reserved. This program and the accompanying materials</span>
 <span class="source-line-no">005</span><span id="line.5"> * are made available under the terms of the The BSD 3-Clause License</span>
@@ -32,126 +32,123 @@
 <span class="source-line-no">020</span><span id="line.20">import org.postgresql.pljava.ResultSetProvider;</span>
 <span class="source-line-no">021</span><span id="line.21">import org.postgresql.pljava.annotation.Function;</span>
 <span class="source-line-no">022</span><span id="line.22">import org.postgresql.pljava.annotation.SQLAction;</span>
-<span class="source-line-no">023</span><span id="line.23">import org.postgresql.pljava.annotation.SQLActions;</span>
-<span class="source-line-no">024</span><span id="line.24">import org.postgresql.pljava.annotation.SQLType;</span>
-<span class="source-line-no">025</span><span id="line.25"></span>
-<span class="source-line-no">026</span><span id="line.26">/**</span>
-<span class="source-line-no">027</span><span id="line.27"> * Example demonstrating the use of a {@code RECORD} parameter as a way to</span>
-<span class="source-line-no">028</span><span id="line.28"> * supply an arbitrary sequence of named, typed parameters to a PL/Java</span>
-<span class="source-line-no">029</span><span id="line.29"> * function.</span>
-<span class="source-line-no">030</span><span id="line.30"> *&lt;p&gt;</span>
-<span class="source-line-no">031</span><span id="line.31"> * Also tests the proper DDR generation of defaults for such parameters.</span>
-<span class="source-line-no">032</span><span id="line.32"> *&lt;p&gt;</span>
-<span class="source-line-no">033</span><span id="line.33"> * This example relies on {@code implementor} tags reflecting the PostgreSQL</span>
-<span class="source-line-no">034</span><span id="line.34"> * version, set up in the {@link ConditionalDDR} example.</span>
-<span class="source-line-no">035</span><span id="line.35"> */</span>
-<span class="source-line-no">036</span><span id="line.36">@SQLActions({</span>
-<span class="source-line-no">037</span><span id="line.37">    @SQLAction(</span>
-<span class="source-line-no">038</span><span id="line.38">        provides = "paramtypeinfo type", // created in Triggers.java</span>
-<span class="source-line-no">039</span><span id="line.39">        install = {</span>
-<span class="source-line-no">040</span><span id="line.40">            "CREATE TYPE javatest.paramtypeinfo AS (" +</span>
-<span class="source-line-no">041</span><span id="line.41">            " name text, pgtypename text, javaclass text, tostring text" +</span>
-<span class="source-line-no">042</span><span id="line.42">            ")"</span>
-<span class="source-line-no">043</span><span id="line.43">        },</span>
-<span class="source-line-no">044</span><span id="line.44">        remove = {</span>
-<span class="source-line-no">045</span><span id="line.45">            "DROP TYPE javatest.paramtypeinfo"</span>
-<span class="source-line-no">046</span><span id="line.46">        }</span>
-<span class="source-line-no">047</span><span id="line.47">    )</span>
-<span class="source-line-no">048</span><span id="line.48">})</span>
-<span class="source-line-no">049</span><span id="line.49">public class RecordParameterDefaults implements ResultSetProvider</span>
-<span class="source-line-no">050</span><span id="line.50">{</span>
-<span class="source-line-no">051</span><span id="line.51">    /**</span>
-<span class="source-line-no">052</span><span id="line.52">     * Return the names, types, and values of parameters supplied as a single</span>
-<span class="source-line-no">053</span><span id="line.53">     * anonymous RECORD type; the parameter is given an empty-record default,</span>
-<span class="source-line-no">054</span><span id="line.54">     * allowing it to be omitted in calls, or used with the named-parameter</span>
-<span class="source-line-no">055</span><span id="line.55">     * call syntax.</span>
-<span class="source-line-no">056</span><span id="line.56">     *&lt;p&gt;</span>
-<span class="source-line-no">057</span><span id="line.57">     * For example, this function could be called as:</span>
-<span class="source-line-no">058</span><span id="line.58">     *&lt;pre&gt;</span>
-<span class="source-line-no">059</span><span id="line.59">     * SELECT (paramDefaultsRecord()).*;</span>
-<span class="source-line-no">060</span><span id="line.60">     *&lt;/pre&gt;</span>
-<span class="source-line-no">061</span><span id="line.61">     * or as:</span>
-<span class="source-line-no">062</span><span id="line.62">     *&lt;pre&gt;</span>
-<span class="source-line-no">063</span><span id="line.63">     * SELECT (paramDefaultsRecord(params =&amp;gt; s)).*</span>
-<span class="source-line-no">064</span><span id="line.64">     * FROM (SELECT 42 AS a, '42' AS b, 42.0 AS c) AS s;</span>
-<span class="source-line-no">065</span><span id="line.65">     *&lt;/pre&gt;</span>
-<span class="source-line-no">066</span><span id="line.66">     */</span>
-<span class="source-line-no">067</span><span id="line.67">    @Function(</span>
-<span class="source-line-no">068</span><span id="line.68">        requires = "paramtypeinfo type",</span>
-<span class="source-line-no">069</span><span id="line.69">        schema = "javatest",</span>
-<span class="source-line-no">070</span><span id="line.70">        implementor = "postgresql_ge_80400", // supports function param DEFAULTs</span>
-<span class="source-line-no">071</span><span id="line.71">        type = "javatest.paramtypeinfo"</span>
-<span class="source-line-no">072</span><span id="line.72">        )</span>
-<span class="source-line-no">073</span><span id="line.73">    public static ResultSetProvider paramDefaultsRecord(</span>
-<span class="source-line-no">074</span><span id="line.74">        @SQLType(defaultValue={})ResultSet params)</span>
-<span class="source-line-no">075</span><span id="line.75">    throws SQLException</span>
-<span class="source-line-no">076</span><span id="line.76">    {</span>
-<span class="source-line-no">077</span><span id="line.77">        return new RecordParameterDefaults(params);</span>
-<span class="source-line-no">078</span><span id="line.78">    }</span>
-<span class="source-line-no">079</span><span id="line.79"></span>
-<span class="source-line-no">080</span><span id="line.80">    /**</span>
-<span class="source-line-no">081</span><span id="line.81">     * Like paramDefaultsRecord but illustrating the use of a named row type</span>
-<span class="source-line-no">082</span><span id="line.82">     * with known structure, and supplying a default for the function</span>
-<span class="source-line-no">083</span><span id="line.83">     * parameter.</span>
-<span class="source-line-no">084</span><span id="line.84">     *&lt;p&gt;</span>
-<span class="source-line-no">085</span><span id="line.85">     *&lt;pre&gt;</span>
-<span class="source-line-no">086</span><span id="line.86">     * SELECT paramDefaultsNamedRow();</span>
-<span class="source-line-no">087</span><span id="line.87">     *</span>
-<span class="source-line-no">088</span><span id="line.88">     * SELECT paramDefaultsNamedRow(userWithNum =&amp;gt; ('fred', 3.14));</span>
-<span class="source-line-no">089</span><span id="line.89">     *&lt;/pre&gt;</span>
-<span class="source-line-no">090</span><span id="line.90">     */</span>
-<span class="source-line-no">091</span><span id="line.91">    @Function(</span>
-<span class="source-line-no">092</span><span id="line.92">        requires = "foobar tables", // created in Triggers.java</span>
-<span class="source-line-no">093</span><span id="line.93">        implementor = "postgresql_ge_80400", // supports function param DEFAULTs</span>
-<span class="source-line-no">094</span><span id="line.94">        schema = "javatest"</span>
-<span class="source-line-no">095</span><span id="line.95">        )</span>
-<span class="source-line-no">096</span><span id="line.96">    public static String paramDefaultsNamedRow(</span>
-<span class="source-line-no">097</span><span id="line.97">        @SQLType(value="javatest.foobar_2", defaultValue={"bob", "42"})</span>
-<span class="source-line-no">098</span><span id="line.98">        ResultSet userWithNum)</span>
-<span class="source-line-no">099</span><span id="line.99">    throws SQLException</span>
-<span class="source-line-no">100</span><span id="line.100">    {</span>
-<span class="source-line-no">101</span><span id="line.101">        return String.format("username is %s and value is %s",</span>
-<span class="source-line-no">102</span><span id="line.102">            userWithNum.getObject("username"), userWithNum.getObject("value"));</span>
-<span class="source-line-no">103</span><span id="line.103">    }</span>
-<span class="source-line-no">104</span><span id="line.104"></span>
-<span class="source-line-no">105</span><span id="line.105"></span>
-<span class="source-line-no">106</span><span id="line.106"></span>
-<span class="source-line-no">107</span><span id="line.107">    private final ResultSetMetaData m_paramrsmd;</span>
-<span class="source-line-no">108</span><span id="line.108">    private final Object[] m_values;</span>
-<span class="source-line-no">109</span><span id="line.109">    </span>
-<span class="source-line-no">110</span><span id="line.110">    RecordParameterDefaults(ResultSet paramrs) throws SQLException</span>
-<span class="source-line-no">111</span><span id="line.111">    {</span>
-<span class="source-line-no">112</span><span id="line.112">        m_paramrsmd = paramrs.getMetaData();</span>
-<span class="source-line-no">113</span><span id="line.113">        /*</span>
-<span class="source-line-no">114</span><span id="line.114">         * Grab the values from the parameter SingleRowResultSet now; it isn't</span>
-<span class="source-line-no">115</span><span id="line.115">         * guaranteed to stay valid for the life of the set-returning function.</span>
-<span class="source-line-no">116</span><span id="line.116">         */</span>
-<span class="source-line-no">117</span><span id="line.117">        m_values = new Object [ m_paramrsmd.getColumnCount() ];</span>
-<span class="source-line-no">118</span><span id="line.118">        for ( int i = 0; i &lt; m_values.length; ++ i )</span>
-<span class="source-line-no">119</span><span id="line.119">            m_values[i] = paramrs.getObject( 1 + i);</span>
-<span class="source-line-no">120</span><span id="line.120">    }</span>
-<span class="source-line-no">121</span><span id="line.121"></span>
-<span class="source-line-no">122</span><span id="line.122">    @Override</span>
-<span class="source-line-no">123</span><span id="line.123">    public boolean assignRowValues(ResultSet receiver, int currentRow)</span>
-<span class="source-line-no">124</span><span id="line.124">    throws SQLException</span>
-<span class="source-line-no">125</span><span id="line.125">    {</span>
-<span class="source-line-no">126</span><span id="line.126">        int col = 1 + currentRow;</span>
-<span class="source-line-no">127</span><span id="line.127">        if ( col &gt; m_paramrsmd.getColumnCount() )</span>
-<span class="source-line-no">128</span><span id="line.128">            return false;</span>
-<span class="source-line-no">129</span><span id="line.129">        receiver.updateString("name", m_paramrsmd.getColumnLabel(col));</span>
-<span class="source-line-no">130</span><span id="line.130">        receiver.updateString("pgtypename", m_paramrsmd.getColumnTypeName(col));</span>
-<span class="source-line-no">131</span><span id="line.131">        Object o = m_values[col - 1];</span>
-<span class="source-line-no">132</span><span id="line.132">        receiver.updateString("javaclass", o.getClass().getName());</span>
-<span class="source-line-no">133</span><span id="line.133">        receiver.updateString("tostring", o.toString());</span>
-<span class="source-line-no">134</span><span id="line.134">        return true;</span>
-<span class="source-line-no">135</span><span id="line.135">    }</span>
-<span class="source-line-no">136</span><span id="line.136"></span>
-<span class="source-line-no">137</span><span id="line.137">    @Override</span>
-<span class="source-line-no">138</span><span id="line.138">    public void close() throws SQLException</span>
-<span class="source-line-no">139</span><span id="line.139">    {</span>
-<span class="source-line-no">140</span><span id="line.140">        fill(m_values, null);</span>
-<span class="source-line-no">141</span><span id="line.141">    }</span>
-<span class="source-line-no">142</span><span id="line.142">}</span>
+<span class="source-line-no">023</span><span id="line.23">import org.postgresql.pljava.annotation.SQLType;</span>
+<span class="source-line-no">024</span><span id="line.24"></span>
+<span class="source-line-no">025</span><span id="line.25">/**</span>
+<span class="source-line-no">026</span><span id="line.26"> * Example demonstrating the use of a {@code RECORD} parameter as a way to</span>
+<span class="source-line-no">027</span><span id="line.27"> * supply an arbitrary sequence of named, typed parameters to a PL/Java</span>
+<span class="source-line-no">028</span><span id="line.28"> * function.</span>
+<span class="source-line-no">029</span><span id="line.29"> *&lt;p&gt;</span>
+<span class="source-line-no">030</span><span id="line.30"> * Also tests the proper DDR generation of defaults for such parameters.</span>
+<span class="source-line-no">031</span><span id="line.31"> *&lt;p&gt;</span>
+<span class="source-line-no">032</span><span id="line.32"> * This example relies on {@code implementor} tags reflecting the PostgreSQL</span>
+<span class="source-line-no">033</span><span id="line.33"> * version, set up in the {@link ConditionalDDR} example.</span>
+<span class="source-line-no">034</span><span id="line.34"> */</span>
+<span class="source-line-no">035</span><span id="line.35">@SQLAction(</span>
+<span class="source-line-no">036</span><span id="line.36">    provides = "paramtypeinfo type", // created in Triggers.java</span>
+<span class="source-line-no">037</span><span id="line.37">    install = {</span>
+<span class="source-line-no">038</span><span id="line.38">        "CREATE TYPE javatest.paramtypeinfo AS (" +</span>
+<span class="source-line-no">039</span><span id="line.39">        " name text, pgtypename text, javaclass text, tostring text" +</span>
+<span class="source-line-no">040</span><span id="line.40">        ")"</span>
+<span class="source-line-no">041</span><span id="line.41">    },</span>
+<span class="source-line-no">042</span><span id="line.42">    remove = {</span>
+<span class="source-line-no">043</span><span id="line.43">        "DROP TYPE javatest.paramtypeinfo"</span>
+<span class="source-line-no">044</span><span id="line.44">    }</span>
+<span class="source-line-no">045</span><span id="line.45">)</span>
+<span class="source-line-no">046</span><span id="line.46">public class RecordParameterDefaults implements ResultSetProvider</span>
+<span class="source-line-no">047</span><span id="line.47">{</span>
+<span class="source-line-no">048</span><span id="line.48">    /**</span>
+<span class="source-line-no">049</span><span id="line.49">     * Return the names, types, and values of parameters supplied as a single</span>
+<span class="source-line-no">050</span><span id="line.50">     * anonymous RECORD type; the parameter is given an empty-record default,</span>
+<span class="source-line-no">051</span><span id="line.51">     * allowing it to be omitted in calls, or used with the named-parameter</span>
+<span class="source-line-no">052</span><span id="line.52">     * call syntax.</span>
+<span class="source-line-no">053</span><span id="line.53">     *&lt;p&gt;</span>
+<span class="source-line-no">054</span><span id="line.54">     * For example, this function could be called as:</span>
+<span class="source-line-no">055</span><span id="line.55">     *&lt;pre&gt;</span>
+<span class="source-line-no">056</span><span id="line.56">     * SELECT (paramDefaultsRecord()).*;</span>
+<span class="source-line-no">057</span><span id="line.57">     *&lt;/pre&gt;</span>
+<span class="source-line-no">058</span><span id="line.58">     * or as:</span>
+<span class="source-line-no">059</span><span id="line.59">     *&lt;pre&gt;</span>
+<span class="source-line-no">060</span><span id="line.60">     * SELECT (paramDefaultsRecord(params =&amp;gt; s)).*</span>
+<span class="source-line-no">061</span><span id="line.61">     * FROM (SELECT 42 AS a, '42' AS b, 42.0 AS c) AS s;</span>
+<span class="source-line-no">062</span><span id="line.62">     *&lt;/pre&gt;</span>
+<span class="source-line-no">063</span><span id="line.63">     */</span>
+<span class="source-line-no">064</span><span id="line.64">    @Function(</span>
+<span class="source-line-no">065</span><span id="line.65">        requires = "paramtypeinfo type",</span>
+<span class="source-line-no">066</span><span id="line.66">        schema = "javatest",</span>
+<span class="source-line-no">067</span><span id="line.67">        implementor = "postgresql_ge_80400", // supports function param DEFAULTs</span>
+<span class="source-line-no">068</span><span id="line.68">        type = "javatest.paramtypeinfo"</span>
+<span class="source-line-no">069</span><span id="line.69">        )</span>
+<span class="source-line-no">070</span><span id="line.70">    public static ResultSetProvider paramDefaultsRecord(</span>
+<span class="source-line-no">071</span><span id="line.71">        @SQLType(defaultValue={})ResultSet params)</span>
+<span class="source-line-no">072</span><span id="line.72">    throws SQLException</span>
+<span class="source-line-no">073</span><span id="line.73">    {</span>
+<span class="source-line-no">074</span><span id="line.74">        return new RecordParameterDefaults(params);</span>
+<span class="source-line-no">075</span><span id="line.75">    }</span>
+<span class="source-line-no">076</span><span id="line.76"></span>
+<span class="source-line-no">077</span><span id="line.77">    /**</span>
+<span class="source-line-no">078</span><span id="line.78">     * Like paramDefaultsRecord but illustrating the use of a named row type</span>
+<span class="source-line-no">079</span><span id="line.79">     * with known structure, and supplying a default for the function</span>
+<span class="source-line-no">080</span><span id="line.80">     * parameter.</span>
+<span class="source-line-no">081</span><span id="line.81">     *&lt;p&gt;</span>
+<span class="source-line-no">082</span><span id="line.82">     *&lt;pre&gt;</span>
+<span class="source-line-no">083</span><span id="line.83">     * SELECT paramDefaultsNamedRow();</span>
+<span class="source-line-no">084</span><span id="line.84">     *</span>
+<span class="source-line-no">085</span><span id="line.85">     * SELECT paramDefaultsNamedRow(userWithNum =&amp;gt; ('fred', 3.14));</span>
+<span class="source-line-no">086</span><span id="line.86">     *&lt;/pre&gt;</span>
+<span class="source-line-no">087</span><span id="line.87">     */</span>
+<span class="source-line-no">088</span><span id="line.88">    @Function(</span>
+<span class="source-line-no">089</span><span id="line.89">        requires = "foobar tables", // created in Triggers.java</span>
+<span class="source-line-no">090</span><span id="line.90">        implementor = "postgresql_ge_80400", // supports function param DEFAULTs</span>
+<span class="source-line-no">091</span><span id="line.91">        schema = "javatest"</span>
+<span class="source-line-no">092</span><span id="line.92">        )</span>
+<span class="source-line-no">093</span><span id="line.93">    public static String paramDefaultsNamedRow(</span>
+<span class="source-line-no">094</span><span id="line.94">        @SQLType(value="javatest.foobar_2", defaultValue={"bob", "42"})</span>
+<span class="source-line-no">095</span><span id="line.95">        ResultSet userWithNum)</span>
+<span class="source-line-no">096</span><span id="line.96">    throws SQLException</span>
+<span class="source-line-no">097</span><span id="line.97">    {</span>
+<span class="source-line-no">098</span><span id="line.98">        return String.format("username is %s and value is %s",</span>
+<span class="source-line-no">099</span><span id="line.99">            userWithNum.getObject("username"), userWithNum.getObject("value"));</span>
+<span class="source-line-no">100</span><span id="line.100">    }</span>
+<span class="source-line-no">101</span><span id="line.101"></span>
+<span class="source-line-no">102</span><span id="line.102"></span>
+<span class="source-line-no">103</span><span id="line.103"></span>
+<span class="source-line-no">104</span><span id="line.104">    private final ResultSetMetaData m_paramrsmd;</span>
+<span class="source-line-no">105</span><span id="line.105">    private final Object[] m_values;</span>
+<span class="source-line-no">106</span><span id="line.106">    </span>
+<span class="source-line-no">107</span><span id="line.107">    RecordParameterDefaults(ResultSet paramrs) throws SQLException</span>
+<span class="source-line-no">108</span><span id="line.108">    {</span>
+<span class="source-line-no">109</span><span id="line.109">        m_paramrsmd = paramrs.getMetaData();</span>
+<span class="source-line-no">110</span><span id="line.110">        /*</span>
+<span class="source-line-no">111</span><span id="line.111">         * Grab the values from the parameter SingleRowResultSet now; it isn't</span>
+<span class="source-line-no">112</span><span id="line.112">         * guaranteed to stay valid for the life of the set-returning function.</span>
+<span class="source-line-no">113</span><span id="line.113">         */</span>
+<span class="source-line-no">114</span><span id="line.114">        m_values = new Object [ m_paramrsmd.getColumnCount() ];</span>
+<span class="source-line-no">115</span><span id="line.115">        for ( int i = 0; i &lt; m_values.length; ++ i )</span>
+<span class="source-line-no">116</span><span id="line.116">            m_values[i] = paramrs.getObject( 1 + i);</span>
+<span class="source-line-no">117</span><span id="line.117">    }</span>
+<span class="source-line-no">118</span><span id="line.118"></span>
+<span class="source-line-no">119</span><span id="line.119">    @Override</span>
+<span class="source-line-no">120</span><span id="line.120">    public boolean assignRowValues(ResultSet receiver, int currentRow)</span>
+<span class="source-line-no">121</span><span id="line.121">    throws SQLException</span>
+<span class="source-line-no">122</span><span id="line.122">    {</span>
+<span class="source-line-no">123</span><span id="line.123">        int col = 1 + currentRow;</span>
+<span class="source-line-no">124</span><span id="line.124">        if ( col &gt; m_paramrsmd.getColumnCount() )</span>
+<span class="source-line-no">125</span><span id="line.125">            return false;</span>
+<span class="source-line-no">126</span><span id="line.126">        receiver.updateString("name", m_paramrsmd.getColumnLabel(col));</span>
+<span class="source-line-no">127</span><span id="line.127">        receiver.updateString("pgtypename", m_paramrsmd.getColumnTypeName(col));</span>
+<span class="source-line-no">128</span><span id="line.128">        Object o = m_values[col - 1];</span>
+<span class="source-line-no">129</span><span id="line.129">        receiver.updateString("javaclass", o.getClass().getName());</span>
+<span class="source-line-no">130</span><span id="line.130">        receiver.updateString("tostring", o.toString());</span>
+<span class="source-line-no">131</span><span id="line.131">        return true;</span>
+<span class="source-line-no">132</span><span id="line.132">    }</span>
+<span class="source-line-no">133</span><span id="line.133"></span>
+<span class="source-line-no">134</span><span id="line.134">    @Override</span>
+<span class="source-line-no">135</span><span id="line.135">    public void close() throws SQLException</span>
+<span class="source-line-no">136</span><span id="line.136">    {</span>
+<span class="source-line-no">137</span><span id="line.137">        fill(m_values, null);</span>
+<span class="source-line-no">138</span><span id="line.138">    }</span>
+<span class="source-line-no">139</span><span id="line.139">}</span>
 
 
 

@@ -11,7 +11,7 @@
 <main role="main">
 <div class="source-container">
 <pre><span class="source-line-no">001</span><span id="line.1">/*</span>
-<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2018- Tada AB and other contributors, as listed below.</span>
+<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.</span>
 <span class="source-line-no">003</span><span id="line.3"> *</span>
 <span class="source-line-no">004</span><span id="line.4"> * All rights reserved. This program and the accompanying materials</span>
 <span class="source-line-no">005</span><span id="line.5"> * are made available under the terms of the The BSD 3-Clause License</span>
@@ -36,90 +36,87 @@
 <span class="source-line-no">024</span><span id="line.24"></span>
 <span class="source-line-no">025</span><span id="line.25">import org.postgresql.pljava.annotation.Function;</span>
 <span class="source-line-no">026</span><span id="line.26">import org.postgresql.pljava.annotation.SQLAction;</span>
-<span class="source-line-no">027</span><span id="line.27">import org.postgresql.pljava.annotation.SQLActions;</span>
-<span class="source-line-no">028</span><span id="line.28"></span>
-<span class="source-line-no">029</span><span id="line.29">/**</span>
-<span class="source-line-no">030</span><span id="line.30"> * Some tests of pre-JSR 310 date/time/timestamp conversions.</span>
-<span class="source-line-no">031</span><span id="line.31"> *&lt;p&gt;</span>
-<span class="source-line-no">032</span><span id="line.32"> * For now, just {@code java.sql.Date}, thanks to issue #199.</span>
-<span class="source-line-no">033</span><span id="line.33"> *&lt;p&gt;</span>
-<span class="source-line-no">034</span><span id="line.34"> * This example relies on {@code implementor} tags reflecting the PostgreSQL</span>
-<span class="source-line-no">035</span><span id="line.35"> * version, set up in the {@link ConditionalDDR} example.</span>
-<span class="source-line-no">036</span><span id="line.36"> */</span>
-<span class="source-line-no">037</span><span id="line.37">@SQLActions({</span>
-<span class="source-line-no">038</span><span id="line.38">    @SQLAction(provides="language java_tzset", install={</span>
-<span class="source-line-no">039</span><span id="line.39">        "SELECT sqlj.alias_java_language('java_tzset', true)"</span>
-<span class="source-line-no">040</span><span id="line.40">    }, remove={</span>
-<span class="source-line-no">041</span><span id="line.41">        "DROP LANGUAGE java_tzset"</span>
-<span class="source-line-no">042</span><span id="line.42">    }),</span>
-<span class="source-line-no">043</span><span id="line.43"></span>
-<span class="source-line-no">044</span><span id="line.44">    @SQLAction(implementor="postgresql_ge_90300", // needs LATERAL</span>
-<span class="source-line-no">045</span><span id="line.45">        requires="issue199", install={</span>
-<span class="source-line-no">046</span><span id="line.46">        "SELECT javatest.issue199()"</span>
-<span class="source-line-no">047</span><span id="line.47">    })</span>
-<span class="source-line-no">048</span><span id="line.48">})</span>
-<span class="source-line-no">049</span><span id="line.49">public class PreJSR310</span>
-<span class="source-line-no">050</span><span id="line.50">{</span>
-<span class="source-line-no">051</span><span id="line.51">    private static final String TZPRAGUE = "Europe/Prague";</span>
-<span class="source-line-no">052</span><span id="line.52"></span>
-<span class="source-line-no">053</span><span id="line.53">    /**</span>
-<span class="source-line-no">054</span><span id="line.54">     * Test for a regression in PG date to/from java.sql.Date conversion</span>
-<span class="source-line-no">055</span><span id="line.55">     * identified in issue #199.</span>
-<span class="source-line-no">056</span><span id="line.56">     *&lt;p&gt;</span>
-<span class="source-line-no">057</span><span id="line.57">     * Checks that two months of consecutive dates in October/November 2018</span>
-<span class="source-line-no">058</span><span id="line.58">     * are converted correctly in the Europe/Prague timezone. The actual issue</span>
-<span class="source-line-no">059</span><span id="line.59">     * was by no means limited to that timezone, but this test reproducibly</span>
-<span class="source-line-no">060</span><span id="line.60">     * detects it.</span>
-<span class="source-line-no">061</span><span id="line.61">     *&lt;p&gt;</span>
-<span class="source-line-no">062</span><span id="line.62">     * This function is defined in the 'alias' language {@code java_tzset}, for</span>
-<span class="source-line-no">063</span><span id="line.63">     * which there is an entry in the default {@code pljava.policy} granting</span>
-<span class="source-line-no">064</span><span id="line.64">     * permission to adjust the time zone, which is temporarily done here.</span>
-<span class="source-line-no">065</span><span id="line.65">     */</span>
-<span class="source-line-no">066</span><span id="line.66">    @Function(</span>
-<span class="source-line-no">067</span><span id="line.67">        schema="javatest", language="java_tzset",</span>
-<span class="source-line-no">068</span><span id="line.68">        requires="language java_tzset", provides="issue199"</span>
-<span class="source-line-no">069</span><span id="line.69">    )</span>
-<span class="source-line-no">070</span><span id="line.70">    public static void issue199() throws SQLException</span>
-<span class="source-line-no">071</span><span id="line.71">    {</span>
-<span class="source-line-no">072</span><span id="line.72">        TimeZone oldZone = TimeZone.getDefault();</span>
-<span class="source-line-no">073</span><span id="line.73">        TimeZone tzPrague = TimeZone.getTimeZone(TZPRAGUE);</span>
-<span class="source-line-no">074</span><span id="line.74">        Connection c = DriverManager.getConnection("jdbc:default:connection");</span>
-<span class="source-line-no">075</span><span id="line.75">        Statement s = c.createStatement();</span>
-<span class="source-line-no">076</span><span id="line.76">        Savepoint svpt = c.setSavepoint();</span>
-<span class="source-line-no">077</span><span id="line.77">        boolean ok = true;</span>
-<span class="source-line-no">078</span><span id="line.78">        try</span>
-<span class="source-line-no">079</span><span id="line.79">        {</span>
-<span class="source-line-no">080</span><span id="line.80">            TimeZone.setDefault(tzPrague);</span>
-<span class="source-line-no">081</span><span id="line.81">            s.execute("SET LOCAL TIME ZONE '" + TZPRAGUE + "'");</span>
-<span class="source-line-no">082</span><span id="line.82"></span>
-<span class="source-line-no">083</span><span id="line.83">            ResultSet rs = s.executeQuery(</span>
-<span class="source-line-no">084</span><span id="line.84">                "SELECT" +</span>
-<span class="source-line-no">085</span><span id="line.85">                "  d, to_char(d, 'YYYY-MM-DD')" +</span>
-<span class="source-line-no">086</span><span id="line.86">                " FROM" +</span>
-<span class="source-line-no">087</span><span id="line.87">                "  generate_series(0, 60) AS s(i)," +</span>
-<span class="source-line-no">088</span><span id="line.88">                "  LATERAL (SELECT date '2018-10-01' + i) AS t(d)");</span>
-<span class="source-line-no">089</span><span id="line.89">            while ( rs.next() )</span>
-<span class="source-line-no">090</span><span id="line.90">            {</span>
-<span class="source-line-no">091</span><span id="line.91">                Date dd = rs.getDate(1);</span>
-<span class="source-line-no">092</span><span id="line.92">                String ds = rs.getString(2);</span>
-<span class="source-line-no">093</span><span id="line.93">                if ( ! ds.equals(dd.toString()) )</span>
-<span class="source-line-no">094</span><span id="line.94">                    ok = false;</span>
-<span class="source-line-no">095</span><span id="line.95">            }</span>
-<span class="source-line-no">096</span><span id="line.96">        }</span>
-<span class="source-line-no">097</span><span id="line.97">        finally</span>
-<span class="source-line-no">098</span><span id="line.98">        {</span>
-<span class="source-line-no">099</span><span id="line.99">            TimeZone.setDefault(oldZone);</span>
-<span class="source-line-no">100</span><span id="line.100">            c.rollback(svpt); // restore prior PG timezone</span>
-<span class="source-line-no">101</span><span id="line.101">            s.close();</span>
-<span class="source-line-no">102</span><span id="line.102">            c.close();</span>
-<span class="source-line-no">103</span><span id="line.103">        }</span>
-<span class="source-line-no">104</span><span id="line.104"></span>
-<span class="source-line-no">105</span><span id="line.105">        if ( ok )</span>
-<span class="source-line-no">106</span><span id="line.106">            getAnonymousLogger().info("issue 199 test ok");</span>
-<span class="source-line-no">107</span><span id="line.107">        else</span>
-<span class="source-line-no">108</span><span id="line.108">            getAnonymousLogger().warning("issue 199 test not ok");</span>
-<span class="source-line-no">109</span><span id="line.109">    }</span>
-<span class="source-line-no">110</span><span id="line.110">}</span>
+<span class="source-line-no">027</span><span id="line.27"></span>
+<span class="source-line-no">028</span><span id="line.28">/**</span>
+<span class="source-line-no">029</span><span id="line.29"> * Some tests of pre-JSR 310 date/time/timestamp conversions.</span>
+<span class="source-line-no">030</span><span id="line.30"> *&lt;p&gt;</span>
+<span class="source-line-no">031</span><span id="line.31"> * For now, just {@code java.sql.Date}, thanks to issue #199.</span>
+<span class="source-line-no">032</span><span id="line.32"> *&lt;p&gt;</span>
+<span class="source-line-no">033</span><span id="line.33"> * This example relies on {@code implementor} tags reflecting the PostgreSQL</span>
+<span class="source-line-no">034</span><span id="line.34"> * version, set up in the {@link ConditionalDDR} example.</span>
+<span class="source-line-no">035</span><span id="line.35"> */</span>
+<span class="source-line-no">036</span><span id="line.36">@SQLAction(provides="language java_tzset", install={</span>
+<span class="source-line-no">037</span><span id="line.37">    "SELECT sqlj.alias_java_language('java_tzset', true)"</span>
+<span class="source-line-no">038</span><span id="line.38">}, remove={</span>
+<span class="source-line-no">039</span><span id="line.39">    "DROP LANGUAGE java_tzset"</span>
+<span class="source-line-no">040</span><span id="line.40">})</span>
+<span class="source-line-no">041</span><span id="line.41"></span>
+<span class="source-line-no">042</span><span id="line.42">@SQLAction(implementor="postgresql_ge_90300", // needs LATERAL</span>
+<span class="source-line-no">043</span><span id="line.43">    requires="issue199", install={</span>
+<span class="source-line-no">044</span><span id="line.44">    "SELECT javatest.issue199()"</span>
+<span class="source-line-no">045</span><span id="line.45">})</span>
+<span class="source-line-no">046</span><span id="line.46">public class PreJSR310</span>
+<span class="source-line-no">047</span><span id="line.47">{</span>
+<span class="source-line-no">048</span><span id="line.48">    private static final String TZPRAGUE = "Europe/Prague";</span>
+<span class="source-line-no">049</span><span id="line.49"></span>
+<span class="source-line-no">050</span><span id="line.50">    /**</span>
+<span class="source-line-no">051</span><span id="line.51">     * Test for a regression in PG date to/from java.sql.Date conversion</span>
+<span class="source-line-no">052</span><span id="line.52">     * identified in issue #199.</span>
+<span class="source-line-no">053</span><span id="line.53">     *&lt;p&gt;</span>
+<span class="source-line-no">054</span><span id="line.54">     * Checks that two months of consecutive dates in October/November 2018</span>
+<span class="source-line-no">055</span><span id="line.55">     * are converted correctly in the Europe/Prague timezone. The actual issue</span>
+<span class="source-line-no">056</span><span id="line.56">     * was by no means limited to that timezone, but this test reproducibly</span>
+<span class="source-line-no">057</span><span id="line.57">     * detects it.</span>
+<span class="source-line-no">058</span><span id="line.58">     *&lt;p&gt;</span>
+<span class="source-line-no">059</span><span id="line.59">     * This function is defined in the 'alias' language {@code java_tzset}, for</span>
+<span class="source-line-no">060</span><span id="line.60">     * which there is an entry in the default {@code pljava.policy} granting</span>
+<span class="source-line-no">061</span><span id="line.61">     * permission to adjust the time zone, which is temporarily done here.</span>
+<span class="source-line-no">062</span><span id="line.62">     */</span>
+<span class="source-line-no">063</span><span id="line.63">    @Function(</span>
+<span class="source-line-no">064</span><span id="line.64">        schema="javatest", language="java_tzset",</span>
+<span class="source-line-no">065</span><span id="line.65">        requires="language java_tzset", provides="issue199"</span>
+<span class="source-line-no">066</span><span id="line.66">    )</span>
+<span class="source-line-no">067</span><span id="line.67">    public static void issue199() throws SQLException</span>
+<span class="source-line-no">068</span><span id="line.68">    {</span>
+<span class="source-line-no">069</span><span id="line.69">        TimeZone oldZone = TimeZone.getDefault();</span>
+<span class="source-line-no">070</span><span id="line.70">        TimeZone tzPrague = TimeZone.getTimeZone(TZPRAGUE);</span>
+<span class="source-line-no">071</span><span id="line.71">        Connection c = DriverManager.getConnection("jdbc:default:connection");</span>
+<span class="source-line-no">072</span><span id="line.72">        Statement s = c.createStatement();</span>
+<span class="source-line-no">073</span><span id="line.73">        Savepoint svpt = c.setSavepoint();</span>
+<span class="source-line-no">074</span><span id="line.74">        boolean ok = true;</span>
+<span class="source-line-no">075</span><span id="line.75">        try</span>
+<span class="source-line-no">076</span><span id="line.76">        {</span>
+<span class="source-line-no">077</span><span id="line.77">            TimeZone.setDefault(tzPrague);</span>
+<span class="source-line-no">078</span><span id="line.78">            s.execute("SET LOCAL TIME ZONE '" + TZPRAGUE + "'");</span>
+<span class="source-line-no">079</span><span id="line.79"></span>
+<span class="source-line-no">080</span><span id="line.80">            ResultSet rs = s.executeQuery(</span>
+<span class="source-line-no">081</span><span id="line.81">                "SELECT" +</span>
+<span class="source-line-no">082</span><span id="line.82">                "  d, to_char(d, 'YYYY-MM-DD')" +</span>
+<span class="source-line-no">083</span><span id="line.83">                " FROM" +</span>
+<span class="source-line-no">084</span><span id="line.84">                "  generate_series(0, 60) AS s(i)," +</span>
+<span class="source-line-no">085</span><span id="line.85">                "  LATERAL (SELECT date '2018-10-01' + i) AS t(d)");</span>
+<span class="source-line-no">086</span><span id="line.86">            while ( rs.next() )</span>
+<span class="source-line-no">087</span><span id="line.87">            {</span>
+<span class="source-line-no">088</span><span id="line.88">                Date dd = rs.getDate(1);</span>
+<span class="source-line-no">089</span><span id="line.89">                String ds = rs.getString(2);</span>
+<span class="source-line-no">090</span><span id="line.90">                if ( ! ds.equals(dd.toString()) )</span>
+<span class="source-line-no">091</span><span id="line.91">                    ok = false;</span>
+<span class="source-line-no">092</span><span id="line.92">            }</span>
+<span class="source-line-no">093</span><span id="line.93">        }</span>
+<span class="source-line-no">094</span><span id="line.94">        finally</span>
+<span class="source-line-no">095</span><span id="line.95">        {</span>
+<span class="source-line-no">096</span><span id="line.96">            TimeZone.setDefault(oldZone);</span>
+<span class="source-line-no">097</span><span id="line.97">            c.rollback(svpt); // restore prior PG timezone</span>
+<span class="source-line-no">098</span><span id="line.98">            s.close();</span>
+<span class="source-line-no">099</span><span id="line.99">            c.close();</span>
+<span class="source-line-no">100</span><span id="line.100">        }</span>
+<span class="source-line-no">101</span><span id="line.101"></span>
+<span class="source-line-no">102</span><span id="line.102">        if ( ok )</span>
+<span class="source-line-no">103</span><span id="line.103">            getAnonymousLogger().info("issue 199 test ok");</span>
+<span class="source-line-no">104</span><span id="line.104">        else</span>
+<span class="source-line-no">105</span><span id="line.105">            getAnonymousLogger().warning("issue 199 test not ok");</span>
+<span class="source-line-no">106</span><span id="line.106">    }</span>
+<span class="source-line-no">107</span><span id="line.107">}</span>
 
 
 
