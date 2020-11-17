@@ -10,7 +10,32 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.5.6
+$h2 PL/Java 1.5.7
+
+1.5.7 is a bug-fix release, with a single issue backpatched from the 1.6
+branch, correcting a problem in XML Schema validation in some non-`en_US`
+locales.
+
+$h3 Bugs fixed
+
+* [XML Schema regression-test failure in de_DE locale](${ghbug}312)
+
+$h3 Credits
+
+Thanks to Christoph Berg for the report.
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.6 (4 October 2020)
 
 This release adds support for PostgreSQL 13.
 
@@ -127,17 +152,6 @@ The work of Kartik Ohri in summer 2020 was supported by Google Summer of Code.
 [xqsaf]: https://www.w3.org/TR/xquery-31/#id-schema-aware-feature
 [xqtdf]: https://www.w3.org/TR/xquery-31/#id-typed-data-feature
 [xqstf]: https://www.w3.org/TR/xquery-31/#id-static-typing-feature
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.5.5 (4 November 2019)
 
