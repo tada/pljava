@@ -19,7 +19,21 @@
 #set($h4 = '#####')
 #set($h5 = '######')
 
-$h2 PL/Java 1.5.6
+$h2 PL/Java 1.5.7
+
+1.5.7 is a bug-fix release, with a single issue backpatched from the 1.6
+branch, correcting a problem in XML Schema validation in some non-`en_US`
+locales.
+
+$h3 Bugs fixed
+
+* [XML Schema regression-test failure in de_DE locale](${ghbug}312)
+
+$h3 Credits
+
+Thanks to Christoph Berg for the report.
+
+$h2 PL/Java 1.5.6 (4 October 2020)
 
 This release adds support for PostgreSQL 13.
 
