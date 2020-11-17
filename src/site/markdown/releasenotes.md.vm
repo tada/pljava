@@ -10,7 +10,89 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.6.0
+$h2 PL/Java 1.6.1
+
+This is the first minor update in the PL/Java 1.6 series, with two bugs fixed.
+It also adds functionality in the SQL generator, allowing automated
+declaration of new PostgreSQL aggregates, casts, and operators, and functions
+with `OUT` parameters.
+
+$h3 Changes
+
+$h4 Limitations when built with Java 10 or 11 removed
+
+PL/Java can now be built with any Java 9 or later (latest tested is 15 at
+time of writing), and the built artifact can use any Java 9 or later at
+run time (as selected by the `pljava.libjvm_location` configuration variable).
+
+That was previously true when built with Java 9 or with Java 12 or later, but
+not when built with 10 (would not run on 9) or with 11 (would not run on 9
+or 10). Those limits have been removed.
+
+$h4 Functions with `OUT` parameters
+
+PL/Java has long been able to declare a function that returns a composite
+type (or a set of such), by returning a named composite PostgreSQL type, or
+by being declared to return `RECORD`.
+
+The former approach requires separately declaring a new composite type to
+PostgreSQL so it can be named as the function return. The `RECORD` approach
+does not require pre-declaring a type, but requires every caller of the
+function to supply a column definition list at the call site.
+
+Declaring the function [with `OUT` parameters][outprm] offers a middle ground,
+where the function has a fixed composite return type with known member
+names and types, callers do not need to supply a column definition list,
+and no separate declaration of the type is needed.
+
+There is no change to how such a function is coded at the Java source level;
+the new annotation element only changes the SQL generated to declare the
+function to PostgreSQL. [Examples][outprmeg] are provided.
+
+$h4 Generation of aggregate, cast, and operator declarations
+
+The SQL generator now recognizes [`@Aggregate`][agganno], [`@Cast`][castanno],
+and [`@Operator`][opranno] annotations, generating the corresponding SQL
+deploy/undeploy scripts. Some examples (for [aggregates][aggeg],
+[casts][casteg], and [operators][opreg]) are provided. The reduction
+in boilerplate needed for a realistically-complete example can be seen
+in [this comparison][bg160161] of Bear Giles's `pljava-udt-type-extension`
+example; the two branches compared here are (1) using only the annotations
+supported in PL/Java 1.6.0 and (2) using also the new support in 1.6.1.
+
+$h3 Bugs fixed
+
+* [1.6.0: opening a ResourceBundle (or a resource) fails](${ghbug}322)
+* [Better workaround needed for javac 10 and 11 --release bug](${ghbug}328)
+
+[outprm]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Function.html#annotation.type.element.detail
+[outprmeg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method.detail
+[agganno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Aggregate.html
+[castanno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Cast.html
+[opranno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Operator.html
+[aggeg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Aggregates.html
+[casteg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/IntWithMod.html
+[opreg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ComplexScalar.html
+[bg160161]: https://github.com/beargiles/pljava-udt-type-extension/compare/98f1a6e...jcflack:3e56056
+
+$h3 Credits
+
+Thanks to Bear Giles for the `pljava-udt-type-extension` example, which not only
+illustrates the SQL generation improvements in this release, but also exposed
+both of the bugs fixed here.
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.6.0 (18 October 2020)
 
 This is the first release of a significantly refactored PL/Java 1.6 branch
 with a number of new features and changes. It requires Java 9 or later at
@@ -196,16 +278,5 @@ continuous integration was supported by Google Summer of Code.
 [variadic]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Variadic.html#method.detail
 [charsets]: use/charsets.html
 [jpms]: use/jpms.html
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 [Releases prior to PL/Java 1.6.0](releasenotes-pre1_6.html)
