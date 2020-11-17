@@ -69,13 +69,14 @@ import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 
 /**
- * This methods of this class are implementations of SQLJ commands.
- * <h2>SQLJ functions</h2>
+ * This methods of this class are implementations of SQLJ procedures (and some
+ * related ones beyond what ISO 9075-13 specifies).
+ * <h2>SQLJ procedures</h2>
  * <h3>install_jar</h3>
- * The install_jar command loads a jar file from a location appointed by an URL
- * or a binary image that constitutes the contents of a jar file into the SQLJ
- * jar repository. It is an error if a jar with the given name already exists in
- * the repository.
+ * The install_jar procedure loads a jar file from a location appointed by an
+ * URL or a binary image that constitutes the contents of a jar file into the
+ * SQLJ jar repository. It is an error if a jar with the given name already
+ * exists in the repository.
  * <h4>Usage 1</h4>
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
@@ -121,8 +122,9 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </tr>
  * </table></blockquote>
  * <h3>replace_jar</h3>
- * The replace_jar will replace a loaded jar with another jar. Use this command
- * to update already loaded files. It's an error if the jar is not found.
+ * The replace_jar procedure will replace a loaded jar with another jar. Use
+ * this command to update already loaded files. It's an error if the jar is not
+ * found.
  * <h4>Usage 1</h4>
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
@@ -168,9 +170,9 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </tr>
  * </table></blockquote>
  * <h3>remove_jar</h3>
- * The remove_jar will drop the jar from the jar repository. Any classpath that
- * references this jar will be updated accordingly. It's an error if the jar is
- * not found.
+ * The remove_jar procedure will drop the jar from the jar repository. Any
+ * classpath that references this jar will be updated accordingly. It's an error
+ * if no such jar is installed.
  * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.remove_jar(&lt;jar_name&gt;, &lt;undeploy&gt;);</code>
  * </blockquote>
@@ -188,9 +190,9 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </tr>
  * </table></blockquote>
  * <h3>get_classpath</h3>
- * The get_classpath will return the classpath that has been defined for the
- * given schema or NULL if the schema has no classpath. It's an error if the
- * given schema does not exist.
+ * The get_classpath procedure will return the classpath that has been defined
+ * for the given schema or NULL if the schema has no classpath. It's an error if
+ * the given schema does not exist.
  * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.get_classpath(&lt;schema&gt;);</code>
  * </blockquote>
@@ -201,11 +203,11 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <td>The name of the schema</td>
  * </tr>
  * </table></blockquote>
- * <h3>set_classpath</h3>
- * The set_classpath will define a classpath for the given schema. A classpath
- * consists of a colon separated list of jar names. It's an error if the given
- * schema does not exist or if one or more jar names references non existent
- * jars.
+ * <h3><a id='set_classpath'>set_classpath</a></h3>
+ * The set_classpath procedure will define a classpath for the given schema. A
+ * classpath consists of a colon separated list of jar names. It's an error if
+ * the given schema does not exist or if one or more jar names references
+ * non-existent jars.
  * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.set_classpath(&lt;schema&gt;, &lt;classpath&gt;);</code>
  * </blockquote>
@@ -220,9 +222,9 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <td>The colon separated list of jar names</td>
  * </tr>
  * </table></blockquote>
- * <h3>add_type_mapping</h3>
- * The add_type_mapping defines the mapping between an SQL type and a Java
- * class.
+ * <h3><a id='add_type_mapping'>add_type_mapping</a></h3>
+ * The add_type_mapping procedure defines the mapping between an SQL type and a
+ * Java class.
  * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.add_type_mapping(&lt;sqlTypeName&gt;, &lt;className&gt;);</code>
  * </blockquote>
@@ -241,8 +243,8 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </tr>
  * </table></blockquote>
  * <h3>drop_type_mapping</h3>
- * The drop_type_mapping removes the mapping between an SQL type and a Java
- * class.
+ * The drop_type_mapping procedure removes the mapping between an SQL type and a
+ * Java class.
  * <h4>Usage</h4>
  * <blockquote><code>SELECT sqlj.drop_type_mapping(&lt;sqlTypeName&gt;);</code>
  * </blockquote>
@@ -256,7 +258,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * </tr>
  * </table></blockquote>
  * <h3><a id='alias_java_language'>alias_java_language</a></h3>
- * The {@link #aliasJavaLanguage alias_java_language command} issues
+ * The {@link #aliasJavaLanguage alias_java_language procedure} issues
  * a PostgreSQL {@code CREATE LANGUAGE} command to define a named "language"
  * that is an alias for PL/Java. The name can appear in the
  * <a href="../../RELDOTS/use/policy.html">Java security policy</a> to grant

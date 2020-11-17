@@ -26,7 +26,7 @@ of the query may execute in parallel, but the part that calls the `RESTRICTED`
 function will be executed only in the lead process. A function labeled `SAFE`
 may be executed in every process participating in the query.
 
-[paranno]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/Function.html#parallel()
+[paranno]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Function.html#parallel
 
 ### Parallel setup cost
 

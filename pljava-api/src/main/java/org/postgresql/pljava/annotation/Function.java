@@ -78,8 +78,26 @@ category</a>
 	 * {@link org.postgresql.pljava.ResultSetProvider ResultSetProvider},
 	 * or can be used to specify the return type of any function if the
 	 * compiler hasn't inferred it correctly.
+	 *<p>
+	 * Only one of {@code type} or {@code out} may appear.
 	 */
 	String type() default "";
+
+	/**
+	 * The result column names and types of a composite-returning function.
+	 *<p>
+	 * This is for a function defining its own one-off composite type
+	 * (declared with {@code OUT} parameters). If the function returns some
+	 * composite type known to the catalog, simply use {@code type} and the name
+	 * of that type.
+	 *<p>
+	 * Each element is a name and a type specification, separated by whitespace.
+	 * An element that begins with whitespace declares an output column with no
+	 * name, only a type. The name is an ordinary SQL identifier; if it would
+	 * be quoted in SQL, naturally each double-quote must be represented as
+	 * {@code \"} in Java.
+	 */
+	String[] out() default {};
 
 	/**
 	 * The name of the function. This is optional. The default is
@@ -173,7 +191,8 @@ category</a>
 	String language() default "";
 
 	/** 
-	 * Whether the function is UNSAFE to use in any parallel query plan at all
+	 * Whether the function is <a id='parallel'>UNSAFE</a> to use in any
+	 * parallel query plan at all
 	 * (the default), or avoids all disqualifying operations and so is SAFE to
 	 * execute anywhere in a parallel plan, or, by avoiding <em>some</em> such
 	 * operations, may appear in parallel plans but RESTRICTED to execute only

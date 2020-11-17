@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.annotation;
 
+import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -64,7 +65,7 @@ import java.sql.SQLData; // referred to in javadoc
  * be used in their {@code @Function} annotations and this annotation, to make
  * the order come out right.
  */
-@Target(ElementType.TYPE) @Retention(RetentionPolicy.CLASS)
+@Target(ElementType.TYPE) @Retention(RetentionPolicy.CLASS) @Documented
 public @interface BaseUDT
 {
 	/**

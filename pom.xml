@@ -70,42 +70,6 @@
 
 	<profiles>
 		<profile>
-			<id>release10</id>
-			<activation>
-				<jdk>[10,11)</jdk>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-compiler-plugin</artifactId>
-						<configuration>
-							<release>10</release>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
-			<id>release11</id>
-			<activation>
-				<jdk>[11,12)</jdk>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-compiler-plugin</artifactId>
-						<configuration>
-							<release>11</release>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-
-		<profile>
 			<id>nashorngone</id>
 			<activation>
 				<jdk>[15,)</jdk>

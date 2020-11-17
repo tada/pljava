@@ -31,37 +31,34 @@ import org.postgresql.pljava.TransactionListener;
 import org.postgresql.pljava.annotation.Function;
 import static org.postgresql.pljava.annotation.Function.Effects.*;
 import org.postgresql.pljava.annotation.SQLAction;
-import org.postgresql.pljava.annotation.SQLActions;
 
 /**
  * Some methods used for testing the SPI JDBC driver.
  *
  * @author Thomas Hallgren
  */
-@SQLActions({
-	@SQLAction(provides = "employees tables", install = {
-		"CREATE TABLE javatest.employees1" +
-		" (" +
-		" id     int PRIMARY KEY," +
-		" name   varchar(200)," +
-		" salary int" +
-		" )",
+@SQLAction(provides = "employees tables", install = {
+	"CREATE TABLE javatest.employees1" +
+	" (" +
+	" id     int PRIMARY KEY," +
+	" name   varchar(200)," +
+	" salary int" +
+	" )",
 
-		"CREATE TABLE javatest.employees2" +
-		" (" +
-		" id		int PRIMARY KEY," +
-		" name	varchar(200)," +
-		" salary	int," +
-		" transferDay date," +
-		" transferTime time" +
-		" )"
-		}, remove = {
-		"DROP TABLE javatest.employees2",
-		"DROP TABLE javatest.employees1"
-	}
-	),
-	@SQLAction(requires = "issue228", install = "SELECT javatest.issue228()")
-})
+	"CREATE TABLE javatest.employees2" +
+	" (" +
+	" id		int PRIMARY KEY," +
+	" name	varchar(200)," +
+	" salary	int," +
+	" transferDay date," +
+	" transferTime time" +
+	" )"
+	}, remove = {
+	"DROP TABLE javatest.employees2",
+	"DROP TABLE javatest.employees1"
+}
+)
+@SQLAction(requires = "issue228", install = "SELECT javatest.issue228()")
 public class SPIActions {
 	private static final String SP_CHECKSTATE = "sp.checkState";
 

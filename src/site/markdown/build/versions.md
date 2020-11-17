@@ -17,16 +17,7 @@ feature introduced in that release.
 In the PL/Java 1.6.x series, the build can be done with Java 9 or newer.
 Once built, PL/Java is able to use another Java 9 or later JVM at run time,
 simply by setting
-[the `pljava.libjvm_location` variable][jvml] to the desired version's library
-(but see the exceptions described next).
-
-### Exceptions to build-version / runtime-version compatibility
-
-Because of compiler bugs in Java 10 and 11, builds done with those versions
-will not run on earlier Java releases. A build on 10 requires 10 or later at
-run time; a build on 11 requires 11 or later at run time. To ensure that the
-built extension can use any Java 9 or later at run time, it must be built on
-Java 9, or on Java 12 or later.
+[the `pljava.libjvm_location` variable][jvml] to the desired version's library.
 
 PL/Java can run application code written for a later Java version than PL/Java
 itself was built with, as long as that later JRE version is used at run time.

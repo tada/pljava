@@ -468,7 +468,7 @@ Java's extensive support for XML.
 
 [OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
 [cheat]: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java
-[adjx]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/Adjusting.XML.html
+[adjx]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html
 [jaxps]: https://docs.oracle.com/en/java/javase/13/security/java-api-xml-processing-jaxp-security-guide.html
 [catapi]: https://docs.oracle.com/javase/9/core/xml-catalog-api1.htm#JSCOR-GUID-51446739-F878-4B70-A36F-47FBBE12A26A
 

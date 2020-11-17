@@ -17,9 +17,11 @@ import java.lang.invoke.MethodHandles.Lookup;
 import static java.lang.invoke.MethodHandles.arrayElementGetter;
 import static java.lang.invoke.MethodHandles.arrayElementSetter;
 import static java.lang.invoke.MethodHandles.collectArguments;
+import static java.lang.invoke.MethodHandles.constant;
 import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.empty;
 import static java.lang.invoke.MethodHandles.exactInvoker;
+import static java.lang.invoke.MethodHandles.explicitCastArguments;
 import static java.lang.invoke.MethodHandles.filterArguments;
 import static java.lang.invoke.MethodHandles.filterReturnValue;
 import static java.lang.invoke.MethodHandles.foldArguments;
@@ -171,6 +173,7 @@ public class Function
 	 */
 	private static MethodType buildSignature(
 		ClassLoader schemaLoader, String[] jTypes, boolean forValidator,
+		boolean commute,
 		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -198,6 +201,13 @@ public class Function
 
 		for ( int i = 0 ; i < rtIdx ; ++ i )
 			pTypes[i] = loadClass(schemaLoader, jTypes[i], forValidator);
+
+		if ( commute )
+		{
+			Class<?> t = pTypes[0];
+			pTypes[0] = pTypes[1];
+			pTypes[1] = t;
+		}
 
 		Class<?> returnType =
 			getReturnSignature(schemaLoader, retJType, forValidator,
@@ -273,12 +283,12 @@ public class Function
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
-		boolean forValidator,
+		boolean forValidator, boolean commute,
 		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
 	throws SQLException
 	{
 		MethodType mt =
-			buildSignature(schemaLoader, jTypes, forValidator,
+			buildSignature(schemaLoader, jTypes, forValidator, commute,
 				retTypeIsOutParameter, isMultiCall, false); // try altForm false
 
 		ReflectiveOperationException ex1 = null;
@@ -320,7 +330,7 @@ public class Function
 		if ( null != altType )
 		{
 			jTypes[jTypes.length - 1] = altType.getCanonicalName();
-			mt = buildSignature(schemaLoader, jTypes, forValidator,
+			mt = buildSignature(schemaLoader, jTypes, forValidator, commute,
 				retTypeIsOutParameter, isMultiCall, true); // retry altForm true
 			try
 			{
@@ -578,6 +588,8 @@ public class Function
 	private static final MethodHandle s_paramCountsAre;
 	private static final MethodHandle s_countsZeroer;
 	private static final MethodHandle s_nonNull;
+	private static final MethodHandle s_not;
+	private static final MethodHandle s_boxedNot;
 
 	/*
 	 * Handles used to retrieve rows using SFRM_ValuePerCall protocol, from a
@@ -839,6 +851,18 @@ public class Function
 
 			s_nonNull = l.findStatic(Objects.class, "nonNull",
 				methodType(boolean.class, Object.class));
+
+			s_not = guardWithTest(identity(boolean.class),
+				dropArguments(constant(boolean.class, false), 0, boolean.class),
+				dropArguments(constant(boolean.class, true), 0, boolean.class));
+
+			s_boxedNot =
+				guardWithTest(
+					explicitCastArguments(s_nonNull,
+						methodType(boolean.class, Boolean.class)),
+					explicitCastArguments(s_not,
+						methodType(Boolean.class, Boolean.class)),
+					identity(Boolean.class));
 
 			/*
 			 * Build a bit of MethodHandle tree for invoking a set-returning
@@ -1304,6 +1328,8 @@ public class Function
 		String[] resolvedTypes;
 		boolean isMultiCall = false;
 		boolean retTypeIsOutParameter = false;
+		boolean commute = (null != info.group("com"));
+		boolean negate  = (null != info.group("neg"));
 
 		if ( forValidator )
 			calledAsTrigger = isTrigger(procTup);
@@ -1319,7 +1345,7 @@ public class Function
 			boolean[] multi = new boolean[] { isMultiCall };
 			boolean[] rtiop = new boolean[] { retTypeIsOutParameter };
 			resolvedTypes = setupFunctionParams(wrappedPtr, info, procTup,
-				schemaLoader, clazz, readOnly, typeMap, multi, rtiop);
+				schemaLoader, clazz, readOnly, typeMap, multi, rtiop, commute);
 			isMultiCall = multi [ 0 ];
 			retTypeIsOutParameter = rtiop [ 0 ];
 		}
@@ -1327,11 +1353,39 @@ public class Function
 		String methodName = info.group("meth");
 
 		MethodHandle handle =
-			adaptHandle(
-				getMethodHandle(schemaLoader, clazz, methodName, forValidator,
-					resolvedTypes, retTypeIsOutParameter, isMultiCall)
-				.asFixedArity()
-			);
+			getMethodHandle(schemaLoader, clazz, methodName, forValidator,
+				commute, resolvedTypes, retTypeIsOutParameter, isMultiCall)
+			.asFixedArity();
+		MethodType mt = handle.type();
+
+		if ( commute )
+		{
+			Class<?>[] types = mt.parameterArray();
+			mt = mt
+				.changeParameterType(0, types[1])
+				.changeParameterType(1, types[0]);
+			handle = retTypeIsOutParameter
+				? permuteArguments(handle, mt, 1, 0, 2)
+				: permuteArguments(handle, mt, 1, 0);
+		}
+
+		if ( negate )
+		{
+			MethodHandle inverter = null;
+			Class<?> rt = mt.returnType();
+			if ( boolean.class == rt )
+				inverter = s_not;
+			else if ( Boolean.class == rt )
+				inverter = s_boxedNot;
+
+			if ( null == inverter  ||  retTypeIsOutParameter )
+				throw new SQLSyntaxErrorException(
+					"wrong return type for transformation [negate]", "42P13");
+
+			handle = filterReturnValue(handle, inverter);
+		}
+
+		handle = adaptHandle(handle);
 
 		if ( isMultiCall )
 			handle = (
@@ -1470,7 +1524,7 @@ public class Function
 		long wrappedPtr, Matcher info, ResultSet procTup,
 		ClassLoader schemaLoader, Class<?> clazz,
 		boolean readOnly, Map<Oid,Class<? extends SQLData>> typeMap,
-		boolean[] multi, boolean[] returnTypeIsOP)
+		boolean[] multi, boolean[] returnTypeIsOP, boolean commute)
 		throws SQLException
 	{
 		int numParams = procTup.getInt("pronargs");
@@ -1500,7 +1554,7 @@ public class Function
 			 * resolvedTypes that the mapping from SQL types suggested above.
 			 */
 			parseParameters( wrappedPtr, resolvedTypes, explicitSignature,
-				isMultiCall, returnTypeIsOutputParameter);
+				isMultiCall, returnTypeIsOutputParameter, commute);
 		}
 
 		/* As in the original C setupFunctionParams, if an explicit Java return
@@ -1546,7 +1600,8 @@ public class Function
 	 */
 	private static void parseParameters(
 		long wrappedPtr, String[] resolvedTypes, String explicitSignature,
-		boolean isMultiCall, boolean returnTypeIsOutputParameter)
+		boolean isMultiCall, boolean returnTypeIsOutputParameter,
+		boolean commute)
 		throws SQLException
 	{
 		boolean lastIsOut = ( ! isMultiCall ) && returnTypeIsOutputParameter;
@@ -1559,6 +1614,17 @@ public class Function
 			throw new SQLSyntaxErrorException(String.format(
 				"AS (Java): expected %1$d parameter types, found %2$d",
 				expect, explicitTypes.length), "42601");
+
+		if ( commute )
+		{
+			if ( explicitTypes.length != (lastIsOut ? 3 : 2) )
+				throw new SQLSyntaxErrorException(
+					"wrong number of parameters for transformation [commute]",
+					"42P13");
+			String t = explicitTypes[0];
+			explicitTypes[0] = explicitTypes[1];
+			explicitTypes[1] = t;
+		}
 
 		doInPG(() ->
 		{
@@ -1714,6 +1780,11 @@ public class Function
 
 		/* or the non-UDT form (which can't begin, insensitively, with UDT) */
 		"|(?!(?i:udt\\[))" +
+		/* allow a prefix like [commute] or [negate] or [commute,negate] */
+		"(?:\\[(?:" +
+			"(?:(?:(?<com>commute)|(?<neg>negate))(?:(?=\\])|,(?!\\])))" +
+		")++\\])?+" +
+		/* and the long-standing method spec syntax */
 		"(?:(?<ret>%2$s)=)?+(?<cls>%1$s)\\.(?<meth>%3$s)" +
 		"(?:\\((?<sig>(?:(?:%2$s,)*+%2$s)?+)\\))?+",
 		javaTypeName,

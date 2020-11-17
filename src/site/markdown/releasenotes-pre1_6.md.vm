@@ -1,0 +1,1607 @@
+# Release notes, releases prior to PL/Java 1.6
+
+#set($h2 = '##')
+#set($h3 = '###')
+#set($h4 = '####')
+#set($h5 = '#####')
+#set($gborgbug = 'http://web.archive.org/web/20061208113236/http://gborg.postgresql.org/project/pljava/bugs/bugupdate.php?')
+#set($pgfbug = 'https://web.archive.org/web/*/http://pgfoundry.org/tracker/?func=detail&amp;atid=334&amp;group_id=1000038&amp;aid=')
+#set($pgffeat = 'https://web.archive.org/web/*/http://pgfoundry.org/tracker/?func=detail&amp;atid=337&amp;group_id=1000038&amp;aid=')
+#set($ghbug = 'https://github.com/tada/pljava/issues/')
+#set($ghpull = 'https://github.com/tada/pljava/pull/')
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.5.7
+
+1.5.7 is a bug-fix release, with a single issue backpatched from the 1.6
+branch, correcting a problem in XML Schema validation in some non-`en_US`
+locales.
+
+$h3 Bugs fixed
+
+* [XML Schema regression-test failure in de_DE locale](${ghbug}312)
+
+$h3 Credits
+
+Thanks to Christoph Berg for the report.
+
+$h2 PL/Java 1.5.6 (4 October 2020)
+
+This release adds support for PostgreSQL 13.
+
+It includes improvements to the JDBC 4.0 `java.sql.SQLXML` API that first became
+available in 1.5.1, an update of the ISO SQL/XML examples based on the Saxon
+product to Saxon 10 (which now includes support for XML Query higher-order
+functions in the freely-licensed Saxon-HE), some improvements to internals,
+and a number of bug fixes.
+
+$h3 Version compatibility
+
+PL/Java 1.5.6 can be built against recent PostgreSQL versions including 13,
+and older ones back to 8.2, using Java SE 8 or later. The source code avoids
+features newer than Java 6, so building with Java 7 or 6 should also be
+possible, but is no longer routinely tested. The Java version used at runtime
+does not have to be the same version used for building. PL/Java itself can run
+on any Java version 6 or later if built with Java 11 or earlier; it can run
+on Java 7 or later if built with Java 12 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+PL/Java 1.5.6 cannot be built with Java 15 or later, as the Nashorn JavaScript
+engine used in the build process no longer ships with Java 15. It can be built
+with [GraalVM][], if `-Dpolyglot.js.nashorn-compat` is added to the `mvn`
+command line. It will run on Java 15 if built with an earlier JDK or with Graal.
+
+When used with GraalVM as the runtime VM, PL/Java functions can use Graal's
+"polyglot" capabilities to execute code in any other language available on
+GraalVM. In this release, it is not yet possible to directly declare a function
+in a language other than Java.
+
+$h3 Changes
+
+$h4 Improvements to the `java.sql.SQLXML` type
+
+Additions to the `Adjusting.XML` API support
+[limiting resource usage][xmlreslim] in XML processing, controlling
+[resolution][xmlresolv] of external documents and resources,
+[validation against a schema][xmlschema], and integration of an
+[XML catalog][xmlcatalog] to locally satisfy requests for external documents.
+
+Corrections and new documentation of [whitespace handling][xmlws] in XML values
+of `CONTENT` form, and implementation [limitations][xmlimpl].
+
+$h4 Improvements to the Saxon-based ISO SQL/XML example functions
+
+Updated the dependency for these optional examples to Saxon 10. Probably the
+most significant of the [Saxon 10 changes][saxon10], for PostgreSQL's purposes,
+will be that the XQuery [higher-order function feature][xqhof] is now included
+in the freely-licensed Saxon-HE, so that it is now possible without cost to
+integrate a modern XQuery 3.1 implementation that is lacking only the
+[schema-aware feature][xqsaf] and the [typed data feature][xqtdf] (for those,
+the paid Saxon-EE product is needed), and the [static typing feature][xqstf]
+(which is not in any Saxon edition).
+
+To compensate for delivering the higher-order function support in -HE,
+Saxonica moved certain optimizations to -EE. This seems a justifiable trade, as
+it is better for development purposes to have the more complete implementation
+of the language, leaving better optimization to be bought if and when needed.
+
+Thanks to a tip from Saxon's developer, the returning of results to SQL is now
+done in a way that may incur less copying in some cases.
+
+$h4 Internals
+
+* Many sources of warnings reported by the Java VM's `-Xcheck:jni` option have
+    been tracked down, making it practical to use `-Xcheck:jni` in testing.
+* Reduced pressure on the garbage collector in management of references to
+    PostgreSQL native state.
+
+$h3 Enhancement requests addressed
+
+* Work around PostgreSQL [API breakage in EnterpriseDB 11](${ghbug}260)
+
+$h3 Bugs fixed
+
+* [Support of arrays in composite types](${ghbug}300)
+* [Order-dependent behavior caching array types](${ghbug}310)
+* [Date conversion errors possible with PostgreSQL 10 on Windows/MSVC](${ghbug}297)
+* [Build issue with Windows/MinGW-w64](${ghbug}282)
+* ["xmltable" with XML output column or parameter](${ghbug}280)
+* [Google Summer of Code catches 15-year-old PL/Java bug](${ghbug}274)
+* [Several bugs in SQLXML handling](${ghbug}272)
+* Work around an exception from `Reference.clear` on OpenJ9 JVM
+* Bugs in SQL generator when supplying a function parameter name, or the
+    `category`, `delimiter`, or `storage` attribute of a user-defined type.
+
+$h3 Updated PostgreSQL APIs tracked
+
+* Removal of `CREATE EXTENSION ... FROM unpackaged`
+* `numvals` in `SPITupleTable`
+* `detoast.h`
+* `detoast_external_attr`
+
+$h3 Credits
+
+There is a PL/Java 1.5.6 thanks in part to
+Christoph Berg,
+Chapman Flack,
+Kartik Ohri,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+The work of Kartik Ohri in summer 2020 was supported by Google Summer of Code.
+
+[xmlreslim]: use/sqlxml.html#Additional_adjustments_in_recent_Java_versions
+[xmlresolv]: use/sqlxml.html#Supplying_a_SAX_or_DOM_EntityResolver_or_Schema
+[xmlschema]: use/sqlxml.html#Validation_against_a_schema
+[xmlcatalog]: use/sqlxml.html#Using_XML_Catalogs_when_running_on_Java_9_or_later
+[xmlws]: use/sqlxml.html#Effect_on_parsing_of_whitespace
+[xmlimpl]: use/sqlxml.html#Known_limitations
+[saxon10]: https://www.saxonica.com/html/documentation/changes/v10/installation.html
+[xqhof]: https://www.w3.org/TR/xquery-31/#id-higher-order-function-feature
+[xqsaf]: https://www.w3.org/TR/xquery-31/#id-schema-aware-feature
+[xqtdf]: https://www.w3.org/TR/xquery-31/#id-typed-data-feature
+[xqstf]: https://www.w3.org/TR/xquery-31/#id-static-typing-feature
+
+$h2 PL/Java 1.5.5 (4 November 2019)
+
+This bug-fix release fixes runtime issues reported in 32-bit `i386` builds, some
+of which would not affect a more common 64-bit architecture, but some of which
+could under the wrong circumstances, so this release should be used in
+preference to 1.5.4 or 1.5.3 on any architecture.
+
+It is featurewise identical to 1.5.4, so those release notes, below, should be
+consulted for the details of user-visible changes.
+
+Thanks to Christoph Berg for the `i386` testing that exposed these issues.
+
+$h3 Bugs fixed
+
+* [32bit i386 segfault](${ghbug}246)
+
+$h2 PL/Java 1.5.4 (29 October 2019)
+
+This minor release fixes a build issue reported with Java 11, and adds
+support for building with Java 13. Issues with building the javadocs in later
+Java versions are resolved. A work-in-progress feature that can
+[apply the SQLXML API to other tree-structured data types](use/xmlview.html)
+is introduced.
+
+Documentation updates include coverage of
+[changes to Application Class Data Sharing](install/appcds.html) in recent
+Hotspot versions, and ahead-of-time compilation using
+[jaotc](install/vmoptions.html#a-XX:AOTLibrary).
+
+Otherwise, the release notes for 1.5.3, below, should be
+consulted for the details of recent user-visible changes.
+
+$h3 Bugs fixed
+
+* [Build failure with Java 11 and --release](${ghbug}235)
+* [Build with Java 13](${ghbug}236)
+* [Javadoc build fails in Java 11+](${ghbug}239)
+* [Javadoc build fails in Java 13](${ghbug}241)
+
+$h2 PL/Java 1.5.3 (4 October 2019)
+
+This release adds support for PostgreSQL 12, and removes the former
+requirement to build with a Java release earlier than 9.
+
+It includes a rework of of threading and resource management, improvements to
+the JDBC 4.0 `java.sql.SQLXML` API that first became available in 1.5.1, and
+a substantially usable example providing the functionality of ISO SQL
+`XMLEXISTS`, `XMLQUERY`, `XMLTABLE`, `XMLCAST`, `LIKE_REGEX`,
+`OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and `TRANSLATE_REGEX`.
+Some bugs are fixed.
+
+$h3 Version compatibility
+
+PL/Java 1.5.3 can be built against recent PostgreSQL versions including 12,
+and older ones back to 8.2, using Java SE 8 or later. The source code avoids
+features newer than Java 6, so building with Java 7 or 6 should also be
+possible, but is no longer routinely tested. The Java version used at runtime
+does not have to be the same version used for building. PL/Java itself can run
+on any Java version 6 or later if built with Java 11 or earlier; it can run
+on Java 7 or later if built with Java 12. PL/Java functions can be written for,
+and use features of, whatever Java version will be loaded at run time. See
+[version compatibility][versions] for more detail.
+
+When used with [GraalVM][] as the runtime VM, PL/Java functions can use its
+"polyglot" capabilities to execute code in any other language available on
+GraalVM. In this release, it is not yet possible to directly declare a function
+in a language other than Java.
+
+$h3 Changes
+
+$h4 Threading/synchronization, finalizers, and new configuration variable
+
+Java is multithreaded while PostgreSQL is not, requiring ways to prevent
+Java threads from entering PostgreSQL at the wrong times, while cleaning up
+native resources in PostgreSQL when PL/Java references are released, and
+_vice versa_.
+
+PL/Java has historically used an assortment of approaches including Java
+object finalizers, which have long been deprecated informally, and formally
+since Java 9. Finalizers enter PostgreSQL from a thread of their own, and the
+synchronization approach used in PL/Java 1.5.2 and earlier has been associated
+with occasional hangs at backend exit when using an OpenJ9 JVM at runtime.
+
+A redesigned approach using a new `DualState` class was introduced in 1.5.1,
+at first only used in implementing the `java.sql.SQLXML` type, a newly-added
+feature. In 1.5.3, other approaches used in the rest of PL/Java's code base are
+migrated to use `DualState` also, and all uses of the deprecated Java object
+finalizers have been retired. With the new techniques, the former occasional
+OpenJ9 hangs have not been observed.
+
+This represents the most invasive change to PL/Java's thread synchronization
+in many years, so it may be worthwhile to reserve extra time for
+testing applications.
+
+A new [configuration variable](use/variables.html),
+`pljava.java_thread_pg_entry`, allows adjusting the thread policy. The default
+setting, `allow`, preserves PL/Java's former behavior, allowing Java threads
+entry into PostgreSQL one at a time, only when any thread already in PG code
+has entered or returned to Java.
+
+With object finalizers no longer used, PL/Java itself does not need the `allow`
+mode, but there may be application code that does. Application code can be
+tested by setting the `error` mode, which will raise an error for any attempted
+entry to PG from a thread other than the original thread that launched PL/Java.
+If an application runs in `error` mode with no errors, it can also be run in
+`block` mode, which may be more efficient, as it eliminates many locking
+operations that happen in `allow` or `error` mode. However, if `block` mode
+is used with an application that has not been fully tested in `error` mode
+first, and the application does attempt to enter PostgreSQL from a Java thread
+other than the initial one, the result can be blocked threads or a deadlocked
+backend that has to be killed.
+
+A JMX management client like `JConsole` or `jvisualvm` can identify threads that
+are blocked, if needed. The new `DualState` class also offers some statistics
+that can be viewed in `JConsole`, or `jvisualvm` with the `VisualVM-MBeans`
+plugin.
+
+$h4 Improvements to the `java.sql.SQLXML` type
+
+Support for this JDBC 4.0 type was added in PL/Java 1.5.1. Release 1.5.3
+includes the following improvements:
+
+* A new ["Adjusting" API](use/sqlxml.html#Extended_API_to_configure_XML_parsers)
+    exposes configuration settings for Java XML parsers that may be created
+    internally during operations on `SQLXML` instances. That allows the default
+    settings to restrict certain XML parser features as advocated by the
+    [Open Web Application Security Project][OWASP] when XML content may be
+    coming from untrusted sources, with a simple API for relaxing those
+    restrictions when appropriate for XML content from a known source.
+* It is now possible for a PL/Java function to return, pass into a
+    `PreparedStatement`, etc., an `SQLXML` instance that PL/Java did not create.
+    For example, a PL/Java function could use another database's JDBC driver to
+    obtain a `SQLXML` value from that database, and use that as its own return
+    value. Transparently, the content is copied to a PL/Java `SQLXML` instance.
+    The copy can also be done explicitly, allowing the "Adjusting" API to be
+    used if the default XML parser restrictions should be relaxed.
+* Behavior when the server encoding is not UTF-8, or when it is not an
+    IANA-registered encoding (even if Java has a codec for it), has been
+    improved.
+
+$h4 Improvements to the Saxon-based ISO SQL/XML example functions
+
+Since PL/Java 1.5.1, the supplied examples have included a not-built-by-default
+[example supplying ISO SQL/XML features missing from core PostgreSQL][exsaxon].
+It is not built by default because it raises the minimum Java version to 8, and
+brings in the Saxon-HE XML-processing library.
+
+In 1.5.3, the example now provides versions of the ISO SQL `XMLEXISTS`,
+`XMLQUERY`, `XMLTABLE`, and `XMLCAST` functions based on the W3C XQuery
+language as ISO SQL specifies (while PostgreSQL has an "XMLTABLE" function
+since release 10 and "XMLEXISTS" since 9.1, they have
+[numerous limitations][appD31] inherited from a library that does not support
+XQuery, and additional peculiarities prior to PostgreSQL 12), and the ISO SQL
+`LIKE_REGEX`, `OCCURRENCES_REGEX`, `POSITION_REGEX`, `SUBSTRING_REGEX`, and
+`TRANSLATE_REGEX` functions that apply XQuery regular expressions. It also
+includes the `XMLTEXT` function, which is rather trivial, but also missing from
+core PostgreSQL, and supplied here for completeness.
+
+As plain user-defined functions without special treatment in PostgreSQL's SQL
+parser, these functions cannot be used with the exact syntax specified in
+ISO SQL, but require simple rewriting into equivalent forms that are valid
+ordinary PostgreSQL function calls. The rewritten forms are intended to be easy
+to read and correspond closely to the ISO syntax.
+
+While still presented as examples and not a full implementation, these functions
+are now intended to be substantially usable (subject to minor
+[documented limits][exsaxon]), and testing and reports of shortcomings are
+welcome.
+
+$h4 ResultSet holdability again
+
+A `ResultSet` obtained from a query done in PL/Java would return the value
+`CLOSE_CURSORS_AT_COMMIT` to a caller of its `getHoldability` method, but in
+reality would become unusable as soon as the PL/Java function creating it
+returned to PostgreSQL. That was fixed in PL/Java 1.5.1 for a `ResultSet`
+obtained from a `Statement`, but not for one obtained from a
+`PreparedStatement`. It now correctly remains usable to the end of the
+transaction in either case.
+
+$h4 Savepoint behavior at rollback
+
+Per JDBC, a `Savepoint` still exists after being used in a rollback, and can be
+used again; the rollback only invalidates any `Savepoint` that had been created
+after the one being rolled back. That should be familiar behavior, as it is the
+same as PostgreSQL's own SQL `SAVEPOINT` behavior. It is also correct in pgJDBC,
+which has test coverage to confirm it. PL/Java has been doing it wrong.
+
+In 1.5.3 it now has the JDBC-specified behavior. For compatibility with existing
+application code, the meaning of the `pljava.release_lingering_savepoints`
+[configuration variable](use/variables.html) has been adjusted. The setting
+tells PL/Java what to do if a `Savepoint` still exists, neither released nor
+rolled back, at the time a function exits. If `on`, the savepoint is released
+(committed); if `off`, the savepoint is rolled back. A warning is issued in
+either case.
+
+In an existing function that used savepoints and assumed that a rolled-back
+savepoint would be no longer live, it will now be normal for such a savepoint
+to reach the function exit still alive. To recognize this case, PL/Java tracks
+whether any savepoint has been rolled back at least once. At function exit, any
+savepoint that has been neither released nor ever rolled back is disposed of
+according to the `release_lingering_savepoints` setting and with a warning,
+as before, but any savepoint that has already been rolled back at least once
+is simply released, regardless of the variable setting, and without producing
+a warning.
+
+$h4 Control of function parameter names in generated SQL
+
+When generating the `CREATE FUNCTION` command in a deployment descriptor
+according to an annotated Java function, PL/Java ordinarily gives the function
+parameters names that match their Java names, unquoted. Because PostgreSQL
+allows named notation when calling a function, the parameter names in its
+declaration become part of its signature that cannot later be changed without
+dropping and re-creating the function.
+
+In some cases, explicit control of the SQL parameter names may be wanted,
+independently of the Java names: to align with an external standard, perhaps,
+or when either the SQL or the Java name would collide with a reserved word.
+For that purpose, the (already slightly overloaded) `@SQLType` annotation now
+has a `name` attribute that can specify the SQL name of the annotated parameter.
+
+$h4 Documentation
+
+The user guide and guide for packagers contained incorrect instructions for
+using Maven to build a single subproject of PL/Java (such as `pljava-api` or
+`pljava-examples`) instead of the full project. Those have been corrected. 
+
+$h3 Enhancement requests addressed
+
+* [Allow building with Java releases newer than 8](${ghbug}212)
+
+$h3 Bugs fixed
+
+* [ResultSet holdability still wrong when using PreparedStatement](${ghbug}209)
+* [Can't return (or set/update PreparedStatement/ResultSet) non-PL/Java SQLXML object](${ghbug}225)
+* [JDBC Savepoint behavior](${ghbug}228)
+* Writing `SQLXML` via StAX when server encoding is not UTF-8
+* StAX rejecting server encoding if not an IANA-registered encoding
+* Error handling when PL/Java startup fails
+    (may have been [issue 211](${ghbug}211))
+* SPI connection management for certain set-returning functions
+
+$h3 Updated PostgreSQL APIs tracked
+
+* Retirement of `dynloader.h`
+* Retirement of magical Oids
+* Retirement of `nabstime`
+* Retirement of `pg_attrdef.adsrc`
+* Extensible `TupleTableSlot`s
+* `FunctionCallInfoBaseData`
+
+$h3 Credits
+
+There is a PL/Java 1.5.3 thanks in part to
+Christoph Berg,
+Chapman Flack,
+`ppKrauss`,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+[GraalVM]: https://www.graalvm.org/
+[OWASP]: https://www.owasp.org/index.php/About_The_Open_Web_Application_Security_Project
+[appD31]: https://www.postgresql.org/docs/12/xml-limits-conformance.html
+
+$h2 PL/Java 1.5.2 (5 November 2018)
+
+A pure bug-fix release, correcting a regression in 1.5.1 that was not caught
+in pre-release testing, and could leave
+[conversions between PostgreSQL `date` and `java.sql.Date`](${ghbug}199) off
+by one day in certain timezones and times of the year.
+
+1.5.1 added support for the newer `java.time` classes from JSR 310 / JDBC 4.2,
+which are [recommended as superior alternatives](use/datetime.html) to the
+older conversions involving `java.sql.Date` and related classes. The new
+versions are superior in part because they do not have hidden timezone
+dependencies.
+
+However, the change to the historical `java.sql.Date` conversion behavior was
+inadvertent, and is fixed in this release.
+
+$h3 Open issues with date/time/timestamp conversions
+
+During preparation of this release, other issues of longer standing were also
+uncovered in the legacy conversions between PG `date`, `time`, and
+`timestamp` classes and the `java.sql` types. They are detailed in
+[issue #200](${ghbug}200). Because they are not regressions but long-established
+behavior, they are left untouched in this release, and will be fixed in
+a future release.
+
+The Java 8 `java.time` conversions are free of these issues as well.
+
+$h2 PL/Java 1.5.1 (17 October 2018)
+
+This release adds support for PostgreSQL 9.6, 10, and 11,
+and plays more nicely with `pg_upgrade`. If a PostgreSQL installation
+is to be upgraded using `pg_upgrade`, and is running a version of
+PL/Java before 1.5.1, the PL/Java version should first be upgraded
+in the running PostgreSQL version, and then the PostgreSQL `pg_upgrade`
+can be done.
+
+The documentation is expanded on the topic of shared-memory precompiled
+class cache features, which can substantially improve JVM startup time
+and memory footprint, and are now available across Oracle Java, OpenJDK
+with Hotspot, and OpenJDK with OpenJ9. When running on OpenJ9, PL/Java
+cooperates with the JVM to include even the application's classes
+(those loaded with `install_jar`) in the shared cache, something not
+yet possible with Hotspot. While the advanced sharing feature in Oracle
+Java is still subject to a commercial licensing encumbrance, the equivalent
+(or superior, with OpenJ9) features in OpenJDK are not encumbered.
+
+Significant new functionality includes new datatype mapping support:
+SQL `date`, `time`, and `timestamp` values can be mapped to the new
+Java classes of the `java.time` package in Java 8 and later (JSR 310 /
+JDBC 4.2), which are much more faithful representations of the values
+in SQL. Values of `xml` type can be manipulated efficiently using the
+JDBC 4.0 `SQLXML` API, supporting several different APIs for XML
+processing in Java.
+
+For Java code that does not use the new date/time classes in the
+`java.time` package, some minor conversion inaccuracies (less than
+two seconds) in the older mapping to `java.sql.Timestamp` have been
+corrected.
+
+Queries from PL/Java code now produce `ResultSet`s that are usable to the
+end of the containing transaction, as they had already been claiming to be.
+
+With PostgreSQL 9.6 support comes the ability to declare functions
+`PARALLEL { UNSAFE | RESTRICTED | SAFE }`, and with PG 10 support,
+transition tables are available to triggers.
+
+$h3 Security
+
+$h4 Schema-qualification
+
+PL/Java now more consistently schema-qualifies objects in queries and DDL
+it generates internally, as a measure of defense-in-depth in case the database
+it is installed in has not been [protected][prot1058] from [CVE-2018-1058][].
+
+_No schema-qualification work has been done on the example code._ If the
+examples jar will be installed, it should be in a database that
+[the recommended steps have been taken to secure][prot1058].
+
+$h4 Some large-object code removed
+
+1.5.1 removes the code at issue in [CVE-2016-0768][], which pertained to
+PostgreSQL large objects, but had never been documented or exposed as API.
+
+This is not expected to break any existing code at all, based on further
+review showing the code in question had also been simply broken, since 2006,
+with no reported issues in that time. That discovery would support an argument
+for downgrading the severity of the reported vulnerability, but with no need
+to keep that code around, it is more satisfying to remove it entirely.
+
+Developers wishing to manipulate large objects in PL/Java are able to do so
+using the SPI JDBC interface and the large-object SQL functions already
+available in every PostgreSQL version PL/Java currently supports.
+
+[CVE-2018-1058]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1058
+[prot1058]: https://wiki.postgresql.org/wiki/A_Guide_to_CVE-2018-1058:_Protect_Your_Search_Path#Next_Steps:_How_Can_I_Protect_My_Databases.3F
+
+$h3 Version compatibility
+
+PL/Java 1.5.1 can be built against recent PostgreSQL versions including 11,
+and older ones back to 8.2, using Java SE 8, 7, or 6. It can _run_ using newer
+Java versions including Java 11. PL/Java functions can be written for, and use
+features of, the Java version loaded at run time. See
+[version compatibility][versions] for more detail.
+
+OpenJDK is supported, and can be downloaded in versions using the Hotspot or the
+OpenJ9 JVM. Features of modern Java VMs can drastically reduce memory footprint
+and startup time, in particular class-data sharing. Several choices of Java
+runtime now offer such features: Oracle Java has a simple class data sharing
+feature for the JVM itself, freely usable in all supported versions, and an
+"application class data sharing" feature in Java 8 and later that can also share
+the internal classes of PL/Java, but is a commercial feature requiring a
+license from Oracle. As of Java 10, the same application class sharing feature
+is present in OpenJDK/Hotspot, where it is freely usable without an additional
+license. OpenJDK/OpenJ9 includes a different, and very sophisticated, class
+sharing feature, freely usable from Java 8 onward. More on these features
+can be found [in the installation docs][vmopts].
+
+$h3 Changes
+
+$h4 Typing of parameters in prepared statements
+
+PL/Java currently does not determine the necessary types of `PreparedStatement`
+parameters from the results of PostgreSQL's own type analysis of the query
+(as a network client would, when using PostgreSQL's "extended query" protocol).
+PostgreSQL added the means to do so in SPI only in PostgreSQL 9.0, and a future
+PL/Java major release should use it. However, this release does make two small
+changes to the current behavior.
+
+Without the query analysis results from PostgreSQL, PL/Java tries to type the
+prepared-statement parameters based on the types of values supplied by the
+application Java code. It now has two additional ways to do so:
+
+* If Java code supplies a Java user-defined type (UDT)---that is, an object
+    implementing the `SQLData` interface---PL/Java will now call the `SQLData`
+    method `getSQLTypeName` on that object and use the result to pin down
+    the PostgreSQL type of the parameter. Existing code should already provide
+    this method, but could, in the past, have returned a bogus result without
+    detection, as PL/Java did not use it.
+
+* Java code can use the three-argument form of `setNull` to specify the exact
+    PostgreSQL type for a parameter, and then another method can be used to
+    supply a non-null value for it. If the following non-null value has
+    a default mapping to a different PostgreSQL type, in most cases it will
+    overwrite the type supplied with `setNull` and re-plan the query. That was
+    PL/Java's existing behavior, and was not changed for this minor release.
+    However, the new types introduced in this release---the `java.time` types
+    and `SQLXML`---behave in the way that should become universal in a future
+    major release: the already-supplied PostgreSQL type will be respected, and
+    PL/Java will try to find a usable coercion to it.
+
+$h4 Inaccuracies converting TIMESTAMP and TIMESTAMPTZ
+
+When converting between PostgreSQL values of `timestamp` or `timestamptz` type
+and the pre-Java 8 original JDBC type `java.sql.Timestamp`, there were cases
+where values earlier than 1 January 2000 would produce exceptions rather than
+converting successfully. Those have been fixed.
+
+Also, converting in the other direction, from `java.sql.Timestamp` to a
+PostgreSQL timestamp, an error of up to 1.998 seconds (averaging 0.999)
+could be introduced.
+
+That error has been corrected. If an application has stored Java `Timestamp`s
+and corresponding SQL `timestamp`s generated in the past and requires them
+to match, it could be affected by this change.
+
+$h4 New date/time/timestamp API in Java 8 `java.time` package
+
+The old, and still default, mappings in JDBC from the SQL `date`, `time`, and
+`timestamp` types to `java.sql.Date`, `java.sql.Time`, and `java.sql.Timestamp`,
+were never well suited to represent the PostgreSQL data types. The `Time` and
+`Timestamp` classes were used to map both the with-timezone and without-timezone
+variants of the corresponding SQL types and, clearly, could not represent both
+equally well. These Java classes all contain timezone dependencies, requiring
+the conversion to involve timezone calculations even when converting non-zoned
+SQL types, and making the conversion results for non-zoned types implicitly
+depend on the current PostgreSQL session timezone setting.
+
+Applications are strongly encouraged to adopt Java 8 as a minimum language
+version and use the new-in-Java-8 types in the `java.time` package, which
+eliminate those problems and map the SQL types much more faithfully.
+For PL/Java function parameters and returns, the class in the method declaration
+can simply be changed. For retrieving date/time/timestamp values from a
+`ResultSet` or `SQLInput` object, use the variants of `getObject` / `readObject`
+that take a `Class<?>` parameter. The class to use is:
+
+| PostgreSQL type | `java.time` class |
+|--:|:--|
+|`date`|`LocalDate`|
+|`time without time zone`|`LocalTime`|
+|`time with time zone`|`OffsetTime`|
+|`timestamp without time zone`|`LocalDateTime`|
+|`timestamp with time zone`|`OffsetDateTime`|
+[Correspondence of PostgreSQL date/time types and Java 8 `java.time` classes]
+
+Details on these mappings are [added to the documentation](use/datetime.html).
+
+$h4 Newly supported `java.sql.SQLXML` type
+
+PL/Java has not, until now, supported the JDBC 4.0 `SQLXML` type. PL/Java
+functions have been able to work with PostgreSQL XML values by mapping them
+as Java `String`, but that conversion could introduce character encoding issues
+outside the control of the XML APIs, and also has memory implications if an
+application stores, or generates in queries, large XML values. Even if the
+processing to be done in the application could be structured to run in constant
+bounded memory while streaming through the XML, a conversion to `String`
+requires the whole, uncompressed, character-serialized value to be brought into
+the Java heap at once, and any heap-size tuning has to account for that
+worst-case size. The `java.sql.SQLXML` API solves those problems by allowing
+XML manipulation with any of several Java XML APIs with the data remaining in
+PostgreSQL native memory, never brought fully into the Java heap unless that is
+what the application does. Heap sizing can be based on the just the
+application's processing needs.
+
+The `SQLXML` type can take the place of `String` in PL/Java function parameters
+and returns simply by changing their declarations from `String` to `SQLXML`.
+When retrieving XML values from `ResultSet` or `SQLInput` objects, the legacy
+`getObject / readObject` methods will continue to return `String` for existing
+application compatibility, so the specific `getSQLXML / readSQLXML` methods, or
+the forms of `getObject / readObject` with a `Class<?>` parameter and passing
+`SQLXML.class`, must be used. A [documentation page](use/sqlxml.html) has been
+added, and the [PassXML example][exxml] illustrates use of the API.
+
+A [not-built-by-default new example][exsaxon] (because it depends on Java 8 and
+the Saxon-HE XML-processing library) provides a partial implementation of true
+`XMLQUERY` and `XMLTABLE` functions for PostgreSQL, using the standard-specified
+XML Query language rather than the XPath 1.0 of the native PostgreSQL functions.
+
+[exxml]: pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/PassXML.html
+[exsaxon]: examples/saxon.html
+
+$h4 New Java property exposes the PostgreSQL server character-set encoding
+
+A Java system property, `org.postgresql.server.encoding`, is set to the
+canonical name of a supported Java `Charset` that corresponds to PostgreSQL's
+`server_encoding` setting, if one can be found. If the server encoding's name
+is not recognized as any known Java `Charset`, this property will be unset, and
+some functionality, such as the `SQLXML` API, may be limited. If a Java
+`Charset` does exist (or is made available through a `CharsetProvider`) that
+does match the PostgreSQL server encoding, but is not automatically selected
+because of a naming mismatch, the `org.postgresql.server.encoding` property can
+be set (with a `-D` in `pljava.vmoptions`) to select it by name.
+
+$h4 ResultSet holdability
+
+A `ResultSet` obtained from a query done in PL/Java would return the value
+`CLOSE_CURSORS_AT_COMMIT` to a caller of its `getHoldability` method, but in
+reality would become unusable as soon as the PL/Java function creating it
+returned to PostgreSQL. It now remains usable to the end of the transaction,
+as claimed.
+
+$h4 PostgreSQL 9.6 and parallel query
+
+A function in PL/Java can now be [annotated][apianno]
+`parallel={UNSAFE | RESTRICTED | SAFE}`, with `UNSAFE` the default.
+A new [user guide section][ugparqry] explains the possibilities and
+tradeoffs. (Good cases for marking a PL/Java function `SAFE` may be
+rare, as pushing such a function into multiple background processes
+will require them all to start JVMs. But if a practical application
+arises, PostgreSQL's `parallel_setup_cost` can be tuned to help the
+planner make good plans.)
+
+Although `RESTRICTED` and `SAFE` Java functions work in simple tests,
+there has been no exhaustive audit of the code to ensure that PL/Java's
+internal workings never violate the behavior constraints on such functions.
+The support should be considered experimental, and could be a fruitful
+area for beta testing.
+
+[ugparqry]: use/parallel.html
+
+$h4 Tuple counts widened to 64 bits with PostgreSQL 9.6
+
+To accommodate the possibility of more than two billion tuples in a single
+operation, the SPI implementation of the JDBC `Statement` interface now
+provides the JDK 8-specified `executeLargeBatch` and `getLargeUpdateCount`
+methods defined to return `long` counts. The original `executeBatch` and
+`getUpdateCount` methods remain but, obviously, cannot return counts that
+exceed `INT_MAX`. In case the count is too large, `getUpdateCount` will throw
+an `ArithmeticException`; `executeBatch` will store `SUCCESS_NO_INFO` for
+any statement in the batch that affected too many tuples to report.
+
+For now, a `ResultSetProvider` cannot be used to return more than `INT_MAX`
+tuples, but will check that condition and throw an error to ensure predictable
+behavior.
+
+$h4 `pg_upgrade`
+
+PL/Java should be upgraded to 1.5.1 in a database cluster, before that
+cluster is binary-upgraded to a newer PostgreSQL version using `pg_upgrade`.
+A new [Upgrading][upgrading] installation-guide section centralizes information
+on both upgrading PL/Java in a database, and upgrading a database with PL/Java
+in it.
+
+[upgrading]: install/upgrade.html
+
+$h4 Suppressing row operations from triggers
+
+In PostgreSQL, a `BEFORE ROW` trigger is able to allow the proposed row
+operation, allow it with modified values, or silently suppress the operation
+for that row. Way back in PL/Java 1.1.0, the way to produce the 'suppress'
+outcome was for the trigger method to throw an exception. Since PL/Java 1.2.0,
+however, an exception thrown in a trigger method is used to signal an error
+to PostgreSQL, and there has not been a way to suppress the row operation.
+
+The `TriggerData` interface now has a [`suppress`][tgsuppress] method that
+the trigger can invoke to suppress the operation for the row.
+
+[tgsuppress]: pljava-api/apidocs/index.html?org/postgresql/pljava/TriggerData.html#suppress()
+
+$h4 Constraint triggers
+
+New attributes in the `@Trigger` annotation allow the SQL generator to
+create constraint triggers (a type of trigger that can be created with SQL
+since PostgreSQL 9.1). Such triggers will be delivered by the PL/Java runtime
+(to indicate that a constraint would be violated, a constraint trigger
+method should throw an informative exception). However, the trigger method
+will have access, through the `TriggerData` interface, only to the properties
+common to ordinary triggers; methods on that interface to retrieve properties
+specific to constraint triggers have not been added for this release.
+
+$h4 PostgreSQL 10 and trigger transition tables
+
+A trigger [annotation][apianno] can now specify `tableOld="`_name1_`"` or
+`tableNew="`_name2_`"`, or both, and the PL/Java function servicing the
+trigger can do SPI JDBC queries and see the transition table(s) under the
+given name(s). The [triggers example code][extrig] has been extended with
+a demonstration.
+
+[extrig]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java
+
+$h4 Logging from Java
+
+The way the Java logging system has historically been plumbed to PostgreSQL's,
+as described in [issue 125](${ghbug}125), can be perplexing both because it
+is unaffected by later changes to the PostgreSQL settings after PL/Java is
+loaded in the session, and because it has honored only `log_min_messages`
+and ignored `client_min_messages`. The second part is easy to fix, so in
+1.5.1 the threshold where Java discards messages on the fast path is
+determined by the finer of `log_min_messages` and `client_min_messages`.
+
+$h4 Conveniences for downstream package maintainers
+
+The `mvn` command to build PL/Java will now accept an option to provide
+a useful default for `pljava.libjvm_location`, when building a package for
+a particular software environment where the likely path to Java is known.
+
+The `mvn` command will also accept an option to specify, by the path to
+the `pg_config` executable, the PostgreSQL version to build against, in
+case multiple versions exist on the build host. This was already possible
+by manipulating `PATH` ahead of running `mvn`, but the option makes it more
+explicit.
+
+A new [packaging section][packaging] in the build guide documents those
+and a number of considerations for making a PL/Java package.
+
+[packaging]: build/package.html
+
+$h3 Enhancement requests addressed
+
+$h4 In 1.5.1-BETA3
+
+* [Add a ddr.reproducible option to SQL generator](${ghbug}186)
+
+$h4 In 1.5.1-BETA2
+
+* [java 8 date/time api](${ghbug}137)
+* [Annotations don't support CREATE CONSTRAINT TRIGGER](${ghbug}138)
+* [Let annotations give defaults to row-type parameters](${ghpull}153)
+* [Improve DDR generator on the dont-repeat-yourself dimension for UDT type mapping](${ghpull}159)
+* [Support the JDBC 4.0 SQLXML type](${ghpull}171)
+
+$h3 Bugs fixed
+
+$h4 In 1.5.1-BETA3
+
+* [self-install jar ClassCastException (...ConsString to String), some java 6/7 runtimes](${ghbug}179)
+* [i386 libjvm_location gets mangled as .../jre/lib/1/server/libjvm.so](${ghbug}176)
+* [java.lang.ClassNotFoundException installing examples jar](${ghbug}178)
+* [Preprocessor errors building on Windows with MSVC](${ghbug}182)
+* [Saxon example does not build since Saxon 9.9 released](${ghbug}185)
+* [Segfault in VarlenaWrapper.Input on 32-bit](${ghbug}177)
+* [Windows: self-install jar silently fails to replace existing files](${ghbug}189)
+* [ERROR: java.sql.SQLException: _some Java class name_](${ghbug}192)
+* [SetOfRecordTest with timestamp column influenced by environment ](${ghbug}195)
+
+$h4 In 1.5.1-BETA2
+
+* [PostgreSQL 10: SPI_modifytuple failed with SPI_ERROR_UNCONNECTED](${ghbug}134)
+* [SPIConnection prepareStatement doesn't recognize all parameters](${ghbug}136)
+* [Ordinary (non-constraint) trigger has no way to suppress operation](${ghbug}142)
+* [ResultSetHandle and column definition lists](${ghbug}146)
+* [PreparedStatement doesn't get parameter types from PostgreSQL](${ghbug}149)
+    _(partial improvements)_
+* [internal JDBC: inaccuracies converting TIMESTAMP and TIMESTAMPTZ](${ghbug}155)
+* [Missing type mapping for Java return `byte[]`](${ghbug}157)
+* [The REMOVE section of DDR is in wrong order for conditionals](${ghbug}163)
+* [Loading PL/Java reinitializes timeouts in PostgreSQL >= 9.3](${ghbug}166)
+* [JDBC ResultSet.CLOSE_CURSORS_AT_COMMIT reported, but usable life shorter](${ghbug}168)
+
+$h4 In 1.5.1-BETA1
+
+* [Add support for PostgreSQL 9.6](${ghbug}108)
+* [Clarify documentation of ResultSetProvider](${ghbug}115)
+* [`pg_upgrade` (upgrade failure from 9.5 to 9.6)](${ghbug}117)
+* [Java logging should honor `client_min_messages` too](${ghbug}125)
+
+$h3 Updated PostgreSQL APIs tracked
+
+* `heap_form_tuple`
+* 64-bit `SPI_processed`
+* 64-bit `Portal->portalPos`
+* 64-bit `FuncCallContext.call_cntr`
+* 64-bit `SPITupleTable.alloced` and `.free`
+* `IsBackgroundWorker`
+* `IsBinaryUpgrade`
+* `SPI_register_trigger_data`
+* `SPI` without `SPI_push`/`SPI_pop`
+* `AllocSetContextCreate`
+* `DefineCustom...Variable` (no `GUC_LIST_QUOTE` in extensions)
+
+$h3 Credits
+
+There is a PL/Java 1.5.1 thanks in part to
+Christoph Berg,
+Thom Brown,
+Luca Ferrari,
+Chapman Flack,
+Petr Michalek,
+Steve Millington,
+Kenneth Olson,
+Fabian Zeindl,
+original creator Thomas Hallgren,
+and the many contributors to earlier versions.
+
+$h2 PL/Java 1.5.0 (29 March 2016)
+
+This, the first PL/Java numbered release since 1.4.3 in 2011, combines
+compatibility with the latest PostgreSQL and Java versions with modernized
+build and installation procedures, automatic generation of SQL deployment
+code from Java annotations, and many significant fixes.
+
+$h3 Security
+
+Several security issues are addressed in this release. Sites already
+using PL/Java are encouraged to update to 1.5.0. For several of the
+issues below, practical measures are described to mitigate risk until
+an update can be completed.
+
+[CVE-2016-0766][], a privilege escalation requiring an authenticated
+PostgreSQL connection, is closed by installing PL/Java 1.5.0 (including
+prereleases) or by updating PostgreSQL itself to at least 9.5.1, 9.4.6,
+9.3.11, 9.2.15, 9.1.20. Vulnerable systems are only those running both
+an older PL/Java and an older PostgreSQL.
+
+[CVE-2016-0767][], in which an authenticated PostgreSQL user with USAGE
+permission on the `public` schema may alter the `public` schema classpath,
+is closed by release 1.5.0 (including prereleases). If updating to 1.5.0
+must be delayed, risk can be mitigated by revoking public `EXECUTE` permission
+on `sqlj.set_classpath` and granting it selectively to responsible users or
+roles.
+
+This release brings a policy change to a more secure-by-default posture,
+where the ability to create functions in `LANGUAGE java` is no longer
+automatically granted to `public`, but can be selectively granted to roles
+that will have that responsibility. The change reduces exposure to a known
+issue present in 1.5.0 and earlier versions, that will be closed in a future
+release ([CVE-2016-0768][], see **large objects, access control** below).
+
+The new policy will be applied in a new installation; permissions will not
+be changed in an upgrade, but any site can move to this policy, even before
+updating to 1.5.0, with `REVOKE USAGE ON LANGUAGE java FROM public;` followed by
+explicit `GRANT` commands for the users/roles expected to create Java
+functions.
+
+[CVE-2016-2192][], in which an authenticated user can alter type mappings
+without owning the types involved. Exploitability is limited by other
+permissions, but if type mapping is a feature being used at a site, one
+can interfere with proper operation of code that relies on it. A mitigation
+is simply to `REVOKE EXECUTE ... FROM PUBLIC` on the `sqlj.add_type_mapping`
+and `sqlj.drop_type_mapping` functions, and grant the privilege only to
+selected users or roles. As of 1.5.0, these functions require the invoker
+to be superuser or own the type being mapped.
+
+[CVE-2016-0766]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0766
+[CVE-2016-0767]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0767
+[CVE-2016-0768]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-0768
+[CVE-2016-2192]: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-2192
+
+$h3 Version compatibility
+
+PL/Java 1.5.0 can be built against recent PostgreSQL versions including 9.5,
+using Java SE 8, 7, or 6. See [version compatibility][versions] for more
+detail. OpenJDK is well supported. Support for GCJ has been dropped; features
+of modern Java VMs that are useful to minimize footprint and startup time,
+such as class-data sharing, are now more deeply covered
+[in the installation docs][vmopts].
+
+[versions]: build/versions.html
+[vmopts]: install/vmoptions.html
+
+$h3 Build procedures
+
+Since 2013, PL/Java has been hosted [on GitHub][ghpljava] and built
+using [Apache Maven][mvn]. See the new [build instructions][bld] for details.
+
+Reported build issues for specific platforms have been resolved,
+with new platform-specific build documentation
+for [OS X][osxbld], [Solaris][solbld], [Ubuntu][ububld],
+[Windows MSVC][msvcbld], and [Windows MinGW-w64][mgwbld].
+
+The build produces a redistributable installation archive usable with
+the version of PostgreSQL built against and the same operating system,
+architecture, and linker. The type of archive is `jar` on all platforms, as
+all PL/Java installations will have Java available.
+
+[ghpljava]: https://github.com/tada/pljava
+[mvn]: http://maven.apache.org/
+[bld]: build/build.html
+[msvcbld]: build/buildmsvc.html
+[mgwbld]: build/mingw64.html
+[osxbld]: build/macosx.html
+[solbld]: build/solaris.html
+[ububld]: build/ubuntu.html
+
+$h3 Installation procedures
+
+The jar produced by the build is executable and will self-extract,
+consulting `pg_config` on the destination system to find the correct
+default locations for the extracted files. Any location can be overridden.
+(Enhancement requests [6][gh6], [9][gh9])
+
+PL/Java now uses a PostgreSQL configuration variable, `pljava.libjvm_location`,
+to find the Java runtime to use, eliminating the past need for highly
+platform-specific tricks like link-time options or runtime-loader configuration
+just so that PL/Java could find Java. PostgreSQL configuration variables are
+now the only form of configuration needed for PL/Java, and the `libjvm_location`
+should be the only setting needed if file locations have not been overridden.
+
+In PostgreSQL 9.1 and later, PL/Java can be installed with
+`CREATE EXTENSION pljava`. Regardless of PostgreSQL version, installation
+has been simplified. Former procedures involving `Deployer` or `install.sql`
+are no longer required. Details are in the [new installation instructions][ins].
+
+$h4 Schema migration
+
+The tables used internally by PL/Java have changed. If PL/Java 1.5.0 is
+loaded in a database with an existing `sqlj` schema populated by an earlier
+PL/Java version (1.3.0 or later), the structure will be updated without data
+loss (enhancement request [12][gh12]). *Remember that PL/Java runs independently
+in each database session where it is in use. Older PL/Java versions active in
+other sessions can be disrupted by the schema change.*
+
+A trial installation of PL/Java 1.5.0 can be done in a transaction, and
+rolled back if desired, leaving the schema as it was. Any concurrent sessions
+with active older PL/Java versions will not be disrupted by the altered schema
+as long as the transaction remains open, *but they may block for the duration,
+so such a test transaction should be kept short*.
+
+[ins]: install/install.html
+
+$h3 Changes
+
+$h4 Behavior of `readSQL` and `writeSQL` for base and mirror user-defined types
+
+In the course of fixing [issue #98][gh98], the actual behavior of
+`readSQL` and `writeSQL` with base or mirror types, which had not
+previously been documented, [now is](develop/coercion.html), along with
+other details of PL/Java's type coercion rules found only in the code.
+Because machine byte order was responsible for issue #98, it now (a) is
+selectable, and (b) has different, appropriate, defaults for mirror UDTs
+(which need to match PostgreSQL's order) and for base UDTs (which must
+stay big-endian because of how binary `COPY` is specified).
+A [new documentation section](use/byteorder.html) explains in detail.
+
+$h4 `USAGE` to `PUBLIC` no longer default for `java` language
+
+Of the two languages installed by PL/Java, functions that declare
+`LANGUAGE javau` can be created only by superusers, while those that
+declare `LANGUAGE java` can be created by any user or role granted the
+`USAGE` privilege on the language.
+
+In the past, the language `java` has been created with PostgreSQL's
+default permission granting `USAGE` to `PUBLIC`, but PL/Java 1.5.0
+leaves the permission to be explicitly granted to those users or roles
+expected to create Java functions, in keeping with least-privilege
+principles. See **large objects, access control** under **known issues**
+for background.
+
+$h4 SQL generated by Java annotations
+
+Java code developed for use by PL/Java can carry in-code annotations,
+used by the Java compiler to generate the SQL commands to declare the
+new functions, types, triggers, etc. in PostgreSQL (enhancement request
+[1011112][], though different in implementation). This eliminates the need
+to have Java code and the corresponding SQL commands developed in parallel,
+and the class of errors possible when both are not updated together. It
+also allows compile-time checks that the Java methods or classes being
+annotated are suitable (correct access modifiers, signatures, etc.)
+for their declared SQL purposes, rather than discovering
+such issues only upon loading the code into PostgreSQL and trying to use it.
+
+The Java compiler writes the generated SQL into a "deployment descriptor"
+file (`pljava.ddr` by default), as specified by the SQL/JRT standard. The
+file can be included in a `jar` archive with the compiled code, and the
+commands will be executed by PL/Java when the `install_jar` function is
+used to load the jar.
+
+SQL generation is covered in the [updated user documentation][user],
+and illustrated in the [Hello, World example][hello] and
+[several other supplied examples][exanno]. Reference information
+is [in the API documentation][apianno]. It is currently usable to declare
+functions, triggers, and user-defined types, both base and composite.
+
+[user]: use/use.html
+[hello]: use/hello.html
+[exanno]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation
+[apianno]: pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/package-summary.html#package_description
+
+The history of this feature in PL/Java is long, with the first related commits
+appearing in 2005, six years in advance of an enhancement request for it.
+It became generally usable in 2013 when building with
+Java SE 6 or later, using the annotation processing framework Java introduced
+in that release. 1.5.0 is the first PL/Java numbered release to feature it.
+
+$h5 Annotation keyword changes
+
+If you have been using the SQL generation feature in prerelease `git` builds of
+2013 or later, be aware that some annotation keywords have changed in finalizing
+the 1.5.0 release. Java code that was compiled using the earlier keywords will
+continue to work, but will have to be updated before it can be recompiled.
+
+* For functions: `effects=(VOLATILE,STABLE,IMMUTABLE)` was formerly `type=`
+* For functions: `type=` (_an explicit SQL return type for the function_)
+    was formerly `complexType=`
+* For functions: `trust=(SANDBOXED,UNSANDBOXED)` was formerly
+    `(RESTRICTED,UNRESTRICTED)`
+* For triggers: `called=(BEFORE,AFTER,INSTEAD_OF)` was formerly `when=`
+    and conflicted with the `WHEN` clause introduced for triggers
+    in PostgreSQL 9.0.
+
+$h4 A jar may have more than one deployment descriptor
+
+PL/Java formerly allowed only one entry in a jar to be a deployment
+descriptor (that is, a file of SQL commands to be executed upon loading
+or unloading the jar). The SQL/JRT standard allows multiple entries to
+be deployment descriptors, executed in the order they are mentioned
+_in the jar manifest_, or the reverse of that order when the jar is
+being unloaded. PL/Java now conforms to the standard.
+
+The behavior is useful during transition to annotation-driven deployment
+descriptor generation for a project that already has a manually-maintained
+deployment descriptor. PL/Java's own `pljava-examples` project is an
+illustration, in the midst of such a transition itself.
+
+Note the significance placed by SQL/JRT on the order of entries in a jar
+manifest, whose order is normally _not_ significant according to the Jar File
+Specification. Care can be needed when manipulating manifests with automated
+tools that may not preserve order.
+
+$h4 Conditional execution within deployment descriptors
+
+Deployment descriptors have a primitive conditional-execution provision
+defined in the SQL/JRT standard: commands wrapped in a  
+`BEGIN IMPLEMENTOR ` _identifier_ construct will only be executed if the
+_identifier_ is recognized by the SQL/JRT implementation in use. The design
+makes possible jars that can be installed on different database systems that
+provide SQL/JRT features, with database-specific commands wrapped in
+`BEGIN IMPLEMENTOR` blocks with an _identifier_ specific to the system.
+By default, PL/Java recognizes the _identifier_ `postgresql` (matched without
+regard to case).
+
+PL/Java extends the standard by allowing the PostgreSQL configuration
+variable `pljava.implementors` to contain a list of identifiers that will
+be recognized. SQL code in a deployment descriptor can conditionally add
+or remove identifiers in this list to influence which subsequent implementor
+blocks will be executed, giving a still-primitive but more general control
+structure.
+
+In sufficiently recent PostgreSQL versions, the same effect could be
+achieved using `DO` statements and PL/pgSQL control structures, but this
+facility in PL/Java does not require either to be available.
+
+$h4 Interaction with `SET ROLE` corrected
+
+PL/Java formerly was aware of the user ID associated with the running
+session, but not any role ID that user may have acquired with `SET ROLE`.
+The result would commonly be failed permission checks made by PL/Java when
+the session user did not have the needed permission, but had `SET ROLE` to
+a role that did. Likewise, within `install_jar`, PL/Java would execute
+deployment descriptor commands as the original session user rather than
+as the user's current role, with permission failures a likely result.
+
+Correcting this issue has changed the PL/Java API, but without a bump
+of major version because the prior API, while deprecated, is still available.
+
+* [`getOuterUserName`][goun] and [`executeAsOuterUser`][eaou] are new, and
+    correctly refer to the session user or current role, when active.
+* [`getSessionUserName`][gsun] and [`executeAsSessionUser`][easu] are still
+    present but deprecated, and _their semantics are changed_. They are now
+    deprecated aliases for the corresponding new methods, which honor the
+    set role. Use cases that genuinely need to refer only to the _session_ user
+    and ignore the role should be rare, and should be discussed on the mailing
+    list or opened as issues.
+
+#set($sessapi = 'pljava-api/apidocs/index.html?org/postgresql/pljava/Session.html#')
+
+[goun]: ${sessapi}getOuterUserName()
+[eaou]: ${sessapi}executeAsOuterUser(java.sql.Connection,java.lang.String)
+[gsun]: ${sessapi}getSessionUserName()
+[easu]: ${sessapi}executeAsSessionUser(java.sql.Connection,java.lang.String)
+
+$h4 Unicode transparency
+
+Since the resolution of [bug 21][gh21], PL/Java contains a regression test
+to ensure that character strings passed and returned between PostgreSQL and
+Java will round-trip without alteration for the full range of Unicode
+characters, _when the database encoding is set to `UTF8`_.
+
+More considerations apply when the database encoding is anything other
+than `UTF8`, and especially when it is `SQL_ASCII`. Please see
+[character encoding support][charsets] for more.
+
+[charsets]: use/charsets.html
+
+$h3 Enhancement requests addressed
+
+* [Use Annotations instead of DDL Manifest][1011112]
+* [Installation of pljava on postgresql servers][gh9]
+* [Find an alternative way to install the pljava.so in `/usr/lib`][gh6]
+* [Provide database migration][gh12]
+* [Support types with type modifiers][1011140] (partial: see [example][typmex])
+* [Build process: accommodate Solaris 10][gh102]
+
+[1011112]: ${pgffeat}1011112
+[1011140]: ${pgffeat}1011140
+[gh9]: ${ghbug}9
+[gh6]: ${ghbug}6
+[gh12]: ${ghbug}12
+[gh102]: ${ghbug}102
+
+[typmex]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/IntWithMod.java
+
+$h3 Bugs fixed
+
+$h4 Since 1.5.0-BETA3
+
+* [Build process: accept variation in PostgreSQL version string][gh101]
+* [Build process: accommodate PostgreSQL built with private libraries][gh103]
+* Clarified message when `CREATE EXTENSION` fails because new session needed
+* Reduced stack usage in SQL generator
+    (small-memory build no longer needs `-Xss`)
+
+$h4 In 1.5.0-BETA3
+
+* [Bogus mirror-UDT values on little-endian hardware][gh98]
+* [Base UDT not registered if first access isn't in/out/send/recv][gh99]
+* `TupleDesc` leak warnings with composite UDTs
+* also added regression test from [1010962][] report
+
+$h4 In 1.5.0-BETA2
+
+* [Generate SQL for trigger function with no parameters][gh92]
+* [openssl/ssl.h needed on osx el-capitan (latest 10.11.3)/postgres 9.5][gh94]
+    (documented)
+* [Source location missing for some annotation errors][gh95]
+* [OS X El Capitan "Java 6" dialog when loading ... Java 8][gh96]
+* pljava-api jar missing from installation jar
+
+$h4 In 1.5.0-BETA1
+
+* [SPIPreparedStatement.setObject() fails with Types.BIT][1011119]
+* [SSLSocketFactory throws IOException on Linux][1011095]
+* [PL/Java fails to compile with -Werror=format-security][1011181]
+* [PL/Java does not build on POWER 7][1011197]
+* [The built in functions do not use the correct error codes][1011206]
+* [TupleDesc reference leak][1010962]
+* [String conversion to enum fails][gh4]
+* [segfault if SETOF RECORD-returning function used without AS at callsite][gh7]
+* [pl/java PG9.3 Issue][gh17]
+* [No-arg functions unusable: "To many parameters - expected 0"][gh8]
+* [Exceptions in static initializers are masked][gh54]
+* [UDT in varlena form breaks if length > 32767][gh52]
+* [PL/Java kills unicode?][gh21]
+* [Type.c expects pre-8.3 find_coercion_pathway behavior][gh65]
+* [Support PostgreSQL 9.5][gh48]
+* [pl/java getting a build on MacOSX - PostgreSQL 9.3.2][gh22]
+* [build pljava on windows for PostgreSQL 9.2][gh23]
+* [Error while installing PL/Java with Postgresql 9.3.4 64 bit on Windows 7 64 bit System][gh28]
+* [pljava does not compile on mac osx ver 10.11.1 and postgres 9.4][gh63]
+* [pljava does not compile on centos 6.5 and postgres 9.4][gh64]
+* [Error installing pljava with Windows 7 64 Bit and Postgres 9.4][gh71]
+## JNI_getIntArrayRegion instead of JNI_getShortArrayRegion
+## Eclipse IDE artifacts
+## Site
+## Warnings
+## Javadoc
+
+[1011119]: ${pgfbug}1011119
+[1011095]: ${pgfbug}1011095
+[1011181]: ${pgfbug}1011181
+[1011197]: ${pgfbug}1011197
+[1011206]: ${pgfbug}1011206
+[1010962]: ${pgfbug}1010962
+[gh4]: ${ghbug}4
+[gh7]: ${ghbug}7
+[gh8]: ${ghbug}8
+[gh17]: ${ghbug}17
+[gh54]: ${ghbug}54
+[gh52]: ${ghbug}52
+[gh21]: ${ghbug}21
+[gh65]: ${ghbug}65
+[gh48]: ${ghbug}48
+[gh22]: ${ghbug}22
+[gh23]: ${ghbug}23
+[gh28]: ${ghbug}28
+[gh63]: ${ghbug}63
+[gh64]: ${ghbug}64
+[gh71]: ${ghbug}71
+[gh92]: ${ghbug}92
+[gh94]: ${ghbug}94
+[gh95]: ${ghbug}95
+[gh96]: ${ghbug}96
+[gh98]: ${ghbug}98
+[gh99]: ${ghbug}99
+[gh101]: ${ghbug}101
+[gh103]: ${ghbug}103
+
+$h3 Updated PostgreSQL APIs tracked
+
+Several APIs within PostgreSQL itself have been added or changed;
+PL/Java now uses the current versions of these where appropriate:
+
+* `find_coercion_pathway`
+* `set_stack_base`
+* `GetOuterUserId`
+* `GetUserNameFromId`
+* `GetUserIdAndSecContext`
+* `pg_attribute_*`
+* Large objects: truncate, and 64-bit offsets
+
+$h3 Known issues and areas for future work
+
+$h4 Developments in PostgreSQL not yet covered
+
+Large objects, access control
+: PL/Java does not yet expose PostgreSQL large objects with a documented,
+    stable API, and the support it does contain was developed against pre-9.0
+    PostgreSQL versions, where no access control applied to large objects and
+    any object could be accessed by any database user. PL/Java's behavior is
+    proper for PostgreSQL before 9.0, but improper on 9.0+ where it would be
+    expected to honor access controls on large objects ([CVE-2016-0768][]).
+    This will be corrected in a future release. For this and earlier releases,
+    the recommendation is to selectively grant `USAGE` on the `java` language to
+    specific users or roles responsible for creating Java functions; see
+    "default `USAGE` permssion" under Changes.
+
+`INSTEAD OF` triggers, triggers on `TRUNCATE`
+: These are supported by annotations and the SQL generator, and the runtime
+    will deliver them to the specified method, but the `TriggerData` interface
+    has no new methods to recognize these cases (that is, no added
+    methods analogous to `isFiredAfter`, `isFiredByDelete`). For a method
+    expressly coded to be a `TRUNCATE` trigger or an `INSTEAD OF` trigger,
+    that is not a problem, but care should be taken when coding a trigger
+    method to handle more than one type of trigger, or creating triggers of
+    these new types that call a method developed pre-PL/Java-1.5.0. Such a
+    method could be called with a `TriggerData` argument whose existing
+    `isFired...` methods all return `false`, likely to put the method on an
+    unexpected code path.
+
+    A later PL/Java version should introduce trigger interfaces that better
+    support such evolution of PostgreSQL in a type-safe way.
+
+Constraint triggers
+: Constraint trigger syntax is not supported by annotations and the SQL
+    generator. If declared (using hand-written SQL), they will be delivered
+    by the runtime, but without any constraint-trigger-specific information
+    available to the called method.
+
+Event triggers
+: Event triggers are not yet supported by annotations or the SQL generator,
+    and will not be delivered by the PL/Java runtime.
+
+Range types
+: No predefined mappings for range types are provided.
+
+`PRE_PREPARE`, `PRE_COMMIT`, `PARALLEL_ABORT`, `PARALLEL_PRE_COMMIT`, and `PARALLEL_COMMIT` transaction callbacks, `PRE_COMMIT` subtransaction callbacks
+: Listeners for these events cannot be registered and the events will not
+    be delivered.
+
+$h4 Imperfect integration with PostgreSQL dependency tracking
+
+In a dump/restore, manual intervention can be needed if the users/roles
+recorded as owners of jars are missing or have been renamed. A current
+[thread on `pgsql-hackers`][ownhack] should yield a better solution for
+a future release.
+
+[ownhack]: http://www.postgresql.org/message-id/56783412.6090005@anastigmatix.net
+
+$h4 Quirk if deployment descriptor loads classes from same jar
+
+The `install_jar` function installs a jar, optionally reading deployment
+descriptors from the jar and executing the install actions they contain.
+It is possible for those actions to load classes from the jar just installed.
+(This would be unlikely if the install actions are limited to typical setup,
+function/operator/datatype creation, but likely, if the install actions also
+include basic function tests, or if the setup requirements are more
+interesting.)
+
+If, for any class in the jar, the first attempt to load that class is made
+while resolving a function declared `STABLE` or `IMMUTABLE`, a
+`ClassNotFoundException` results. The cause is PostgreSQL's normal treatment of
+a `STABLE` or `IMMUTABLE` function, which relies on a snapshot from the start of
+the `install_jar` query, when the jar was not yet installed. A workaround is to
+ensure that the install actions cause each needed class to be loaded, such as
+by calling a `VOLATILE` function it supplies, before calling one that is
+`STABLE` or `IMMUTABLE`. (One could even write install actions to declare a
+needed function `VOLATILE` before the first call and then redeclare it.)
+
+This issue should be resolved as part of a broader rework of class loading
+in a future PL/Java release.
+
+$h4 Partial implementation of JDBC 4 and later
+
+The changes to make PL/Java build under Java SE 6 and later, with version 4.0
+and later of JDBC, involved providing the specified methods so
+compilation would succeed, with real implementations for some, but for others
+only stub versions that throw `SQLFeatureNotSupportedException` if used.
+Regrettably, there is nothing in the documentation indicating which methods
+have real implementations and which do not; to create such a list would require
+an audit of that code. If a method throws the exception when you call it, it's
+one of the unimplemented ones.
+
+Individual methods may be fleshed out with implementations as use cases arise
+that demand them, but for a long-term roadmap, it seems more promising to
+reduce the overhead of maintaining another JDBC implementation by sharing
+code with `pgjdbc`, as has been [discussed on pljava-dev][jdbcinherit].
+
+[jdbcinherit]: http://lists.pgfoundry.org/pipermail/pljava-dev/2015/002370.html
+
+$h4 Exception handling and logging
+
+PL/Java does interconvert between PostgreSQL and Java exceptions, but with
+some loss of fidelity in the two directions. PL/Java code has some access
+to most fields of a PostgreSQL error data structure, but only through
+internal PL/Java API that is not expected to remain usable, and code written
+for PL/Java has never quite had first-class standing in its ability to
+_generate_ exceptions as information-rich as those from PostgreSQL itself.
+
+PL/Java in some cases generates the _categorized `SQLException`s_ introduced
+with JDBC 4.0, and in other cases does not.
+
+This area may see considerable change in a future release.
+[Thoughts on logging][tol] is a preview of some of the considerations.
+
+[tol]: https://github.com/tada/pljava/wiki/Thoughts-on-logging
+
+$h4 Types with type modifiers and `COPY`
+
+Although it is possible to create a PL/Java user-defined type that accepts
+a type modifier (see the [example][typmex]), such a type will not yet be
+handled by SQL `COPY` or any other operation that requires the `input` or
+`receive` function to handle the modifier. This is left for a future release.
+
+$h3 Credits
+
+PL/Java 1.5.0 owes its being to original creator Thomas Hallgren and
+many contributors:
+
+Daniel Blanch Bataller,
+Peter Brewer,
+Frank Broda,
+Chapman Flack,
+Marty Frasier,
+Bear Giles,
+Christian Hammers,
+Hal Hildebrand,
+Robert M. Lefkowitz,
+Eugenie V. Lyzenko,
+Dos Moonen,
+Asif Naeem,
+Kenneth Olson,
+Johann Oskarsson,
+Thomas G. Peters,
+Srivatsan Ramanujam,
+Igal Sapir,
+Jeff Shaw,
+Rakesh Vidyadharan,
+`grunjol`,
+`mc-soi`.
+
+Periods in PL/Java's development have been sponsored by EnterpriseDB.
+
+In the 1.5.0 release cycle, multiple iterations of testing effort
+have been generously contributed by Kilobe Systems and by Pegasystems, Inc.
+
+## From this point on, the entries were reconstructed from old notes at the
+## same time as the 1.5.0 notes were drafted, and they use a finer level of
+## heading. So restore the 'real' values of the heading variables from here
+## to the end of the file.
+#set($h2 = '##')
+#set($h3 = '###')
+#set($h4 = '####')
+#set($h5 = '#####')
+
+$h3 PL/Java 1.4.3 (15 September 2011)
+
+Notable changes in this release:
+
+* Works with PostgreSQL 9.1
+* Correctly links against IBM Java.
+* Reads microseconds correctly in timestamps.
+
+Bugs fixed:
+
+* [Be clear about not building with JDK 1.6][1010660]
+* [Does not link with IBM VM][1010970]
+* [SPIConnection.getMetaData() is incorrectly documented][1010971]
+* [PL/Java 1.4.2 Does not build with x86_64-w64-mingw32][1011025]
+* [PL/Java does not build with PostgreSQL 9.1][1011091]
+
+Feature Requests:
+
+* [Allow pg_config to be set externally to the Makefile][1011092]
+* [Add option to have pljava.so built with the runtime path of libjvm.so][1010955]
+
+[1010660]: ${pgfbug}1010660
+[1010970]: ${pgfbug}1010970
+[1010971]: ${pgfbug}1010971
+[1011025]: ${pgfbug}1011025
+[1011091]: ${pgfbug}1011091
+
+[1011092]: ${pgffeat}1011092
+[1010955]: ${pgffeat}1010955
+
+$h3 PL/Java 1.4.2 (11 December 2010)
+
+Bugfixes:
+
+* [Function returning complex objects with POD arrays cause a segfault][1010956]
+* [Segfault when assigning an array to ResultSet column][1010953]
+* [Embedded array support in returned complex objects][1010482]
+
+[1010956]: ${pgfbug}1010956
+[1010953]: ${pgfbug}1010953
+[1010482]: ${pgfbug}1010482
+
+$h3 PL/Java 1.4.1 (9 December 2010)
+
+Note: Does not compile with Java 6.  Use JDK 1.5 or 1.4.
+
+Compiles with PostgreSQL 8.4 and 9.0.
+
+Connection.getCatalog() has been implemented.
+
+Bugfixes:
+
+* [Compiling error with postgresql 8.4.1][1010759]
+* [org.postgresql.pljava.internal.Portal leak][1010712]
+* [build java code with debugging if server has debugging enabled][1010189]
+* [Connection.getCatalog() returns null][1010653]
+* [VM crash in TransactionListener][1010462]
+* [Link against wrong library when compiling amd64 code on Solaris][1010954]
+
+[1010759]: ${pgfbug}1010759
+[1010712]: ${pgfbug}1010712
+[1010189]: ${pgfbug}1010189
+[1010653]: ${pgfbug}1010653
+[1010462]: ${pgfbug}1010462
+[1010954]: ${pgfbug}1010954
+
+Other commits:
+
+For a multi-threaded pljava function we need to adjust stack_base_ptr
+before calling into the backend to avoid stack depth limit exceeded
+errors.  Previously this was done only on query execution, but we need
+to do it on iteration of the ResultSet as well.
+
+When creating a variable length data type, the code was directly
+assigning the varlena header length rather than going through an
+access macro.  The header format changed for the 8.3 release and this
+manual coding was not noticed and changed accordingly.  Use
+SET_VARSIZE to do this correctly.
+
+Handle passed by value data types by reading and writing directly to
+the Datum rather than dereferencing it.
+
+If the call to a type output function is the first pljava call in a
+session, we get a crash.  The first pljava call results in a SPI
+connection being established and torn down.  The type output function
+was allocating the result in the SPI memory context which gets
+destroyed prior to returning the data to the caller.  Allocate the
+result in the correct context to survive function exit.
+
+Clean up a warning about byteasend and bytearecv not having a
+prototype when building against 9.0 as those declarations are now in a
+new header file.
+
+
+$h3 PL/Java 1.4.0 (1 February 2008)
+
+Warning! The recent postgresql security releases changed the API of a function
+that PL/Java uses. The source can be built against either version, but the
+binaries will only run against the version they were built against. The PL/Java
+binaries for 1.4.0 have all been built against the latest server releases (which
+you should be using anyway). If you are using an older you will have to build
+from source. The binary releases support: 8.3 - All versions. 8.2 - 8.2.6 and
+up. 8.1 - 8.1.11 and up. 8.0 - 8.0.15 and up.
+
+$h3 PL/Java 1.3.0 (18 June 2006)
+
+This release is about type mapping and the creation of new types in PL/Java. An
+extensive effort has gone into making the PL/Java type system extremely
+flexible. Not only can you map arbitrary SQL data types to java classes. You can
+also create new scalar types completely in Java. Read about the Changes in
+version 1.3.
+
+$h4 Changes
+
+* A much improved type mapping system that will allow you to:
+
+    * [Map any SQL type to a Java class][maptype]
+    * [Create a Scalar UDT in Java][scalarudt]
+    * [Map array and pseudo types][deftypemap]
+
+[maptype]: https://github.com/tada/pljava/wiki/Mapping-an-sql-type-to-a-java-class
+[scalarudt]: https://github.com/tada/pljava/wiki/Creating-a-scalar-udt-in-java
+[deftypemap]: https://github.com/tada/pljava/wiki/Default-type-mapping
+
+* Get the OID for a given relation ([feature request 1319][1319])
+* Jar manifest included in the SQLJ Jar repository
+    ([feature request 1525][1525])
+
+$h4 Fixed bugs
+
+* [Reconnect needed for jar manipulation to take effect][1531]
+* [Backends hang with test suite][1504]
+* [Keeps crashing while making a call to a function][1560]
+* [Memory Leak in Statement.executeUpdate][1556]
+* [jarowner incorrect after dump and reload][1506]
+* [Missing JAR manifest][1525]
+* [TZ adjustments for Date are incorrect][1547]
+* [Functions returning sets leaks memory][1542]
+* [drop lib prefix][1423]
+* ["oid" column is not available in trigger's NEW/OLD ResultSet][1317]
+* [fails to run with GCJ, too][1480]
+* [Compile failure with 8.1.4][1558]
+* [fails to build with GCJ][1479]
+* [Record returning function cannot be called with different structures within one session][1440]
+* [Cannot map function with complex return type to method that uses non primitive arguments][1551]
+* [Get OID for given relation][1319]
+
+[1531]: ${gborgbug}1531
+[1504]: ${gborgbug}1504
+[1560]: ${gborgbug}1560
+[1556]: ${gborgbug}1556
+[1506]: ${gborgbug}1506
+[1525]: ${gborgbug}1525
+[1547]: ${gborgbug}1547
+[1542]: ${gborgbug}1542
+[1423]: ${gborgbug}1423
+[1317]: ${gborgbug}1317
+[1480]: ${gborgbug}1480
+[1558]: ${gborgbug}1558
+[1479]: ${gborgbug}1479
+[1440]: ${gborgbug}1440
+[1551]: ${gborgbug}1551
+[1319]: ${gborgbug}1319
+
+$h3 PL/Java 1.2.0 (20 Nov 2005)
+
+The PL/Java 1.2.0 release is primarily targeted at the new PostgreSQL 8.1 but
+full support for 8.0.x is maintained. New features include support IN/OUT
+parameters, improved meta-data handling, and better memory management.
+
+$h3 PL/Java 1.1.0 (14 Apr 2005)
+
+PL/Java 1.1.0 includes a lot of new features such as `DatabaseMetaData`,
+`ResultSetMetaData`, language handlers for both trusted and untrusted language,
+additional semantics for functions returning `SETOF`, and simple ObjectPooling.
+
+$h3 PL/Java 1.0.1 (07 Feb 2005)
+
+This release resolves a couple of important security issues. The most important
+one is perhaps that PL/Java now is a trusted language. See [Security][] for more
+info. Filip Hrbek, now member of the PL/Java project, contributed what was
+needed to make this happen.
+
+[Security]: https://github.com/tada/pljava/wiki/Security
+
+$h3 PL/Java 1.0.0 (23 Jan 2005)
+
+Today, after a long period of fine tuning, PL/Java 1.0.0 was finally released.
