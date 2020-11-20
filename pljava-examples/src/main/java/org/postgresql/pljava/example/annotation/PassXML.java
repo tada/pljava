@@ -215,6 +215,8 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		   requires={"prepareXMLTransform", "transformXML"},
 	install={
 		"REVOKE EXECUTE ON FUNCTION javatest.prepareXMLTransformWithJava" +
+		" (pg_catalog.varchar, pg_catalog.xml, integer, boolean," +
+		"  pg_catalog.RECORD)" +
 		" FROM PUBLIC",
 
 		"SELECT" +
