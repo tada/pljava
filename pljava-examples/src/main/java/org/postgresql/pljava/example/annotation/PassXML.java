@@ -214,6 +214,9 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 @SQLAction(implementor="postgresql_xml",
 		   requires={"prepareXMLTransform", "transformXML"},
 	install={
+		"REVOKE EXECUTE ON FUNCTION javatest.prepareXMLTransformWithJava" +
+		" FROM PUBLIC",
+
 		"SELECT" +
 		" javatest.prepareXMLTransform('distinctElementNames'," +
 		"'<xsl:transform version=''1.0''" +
@@ -238,6 +241,21 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"</xsl:transform>', 5, true)",
 
 		"SELECT" +
+		" javatest.prepareXMLTransformWithJava('getPLJavaVersion'," +
+		"'<xsl:transform version=''1.0''" +
+		" xmlns:xsl=''http://www.w3.org/1999/XSL/Transform''" +
+		" xmlns:java=''http://xml.apache.org/xalan/java''" +
+		" exclude-result-prefixes=''java''" +
+		">" +
+		" <xsl:template match=''/''>" +
+		"  <xsl:value-of" +
+		"   select=''java:java.lang.System.getProperty(" +
+		"    \"org.postgresql.pljava.version\")''" +
+		"  />" +
+		" </xsl:template>" +
+		"</xsl:transform>', enableExtensionFunctions => true)",
+
+		"SELECT" +
 		" CASE WHEN" +
 		"  javatest.transformXML('distinctElementNames'," +
 		"   '<a><c/><e/><b/><b/><d/></a>', 5, 5)::text" +
@@ -245,7 +263,17 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"   '<den>a</den><den>b</den><den>c</den><den>d</den><den>e</den>'"+
 		"  THEN javatest.logmessage('INFO', 'XSLT 1.0 test succeeded')" +
 		"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 test failed')" +
-		" END"
+		" END",
+
+		"SELECT" +
+		" CASE WHEN" +
+		"  javatest.transformXML('getPLJavaVersion', '')::text" +
+		"  OPERATOR(pg_catalog.=) extversion" +
+		"  THEN javatest.logmessage('INFO', 'XSLT 1.0 with Java succeeded')" +
+		"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 with Java failed')" +
+		" END" +
+		" FROM pg_catalog.pg_extension" +
+		" WHERE extname = 'pljava'"
 	}
 )
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
@@ -410,13 +438,67 @@ public class PassXML implements SQLData
 		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
 	{
+		prepareXMLTransform(
+			name, source, how, enableExtensionFunctions, adjust, false);
+	}
+
+	/**
+	 * Precompile an XSL transform {@code source} and save it (for the
+	 * current session) as {@code name}, where the transform may call Java
+	 * methods.
+	 *<p>
+	 * Otherwise identical to {@code prepareXMLTransform}, this version sets the
+	 * {@code TransformerFactory}'s {@code extensionClassLoader} (to the same
+	 * loader that loads this class), so the transform will be able to use
+	 * xalan's Java call syntax to call any public Java methods that would be
+	 * accessible to this class. (That can make a big difference in usefulness
+	 * for the otherwise rather limited XSLT 1.0.)
+	 *<p>
+	 * This example function will be installed with {@code EXECUTE} permission
+	 * revoked from {@code PUBLIC}, as it essentially confers the ability to
+	 * create arbitrary new Java functions, so should only be granted to roles
+	 * you would be willing to grant {@code USAGE ON LANGUAGE java}.
+	 *<p>
+	 * Because this function only prepares the transform, and
+	 * {@link #transformXML transformXML} applies it, there is some division of
+	 * labor in determining what limits apply to its behavior. The use of this
+	 * method instead of {@code prepareXMLTransform} determines whether the
+	 * transform is allowed to see external Java methods at all; it will be
+	 * the policy permissions granted to {@code transformXML} that control what
+	 * those methods can do when the transform is applied. For now, that method
+	 * is defined in the trusted/sandboxed {@code java} language, so this
+	 * function could reasonably be granted to any role with {@code USAGE} on
+	 * {@code java}. If, by contrast, {@code transformXML} were declared in the
+	 * 'untrusted' {@code javaU}, it would be prudent to allow only superusers
+	 * access to this function, just as only they can {@code CREATE FUNCTION} in
+	 * an untrusted language.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="prepareXMLTransform")
+	public static void prepareXMLTransformWithJava(String name, SQLXML source,
+		@SQLType(defaultValue="0") int how,
+		@SQLType(defaultValue="false") boolean enableExtensionFunctions,
+		@SQLType(defaultValue={}) ResultSet adjust)
+	throws SQLException
+	{
+		prepareXMLTransform(
+			name, source, how, enableExtensionFunctions, adjust, true);
+	}
+
+	private static void prepareXMLTransform(String name, SQLXML source, int how,
+		boolean enableExtensionFunctions, ResultSet adjust, boolean withJava)
+	throws SQLException
+	{
 		TransformerFactory tf = TransformerFactory.newInstance();
 		String exf =
 		  "http://www.oracle.com/xml/jaxp/properties/enableExtensionFunctions";
+		String ecl = "jdk.xml.transform.extensionClassLoader";
 		Source src = sxToSource(source, how, adjust);
 		try
 		{
 			tf.setFeature(exf, enableExtensionFunctions);
+			if ( withJava )
+				tf.setAttribute(ecl, PassXML.class.getClassLoader());
 			s_tpls.put(name, tf.newTemplates(src));
 		}
 		catch ( TransformerException te )
