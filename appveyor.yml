@@ -26,7 +26,7 @@ environment:
       PG: 13
     - SYS: MSVC
       JDK: 15
-      PG: 13
+      PG: 12
     - SYS: MSVC
       JDK: 14
       PG: 12
