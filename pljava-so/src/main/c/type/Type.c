@@ -243,6 +243,7 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 	case COERCION_PATH_NONE:
 		elog(ERROR, "no conversion function from (regtype) %d to %d",
 			 fromOid, toOid);
+		pg_unreachable(); /*elog(ERROR is already so marked; what's with gcc?*/
 	case COERCION_PATH_RELABELTYPE:
 		/*
 		 * Binary compatible type. No need for a special coercer.
@@ -255,9 +256,11 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 	case COERCION_PATH_COERCEVIAIO:
 		elog(ERROR, "COERCEVIAIO not implemented from (regtype) %d to %d",
 			 fromOid, toOid);
+		pg_unreachable();
 	case COERCION_PATH_ARRAYCOERCE:
 		elog(ERROR, "ARRAYCOERCE not implemented from (regtype) %d to %d",
 			 fromOid, toOid);
+		pg_unreachable();
 	case COERCION_PATH_FUNC:
 		break;
 	}
