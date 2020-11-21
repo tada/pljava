@@ -4442,7 +4442,7 @@ hunt:	for ( ExecutableElement ee : ees )
 									.skip(1) // skip the state argument
 									.map(pi ->
 										(Map.Entry<Identifier.Simple, DBType>)
-										new AbstractMap.SimpleImmutableEntry(
+										new AbstractMap.SimpleImmutableEntry<>(
 											Identifier.Simple.fromJava(
 												pi.name()
 											),
