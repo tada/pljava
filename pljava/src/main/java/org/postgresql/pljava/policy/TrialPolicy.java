@@ -9,7 +9,9 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.internal;
+package org.postgresql.pljava.policy;
+
+import java.lang.reflect.ReflectPermission;
 
 import java.net.URI;
 
@@ -19,14 +21,19 @@ import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.security.SecurityPermission;
 import java.security.URIParameter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import static java.util.Collections.emptyEnumeration;
+import static java.util.Collections.enumeration;
+import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.postgresql.pljava.elog.ELogHandler.LOG_LOG;
+import static org.postgresql.pljava.internal.Backend.log;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 
 /**
@@ -86,7 +93,7 @@ public class TrialPolicy extends Policy
 	private final StackWalker walker =
 		StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
 
-	TrialPolicy(String limitURI) throws NoSuchAlgorithmException
+	public TrialPolicy(String limitURI) throws NoSuchAlgorithmException
 	{
 		URIParameter lim = new URIParameter(URI.create(limitURI));
 		realPolicy = Policy.getInstance(TYPE, null);
@@ -106,13 +113,28 @@ public class TrialPolicy extends Policy
 	}
 
 	@Override
-	public boolean implies(ProtectionDomain domain, Permission permission)
+	public boolean implies(
+		ProtectionDomain domain, java.security.Permission permission)
 	{
 		if ( realPolicy.implies(domain, permission) )
 			return true;
 
 		if ( ! limitPolicy.implies(domain, permission) )
+		{
+			/*
+			 * The TrialPolicy.Permission below is an unusual one: like Java's
+			 * own AllPermission, its implies() can be true for permissions of
+			 * other classes than its own. Java's AllPermission is handled
+			 * magically, and this one must be also, because deep down, the
+			 * built-in Policy implementation keeps its PermissionCollections
+			 * segregated by permission class. It would not notice on its own
+			 * that 'permission' might be implied by a permission that is held
+			 * but is of some other class.
+			 */
+			if ( ! limitPolicy.implies(domain, Permission.INSTANCE)
+				|| ! Permission.INSTANCE.implies(permission) )
 			return false;
+		}
 
 		/*
 		 * Construct a (with any luck, useful) abbreviated stack trace, using
@@ -200,7 +222,7 @@ public class TrialPolicy extends Policy
 				sb.append('\n');
 		}
 
-		Backend.log(LOG_LOG,
+		log(LOG_LOG,
 			"POLICY DENIES/TRIAL POLICY ALLOWS: " + permission + '\n' + sb);
 
 		return true;
@@ -231,5 +253,175 @@ public class TrialPolicy extends Policy
 			return csa == csb;
 
 		return csa.equals(csb);
+	}
+
+	/**
+	 * A permission like {@code java.security.AllPermission}, but without
+	 * any {@code FilePermission} (the real policy's sandboxed/unsandboxed
+	 * grants should handle those), nor a couple dozen varieties of
+	 * {@code RuntimePermission}, {@code SecurityPermission}, and
+	 * {@code ReflectPermission} that would typically not be granted without
+	 * clear intent.
+	 *<p>
+	 * This permission can be granted in a {@code TrialPolicy} while identifying
+	 * any straggling permissions needed by some existing code, without quite
+	 * the excitement of granting {@code AllPermission}. Any of the permissions
+	 * excluded from this one can also be granted in the {@code TrialPolicy},
+	 * of course, if there is reason to believe the code might need them.
+	 *<p>
+	 * The proper spelling in a policy file is
+	 * {@code org.postgresql.pljava.policy.TrialPolicy$Permission}.
+	 *<p>
+	 * This permission will probably only work right in a {@code TrialPolicy}.
+	 * Any permission whose {@code implies} method can return true for
+	 * permissions of other classes than its own may be ineffective in a stock
+	 * Java policy, where permission collections are kept segregated by the
+	 * class of the permission to be checked. Java's {@code AllPermission} gets
+	 * special-case treatment in the stock implementation, and this permission
+	 * likewise has to be treated specially in {@code TrialPolicy}. The only
+	 * kind of custom permission that can genuinely drop in and work is one
+	 * whose {@code implies} method only imposes semantics on the names/actions
+	 * of different instances of that permission class.
+	 *<p>
+	 * A permission that does not live on the boot classpath is initially read
+	 * from a policy file as an instance of {@code UnresolvedPermission}, and
+	 * only gets resolved when a permission check is made, checking for an
+	 * instance of its actual class. That is another complication when
+	 * implementing a permission that may imply permissions of other classes.
+	 *<p>
+	 * A permission implemented in a different named module must be in a package
+	 * that is exported to {@code java.base}.
+	 */
+	public static final class Permission extends java.security.Permission
+	{
+		private static final long serialVersionUID = 6401893677037633706L;
+
+		/**
+		 * An instance of this permission (not a singleton, merely one among
+		 * possible others).
+		 */
+		static final Permission INSTANCE = new Permission();
+
+		public Permission()
+		{
+			super("");
+		}
+
+		public Permission(String name, String actions)
+		{
+			super("");
+		}
+
+		@Override
+		public boolean equals(Object other)
+		{
+			return other instanceof Permission;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return 131113;
+		}
+
+		@Override
+		public String getActions()
+		{
+			return null;
+		}
+
+		@Override
+		public PermissionCollection newPermissionCollection()
+		{
+			return new Collection();
+		}
+
+		@Override
+		public boolean implies(java.security.Permission p)
+		{
+			if ( p instanceof Permission )
+				return true;
+
+			if ( p instanceof java.io.FilePermission )
+				return false;
+
+			if ( Holder.EXCLUDERHS.stream().anyMatch(r -> p.implies(r)) )
+				return false;
+
+			if ( Holder.EXCLUDELHS.stream().anyMatch(l -> l.implies(p)) )
+				return false;
+
+			return true;
+		}
+
+		static class Collection extends PermissionCollection
+		{
+			private static final long serialVersionUID = 917249873714843122L;
+
+			Permission the_permission = null;
+
+			@Override
+			public void add(java.security.Permission p)
+			{
+				if ( isReadOnly() )
+					throw new SecurityException(
+						"attempt to add a Permission to a readonly " +
+						"PermissionCollection");
+
+				if ( ! (p instanceof Permission) )
+					throw new IllegalArgumentException(
+						"invalid in homogeneous PermissionCollection: " + p);
+
+				if ( null == the_permission )
+					the_permission = (Permission) p;
+			}
+
+			@Override
+			public boolean implies(java.security.Permission p)
+			{
+				if ( null == the_permission )
+					return false;
+				return the_permission.implies(p);
+			}
+
+			@Override
+			public Enumeration<java.security.Permission> elements()
+			{
+				if ( null == the_permission )
+					return emptyEnumeration();
+				return enumeration(List.of(the_permission));
+			}
+		}
+
+		static class Holder
+		{
+			static final List<java.security.Permission> EXCLUDERHS = List.of(
+				new RuntimePermission("createClassLoader"),
+				new RuntimePermission("getClassLoader"),
+				new RuntimePermission("setContextClassLoader"),
+				new RuntimePermission("enableContextClassLoaderOverride"),
+				new RuntimePermission("setSecurityManager"),
+				new RuntimePermission("createSecurityManager"),
+				new RuntimePermission("shutdownHooks"),
+				new RuntimePermission("exitVM"),
+				new RuntimePermission("setFactory"),
+				new RuntimePermission("setIO"),
+				new RuntimePermission("getStackWalkerWithClassReference"),
+				new RuntimePermission("setDefaultUncaughtExceptionHandler"),
+				new RuntimePermission("manageProcess"),
+				new ReflectPermission("suppressAccessChecks"),
+				new SecurityPermission("createAccessControlContext"),
+				new SecurityPermission("createAccessControlContext"),
+				new SecurityPermission("setPolicy"),
+				new SecurityPermission("createPolicy.JavaPolicy")
+			);
+
+			static final List<java.security.Permission> EXCLUDELHS = List.of(
+				new RuntimePermission("exitVM.*"),
+				new RuntimePermission("defineClassInPackage.*"),
+				new ReflectPermission("newProxyInPackage.*"),
+				new SecurityPermission("setProperty.*")
+			);
+		}
 	}
 }
