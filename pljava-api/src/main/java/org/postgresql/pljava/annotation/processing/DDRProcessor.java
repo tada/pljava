@@ -3681,7 +3681,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				long explicit =
 					Arrays.stream(operands).filter(Objects::nonNull).count();
 
-				if ( 0 != explicit  &&  ! isSynthetic )
+				if ( 0 != explicit  &&  isSynthetic )
 				{
 					msg(Kind.ERROR, m_targetElement, m_origin,
 						"@Operator with synthetic= must not specify " +
@@ -4442,7 +4442,7 @@ hunt:	for ( ExecutableElement ee : ees )
 									.skip(1) // skip the state argument
 									.map(pi ->
 										(Map.Entry<Identifier.Simple, DBType>)
-										new AbstractMap.SimpleImmutableEntry(
+										new AbstractMap.SimpleImmutableEntry<>(
 											Identifier.Simple.fromJava(
 												pi.name()
 											),
