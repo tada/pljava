@@ -34,6 +34,7 @@ import java.util.List;
 
 import static org.postgresql.pljava.elog.ELogHandler.LOG_LOG;
 import static org.postgresql.pljava.internal.Backend.log;
+import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 
 /**
@@ -203,7 +204,8 @@ public class TrialPolicy extends Policy
 		/*
 		 * Construct a string representation of the trace.
 		 */
-		StringBuilder sb = new StringBuilder();
+		StringBuilder sb = new StringBuilder(
+			"POLICY DENIES/TRIAL POLICY ALLOWS: " + permission + '\n');
 		Iterator<StackTraceElement> it = stack.iterator();
 		int i = 0;
 		for ( ;; )
@@ -222,8 +224,19 @@ public class TrialPolicy extends Policy
 				sb.append('\n');
 		}
 
-		log(LOG_LOG,
-			"POLICY DENIES/TRIAL POLICY ALLOWS: " + permission + '\n' + sb);
+		/*
+		 * This is not the best way to avoid blocking on log(); in some flavors
+		 * of pljava.java_thread_pg_entry, threadMayEnterPG can return false
+		 * simply because it's not /known/ that PG could be entered right now,
+		 * and this could send the message off to System.err at times even if
+		 * log() would have completed with no blocking. But the always accurate
+		 * "could I enter PG right now without blocking?" method isn't provided
+		 * yet.
+		 */
+		if ( threadMayEnterPG() )
+			log(LOG_LOG, sb.toString());
+		else
+			System.err.println(sb);
 
 		return true;
 	}
