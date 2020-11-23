@@ -424,7 +424,6 @@ public class TrialPolicy extends Policy
 				new RuntimePermission("manageProcess"),
 				new ReflectPermission("suppressAccessChecks"),
 				new SecurityPermission("createAccessControlContext"),
-				new SecurityPermission("createAccessControlContext"),
 				new SecurityPermission("setPolicy"),
 				new SecurityPermission("createPolicy.JavaPolicy")
 			);
