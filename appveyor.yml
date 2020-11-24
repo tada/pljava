@@ -20,10 +20,10 @@ environment:
       PG: 12
     - SYS: MINGW
       JDK: 14
-      PG: 13
+      PG: 12
     - SYS: MINGW
       JDK: 15
-      PG: 13
+      PG: 12
     - SYS: MSVC
       JDK: 15
       PG: 12
