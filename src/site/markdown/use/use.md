@@ -42,6 +42,15 @@ The permissions in effect for PL/Java functions can be tailored, independently
 for functions declared to the `TRUSTED` or untrusted language, as described
 [here](policy.html).
 
+#### Tailoring permissions for code migrated from PL/Java pre-1.6
+
+When migrating existing code from a PL/Java 1.5 or earlier release to 1.6,
+it may be necessary to add permission grants in the new `pljava.policy` file,
+which grants few permissions by default. To simplify migration, it is possible
+to run with a 'trial' policy initially, allowing code to run but logging
+permissions that may need to be added in `pljava.policy`. How to do that is
+described [here](trial.html).
+
 ### Choices when mapping data types
 
 #### Date and time types

@@ -318,8 +318,21 @@ such as `java.version` or `org.postgresql.pljava.version`._
 
 ## Troubleshooting
 
-When in doubt what permissions are needed to get some existing PL/Java code
-working again, it may be helpful to add `-Djava.security.debug=access` in
+When in doubt what permissions may need to be granted in `pljava.policy` to run
+some existing PL/Java code, these techniques may be helpful.
+
+### Running PL/Java with a 'trial' policy
+
+To simplify the job of finding the permissions needed by some existing code,
+it is possible to run PL/Java at first with a 'trial' policy, allowing code to
+run while logging permissions that `pljava.policy` has not granted. The log
+entries have a condensed format meant to be convenient for this use.
+Trial policy configuration is described [here][trial].
+
+### Using policy debug features provided by Java
+
+Java itself offers a number of debugging switches to reveal details of
+permission decisions. It may be useful to add `-Djava.security.debug=access` in
 the setting of `pljava.vmoptions`, and observe the messages on the PostgreSQL
 backend's standard error (which should be included in the log file,
 if `logging_collector` is `on`). It is not necessary to change the
@@ -329,6 +342,9 @@ be set in a single session for troubleshooting purposes.
 Other options for `java.security.debug` can be found in
 [Troubleshooting Security][tssec]. Some can be used to filter the logging down
 to requests for specific permissions or from a specific codebase.
+
+The log output produced by Java's debug options can be voluminous compared to
+the condensed output of PL/Java's trial policy.
 
 ## Forward compatibility
 
@@ -344,3 +360,4 @@ release, so relying on it is not recommended.
 [dopriv]: https://docs.oracle.com/en/java/javase/14/security/java-se-platform-security-architecture.html#GUID-E8898CB5-65BB-4D1A-A574-8F7112FC353F
 [sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
 [tssec]: https://docs.oracle.com/en/java/javase/14/security/troubleshooting-security.html
+[trial]: trial.html

@@ -29,7 +29,7 @@ public class Handler extends URLStreamHandlerProvider
 {
 	private static final Handler INSTANCE = new Handler();
 
-	public URLStreamHandlerProvider provider()
+	public static URLStreamHandlerProvider provider()
 	{
 		return INSTANCE;
 	}

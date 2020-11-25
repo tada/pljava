@@ -208,6 +208,7 @@ static bool seenVisualVMName;
 static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 static char const moduleMainPrefix[] = "-Djdk.module.main=";
+static char const policyUrlsGUC[] = "pljava.policy_urls";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -1648,7 +1649,7 @@ static void registerGUCOptions(void)
 		NULL); /* show hook */
 
 	STRING_GUC(
-		"pljava.policy_urls",
+		policyUrlsGUC,
 		"URLs to Java security policy file(s) for PL/Java's use",
 		"Quote each URL and separate with commas. Any URL may begin (inside "
 		"the quotes) with n= where n is the index of the Java "
@@ -1923,7 +1924,11 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 	{
 		PG_TRY();
 		{
-			const char *value = PG_GETCONFIGOPTION(key);
+			const char *value;
+			if ( 0 == strcmp(policyUrlsGUC, key) )
+				value = policy_urls;
+			else
+				value = PG_GETCONFIGOPTION(key);
 			pfree(key);
 			if(value != 0)
 				result = String_createJavaStringFromNTS(value);

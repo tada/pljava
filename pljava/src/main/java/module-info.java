@@ -23,6 +23,8 @@ module org.postgresql.pljava.internal
 
 	exports org.postgresql.pljava.elog to java.logging;
 
+	exports org.postgresql.pljava.policy to java.base; // has custom Permission
+
 	provides java.net.spi.URLStreamHandlerProvider
 		with org.postgresql.pljava.sqlj.Handler;
 
