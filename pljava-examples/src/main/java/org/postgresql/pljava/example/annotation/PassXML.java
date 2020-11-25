@@ -1243,7 +1243,7 @@ public class PassXML implements SQLData
 		}
 
 		if ( s instanceof Adjusting.XML.Source )
-			return applyAdjustments(adjust, (Adjusting.XML.Source)s).get();
+			return applyAdjustments(adjust, (Adjusting.XML.Source<?>)s).get();
 		return s;
 	}
 
@@ -1275,7 +1275,7 @@ public class PassXML implements SQLData
 		}
 
 		if ( r instanceof Adjusting.XML.Result )
-			return applyAdjustments(adjust, (Adjusting.XML.Result)r).get();
+			return applyAdjustments(adjust, (Adjusting.XML.Result<?>)r).get();
 		return r;
 	}
 
