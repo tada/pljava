@@ -1,0 +1,409 @@
+# This workflow will build and test PL/Java against the version of PostgreSQL
+# preinstalled in the GitHub Actions runner environment. Naturally, this one
+# does not have a PostgreSQL version in the build matrix. The version that's
+# preinstalled is the version you get.
+
+name: PL/Java CI with PostgreSQL version supplied by the runner
+
+on:
+  push:
+    branches: [ master, REL1_6_STABLE ]
+  pull_request:
+    branches: [ master, REL1_6_STABLE ]
+
+jobs:
+  build:
+    if: true
+
+    runs-on: ${{ matrix.oscc.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        oscc:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: macos-latest
+            cc: clang
+#         - os: windows-latest
+#           cc: msvc
+#         - os: windows-latest
+#           cc: mingw
+        java: [9, 11] # , 12, 14, 15]
+
+    steps:
+
+    - name: Check out PL/Java
+      uses: actions/checkout@v2
+      with:
+        path: pljava
+
+    - name: Set up JDK
+      uses: actions/setup-java@v1
+      with:
+        java-version: ${{ matrix.java }}
+
+    - name: Report Java, Maven, and PostgreSQL versions (Linux, macOS)
+      if: ${{ 'Windows' != runner.os }}
+      run: |
+        java -version
+        mvn --version
+        pg_config
+
+    - name: Report Java, Maven, and PostgreSQL versions (Windows)
+      if: ${{ 'Windows' == runner.os }}
+      run: |
+        java -version
+        mvn --version
+        & "$Env:PGBIN\pg_config"
+
+    - name: Obtain PG development files (Ubuntu, PGDG)
+      if: ${{ 'Linux' == runner.os }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install postgresql-server-dev-13 libkrb5-dev
+
+    - name: Build PL/Java (Linux, macOS)
+      if: ${{ 'Windows' != runner.os }}
+      working-directory: pljava
+      run: |
+        mvn clean install --batch-mode \
+          -Psaxon-examples -Ppgjdbc-ng \
+          -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+
+    - name: Build PL/Java (Windows MinGW-w64)
+      if: ${{ 'Windows' == runner.os && 'mingw' == matrix.oscc.cc }}
+      working-directory: pljava
+      #
+      # GitHub Actions will allow 'bash' as a shell choice, even on a Windows
+      # runner, in which case it's the bash from Git for Windows. That isn't the
+      # same as the msys64\usr\bin\bash that we want; what's more, while both
+      # rely on a cygwin DLL, they don't rely on the same one, and an attempt
+      # to exec one from the other leads to a "fatal error - cygheap base
+      # mismatch". So, the bash we want has to be started by something other
+      # than the bash we've got. In this case, set shell: to a command that
+      # will use cmd to start the right bash.
+      #
+      # Some of the MinGW magic is set up by the bash profile run at "login", so
+      # bash must be started with -l. That profile ends with a cd $HOME, so to
+      # avoid changing the current directory, set HOME=. first (credit for that:
+      # https://superuser.com/a/806371). As set above, . is really the pljava
+      # working-directory, so the bash script should start by resetting HOME to
+      # the path of its parent.
+      #
+      # The runner is provisioned with a very long PATH that includes separate
+      # bin directories for pre-provisioned packages. The MinGW profile replaces
+      # that with a much shorter path, so mvn and pg_config below must be given
+      # as absolute paths (using M2 and PGBIN supplied in the environment) or
+      # they won't be found. As long as mvn itself can be found, it is able
+      # to find java without difficulty, using the JAVA_HOME that is also in
+      # the environment.
+      #
+      # Those existing variables in the environment are all spelled in Windows
+      # style with drive letters, colons, and backslashes, rather than the MinGW
+      # unixy style, but the mingw bash doesn't seem to object.
+      #
+      # If you use the runner-supplied bash to examine the environment, you will
+      # see MSYSTEM=MINGW64 already in it, but that apparently is something the
+      # runner-supplied bash does. It must be set here before invoking the MinGW
+      # bash directly.
+      #
+      env:
+        HOME: .
+        MSYSTEM: MINGW64
+      shell: 'cmd /C "c:\msys64\usr\bin\bash -l "{0}""'
+      run: |
+        HOME=$( (cd .. && pwd) )
+        "$M2"/mvn clean install --batch-mode \
+          -Dpgsql.pgconfig="$PGBIN"'\pg_config' \
+          -Psaxon-examples -Ppgjdbc-ng \
+          -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+
+    - name: Install and test PL/Java
+      if: ${{ '9' != matrix.java  ||  'Windows' != runner.os }}
+      working-directory: pljava
+      shell: bash
+      run: |
+        pgConfig=pg_config # runner-supplied, just get it from the PATH
+
+        packageJar=$(find pljava-packaging -name pljava-pg*.jar -print)
+
+        mavenRepo="$HOME/.m2/repository"
+
+        saxonVer=$(
+          find "$mavenRepo/net/sf/saxon/Saxon-HE" \
+            -name 'Saxon-HE-*.jar' -print |
+          sort |
+          tail -n 1
+        )
+        saxonVer=${saxonVer%/*}
+        saxonVer=${saxonVer##*/}
+
+        jdbcJar=$(
+          find "$mavenRepo/com/impossibl/pgjdbc-ng/pgjdbc-ng-all" \
+            -name 'pgjdbc-ng-all-*.jar' -print |
+          sort |
+          tail -n 1
+        )
+
+        #
+        # The runner on a Unix-like OS is running as a non-privileged user, but
+        # has passwordless sudo available (needed to install the PL/Java files
+        # into the system directories where the supplied PostgreSQL lives). By
+        # contrast, on Windows the runner has admin privilege, and can install
+        # the files without any fuss (but later below, pg_ctl will have to be
+        # used when starting PostgreSQL; pg_ctl has a Windows-specific ability
+        # to drop admin privs so postgres will not refuse to start).
+        #
+        # The Windows runner seems to have an extra pg_config somewhere on the
+        # path, that reports it was built with MinGW and installed in paths
+        # containing Strawberry that don't really exist. $PGBIN\pg_config refers
+        # to a different build made with MSVC, and those directories really
+        # exist, so specify that one explicitly when running on Windows.
+        #
+        # The Git for Windows bash environment includes a find command, and the
+        # things found have unixy paths returned. Make them Windowsy here, with
+        # a hardcoded assumption they start with /c which should become c: (as
+        # appears to be the case in the Windows runner currently).
+        #
+        if [[ $RUNNER_OS == Windows ]]
+        then
+          pathSep=';'
+          pgConfig="$PGBIN"'\pg_config'
+          java -Dpgconfig="$pgConfig" -jar "$packageJar"
+          function toWindowsPath() {
+            local p
+            p="c:${1#/c}"
+            printf "%s" "${p//\//\\}"
+          }
+          jdbcJar="$(toWindowsPath "$jdbcJar")"
+          mavenRepo="$(toWindowsPath "$mavenRepo")"
+        else
+          pathSep=':'
+          sudo "$JAVA_HOME"/bin/java -Dpgconfig="$pgConfig" -jar "$packageJar"
+        fi
+
+        jshell \
+          -execution local \
+          "-J--class-path=$packageJar$pathSep$jdbcJar" \
+          "--class-path=$packageJar" \
+          "-J--add-modules=java.sql.rowset" \
+          "-J-Dpgconfig=$pgConfig" \
+          "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
+          "-J-DmavenRepo=$mavenRepo" \
+          "-J-DsaxonVer=$saxonVer" - <<\ENDJSHELL
+
+        boolean succeeding = false; // begin pessimistic
+
+        import static java.nio.file.Files.createTempFile
+        import static java.nio.file.Files.write
+        import java.nio.file.Path
+        import static java.nio.file.Paths.get
+        import java.sql.Connection
+        import java.sql.PreparedStatement
+        import java.sql.ResultSet
+        import org.postgresql.pljava.packaging.Node
+        import static org.postgresql.pljava.packaging.Node.q
+        import static org.postgresql.pljava.packaging.Node.stateMachine
+        import static org.postgresql.pljava.packaging.Node.isVoidResultSet
+        import static org.postgresql.pljava.packaging.Node.s_isWindows
+
+        String javaHome = System.getProperty("java.home");
+
+        Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib")
+
+        Path libjvm = (
+          "Mac OS X".equals(System.getProperty("os.name"))
+          ? Stream.of("libjli.dylib", "jli/libjli.dylib")
+            .map(s -> javaLibDir.resolve(s))
+            .filter(Files::exists).findFirst().get()
+          : javaLibDir.resolve(s_isWindows ? "jvm.dll" : "server/libjvm.so")
+        );
+
+        String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
+
+        Node n1 = Node.get_new_node("TestNode1")
+
+        if ( s_isWindows )
+          n1.use_pg_ctl(true)
+
+        /*
+         * Keep a tally of the three types of diagnostic notices that may be
+         * received, and, independently, how many represent no-good test results
+         * (error always, but also warning if seen from the tests in the
+         * examples.jar deployment descriptor).
+         */
+        Map<String,Integer> results =
+          Stream.of("info", "warning", "error", "ng").collect(
+            LinkedHashMap<String,Integer>::new,
+            (m,k) -> m.put(k, 0), (r,s) -> {})
+
+        boolean isDiagnostic(Object o, Set<String> whatIsNG)
+        {
+          if ( ! ( o instanceof Throwable ) )
+            return false;
+          String[] parts = Node.classify((Throwable)o);
+          String type = parts[0];
+          results.compute(type, (k,v) -> 1 + v);
+          if ( whatIsNG.contains(type) )
+            results.compute("ng", (k,v) -> 1 + v);
+          return true;
+        }
+
+        try (
+          AutoCloseable t1 = n1.initialized_cluster();
+          AutoCloseable t2 = n1.started_server(Map.of(
+            "client_min_messages", "info",
+            "pljava.vmoptions", vmopts,
+            "pljava.libjvm_location", libjvm.toString()
+          ));
+        )
+        {
+          try ( Connection c = n1.connect() )
+          {
+            succeeding = true; // become optimistic, will be using &= below
+
+            succeeding &= stateMachine(
+              "create extension no result",
+              null,
+
+              q(c, "create extension pljava")
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              // state 1: consume any diagnostics, or to state 2 with same item
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+
+              // state 2: must be end of input
+              (o,p,q) -> null == o
+            );
+          }
+
+          /*
+           * Get a new connection; 'create extension' always sets a near-silent
+           * logging level, and PL/Java only checks once at VM start time, so in
+           * the same session where 'create extension' was done, logging is
+           * somewhat suppressed.
+           */
+          try ( Connection c = n1.connect() )
+          {
+            succeeding &= stateMachine(
+              "saxon path examples path",
+              null,
+
+              Node.installSaxonAndExamplesAndPath(c,
+                System.getProperty("mavenRepo"),
+                System.getProperty("saxonVer"),
+                true)
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              // states 1,2: diagnostics* then a void result set (saxon install)
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+
+              // states 3,4: diagnostics* then a void result set (set classpath)
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 3 : -4,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 5 : false,
+
+              // states 5,6: diagnostics* then void result set (example install)
+              (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 5 : -6,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 7 : false,
+
+              // states 7,8: diagnostics* then a void result set (set classpath)
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 7 : -8,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 9 : false,
+
+              // state 9: must be end of input
+              (o,p,q) -> null == o
+            );
+
+            /*
+             * Exercise TrialPolicy some. Need another connection to change
+             * vmoptions. Uses some example functions, so insert here before the
+             * test of undeploying the examples.
+             */
+            try ( Connection c2 = n1.connect() )
+            {
+              Path trialPolicy =
+                createTempFile(n1.data_dir().getParent(), "trial", "policy");
+
+              write(trialPolicy, List.of(
+                "grant {",
+                "  permission",
+                "    org.postgresql.pljava.policy.TrialPolicy$Permission;",
+                "};"
+              ));
+
+              PreparedStatement setVmOpts = c2.prepareStatement(
+                "SELECT null::pg_catalog.void" +
+                " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
+              );
+
+              setVmOpts.setString(1, vmopts +
+                " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
+
+              succeeding &= stateMachine(
+                "change pljava.vmoptions",
+                null,
+
+                q(setVmOpts, setVmOpts::execute)
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+                (o,p,q) -> null == o
+              );
+
+              PreparedStatement tryForbiddenRead = c2.prepareStatement(
+                "SELECT" +
+                "  CASE WHEN javatest.java_getsystemproperty('java.home')" +
+                "    OPERATOR(pg_catalog.=) ?" +
+                "  THEN javatest.logmessage('INFO', 'trial policy test ok')" +
+                "  ELSE javatest.logmessage('WARNING', 'trial policy test ng')" +
+                "  END"
+              );
+
+              tryForbiddenRead.setString(1, javaHome);
+
+              succeeding &= stateMachine(
+                "try to read a forbidden property",
+                null,
+
+                q(tryForbiddenRead, tryForbiddenRead::execute)
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 1 : -2,
+                (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+                (o,p,q) -> null == o
+              );
+              // done with connection c2
+            }
+
+            /*
+             * Also confirm that the generated undeploy actions work.
+             */
+            succeeding &= stateMachine(
+              "remove jar void result",
+              null,
+
+              q(c, "SELECT sqlj.remove_jar('examples', true)")
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+              (o,p,q) -> null == o
+            );
+          }
+        } catch ( Throwable t )
+        {
+          succeeding = false;
+          throw t;
+        }
+
+        System.out.println(results);
+        succeeding &= (0 == results.get("ng"));
+        System.exit(succeeding ? 0 : 1)
+        ENDJSHELL
