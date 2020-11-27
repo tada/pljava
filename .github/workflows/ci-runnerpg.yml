@@ -28,7 +28,7 @@ jobs:
 #           cc: msvc
 #         - os: windows-latest
 #           cc: mingw
-        java: [9, 11] # , 12, 14, 15]
+        java: [9, 11, 12, 13, 14, 15]
 
     steps:
 
