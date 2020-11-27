@@ -1609,6 +1609,11 @@ static jint initializeJavaVM(JVMOptList *optList)
 #define PLJAVA_LIBJVMDEFAULT "libjvm"
 #endif
 
+#ifndef PLJAVA_POLICYDEFAULT
+#define PLJAVA_POLICYDEFAULT \
+	"\"file:${org.postgresql.sysconfdir}/pljava.policy\",\"=\""
+#endif
+
 #if PG_VERSION_NUM >= 90200
 #define PLJAVA_ENABLE_DEFAULT true
 #else
@@ -1672,7 +1677,7 @@ static void registerGUCOptions(void)
 		"bare = (still quoted) to prevent use of any higher-numbered policy "
 		"URLs from the java.security file.",
 		&policy_urls,
-		"\"file:${org.postgresql.sysconfdir}/pljava.policy\",\"=\"",
+		PLJAVA_POLICYDEFAULT,
 		PGC_SUSET,
 		PLJAVA_IMPLEMENTOR_FLAGS | GUC_SUPERUSER_ONLY,
 		check_policy_urls, /* check hook */

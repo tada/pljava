@@ -78,6 +78,13 @@
 		base_defines.put("PLJAVA_LIBJVMDEFAULT", jvmdfltQuoted);
 	}
 
+	var poldflt = java.lang.System.getProperty('pljava.policydefault');
+	if ( null !== poldflt )
+	{
+		var poldfltQuoted = quoteStringForC(poldflt);
+		base_defines.put("PLJAVA_POLICYDEFAULT", poldfltQuoted);
+	}
+
 	var configuration = [
 		{
 			name : "Linux",

@@ -17,6 +17,7 @@ IF %SYS%==MINGW (
   mvn clean install ^
     -Dpgsql.pgconfig="%pgConfig%" ^
     -Dpljava.libjvmdefault="%libjvm%" ^
+    -Dpljava.policydefault=^"\^"file:${org.postgresql.sysconfdir}/pljava.policy\^",\^"=\^"^" ^
     -Psaxon-examples -Ppgjdbc-ng --batch-mode ^
     -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 )
