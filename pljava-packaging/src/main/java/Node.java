@@ -1040,7 +1040,16 @@ public class Node extends JarX {
 	{
 		dryExtract();
 		Statement s = c.createStatement();
-		String sql = "LOAD " + s.enquoteLiteral(s_sharedObject);
+		String whatToLoad = s_sharedObject;
+
+		/*
+		 * MinGW-w64 does not fail if the .lib suffix is left in place, but
+		 * MSVC does, and MinGW-w64 also allows it to be removed.
+		 */
+		if ( s_isWindows )
+			whatToLoad = whatToLoad.replaceFirst("\\.lib$", "");
+
+		String sql = "LOAD " + s.enquoteLiteral(whatToLoad);
 		return q(s, () -> s.execute(sql));
 	}
 
