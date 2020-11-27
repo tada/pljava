@@ -266,7 +266,7 @@ jobs:
               "create extension no result",
               null,
 
-              q(c, "create extension pljava")
+              q(c, "CREATE EXTENSION pljava")
               .flatMap(Node::semiFlattenDiagnostics)
               .peek(Node::peek),
 
@@ -394,6 +394,148 @@ jobs:
 
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
               (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+              (o,p,q) -> null == o
+            );
+
+            /*
+             * Get another new connection and make sure the extension can be
+             * loaded in a non-superuser session.
+             */
+            try ( Connection c2 = n1.connect() )
+            {
+              succeeding &= stateMachine(
+                "become non-superuser",
+                null,
+
+                q(c2,
+                  "CREATE ROLE alice;" +
+                  "GRANT USAGE ON SCHEMA sqlj TO alice;" +
+                  "SET SESSION AUTHORIZATION alice")
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                (o,p,q) -> null == o
+              );
+
+              succeeding &= stateMachine(
+                "load as non-superuser",
+                null,
+
+                q(c2, "SELECT null::pg_catalog.void" +
+                      "  FROM sqlj.get_classpath('public')")
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+                (o,p,q) -> null == o
+              );
+              // done with connection c2 again
+            }
+
+            /*
+             * Make sure the extension drops cleanly and nothing
+             * is left in sqlj.
+             */
+            succeeding &= stateMachine(
+              "drop extension and schema no result",
+              null,
+
+              q(c, "DROP EXTENSION pljava;DROP SCHEMA sqlj")
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              (o,p,q) -> null == o
+            );
+          }
+
+          /*
+           * Get another new connection and confirm that the old, pre-extension,
+           * LOAD method of installing PL/Java works. It is largely obsolete in
+           * the era of extensions, but still covers the use case of installing
+           * PL/Java without admin access on the server filesystem to where
+           * CREATE EXTENSION requires the files to be; they can still be
+           * installed in some other writable location the server can read, and
+           * pljava.module_path set to the right locations of the jars, and the
+           * correct shared-object path given to LOAD.
+           *
+           * Also test the after-the-fact packaging up with CREATE EXTENSION
+           * FROM unpackaged. That officially goes away in PG 13, where the
+           * equivalent sequence
+           *  CREATE EXTENSION pljava VERSION unpackaged
+           *  \c
+           *  ALTER EXTENSION pljava UPDATE
+           * should be tested instead.
+           */
+          try ( Connection c = n1.connect() )
+          {
+            int majorVersion = c.getMetaData().getDatabaseMajorVersion();
+
+            succeeding &= stateMachine(
+              "load as non-extension",
+              null,
+
+              Node.loadPLJava(c)
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              (o,p,q) -> null == o
+            );
+
+            if ( 13 <= majorVersion )
+            {
+              succeeding &= stateMachine(
+                "create unpackaged (PG >= 13)",
+                null,
+
+                q(c, "CREATE EXTENSION pljava VERSION unpackaged")
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                (o,p,q) -> null == o
+              );
+            }
+          }
+
+          /*
+           * CREATE EXTENSION FROM unpackaged (or the second half of the
+           * PG >= 13 CREATE EXTENSION VERSION unpackaged;ALTER EXTENSION UPDATE
+           * sequence) has to happen over a new connection.
+           */
+          try ( Connection c = n1.connect() )
+          {
+            int majorVersion = c.getMetaData().getDatabaseMajorVersion();
+
+            succeeding &= stateMachine(
+              "package after loading",
+              null,
+
+              q(c, 13 > majorVersion
+                ? "CREATE EXTENSION pljava FROM unpackaged"
+                :  "ALTER EXTENSION pljava UPDATE")
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              (o,p,q) -> null == o
+            );
+
+            /*
+             * Again make sure extension drops cleanly with nothing left behind.
+             */
+            succeeding &= stateMachine(
+              "drop extension and schema no result",
+              null,
+
+              q(c, "DROP EXTENSION pljava;DROP SCHEMA sqlj")
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
               (o,p,q) -> null == o
             );
           }

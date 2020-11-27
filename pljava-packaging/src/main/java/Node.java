@@ -148,6 +148,7 @@ public class Node extends JarX {
 	private static Node s_jarxHelper = new Node(null, 0, null, null);
 	private static boolean s_jarProcessed = false;
 	private static String s_examplesJar;
+	private static String s_sharedObject;
 
 	/**
 	 * Perform an ordinary installation, using {@code pg_config} or the
@@ -256,6 +257,9 @@ public class Node extends JarX {
 			replacement += platformPath.substring(plen);
 			if ( -1 != storedPath.indexOf("/pljava-examples-") )
 				s_examplesJar = replacement;
+			else if ( storedPath.matches(
+						"pljava/pkglibdir/(?:lib)?+pljava-so-.*") )
+				s_sharedObject = replacement;
 			if ( ! m_dryrun )
 				return replacement;
 			return null;
@@ -1017,6 +1021,30 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * Load PL/Java (with a {@code LOAD} command, not {@code CREATE EXTENSION}).
+	 *<p>
+	 * This was standard procedure in PostgreSQL versions that pre-dated the
+	 * extension support. It is largely obsolete with the advent of
+	 * {@code CREATE EXTENSION}, but still has one distinct use case:
+	 * this is what will work if you do not have administrative access
+	 * to install PL/Java's files in the standard directories where
+	 * {@code CREATE EXTENSION} expects them, but can only place them in some
+	 * other location the server can read. Then you simply have to make sure
+	 * that {@code pljava.module_path} is set correctly to locate the jar files,
+	 * and give the correct shared-object path to {@code LOAD} (which this
+	 * method does).
+	 * @return a {@link #q(Statement,Callable) result stream} from executing
+	 * the statement
+	 */
+	public static Stream<Object> loadPLJava(Connection c) throws Exception
+	{
+		dryExtract();
+		Statement s = c.createStatement();
+		String sql = "LOAD " + s.enquoteLiteral(s_sharedObject);
+		return q(s, () -> s.execute(sql));
+	}
+
+	/**
 	 * Install a jar.
 	 * @return a {@link #q(Statement,Callable) result stream} from executing
 	 * the statement
@@ -1508,7 +1536,9 @@ public class Node extends JarX {
 	throws Exception
 	{
 		dryExtract();
-		return installJar(c, "file:"+s_examplesJar, "examples", deploy);
+		String uri = Paths.get(s_examplesJar).toUri()
+			.toString().replaceFirst("^file:///", "file:/");
+		return installJar(c, uri, "examples", deploy);
 	}
 
 	/**
@@ -1782,7 +1812,8 @@ public class Node extends JarX {
 		{
 			mdi.setColumnType(i, md.getParameterType(i));
 			mdi.setColumnTypeName(i, md.getParameterTypeName(i));
-			mdi.setPrecision(i, md.getPrecision(i));
+			int precision = md.getPrecision(i);
+			mdi.setPrecision(i, precision > 0 ? precision : 0);
 			mdi.setScale(i, md.getScale(i));
 			mdi.setNullable(i, md.isNullable(i));
 			mdi.setSigned(i, md.isSigned(i));
@@ -1809,7 +1840,8 @@ public class Node extends JarX {
 		{
 			mdi.setColumnType(i, md.getColumnType(i));
 			mdi.setColumnTypeName(i, md.getColumnTypeName(i));
-			mdi.setPrecision(i, md.getPrecision(i));
+			int precision = md.getPrecision(i);
+			mdi.setPrecision(i, precision > 0 ? precision : 0);
 			mdi.setScale(i, md.getScale(i));
 			mdi.setNullable(i, md.isNullable(i));
 			mdi.setSigned(i, md.isSigned(i));
