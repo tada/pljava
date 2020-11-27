@@ -10,7 +10,76 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.6.1
+$h2 PL/Java 1.6.2
+
+This is the second minor update in the PL/Java 1.6 series, with two bugs fixed
+(including one that was likely to be a blocker for many applications). It adds
+a 'trial' security policy, useful when migrating code from PL/Java 1.5 to
+identify permission grants that may be needed, and some minor but useful
+example functionality.
+
+$h3 Changes
+
+$h4 Bug blocking use from an unprivileged PostgreSQL role fixed
+
+In 1.6.0 and 1.6.1, PL/Java could fail to start in a backend process if the
+effective PostgreSQL role was not a superuser or a member of
+`pg_read_all_settings`. That is fixed in this release.
+
+$h4 Trial security policy for migrating code from PL/Java pre-1.6.0
+
+When migrating code from pre-1.6.0 PL/Java versions, it may be necessary to
+add permission grants to the PL/Java 1.6 security policy, which is distributed
+as a minimal starting point.
+
+[Configuring permissions in PL/Java](use/policy.html) covers the topic in
+general, and [Migrating to policy-based permissions](use/trial.html) covers
+the new 'trial' policy introduced in 1.6.2 to simplify the process.
+
+$h4 Example functions using XSLT 1.0 polished for simpler use
+
+Although 1.0 is obsolete and very limited compared to current versions of XSLT,
+the implementation in Java has two attractive properties. First, it is
+provided in the Java runtime with no need of a separate download such as Saxon,
+and second, it allows use of any accessible Java methods or constructors from
+XPath expressions, which can often make it more useful than the limitations
+of strict XSLT 1.0 would suggest.
+
+The [example functions][PassXML] `prepareXMLTransform`,
+`prepareXMLTransformWithJava`, and `transformXML`, which demonstrate how such
+functions can be coded, have also been given streamlined parameter lists with
+defaults to make them simple to use for real work.
+
+One small but useful result is an easy way to indent XML for readability,
+simply by passing a null transform name and `indent => true` to
+`transformXML`.
+
+$h3 Bugs fixed
+
+* [must be superuser or a member of `pg_read_all_settings`](${ghbug}331)
+* [Operator annotation can reject explicit operand types in error](${ghbug}330)
+
+$h3 Credits
+
+Thanks to Francisco Biete for the report of [#331](${ghbug}331).
+
+[PassXML]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/PassXML.html#method.summary
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.6.1 (16 November 2020)
+
+_Note: 1.6.1 was released with [a bug](${ghbug}331) likely to be a blocker
+for many applications. It was fixed in 1.6.2._
 
 This is the first minor update in the PL/Java 1.6 series, with two bugs fixed.
 It also adds functionality in the SQL generator, allowing automated
@@ -81,18 +150,10 @@ Thanks to Bear Giles for the `pljava-udt-type-extension` example, which not only
 illustrates the SQL generation improvements in this release, but also exposed
 both of the bugs fixed here.
 
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
-
 $h2 PL/Java 1.6.0 (18 October 2020)
+
+_Note: 1.6.0 was released with [a bug](${ghbug}331) likely to be a blocker
+for many applications. It was fixed in 1.6.2._
 
 This is the first release of a significantly refactored PL/Java 1.6 branch
 with a number of new features and changes. It requires Java 9 or later at
