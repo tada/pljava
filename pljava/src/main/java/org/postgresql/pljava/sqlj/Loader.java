@@ -263,8 +263,11 @@ public class Loader extends ClassLoader
 			loader = schema.equals(PUBLIC_SCHEMA)
 				? parent : getSchemaLoader(PUBLIC_SCHEMA);
 		else
+		{
+			String name = "schema:" + schema.nonFolded();
 			loader = doPrivileged(() ->
-				new Loader(classImages, codeSources, parent));
+				new Loader(classImages, codeSources, parent, name));
+		}
 
 		s_schemaLoaders.put(schema, loader);
 		return loader;
@@ -370,9 +373,9 @@ public class Loader extends ClassLoader
 	 */
 	Loader(
 		Map<String,int[]> entries,
-		Map<Integer,CodeSource> sources, ClassLoader parent)
+		Map<Integer,CodeSource> sources, ClassLoader parent, String name)
 	{
-		super(parent);
+		super(name, parent);
 		m_entries = entries;
 		m_j9Helper = ifJ9getHelper(); // null if not under OpenJ9 with sharing
 

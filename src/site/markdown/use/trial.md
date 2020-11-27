@@ -160,7 +160,7 @@ java.xml/com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet.transf
 ...
 java.xml/com.sun.org.apache.xalan.internal.xsltc.trax.TransformerImpl.transform(TransformerImpl.java:383)
 >> sqlj:examples [PLPrincipal.Sandboxed: java] <<
-org.postgresql.pljava.example.annotation.PassXML.transformXML(PassXML.java:561)
+schema:public//org.postgresql.pljava.example.annotation.PassXML.transformXML(PassXML.java:561)
 ```
 
 The example shows the use of an XSLT 1.0 transform that appears to
