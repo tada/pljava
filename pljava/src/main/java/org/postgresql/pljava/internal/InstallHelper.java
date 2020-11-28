@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.MalformedURLException;
 import java.nio.charset.Charset;
+import java.security.NoSuchAlgorithmException;
+import java.security.Policy;
 import java.security.Security;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -36,6 +38,7 @@ import static java.sql.Types.VARCHAR;
 
 import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.management.SQLDeploymentDescriptor;
+import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -161,6 +164,8 @@ public class InstallHelper
 				e);
 		}
 
+		setTrialPolicyIfSpecified();
+
 		System.setSecurityManager( new SecurityManager());
 
 		StringBuilder sb = new StringBuilder();
@@ -252,6 +257,24 @@ public class InstallHelper
 		{
 			Security.setProperty( "policy.url." + stopIndex, prevURL);
 			++ stopIndex;
+		}
+	}
+
+	private static void setTrialPolicyIfSpecified() throws SQLException
+	{
+		String trialURI = System.getProperty(
+			"org.postgresql.pljava.policy.trial");
+
+		if ( null == trialURI )
+			return;
+
+		try
+		{
+			Policy.setPolicy( new TrialPolicy( trialURI));
+		}
+		catch ( NoSuchAlgorithmException e )
+		{
+			throw new SQLException(e.getMessage(), e);
 		}
 	}
 
@@ -668,6 +691,7 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
+		static final SchemaVariant REL_1_6_2       = REL_1_5_0;
 		static final SchemaVariant REL_1_6_1       = REL_1_5_0;
 		static final SchemaVariant REL_1_6_0       = REL_1_5_0;
 

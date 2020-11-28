@@ -39,13 +39,15 @@ DROP TABLE
 /*
  The language-hander functions do not need to be explicitly added, because the
  LOAD actions always CREATE OR REPLACE them, which makes them extension members.
+ Since the validators were added for 1.6.0, the language entries are also always
+ CREATE OR REPLACEd, so they don't have to be mentioned here either.
  */
-
-ALTER EXTENSION pljava ADD LANGUAGE java;
-ALTER EXTENSION pljava ADD LANGUAGE javau;
 
 ALTER EXTENSION pljava ADD
  FUNCTION sqlj.add_type_mapping(character varying,character varying);
+ALTER EXTENSION pljava ADD
+ FUNCTION sqlj.alias_java_language(
+  character varying,boolean,boolean,character varying);
 ALTER EXTENSION pljava ADD
  FUNCTION sqlj.drop_type_mapping(character varying);
 ALTER EXTENSION pljava ADD

@@ -42,6 +42,11 @@ grant {
 	//
 	permission java.util.PropertyPermission
 		"jdk.lang.ref.disableClearBeforeEnqueue", "read";
+
+	// Something similar happened in Java 14 (not yet fixed in 15).
+	//
+	permission java.util.PropertyPermission
+		"java.util.concurrent.ForkJoinPool.common.maximumSpares", "read";
 };
 
 
@@ -58,6 +63,8 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 		"charsetProvider";
 	permission java.lang.RuntimePermission
 		"createClassLoader";
+	permission java.lang.RuntimePermission
+		"getProtectionDomain";
 	permission java.net.NetPermission
 		"specifyStreamHandler";
 	permission java.util.logging.LoggingPermission

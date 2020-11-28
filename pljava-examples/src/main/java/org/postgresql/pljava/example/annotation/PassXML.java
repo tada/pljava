@@ -214,6 +214,11 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 @SQLAction(implementor="postgresql_xml",
 		   requires={"prepareXMLTransform", "transformXML"},
 	install={
+		"REVOKE EXECUTE ON FUNCTION javatest.prepareXMLTransformWithJava" +
+		" (pg_catalog.varchar, pg_catalog.xml, integer, boolean," +
+		"  pg_catalog.RECORD)" +
+		" FROM PUBLIC",
+
 		"SELECT" +
 		" javatest.prepareXMLTransform('distinctElementNames'," +
 		"'<xsl:transform version=''1.0''" +
@@ -238,6 +243,21 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"</xsl:transform>', 5, true)",
 
 		"SELECT" +
+		" javatest.prepareXMLTransformWithJava('getPLJavaVersion'," +
+		"'<xsl:transform version=''1.0''" +
+		" xmlns:xsl=''http://www.w3.org/1999/XSL/Transform''" +
+		" xmlns:java=''http://xml.apache.org/xalan/java''" +
+		" exclude-result-prefixes=''java''" +
+		">" +
+		" <xsl:template match=''/''>" +
+		"  <xsl:value-of" +
+		"   select=''java:java.lang.System.getProperty(" +
+		"    \"org.postgresql.pljava.version\")''" +
+		"  />" +
+		" </xsl:template>" +
+		"</xsl:transform>', enableExtensionFunctions => true)",
+
+		"SELECT" +
 		" CASE WHEN" +
 		"  javatest.transformXML('distinctElementNames'," +
 		"   '<a><c/><e/><b/><b/><d/></a>', 5, 5)::text" +
@@ -245,7 +265,17 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"   '<den>a</den><den>b</den><den>c</den><den>d</den><den>e</den>'"+
 		"  THEN javatest.logmessage('INFO', 'XSLT 1.0 test succeeded')" +
 		"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 test failed')" +
-		" END"
+		" END",
+
+		"SELECT" +
+		" CASE WHEN" +
+		"  javatest.transformXML('getPLJavaVersion', '')::text" +
+		"  OPERATOR(pg_catalog.=) extversion" +
+		"  THEN javatest.logmessage('INFO', 'XSLT 1.0 with Java succeeded')" +
+		"  ELSE javatest.logmessage('WARNING', 'XSLT 1.0 with Java failed')" +
+		" END" +
+		" FROM pg_catalog.pg_extension" +
+		" WHERE extname = 'pljava'"
 	}
 )
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
@@ -404,48 +434,135 @@ public class PassXML implements SQLData
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml",
 			  provides="prepareXMLTransform")
-	public static void prepareXMLTransform(String name, SQLXML source, int how,
-		@SQLType(defaultValue="false") boolean enableExtensionFunctions)
+	public static void prepareXMLTransform(String name, SQLXML source,
+		@SQLType(defaultValue="0") int how,
+		@SQLType(defaultValue="false") boolean enableExtensionFunctions,
+		@SQLType(defaultValue={}) ResultSet adjust)
+	throws SQLException
+	{
+		prepareXMLTransform(
+			name, source, how, enableExtensionFunctions, adjust, false);
+	}
+
+	/**
+	 * Precompile an XSL transform {@code source} and save it (for the
+	 * current session) as {@code name}, where the transform may call Java
+	 * methods.
+	 *<p>
+	 * Otherwise identical to {@code prepareXMLTransform}, this version sets the
+	 * {@code TransformerFactory}'s {@code extensionClassLoader} (to the same
+	 * loader that loads this class), so the transform will be able to use
+	 * xalan's Java call syntax to call any public Java methods that would be
+	 * accessible to this class. (That can make a big difference in usefulness
+	 * for the otherwise rather limited XSLT 1.0.)
+	 *<p>
+	 * This example function will be installed with {@code EXECUTE} permission
+	 * revoked from {@code PUBLIC}, as it essentially confers the ability to
+	 * create arbitrary new Java functions, so should only be granted to roles
+	 * you would be willing to grant {@code USAGE ON LANGUAGE java}.
+	 *<p>
+	 * Because this function only prepares the transform, and
+	 * {@link #transformXML transformXML} applies it, there is some division of
+	 * labor in determining what limits apply to its behavior. The use of this
+	 * method instead of {@code prepareXMLTransform} determines whether the
+	 * transform is allowed to see external Java methods at all; it will be
+	 * the policy permissions granted to {@code transformXML} that control what
+	 * those methods can do when the transform is applied. For now, that method
+	 * is defined in the trusted/sandboxed {@code java} language, so this
+	 * function could reasonably be granted to any role with {@code USAGE} on
+	 * {@code java}. If, by contrast, {@code transformXML} were declared in the
+	 * 'untrusted' {@code javaU}, it would be prudent to allow only superusers
+	 * access to this function, just as only they can {@code CREATE FUNCTION} in
+	 * an untrusted language.
+	 */
+	@Function(schema="javatest", implementor="postgresql_xml",
+			  provides="prepareXMLTransform")
+	public static void prepareXMLTransformWithJava(String name, SQLXML source,
+		@SQLType(defaultValue="0") int how,
+		@SQLType(defaultValue="false") boolean enableExtensionFunctions,
+		@SQLType(defaultValue={}) ResultSet adjust)
+	throws SQLException
+	{
+		prepareXMLTransform(
+			name, source, how, enableExtensionFunctions, adjust, true);
+	}
+
+	private static void prepareXMLTransform(String name, SQLXML source, int how,
+		boolean enableExtensionFunctions, ResultSet adjust, boolean withJava)
 	throws SQLException
 	{
 		TransformerFactory tf = TransformerFactory.newInstance();
 		String exf =
 		  "http://www.oracle.com/xml/jaxp/properties/enableExtensionFunctions";
+		String ecl = "jdk.xml.transform.extensionClassLoader";
+		Source src = sxToSource(source, how, adjust);
 		try
 		{
 			tf.setFeature(exf, enableExtensionFunctions);
-			s_tpls.put(name, tf.newTemplates(sxToSource(source, how)));
+			if ( withJava )
+				tf.setAttribute(ecl, PassXML.class.getClassLoader());
+			s_tpls.put(name, tf.newTemplates(src));
 		}
 		catch ( TransformerException te )
 		{
-			throw new SQLException("XML transformation failed", te);
+			throw new SQLException(
+				"Preparing XML transformation: " + te.getMessage(), te);
 		}
 	}
 
 	/**
 	 * Transform some XML according to a named transform prepared with
 	 * {@code prepareXMLTransform}.
+	 *<p>
+	 * Pass null for {@code transformName} to get a plain identity transform
+	 * (not such an interesting thing to do, unless you also specify indenting).
 	 */
 	@Function(schema="javatest", implementor="postgresql_xml",
 			  provides="transformXML")
 	public static SQLXML transformXML(
-		String transformName, SQLXML source, int howin, int howout)
+		String transformName, SQLXML source,
+		@SQLType(defaultValue="0") int howin,
+		@SQLType(defaultValue="0") int howout,
+		@SQLType(defaultValue={}) ResultSet adjust,
+		@SQLType(defaultValue="false") boolean indent,
+		@SQLType(defaultValue="4") int indentWidth)
 	throws SQLException
 	{
-		Templates tpl = s_tpls.get(transformName);
-		Source src = sxToSource(source, howin);
+		Templates tpl = null == transformName? null: s_tpls.get(transformName);
+		Source src = sxToSource(source, howin, adjust);
+
+		if ( indent  &&  0 == howout )
+			howout = 4; // transformer only indents if writing a StreamResult
+
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
 		SQLXML result = c.createSQLXML();
-		Result rlt = sxToResult(result, howout);
+		Result rlt = sxToResult(result, howout, adjust);
 
 		try
 		{
-			Transformer t = tpl.newTransformer();
+			Transformer t =
+				null == tpl ? s_tf.newTransformer() : tpl.newTransformer();
+			/*
+			 * For the non-SAX/StAX/DOM flavors of output, you're responsible
+			 * for setting the Transformer to use the server encoding.
+			 */
+			if ( rlt instanceof StreamResult )
+				t.setOutputProperty(ENCODING,
+					System.getProperty("org.postgresql.server.encoding"));
+			else if ( indent )
+				logMessage("WARNING",
+					"indent requested, but howout specifies a non-stream " +
+					"Result type; no indenting will happen");
+
+			t.setOutputProperty("indent", indent ? "yes" : "no");
+			t.setOutputProperty(
+				"{http://xml.apache.org/xalan}indent-amount", "" + indentWidth);
+
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )
 		{
-			throw new SQLException("XML transformation failed", te);
+			throw new SQLException("Transforming XML: " + te.getMessage(), te);
 		}
 
 		return ensureClosed(rlt, result, howout);
@@ -1041,6 +1158,17 @@ public class PassXML implements SQLData
 		}
 	}
 
+
+	/**
+	 * Return some instance of {@code Source} for reading an {@code SQLXML}
+	 * object, depending on the parameter {@code how}.
+	 *<p>
+	 * Note that this method always returns a {@code Source}, even for cases
+	 * 1 and 2 (obtaining readable streams directly from the {@code SQLXML}
+	 * object; this method wraps them in {@code Source}), and case 3
+	 * ({@code getString}; this method creates a {@code StringReader} and
+	 * returns it wrapped in a {@code Source}.
+	 */
 	private static Source sxToSource(SQLXML sx, int how) throws SQLException
 	{
 		switch ( how )
@@ -1085,6 +1213,70 @@ public class PassXML implements SQLData
 				return r;
 			default: throw new SQLDataException("how should be 1-7", "22003");
 		}
+	}
+
+	/**
+	 * Return some instance of {@code Source} for reading an {@code SQLXML}
+	 * object, depending on the parameter {@code how}, applying any adjustments
+	 * in {@code adjust}.
+	 *<p>
+	 * Allows {@code how} to be zero, meaning to let the implementation choose
+	 * what kind of {@code Source} to present. Otherwise identical to the other
+	 * {@code sxToSource}.
+	 */
+	private static Source sxToSource(SQLXML sx, int how, ResultSet adjust)
+	throws SQLException
+	{
+		Source s;
+		switch ( how )
+		{
+			case  0: s = sx.getSource(Adjusting.XML.Source.class); break;
+			case  1:
+			case  2:
+			case  3:
+			case  4:
+				return sxToSource(sx, how); // no adjustments on a StreamSource
+			case  5: s = sx.getSource(Adjusting.XML.SAXSource.class); break;
+			case  6: s = sx.getSource(Adjusting.XML.StAXSource.class); break;
+			case  7: s = sx.getSource(Adjusting.XML.DOMSource.class); break;
+			default: throw new SQLDataException("how should be 0-7", "22003");
+		}
+
+		if ( s instanceof Adjusting.XML.Source )
+			return applyAdjustments(adjust, (Adjusting.XML.Source<?>)s).get();
+		return s;
+	}
+
+	/**
+	 * Return some instance of {@code Result} for writing an {@code SQLXML}
+	 * object, depending on the parameter {@code how} applying any adjustments
+	 * in {@code adjust}.
+	 *<p>
+	 * Allows {@code how} to be zero, meaning to let the implementation choose
+	 * what kind of {@code Result} to present. Otherwise identical to the other
+	 * {@code sxToResult}.
+	 */
+	private static Result sxToResult(SQLXML sx, int how, ResultSet adjust)
+	throws SQLException
+	{
+		Result r;
+		switch ( how )
+		{
+			case  1: // you might wish you could adjust a raw BinaryStream
+			case  2: // or CharacterStream
+			case  3: // or String, but you can't. Ask for a StreamResult.
+			case  5: // SAXResult needs no adjustment
+			case  6: // StAXResult needs no adjustment
+			case  7: // DOMResult needs no adjustment
+				return sxToResult(sx, how);
+			case  4: r = sx.setResult(Adjusting.XML.StreamResult.class); break;
+			case  0: r = sx.setResult(Adjusting.XML.Result.class); break;
+			default: throw new SQLDataException("how should be 0-7", "22003");
+		}
+
+		if ( r instanceof Adjusting.XML.Result )
+			return applyAdjustments(adjust, (Adjusting.XML.Result<?>)r).get();
+		return r;
 	}
 
 	/**

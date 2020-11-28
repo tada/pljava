@@ -98,9 +98,16 @@ public class ComplexScalar implements SQLData {
 
 	/**
 	 * Return the same 'complex' passed in, logging its contents at level INFO.
+	 *<p>
+	 * Also create an unnecessary {@code <<} operator for this, with an equally
+	 * unnecessary explicit operand type, simply as a regression test
+	 * of issue #330.
 	 * @param cpl any instance of this UDT
 	 * @return the same instance passed in
 	 */
+	@Operator(
+		name = "javatest.<<", right = "javatest.complex"
+	)
 	@Function(
 		schema="javatest", name="logcomplex", effects=IMMUTABLE,
 		onNullInput=RETURNS_NULL)

@@ -208,6 +208,7 @@ static bool seenVisualVMName;
 static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 static char const moduleMainPrefix[] = "-Djdk.module.main=";
+static char const policyUrlsGUC[] = "pljava.policy_urls";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -517,6 +518,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_GUCS_REGISTERED;
 		if ( deferInit )
 			return;
+		/*FALLTHROUGH*/
 
 	case IS_GUCS_REGISTERED:
 		if ( NULL == libjvmlocation )
@@ -529,6 +531,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		initstage = IS_CAND_JVMLOCATION;
+		/*FALLTHROUGH*/
 
 	case IS_CAND_JVMLOCATION:
 		if ( NULL == policy_urls )
@@ -541,6 +544,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		initstage = IS_CAND_POLICYURLS;
+		/*FALLTHROUGH*/
 
 	case IS_CAND_POLICYURLS:
 		if ( ! pljavaEnabled )
@@ -555,6 +559,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		initstage = IS_PLJAVA_ENABLED;
+		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_ENABLED:
 		libjvm_handle = pg_dlopen(libjvmlocation);
@@ -568,6 +573,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		initstage = IS_CAND_JVMOPENED;
+		/*FALLTHROUGH*/
 
 	case IS_CAND_JVMOPENED:
 		pljava_createvm =
@@ -591,6 +597,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			goto check_tolerant;
 		}
 		initstage = IS_CREATEVM_SYM_FOUND;
+		/*FALLTHROUGH*/
 
 	case IS_CREATEVM_SYM_FOUND:
 		s_javaLogLevel = INFO;
@@ -604,6 +611,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		pljavaDebug = 1;
 #endif
 		initstage = IS_MISC_ONCE_DONE;
+		/*FALLTHROUGH*/
 
 	case IS_MISC_ONCE_DONE:
 		JVMOptList_init(&optList); /* uses CurrentMemoryContext */
@@ -624,6 +632,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			JVMOptList_add(&optList, effectiveModulePath, 0, true);
 		}
 		initstage = IS_JAVAVM_OPTLIST;
+		/*FALLTHROUGH*/
 
 	case IS_JAVAVM_OPTLIST:
 		JNIresult = initializeJavaVM(&optList); /* frees the optList */
@@ -647,6 +656,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		jvmStartedAtLeastOnce = true;
 		elog(DEBUG2, "successfully created Java virtual machine");
 		initstage = IS_JAVAVM_STARTED;
+		/*FALLTHROUGH*/
 
 	case IS_JAVAVM_STARTED:
 #ifdef USE_PLJAVA_SIGHANDLERS
@@ -658,6 +668,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		 */
 		on_proc_exit(_destroyJavaVM, 0);
 		initstage = IS_SIGHANDLERS;
+		/*FALLTHROUGH*/
 
 	case IS_SIGHANDLERS:
 		Invocation_pushBootContext(&ctx);
@@ -708,6 +719,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 			_destroyJavaVM(0, 0);
 			goto check_tolerant;
 		}
+		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_FOUND:
 		greeting = InstallHelper_hello();
@@ -716,11 +728,13 @@ static void initsequencer(enum initstage is, bool tolerant)
 				errdetail("versions:\n%s", greeting)));
 		pfree(greeting);
 		initstage = IS_PLJAVA_INSTALLING;
+		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_INSTALLING:
 		if ( NULL != pljavaLoadPath )
 			InstallHelper_groundwork(); /* sqlj schema, language handlers, ...*/
 		initstage = IS_COMPLETE;
+		/*FALLTHROUGH*/
 
 	case IS_COMPLETE:
 		pljavaLoadingAsExtension = false;
@@ -1648,7 +1662,7 @@ static void registerGUCOptions(void)
 		NULL); /* show hook */
 
 	STRING_GUC(
-		"pljava.policy_urls",
+		policyUrlsGUC,
 		"URLs to Java security policy file(s) for PL/Java's use",
 		"Quote each URL and separate with commas. Any URL may begin (inside "
 		"the quotes) with n= where n is the index of the Java "
@@ -1923,7 +1937,11 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 	{
 		PG_TRY();
 		{
-			const char *value = PG_GETCONFIGOPTION(key);
+			const char *value;
+			if ( 0 == strcmp(policyUrlsGUC, key) )
+				value = policy_urls;
+			else
+				value = PG_GETCONFIGOPTION(key);
 			pfree(key);
 			if(value != 0)
 				result = String_createJavaStringFromNTS(value);
