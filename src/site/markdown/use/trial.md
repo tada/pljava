@@ -147,7 +147,7 @@ jdk.translet/die.verwandlung.GregorSamsa.transform()
 java.xml/com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet.transform(AbstractTranslet.java:624)
 ...
 java.xml/com.sun.org.apache.xalan.internal.xsltc.trax.TransformerImpl.transform(TransformerImpl.java:383)
-org.postgresql.pljava.example.annotation.PassXML.transformXML(PassXML.java:561)
+schema:public//org.postgresql.pljava.example.annotation.PassXML.transformXML(PassXML.java:561)
 
 POLICY DENIES/TRIAL POLICY ALLOWS: ("java.net.SocketPermission" "127.0.0.1:5432" "connect,resolve")
 java.base/java.security.ProtectionDomain.implies(ProtectionDomain.java:321)

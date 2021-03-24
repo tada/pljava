@@ -74,6 +74,10 @@ grant principal org.postgresql.pljava.PLPrincipal$Sandboxed * {
 };
 
 grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed * {
+
+    // Java does not circumvent operating system access controls;
+    // this grant will still be limited to what the OS allows a
+    // PostgreSQL backend process to do.
     permission java.io.FilePermission
         "<<ALL FILES>>", "read,write,delete,readlink";
 };
@@ -193,10 +197,6 @@ grant principal org.postgresql.pljava.PLPrincipal$Sandboxed "java" {
 };
 
 grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed "javaU" {
-
-    // Java does not circumvent operating system access controls;
-    // this grant will still be limited to what the OS allows a
-    // PostgreSQL backend process to do.
     permission java.io.FilePermission
         "<<ALL FILES>>", "read,readlink,write,delete";
 };
