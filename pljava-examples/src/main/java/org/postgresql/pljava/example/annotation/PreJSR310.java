@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,6 +46,21 @@ import org.postgresql.pljava.annotation.SQLAction;
 public class PreJSR310
 {
 	private static final String TZPRAGUE = "Europe/Prague";
+
+	static
+	{
+		TimeZone oldZone = TimeZone.getDefault();
+		TimeZone tzPrague = TimeZone.getTimeZone(TZPRAGUE);
+
+		try
+		{
+			TimeZone.setDefault(tzPrague);
+		}
+		finally
+		{
+			TimeZone.setDefault(oldZone);
+		}
+	}
 
 	/**
 	 * Test for a regression in PG date to/from java.sql.Date conversion
