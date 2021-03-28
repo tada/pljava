@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -21,6 +21,7 @@ import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
@@ -299,12 +300,16 @@ class EntryPoints
 	 */
 	private static <T> T doPrivilegedAndUnwrap(
 		PrivilegedAction<T> action, AccessControlContext context)
-	throws Throwable
+	throws SQLException
 	{
 		Throwable t;
 		try
 		{
 			return doPrivileged(action, context);
+		}
+		catch ( ExceptionInInitializerError e )
+		{
+			t = e.getCause();
 		}
 		catch ( Error e )
 		{
@@ -320,7 +325,7 @@ class EntryPoints
 		}
 
 		if ( t instanceof SQLException )
-			throw t;
+			throw (SQLException)t;
 
 		if ( t instanceof SecurityException )
 			/*
@@ -330,6 +335,39 @@ class EntryPoints
 			throw new SQLSyntaxErrorException(t.getMessage(), "42501", t);
 
 		throw new SQLException(t.getMessage(), t);
+	}
+
+	/**
+	 * Called from {@code Function} to perform the initialization of a class,
+	 * under a selected access control context.
+	 */
+	static Class<?> loadAndInitWithACC(
+		String className, ClassLoader schemaLoader, AccessControlContext acc)
+	throws SQLException
+	{
+		PrivilegedAction<Class<?>> action = () ->
+		{
+			try
+			{
+				return Class.forName(className, true, schemaLoader);
+			}
+			catch ( ExceptionInInitializerError e )
+			{
+				throw e;
+			}
+			catch ( LinkageError | ClassNotFoundException e )
+			{
+				/*
+				 * It would be odd to get a ClassNotFoundException here, as
+				 * the caller had to look it up once already to decide what acc
+				 * to use. But try telling that to javac.
+				 */
+				throw unchecked(new SQLNonTransientException(
+					"Initializing class " + className + ": " + e, "46103", e));
+			}
+		};
+
+		return doPrivilegedAndUnwrap(action, acc);
 	}
 
 	/**
