@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.net.URL;
 import java.net.MalformedURLException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.security.Policy;
@@ -509,20 +511,53 @@ public class InstallHelper
 			return;
 		}
 
-		StringBuilder sb;
+		deployViaDescriptor( c);
+	}
+
+	/**
+	 * Only execute the deployment descriptor for PL/Java itself; factored out
+	 * of {@code deployment()} so it can be used also from schema migration to
+	 * avoid duplicating SQL that appears there.
+	 *<p>
+	 * Schema migration will use the wrapper method that changes the effective
+	 * set of recognized implementor tags.
+	 */
+	private static void deployViaDescriptor( Connection c)
+	throws SQLException
+	{
+		SQLDeploymentDescriptor sdd;
 		try(InputStream is =
-				InstallHelper.class.getResourceAsStream("/pljava.ddr");
-			InputStreamReader isr =
-				new InputStreamReader(is, UTF_8.newDecoder()))
+				InstallHelper.class.getResourceAsStream("/pljava.ddr"))
 		{
-			sb = new StringBuilder();
-			char[] buf = new char[512];
-			for ( int got; -1 != (got = isr.read(buf)); )
-				sb.append(buf, 0, got);
+			CharBuffer cb =
+				UTF_8.newDecoder().decode( ByteBuffer.wrap( is.readAllBytes()));
+			sdd = new SQLDeploymentDescriptor(cb.toString());
 		}
-		SQLDeploymentDescriptor sdd =
-			new SQLDeploymentDescriptor(sb.toString());
+		catch ( ParseException | IOException e )
+		{
+			throw new SQLException(
+				"Could not load PL/Java's deployment descriptor: " +
+				e.getMessage(), "XX000", e);
+		}
+
 		sdd.install(c);
+	}
+
+	/**
+	 * Only execute the deployment descriptor for PL/Java itself, temporarily
+	 * replacing the default set of implementor tags with a specified set, to
+	 * selectively apply commands appearing in the descriptor.
+	 */
+	private static void deployViaDescriptor(
+		Connection c, Statement s, String implementors)
+	throws SQLException
+	{
+		s.execute( "SET LOCAL pljava.implementors TO " +
+			s.enquoteLiteral(implementors));
+
+		deployViaDescriptor( c);
+
+		s.execute( "RESET pljava.implementors");
 	}
 
 	/**
@@ -543,8 +578,14 @@ public class InstallHelper
 	throws SQLException
 	{
 		DatabaseMetaData md = c.getMetaData();
-		ResultSet rs = md.getColumns( null, "sqlj", "jar_descriptor", null);
+		ResultSet rs = md.getProcedures( null, "sqlj", "alias_java_language");
 		boolean seen = rs.next();
+		rs.close();
+		if ( seen )
+			return SchemaVariant.REL_1_6_0;
+
+		rs = md.getColumns( null, "sqlj", "jar_descriptor", null);
+		seen = rs.next();
 		rs.close();
 		if ( seen )
 			return SchemaVariant.UNREL20130301b;
@@ -638,10 +679,22 @@ public class InstallHelper
 	 * up to date.
 	 */
 	private static final SchemaVariant currentSchema =
-		SchemaVariant.REL_1_5_0;
+		SchemaVariant.REL_1_6_0;
 
 	private enum SchemaVariant
 	{
+		REL_1_6_0 ("5565a3c9c4b8d6dd0b0f7fff4090d4e8120dc10a")
+		{
+			@Override
+			void migrateFrom( SchemaVariant sv, Connection c, Statement s)
+			throws SQLException
+			{
+				if ( REL_1_5_0 != sv )
+					REL_1_5_0.migrateFrom( sv, c, s);
+
+				deployViaDescriptor( c, s, "alias_java_language");
+			}
+		},
 		REL_1_5_0 ("c51cffa34acd5a228325143ec29563174891a873")
 		{
 			@Override
@@ -691,9 +744,8 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
-		static final SchemaVariant REL_1_6_2       = REL_1_5_0;
-		static final SchemaVariant REL_1_6_1       = REL_1_5_0;
-		static final SchemaVariant REL_1_6_0       = REL_1_5_0;
+		static final SchemaVariant REL_1_6_2       = REL_1_6_0;
+		static final SchemaVariant REL_1_6_1       = REL_1_6_0;
 
 		static final SchemaVariant REL_1_5_7       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_6       = REL_1_5_0;
