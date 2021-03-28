@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -60,18 +60,34 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 {
 	StringInfoData buf;
 	int sqlState = ERRCODE_INTERNAL_ERROR;
-	jclass exhClass = (*env)->GetObjectClass(env, exh);
-	jstring jtmp = (jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
 	JNIEnv* saveEnv = jniEnv;
+	jclass exhClass = (*env)->GetObjectClass(env, exh);
+	jstring jtmp =
+		(jstring)(*env)->CallObjectMethod(env, exhClass, Class_getName);
+	/* ExceptionOccurred check is found below ... */
 
 	initStringInfo(&buf);
 
 	jniEnv = env; /* Used by the String operations */
-	String_appendJavaString(&buf, jtmp);
+
+	if ( 0 == (*env)->ExceptionOccurred(env) ) /* ... here */
+		String_appendJavaString(&buf, jtmp);
+	else
+	{
+		(*env)->ExceptionClear(env);
+		appendStringInfoString(&buf, "<unknown Java class>");
+	}
+
 	(*env)->DeleteLocalRef(env, exhClass);
 	(*env)->DeleteLocalRef(env, jtmp);
 
 	jtmp = (jstring)(*env)->CallObjectMethod(env, exh, Throwable_getMessage);
+	if ( 0 != (*env)->ExceptionOccurred(env) )
+	{
+		(*env)->ExceptionClear(env);
+		jtmp = 0;
+	}
+
 	if(jtmp != 0)
 	{
 		appendStringInfoString(&buf, ": ");
@@ -82,6 +98,12 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 	if((*env)->IsInstanceOf(env, exh, SQLException_class))
 	{
 		jtmp = (*env)->CallObjectMethod(env, exh, SQLException_getSQLState);
+		if ( 0 != (*env)->ExceptionOccurred(env) )
+		{
+			(*env)->ExceptionClear(env);
+			jtmp = 0;
+		}
+
 		if(jtmp != 0)
 		{
 			char* s = String_createNTS(jtmp);
@@ -112,6 +134,7 @@ static void printStacktrace(JNIEnv* env, jobject exh)
 	{
 		int currLevel = Backend_setJavaLogLevel(DEBUG1);
 		(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);
+		(*env)->ExceptionOccurred(env); /* sop for JNI exception-check check */
 		Backend_setJavaLogLevel(currLevel);
 	}
 }
@@ -134,6 +157,12 @@ static void endCall(JNIEnv* env)
 			/* Rethrow the server error.
 			 */
 			jobject jed = (*env)->CallObjectMethod(env, exh, ServerException_getErrorData);
+			if ( 0 != (*env)->ExceptionOccurred(env) )
+			{
+				(*env)->ExceptionClear(env);
+				jed = 0;
+			}
+
 			if(jed != 0)
 				ReThrowError(pljava_ErrorData_getErrorData(jed));
 		}
@@ -158,6 +187,12 @@ static void endCallMonitorHeld(JNIEnv* env)
 			/* Rethrow the server error.
 			 */
 			jobject jed = (*env)->CallObjectMethod(env, exh, ServerException_getErrorData);
+			if ( 0 != (*env)->ExceptionOccurred(env) )
+			{
+				(*env)->ExceptionClear(env);
+				jed = 0;
+			}
+
 			if(jed != 0)
 				ReThrowError(pljava_ErrorData_getErrorData(jed));
 		}
