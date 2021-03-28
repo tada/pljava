@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,8 +57,26 @@ public @interface SQLType
 	 * needs to match the number and order of components of the row type (which
 	 * cannot be checked at compile time, but will cause the deployment
 	 * descriptor code to fail at jar install time if it does not).
+	 *<p>
+	 * A Java annotation value cannot be null. If null is what the default value
+	 * should be, use {@code optional=true}.
 	 */
 	String[] defaultValue() default {};
+
+	/**
+	 * What {@code optional=true} means is just what {@code defaultValue=null}
+	 * would mean, if Java permitted null values in annotations.
+	 *<p>
+	 * There is no difference between {@code optional=false} and simply having
+	 * no {@code optional} or {@code defaultValue} element at all.
+	 *<p>
+	 * Only one of {@code optional} or {@code defaultValue} may be present
+	 * in one annotation.
+	 *<p>
+	 * If {@code optional=true}, the function must not be annotated with
+	 * {@code onNullInput=RETURNS_NULL}.
+	 */
+	boolean optional() default false;
 	
 	// Is it worth having a defaultRaw() for rare cases wanting some
 	// arbitrary SQL expression for the default?

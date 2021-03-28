@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1411,11 +1411,13 @@ hunt:	for ( ExecutableElement ee : ees )
 	{
 		public String value() { return _value; }
 		public String[] defaultValue() { return _defaultValue; }
+		public boolean optional() { return Boolean.TRUE.equals(_optional); }
 		public String name() { return _name; }
 		
 		String _value;
 		String[] _defaultValue;
 		String _name;
+		Boolean _optional; // boxed so it can be null if not explicit
 		
 		public void setValue( Object o, boolean explicit, Element e)
 		{
@@ -1427,6 +1429,12 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			if ( explicit )
 				_defaultValue = avToArray( o, String.class);
+		}
+
+		public void setOptional( Object o, boolean explicit, Element e)
+		{
+			if ( explicit )
+				_optional = (Boolean)o;
 		}
 
 		public void setName( Object o, boolean explicit, Element e)
@@ -2022,6 +2030,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			List<? extends VariableElement> ves = func.getParameters();
 			paramTypeAnnotations = new SQLType [ ves.size() ];
 			int i = 0;
+			boolean anyOptional = false;
 			for ( VariableElement ve : ves )
 			{
 				for ( AnnotationMirror am : elmu.getAllAnnotationMirrors( ve) )
@@ -2031,10 +2040,21 @@ hunt:	for ( ExecutableElement ee : ees )
 						SQLTypeImpl sti = new SQLTypeImpl();
 						populateAnnotationImpl( sti, ve, am);
 						paramTypeAnnotations[i] = sti;
+
+						if (null != sti._optional && null != sti._defaultValue)
+							msg(Kind.ERROR, ve, "Only one of optional= or " +
+								"defaultValue= may be given");
+
+						anyOptional |= sti.optional();
 					}
 				}
 				++ i;
 			}
+
+			if ( anyOptional && OnNullInput.RETURNS_NULL.equals(_onNullInput) )
+				msg(Kind.ERROR, func, "A PL/Java function with " +
+					"onNullInput=RETURNS_NULL may not have parameters with " +
+					"optional=true");
 		}
 
 		/**
@@ -5430,6 +5450,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			DBType rslt = null;
 			
 			String[] defaults = null;
+			boolean optional = false;
 			
 			if ( null != st )
 			{
@@ -5437,6 +5458,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				if ( null != s )
 					rslt = DBType.fromSQLTypeAnnotation(s);
 				defaults = st.defaultValue();
+				optional = st.optional();
 			}
 
 			if ( tm.getKind().equals( TypeKind.ARRAY) )
@@ -5455,7 +5477,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			
 			if ( null != rslt )
 				return typeWithDefault(
-					e, rslt, array, row, defaults, withDefault);
+					e, rslt, array, row, defaults, optional, withDefault);
 
 			if ( tm.getKind().equals( TypeKind.VOID) )
 				return DT_VOID; // return type only; no defaults apply
@@ -5512,7 +5534,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( array )
 				rslt = rslt.asArray("[]");
 			
-			return typeWithDefault( e, rslt, array, row, defaults, withDefault);
+			return typeWithDefault(
+				e, rslt, array, row, defaults, optional, withDefault);
 		}
 		
 		/**
@@ -5537,10 +5560,13 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		DBType typeWithDefault(
 			Element e, DBType rslt, boolean array, boolean row,
-			String[] defaults, boolean withDefault)
+			String[] defaults, boolean optional, boolean withDefault)
 		{
-			if ( null == defaults || ! withDefault )
+			if ( ! withDefault  ||  null == defaults && ! optional )
 				return rslt;
+
+			if ( optional )
+				return rslt.withDefault("DEFAULT NULL");
 			
 			int n = defaults.length;
 			if ( row )
