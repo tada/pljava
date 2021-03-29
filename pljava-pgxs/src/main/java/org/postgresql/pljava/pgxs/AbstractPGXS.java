@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -8,13 +8,16 @@
  *
  * Contributors:
  *   Kartik Ohri
+ *   Chapman Flack
  */
 package org.postgresql.pljava.pgxs;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -75,27 +78,21 @@ public abstract class AbstractPGXS
 	/**
 	 * Returns the input pg_config property as a list of individual flags split
 	 * at whitespace, except when quoted, and the quotes removed.
+	 *<p>
+	 * The assumed quoting convention is single straight quotes around regions
+	 * to be protected, which do not have to be the entire argument. This method
+	 * doesn't handle a value that <em>contains</em> a single quote as content;
+	 * the intended convention for that case doesn't seem to be documented, and
+	 * PostgreSQL's own build breaks in such a case, so there is little need,
+	 * for now, to support it here. We don't know, for now, whether the
+	 * convention implemented here is also right on Windows.
 	 */
 	public List<String> getPgConfigPropertyAsList(String properties) {
-		List<String> propertyList = new ArrayList<>();
-		StringBuilder builder = new StringBuilder();
-		boolean isInsideQuotes = false;
-
-		for (char x : properties.toCharArray())
-		{
-			if (x == '\'')
-				isInsideQuotes = !isInsideQuotes;
-			else if (!isInsideQuotes && x == ' ')
-			{
-				propertyList.add(builder.toString());
-				builder.setLength(0);
-			}
-			else
-				builder.append(x);
-		}
-
-		if (builder.length() != 0)
-			propertyList.add(builder.toString());
-		return propertyList;
+		Pattern pattern = Pattern.compile("(?:[^\\s']++|'(?:[^']*+)')++");
+		Matcher matcher = pattern.matcher(properties);
+		return matcher.results()
+			.map(MatchResult::group)
+			.map(s -> s.replace("'", ""))
+			.collect(Collectors.toList());
 	}
 }
