@@ -172,7 +172,9 @@ public class Function
 	 *<p>
 	 * The return type is the last element of {@code jTypes}.
 	 *<p>
-	 * {@code acc} is null except when validating; see {@code loadClass}.
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static MethodType buildSignature(
 		ClassLoader schemaLoader, String[] jTypes, AccessControlContext acc,
@@ -232,7 +234,9 @@ public class Function
 	 * non-multicall case, else one of {@code ResultSetHandle} or
 	 * {@code ResultSetProvider} depending on {@code altForm}.
 	 *<p>
-	 * {@code acc} is null except when validating; see {@code loadClass}.
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static Class<?> getReturnSignature(
 		ClassLoader schemaLoader, String retJType, AccessControlContext acc,
@@ -286,7 +290,9 @@ public class Function
 	 * For now, this is a near-facsimile of the C implementation. A further step
 	 * of refactoring into clearer idiomatic Java can come later.
 	 *<p>
-	 * {@code acc} is null except when validating; see {@code loadClass}.
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
@@ -1369,7 +1375,7 @@ public class Function
 
 		MethodHandle handle =
 			getMethodHandle(schemaLoader, clazz, methodName,
-				forValidator ? acc : null,
+				null, // or acc to initialize parameter classes; overkill.
 				commute, resolvedTypes, retTypeIsOutParameter, isMultiCall)
 			.asFixedArity();
 		MethodType mt = handle.type();

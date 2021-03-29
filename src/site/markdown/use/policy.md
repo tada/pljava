@@ -316,6 +316,45 @@ on some property that isn't readable under Java's default policy.
 Those examples should be changed to use a property that is normally readable,
 such as `java.version` or `org.postgresql.pljava.version`._
 
+### Class static initializers
+
+If validating (`check_function_bodies` is `on`), class static initializers
+will be run at `CREATE FUNCTION` time in a bid to catch as many
+issues early as possible. They will be run in the same access control
+context that would be used at run time to call the function being declared.
+
+Classes besides the one containing the target method can also be loaded and
+resolved: all those corresponding to the method's parameter and return types,
+for example. Their initializers will not be forced to run by PL/Java's
+validator, but will be run if the static initializer of the class being
+validated accesses them in any of the ways that trigger class initialization
+in Java.
+
+If a class contains several methods that would be given different
+access control contexts (declared with different `trust` or
+`language` attributes, say), the permissions available when the class
+initializer runs will be those of whichever function is called first
+in a given session (or, by the validator, for whichever `CREATE FUNCTION`
+is seen first in a session). Therefore, when putting actions that require
+permissions into a class's static initializer, those actions should require
+only the common subset of permissions that the initializer could be run with
+no matter which function is called or declared first. Actions that require
+other specific permissions could be deferred until the first call of
+a function known to be granted those permissions.
+
+Such actions can be left in the static initializer if a function granted
+the needed permissions is known to always be the first one that the application
+will call in any given session. Likewise, `provides`/`requires` ordering can
+be used to generate the `CREATE FUNCTION` commands in the deployment descriptor
+in such an order that the first function declared has the permissions the
+class initializer will need.
+
+A way to ensure early detection of permission/policy problems could be to
+deliberately put operations requiring the needed permissions, or even
+simple `AccessController.checkPermission` calls, into a class's static
+initializer. Problems with the policy granting insufficient permissions
+can then be caught at `CREATE FUNCTION` time when validation is enabled.
+
 ## Troubleshooting
 
 When in doubt what permissions may need to be granted in `pljava.policy` to run
