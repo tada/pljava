@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -240,6 +240,41 @@ public class ComplexScalar implements SQLData {
 	public static boolean componentsEQ(ComplexScalar a, ComplexScalar b)
 	{
 		return a.m_x == b.m_x  &&  a.m_y == b.m_y;
+	}
+
+	/**
+	 * True if the complex argument is real-valued and equal to the real
+	 * argument.
+	 *<p>
+	 * From one equality method on (complex,double) can be synthesized all four
+	 * cross-type operators, {@code =} and {@code <>} for that pair of types and
+	 * their {@code TWIN} commutators. One of the {@code <>} twins does need to
+	 * specify what its synthetic function should be named.
+	 */
+	@Operator(
+		name = "javatest.=",
+		commutator = TWIN, negator = "javatest.<>",
+		provides = "complex:double relationals"
+	)
+	@Operator(
+		name = "javatest.=",
+		synthetic = TWIN, negator = "javatest.<>",
+		provides = "complex:double relationals"
+	)
+	@Operator(
+		name = "javatest.<>", synthetic = "javatest.neToReal",
+		commutator = TWIN, provides = "complex:double relationals"
+	)
+	@Operator(
+		name = "javatest.<>", synthetic = TWIN,
+		provides = "complex:double relationals"
+	)
+	@Function(
+		schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL
+	)
+	public static boolean eqToReal(ComplexScalar a, double b)
+	{
+		return a.m_x == b  &&  0. == a.m_y;
 	}
 
 	/**
