@@ -2359,6 +2359,27 @@ hunt:	for ( ExecutableElement ee : ees )
 			return Collections.emptyList();
 		}
 
+		private Map<DependTag.Function,Transformed> m_variants= new HashMap<>();
+
+		/**
+		 * Return an instance representing a transformation of this function,
+		 * or null on second and subsequent requests for the same
+		 * transformation (so the caller will not register the variant more
+		 * than once).
+		 */
+		Transformed transformed(
+			Identifier.Qualified<Identifier.Simple> qname,
+			boolean commute, boolean negate)
+		{
+			Transformed prospect = new Transformed(qname, commute, negate);
+			DependTag.Function tag =
+				(DependTag.Function)prospect.provideTags().iterator().next();
+			Transformed found = m_variants.putIfAbsent(tag, prospect);
+			if ( null == found )
+				return prospect;
+			return null;
+		}
+
 		class Transformed implements Snippet
 		{
 			final Identifier.Qualified<Identifier.Simple> m_qname;
@@ -2368,13 +2389,21 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			Transformed(
 				Identifier.Qualified<Identifier.Simple> qname,
-				boolean commute, boolean negate, String comment)
+				boolean commute, boolean negate)
 			{
-				assert commute || negate : "no transformation to apply";
+				EnumSet<OperatorPath.Transform> how =
+					EnumSet.noneOf(OperatorPath.Transform.class);
+				if ( commute )
+					how.add(OperatorPath.Transform.COMMUTATION);
+				if ( negate )
+					how.add(OperatorPath.Transform.NEGATION);
+				assert ! how.isEmpty() : "no transformation to apply";
 				m_qname = requireNonNull(qname);
 				m_commute = commute;
 				m_negate = negate;
-				m_comment = comment;
+				m_comment = "Function automatically derived by " + how +
+					" from " + qnameFrom(
+						FunctionImpl.this.name(), FunctionImpl.this.schema());
 			}
 
 			List<ParameterInfo> parameterInfo()
@@ -3340,10 +3369,10 @@ hunt:	for ( ExecutableElement ee : ees )
 		 *    pending: contains all synthetic snippets
 		 * Step:
 		 *  A snippet s is removed from ready and added to processed.
-		 *  If s.commutator or s.negator matches a synthetic snippet in pending
-		 *  or ready, a corresponding path is recorded on that snippet. If it is
-		 *  the first path recorded on that snippet (which must have been found
-		 *  on pending), that snippet is moved to ready.
+		 *  If s.commutator or s.negator matches a synthetic snippet in pending,
+		 *  a corresponding path is recorded on that snippet. If it is
+		 *  the first path recorded on that snippet, the snippet is moved
+		 *  to ready.
 		 */
 
 		List<OperatorImpl> processed =
@@ -3358,9 +3387,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			processed.add(snip);
 			if ( null != snip.commutator )
 			{
-				for ( OperatorImpl other : ready )
-					maybeAddPath(snip, other,
-						OperatorPath.Transform.COMMUTATION);
 				ListIterator<OperatorImpl> it = pending.listIterator();
 				while ( it.hasNext() )
 				{
@@ -3375,9 +3401,6 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			if ( null != snip.negator )
 			{
-				for ( OperatorImpl other : ready )
-					maybeAddPath(snip, other,
-						OperatorPath.Transform.NEGATION);
 				ListIterator<OperatorImpl> it = pending.listIterator();
 				while ( it.hasNext() )
 				{
@@ -3408,6 +3431,17 @@ hunt:	for ( ExecutableElement ee : ees )
 		if ( ! to.isSynthetic )
 			return false; // don't add paths to a non-synthetic operator
 
+		/*
+		 * setSynthetic will have left synthetic null in the synthetic=TWIN
+		 * case. That case imposes more constraints on what paths can be added:
+		 * an acceptable path must involve commutation (and only commutation)
+		 * from another operator that will have a function name (so, either
+		 * a non-synthetic one, or a synthetic one given an actual name, other
+		 * than TWIN). In the latter case, copy the name here (for the former,
+		 * it will be copied from the function's name, in characterize()).
+		 */
+		boolean syntheticTwin = null == to.synthetic;
+
 		switch ( how )
 		{
 		case COMMUTATION:
@@ -3421,7 +3455,26 @@ hunt:	for ( ExecutableElement ee : ees )
 				return false; // move along
 			if ( null != to.negator && ! to.negator.equals(from.qname) )
 				return false; // move along
+			if ( syntheticTwin )
+				return false;
 			break;
+		}
+
+		if ( syntheticTwin )
+		{
+			/*
+			 * We will apply commutation to 'from' (the negation case
+			 * would have been rejected above). Either 'from' is nonsynthetic
+			 * and its function name will be copied in characterize(), or it is
+			 * synthetic and must have a name or we reject it here. If not
+			 * rejected, copy the name.
+			 */
+			if ( from.isSynthetic )
+			{
+				if ( null == from.synthetic )
+					return false;
+				to.synthetic = from.synthetic;
+			}
 		}
 
 		if ( null == to.paths )
@@ -3439,6 +3492,20 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 
 		return true;
+	}
+
+	/**
+	 * Why has {@code Set} or at least {@code EnumSet} not got this?
+	 */
+	static <E extends Enum<E>> EnumSet<E> symmetricDifference(
+		EnumSet<E> a, EnumSet<E> b)
+	{
+		EnumSet<E> result = a.clone();
+		result.removeAll(b);
+		b = b.clone();
+		b.removeAll(a);
+		result.addAll(b);
+		return result;
 	}
 
 	List<OperatorImpl> m_nonSynthetic = new ArrayList<>();
@@ -3463,15 +3530,9 @@ hunt:	for ( ExecutableElement ee : ees )
 			fromProximate = proximateToNew.clone();
 
 			if ( base == proximate )
-				fromBase = proximateToNew;
+				fromBase = fromProximate;
 			else
-			{
-				fromBase = baseToProximate.clone();
-				fromBase.removeAll(proximateToNew);
-				proximateToNew = proximateToNew.clone();
-				proximateToNew.removeAll(fromBase);
-				fromBase.addAll(proximateToNew);
-			}
+				fromBase = symmetricDifference(baseToProximate, proximateToNew);
 		}
 
 		public String toString()
@@ -4089,7 +4150,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				}
 
 				syntheticFunction =
-					func.new Transformed(synthetic, commute, negate, comment());
+					func.transformed(synthetic, commute, negate);
 			}
 
 			recordImplicitTags();
