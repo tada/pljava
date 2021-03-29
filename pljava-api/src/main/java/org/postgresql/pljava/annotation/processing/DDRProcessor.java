@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -3427,7 +3427,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		if ( null == to.paths )
 			to.paths = new ArrayList<>();
 
-		if ( null == from.synthetic )
+		if ( ! from.isSynthetic )
 			to.paths.add(new OperatorPath(from, from, null, EnumSet.of(how)));
 		else
 		{
