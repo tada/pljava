@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -524,14 +524,14 @@ public class PassXML implements SQLData
 		@SQLType(defaultValue="0") int howin,
 		@SQLType(defaultValue="0") int howout,
 		@SQLType(defaultValue={}) ResultSet adjust,
-		@SQLType(defaultValue="false") boolean indent,
-		@SQLType(defaultValue="4") int indentWidth)
+		@SQLType(optional=true) Boolean indent,
+		@SQLType(optional=true) Integer indentWidth)
 	throws SQLException
 	{
 		Templates tpl = null == transformName? null: s_tpls.get(transformName);
 		Source src = sxToSource(source, howin, adjust);
 
-		if ( indent  &&  0 == howout )
+		if ( Boolean.TRUE.equals(indent)  &&  0 == howout )
 			howout = 4; // transformer only indents if writing a StreamResult
 
 		Connection c = DriverManager.getConnection("jdbc:default:connection");
@@ -549,14 +549,17 @@ public class PassXML implements SQLData
 			if ( rlt instanceof StreamResult )
 				t.setOutputProperty(ENCODING,
 					System.getProperty("org.postgresql.server.encoding"));
-			else if ( indent )
+			else if ( Boolean.TRUE.equals(indent) )
 				logMessage("WARNING",
 					"indent requested, but howout specifies a non-stream " +
 					"Result type; no indenting will happen");
 
-			t.setOutputProperty("indent", indent ? "yes" : "no");
-			t.setOutputProperty(
-				"{http://xml.apache.org/xalan}indent-amount", "" + indentWidth);
+			if ( null != indent )
+				t.setOutputProperty("indent", indent ? "yes" : "no");
+			if ( null != indentWidth )
+				t.setOutputProperty(
+					"{http://xml.apache.org/xalan}indent-amount",
+					"" + indentWidth);
 
 			t.transform(src, rlt);
 		}
