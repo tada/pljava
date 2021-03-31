@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1320,12 +1320,13 @@ static void _destroyJavaVM(int status, Datum dummy)
 		pqsigfunc saveSigAlrm;
 #endif
 
-		Invocation_pushInvocation(&ctx);
+		Invocation_pushBootContext(&ctx);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
 			elog(DEBUG2,
 				"needed to forcibly shut down the Java virtual machine");
 			s_javaVM = 0;
+			currentInvocation = 0;
 			return;
 		}
 
@@ -1347,7 +1348,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 #endif
 
 #else
-		Invocation_pushInvocation(&ctx);
+		Invocation_pushBootContext(&ctx);
 		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
