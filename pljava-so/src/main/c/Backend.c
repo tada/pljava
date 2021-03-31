@@ -924,6 +924,8 @@ void _PG_init()
 	if ( IS_PLJAVA_INSTALLING == initstage )
 		return; /* creating handler functions will cause recursive call */
 
+	InstallHelper_earlyHello();
+
 	/*
 	 * Find the platform's path separator. Java knows it, but that's no help in
 	 * preparing the launch options before it is launched. PostgreSQL knows what
