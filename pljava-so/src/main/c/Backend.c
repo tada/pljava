@@ -108,6 +108,7 @@ MemoryContext JavaMemoryContext;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
+static bool    s_startingVM;
 
 /*
  * GUC states
@@ -635,7 +636,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 		/*FALLTHROUGH*/
 
 	case IS_JAVAVM_OPTLIST:
+		/* Register an on_proc_exit handler that destroys the VM if it has
+		 * been started. It will also log a last-ditch message if the VM happens
+		 * to rudely call exit() rather than returning a non-OK result.
+		 */
+		on_proc_exit(_destroyJavaVM, 0);
+		s_startingVM = true;
 		JNIresult = initializeJavaVM(&optList); /* frees the optList */
+		s_startingVM = false;
 		if( JNI_OK != JNIresult )
 		{
 			initstage = IS_MISC_ONCE_DONE; /* optList has been freed */
@@ -664,9 +672,6 @@ static void initsequencer(enum initstage is, bool tolerant)
 		pqsignal(SIGTERM, pljavaDieHandler);
 		pqsignal(SIGQUIT, pljavaQuickDieHandler);
 #endif
-		/* Register an on_proc_exit handler that destroys the VM
-		 */
-		on_proc_exit(_destroyJavaVM, 0);
 		initstage = IS_SIGHANDLERS;
 		/*FALLTHROUGH*/
 
@@ -1309,7 +1314,25 @@ static void terminationTimeoutHandler(
  */
 static void _destroyJavaVM(int status, Datum dummy)
 {
-	if(s_javaVM != 0)
+	if(s_javaVM == 0)
+	{
+		if ( s_startingVM )
+		{
+			ereport(FATAL, (
+				errcode(ERRCODE_INTERNAL_ERROR),
+				errmsg("the Java VM exited while loading PL/Java"),
+				errdetail(
+					"The Java VM's exit forces this session to end."),
+				errhint(
+					"This has been known to happen when the entry in "
+					"pljava.module_path for the pljava-api jar has been "
+					"misspelled or the jar cannot be opened. If "
+					"logging_collector is active, there may be useful "
+					"information in the log.")
+					));
+		}
+	}
+	else
 	{
 		Invocation ctx;
 #ifdef USE_PLJAVA_SIGHANDLERS
