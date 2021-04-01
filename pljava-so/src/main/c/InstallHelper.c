@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -517,6 +517,12 @@ char const *InstallHelper_defaultModulePath(char *pathbuf, char pathsep)
 
 	*pbp = '-'; /* overwrite the \0 so now it's a single string. */
 	return pathbuf;
+}
+
+void InstallHelper_earlyHello()
+{
+	elog(DEBUG2,
+		"pljava-so-" SO_VERSION_STRING " built for (" PG_VERSION_STR ")");
 }
 
 char *InstallHelper_hello()
