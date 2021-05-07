@@ -493,6 +493,17 @@ ASSIGNENUMHOOK(java_thread_pg_entry)
  *    to succeed.
  * 3. From a GUC assign hook, if the user has updated a setting that might allow
  *    initialization to succeed. It resumes from where it left off.
+ * 4. From the validator handler, if initialization isn't complete yet. That
+ *    will definitely happen during pg_upgrade, which is a case where deferInit
+ *    will have been set. The validator will then clear deferInit and try to get
+ *    further in the init sequence. Importantly, pg_upgrade also sets
+ *    check_function_bodies false, which limits the validator's work to a syntax
+ *    check of the AS string. The validator therefore will not need to obtain a
+ *    schemaLoader or do anything else that requires the sqlj schema to be fully
+ *    populated (as, during pg_upgrade, it may not yet be). However, the
+ *    validator handler must avoid any action that sets pljavaLoadPath, as a
+ *    non-NULL value there would be treated below as case 1a, and trigger an
+ *    attempt to set up the sqlj schema.
  *
  * In all cases, the sequence must progress as far as starting the VM and
  * initializing the PL/Java classes. In all cases except 1a, that's enough,
@@ -1892,21 +1903,33 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 {
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
+	Oid *oidSaveLocation = NULL;
 
 	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
 		PG_RETURN_VOID();
 
-	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
 	/*
-	 * The result of this call isn't particularly interesting (if it is false,
-	 * I'll ne'er trust CheckFunctionValidatorAccess). But its side effect will
-	 * be to make sure InstallHelper saves our library load path now, in case
-	 * we decide we don't like this function, which would make the Oid we just
-	 * stashed for it invalid, and frustrate getting the load path later.
+	 * In the call handler, which could be called heavily, funcoid gets
+	 * unconditionally stored to one of these two locations, rather than
+	 * spending extra cycles deciding whether to store it or not. A validator
+	 * will not be called as heavily, and can afford to check here whether
+	 * an Oid needs to be stored or not. The situation to avoid is where
+	 * funcoid gets stored here, as an Oid from which PL/Java's library path can
+	 * be found, but the function then gets rejected by the validator, leaving
+	 * the stored Oid invalid and useless for that purpose. Therefore, choose
+	 * here whether and where to store it, but store it only within the PG_TRY
+	 * block, and replace with InvalidOid again in the PG_CATCH.
 	 */
-	if ( ! InstallHelper_isPLJavaFunction(funcoid, NULL, NULL) )
-		elog(ERROR, "unexpected error validating PL/Java function");
-
+	if ( trusted )
+	{
+		if ( InvalidOid == pljavaTrustedOid )
+			oidSaveLocation = &pljavaTrustedOid;
+	}
+	else
+	{
+		if ( InvalidOid == pljavaUntrustedOid )
+			oidSaveLocation = &pljavaUntrustedOid;
+	}
 
 	if ( IS_PLJAVA_INSTALLING > initstage )
 	{
@@ -1926,12 +1949,18 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
+		if ( NULL != oidSaveLocation )
+			*oidSaveLocation = funcoid;
+
 		Function_getFunction(
 			funcoid, trusted, false, true, check_function_bodies);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
+		if ( NULL != oidSaveLocation )
+			*oidSaveLocation = InvalidOid;
+
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
 	}
