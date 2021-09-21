@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -243,7 +243,12 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isSho
 {
 	Ptr2Long p2l;
 	p2l.longVal = _this;
-	return (jboolean)((ErrorData*)p2l.ptrVal)->show_funcname;
+	return
+#if PG_VERSION_NUM < 140000
+		(jboolean)((ErrorData*)p2l.ptrVal)->show_funcname;
+#else
+		JNI_FALSE;
+#endif
 }
 
 /*
