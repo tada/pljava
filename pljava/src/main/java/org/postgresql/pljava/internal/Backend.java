@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,8 +16,10 @@ import java.io.File;
 import java.io.FilePermission;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.AccessController;
 import java.security.Permission;
 import java.sql.SQLException;
 import java.util.PropertyPermission;
@@ -188,6 +190,9 @@ public class Backend
 	 */
 	private static final SecurityManager s_trustedSecurityManager = new PLJavaSecurityManager()
 	{
+		final URL m_pljavaJar = Backend.class.getProtectionDomain()
+			.getCodeSource().getLocation();
+
 		void assertPermission(Permission perm)
 		{
 			if(perm instanceof FilePermission)
@@ -220,6 +225,21 @@ public class Backend
 							return;
 						fileDir = fileDir.getParentFile();
 					}
+
+					// Adding a CharsetProvider to our own jar means that system
+					// code (Charset.forName and friends, calling ServiceLoader
+					// under their own protection domain) has to read it.
+					//
+					try
+					{
+						if ( new URL("file", "", fileName)
+								.equals(m_pljavaJar) )
+						{
+							AccessController.checkPermission(perm);
+							return;
+						}
+					}
+					catch ( MalformedURLException e ) { }
 				}
 				throw new SecurityException(perm.getActions() + " on " + perm.getName());
 			}
