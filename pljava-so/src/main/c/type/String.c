@@ -395,10 +395,14 @@ void String_initialize(void)
 
 static void String_initialize_codec()
 {
+	/*
+	 * Wondering why this function doesn't bother deleting its many local refs?
+	 * The call is wrapped in pushLocalFrame/popLocalFrame in the caller.
+	 */
 	jmethodID string_intern = PgObject_getJavaMethod(s_String_class,
 		"intern", "()Ljava/lang/String;");
 	jstring empty = JNI_newStringUTF( "");
-	jstring u8Name = JNI_newStringUTF( "UTF-8");
+	char const *charset_name;
 	jclass charset_class = PgObject_getJavaClass("java/nio/charset/Charset");
 	jmethodID charset_forName = PgObject_getStaticJavaMethod(charset_class,
 		"forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
@@ -406,8 +410,6 @@ static void String_initialize_codec()
 		"newDecoder", "()Ljava/nio/charset/CharsetDecoder;");
 	jmethodID charset_newEncoder = PgObject_getJavaMethod(charset_class,
 		"newEncoder", "()Ljava/nio/charset/CharsetEncoder;");
-	jobject u8cs = JNI_callStaticObjectMethod(charset_class, charset_forName,
-		u8Name);
 	jclass decoder_class =
 		PgObject_getJavaClass("java/nio/charset/CharsetDecoder");
 	jclass encoder_class =
@@ -420,11 +422,28 @@ static void String_initialize_codec()
 	jfieldID underflow = PgObject_getStaticJavaField(result_class, "UNDERFLOW",
 		"Ljava/nio/charset/CoderResult;");
 	jclass buffer_class = PgObject_getJavaClass("java/nio/Buffer");
+	jobject servercs;
+
+	s_server_encoding = GetDatabaseEncoding();
+
+	if ( PG_SQL_ASCII == s_server_encoding )
+	{
+		charset_name = "X-PGSQL_ASCII";
+		s_two_step_conversion = false;
+	}
+	else
+	{
+		charset_name = "UTF-8";
+		s_two_step_conversion = PG_UTF8 != s_server_encoding;
+	}
+
+	servercs = JNI_callStaticObjectMethodLocked(charset_class,
+		charset_forName, JNI_newStringUTF(charset_name));
 
 	s_CharsetDecoder_instance =
-		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newDecoder));
+		JNI_newGlobalRef(JNI_callObjectMethod(servercs, charset_newDecoder));
 	s_CharsetEncoder_instance =
-		JNI_newGlobalRef(JNI_callObjectMethod(u8cs, charset_newEncoder));
+		JNI_newGlobalRef(JNI_callObjectMethod(servercs, charset_newEncoder));
 	s_CharsetDecoder_decode = PgObject_getJavaMethod(decoder_class, "decode",
 		"(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;");
 	s_CharsetEncoder_encode = PgObject_getJavaMethod(encoder_class, "encode",
@@ -450,7 +469,5 @@ static void String_initialize_codec()
 	s_the_empty_string = JNI_newGlobalRef(
 		JNI_callObjectMethod(empty, string_intern));
 
-	s_server_encoding = GetDatabaseEncoding();
-	s_two_step_conversion = PG_UTF8 != s_server_encoding;
 	uninitialized = false;
 }
