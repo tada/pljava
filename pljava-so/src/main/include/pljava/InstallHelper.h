@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -73,8 +73,9 @@ extern bool InstallHelper_isPLJavaFunction(Oid fn);
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.
- * In a background worker, there's no MyProcPort, and the name is found another
- * way and strdup'd in TopMemoryContext, it'll keep, don't bother freeing it.
+ * In a background or autovacuum worker, there's no MyProcPort, and the name is
+ * found another way and strdup'd in TopMemoryContext. It'll keep; don't bother
+ * freeing it.
  */
 extern char *pljavaDbName();
 
