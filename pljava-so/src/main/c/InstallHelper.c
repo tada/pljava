@@ -25,7 +25,6 @@
 #include <executor/spi.h>
 #include <miscadmin.h>
 #include <libpq/libpq-be.h>
-#include <postmaster/autovacuum.h>
 #include <tcop/pquery.h>
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
@@ -44,6 +43,12 @@
 #else
 #define SearchSysCache1(cid, k1) SearchSysCache(cid, k1, 0, 0, 0)
 #define GetNamespaceOid(k1) GetSysCacheOid(NAMESPACENAME, k1, 0, 0, 0)
+#endif
+
+#if PG_VERSION_NUM >= 80300
+#include <postmaster/autovacuum.h>
+#else
+#define IsAutoVacuumWorkerProcess IsAutoVacuumProcess
 #endif
 
 #include "pljava/InstallHelper.h"
@@ -95,10 +100,6 @@
 #include <postmaster/bgworker.h>
 #define IsBackgroundWorker (MyBgworkerEntry != NULL)
 #endif
-#endif
-
-#if PG_VERSION_NUM < 80300
-#define IsAutoVacuumWorkerProcess IsAutoVacuumProcess
 #endif
 
 #ifndef PLJAVA_SO_VERSION
