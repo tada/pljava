@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -172,7 +172,7 @@ import org.xml.sax.SAXParseException;
 /* ... for SQLXMLImpl.Readable.Synthetic */
 
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
-import static org.postgresql.pljava.jdbc.TypeOid.PGNODETREEOID;
+import static org.postgresql.pljava.jdbc.TypeOid.PG_NODE_TREEOID;
 
 public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 {
@@ -1023,7 +1023,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				switch ( oid )
 				{
-				case PGNODETREEOID: return new PgNodeTreeAsXML(vwi);
+				case PG_NODE_TREEOID: return new PgNodeTreeAsXML(vwi);
 				default:
 					throw new SQLNonTransientException(
 						"no synthetic SQLXML support for Oid " + oid, "0A000");

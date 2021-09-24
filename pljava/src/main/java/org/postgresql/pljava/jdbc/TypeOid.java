@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -65,7 +65,7 @@ public class TypeOid
 	 * Added in 2019. The numeric constant will be used, but no need is foreseen
 	 * for an Oid-reference constant.
 	 */
-	public static final int PGNODETREEOID = 194;
+	public static final int PG_NODE_TREEOID = 194;
 
 	/*
 	 * Before Java 8 with the @Native annotation, a class needs at least one
