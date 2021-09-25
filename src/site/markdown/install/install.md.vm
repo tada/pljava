@@ -217,6 +217,9 @@ and are subject to very few restrictions at runtime. Functions that specify
 `USAGE` permission `ON LANGUAGE java`. They run under a security manager that
 denies access to the host filesystem.
 
+__Note: For implications when running on Java 17 or later,
+please see [JEP 411][jep411]__.
+
 PostgreSQL, by default, would grant `USAGE` to `PUBLIC` on the `java` language,
 but PL/Java takes a more conservative approach on a new installation.
 In keeping with the principle of least privilege,
@@ -393,3 +396,5 @@ $h3 PostgreSQL superuser, OS user distinct from the user running postgres
 In this case, simply place the files in any location where you can make them
 readable by the user running `postgres`, and set the `pljava.*` variables
 accordingly.
+
+[jep411]: https://github.com/tada/pljava/wiki/JEP-411
