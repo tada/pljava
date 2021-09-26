@@ -6,9 +6,9 @@ environment:
 #   - SYS: MINGW
 #     JDK: 9
 #     PG: 12
-    - SYS: MINGW
-      JDK: 10
-      PG: 12
+#   - SYS: MINGW
+#     JDK: 10
+#     PG: 12
     - SYS: MINGW
       JDK: 11
       PG: 12
@@ -39,9 +39,9 @@ environment:
     - SYS: MSVC
       JDK: 11
       PG: 12
-    - SYS: MSVC
-      JDK: 10
-      PG: 12
+#   - SYS: MSVC
+#     JDK: 10
+#     PG: 12
 #   - SYS: MSVC
 #     JDK: 9
 #     PG: 12
