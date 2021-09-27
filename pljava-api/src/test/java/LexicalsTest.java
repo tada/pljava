@@ -11,6 +11,11 @@
  */
 package org.postgresql.pljava;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -272,5 +277,45 @@ public class LexicalsTest extends TestCase
 		Simple s2 = Simple.from("foo", true);
 		Qualified q3 = o1.withQualifier(s2);
 		assertEquals("eq5", q3.toString(), "OPERATOR(\"foo\".!@#%*)");
+	}
+
+	public void testIdentifierSerialization() throws Exception
+	{
+		Identifier[] orig = {
+			Simple.from("Foo", false),
+			Simple.from("foo", true),
+			Simple.from("I do not fold", true),
+
+			Identifier.Pseudo.PUBLIC,
+
+			Operator.from("!@#%*"),
+
+			null,
+			null
+		};
+
+		orig[5] = (( Simple )orig[2]).withQualifier((Simple)orig[1]);
+		orig[6] = ((Operator)orig[4]).withQualifier((Simple)orig[1]);
+
+		Identifier[] got;
+
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		try (ObjectOutputStream oos = new ObjectOutputStream(bos))
+		{
+			oos.writeObject(orig);
+		}
+
+		bos.close();
+
+		try (
+			ByteArrayInputStream bis =
+				new ByteArrayInputStream(bos.toByteArray());
+			ObjectInputStream ois = new ObjectInputStream(bis)
+		)
+		{
+			got = (Identifier[])ois.readObject();
+		}
+
+		assertArrayEquals("identifier serialization", orig, got);
 	}
 }
