@@ -22,6 +22,7 @@ import java.net.URLConnection;
 import java.security.AccessController;
 import java.security.Permission;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.PropertyPermission;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -300,19 +301,35 @@ public class Backend
 	 * function.
 	 */
 	private static void setTrusted(boolean trusted)
+	throws SQLException
 	{
+		SecurityManager mgr =
+			trusted ? s_trustedSecurityManager : s_untrustedSecurityManager;
 		s_inSetTrusted = true;
 		try
 		{
 			Logger log = Logger.getAnonymousLogger();
 			if(log.isLoggable(Level.FINER))
 				log.finer("Using SecurityManager for " + (trusted ? "trusted" : "untrusted") + " language");
-			System.setSecurityManager(trusted ? s_trustedSecurityManager : s_untrustedSecurityManager);
+			System.setSecurityManager(mgr);
+			if ( System.getSecurityManager() == mgr )
+				return;
 		}
+		catch ( UnsupportedOperationException e ) { }
 		finally
 		{
 			s_inSetTrusted = false;
 		}
+		if ( ! trusted )
+			return;
+
+		throw new SQLFeatureNotSupportedException(
+			"PL/Java 1.5, when running on this version of Java, cannot " +
+			"execute trusted functions. Possible solutions: (1) upgrade to " +
+			"a post-JEP411 PL/Java version; (2) downgrade Java to a version " +
+			"before the functionality was removed; (3) redeclare functions " +
+			"using the 'javau' (untrusted) PL/Java language. For more: " +
+			"https://github.com/tada/pljava/wiki/JEP-411", "0A000");
 	}
 
 	/**
