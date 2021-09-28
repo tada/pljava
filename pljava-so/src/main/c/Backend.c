@@ -1003,6 +1003,11 @@ static void initPLJavaClasses(void)
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
 		},
+		{
+		"_pokeJEP411",
+		"(Ljava/lang/Class;Ljava/lang/Object;)V",
+		Java_org_postgresql_pljava_internal_Backend__1pokeJEP411
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -2130,6 +2135,63 @@ Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass 
 	END_NATIVE
 
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _pokeJEP411
+ * Signature: (Ljava/lang/Class;Ljava/lang/Object;)V
+ *
+ * This method is hideously dependent on unexposed JDK internals. But then,
+ * the fact that it's needed at all is hideous already. Java, any language,
+ * is classic infrastructure. Other layers, like this, are built atop it, and
+ * others in turn use those layers. The idea that the language developers would
+ * arrogate to themselves the act of sending an inappropriately low-level
+ * message directly to ultimate users, insisting that the stack layers above
+ * cannot intercept it and notify the higher-level users in terms that fit
+ * the abstractions meaningful there, leaves an uneasy picture of how
+ * a development team can begin to lose sight of who is providing what to whom
+ * and why.
+ *
+ * At least as of the time of this writing, System has a CallersHolder class
+ * holding a map recording classes for which the warning has already been sent.
+ * Poking the 'caller' class into that map works to suppress the warning.
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1pokeJEP411(JNIEnv *env, jclass cls, jclass caller, jobject token)
+{
+	jclass callersHolder;
+	jfieldID callers;
+	jobject map;
+	jclass mapClass;
+	jmethodID put;
+
+	BEGIN_NATIVE
+
+	callersHolder = JNI_findClass("java/lang/System$CallersHolder");
+	if ( NULL == callersHolder )
+		goto failed;
+
+	callers = JNI_getStaticFieldID(callersHolder, "callers", "Ljava/util/Map;");
+	if ( NULL == callers )
+		goto failed;
+
+	map = JNI_getStaticObjectField(callersHolder, callers);
+	if ( NULL == map )
+		goto failed;
+
+	mapClass = JNI_getObjectClass(map);
+	put = JNI_getMethodID(mapClass,
+		"put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+	JNI_callObjectMethodLocked(map, put, caller, token);
+	goto done;
+
+failed:
+	JNI_exceptionClear();
+
+done:
+	END_NATIVE
 }
 
 /*

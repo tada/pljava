@@ -166,9 +166,7 @@ public class InstallHelper
 				e);
 		}
 
-		setTrialPolicyIfSpecified();
-
-		System.setSecurityManager( new SecurityManager());
+		beginEnforcing();
 
 		StringBuilder sb = new StringBuilder();
 		sb.append( "PL/Java native code (").append( nativeVer).append( ")\n");
@@ -262,22 +260,27 @@ public class InstallHelper
 		}
 	}
 
-	private static void setTrialPolicyIfSpecified() throws SQLException
+	private static void beginEnforcing() throws SQLException
 	{
 		String trialURI = System.getProperty(
 			"org.postgresql.pljava.policy.trial");
 
-		if ( null == trialURI )
-			return;
+		if ( null != trialURI )
+		{
+			try
+			{
+				Policy.setPolicy( new TrialPolicy( trialURI));
+			}
+			catch ( NoSuchAlgorithmException e )
+			{
+				throw new SQLException(e.getMessage(), e);
+			}
+		}
 
-		try
-		{
-			Policy.setPolicy( new TrialPolicy( trialURI));
-		}
-		catch ( NoSuchAlgorithmException e )
-		{
-			throw new SQLException(e.getMessage(), e);
-		}
+		if ( 17 <= Runtime.version().major() )
+			Backend.pokeJEP411();
+
+		System.setSecurityManager( new SecurityManager());
 	}
 
 	public static void groundwork(
