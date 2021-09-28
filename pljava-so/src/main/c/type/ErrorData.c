@@ -241,13 +241,12 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isOut
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isShowFuncname(JNIEnv* env, jclass cls, jlong _this)
 {
+#if PG_VERSION_NUM < 140000
 	Ptr2Long p2l;
 	p2l.longVal = _this;
-	return
-#if PG_VERSION_NUM < 140000
-		(jboolean)((ErrorData*)p2l.ptrVal)->show_funcname;
+	return (jboolean)((ErrorData*)p2l.ptrVal)->show_funcname;
 #else
-		JNI_FALSE;
+	return JNI_FALSE;
 #endif
 }
 
