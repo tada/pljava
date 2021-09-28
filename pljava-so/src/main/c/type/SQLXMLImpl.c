@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -51,7 +51,7 @@ static bool _SQLXML_canReplaceType(Type self, Type other)
 		Type_getOid(other) == XMLOID  ||
 #endif
 #if PG_VERSION_NUM >= 90100
-		Type_getOid(other) == PGNODETREEOID  ||  /* a synthetic rendering */
+		Type_getOid(other) == PG_NODE_TREEOID  ||  /* a synthetic rendering */
 #endif
 		Type_getOid(other) == TEXTOID;
 }
@@ -140,8 +140,8 @@ static Type _SQLXML_obtain(Oid typeId)
 	switch ( typeId )
 	{
 #if PG_VERSION_NUM >= 90100
-	case PGNODETREEOID:
-		allowedId = PGNODETREEOID;
+	case PG_NODE_TREEOID:
+		allowedId = PG_NODE_TREEOID;
 		synthetic = true;
 		cache = &pgNodeTreeInstance;
 		break;

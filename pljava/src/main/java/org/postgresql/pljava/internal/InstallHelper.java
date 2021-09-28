@@ -747,6 +747,7 @@ public class InstallHelper
 		static final SchemaVariant REL_1_6_2       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_1       = REL_1_6_0;
 
+		static final SchemaVariant REL_1_5_8       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_7       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_6       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_5       = REL_1_5_0;

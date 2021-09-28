@@ -25,6 +25,7 @@
 #include <executor/spi.h>
 #include <miscadmin.h>
 #include <libpq/libpq-be.h>
+#include <postmaster/autovacuum.h>
 #include <tcop/pquery.h>
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
@@ -84,13 +85,11 @@
  * for 9.3.0 through 9.3.2.
  *
  * One thing it's needed for is to avoid dereferencing MyProcPort in a
- * background worker, where it's not set. Define BGW_HAS_NO_MYPROCPORT if that
- * has to be (and can be) checked.
+ * background worker, where it's not set.
  */
 #if PG_VERSION_NUM < 90300  ||  defined(_MSC_VER) && PG_VERSION_NUM < 90303
 #define IsBackgroundWorker false
 #else
-#define BGW_HAS_NO_MYPROCPORT
 #include <commands/dbcommands.h>
 #if defined(_MSC_VER)
 #include <postmaster/bgworker.h>
@@ -137,11 +136,10 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
-#ifdef BGW_HAS_NO_MYPROCPORT
-	char *shortlived;
-	static char *longlived;
-	if ( IsBackgroundWorker )
+	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
 	{
+		char *shortlived;
+		static char *longlived;
 		if ( NULL == longlived )
 		{
 			shortlived = get_database_name(MyDatabaseId);
@@ -153,14 +151,12 @@ char *pljavaDbName()
 		}
 		return longlived;
 	}
-#endif
 	return MyProcPort->database_name;
 }
 
 static char *origUserName()
 {
-#ifdef BGW_HAS_NO_MYPROCPORT
-	if ( IsBackgroundWorker )
+	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
 	{
 #if PG_VERSION_NUM >= 90500
 		char *shortlived;
@@ -175,13 +171,12 @@ static char *origUserName()
 #else
 		ereport(ERROR, (
 			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			errmsg("PL/Java in a background worker not supported "
+			errmsg("PL/Java in a background or autovacuum worker not supported "
 				"in this PostgreSQL version"),
-			errhint("PostgreSQL 9.5 is the first version to support "
-				"PL/Java in a background worker.")));
+			errhint("PostgreSQL 9.5 is the first version in which "
+				"such usage is supported.")));
 #endif
 	}
-#endif
 	return MyProcPort->user_name;
 }
 
@@ -450,7 +445,7 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 
 bool InstallHelper_shouldDeferInit()
 {
-	return IsBackgroundWorker || IsBinaryUpgrade;
+	return IsBackgroundWorker || IsBinaryUpgrade || IsAutoVacuumWorkerProcess();
 }
 
 bool InstallHelper_isPLJavaFunction(Oid fn, char **langName, bool *trusted)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -112,7 +112,13 @@ public class ErrorData
 
 	/**
 	 * Returns true if funcname inclusion is set
+	 * @deprecated The property queried by this method was only used
+	 * in PostgreSQL when communicating with old clients over the v2
+	 * frontend/backend protocol, superseded in PostgreSQL 7.4. In PG 14
+	 * and later, there is no such property, and this method will always
+	 * return false.
 	 */
+	@Deprecated
 	public boolean isShowFuncname()
 	{
 		return doInPG(() -> _isShowFuncname(this.getNativePointer()));

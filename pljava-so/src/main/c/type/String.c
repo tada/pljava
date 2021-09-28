@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -131,7 +131,12 @@ jstring String_createJavaString(text* t)
 		{
 			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src,
 				(int)srcLen, s_server_encoding, PG_UTF8);
-			srcLen = strlen(utf8);
+			/* pg_do_encoding_conversion may return the source argument
+			 * unchanged in more circumstances than you'd expect. As the source
+			 * argument isn't NUL-terminated, don't call strlen on it.
+			 */
+			if (utf8 != src)
+				srcLen = strlen(utf8);
 		}
 		bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
 		charbuf = JNI_callObjectMethodLocked(s_CharsetDecoder_instance,
@@ -163,7 +168,11 @@ jstring String_createJavaStringFromNTS(const char* cp)
 		{
 			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)cp,
 				(int)sz, s_server_encoding, PG_UTF8);
-			sz = strlen(utf8);
+			/* Here the source is NUL-terminated, so calling strlen on it
+			 * would be safe, but unnecessary all the same.
+			 */
+			if ( utf8 != cp )
+				sz = strlen(utf8);
 		}
 		bytebuf = JNI_newDirectByteBuffer((void *)utf8, sz);
 		charbuf = JNI_callObjectMethodLocked(s_CharsetDecoder_instance,
@@ -204,7 +213,12 @@ text* String_createText(jstring javaString)
 		{
 			denc = (char*)pg_do_encoding_conversion(
 				(unsigned char*)denc, (int)dencLen, PG_UTF8, s_server_encoding);
-			dencLen = strlen(denc);
+			/* pg_do_encoding_conversion may return the source argument
+			 * unchanged in more circumstances than you'd expect. As the source
+			 * argument isn't NUL-terminated, don't call strlen on it.
+			 */
+			if (denc != sid.data)
+				dencLen = strlen(denc);
 		}
 		varSize = dencLen + VARHDRSZ;
 

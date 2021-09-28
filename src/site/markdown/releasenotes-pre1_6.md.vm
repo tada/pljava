@@ -19,7 +19,54 @@
 #set($h4 = '#####')
 #set($h5 = '######')
 
-$h2 PL/Java 1.5.7
+$h2 PL/Java 1.5.8
+
+1.5.8 adds support for PostgreSQL 14, fixes two bugs, and begins preparation
+for the impact of changes to Java's permission enforcement coming in Java 17
+and later with JEP 411.
+
+$h3 PL/Java with Java 17 and later: JEP 411
+
+Current versions of PL/Java rely on Java security features that will be affected
+by JEP 411, beginning with Java 17. Java 17 itself will continue to provide the
+needed capabilities, with only deprecation marks and warnings added. Java 17 is
+also positioned as a long-term support release, so the option of continuing to
+run a current (1.5.8 or latest 1.6) PL/Java release without loss of function
+will be available, if needed, by continuing to run with Java 17.
+
+The PL/Java 1.5 series has had a good run, and is not expected to receive
+backports of future, post-JEP 411 functionality.
+
+For more on how PL/Java will adapt, please read about [JEP 411][jep411] on
+the PL/Java wiki.
+
+$h3 Bugs fixed
+
+* [MalformedInputException: Input length = 1 in 1.5](${ghbug}340)
+
+    The bug was exercised in a database where `server_encoding` was `SQL_ASCII`.
+    The more-principled treatment of `SQL_ASCII` in PL/Java 1.6 has been
+    backported, and is described [here][sqlascii].
+
+* [Crash in autovacuum if a PL/Java functional index exists](${ghbug}355)
+
+    Functional indexes over PL/Java functions can now be autovacuumed
+    in PG 9.5 or later. In earlier versions, a `feature_not_supported` error
+    will be reported instead of crashing. That can be avoided by setting the
+    `autovacuum_enabled` storage parameter to `false` on any table having
+    a Java-based functional index, and running explicit `VACUUM` periodically
+    on such tables. Prior to PG 8.4, there was no such per-table setting, and
+    the only workaround would be to forego autovacuum database-wide and use
+    explicit `VACUUM` on some schedule.
+
+[jep411]: https://github.com/tada/pljava/wiki/JEP-411
+[sqlascii]: use/charsets.html#The_special_encoding_SQL_ASCII
+
+$h3 Credits
+
+Thanks to `yazun` and `ricdhen` for reporting the bugs fixed in this release.
+
+$h2 PL/Java 1.5.7 (16 November 2020)
 
 1.5.7 is a bug-fix release, with a single issue backpatched from the 1.6
 branch, correcting a problem in XML Schema validation in some non-`en_US`
