@@ -225,6 +225,28 @@ static char const policyUrlsGUC[] = "pljava.policy_urls";
  */
 static bool deferInit = false;
 
+/*
+ * Whether Backend_warnJEP411() should emit a warning when called.
+ * Initially true, because it may be called very early from the deferInit check,
+ * if pg_upgrade is happening, and should always warn in that case. Thereafter
+ * false, unless set true in the initsequencer because InstallHelper_groundwork
+ * will be called (PL/Java being installed or upgraded), or in the validator
+ * handler because a PL/Java function has been declared or redeclared.
+ */
+static bool warnJEP411 = true;
+
+/*
+ * Don't bother with the warning unless the JVM in use is later than Java 11.
+ * 11 is the LTS release prior to the one where JEP 411 gets interesting (17).
+ * If a site is sticking to LTS releases, there will be plenty of time to warn
+ * on 17. If a site moves with non-LTS releases, start warning as soon as
+ * anything > 11 is used.
+ *
+ * Initially true, so there will be a warning unconditionally in a case
+ * (pg_upgrade) where a JVM hasn't been launched to learn its version).
+ */
+static bool javaGT11 = true;
+
 static void initsequencer(enum initstage is, bool tolerant);
 
 #if PG_VERSION_NUM >= 90100
@@ -530,6 +552,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_GUCS_REGISTERED;
 		if ( deferInit )
 			return;
+		warnJEP411 = false;
 		/*FALLTHROUGH*/
 
 	case IS_GUCS_REGISTERED:
@@ -748,7 +771,10 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_PLJAVA_INSTALLING:
 		if ( NULL != pljavaLoadPath )
+		{
+			warnJEP411 = javaGT11;
 			InstallHelper_groundwork(); /* sqlj schema, language handlers, ...*/
+		}
 		initstage = IS_COMPLETE;
 		/*FALLTHROUGH*/
 
@@ -960,7 +986,7 @@ void _PG_init()
 
 static void initPLJavaClasses(void)
 {
-	jfieldID tlField;
+	jfieldID fID;
 	JNINativeMethod backendMethods[] =
 	{
 		{
@@ -1045,9 +1071,12 @@ static void initPLJavaClasses(void)
 	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
-	tlField = PgObject_getStaticJavaField(s_Backend_class,
+	fID = PgObject_getStaticJavaField(s_Backend_class, "JAVA_MAJOR", "I");
+	javaGT11 = 11 < JNI_getStaticIntField(s_Backend_class, fID);
+
+	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
-	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
+	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, fID));
 
 	Invocation_initialize();
 	Exception_initialize2();
@@ -1947,7 +1976,11 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		{
 			initsequencer( initstage, true);
 			if ( IS_PLJAVA_INSTALLING > initstage )
+			{
+				if ( javaGT11 )
+					warnJEP411 = true;
 				PG_RETURN_VOID();
+			}
 		}
 	}
 
@@ -1970,7 +2003,52 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+
+	if ( javaGT11 )
+		warnJEP411 = true;
 	PG_RETURN_VOID();
+}
+
+/*
+ * Called at the ends of committing transactions to emit a warning about future
+ * JEP 411 impacts, at most once per session, if any PL/Java functions were
+ * declared or redeclared in the transaction, or if PL/Java was installed or
+ * upgraded. Also called from InstallHelper, if pg_upgrade is happening.
+ * Yes, this is a bit tangled. The tracking of function declaration happens
+ * above in the validator handler, and PL/Java installation/upgrade is detected
+ * in the initsequencer.
+ */
+void Backend_warnJEP411(bool isCommit)
+{
+	static bool warningEmitted = false; /* once only per session */
+
+	if ( warningEmitted  ||  ! warnJEP411 )
+		return;
+
+	if ( ! isCommit )
+	{
+		warnJEP411 = false;
+		return;
+	}
+
+	warningEmitted = true;
+
+	ereport(WARNING, (
+		errmsg(
+			"[JEP 411] migration advisory: there will be a Java version "
+			"(after Java 17) that will be unable to run PL/Java %s "
+			 "with policy enforcement", SO_VERSION_STRING),
+		errdetail(
+			"Future Java releases will phase out important features used "
+			"by this PL/Java version to enforce security policy. Those "
+			"changes will come in releases after Java 17."),
+		errhint(
+			"For migration planning, Java versions up to and including 17 "
+			"remain fully usable with this version of PL/Java, and Java 17 "
+			"is positioned as a long-term support release. For details on "
+			"how PL/Java will adapt, please visit "
+			"https://github.com/tada/pljava/wiki/JEP-411")
+	));
 }
 
 /****************************************

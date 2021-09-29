@@ -47,6 +47,8 @@ public class Backend
 	 */
 	public static final ThreadLocal<Boolean> IAMPGTHREAD = new ThreadLocal<>();
 
+	static final int JAVA_MAJOR = Runtime.version().major();
+
 	static
 	{
 		IAMPGTHREAD.set(Boolean.TRUE);

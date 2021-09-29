@@ -1109,6 +1109,15 @@ jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char
 	return result;
 }
 
+jint JNI_getStaticIntField(jclass clazz, jfieldID field)
+{
+	jint result;
+	BEGIN_JAVA
+	result = (*env)->GetStaticIntField(env, clazz, field);
+	END_JAVA
+	return result;
+}
+
 jobject JNI_getStaticObjectField(jclass clazz, jfieldID field)
 {
 	jobject result;

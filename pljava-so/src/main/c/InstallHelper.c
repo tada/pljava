@@ -97,12 +97,6 @@
 #endif
 #endif
 
-#ifndef PLJAVA_SO_VERSION
-#error "PLJAVA_SO_VERSION needs to be defined to compile this file."
-#else
-#define SO_VERSION_STRING CppAsString2(PLJAVA_SO_VERSION)
-#endif
-
 /*
  * The name of the table the extension scripts will create to pass information
  * here. The table name is phrased as an error message because it will appear
@@ -445,7 +439,14 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 
 bool InstallHelper_shouldDeferInit()
 {
-	return IsBackgroundWorker || IsBinaryUpgrade || IsAutoVacuumWorkerProcess();
+	if ( IsBackgroundWorker || IsAutoVacuumWorkerProcess() )
+		return true;
+
+	if ( ! IsBinaryUpgrade )
+		return false;
+
+	Backend_warnJEP411(true);
+	return true;
 }
 
 bool InstallHelper_isPLJavaFunction(Oid fn, char **langName, bool *trusted)
