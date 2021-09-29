@@ -188,6 +188,7 @@ script: |
       return false;
     String[] parts = Node.classify((Throwable)o);
     String type = parts[0];
+    String message = parts[2];
     results.compute(type, (k,v) -> 1 + v);
     if ( whatIsNG.contains(type) )
       if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
