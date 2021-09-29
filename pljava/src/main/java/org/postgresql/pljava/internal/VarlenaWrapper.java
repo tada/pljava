@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1031,9 +1031,12 @@ public interface VarlenaWrapper extends Closeable
 			{
 				if ( 1 == m_latch.getCount() )
 				{
+					@SuppressWarnings("removal")
+					Callable<Void> wrapped = privilegedCallable(this);
+
 					m_future =
 						LazyExecutorService.INSTANCE
-							.submit(privilegedCallable(this));
+							.submit(wrapped);
 					m_latch.countDown();
 				}
 			}

@@ -177,7 +177,8 @@ public class Function
 	 * null (see {@code loadClass}).
 	 */
 	private static MethodType buildSignature(
-		ClassLoader schemaLoader, String[] jTypes, AccessControlContext acc,
+		ClassLoader schemaLoader, String[] jTypes,
+		@SuppressWarnings("removal") AccessControlContext acc,
 		boolean commute,
 		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
 	throws SQLException
@@ -239,7 +240,8 @@ public class Function
 	 * null (see {@code loadClass}).
 	 */
 	private static Class<?> getReturnSignature(
-		ClassLoader schemaLoader, String retJType, AccessControlContext acc,
+		ClassLoader schemaLoader, String retJType,
+		@SuppressWarnings("removal") AccessControlContext acc,
 		boolean isComposite, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -296,7 +298,7 @@ public class Function
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
-		AccessControlContext acc, boolean commute,
+		@SuppressWarnings("removal") AccessControlContext acc, boolean commute,
 		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
 	throws SQLException
 	{
@@ -616,6 +618,10 @@ public class Function
 
 	private static final int s_sizeof_jvalue = 8; // Function.c StaticAssertStmt
 
+	@SuppressWarnings("removal")
+	private static final Class<AccessControlContext> AccClass =
+		AccessControlContext.class;
+
 	/**
 	 * An {@code AccessControlContext} representing "nobody special": it should
 	 * enjoy whatever permissions the {@code Policy} grants to everyone, but no
@@ -627,6 +633,7 @@ public class Function
 	 * such a case, the permissions should still be limited to what the policy
 	 * would allow a PL/Java function.
 	 */
+	@SuppressWarnings("removal")
 	private static final AccessControlContext s_lid;
 
 	/**
@@ -635,6 +642,7 @@ public class Function
 	 * whose target is in a PL/Java-managed jar, so that it will enjoy whatever
 	 * permissions the policy grants to its jar directly.
 	 */
+	@SuppressWarnings("removal")
 	private static final AccessControlContext s_noLid;
 
 	/*
@@ -901,7 +909,7 @@ public class Function
 			MethodHandle invocableMH =
 				myL.findStatic(EntryPoints.class, "invocable", methodType(
 					Invocable.class,
-					MethodHandle.class, AccessControlContext.class));
+					MethodHandle.class, AccClass));
 
 			mh = l.findVirtual(MethodHandle.class, "bindTo",
 					methodType(MethodHandle.class, Object.class));
@@ -911,7 +919,7 @@ public class Function
 
 			mh = guardWithTest(dropArguments(s_nonNull, 0, MethodHandle.class),
 				mh, empty(methodType(Invocable.class,
-					MethodHandle.class, Object.class, AccessControlContext.class
+					MethodHandle.class, Object.class, AccClass
 				))
 			);
 
@@ -1003,7 +1011,7 @@ public class Function
 			 * vpcCommon, and we'll have the Iterator VPC adapter.
 			 */
 			mh = mh.asType(mh.type().erase());
-			mh = dropArguments(mh, 1, AccessControlContext.class);
+			mh = dropArguments(mh, 1, AccClass);
 			s_iteratorVPC = vpcCommon.bindTo(mh);
 
 			/*
@@ -1061,7 +1069,7 @@ public class Function
 			 * will ignore, bind it into vpcCommon, and we'll have the
 			 * ResultSetProvider VPC adapter.
 			 */
-			mh = dropArguments(mh, 1, AccessControlContext.class);
+			mh = dropArguments(mh, 1, AccClass);
 			s_resultSetProviderVPC = vpcCommon.bindTo(mh);
 
 			/*
@@ -1084,7 +1092,8 @@ public class Function
 		 *
 		 * A lid is a bit more work, but there's a method for that.
 		 */
-		s_noLid = new AccessControlContext(new ProtectionDomain[] {});
+		@SuppressWarnings("removal") AccessControlContext
+		dummy = s_noLid = new AccessControlContext(new ProtectionDomain[] {});
 		s_lid = lidWithPrincipals(new Principal[0]);
 	}
 
@@ -1116,6 +1125,7 @@ public class Function
 	 * the principals parameter to be null too, but doesn't say that, so an
 	 * array will always be expected here.
 	 */
+	@SuppressWarnings("removal")
 	private static AccessControlContext lidWithPrincipals(Principal[] ps)
 	{
 		return new AccessControlContext(new ProtectionDomain[] {
@@ -1331,6 +1341,7 @@ public class Function
 		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
 		Class<?> clazz = loadClass(schemaLoader, className, null);
 
+		@SuppressWarnings("removal")
 		AccessControlContext acc =
 			accessControlContextFor(clazz, language, trusted);
 
@@ -1414,7 +1425,7 @@ public class Function
 				retTypeIsOutParameter ? s_resultSetProviderVPC : s_iteratorVPC
 			).bindTo(handle);
 		else
-			handle = dropArguments(handle, 0, AccessControlContext.class);
+			handle = dropArguments(handle, 0, AccClass);
 
 		return invocable(handle, acc);
 	}
@@ -1447,6 +1458,7 @@ public class Function
 	 * PL/Java's own {@code Commands} class; they get a lid. It is reasonable to
 	 * ask them to use {@code doPrivileged} when appropriate.
 	 */
+	@SuppressWarnings("removal")
 	private static AccessControlContext accessControlContextFor(
 		Class<?> clazz, String language, boolean trusted)
 	{
@@ -1687,7 +1699,8 @@ public class Function
 	 * validation. Initialization will run in this access control context.
 	 */
 	private static Class<?> loadClass(
-		ClassLoader schemaLoader, String className, AccessControlContext valACC)
+		ClassLoader schemaLoader, String className,
+		@SuppressWarnings("removal") AccessControlContext valACC)
 	throws SQLException
 	{
 		boolean withoutInit = null == valACC;

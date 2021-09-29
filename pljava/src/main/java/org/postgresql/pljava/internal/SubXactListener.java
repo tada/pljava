@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,7 +19,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 
-import static java.security.AccessController.getContext;
+import java.security.AccessController;
 
 import java.sql.Savepoint;
 import java.sql.SQLException;
@@ -91,8 +91,11 @@ class SubXactListener
 
 	static void addListener(SavepointListener listener)
 	{
+		@SuppressWarnings("removal")
 		Invocable<SavepointListener> invocable =
-			new Invocable<>(requireNonNull(listener), getContext());
+			new Invocable<>(
+				requireNonNull(listener),
+				AccessController.getContext());
 
 		doInPG(() ->
 		{

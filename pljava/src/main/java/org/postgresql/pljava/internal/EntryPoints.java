@@ -16,7 +16,7 @@ import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
 import java.security.AccessControlContext;
-import static java.security.AccessController.doPrivileged;
+import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
@@ -73,6 +73,7 @@ class EntryPoints
 	{
 	}
 
+	@SuppressWarnings("removal")
 	private static final MethodType s_generalType =
 		methodType(Object.class, AccessControlContext.class);
 	private static final MethodType s_udtCtor = methodType(SQLData.class);
@@ -97,7 +98,9 @@ class EntryPoints
 	 * {@code Invocable} that it creates from this function's result, to be used
 	 * for iteratively retrieving the results.
 	 */
-	static Invocable<?> invocable(MethodHandle mh, AccessControlContext acc)
+	static Invocable<?> invocable(
+		MethodHandle mh,
+		@SuppressWarnings("removal") AccessControlContext acc)
 	{
 		if ( null == mh
 			|| s_udtCtor.equals(mh.type()) ||  s_udtParse.equals(mh.type()) )
@@ -211,7 +214,9 @@ class EntryPoints
 			return o.toString();
 		};
 
-		return doPrivileged(action, target.acc);
+		@SuppressWarnings("removal") String result =
+			AccessController.doPrivileged(action, target.acc);
+		return result;
 	}
 
 	/**
@@ -299,13 +304,16 @@ class EntryPoints
 	 * wrapped checked exceptions for the above entry points.
 	 */
 	private static <T> T doPrivilegedAndUnwrap(
-		PrivilegedAction<T> action, AccessControlContext context)
+		PrivilegedAction<T> action,
+		@SuppressWarnings("removal") AccessControlContext context)
 	throws SQLException
 	{
 		Throwable t;
 		try
 		{
-			return doPrivileged(action, context);
+			@SuppressWarnings("removal") T result =
+				AccessController.doPrivileged(action, context);
+			return result;
 		}
 		catch ( ExceptionInInitializerError e )
 		{
@@ -342,7 +350,9 @@ class EntryPoints
 	 * under a selected access control context.
 	 */
 	static Class<?> loadAndInitWithACC(
-		String className, ClassLoader schemaLoader, AccessControlContext acc)
+		String className,
+		ClassLoader schemaLoader,
+		@SuppressWarnings("removal") AccessControlContext acc)
 	throws SQLException
 	{
 		PrivilegedAction<Class<?>> action = () ->
@@ -380,9 +390,11 @@ class EntryPoints
 	static final class Invocable<T>
 	{
 		final T payload;
-		final AccessControlContext acc;
+		final @SuppressWarnings("removal") AccessControlContext acc;
 
-		Invocable(T payload, AccessControlContext acc)
+		Invocable(
+			T payload,
+			@SuppressWarnings("removal") AccessControlContext acc)
 		{
 			this.payload = payload;
 			this.acc = acc;

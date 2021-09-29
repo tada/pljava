@@ -295,6 +295,7 @@ public class InstallHelper
 	 * the result may simply be a different failure of PL/Java to start or
 	 * properly function.
 	 */
+	@SuppressWarnings("removal")
 	private static void beginEnforcing() throws SQLException
 	{
 		String trialURI = System.getProperty(
