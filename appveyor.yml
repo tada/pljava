@@ -128,7 +128,8 @@ test_script:
         String type = parts[0];
         results.compute(type, (k,v) -> 1 + v);
         if ( whatIsNG.contains(type) )
-          results.compute("ng", (k,v) -> 1 + v);
+          if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
+            results.compute("ng", (k,v) -> 1 + v);
         return true;
       }
 
