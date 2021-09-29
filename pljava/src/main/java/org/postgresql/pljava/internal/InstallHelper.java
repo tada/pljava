@@ -58,6 +58,18 @@ public class InstallHelper
 			System.setProperty( property, value);
 	}
 
+	/**
+	 * Perform miscellaneous early PL/Java initialization, and return a string
+	 * detailing the versions of PL/Java, PostgreSQL, and Java in use, which the
+	 * native caller can use in its "PL/Java loaded" (a/k/a "hello")
+	 * triumphant {@code ereport}.
+	 *<p>
+	 * This method calls {@code beginEnforcing} rather late, so that the policy
+	 * needn't be cluttered with permissions for the operations only needed
+	 * before that point. Policy is being enforced by the time this method
+	 * returns (except in case of JEP 411 fallback as described at
+	 * {@code beginEnforcing}).
+	 */
 	public static String hello(
 		String nativeVer, String serverBuiltVer, String serverRunningVer,
 		String user, String dbname, String clustername,
@@ -260,10 +272,36 @@ public class InstallHelper
 		}
 	}
 
+	/**
+	 * From the point of successful call of this method, PL/Java is enforcing
+	 * security policy (except in JEP 411 fallback case described below).
+	 *<p>
+	 * This method handles applying the {@code TrialPolicy} if that has been
+	 * selected, and setting the security manager, which thereafter cannot be
+	 * unset or changed (unless the policy has been edited to allow it).
+	 *<p>
+	 * In the advent of JEP 411, this method also must also head off the
+	 * layer-inappropriate boilerplate warning message when running on Java 17
+	 * or later, and react if the operation has been disallowed or "degraded".
+	 *<p>
+	 * If {@code getSecurityManager} still returns null after being set, and
+	 * the Java major version is greater than 17, this can be a sign of
+	 * "degradation" of the security API proposed in JEP 411. It may be ignored
+	 * by setting {@code -Dorg.postgresql.pljava.policy.enforcement=none} in
+	 * {@code pljava.vmoptions}. That <em>may</em> permit PL/Java to run, but
+	 * without enforcing any policy at all, no distinction between trusted and
+	 * untrusted functions, and so on. However, given uncertainty around exactly
+	 * how the Java developers will "degrade" the API in a given Java release,
+	 * the result may simply be a different failure of PL/Java to start or
+	 * properly function.
+	 */
 	private static void beginEnforcing() throws SQLException
 	{
 		String trialURI = System.getProperty(
 			"org.postgresql.pljava.policy.trial");
+
+		String enforcement = System.getProperty(
+			"org.postgresql.pljava.policy.enforcement");
 
 		if ( null != trialURI )
 		{
@@ -277,12 +315,65 @@ public class InstallHelper
 			}
 		}
 
-		if ( 17 <= Runtime.version().major() )
+		int major = Runtime.version().major();
+
+		if ( 17 <= major )
 			Backend.pokeJEP411();
 
-		System.setSecurityManager( new SecurityManager());
+		try
+		{
+			SecurityManager sm = new SecurityManager();
+			System.setSecurityManager( sm);
+			if ( sm == System.getSecurityManager() )
+				return;
+		}
+		catch ( UnsupportedOperationException e )
+		{
+			if ( 17 >= major )
+				throw new SQLException(
+					"Unexpected failure enabling permission enforcement", e);
+			throw new SQLNonTransientException(
+				"[JEP 411] The Java version selected, " + Runtime.version() +
+				", has not allowed PL/Java to enforce security policy. " +
+				"It may help to add -Djava.security.manager=allow in " +
+				"the pljava.vmoptions setting. However, that may require " +
+				"allowing PL/Java functions to execute with no policy " +
+				"enforcement, or simply lead to a different failure " +
+				"to start. If that is unacceptable, " + jepSuffix, "58000", e);
+		}
+
+		if ( 17 >= major )
+			throw new SQLException(
+				"Unexpected failure enabling permission enforcement");
+
+		if ( "none".equals(enforcement) )
+			return;
+
+		throw new SQLNonTransientException(
+			"[JEP 411] The Java version selected, " + Runtime.version() +
+			", cannot enforce security policy as this PL/Java version " +
+			"requires. To allow PL/Java to run with no enforcement of " +
+			"security (for example, trusted functions as untrusted), add " +
+			"-Dorg.postgresql.pljava.policy.enforcement=none in the " +
+			"pljava.vmoptions setting. However, this may lead only to a " +
+			"different failure to start. In that case, " +
+			jepSuffix, "58000");
 	}
 
+	private static final String jepSuffix =
+		"pljava.libjvm_location should be pointed to an earlier version " +
+		"of Java, or a newer PL/Java version should be used. For more " +
+		"explanation, please see " +
+		"https://github.com/tada/pljava/wiki/JEP-411";
+
+	/**
+	 * When PL/Java is loaded as an end-in-itself (that is, by {@code LOAD}
+	 * on its own or from its extension script on {@code CREATE EXTENSION} or
+	 * {@code ALTER EXTENSION}, not just in the course of handling a call of a
+	 * Java function), this method will be called to ensure there is
+	 * a schema {@code sqlj} and that it contains the right, possibly updated,
+	 * stuff.
+	 */
 	public static void groundwork(
 		String module_pathname, String loadpath_tbl, String loadpath_tbl_quoted,
 		boolean asExtension, boolean exNihilo)
@@ -321,6 +412,13 @@ public class InstallHelper
 		}
 	}
 
+	/**
+	 * Create the {@code sqlj} schema, adding an appropriate comment and
+	 * granting {@code USAGE} to {@code public}.
+	 *<p>
+	 * If the schema already exists, whatever comment and permissions it
+	 * may have will not be disturbed.
+	 */
 	private static void schema( Connection c, Statement s)
 	throws SQLException
 	{
@@ -344,6 +442,18 @@ public class InstallHelper
 		}
 	}
 
+	/**
+	 * Declare PL/Java's language handler functions.
+	 *<p>
+	 * {@code CREATE OR REPLACE} is used so that the library path can be altered
+	 * if this is an upgrade.
+	 *<p>
+	 * All privileges are unconditionally revoked on the handler functions.
+	 * PostgreSQL does not need permissions when it invokes them
+	 * as language handlers.
+	 *<p>
+	 * Each function will have a default comment added if no comment is present.
+	 */
 	private static void handlers( Connection c, Statement s, String module_path)
 	throws SQLException
 	{
@@ -436,6 +546,16 @@ public class InstallHelper
 				"trusted/sandboxed language.'");
 	}
 
+	/**
+	 * Declare PL/Java's basic two (trusted and untrusted) languages.
+	 *<p>
+	 * If not declared already, they will have default permissions and comments
+	 * applied.
+	 *<p>
+	 * If they exist, {@code CREATE OR REPLACE} will be used, which takes care
+	 * of adding the validator handler during an upgrade from a version that
+	 * lacked it. No permission or comment changes are made in this case.
+	 */
 	private static void languages( Connection c, Statement s)
 	throws SQLException
 	{
@@ -498,7 +618,9 @@ public class InstallHelper
 
 	/**
 	 * Execute the deployment descriptor for PL/Java itself, creating the
-	 * expected tables, functions, etc. Will be skipped if tables conforming
+	 * expected tables, functions, etc.
+	 *<p>
+	 * Will be skipped if tables conforming
 	 * to the currently expected schema already seem to be there. If an earlier
 	 * schema variant is detected, attempt to migrate to the current one.
 	 */
