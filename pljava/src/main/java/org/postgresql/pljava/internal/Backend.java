@@ -47,6 +47,8 @@ public class Backend
 	 */
 	public static final ThreadLocal<Boolean> IAMPGTHREAD = new ThreadLocal<>();
 
+	static final int JAVA_MAJOR = Runtime.version().major();
+
 	static
 	{
 		IAMPGTHREAD.set(Boolean.TRUE);
@@ -311,6 +313,16 @@ public class Backend
 	}
 
 	/**
+	 * Attempt (best effort, unexposed JDK internals) to suppress
+	 * the layer-inappropriate JEP 411 warning when {@code InstallHelper}
+	 * sets up permission enforcement.
+	 */
+	static void pokeJEP411()
+	{
+		_pokeJEP411(InstallHelper.class, true);
+	}
+
+	/**
 	 * Returns <code>true</code> if the backend is awaiting a return from a
 	 * call into the JVM. This method will only return <code>false</code>
 	 * when called from a thread other then the main thread and the main
@@ -331,6 +343,7 @@ public class Backend
 	private static native void _clearFunctionCache();
 	private static native boolean _isCreatingExtension();
 	private static native String _myLibraryPath();
+	private static native void _pokeJEP411(Class<?> caller, Object token);
 
 	private static class EarlyNatives
 	{

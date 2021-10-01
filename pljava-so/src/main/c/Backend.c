@@ -225,6 +225,28 @@ static char const policyUrlsGUC[] = "pljava.policy_urls";
  */
 static bool deferInit = false;
 
+/*
+ * Whether Backend_warnJEP411() should emit a warning when called.
+ * Initially true, because it may be called very early from the deferInit check,
+ * if pg_upgrade is happening, and should always warn in that case. Thereafter
+ * false, unless set true in the initsequencer because InstallHelper_groundwork
+ * will be called (PL/Java being installed or upgraded), or in the validator
+ * handler because a PL/Java function has been declared or redeclared.
+ */
+static bool warnJEP411 = true;
+
+/*
+ * Don't bother with the warning unless the JVM in use is later than Java 11.
+ * 11 is the LTS release prior to the one where JEP 411 gets interesting (17).
+ * If a site is sticking to LTS releases, there will be plenty of time to warn
+ * on 17. If a site moves with non-LTS releases, start warning as soon as
+ * anything > 11 is used.
+ *
+ * Initially true, so there will be a warning unconditionally in a case
+ * (pg_upgrade) where a JVM hasn't been launched to learn its version).
+ */
+static bool javaGT11 = true;
+
 static void initsequencer(enum initstage is, bool tolerant);
 
 #if PG_VERSION_NUM >= 90100
@@ -530,6 +552,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_GUCS_REGISTERED;
 		if ( deferInit )
 			return;
+		warnJEP411 = false;
 		/*FALLTHROUGH*/
 
 	case IS_GUCS_REGISTERED:
@@ -748,7 +771,10 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_PLJAVA_INSTALLING:
 		if ( NULL != pljavaLoadPath )
+		{
+			warnJEP411 = javaGT11;
 			InstallHelper_groundwork(); /* sqlj schema, language handlers, ...*/
+		}
 		initstage = IS_COMPLETE;
 		/*FALLTHROUGH*/
 
@@ -960,7 +986,7 @@ void _PG_init()
 
 static void initPLJavaClasses(void)
 {
-	jfieldID tlField;
+	jfieldID fID;
 	JNINativeMethod backendMethods[] =
 	{
 		{
@@ -1003,6 +1029,11 @@ static void initPLJavaClasses(void)
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
 		},
+		{
+		"_pokeJEP411",
+		"(Ljava/lang/Class;Ljava/lang/Object;)V",
+		Java_org_postgresql_pljava_internal_Backend__1pokeJEP411
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -1040,9 +1071,12 @@ static void initPLJavaClasses(void)
 	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
-	tlField = PgObject_getStaticJavaField(s_Backend_class,
+	fID = PgObject_getStaticJavaField(s_Backend_class, "JAVA_MAJOR", "I");
+	javaGT11 = 11 < JNI_getStaticIntField(s_Backend_class, fID);
+
+	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
-	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
+	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, fID));
 
 	Invocation_initialize();
 	Exception_initialize2();
@@ -1942,7 +1976,11 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		{
 			initsequencer( initstage, true);
 			if ( IS_PLJAVA_INSTALLING > initstage )
+			{
+				if ( javaGT11 )
+					warnJEP411 = true;
 				PG_RETURN_VOID();
+			}
 		}
 	}
 
@@ -1965,7 +2003,52 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+
+	if ( javaGT11 )
+		warnJEP411 = true;
 	PG_RETURN_VOID();
+}
+
+/*
+ * Called at the ends of committing transactions to emit a warning about future
+ * JEP 411 impacts, at most once per session, if any PL/Java functions were
+ * declared or redeclared in the transaction, or if PL/Java was installed or
+ * upgraded. Also called from InstallHelper, if pg_upgrade is happening.
+ * Yes, this is a bit tangled. The tracking of function declaration happens
+ * above in the validator handler, and PL/Java installation/upgrade is detected
+ * in the initsequencer.
+ */
+void Backend_warnJEP411(bool isCommit)
+{
+	static bool warningEmitted = false; /* once only per session */
+
+	if ( warningEmitted  ||  ! warnJEP411 )
+		return;
+
+	if ( ! isCommit )
+	{
+		warnJEP411 = false;
+		return;
+	}
+
+	warningEmitted = true;
+
+	ereport(WARNING, (
+		errmsg(
+			"[JEP 411] migration advisory: there will be a Java version "
+			"(after Java 17) that will be unable to run PL/Java %s "
+			 "with policy enforcement", SO_VERSION_STRING),
+		errdetail(
+			"Future Java releases will phase out important features used "
+			"by this PL/Java version to enforce security policy. Those "
+			"changes will come in releases after Java 17."),
+		errhint(
+			"For migration planning, Java versions up to and including 17 "
+			"remain fully usable with this version of PL/Java, and Java 17 "
+			"is positioned as a long-term support release. For details on "
+			"how PL/Java will adapt, please visit "
+			"https://github.com/tada/pljava/wiki/JEP-411")
+	));
 }
 
 /****************************************
@@ -2130,6 +2213,63 @@ Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass 
 	END_NATIVE
 
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _pokeJEP411
+ * Signature: (Ljava/lang/Class;Ljava/lang/Object;)V
+ *
+ * This method is hideously dependent on unexposed JDK internals. But then,
+ * the fact that it's needed at all is hideous already. Java, any language,
+ * is classic infrastructure. Other layers, like this, are built atop it, and
+ * others in turn use those layers. The idea that the language developers would
+ * arrogate to themselves the act of sending an inappropriately low-level
+ * message directly to ultimate users, insisting that the stack layers above
+ * cannot intercept it and notify the higher-level users in terms that fit
+ * the abstractions meaningful there, leaves an uneasy picture of how
+ * a development team can begin to lose sight of who is providing what to whom
+ * and why.
+ *
+ * At least as of the time of this writing, System has a CallersHolder class
+ * holding a map recording classes for which the warning has already been sent.
+ * Poking the 'caller' class into that map works to suppress the warning.
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1pokeJEP411(JNIEnv *env, jclass cls, jclass caller, jobject token)
+{
+	jclass callersHolder;
+	jfieldID callers;
+	jobject map;
+	jclass mapClass;
+	jmethodID put;
+
+	BEGIN_NATIVE
+
+	callersHolder = JNI_findClass("java/lang/System$CallersHolder");
+	if ( NULL == callersHolder )
+		goto failed;
+
+	callers = JNI_getStaticFieldID(callersHolder, "callers", "Ljava/util/Map;");
+	if ( NULL == callers )
+		goto failed;
+
+	map = JNI_getStaticObjectField(callersHolder, callers);
+	if ( NULL == map )
+		goto failed;
+
+	mapClass = JNI_getObjectClass(map);
+	put = JNI_getMethodID(mapClass,
+		"put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+	JNI_callObjectMethodLocked(map, put, caller, token);
+	goto done;
+
+failed:
+	JNI_exceptionClear();
+
+done:
+	END_NATIVE
 }
 
 /*

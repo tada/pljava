@@ -196,6 +196,7 @@ extern void         JNI_getShortArrayRegion(jshortArray array, jsize start, jsiz
 extern jfieldID     JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig);
+extern jint         JNI_getStaticIntField(jclass clazz, jfieldID field);
 extern jobject      JNI_getStaticObjectField(jclass clazz, jfieldID field);
 extern const char*  JNI_getStringUTFChars(jstring string, jboolean* isCopy);
 extern jboolean     JNI_hasNullArrayElement(jobjectArray array);
