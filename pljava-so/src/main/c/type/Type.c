@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -638,6 +638,70 @@ Type Type_fromOidCache(Oid typeId)
 	return (Type)HashMap_getByOid(s_typeByOid, typeId);
 }
 
+/*
+ * Return NULL unless typeId represents a MappedUDT as found in the typeMap,
+ * in which case return a freshly-registered UDT Type.
+ *
+ * A MappedUDT's supporting functions don't have SQL declarations, from which
+ * an ordinary function's PLPrincipal and initiating class loader would be
+ * determined, so when obtaining the support function handles below, NULL will
+ * be passed as the language name, indicating that information isn't available,
+ * and won't be baked into the handles.
+ *
+ * A MappedUDT only has the two support functions readSQL and writeSQL.
+ * The I/O support functions parse and toString are only for a BaseUDT, so
+ * they do not need to be looked up here.
+ *
+ * The typeStruct argument supplies the type's name and namespace to
+ * UDT_registerUDT, as well as the by-value, length, and alignment common to
+ * any registered Type.
+ *
+ * A complication, though: in principle, this is a function on two variables,
+ * typeId and typeMap. (The typeStruct is functionally dependent on typeId.)
+ * But registration of the first one to be encountered will enter it in caches
+ * that depend only on the typeId (or Java class name, for the other direction)
+ * from that point on. This is longstanding PL/Java behavior, but XXX.
+ */
+static Type checkTypeMappedUDT(
+	Oid typeId, jobject typeMap, Form_pg_type typeStruct)
+{
+	jobject joid;
+	jclass  typeClass;
+	Type    type;
+	jobject readMH;
+	jobject writeMH;
+	TupleDesc tupleDesc;
+	bool    hasTupleDesc;
+
+	if ( NULL == typeMap )
+		return NULL;
+
+	joid      = Oid_create(typeId);
+	typeClass = (jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
+	JNI_deleteLocalRef(joid);
+
+	if ( NULL == typeClass )
+		return NULL;
+
+	readMH  = pljava_Function_udtReadHandle( typeClass, NULL, true);
+	writeMH = pljava_Function_udtWriteHandle(typeClass, NULL, true);
+
+	tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
+	hasTupleDesc = NULL != tupleDesc;
+	if ( hasTupleDesc )
+		ReleaseTupleDesc(tupleDesc);
+
+	type = (Type)UDT_registerUDT(
+		typeClass, typeId, typeStruct, hasTupleDesc, false,
+		NULL, readMH, writeMH, NULL);
+	/*
+	 * UDT_registerUDT calls JNI_deleteLocalRef on readMH and writeMH.
+	 */
+
+	JNI_deleteLocalRef(typeClass);
+	return type;
+}
+
 Type Type_fromOid(Oid typeId, jobject typeMap)
 {
 	CacheEntry   ce;
@@ -645,7 +709,7 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	Form_pg_type typeStruct;
 	Type         type = Type_fromOidCache(typeId);
 
-	if(type != 0)
+	if ( NULL != type )
 		return type;
 
 	typeTup    = PgObject_getValidTuple(TYPEOID, typeId, "type");
@@ -653,12 +717,14 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	if(typeStruct->typelem != 0 && typeStruct->typlen == -1)
 	{
-		type = Type_getArrayType(Type_fromOid(typeStruct->typelem, typeMap), typeId);
+		type = Type_getArrayType(
+			Type_fromOid(typeStruct->typelem, typeMap), typeId);
 		goto finally;
 	}
 
 	/* For some reason, the anyarray is *not* an array with anyelement as the
 	 * element type. We'd like to see it that way though.
+	 * XXX would we, or does that mistake something intended in PostgreSQL?
 	 */
 	if(typeId == ANYARRAYOID)
 	{
@@ -675,40 +741,13 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 		goto finally;
 	}
 
-	if(typeMap != 0)
-	{
-		jobject joid      = Oid_create(typeId);
-		jclass  typeClass =
-			(jclass)JNI_callObjectMethod(typeMap, s_Map_get, joid);
-
-		JNI_deleteLocalRef(joid);
-		if(typeClass != 0)
-		{
-			/*
-			 * We have found a MappedUDT. It doesn't have SQL-declared I/O
-			 * functions, so we need to look up only the read and write handles,
-			 * and there will be no PLPrincipal to associate them with,
-			 * indicated by passing NULL as the language name.
-			 */
-			jobject readMH =
-				pljava_Function_udtReadHandle(typeClass, NULL, true);
-			jobject writeMH =
-				pljava_Function_udtWriteHandle(typeClass, NULL, true);
-			TupleDesc tupleDesc =
-				lookup_rowtype_tupdesc_noerror(typeId, -1, true);
-			bool hasTupleDesc = NULL != tupleDesc;
-			if ( hasTupleDesc )
-				ReleaseTupleDesc(tupleDesc);
-			type = (Type)UDT_registerUDT(
-				typeClass, typeId, typeStruct, hasTupleDesc, false,
-				NULL, readMH, writeMH, NULL);
-			/*
-			 * UDT_registerUDT calls JNI_deleteLocalRef on readMH and writeMH.
-			 */
-			JNI_deleteLocalRef(typeClass);
-			goto finally;
-		}
-	}
+	/*
+	 * Perhaps we have found a MappedUDT. If so, this check will register and
+	 * return it.
+	 */
+	type = checkTypeMappedUDT(typeId, typeMap, typeStruct);
+	if ( NULL != type )
+		goto finally;
 
 	/* Composite and record types will not have a TypeObtainer registered
 	 */
@@ -720,14 +759,14 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 	}
 
 	ce = (CacheEntry)HashMap_getByOid(s_obtainerByOid, typeId);
-	if(ce == 0)
+	if ( NULL == ce )
 	{
 		/*
 		 * Perhaps we have found a BaseUDT. If so, this check will register and
 		 * return it.
 		 */
 		type = Function_checkTypeBaseUDT(typeId, typeStruct);
-		if ( 0 != type )
+		if ( NULL != type )
 			goto finally;
 		/*
 		 * Default to String and standard textin/textout coercion.
@@ -962,11 +1001,15 @@ void Type_initialize(void)
 	pljava_SQLXMLImpl_initialize();
 
 	s_Map_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Map"));
-	s_Map_get = PgObject_getJavaMethod(s_Map_class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");
+	s_Map_get = PgObject_getJavaMethod(
+		s_Map_class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");
 
-	s_Iterator_class = JNI_newGlobalRef(PgObject_getJavaClass("java/util/Iterator"));
-	s_Iterator_hasNext = PgObject_getJavaMethod(s_Iterator_class, "hasNext", "()Z");
-	s_Iterator_next = PgObject_getJavaMethod(s_Iterator_class, "next", "()Ljava/lang/Object;");
+	s_Iterator_class = JNI_newGlobalRef(
+		PgObject_getJavaClass("java/util/Iterator"));
+	s_Iterator_hasNext = PgObject_getJavaMethod(
+		s_Iterator_class, "hasNext", "()Z");
+	s_Iterator_next = PgObject_getJavaMethod(
+		s_Iterator_class, "next", "()Ljava/lang/Object;");
 
 #if PG_VERSION_NUM < 110000
 	BOOLARRAYOID   = get_array_type(BOOLOID);
@@ -986,10 +1029,12 @@ void Type_initialize(void)
  */
 TypeClass TypeClass_alloc(const char* typeName)
 {
-	return TypeClass_alloc2(typeName, sizeof(struct TypeClass_), sizeof(struct Type_));
+	return TypeClass_alloc2(
+		typeName, sizeof(struct TypeClass_), sizeof(struct Type_));
 }
 
-TypeClass TypeClass_alloc2(const char* typeName, Size classSize, Size instanceSize)
+TypeClass TypeClass_alloc2(
+	const char* typeName, Size classSize, Size instanceSize)
 {
 	TypeClass self = (TypeClass)MemoryContextAlloc(TopMemoryContext, classSize);
 	PgObjectClass_init((PgObjectClass)self, typeName, instanceSize, 0);
@@ -1024,7 +1069,8 @@ Type TypeClass_allocInstance(TypeClass cls, Oid typeId)
  */
 Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType)
 {
-	Type t = (Type)PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
+	Type t = (Type)
+		PgObjectClass_allocInstance((PgObjectClass)(cls), TopMemoryContext);
 	t->typeId       = typeId;
 	t->arrayType    = 0;
 	t->elementType  = 0;
@@ -1056,9 +1102,11 @@ Type TypeClass_allocInstance2(TypeClass cls, Oid typeId, Form_pg_type pgType)
 /*
  * Register this type.
  */
-static void _registerType(Oid typeId, const char* javaTypeName, Type type, TypeObtainer obtainer)
+static void _registerType(
+	Oid typeId, const char* javaTypeName, Type type, TypeObtainer obtainer)
 {
-	CacheEntry ce = (CacheEntry)MemoryContextAlloc(TopMemoryContext, sizeof(CacheEntryData));
+	CacheEntry ce = (CacheEntry)
+		MemoryContextAlloc(TopMemoryContext, sizeof(CacheEntryData));
 	ce->typeId   = typeId;
 	ce->type     = type;
 	ce->obtainer = obtainer;
@@ -1084,10 +1132,13 @@ static void _registerType(Oid typeId, const char* javaTypeName, Type type, TypeO
 
 void Type_registerType(const char* javaTypeName, Type type)
 {
-	_registerType(type->typeId, javaTypeName, type, (TypeObtainer)_PgObject_pureVirtualCalled);
+	_registerType(
+		type->typeId, javaTypeName, type,
+		(TypeObtainer)_PgObject_pureVirtualCalled);
 }
 
-void Type_registerType2(Oid typeId, const char* javaTypeName, TypeObtainer obtainer)
+void Type_registerType2(
+	Oid typeId, const char* javaTypeName, TypeObtainer obtainer)
 {
 	_registerType(typeId, javaTypeName, 0, obtainer);
 }

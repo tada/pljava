@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -124,6 +124,10 @@ extern jboolean pljava_Function_vpcInvoke(
 	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
 	jobject *result);
 
+/*
+ * These are exposed so they can be called back from type/UDT.c.
+ * There is one for each flavor of UDT supporting function.
+ */
 extern void pljava_Function_udtWriteInvoke(
 	jobject invocable, jobject value, jobject stream);
 extern jstring pljava_Function_udtToStringInvoke(
@@ -133,17 +137,20 @@ extern jobject pljava_Function_udtReadInvoke(
 extern jobject pljava_Function_udtParseInvoke(
 	jobject invocable, jstring stringRep, jstring typeName);
 
+/*
+ * These are exposed so they can be called back from type/Type.c when it is
+ * registering a MappedUDT. A MappedUDT has these two support functions,
+ * but never the parse/toString ones a BaseUDT has.
+ */
 extern jobject pljava_Function_udtWriteHandle(
-	jclass clazz, char *langName, bool trusted);
-extern jobject pljava_Function_udtToStringHandle(
 	jclass clazz, char *langName, bool trusted);
 extern jobject pljava_Function_udtReadHandle(
 	jclass clazz, char *langName, bool trusted);
-extern jobject pljava_Function_udtParseHandle(
-	jclass clazz, char *langName, bool trusted);
 
 /*
- * Returns the Type Map that is associated with the function
+ * Returns the type map that is held by the function's schema loader (the
+ * initiating loader that was used when the function was resolved). It is a map
+ * from Java Oid objects to Class<SQLData> objects, as resolved by that loader.
  */
 extern jobject Function_getTypeMap(Function self);
 
@@ -157,6 +164,9 @@ extern bool Function_isCurrentReadOnly(void);
  * Return a local reference to the initiating (schema) class loader used to load
  * the currently-executing function, or NULL if there is no currently-executing
  * function or the schema loaders have been cleared and that loader is gone.
+ *
+ * Invocation_getTypeMap is equivalent to calling this and then JNI-invoking
+ * getTypeMap on the returned loader (cast to PL/Java's loader subclass).
  */
 extern jobject Function_currentLoader(void);
 

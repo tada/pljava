@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -139,7 +139,9 @@ struct Function_
 		/*
 		 * The type map used when mapping parameter and return types. We
 		 * need to store it here in order to cope with dynamic types (any
-		 * and anyarray)
+		 * and anyarray). This is now slightly redundant, as it could be got
+		 * from schemaLoader at the cost of a couple JNI calls, but this was
+		 * here first.
 		 */
 		jobject typeMap;
 
@@ -376,7 +378,8 @@ jdouble pljava_Function_doubleInvoke(Function self)
 /*
  * 'Reserve' the static parameter frame for (refArgCount,primArgCount) reference
  * and primitive parameters, respectively, pushing temporarily out of the way
- * any current contents, detected by a non-(0,0) existing reservation.
+ * any current contents, detected by a non-(0,0) existing reservation. Returns
+ * the sum of its two arguments.
  *
  * The corresponding pop of the earlier contents will happen at
  * Invocation_popInvocation time, so this scheme is only appropriately used for
@@ -396,7 +399,7 @@ jdouble pljava_Function_doubleInvoke(Function self)
  * jvalue slot for returns, though, must handle its own normal and exceptional
  * cleanup.
  */
-static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
+static jsize reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 {
 	jshort newCounts = COUNTCHECK(refArgCount, primArgCount);
 
@@ -420,6 +423,8 @@ static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 		currentInvocation->frameLimits = FRAME_LIMITS_PUSHED;
 	}
 	*s_countCheck = newCounts;
+
+	return refArgCount + primArgCount;
 }
 
 /*
@@ -490,25 +495,11 @@ jobject pljava_Function_udtReadHandle(
 		s_Function_udtReadHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtParseHandle(
-	jclass clazz, char *langName, bool trusted)
-{
-	return obtainUDTHandle(
-		s_Function_udtParseHandle, clazz, langName, trusted);
-}
-
 jobject pljava_Function_udtWriteHandle(
 	jclass clazz, char *langName, bool trusted)
 {
 	return obtainUDTHandle(
 		s_Function_udtWriteHandle, clazz, langName, trusted);
-}
-
-jobject pljava_Function_udtToStringHandle(
-	jclass clazz, char *langName, bool trusted)
-{
-	return obtainUDTHandle(
-		s_Function_udtToStringHandle, clazz, langName, trusted);
 }
 
 static jobject obtainUDTHandle(
@@ -549,14 +540,14 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 		typeStruct->typinput, typeStruct->typreceive,
 		typeStruct->typsend,  typeStruct->typoutput
 	};
-	jobject (*getter[4])(jclass, char *, bool) =
+	jmethodID getter[4] =
 	{
-		pljava_Function_udtParseHandle, pljava_Function_udtReadHandle,
-		pljava_Function_udtWriteHandle, pljava_Function_udtToStringHandle
+		s_Function_udtParseHandle, s_Function_udtReadHandle,
+		s_Function_udtWriteHandle, s_Function_udtToStringHandle
 	};
 	char *langName[4] = { NULL, NULL, NULL, NULL };
 	bool trusted[4];
-	jobject handle[4];
+	jobject handle[4] = { NULL, NULL, NULL, NULL };
 	int i;
 
 	for ( i = 0; i < 4; ++ i )
@@ -566,6 +557,10 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 			break;
 	}
 
+	/*
+	 * If that loop did not find all four support functions to be PL/Java ones,
+	 * we have struck out; pfree anything it did find and return the bad news.
+	 */
 	if ( i < 4 )
 	{
 		for ( ; i >= 0 ; -- i )
@@ -574,19 +569,44 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 		return NULL;
 	}
 
+	/*
+	 * At this point, it is looking like a PL/Java BaseUDT; we have the four
+	 * support function oids and the language names and trusted flags to go
+	 * with them.
+	 *
+	 * Must still confirm that (1) each one is declared with a UDT[classname]
+	 * style of AS string (getClassIfUDT returns null if not), (2) the named
+	 * class inherits from SQLData (ClassCastException happens if not), and
+	 * (3) that's the same class for all four of them (bail from this loop
+	 * and goto classMismatch if not). We'll also consider it a classMismatch
+	 * if some but not all getClassIfUDT results are null.
+	 *
+	 * Provided none of that goes wrong, obtain their handles in this loop too.
+	 */
 	for ( i = 0; i < 4; ++ i )
 	{
+		/*
+		 * Get the pg_proc info corresponding to support function i,
+		 * needed by getClassIfUDT().
+		 */
 		procTup = PgObject_getValidTuple(PROCOID, procId[i], "function");
 		procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 		schemaName = getSchemaName(procStruct->pronamespace);
 		d = heap_copy_tuple_as_datum(
 			procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+
 		t_clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
 			s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
 			schemaName);
+
 		pfree((void *)d);
 		JNI_deleteLocalRef(schemaName);
 		ReleaseSysCache(procTup);
+
+		/*
+		 * Save the first clazz returned; for subsequent ones, just confirm it's
+		 * not different, then delete the extra local ref.
+		 */
 		if ( 0 == i )
 			clazz = t_clazz;
 		else
@@ -595,15 +615,23 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 				goto classMismatch;
 			JNI_deleteLocalRef(t_clazz);
 		}
-		handle[i] = (getter[i])(clazz, langName[i], trusted[i]);
+
+		if ( NULL == clazz )
+			continue;
+
+		handle[i] = obtainUDTHandle(getter[i], clazz, langName[i], trusted[i]);
 	}
 
+	/*
+	 * We can only be here if getClassIfUDT returned the same value for clazz
+	 * all four times. But that value could have been NULL; no UDT if so.
+	 */
 	if ( NULL != clazz )
 		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true,
 			handle[0], handle[1], handle[2], handle[3]);
 	/*
 	 * UDT_registerUDT will already have called JNI_deleteLocalRef on the
-	 * four handles.
+	 * four handles. (Or clazz was NULL and there aren't any to delete anyway.)
 	 */
 	JNI_deleteLocalRef(clazz);
 	for ( i = 0; i < 4; ++ i )
@@ -847,13 +875,20 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		}
 	}
 
+	passedArgCount = PG_NARGS();
+
 	if ( ! skipParameterConversion )
-		reserveParameterFrame(
+	{
+		jsize reservedArgCount = reserveParameterFrame(
 			self->func.nonudt.numRefParams, self->func.nonudt.numPrimParams);
 
-	invokerType = self->func.nonudt.returnType;
+		if ( passedArgCount != reservedArgCount
+			&& passedArgCount + 1 != reservedArgCount ) /* the OUT arg case */
+			elog(ERROR, "function expecting %u arguments passed %u",
+				(unsigned int)reservedArgCount, (unsigned int)passedArgCount);
+	}
 
-	passedArgCount = PG_NARGS();
+	invokerType = self->func.nonudt.returnType;
 
 	if ( passedArgCount > 0  &&  ! skipParameterConversion )
 	{
@@ -977,6 +1012,11 @@ void pljava_Function_setParameter(Function self, int index, jvalue value)
 	int numRefs = self->func.nonudt.numRefParams;
 	if ( -1 != index  ||  1 > numRefs )
 		elog(ERROR, "unsupported index in pljava_Function_setParameter");
+	/*
+	 * Thinking to Assert(!passAsPrimitive(self->func.nonudt.paramTypes[...]))?
+	 * Nice idea, but you would index beyond paramTypes; that synthetic last
+	 * OUT tuple entry isn't represented there.
+	 */
 	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
 }
 

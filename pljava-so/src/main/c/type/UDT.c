@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -193,8 +193,11 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		{
 			ereport(ERROR, (
 				errcode(ERRCODE_CANNOT_COERCE),
-				errmsg("UDT for Oid %d produced image with incorrect size. Expected %d, was %d",
-					Type_getOid((Type)self), dataLen, buffer.len)));
+				errmsg(
+					"UDT for Oid %d produced image with incorrect size. "
+					"Expected %d, was %d",
+					Type_getOid((Type)self), dataLen, buffer.len)
+				));
 		}
 		if (passByValue) {
 			memset(&result, 0, SIZEOF_DATUM);
@@ -455,7 +458,11 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 		{
 			ereport(ERROR, (
 				errcode(ERRCODE_CANNOT_COERCE),
-				errmsg("Attempt to register UDT with Oid %d failed. Oid appoints a non UDT type", typeId)));
+				errmsg(
+					"Attempt to register UDT with Oid %d failed. "
+					"Oid appoints a non UDT type",
+					typeId)
+				));
 		}
 		JNI_deleteLocalRef(parseMH);
 		JNI_deleteLocalRef(readMH);
@@ -464,7 +471,8 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 		return (UDT)existing;
 	}
 
-	nspTup = PgObject_getValidTuple(NAMESPACEOID, pgType->typnamespace, "namespace");
+	nspTup = PgObject_getValidTuple(
+		NAMESPACEOID, pgType->typnamespace, "namespace");
 	nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
 
 	/* Concatenate namespace + '.' + typename
@@ -501,7 +509,8 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 	*sp++ = ';';
 	*sp = 0;
 
-	udtClass = TypeClass_alloc2("type.UDT", sizeof(struct TypeClass_), sizeof(struct UDT_));
+	udtClass = TypeClass_alloc2(
+		"type.UDT", sizeof(struct TypeClass_), sizeof(struct UDT_));
 
 	udtClass->JNISignature   = classSignature;
 	udtClass->javaTypeName   = className;
@@ -516,7 +525,8 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 
 	if(isJavaBasedScalar)
 	{
-		/* A scalar mapping that is implemented in Java will have the static method:
+		/* A scalar mapping that is implemented in Java (a BaseUDT, as declared
+		 * in Java source annotations) will have the static method:
 		 * 
 		 *   T parse(String stringRep, String sqlTypeName);
 		 * 
@@ -524,8 +534,8 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 		 * 
 		 *   String toString();
 		 * 
-		 * instance method. A pure mapping (i.e. no Java I/O methods) will not
-		 * have this.
+		 * instance method. A MappedUDT (i.e. no Java I/O methods) will not
+		 * have them.
 		 */
 	
 		/* The parse method is a static method on the class with the signature
