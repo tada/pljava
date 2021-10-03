@@ -43,22 +43,6 @@ extern "C" {
 extern void Function_clearFunctionCache(void);
 
 /*
- * Get a Function using a function Oid. If the function is not found, one
- * will be created based on the class and method name denoted in the "AS"
- * clause, the parameter types, and the return value of the function
- * description. If "forTrigger" is true, the parameter type and
- * return value of the function will be fixed to:
- * void <method name>(org.postgresql.pljava.TriggerData td)
- *
- * If forValidator is true, forTrigger is disregarded, and will be determined
- * from the function's pg_proc entry. If forValidator is false, checkBody has no
- * meaning.
- */
-extern Function Function_getFunction(
-	Oid funcOid, bool trusted, bool forTrigger,
-	bool forValidator, bool checkBody);
-
-/*
  * Determine whether the type represented by typeId is declared as a
  * "Java-based scalar" a/k/a BaseUDT and, if so, return a freshly-registered
  * UDT Type for it; otherwise return NULL.
@@ -66,20 +50,22 @@ extern Function Function_getFunction(
 extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
- * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
- * object, make the call, and unwrap the resulting Tuple.
+ * First translate a function Oid to a Function (looking it up according to the
+ * trusted, forTrigger, forValidator, and checkBody parameters), and then
+ * (unless forValidator is true) invoke it: i.e. coerce the parameters, call the
+ * java method, and coerce the return value back to a Datum. The return-value
+ * coercion is handled by a convention where this call will delegate to the Type
+ * representing the SQL return type. That will call back on one of the flavors
+ * of fooInvoke below corresponding to the return type of the Java method, and
+ * then coerce that to the intended SQL type.
+ *
+ * If forValidator is true, NULL may be passed in the PG_FUNCTION_ARGS position.
+ * and NULL is returned immediately on successful validation.
  */
-extern Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS);
-
-/*
- * Invoke a function, i.e. coerce the parameters, call the java method, and
- * coerce the return value back to a Datum. The return-value coercion is handled
- * by a convention where this call will delegate to the Type representing the
- * SQL return type. That will call back on one of the flavors of fooInvoke below
- * corresponding to the return type of the Java method, and then coerce that to
- * the intended SQL type.
- */
-extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
+extern Datum Function_invoke(
+	Oid funcoid,
+	bool trusted, bool forTrigger, bool forValidator, bool checkBody,
+	PG_FUNCTION_ARGS);
 
 /*
  * Most slots in the parameter area are set directly in invoke() or

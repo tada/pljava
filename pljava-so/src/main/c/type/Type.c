@@ -662,8 +662,8 @@ Type Type_fromOidCache(Oid typeId)
  * that depend only on the typeId (or Java class name, for the other direction)
  * from that point on. This is longstanding PL/Java behavior, but XXX.
  */
-static Type checkTypeMappedUDT(
-	Oid typeId, jobject typeMap, Form_pg_type typeStruct)
+static inline Type
+checkTypeMappedUDT(Oid typeId, jobject typeMap, Form_pg_type typeStruct)
 {
 	jobject joid;
 	jclass  typeClass;

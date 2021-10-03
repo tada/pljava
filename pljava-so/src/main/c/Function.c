@@ -71,6 +71,8 @@ static jmethodID s_EntryPoints_udtParseInvoke;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
 
+static inline Datum invokeTrigger(Function self, PG_FUNCTION_ARGS);
+
 static jobjectArray s_referenceParameters;
 static jvalue s_primitiveParameters [ 1 + 255 ];
 
@@ -399,7 +401,8 @@ jdouble pljava_Function_doubleInvoke(Function self)
  * jvalue slot for returns, though, must handle its own normal and exceptional
  * cleanup.
  */
-static jsize reserveParameterFrame(jsize refArgCount, jsize primArgCount)
+static inline jsize
+reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 {
 	jshort newCounts = COUNTCHECK(refArgCount, primArgCount);
 
@@ -502,7 +505,8 @@ jobject pljava_Function_udtWriteHandle(
 		s_Function_udtWriteHandle, clazz, langName, trusted);
 }
 
-static jobject obtainUDTHandle(
+static inline jobject
+obtainUDTHandle(
 	jmethodID which, jclass clazz, char *langName, bool trusted)
 {
 	jstring jname = String_createJavaStringFromNTS(langName);
@@ -512,7 +516,8 @@ static jobject obtainUDTHandle(
 	return result;
 }
 
-static jstring getSchemaName(int namespaceOid)
+static inline jstring
+getSchemaName(int namespaceOid)
 {
 	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, namespaceOid, "namespace");
 	Form_pg_namespace nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
@@ -752,13 +757,25 @@ static Function Function_create(
 }
 
 /*
- * In all cases, this Function has been stored in currentInvocation->function
- * upon successful return from here.
+ * Get a Function using a function Oid. If the function is not found, one
+ * will be created based on the class and method name denoted in the "AS"
+ * clause, the parameter types, and the return value of the function
+ * description. If "forTrigger" is true, the parameter type and
+ * return value of the function will be fixed to:
+ * void <method name>(org.postgresql.pljava.TriggerData td)
+ *
+ * If forValidator is true, forTrigger is disregarded, and will be determined
+ * from the function's pg_proc entry. If forValidator is false, checkBody has no
+ * meaning.
  *
  * If called with forValidator true, may return NULL. The validator doesn't
  * use the result.
+ *
+ * In all other cases, this Function has been stored
+ * in currentInvocation->function upon successful return from here.
  */
-Function Function_getFunction(
+static inline Function
+getFunction(
 	Oid funcOid, bool trusted, bool forTrigger,
 	bool forValidator, bool checkBody)
 {
@@ -835,17 +852,30 @@ void Function_clearFunctionCache(void)
  * primitive. Hence this method, which requires both Type_isPrimitive to be true
  * and that the type is not an array.
  */
-static bool passAsPrimitive(Type t)
+static inline bool
+passAsPrimitive(Type t)
 {
 	return Type_isPrimitive(t) && (NULL == Type_getElementType(t));
 }
 
-Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
+Datum
+Function_invoke(
+	Oid funcoid, bool trusted, bool forTrigger, bool forValidator,
+	bool checkBody, PG_FUNCTION_ARGS)
 {
+	Function self;
 	Datum retVal;
 	Size passedArgCount;
 	Type invokerType;
 	bool skipParameterConversion = false;
+
+	self = getFunction(funcoid, trusted, forTrigger, forValidator, checkBody);
+
+	if ( forValidator )
+		PG_RETURN_VOID();
+
+	if ( forTrigger )
+		return invokeTrigger(self, fcinfo);
 
 	fcinfo->isnull = false;
 
@@ -940,7 +970,12 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	return retVal;
 }
 
-Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
+/*
+ * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
+ * object, make the call, and unwrap the resulting Tuple.
+ */
+static inline Datum
+invokeTrigger(Function self, PG_FUNCTION_ARGS)
 {
 	jobject jtd;
 	Datum  ret;
