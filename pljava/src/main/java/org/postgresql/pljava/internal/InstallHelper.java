@@ -42,6 +42,7 @@ import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.management.SQLDeploymentDescriptor;
 import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
+import static org.postgresql.pljava.elog.ELogHandler.LOG_WARNING;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -52,6 +53,25 @@ import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
  */
 public class InstallHelper
 {
+	static final boolean MANAGE_CONTEXT_LOADER;
+
+	static
+	{
+		String manageLoaderProp = "org.postgresql.pljava.context.loader";
+		String s = System.getProperty(manageLoaderProp);
+		if ( null == s )
+			MANAGE_CONTEXT_LOADER = true;
+		else if ( "unmanaged".equals(s) )
+			MANAGE_CONTEXT_LOADER = false;
+		else
+		{
+			MANAGE_CONTEXT_LOADER = false;
+			Backend.log(LOG_WARNING,
+				"value \"" + s + "\" for " + manageLoaderProp +
+				" unrecognized; using \"unmanaged\"");
+		}
+	}
+
 	private static void setPropertyIfNull( String property, String value)
 	{
 		if ( null == System.getProperty( property) )

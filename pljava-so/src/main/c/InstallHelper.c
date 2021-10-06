@@ -108,6 +108,7 @@
 static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
+static jfieldID  s_InstallHelper_MANAGE_CONTEXT_LOADER;
 
 static bool extensionExNihilo = false;
 
@@ -545,6 +546,10 @@ char *InstallHelper_hello()
 	jstring greeting;
 	char *greetingC;
 	char const *clusternameC = pljavaClusterName();
+	jboolean manageContext = JNI_getStaticBooleanField(s_InstallHelper_class,
+		s_InstallHelper_MANAGE_CONTEXT_LOADER);
+
+	pljava_JNI_threadInitialize(JNI_TRUE == manageContext);
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
@@ -667,6 +672,8 @@ void InstallHelper_initialize()
 {
 	s_InstallHelper_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/InstallHelper"));
+	s_InstallHelper_MANAGE_CONTEXT_LOADER = PgObject_getStaticJavaField(
+		s_InstallHelper_class, "MANAGE_CONTEXT_LOADER", "Z");
 	s_InstallHelper_hello = PgObject_getStaticJavaMethod(s_InstallHelper_class,
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"

@@ -90,7 +90,7 @@ extern void pljava_JNI_setThreadPolicy(bool,bool);
  * from Backend.c once the java_thread_pg_entry GUC setting is frozen in place,
  * populates the function pointers with the appropriate implementations.
  */
-extern void pljava_JNI_threadInitialize(void);
+extern void pljava_JNI_threadInitialize(bool manageLoader);
 typedef void JNI_ContextLoaderUpdater(jobject loader);
 typedef void JNI_ContextLoaderRestorer(void);
 
@@ -208,6 +208,7 @@ extern void         JNI_getShortArrayRegion(jshortArray array, jsize start, jsiz
 extern jfieldID     JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig);
+extern jboolean     JNI_getStaticBooleanField(jclass clazz, jfieldID field);
 extern jint         JNI_getStaticIntField(jclass clazz, jfieldID field);
 extern jobject      JNI_getStaticObjectField(jclass clazz, jfieldID field);
 extern const char*  JNI_getStringUTFChars(jstring string, jboolean* isCopy);

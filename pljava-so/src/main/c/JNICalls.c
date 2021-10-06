@@ -66,8 +66,15 @@ static JNI_ContextLoaderRestorer _lightRestorer;
 static JNI_ContextLoaderUpdater  _heavyUpdater;
 static JNI_ContextLoaderRestorer _heavyRestorer;
 
-void pljava_JNI_threadInitialize()
+void pljava_JNI_threadInitialize(bool manageLoader)
 {
+	if ( ! manageLoader )
+	{
+		JNI_loaderUpdater  = _noopUpdater;
+		JNI_loaderRestorer = _noopRestorer;
+		return;
+	}
+
 	s_Thread_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"java/lang/Thread"));
 	s_Thread_currentThread = PgObject_getStaticJavaMethod(
@@ -1211,6 +1218,15 @@ jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char
 		}
 	}
 	END_CALL
+	return result;
+}
+
+jboolean JNI_getStaticBooleanField(jclass clazz, jfieldID field)
+{
+	jboolean result;
+	BEGIN_JAVA
+	result = (*env)->GetStaticBooleanField(env, clazz, field);
+	END_JAVA
 	return result;
 }
 
