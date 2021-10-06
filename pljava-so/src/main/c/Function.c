@@ -103,10 +103,10 @@ struct Function_
 	jclass clazz;
 
 	/**
-	 * Weak global reference to the class loader for the schema in which this
+	 * Global reference to the class loader for the schema in which this
 	 * function is declared.
 	 */
-	jweak schemaLoader;
+	jobject schemaLoader;
 
 	union
 	{
@@ -183,6 +183,7 @@ static void _Function_finalize(PgObject func)
 {
 	Function self = (Function)func;
 	JNI_deleteGlobalRef(self->clazz);
+	JNI_deleteGlobalRef(self->schemaLoader);
 	if(!self->isUDT)
 	{
 		JNI_deleteGlobalRef(self->func.nonudt.invocable);
@@ -431,6 +432,37 @@ reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 }
 
 /*
+ * This should happen everywhere reserveParameterFrame happens, but is factored
+ * out to allow a couple of call sites to optimize out one or the other. As with
+ * reserveParameterFrame, the undoing of this happens in popFrame below.
+ *
+ * currentInvocation->savedLoader can have a "not known" value (which has to be
+ * distinct from null, because null is a perfectly cromulent context classloader
+ * as far as Java is concerned). Leaving it that way will mean no restoration at
+ * popInvocation time. The loaderUpdater may leave it that way in some cases,
+ * in a bid to reduce overhead if the same loader's wanted again.
+ */
+static inline void
+installContextLoader(Function self)
+{
+	(*JNI_loaderUpdater)(self->schemaLoader);
+}
+
+/*
+ * Not intended for any caller but Invocation_popInvocation.
+ */
+void pljava_Function_popFrame(bool heavy)
+{
+	if ( heavy )
+		JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
+
+	if ( (void *)-1 == currentInvocation->savedLoader )
+		return;
+
+	(*JNI_loaderRestorer)();
+}
+
+/*
  * Invoke an Invocable that was obtained by invoking an Invocable for a
  * set-returning-function that returns results in value-per-call style.
  * Pass true for 'close' when no more results are wanted. Will always overwrite
@@ -438,8 +470,8 @@ reserveParameterFrame(jsize refArgCount, jsize primArgCount)
  * result (true) or the end of results was reached (false).
  */
 jboolean pljava_Function_vpcInvoke(
-	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
-	jobject *result)
+	Function self, jobject invocable, jobject rowcollect, jlong call_cntr,
+	jboolean close, jobject *result)
 {
 	/*
 	 * When retrieving the very first row, this call happens under the same
@@ -451,8 +483,14 @@ jboolean pljava_Function_vpcInvoke(
 	 * static area parameter counts; this reservation will therefore not see a
 	 * need to push a frame. If one was pushed for the user function itself, it
 	 * remains on top, to be popped when the Invocation is.
+	 *
+	 * It is better to avoid calling installContextLoader a second time under
+	 * the same Invocation.
 	 */
 	reserveParameterFrame(1, 2);
+	if ( 0 != call_cntr )
+		installContextLoader(self);
+
 	JNI_setObjectArrayElement(s_referenceParameters, 0, rowcollect);
 	s_primitiveParameters[0].j = call_cntr;
 	s_primitiveParameters[1].z = close;
@@ -918,6 +956,8 @@ Function_invoke(
 				(unsigned int)reservedArgCount, (unsigned int)passedArgCount);
 	}
 
+	installContextLoader(self);
+
 	invokerType = self->func.nonudt.returnType;
 
 	if ( passedArgCount > 0  &&  ! skipParameterConversion )
@@ -986,6 +1026,7 @@ invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		return 0;
 
 	reserveParameterFrame(1, 0);
+	installContextLoader(self);
 
 	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
 
@@ -1055,14 +1096,6 @@ void pljava_Function_setParameter(Function self, int index, jvalue value)
 	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
 }
 
-/*
- * Not intended for any caller but Invocation_popInvocation.
- */
-void pljava_Function_popFrame()
-{
-	JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
-}
-
 bool Function_isCurrentReadOnly(void)
 {
 	/* function will be 0 during resolve of class and java function. At
@@ -1076,17 +1109,13 @@ bool Function_isCurrentReadOnly(void)
 jobject Function_currentLoader(void)
 {
 	Function f;
-	jweak weakRef;
 
 	if ( NULL == currentInvocation )
 		return NULL;
 	f = currentInvocation->function;
 	if ( NULL == f )
 		return NULL;
-	weakRef = f->schemaLoader;
-	if ( NULL == weakRef )
-		return NULL;
-	return JNI_newLocalRef(weakRef);
+	return f->schemaLoader;
 }
 
 /*
@@ -1138,7 +1167,7 @@ JNIEXPORT jboolean JNICALL
 	{
 		self->isUDT = false;
 		self->readOnly = (JNI_TRUE == readOnly);
-		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+		self->schemaLoader = JNI_newGlobalRef(schemaLoader);
 		self->clazz = JNI_newGlobalRef(clazz);
 		self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
 		self->func.nonudt.typeMap =
@@ -1256,7 +1285,7 @@ JNIEXPORT void JNICALL
 		{
 			self->isUDT = true;
 			self->readOnly = (JNI_TRUE == readOnly);
-			self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+			self->schemaLoader = JNI_newGlobalRef(schemaLoader);
 			self->clazz = JNI_newGlobalRef(clazz);
 
 			/*

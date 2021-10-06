@@ -107,6 +107,7 @@ static jmethodID s_TypeBridge_Holder_payload;
 typedef struct
 {
 	Type          elemType;
+	Function      fn;
 	jobject       rowProducer;
 	jobject       rowCollector;
 	/*
@@ -163,7 +164,19 @@ static void _closeIteration(CallContextData* ctxData)
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	pljava_Function_vpcInvoke(ctxData->rowProducer, NULL, 0, JNI_TRUE, &dummy);
+	/*
+	 * Why pass 1 as the call_cntr? We won't always have the actual call_cntr
+	 * value at _closeIteration time (the _endOfSetCB isn't passed it), and the
+	 * Java interfaces being used don't need it (close() isn't passed a row
+	 * number), but vpcInvoke needs a way to know when to skip its call to
+	 * installContextLoader (which shouldn't happen on its very first call,
+	 * the one with call_cntr of zero, which always happens as part of the first
+	 * invocation of the SRF so the work has already been done). So passing any
+	 * fixed value here that isn't zero is enough to distinguish the cases.
+	 */
+	pljava_Function_vpcInvoke(
+		ctxData->fn, ctxData->rowProducer, NULL, 1, JNI_TRUE, &dummy);
+
 	JNI_deleteGlobalRef(ctxData->rowProducer);
 	if(ctxData->rowCollector != 0)
 		JNI_deleteGlobalRef(ctxData->rowCollector);
@@ -193,16 +206,31 @@ static void _closeIteration(CallContextData* ctxData)
  */
 static void _endOfSetCB(Datum arg)
 {
-	Invocation topCall;
-	bool saveInExprCtxCB;
+	Invocation ctx;
 	CallContextData* ctxData = (CallContextData*)DatumGetPointer(arg);
-	if(currentInvocation == 0)
-		Invocation_pushInvocation(&topCall);
 
-	saveInExprCtxCB = currentInvocation->inExprContextCB;
-	currentInvocation->inExprContextCB = true;
-	_closeIteration(ctxData);
-	currentInvocation->inExprContextCB = saveInExprCtxCB;
+	/*
+	 * Even if there is an invocation already on the stack, there is no
+	 * convincing reason to think this callback belongs to it; PostgreSQL
+	 * will make this callback when the expression context we did belong to
+	 * is being torn down. This is not a hot operation; it only happens in
+	 * rare cases when an SRF has been called and not completely consumed.
+	 * So just unconditionally set up a context for this call, and clean up
+	 * our own mess.
+	 */
+	PG_TRY();
+	{
+		Invocation_pushInvocation(&ctx);
+		currentInvocation->inExprContextCB = true;
+		_closeIteration(ctxData);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 }
 
 static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
@@ -503,6 +531,7 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 		context->user_fctx = ctxData;
 
 		ctxData->elemType = self;
+		ctxData->fn = fn;
 		ctxData->rowProducer = JNI_newGlobalRef(tmp);
 		JNI_deleteLocalRef(tmp);
 
@@ -545,7 +574,7 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	currentInvocation->hasConnected = ctxData->hasConnected;
 	currentInvocation->invocation   = ctxData->invocation;
 
-	if(JNI_TRUE == pljava_Function_vpcInvoke(
+	if(JNI_TRUE == pljava_Function_vpcInvoke(ctxData->fn,
 		ctxData->rowProducer, ctxData->rowCollector, (jlong)context->call_cntr,
 		JNI_FALSE, &row))
 	{

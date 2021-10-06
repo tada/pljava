@@ -167,6 +167,7 @@ void Invocation_pushInvocation(Invocation* ctx)
 	ctx->function        = 0;
 	ctx->frameLimits     = *s_frameLimits;
 	ctx->primSlot0       = *s_primSlot0;
+	ctx->savedLoader     = (void *)-1;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -182,13 +183,13 @@ void Invocation_pushInvocation(Invocation* ctx)
 void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
+	bool heavy = FRAME_LIMITS_PUSHED == currentInvocation->frameLimits;
 
 	/*
-	 * If the more heavyweight parameter-frame push got done, undo it.
+	 * If the more heavyweight parameter-frame push wasn't done, do
+	 * the lighter cleanup here.
 	 */
-	if ( FRAME_LIMITS_PUSHED == currentInvocation->frameLimits )
-		pljava_Function_popFrame();
-	else
+	if ( ! heavy )
 	{
 		/*
 		 * The lighter-weight cleanup.
@@ -196,6 +197,7 @@ void Invocation_popInvocation(bool wasException)
 		*s_frameLimits = currentInvocation->frameLimits;
 		*s_primSlot0   = currentInvocation->primSlot0;
 	}
+	pljava_Function_popFrame(heavy);
 
 	/*
 	 * If a Java Invocation instance was created and associated with this

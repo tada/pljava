@@ -761,6 +761,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_FOUND:
+		pljava_JNI_threadInitialize(); /* depends on thread GUC now committed */
 		greeting = InstallHelper_hello();
 		ereport(NULL != pljavaLoadPath ? NOTICE : DEBUG1, (
 				errmsg("PL/Java loaded"),

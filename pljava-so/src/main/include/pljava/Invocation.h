@@ -72,6 +72,11 @@ struct Invocation_
 	jvalue primSlot0;
 
 	/**
+	 * The saved thread context classloader from before this invocation
+	 */
+	jobject savedLoader;
+
+	/**
 	 * The currently executing Function.
 	 */
 	Function      function;

@@ -1334,7 +1334,14 @@ public class Function
 		AccessControlContext acc =
 			accessControlContextFor(clazz, language, trusted);
 
-		if ( forValidator && clazz != loadClass(schemaLoader, className, acc) )
+		/*
+		 * false, to leave initialization until the function's first invocation,
+		 * when naturally the right ContextClassLoader and AccessControlContext
+		 * will be in place. Overkill to do more just for a low-impact OpenJ9
+		 * quirk.
+		 */
+		if ( false && forValidator
+			&& clazz != loadClass(schemaLoader, className, acc) )
 			throw new SQLException(
 				"Initialization of class \"" + className + "\" produced a " +
 				"different class object");

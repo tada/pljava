@@ -46,9 +46,10 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * The *invoke methods in this class can be private, as they are invoked only
  * from C via JNI, not from Java.
  *<p>
- * The primary entry point is {@code invoke}. The supplied
- * {@code PrivilegedAction}, as
- * obtained from {@code Function.create}, may have bound references to static
+ * The primary entry point is {@code invoke}. The supplied {@code Invocable},
+ * created by {@code invocable} below for its caller {@code Function.create},
+ * may contain a {@code MethodHandle}, or a {@code PrivilegedAction} that
+ * wraps one. The {@code MethodHandle} may have bound references to static
  * parameter areas, and will fetch the actual parameters from there to the
  * stack before invoking the (potentially reentrant) target method. Primitive
  * return values are then stored (after the potentially reentrant method has
@@ -58,11 +59,14 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * The {@code PrivilegedAction} is expected to return null for a {@code void}
  * or primitive-typed target.
  *<p>
- * The remaining methods here are for user-defined type (UDT) support. For now,
- * those are not consolidated into the {@code invoke}/{@code refInvoke} pattern,
- * as UDTs may need to be constructed from the C code while it is populating the
- * static parameter area for the ultimate target method, so the UDT methods
- * must be invocable without using the same area.
+ * The remaining {@code fooInvoke} methods here are for user-defined type (UDT)
+ * support. For now, those are not consolidated into the general {@code invoke}
+ * pattern, as UDT support methods may need to be called from the C code
+ * while it is populating the static parameter area for an ultimate target
+ * method, so they must be invocable without using the same area.
+ *<p>
+ * An {@code Invocable} carries the {@code AccessControlContext} under which the
+ * invocation target will execute.
  */
 class EntryPoints
 {

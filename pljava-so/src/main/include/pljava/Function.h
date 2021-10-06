@@ -78,8 +78,10 @@ extern void pljava_Function_setParameter(Function self, int idx, jvalue val);
 
 /*
  * Not intended for any caller other than Invocation_popInvocation.
+ * 'heavy' indicates that the heavy form of parameter-frame saving has been used
+ * and must be undone.
  */
-extern void pljava_Function_popFrame(void);
+extern void pljava_Function_popFrame(bool heavy);
 
 /*
  * These actually invoke a target Java method (returning, respectively, a
@@ -107,8 +109,8 @@ extern jdouble pljava_Function_doubleInvoke(Function self);
  * indicate whether a row was retrieved, AND puts a value (or null) in *result.
  */
 extern jboolean pljava_Function_vpcInvoke(
-	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
-	jobject *result);
+	Function self, jobject invocable, jobject rowcollect, jlong call_cntr,
+	jboolean close, jobject *result);
 
 /*
  * These are exposed so they can be called back from type/UDT.c.
@@ -147,9 +149,8 @@ extern jobject Function_getTypeMap(Function self);
 extern bool Function_isCurrentReadOnly(void);
 
 /*
- * Return a local reference to the initiating (schema) class loader used to load
- * the currently-executing function, or NULL if there is no currently-executing
- * function or the schema loaders have been cleared and that loader is gone.
+ * Return a global reference to the initiating (schema) class loader used
+ * to load the currently-executing function.
  *
  * Invocation_getTypeMap is equivalent to calling this and then JNI-invoking
  * getTypeMap on the returned loader (cast to PL/Java's loader subclass).
