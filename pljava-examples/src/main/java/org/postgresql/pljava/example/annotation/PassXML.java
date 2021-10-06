@@ -50,6 +50,7 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 
 import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerConfigurationException;
 
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
@@ -215,7 +216,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		   requires={"prepareXMLTransform", "transformXML"},
 	install={
 		"REVOKE EXECUTE ON FUNCTION javatest.prepareXMLTransformWithJava" +
-		" (pg_catalog.varchar, pg_catalog.xml, integer, boolean," +
+		" (pg_catalog.varchar, pg_catalog.xml, integer, boolean, boolean," +
 		"  pg_catalog.RECORD)" +
 		" FROM PUBLIC",
 
@@ -240,7 +241,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		"   <den><xsl:value-of select=''.''/></den>" +
 		"  </xsl:for-each>" +
 		" </xsl:template>" +
-		"</xsl:transform>', 5, true)",
+		"</xsl:transform>', how => 5, enableExtensionFunctions => true)",
 
 		"SELECT" +
 		" javatest.prepareXMLTransformWithJava('getPLJavaVersion'," +
@@ -285,7 +286,7 @@ public class PassXML implements SQLData
 {
 	static SQLXML s_sx;
 
-	static TransformerFactory s_tf = TransformerFactory.newInstance();
+	static TransformerFactory s_tf = TransformerFactory.newDefaultInstance();
 
 	static Map<String,Templates> s_tpls = new HashMap<>();
 
@@ -429,6 +430,17 @@ public class PassXML implements SQLData
 	 * transform to use extensions that the Java XSLT implementation supports,
 	 * such as functions from EXSLT. Those are disabled by default.
 	 *<p>
+	 * Passing {@code false} for {@code builtin} will allow a
+	 * {@code TransformerFactory} other than Java's built-in one to be found
+	 * using the usual search order and the context class loader (normally
+	 * the PL/Java class path for the schema where this function is declared).
+	 * The default of {@code true} ensures that the built-in Java XSLT 1.0
+	 * implementation is used. A transformer implementation other than Xalan
+	 * may not recognize the feature controlled by
+	 * {@code enableExtensionFunctions}, so failure to configure that feature
+	 * will be logged as a warning if {@code builtin} is {@code false}, instead
+	 * of thrown as an exception.
+	 *<p>
 	 * Out of the box, Java's transformers only support XSLT 1.0. See the S9
 	 * example for more capabilities (at the cost of downloading the Saxon jar).
 	 */
@@ -437,11 +449,13 @@ public class PassXML implements SQLData
 	public static void prepareXMLTransform(String name, SQLXML source,
 		@SQLType(defaultValue="0") int how,
 		@SQLType(defaultValue="false") boolean enableExtensionFunctions,
+		@SQLType(defaultValue="true") boolean builtin,
 		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
 	{
 		prepareXMLTransform(
-			name, source, how, enableExtensionFunctions, adjust, false);
+			name, source, how, enableExtensionFunctions, adjust, builtin,
+			/* withJava */ false);
 	}
 
 	/**
@@ -450,11 +464,17 @@ public class PassXML implements SQLData
 	 * methods.
 	 *<p>
 	 * Otherwise identical to {@code prepareXMLTransform}, this version sets the
-	 * {@code TransformerFactory}'s {@code extensionClassLoader} (to the same
-	 * loader that loads this class), so the transform will be able to use
+	 * {@code TransformerFactory}'s {@code extensionClassLoader} (to the context
+	 * class loader, normally the PL/Java class path for the schema where this
+	 * function is declared), so the transform will be able to use
 	 * xalan's Java call syntax to call any public Java methods that would be
 	 * accessible to this class. (That can make a big difference in usefulness
 	 * for the otherwise rather limited XSLT 1.0.)
+	 *<p>
+	 * As with {@code enableExtensionFunctions}, failure by the transformer
+	 * implementation to recognize or allow the {@code extensionClassLoader}
+	 * property will be logged as a warning if {@code builtin} is {@code false},
+	 * rather than thrown as an exception.
 	 *<p>
 	 * This example function will be installed with {@code EXECUTE} permission
 	 * revoked from {@code PUBLIC}, as it essentially confers the ability to
@@ -480,27 +500,54 @@ public class PassXML implements SQLData
 	public static void prepareXMLTransformWithJava(String name, SQLXML source,
 		@SQLType(defaultValue="0") int how,
 		@SQLType(defaultValue="false") boolean enableExtensionFunctions,
+		@SQLType(defaultValue="true") boolean builtin,
 		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException
 	{
 		prepareXMLTransform(
-			name, source, how, enableExtensionFunctions, adjust, true);
+			name, source, how, enableExtensionFunctions, adjust, builtin,
+			/* withJava */ true);
 	}
 
 	private static void prepareXMLTransform(String name, SQLXML source, int how,
-		boolean enableExtensionFunctions, ResultSet adjust, boolean withJava)
+		boolean enableExtensionFunctions, ResultSet adjust, boolean builtin,
+		boolean withJava)
 	throws SQLException
 	{
-		TransformerFactory tf = TransformerFactory.newInstance();
+		TransformerFactory tf =
+			builtin
+			? TransformerFactory.newDefaultInstance()
+			: TransformerFactory.newInstance();
 		String exf =
 		  "http://www.oracle.com/xml/jaxp/properties/enableExtensionFunctions";
 		String ecl = "jdk.xml.transform.extensionClassLoader";
 		Source src = sxToSource(source, how, adjust);
 		try
 		{
-			tf.setFeature(exf, enableExtensionFunctions);
+			try
+			{
+				tf.setFeature(exf, enableExtensionFunctions);
+			}
+			catch ( TransformerConfigurationException e )
+			{
+				logMessage("WARNING",
+					"non-builtin transformer: ignoring " + e.getMessage());
+			}
+
 			if ( withJava )
-				tf.setAttribute(ecl, PassXML.class.getClassLoader());
+			{
+				try
+				{
+					tf.setAttribute(ecl,
+						Thread.currentThread().getContextClassLoader());
+				}
+				catch ( IllegalArgumentException e )
+				{
+					logMessage("WARNING",
+					"non-builtin transformer: ignoring " + e.getMessage());
+				}
+			}
+
 			s_tpls.put(name, tf.newTemplates(src));
 		}
 		catch ( TransformerException te )
