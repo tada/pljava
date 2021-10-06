@@ -1654,12 +1654,20 @@ static inline void _updaterCommon(JNIEnv *env, jobject thread, jobject loader)
 static void _heavyUpdater(jobject loader)
 {
 	jobject thread;
+	jobject exh;
 
 	BEGIN_JAVA
 
 	thread =
 		(*env)->CallStaticObjectMethod(env,
-			s_Thread_class, s_Thread_currentThread);
+			s_Thread_class, s_Thread_currentThread); /* should never fail */
+
+	exh = (*env)->ExceptionOccurred(env); /* but mollify -Xcheck:jni anyway */
+	if(exh != 0)
+	{
+		(*env)->ExceptionClear(env);
+		elogExceptionMessage(env, exh, ERROR);
+	}
 
 	_updaterCommon(env, thread, loader);
 
@@ -1672,12 +1680,20 @@ void _heavyRestorer()
 {
 	jobject thread;
 	jobject value;
+	jobject exh;
 
 	BEGIN_JAVA
 
 	thread =
 		(*env)->CallStaticObjectMethod(env,
-			s_Thread_class, s_Thread_currentThread);
+			s_Thread_class, s_Thread_currentThread); /* should never fail */
+
+	exh = (*env)->ExceptionOccurred(env); /* but mollify -Xcheck:jni anyway */
+	if(exh != 0)
+	{
+		(*env)->ExceptionClear(env);
+		elogExceptionMessage(env, exh, ERROR);
+	}
 
 	value = currentInvocation->savedLoader;
 
