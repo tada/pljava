@@ -52,6 +52,8 @@
 
 #define COUNTCHECK(refs, prims) ((jshort)(((refs) << 8) | ((prims) & 0xff)))
 
+jobject pljava_Function_NO_LOADER;
+
 static jclass s_Function_class;
 static jclass s_ParameterFrame_class;
 static jclass s_EntryPoints_class;
@@ -228,7 +230,8 @@ void Function_initialize(void)
 		{ 0, 0, 0 }
 	};
 
-	jclass cls;
+	jclass   cls;
+	jfieldID fld;
 
 	StaticAssertStmt(org_postgresql_pljava_internal_Function_s_sizeof_jvalue
 		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
@@ -304,6 +307,13 @@ void Function_initialize(void)
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader");
+	fld = PgObject_getStaticJavaField(cls,
+		"SENTINEL", "Ljava/lang/ClassLoader;");
+	pljava_Function_NO_LOADER =
+		JNI_newGlobalRef(JNI_getStaticObjectField(cls, fld));
+	JNI_deleteLocalRef(cls);
 
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 
@@ -456,7 +466,7 @@ void pljava_Function_popFrame(bool heavy)
 	if ( heavy )
 		JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
 
-	if ( (void *)-1 == currentInvocation->savedLoader )
+	if ( pljava_Function_NO_LOADER == currentInvocation->savedLoader )
 		return;
 
 	(*JNI_loaderRestorer)();

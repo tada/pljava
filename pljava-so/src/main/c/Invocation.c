@@ -141,6 +141,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->function        = 0;
 	ctx->frameLimits     = 0;
 	ctx->primSlot0.j     = 0L;
+	ctx->savedLoader     = 0;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -158,6 +159,12 @@ void Invocation_popBootContext(void)
 	JNI_popLocalFrame(0);
 	currentInvocation = 0;
 	--s_callLevel;
+	/*
+	 * Nothing is done here with savedLoader. It is just set to 0 in
+	 * pushBootContext (uses can precede allocation of the sentinel value),
+	 * and PL/Java functions (which could save a value) aren't called in a
+	 * boot context.
+	 */
 }
 
 void Invocation_pushInvocation(Invocation* ctx)
@@ -167,7 +174,7 @@ void Invocation_pushInvocation(Invocation* ctx)
 	ctx->function        = 0;
 	ctx->frameLimits     = *s_frameLimits;
 	ctx->primSlot0       = *s_primSlot0;
-	ctx->savedLoader     = (void *)-1;
+	ctx->savedLoader     = pljava_Function_NO_LOADER;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;

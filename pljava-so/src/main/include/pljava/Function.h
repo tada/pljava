@@ -162,6 +162,18 @@ extern jobject Function_currentLoader(void);
  */
 extern Function Function_INIT_WRITER;
 
+/*
+ * A distinguished single JNI global classloader reference, to be used as
+ * a "no loader" sentinel value in context classloader management (as Java
+ * considers null to be a meaningful setContextClassLoader argument). Should any
+ * logic error lead to Java trying to use this object as a loader, null pointer
+ * exceptions will result, rather than the arbitrary behavior possible if using
+ * an arbitrary value or object of the wrong type.
+ *
+ * As this is a global reference and the only one, it can be compared with ==.
+ */
+extern jobject pljava_Function_NO_LOADER;
+
 #ifdef __cplusplus
 }
 #endif
