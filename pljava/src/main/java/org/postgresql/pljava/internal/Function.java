@@ -353,32 +353,73 @@ public class Function
 			}
 			catch ( ReflectiveOperationException e )
 			{
-				SQLException sqle =
-					memberException(clazz, methodName, origMT,true/*isStatic*/);
-				sqle.initCause(ex1);
-				sqle.setNextException((SQLException)
-					memberException(clazz, methodName, mt, true /*isStatic*/)
-					.initCause(e));
-				throw sqle;
+				SQLException sqe1 =
+					memberException(clazz, methodName, origMT, ex1,
+						true /*isStatic*/);
+				SQLException sqe2 =
+					memberException(clazz, methodName, mt, e,
+						true /*isStatic*/);
+
+				/*
+				 * If one of the exceptions is NoSuchMethodException and the
+				 * other isn't, then the one that isn't carries news about
+				 * a problem with a method that actually was found. If that's
+				 * the second one, we'll just lie a little about the order and
+				 * report it first. (We never promised what order we'd do the
+				 * lookups in anyway, and the current Java-to-PG exception
+				 * translation only preserves the "first" one's details.)
+				 */
+				if ( ex1 instanceof NoSuchMethodException
+					&& ! (e instanceof NoSuchMethodException) )
+				{
+					sqe2.setNextException(sqe1);
+					throw sqe2;
+				}
+
+				sqe1.setNextException(sqe2);
+				throw sqe1;
 			}	
 		}
 
-		throw (SQLException)
-			memberException(clazz, methodName, origMT, true /*isStatic*/)
-			.initCause(ex1);
+		throw
+			memberException(clazz, methodName, origMT, ex1, true /*isStatic*/);
 	}
 
 	/**
-	 * Produce an exception for a class member not found, with a message similar
-	 * to that of the C {@code PgObject_throwMemberError}.
+	 * Produce an exception for a class member not found, with a message that
+	 * may include details from further down an exception's chain of causes.
 	 */
 	private static SQLException memberException(
-		Class<?> clazz, String name, MethodType mt, boolean isStatic)
+		Class<?> clazz, String name, MethodType mt,
+		ReflectiveOperationException e, boolean isStatic)
 	{
+		/*
+		 * The most useful detail message to include may not be that
+		 * of e itself, but further down the chain of causes, particularly
+		 * if e is IllegalAccessException, which handle lookup can throw even
+		 * for causes that aren't illegal access but rather linkage errors.
+		 */
+		Throwable t, prev;
+		t = prev = e;
+		for ( Class<?> c : List.of(
+			IllegalAccessException.class, LinkageError.class,
+			ClassNotFoundException.class, Void.class) )
+		{
+			if ( ! c.isInstance(t) )
+			{
+				t = prev;
+				break;
+			}
+			prev = t;
+			t = t.getCause();
+		}
+
+		String detail = (null == t) ? "" : (": " + t);
+
 		return new SQLNonTransientException(
-			String.format("Unable to find%s method %s.%s with signature %s",
-				(isStatic ? " static" : ""),
-				clazz.getCanonicalName(), name, mt),
+			String.format("resolving %smethod %s.%s with signature %s%s",
+				(isStatic ? "static " : ""),
+				clazz.getCanonicalName(), name, mt, detail),
 			"38000");
 	}
 
