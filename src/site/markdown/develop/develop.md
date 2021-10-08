@@ -7,3 +7,4 @@ understanding of some PL/Java behavior is needed.
 
 * [The testing harness `Node.class` in PL/Java's self-installer jar](node.html)
 * [Passing of data types between PostgreSQL and Java](coercion.html)
+* [The thread context class loader in a PL/Java function](contextloader.html)
