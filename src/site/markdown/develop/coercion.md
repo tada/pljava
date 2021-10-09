@@ -68,6 +68,20 @@ a PL/Java function, the type map for the schema in which the target function
 is declared and, at other times, the map for the schema in which the
 innermost executing PL/Java function on the call stack is declared.
 
+Starting in PL/Java 1.6.3, a PL/Java function is entered with the current
+thread's [context class loader][ccl] set according to the schema where the
+function is declared, and therefore the rules for applying the type map
+just described can be simplified: the type map is the one maintained by
+the current context class loader, provided Java code has not changed the
+context loader from the initial setting. To date, the code actually obtaining
+the type map has not been changed to get it _from_ the context class loader,
+so the type map would not be affected by Java code changing the context loader.
+
+There are [more details](contextloader.html) on the management of
+the context class loader.
+
+[ccl]: https://docs.oracle.com/javase/9/docs/api/java/lang/Thread.html#getContextClassLoader--
+
 ### PL/Java's object system implemented in C
 
 In PL/Java, some behavior is implemented in Java using familiar Java

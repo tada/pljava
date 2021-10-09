@@ -134,9 +134,9 @@ by default because they depend on the Saxon jar.
 
 If your examples jar was built with the optional examples enabled, then
 PL/Java will normally validate that all of the functions it creates can be used.
-That validation will fail if a needed dependency, such as the Saxon jar, is
+That validation can fail if a needed dependency, such as the Saxon jar, is
 not already installed and on the classpath. The error message will not directly
-say the Saxon jar is missing, but will say it failed to find a class (whose name
+say the Saxon jar is missing, but may say it failed to find a class (whose name
 will suggest it should be part of Saxon).
 
 There are two ways to proceed:

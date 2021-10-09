@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -43,22 +43,6 @@ extern "C" {
 extern void Function_clearFunctionCache(void);
 
 /*
- * Get a Function using a function Oid. If the function is not found, one
- * will be created based on the class and method name denoted in the "AS"
- * clause, the parameter types, and the return value of the function
- * description. If "forTrigger" is true, the parameter type and
- * return value of the function will be fixed to:
- * void <method name>(org.postgresql.pljava.TriggerData td)
- *
- * If forValidator is true, forTrigger is disregarded, and will be determined
- * from the function's pg_proc entry. If forValidator is false, checkBody has no
- * meaning.
- */
-extern Function Function_getFunction(
-	Oid funcOid, bool trusted, bool forTrigger,
-	bool forValidator, bool checkBody);
-
-/*
  * Determine whether the type represented by typeId is declared as a
  * "Java-based scalar" a/k/a BaseUDT and, if so, return a freshly-registered
  * UDT Type for it; otherwise return NULL.
@@ -66,20 +50,22 @@ extern Function Function_getFunction(
 extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
- * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
- * object, make the call, and unwrap the resulting Tuple.
+ * First translate a function Oid to a Function (looking it up according to the
+ * trusted, forTrigger, forValidator, and checkBody parameters), and then
+ * (unless forValidator is true) invoke it: i.e. coerce the parameters, call the
+ * java method, and coerce the return value back to a Datum. The return-value
+ * coercion is handled by a convention where this call will delegate to the Type
+ * representing the SQL return type. That will call back on one of the flavors
+ * of fooInvoke below corresponding to the return type of the Java method, and
+ * then coerce that to the intended SQL type.
+ *
+ * If forValidator is true, NULL may be passed in the PG_FUNCTION_ARGS position.
+ * and NULL is returned immediately on successful validation.
  */
-extern Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS);
-
-/*
- * Invoke a function, i.e. coerce the parameters, call the java method, and
- * coerce the return value back to a Datum. The return-value coercion is handled
- * by a convention where this call will delegate to the Type representing the
- * SQL return type. That will call back on one of the flavors of fooInvoke below
- * corresponding to the return type of the Java method, and then coerce that to
- * the intended SQL type.
- */
-extern Datum Function_invoke(Function self, PG_FUNCTION_ARGS);
+extern Datum Function_invoke(
+	Oid funcoid,
+	bool trusted, bool forTrigger, bool forValidator, bool checkBody,
+	PG_FUNCTION_ARGS);
 
 /*
  * Most slots in the parameter area are set directly in invoke() or
@@ -92,8 +78,10 @@ extern void pljava_Function_setParameter(Function self, int idx, jvalue val);
 
 /*
  * Not intended for any caller other than Invocation_popInvocation.
+ * 'heavy' indicates that the heavy form of parameter-frame saving has been used
+ * and must be undone.
  */
-extern void pljava_Function_popFrame(void);
+extern void pljava_Function_popFrame(bool heavy);
 
 /*
  * These actually invoke a target Java method (returning, respectively, a
@@ -121,9 +109,13 @@ extern jdouble pljava_Function_doubleInvoke(Function self);
  * indicate whether a row was retrieved, AND puts a value (or null) in *result.
  */
 extern jboolean pljava_Function_vpcInvoke(
-	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
-	jobject *result);
+	Function self, jobject invocable, jobject rowcollect, jlong call_cntr,
+	jboolean close, jobject *result);
 
+/*
+ * These are exposed so they can be called back from type/UDT.c.
+ * There is one for each flavor of UDT supporting function.
+ */
 extern void pljava_Function_udtWriteInvoke(
 	jobject invocable, jobject value, jobject stream);
 extern jstring pljava_Function_udtToStringInvoke(
@@ -133,17 +125,20 @@ extern jobject pljava_Function_udtReadInvoke(
 extern jobject pljava_Function_udtParseInvoke(
 	jobject invocable, jstring stringRep, jstring typeName);
 
+/*
+ * These are exposed so they can be called back from type/Type.c when it is
+ * registering a MappedUDT. A MappedUDT has these two support functions,
+ * but never the parse/toString ones a BaseUDT has.
+ */
 extern jobject pljava_Function_udtWriteHandle(
-	jclass clazz, char *langName, bool trusted);
-extern jobject pljava_Function_udtToStringHandle(
 	jclass clazz, char *langName, bool trusted);
 extern jobject pljava_Function_udtReadHandle(
 	jclass clazz, char *langName, bool trusted);
-extern jobject pljava_Function_udtParseHandle(
-	jclass clazz, char *langName, bool trusted);
 
 /*
- * Returns the Type Map that is associated with the function
+ * Returns the type map that is held by the function's schema loader (the
+ * initiating loader that was used when the function was resolved). It is a map
+ * from Java Oid objects to Class<SQLData> objects, as resolved by that loader.
  */
 extern jobject Function_getTypeMap(Function self);
 
@@ -154,9 +149,11 @@ extern jobject Function_getTypeMap(Function self);
 extern bool Function_isCurrentReadOnly(void);
 
 /*
- * Return a local reference to the initiating (schema) class loader used to load
- * the currently-executing function, or NULL if there is no currently-executing
- * function or the schema loaders have been cleared and that loader is gone.
+ * Return a global reference to the initiating (schema) class loader used
+ * to load the currently-executing function.
+ *
+ * Invocation_getTypeMap is equivalent to calling this and then JNI-invoking
+ * getTypeMap on the returned loader (cast to PL/Java's loader subclass).
  */
 extern jobject Function_currentLoader(void);
 
@@ -164,6 +161,18 @@ extern jobject Function_currentLoader(void);
  * A nameless Function singleton with the property ! isCurrentReadOnly()
  */
 extern Function Function_INIT_WRITER;
+
+/*
+ * A distinguished single JNI global classloader reference, to be used as
+ * a "no loader" sentinel value in context classloader management (as Java
+ * considers null to be a meaningful setContextClassLoader argument). Should any
+ * logic error lead to Java trying to use this object as a loader, null pointer
+ * exceptions will result, rather than the arbitrary behavior possible if using
+ * an arbitrary value or object of the wrong type.
+ *
+ * As this is a global reference and the only one, it can be compared with ==.
+ */
+extern jobject pljava_Function_NO_LOADER;
 
 #ifdef __cplusplus
 }

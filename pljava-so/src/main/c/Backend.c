@@ -1843,7 +1843,7 @@ static void registerGUCOptions(void)
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
-static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
+static inline Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
@@ -1867,7 +1867,8 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 	return internalCallHandler(true, fcinfo);
 }
 
-static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
+static inline Datum
+internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
@@ -1890,20 +1891,8 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		Function function =
-			Function_getFunction(funcoid, trusted, forTrigger, false, true);
-		if(forTrigger)
-		{
-			/* Called as a trigger procedure
-			 */
-			retval = Function_invokeTrigger(function, fcinfo);
-		}
-		else
-		{
-			/* Called as a function
-			 */
-			retval = Function_invoke(function, fcinfo);
-		}
+		retval = Function_invoke(
+			funcoid, trusted, forTrigger, false, true, fcinfo);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -1990,8 +1979,8 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		if ( NULL != oidSaveLocation )
 			*oidSaveLocation = funcoid;
 
-		Function_getFunction(
-			funcoid, trusted, false, true, check_function_bodies);
+		Function_invoke(
+			funcoid, trusted, false, true, check_function_bodies, NULL);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();

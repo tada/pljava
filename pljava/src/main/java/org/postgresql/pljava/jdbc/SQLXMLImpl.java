@@ -634,7 +634,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		boolean mustBeDocument = false;
 		boolean cantBeDocument = false;
 
-		XMLInputFactory xif = XMLInputFactory.newInstance();
+		XMLInputFactory xif = XMLInputFactory.newDefaultFactory();
 		xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
 		xif.setProperty(xif.SUPPORT_DTD, false);// will still report one it sees
 		xif.setProperty(xif.IS_REPLACING_ENTITY_REFERENCES, false);
@@ -1409,7 +1409,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					|| rc.isAssignableFrom(AdjustingSAXResult.class) )
 				{
 					SAXTransformerFactory saxtf = (SAXTransformerFactory)
-						SAXTransformerFactory.newInstance();
+						SAXTransformerFactory.newDefaultInstance();
 					TransformerHandler th = saxtf.newTransformerHandler();
 					th.getTransformer().setOutputProperty(
 						ENCODING, m_serverCS.name());
@@ -1426,7 +1426,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 				if ( rc.isAssignableFrom(StAXResult.class) )
 				{
-					XMLOutputFactory xof = XMLOutputFactory.newInstance();
+					XMLOutputFactory xof = XMLOutputFactory.newDefaultFactory();
 					os = new DeclCheckedOutputStream(os, m_serverCS);
 					XMLStreamWriter xsw = xof.createXMLStreamWriter(
 						os, m_serverCS.name());
@@ -1459,7 +1459,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			DOMSource src = new DOMSource(r.getNode());
 			try
 			{
-				TransformerFactory tf = TransformerFactory.newInstance();
+				TransformerFactory tf = TransformerFactory.newDefaultInstance();
 				Transformer t = tf.newTransformer();
 				t.setOutputProperty(ENCODING, m_serverCS.name());
 				os = new DeclCheckedOutputStream(os, m_serverCS);
@@ -4018,9 +4018,9 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			{
 				StAXResult str = m_tgt.setResult(
 					m_tgt.backingIfNotFreed(), StAXResult.class);
-				XMLInputFactory  xif = XMLInputFactory.newInstance();
+				XMLInputFactory  xif = XMLInputFactory.newDefaultFactory();
 				xif.setProperty(xif.IS_NAMESPACE_AWARE, true);
-				XMLOutputFactory xof = XMLOutputFactory.newInstance();
+				XMLOutputFactory xof = XMLOutputFactory.newDefaultFactory();
 				/*
 				 * The Source has either an event reader or a stream reader. Use
 				 * the event reader directly, or create one around the stream
@@ -4904,7 +4904,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			m_is = is;
 			m_wrapped = wrapped;
-			m_spf = SAXParserFactory.newInstance();
+			m_spf = SAXParserFactory.newDefaultInstance();
 			m_spf.setNamespaceAware(true);
 		}
 
@@ -5192,7 +5192,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		AdjustingStAXSource(InputStream is, Charset serverCS, boolean wrapped)
 		throws XMLStreamException
 		{
-			m_xif = XMLInputFactory.newInstance();
+			m_xif = XMLInputFactory.newDefaultFactory();
 			m_xif.setProperty(m_xif.IS_NAMESPACE_AWARE, true);
 			m_is = is;
 			m_serverCS = serverCS;
@@ -5333,7 +5333,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		AdjustingDOMSource(InputStream is, boolean wrapped)
 		{
-			m_dbf = DocumentBuilderFactory.newInstance();
+			m_dbf = DocumentBuilderFactory.newDefaultInstance();
 			m_dbf.setNamespaceAware(true);
 			m_is = is;
 			m_wrapped = wrapped;

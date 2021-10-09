@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -121,6 +121,13 @@ void Invocation_assertDisconnect(void)
 	}
 }
 
+/*
+ * Return the type map held by the innermost executing PL/Java function's
+ * schema loader (the initiating loader that was used to resolve the function).
+ * The type map is a map from Java Oid objects to Class<SQLData> class objects,
+ * as resolved by that loader. This is effectively Function_currentLoader()
+ * followed by JNI-invoking getTypeMap on the loader, but cached to avoid JNI).
+ */
 jobject Invocation_getTypeMap(void)
 {
 	Function f = currentInvocation->function;
@@ -134,6 +141,7 @@ void Invocation_pushBootContext(Invocation* ctx)
 	ctx->function        = 0;
 	ctx->frameLimits     = 0;
 	ctx->primSlot0.j     = 0L;
+	ctx->savedLoader     = 0;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -151,6 +159,12 @@ void Invocation_popBootContext(void)
 	JNI_popLocalFrame(0);
 	currentInvocation = 0;
 	--s_callLevel;
+	/*
+	 * Nothing is done here with savedLoader. It is just set to 0 in
+	 * pushBootContext (uses can precede allocation of the sentinel value),
+	 * and PL/Java functions (which could save a value) aren't called in a
+	 * boot context.
+	 */
 }
 
 void Invocation_pushInvocation(Invocation* ctx)
@@ -160,6 +174,7 @@ void Invocation_pushInvocation(Invocation* ctx)
 	ctx->function        = 0;
 	ctx->frameLimits     = *s_frameLimits;
 	ctx->primSlot0       = *s_primSlot0;
+	ctx->savedLoader     = pljava_Function_NO_LOADER;
 	ctx->hasConnected    = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
@@ -175,13 +190,13 @@ void Invocation_pushInvocation(Invocation* ctx)
 void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
+	bool heavy = FRAME_LIMITS_PUSHED == currentInvocation->frameLimits;
 
 	/*
-	 * If the more heavyweight parameter-frame push got done, undo it.
+	 * If the more heavyweight parameter-frame push wasn't done, do
+	 * the lighter cleanup here.
 	 */
-	if ( FRAME_LIMITS_PUSHED == currentInvocation->frameLimits )
-		pljava_Function_popFrame();
-	else
+	if ( ! heavy )
 	{
 		/*
 		 * The lighter-weight cleanup.
@@ -189,6 +204,7 @@ void Invocation_popInvocation(bool wasException)
 		*s_frameLimits = currentInvocation->frameLimits;
 		*s_primSlot0   = currentInvocation->primSlot0;
 	}
+	pljava_Function_popFrame(heavy);
 
 	/*
 	 * If a Java Invocation instance was created and associated with this

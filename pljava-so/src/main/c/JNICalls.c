@@ -34,13 +34,98 @@ static jobject s_threadLock;
 static bool s_refuseOtherThreads = false;
 static bool s_doMonitorOps = true;
 
+static jclass    s_Thread_class;
+static jmethodID s_Thread_currentThread;
+static jfieldID  s_Thread_contextLoader;
+
+static jobject   s_threadObject;
+
 void pljava_JNI_setThreadPolicy(bool refuseOtherThreads, bool doMonitorOps)
 {
 	s_refuseOtherThreads = refuseOtherThreads;
 	s_doMonitorOps = doMonitorOps;
 }
 
+/*
+ * This file contains very specialized methods for updating the context
+ * class loader of a thread, because this is where they can be implemented
+ * without the overhead of several calls to wrappers defined here.
+ *
+ * More lightweight implementations of those can be chosen if the selected
+ * thread policy precludes native access from any but the primordial thread.
+ */
+JNI_ContextLoaderUpdater  *JNI_loaderUpdater;
+JNI_ContextLoaderRestorer *JNI_loaderRestorer;
 
+static JNI_ContextLoaderUpdater  _noopUpdater;
+static JNI_ContextLoaderRestorer _noopRestorer;
+
+static JNI_ContextLoaderUpdater  _lightUpdater;
+static JNI_ContextLoaderRestorer _lightRestorer;
+
+static JNI_ContextLoaderUpdater  _heavyUpdater;
+static JNI_ContextLoaderRestorer _heavyRestorer;
+
+void pljava_JNI_threadInitialize(bool manageLoader)
+{
+	if ( ! manageLoader )
+	{
+		JNI_loaderUpdater  = _noopUpdater;
+		JNI_loaderRestorer = _noopRestorer;
+		return;
+	}
+
+	s_Thread_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"java/lang/Thread"));
+	s_Thread_currentThread = PgObject_getStaticJavaMethod(
+		s_Thread_class,
+		"currentThread",
+		"()"
+		"Ljava/lang/Thread;");
+	s_Thread_contextLoader = JNI_getFieldIDOrNull(s_Thread_class,
+		"contextClassLoader", "Ljava/lang/ClassLoader;");
+
+	if ( NULL == s_Thread_contextLoader )
+	{
+		ereport(WARNING, (
+			errmsg("unable to manage thread context classloaders in this JVM")
+		));
+		JNI_loaderUpdater  = _noopUpdater;
+		JNI_loaderRestorer = _noopRestorer;
+	}
+	else if ( s_refuseOtherThreads  ||  ! s_doMonitorOps )
+	{
+		s_threadObject =
+			JNI_newGlobalRef(
+				JNI_callStaticObjectMethod(
+					s_Thread_class, s_Thread_currentThread));
+		JNI_loaderUpdater  = _lightUpdater;
+		JNI_loaderRestorer = _lightRestorer;
+	}
+	else
+	{
+		JNI_loaderUpdater  = _heavyUpdater;
+		JNI_loaderRestorer = _heavyRestorer;
+	}
+}
+
+
+/*
+ * BEGIN_JAVA and END_JAVA are used in JNI wrappers that are not expected to
+ * invoke Java methods; all they do is play the game with the scope of the JNI
+ * env value that was devised to fail fast if the intended pattern for PL/Java's
+ * JNI usage isn't followed.
+ *
+ * BEGIN_CALL and END_CALL add to that the releasing of the "THREADLOCK"
+ * monitor when calling into Java, and reacquiring it on return, that support
+ * the java_thread_pg_entry=allow mode of operation, and also checking for
+ * exceptions and turning them into PostgreSQL ereports.
+ *
+ * The _MONITOR_HELD flavors of those skip the monitor operations but still do
+ * the exception checks. They are used in a select few *Locked flavors of
+ * method call wrappers used where only known and lightweight Java methods will
+ * be invoked and not arbitrary methods of user code.
+ */
 #define BEGIN_JAVA { JNIEnv* env = jniEnv; jniEnv = 0;
 #define END_JAVA jniEnv = env; }
 
@@ -955,6 +1040,33 @@ jfieldID JNI_getFieldID(jclass clazz, const char* name, const char* sig)
 	return result;
 }
 
+jfieldID JNI_getFieldIDOrNull(jclass clazz, const char* name, const char* sig)
+{
+	jfieldID result;
+	jobject exh;
+	BEGIN_CALL
+	result = (*env)->GetFieldID(env, clazz, name, sig);
+	if(result == 0) {
+		exh = (*env)->ExceptionOccurred(env);
+		if ( 0 != exh )
+		{
+			/*
+			 * Ignore a NoSuchFieldError, but not any other exception.
+			 * This operation order (first clear the pending exception, then
+			 * do the IsInstanceOf check, then Throw again if not the expected
+			 * class) avoids a benign -Xcheck:JNI warning about calling
+			 * IsInstanceOf while an exception is pending.
+			 */
+			(*env)->ExceptionClear(env);
+			if ( ! (*env)->IsInstanceOf(env, exh, NoSuchFieldError_class) )
+				(*env)->Throw(env, exh);
+			(*env)->DeleteLocalRef(env, exh);
+		}
+	}
+	END_CALL
+	return result;
+}
+
 jfloat* JNI_getFloatArrayElements(jfloatArray array, jboolean* isCopy)
 {
 	jfloat* result;
@@ -1106,6 +1218,15 @@ jmethodID JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char
 		}
 	}
 	END_CALL
+	return result;
+}
+
+jboolean JNI_getStaticBooleanField(jclass clazz, jfieldID field)
+{
+	jboolean result;
+	BEGIN_JAVA
+	result = (*env)->GetStaticBooleanField(env, clazz, field);
+	END_JAVA
 	return result;
 }
 
@@ -1507,4 +1628,125 @@ jint JNI_throw(jthrowable obj)
 	result = (*env)->Throw(env, obj);
 	END_JAVA
 	return result;
+}
+
+/*
+ * Implementations of the context class loader updater and restorer.
+ * The loader reference passed in is not to be deleted. If saved anywhere,
+ * a new global ref is to be taken, and later deleted when restored.
+ */
+
+static inline void _updaterCommon(JNIEnv *env, jobject thread, jobject loader)
+{
+	jobject old = (*env)->GetObjectField(env, thread, s_Thread_contextLoader);
+
+	/*
+	 * If it is not already the loader we want, change it, and set
+	 * currentInvocation->savedLoader to restore it later. If this is
+	 * a top-level invocation, we don't care what it gets restored to, so lie,
+	 * and save loader there instead of old. If there are many consecutive
+	 * top-level calls with the same context loader, that will save work later.
+	 *
+	 * If it is already the loader we want, again we check for a top-level call,
+	 * and can leave currentInvocation->savedLoader completely unset in that
+	 * case, so the restore call will be skipped completely. If not a top-level
+	 * call, though, see that it gets restored to what the caller might expect,
+	 * even if it somehow got changed.
+	 */
+
+	if ( ! (*env)->IsSameObject(env, old, loader) )
+	{
+		(*env)->SetObjectField(env, thread, s_Thread_contextLoader, loader);
+
+		currentInvocation->savedLoader = (*env)->NewGlobalRef(env,
+			( NULL == currentInvocation->previous ) ? loader : old);
+	}
+	else if ( NULL != currentInvocation->previous )
+		currentInvocation->savedLoader = (*env)->NewGlobalRef(env, old);
+
+	(*env)->DeleteLocalRef(env, old);
+}
+
+static void _heavyUpdater(jobject loader)
+{
+	jobject thread;
+	jobject exh;
+
+	BEGIN_JAVA
+
+	thread =
+		(*env)->CallStaticObjectMethod(env,
+			s_Thread_class, s_Thread_currentThread); /* should never fail */
+
+	exh = (*env)->ExceptionOccurred(env); /* but mollify -Xcheck:jni anyway */
+	if(exh != 0)
+	{
+		(*env)->ExceptionClear(env);
+		elogExceptionMessage(env, exh, ERROR);
+	}
+
+	_updaterCommon(env, thread, loader);
+
+	(*env)->DeleteLocalRef(env, thread);
+
+	END_JAVA
+}
+
+void _heavyRestorer()
+{
+	jobject thread;
+	jobject value;
+	jobject exh;
+
+	BEGIN_JAVA
+
+	thread =
+		(*env)->CallStaticObjectMethod(env,
+			s_Thread_class, s_Thread_currentThread); /* should never fail */
+
+	exh = (*env)->ExceptionOccurred(env); /* but mollify -Xcheck:jni anyway */
+	if(exh != 0)
+	{
+		(*env)->ExceptionClear(env);
+		elogExceptionMessage(env, exh, ERROR);
+	}
+
+	value = currentInvocation->savedLoader;
+
+	(*env)->SetObjectField(env, thread, s_Thread_contextLoader, value);
+	(*env)->DeleteGlobalRef(env, value);
+	(*env)->DeleteLocalRef(env, thread);
+
+	END_JAVA
+}
+
+static void _lightUpdater(jobject loader)
+{
+	BEGIN_JAVA
+
+	_updaterCommon(env, s_threadObject, loader);
+
+	END_JAVA
+}
+
+void _lightRestorer()
+{
+	jobject value;
+
+	BEGIN_JAVA
+
+	value = currentInvocation->savedLoader;
+
+	(*env)->SetObjectField(env, s_threadObject, s_Thread_contextLoader, value);
+	(*env)->DeleteGlobalRef(env, value);
+
+	END_JAVA
+}
+
+static void _noopUpdater(jobject loader)
+{
+}
+
+void _noopRestorer()
+{
 }
