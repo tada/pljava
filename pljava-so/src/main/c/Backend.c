@@ -2028,14 +2028,14 @@ void Backend_warnJEP411(bool isCommit)
 			"(after Java 17) that will be unable to run PL/Java %s "
 			 "with policy enforcement", SO_VERSION_STRING),
 		errdetail(
-			"Future Java releases will phase out important features used "
-			"by this PL/Java version to enforce security policy. Those "
-			"changes will come in releases after Java 17."),
+			"This PL/Java version enforces security policy using important "
+			"Java features that will be phased out in future Java versions. "
+			"Those changes will come in releases after Java 17."),
 		errhint(
 			"For migration planning, Java versions up to and including 17 "
 			"remain fully usable with this version of PL/Java, and Java 17 "
 			"is positioned as a long-term support release. For details on "
-			"how PL/Java will adapt, please visit "
+			"how PL/Java will adapt, please bookmark "
 			"https://github.com/tada/pljava/wiki/JEP-411")
 	));
 }

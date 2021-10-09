@@ -370,6 +370,14 @@ The current implementation makes use of the Java classes
 That should be regarded as an implementation detail; it may change in a future
 release, so relying on it is not recommended.
 
+The developers of Java have elected to phase out important language features
+used by PL/Java to enforce policy. The changes will come in releases after
+Java 17. For migration planning, Java versions up to and including 17
+remain fully usable with this version of PL/Java, and Java 17
+is positioned as a long-term support release. For details on
+how PL/Java will adapt, please bookmark [the JEP 411 topic][jep411]
+on the PL/Java wiki.
+
 
 [pfsyn]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-7942E6F8-8AAB-4404-9FE9-E08DD6FFCFFA
 [jdkperms]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-1E8E213A-D7F2-49F1-A2F0-EFB3397A8C95
@@ -378,3 +386,4 @@ release, so relying on it is not recommended.
 [sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
 [tssec]: https://docs.oracle.com/en/java/javase/14/security/troubleshooting-security.html
 [trial]: trial.html
+[jep411]: https://github.com/tada/pljava/wiki/JEP-411
