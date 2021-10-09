@@ -600,6 +600,17 @@ PostgreSQL does call through those slots, PL/Java always does a raw binary
 transfer using the `libpq` API directly (for fixed-size representations),
 `bytearecv`/`byteasend` for `varlena` representations, or
 `unknownrecv`/`unknownsend` for C string representations.
+Responsible code in `type/UDT.c` is commented with "Assumption 2".
 
 A future version could revisit this limitation, and allow PL/Java UDTs to
 specify custom binary transfer formats also.
+
+"Assumption 1" in `UDT.c` is that any PostgreSQL type declared with
+`internallength=-2` (meaning it is stored as a variable number of nonzero
+bytes terminated by a zero byte) must have a human-readable representation
+identical to its stored form, and must be converted to and from Java using
+the `INPUT` and `OUTPUT` slots. A `MappedUDT` does not have functions in
+those slots, and therefore "Assumption 1" rules out any such type as target
+of a `MappedUDT`.
+
+A future version could revisit this limitation also.

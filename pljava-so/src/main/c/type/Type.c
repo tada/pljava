@@ -712,6 +712,18 @@ checkTypeMappedUDT(Oid typeId, jobject typeMap, Form_pg_type typeStruct)
 	if ( NULL == typeClass )
 		return NULL;
 
+	if ( -2 == typeStruct->typlen )
+	{
+		JNI_deleteLocalRef(typeClass);
+		ereport(ERROR, (
+			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg(
+				"type mapping in PL/Java for %s with NUL-terminated(-2) "
+				"storage not supported",
+				format_type_be_qualified(typeId))
+		));
+	}
+
 	readMH  = pljava_Function_udtReadHandle( typeClass, NULL, true);
 	writeMH = pljava_Function_udtWriteHandle(typeClass, NULL, true);
 
