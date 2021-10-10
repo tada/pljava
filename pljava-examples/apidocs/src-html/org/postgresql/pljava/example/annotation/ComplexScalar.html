@@ -11,7 +11,7 @@
 <main role="main">
 <div class="source-container">
 <pre><span class="source-line-no">001</span><span id="line.1">/*</span>
-<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2004-2015 Tada AB and other contributors, as listed below.</span>
+<span class="source-line-no">002</span><span id="line.2"> * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.</span>
 <span class="source-line-no">003</span><span id="line.3"> *</span>
 <span class="source-line-no">004</span><span id="line.4"> * All rights reserved. This program and the accompanying materials</span>
 <span class="source-line-no">005</span><span id="line.5"> * are made available under the terms of the The BSD 3-Clause License</span>
@@ -255,87 +255,122 @@
 <span class="source-line-no">243</span><span id="line.243">    }</span>
 <span class="source-line-no">244</span><span id="line.244"></span>
 <span class="source-line-no">245</span><span id="line.245">    /**</span>
-<span class="source-line-no">246</span><span id="line.246">     * As an ordinary function, returns the lesser in magnitude of two</span>
-<span class="source-line-no">247</span><span id="line.247">     * arguments; as a simple aggregate, returns the least in magnitude over its</span>
-<span class="source-line-no">248</span><span id="line.248">     * aggregated arguments.</span>
-<span class="source-line-no">249</span><span id="line.249">     *&lt;p&gt;</span>
-<span class="source-line-no">250</span><span id="line.250">     * As an aggregate, this is a simple example where this method serves as the</span>
-<span class="source-line-no">251</span><span id="line.251">     * {@code accumulate} function, the state (&lt;em&gt;a&lt;/em&gt; here) has the same</span>
-<span class="source-line-no">252</span><span id="line.252">     * type as the argument (here &lt;em&gt;b&lt;/em&gt;), there is no {@code finish}</span>
-<span class="source-line-no">253</span><span id="line.253">     * function, and the final value of the state is the result.</span>
-<span class="source-line-no">254</span><span id="line.254">     *&lt;p&gt;</span>
-<span class="source-line-no">255</span><span id="line.255">     * An optimization is available in case there is an index on the aggregated</span>
-<span class="source-line-no">256</span><span id="line.256">     * values based on the {@code &lt;} operator above; in that case, the first</span>
-<span class="source-line-no">257</span><span id="line.257">     * value found in a scan of that index is the aggregate result. That is</span>
-<span class="source-line-no">258</span><span id="line.258">     * indicated here by naming the {@code &lt;} operator as {@code sortOperator}.</span>
-<span class="source-line-no">259</span><span id="line.259">     */</span>
-<span class="source-line-no">260</span><span id="line.260">    @Aggregate(sortOperator = "javatest.&lt;")</span>
-<span class="source-line-no">261</span><span id="line.261">    @Function(</span>
-<span class="source-line-no">262</span><span id="line.262">        schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL</span>
+<span class="source-line-no">246</span><span id="line.246">     * True if the complex argument is real-valued and equal to the real</span>
+<span class="source-line-no">247</span><span id="line.247">     * argument.</span>
+<span class="source-line-no">248</span><span id="line.248">     *&lt;p&gt;</span>
+<span class="source-line-no">249</span><span id="line.249">     * From one equality method on (complex,double) can be synthesized all four</span>
+<span class="source-line-no">250</span><span id="line.250">     * cross-type operators, {@code =} and {@code &lt;&gt;} for that pair of types and</span>
+<span class="source-line-no">251</span><span id="line.251">     * their {@code TWIN} commutators. One of the {@code &lt;&gt;} twins does need to</span>
+<span class="source-line-no">252</span><span id="line.252">     * specify what its synthetic function should be named.</span>
+<span class="source-line-no">253</span><span id="line.253">     */</span>
+<span class="source-line-no">254</span><span id="line.254">    @Operator(</span>
+<span class="source-line-no">255</span><span id="line.255">        name = "javatest.=",</span>
+<span class="source-line-no">256</span><span id="line.256">        commutator = TWIN, negator = "javatest.&lt;&gt;",</span>
+<span class="source-line-no">257</span><span id="line.257">        provides = "complex:double relationals"</span>
+<span class="source-line-no">258</span><span id="line.258">    )</span>
+<span class="source-line-no">259</span><span id="line.259">    @Operator(</span>
+<span class="source-line-no">260</span><span id="line.260">        name = "javatest.=",</span>
+<span class="source-line-no">261</span><span id="line.261">        synthetic = TWIN, negator = "javatest.&lt;&gt;",</span>
+<span class="source-line-no">262</span><span id="line.262">        provides = "complex:double relationals"</span>
 <span class="source-line-no">263</span><span id="line.263">    )</span>
-<span class="source-line-no">264</span><span id="line.264">    public static ComplexScalar minMagnitude(ComplexScalar a, ComplexScalar b)</span>
-<span class="source-line-no">265</span><span id="line.265">    {</span>
-<span class="source-line-no">266</span><span id="line.266">        return magnitudeLT(a, b) ? a : b;</span>
-<span class="source-line-no">267</span><span id="line.267">    }</span>
-<span class="source-line-no">268</span><span id="line.268"></span>
-<span class="source-line-no">269</span><span id="line.269">    /**</span>
-<span class="source-line-no">270</span><span id="line.270">     * An integer-returning comparison function by complex magnitude, usable to</span>
-<span class="source-line-no">271</span><span id="line.271">     * complete an example {@code btree} operator class.</span>
-<span class="source-line-no">272</span><span id="line.272">     */</span>
-<span class="source-line-no">273</span><span id="line.273">    @Function(</span>
-<span class="source-line-no">274</span><span id="line.274">        schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL,</span>
-<span class="source-line-no">275</span><span id="line.275">        provides = "complex relationals"</span>
-<span class="source-line-no">276</span><span id="line.276">    )</span>
-<span class="source-line-no">277</span><span id="line.277">    public static int cmpMagnitude(ComplexScalar a, ComplexScalar b)</span>
-<span class="source-line-no">278</span><span id="line.278">    {</span>
-<span class="source-line-no">279</span><span id="line.279">        if ( magnitudeLT(a, b) )</span>
-<span class="source-line-no">280</span><span id="line.280">            return -1;</span>
-<span class="source-line-no">281</span><span id="line.281">        if ( magnitudeLT(b, a) )</span>
-<span class="source-line-no">282</span><span id="line.282">            return 1;</span>
-<span class="source-line-no">283</span><span id="line.283">        return 0;</span>
-<span class="source-line-no">284</span><span id="line.284">    }</span>
-<span class="source-line-no">285</span><span id="line.285"></span>
-<span class="source-line-no">286</span><span id="line.286">    public ComplexScalar(double x, double y, String typeName) {</span>
-<span class="source-line-no">287</span><span id="line.287">        m_x = x;</span>
-<span class="source-line-no">288</span><span id="line.288">        m_y = y;</span>
-<span class="source-line-no">289</span><span id="line.289">        m_typeName = typeName;</span>
-<span class="source-line-no">290</span><span id="line.290">    }</span>
-<span class="source-line-no">291</span><span id="line.291"></span>
-<span class="source-line-no">292</span><span id="line.292">    @Override</span>
-<span class="source-line-no">293</span><span id="line.293">    public String getSQLTypeName() {</span>
-<span class="source-line-no">294</span><span id="line.294">        return m_typeName;</span>
-<span class="source-line-no">295</span><span id="line.295">    }</span>
-<span class="source-line-no">296</span><span id="line.296"></span>
-<span class="source-line-no">297</span><span id="line.297">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
-<span class="source-line-no">298</span><span id="line.298">    @Override</span>
-<span class="source-line-no">299</span><span id="line.299">    public void readSQL(SQLInput stream, String typeName) throws SQLException {</span>
-<span class="source-line-no">300</span><span id="line.300">        s_logger.fine(typeName + " from SQLInput");</span>
-<span class="source-line-no">301</span><span id="line.301">        m_x = stream.readDouble();</span>
-<span class="source-line-no">302</span><span id="line.302">        m_y = stream.readDouble();</span>
-<span class="source-line-no">303</span><span id="line.303">        m_typeName = typeName;</span>
-<span class="source-line-no">304</span><span id="line.304">    }</span>
-<span class="source-line-no">305</span><span id="line.305"></span>
-<span class="source-line-no">306</span><span id="line.306">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
-<span class="source-line-no">307</span><span id="line.307">    @Override</span>
-<span class="source-line-no">308</span><span id="line.308">    public String toString() {</span>
-<span class="source-line-no">309</span><span id="line.309">        s_logger.fine(m_typeName + " toString");</span>
-<span class="source-line-no">310</span><span id="line.310">        StringBuffer sb = new StringBuffer();</span>
-<span class="source-line-no">311</span><span id="line.311">        sb.append('(');</span>
-<span class="source-line-no">312</span><span id="line.312">        sb.append(m_x);</span>
-<span class="source-line-no">313</span><span id="line.313">        sb.append(',');</span>
-<span class="source-line-no">314</span><span id="line.314">        sb.append(m_y);</span>
-<span class="source-line-no">315</span><span id="line.315">        sb.append(')');</span>
-<span class="source-line-no">316</span><span id="line.316">        return sb.toString();</span>
-<span class="source-line-no">317</span><span id="line.317">    }</span>
-<span class="source-line-no">318</span><span id="line.318"></span>
-<span class="source-line-no">319</span><span id="line.319">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
-<span class="source-line-no">320</span><span id="line.320">    @Override</span>
-<span class="source-line-no">321</span><span id="line.321">    public void writeSQL(SQLOutput stream) throws SQLException {</span>
-<span class="source-line-no">322</span><span id="line.322">        s_logger.fine(m_typeName + " to SQLOutput");</span>
-<span class="source-line-no">323</span><span id="line.323">        stream.writeDouble(m_x);</span>
-<span class="source-line-no">324</span><span id="line.324">        stream.writeDouble(m_y);</span>
+<span class="source-line-no">264</span><span id="line.264">    @Operator(</span>
+<span class="source-line-no">265</span><span id="line.265">        name = "javatest.&lt;&gt;", synthetic = "javatest.neToReal",</span>
+<span class="source-line-no">266</span><span id="line.266">        commutator = TWIN, provides = "complex:double relationals"</span>
+<span class="source-line-no">267</span><span id="line.267">    )</span>
+<span class="source-line-no">268</span><span id="line.268">    @Operator(</span>
+<span class="source-line-no">269</span><span id="line.269">        name = "javatest.&lt;&gt;", synthetic = TWIN,</span>
+<span class="source-line-no">270</span><span id="line.270">        provides = "complex:double relationals"</span>
+<span class="source-line-no">271</span><span id="line.271">    )</span>
+<span class="source-line-no">272</span><span id="line.272">    @Function(</span>
+<span class="source-line-no">273</span><span id="line.273">        schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL</span>
+<span class="source-line-no">274</span><span id="line.274">    )</span>
+<span class="source-line-no">275</span><span id="line.275">    public static boolean eqToReal(ComplexScalar a, double b)</span>
+<span class="source-line-no">276</span><span id="line.276">    {</span>
+<span class="source-line-no">277</span><span id="line.277">        return a.m_x == b  &amp;&amp;  0. == a.m_y;</span>
+<span class="source-line-no">278</span><span id="line.278">    }</span>
+<span class="source-line-no">279</span><span id="line.279"></span>
+<span class="source-line-no">280</span><span id="line.280">    /**</span>
+<span class="source-line-no">281</span><span id="line.281">     * As an ordinary function, returns the lesser in magnitude of two</span>
+<span class="source-line-no">282</span><span id="line.282">     * arguments; as a simple aggregate, returns the least in magnitude over its</span>
+<span class="source-line-no">283</span><span id="line.283">     * aggregated arguments.</span>
+<span class="source-line-no">284</span><span id="line.284">     *&lt;p&gt;</span>
+<span class="source-line-no">285</span><span id="line.285">     * As an aggregate, this is a simple example where this method serves as the</span>
+<span class="source-line-no">286</span><span id="line.286">     * {@code accumulate} function, the state (&lt;em&gt;a&lt;/em&gt; here) has the same</span>
+<span class="source-line-no">287</span><span id="line.287">     * type as the argument (here &lt;em&gt;b&lt;/em&gt;), there is no {@code finish}</span>
+<span class="source-line-no">288</span><span id="line.288">     * function, and the final value of the state is the result.</span>
+<span class="source-line-no">289</span><span id="line.289">     *&lt;p&gt;</span>
+<span class="source-line-no">290</span><span id="line.290">     * An optimization is available in case there is an index on the aggregated</span>
+<span class="source-line-no">291</span><span id="line.291">     * values based on the {@code &lt;} operator above; in that case, the first</span>
+<span class="source-line-no">292</span><span id="line.292">     * value found in a scan of that index is the aggregate result. That is</span>
+<span class="source-line-no">293</span><span id="line.293">     * indicated here by naming the {@code &lt;} operator as {@code sortOperator}.</span>
+<span class="source-line-no">294</span><span id="line.294">     */</span>
+<span class="source-line-no">295</span><span id="line.295">    @Aggregate(sortOperator = "javatest.&lt;")</span>
+<span class="source-line-no">296</span><span id="line.296">    @Function(</span>
+<span class="source-line-no">297</span><span id="line.297">        schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL</span>
+<span class="source-line-no">298</span><span id="line.298">    )</span>
+<span class="source-line-no">299</span><span id="line.299">    public static ComplexScalar minMagnitude(ComplexScalar a, ComplexScalar b)</span>
+<span class="source-line-no">300</span><span id="line.300">    {</span>
+<span class="source-line-no">301</span><span id="line.301">        return magnitudeLT(a, b) ? a : b;</span>
+<span class="source-line-no">302</span><span id="line.302">    }</span>
+<span class="source-line-no">303</span><span id="line.303"></span>
+<span class="source-line-no">304</span><span id="line.304">    /**</span>
+<span class="source-line-no">305</span><span id="line.305">     * An integer-returning comparison function by complex magnitude, usable to</span>
+<span class="source-line-no">306</span><span id="line.306">     * complete an example {@code btree} operator class.</span>
+<span class="source-line-no">307</span><span id="line.307">     */</span>
+<span class="source-line-no">308</span><span id="line.308">    @Function(</span>
+<span class="source-line-no">309</span><span id="line.309">        schema = "javatest", effects = IMMUTABLE, onNullInput = RETURNS_NULL,</span>
+<span class="source-line-no">310</span><span id="line.310">        provides = "complex relationals"</span>
+<span class="source-line-no">311</span><span id="line.311">    )</span>
+<span class="source-line-no">312</span><span id="line.312">    public static int cmpMagnitude(ComplexScalar a, ComplexScalar b)</span>
+<span class="source-line-no">313</span><span id="line.313">    {</span>
+<span class="source-line-no">314</span><span id="line.314">        if ( magnitudeLT(a, b) )</span>
+<span class="source-line-no">315</span><span id="line.315">            return -1;</span>
+<span class="source-line-no">316</span><span id="line.316">        if ( magnitudeLT(b, a) )</span>
+<span class="source-line-no">317</span><span id="line.317">            return 1;</span>
+<span class="source-line-no">318</span><span id="line.318">        return 0;</span>
+<span class="source-line-no">319</span><span id="line.319">    }</span>
+<span class="source-line-no">320</span><span id="line.320"></span>
+<span class="source-line-no">321</span><span id="line.321">    public ComplexScalar(double x, double y, String typeName) {</span>
+<span class="source-line-no">322</span><span id="line.322">        m_x = x;</span>
+<span class="source-line-no">323</span><span id="line.323">        m_y = y;</span>
+<span class="source-line-no">324</span><span id="line.324">        m_typeName = typeName;</span>
 <span class="source-line-no">325</span><span id="line.325">    }</span>
-<span class="source-line-no">326</span><span id="line.326">}</span>
+<span class="source-line-no">326</span><span id="line.326"></span>
+<span class="source-line-no">327</span><span id="line.327">    @Override</span>
+<span class="source-line-no">328</span><span id="line.328">    public String getSQLTypeName() {</span>
+<span class="source-line-no">329</span><span id="line.329">        return m_typeName;</span>
+<span class="source-line-no">330</span><span id="line.330">    }</span>
+<span class="source-line-no">331</span><span id="line.331"></span>
+<span class="source-line-no">332</span><span id="line.332">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
+<span class="source-line-no">333</span><span id="line.333">    @Override</span>
+<span class="source-line-no">334</span><span id="line.334">    public void readSQL(SQLInput stream, String typeName) throws SQLException {</span>
+<span class="source-line-no">335</span><span id="line.335">        s_logger.fine(typeName + " from SQLInput");</span>
+<span class="source-line-no">336</span><span id="line.336">        m_x = stream.readDouble();</span>
+<span class="source-line-no">337</span><span id="line.337">        m_y = stream.readDouble();</span>
+<span class="source-line-no">338</span><span id="line.338">        m_typeName = typeName;</span>
+<span class="source-line-no">339</span><span id="line.339">    }</span>
+<span class="source-line-no">340</span><span id="line.340"></span>
+<span class="source-line-no">341</span><span id="line.341">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
+<span class="source-line-no">342</span><span id="line.342">    @Override</span>
+<span class="source-line-no">343</span><span id="line.343">    public String toString() {</span>
+<span class="source-line-no">344</span><span id="line.344">        s_logger.fine(m_typeName + " toString");</span>
+<span class="source-line-no">345</span><span id="line.345">        StringBuffer sb = new StringBuffer();</span>
+<span class="source-line-no">346</span><span id="line.346">        sb.append('(');</span>
+<span class="source-line-no">347</span><span id="line.347">        sb.append(m_x);</span>
+<span class="source-line-no">348</span><span id="line.348">        sb.append(',');</span>
+<span class="source-line-no">349</span><span id="line.349">        sb.append(m_y);</span>
+<span class="source-line-no">350</span><span id="line.350">        sb.append(')');</span>
+<span class="source-line-no">351</span><span id="line.351">        return sb.toString();</span>
+<span class="source-line-no">352</span><span id="line.352">    }</span>
+<span class="source-line-no">353</span><span id="line.353"></span>
+<span class="source-line-no">354</span><span id="line.354">    @Function(effects=IMMUTABLE, onNullInput=RETURNS_NULL)</span>
+<span class="source-line-no">355</span><span id="line.355">    @Override</span>
+<span class="source-line-no">356</span><span id="line.356">    public void writeSQL(SQLOutput stream) throws SQLException {</span>
+<span class="source-line-no">357</span><span id="line.357">        s_logger.fine(m_typeName + " to SQLOutput");</span>
+<span class="source-line-no">358</span><span id="line.358">        stream.writeDouble(m_x);</span>
+<span class="source-line-no">359</span><span id="line.359">        stream.writeDouble(m_y);</span>
+<span class="source-line-no">360</span><span id="line.360">    }</span>
+<span class="source-line-no">361</span><span id="line.361">}</span>
 
 
 
