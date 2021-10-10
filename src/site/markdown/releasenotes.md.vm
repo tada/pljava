@@ -10,6 +10,132 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.3
+
+This is the third minor update in the PL/Java 1.6 series. It adds support
+for PostgreSQL 14, continues to improve the runtime behavior and
+the annotation-driven SQL generator, and fixes several bugs. Further information
+on the changes may be found below.
+
+$h3 PL/Java with Java 17 and later: JEP 411
+
+Current versions of PL/Java rely on Java security features that will be affected
+by JEP 411, beginning with Java 17. Java 17 itself will continue to provide the
+needed capabilities, with only deprecation marks and warnings added. Java 17 is
+also positioned as a long-term support release, so the option of continuing to
+run this PL/Java release will be available, with no loss of function,
+by continuing to run with Java versions up to and including 17.
+
+For more on how PL/Java will adapt, please bookmark [the JEP 411 topic][jep411]
+on the PL/Java wiki.
+
+For this release, PL/Java will suppress a JEP 411-related warning from the
+Java runtime itself that would otherwise be emitted for every PostgreSQL backend
+that starts Java, and instead will issue a more informative "migration advisory"
+warning only on certain administrative actions no more than once per session,
+with a goal of ensuring that responsible administrators are aware of the
+expected future developments. The advisory message includes the URL to
+the wiki topic above.
+
+This release also adds code to detect if it is on a future, post-Java 17 runtime
+where the needed functionality is not available, and throw informative
+exceptions with suggested corrective actions.
+
+[jep411]: https://github.com/tada/pljava/wiki/JEP-411
+
+$h3 Changes
+
+$h4 Changes affecting administration
+
+$h5 New function now created on update
+
+The new [`SQLJ.ALIAS_JAVA_LANGUAGE`][sqljajl] function introduced with 1.6 will now
+be present after an `ALTER EXTENSION UPDATE` if it was not before.
+
+$h5 Message if the Java runtime ends the backend process during startup
+
+The Java runtime can behave antisocially for some startup issues, such
+as a misspelled jar in `pljava.module_path`, and silently terminate the
+backend process rather than reporting an error. (It writes a message, not
+to standard error, but to standard output, which from a PostgreSQL backend
+is not captured for logging, and may never be seen.) A message is now generated
+in that case, to provide at least some clue what has gone wrong.
+
+[sqljajl]: pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
+
+$h4 Changes to runtime behavior
+
+$h5 Java's thread context class loader
+
+PL/Java now supplies a known value for the current Java thread's context
+class loader on entry to a PL/Java function. It is the class loader for the
+PostgreSQL schema where the function is declared. The context class loader is
+referred to by numerous Java libraries and by Java's `ServiceLoader`
+class, which may expect to find services and resources along the PL/Java class
+path that has been configured for the function. Neglecting to set the context
+class loader opened the door to unexpected loading failures like
+[issue #361](${ghbug}361) that can require awkward or slow contortions
+to work around in user Java code.
+
+This change is [documented in more detail](develop/contextloader.html).
+An opt-out setting is available.
+
+$h4 Improvements to the annotation-driven SQL generator
+
+$h5 Now able to declare function parameters that default to null
+
+It has been possible to annotate a function parameter with
+[`@SQLType(defaultValue=...)`][sqlt] to give it any non-null default value,
+but because Java disallows null annotation values, that notation wasn't
+usable to declare a parameter that defaults to null. The new notation
+[`@SQLType(optional=true)`][sqlt] means exactly that.
+
+$h5 Fixes a bug in synthesis of `COMMUTATOR`/`NEGATOR` operators
+
+It is now possible to code one method in Java and declare a full
+complement of operators based on it by combining commutation and negation.
+A [new example][egsyn4] is provided.
+
+[egsyn4]: https://github.com/tada/pljava/commit/6bd5aa0
+[sqlt]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/SQLType.html
+
+$h3 Bugs fixed
+
+* [`ALTER EXTENSION UPDATE` does not create `sqlj.alias_java_language`](${ghbug}341)
+* [... fails on 4 cross-type operators by commute/negate from 1 function](${ghbug}343)
+* [Build failure dependent on `pg_config` output](${ghbug}347)
+* [Protection domain when validator runs initializer](${ghbug}342)
+* [Improve experience when `pljava.module_path` is incorrect](${ghbug}350)
+* ["Failed to recognize schema" possible during `pg_upgrade`](${ghbug}352)
+* Fixes and test coverage in `Lexicals.Identifier` serialization
+* [Segmentation fault during `autovacuum`](${ghbug}355)
+* [`java.nio.charset.MalformedInputException: Input length = 1`](${ghbug}340)
+* [Thread context class loader](${ghbug}361)
+* [`MappedUDT` and types with `typlen=-2`](${ghbug}370)
+
+$h3 Updated PostgreSQL APIs tracked
+
+* Regularized spelling of `pg_type` OID symbols
+* Changed TOAST pointer format supporting selectable TOAST compression methods
+* Demise of `ErrorData.show_funcname` (it was a vestige of frontend/backend
+    protocol v2, long obsolete
+
+$h3 Credits
+
+Thanks to Krzysztof Nienartowicz, `ricdhen`, and `JanaParthasarathy`, who
+among them reported five of the issues fixed in this release.
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.2
 
 This is the second minor update in the PL/Java 1.6 series, with two bugs fixed
@@ -64,17 +190,6 @@ $h3 Credits
 Thanks to Francisco Biete for the report of [#331](${ghbug}331).
 
 [PassXML]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/PassXML.html#method.summary
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.1 (16 November 2020)
 
