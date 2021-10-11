@@ -118,7 +118,7 @@ $h3 Updated PostgreSQL APIs tracked
 * Regularized spelling of `pg_type` OID symbols
 * Changed TOAST pointer format supporting selectable TOAST compression methods
 * Demise of `ErrorData.show_funcname` (it was a vestige of frontend/backend
-    protocol v2, long obsolete
+    protocol v2, long obsolete)
 
 $h3 Credits
 
