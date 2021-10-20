@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -72,6 +72,11 @@ struct Invocation_
 	jvalue primSlot0;
 
 	/**
+	 * The saved thread context classloader from before this invocation
+	 */
+	jobject savedLoader;
+
+	/**
 	 * The currently executing Function.
 	 */
 	Function      function;
@@ -115,6 +120,13 @@ extern void Invocation_pushInvocation(Invocation* ctx);
 
 extern void Invocation_popInvocation(bool wasException);
 
+/*
+ * Return the type map held by the innermost executing PL/Java function's
+ * schema loader (the initiating loader that was used to resolve the function).
+ * The type map is a map from Java Oid objects to Class<SQLData> class objects,
+ * as resolved by that loader. This is effectively Function_currentLoader()
+ * followed by JNI-invoking getTypeMap on the loader, but cached to avoid JNI).
+ */
 extern jobject Invocation_getTypeMap(void);
 
 /*

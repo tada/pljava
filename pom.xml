@@ -153,6 +153,7 @@
 				<configuration>
 					<encoding>${project.build.sourceEncoding}</encoding>
 					<release>9</release>
+					<showDeprecation>true</showDeprecation>
 					<showWarnings>true</showWarnings>
 				</configuration>
 			</plugin>

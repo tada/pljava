@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -108,6 +108,7 @@ MemoryContext JavaMemoryContext;
 
 static JavaVM* s_javaVM = 0;
 static jclass  s_Backend_class;
+static bool    s_startingVM;
 
 /*
  * GUC states
@@ -223,6 +224,28 @@ static char const policyUrlsGUC[] = "pljava.policy_urls";
  * loads libraries, thus calling _PG_init). This flag is set for either case.
  */
 static bool deferInit = false;
+
+/*
+ * Whether Backend_warnJEP411() should emit a warning when called.
+ * Initially true, because it may be called very early from the deferInit check,
+ * if pg_upgrade is happening, and should always warn in that case. Thereafter
+ * false, unless set true in the initsequencer because InstallHelper_groundwork
+ * will be called (PL/Java being installed or upgraded), or in the validator
+ * handler because a PL/Java function has been declared or redeclared.
+ */
+static bool warnJEP411 = true;
+
+/*
+ * Don't bother with the warning unless the JVM in use is later than Java 11.
+ * 11 is the LTS release prior to the one where JEP 411 gets interesting (17).
+ * If a site is sticking to LTS releases, there will be plenty of time to warn
+ * on 17. If a site moves with non-LTS releases, start warning as soon as
+ * anything > 11 is used.
+ *
+ * Initially true, so there will be a warning unconditionally in a case
+ * (pg_upgrade) where a JVM hasn't been launched to learn its version).
+ */
+static bool javaGT11 = true;
 
 static void initsequencer(enum initstage is, bool tolerant);
 
@@ -492,6 +515,17 @@ ASSIGNENUMHOOK(java_thread_pg_entry)
  *    to succeed.
  * 3. From a GUC assign hook, if the user has updated a setting that might allow
  *    initialization to succeed. It resumes from where it left off.
+ * 4. From the validator handler, if initialization isn't complete yet. That
+ *    will definitely happen during pg_upgrade, which is a case where deferInit
+ *    will have been set. The validator will then clear deferInit and try to get
+ *    further in the init sequence. Importantly, pg_upgrade also sets
+ *    check_function_bodies false, which limits the validator's work to a syntax
+ *    check of the AS string. The validator therefore will not need to obtain a
+ *    schemaLoader or do anything else that requires the sqlj schema to be fully
+ *    populated (as, during pg_upgrade, it may not yet be). However, the
+ *    validator handler must avoid any action that sets pljavaLoadPath, as a
+ *    non-NULL value there would be treated below as case 1a, and trigger an
+ *    attempt to set up the sqlj schema.
  *
  * In all cases, the sequence must progress as far as starting the VM and
  * initializing the PL/Java classes. In all cases except 1a, that's enough,
@@ -518,6 +552,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		initstage = IS_GUCS_REGISTERED;
 		if ( deferInit )
 			return;
+		warnJEP411 = false;
 		/*FALLTHROUGH*/
 
 	case IS_GUCS_REGISTERED:
@@ -635,7 +670,14 @@ static void initsequencer(enum initstage is, bool tolerant)
 		/*FALLTHROUGH*/
 
 	case IS_JAVAVM_OPTLIST:
+		/* Register an on_proc_exit handler that destroys the VM if it has
+		 * been started. It will also log a last-ditch message if the VM happens
+		 * to rudely call exit() rather than returning a non-OK result.
+		 */
+		on_proc_exit(_destroyJavaVM, 0);
+		s_startingVM = true;
 		JNIresult = initializeJavaVM(&optList); /* frees the optList */
+		s_startingVM = false;
 		if( JNI_OK != JNIresult )
 		{
 			initstage = IS_MISC_ONCE_DONE; /* optList has been freed */
@@ -664,9 +706,6 @@ static void initsequencer(enum initstage is, bool tolerant)
 		pqsignal(SIGTERM, pljavaDieHandler);
 		pqsignal(SIGQUIT, pljavaQuickDieHandler);
 #endif
-		/* Register an on_proc_exit handler that destroys the VM
-		 */
-		on_proc_exit(_destroyJavaVM, 0);
 		initstage = IS_SIGHANDLERS;
 		/*FALLTHROUGH*/
 
@@ -732,7 +771,10 @@ static void initsequencer(enum initstage is, bool tolerant)
 
 	case IS_PLJAVA_INSTALLING:
 		if ( NULL != pljavaLoadPath )
+		{
+			warnJEP411 = javaGT11;
 			InstallHelper_groundwork(); /* sqlj schema, language handlers, ...*/
+		}
 		initstage = IS_COMPLETE;
 		/*FALLTHROUGH*/
 
@@ -919,6 +961,8 @@ void _PG_init()
 	if ( IS_PLJAVA_INSTALLING == initstage )
 		return; /* creating handler functions will cause recursive call */
 
+	InstallHelper_earlyHello();
+
 	/*
 	 * Find the platform's path separator. Java knows it, but that's no help in
 	 * preparing the launch options before it is launched. PostgreSQL knows what
@@ -942,7 +986,7 @@ void _PG_init()
 
 static void initPLJavaClasses(void)
 {
-	jfieldID tlField;
+	jfieldID fID;
 	JNINativeMethod backendMethods[] =
 	{
 		{
@@ -985,6 +1029,11 @@ static void initPLJavaClasses(void)
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
 		},
+		{
+		"_pokeJEP411",
+		"(Ljava/lang/Class;Ljava/lang/Object;)V",
+		Java_org_postgresql_pljava_internal_Backend__1pokeJEP411
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -1022,9 +1071,12 @@ static void initPLJavaClasses(void)
 	s_Backend_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
-	tlField = PgObject_getStaticJavaField(s_Backend_class,
+	fID = PgObject_getStaticJavaField(s_Backend_class, "JAVA_MAJOR", "I");
+	javaGT11 = 11 < JNI_getStaticIntField(s_Backend_class, fID);
+
+	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
-	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, tlField));
+	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, fID));
 
 	Invocation_initialize();
 	Exception_initialize2();
@@ -1309,7 +1361,25 @@ static void terminationTimeoutHandler(
  */
 static void _destroyJavaVM(int status, Datum dummy)
 {
-	if(s_javaVM != 0)
+	if(s_javaVM == 0)
+	{
+		if ( s_startingVM )
+		{
+			ereport(FATAL, (
+				errcode(ERRCODE_INTERNAL_ERROR),
+				errmsg("the Java VM exited while loading PL/Java"),
+				errdetail(
+					"The Java VM's exit forces this session to end."),
+				errhint(
+					"This has been known to happen when the entry in "
+					"pljava.module_path for the pljava-api jar has been "
+					"misspelled or the jar cannot be opened. If "
+					"logging_collector is active, there may be useful "
+					"information in the log.")
+					));
+		}
+	}
+	else
 	{
 		Invocation ctx;
 #ifdef USE_PLJAVA_SIGHANDLERS
@@ -1320,12 +1390,13 @@ static void _destroyJavaVM(int status, Datum dummy)
 		pqsigfunc saveSigAlrm;
 #endif
 
-		Invocation_pushInvocation(&ctx);
+		Invocation_pushBootContext(&ctx);
 		if(sigsetjmp(recoverBuf, 1) != 0)
 		{
 			elog(DEBUG2,
 				"needed to forcibly shut down the Java virtual machine");
 			s_javaVM = 0;
+			currentInvocation = 0;
 			return;
 		}
 
@@ -1347,7 +1418,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 #endif
 
 #else
-		Invocation_pushInvocation(&ctx);
+		Invocation_pushBootContext(&ctx);
 		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 #endif
@@ -1772,7 +1843,7 @@ static void registerGUCOptions(void)
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
-static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
+static inline Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
@@ -1796,7 +1867,8 @@ Datum java_call_handler(PG_FUNCTION_ARGS)
 	return internalCallHandler(true, fcinfo);
 }
 
-static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
+static inline Datum
+internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
@@ -1819,20 +1891,8 @@ static Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		Function function =
-			Function_getFunction(funcoid, trusted, forTrigger, false, true);
-		if(forTrigger)
-		{
-			/* Called as a trigger procedure
-			 */
-			retval = Function_invokeTrigger(function, fcinfo);
-		}
-		else
-		{
-			/* Called as a function
-			 */
-			retval = Function_invoke(function, fcinfo);
-		}
+		retval = Function_invoke(
+			funcoid, trusted, forTrigger, false, true, fcinfo);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -1866,21 +1926,33 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 {
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
+	Oid *oidSaveLocation = NULL;
 
 	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
 		PG_RETURN_VOID();
 
-	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
 	/*
-	 * The result of this call isn't particularly interesting (if it is false,
-	 * I'll ne'er trust CheckFunctionValidatorAccess). But its side effect will
-	 * be to make sure InstallHelper saves our library load path now, in case
-	 * we decide we don't like this function, which would make the Oid we just
-	 * stashed for it invalid, and frustrate getting the load path later.
+	 * In the call handler, which could be called heavily, funcoid gets
+	 * unconditionally stored to one of these two locations, rather than
+	 * spending extra cycles deciding whether to store it or not. A validator
+	 * will not be called as heavily, and can afford to check here whether
+	 * an Oid needs to be stored or not. The situation to avoid is where
+	 * funcoid gets stored here, as an Oid from which PL/Java's library path can
+	 * be found, but the function then gets rejected by the validator, leaving
+	 * the stored Oid invalid and useless for that purpose. Therefore, choose
+	 * here whether and where to store it, but store it only within the PG_TRY
+	 * block, and replace with InvalidOid again in the PG_CATCH.
 	 */
-	if ( ! InstallHelper_isPLJavaFunction(funcoid, NULL, NULL) )
-		elog(ERROR, "unexpected error validating PL/Java function");
-
+	if ( trusted )
+	{
+		if ( InvalidOid == pljavaTrustedOid )
+			oidSaveLocation = &pljavaTrustedOid;
+	}
+	else
+	{
+		if ( InvalidOid == pljavaUntrustedOid )
+			oidSaveLocation = &pljavaUntrustedOid;
+	}
 
 	if ( IS_PLJAVA_INSTALLING > initstage )
 	{
@@ -1893,24 +1965,79 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 		{
 			initsequencer( initstage, true);
 			if ( IS_PLJAVA_INSTALLING > initstage )
+			{
+				if ( javaGT11 )
+					warnJEP411 = true;
 				PG_RETURN_VOID();
+			}
 		}
 	}
 
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		Function_getFunction(
-			funcoid, trusted, false, true, check_function_bodies);
+		if ( NULL != oidSaveLocation )
+			*oidSaveLocation = funcoid;
+
+		Function_invoke(
+			funcoid, trusted, false, true, check_function_bodies, NULL);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
+		if ( NULL != oidSaveLocation )
+			*oidSaveLocation = InvalidOid;
+
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+
+	if ( javaGT11 )
+		warnJEP411 = true;
 	PG_RETURN_VOID();
+}
+
+/*
+ * Called at the ends of committing transactions to emit a warning about future
+ * JEP 411 impacts, at most once per session, if any PL/Java functions were
+ * declared or redeclared in the transaction, or if PL/Java was installed or
+ * upgraded. Also called from InstallHelper, if pg_upgrade is happening.
+ * Yes, this is a bit tangled. The tracking of function declaration happens
+ * above in the validator handler, and PL/Java installation/upgrade is detected
+ * in the initsequencer.
+ */
+void Backend_warnJEP411(bool isCommit)
+{
+	static bool warningEmitted = false; /* once only per session */
+
+	if ( warningEmitted  ||  ! warnJEP411 )
+		return;
+
+	if ( ! isCommit )
+	{
+		warnJEP411 = false;
+		return;
+	}
+
+	warningEmitted = true;
+
+	ereport(WARNING, (
+		errmsg(
+			"[JEP 411] migration advisory: there will be a Java version "
+			"(after Java 17) that will be unable to run PL/Java %s "
+			 "with policy enforcement", SO_VERSION_STRING),
+		errdetail(
+			"This PL/Java version enforces security policy using important "
+			"Java features that will be phased out in future Java versions. "
+			"Those changes will come in releases after Java 17."),
+		errhint(
+			"For migration planning, Java versions up to and including 17 "
+			"remain fully usable with this version of PL/Java, and Java 17 "
+			"is positioned as a long-term support release. For details on "
+			"how PL/Java will adapt, please bookmark "
+			"https://github.com/tada/pljava/wiki/JEP-411")
+	));
 }
 
 /****************************************
@@ -2075,6 +2202,63 @@ Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass 
 	END_NATIVE
 
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _pokeJEP411
+ * Signature: (Ljava/lang/Class;Ljava/lang/Object;)V
+ *
+ * This method is hideously dependent on unexposed JDK internals. But then,
+ * the fact that it's needed at all is hideous already. Java, any language,
+ * is classic infrastructure. Other layers, like this, are built atop it, and
+ * others in turn use those layers. The idea that the language developers would
+ * arrogate to themselves the act of sending an inappropriately low-level
+ * message directly to ultimate users, insisting that the stack layers above
+ * cannot intercept it and notify the higher-level users in terms that fit
+ * the abstractions meaningful there, leaves an uneasy picture of how
+ * a development team can begin to lose sight of who is providing what to whom
+ * and why.
+ *
+ * At least as of the time of this writing, System has a CallersHolder class
+ * holding a map recording classes for which the warning has already been sent.
+ * Poking the 'caller' class into that map works to suppress the warning.
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_Backend__1pokeJEP411(JNIEnv *env, jclass cls, jclass caller, jobject token)
+{
+	jclass callersHolder;
+	jfieldID callers;
+	jobject map;
+	jclass mapClass;
+	jmethodID put;
+
+	BEGIN_NATIVE
+
+	callersHolder = JNI_findClass("java/lang/System$CallersHolder");
+	if ( NULL == callersHolder )
+		goto failed;
+
+	callers = JNI_getStaticFieldID(callersHolder, "callers", "Ljava/util/Map;");
+	if ( NULL == callers )
+		goto failed;
+
+	map = JNI_getStaticObjectField(callersHolder, callers);
+	if ( NULL == map )
+		goto failed;
+
+	mapClass = JNI_getObjectClass(map);
+	put = JNI_getMethodID(mapClass,
+		"put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+	JNI_callObjectMethodLocked(map, put, caller, token);
+	goto done;
+
+failed:
+	JNI_exceptionClear();
+
+done:
+	END_NATIVE
 }
 
 /*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -71,6 +71,10 @@ do { \
 #define _VL_TYPE varattrib *
 #else
 #define _VL_TYPE struct varlena *
+#endif
+
+#if PG_VERSION_NUM < 140000
+#define VARATT_EXTERNAL_GET_EXTSIZE(toast_pointer) ((toast_pointer).va_extsize)
 #endif
 
 #define INITIALSIZE 1024
@@ -219,7 +223,7 @@ jobject pljava_VarlenaWrapper_Input(
 			 */
 			struct varatt_external toast_pointer;
 			VARATT_EXTERNAL_GET_POINTER(toast_pointer, vl);
-			parked = toast_pointer.va_extsize + VARHDRSZ;
+			parked = VARATT_EXTERNAL_GET_EXTSIZE(toast_pointer) + VARHDRSZ;
 			if ( (actual >> 1) < parked ) /* not compressed enough to bother */
 				goto justDetoastEagerly;
 			vl = detoast_external_attr(vl); /* fetch without decompressing */

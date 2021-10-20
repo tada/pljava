@@ -6,9 +6,9 @@ environment:
 #   - SYS: MINGW
 #     JDK: 9
 #     PG: 12
-    - SYS: MINGW
-      JDK: 10
-      PG: 12
+#   - SYS: MINGW
+#     JDK: 10
+#     PG: 12
     - SYS: MINGW
       JDK: 11
       PG: 12
@@ -39,9 +39,9 @@ environment:
     - SYS: MSVC
       JDK: 11
       PG: 12
-    - SYS: MSVC
-      JDK: 10
-      PG: 12
+#   - SYS: MSVC
+#     JDK: 10
+#     PG: 12
 #   - SYS: MSVC
 #     JDK: 9
 #     PG: 12
@@ -126,9 +126,11 @@ test_script:
           return false;
         String[] parts = Node.classify((Throwable)o);
         String type = parts[0];
+        String message = parts[2];
         results.compute(type, (k,v) -> 1 + v);
         if ( whatIsNG.contains(type) )
-          results.compute("ng", (k,v) -> 1 + v);
+          if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
+            results.compute("ng", (k,v) -> 1 + v);
         return true;
       }
 

@@ -20,6 +20,7 @@
 #include "org_postgresql_pljava_internal_DualState_SingleSPIcursorClose.h"
 #include "pljava/DualState.h"
 
+#include "pljava/Backend.h"
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/PgObject.h"
@@ -268,6 +269,9 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 		return;
 
 	pljava_DualState_nativeRelease(CurrentResourceOwner);
+
+	if ( isTopLevel )
+		Backend_warnJEP411(isCommit);
 }
 
 

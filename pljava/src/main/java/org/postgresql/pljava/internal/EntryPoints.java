@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -21,6 +21,7 @@ import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLInput;
 import java.sql.SQLOutput;
@@ -45,9 +46,10 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * The *invoke methods in this class can be private, as they are invoked only
  * from C via JNI, not from Java.
  *<p>
- * The primary entry point is {@code invoke}. The supplied
- * {@code PrivilegedAction}, as
- * obtained from {@code Function.create}, may have bound references to static
+ * The primary entry point is {@code invoke}. The supplied {@code Invocable},
+ * created by {@code invocable} below for its caller {@code Function.create},
+ * may contain a {@code MethodHandle}, or a {@code PrivilegedAction} that
+ * wraps one. The {@code MethodHandle} may have bound references to static
  * parameter areas, and will fetch the actual parameters from there to the
  * stack before invoking the (potentially reentrant) target method. Primitive
  * return values are then stored (after the potentially reentrant method has
@@ -57,11 +59,14 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * The {@code PrivilegedAction} is expected to return null for a {@code void}
  * or primitive-typed target.
  *<p>
- * The remaining methods here are for user-defined type (UDT) support. For now,
- * those are not consolidated into the {@code invoke}/{@code refInvoke} pattern,
- * as UDTs may need to be constructed from the C code while it is populating the
- * static parameter area for the ultimate target method, so the UDT methods
- * must be invocable without using the same area.
+ * The remaining {@code fooInvoke} methods here are for user-defined type (UDT)
+ * support. For now, those are not consolidated into the general {@code invoke}
+ * pattern, as UDT support methods may need to be called from the C code
+ * while it is populating the static parameter area for an ultimate target
+ * method, so they must be invocable without using the same area.
+ *<p>
+ * An {@code Invocable} carries the {@code AccessControlContext} under which the
+ * invocation target will execute.
  */
 class EntryPoints
 {
@@ -299,12 +304,16 @@ class EntryPoints
 	 */
 	private static <T> T doPrivilegedAndUnwrap(
 		PrivilegedAction<T> action, AccessControlContext context)
-	throws Throwable
+	throws SQLException
 	{
 		Throwable t;
 		try
 		{
 			return doPrivileged(action, context);
+		}
+		catch ( ExceptionInInitializerError e )
+		{
+			t = e.getCause();
 		}
 		catch ( Error e )
 		{
@@ -320,7 +329,7 @@ class EntryPoints
 		}
 
 		if ( t instanceof SQLException )
-			throw t;
+			throw (SQLException)t;
 
 		if ( t instanceof SecurityException )
 			/*
@@ -330,6 +339,39 @@ class EntryPoints
 			throw new SQLSyntaxErrorException(t.getMessage(), "42501", t);
 
 		throw new SQLException(t.getMessage(), t);
+	}
+
+	/**
+	 * Called from {@code Function} to perform the initialization of a class,
+	 * under a selected access control context.
+	 */
+	static Class<?> loadAndInitWithACC(
+		String className, ClassLoader schemaLoader, AccessControlContext acc)
+	throws SQLException
+	{
+		PrivilegedAction<Class<?>> action = () ->
+		{
+			try
+			{
+				return Class.forName(className, true, schemaLoader);
+			}
+			catch ( ExceptionInInitializerError e )
+			{
+				throw e;
+			}
+			catch ( LinkageError | ClassNotFoundException e )
+			{
+				/*
+				 * It would be odd to get a ClassNotFoundException here, as
+				 * the caller had to look it up once already to decide what acc
+				 * to use. But try telling that to javac.
+				 */
+				throw unchecked(new SQLNonTransientException(
+					"Initializing class " + className + ": " + e, "46103", e));
+			}
+		};
+
+		return doPrivilegedAndUnwrap(action, acc);
 	}
 
 	/**

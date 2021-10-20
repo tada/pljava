@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -52,7 +52,7 @@ JNIEXPORT void JNICALL Java_org_postgresql_pljava_jdbc_TypeOid__1dummy(JNIEnv * 
 	CONFIRMCONST(BPCHAROID);
 
 #if PG_VERSION_NUM >= 90100
-	CONFIRMCONST(PGNODETREEOID);
+	CONFIRMCONST(PG_NODE_TREEOID);
 #endif
 
 	CONFIRMCONST(TRIGGEROID);

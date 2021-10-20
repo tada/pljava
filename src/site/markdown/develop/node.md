@@ -261,7 +261,7 @@ try (
 {
   try ( Connection c = n1.connect() )
   {
-    qp(c, "create extension pljava");
+    qp(c, "CREATE EXTENSION pljava");
   }
 
   /*

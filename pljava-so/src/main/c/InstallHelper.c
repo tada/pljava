@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,6 +25,7 @@
 #include <executor/spi.h>
 #include <miscadmin.h>
 #include <libpq/libpq-be.h>
+#include <postmaster/autovacuum.h>
 #include <tcop/pquery.h>
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
@@ -84,24 +85,16 @@
  * for 9.3.0 through 9.3.2.
  *
  * One thing it's needed for is to avoid dereferencing MyProcPort in a
- * background worker, where it's not set. Define BGW_HAS_NO_MYPROCPORT if that
- * has to be (and can be) checked.
+ * background worker, where it's not set.
  */
 #if PG_VERSION_NUM < 90300  ||  defined(_MSC_VER) && PG_VERSION_NUM < 90303
 #define IsBackgroundWorker false
 #else
-#define BGW_HAS_NO_MYPROCPORT
 #include <commands/dbcommands.h>
 #if defined(_MSC_VER)
 #include <postmaster/bgworker.h>
 #define IsBackgroundWorker (MyBgworkerEntry != NULL)
 #endif
-#endif
-
-#ifndef PLJAVA_SO_VERSION
-#error "PLJAVA_SO_VERSION needs to be defined to compile this file."
-#else
-#define SO_VERSION_STRING CppAsString2(PLJAVA_SO_VERSION)
 #endif
 
 /*
@@ -115,6 +108,7 @@
 static jclass s_InstallHelper_class;
 static jmethodID s_InstallHelper_hello;
 static jmethodID s_InstallHelper_groundwork;
+static jfieldID  s_InstallHelper_MANAGE_CONTEXT_LOADER;
 
 static bool extensionExNihilo = false;
 
@@ -137,11 +131,10 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
-#ifdef BGW_HAS_NO_MYPROCPORT
-	char *shortlived;
-	static char *longlived;
-	if ( IsBackgroundWorker )
+	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
 	{
+		char *shortlived;
+		static char *longlived;
 		if ( NULL == longlived )
 		{
 			shortlived = get_database_name(MyDatabaseId);
@@ -153,14 +146,12 @@ char *pljavaDbName()
 		}
 		return longlived;
 	}
-#endif
 	return MyProcPort->database_name;
 }
 
 static char *origUserName()
 {
-#ifdef BGW_HAS_NO_MYPROCPORT
-	if ( IsBackgroundWorker )
+	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
 	{
 #if PG_VERSION_NUM >= 90500
 		char *shortlived;
@@ -175,13 +166,12 @@ static char *origUserName()
 #else
 		ereport(ERROR, (
 			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			errmsg("PL/Java in a background worker not supported "
+			errmsg("PL/Java in a background or autovacuum worker not supported "
 				"in this PostgreSQL version"),
-			errhint("PostgreSQL 9.5 is the first version to support "
-				"PL/Java in a background worker.")));
+			errhint("PostgreSQL 9.5 is the first version in which "
+				"such usage is supported.")));
 #endif
 	}
-#endif
 	return MyProcPort->user_name;
 }
 
@@ -450,7 +440,14 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 
 bool InstallHelper_shouldDeferInit()
 {
-	return IsBackgroundWorker || IsBinaryUpgrade;
+	if ( IsBackgroundWorker || IsAutoVacuumWorkerProcess() )
+		return true;
+
+	if ( ! IsBinaryUpgrade )
+		return false;
+
+	Backend_warnJEP411(true);
+	return true;
 }
 
 bool InstallHelper_isPLJavaFunction(Oid fn, char **langName, bool *trusted)
@@ -519,6 +516,12 @@ char const *InstallHelper_defaultModulePath(char *pathbuf, char pathsep)
 	return pathbuf;
 }
 
+void InstallHelper_earlyHello()
+{
+	elog(DEBUG2,
+		"pljava-so-" SO_VERSION_STRING " built for (" PG_VERSION_STR ")");
+}
+
 char *InstallHelper_hello()
 {
 	char pathbuf[MAXPGPATH];
@@ -543,6 +546,10 @@ char *InstallHelper_hello()
 	jstring greeting;
 	char *greetingC;
 	char const *clusternameC = pljavaClusterName();
+	jboolean manageContext = JNI_getStaticBooleanField(s_InstallHelper_class,
+		s_InstallHelper_MANAGE_CONTEXT_LOADER);
+
+	pljava_JNI_threadInitialize(JNI_TRUE == manageContext);
 
 	Invocation_pushBootContext(&ctx);
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
@@ -665,6 +672,8 @@ void InstallHelper_initialize()
 {
 	s_InstallHelper_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/InstallHelper"));
+	s_InstallHelper_MANAGE_CONTEXT_LOADER = PgObject_getStaticJavaField(
+		s_InstallHelper_class, "MANAGE_CONTEXT_LOADER", "Z");
 	s_InstallHelper_hello = PgObject_getStaticJavaMethod(s_InstallHelper_class,
 		"hello",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -52,6 +52,8 @@
 
 #define COUNTCHECK(refs, prims) ((jshort)(((refs) << 8) | ((prims) & 0xff)))
 
+jobject pljava_Function_NO_LOADER;
+
 static jclass s_Function_class;
 static jclass s_ParameterFrame_class;
 static jclass s_EntryPoints_class;
@@ -70,6 +72,8 @@ static jmethodID s_EntryPoints_udtReadInvoke;
 static jmethodID s_EntryPoints_udtParseInvoke;
 static PgObjectClass s_FunctionClass;
 static Type s_pgproc_Type;
+
+static inline Datum invokeTrigger(Function self, PG_FUNCTION_ARGS);
 
 static jobjectArray s_referenceParameters;
 static jvalue s_primitiveParameters [ 1 + 255 ];
@@ -101,10 +105,10 @@ struct Function_
 	jclass clazz;
 
 	/**
-	 * Weak global reference to the class loader for the schema in which this
+	 * Global reference to the class loader for the schema in which this
 	 * function is declared.
 	 */
-	jweak schemaLoader;
+	jobject schemaLoader;
 
 	union
 	{
@@ -139,7 +143,9 @@ struct Function_
 		/*
 		 * The type map used when mapping parameter and return types. We
 		 * need to store it here in order to cope with dynamic types (any
-		 * and anyarray)
+		 * and anyarray). This is now slightly redundant, as it could be got
+		 * from schemaLoader at the cost of a couple JNI calls, but this was
+		 * here first.
 		 */
 		jobject typeMap;
 
@@ -179,6 +185,7 @@ static void _Function_finalize(PgObject func)
 {
 	Function self = (Function)func;
 	JNI_deleteGlobalRef(self->clazz);
+	JNI_deleteGlobalRef(self->schemaLoader);
 	if(!self->isUDT)
 	{
 		JNI_deleteGlobalRef(self->func.nonudt.invocable);
@@ -223,7 +230,8 @@ void Function_initialize(void)
 		{ 0, 0, 0 }
 	};
 
-	jclass cls;
+	jclass   cls;
+	jfieldID fld;
 
 	StaticAssertStmt(org_postgresql_pljava_internal_Function_s_sizeof_jvalue
 		== sizeof (jvalue), "Function.java has wrong size for Java JNI jvalue");
@@ -299,6 +307,13 @@ void Function_initialize(void)
 		"Lorg/postgresql/pljava/internal/EntryPoints$Invocable;");
 
 	PgObject_registerNatives2(s_Function_class, functionMethods);
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/sqlj/Loader");
+	fld = PgObject_getStaticJavaField(cls,
+		"SENTINEL", "Ljava/lang/ClassLoader;");
+	pljava_Function_NO_LOADER =
+		JNI_newGlobalRef(JNI_getStaticObjectField(cls, fld));
+	JNI_deleteLocalRef(cls);
 
 	s_FunctionClass  = PgObjectClass_create("Function", sizeof(struct Function_), _Function_finalize);
 
@@ -376,7 +391,8 @@ jdouble pljava_Function_doubleInvoke(Function self)
 /*
  * 'Reserve' the static parameter frame for (refArgCount,primArgCount) reference
  * and primitive parameters, respectively, pushing temporarily out of the way
- * any current contents, detected by a non-(0,0) existing reservation.
+ * any current contents, detected by a non-(0,0) existing reservation. Returns
+ * the sum of its two arguments.
  *
  * The corresponding pop of the earlier contents will happen at
  * Invocation_popInvocation time, so this scheme is only appropriately used for
@@ -396,7 +412,8 @@ jdouble pljava_Function_doubleInvoke(Function self)
  * jvalue slot for returns, though, must handle its own normal and exceptional
  * cleanup.
  */
-static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
+static inline jsize
+reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 {
 	jshort newCounts = COUNTCHECK(refArgCount, primArgCount);
 
@@ -420,6 +437,39 @@ static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
 		currentInvocation->frameLimits = FRAME_LIMITS_PUSHED;
 	}
 	*s_countCheck = newCounts;
+
+	return refArgCount + primArgCount;
+}
+
+/*
+ * This should happen everywhere reserveParameterFrame happens, but is factored
+ * out to allow a couple of call sites to optimize out one or the other. As with
+ * reserveParameterFrame, the undoing of this happens in popFrame below.
+ *
+ * currentInvocation->savedLoader can have a "not known" value (which has to be
+ * distinct from null, because null is a perfectly cromulent context classloader
+ * as far as Java is concerned). Leaving it that way will mean no restoration at
+ * popInvocation time. The loaderUpdater may leave it that way in some cases,
+ * in a bid to reduce overhead if the same loader's wanted again.
+ */
+static inline void
+installContextLoader(Function self)
+{
+	(*JNI_loaderUpdater)(self->schemaLoader);
+}
+
+/*
+ * Not intended for any caller but Invocation_popInvocation.
+ */
+void pljava_Function_popFrame(bool heavy)
+{
+	if ( heavy )
+		JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
+
+	if ( pljava_Function_NO_LOADER == currentInvocation->savedLoader )
+		return;
+
+	(*JNI_loaderRestorer)();
 }
 
 /*
@@ -430,8 +480,8 @@ static void reserveParameterFrame(jsize refArgCount, jsize primArgCount)
  * result (true) or the end of results was reached (false).
  */
 jboolean pljava_Function_vpcInvoke(
-	jobject invocable, jobject rowcollect, jlong call_cntr, jboolean close,
-	jobject *result)
+	Function self, jobject invocable, jobject rowcollect, jlong call_cntr,
+	jboolean close, jobject *result)
 {
 	/*
 	 * When retrieving the very first row, this call happens under the same
@@ -443,8 +493,14 @@ jboolean pljava_Function_vpcInvoke(
 	 * static area parameter counts; this reservation will therefore not see a
 	 * need to push a frame. If one was pushed for the user function itself, it
 	 * remains on top, to be popped when the Invocation is.
+	 *
+	 * It is better to avoid calling installContextLoader a second time under
+	 * the same Invocation.
 	 */
 	reserveParameterFrame(1, 2);
+	if ( 0 != call_cntr )
+		installContextLoader(self);
+
 	JNI_setObjectArrayElement(s_referenceParameters, 0, rowcollect);
 	s_primitiveParameters[0].j = call_cntr;
 	s_primitiveParameters[1].z = close;
@@ -490,13 +546,6 @@ jobject pljava_Function_udtReadHandle(
 		s_Function_udtReadHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtParseHandle(
-	jclass clazz, char *langName, bool trusted)
-{
-	return obtainUDTHandle(
-		s_Function_udtParseHandle, clazz, langName, trusted);
-}
-
 jobject pljava_Function_udtWriteHandle(
 	jclass clazz, char *langName, bool trusted)
 {
@@ -504,14 +553,8 @@ jobject pljava_Function_udtWriteHandle(
 		s_Function_udtWriteHandle, clazz, langName, trusted);
 }
 
-jobject pljava_Function_udtToStringHandle(
-	jclass clazz, char *langName, bool trusted)
-{
-	return obtainUDTHandle(
-		s_Function_udtToStringHandle, clazz, langName, trusted);
-}
-
-static jobject obtainUDTHandle(
+static inline jobject
+obtainUDTHandle(
 	jmethodID which, jclass clazz, char *langName, bool trusted)
 {
 	jstring jname = String_createJavaStringFromNTS(langName);
@@ -521,7 +564,8 @@ static jobject obtainUDTHandle(
 	return result;
 }
 
-static jstring getSchemaName(int namespaceOid)
+static inline jstring
+getSchemaName(int namespaceOid)
 {
 	HeapTuple nspTup = PgObject_getValidTuple(NAMESPACEOID, namespaceOid, "namespace");
 	Form_pg_namespace nspStruct = (Form_pg_namespace)GETSTRUCT(nspTup);
@@ -549,14 +593,14 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 		typeStruct->typinput, typeStruct->typreceive,
 		typeStruct->typsend,  typeStruct->typoutput
 	};
-	jobject (*getter[4])(jclass, char *, bool) =
+	jmethodID getter[4] =
 	{
-		pljava_Function_udtParseHandle, pljava_Function_udtReadHandle,
-		pljava_Function_udtWriteHandle, pljava_Function_udtToStringHandle
+		s_Function_udtParseHandle, s_Function_udtReadHandle,
+		s_Function_udtWriteHandle, s_Function_udtToStringHandle
 	};
 	char *langName[4] = { NULL, NULL, NULL, NULL };
 	bool trusted[4];
-	jobject handle[4];
+	jobject handle[4] = { NULL, NULL, NULL, NULL };
 	int i;
 
 	for ( i = 0; i < 4; ++ i )
@@ -566,6 +610,10 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 			break;
 	}
 
+	/*
+	 * If that loop did not find all four support functions to be PL/Java ones,
+	 * we have struck out; pfree anything it did find and return the bad news.
+	 */
 	if ( i < 4 )
 	{
 		for ( ; i >= 0 ; -- i )
@@ -574,19 +622,44 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 		return NULL;
 	}
 
+	/*
+	 * At this point, it is looking like a PL/Java BaseUDT; we have the four
+	 * support function oids and the language names and trusted flags to go
+	 * with them.
+	 *
+	 * Must still confirm that (1) each one is declared with a UDT[classname]
+	 * style of AS string (getClassIfUDT returns null if not), (2) the named
+	 * class inherits from SQLData (ClassCastException happens if not), and
+	 * (3) that's the same class for all four of them (bail from this loop
+	 * and goto classMismatch if not). We'll also consider it a classMismatch
+	 * if some but not all getClassIfUDT results are null.
+	 *
+	 * Provided none of that goes wrong, obtain their handles in this loop too.
+	 */
 	for ( i = 0; i < 4; ++ i )
 	{
+		/*
+		 * Get the pg_proc info corresponding to support function i,
+		 * needed by getClassIfUDT().
+		 */
 		procTup = PgObject_getValidTuple(PROCOID, procId[i], "function");
 		procStruct = (Form_pg_proc)GETSTRUCT(procTup);
 		schemaName = getSchemaName(procStruct->pronamespace);
 		d = heap_copy_tuple_as_datum(
 			procTup, Type_getTupleDesc(s_pgproc_Type, 0));
+
 		t_clazz = (jclass)JNI_callStaticObjectMethod(s_Function_class,
 			s_Function_getClassIfUDT, Type_coerceDatum(s_pgproc_Type, d),
 			schemaName);
+
 		pfree((void *)d);
 		JNI_deleteLocalRef(schemaName);
 		ReleaseSysCache(procTup);
+
+		/*
+		 * Save the first clazz returned; for subsequent ones, just confirm it's
+		 * not different, then delete the extra local ref.
+		 */
 		if ( 0 == i )
 			clazz = t_clazz;
 		else
@@ -595,15 +668,23 @@ Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct)
 				goto classMismatch;
 			JNI_deleteLocalRef(t_clazz);
 		}
-		handle[i] = (getter[i])(clazz, langName[i], trusted[i]);
+
+		if ( NULL == clazz )
+			continue;
+
+		handle[i] = obtainUDTHandle(getter[i], clazz, langName[i], trusted[i]);
 	}
 
+	/*
+	 * We can only be here if getClassIfUDT returned the same value for clazz
+	 * all four times. But that value could have been NULL; no UDT if so.
+	 */
 	if ( NULL != clazz )
 		t = (Type)UDT_registerUDT(clazz, typeId, typeStruct, 0, true,
 			handle[0], handle[1], handle[2], handle[3]);
 	/*
 	 * UDT_registerUDT will already have called JNI_deleteLocalRef on the
-	 * four handles.
+	 * four handles. (Or clazz was NULL and there aren't any to delete anyway.)
 	 */
 	JNI_deleteLocalRef(clazz);
 	for ( i = 0; i < 4; ++ i )
@@ -724,13 +805,25 @@ static Function Function_create(
 }
 
 /*
- * In all cases, this Function has been stored in currentInvocation->function
- * upon successful return from here.
+ * Get a Function using a function Oid. If the function is not found, one
+ * will be created based on the class and method name denoted in the "AS"
+ * clause, the parameter types, and the return value of the function
+ * description. If "forTrigger" is true, the parameter type and
+ * return value of the function will be fixed to:
+ * void <method name>(org.postgresql.pljava.TriggerData td)
+ *
+ * If forValidator is true, forTrigger is disregarded, and will be determined
+ * from the function's pg_proc entry. If forValidator is false, checkBody has no
+ * meaning.
  *
  * If called with forValidator true, may return NULL. The validator doesn't
  * use the result.
+ *
+ * In all other cases, this Function has been stored
+ * in currentInvocation->function upon successful return from here.
  */
-Function Function_getFunction(
+static inline Function
+getFunction(
 	Oid funcOid, bool trusted, bool forTrigger,
 	bool forValidator, bool checkBody)
 {
@@ -807,17 +900,30 @@ void Function_clearFunctionCache(void)
  * primitive. Hence this method, which requires both Type_isPrimitive to be true
  * and that the type is not an array.
  */
-static bool passAsPrimitive(Type t)
+static inline bool
+passAsPrimitive(Type t)
 {
 	return Type_isPrimitive(t) && (NULL == Type_getElementType(t));
 }
 
-Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
+Datum
+Function_invoke(
+	Oid funcoid, bool trusted, bool forTrigger, bool forValidator,
+	bool checkBody, PG_FUNCTION_ARGS)
 {
+	Function self;
 	Datum retVal;
 	Size passedArgCount;
 	Type invokerType;
 	bool skipParameterConversion = false;
+
+	self = getFunction(funcoid, trusted, forTrigger, forValidator, checkBody);
+
+	if ( forValidator )
+		PG_RETURN_VOID();
+
+	if ( forTrigger )
+		return invokeTrigger(self, fcinfo);
 
 	fcinfo->isnull = false;
 
@@ -847,13 +953,22 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 		}
 	}
 
+	passedArgCount = PG_NARGS();
+
 	if ( ! skipParameterConversion )
-		reserveParameterFrame(
+	{
+		jsize reservedArgCount = reserveParameterFrame(
 			self->func.nonudt.numRefParams, self->func.nonudt.numPrimParams);
 
-	invokerType = self->func.nonudt.returnType;
+		if ( passedArgCount != reservedArgCount
+			&& passedArgCount + 1 != reservedArgCount ) /* the OUT arg case */
+			elog(ERROR, "function expecting %u arguments passed %u",
+				(unsigned int)reservedArgCount, (unsigned int)passedArgCount);
+	}
 
-	passedArgCount = PG_NARGS();
+	installContextLoader(self);
+
+	invokerType = self->func.nonudt.returnType;
 
 	if ( passedArgCount > 0  &&  ! skipParameterConversion )
 	{
@@ -905,7 +1020,12 @@ Datum Function_invoke(Function self, PG_FUNCTION_ARGS)
 	return retVal;
 }
 
-Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
+/*
+ * Invoke a trigger. Wrap the TriggerData in org.postgresql.pljava.TriggerData
+ * object, make the call, and unwrap the resulting Tuple.
+ */
+static inline Datum
+invokeTrigger(Function self, PG_FUNCTION_ARGS)
 {
 	jobject jtd;
 	Datum  ret;
@@ -916,6 +1036,7 @@ Datum Function_invokeTrigger(Function self, PG_FUNCTION_ARGS)
 		return 0;
 
 	reserveParameterFrame(1, 0);
+	installContextLoader(self);
 
 	JNI_setObjectArrayElement(s_referenceParameters, 0, jtd);
 
@@ -977,15 +1098,12 @@ void pljava_Function_setParameter(Function self, int index, jvalue value)
 	int numRefs = self->func.nonudt.numRefParams;
 	if ( -1 != index  ||  1 > numRefs )
 		elog(ERROR, "unsupported index in pljava_Function_setParameter");
+	/*
+	 * Thinking to Assert(!passAsPrimitive(self->func.nonudt.paramTypes[...]))?
+	 * Nice idea, but you would index beyond paramTypes; that synthetic last
+	 * OUT tuple entry isn't represented there.
+	 */
 	JNI_setObjectArrayElement(s_referenceParameters, numRefs - 1, value.l);
-}
-
-/*
- * Not intended for any caller but Invocation_popInvocation.
- */
-void pljava_Function_popFrame()
-{
-	JNI_callStaticVoidMethod(s_ParameterFrame_class, s_ParameterFrame_pop);
 }
 
 bool Function_isCurrentReadOnly(void)
@@ -1001,17 +1119,13 @@ bool Function_isCurrentReadOnly(void)
 jobject Function_currentLoader(void)
 {
 	Function f;
-	jweak weakRef;
 
 	if ( NULL == currentInvocation )
 		return NULL;
 	f = currentInvocation->function;
 	if ( NULL == f )
 		return NULL;
-	weakRef = f->schemaLoader;
-	if ( NULL == weakRef )
-		return NULL;
-	return JNI_newLocalRef(weakRef);
+	return f->schemaLoader;
 }
 
 /*
@@ -1063,7 +1177,7 @@ JNIEXPORT jboolean JNICALL
 	{
 		self->isUDT = false;
 		self->readOnly = (JNI_TRUE == readOnly);
-		self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+		self->schemaLoader = JNI_newGlobalRef(schemaLoader);
 		self->clazz = JNI_newGlobalRef(clazz);
 		self->func.nonudt.isMultiCall = (JNI_TRUE == isMultiCall);
 		self->func.nonudt.typeMap =
@@ -1181,7 +1295,7 @@ JNIEXPORT void JNICALL
 		{
 			self->isUDT = true;
 			self->readOnly = (JNI_TRUE == readOnly);
-			self->schemaLoader = JNI_newWeakGlobalRef(schemaLoader);
+			self->schemaLoader = JNI_newGlobalRef(schemaLoader);
 			self->clazz = JNI_newGlobalRef(clazz);
 
 			/*

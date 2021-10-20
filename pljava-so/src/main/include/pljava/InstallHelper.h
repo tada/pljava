@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -77,8 +77,9 @@ extern bool InstallHelper_isPLJavaFunction(
 
 /*
  * Return the name of the current database, from MyProcPort ... don't free it.
- * In a background worker, there's no MyProcPort, and the name is found another
- * way and strdup'd in TopMemoryContext, it'll keep, don't bother freeing it.
+ * In a background or autovacuum worker, there's no MyProcPort, and the name is
+ * found another way and strdup'd in TopMemoryContext. It'll keep; don't bother
+ * freeing it.
  */
 extern char *pljavaDbName(void);
 
@@ -129,8 +130,27 @@ extern bool pljavaViableXact(void);
  */
 extern bool InstallHelper_shouldDeferInit(void);
 
+/*
+ * Emit a debug message as early as possible with the native code's version
+ * and build information. A nicer message is produced later by hello and
+ * includes both the native and Java versions, but that's too late if something
+ * goes wrong first.
+ */
+extern void InstallHelper_earlyHello(void);
+
+/*
+ * Perform early setup needed on every start (properties, security policy, etc.)
+ * and also construct and return a string of native code, Java code, and JVM
+ * version and build information, to be included in the "PL/Java loaded"
+ * message.
+ */
 extern char *InstallHelper_hello(void);
 
+/*
+ * Called only when the loading is directly due to CREATE EXTENSION or LOAD, and
+ * not simply to service a PL/Java function; checks for, and populates or brings
+ * up to date, as needed, the sqlj schema and its contents.
+ */
 extern void InstallHelper_groundwork(void);
 
 extern void InstallHelper_initialize(void);

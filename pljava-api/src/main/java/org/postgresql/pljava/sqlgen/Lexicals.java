@@ -440,7 +440,7 @@ public abstract class Lexicals
 	 */
 	public static abstract class Identifier implements Serializable
 	{
-		private static final long serialVersionUID = 8963213648466350967L;
+		private static final long serialVersionUID = 1L;
 
 		Identifier() { } // not API
 
@@ -498,6 +498,7 @@ public abstract class Lexicals
 		private void readObject(ObjectInputStream in)
 		throws IOException, ClassNotFoundException
 		{
+			in.defaultReadObject();
 			Class<?> c = getClass();
 			if ( c != Simple.class && c != Foldable.class && c != Folding.class
 				&& c != Pseudo.class && c != Operator.class
@@ -839,6 +840,13 @@ public abstract class Lexicals
 				String diag = checkLength(m_nonFolded);
 				if ( null != diag )
 					throw new InvalidObjectException(diag);
+				if ( ! ( this instanceof Foldable )
+					&& ! ( this instanceof Pseudo )
+					&& ISO_AND_PG_REGULAR_IDENTIFIER.matcher(m_nonFolded)
+						.matches() )
+					throw new InvalidObjectException(
+						"foldable identifier deserialized as not foldable: " +
+						m_nonFolded);
 			}
 		}
 
@@ -1006,7 +1014,7 @@ public abstract class Lexicals
 		 * of this class matches anything but itself, to represent
 		 * pseudo-identifiers like {@code PUBLIC} as a privilege grantee.
 		 */
-		public static class Pseudo extends Simple
+		public static final class Pseudo extends Simple
 		{
 			private static final long serialVersionUID = 4760344682650087583L;
 
@@ -1454,7 +1462,17 @@ public abstract class Lexicals
 			private Qualified(Simple qualifier, T local)
 			{
 				m_qualifier = qualifier;
-				m_local = local;
+				m_local = requireNonNull(local);
+			}
+
+			private void readObject(ObjectInputStream in)
+			throws IOException, ClassNotFoundException
+			{
+				in.defaultReadObject();
+				if ( null == m_local )
+					throw new InvalidObjectException(
+						"Identifier.Qualified deserialized with " +
+						"null local part");
 			}
 
 			@Override

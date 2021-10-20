@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.net.URL;
 import java.net.MalformedURLException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.security.Policy;
@@ -40,6 +42,7 @@ import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.management.SQLDeploymentDescriptor;
 import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
+import static org.postgresql.pljava.elog.ELogHandler.LOG_WARNING;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -50,12 +53,43 @@ import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
  */
 public class InstallHelper
 {
+	static final boolean MANAGE_CONTEXT_LOADER;
+
+	static
+	{
+		String manageLoaderProp = "org.postgresql.pljava.context.loader";
+		String s = System.getProperty(manageLoaderProp);
+		if ( null == s )
+			MANAGE_CONTEXT_LOADER = true;
+		else if ( "unmanaged".equals(s) )
+			MANAGE_CONTEXT_LOADER = false;
+		else
+		{
+			MANAGE_CONTEXT_LOADER = false;
+			Backend.log(LOG_WARNING,
+				"value \"" + s + "\" for " + manageLoaderProp +
+				" unrecognized; using \"unmanaged\"");
+		}
+	}
+
 	private static void setPropertyIfNull( String property, String value)
 	{
 		if ( null == System.getProperty( property) )
 			System.setProperty( property, value);
 	}
 
+	/**
+	 * Perform miscellaneous early PL/Java initialization, and return a string
+	 * detailing the versions of PL/Java, PostgreSQL, and Java in use, which the
+	 * native caller can use in its "PL/Java loaded" (a/k/a "hello")
+	 * triumphant {@code ereport}.
+	 *<p>
+	 * This method calls {@code beginEnforcing} rather late, so that the policy
+	 * needn't be cluttered with permissions for the operations only needed
+	 * before that point. Policy is being enforced by the time this method
+	 * returns (except in case of JEP 411 fallback as described at
+	 * {@code beginEnforcing}).
+	 */
 	public static String hello(
 		String nativeVer, String serverBuiltVer, String serverRunningVer,
 		String user, String dbname, String clustername,
@@ -164,9 +198,7 @@ public class InstallHelper
 				e);
 		}
 
-		setTrialPolicyIfSpecified();
-
-		System.setSecurityManager( new SecurityManager());
+		beginEnforcing();
 
 		StringBuilder sb = new StringBuilder();
 		sb.append( "PL/Java native code (").append( nativeVer).append( ")\n");
@@ -260,24 +292,108 @@ public class InstallHelper
 		}
 	}
 
-	private static void setTrialPolicyIfSpecified() throws SQLException
+	/**
+	 * From the point of successful call of this method, PL/Java is enforcing
+	 * security policy (except in JEP 411 fallback case described below).
+	 *<p>
+	 * This method handles applying the {@code TrialPolicy} if that has been
+	 * selected, and setting the security manager, which thereafter cannot be
+	 * unset or changed (unless the policy has been edited to allow it).
+	 *<p>
+	 * In the advent of JEP 411, this method also must also head off the
+	 * layer-inappropriate boilerplate warning message when running on Java 17
+	 * or later, and react if the operation has been disallowed or "degraded".
+	 *<p>
+	 * If {@code getSecurityManager} still returns null after being set, and
+	 * the Java major version is greater than 17, this can be a sign of
+	 * "degradation" of the security API proposed in JEP 411. It may be ignored
+	 * by setting {@code -Dorg.postgresql.pljava.policy.enforcement=none} in
+	 * {@code pljava.vmoptions}. That <em>may</em> permit PL/Java to run, but
+	 * without enforcing any policy at all, no distinction between trusted and
+	 * untrusted functions, and so on. However, given uncertainty around exactly
+	 * how the Java developers will "degrade" the API in a given Java release,
+	 * the result may simply be a different failure of PL/Java to start or
+	 * properly function.
+	 */
+	private static void beginEnforcing() throws SQLException
 	{
 		String trialURI = System.getProperty(
 			"org.postgresql.pljava.policy.trial");
 
-		if ( null == trialURI )
-			return;
+		String enforcement = System.getProperty(
+			"org.postgresql.pljava.policy.enforcement");
+
+		if ( null != trialURI )
+		{
+			try
+			{
+				Policy.setPolicy( new TrialPolicy( trialURI));
+			}
+			catch ( NoSuchAlgorithmException e )
+			{
+				throw new SQLException(e.getMessage(), e);
+			}
+		}
+
+		int major = Runtime.version().major();
+
+		if ( 17 <= major )
+			Backend.pokeJEP411();
 
 		try
 		{
-			Policy.setPolicy( new TrialPolicy( trialURI));
+			SecurityManager sm = new SecurityManager();
+			System.setSecurityManager( sm);
+			if ( sm == System.getSecurityManager() )
+				return;
 		}
-		catch ( NoSuchAlgorithmException e )
+		catch ( UnsupportedOperationException e )
 		{
-			throw new SQLException(e.getMessage(), e);
+			if ( 17 >= major )
+				throw new SQLException(
+					"Unexpected failure enabling permission enforcement", e);
+			throw new SQLNonTransientException(
+				"[JEP 411] The Java version selected, " + Runtime.version() +
+				", has not allowed PL/Java to enforce security policy. " +
+				"It may help to add -Djava.security.manager=allow in " +
+				"the pljava.vmoptions setting. However, that may require " +
+				"allowing PL/Java functions to execute with no policy " +
+				"enforcement, or simply lead to a different failure " +
+				"to start. If that is unacceptable, " + jepSuffix, "58000", e);
 		}
+
+		if ( 17 >= major )
+			throw new SQLException(
+				"Unexpected failure enabling permission enforcement");
+
+		if ( "none".equals(enforcement) )
+			return;
+
+		throw new SQLNonTransientException(
+			"[JEP 411] The Java version selected, " + Runtime.version() +
+			", cannot enforce security policy as this PL/Java version " +
+			"requires. To allow PL/Java to run with no enforcement of " +
+			"security (for example, trusted functions as untrusted), add " +
+			"-Dorg.postgresql.pljava.policy.enforcement=none in the " +
+			"pljava.vmoptions setting. However, this may lead only to a " +
+			"different failure to start. In that case, " +
+			jepSuffix, "58000");
 	}
 
+	private static final String jepSuffix =
+		"pljava.libjvm_location should be pointed to an earlier version " +
+		"of Java, or a newer PL/Java version should be used. For more " +
+		"explanation, please see " +
+		"https://github.com/tada/pljava/wiki/JEP-411";
+
+	/**
+	 * When PL/Java is loaded as an end-in-itself (that is, by {@code LOAD}
+	 * on its own or from its extension script on {@code CREATE EXTENSION} or
+	 * {@code ALTER EXTENSION}, not just in the course of handling a call of a
+	 * Java function), this method will be called to ensure there is
+	 * a schema {@code sqlj} and that it contains the right, possibly updated,
+	 * stuff.
+	 */
 	public static void groundwork(
 		String module_pathname, String loadpath_tbl, String loadpath_tbl_quoted,
 		boolean asExtension, boolean exNihilo)
@@ -316,6 +432,13 @@ public class InstallHelper
 		}
 	}
 
+	/**
+	 * Create the {@code sqlj} schema, adding an appropriate comment and
+	 * granting {@code USAGE} to {@code public}.
+	 *<p>
+	 * If the schema already exists, whatever comment and permissions it
+	 * may have will not be disturbed.
+	 */
 	private static void schema( Connection c, Statement s)
 	throws SQLException
 	{
@@ -339,6 +462,18 @@ public class InstallHelper
 		}
 	}
 
+	/**
+	 * Declare PL/Java's language handler functions.
+	 *<p>
+	 * {@code CREATE OR REPLACE} is used so that the library path can be altered
+	 * if this is an upgrade.
+	 *<p>
+	 * All privileges are unconditionally revoked on the handler functions.
+	 * PostgreSQL does not need permissions when it invokes them
+	 * as language handlers.
+	 *<p>
+	 * Each function will have a default comment added if no comment is present.
+	 */
 	private static void handlers( Connection c, Statement s, String module_path)
 	throws SQLException
 	{
@@ -431,6 +566,16 @@ public class InstallHelper
 				"trusted/sandboxed language.'");
 	}
 
+	/**
+	 * Declare PL/Java's basic two (trusted and untrusted) languages.
+	 *<p>
+	 * If not declared already, they will have default permissions and comments
+	 * applied.
+	 *<p>
+	 * If they exist, {@code CREATE OR REPLACE} will be used, which takes care
+	 * of adding the validator handler during an upgrade from a version that
+	 * lacked it. No permission or comment changes are made in this case.
+	 */
 	private static void languages( Connection c, Statement s)
 	throws SQLException
 	{
@@ -493,7 +638,9 @@ public class InstallHelper
 
 	/**
 	 * Execute the deployment descriptor for PL/Java itself, creating the
-	 * expected tables, functions, etc. Will be skipped if tables conforming
+	 * expected tables, functions, etc.
+	 *<p>
+	 * Will be skipped if tables conforming
 	 * to the currently expected schema already seem to be there. If an earlier
 	 * schema variant is detected, attempt to migrate to the current one.
 	 */
@@ -509,20 +656,53 @@ public class InstallHelper
 			return;
 		}
 
-		StringBuilder sb;
+		deployViaDescriptor( c);
+	}
+
+	/**
+	 * Only execute the deployment descriptor for PL/Java itself; factored out
+	 * of {@code deployment()} so it can be used also from schema migration to
+	 * avoid duplicating SQL that appears there.
+	 *<p>
+	 * Schema migration will use the wrapper method that changes the effective
+	 * set of recognized implementor tags.
+	 */
+	private static void deployViaDescriptor( Connection c)
+	throws SQLException
+	{
+		SQLDeploymentDescriptor sdd;
 		try(InputStream is =
-				InstallHelper.class.getResourceAsStream("/pljava.ddr");
-			InputStreamReader isr =
-				new InputStreamReader(is, UTF_8.newDecoder()))
+				InstallHelper.class.getResourceAsStream("/pljava.ddr"))
 		{
-			sb = new StringBuilder();
-			char[] buf = new char[512];
-			for ( int got; -1 != (got = isr.read(buf)); )
-				sb.append(buf, 0, got);
+			CharBuffer cb =
+				UTF_8.newDecoder().decode( ByteBuffer.wrap( is.readAllBytes()));
+			sdd = new SQLDeploymentDescriptor(cb.toString());
 		}
-		SQLDeploymentDescriptor sdd =
-			new SQLDeploymentDescriptor(sb.toString());
+		catch ( ParseException | IOException e )
+		{
+			throw new SQLException(
+				"Could not load PL/Java's deployment descriptor: " +
+				e.getMessage(), "XX000", e);
+		}
+
 		sdd.install(c);
+	}
+
+	/**
+	 * Only execute the deployment descriptor for PL/Java itself, temporarily
+	 * replacing the default set of implementor tags with a specified set, to
+	 * selectively apply commands appearing in the descriptor.
+	 */
+	private static void deployViaDescriptor(
+		Connection c, Statement s, String implementors)
+	throws SQLException
+	{
+		s.execute( "SET LOCAL pljava.implementors TO " +
+			s.enquoteLiteral(implementors));
+
+		deployViaDescriptor( c);
+
+		s.execute( "RESET pljava.implementors");
 	}
 
 	/**
@@ -543,8 +723,14 @@ public class InstallHelper
 	throws SQLException
 	{
 		DatabaseMetaData md = c.getMetaData();
-		ResultSet rs = md.getColumns( null, "sqlj", "jar_descriptor", null);
+		ResultSet rs = md.getProcedures( null, "sqlj", "alias_java_language");
 		boolean seen = rs.next();
+		rs.close();
+		if ( seen )
+			return SchemaVariant.REL_1_6_0;
+
+		rs = md.getColumns( null, "sqlj", "jar_descriptor", null);
+		seen = rs.next();
 		rs.close();
 		if ( seen )
 			return SchemaVariant.UNREL20130301b;
@@ -638,10 +824,22 @@ public class InstallHelper
 	 * up to date.
 	 */
 	private static final SchemaVariant currentSchema =
-		SchemaVariant.REL_1_5_0;
+		SchemaVariant.REL_1_6_0;
 
 	private enum SchemaVariant
 	{
+		REL_1_6_0 ("5565a3c9c4b8d6dd0b0f7fff4090d4e8120dc10a")
+		{
+			@Override
+			void migrateFrom( SchemaVariant sv, Connection c, Statement s)
+			throws SQLException
+			{
+				if ( REL_1_5_0 != sv )
+					REL_1_5_0.migrateFrom( sv, c, s);
+
+				deployViaDescriptor( c, s, "alias_java_language");
+			}
+		},
 		REL_1_5_0 ("c51cffa34acd5a228325143ec29563174891a873")
 		{
 			@Override
@@ -691,10 +889,11 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
-		static final SchemaVariant REL_1_6_2       = REL_1_5_0;
-		static final SchemaVariant REL_1_6_1       = REL_1_5_0;
-		static final SchemaVariant REL_1_6_0       = REL_1_5_0;
+		static final SchemaVariant REL_1_6_3       = REL_1_6_0;
+		static final SchemaVariant REL_1_6_2       = REL_1_6_0;
+		static final SchemaVariant REL_1_6_1       = REL_1_6_0;
 
+		static final SchemaVariant REL_1_5_8       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_7       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_6       = REL_1_5_0;
 		static final SchemaVariant REL_1_5_5       = REL_1_5_0;

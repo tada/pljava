@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -373,6 +373,11 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 }, remove={
 "	DROP TABLE sqlj.typemap_entry",
 "	DROP TABLE sqlj.jar_repository CASCADE"
+})
+@SQLAction(provides="alias_java_language", install={
+"	SELECT " +
+"		pg_catalog.set_config('pljava.implementors', 'alias_java_language,' " +
+"		|| pg_catalog.current_setting('pljava.implementors'), true)"
 })
 public class Commands
 {
@@ -1031,7 +1036,7 @@ public class Commands
 	 */
 	@Function(
 		schema="sqlj", name="alias_java_language", onNullInput=CALLED,
-		requires="sqlj.tables"
+		requires="sqlj.tables", implementor="alias_java_language"
 	)
 	public static void aliasJavaLanguage(
 		String alias,

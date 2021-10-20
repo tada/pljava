@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -43,6 +43,7 @@ jmethodID SQLException_getSQLState;
 jclass    UnsupportedOperationException_class;
 jmethodID UnsupportedOperationException_init;
 
+jclass    NoSuchFieldError_class;
 jclass    NoSuchMethodError_class;
 
 void
@@ -197,6 +198,7 @@ void Exception_initialize(void)
 	UnsupportedOperationException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/UnsupportedOperationException"));
 	UnsupportedOperationException_init = PgObject_getJavaMethod(UnsupportedOperationException_class, "<init>", "(Ljava/lang/String;)V");
 
+	NoSuchFieldError_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/NoSuchFieldError"));
 	NoSuchMethodError_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/NoSuchMethodError"));
 
 	Class_getName = PgObject_getJavaMethod(Class_class, "getName", "()Ljava/lang/String;");

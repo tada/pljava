@@ -51,6 +51,28 @@ to run with a 'trial' policy initially, allowing code to run but logging
 permissions that may need to be added in `pljava.policy`. How to do that is
 described [here](trial.html).
 
+### The thread context class loader
+
+Starting with PL/Java 1.6.3, within an SQL-declared PL/Java function, the
+class loader returned by `Thread.currentThread().getContextClassLoader`
+is the one that corresponds to the per-schema classpath that has been set
+with [`SQLJ.SET_CLASSPATH`][scp] for the schema where the function is
+declared (assuming no Java code uses `setContextClassLoader` to change it).
+
+Many available Java libraries, as well as built-in Java facilities using the
+[`ServiceLoader`][slo], refer to the context class loader, so this behavior
+ensures they will see the classes that are available on the classpath that was
+set up for the PL/Java function. In versions where PL/Java did not set the
+context loader, awkward arrangements could be needed in user code for the
+desired classes or services to be found.
+
+There are some limits on the implementation, and some applications may want
+the former behavior where PL/Java did not touch the thread context loader.
+More details are available [here](../develop/contextloader.html).
+
+[scp]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#set_classpath
+[slo]: https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html
+
 ### Choices when mapping data types
 
 #### Date and time types

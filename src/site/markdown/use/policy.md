@@ -74,6 +74,10 @@ grant principal org.postgresql.pljava.PLPrincipal$Sandboxed * {
 };
 
 grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed * {
+
+    // Java does not circumvent operating system access controls;
+    // this grant will still be limited to what the OS allows a
+    // PostgreSQL backend process to do.
     permission java.io.FilePermission
         "<<ALL FILES>>", "read,write,delete,readlink";
 };
@@ -193,10 +197,6 @@ grant principal org.postgresql.pljava.PLPrincipal$Sandboxed "java" {
 };
 
 grant principal org.postgresql.pljava.PLPrincipal$Unsandboxed "javaU" {
-
-    // Java does not circumvent operating system access controls;
-    // this grant will still be limited to what the OS allows a
-    // PostgreSQL backend process to do.
     permission java.io.FilePermission
         "<<ALL FILES>>", "read,readlink,write,delete";
 };
@@ -316,6 +316,23 @@ on some property that isn't readable under Java's default policy.
 Those examples should be changed to use a property that is normally readable,
 such as `java.version` or `org.postgresql.pljava.version`._
 
+### Class static initializers
+
+If a class contains several methods that would be given different
+access control contexts (declared with different `trust` or
+`language` attributes, say), the permissions available when the class
+initializer runs will be those of whichever function is called first
+in a given session. Therefore, when putting actions that require
+permissions into a class's static initializer, those actions should require
+only the common subset of permissions that the initializer could be run with
+no matter which function is called or declared first. Actions that require
+other specific permissions could be deferred until the first call of
+a function known to be granted those permissions.
+
+Such actions can be left in the static initializer if a function granted
+the needed permissions is known to always be the first one that the application
+will call in any given session.
+
 ## Troubleshooting
 
 When in doubt what permissions may need to be granted in `pljava.policy` to run
@@ -353,6 +370,14 @@ The current implementation makes use of the Java classes
 That should be regarded as an implementation detail; it may change in a future
 release, so relying on it is not recommended.
 
+The developers of Java have elected to phase out important language features
+used by PL/Java to enforce policy. The changes will come in releases after
+Java 17. For migration planning, Java versions up to and including 17
+remain fully usable with this version of PL/Java, and Java 17
+is positioned as a long-term support release. For details on
+how PL/Java will adapt, please bookmark [the JEP 411 topic][jep411]
+on the PL/Java wiki.
+
 
 [pfsyn]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-7942E6F8-8AAB-4404-9FE9-E08DD6FFCFFA
 [jdkperms]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-1E8E213A-D7F2-49F1-A2F0-EFB3397A8C95
@@ -361,3 +386,4 @@ release, so relying on it is not recommended.
 [sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
 [tssec]: https://docs.oracle.com/en/java/javase/14/security/troubleshooting-security.html
 [trial]: trial.html
+[jep411]: https://github.com/tada/pljava/wiki/JEP-411

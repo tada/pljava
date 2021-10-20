@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -65,8 +65,6 @@ extern jmethodID SQLException_getSQLState;
 extern jclass    UnsupportedOperationException_class;
 extern jmethodID UnsupportedOperationException_init;
 
-extern jclass    NoSuchMethodError_class;
-
 /*
  * Method called from Backend.c to set the thread policy. The first parameter
  * indicates whether to throw an exception if a thread other than the main one
@@ -85,6 +83,19 @@ extern jclass    NoSuchMethodError_class;
  *               monitor operations eliminated.
  */
 extern void pljava_JNI_setThreadPolicy(bool,bool);
+
+/*
+ * Two specialized wrappers to reduce the overhead of multiple wrapped calls
+ * for a frequent sequence of operations. The threadInitialize method, called
+ * from Backend.c once the java_thread_pg_entry GUC setting is frozen in place,
+ * populates the function pointers with the appropriate implementations.
+ */
+extern void pljava_JNI_threadInitialize(bool manageLoader);
+typedef void JNI_ContextLoaderUpdater(jobject loader);
+typedef void JNI_ContextLoaderRestorer(void);
+
+extern JNI_ContextLoaderUpdater  *JNI_loaderUpdater;
+extern JNI_ContextLoaderRestorer *JNI_loaderRestorer;
 
 /*
  * A few very specialized JNI method-invocation wrappers, that do NOT do
@@ -178,6 +189,7 @@ extern void         JNI_getByteArrayRegion(jbyteArray array, jsize start, jsize 
 extern jboolean*    JNI_getBooleanArrayElements(jbooleanArray array, jboolean* isCopy);
 extern void         JNI_getBooleanArrayRegion(jbooleanArray array, jsize start, jsize len, jboolean* buf);
 extern jfieldID     JNI_getFieldID(jclass clazz, const char* name, const char* sig);
+extern jfieldID     JNI_getFieldIDOrNull(jclass clazz, const char* name, const char* sig);
 extern jdouble*     JNI_getDoubleArrayElements(jdoubleArray array, jboolean* isCopy);
 extern void         JNI_getDoubleArrayRegion(jdoubleArray array, jsize start, jsize len, jdouble* buf);
 extern jfloat*      JNI_getFloatArrayElements(jfloatArray array, jboolean* isCopy);
@@ -196,6 +208,8 @@ extern void         JNI_getShortArrayRegion(jshortArray array, jsize start, jsiz
 extern jfieldID     JNI_getStaticFieldID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodID(jclass clazz, const char* name, const char* sig);
 extern jmethodID    JNI_getStaticMethodIDOrNull(jclass clazz, const char* name, const char* sig);
+extern jboolean     JNI_getStaticBooleanField(jclass clazz, jfieldID field);
+extern jint         JNI_getStaticIntField(jclass clazz, jfieldID field);
 extern jobject      JNI_getStaticObjectField(jclass clazz, jfieldID field);
 extern const char*  JNI_getStringUTFChars(jstring string, jboolean* isCopy);
 extern jboolean     JNI_hasNullArrayElement(jobjectArray array);

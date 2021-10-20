@@ -68,6 +68,20 @@ a PL/Java function, the type map for the schema in which the target function
 is declared and, at other times, the map for the schema in which the
 innermost executing PL/Java function on the call stack is declared.
 
+Starting in PL/Java 1.6.3, a PL/Java function is entered with the current
+thread's [context class loader][ccl] set according to the schema where the
+function is declared, and therefore the rules for applying the type map
+just described can be simplified: the type map is the one maintained by
+the current context class loader, provided Java code has not changed the
+context loader from the initial setting. To date, the code actually obtaining
+the type map has not been changed to get it _from_ the context class loader,
+so the type map would not be affected by Java code changing the context loader.
+
+There are [more details](contextloader.html) on the management of
+the context class loader.
+
+[ccl]: https://docs.oracle.com/javase/9/docs/api/java/lang/Thread.html#getContextClassLoader--
+
 ### PL/Java's object system implemented in C
 
 In PL/Java, some behavior is implemented in Java using familiar Java
@@ -586,6 +600,17 @@ PostgreSQL does call through those slots, PL/Java always does a raw binary
 transfer using the `libpq` API directly (for fixed-size representations),
 `bytearecv`/`byteasend` for `varlena` representations, or
 `unknownrecv`/`unknownsend` for C string representations.
+Responsible code in `type/UDT.c` is commented with "Assumption 2".
 
 A future version could revisit this limitation, and allow PL/Java UDTs to
 specify custom binary transfer formats also.
+
+"Assumption 1" in `UDT.c` is that any PostgreSQL type declared with
+`internallength=-2` (meaning it is stored as a variable number of nonzero
+bytes terminated by a zero byte) must have a human-readable representation
+identical to its stored form, and must be converted to and from Java using
+the `INPUT` and `OUTPUT` slots. A `MappedUDT` does not have functions in
+those slots, and therefore "Assumption 1" rules out any such type as target
+of a `MappedUDT`.
+
+A future version could revisit this limitation also.

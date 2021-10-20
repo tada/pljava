@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -89,7 +89,15 @@ import org.postgresql.pljava.jdbc.SPIReadOnlyControl;
  */
 public class Loader extends ClassLoader
 {
-	private final static Logger s_logger = Logger.getLogger(Loader.class.getName());
+	private static final Logger s_logger =
+		Logger.getLogger(Loader.class.getName());
+
+	/**
+	 * A distinguished singleton instance to serve as a type-safe "sentinel"
+	 * reference in context classloader management (as Java considers null to be
+	 * a meaningful {@code setContextClassLoader} argument).
+	 */
+	public static final ClassLoader SENTINEL = new Loader();
 
 	/**
 	 * The enumeration of URLs returned by {@code findResources}.
@@ -365,6 +373,19 @@ public class Loader extends ClassLoader
 	 */
 	private final Map<String,int[]> m_entries;
 	private final Map<Integer,ProtectionDomain> m_domains;
+
+	/**
+	 * Private constructor used only to create the "sentinel" (non-)loader.
+	 *<p>
+	 * Any attempt to use it will incur null pointer exceptions, but it would be
+	 * a bug already for such use to be attempted.
+	 */
+	private Loader()
+	{
+		m_entries  = null;
+		m_domains  = null;
+		m_j9Helper = null;
+	}
 
 	/**
 	 * Create a new Loader.

@@ -59,8 +59,14 @@ jobs:
     - name: Obtain PG development files (Ubuntu, PGDG)
       if: ${{ 'Linux' == runner.os }}
       run: |
+        echo  \
+          deb \
+          http://apt.postgresql.org/pub/repos/apt \
+          "$(lsb_release -cs)-pgdg" \
+          main |
+        sudo tee /etc/apt/sources.list.d/pgdg.list
         sudo apt-get update
-        sudo apt-get install postgresql-server-dev-13 libkrb5-dev
+        sudo apt-get install postgresql-server-dev-14 libkrb5-dev
 
     - name: Build PL/Java (Linux, macOS)
       if: ${{ 'Windows' != runner.os }}
@@ -243,9 +249,12 @@ jobs:
             return false;
           String[] parts = Node.classify((Throwable)o);
           String type = parts[0];
+          String message = parts[2];
           results.compute(type, (k,v) -> 1 + v);
           if ( whatIsNG.contains(type) )
-            results.compute("ng", (k,v) -> 1 + v);
+            if ( ! "warning".equals(type)
+              ||  ! message.startsWith("[JEP 411]") )
+              results.compute("ng", (k,v) -> 1 + v);
           return true;
         }
 

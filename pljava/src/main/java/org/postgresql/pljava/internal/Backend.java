@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,6 +46,8 @@ public class Backend
 	 * from PG, and null on any other thread.
 	 */
 	public static final ThreadLocal<Boolean> IAMPGTHREAD = new ThreadLocal<>();
+
+	static final int JAVA_MAJOR = Runtime.version().major();
 
 	static
 	{
@@ -311,6 +313,16 @@ public class Backend
 	}
 
 	/**
+	 * Attempt (best effort, unexposed JDK internals) to suppress
+	 * the layer-inappropriate JEP 411 warning when {@code InstallHelper}
+	 * sets up permission enforcement.
+	 */
+	static void pokeJEP411()
+	{
+		_pokeJEP411(InstallHelper.class, true);
+	}
+
+	/**
 	 * Returns <code>true</code> if the backend is awaiting a return from a
 	 * call into the JVM. This method will only return <code>false</code>
 	 * when called from a thread other then the main thread and the main
@@ -331,6 +343,7 @@ public class Backend
 	private static native void _clearFunctionCache();
 	private static native boolean _isCreatingExtension();
 	private static native String _myLibraryPath();
+	private static native void _pokeJEP411(Class<?> caller, Object token);
 
 	private static class EarlyNatives
 	{

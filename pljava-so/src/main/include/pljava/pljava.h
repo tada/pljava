@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -80,6 +80,13 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
  */
 #if PG_VERSION_NUM < 90500
 #define PG_INT32_MAX    (0x7FFFFFFF)
+#endif
+
+/*
+ * This symbol was spelled without the underscores prior to PG 14.
+ */
+#if PG_VERSION_NUM < 140000
+#define PG_NODE_TREEOID PGNODETREEOID
 #endif
 
 extern void* mainThreadId;

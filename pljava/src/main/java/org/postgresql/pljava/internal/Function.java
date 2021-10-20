@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2021 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -84,6 +84,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.EntryPoints;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
+import static org.postgresql.pljava.internal.EntryPoints.loadAndInitWithACC;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import static org.postgresql.pljava.jdbc.TypeOid.INVALID;
 import static org.postgresql.pljava.jdbc.TypeOid.TRIGGEROID;
@@ -161,7 +162,7 @@ public class Function
 
 		Identifier.Simple schema = Identifier.Simple.fromCatalog(schemaName);
 		return
-			loadClass(Loader.getSchemaLoader(schema), className, false)
+			loadClass(Loader.getSchemaLoader(schema), className, null)
 				.asSubclass(SQLData.class);
 	}
 
@@ -170,9 +171,13 @@ public class Function
 	 * inputs, but producing a {@code MethodType} instead of a JNI signature.
 	 *<p>
 	 * The return type is the last element of {@code jTypes}.
+	 *<p>
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static MethodType buildSignature(
-		ClassLoader schemaLoader, String[] jTypes, boolean forValidator,
+		ClassLoader schemaLoader, String[] jTypes, AccessControlContext acc,
 		boolean commute,
 		boolean retTypeIsOutParameter, boolean isMultiCall, boolean altForm)
 	throws SQLException
@@ -200,7 +205,7 @@ public class Function
 		Class<?>[] pTypes = new Class<?>[ rtIdx ];
 
 		for ( int i = 0 ; i < rtIdx ; ++ i )
-			pTypes[i] = loadClass(schemaLoader, jTypes[i], forValidator);
+			pTypes[i] = loadClass(schemaLoader, jTypes[i], acc);
 
 		if ( commute )
 		{
@@ -210,7 +215,7 @@ public class Function
 		}
 
 		Class<?> returnType =
-			getReturnSignature(schemaLoader, retJType, forValidator,
+			getReturnSignature(schemaLoader, retJType, acc,
 				retTypeIsOutParameter, isMultiCall, altForm);
 
 		return methodType(returnType, pTypes);
@@ -228,9 +233,13 @@ public class Function
 	 * The overridden behavior for a composite type is to return boolean in the
 	 * non-multicall case, else one of {@code ResultSetHandle} or
 	 * {@code ResultSetProvider} depending on {@code altForm}.
+	 *<p>
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static Class<?> getReturnSignature(
-		ClassLoader schemaLoader, String retJType, boolean forValidator,
+		ClassLoader schemaLoader, String retJType, AccessControlContext acc,
 		boolean isComposite, boolean isMultiCall, boolean altForm)
 	throws SQLException
 	{
@@ -238,7 +247,7 @@ public class Function
 		{
 			if ( isMultiCall )
 				return Iterator.class;
-			return loadClass(schemaLoader, retJType, forValidator);
+			return loadClass(schemaLoader, retJType, acc);
 		}
 
 		/* The composite case */
@@ -280,15 +289,19 @@ public class Function
 	 *<p>
 	 * For now, this is a near-facsimile of the C implementation. A further step
 	 * of refactoring into clearer idiomatic Java can come later.
+	 *<p>
+	 * {@code acc} is non-null if validating and class initializers should
+	 * be run for parameter and return-type classes; in any other case it is
+	 * null (see {@code loadClass}).
 	 */
 	private static MethodHandle getMethodHandle(
 		ClassLoader schemaLoader, Class<?> clazz, String methodName,
-		boolean forValidator, boolean commute,
+		AccessControlContext acc, boolean commute,
 		String[] jTypes, boolean retTypeIsOutParameter, boolean isMultiCall)
 	throws SQLException
 	{
 		MethodType mt =
-			buildSignature(schemaLoader, jTypes, forValidator, commute,
+			buildSignature(schemaLoader, jTypes, acc, commute,
 				retTypeIsOutParameter, isMultiCall, false); // try altForm false
 
 		ReflectiveOperationException ex1 = null;
@@ -304,7 +317,7 @@ public class Function
 		MethodType origMT = mt;
 		Class<?> altType = null;
 		Class<?> realRetType =
-			loadClass(schemaLoader, jTypes[jTypes.length-1], forValidator);
+			loadClass(schemaLoader, jTypes[jTypes.length-1], acc);
 
 		/* COPIED COMMENT:
 		 * One valid reason for not finding the method is when
@@ -330,7 +343,7 @@ public class Function
 		if ( null != altType )
 		{
 			jTypes[jTypes.length - 1] = altType.getCanonicalName();
-			mt = buildSignature(schemaLoader, jTypes, forValidator, commute,
+			mt = buildSignature(schemaLoader, jTypes, acc, commute,
 				retTypeIsOutParameter, isMultiCall, true); // retry altForm true
 			try
 			{
@@ -340,32 +353,73 @@ public class Function
 			}
 			catch ( ReflectiveOperationException e )
 			{
-				SQLException sqle =
-					memberException(clazz, methodName, origMT,true/*isStatic*/);
-				sqle.initCause(ex1);
-				sqle.setNextException((SQLException)
-					memberException(clazz, methodName, mt, true /*isStatic*/)
-					.initCause(e));
-				throw sqle;
+				SQLException sqe1 =
+					memberException(clazz, methodName, origMT, ex1,
+						true /*isStatic*/);
+				SQLException sqe2 =
+					memberException(clazz, methodName, mt, e,
+						true /*isStatic*/);
+
+				/*
+				 * If one of the exceptions is NoSuchMethodException and the
+				 * other isn't, then the one that isn't carries news about
+				 * a problem with a method that actually was found. If that's
+				 * the second one, we'll just lie a little about the order and
+				 * report it first. (We never promised what order we'd do the
+				 * lookups in anyway, and the current Java-to-PG exception
+				 * translation only preserves the "first" one's details.)
+				 */
+				if ( ex1 instanceof NoSuchMethodException
+					&& ! (e instanceof NoSuchMethodException) )
+				{
+					sqe2.setNextException(sqe1);
+					throw sqe2;
+				}
+
+				sqe1.setNextException(sqe2);
+				throw sqe1;
 			}	
 		}
 
-		throw (SQLException)
-			memberException(clazz, methodName, origMT, true /*isStatic*/)
-			.initCause(ex1);
+		throw
+			memberException(clazz, methodName, origMT, ex1, true /*isStatic*/);
 	}
 
 	/**
-	 * Produce an exception for a class member not found, with a message similar
-	 * to that of the C {@code PgObject_throwMemberError}.
+	 * Produce an exception for a class member not found, with a message that
+	 * may include details from further down an exception's chain of causes.
 	 */
 	private static SQLException memberException(
-		Class<?> clazz, String name, MethodType mt, boolean isStatic)
+		Class<?> clazz, String name, MethodType mt,
+		ReflectiveOperationException e, boolean isStatic)
 	{
+		/*
+		 * The most useful detail message to include may not be that
+		 * of e itself, but further down the chain of causes, particularly
+		 * if e is IllegalAccessException, which handle lookup can throw even
+		 * for causes that aren't illegal access but rather linkage errors.
+		 */
+		Throwable t, prev;
+		t = prev = e;
+		for ( Class<?> c : List.of(
+			IllegalAccessException.class, LinkageError.class,
+			ClassNotFoundException.class, Void.class) )
+		{
+			if ( ! c.isInstance(t) )
+			{
+				t = prev;
+				break;
+			}
+			prev = t;
+			t = t.getCause();
+		}
+
+		String detail = (null == t) ? "" : (": " + t);
+
 		return new SQLNonTransientException(
-			String.format("Unable to find%s method %s.%s with signature %s",
-				(isStatic ? " static" : ""),
-				clazz.getCanonicalName(), name, mt),
+			String.format("resolving %smethod %s.%s with signature %s%s",
+				(isStatic ? "static " : ""),
+				clazz.getCanonicalName(), name, mt, detail),
 			"38000");
 	}
 
@@ -1316,7 +1370,22 @@ public class Function
 		boolean readOnly = ((byte)'v' != procTup.getByte("provolatile"));
 
 		ClassLoader schemaLoader = Loader.getSchemaLoader(schema);
-		Class<?> clazz = loadClass(schemaLoader, className, forValidator);
+		Class<?> clazz = loadClass(schemaLoader, className, null);
+
+		AccessControlContext acc =
+			accessControlContextFor(clazz, language, trusted);
+
+		/*
+		 * false, to leave initialization until the function's first invocation,
+		 * when naturally the right ContextClassLoader and AccessControlContext
+		 * will be in place. Overkill to do more just for a low-impact OpenJ9
+		 * quirk.
+		 */
+		if ( false && forValidator
+			&& clazz != loadClass(schemaLoader, className, acc) )
+			throw new SQLException(
+				"Initialization of class \"" + className + "\" produced a " +
+				"different class object");
 
 		if ( isUDT )
 		{
@@ -1353,7 +1422,8 @@ public class Function
 		String methodName = info.group("meth");
 
 		MethodHandle handle =
-			getMethodHandle(schemaLoader, clazz, methodName, forValidator,
+			getMethodHandle(schemaLoader, clazz, methodName,
+				null, // or acc to initialize parameter classes; overkill.
 				commute, resolvedTypes, retTypeIsOutParameter, isMultiCall)
 			.asFixedArity();
 		MethodType mt = handle.type();
@@ -1394,8 +1464,7 @@ public class Function
 		else
 			handle = dropArguments(handle, 0, AccessControlContext.class);
 
-		return invocable(handle,
-			accessControlContextFor(clazz, language, trusted));
+		return invocable(handle, acc);
 	}
 
 	/**
@@ -1661,13 +1730,15 @@ public class Function
 	 * turn that form of name into the right class, including for primitives,
 	 * void, and arrays.
 	 *
-	 * @param forValidator if true, force initialization of the loaded class, in
-	 * an effort to bring forward as many possible errors as can be.
+	 * @param valACC if non-null, force initialization of the loaded class, in
+	 * an effort to bring forward as many possible errors as can be during
+	 * validation. Initialization will run in this access control context.
 	 */
 	private static Class<?> loadClass(
-		ClassLoader schemaLoader, String className, boolean forValidator)
+		ClassLoader schemaLoader, String className, AccessControlContext valACC)
 	throws SQLException
 	{
+		boolean withoutInit = null == valACC;
 		Matcher m = typeNameInAS.matcher(className);
 		m.matches();
 		className = m.group(1);
@@ -1687,7 +1758,9 @@ public class Function
 		default:
 			try
 			{
-				c = Class.forName(className, forValidator, schemaLoader);
+				c = withoutInit
+					? Class.forName(className, false, schemaLoader)
+					: loadAndInitWithACC(className, schemaLoader, valACC);
 			}
 			catch ( ClassNotFoundException | LinkageError e )
 			{
@@ -1773,6 +1846,10 @@ public class Function
 	/**
 	 * The recognized forms of an "AS" string, distinguishable and broken out
 	 * by named capturing groups.
+	 *<p>
+	 * Array brackets are of course not included in the {@code <cls>} group, so
+	 * the caller will not have to check for the receiver class being an array.
+	 * A check that it isn't a primitive may be in order, though.
 	 */
 	private static final Pattern specForms = compile(String.format(
 		/* the UDT notation, which is case insensitive */
