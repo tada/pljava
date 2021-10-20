@@ -691,6 +691,17 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 		JNI_deleteLocalRef(joid);
 		if(typeClass != 0)
 		{
+			if ( -2 == typeStruct->typlen )
+			{
+				JNI_deleteLocalRef(typeClass);
+				ereport(ERROR, (
+					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg(
+						"type mapping in PL/Java for %s with NUL-terminated(-2)"
+						" storage not supported",
+						format_type_be(typeId))
+				));
+			}
 			TupleDesc tupleDesc = lookup_rowtype_tupdesc_noerror(typeId, -1, true);
 			bool hasTupleDesc = NULL != tupleDesc;
 			if ( hasTupleDesc )
