@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -2999,6 +2999,13 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( 32 > category() || category() > 126 )
 				msg( Kind.ERROR, tclass,
 					"UDT category must be a printable ASCII character");
+
+			if ( categoryExplicit && Character.isUpperCase(category()) )
+				if ( null == PredefinedCategory.valueOf(category()) )
+					msg( Kind.WARNING, tclass,
+						"upper-case letters are reserved for PostgreSQL's " +
+						"predefined UDT categories, but '%c' is not recognized",
+						category());
 
 			recordImplicitTags();
 			recordExplicitTags(_provides, _requires);

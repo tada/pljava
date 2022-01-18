@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -80,7 +80,120 @@ public @interface BaseUDT
 >TOAST strategies</a> for the type's stored representation.
 	 * Only {@code PLAIN} is applicable to fixed-length types.
 	 */
-	enum Storage { PLAIN, EXTERNAL, EXTENDED, MAIN }
+	enum Storage
+	{
+		/**
+		 * Never compressed or stored out-of-line.
+		 */
+		PLAIN,
+
+		/**
+		 * Can be moved out-of-line but not compressed.
+		 */
+		EXTERNAL,
+
+		/**
+		 * Can be compressed, and moved out-of-line if still too big.
+		 */
+		EXTENDED,
+
+		/**
+		 * Can be compressed, but moved out-of-line only if there is no other
+		 * way to make the containing tuple fit a page.
+		 */
+		MAIN
+	}
+
+	/**
+	 * The <a href=
+'https://www.postgresql.org/docs/12/catalog-pg-type.html#CATALOG-TYPCATEGORY-TABLE'
+>type categories</a> that are predefined in PostgreSQL.
+	 *<p>
+	 * This enumeration is not used as the type of the
+	 * {@link #category category} element below, because PostgreSQL allows use
+	 * of other single-ASCII-character category codes for custom purposes.
+	 * Therefore, the annotation can be any such character. PostgreSQL reserves
+	 * all of the upper-case ASCII letters to represent current or future
+	 * predefined categories, and this enumeration allows mapping between those
+	 * and their more readable names.
+	 *<p>
+	 * When one of the predefined categories is wanted for the
+	 * {@link #category category} element, the corresponding character constant
+	 * in {@link Code PredefinedCategory.Code} can be used in the annotation as
+	 * a more readable alternative to the one-character code.
+	 */
+	enum PredefinedCategory
+	{
+		ARRAY      (Code.ARRAY),
+		BOOLEAN    (Code.BOOLEAN),
+		COMPOSITE  (Code.COMPOSITE),
+		DATETIME   (Code.DATETIME),
+		ENUM       (Code.ENUM),
+		GEOMETRIC  (Code.GEOMETRIC),
+		NETWORK    (Code.NETWORK),
+		NUMERIC    (Code.NUMERIC),
+		PSEUDOTYPE (Code.PSEUDOTYPE),
+		RANGE      (Code.RANGE),
+		STRING     (Code.STRING),
+		TIMESPAN   (Code.TIMESPAN),
+		USER       (Code.USER),
+		BITSTRING  (Code.BITSTRING),
+		UNKNOWN    (Code.UNKNOWN),
+		INTERNAL   (Code.INTERNAL);
+
+		private final char code;
+
+		PredefinedCategory(char code)
+		{
+			this.code = code;
+		}
+
+		/**
+		 * Return this category's single-character code.
+		 */
+		public char code()
+		{
+			return code;
+		}
+
+		/**
+		 * Return the {@code PredefinedCategory} corresponding to a
+		 * single-character code as found in the system catalogs, or null
+		 * if the character represents a custom category (or a predefined one in
+		 * a PostgreSQL version newer than this class).
+		 */
+		public static PredefinedCategory valueOf(char code)
+		{
+			for ( PredefinedCategory c : values() )
+				if ( c.code == code )
+					return c;
+			return null;
+		}
+
+		/**
+		 * Character constants corresponding to the predefined categories,
+		 * for use in the {@link #category} annotation element.
+		 */
+		public interface Code
+		{
+			char ARRAY      = 'A';
+			char BOOLEAN    = 'B';
+			char COMPOSITE  = 'C';
+			char DATETIME   = 'D';
+			char ENUM       = 'E';
+			char GEOMETRIC  = 'G';
+			char NETWORK    = 'I';
+			char NUMERIC    = 'N';
+			char PSEUDOTYPE = 'P';
+			char RANGE      = 'R';
+			char STRING     = 'S';
+			char TIMESPAN   = 'T';
+			char USER       = 'U';
+			char BITSTRING  = 'V';
+			char UNKNOWN    = 'X';
+			char INTERNAL   = 'Z';
+		}
+	}
 
 	/**
 	 * Name of the new type in SQL, if it is not to be the simple name of
@@ -222,8 +335,13 @@ public @interface BaseUDT
 	 * This must be a single character, which PostgreSQL calls "simple ASCII"
 	 * and really forces to be in {@code [ -~]}, that is, space to tilde,
 	 * inclusive.
+	 *<p>
+	 * The upper-case ASCII letters are reserved for PostgreSQL's predefined
+	 * categories, which can be found in the
+	 * {@link PredefinedCategory PredefinedCategory} enumeration. The default is
+	 * {@link PredefinedCategory.Code#USER PredefinedCategory.Code.USER}.
 	 */
-	char category() default 'U';
+	char category() default PredefinedCategory.Code.USER;
 
 	/**
 	 * Whether this type is to be "preferred" in its {@link #category},
