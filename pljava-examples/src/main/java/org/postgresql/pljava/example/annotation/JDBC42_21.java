@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -36,9 +36,11 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	"  END" +
 	" FROM" +
 	"  (VALUES" +
+	"   (date 'infinity')," +
 	"   (date '2017-08-21')," +
 	"   (date '1970-03-07')," +
-	"   (date '1919-05-29')" +
+	"   (date '1919-05-29')," +
+	"   (date '-infinity')" +
 	"  ) AS p(orig)," +
 	"  javatest.roundtrip(p, 'java.time.LocalDate')" +
 	"  AS r(roundtripped date)",
@@ -49,7 +51,11 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	"  ELSE javatest.logmessage('WARNING', 'java.time.LocalTime fails')" +
 	"  END" +
 	" FROM" +
-	"  (SELECT current_time::time) AS p(orig)," +
+	"  (VALUES" +
+	"   (current_time::time)," +
+	"   ('00:00:00')," +
+	"   ('24:00:00')" +
+	"  ) AS p(orig)," +
 	"  javatest.roundtrip(p, 'java.time.LocalTime')" +
 	"  AS r(roundtripped time)",
 
@@ -59,7 +65,11 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 	"  ELSE javatest.logmessage('WARNING', 'java.time.OffsetTime fails')" +
 	"  END" +
 	" FROM" +
-	"  (SELECT current_time::timetz) AS p(orig)," +
+	"  (VALUES" +
+	"   (current_time::timetz)," +
+	"   ('00:00:00')," +
+	"   ('24:00:00')" +
+	"  ) AS p(orig)," +
 	"  javatest.roundtrip(p, 'java.time.OffsetTime')" +
 	"  AS r(roundtripped timetz)",
 
