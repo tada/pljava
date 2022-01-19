@@ -73,6 +73,11 @@ zone, which can vary from session to session. Any code developed for PL/Java
 and Java 8 or newer is strongly encouraged to use these types for date/time
 manipulations, for their much better fit to the PostgreSQL types.
 
+PostgreSQL accepts 24:00:00.000000 as a valid time, while a day for
+`LocalTime` or `OffsetTime` maxes out at the preceding nanosecond. That is
+still a distinguishable value (as the PostgreSQL resolution is only to
+microseconds), so the PostgreSQL 24 value is bidirectionally mapped to that.
+
 ### Mapping of time and timestamp with time zone
 
 When a `time with time zone` is mapped to a `java.time.OffsetTime`, the Java
@@ -103,16 +108,12 @@ Java values to compare others against. It must compare with `equals()`; it
 cannot assume that the mapping will produce the very same Java objects
 repeatedly, but only objects with equal values.
 
-When timestamps are mapped to the `java.time` classes, the mapping will have
+When dates and timestamps are mapped to the `java.time` classes,
+the mapping will have
 the useful property that `-infinity` really is earlier than other
 PostgreSQL-representable values, and `infinity` really is later. That does not
 hold under the old `java.sql.Timestamp` mapping, where both values will be
 distant from the present but not further specified.
-
-The convenient relation does not hold for dates at all, under the `java.sql` or
-`java.time` mappings; `infinity` and `-infinity` just have to be treated as two
-special values. They come out as two consecutive days in the late Miocene,
-as it happens, in the third week of June.
 
 #### Infinite timestamps without `integer_datetimes`
 

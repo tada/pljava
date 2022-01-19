@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,11 +55,13 @@ abstract class BasePrincipal implements Principal, Serializable
 				"deserializing a BasePrincipal with null name");
 	}
 
-	private Simple m_name;
+	protected final Simple m_name;
 
 	@Override
 	public boolean equals(Object other)
 	{
+		if ( this == other )
+			return true;
 		if ( getClass().isInstance(other) )
 			return m_name.equals(((BasePrincipal)other).m_name);
 		return false;

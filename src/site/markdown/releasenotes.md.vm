@@ -10,7 +10,87 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
-$h2 PL/Java 1.6.3
+$h2 PL/Java 1.6.4
+
+This is the fourth minor update in the PL/Java 1.6 series. It is a minor
+bug-fix release with few other notable changes. Further information
+on the changes may be found below.
+
+$h3 Changes
+
+$h4 Changes affecting administration
+
+$h5 JEP 411 advisory message downgraded
+
+PL/Java follows certain administrative actions with an advisory message
+about upcoming Java changes that will affect policy enforcement. In 1.6.3,
+that message was always at `WARNING` level. In 1.6.4, it is downgraded
+to `NOTICE` level when running on Java versions before 17.
+
+As before, updates on how PL/Java will adapt to the future Java changes
+can be watched by bookmarking [the JEP 411 topic][jep411] on the PL/Java wiki.
+
+$h4 Changes to runtime behavior
+
+$h5 Java's thread context class loader
+
+Starting in 1.6.3, PL/Java has made sure the thread context class loader
+on entry to a function reflects the initiating loader for the implementing
+class, but in 1.6.3, the loader could be set too many times when executing
+a set-returning function. That could lead to the wrong loader being restored
+on function exit, likely only noticeable in an application with jars in
+multiple schemas and with nested Java function invocations.
+
+That is fixed in this release.
+
+$h4 Improvements to the annotation-driven SQL generator
+
+$h5 Correct SQL now emitted for a function with _one_ `OUT` parameter
+
+PostgreSQL requires a different form of declaration for a function with
+one `OUT` parameter than for a function with two or more. PL/Java was
+emitting the wrong form for the one-out-parameter case.
+
+The documentation has been clarified and new [examples][exoneout] added
+to illustrate how Java methods should be structured and annotated for
+both cases.
+
+The intended treatment can be ambiguous for some Java methods, without
+explicit annotations. For example, a Java method that returns `boolean`
+and has a trailing `ResultSet` parameter could be a single-row
+composite-returning function, or an ordinary function with a row-typed
+input parameter and `boolean` return. PL/Java has always silently chosen
+which interpretation to apply in such cases, and still does, but it now
+emits a comment into the generated deployment descriptor, explaining
+what annotation to use if a different meaning was intended.
+
+$h5 `BaseUDT` annotation now has constants for known type categories
+
+PostgreSQL user-defined types can be declared in categories, some of which
+are predefined. PL/Java's `BaseUDT` annotation now includes constants for
+those, which can be used in place of the single-letter codes for readability.
+
+$h3 Bugs fixed
+
+* [Wrong SQL generated for function with one `OUT` parameter](${ghbug}386)
+* [`Session` object not reliably singleton](${ghbug}388)
+* [Set-returning function has context classloader set too many times](${ghbug}389)
+* [`java.time.LocalDate` mismapping within 30 years of +/-infinity](${ghbug}390)
+
+[exoneout]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method.summary
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
+$h2 PL/Java 1.6.3 (10 October 2021)
 
 This is the third minor update in the PL/Java 1.6 series. It adds support
 for PostgreSQL 14, continues to improve the runtime behavior and
@@ -124,17 +204,6 @@ $h3 Credits
 
 Thanks to Krzysztof Nienartowicz, `ricdhen`, and `JanaParthasarathy`, who
 among them reported five of the issues fixed in this release.
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.2
 

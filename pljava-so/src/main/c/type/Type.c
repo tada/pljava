@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -168,11 +168,9 @@ static void _closeIteration(CallContextData* ctxData)
 	 * Why pass 1 as the call_cntr? We won't always have the actual call_cntr
 	 * value at _closeIteration time (the _endOfSetCB isn't passed it), and the
 	 * Java interfaces being used don't need it (close() isn't passed a row
-	 * number), but vpcInvoke needs a way to know when to skip its call to
-	 * installContextLoader (which shouldn't happen on its very first call,
-	 * the one with call_cntr of zero, which always happens as part of the first
-	 * invocation of the SRF so the work has already been done). So passing any
-	 * fixed value here that isn't zero is enough to distinguish the cases.
+	 * number), but at least 1 is different from zero, in case vpcInvoke has
+	 * a reason to distinguish the first call (in the same invocation as the
+	 * overall setup) from subsequent ones.
 	 */
 	pljava_Function_vpcInvoke(
 		ctxData->fn, ctxData->rowProducer, NULL, 1, JNI_TRUE, &dummy);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -79,7 +79,8 @@ category</a>
 	 * or can be used to specify the return type of any function if the
 	 * compiler hasn't inferred it correctly.
 	 *<p>
-	 * Only one of {@code type} or {@code out} may appear.
+	 * Only one of {@code type} or {@code out} may appear, except as described
+	 * for {@code out} below.
 	 */
 	String type() default "";
 
@@ -96,6 +97,18 @@ category</a>
 	 * name, only a type. The name is an ordinary SQL identifier; if it would
 	 * be quoted in SQL, naturally each double-quote must be represented as
 	 * {@code \"} in Java.
+	 *<p>
+	 * If there is exactly one {@code OUT} parameter declared, PostgreSQL treats
+	 * the function as returning that parameter's type, rather than
+	 * a one-element composite; therefore, the Java method must have the
+	 * corresponding form (returning the result type directly, or an
+	 * {@code Iterator} of that type, rather than expecting a {@code ResultSet}
+	 * final parameter.
+	 *<p>
+	 * If a one-element composite type is wanted, PL/Java will allow
+	 * {@code type="pg_catalog.RECORD"} along with a one-element {@code out},
+	 * and will generate the corresponding declaration in SQL. As of
+	 * this writing, however, no version of PostgreSQL will accept it.
 	 */
 	String[] out() default {};
 
