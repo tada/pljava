@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -493,13 +493,8 @@ jboolean pljava_Function_vpcInvoke(
 	 * static area parameter counts; this reservation will therefore not see a
 	 * need to push a frame. If one was pushed for the user function itself, it
 	 * remains on top, to be popped when the Invocation is.
-	 *
-	 * It is better to avoid calling installContextLoader a second time under
-	 * the same Invocation.
 	 */
 	reserveParameterFrame(1, 2);
-	if ( 0 != call_cntr )
-		installContextLoader(self);
 
 	JNI_setObjectArrayElement(s_referenceParameters, 0, rowcollect);
 	s_primitiveParameters[0].j = call_cntr;
