@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -246,6 +246,7 @@ static bool warnJEP411 = true;
  * (pg_upgrade) where a JVM hasn't been launched to learn its version).
  */
 static bool javaGT11 = true;
+static bool javaGE17 = false;
 
 static void initsequencer(enum initstage is, bool tolerant);
 
@@ -987,6 +988,7 @@ void _PG_init()
 static void initPLJavaClasses(void)
 {
 	jfieldID fID;
+	int javaMajor;
 	JNINativeMethod backendMethods[] =
 	{
 		{
@@ -1072,7 +1074,9 @@ static void initPLJavaClasses(void)
 	PgObject_registerNatives2(s_Backend_class, backendMethods);
 
 	fID = PgObject_getStaticJavaField(s_Backend_class, "JAVA_MAJOR", "I");
-	javaGT11 = 11 < JNI_getStaticIntField(s_Backend_class, fID);
+	javaMajor = JNI_getStaticIntField(s_Backend_class, fID);
+	javaGT11 = 11 <  javaMajor;
+	javaGE17 = 17 <= javaMajor;
 
 	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
@@ -2022,7 +2026,7 @@ void Backend_warnJEP411(bool isCommit)
 
 	warningEmitted = true;
 
-	ereport(WARNING, (
+	ereport(javaGE17 ? WARNING : NOTICE, (
 		errmsg(
 			"[JEP 411] migration advisory: there will be a Java version "
 			"(after Java 17) that will be unable to run PL/Java %s "
