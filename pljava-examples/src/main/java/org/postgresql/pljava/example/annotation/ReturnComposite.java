@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -21,6 +21,7 @@ import java.util.List;
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
 
 /**
  * Demonstrates {@code @Function(out={...})} for a function that returns a
@@ -71,6 +72,29 @@ public class ReturnComposite implements ResultSetProvider.Large
 	}
 
 	/**
+	 * A function that does not return a composite type, despite having
+	 * a similar Java form.
+	 *<p>
+	 * Without the {@code type=} element, this would not be mistaken for
+	 * composite. With the {@code type=} element (a contrived example, will cast
+	 * the method's boolean result to text), PL/Java would normally match the
+	 * method to the composite pattern (other than {@code pg_catalog.RECORD},
+	 * PL/Java does not pretend to know at compile time which types might be
+	 * composite). The explicit {@code SQLType} annotation on the trailing
+	 * {@code ResultSet} parameter forces it to be seen as an input, and the
+	 * method to be seen as an ordinary method that happens to return boolean.
+	 */
+	@Function(
+		schema = "javatest", type = "text"
+	)
+	public static boolean
+		notOutParams(@SQLType("pg_catalog.record") ResultSet in)
+	throws SQLException
+	{
+		return true;
+	}
+
+	/**
 	 * Returns a two-column table result that does not have to be
 	 * a predeclared composite type, or require the calling SQL query to
 	 * follow the function call with a result column definition list, as is
@@ -104,5 +128,52 @@ public class ReturnComposite implements ResultSetProvider.Large
 	@Override
 	public void close()
 	{
+	}
+
+	/**
+	 * Returns a result described by <em>one</em> {@code out} parameter.
+	 *<p>
+	 * Such a method is written in the style of any method that returns
+	 * a scalar value, rather than receiving a writable {@code ResultSet}
+	 * as a parameter.
+	 */
+	@Function(
+		schema = "javatest", out = { "greeting text" }
+	)
+	public static String helloOneOut() throws SQLException
+	{
+		return "Hello";
+	}
+
+	/**
+	 * Has a boolean result described by <em>one</em> {@code out} parameter.
+	 *<p>
+	 * Because this method returns boolean and has a trailing row-typed
+	 * <em>input</em> parameter, that parameter must have an {@code SQLType}
+	 * annotation so that the method will not look like the more-than-one-OUT
+	 * composite form, which would be rejected as a likely mistake.
+	 */
+	@Function(
+		schema = "javatest", out = { "exquisite boolean" }
+	)
+	public static boolean boolOneOut(@SQLType("pg_catalog.record") ResultSet in)
+	throws SQLException
+	{
+		return true;
+	}
+
+	/**
+	 * Returns a table result described by <em>one</em> {@code out} parameter.
+	 *<p>
+	 * Such a method is written in the style of any method that returns a set
+	 * of some scalar value, using an {@code Iterator} rather than a
+	 * {@code ResultSetProvider} or {@code ResultSetHandle}.
+	 */
+	@Function(
+		schema = "javatest", out = { "addressee text" }
+	)
+	public static Iterator<String> helloOneOutTable() throws SQLException
+	{
+		return new ReturnComposite().addressees;
 	}
 }

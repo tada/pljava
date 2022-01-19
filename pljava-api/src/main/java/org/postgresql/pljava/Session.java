@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,7 +20,7 @@ import java.sql.SQLException;
 /**
  * A Session brings together some useful methods and data for the current
  * database session. It provides a set of attributes (a
- * {@code String} to {@code Object} map. Until PL/Java 1.2.0, its attribute
+ * {@code String} to {@code Object} map). Until PL/Java 1.2.0, its attribute
  * store had transactional behavior (i.e., the data
  * added since the last commit would be lost on a transaction rollback, or kept
  * after a commit), but in 1.2.0 and later, it has not, and has functioned as a

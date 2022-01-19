@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,7 +57,7 @@ static bool _LocalDate_canReplaceType(Type self, Type other)
 static jvalue _LocalDate_coerceDatum(Type self, Datum arg)
 {
 	DateADT pgDate = DatumGetDateADT(arg);
-	jlong days = (jlong)(pgDate + EPOCH_DIFF);
+	jlong days = (jlong)pgDate + EPOCH_DIFF;
 	jvalue result;
 	result.l = JNI_callStaticObjectMethod(
 		s_LocalDate_class, s_LocalDate_ofEpochDay, days);

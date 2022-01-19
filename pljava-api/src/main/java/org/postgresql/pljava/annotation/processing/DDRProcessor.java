@@ -1772,6 +1772,95 @@ hunt:	for ( ExecutableElement ee : ees )
 		}
 	}
 
+	/**
+	 * Enumeration of different method "shapes" and the treatment of
+	 * {@code type=} and {@code out=} annotation elements they need.
+	 *<p>
+	 * Each member has a {@code setComposite} method that will be invoked
+	 * by {@code checkOutType} if the method is judged to have a composite
+	 * return type according to the annotations present.
+	 *<p>
+	 * There is one case (no {@code out} and a {@code type} other than
+	 * {@code RECORD}) where {@code checkOutType} will resolve the
+	 * ambiguity by assuming composite, and will have set
+	 * {@code assumedComposite} accordingly. The {@code MAYBECOMPOSITE}
+	 * shape checks that assumption against the presence of a countervailing
+	 * {@code SQLType} annotation, the {@code ITERATOR} shape clears it and
+	 * behaves as noncomposite as always, and the {@code PROVIDER} shape
+	 * clears it because that shape is unambiguously composite.
+	 */
+	enum MethodShape
+	{
+		/**
+		 * Method has the shape {@code boolean foo(..., ResultSet)], which
+		 * could be an ordinary method with an incoming record parameter and
+		 * boolean return, or a composite-returning method whose last
+		 * a writable ResultSet supplied by PL/Java for the return value.
+		 */
+		MAYBECOMPOSITE((f,msgr) ->
+		{
+			boolean sqlTyped = null !=
+				f.paramTypeAnnotations[f.paramTypeAnnotations.length - 1];
+			if ( ! sqlTyped )
+				f.complexViaInOut = true;
+			else if ( f.assumedComposite )
+				f.assumedComposite = false; // SQLType cancels assumption
+			else
+				msgr.printMessage(Kind.ERROR,
+					"no @SQLType annotation may appear on " +
+					"the return-value ResultSet parameter", f.func);
+		}),
+
+		/**
+		 * Method has the shape {@code Iterator<T> foo(...)} and represents
+		 * a set-returning function with a non-composite return type.
+		 *<p>
+		 * If the shape has been merely <em>assumed</em> composite, clear
+		 * that flag and proceed as if it is not. Otherwise, issue an error
+		 * that it can't be composite.
+		 */
+		ITERATOR((f,msgr) ->
+		{
+			if ( f.assumedComposite )
+				f.assumedComposite = false;
+			else
+				msgr.printMessage(Kind.ERROR,
+					"the iterator style cannot return a row-typed result",
+					f.func);
+		}),
+
+		/**
+		 * Method has the shape {@code ResultSetProvider foo(...)} or
+		 * {@code ResultSetHandle foo(...)} and represents
+		 * a set-returning function with a non-composite return type.
+		 *<p>
+		 * If the shape has been merely <em>assumed</em> composite, clear
+		 * that flag; for this shape that assumption is not tentative.
+		 */
+		PROVIDER((f,msgr) -> f.assumedComposite = false),
+
+		/**
+		 * Method is something else (trigger, for example) for which no
+		 * {@code type} or {@code out} is allowed.
+		 *<p>
+		 * The {@code setComposite} method for this shape will never
+		 * be called.
+		 */
+		OTHER(null);
+
+		private final BiConsumer<FunctionImpl,Messager> compositeSetter;
+
+		MethodShape(BiConsumer<FunctionImpl,Messager> setter)
+		{
+			compositeSetter = setter;
+		}
+
+		void setComposite(FunctionImpl f, Messager msgr)
+		{
+			compositeSetter.accept(f, msgr);
+		}
+	}
+
 	class FunctionImpl
 	extends AbstractAnnotationImpl
 	implements Function, Snippet, Commentable
@@ -1830,6 +1919,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		DBType returnType;
 		DBType[] parameterTypes;
 		List<Map.Entry<Identifier.Simple,DBType>> outParameters;
+		boolean assumedComposite = false;
+		boolean forceResultRecord = false;
 
 		boolean subsumed = false;
 
@@ -1916,19 +2007,36 @@ hunt:	for ( ExecutableElement ee : ees )
 			List<? extends TypeMirror> typeArgs;
 			int arity = ptms.size();
 
-			if ( ( null != _type  ||  null != _out )
-				&& ret.getKind().equals( TypeKind.BOOLEAN) )
+			/*
+			 * Collect the parameter type annotations now, in case needed below
+			 * in checkOutType(MAYBECOMPOSITE) to disambiguate.
+			 */
+
+			collectParameterTypeAnnotations();
+
+			/*
+			 * If a type= annotation is present, provisionally set returnType
+			 * accordingly. Otherwise, leave it null, to be filled in by
+			 * resolveParameterAndReturnTypes below.
+			 */
+
+			if ( null != _type )
+				returnType = DBType.fromSQLTypeAnnotation(_type);
+
+			/*
+			 * Take a first look according to the method's Java return type.
+			 */
+			if ( ret.getKind().equals( TypeKind.BOOLEAN) )
 			{
-				complexViaInOut = true;
-				TypeMirror tm = ptms.get( arity - 1);
-				if ( tm.getKind().equals( TypeKind.ERROR)
-					// unresolved things seem assignable to anything
-					|| ! typu.isSameType( tm, TY_RESULTSET) )
+				if ( 0 < arity )
 				{
-					msg( Kind.ERROR, func.getParameters().get( arity - 1),
-						"Last parameter of complex-type-returning function " +
-						"must be ResultSet");
-					return Set.of();
+					TypeMirror tm = ptms.get( arity - 1);
+					if ( ! tm.getKind().equals( TypeKind.ERROR)
+						// unresolved things seem assignable to anything
+						&& typu.isSameType( tm, TY_RESULTSET) )
+					{
+						checkOutType(MethodShape.MAYBECOMPOSITE);
+					}
 				}
 			}
 			else if ( null != (typeArgs = specialization( ret, TY_ITERATOR)) )
@@ -1947,11 +2055,13 @@ hunt:	for ( ExecutableElement ee : ees )
 						"Failed to find setof component type");
 					return Set.of();
 				}
+				checkOutType(MethodShape.ITERATOR);
 			}
 			else if ( typu.isAssignable( ret, TY_RESULTSETPROVIDER)
 				|| typu.isAssignable( ret, TY_RESULTSETHANDLE) )
 			{
 				setof = true;
+				checkOutType(MethodShape.PROVIDER);
 			}
 			else if ( ret.getKind().equals( TypeKind.VOID) && 1 == arity )
 			{
@@ -1961,6 +2071,7 @@ hunt:	for ( ExecutableElement ee : ees )
 					&& typu.isSameType( tm, TY_TRIGGERDATA) )
 				{
 					trigger = true;
+					checkOutType(MethodShape.OTHER);
 				}
 			}
 
@@ -1974,8 +2085,6 @@ hunt:	for ( ExecutableElement ee : ees )
 				msg( Kind.ERROR, func,
 					"a function with triggers needs void return and " +
 					"one TriggerData parameter");
-
-			collectParameterTypeAnnotations();
 
 			/*
 			 * Report any unmappable types now that could appear in
@@ -2057,6 +2166,117 @@ hunt:	for ( ExecutableElement ee : ees )
 					"optional=true");
 		}
 
+		private static final int   NOOUT = 0;
+		private static final int  ONEOUT = 4;
+		private static final int MOREOUT = 8;
+
+		private static final int     NOTYPE = 0;
+		private static final int RECORDTYPE = 1;
+		private static final int  OTHERTYPE = 2;
+
+		/**
+		 * Reads the tea leaves of the {@code type=} and {@code out=}
+		 * annotation elements to decide whether the method has a composite
+		 * or noncomposite return.
+		 *<p>
+		 * This is complicated by the PostgreSQL behavior of treating a function
+		 * declared with <em>one</em> {@code OUT} parameter, or as
+		 * a <em>one</em>-element {@code TABLE} function, as <em>not</em>
+		 * returning a row type.
+		 *<p>
+		 * This method avoids rejecting the case of a one-element {@code out=}
+		 * with an explicit {@code type=RECORD}, to provide a way to explicitly
+		 * request composite behavior for that case, on the chance that some
+		 * future PostgreSQL version may accept it, though as of this writing
+		 * no current version does.
+		 *<p>
+		 * If the {@code MAYBECOMPOSITE} shape is used with a single {@code out}
+		 * parameter, it is likely a mistake (what are the odds the developer
+		 * wanted a function with a row-typed input parameter and a named out
+		 * parameter of boolean type?), and will be rejected unless the
+		 * {@code ResultSet} final parameter has been given an {@code SQLType}
+		 * annotation.
+		 */
+		void checkOutType(MethodShape shape)
+		{
+			int out =
+				null == _out ? NOOUT : 1 == _out.length ? ONEOUT : MOREOUT;
+
+			/*
+			 * The caller will have set returnType from _type if present,
+			 * or left it null otherwise. We know RECORD is a composite type;
+			 * we don't presume here to know whether any other type is or not.
+			 */
+			int type =
+				null == returnType ? NOTYPE :
+					DT_RECORD.equals(returnType) ? RECORDTYPE : OTHERTYPE;
+
+			if ( MethodShape.OTHER == shape  &&  0 != (out | type) )
+			{
+				msg( Kind.ERROR, func,
+					"no type= or out= element may be applied to this method");
+				return;
+			}
+
+			switch ( out | type )
+			{
+			case   NOOUT | OTHERTYPE:
+				assumedComposite = true; // annotations not definitive; assume
+				shape.setComposite(this, msgr);
+				return;
+			case   NOOUT | RECORDTYPE:
+			case MOREOUT | NOTYPE:
+				shape.setComposite(this, msgr);
+				return;
+			case  ONEOUT | RECORDTYPE: // in case PostgreSQL one day allows this
+				forceResultRecord = true;
+				shape.setComposite(this, msgr);
+				return;
+			case  ONEOUT | NOTYPE:
+				/*
+				 * No special action needed here except for the MAYBECOMPOSITE
+				 * or PROVIDER shapes, to check for likely mistakes.
+				 */
+				if ( MethodShape.MAYBECOMPOSITE == shape
+					&& null ==
+						paramTypeAnnotations[paramTypeAnnotations.length - 1] )
+				{
+					msg(Kind.ERROR, func,
+						"a function with one declared OUT parameter returns " +
+						"it normally, not through an extra ResultSet " +
+						"parameter. If the trailing ResultSet parameter is " +
+						"intended as an input, it can be marked with an " +
+						"@SQLType annotation");
+				}
+				else if ( MethodShape.PROVIDER == shape )
+				{
+					msg(Kind.ERROR, func,
+						"a set-returning function with one declared OUT " +
+						"parameter must return an Iterator, not a " +
+						"ResultSetProvider or ResultSetHandle");
+				}
+				return;
+			case   NOOUT | NOTYPE:
+				/*
+				 * No special action; MAYBECOMPOSITE will treat as noncomposite,
+				 * ITERATOR and PROVIDER will behave as they always do.
+				 */
+				return;
+			case  ONEOUT | OTHERTYPE:
+				msg( Kind.ERROR, func,
+					"no type= allowed here (the out parameter " +
+					"declares its own type");
+				return;
+			case MOREOUT | RECORDTYPE:
+			case MOREOUT | OTHERTYPE:
+				msg( Kind.ERROR, func,
+					"type= and out= may not be combined here");
+				return;
+			default:
+				throw new AssertionError("unhandled case");
+			}
+		}
+
 		/**
 		 * Return a stream of {@code ParameterInfo} 'records' for the function's
 		 * parameters in order.
@@ -2100,12 +2320,8 @@ hunt:	for ( ExecutableElement ee : ees )
 		 */
 		void resolveParameterAndReturnTypes()
 		{
-			if ( null != _type  &&  null != _out )
-				msg( Kind.ERROR, func, "A PL/Java function may specify " +
-					"only one of type, out");
-
-			if ( null != _type )
-				returnType = DBType.fromSQLTypeAnnotation( _type);
+			if ( null != returnType )
+				/* it was already set from a type= attribute */;
 			else if ( null != setofComponent )
 				returnType = tmpr.getSQLType( setofComponent, func);
 			else if ( setof )
@@ -2119,10 +2335,13 @@ hunt:	for ( ExecutableElement ee : ees )
 
 			if ( null != _out )
 			{
-				returnType = DT_RECORD;
 				outParameters = Arrays.stream(_out)
 					.map(DBType::fromNameAndType)
 					.collect(toList());
+				if ( 1 < _out.length  ||  forceResultRecord )
+					returnType = DT_RECORD;
+				else
+					returnType = outParameters.get(0).getValue();
 			}
 		}
 
@@ -2170,6 +2389,9 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * appropriate) and parameters, either with any defaults indicated
 		 * (for use in CREATE FUNCTION) or without (for use in DROP FUNCTION).
 		 *
+		 * @param sb StringBuilder in which to generate the SQL.
+		 * @param names Whether to include the parameter names.
+		 * @param outs Whether to include out parameters.
 		 * @param dflts Whether to include the defaults, if any.
 		 */
 		void appendNameAndParams(
@@ -2181,7 +2403,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		/**
 		 * Internal version taking name and parameter stream as extra arguments
-		 * so they can be overridded from {@link Transformed}.
+		 * so they can be overridden from {@link Transformed}.
 		 */
 		void appendNameAndParams(
 			StringBuilder sb, boolean names, boolean outs, boolean dflts,
@@ -2196,7 +2418,7 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		/**
 		 * Takes the parameter stream as an extra argument
-		 * so it can be overridded from {@link Transformed}.
+		 * so it can be overridden from {@link Transformed}.
 		 */
 		void appendParams(
 			StringBuilder sb, boolean names, boolean outs, boolean dflts,
@@ -2272,6 +2494,22 @@ hunt:	for ( ExecutableElement ee : ees )
 		{
 			ArrayList<String> al = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
+			if ( assumedComposite )
+				sb.append("/*\n * PL/Java generated this declaration assuming" +
+					"\n * a composite-returning function was intended." +
+					"\n * If a boolean function with a row-typed parameter" +
+					"\n * was intended, add any @SQLType annotation on the" +
+					"\n * ResultSet final parameter to make the intent clear." +
+					"\n */\n");
+			if ( forceResultRecord )
+				sb.append("/*\n * PL/Java generated this declaration for a" +
+					"\n * function with one OUT parameter that was annotated" +
+					"\n * to explicitly request treatment as a function that" +
+					"\n * returns RECORD. A given version of PostgreSQL might" +
+					"\n * not accept such a declaration. More at" +
+					"\n * https://www.postgresql.org/message-id/" +
+					"619BBE78.7040009%40anastigmatix.net" +
+					"\n */\n");
 			sb.append( "CREATE OR REPLACE FUNCTION ");
 			appendNameAndParams( sb, true, true, true, qname, params);
 			sb.append( "\n\tRETURNS ");

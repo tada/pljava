@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -456,7 +456,12 @@ public abstract class Lexicals
 		public abstract String deparse(Charset cs);
 
 		/**
-		 * Indicates whether some other object is "equal to" this one.
+		 * Equality test with the case-sensitivity rules of SQL.
+		 * @param other Object to compare to
+		 * @return true if two quoted Identifiers match exactly, or two
+		 * non-quoted ones match in either the PostgreSQL or ISO SQL folded
+		 * form, or a quoted one exactly matches either folded form of a
+		 * non-quoted one.
 		 */
 		@Override
 		public boolean equals(Object other)
@@ -1027,6 +1032,13 @@ public abstract class Lexicals
 			 * {@code PUBLIC} schema. That is a real catalog object that has
 			 * the actual name {@code PUBLIC}, and should be represented as a
 			 * {@code Simple} with that name.
+			 *<p>
+			 * Note: through PG 14 at least, the database itself does not treat
+			 * the public grantee in the way anticipated here; it is, instead,
+			 * treated as an ordinary folding name "public" and forbidden as the
+			 * name of any role. Therefore, a model of grantee roles would not
+			 * need this symbol after all, but the definition will remain here
+			 * illustrating the concept.
 			 */
 			public static final Pseudo PUBLIC = new Pseudo("PUBLIC");
 

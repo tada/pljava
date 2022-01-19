@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -73,17 +73,8 @@ public class Backend
 		}
    }
 
-	private static Session s_session;
-
 	private static final Pattern s_gucList = Pattern.compile(String.format(
 		"\\G(?:%1$s)(?<more>,\\s*+)?+", ISO_AND_PG_IDENTIFIER_CAPTURING));
-
-	public static synchronized Session getSession()
-	{
-		if(s_session == null)
-			s_session = new Session();
-		return s_session;
-	}
 
 	/**
 	 * Do an operation on a thread with serialized access to call into

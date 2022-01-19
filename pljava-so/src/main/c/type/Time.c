@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -83,6 +83,8 @@ static jvalue _LocalTime_coerceDatum(Type self, Datum arg)
 #endif
 		1000 * DatumGetInt64(arg);
 	jvalue result;
+	if ( 1000L * USECS_PER_DAY == nanos )
+		-- nanos;
 	result.l = JNI_callStaticObjectMethod(
 		s_LocalTime_class, s_LocalTime_ofNanoOfDay, nanos);
 	return result;
@@ -95,7 +97,7 @@ static Datum _LocalTime_coerceObject(Type self, jobject time)
 #if PG_VERSION_NUM < 100000
 		(!integerDateTimes) ? Float8GetDatum(((double)nanos) / 1e9) :
 #endif
-		Int64GetDatum(nanos / 1000);
+		Int64GetDatum((nanos + 1) / 1000);
 }
 
 static Type _LocalTime_obtain(Oid typeId)
