@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"org.gjt.cuspy"},{"l":"org.postgresql.pljava.packaging"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"org.gjt.cuspy"},{"l":"org.postgresql.pljava.packaging"}]
