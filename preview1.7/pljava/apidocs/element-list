@@ -1,0 +1,10 @@
+module:org.postgresql.pljava.internal
+org.postgresql.pljava.elog
+org.postgresql.pljava.internal
+org.postgresql.pljava.jdbc
+org.postgresql.pljava.management
+org.postgresql.pljava.mbeans
+org.postgresql.pljava.pg
+org.postgresql.pljava.pg.adt
+org.postgresql.pljava.policy
+org.postgresql.pljava.sqlj

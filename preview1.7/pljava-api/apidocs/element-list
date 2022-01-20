@@ -1,0 +1,7 @@
+module:org.postgresql.pljava
+org.postgresql.pljava
+org.postgresql.pljava.adt
+org.postgresql.pljava.adt.spi
+org.postgresql.pljava.annotation
+org.postgresql.pljava.model
+org.postgresql.pljava.sqlgen
