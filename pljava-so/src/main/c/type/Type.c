@@ -589,8 +589,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	}
 
 	stashCallContext(ctxData);
-	currentInvocation->hasConnected = false;
-	currentInvocation->hasDual      = false;
 	MemoryContextSwitchTo(currCtx);
 
 	/* Unregister this callback and call it manually. We do this because
