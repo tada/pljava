@@ -551,5 +551,47 @@ public interface CatalogObject
 		protected static final int DEFAULT_COLLATION_OID = 100;
 		protected static final int       C_COLLATION_OID = 950;
 		protected static final int   POSIX_COLLATION_OID = 951;
+
+		/*
+		 * These magic numbers are assigned here to allow the various well-known
+		 * PostgreSQL ResourceOwners to be retrieved without a proliferation of
+		 * methods on the factory interface. These are arbitrary array indices,
+		 * visible also to JNI code through the generated headers just as
+		 * described above. The native initialization method may create,
+		 * for example, an array of ByteBuffers that window the corresponding
+		 * PostgreSQL globals, ordered according to these indices. The Java code
+		 * implementing resourceOwner() can be ignorant of these specific values
+		 * and simply use them to index the array. HOWEVER, it does know that
+		 * the first one, index 0, refers to the current resource owner.
+		 */
+		protected static final int RSO_Current        = 0; // must be index 0
+		protected static final int RSO_CurTransaction = 1;
+		protected static final int RSO_TopTransaction = 2;
+		protected static final int RSO_AuxProcess     = 3;
+
+		protected abstract ResourceOwner resourceOwner(int which);
+
+		/*
+		 * Same as above but for the well-known PostgreSQL MemoryContexts.
+		 * Again, the implementing code knows index 0 is for the current one.
+		 */
+		protected static final int MCX_CurrentMemory  = 0; // must be index 0
+		protected static final int MCX_TopMemory      = 1;
+		protected static final int MCX_Error          = 2;
+		protected static final int MCX_Postmaster     = 3;
+		protected static final int MCX_CacheMemory    = 4;
+		protected static final int MCX_Message        = 5;
+		protected static final int MCX_TopTransaction = 6;
+		protected static final int MCX_CurTransaction = 7;
+		protected static final int MCX_Portal         = 8;
+		/*
+		 * A long-lived, never-reset context created by PL/Java as a child of
+		 * TopMemoryContext.
+		 */
+		protected static final int MCX_JavaMemory     = 9;
+
+		protected abstract MemoryContext memoryContext(int which);
+
+		protected abstract MemoryContext upperMemoryContext();
 	}
 }

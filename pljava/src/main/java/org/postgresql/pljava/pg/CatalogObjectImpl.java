@@ -248,6 +248,24 @@ public class CatalogObjectImpl implements CatalogObject
 			return CharsetEncodingImpl.fromName(name);
 		}
 
+		@Override
+		protected ResourceOwner resourceOwner(int which)
+		{
+			throw notyet();
+		}
+
+		@Override
+		protected MemoryContext memoryContext(int which)
+		{
+			throw notyet();
+		}
+
+		@Override
+		protected MemoryContext upperMemoryContext()
+		{
+			throw notyet();
+		}
+
 		@SuppressWarnings("unchecked")
 		static <T extends CatalogObject.Addressed<T>> RegClass.Known<T>
 		staticFormClassId(int classId, Class<? extends T> clazz)

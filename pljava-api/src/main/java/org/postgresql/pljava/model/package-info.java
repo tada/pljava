@@ -93,6 +93,14 @@
  * methods on {@link Database Database} and {@link RegCollation RegCollation}.
  * The one in use on the server (an often-needed value) is exposed by the
  * {@link CharsetEncoding#SERVER_ENCODING SERVER_ENCODING} static.
+ *<h2>Lifespan subinterfaces</h2>
+ * Some PL/Java objects correspond to certain native structures in PostgreSQL
+ * and therefore must not be used beyond the native structures' lifespan.
+ * {@link Lifespan Lifespan} abstractly models any object in PostgreSQL that
+ * can be used to define, and detect the end of, a native-object lifespan.
+ * Two interfaces in this package that extend it and model specific PostgreSQL
+ * objects with that ability are {@link MemoryContext MemoryContext} and
+ * {@link ResourceOwner ResourceOwner}.
  *<h2>TupleTableSlot, TupleDescriptor, and Adapter</h2>
  *<p>
  * {@code TupleTableSlot} in PostgreSQL is a flexible abstraction that can
@@ -136,3 +144,4 @@
 package org.postgresql.pljava.model;
 
 import org.postgresql.pljava.Adapter;
+import org.postgresql.pljava.Lifespan;
