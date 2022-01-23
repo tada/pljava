@@ -37,6 +37,9 @@
 #include "org_postgresql_pljava_pg_ModelConstants_Natives.h"
 #include "org_postgresql_pljava_pg_TupleTableSlotImpl.h"
 
+#include <utils/acl.h>
+#include "org_postgresql_pljava_pg_AclItem.h"
+
 #include "pljava/PgObject.h"
 #include "pljava/ModelConstants.h"
 
@@ -266,6 +269,42 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(   POSIX_COLLATION_OID );
 
 #undef CONFIRMCONST
+
+#define CONFIRMCONST(c) \
+StaticAssertStmt((c) == \
+(org_postgresql_pljava_pg_AclItem_##c), \
+	"Java/C value mismatch for " #c)
+
+	CONFIRMCONST( ACL_INSERT      );
+	CONFIRMCONST( ACL_SELECT      );
+	CONFIRMCONST( ACL_UPDATE      );
+	CONFIRMCONST( ACL_DELETE      );
+	CONFIRMCONST( ACL_TRUNCATE    );
+	CONFIRMCONST( ACL_REFERENCES  );
+	CONFIRMCONST( ACL_TRIGGER     );
+	CONFIRMCONST( ACL_EXECUTE     );
+	CONFIRMCONST( ACL_USAGE       );
+	CONFIRMCONST( ACL_CREATE      );
+	CONFIRMCONST( ACL_CREATE_TEMP );
+	CONFIRMCONST( ACL_CONNECT     );
+	CONFIRMCONST( N_ACL_RIGHTS    );
+	CONFIRMCONST( ACL_ID_PUBLIC   );
+
+#define CONFIRMOFFSET(typ,fld) \
+StaticAssertStmt(offsetof(typ,fld) == \
+(org_postgresql_pljava_pg_AclItem_OFFSET_##fld), \
+	"Java/C offset mismatch for " #fld)
+
+	CONFIRMOFFSET( AclItem, ai_grantee );
+	CONFIRMOFFSET( AclItem, ai_grantor );
+	CONFIRMOFFSET( AclItem, ai_privs );
+
+	StaticAssertStmt(
+		sizeof(AclItem) == org_postgresql_pljava_pg_AclItem_SIZEOF_AclItem,
+		"Java/C size mismatch for AclItem");
+
+#undef CONFIRMCONST
+#undef CONFIRMOFFSET
 
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \

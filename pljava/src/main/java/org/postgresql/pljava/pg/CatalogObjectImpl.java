@@ -250,6 +250,14 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 
 		@Override
+		protected Database currentDatabaseImpl(RegClass.Known<Database> classId)
+		{
+			return staticFormObjectId(classId, _currentDatabase());
+		}
+
+		private static native int _currentDatabase();
+
+		@Override
 		protected CharsetEncoding serverEncoding()
 		{
 			return CharsetEncodingImpl.serverEncoding();
@@ -467,6 +475,9 @@ public class CatalogObjectImpl implements CatalogObject
 				case AuthIdRelationId:
 					fieldRead = RegRole.CLASSID;
 					return RegRoleImpl::new;
+				case DatabaseRelationId:
+					fieldRead = Database.CLASSID;
+					return DatabaseImpl::new;
 				case NamespaceRelationId:
 					fieldRead = RegNamespace.CLASSID;
 					return RegNamespaceImpl::new;

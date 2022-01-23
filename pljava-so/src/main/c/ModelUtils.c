@@ -243,6 +243,16 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod catalogObjectFactoryMethods[] =
+	{
+		{
+		"_currentDatabase",
+		"()I",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Factory__1currentDatabase
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod charsetMethods[] =
 	{
 		{
@@ -359,6 +369,7 @@ void pljava_ModelUtils_initialize(void)
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CatalogObjectImpl$Factory");
 	s_CatalogObjectImpl_Factory_class = JNI_newGlobalRef(cls);
+	PgObject_registerNatives2(cls, catalogObjectFactoryMethods);
 	JNI_deleteLocalRef(cls);
 	s_CatalogObjectImpl_Factory_invalidateRelation =
 		PgObject_getStaticJavaMethod(
@@ -587,6 +598,17 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstra
 	result = JNI_newDirectByteBuffer((void *)td, length);
 	END_NATIVE_AND_CATCH("_tupDescBootstrap")
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Factory
+ * Method:    _currentDatabase
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Factory__1currentDatabase(JNIEnv *env, jclass cls)
+{
+	return MyDatabaseId;
 }
 
 /*

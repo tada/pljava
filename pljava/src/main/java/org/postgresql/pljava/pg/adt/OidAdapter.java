@@ -34,6 +34,7 @@ extends Adapter.As<T,Void>
 	public static final Addressed<RegNamespace>       REGNAMESPACE_INSTANCE;
 	public static final Addressed<RegRole>            REGROLE_INSTANCE;
 	public static final Addressed<RegType>            REGTYPE_INSTANCE;
+	public static final Addressed<Database>           DATABASE_INSTANCE;
 
 	static
 	{
@@ -61,6 +62,9 @@ extends Adapter.As<T,Void>
 
 		REGTYPE_INSTANCE       = new  Addressed<>(configs[2],
 			RegType.CLASSID, RegType.class, RegType.REGTYPE);
+
+		DATABASE_INSTANCE      = new  Addressed<>(configs[2],
+			Database.CLASSID, Database.class);
 	}
 
 	/**

@@ -437,6 +437,11 @@ public interface CatalogObject
 			return INSTANCE.formObjectIdImpl(classId, objId);
 		}
 
+		static Database currentDatabase(RegClass.Known<Database> classId)
+		{
+			return INSTANCE.currentDatabaseImpl(classId);
+		}
+
 		static RegRole.Grantee publicGrantee()
 		{
 			return INSTANCE.publicGranteeImpl();
@@ -448,6 +453,9 @@ public interface CatalogObject
 
 		protected abstract <T extends Addressed<T>>
 			T formObjectIdImpl(RegClass.Known<T> classId, int objId);
+
+		protected abstract Database
+			currentDatabaseImpl(RegClass.Known<Database> classId);
 
 		protected abstract RegRole.Grantee publicGranteeImpl();
 
