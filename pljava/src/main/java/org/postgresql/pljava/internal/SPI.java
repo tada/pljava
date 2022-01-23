@@ -64,7 +64,7 @@ public class SPI
 	 * @deprecated This seems never to have been used in git history of project.
 	 */
 	@Deprecated
-	private static int exec(String command, int rowCount)
+	public static int exec(String command, int rowCount)
 	{
 		return doInPG(() -> _exec(command, rowCount));
 	}

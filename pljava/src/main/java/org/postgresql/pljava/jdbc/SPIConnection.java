@@ -44,6 +44,7 @@ import java.util.BitSet;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List; // for SlotTester
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -53,6 +54,11 @@ import java.util.regex.PatternSyntaxException;
 import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
+
+import org.postgresql.pljava.internal.SPI;
+import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.TupleTableSlot;
+import org.postgresql.pljava.pg.TupleTableSlotImpl;
 
 /**
  * Provides access to the current connection (session) the Java stored
@@ -69,8 +75,20 @@ import org.postgresql.pljava.internal.PgSavepoint;
  * </ul>
  * @author Thomas Hallgren
  */
-public class SPIConnection implements Connection
+public class SPIConnection implements Connection, SlotTester
 {
+	/**
+	 * A temporary test jig during TupleTableSlot development, not intended
+	 * to last.
+	 */
+	@Override
+	@SuppressWarnings("deprecation")
+	public List<TupleTableSlot> test(String query)
+	{
+		int result = SPI.exec(query, 0);
+		return TupleTableSlotImpl.testmeSPI();
+	}
+
 	/**
 	 * The version number of the currently executing PostgreSQL
 	 * server.
