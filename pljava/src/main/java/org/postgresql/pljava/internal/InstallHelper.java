@@ -164,9 +164,12 @@ public class InstallHelper
 			System.clearProperty(encodingKey);
 		}
 
-		/* so it can be granted permissions in the pljava policy */
+		/* so they can be granted permissions in the pljava policy */
 		System.setProperty( "org.postgresql.pljava.codesource",
 			InstallHelper.class.getProtectionDomain().getCodeSource()
+				.getLocation().toString());
+		System.setProperty( "org.postgresql.pljava.codesource.api",
+			Simple.class.getProtectionDomain().getCodeSource()
 				.getLocation().toString());
 
 		setPolicyURLs();

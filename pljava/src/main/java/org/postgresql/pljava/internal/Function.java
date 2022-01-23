@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -37,11 +37,6 @@ import static java.lang.invoke.MethodType.methodType;
 import java.lang.invoke.WrongMethodTypeException;
 
 import java.lang.reflect.Array;
-import java.lang.reflect.Method;
-import java.lang.reflect.GenericDeclaration;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -1878,145 +1873,6 @@ public class Function
 	private static final Pattern typeNameInAS = compile(
 		"(" + javaTypeName + ")(" + arrayDims + ")?+"
 	);
-
-	/**
-	 * Test whether the type {@code t0} is, directly or indirectly,
-	 * a specialization of generic type {@code c0}.
-	 * @param t0 a type to be checked
-	 * @param c0 known generic type to check for
-	 * @return null if {@code t0} does not extend {@code c0}, otherwise the
-	 * array of type arguments with which it specializes {@code c0}
-	 */
-	private static Type[] specialization(Type t0, Class<?> c0)
-	{
-		Type t = t0;
-		Class<?> c;
-		ParameterizedType pt = null;
-		TypeBindings latestBindings = null;
-		Type[] actualArgs = null;
-
-		if ( t instanceof Class )
-		{
-			c = (Class)t;
-			if ( ! c0.isAssignableFrom(c) )
-				return null;
-			if ( c0 == c )
-				return new Type[0];
-		}
-		else if ( t instanceof ParameterizedType )
-		{
-			pt = (ParameterizedType)t;
-			c = (Class)pt.getRawType();
-			if ( ! c0.isAssignableFrom(c) )
-				return null;
-			if ( c0 == c )
-				actualArgs = pt.getActualTypeArguments();
-			else
-				latestBindings = new TypeBindings(null, pt);
-		}
-		else
-			throw new AssertionError(
-				"expected Class or ParameterizedType, got: " + t);
-
-		if ( null == actualArgs )
-		{
-			List<Type> pending = new LinkedList<>();
-			pending.add(c.getGenericSuperclass());
-			addAll(pending, c.getGenericInterfaces());
-
-			while ( ! pending.isEmpty() )
-			{
-				t = pending.remove(0);
-				if ( null == t )
-					continue;
-				if ( t instanceof Class )
-				{
-					c = (Class)t;
-					if ( c0 == c )
-						return new Type[0];
-				}
-				else if ( t instanceof ParameterizedType )
-				{
-					pt = (ParameterizedType)t;
-					c = (Class)pt.getRawType();
-					if ( c0 == c )
-					{
-						actualArgs = pt.getActualTypeArguments();
-						break;
-					}
-					if ( c0.isAssignableFrom(c) )
-						pending.add(new TypeBindings(latestBindings, pt));
-				}
-				else if ( t instanceof TypeBindings )
-				{
-					latestBindings = (TypeBindings)t;
-					continue;
-				}
-				else
-					throw new AssertionError(
-						"expected Class or ParameterizedType, got: " + t);
-				if ( ! c0.isAssignableFrom(c) )
-					continue;
-				pending.add(c.getGenericSuperclass());
-				addAll(pending, c.getGenericInterfaces());
-			}
-		}
-		if ( null == actualArgs )
-			throw new AssertionError(
-				"failed checking whether " + t0 + " specializes " + c0);
-
-		for ( int i = 0; i < actualArgs.length; ++ i )
-			if ( actualArgs[i] instanceof TypeVariable )
-				actualArgs[i] =
-					latestBindings.resolve((TypeVariable)actualArgs[i]);
-
-		return actualArgs;
-	}
-
-	/**
-	 * A class recording the bindings made in a ParameterizedType to the type
-	 * parameters in a GenericDeclaration<Class>. Implements {@code Type} so it
-	 * can be added to the {@code pending} queue in {@code specialization}.
-	 *<p>
-	 * In {@code specialization}, the tree of superclasses/superinterfaces will
-	 * be searched breadth-first, with all of a node's immediate supers enqueued
-	 * before any from the next level. By recording a node's type variable to
-	 * type argument bindings in an object of this class, and enqueueing it
-	 * before any of the node's supers, any type variables encountered as actual
-	 * type arguments to any of those supers should be resolvable in the object
-	 * of this class most recently dequeued.
-	 */
-	static class TypeBindings implements Type
-	{
-		private final TypeVariable<?>[] formalTypeParams;
-		private final Type[] actualTypeArgs;
-
-		TypeBindings(TypeBindings prior, ParameterizedType pt)
-		{
-			actualTypeArgs = pt.getActualTypeArguments();
-			formalTypeParams =
-				((GenericDeclaration)pt.getRawType()).getTypeParameters();
-			assert actualTypeArgs.length == formalTypeParams.length;
-
-			if ( null == prior )
-				return;
-
-			for ( int i = 0; i < actualTypeArgs.length; ++ i )
-			{
-				Type t = actualTypeArgs[i];
-				if ( actualTypeArgs[i] instanceof TypeVariable )
-					actualTypeArgs[i] = prior.resolve((TypeVariable)t);
-			}
-		}
-
-		Type resolve(TypeVariable<?> v)
-		{
-			for ( int i = 0; i < formalTypeParams.length; ++ i )
-				if ( formalTypeParams[i].equals(v) )
-					return actualTypeArgs[i];
-			throw new AssertionError("type binding not found for " + v);
-		}
-	}
 
 	/**
 	 * Wrap the native method to store the values computed in Java, for a
