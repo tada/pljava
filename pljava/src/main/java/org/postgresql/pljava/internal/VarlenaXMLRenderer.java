@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,6 +19,8 @@ import java.nio.charset.CharsetDecoder;
 
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 
 /**
  * Class adapting a {@code ByteBufferXMLReader} to a
@@ -42,20 +44,7 @@ extends ByteBufferXMLReader implements VarlenaWrapper
 	public VarlenaXMLRenderer(VarlenaWrapper.Input input) throws SQLException
 	{
 		m_input = input;
-		Charset cs = Session.implServerCharset();
-		if ( null == cs )
-		{
-			try
-			{
-				input.close();
-			}
-			catch ( IOException e ) { }
-			throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-				"Charset found to match server encoding; perhaps set " +
-				"org.postgresql.server.encoding system property to a " +
-				"valid Java charset name for the same encoding?", "0A000");
-
-		}
+		Charset cs = SERVER_ENCODING.charset();
 		m_decoder = cs.newDecoder();
 	}
 

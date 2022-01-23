@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -69,6 +69,8 @@ import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
+
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
@@ -663,8 +665,7 @@ public class PassXML implements SQLData
 			 * for setting the Transformer to use the server encoding.
 			 */
 			if ( howout < 5 )
-				t.setOutputProperty(ENCODING,
-					System.getProperty("org.postgresql.server.encoding"));
+				t.setOutputProperty(ENCODING, SERVER_ENCODING.charset().name());
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )

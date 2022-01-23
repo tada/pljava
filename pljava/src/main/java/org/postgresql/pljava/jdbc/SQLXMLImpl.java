@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -80,7 +80,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.Text;
 
-import static org.postgresql.pljava.internal.Session.implServerCharset;
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
+
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
 import java.sql.SQLFeatureNotSupportedException;
@@ -103,6 +104,8 @@ import java.sql.SQLDataException;
 
 import java.io.FilterOutputStream;
 import java.io.OutputStreamWriter;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static javax.xml.transform.OutputKeys.ENCODING;
 import javax.xml.transform.Transformer;
@@ -694,7 +697,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private static final VarHandle s_readableVH;
 		protected volatile boolean m_readable = true;
 		protected final int m_pgTypeID;
-		protected Charset m_serverCS = implServerCharset();
+		protected Charset m_serverCS = SERVER_ENCODING.charset();
 		protected boolean m_wrapped = false;
 
 		static
@@ -724,14 +727,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			super(vwi);
 			m_pgTypeID = oid;
-			if ( null == m_serverCS )
-			{
-				free();
-				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-					"Charset found to match server encoding; perhaps set " +
-					"org.postgresql.server.encoding system property to a " +
-					"valid Java charset name for the same encoding?", "0A000");
-			}
 		}
 
 		private V backingAndClearReadable() throws SQLException
@@ -1225,7 +1220,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private static final VarHandle s_writableVH;
 		private volatile boolean m_writable = true;
-		private Charset m_serverCS = implServerCharset();
+		private Charset m_serverCS = SERVER_ENCODING.charset();
 		private DOMResult m_domResult;
 
 		static
@@ -1244,18 +1239,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private Writable(VarlenaWrapper.Output vwo) throws SQLException
 		{
 			super(vwo);
-			if ( null == m_serverCS )
-			{
-				try
-				{
-					vwo.free();
-				}
-				catch ( IOException ioe ) { }
-				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-					"Charset found to match server encoding; perhaps set " +
-					"org.postgresql.server.encoding system property to a " +
-					"valid Java charset name for the same encoding?", "0A000");
-			}
 		}
 
 		private VarlenaWrapper.Output backingAndClearWritable()
@@ -1541,7 +1524,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			boolean[] wrapped = { false };
 			is = correctedDeclStream(
-				is, false, implServerCharset(), wrapped);
+				is, false, SERVER_ENCODING.charset(), wrapped);
 
 			/*
 			 * The supplied XMLReader is never set up to do unwrapping, which is
@@ -3470,7 +3453,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			boolean canOmitVersion = true; // no declaration => 1.0
 			byte[] version = new byte[] { '1', '.', '0' };
 			boolean canOmitEncoding =
-				null == serverCharset || "UTF-8".equals(serverCharset.name());
+				null == serverCharset || UTF_8.equals(serverCharset);
 			boolean canOmitStandalone = true;
 
 			byte[] parseResult = m_save.toByteArray();
@@ -3628,7 +3611,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				}
 			}
 
-			if ( ! strict  ||  "UTF-8".equals(serverCharset.name()) )
+			if ( ! strict  ||  UTF_8.equals(serverCharset) )
 				return;
 			throw new SQLDataException(
 				"XML does not declare a character set, and server encoding " +

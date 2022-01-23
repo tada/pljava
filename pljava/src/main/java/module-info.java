@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -35,4 +35,7 @@ module org.postgresql.pljava.internal
 
 	provides org.postgresql.pljava.Session
 		with org.postgresql.pljava.internal.Session;
+
+	provides org.postgresql.pljava.model.CatalogObject.Factory
+		with org.postgresql.pljava.pg.CatalogObjectImpl.Factory;
 }

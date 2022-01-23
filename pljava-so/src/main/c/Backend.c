@@ -47,6 +47,8 @@
 
 #include "org_postgresql_pljava_internal_Backend.h"
 #include "org_postgresql_pljava_internal_Backend_EarlyNatives.h"
+#include "pljava/ModelConstants.h"
+#include "pljava/ModelUtils.h"
 #include "pljava/DualState.h"
 #include "pljava/Invocation.h"
 #include "pljava/InstallHelper.h"
@@ -1082,11 +1084,13 @@ static void initPLJavaClasses(void)
 		"THREADLOCK", "Ljava/lang/Object;");
 	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, fID));
 
+	pljava_ModelConstants_initialize();
 	Invocation_initialize();
 	Exception_initialize2();
 	SPI_initialize();
 	Type_initialize();
 	pljava_DualState_initialize();
+	pljava_ModelUtils_initialize();
 	Function_initialize();
 	Session_initialize();
 	PgSavepoint_initialize();
