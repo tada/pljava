@@ -110,49 +110,7 @@ typedef struct
 	Function      fn;
 	jobject       rowProducer;
 	jobject       rowCollector;
-	/*
-	 * Invocation instance, if any, the Java counterpart to currentInvocation
-	 * the C struct. There isn't one unless it gets asked for, then if it is,
-	 * it's saved here, so even though the C currentInvocation really is new on
-	 * each entry from PG, Java will see one Invocation instance throughout the
-	 * sequence of calls.
-	 */
-	jobject       invocation;
-	/*
-	 * Two pieces of state from Invocation.c's management of SPI connection,
-	 * effectively keeping one such connection alive through the sequence of
-	 * calls. I could easily be led to question the advisability of even doing
-	 * that, but it has a long history in PL/Java, so changing it might call for
-	 * some careful analysis.
-	 */
-	MemoryContext spiContext;
-	bool          hasConnected;
 } CallContextData;
-
-/*
- * Called during evaluation of a set-returning function, at various points after
- * calls into Java code could have instantiated an Invocation, or connected SPI.
- * Does not stash elemType, rowProducer, or rowCollector; those are all
- * unconditionally set in the first-call initialization, and spiContext to zero.
- */
-static void stashCallContext(CallContextData *ctxData)
-{
-	bool wasConnected = ctxData->hasConnected;
-
-	ctxData->hasConnected  = currentInvocation->hasConnected;
-
-	ctxData->invocation    = currentInvocation->invocation;
-
-	if ( wasConnected )
-		return;
-
-	/*
-	 * If SPI has been connected for the first time, capture the memory context
-	 * it imposed. Curiously, this is not used again except in _closeIteration.
-	 */
-	if(ctxData->hasConnected)
-		ctxData->spiContext = CurrentMemoryContext;
-}
 
 /*
  * Called either at normal completion of a set-returning function, or by the
@@ -161,8 +119,6 @@ static void stashCallContext(CallContextData *ctxData)
 static void _closeIteration(CallContextData* ctxData)
 {
 	jobject dummy;
-	currentInvocation->hasConnected = ctxData->hasConnected;
-	currentInvocation->invocation   = ctxData->invocation;
 
 	/*
 	 * Why pass 1 as the call_cntr? We won't always have the actual call_cntr
@@ -178,24 +134,6 @@ static void _closeIteration(CallContextData* ctxData)
 	JNI_deleteGlobalRef(ctxData->rowProducer);
 	if(ctxData->rowCollector != 0)
 		JNI_deleteGlobalRef(ctxData->rowCollector);
-
-	if(ctxData->hasConnected && ctxData->spiContext != 0)
-	{
-		/*
-		 * SPI was connected. We will (1) switch back to the memory context that
-		 * was imposed by SPI_connect, then (2) disconnect. SPI_finish will have
-		 * switched back to whatever memory context was current when SPI_connect
-		 * was called, and that context had better still be valid. It might be
-		 * the executor's multi_call_memory_ctx, if the SPI_connect happened
-		 * during initialization of the rowProducer or rowCollector, or the
-		 * executor's per-row context, if it happened later. Both of those are
-		 * still valid at this point. The final step (3) is to switch back to
-		 * the context we had before (1) and (2) happened.
-		 */
-		MemoryContext currCtx = MemoryContextSwitchTo(ctxData->spiContext);
-		Invocation_assertDisconnect();
-		MemoryContextSwitchTo(currCtx);
-	}
 }
 
 /*
@@ -525,6 +463,39 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 			SRF_RETURN_DONE(context);
 		}
 
+		/*
+		 * If the set-up function called above did not connect SPI, we are
+		 * (unless the function changed it in some other arbitrary way) still
+		 * in the multi_call_memory_ctx. We will return to currCtx (the executor
+		 * per-row context) at the end of this set-up block, in preparation for
+		 * producing the first row, if any.
+		 *
+		 * If the set-up function did connect SPI, we are now in the SPI Proc
+		 * memory context (which will go away in SPI_finish when this call
+		 * returns). That's not very much different from currCtx, the one the
+		 * executor supplied us, which will be reset by the executor after the
+		 * return of this call and before the next invocation. Here, we will
+		 * switch back to the multi_call_memory_ctx for the remainder of this
+		 * set-up block. As always, this block will end with a switch to currCtx
+		 * and be ready to produce the first row.
+		 *
+		 * Two choices are possible here: 1) leave currCtx unchanged, so we
+		 * end up in the executor's per-row context; 2) assign the SPI Proc
+		 * context to it, so we end up in that. Because the contexts have very
+		 * similar lifecycles, the choice does not seem critical. Of note,
+		 * though, is that any SPI function that operates in the SPI Exec
+		 * context will unconditionally leave the SPI Proc context as
+		 * the current context when it returns; it will not save and restore
+		 * its context on entry. Given that behavior, the choice here of (2)
+		 * reassigning currCtx to mean the SPI Proc context would seem to create
+		 * the situation with the least potential for surprises.
+		 */
+		if ( currentInvocation->hasConnected )
+			currCtx = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+
+		/*
+		 * This palloc depends on being made in the multi_call_memory_ctx.
+		 */
 		ctxData = (CallContextData*)palloc0(sizeof(CallContextData));
 		context->user_fctx = ctxData;
 
@@ -543,8 +514,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 			JNI_deleteLocalRef(tmp);
 		}		
 
-		stashCallContext(ctxData);
-
 		/* Register callback to be called when the function ends
 		 */
 		RegisterExprContextCallback(
@@ -562,15 +531,14 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	/*
 	 * Invariant: whether this is the first call and the SRF_IS_FIRSTCALL block
 	 * above just completed, or this is a subsequent call, at this point, the
-	 * memory context is the per-row one supplied by the executor (which gets
-	 * reset between calls).
+	 * memory context is one that gets reset between calls: either the per-row
+	 * context supplied by the executor, or (if this is the first call and the
+	 * setup code used SPI) the "SPI Proc" context.
 	 */
 
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
-	currCtx = CurrentMemoryContext; /* save executor's per-row context */
-	currentInvocation->hasConnected = ctxData->hasConnected;
-	currentInvocation->invocation   = ctxData->invocation;
+	currCtx = CurrentMemoryContext; /* save the supplied per-row context */
 
 	if(JNI_TRUE == pljava_Function_vpcInvoke(ctxData->fn,
 		ctxData->rowProducer, ctxData->rowCollector, (jlong)context->call_cntr,
@@ -578,17 +546,8 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	{
 		Datum result = Type_datumFromSRF(self, row, ctxData->rowCollector);
 		JNI_deleteLocalRef(row);
-		stashCallContext(ctxData);
-		currentInvocation->hasConnected = false;
-		currentInvocation->invocation   = 0;
-		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
-
-	stashCallContext(ctxData);
-	currentInvocation->hasConnected = false;
-	currentInvocation->invocation   = 0;
-	MemoryContextSwitchTo(currCtx);
 
 	/* Unregister this callback and call it manually. We do this because
 	 * otherwise it will be called when the backend is in progress of
@@ -841,6 +800,14 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->typeClass == other->typeClass;
 }
 
+/*
+ * The Type_invoke implementation that is 'inherited' by all type classes
+ * except Coerce, Composite, and those corresponding to Java primitives.
+ * This implementation unconditionally switches to the "upper memory context"
+ * recorded in the Invocation before coercing the Java result to a Datum,
+ * in case SPI has been connected (which would have switched to a context that
+ * is reset too soon for the caller to use the result).
+ */
 Datum _Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	MemoryContext currCtx;
@@ -872,9 +839,24 @@ static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return 0;
 }
 
+/*
+ * The Type_datumFromSRF implementation that is 'inherited' by all type classes
+ * except Composite. This implementation makes no use of the rowCollector
+ * parameter, and unconditionally switches to the "upper memory context"
+ * recorded in the Invocation before coercing the Java result to a Datum, in
+ * case SPI has been connected (which would have switched to a context that is
+ * reset too soon for the caller to use the result).
+ */
 static Datum _Type_datumFromSRF(Type self, jobject row, jobject rowCollector)
 {
-	return Type_coerceObject(self, row);
+	MemoryContext currCtx;
+	Datum ret;
+
+	currCtx = Invocation_switchToUpperContext();
+	ret = Type_coerceObject(self, row);
+	MemoryContextSwitchTo(currCtx);
+
+	return ret;
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)

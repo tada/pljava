@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -314,10 +314,14 @@ bool beginNativeNoErrCheck(JNIEnv* env)
 
 bool beginNative(JNIEnv* env)
 {
-	if (!currentInvocation)
+	if ( 1 > currentInvocation->nestLevel )
 	{
 		env = JNI_setEnv(env);
-		Exception_throw(ERRCODE_INTERNAL_ERROR, "An attempt was made to call a PostgreSQL backend function in a transaction callback.  At the end of a transaction you may not access the database any longer.");
+		Exception_throw(ERRCODE_INTERNAL_ERROR,
+			"An attempt was made to call a PostgreSQL backend function "
+			"when no PL/Java function was active (such as in a transaction "
+			"callback.  At the end of a transaction you may not access "
+			"the database any longer.");
 		JNI_setEnv(env);
 		return false;
 	}

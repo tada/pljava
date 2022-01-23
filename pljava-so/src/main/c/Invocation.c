@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,7 +13,8 @@
 #include <postgres.h>
 #include <executor/spi.h>
 
-#include "org_postgresql_pljava_jdbc_Invocation.h"
+#include "org_postgresql_pljava_internal_Invocation.h"
+#include "org_postgresql_pljava_internal_Invocation_EarlyNatives.h"
 #include "pljava/Invocation.h"
 #include "pljava/Function.h"
 #include "pljava/PgObject.h"
@@ -24,10 +25,33 @@
 
 #define LOCAL_FRAME_SIZE 128
 
-static jmethodID    s_Invocation_onExit;
-static unsigned int s_callLevel = 0;
+static jclass    s_Invocation_class;
+static jmethodID s_Invocation_onExit;
 
-Invocation* currentInvocation;
+/**
+ * All of these initial values are as were formerly set in pushBootContext,
+ * leaving it to set only upperContext (a value that's not statically known).
+ * When nestLevel is zero, no call into a PL/Java function is in progress.
+ */
+Invocation currentInvocation[] =
+{
+	{
+		.nestLevel = 0,
+		.hasDual = false,
+		.errorOccurred = false,
+		.hasConnected = false,
+		.inExprContextCB = false,
+		.upperContext = NULL,
+		.savedLoader = NULL,
+		.function = NULL,
+#if PG_VERSION_NUM >= 100000
+		.triggerData = NULL,
+#endif
+		.previous = NULL,
+		.primSlot0.j = 0L,
+		.frameLimits = 0
+	}
+};
 
 /*
  * Two features of the calling convention for PL/Java functions will be handled
@@ -62,31 +86,31 @@ void Invocation_initialize(void)
 	JNINativeMethod invocationMethods[] =
 	{
 		{
-		"_getCurrent",
-		"()Lorg/postgresql/pljava/jdbc/Invocation;",
-		Java_org_postgresql_pljava_jdbc_Invocation__1getCurrent
-		},
-		{
-		"_getNestingLevel",
-		"()I",
-		Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel
-		},
-		{
-		"_clearErrorCondition",
-		"()V",
-		Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition
-		},
-		{
-		"_register",
-		"()V",
-		Java_org_postgresql_pljava_jdbc_Invocation__1register
+		"_window",
+		"()Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_Invocation_00024EarlyNatives__1window
 		},
 		{ 0, 0, 0 }
 	};
 
-	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
+#define CONFIRMOFFSET(fld) \
+StaticAssertStmt(offsetof(Invocation,fld) == \
+(org_postgresql_pljava_internal_Invocation_OFFSET_##fld), \
+	"Java/C offset mismatch for " #fld)
+
+	CONFIRMOFFSET(nestLevel);
+	CONFIRMOFFSET(hasDual);
+	CONFIRMOFFSET(errorOccurred);
+
+#undef CONFIRMOFFSET
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Invocation$EarlyNatives");
 	PgObject_registerNatives2(cls, invocationMethods);
-	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "(Z)V");
+	JNI_deleteLocalRef(cls);
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Invocation");
+	s_Invocation_class = JNI_newGlobalRef(cls);
+	s_Invocation_onExit = PgObject_getStaticJavaMethod(cls, "onExit", "(IZ)V");
 	JNI_deleteLocalRef(cls);
 }
 
@@ -137,28 +161,16 @@ jobject Invocation_getTypeMap(void)
 void Invocation_pushBootContext(Invocation* ctx)
 {
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
-	ctx->invocation      = 0;
-	ctx->function        = 0;
-	ctx->frameLimits     = 0;
-	ctx->primSlot0.j     = 0L;
-	ctx->savedLoader     = 0;
-	ctx->hasConnected    = false;
-	ctx->upperContext    = CurrentMemoryContext;
-	ctx->errorOccurred   = false;
-	ctx->inExprContextCB = false;
-	ctx->previous        = 0;
-#if PG_VERSION_NUM >= 100000
-	ctx->triggerData     = 0;
-#endif
-	currentInvocation    = ctx;
-	++s_callLevel;
+	*ctx = *currentInvocation;
+	currentInvocation->previous = ctx;
+	currentInvocation->upperContext = CurrentMemoryContext;
+	++ currentInvocation->nestLevel;
 }
 
 void Invocation_popBootContext(void)
 {
 	JNI_popLocalFrame(0);
-	currentInvocation = 0;
-	--s_callLevel;
+	*currentInvocation = *currentInvocation->previous;
 	/*
 	 * Nothing is done here with savedLoader. It is just set to 0 in
 	 * pushBootContext (uses can precede allocation of the sentinel value),
@@ -170,7 +182,9 @@ void Invocation_popBootContext(void)
 void Invocation_pushInvocation(Invocation* ctx)
 {
 	JNI_pushLocalFrame(LOCAL_FRAME_SIZE);
-	ctx->invocation      = 0;
+	*ctx = *currentInvocation;
+	currentInvocation->previous = ctx;
+	ctx = currentInvocation; /* just to keep the notation compact below */
 	ctx->function        = 0;
 	ctx->frameLimits     = *s_frameLimits;
 	ctx->primSlot0       = *s_primSlot0;
@@ -179,12 +193,11 @@ void Invocation_pushInvocation(Invocation* ctx)
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
 	ctx->inExprContextCB = false;
-	ctx->previous        = currentInvocation;
 #if PG_VERSION_NUM >= 100000
 	ctx->triggerData     = 0;
 #endif
-	currentInvocation   = ctx;
-	++s_callLevel;
+	ctx->hasDual = false;
+	++ ctx->nestLevel;
 }
 
 void Invocation_popInvocation(bool wasException)
@@ -211,37 +224,36 @@ void Invocation_popInvocation(bool wasException)
 	 * invocation, delete the reference (after calling its onExit method,
 	 * indicating whether the return is exceptional or not).
 	 */
-	if(currentInvocation->invocation != 0)
+	if ( currentInvocation->hasDual )
 	{
-		JNI_callVoidMethodLocked(
-			currentInvocation->invocation, s_Invocation_onExit,
+		JNI_callStaticVoidMethodLocked(
+			s_Invocation_class, s_Invocation_onExit,
+			(jint)currentInvocation->nestLevel,
 			(wasException || currentInvocation->errorOccurred)
 			? JNI_TRUE : JNI_FALSE);
-		JNI_deleteGlobalRef(currentInvocation->invocation);
 	}
-
-	/*
-	 * Do nativeRelease for any DualState instances scoped to this invocation.
-	 */
-	pljava_DualState_nativeRelease(currentInvocation);
-
-	/*
-	 * Check for any DualState objects that became unreachable and can be freed.
-	 */
-	pljava_DualState_cleanEnqueuedInstances();
 
 	if(currentInvocation->hasConnected)
 		SPI_finish();
 
 	JNI_popLocalFrame(0);
 
-	if(ctx != 0)
-	{
-		MemoryContextSwitchTo(ctx->upperContext);
-	}
+	/*
+	 * Return to the context that was effective at pushInvocation of *this*
+	 * invocation.
+	 */
+	MemoryContextSwitchTo(currentInvocation->upperContext);
 
-	currentInvocation = ctx;
-	--s_callLevel;
+	/*
+	 * Check for any DualState objects that became unreachable and can be freed.
+	 * In this late position, it might find things that became unreachable with
+	 * the release of SPI contexts or JNI local frame references; having first
+	 * switched back to the upperContext, the chance that any contexts possibly
+	 * released in cleaning could be the current one are minimized.
+	 */
+	pljava_DualState_cleanEnqueuedInstances();
+
+	*currentInvocation = *ctx;
 }
 
 MemoryContext
@@ -251,55 +263,13 @@ Invocation_switchToUpperContext(void)
 }
 
 /*
- * Class:     org_postgresql_pljava_jdbc_Invocation
- * Method:    _getNestingLevel
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_jdbc_Invocation__1getNestingLevel(JNIEnv* env, jclass cls)
-{
-	return s_callLevel;
-}
-
-/*
- * Class:     org_postgresql_pljava_jdbc_Invocation
- * Method:    _getCurrent
- * Signature: ()Lorg/postgresql/pljava/jdbc/Invocation;
+ * Class:     org_postgresql_pljava_internal_Invocation_EarlyNatives
+ * Method:    _window
+ * Signature: ()Ljava/nio/ByteBuffer;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_jdbc_Invocation__1getCurrent(JNIEnv* env, jclass cls)
+Java_org_postgresql_pljava_internal_Invocation_00024EarlyNatives__1window(JNIEnv* env, jobject _cls)
 {
-	return currentInvocation->invocation;
-}
-
-/*
- * Class:     org_postgresql_pljava_jdbc_Invocation
- * Method:    _clearErrorCondition
- * Signature: ()V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_Invocation__1clearErrorCondition(JNIEnv* env, jclass cls)
-{
-	currentInvocation->errorOccurred = false;
-}
-
-/*
- * Class:     org_postgresql_pljava_jdbc_Invocation
- * Method:    _register
- * Signature: ()V
- */
-JNIEXPORT void JNICALL
-Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this)
-{
-	if ( NULL == currentInvocation->invocation )
-	{
-		currentInvocation->invocation = (*env)->NewGlobalRef(env, _this);
-		return;
-	}
-	if ( (*env)->IsSameObject(env, currentInvocation->invocation, _this) )
-		return;
-	BEGIN_NATIVE
-	Exception_throw(ERRCODE_INTERNAL_ERROR,
-		"mismanaged PL/Java invocation stack");
-	END_NATIVE
+	return (*env)->NewDirectByteBuffer(env,
+		currentInvocation, sizeof *currentInvocation);
 }

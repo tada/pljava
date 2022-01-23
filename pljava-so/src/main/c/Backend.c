@@ -721,7 +721,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		}
 		PG_CATCH();
 		{
-			MemoryContextSwitchTo(ctx.upperContext); /* leave ErrorContext */
+			Invocation_switchToUpperContext(); /* leave ErrorContext */
 			Invocation_popBootContext();
 			initstage = IS_MISC_ONCE_DONE;
 			/* We can't stay here...
@@ -1400,7 +1400,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 			elog(DEBUG2,
 				"needed to forcibly shut down the Java virtual machine");
 			s_javaVM = 0;
-			currentInvocation = 0;
+			*currentInvocation = ctx; /* popBootContext but VM is gone */
 			return;
 		}
 
@@ -1428,7 +1428,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 #endif
 		elog(DEBUG2, "done shutting down the Java virtual machine");
 		s_javaVM = 0;
-		currentInvocation = 0;
+		*currentInvocation = ctx; /* popBootContext but VM is gone */
 	}
 }
 
