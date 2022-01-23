@@ -233,20 +233,25 @@ void Invocation_popInvocation(bool wasException)
 			? JNI_TRUE : JNI_FALSE);
 	}
 
-	/*
-	 * Check for any DualState objects that became unreachable and can be freed.
-	 */
-	pljava_DualState_cleanEnqueuedInstances();
-
 	if(currentInvocation->hasConnected)
 		SPI_finish();
 
 	JNI_popLocalFrame(0);
 
-	if ( NULL != ctx  &&  NULL != ctx->upperContext )
-	{
-		MemoryContextSwitchTo(ctx->upperContext);
-	}
+	/*
+	 * Return to the context that was effective at pushInvocation of *this*
+	 * invocation.
+	 */
+	MemoryContextSwitchTo(currentInvocation->upperContext);
+
+	/*
+	 * Check for any DualState objects that became unreachable and can be freed.
+	 * In this late position, it might find things that became unreachable with
+	 * the release of SPI contexts or JNI local frame references; having first
+	 * switched back to the upperContext, the chance that any contexts possibly
+	 * released in cleaning could be the current one are minimized.
+	 */
+	pljava_DualState_cleanEnqueuedInstances();
 
 	*currentInvocation = *ctx;
 }
