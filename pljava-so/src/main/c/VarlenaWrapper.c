@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -258,7 +258,7 @@ constructResult:
 	p2ldatum.ptrVal = vl;
 
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
-		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
+		s_VarlenaWrapper_Input_init,
 		p2lro.longVal, p2lcxt.longVal, p2lpin.longVal, p2ldatum.longVal,
 		(jlong)parked, (jlong)actual, dbb);
 
@@ -324,7 +324,7 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 	dbb = JNI_newDirectByteBuffer(evosh->tail + 1, INITIALSIZE);
 
 	vos = JNI_newObjectLocked(s_VarlenaWrapper_Output_class,
-			s_VarlenaWrapper_Output_init, pljava_DualState_key(),
+			s_VarlenaWrapper_Output_init,
 			p2lro.longVal, p2lcxt.longVal, p2ldatum.longVal, dbb);
 	JNI_deleteLocalRef(dbb);
 
@@ -348,8 +348,7 @@ Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 	void *final_result;
 #endif
 
-	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
-					pljava_DualState_key());
+	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt);
 #if PG_VERSION_NUM >= 90500
 	return PointerGetDatum(p2l.ptrVal);
 #else
@@ -456,17 +455,14 @@ void pljava_VarlenaWrapper_initialize(void)
 
 	s_VarlenaWrapper_Input_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Input_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJJJJJLjava/nio/ByteBuffer;)V");
+		"(JJJJJJLjava/nio/ByteBuffer;)V");
 
 	s_VarlenaWrapper_Output_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Output_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJJLjava/nio/ByteBuffer;)V");
+		"(JJJLjava/nio/ByteBuffer;)V");
 
 	s_VarlenaWrapper_adopt = PgObject_getJavaMethod(
-		s_VarlenaWrapper_class, "adopt",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;)J");
+		s_VarlenaWrapper_class, "adopt", "()J");
 
 	clazz = PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State");

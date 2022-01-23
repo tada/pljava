@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -36,6 +36,13 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.LifespanImpl.Addressed;
+
+import org.postgresql.pljava.model.MemoryContext;
+import org.postgresql.pljava.model.ResourceOwner;
+
+import org.postgresql.pljava.pg.MemoryContextImpl;
+import org.postgresql.pljava.pg.ResourceOwnerImpl;
 
 /**
  * Interface that wraps a PostgreSQL native variable-length ("varlena") datum;
@@ -55,7 +62,7 @@ public interface VarlenaWrapper extends Closeable
 	 * from Java.
 	 * @param cookie Capability held by native code.
 	 */
-	long adopt(DualState.Key cookie) throws SQLException;
+	long adopt() throws SQLException;
 
 	/**
 	 * Return a string describing this object in a way useful for debugging,
@@ -107,15 +114,16 @@ public interface VarlenaWrapper extends Closeable
 		 * @param buf Readable direct {@code ByteBuffer} constructed over the
 		 * varlena's data bytes.
 		 */
-		private Input(DualState.Key cookie, long resourceOwner,
+		private Input(long resourceOwner,
 			long context, long snapshot, long varlenaPtr,
 			long parkedSize, long bufferSize, ByteBuffer buf)
 		{
 			m_parkedSize = parkedSize;
 			m_bufferSize = bufferSize;
 			m_state = new State(
-				cookie, this, resourceOwner,
-				context, snapshot, varlenaPtr, buf);
+				this, resourceOwner,
+				MemoryContextImpl.fromAddress(context),
+				snapshot, varlenaPtr, buf);
 		}
 
 		public void pin() throws SQLException
@@ -167,12 +175,12 @@ public interface VarlenaWrapper extends Closeable
 		}
 
 		@Override
-		public long adopt(DualState.Key cookie) throws SQLException
+		public long adopt() throws SQLException
 		{
 			m_state.pin();
 			try
 			{
-				return m_state.adopt(cookie);
+				return m_state.adopt();
 			}
 			finally
 			{
@@ -323,7 +331,7 @@ public interface VarlenaWrapper extends Closeable
 			}
 
 			@Override
-			public long adopt(DualState.Key cookie) throws SQLException
+			public long adopt() throws SQLException
 			{
 				Input.this.pin();
 				try
@@ -332,7 +340,7 @@ public interface VarlenaWrapper extends Closeable
 						throw new SQLException(
 							"Cannot adopt VarlenaWrapper.Input after " +
 							"it is closed", "55000");
-					return Input.this.adopt(cookie);
+					return Input.this.adopt();
 				}
 				finally
 				{
@@ -347,14 +355,17 @@ public interface VarlenaWrapper extends Closeable
 		extends DualState.SingleMemContextDelete<Input>
 		{
 			private ByteBuffer m_buf;
+			private long m_resourceOwner;
 			private long m_snapshot;
 			private long m_varlena;
 
 			private State(
-				DualState.Key cookie, Input vr, long resourceOwner,
-				long memContext, long snapshot, long varlenaPtr, ByteBuffer buf)
+				Input vr, long resourceOwner, MemoryContext memContext,
+				long snapshot, long varlenaPtr, ByteBuffer buf)
 			{
-				super(cookie, vr, resourceOwner, memContext);
+				super(vr, ResourceOwnerImpl.fromAddress(resourceOwner),
+					memContext);
+				m_resourceOwner = resourceOwner; // keep that address handy
 				m_snapshot = snapshot;
 				m_varlena = varlenaPtr;
 				m_buf = null == buf ? buf : buf.asReadOnlyBuffer();
@@ -370,7 +381,8 @@ public interface VarlenaWrapper extends Closeable
 					doInPG(() ->
 					{
 						m_buf = _detoast(
-							m_varlena, guardedLong(), m_snapshot,
+							m_varlena,
+							((Addressed)memoryContext()).address(), m_snapshot,
 							m_resourceOwner).asReadOnlyBuffer();
 						m_snapshot = 0;
 					});
@@ -382,21 +394,22 @@ public interface VarlenaWrapper extends Closeable
 				}
 			}
 
-			private long adopt(DualState.Key cookie) throws SQLException
+			private long adopt() throws SQLException
 			{
-				adoptionLock(cookie);
+				adoptionLock();
 				try
 				{
 					if ( 0 != m_snapshot )
 					{
 						/* fetch, before snapshot released */
-						m_varlena = _fetch(m_varlena, guardedLong());
+						m_varlena = _fetch(
+							m_varlena, ((Addressed)memoryContext()).address());
 					}
 					return m_varlena;
 				}
 				finally
 				{
-					adoptionUnlock(cookie);
+					adoptionUnlock();
 				}
 			}
 
@@ -497,11 +510,12 @@ public interface VarlenaWrapper extends Closeable
 		 * @param buf Writable direct {@code ByteBuffer} constructed over (an
 		 * initial region of) the varlena's data bytes.
 		 */
-		private Output(DualState.Key cookie, long resourceOwner,
+		private Output(long resourceOwner,
 			long context, long varlenaPtr, ByteBuffer buf)
 		{
 			m_state = new State(
-				cookie, this, resourceOwner, context, varlenaPtr, buf);
+				this, ResourceOwnerImpl.fromAddress(resourceOwner),
+				MemoryContextImpl.fromAddress(context), varlenaPtr, buf);
 		}
 
 		/**
@@ -649,7 +663,7 @@ public interface VarlenaWrapper extends Closeable
 		}
 
 		@Override
-		public long adopt(DualState.Key cookie) throws SQLException
+		public long adopt() throws SQLException
 		{
 			m_state.pin();
 			try
@@ -658,7 +672,7 @@ public interface VarlenaWrapper extends Closeable
 					throw new SQLException(
 						"Writing of VarlenaWrapper.Output not yet complete",
 						"55000");
-				return m_state.adopt(cookie);
+				return m_state.adopt();
 			}
 			finally
 			{
@@ -689,11 +703,11 @@ public interface VarlenaWrapper extends Closeable
 			private Verifier m_verifier;
 
 			private State(
-				DualState.Key cookie, Output vr,
-				long resourceOwner,	long memContext, long varlenaPtr,
-				ByteBuffer buf)
+				Output vr,
+				ResourceOwner resourceOwner, MemoryContext memContext,
+				long varlenaPtr, ByteBuffer buf)
 			{
-				super(cookie, vr, resourceOwner, memContext);
+				super(vr, resourceOwner, memContext);
 				m_varlena = varlenaPtr;
 				m_buf = buf;
 			}
@@ -730,16 +744,16 @@ public interface VarlenaWrapper extends Closeable
 				}
 			}
 
-			private long adopt(DualState.Key cookie) throws SQLException
+			private long adopt() throws SQLException
 			{
-				adoptionLock(cookie);
+				adoptionLock();
 				try
 				{
 					return m_varlena;
 				}
 				finally
 				{
-					adoptionUnlock(cookie);
+					adoptionUnlock();
 				}
 			}
 
