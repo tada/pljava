@@ -173,7 +173,7 @@ public class Backend
 	/**
 	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
 	 * return a long result. This method need not be present: without it, the
-	 * Java compiler will happily match int lambdas or method references to
+	 * Java compiler will happily match long lambdas or method references to
 	 * the generic method, at the small cost of some boxing/unboxing; providing
 	 * this method simply allows that to be avoided.
 	 */
@@ -187,6 +187,84 @@ public class Backend
 			}
 		assertThreadMayEnterPG();
 		return op.getAsLong();
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a float result. This method need not be present: without it, the
+	 * Java compiler will happily match float lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> float doInPG(
+		Checked.FloatSupplier<E> op)
+	throws E
+	{
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsFloat();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsFloat();
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a short result. This method need not be present: without it, the
+	 * Java compiler will happily match short lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> short doInPG(
+		Checked.ShortSupplier<E> op)
+	throws E
+	{
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsShort();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsShort();
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a char result. This method need not be present: without it, the
+	 * Java compiler will happily match char lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> char doInPG(Checked.CharSupplier<E> op)
+	throws E
+	{
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsChar();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsChar();
+	}
+
+	/**
+	 * Specialization of {@link #doInPG(Supplier) doInPG} for operations that
+	 * return a byte result. This method need not be present: without it, the
+	 * Java compiler will happily match int lambdas or method references to
+	 * the generic method, at the small cost of some boxing/unboxing; providing
+	 * this method simply allows that to be avoided.
+	 */
+	public static <E extends Throwable> byte doInPG(Checked.ByteSupplier<E> op)
+	throws E
+	{
+		if ( null != THREADLOCK )
+			synchronized(THREADLOCK)
+			{
+				return op.getAsByte();
+			}
+		assertThreadMayEnterPG();
+		return op.getAsByte();
 	}
 
 	/**
