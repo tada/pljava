@@ -110,29 +110,7 @@ typedef struct
 	Function      fn;
 	jobject       rowProducer;
 	jobject       rowCollector;
-	/*
-	 * Whether an Invocation instance, the Java counterpart to currentInvocation
-	 * the C struct, has been assigned. One isn't unless it gets asked for, then
-	 * if it is, that's noted here, and (in intermediate row-returning calls)
-	 * cleared in the Invocation struct, to suppress its onExit() behavior when
-	 * those intermediate calls return. So, even though the C currentInvocation
-	 * really is new on each entry from PG, Java will see one Invocation
-	 * instance whose onExit() behavior occurs only at the conclusion of the
-	 * whole sequence of calls.
-	 */
-	bool          hasDual;
 } CallContextData;
-
-/*
- * Called during evaluation of a set-returning function, at various points after
- * calls into Java code could have instantiated an Invocation.
- * Does not stash elemType, rowProducer, or rowCollector; those are all
- * unconditionally set in the first-call initialization.
- */
-static inline void stashCallContext(CallContextData *ctxData)
-{
-	ctxData->hasDual       = currentInvocation->hasDual;
-}
 
 /*
  * Called either at normal completion of a set-returning function, or by the
@@ -141,7 +119,6 @@ static inline void stashCallContext(CallContextData *ctxData)
 static void _closeIteration(CallContextData* ctxData)
 {
 	jobject dummy;
-	currentInvocation->hasDual      = ctxData->hasDual;
 
 	/*
 	 * Why pass 1 as the call_cntr? We won't always have the actual call_cntr
@@ -537,8 +514,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 			JNI_deleteLocalRef(tmp);
 		}		
 
-		stashCallContext(ctxData);
-
 		/* Register callback to be called when the function ends
 		 */
 		RegisterExprContextCallback(
@@ -564,7 +539,6 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	context = SRF_PERCALL_SETUP();
 	ctxData = (CallContextData*)context->user_fctx;
 	currCtx = CurrentMemoryContext; /* save the supplied per-row context */
-	currentInvocation->hasDual      = ctxData->hasDual;
 
 	if(JNI_TRUE == pljava_Function_vpcInvoke(ctxData->fn,
 		ctxData->rowProducer, ctxData->rowCollector, (jlong)context->call_cntr,
@@ -572,12 +546,8 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	{
 		Datum result = Type_datumFromSRF(self, row, ctxData->rowCollector);
 		JNI_deleteLocalRef(row);
-		stashCallContext(ctxData);
-		currentInvocation->hasDual      = false;
 		SRF_RETURN_NEXT(context, result);
 	}
-
-	stashCallContext(ctxData);
 
 	/* Unregister this callback and call it manually. We do this because
 	 * otherwise it will be called when the backend is in progress of
