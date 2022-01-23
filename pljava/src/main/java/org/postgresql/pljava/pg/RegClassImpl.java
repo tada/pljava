@@ -75,6 +75,38 @@ implements
 	}
 
 	/**
+	 * Called from {@code Factory}'s {@code invalidateRelation} to set up
+	 * the invalidation of this relation's metadata.
+	 *<p>
+	 * Adds this relation's {@code SwitchPoint} to the caller's list so that,
+	 * if more than one is to be invalidated, that can be done in bulk. Adds to
+	 * <var>postOps</var> any operations the caller should conclude with
+	 * after invalidating the {@code SwitchPoint}.
+	 */
+	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+	{
+		TupleDescriptor.Interned[] oldTDH = m_tupDescHolder;
+		sps.add(m_cacheSwitchPoint);
+
+		/*
+		 * Before invalidating the SwitchPoint, line up a new one (and a newly
+		 * nulled tupDescHolder) for value-computing methods to find once the
+		 * old SwitchPoint is invalidated.
+		 */
+		m_cacheSwitchPoint = new SwitchPoint();
+		m_tupDescHolder = null;
+
+		/*
+		 * After the old SwitchPoint gets invalidated, the old tupDescHolder,
+		 * if any, can have its element nulled so the old TupleDescriptor can
+		 * be collected without having to wait for the 'guardWithTest's it is
+		 * bound into to be recomputed.
+		 */
+		if ( null != oldTDH )
+			postOps.add(() -> oldTDH[0] = null);
+	}
+
+	/**
 	 * Associated tuple descriptor, redundantly kept accessible here as well as
 	 * opaquely bound into a {@code SwitchPointCache} method handle.
 	 *<p>

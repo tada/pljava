@@ -55,6 +55,10 @@
  * by these methods won't be shifting underneath them.
  */
 
+static jclass s_CatalogObjectImpl_Factory_class;
+static jmethodID s_CatalogObjectImpl_Factory_invalidateRelation;
+static jmethodID s_CatalogObjectImpl_Factory_invalidateType;
+
 static jclass s_MemoryContextImpl_class;
 static jmethodID s_MemoryContextImpl_callback;
 static void memoryContextCallback(void *arg);
@@ -70,6 +74,9 @@ static jmethodID s_TupleDescImpl_fromByteBuffer;
 static jclass s_TupleTableSlotImpl_class;
 static jmethodID s_TupleTableSlotImpl_newDeformed;
 static jmethodID s_TupleTableSlotImpl_supplyHeapTuples;
+
+static void relCacheCB(Datum arg, Oid relid);
+static void sysCacheCB(Datum arg, int cacheid, uint32 hash);
 
 jobject pljava_TupleDescriptor_create(TupleDesc tupdesc, Oid reloid)
 {
@@ -139,6 +146,12 @@ static void memoryContextCallback(void *arg)
 								   p2l.longVal);
 }
 
+static void relCacheCB(Datum arg, Oid relid)
+{
+	JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
+		s_CatalogObjectImpl_Factory_invalidateRelation, (jint)relid);
+}
+
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg)
 {
@@ -176,6 +189,19 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 
 	if ( isTopLevel )
 		Backend_warnJEP411(isCommit);
+}
+
+static void sysCacheCB(Datum arg, int cacheid, uint32 hash)
+{
+	switch ( cacheid )
+	{
+	case TYPEOID:
+		JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
+			s_CatalogObjectImpl_Factory_invalidateType, (jint)hash);
+		break;
+	default:
+		break;
+	}
 }
 
 void pljava_ResourceOwner_unregister(void)
@@ -331,6 +357,16 @@ void pljava_ModelUtils_initialize(void)
 	PgObject_registerNatives2(cls, catalogObjectAddressedMethods);
 	JNI_deleteLocalRef(cls);
 
+	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CatalogObjectImpl$Factory");
+	s_CatalogObjectImpl_Factory_class = JNI_newGlobalRef(cls);
+	JNI_deleteLocalRef(cls);
+	s_CatalogObjectImpl_Factory_invalidateRelation =
+		PgObject_getStaticJavaMethod(
+		s_CatalogObjectImpl_Factory_class, "invalidateRelation", "(I)V");
+	s_CatalogObjectImpl_Factory_invalidateType =
+		PgObject_getStaticJavaMethod(
+		s_CatalogObjectImpl_Factory_class, "invalidateType", "(I)V");
+
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CharsetEncodingImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, charsetMethods);
 	JNI_deleteLocalRef(cls);
@@ -388,6 +424,10 @@ void pljava_ModelUtils_initialize(void)
 		"(Ljava/nio/ByteBuffer;)Ljava/util/List;");
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
+
+	CacheRegisterRelcacheCallback(relCacheCB, 0);
+
+	CacheRegisterSyscacheCallback(TYPEOID, sysCacheCB, 0);
 }
 
 /*

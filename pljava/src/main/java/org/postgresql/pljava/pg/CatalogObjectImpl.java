@@ -486,6 +486,70 @@ public class CatalogObjectImpl implements CatalogObject
 				reachabilityFence(fieldRead); // insist the read really happens
 			}
 		}
+
+		/**
+		 * Called from native code with a relation oid when one relation's
+		 * metadata has been invalidated, or with {@code InvalidOid} to flush
+		 * all relation metadata.
+		 */
+		private static void invalidateRelation(int relOid)
+		{
+			assert threadMayEnterPG() : "RegClass invalidate thread";
+
+			List<SwitchPoint> sps = new ArrayList<>();
+			List<Runnable> postOps = new ArrayList<>();
+
+			if ( InvalidOid != relOid )
+			{
+				RegClassImpl c = (RegClassImpl)
+					findObjectId(RegClass.CLASSID, relOid);
+				if ( null != c )
+					c.invalidate(sps, postOps);
+			}
+			else // invalidate all RegClass instances
+			{
+				forEachValue(o ->
+				{
+					if ( o instanceof RegClassImpl )
+						((RegClassImpl)o).invalidate(sps, postOps);
+				});
+			}
+
+			if ( sps.isEmpty() )
+				return;
+
+			SwitchPoint.invalidateAll(sps.stream().toArray(SwitchPoint[]::new));
+
+			postOps.forEach(Runnable::run);
+		}
+
+		/**
+		 * Called from native code with the {@code catcache} hash of the type
+		 * Oid (inconvenient, as that is likely different from the hash Java
+		 * uses), or zero to flush metadata for all cached types.
+		 */
+		private static void invalidateType(int oidHash)
+		{
+			assert threadMayEnterPG() : "RegType invalidate thread";
+
+			List<SwitchPoint> sps = new ArrayList<>();
+			List<Runnable> postOps = new ArrayList<>();
+
+			forEachValue(o ->
+			{
+				if ( ! ( o instanceof RegTypeImpl ) )
+					return;
+				if ( 0 == oidHash  ||  oidHash == murmurhash32(o.oid()) )
+					((RegTypeImpl)o).invalidate(sps, postOps);
+			});
+
+			if ( sps.isEmpty() )
+				return;
+
+			SwitchPoint.invalidateAll(sps.stream().toArray(SwitchPoint[]::new));
+
+			postOps.forEach(Runnable::run);
+		}
 	}
 
 	/*
@@ -951,5 +1015,21 @@ public class CatalogObjectImpl implements CatalogObject
 	{
 		return new UnsupportedOperationException(
 			"CatalogObject API " + what);
+	}
+
+	/**
+	 * The Oid hash function used by the backend's Oid-based catalog caches
+	 * to identify the entries affected by invalidation events.
+	 *<p>
+	 * From hashutils.h.
+	 */
+	static int murmurhash32(int h)
+	{
+		h ^= h >>> 16;
+		h *= 0x85ebca6b;
+		h ^= h >>> 13;
+		h *= 0xc2b2ae35;
+		h ^= h >>> 16;
+		return h;
 	}
 }

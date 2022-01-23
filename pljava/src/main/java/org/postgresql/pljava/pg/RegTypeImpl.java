@@ -21,6 +21,8 @@ import static java.nio.ByteOrder.nativeOrder;
 import java.sql.SQLType;
 import java.sql.SQLException;
 
+import java.util.List;
+
 import java.util.function.UnaryOperator;
 
 import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
@@ -61,12 +63,13 @@ implements
 	AccessControlled<CatalogObject.USAGE>, RegType
 {
 	/**
-	 * For the time being, punt and return the global switch point.
+	 * Per-instance switch point, to be invalidated selectively
+	 * by a syscache callback.
+	 *<p>
+	 * Only {@link NoModifier NoModifier} carries one; derived instances of
+	 * {@link Modified Modified} or {@link Blessed Blessed} return that one.
 	 */
-	SwitchPoint cacheSwitchPoint()
-	{
-		return s_globalPoint[0];
-	}
+	abstract SwitchPoint cacheSwitchPoint();
 
 	@Override
 	int cacheId()
@@ -81,6 +84,23 @@ implements
 	RegTypeImpl(MethodHandle[] slots)
 	{
 		super(slots);
+	}
+
+	/**
+	 * Called from {@code Factory}'s {@code invalidateType} to set up
+	 * the invalidation of this type's metadata.
+	 *<p>
+	 * Adds this type's {@code SwitchPoint} to the caller's list so that,
+	 * if more than one is to be invalidated, that can be done in bulk. Adds to
+	 * <var>postOps</var> any operations the caller should conclude with
+	 * after invalidating the {@code SwitchPoint}.
+	 */
+	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+	{
+		/*
+		 * We don't expect invalidations for any flavor except NoModifier, so
+		 * this no-op version will be overridden there only.
+		 */
 	}
 
 	/**
@@ -363,9 +383,25 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
+		private SwitchPoint m_sp;
+
+		@Override
+		SwitchPoint cacheSwitchPoint()
+		{
+			return m_sp;
+		}
+
 		NoModifier()
 		{
 			super(s_initializer.apply(new MethodHandle[NSLOTS]));
+			m_sp = new SwitchPoint();
+		}
+
+		@Override
+		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		{
+			sps.add(m_sp);
+			m_sp = new SwitchPoint();
 		}
 
 		@Override
@@ -399,6 +435,12 @@ implements
 	static class Modified extends RegTypeImpl
 	{
 		private final NoModifier m_base;
+
+		@Override
+		SwitchPoint cacheSwitchPoint()
+		{
+			return m_base.m_sp;
+		}
 
 		Modified(NoModifier base)
 		{
@@ -465,6 +507,12 @@ implements
 				.withDependent("tupleDescriptorBlessed", SLOT_TDBLESSED = i++)
 				.build();
 			NSLOTS = i;
+		}
+
+		@Override
+		SwitchPoint cacheSwitchPoint()
+		{
+			return ((NoModifier)RECORD).m_sp;
 		}
 
 		Blessed()
