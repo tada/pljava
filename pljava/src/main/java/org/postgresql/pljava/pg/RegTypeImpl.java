@@ -12,15 +12,30 @@
 package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
+import static java.lang.invoke.MethodHandles.lookup;
+import java.lang.invoke.SwitchPoint;
+
+import java.nio.ByteBuffer;
+import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.SQLType;
+import java.sql.SQLException;
+
+import java.util.function.UnaryOperator;
+
+import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
+import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
+
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 /*
  * Can get lots of information, including TupleDesc, domain constraints, etc.,
@@ -41,6 +56,14 @@ implements
 	Nonshared<RegType>,	Namespaced<Simple>, Owned,
 	AccessControlled<CatalogObject.USAGE>, RegType
 {
+	/**
+	 * For the time being, punt and return the global switch point.
+	 */
+	SwitchPoint cacheSwitchPoint()
+	{
+		return s_globalPoint[0];
+	}
+
 	@Override
 	int cacheId()
 	{
@@ -57,22 +80,173 @@ implements
 	}
 
 	/**
-	 * Temporary scaffolding.
+	 * Holder for the {@code RegClass} corresponding to {@code relation()},
+	 * only non-null during a call of {@code dualHandshake}.
 	 */
-	RegTypeImpl()
+	private RegClass m_dual = null;
+
+	/**
+	 * Called by the corresponding {@code RegClass} instance if it has just
+	 * looked us up.
+	 *<p>
+	 * Because the {@code SwitchPointCache} recomputation methods always execute
+	 * on the PG thread, plain access to an instance field does the trick here.
+	 */
+	void dualHandshake(RegClass dual)
 	{
+		try
+		{
+			m_dual = dual;
+			dual = relation();
+			assert dual == m_dual : "RegClass/RegType handshake outcome";
+		}
+		finally
+		{
+			m_dual = null;
+		}
+	}
+
+	static final UnaryOperator<MethodHandle[]> s_initializer;
+
+	static final int SLOT_TUPLEDESCRIPTOR;
+	static final int SLOT_RELATION;
+	static final int NSLOTS;
+
+	static
+	{
+		int i = CatalogObjectImpl.Addressed.NSLOTS;
+		s_initializer =
+			new Builder<>(RegTypeImpl.class)
+			.withLookup(lookup().in(RegTypeImpl.class))
+			.withSwitchPoint(RegTypeImpl::cacheSwitchPoint)
+			.withSlots(o -> o.m_slots)
+			.withCandidates(RegTypeImpl.class.getDeclaredMethods())
+			.withDependent(
+				  "tupleDescriptorCataloged", SLOT_TUPLEDESCRIPTOR = i++)
+			.withDependent(       "relation", SLOT_RELATION        = i++)
+
+			.build();
+		NSLOTS = i;
+	}
+
+	/**
+	 * Obtain the tuple descriptor for an ordinary cataloged composite type.
+	 *<p>
+	 * Every such type has a corresponding {@link RegClass RegClass}, which has
+	 * the {@code SwitchPoint} that will govern the descriptor's invalidation,
+	 * and a one-element array in which the descriptor should be stored. This
+	 * method returns the array.
+	 */
+	private static TupleDescriptor.Interned[]
+		tupleDescriptorCataloged(RegTypeImpl o)
+	{
+		RegClassImpl c = (RegClassImpl)o.relation();
+
+		/*
+		 * If this is not a composite type, c won't be valid, and our API
+		 * contract is to return null (which means, here, return {null}).
+		 */
+		if ( ! c.isValid() )
+			return new TupleDescriptor.Interned[] { null };
+
+		TupleDescriptor.Interned[] r = c.m_tupDescHolder;
+
+		/*
+		 * If c is RegClass.CLASSID itself, it has the descriptor by now
+		 * (bootstrapped at the latest during the above relation() call,
+		 * if it wasn't there already).
+		 */
+		if ( RegClass.CLASSID == c )
+		{
+			assert null != r && null != r[0] :
+				"RegClass TupleDescriptor bootstrap outcome";
+			return r;
+		}
+
+		assert null == r : "RegClass has tuple descriptor when RegType doesn't";
+
+		/*
+		 * Otherwise, do the work here, and store the descriptor in r.
+		 * Can pass -1 for the modifier; Blessed types do not use this method.
+		 */
+
+		ByteBuffer b = _lookupRowtypeTupdesc(o.oid(), -1);
+		assert null != b : "cataloged composite type tupdesc lookup";
+		b.order(nativeOrder());
+		r = new TupleDescriptor.Interned[]{ new TupleDescImpl.Cataloged(b, c) };
+		return c.m_tupDescHolder = r;
+	}
+
+	private static TupleDescriptor.Interned[] tupleDescriptorBlessed(Blessed o)
+	{
+		TupleDescriptor.Interned[] r = new TupleDescriptor.Interned[1];
+		ByteBuffer b = _lookupRowtypeTupdesc(o.oid(), o.modifier());
+
+		/*
+		 * If there is no registered tuple descriptor for this typmod, return an
+		 * empty value to the current caller, but do not cache it; a later call
+		 * could find one has been registered.
+		 */
+		if ( null == b )
+		{
+			doNotCache();
+			return r;
+		}
+
+		b.order(nativeOrder());
+		r[0] = new TupleDescImpl.Blessed(b, o);
+		return o.m_tupDescHolder = r;
+	}
+
+	private static RegClass relation(RegTypeImpl o) throws SQLException
+	{
+		/*
+		 * If this is a handshake occurring when the corresponding RegClass
+		 * has just looked *us* up, we are done.
+		 */
+		if ( null != o.m_dual )
+			return o.m_dual;
+
+		/*
+		 * Otherwise, look up the corresponding RegClass, and do the same
+		 * handshake in reverse. Either way, the connection is set up
+		 * bidirectionally with one cache lookup starting from either. That
+		 * can avoid extra work in operations (like TupleDescriptor caching)
+		 * that may touch both objects, without complicating their code.
+		 */
+		TupleTableSlot t = o.cacheTuple();
+		RegClass c = t.get(t.descriptor().get("typrelid"), REGCLASS_INSTANCE);
+
+		((RegClassImpl)c).dualHandshake(o);
+		return c;
 	}
 
 	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TUPLEDESCRIPTOR];
+			return ((TupleDescriptor.Interned[])h.invokeExact(this, h))[0];
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public RegClass relation()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_RELATION];
+			return (RegClass)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
@@ -117,6 +291,11 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
+		NoModifier()
+		{
+			super(s_initializer.apply(new MethodHandle[NSLOTS]));
+		}
+
 		@Override
 		public int modifier()
 		{
@@ -179,12 +358,72 @@ implements
 	 */
 	static class Blessed extends RegTypeImpl
 	{
+		/**
+		 * Associated tuple descriptor, redundantly kept accessible here as well
+		 * as opaquely bound into a {@code SwitchPointCache} method handle.
+		 *<p>
+		 * A {@code Blessed} descriptor has no associated {@code RegClass}, so
+		 * a slot for the descriptor is provided here. No invalidation events
+		 * are expected for a blessed type, but the one-element array form here
+		 * matches that used in {@code RegClass} for cataloged descriptors, to
+		 * avoid multiple cases in the code. Only accessed from
+		 * {@code SwitchPointCache} computation methods and
+		 * {@code TupleDescImpl} factory methods, all of which execute on the PG
+		 * thread; no synchronization fuss needed.
+		 *<p>
+		 * When null, no computation method has run, and the state is not known.
+		 * Otherwise, the single element is the result to be returned by
+		 * the {@code tupleDescriptor()} API method.
+		 */
 		TupleDescriptor.Interned[] m_tupDescHolder;
+		private final MethodHandle[] m_moreSlots;
+		private static final UnaryOperator<MethodHandle[]> s_initializer;
+		private static final int SLOT_TDBLESSED;
+		private static final int NSLOTS;
+
+		static
+		{
+			int i = 0;
+			s_initializer =
+				new Builder<>(Blessed.class)
+				.withLookup(lookup().in(RegTypeImpl.class))
+				.withSwitchPoint(Blessed::cacheSwitchPoint)
+				.withSlots(o -> o.m_moreSlots)
+				.withCandidates(RegTypeImpl.class.getDeclaredMethods())
+				.withDependent("tupleDescriptorBlessed", SLOT_TDBLESSED = i++)
+				.build();
+			NSLOTS = i;
+		}
 
 		Blessed()
 		{
 			super(((RegTypeImpl)RECORD).m_slots);
 			// RECORD is static final, no other effort needed to keep it live
+			m_moreSlots = s_initializer.apply(new MethodHandle[NSLOTS]);
+		}
+
+		/**
+		 * The tuple descriptor registered in the type cache for this 'blessed'
+		 * type, or null if none.
+		 *<p>
+		 * A null value is not sticky; it would be possible to 'mention' a
+		 * blessed type with a not-yet-used typmod, which could then later exist
+		 * after a tuple descriptor has been interned. (Such usage would be odd,
+		 * though; typically one will obtain a blessed instance from an existing
+		 * tuple descriptor.)
+		 */
+		@Override
+		public TupleDescriptor.Interned tupleDescriptor()
+		{
+			try
+			{
+				MethodHandle h = m_moreSlots[SLOT_TDBLESSED];
+				return ((TupleDescriptor.Interned[])h.invokeExact(this, h))[0];
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
 		}
 
 		@Override
@@ -198,6 +437,22 @@ implements
 		public RegType withoutModifier()
 		{
 			return RECORD;
+		}
+
+		/**
+		 * Whether a just-mentioned blessed type "exists" depends on whether
+		 * there is a tuple descriptor registered for it in the type cache.
+		 *<p>
+		 * A false value is not sticky; it would be possible to 'mention' a
+		 * blessed type with a not-yet-used typmod, which could then later exist
+		 * after a tuple descriptor has been interned. (Such usage would be odd,
+		 * though; typically one will obtain a blessed instance from an existing
+		 * tuple descriptor.)
+		 */
+		@Override
+		public boolean exists()
+		{
+			return null != tupleDescriptor();
 		}
 	}
 }
