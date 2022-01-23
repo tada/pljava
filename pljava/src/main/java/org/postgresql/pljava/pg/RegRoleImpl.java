@@ -11,19 +11,37 @@
  */
 package org.postgresql.pljava.pg;
 
+import java.lang.invoke.MethodHandle;
+import static java.lang.invoke.MethodHandles.lookup;
+import java.lang.invoke.SwitchPoint;
+
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
+
+import java.sql.SQLException;
 
 import java.util.List;
 
 import org.postgresql.pljava.RolePrincipal;
 
+import java.util.function.UnaryOperator;
+
+import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
+
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.AUTHOID; // syscache
+import static org.postgresql.pljava.pg.ModelConstants.AUTHMEMMEMROLE;
+import static org.postgresql.pljava.pg.ModelConstants.AUTHMEMROLEMEM;
+
+import static org.postgresql.pljava.pg.adt.NameAdapter.SIMPLE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.Primitives.BOOLEAN_INSTANCE;
+import static org.postgresql.pljava.pg.adt.Primitives.INT4_INSTANCE;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 /**
  * Implementation of the {@link RegRole RegRole} interface.
@@ -36,10 +54,146 @@ implements
 	Shared<RegRole>, Named<Simple>,
 	AccessControlled<CatalogObject.Grant.OnRole>, RegRole.Grantee
 {
+	private static UnaryOperator<MethodHandle[]> s_initializer;
+
+	/* Implementation of Addressed */
+
+	@Override
+	public RegClass.Known<RegRole> classId()
+	{
+		return CLASSID;
+	}
+
 	@Override
 	int cacheId()
 	{
 		return AUTHOID;
+	}
+
+	/* Implementation of Named, AccessControlled */
+
+	private static Simple name(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("rolname"), SIMPLE_INSTANCE);
+	}
+
+	private static List<CatalogObject.Grant.OnRole> grants(RegRoleImpl o)
+	{
+		throw notyet("CatCList support needed");
+	}
+
+	/* Implementation of RegRole */
+
+	/**
+	 * Merely passes the supplied slots array to the superclass constructor; all
+	 * initialization of the slots will be the responsibility of the subclass.
+	 */
+	RegRoleImpl()
+	{
+		super(s_initializer.apply(new MethodHandle[NSLOTS]));
+	}
+
+	static final int SLOT_MEMBEROF;
+	static final int SLOT_SUPERUSER;
+	static final int SLOT_INHERIT;
+	static final int SLOT_CREATEROLE;
+	static final int SLOT_CREATEDB;
+	static final int SLOT_CANLOGIN;
+	static final int SLOT_REPLICATION;
+	static final int SLOT_BYPASSRLS;
+	static final int SLOT_CONNECTIONLIMIT;
+	static final int NSLOTS;
+
+	static
+	{
+		int i = CatalogObjectImpl.Addressed.NSLOTS;
+		s_initializer =
+			new Builder<>(RegRoleImpl.class)
+			.withLookup(lookup())
+			.withSwitchPoint(o -> s_globalPoint[0])
+			.withSlots(o -> o.m_slots)
+			.withCandidates(RegRoleImpl.class.getDeclaredMethods())
+
+			.withReceiverType(CatalogObjectImpl.Named.class)
+			.withReturnType(Unqualified.class)
+			.withDependent(      "name", SLOT_NAME)
+			.withReturnType(null)
+			.withReceiverType(CatalogObjectImpl.AccessControlled.class)
+			.withDependent(    "grants", SLOT_ACL)
+
+			.withReceiverType(null)
+			.withDependent(       "memberOf", SLOT_MEMBEROF        = i++)
+			.withDependent(      "superuser", SLOT_SUPERUSER       = i++)
+			.withDependent(        "inherit", SLOT_INHERIT         = i++)
+			.withDependent(     "createRole", SLOT_CREATEROLE      = i++)
+			.withDependent(       "createDB", SLOT_CREATEDB        = i++)
+			.withDependent(       "canLogIn", SLOT_CANLOGIN        = i++)
+			.withDependent(    "replication", SLOT_REPLICATION     = i++)
+			.withDependent(      "bypassRLS", SLOT_BYPASSRLS       = i++)
+			.withDependent("connectionLimit", SLOT_CONNECTIONLIMIT = i++)
+
+			.build()
+			/*
+			 * Add these slot initializers after what Addressed does.
+			 */
+			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+		NSLOTS = i;
+	}
+
+	/* computation methods */
+
+	private static List<RegRole> memberOf(RegRoleImpl o)
+	{
+		throw notyet("CatCList support needed");
+	}
+
+	private static boolean superuser(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolsuper"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean inherit(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolinherit"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean createRole(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolcreaterole"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean createDB(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolcreatedb"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean canLogIn(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolcanlogin"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean replication(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolreplication"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean bypassRLS(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolbypassrls"), BOOLEAN_INSTANCE);
+	}
+
+	private static int connectionLimit(RegRoleImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("rolconnlimit"), INT4_INSTANCE);
 	}
 
 	/* API methods */
@@ -47,55 +201,127 @@ implements
 	@Override
 	public List<RegRole> memberOf()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_MEMBEROF];
+			return (List<RegRole>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean superuser()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_SUPERUSER];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean inherit()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_INHERIT];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean createRole()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CREATEROLE];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean createDB()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CREATEDB];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean canLogIn()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CANLOGIN];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean replication()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_REPLICATION];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean bypassRLS()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_BYPASSRLS];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public int connectionLimit()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CONNECTIONLIMIT];
+			return (int)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	/* Implementation of RegRole.Grantee */

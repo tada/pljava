@@ -350,13 +350,15 @@ implements TupleDescriptor
 
 	static class Cataloged extends TupleDescImpl implements Interned
 	{
-		private final RegClass m_relation;
+		private final RegClass m_relation;// using its SwitchPoint, keep it live
 
 		Cataloged(ByteBuffer td, RegClassImpl c)
 		{
 			/*
-			 * Every Cataloged descriptor from the cache had better be
-			 * reference-counted, so unconditional true is passed for useState.
+			 * Invalidation of a Cataloged tuple descriptor happens with the
+			 * SwitchPoint attached to the RegClass. Every Cataloged descriptor
+			 * from the cache had better be reference-counted, so unconditional
+			 * true is passed for useState.
 			 */
 			super(
 				td, true,
@@ -364,7 +366,7 @@ implements TupleDescriptor
 					c.oid(), i, () -> new AttributeImpl.Cataloged(c))
 			);
 
-			m_relation = c;
+			m_relation = c; // we need it alive for its SwitchPoint
 		}
 
 		@Override
@@ -376,12 +378,14 @@ implements TupleDescriptor
 
 	static class Blessed extends TupleDescImpl implements Interned
 	{
-		private final RegType m_rowType;
+		private final RegType m_rowType; // using its SwitchPoint, keep it live
 
 		Blessed(ByteBuffer td, RegTypeImpl t)
 		{
 			/*
-			 * A Blessed tupdesc has no associated RegClass. In fromByteBuffer,
+			 * A Blessed tuple descriptor has no associated RegClass, so we grab
+			 * the SwitchPoint from the associated RegType, even though no
+			 * invalidation event for it is ever expected. In fromByteBuffer,
 			 * if we see a non-reference-counted descriptor, we grab one
 			 * straight from the type cache instead. But sometimes, the one
 			 * in PostgreSQL's type cache is non-reference counted, and that's

@@ -31,10 +31,17 @@ extends Adapter.As<T,Void>
 	public static final OidAdapter<CatalogObject>     INSTANCE;
 	public static final Int4                          INT4_INSTANCE;
 	public static final Addressed<RegClass>           REGCLASS_INSTANCE;
+	public static final Addressed<RegCollation>       REGCOLLATION_INSTANCE;
+	public static final Addressed<RegConfig>          REGCONFIG_INSTANCE;
+	public static final Addressed<RegDictionary>      REGDICTIONARY_INSTANCE;
 	public static final Addressed<RegNamespace>       REGNAMESPACE_INSTANCE;
+	public static final Addressed<RegOperator>        REGOPERATOR_INSTANCE;
+	public static final Procedure                     REGPROCEDURE_INSTANCE;
 	public static final Addressed<RegRole>            REGROLE_INSTANCE;
 	public static final Addressed<RegType>            REGTYPE_INSTANCE;
 	public static final Addressed<Database>           DATABASE_INSTANCE;
+	public static final Addressed<Extension>          EXTENSION_INSTANCE;
+	public static final Addressed<ProceduralLanguage> PLANG_INSTANCE;
 
 	static
 	{
@@ -44,7 +51,8 @@ extends Adapter.As<T,Void>
 			{
 				configure(OidAdapter.class, Via.INT32ZX),
 				configure(      Int4.class, Via.INT32ZX),
-				configure( Addressed.class, Via.INT32ZX)
+				configure( Addressed.class, Via.INT32ZX),
+				configure( Procedure.class, Via.INT32ZX)
 			});
 
 		INSTANCE               = new OidAdapter<>(configs[0], null);
@@ -54,8 +62,23 @@ extends Adapter.As<T,Void>
 		REGCLASS_INSTANCE      = new  Addressed<>(configs[2],
 			RegClass.CLASSID, RegClass.class, RegType.REGCLASS);
 
+		REGCOLLATION_INSTANCE  = new  Addressed<>(configs[2],
+			RegCollation.CLASSID, RegCollation.class, RegType.REGCOLLATION);
+
+		REGCONFIG_INSTANCE     = new  Addressed<>(configs[2],
+			RegConfig.CLASSID, RegConfig.class, RegType.REGCONFIG);
+
+		REGDICTIONARY_INSTANCE = new  Addressed<>(configs[2],
+			RegDictionary.CLASSID, RegDictionary.class, RegType.REGDICTIONARY);
+
 		REGNAMESPACE_INSTANCE  = new  Addressed<>(configs[2],
 			RegNamespace.CLASSID, RegNamespace.class, RegType.REGNAMESPACE);
+
+		REGOPERATOR_INSTANCE   = new  Addressed<>(configs[2],
+			RegOperator.CLASSID, RegOperator.class,
+			RegType.REGOPER, RegType.REGOPERATOR);
+
+		REGPROCEDURE_INSTANCE  = new    Procedure(configs[3]);
 
 		REGROLE_INSTANCE       = new  Addressed<>(configs[2],
 			RegRole.CLASSID, RegRole.class, RegType.REGROLE);
@@ -65,6 +88,12 @@ extends Adapter.As<T,Void>
 
 		DATABASE_INSTANCE      = new  Addressed<>(configs[2],
 			Database.CLASSID, Database.class);
+
+		EXTENSION_INSTANCE     = new  Addressed<>(configs[2],
+			Extension.CLASSID, Extension.class);
+
+		PLANG_INSTANCE         = new  Addressed<>(configs[2],
+			ProceduralLanguage.CLASSID, ProceduralLanguage.class);
 	}
 
 	/**
@@ -157,6 +186,33 @@ extends Adapter.As<T,Void>
 		public T fetch(Attribute a, int in)
 		{
 			return of(m_classId, in);
+		}
+	}
+
+	/**
+	 * A distinct adapter class is needed here because the parameterized
+	 * {@code RegProcedure<?>} type can't be indicated with a class literal
+	 * argument to {@code Addressed}.
+	 */
+	public static class Procedure
+	extends OidAdapter<RegProcedure<?>>
+	{
+		private Procedure(Configuration c)
+		{
+			super(c, null);
+		}
+
+		@Override
+		public boolean canFetch(RegType pgType)
+		{
+			if ( RegType.REGPROC == pgType || RegType.REGPROCEDURE == pgType )
+				return true;
+			return RegType.OID == pgType;
+		}
+
+		public RegProcedure<?> fetch(Attribute a, int in)
+		{
+			return of(RegProcedure.CLASSID, in);
 		}
 	}
 }

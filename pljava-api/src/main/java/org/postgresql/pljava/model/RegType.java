@@ -17,8 +17,13 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
-import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+import org.postgresql.pljava.model.RegProcedure.Memo;
 
+import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+import org.postgresql.pljava.annotation.BaseUDT.PredefinedCategory; // javadoc
+import org.postgresql.pljava.annotation.BaseUDT.Storage;
+
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier; // javadoc
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -107,11 +112,50 @@ extends
 	RegType       REGROLE = formObjectId(CLASSID,       REGROLEOID);
 	RegType  REGCOLLATION = formObjectId(CLASSID,  REGCOLLATIONOID);
 
+	enum Type { BASE, COMPOSITE, DOMAIN, ENUM, PSEUDO, RANGE, MULTIRANGE }
+
+	interface TypeInput extends Memo<TypeInput> { }
+	interface TypeOutput extends Memo<TypeOutput> { }
+	interface TypeReceive extends Memo<TypeReceive> { }
+	interface TypeSend extends Memo<TypeSend> { }
+	interface TypeModifierInput extends Memo<TypeModifierInput> { }
+	interface TypeModifierOutput extends Memo<TypeModifierOutput> { }
+	interface TypeAnalyze extends Memo<TypeAnalyze> { }
+	interface TypeSubscript extends Memo<TypeSubscript> { }
+
 	short length();
 	boolean byValue();
+	Type type();
+	/**
+	 * A one-character code representing the type's 'category'.
+	 *<p>
+	 * Custom categories are possible, so not every value here need correspond
+	 * to a {@link PredefinedCategory PredefinedCategory}, but common ones will,
+	 * and can be 'decoded' with {@link PredefinedCategory#valueOf(char)}.
+	 */
+	char category();
+	boolean preferred();
+	boolean defined();
+	byte delimiter();
 	RegClass relation();
 	RegType element();
+	RegType array();
+	RegProcedure<TypeInput> input();
+	RegProcedure<TypeOutput> output();
+	RegProcedure<TypeReceive> receive();
+	RegProcedure<TypeSend> send();
+	RegProcedure<TypeModifierInput> modifierInput();
+	RegProcedure<TypeModifierOutput> modifierOutput();
+	RegProcedure<TypeAnalyze> analyze();
+	RegProcedure<TypeSubscript> subscript();
 	Alignment alignment();
+	Storage storage();
+	boolean notNull();
+	RegType baseType();
+	int dimensions();
+	RegCollation collation();
+	// default as pg_node_tree
+	// default as text
 	RegType modifier(int typmod);
 
 	/**

@@ -16,12 +16,23 @@ import org.postgresql.pljava.model.CatalogObject.*;
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+import org.postgresql.pljava.annotation.BaseUDT.Storage;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
  * An attribute (column), either of a known relation, or of a transient record
  * type.
+ *<p>
+ * Instances of the transient kind may be retrieved from a
+ * {@link TupleDescriptor TupleDescriptor} and will compare unequal to other
+ * {@code Attribute} instances even with the same {@code classId},
+ * {@code subId}, and {@code oid} (which will be {@code InvalidOid}); for such
+ * instances, {@link #containingTupleDescriptor() containingTupleDescriptor}
+ * will return the specific transient {@code TupleDescriptor} to which
+ * the attribute belongs. Such 'virtual' instances will appear to have
+ * the invalid {@code RegClass} as {@code relation()}, and all access granted
+ * to {@code public}.
  */
 public interface Attribute
 extends
@@ -39,11 +50,30 @@ extends
 	 */
 	RegClass CLASS = formObjectId(RegClass.CLASSID, AttributeRelationId);
 
+	enum Identity { INAPPLICABLE, GENERATED_ALWAYS, GENERATED_BY_DEFAULT }
+
+	enum Generated { INAPPLICABLE, STORED }
+
 	RegClass relation();
 	RegType type();
 	short length();
+	int dimensions();
+	int cachedOffset();
 	boolean byValue();
 	Alignment alignment();
+	Storage storage();
+	boolean notNull();
+	boolean hasDefault();
+	boolean hasMissing();
+	Identity identity();
+	Generated generated();
+	boolean dropped();
+	boolean local();
+	int inheritanceCount();
+	RegCollation collation();
+	// options
+	// fdwoptions
+	// missingValue
 
 	/**
 	 * Returns the tuple descriptor to which this attribute belongs.

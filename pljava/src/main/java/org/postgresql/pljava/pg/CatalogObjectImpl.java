@@ -472,15 +472,36 @@ public class CatalogObjectImpl implements CatalogObject
 				case TypeRelationId:
 					fieldRead = RegType.CLASSID;
 					return RegTypeImpl.NoModifier::new;
+				case ProcedureRelationId:
+					fieldRead = RegProcedure.CLASSID;
+					return RegProcedureImpl::new;
 				case AuthIdRelationId:
 					fieldRead = RegRole.CLASSID;
 					return RegRoleImpl::new;
 				case DatabaseRelationId:
 					fieldRead = Database.CLASSID;
 					return DatabaseImpl::new;
+				case LanguageRelationId:
+					fieldRead = ProceduralLanguage.CLASSID;
+					return ProceduralLanguageImpl::new;
 				case NamespaceRelationId:
 					fieldRead = RegNamespace.CLASSID;
 					return RegNamespaceImpl::new;
+				case OperatorRelationId:
+					fieldRead = RegOperator.CLASSID;
+					return RegOperatorImpl::new;
+				case ExtensionRelationId:
+					fieldRead = Extension.CLASSID;
+					return ExtensionImpl::new;
+				case CollationRelationId:
+					fieldRead = RegCollation.CLASSID;
+					return RegCollationImpl::new;
+				case TSDictionaryRelationId:
+					fieldRead = RegDictionary.CLASSID;
+					return RegDictionaryImpl::new;
+				case TSConfigRelationId:
+					fieldRead = RegConfig.CLASSID;
+					return RegConfigImpl::new;
 				case RelationRelationId:
 					fieldRead = RegClass.CLASSID;
 					assert 0 == objSubId :

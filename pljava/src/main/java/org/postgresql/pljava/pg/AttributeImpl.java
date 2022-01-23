@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 
 import java.sql.SQLException;
 
+import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 import java.util.function.UnaryOperator;
@@ -36,9 +37,13 @@ import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.TupleDescImpl.Ephemeral;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
+import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGCOLLATION_INSTANCE;
+import static org.postgresql.pljava.pg.adt.Primitives.*;
 
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+import org.postgresql.pljava.annotation.BaseUDT.Storage;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
@@ -50,9 +55,22 @@ implements
 	Nonshared<RegClass>, Named<Simple>,
 	AccessControlled<CatalogObject.Grant.OnAttribute>, Attribute
 {
+	// syscache id is ATTNUM; two key components: attrelid, attnum
+	// remember to account for ATTRIBUTE_FIXED_PART_SIZE when from tupledesc
+
 	abstract SwitchPoint cacheSwitchPoint();
 
 	private static UnaryOperator<MethodHandle[]> s_initializer;
+
+	/* Implementation of CatalogObject */
+
+	@Override
+	public <T extends CatalogObject.Addressed<T>> T of(RegClass.Known<T> c)
+	{
+		throw new UnsupportedOperationException("of() on an Attribute");
+	}
+
+	/* Implementation of Addressed */
 
 	@Override
 	public RegClass.Known<RegClass> classId()
@@ -119,6 +137,24 @@ implements
 		return heapTupleGetLightSlot(o.cacheDescriptor(), heapTuple, null);
 	}
 
+	/*
+	 * The super implementation nulls the TUPLE slot permanently; this
+	 * class has RAWBUFFER and PARTIALTUPLE slots used similarly, so null those
+	 * too. Transient will in turn override this and null nothing at all; its
+	 * instances have the invalid Oid as a matter of course.
+	 *
+	 * It may well be that no circumstances exist where this version is called.
+	 */
+	@Override
+	void makeInvalidInstance(MethodHandle[] slots)
+	{
+		super.makeInvalidInstance(slots);
+		setConstant(slots, SLOT_RAWBUFFER, null);
+		setConstant(slots, SLOT_PARTIALTUPLE, null);
+	}
+
+	/* Implementation of Named and AccessControlled */
+
 	private static Simple name(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.partialTuple();
@@ -126,6 +162,15 @@ implements
 			t.get(t.descriptor().sqlGet(Anum_pg_attribute_attname),
 				NameAdapter.SIMPLE_INSTANCE);
 	}
+
+	private static List<CatalogObject.Grant> grants(AttributeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("attacl"), GrantAdapter.LIST_INSTANCE);
+	}
+
+	/* Implementation of Attribute */
 
 	AttributeImpl()
 	{
@@ -137,8 +182,24 @@ implements
 
 	static final int SLOT_TYPE;
 	static final int SLOT_LENGTH;
+	static final int SLOT_DIMENSIONS;
+	// static final int SLOT_CACHEDOFFSET; -- read fresh every time, no slot
 	static final int SLOT_BYVALUE;
 	static final int SLOT_ALIGNMENT;
+	static final int SLOT_STORAGE;
+	// static final int SLOT_COMPRESSION; -- add this
+	static final int SLOT_NOTNULL;
+	static final int SLOT_HASDEFAULT;
+	static final int SLOT_HASMISSING;
+	static final int SLOT_IDENTITY;
+	static final int SLOT_GENERATED;
+	static final int SLOT_DROPPED;
+	static final int SLOT_LOCAL;
+	static final int SLOT_INHERITANCECOUNT;
+	static final int SLOT_COLLATION;
+	// static final int SLOT_OPTIONS; -- add this
+	// static final int SLOT_FDWOPTIONS; -- add this
+	// static final int SLOT_MISSINGVALUE; -- add this
 
 	static final int NSLOTS;
 
@@ -164,6 +225,10 @@ implements
 			.withReturnType(Unqualified.class)
 			.withDependent(      "name", SLOT_NAME)
 
+			.withReceiverType(CatalogObjectImpl.AccessControlled.class)
+			.withReturnType(null) // cancel adjustment from above
+			.withDependent(    "grants", SLOT_ACL)
+
 			/*
 			 * Next come slots where the compute and API methods are here.
 			 */
@@ -173,8 +238,19 @@ implements
 
 			.withDependent(            "type", SLOT_TYPE             = i++)
 			.withDependent(          "length", SLOT_LENGTH           = i++)
+			.withDependent(      "dimensions", SLOT_DIMENSIONS       = i++)
 			.withDependent(         "byValue", SLOT_BYVALUE          = i++)
 			.withDependent(       "alignment", SLOT_ALIGNMENT        = i++)
+			.withDependent(         "storage", SLOT_STORAGE          = i++)
+			.withDependent(         "notNull", SLOT_NOTNULL          = i++)
+			.withDependent(      "hasDefault", SLOT_HASDEFAULT       = i++)
+			.withDependent(      "hasMissing", SLOT_HASMISSING       = i++)
+			.withDependent(        "identity", SLOT_IDENTITY         = i++)
+			.withDependent(       "generated", SLOT_GENERATED        = i++)
+			.withDependent(         "dropped", SLOT_DROPPED          = i++)
+			.withDependent(           "local", SLOT_LOCAL            = i++)
+			.withDependent("inheritanceCount", SLOT_INHERITANCECOUNT = i++)
+			.withDependent(       "collation", SLOT_COLLATION        = i++)
 
 			.build();
 		NSLOTS = i;
@@ -234,6 +310,12 @@ implements
 		return b.getShort(OFFSET_pg_attribute_attlen);
 	}
 
+	private static int dimensions(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("attndims"), INT4_INSTANCE);
+	}
+
 	private static boolean byValue(AttributeImpl o)
 	{
 		ByteBuffer b = o.rawBuffer();
@@ -246,6 +328,75 @@ implements
 		ByteBuffer b = o.rawBuffer();
 		assert 1 == SIZEOF_pg_attribute_attalign : "sizeof attalign changed";
 		return alignmentFromCatalog(b.get(OFFSET_pg_attribute_attalign));
+	}
+
+	private static Storage storage(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return
+			storageFromCatalog(
+				s.get(s.descriptor().get("attstorage"), INT1_INSTANCE));
+	}
+
+	private static boolean notNull(AttributeImpl o)
+	{
+		ByteBuffer b = o.rawBuffer();
+		assert
+			1 == SIZEOF_pg_attribute_attnotnull : "sizeof attnotnull changed";
+		return 0 != b.get(OFFSET_pg_attribute_attnotnull);
+	}
+
+	private static boolean hasDefault(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("atthasdef"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean hasMissing(AttributeImpl o)  throws SQLException
+	{ // not 9.5
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("atthasmissing"), BOOLEAN_INSTANCE);
+	}
+
+	private static Identity identity(AttributeImpl o)  throws SQLException
+	{ // not 9.5
+		TupleTableSlot s = o.partialTuple();
+		byte v = s.get(s.descriptor().get("attidentity"), INT1_INSTANCE);
+		return identityFromCatalog(v);
+	}
+
+	private static Generated generated(AttributeImpl o)  throws SQLException
+	{ // not 9.5
+		TupleTableSlot s = o.partialTuple();
+		byte v = s.get(s.descriptor().get("attgenerated"), INT1_INSTANCE);
+		return generatedFromCatalog(v);
+	}
+
+	private static boolean dropped(AttributeImpl o)
+	{
+		ByteBuffer b = o.rawBuffer();
+		assert
+			1 == SIZEOF_pg_attribute_attisdropped
+			: "sizeof attisdropped changed";
+		return 0 != b.get(OFFSET_pg_attribute_attisdropped);
+	}
+
+	private static boolean local(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("attislocal"), BOOLEAN_INSTANCE);
+	}
+
+	private static int inheritanceCount(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("attinhcount"), INT4_INSTANCE);
+	}
+
+	private static RegCollation collation(AttributeImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.partialTuple();
+		return s.get(s.descriptor().get("attcollation"), REGCOLLATION_INSTANCE);
 	}
 
 	/* private methods using cache slots like API methods do */
@@ -307,6 +458,29 @@ implements
 	}
 
 	@Override
+	public int dimensions()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_DIMENSIONS];
+			return (int)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public int cachedOffset() // perhaps useful for heap case?
+	{
+		ByteBuffer b = rawBuffer();
+		assert 4 == SIZEOF_pg_attribute_attcacheoff
+			: "sizeof attcacheoff changed";
+		return b.getInt(OFFSET_pg_attribute_attcacheoff);
+	}
+
+	@Override
 	public boolean byValue()
 	{
 		try
@@ -333,6 +507,150 @@ implements
 			throw unchecked(t);
 		}
 	}
+
+	@Override
+	public Storage storage()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_STORAGE];
+			return (Storage)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean notNull()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_NOTNULL];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean hasDefault()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASDEFAULT];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean hasMissing() // not 9.5
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASMISSING];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Identity identity() // not 9.5
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_IDENTITY];
+			return (Identity)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Generated generated() // not 9.5
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_GENERATED];
+			return (Generated)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean dropped()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASMISSING];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean local()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_LOCAL];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public int inheritanceCount()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_INHERITANCECOUNT];
+			return (int)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegCollation collation()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_COLLATION];
+			return (RegCollation)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	// options
+	// fdwoptions
+	// missingValue
 
 	@Override
 	public TupleDescriptor containingTupleDescriptor()
@@ -409,6 +727,16 @@ implements
 			m_containingTupleDescriptor = requireNonNull(td);
 			assert 0 < attnum : "nonpositive attnum in transient attribute";
 			m_attnum = attnum;
+		}
+
+		/*
+		 * Do no nulling of slots (not even what the superclass method does)
+		 * when created with the invalid Oid. *All* Transient instances have
+		 * the invalid Oid!
+		 */
+		@Override
+		void makeInvalidInstance(MethodHandle[] slots)
+		{
 		}
 
 		@Override
@@ -518,6 +846,18 @@ implements
 		}
 
 		@Override
+		public int dimensions()
+		{
+			return m_type.dimensions();
+		}
+
+		@Override
+		public int cachedOffset() // perhaps useful for heap case?
+		{
+			return -1;
+		}
+
+		@Override
 		public boolean byValue()
 		{
 			return m_type.byValue();
@@ -528,5 +868,88 @@ implements
 		{
 			return m_type.alignment();
 		}
+
+		@Override
+		public Storage storage()
+		{
+			return m_type.storage();
+		}
+
+		@Override
+		public boolean notNull()
+		{
+			return m_type.notNull();
+		}
+
+		@Override
+		public boolean hasDefault()
+		{
+			return false;
+		}
+
+		@Override
+		public boolean hasMissing() // not 9.5
+		{
+			return false;
+		}
+
+		@Override
+		public Identity identity() // not 9.5
+		{
+			return Identity.INAPPLICABLE;
+		}
+
+		@Override
+		public Generated generated() // not 9.5
+		{
+			return Generated.INAPPLICABLE;
+		}
+
+		@Override
+		public boolean dropped()
+		{
+			return false;
+		}
+
+		@Override
+		public boolean local()
+		{
+			return true;
+		}
+
+		@Override
+		public int inheritanceCount()
+		{
+			return 0;
+		}
+
+		@Override
+		public RegCollation collation()
+		{
+			return m_type.collation();
+		}
+	}
+
+	private static Identity identityFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'\0': return Identity.INAPPLICABLE;
+		case (byte) 'a': return Identity.GENERATED_ALWAYS;
+		case (byte) 'd': return Identity.GENERATED_BY_DEFAULT;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized Identity '" + (char)b + "' in catalog", "XX000"));
+	}
+
+	private static Generated generatedFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'\0': return Generated.INAPPLICABLE;
+		case (byte) 's': return Generated.STORED;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized Generated '" + (char)b + "' in catalog", "XX000"));
 	}
 }

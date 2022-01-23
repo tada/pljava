@@ -33,13 +33,24 @@ import org.postgresql.pljava.model.*;
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
+import static org.postgresql.pljava.pg.ModelConstants.storageFromCatalog;
 
+import org.postgresql.pljava.pg.adt.GrantAdapter;
+import org.postgresql.pljava.pg.adt.NameAdapter;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGCOLLATION_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGNAMESPACE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGPROCEDURE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.*;
 
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+import org.postgresql.pljava.annotation.BaseUDT.Storage;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
@@ -71,11 +82,49 @@ implements
 	 */
 	abstract SwitchPoint cacheSwitchPoint();
 
+	/* Implementation of Addressed */
+
+	@Override
+	public RegClass.Known<RegType> classId()
+	{
+		return CLASSID;
+	}
+
 	@Override
 	int cacheId()
 	{
 		return TYPEOID;
 	}
+
+	/* Implementation of Named, Namespaced, Owned, AccessControlled */
+
+	private static Simple name(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return
+			t.get(t.descriptor().get("typname"), NameAdapter.SIMPLE_INSTANCE);
+	}
+
+	private static RegNamespace namespace(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typnamespace"), REGNAMESPACE_INSTANCE);
+	}
+
+	private static RegRole owner(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typowner"), REGROLE_INSTANCE);
+	}
+
+	private static List<CatalogObject.Grant> grants(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typacl"), GrantAdapter.LIST_INSTANCE);
+	}
+
+	/* Implementation of RegType */
 
 	/**
 	 * Merely passes the supplied slots array to the superclass constructor; all
@@ -110,6 +159,12 @@ implements
 	private RegClass m_dual = null;
 
 	/**
+	 * A lazily-populated synthetic tuple descriptor with a single element
+	 * of this type.
+	 */
+	private TupleDescriptor m_singleton;
+
+	/**
 	 * Called by the corresponding {@code RegClass} instance if it has just
 	 * looked us up.
 	 *<p>
@@ -135,8 +190,28 @@ implements
 	static final int SLOT_TUPLEDESCRIPTOR;
 	static final int SLOT_LENGTH;
 	static final int SLOT_BYVALUE;
+	static final int SLOT_TYPE;
+	static final int SLOT_CATEGORY;
+	static final int SLOT_PREFERRED;
+	static final int SLOT_DEFINED;
+	static final int SLOT_DELIMITER;
 	static final int SLOT_RELATION;
+	static final int SLOT_ELEMENT;
+	static final int SLOT_ARRAY;
+	static final int SLOT_INPUT;
+	static final int SLOT_OUTPUT;
+	static final int SLOT_RECEIVE;
+	static final int SLOT_SEND;
+	static final int SLOT_MODIFIERINPUT;
+	static final int SLOT_MODIFIEROUTPUT;
+	static final int SLOT_ANALYZE;
+	static final int SLOT_SUBSCRIPT;
 	static final int SLOT_ALIGNMENT;
+	static final int SLOT_STORAGE;
+	static final int SLOT_NOTNULL;
+	static final int SLOT_BASETYPE;
+	static final int SLOT_DIMENSIONS;
+	static final int SLOT_COLLATION;
 	static final int NSLOTS;
 
 	static
@@ -147,17 +222,66 @@ implements
 			.withLookup(lookup().in(RegTypeImpl.class))
 			.withSwitchPoint(RegTypeImpl::cacheSwitchPoint)
 			.withSlots(o -> o.m_slots)
+
+			.withCandidates(
+				CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Addressed.class)
+			.withDependent("cacheTuple", SLOT_TUPLE)
+
 			.withCandidates(RegTypeImpl.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Named.class)
+			.withReturnType(Unqualified.class)
+			.withDependent("name", SLOT_NAME)
+			.withReceiverType(CatalogObjectImpl.Namespaced.class)
+			.withReturnType(null)
+			.withDependent("namespace", SLOT_NAMESPACE)
+			.withReceiverType(CatalogObjectImpl.Owned.class)
+			.withDependent("owner", SLOT_OWNER)
+			.withReceiverType(CatalogObjectImpl.AccessControlled.class)
+			.withDependent("grants", SLOT_ACL)
+
+			.withReceiverType(null)
+			.withSwitchPoint(o ->
+			{
+				RegClassImpl c = (RegClassImpl)o.relation();
+				if ( c.isValid() )
+					return c.m_cacheSwitchPoint;
+				return o.cacheSwitchPoint();
+			})
 			.withDependent(
 				  "tupleDescriptorCataloged", SLOT_TUPLEDESCRIPTOR = i++)
+
+			.withSwitchPoint(RegTypeImpl::cacheSwitchPoint)
 			.withDependent(         "length", SLOT_LENGTH          = i++)
 			.withDependent(        "byValue", SLOT_BYVALUE         = i++)
+			.withDependent(           "type", SLOT_TYPE            = i++)
+			.withDependent(       "category", SLOT_CATEGORY        = i++)
+			.withDependent(      "preferred", SLOT_PREFERRED       = i++)
+			.withDependent(        "defined", SLOT_DEFINED         = i++)
+			.withDependent(      "delimiter", SLOT_DELIMITER       = i++)
 			.withDependent(       "relation", SLOT_RELATION        = i++)
+			.withDependent(        "element", SLOT_ELEMENT         = i++)
+			.withDependent(          "array", SLOT_ARRAY           = i++)
+			.withDependent(          "input", SLOT_INPUT           = i++)
+			.withDependent(         "output", SLOT_OUTPUT          = i++)
+			.withDependent(        "receive", SLOT_RECEIVE         = i++)
+			.withDependent(           "send", SLOT_SEND            = i++)
+			.withDependent(  "modifierInput", SLOT_MODIFIERINPUT   = i++)
+			.withDependent( "modifierOutput", SLOT_MODIFIEROUTPUT  = i++)
+			.withDependent(        "analyze", SLOT_ANALYZE         = i++)
+			.withDependent(      "subscript", SLOT_SUBSCRIPT       = i++)
 			.withDependent(      "alignment", SLOT_ALIGNMENT       = i++)
+			.withDependent(        "storage", SLOT_STORAGE         = i++)
+			.withDependent(        "notNull", SLOT_NOTNULL         = i++)
+			.withDependent(       "baseType", SLOT_BASETYPE        = i++)
+			.withDependent(     "dimensions", SLOT_DIMENSIONS      = i++)
+			.withDependent(      "collation", SLOT_COLLATION       = i++)
 
 			.build();
 		NSLOTS = i;
 	}
+
+	/* computation methods */
 
 	/**
 	 * Obtain the tuple descriptor for an ordinary cataloged composite type.
@@ -240,6 +364,38 @@ implements
 		return t.get(t.descriptor().get("typbyval"), BOOLEAN_INSTANCE);
 	}
 
+	private static Type type(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return typeFromCatalog(
+			t.get(t.descriptor().get("typtype"), INT1_INSTANCE));
+	}
+
+	private static char category(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return (char)
+			(0xff & t.get(t.descriptor().get("typcategory"), INT1_INSTANCE));
+	}
+
+	private static boolean preferred(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typispreferred"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean defined(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typisdefined"), BOOLEAN_INSTANCE);
+	}
+
+	private static byte delimiter(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typdelim"), INT1_INSTANCE);
+	}
+
 	private static RegClass relation(RegTypeImpl o) throws SQLException
 	{
 		/*
@@ -263,12 +419,138 @@ implements
 		return c;
 	}
 
+	private static RegType element(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typelem"), REGTYPE_INSTANCE);
+	}
+
+	private static RegType array(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typarray"), REGTYPE_INSTANCE);
+	}
+
+	private static RegProcedure<TypeInput> input(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeInput> p = (RegProcedure<TypeInput>)
+			t.get(t.descriptor().get("typinput"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeOutput> output(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeOutput> p = (RegProcedure<TypeOutput>)
+			t.get(t.descriptor().get("typoutput"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeReceive> receive(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeReceive> p = (RegProcedure<TypeReceive>)
+			t.get(t.descriptor().get("typreceive"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeSend> send(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeSend> p = (RegProcedure<TypeSend>)
+			t.get(t.descriptor().get("typsend"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeModifierInput> modifierInput(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeModifierInput> p = (RegProcedure<TypeModifierInput>)
+			t.get(t.descriptor().get("typmodin"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeModifierOutput> modifierOutput(
+		RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeModifierOutput> p = (RegProcedure<TypeModifierOutput>)
+			t.get(t.descriptor().get("typmodout"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeAnalyze> analyze(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeAnalyze> p = (RegProcedure<TypeAnalyze>)
+			t.get(t.descriptor().get("typanalyze"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
+	private static RegProcedure<TypeSubscript> subscript(RegTypeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		@SuppressWarnings("unchecked") // XXX add memo magic here
+		RegProcedure<TypeSubscript> p = (RegProcedure<TypeSubscript>)
+			t.get(t.descriptor().get("typsubscript"), REGPROCEDURE_INSTANCE);
+		return p;
+	}
+
 	private static Alignment alignment(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return alignmentFromCatalog(
 			t.get(t.descriptor().get("typalign"), INT1_INSTANCE));
 	}
+
+	private static Storage storage(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return storageFromCatalog(
+			t.get(t.descriptor().get("typstorage"), INT1_INSTANCE));
+	}
+
+	private static boolean notNull(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typnotnull"), BOOLEAN_INSTANCE);
+	}
+
+	private static RegType baseType(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typbasetype"), REGTYPE_INSTANCE);
+	}
+
+	private static int dimensions(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typndims"), INT4_INSTANCE);
+	}
+
+	private static RegCollation collation(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typcollation"), REGCOLLATION_INSTANCE);
+	}
+
+	/* API methods */
 
 	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
@@ -296,6 +578,7 @@ implements
 		{
 			throw unchecked(t);
 		}
+		// also available in the typcache, FWIW
 	}
 
 	@Override
@@ -305,6 +588,78 @@ implements
 		{
 			MethodHandle h = m_slots[SLOT_BYVALUE];
 			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
+	}
+
+	@Override
+	public Type type()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TYPE];
+			return (Type)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
+	}
+
+	@Override
+	public char category()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CATEGORY];
+			return (char)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean preferred()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_PREFERRED];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean defined()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_DEFINED];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public byte delimiter()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_DELIMITER];
+			return (byte)h.invokeExact(this, h);
 		}
 		catch ( Throwable t )
 		{
@@ -324,12 +679,149 @@ implements
 		{
 			throw unchecked(t);
 		}
+		// also available in the typcache, FWIW
 	}
 
 	@Override
 	public RegType element()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ELEMENT];
+			return (RegType)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
+	}
+
+	@Override
+	public RegType array()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ARRAY];
+			return (RegType)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeInput> input()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_INPUT];
+			return (RegProcedure<TypeInput>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeOutput> output()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_OUTPUT];
+			return (RegProcedure<TypeOutput>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeReceive> receive()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_RECEIVE];
+			return (RegProcedure<TypeReceive>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeSend> send()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_SEND];
+			return (RegProcedure<TypeSend>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeModifierInput> modifierInput()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_MODIFIERINPUT];
+			return (RegProcedure<TypeModifierInput>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeModifierOutput> modifierOutput()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_MODIFIEROUTPUT];
+			return (RegProcedure<TypeModifierOutput>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeAnalyze> analyze()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ANALYZE];
+			return (RegProcedure<TypeAnalyze>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegProcedure<TypeSubscript> subscript()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_SUBSCRIPT];
+			return (RegProcedure<TypeSubscript>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
 	}
 
 	@Override
@@ -339,6 +831,78 @@ implements
 		{
 			MethodHandle h = m_slots[SLOT_ALIGNMENT];
 			return (Alignment)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
+	}
+
+	@Override
+	public Storage storage()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_STORAGE];
+			return (Storage)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
+	}
+
+	@Override
+	public boolean notNull()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_NOTNULL];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegType baseType()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_BASETYPE];
+			return (RegType)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public int dimensions()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_DIMENSIONS];
+			return (int)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public RegCollation collation()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_COLLATION];
+			return (RegCollation)h.invokeExact(this, h);
 		}
 		catch ( Throwable t )
 		{
@@ -375,6 +939,21 @@ implements
 		if ( -1 == m )
 			return 0;
 		return m;
+	}
+
+	/**
+	 * Return a synthetic tuple descriptor with a single element of this type.
+	 */
+	public TupleDescriptor singletonTupleDescriptor()
+	{
+		TupleDescriptor td = m_singleton;
+		if ( null != td )
+			return td;
+		/*
+		 * In case of a race, the synthetic tuple descriptors will be
+		 * equivalent anyway.
+		 */
+		return m_singleton = new TupleDescImpl.OfType(this);
 	}
 
 	/**
@@ -419,6 +998,7 @@ implements
 				CatalogObjectImpl.Factory.formMaybeModifiedType(oid(), typmod);
 		}
 
+		@Override
 		public RegType withoutModifier()
 		{
 			return this;
@@ -460,6 +1040,26 @@ implements
 		public RegType withoutModifier()
 		{
 			return m_base;
+		}
+
+		/**
+		 * Whether a just-mentioned modified type "exists" depends on whether
+		 * its unmodified type exists and has a modifier input function.
+		 *<p>
+		 * No attempt is made here to verify that the modifier value is one that
+		 * the modifier input/output functions would produce or accept.
+		 */
+		@Override
+		public boolean exists()
+		{
+			return m_base.exists()  &&  modifierInput().isValid();
+		}
+
+		@Override
+		public String toString()
+		{
+			String prefix = super.toString();
+			return prefix + "(" + modifier() + ")";
 		}
 	}
 
@@ -574,5 +1174,28 @@ implements
 		{
 			return null != tupleDescriptor();
 		}
+
+		@Override
+		public String toString()
+		{
+			String prefix = super.toString();
+			return prefix + "[" + modifier() + "]";
+		}
+	}
+
+	private static Type typeFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'b': return Type.BASE;
+		case (byte)'c': return Type.COMPOSITE;
+		case (byte)'d': return Type.DOMAIN;
+		case (byte)'e': return Type.ENUM;
+		case (byte)'m': return Type.MULTIRANGE;
+		case (byte)'p': return Type.PSEUDO;
+		case (byte)'r': return Type.RANGE;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized Type type '" + (char)b + "' in catalog", "XX000"));
 	}
 }

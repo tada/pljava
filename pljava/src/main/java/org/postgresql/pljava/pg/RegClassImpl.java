@@ -31,10 +31,21 @@ import org.postgresql.pljava.model.*;
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.Anum_pg_class_reltype;
 import static org.postgresql.pljava.pg.ModelConstants.RELOID; // syscache
+import static org.postgresql.pljava.pg.ModelConstants.CLASS_TUPLE_SIZE;
 
+import static org.postgresql.pljava.pg.adt.ArrayAdapter
+	.FLAT_STRING_LIST_INSTANCE;
+import org.postgresql.pljava.pg.adt.GrantAdapter;
+import org.postgresql.pljava.pg.adt.NameAdapter;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGNAMESPACE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.Primitives.*;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
@@ -62,11 +73,49 @@ implements
 
 	private static UnaryOperator<MethodHandle[]> s_initializer;
 
+	/* Implementation of Addressed */
+
+	@Override
+	public RegClass.Known<RegClass> classId()
+	{
+		return CLASSID;
+	}
+
 	@Override
 	int cacheId()
 	{
 		return RELOID;
 	}
+
+	/* Implementation of Named, Namespaced, Owned, AccessControlled */
+
+	private static Simple name(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return
+			t.get(t.descriptor().get("relname"), NameAdapter.SIMPLE_INSTANCE);
+	}
+
+	private static RegNamespace namespace(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("relnamespace"), REGNAMESPACE_INSTANCE);
+	}
+
+	private static RegRole owner(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("relowner"), REGROLE_INSTANCE);
+	}
+
+	private static List<CatalogObject.Grant> grants(RegClassImpl o)
+	throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("relacl"), GrantAdapter.LIST_INSTANCE);
+	}
+
+	/* Implementation of RegClass */
 
 	RegClassImpl()
 	{
@@ -152,6 +201,20 @@ implements
 
 	static final int SLOT_TUPLEDESCRIPTOR;
 	static final int SLOT_TYPE;
+	static final int SLOT_OFTYPE;
+	static final int SLOT_TOASTRELATION;
+	static final int SLOT_HASINDEX;
+	static final int SLOT_ISSHARED;
+	static final int SLOT_NATTRIBUTES;
+	static final int SLOT_CHECKS;
+	static final int SLOT_HASRULES;
+	static final int SLOT_HASTRIGGERS;
+	static final int SLOT_HASSUBCLASS;
+	static final int SLOT_ROWSECURITY;
+	static final int SLOT_FORCEROWSECURITY;
+	static final int SLOT_ISPOPULATED;
+	static final int SLOT_ISPARTITION;
+	static final int SLOT_OPTIONS;
 	static final int NSLOTS;
 
 	static
@@ -162,12 +225,47 @@ implements
 			.withLookup(lookup())
 			.withSwitchPoint(o -> o.m_cacheSwitchPoint)
 			.withSlots(o -> o.m_slots)
+
+			.withCandidates(
+				CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Addressed.class)
+			.withDependent("cacheTuple", SLOT_TUPLE)
+
 			.withCandidates(RegClassImpl.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Named.class)
+			.withReturnType(Unqualified.class)
+			.withDependent(      "name", SLOT_NAME)
+			.withReceiverType(CatalogObjectImpl.Namespaced.class)
+			.withReturnType(null)
+			.withDependent( "namespace", SLOT_NAMESPACE)
+			.withReceiverType(CatalogObjectImpl.Owned.class)
+			.withDependent(     "owner", SLOT_OWNER)
+			.withReceiverType(CatalogObjectImpl.AccessControlled.class)
+			.withDependent(    "grants", SLOT_ACL)
+
+			.withReceiverType(null)
 			.withDependent( "tupleDescriptor", SLOT_TUPLEDESCRIPTOR  = i++)
 			.withDependent(            "type", SLOT_TYPE             = i++)
+			.withDependent(          "ofType", SLOT_OFTYPE           = i++)
+			.withDependent(   "toastRelation", SLOT_TOASTRELATION    = i++)
+			.withDependent(        "hasIndex", SLOT_HASINDEX         = i++)
+			.withDependent(        "isShared", SLOT_ISSHARED         = i++)
+			.withDependent(     "nAttributes", SLOT_NATTRIBUTES      = i++)
+			.withDependent(          "checks", SLOT_CHECKS           = i++)
+			.withDependent(        "hasRules", SLOT_HASRULES         = i++)
+			.withDependent(     "hasTriggers", SLOT_HASTRIGGERS      = i++)
+			.withDependent(     "hasSubclass", SLOT_HASSUBCLASS      = i++)
+			.withDependent(     "rowSecurity", SLOT_ROWSECURITY      = i++)
+			.withDependent("forceRowSecurity", SLOT_FORCEROWSECURITY = i++)
+			.withDependent(     "isPopulated", SLOT_ISPOPULATED      = i++)
+			.withDependent(     "isPartition", SLOT_ISPARTITION      = i++)
+			.withDependent(         "options", SLOT_OPTIONS          = i++)
+
 			.build();
 		NSLOTS = i;
 	}
+
+	/* computation methods */
 
 	/**
 	 * Return the tuple descriptor for this relation, wrapped in a one-element
@@ -263,6 +361,94 @@ implements
 		return t;
 	}
 
+	private static RegType ofType(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("reloftype"), REGTYPE_INSTANCE);
+	}
+
+	private static RegClass toastRelation(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("reltoastrelid"), REGCLASS_INSTANCE);
+	}
+
+	private static boolean hasIndex(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relhasindex"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean isShared(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relisshared"), BOOLEAN_INSTANCE);
+	}
+
+	private static short nAttributes(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relnatts"), INT2_INSTANCE);
+	}
+
+	private static short checks(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relchecks"), INT2_INSTANCE);
+	}
+
+	private static boolean hasRules(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relhasrules"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean hasTriggers(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relhastriggers"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean hasSubclass(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relhassubclass"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean rowSecurity(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relrowsecurity"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean forceRowSecurity(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return
+			s.get(s.descriptor().get("relforcerowsecurity"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean isPopulated(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relispopulated"), BOOLEAN_INSTANCE);
+	}
+
+	private static boolean isPartition(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(s.descriptor().get("relispartition"), BOOLEAN_INSTANCE);
+	}
+
+	private static List<String> options(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return
+			s.get(s.descriptor().get("reloptions"), FLAT_STRING_LIST_INSTANCE);
+	}
+
+	/* API methods */
+
 	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
 	{
@@ -294,7 +480,15 @@ implements
 	@Override
 	public RegType ofType()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_OFTYPE];
+			return (RegType)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	// am
@@ -311,19 +505,43 @@ implements
 	@Override
 	public RegClass toastRelation()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TOASTRELATION];
+			return (RegClass)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean hasIndex()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASINDEX];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean isShared()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ISSHARED];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	// persistence
@@ -332,49 +550,113 @@ implements
 	@Override
 	public short nAttributes()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_NATTRIBUTES];
+			return (short)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public short checks()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_CHECKS];
+			return (short)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean hasRules()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASRULES];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean hasTriggers()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASTRIGGERS];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean hasSubclass()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_HASSUBCLASS];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean rowSecurity()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ROWSECURITY];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean forceRowSecurity()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_FORCEROWSECURITY];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	@Override
 	public boolean isPopulated()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ISPOPULATED];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	// replident
@@ -382,7 +664,15 @@ implements
 	@Override
 	public boolean isPartition()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ISPARTITION];
+			return (boolean)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	// rewrite
@@ -392,7 +682,15 @@ implements
 	@Override
 	public List<String> options()
 	{
-		throw notyet();
+		try
+		{
+			MethodHandle h = m_slots[SLOT_OPTIONS];
+			return (List<String>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	// partbound
