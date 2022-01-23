@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -52,7 +52,7 @@ jobject pljava_Portal_create(Portal portal, jobject jplan)
 	p2lro.ptrVal = portal->resowner;
 
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
-		pljava_DualState_key(), p2lro.longVal, p2l.longVal, jplan);
+		p2lro.longVal, p2l.longVal, jplan);
 
 	return jportal;
 }
@@ -104,7 +104,7 @@ void pljava_Portal_initialize(void)
 	s_Portal_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Portal"));
 	PgObject_registerNatives2(s_Portal_class, methods);
 	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
+		"(JJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
 }
 
 /****************************************
