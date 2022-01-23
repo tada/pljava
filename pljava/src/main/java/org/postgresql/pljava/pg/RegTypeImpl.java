@@ -20,6 +20,7 @@ import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.SQLType;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 
 import java.util.List;
 
@@ -37,12 +38,15 @@ import static org.postgresql.pljava.pg.ModelConstants.storageFromCatalog;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
+import org.postgresql.pljava.pg.adt.OidAdapter;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCOLLATION_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGNAMESPACE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGPROCEDURE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
+import org.postgresql.pljava.pg.adt.TextAdapter;
+import static org.postgresql.pljava.pg.adt.XMLAdapter.SYNTHETIC_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.*;
 
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
@@ -212,6 +216,7 @@ implements
 	static final int SLOT_BASETYPE;
 	static final int SLOT_DIMENSIONS;
 	static final int SLOT_COLLATION;
+	static final int SLOT_DEFAULTTEXT;
 	static final int NSLOTS;
 
 	static
@@ -276,6 +281,7 @@ implements
 			.withDependent(       "baseType", SLOT_BASETYPE        = i++)
 			.withDependent(     "dimensions", SLOT_DIMENSIONS      = i++)
 			.withDependent(      "collation", SLOT_COLLATION       = i++)
+			.withDependent(    "defaultText", SLOT_DEFAULTTEXT     = i++)
 
 			.build();
 		NSLOTS = i;
@@ -535,7 +541,10 @@ implements
 	private static RegType baseType(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typbasetype"), REGTYPE_INSTANCE);
+		TupleDescriptor td = t.descriptor();
+		int oid = t.get(td.get("typbasetype"), OidAdapter.INT4_INSTANCE);
+		int mod = t.get(td.get("typtypmod"), INT4_INSTANCE);
+		return CatalogObjectImpl.Factory.formMaybeModifiedType(oid, mod);
 	}
 
 	private static int dimensions(RegTypeImpl o) throws SQLException
@@ -548,6 +557,12 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return t.get(t.descriptor().get("typcollation"), REGCOLLATION_INSTANCE);
+	}
+
+	private static String defaultText(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typdefault"), TextAdapter.INSTANCE);
 	}
 
 	/* API methods */
@@ -911,6 +926,42 @@ implements
 		// also available in the typcache, FWIW
 	}
 
+	@Override
+	public SQLXML defaultBin()
+	{
+		/*
+		 * Because of the JDBC rules that an SQLXML instance lasts no longer
+		 * than one transaction and can only be read once, it is not a good
+		 * candidate for caching. We will just fetch a new one from the cached
+		 * tuple as needed.
+		 */
+		TupleTableSlot s = cacheTuple();
+
+		try
+		{
+			return
+				s.get(s.descriptor().get("typdefaultbin"), SYNTHETIC_INSTANCE);
+		}
+		catch ( SQLException e )
+		{
+			throw unchecked(e);
+		}
+	}
+
+	@Override
+	public String defaultText()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_DEFAULTTEXT];
+			return (String)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
 	/**
 	 * Return the expected zero value for {@code subId}.
 	 *<p>
@@ -994,7 +1045,7 @@ implements
 		{
 			if ( -1 == typmod )
 				return this;
-			return (RegType)
+			return
 				CatalogObjectImpl.Factory.formMaybeModifiedType(oid(), typmod);
 		}
 

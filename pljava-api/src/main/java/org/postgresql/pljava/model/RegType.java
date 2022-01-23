@@ -12,6 +12,7 @@
 package org.postgresql.pljava.model;
 
 import java.sql.SQLType;
+import java.sql.SQLXML;
 
 import org.postgresql.pljava.model.CatalogObject.*;
 
@@ -154,8 +155,8 @@ extends
 	RegType baseType();
 	int dimensions();
 	RegCollation collation();
-	// default as pg_node_tree
-	// default as text
+	SQLXML defaultBin();
+	String defaultText();
 	RegType modifier(int typmod);
 
 	/**
