@@ -176,8 +176,16 @@ import org.xml.sax.SAXParseException;
 
 /* ... for SQLXMLImpl.Readable.Synthetic */
 
+import java.io.StringWriter;
+import javax.xml.transform.TransformerConfigurationException;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
 import static org.postgresql.pljava.jdbc.TypeOid.PG_NODE_TREEOID;
+
+/* ... for new model / adapter interoperability */
+
+import org.postgresql.pljava.adt.spi.Datum;
+import org.postgresql.pljava.model.RegType;
 
 /**
  * Implementation of {@link SQLXML} for the SPI connection.
@@ -320,10 +328,30 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	/**
+	 * Create readable SQLXML instance over a {@code Datum.Input}, recording
+	 * the source type.
+	 *<p>
+	 * The source type can be used to detect efforts to store this value into
+	 * a destination of a different type, and apply a verifier for type safety.
+	 */
+	public static SQLXML newReadable(
+		Datum.Input datum, RegType pgType, boolean synthetic)
+	throws SQLException
+	{
+		VarlenaWrapper.Input vwi = (VarlenaWrapper.Input)datum;
+		int oid = pgType.oid();
+
+		if ( synthetic )
+			return new Readable.Synthetic(vwi, oid);
+
+		return new Readable.PgXML(vwi, oid);
+	}
+
+	/**
 	 * Create a new, initially empty and writable, SQLXML instance, whose
 	 * backing memory will in a transaction-scoped PostgreSQL memory context.
 	 */
-	static SQLXML newWritable()
+	public static SQLXML newWritable()
 	{
 		return doInPG(() -> _newWritable());
 	}
@@ -925,7 +953,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %sreadable %swrapped",
-				super.toString(o), (boolean)s_readableVH.getAcquire()
+				super.toString(o), (boolean)s_readableVH.getAcquire(this)
 					? "" : "not ", m_wrapped ? "" : "not ");
 		}
 
@@ -935,7 +963,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			private PgXML(VarlenaWrapper.Input vwi, int oid)
 			throws SQLException
 			{
-				super(vwi.new Stream(), oid);
+				super(vwi.inputStream(), oid);
 			}
 
 			/**
@@ -977,7 +1005,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				if ( null == vw )
 					backingIfNotFreed(); /* shorthand to throw the exception */
 				if ( m_pgTypeID != oid )
-					vw.verify(new Verifier());
+					vw.verify(new Verifier()::verify);
 				return vw;
 			}
 
@@ -1093,6 +1121,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				return new AdjustingSAXSource(backing, new InputSource());
 			}
 
+			@Override
 			protected Adjusting.XML.StAXSource toStAXSource(
 				VarlenaXMLRenderer backing)
 			throws SQLException, XMLStreamException, IOException
@@ -1102,6 +1131,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					"0A000");
 			}
 
+			@Override
 			protected Adjusting.XML.DOMSource toDOMSource(
 				VarlenaXMLRenderer backing)
 			throws
@@ -1111,6 +1141,47 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new SQLFeatureNotSupportedException(
 					"synthetic SQLXML as DOMSource not yet supported",
 					"0A000");
+			}
+
+			/**
+			 * Until there is better support for {@code toBinaryStream} and
+			 * {@code toCharacterStream}, at least supply a working brute-force
+			 * {@code toString} to support quick examination of values.
+			 */
+			@Override
+			public String getString() throws SQLException
+			{
+				XMLReader backing =
+					((Readable<VarlenaXMLRenderer>)this)
+						.backingAndClearReadable();
+				if ( null == backing )
+					throw new SQLNonTransientException(
+						"Attempted use of getString on " +
+						"an unreadable SQLXML object", "55000");
+
+				SAXTransformerFactory saxtf = (SAXTransformerFactory)
+					SAXTransformerFactory.newDefaultInstance();
+				try
+				{
+					TransformerHandler th = saxtf.newTransformerHandler();
+					StringWriter w = new StringWriter();
+					th.setResult(new StreamResult(w));
+
+					backing.setContentHandler(th);
+					backing.setDTDHandler(th);
+					backing.setProperty(
+						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), th);
+					backing.parse(new InputSource());
+					return w.toString();
+				}
+				catch ( TransformerConfigurationException | IOException |
+					SAXException e )
+				{
+					/*
+					 * None of the above should really happen here.
+					 */
+					throw unchecked(e);
+				}
 			}
 		}
 	}
@@ -1479,7 +1550,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %swritable", super.toString(o),
-				(boolean)s_writableVH.getAcquire() ? "" : "not ");
+				(boolean)s_writableVH.getAcquire(this) ? "" : "not ");
 		}
 	}
 
