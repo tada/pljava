@@ -111,14 +111,6 @@ typedef struct
 	jobject       rowProducer;
 	jobject       rowCollector;
 	/*
-	 * Invocation instance, if any, the Java counterpart to currentInvocation
-	 * the C struct. There isn't one unless it gets asked for, then if it is,
-	 * it's saved here, so even though the C currentInvocation really is new on
-	 * each entry from PG, Java will see one Invocation instance throughout the
-	 * sequence of calls.
-	 */
-	jobject       invocation;
-	/*
 	 * Two pieces of state from Invocation.c's management of SPI connection,
 	 * effectively keeping one such connection alive through the sequence of
 	 * calls. I could easily be led to question the advisability of even doing
@@ -127,6 +119,17 @@ typedef struct
 	 */
 	MemoryContext spiContext;
 	bool          hasConnected;
+	/*
+	 * Whether an Invocation instance, the Java counterpart to currentInvocation
+	 * the C struct, has been assigned. One isn't unless it gets asked for, then
+	 * if it is, that's noted here, and (in intermediate row-returning calls)
+	 * cleared in the Invocation struct, to suppress its onExit() behavior when
+	 * those intermediate calls return. So, even though the C currentInvocation
+	 * really is new on each entry from PG, Java will see one Invocation
+	 * instance whose onExit() behavior occurs only at the conclusion of the
+	 * whole sequence of calls.
+	 */
+	bool          hasDual;
 } CallContextData;
 
 /*
@@ -141,7 +144,7 @@ static void stashCallContext(CallContextData *ctxData)
 
 	ctxData->hasConnected  = currentInvocation->hasConnected;
 
-	ctxData->invocation    = currentInvocation->invocation;
+	ctxData->hasDual       = currentInvocation->hasDual;
 
 	if ( wasConnected )
 		return;
@@ -162,7 +165,7 @@ static void _closeIteration(CallContextData* ctxData)
 {
 	jobject dummy;
 	currentInvocation->hasConnected = ctxData->hasConnected;
-	currentInvocation->invocation   = ctxData->invocation;
+	currentInvocation->hasDual      = ctxData->hasDual;
 
 	/*
 	 * Why pass 1 as the call_cntr? We won't always have the actual call_cntr
@@ -570,7 +573,7 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 	ctxData = (CallContextData*)context->user_fctx;
 	currCtx = CurrentMemoryContext; /* save executor's per-row context */
 	currentInvocation->hasConnected = ctxData->hasConnected;
-	currentInvocation->invocation   = ctxData->invocation;
+	currentInvocation->hasDual      = ctxData->hasDual;
 
 	if(JNI_TRUE == pljava_Function_vpcInvoke(ctxData->fn,
 		ctxData->rowProducer, ctxData->rowCollector, (jlong)context->call_cntr,
@@ -580,14 +583,14 @@ Datum Type_invokeSRF(Type self, Function fn, PG_FUNCTION_ARGS)
 		JNI_deleteLocalRef(row);
 		stashCallContext(ctxData);
 		currentInvocation->hasConnected = false;
-		currentInvocation->invocation   = 0;
+		currentInvocation->hasDual      = false;
 		MemoryContextSwitchTo(currCtx);
 		SRF_RETURN_NEXT(context, result);
 	}
 
 	stashCallContext(ctxData);
 	currentInvocation->hasConnected = false;
-	currentInvocation->invocation   = 0;
+	currentInvocation->hasDual      = false;
 	MemoryContextSwitchTo(currCtx);
 
 	/* Unregister this callback and call it manually. We do this because

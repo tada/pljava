@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -10,11 +10,17 @@
  *   Tada AB
  *   Chapman Flack
  */
-package org.postgresql.pljava.jdbc;
+package org.postgresql.pljava.internal;
+
+import java.lang.annotation.Native;
+
+import static java.lang.Integer.highestOneBit;
+
+import java.nio.ByteBuffer;
+import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.postgresql.pljava.internal.Backend;
@@ -40,6 +46,13 @@ import org.postgresql.pljava.internal.PgSavepoint;
  */
 public class Invocation
 {
+	@Native private static final int OFFSET_nestLevel     = 0;
+	@Native private static final int OFFSET_hasDual       = 4;
+	@Native private static final int OFFSET_errorOccurred = 5;
+
+	private static final ByteBuffer s_window =
+		EarlyNatives._window().order(nativeOrder());
+
 	/**
 	 * The current "stack" of invocations.
 	 */
@@ -71,7 +84,7 @@ public class Invocation
 	/**
 	 * @return Returns the savePoint.
 	 */
-	final PgSavepoint getSavepoint()
+	public final PgSavepoint getSavepoint()
 	{
 		return m_savepoint;
 	}
@@ -79,16 +92,16 @@ public class Invocation
 	/**
 	 * @param savepoint The savepoint to set.
 	 */
-	final void setSavepoint(PgSavepoint savepoint)
+	public final void setSavepoint(PgSavepoint savepoint)
 	{
 		m_savepoint = savepoint;
 	}
 
 	/**
-	 * Called from the backend when the invokation exits. Should
-	 * not be invoked any other way.
+	 * Called only from the static {@code onExit} below when the invocation
+	 * is popped; should not be invoked any other way.
 	 */
-	public void onExit(boolean withError)
+	private void onExit(boolean withError)
 	throws SQLException
 	{
 		try
@@ -98,8 +111,19 @@ public class Invocation
 		}
 		finally
 		{
-			s_levels[m_nestingLevel] = null;
+			m_savepoint = null;
 		}
+	}
+
+	/**
+	 * The actual entry point from JNI, which passes a valid nestLevel.
+	 *<p>
+	 * Forwards to the instance method at the corresponding level.
+	 */
+	private static void onExit(int nestLevel, boolean withError)
+	throws SQLException
+	{
+		s_levels[nestLevel].onExit(withError);
 	}
 
 	/**
@@ -109,59 +133,34 @@ public class Invocation
 	{
 		return doInPG(() ->
 		{
-			Invocation curr = _getCurrent();
-			if(curr != null)
-				return curr;
-
-			int level = _getNestingLevel();
+			Invocation curr;
+			int level = s_window.getInt(OFFSET_nestLevel);
 			int top = s_levels.length;
-			if(level < top)
+
+			if(level >= top)
 			{
-				curr = s_levels[level];
-				if(curr != null)
-				{
-					curr._register();
-					return curr;
-				}
-			}
-			else
-			{
-				int newSize = top;
-				do { newSize <<= 2; } while(newSize <= level);
+				int newSize = highestOneBit(level) << 1;
 				Invocation[] levels = new Invocation[newSize];
 				System.arraycopy(s_levels, 0, levels, 0, top);
 				s_levels = levels;
 			}
-			curr = new Invocation(level);
-			s_levels[level] = curr;
-			curr._register();
+
+			curr = s_levels[level];
+			if ( null == curr )
+				s_levels[level] = curr = new Invocation(level);
+
+			s_window.put(OFFSET_hasDual, (byte)1);
 			return curr;
 		});
 	}
 
-	static void clearErrorCondition()
+	public static void clearErrorCondition()
 	{
-		doInPG(Invocation::_clearErrorCondition);
+		doInPG(() -> s_window.put(OFFSET_errorOccurred, (byte)0));
 	}
 
-	/**
-	 * Register this Invocation so that it receives the onExit callback
-	 */
-	private native void  _register();
-	
-	/**
-	 * Returns the current invocation or null if no invocation has been
-	 * registered yet.
-	 */
-	private native static Invocation  _getCurrent();
-
-	/**
-	 * Returns the current nesting level
-	 */
-	private native static int  _getNestingLevel();
-	
-	/**
-	 * Clears the error condition set by elog(ERROR)
-	 */
-	private native static void  _clearErrorCondition();
+	private static class EarlyNatives
+	{
+		private static native ByteBuffer _window();
+	}
 }
