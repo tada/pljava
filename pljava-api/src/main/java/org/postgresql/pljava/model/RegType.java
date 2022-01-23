@@ -17,6 +17,8 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
+import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -105,8 +107,11 @@ extends
 	RegType       REGROLE = formObjectId(CLASSID,       REGROLEOID);
 	RegType  REGCOLLATION = formObjectId(CLASSID,  REGCOLLATIONOID);
 
+	short length();
+	boolean byValue();
 	RegClass relation();
 	RegType element();
+	Alignment alignment();
 	RegType modifier(int typmod);
 
 	/**

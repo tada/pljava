@@ -44,4 +44,14 @@ extends
 	short length();
 	boolean byValue();
 	Alignment alignment();
+
+	/**
+	 * Returns the tuple descriptor to which this attribute belongs.
+	 *<p>
+	 * For a 'cataloged' attribute corresponding to a known relation
+	 * or row type, returns a {@code TupleDescriptor} for that. For a 'virtual'
+	 * attribute obtained from some non-cataloged tuple descriptor, returns
+	 * whatever {@code TupleDescriptor} it came from.
+	 */
+	TupleDescriptor containingTupleDescriptor();
 }

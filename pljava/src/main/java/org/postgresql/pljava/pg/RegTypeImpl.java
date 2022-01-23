@@ -30,8 +30,12 @@ import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
+import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
 
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
+import static org.postgresql.pljava.pg.adt.Primitives.*;
+
+import org.postgresql.pljava.annotation.BaseUDT.Alignment;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -109,7 +113,10 @@ implements
 	static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	static final int SLOT_TUPLEDESCRIPTOR;
+	static final int SLOT_LENGTH;
+	static final int SLOT_BYVALUE;
 	static final int SLOT_RELATION;
+	static final int SLOT_ALIGNMENT;
 	static final int NSLOTS;
 
 	static
@@ -123,7 +130,10 @@ implements
 			.withCandidates(RegTypeImpl.class.getDeclaredMethods())
 			.withDependent(
 				  "tupleDescriptorCataloged", SLOT_TUPLEDESCRIPTOR = i++)
+			.withDependent(         "length", SLOT_LENGTH          = i++)
+			.withDependent(        "byValue", SLOT_BYVALUE         = i++)
 			.withDependent(       "relation", SLOT_RELATION        = i++)
+			.withDependent(      "alignment", SLOT_ALIGNMENT       = i++)
 
 			.build();
 		NSLOTS = i;
@@ -198,6 +208,18 @@ implements
 		return o.m_tupDescHolder = r;
 	}
 
+	private static short length(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typlen"), INT2_INSTANCE);
+	}
+
+	private static boolean byValue(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return t.get(t.descriptor().get("typbyval"), BOOLEAN_INSTANCE);
+	}
+
 	private static RegClass relation(RegTypeImpl o) throws SQLException
 	{
 		/*
@@ -221,6 +243,13 @@ implements
 		return c;
 	}
 
+	private static Alignment alignment(RegTypeImpl o) throws SQLException
+	{
+		TupleTableSlot t = o.cacheTuple();
+		return alignmentFromCatalog(
+			t.get(t.descriptor().get("typalign"), INT1_INSTANCE));
+	}
+
 	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
 	{
@@ -228,6 +257,34 @@ implements
 		{
 			MethodHandle h = m_slots[SLOT_TUPLEDESCRIPTOR];
 			return ((TupleDescriptor.Interned[])h.invokeExact(this, h))[0];
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public short length()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_LENGTH];
+			return (short)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public boolean byValue()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_BYVALUE];
+			return (boolean)h.invokeExact(this, h);
 		}
 		catch ( Throwable t )
 		{
@@ -253,6 +310,21 @@ implements
 	public RegType element()
 	{
 		throw notyet();
+	}
+
+	@Override
+	public Alignment alignment()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_ALIGNMENT];
+			return (Alignment)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+		// also available in the typcache, FWIW
 	}
 
 	/**
