@@ -46,6 +46,21 @@ extern void pljava_ResourceOwner_unregister(void);
  */
 extern jobject pljava_TupleDescriptor_create(TupleDesc tupdesc,  Oid reloid);
 
+/*
+ * Create a PostgreSQL TupleTableSlot (of the specific type specified by
+ * tts_ops) and return a Java TupleTableSlot wrapping it.
+ *
+ * reloid is simply passed along to pljava_TupleDescriptor_create, so may be
+ * passed as InvalidOid with the same effects described there.
+ */
+extern jobject pljava_TupleTableSlot_create(
+	TupleDesc tupdesc, const TupleTableSlotOps *tts_ops, Oid reloid);
+
+/*
+ * Test scaffolding for the time being.
+ */
+extern jobject pljava_TupleTableSlot_fromSPI(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -18,6 +18,7 @@
 #include "org_postgresql_pljava_internal_DualState_SingleFreeErrorData.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIfreeplan.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIcursorClose.h"
+#include "org_postgresql_pljava_internal_DualState_BBHeapFreeTuple.h"
 #include "pljava/DualState.h"
 
 #include "pljava/Exception.h"
@@ -138,6 +139,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod bbHeapFreeTupleMethods[] =
+	{
+		{
+		"_heapFreeTuple",
+		"(Ljava/nio/ByteBuffer;)V",
+		Java_org_postgresql_pljava_internal_DualState_00024BBHeapFreeTuple__1heapFreeTuple
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_cleanEnqueuedInstances = PgObject_getStaticJavaMethod(
@@ -176,6 +187,11 @@ void pljava_DualState_initialize(void)
 	clazz = (jclass)PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState$SingleSPIcursorClose");
 	PgObject_registerNatives2(clazz, singleSPIcursorCloseMethods);
+	JNI_deleteLocalRef(clazz);
+
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$BBHeapFreeTuple");
+	PgObject_registerNatives2(clazz, bbHeapFreeTupleMethods);
 	JNI_deleteLocalRef(clazz);
 
 	/*
@@ -343,5 +359,24 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 		Exception_throw_ERROR("SPI_cursor_close");
 	}
 	PG_END_TRY();
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_BBHeapFreeTuple
+ * Method:    _heapFreeTuple
+ * Signature: (Ljava/nio/ByteBuffer;)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024BBHeapFreeTuple__1heapFreeTuple(
+	JNIEnv* env, jobject _this, jobject bb)
+{
+	HeapTuple tup = (*env)->GetDirectBufferAddress(env, bb);
+	if ( NULL == tup )
+		return;
+	BEGIN_NATIVE_NO_ERRCHECK
+	heap_freetuple(tup);
 	END_NATIVE
 }

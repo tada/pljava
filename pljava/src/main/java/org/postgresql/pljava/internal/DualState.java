@@ -17,6 +17,8 @@ import java.lang.invoke.VarHandle;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 
+import java.nio.ByteBuffer;
+
 import java.sql.SQLException;
 
 import java.util.ArrayDeque;
@@ -27,6 +29,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import static java.util.Objects.requireNonNull;
 import java.util.Queue;
 
 import java.util.concurrent.CancellationException;
@@ -1892,6 +1895,55 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * A {@code DualState} subclass serving only to guard access to a single
+	 * nonnull {@code ByteBuffer} value.
+	 *<p>
+	 * Nothing in particular is done to the native resource at the time of
+	 * {@code javaStateReleased} or {@code javaStateUnreachable}; if it is
+	 * subject to reclamation, this class assumes it will be shortly, in the
+	 * normal operation of the native code. This can be appropriate for native
+	 * state that was set up by a native caller for a short lifetime, such as a
+	 * single function invocation.
+	 */
+	public static abstract class SingleGuardedBB<T> extends DualState<T>
+	{
+		private final ByteBuffer m_guardedBuffer;
+
+		protected SingleGuardedBB(
+			T referent, Lifespan span, ByteBuffer guardedBuffer)
+		{
+			super(referent, span);
+			m_guardedBuffer = requireNonNull(guardedBuffer);
+			assert guardedBuffer.isDirect() : "GuardedBB is not direct";
+		}
+
+		@Override
+		public String toString(Object o)
+		{
+			return
+				String.format(
+					formatString(), super.toString(o), m_guardedBuffer);
+		}
+
+		/**
+		 * Return a {@code printf} format string resembling
+		 * {@code "%s something(%s)"} where the second {@code %s} will be
+		 * the value being guarded; the "something" should indicate what the
+		 * value represents, or what will be done with it when released by Java.
+		 */
+		protected String formatString()
+		{
+			return "%s GuardedBB(%s)";
+		}
+
+		protected final ByteBuffer guardedBuffer()
+		{
+			assert pinnedByCurrentThread() : m("guardedBuffer() without pin");
+			return m_guardedBuffer;
+		}
+	}
+
+	/**
 	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code pfree} of a single pointer.
 	 */
@@ -2173,6 +2225,42 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * or during an end-of-expression-context callback from the executor.
 		 */
 		private native void _spiCursorClose(long pointer);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code heap_freetuple} of the address of a direct byte buffer.
+	 */
+	public static abstract class BBHeapFreeTuple<T>
+	extends SingleGuardedBB<T>
+	{
+		protected BBHeapFreeTuple(
+			T referent, Lifespan span, ByteBuffer hftTarget)
+		{
+			super(referent, span, hftTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return"%s heap_freetuple(%s)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, a
+		 * {@code heap_freetuple}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_heapFreeTuple(guardedBuffer());
+		}
+
+		private native void _heapFreeTuple(ByteBuffer tuple);
 	}
 
 	/**

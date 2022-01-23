@@ -50,6 +50,13 @@ public /*XXX*/ class DatumUtils
 	static final boolean BIG_ENDIAN =
 		ByteOrder.BIG_ENDIAN == ByteOrder.nativeOrder();
 
+	public static TupleTableSlot.Indexed indexedTupleSlot(
+		RegType type, int elements, ByteBuffer nulls, ByteBuffer values)
+	{
+		TupleDescriptor td = new TupleDescImpl.OfType(type);
+		return new TupleTableSlotImpl.Heap.Indexed(td, elements, nulls, values);
+	}
+
 	public static long addressOf(ByteBuffer bb)
 	{
 		if ( bb.isDirect() )

@@ -15,6 +15,8 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
+import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -37,6 +39,9 @@ extends
 	 */
 	RegClass CLASS = formObjectId(RegClass.CLASSID, AttributeRelationId);
 
+	RegClass relation();
 	RegType type();
 	short length();
+	boolean byValue();
+	Alignment alignment();
 }

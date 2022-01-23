@@ -21,6 +21,8 @@ import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.TupleDescImpl.Ephemeral;
 
+import org.postgresql.pljava.annotation.BaseUDT.Alignment;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 abstract class AttributeImpl extends Addressed<RegClass>
@@ -29,6 +31,12 @@ implements
 	AccessControlled<CatalogObject.Grant.OnAttribute>, Attribute
 {
 	@Override
+	public RegClass relation()
+	{
+		throw notyet();
+	}
+
+	@Override
 	public RegType type()
 	{
 		throw notyet();
@@ -36,6 +44,18 @@ implements
 
 	@Override
 	public short length()
+	{
+		throw notyet();
+	}
+
+	@Override
+	public boolean byValue()
+	{
+		throw notyet();
+	}
+
+	@Override
+	public Alignment alignment()
 	{
 		throw notyet();
 	}
