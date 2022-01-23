@@ -36,6 +36,7 @@
 #include "org_postgresql_pljava_pg_DatumUtils.h"
 #include "org_postgresql_pljava_pg_MemoryContextImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_ResourceOwnerImpl_EarlyNatives.h"
+#include "org_postgresql_pljava_pg_TupleDescImpl.h"
 
 /*
  * A compilation unit collecting various native methods used in the pg model
@@ -60,6 +61,24 @@ static jclass s_ResourceOwnerImpl_class;
 static jmethodID s_ResourceOwnerImpl_callback;
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg);
+
+static jclass s_TupleDescImpl_class;
+static jmethodID s_TupleDescImpl_fromByteBuffer;
+
+jobject pljava_TupleDescriptor_create(TupleDesc tupdesc, Oid reloid)
+{
+	jlong tupdesc_size = (jlong)TupleDescSize(tupdesc);
+	jobject td_b = JNI_newDirectByteBuffer(tupdesc, tupdesc_size);
+
+	jobject result = JNI_callStaticObjectMethodLocked(s_TupleDescImpl_class,
+		s_TupleDescImpl_fromByteBuffer,
+		td_b,
+		(jint)tupdesc->tdtypeid, (jint)tupdesc->tdtypmod,
+		(jint)reloid, (jint)tupdesc->tdrefcount);
+
+	JNI_deleteLocalRef(td_b);
+	return result;
+}
 
 static void memoryContextCallback(void *arg)
 {
@@ -200,6 +219,16 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod tdiMethods[] =
+	{
+		{
+		"_assign_record_type_typmod",
+		"(Ljava/nio/ByteBuffer;)I",
+		Java_org_postgresql_pljava_pg_TupleDescImpl__1assign_1record_1type_1typmod
+		},
+		{ 0, 0, 0 }
+	};
+
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CharsetEncodingImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, charsetMethods);
 	JNI_deleteLocalRef(cls);
@@ -227,6 +256,17 @@ void pljava_ModelUtils_initialize(void)
 	JNI_deleteLocalRef(cls);
 	s_ResourceOwnerImpl_callback = PgObject_getStaticJavaMethod(
 		s_ResourceOwnerImpl_class, "callback", "(J)V");
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/TupleDescImpl");
+	s_TupleDescImpl_class = JNI_newGlobalRef(cls);
+	PgObject_registerNatives2(cls, tdiMethods);
+	JNI_deleteLocalRef(cls);
+
+	s_TupleDescImpl_fromByteBuffer = PgObject_getStaticJavaMethod(
+		s_TupleDescImpl_class,
+		"fromByteBuffer",
+		"(Ljava/nio/ByteBuffer;IIII)"
+		"Lorg/postgresql/pljava/model/TupleDescriptor;");
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 }
@@ -503,4 +543,22 @@ Java_org_postgresql_pljava_pg_ResourceOwnerImpl_00024EarlyNatives__1window(JNIEn
 #undef POPULATE
 
 	return r;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_TupleDescImpl
+ * Method:    _assign_record_type_typmod
+ * Signature: (Ljava/nio/ByteBuffer)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_postgresql_pljava_pg_TupleDescImpl__1assign_1record_1type_1typmod(JNIEnv* env, jobject _cls, jobject td_b)
+{
+	TupleDesc td = (*env)->GetDirectBufferAddress(env, td_b);
+	if ( NULL == td )
+		return -1;
+
+	BEGIN_NATIVE_AND_TRY
+	assign_record_type_typmod(td);
+	END_NATIVE_AND_CATCH("_assign_record_type_typmod")
+	return td->tdtypmod;
 }

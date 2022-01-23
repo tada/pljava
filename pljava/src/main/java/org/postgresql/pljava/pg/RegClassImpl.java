@@ -39,6 +39,8 @@ implements
 	{
 	}
 
+	TupleDescriptor.Interned[] m_tupDescHolder;
+
 	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
 	{

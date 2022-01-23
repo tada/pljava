@@ -55,6 +55,12 @@ implements
 	 */
 	static class Cataloged extends AttributeImpl
 	{
+		private final RegClassImpl m_relation;
+
+		Cataloged(RegClassImpl relation)
+		{
+			m_relation = requireNonNull(relation);
+		}
 	}
 
 	/**

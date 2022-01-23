@@ -105,6 +105,20 @@ extends
 	RegType       REGROLE = formObjectId(CLASSID,       REGROLEOID);
 	RegType  REGCOLLATION = formObjectId(CLASSID,  REGCOLLATIONOID);
 
+	RegClass relation();
+	RegType modifier(int typmod);
+
+	/**
+	 * Returns the modifier if this instance has one, else -1.
+	 */
+	int modifier();
+
+	/**
+	 * The corresponding {@link TupleDescriptor TupleDescriptor}, non-null only
+	 * for composite types.
+	 */
+	TupleDescriptor.Interned tupleDescriptor();
+
 	/**
 	 * The name of this type as a {@code String}, as the JDBC
 	 * {@link SQLType SQLType} interface requires.

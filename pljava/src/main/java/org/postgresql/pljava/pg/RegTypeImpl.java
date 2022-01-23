@@ -38,6 +38,47 @@ implements
 	Nonshared<RegType>,	Namespaced<Simple>, Owned,
 	AccessControlled<CatalogObject.USAGE>, RegType
 {
+	@Override
+	public TupleDescriptor.Interned tupleDescriptor()
+	{
+		throw notyet();
+	}
+
+	@Override
+	public RegClass relation()
+	{
+		throw notyet();
+	}
+
+	/**
+	 * Return the expected zero value for {@code subId}.
+	 *<p>
+	 * For keying the {@code CacheMap}, we sneak type modifiers in there
+	 * (PG types do not otherwise use {@code subId}), but that's an
+	 * implementation detail that could be done a different way if upstream
+	 * ever decided to have subIds for types, and having it show in the address
+	 * triple of a modified type could be surprising to an old PostgreSQL hand.
+	 */
+	@Override
+	public int subId()
+	{
+		return 0;
+	}
+
+	/**
+	 * Return the type modifier.
+	 *<p>
+	 * In this implementation, where we snuck it in as the third component
+	 * of the cache key, sneak it back out.
+	 */
+	@Override
+	public int modifier()
+	{
+		int m = super.subId();
+		if ( -1 == m )
+			return 0;
+		return m;
+	}
 
 	/**
 	 * Represents a type that has been mentioned without an accompanying type
@@ -45,6 +86,20 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
+		@Override
+		public int modifier()
+		{
+			return -1;
+		}
+
+		@Override
+		public RegType modifier(int typmod)
+		{
+			if ( -1 == typmod )
+				return this;
+			return (RegType)
+				CatalogObjectImpl.Factory.formMaybeModifiedType(oid(), typmod);
+		}
 	}
 
 	/**
@@ -56,8 +111,19 @@ implements
 	 */
 	static class Modified extends RegTypeImpl
 	{
+		private final NoModifier m_base;
+
 		Modified(NoModifier base)
 		{
+			m_base = base;
+		}
+
+		@Override
+		public RegType modifier(int typmod)
+		{
+			if ( modifier() == typmod )
+				return this;
+			return m_base.modifier(typmod);
 		}
 	}
 
@@ -70,5 +136,13 @@ implements
 	 */
 	static class Blessed extends RegTypeImpl
 	{
+		TupleDescriptor.Interned[] m_tupDescHolder;
+
+		@Override
+		public RegType modifier(int typmod)
+		{
+			throw new UnsupportedOperationException(
+				"may not alter the type modifier of an interned row type");
+		}
 	}
 }
