@@ -21,6 +21,7 @@ module org.postgresql.pljava
 	requires transitive java.compiler;
 
 	exports org.postgresql.pljava;
+	exports org.postgresql.pljava.adt;
 	exports org.postgresql.pljava.adt.spi;
 	exports org.postgresql.pljava.annotation;
 	exports org.postgresql.pljava.model;
