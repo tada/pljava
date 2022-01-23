@@ -49,7 +49,7 @@ extends ByteBufferXMLReader implements VarlenaWrapper
 	}
 
 	@Override
-	public long adopt(DualState.Key cookie) throws SQLException
+	public long adopt() throws SQLException
 	{
 		throw new UnsupportedOperationException(
 			"adopt() on a synthetic XML rendering");
