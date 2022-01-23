@@ -261,7 +261,7 @@ implements TupleDescriptor
 			if ( null != holder )
 			{
 				result = holder[0];
-				assert null != result : "disagree whether RegClass has desc";
+				assert null != result : "disagree whether RegType has desc";
 				return result;
 			}
 
