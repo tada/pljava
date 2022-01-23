@@ -7,9 +7,9 @@ name: PL/Java CI with PostgreSQL version supplied by the runner
 
 on:
   push:
-    branches: [ master, REL1_6_STABLE ]
+    branches: [ master, REL1_7_STABLE, REL1_6_STABLE ]
   pull_request:
-    branches: [ master, REL1_6_STABLE ]
+    branches: [ master, REL1_7_STABLE, REL1_6_STABLE ]
 
 jobs:
   build:
