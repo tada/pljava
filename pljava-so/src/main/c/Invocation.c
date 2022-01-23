@@ -101,6 +101,7 @@ StaticAssertStmt(offsetof(Invocation,fld) == \
 	CONFIRMOFFSET(nestLevel);
 	CONFIRMOFFSET(hasDual);
 	CONFIRMOFFSET(errorOccurred);
+	CONFIRMOFFSET(upperContext);
 
 #undef CONFIRMOFFSET
 
