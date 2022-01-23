@@ -32,6 +32,8 @@ module org.postgresql.pljava
 
 	uses org.postgresql.pljava.Session;
 
+	uses org.postgresql.pljava.model.CatalogObject.Factory;
+
 	provides javax.annotation.processing.Processor
 		with org.postgresql.pljava.annotation.processing.DDRProcessor;
 }
