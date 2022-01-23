@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -65,14 +65,10 @@ jobject pljava_Tuple_internalCreate(HeapTuple ht, bool mustCopy)
 	htH.longVal = 0L; /* ensure that the rest is zeroed out */
 	htH.ptrVal = ht;
 	/*
-	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
-	 * nativeRelease call; that's appropriate (for now) as the Tuple copy is
-	 * being made into JavaMemoryContext, which never gets reset, so only
-	 * unreachability from the Java side will free it.
 	 * XXX? this seems like a lot of tuple copying.
 	 */
 	jht = JNI_newObjectLocked(s_Tuple_class, s_Tuple_init,
-		pljava_DualState_key(), (jlong)0, htH.longVal);
+		htH.longVal);
 	return jht;
 }
 
@@ -100,7 +96,7 @@ void pljava_Tuple_initialize(void)
 	s_Tuple_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Tuple"));
 	PgObject_registerNatives2(s_Tuple_class, methods);
 	s_Tuple_init = PgObject_getJavaMethod(s_Tuple_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+		"(J)V");
 
 	cls = TypeClass_alloc("type.Tuple");
 	cls->JNISignature = "Lorg/postgresql/pljava/internal/Tuple;";

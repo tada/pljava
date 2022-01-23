@@ -757,7 +757,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 					"and \"pljava-api.jar\" files, separated by the correct "
 					"path separator for this platform.")
 					));
-			pljava_DualState_unregister();
+			pljava_ResourceOwner_unregister();
 			_destroyJavaVM(0, 0);
 			goto check_tolerant;
 		}

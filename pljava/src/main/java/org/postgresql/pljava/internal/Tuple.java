@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -26,18 +26,24 @@ public class Tuple
 {
 	private final State m_state;
 
-	Tuple(DualState.Key cookie, long resourceOwner, long pointer)
+	Tuple(long pointer)
 	{
-		m_state = new State(cookie, this, resourceOwner, pointer);
+		m_state = new State(this, pointer);
 	}
 
 	private static class State
 	extends DualState.SingleHeapFreeTuple<Tuple>
 	{
-		private State(
-			DualState.Key cookie, Tuple t, long ro, long ht)
+		private State(Tuple t, long ht)
 		{
-			super(cookie, t, ro, ht);
+			/*
+			 * Passing null as the Lifespan means this will never be
+			 * matched by a lifespanRelease call; that's appropriate (for now) as
+			 * the Tuple copy is being made into JavaMemoryContext, which never
+			 * gets reset, so only unreachability from the Java side
+			 * will free it.
+			 */
+			super(t, null, ht);
 		}
 
 		/**

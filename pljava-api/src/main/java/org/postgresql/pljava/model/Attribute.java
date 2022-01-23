@@ -38,4 +38,5 @@ extends
 	RegClass CLASS = formObjectId(RegClass.CLASSID, AttributeRelationId);
 
 	RegType type();
+	short length();
 }

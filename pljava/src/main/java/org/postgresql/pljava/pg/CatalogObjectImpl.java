@@ -15,6 +15,7 @@ import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.As;
 
 import org.postgresql.pljava.internal.CacheMap;
+import org.postgresql.pljava.internal.Invocation;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
@@ -246,6 +247,24 @@ public class CatalogObjectImpl implements CatalogObject
 		protected CharsetEncoding encodingFromName(String name)
 		{
 			return CharsetEncodingImpl.fromName(name);
+		}
+
+		@Override
+		protected ResourceOwner resourceOwner(int which)
+		{
+			return ResourceOwnerImpl.known(which);
+		}
+
+		@Override
+		protected MemoryContext memoryContext(int which)
+		{
+			return MemoryContextImpl.known(which);
+		}
+
+		@Override
+		protected MemoryContext upperMemoryContext()
+		{
+			return Invocation.upperExecutorContext();
 		}
 
 		@SuppressWarnings("unchecked")

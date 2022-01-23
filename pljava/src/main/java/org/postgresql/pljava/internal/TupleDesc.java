@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -28,20 +28,26 @@ public class TupleDesc
 	private final int m_size;
 	private Class[] m_columnClasses;
 
-	TupleDesc(DualState.Key cookie, long resourceOwner, long pointer, int size)
+	TupleDesc(long pointer, int size)
 	throws SQLException
 	{
-		m_state = new State(cookie, this, resourceOwner, pointer);
+		m_state = new State(this, pointer);
 		m_size = size;
 	}
 
 	private static class State
 	extends DualState.SingleFreeTupleDesc<TupleDesc>
 	{
-		private State(
-			DualState.Key cookie, TupleDesc td, long ro, long hth)
+		private State(TupleDesc td, long hth)
 		{
-			super(cookie, td, ro, hth);
+			/*
+			 * Passing null as the Lifespan means this will never be
+			 * matched by a lifespanRelease call; that's appropriate (for now) as
+			 * the TupleDesc copy is being made into JavaMemoryContext, which
+			 * never gets reset, so only unreachability from the Java side
+			 * will free it.
+			 */
+			super(td, null, hth);
 		}
 
 		/**

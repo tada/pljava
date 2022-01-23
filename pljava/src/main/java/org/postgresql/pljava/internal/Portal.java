@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,6 +14,10 @@ package org.postgresql.pljava.internal;
 
 import org.postgresql.pljava.internal.SPI; // for javadoc
 import static org.postgresql.pljava.internal.Backend.doInPG;
+
+import org.postgresql.pljava.Lifespan;
+
+import org.postgresql.pljava.pg.ResourceOwnerImpl;
 
 import java.sql.SQLException;
 
@@ -34,9 +38,9 @@ public class Portal
 
 	private final State m_state;
 
-	Portal(DualState.Key cookie, long ro, long pointer, ExecutionPlan plan)
+	Portal(long ro, long pointer, ExecutionPlan plan)
 	{
-		m_state = new State(cookie, this, ro, pointer);
+		m_state = new State(this, ResourceOwnerImpl.fromAddress(ro), pointer);
 		m_plan = plan;
 	}
 
@@ -44,9 +48,9 @@ public class Portal
 	extends DualState.SingleSPIcursorClose<Portal>
 	{
 		private State(
-			DualState.Key cookie, Portal referent, long ro, long portal)
+			Portal referent, Lifespan span, long portal)
 		{
-			super(cookie, referent, ro, portal);
+			super(referent, span, portal);
 		}
 
 		/**

@@ -26,6 +26,12 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.internal.Backend;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.PgSavepoint;
+import org.postgresql.pljava.internal.LifespanImpl;
+
+import org.postgresql.pljava.model.MemoryContext;
+
+import static org.postgresql.pljava.pg.DatumUtils.fetchPointer;
+import org.postgresql.pljava.pg.MemoryContextImpl;
 
 /**
  * One invocation, from PostgreSQL, of functionality implemented using PL/Java.
@@ -37,11 +43,12 @@ import org.postgresql.pljava.internal.PgSavepoint;
  * in the C struct for the duration of the invocation.
  * @author Thomas Hallgren
  */
-public class Invocation
+public class Invocation extends LifespanImpl
 {
 	@Native private static final int OFFSET_nestLevel     = 0;
 	@Native private static final int OFFSET_hasDual       = 4;
 	@Native private static final int OFFSET_errorOccurred = 5;
+	@Native private static final int OFFSET_upperContext  = 8;
 
 	private static final ByteBuffer s_window =
 		EarlyNatives._window().order(nativeOrder());
@@ -105,6 +112,7 @@ public class Invocation
 		finally
 		{
 			m_savepoint = null;
+			lifespanRelease();
 		}
 	}
 
@@ -145,6 +153,18 @@ public class Invocation
 			s_window.put(OFFSET_hasDual, (byte)1);
 			return curr;
 		});
+	}
+
+	/**
+	 * The "upper executor" memory context (that is, the context on entry, prior
+	 * to any {@code SPI_connect}) associated with the current (innermost)
+	 * invocation.
+	 */
+	public static MemoryContext upperExecutorContext()
+	{
+		return
+			doInPG(() -> MemoryContextImpl.fromAddress(
+				fetchPointer(s_window, OFFSET_upperContext)));
 	}
 
 	public static void clearErrorCondition()

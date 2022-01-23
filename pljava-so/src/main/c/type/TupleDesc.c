@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -54,15 +54,8 @@ jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 	td = CreateTupleDescCopyConstr(td);
 	tdH.longVal = 0L; /* ensure that the rest is zeroed out */
 	tdH.ptrVal = td;
-	/*
-	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
-	 * nativeRelease call; that's appropriate (for now) as the TupleDesc copy is
-	 * being made into JavaMemoryContext, which never gets reset, so only
-	 * unreachability from the Java side will free it.
-	 * XXX what about invalidating if DDL alters the column layout?
-	 */
 	jtd = JNI_newObjectLocked(s_TupleDesc_class, s_TupleDesc_init,
-		pljava_DualState_key(), (jlong)0, tdH.longVal, (jint)td->natts);
+		tdH.longVal, (jint)td->natts);
 	return jtd;
 }
 
@@ -125,7 +118,7 @@ void pljava_TupleDesc_initialize(void)
 	s_TupleDesc_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleDesc"));
 	PgObject_registerNatives2(s_TupleDesc_class, methods);
 	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJI)V");
+		"(JI)V");
 
 	cls = TypeClass_alloc("type.TupleDesc");
 	cls->JNISignature = "Lorg/postgresql/pljava/internal/TupleDesc;";
