@@ -106,7 +106,16 @@ extends
 	RegType  REGCOLLATION = formObjectId(CLASSID,  REGCOLLATIONOID);
 
 	RegClass relation();
+	RegType element();
 	RegType modifier(int typmod);
+
+	/**
+	 * Returns the {@code RegType} for this type with no modifier, if this
+	 * instance has one.
+	 *<p>
+	 * If not, simply returns {@code this}.
+	 */
+	RegType withoutModifier();
 
 	/**
 	 * Returns the modifier if this instance has one, else -1.

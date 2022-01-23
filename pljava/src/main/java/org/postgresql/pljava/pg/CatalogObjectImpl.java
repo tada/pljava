@@ -14,15 +14,37 @@ package org.postgresql.pljava.pg;
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.As;
 
+import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.CacheMap;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.Invocation;
+import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import static org.postgresql.pljava.internal.SwitchPointCache.setConstant;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+import org.postgresql.pljava.adt.Array.AsFlatList;
+import org.postgresql.pljava.adt.spi.Datum;
+
 import org.postgresql.pljava.model.*;
+import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
+
+import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
+import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
+
+import org.postgresql.pljava.pg.adt.ArrayAdapter;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
+import org.postgresql.pljava.pg.adt.TextAdapter;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
+import java.io.IOException;
+
 import java.lang.annotation.Native;
+
+import java.lang.invoke.MethodHandle;
+import static java.lang.invoke.MethodHandles.lookup;
+import java.lang.invoke.SwitchPoint;
 
 import static java.lang.ref.Reference.reachabilityFence;
 
@@ -31,10 +53,12 @@ import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.SQLException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -464,10 +488,210 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 	}
 
+	/*
+	 * Go ahead and reserve fixed slot offsets for the common tuple/name/
+	 * namespace/owner/acl slots all within Addressed; those that
+	 * correspond to interfaces a given subclass doesn't implement won't
+	 * get used. Being fussier about it here would only complicate the code.
+	 */
+	static final int SLOT_TUPLE     = 0;
+	static final int SLOT_NAME      = 1;
+	static final int SLOT_NAMESPACE = 2;
+	static final int SLOT_OWNER     = 3;
+	static final int SLOT_ACL       = 4;
+	static final int NSLOTS         = 5;
+
 	@SuppressWarnings("unchecked")
 	static class Addressed<T extends CatalogObject.Addressed<T>>
 	extends CatalogObjectImpl implements CatalogObject.Addressed<T>
 	{
+		/**
+		 * Invalidation {@code SwitchPoint} for catalog objects that do not have
+		 * their own selective invalidation callbacks.
+		 *<p>
+		 * PostgreSQL only has a limited number of callback slots, so we do not
+		 * consume one for every type of catalog object. Many will simply depend
+		 * on this {@code SwitchPoint}, which will be invalidated at every
+		 * transaction, subtransaction, or command counter change.
+		 *<p>
+		 * XXX This is not strictly conservative: those are common points where
+		 * PostgreSQL processes invalidations, but there are others (such as
+		 * lock acquisitions) less easy to predict or intercept.
+		 */
+		static final SwitchPoint[] s_globalPoint = { new SwitchPoint() };
+		static final UnaryOperator<MethodHandle[]> s_initializer;
+		final MethodHandle[] m_slots;
+
+		static
+		{
+			s_initializer =
+				new Builder<>(CatalogObjectImpl.Addressed.class)
+				.withLookup(lookup())
+				.withSwitchPoint(o -> s_globalPoint[0])
+				.withCandidates(
+					CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+				.withSlots(o -> o.m_slots)
+				.withDependent("cacheTuple", SLOT_TUPLE)
+				.build();
+		}
+
+		static TupleTableSlot cacheTuple(CatalogObjectImpl.Addressed o)
+		{
+			ByteBuffer heapTuple;
+
+			/*
+			 * The longest we can hold a tuple (non-copied) from syscache is
+			 * for the life of CurrentResourceOwner. We may want to cache the
+			 * thing for longer, if we can snag invalidation messages for it.
+			 * So, call _searchSysCacheCopy, in the JavaMemoryContext, which is
+			 * immortal; we'll arrange below to explicitly free our copy later.
+			 */
+			try ( Checked.AutoCloseable<RuntimeException> ac =
+				allocatingIn(JavaMemoryContext()) )
+			{
+				heapTuple = _searchSysCacheCopy1(o.cacheId(), o.oid());
+				if ( null == heapTuple )
+					return null;
+			}
+
+			/*
+			 * Because our copy is in an immortal memory context, we can
+			 * pass null as the lifespan below. The DualState manager
+			 * created for the TupleTableSlot will therefore not have
+			 * any nativeStateReleased action; on javaStateUnreachable or
+			 * javaStateReleased, it will free the tuple copy.
+			 */
+			return heapTupleGetLightSlot(o.cacheDescriptor(), heapTuple, null);
+		}
+
+		/**
+		 * Find a tuple in the PostgreSQL {@code syscache}, returning a copy
+		 * made in the current memory context.
+		 *<p>
+		 * The key(s) in PostgreSQL are really {@code Datum}; perhaps this
+		 * should be refined to rely on {@link Datum.Accessor Datum.Accessor}
+		 * somehow, once that implements store methods. For present purposes,
+		 * we only need to support 32-bit integers, which will be zero-extended
+		 * to {@code Datum} width.
+		 */
+		static native ByteBuffer _searchSysCacheCopy1(int cacheId, int key1);
+
+		/**
+		 * Find a tuple in the PostgreSQL {@code syscache}, returning a copy
+		 * made in the current memory context.
+		 *<p>
+		 * The key(s) in PostgreSQL are really {@code Datum}; perhaps this
+		 * should be refined to rely on {@link Datum.Accessor Datum.Accessor}
+		 * somehow, once that implements store methods. For present purposes,
+		 * we only need to support 32-bit integers, which will be zero-extended
+		 * to {@code Datum} width.
+		 */
+		static native ByteBuffer _searchSysCacheCopy2(
+			int cacheId, int key1, int key2);
+
+		/**
+		 * Search the table <var>classId</var> for at most one row with the Oid
+		 * <var>objId</var> in column <var>oidCol</var>, using the index
+		 * <var>indexOid</var> if it is not {@code InvalidOid}, returning null
+		 * or a copy of the tuple in the current memory context.
+		 *<p>
+		 * The returned tuple should be like one obtained from {@code syscache}
+		 * in having no external TOAST pointers. The tuple descriptor is passed
+		 * so that {@code toast_flatten_tuple} can be called if necessary.
+		 */
+		static native ByteBuffer _sysTableGetByOid(
+			int classId, int objId, int oidCol, int indexOid, long tupleDesc);
+
+		/**
+		 * Calls {@code lookup_rowtype_tupdesc_noerror} in the PostgreSQL
+		 * {@code typcache}, returning a byte buffer over the result, or null
+		 * if there isn't one (such as when called with a type oid that doesn't
+		 * represent a composite type).
+		 *<p>
+		 * Beware that "noerror" does not prevent an ugly {@code ereport} if
+		 * the oid doesn't represent an existing type at all.
+		 *<p>
+		 * Only to be called by {@code RegTypeImpl}. Declaring it here allows
+		 * that class to be kept pure Java.
+		 *<p>
+		 * This is used when we know we will be caching the result, so
+		 * the native code will already have further incremented
+		 * the reference count (for a counted descriptor) and released the pin
+		 * {@code lookup_rowtype_tupdesc} took, thereby waiving leaked-reference
+		 * warnings. We will hold on to the result until an invalidation message
+		 * tells us not to.
+		 *<p>
+		 * If the descriptor is not reference-counted, ordinarily it would be of
+		 * dubious longevity, but when obtained from the {@code typcache},
+		 * such a descriptor is good for the life of the process (clarified
+		 * in upstream commit bbc227e).
+		 */
+		static native ByteBuffer _lookupRowtypeTupdesc(int oid, int typmod);
+
+		/**
+		 * Return a byte buffer mapping the tuple descriptor
+		 * for {@code pg_class} itself, using only the PostgreSQL
+		 * {@code relcache}.
+		 *<p>
+		 * Only to be called by {@code RegClassImpl}. Declaring it here allows
+		 * that class to be kept pure Java.
+		 *<p>
+		 * Other descriptor lookups on a {@code RegClass} are done by handing
+		 * off to its associated row {@code RegType}, which will look in
+		 * the {@code typcache}. But finding the associated row {@code RegType}
+		 * isn't something {@code RegClass} can do before it has obtained this
+		 * crucial tuple descriptor for its own structure.
+		 *<p>
+		 * This method shall increment the reference count; the caller will pass
+		 * the byte buffer directly to a {@code TupleDescImpl} constructor,
+		 * which assumes that has already happened. The reference count shall be
+		 * incremented without registering the descriptor for leak warnings.
+		 */
+		static native ByteBuffer _tupDescBootstrap();
+
+		/* XXX private */ Addressed()
+		{
+			this(s_initializer.apply(new MethodHandle[NSLOTS]));
+		}
+
+		/**
+		 * Constructor for use by a subclass that supplies a slots array
+		 * (assumed to have length at least NSLOTS).
+		 *<p>
+		 * It is the responsibility of the subclass to initialize the slots
+		 * (including the first NSLOTS ones defined here; s_initializer can be
+		 * used for those, if the default global-switchpoint behavior it offers
+		 * is appropriate).
+		 *<p>
+		 * Some subclasses may do oddball things, such as RegTypeImpl.Modified
+		 * sharing the slots array of its base NoModifier instance.
+		 *<p>
+		 * Any class that will do such a thing must also hold a strong reference
+		 * to whatever instance the slots array 'belongs' to; a reference to
+		 * just the array can't be counted on to keep the other instance live.
+		 */
+		Addressed(MethodHandle[] slots)
+		{
+			if ( InvalidOid == oid() )
+				makeInvalidInstance(slots);
+			m_slots = slots;
+		}
+
+		/**
+		 * Adjust cache slots when constructing an invalid instance.
+		 *<p>
+		 * This implementation stores a permanent null (insensitive to
+		 * invalidation) in {@code SLOT_TUPLE}, which will cause {@code exists}
+		 * to return false and other dependent methods to fail.
+		 *<p>
+		 * An instance method because {@code AttributeImpl.Transient} will
+		 * have to override it; those things have the invalid Oid in real life.
+		 */
+		void makeInvalidInstance(MethodHandle[] slots)
+		{
+			setConstant(slots, SLOT_TUPLE, null);
+		}
+
 		@Override
 		public RegClass.Known<T> classId()
 		{
@@ -478,7 +702,67 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		public boolean exists()
 		{
+			return null != cacheTuple();
+		}
+
+		TupleDescriptor cacheDescriptor()
+		{
+			return classId().tupleDescriptor();
+		}
+
+		TupleTableSlot cacheTuple()
+		{
+			try
+			{
+				MethodHandle h = m_slots[SLOT_TUPLE];
+				return (TupleTableSlot)h.invokeExact(this, h);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
+		}
+
+		/**
+		 * Inheritable placeholder to throw
+		 * {@code UnsupportedOperationException} during development.
+		 */
+		int cacheId()
+		{
 			throw notyet();
+		}
+
+		@Override
+		public String toString()
+		{
+			String prefix = super.toString();
+			if ( this instanceof CatalogObject.Named )
+			{
+				try
+				{
+					CatalogObject.Named named = (CatalogObject.Named)this;
+					if ( ! exists() )
+						return prefix;
+					if ( this instanceof CatalogObject.Namespaced )
+					{
+						CatalogObject.Namespaced spaced =
+							(CatalogObject.Namespaced)this;
+						RegNamespace ns = spaced.namespace();
+						if ( ns.exists() )
+							return prefix + spaced.qualifiedName();
+						return prefix + "(" + ns + ")." + named.name();
+					}
+					return prefix + named.name();
+				}
+				catch ( LinkageError e )
+				{
+					/*
+					 * Do nothing; LinkageError is expected when testing in,
+					 * for example, jshell, and not in a PostgreSQL backend.
+					 */
+				}
+			}
+			return prefix;
 		}
 	}
 
@@ -521,7 +805,16 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		default T name()
 		{
-			throw notyet();
+			try
+			{
+				MethodHandle h =
+					((CatalogObjectImpl.Addressed)this).m_slots[SLOT_NAME];
+				return (T)h.invokeExact(this, h);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
 		}
 	}
 
@@ -531,7 +824,16 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		default RegNamespace namespace()
 		{
-			throw notyet();
+			try
+			{
+				MethodHandle h =
+					((CatalogObjectImpl.Addressed)this).m_slots[SLOT_NAMESPACE];
+				return (RegNamespace)h.invokeExact(this, h);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
 		}
 	}
 
@@ -540,7 +842,16 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		default RegRole owner()
 		{
-			throw notyet();
+			try
+			{
+				MethodHandle h =
+					((CatalogObjectImpl.Addressed)this).m_slots[SLOT_OWNER];
+				return (RegRole)h.invokeExact(this, h);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
 		}
 	}
 
@@ -550,7 +861,21 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		default List<T> grants()
 		{
-			throw notyet();
+			try
+			{
+				MethodHandle h =
+					((CatalogObjectImpl.Addressed)this).m_slots[SLOT_ACL];
+				/*
+				 * The value stored in the slot comes from GrantAdapter, which
+				 * returns undifferentiated List<Grant>, to be confidently
+				 * narrowed here to List<T>.
+				 */
+				return (List<T>)h.invokeExact(this, h);
+			}
+			catch ( Throwable t )
+			{
+				throw unchecked(t);
+			}
 		}
 
 		@Override
@@ -558,6 +883,52 @@ public class CatalogObjectImpl implements CatalogObject
 		{
 			throw notyet();
 		}
+	}
+
+	/**
+	 * Instances of {@code ArrayAdapter} for types used in the catalogs.
+	 *<p>
+	 * A holder interface so these won't be instantiated unless wanted.
+	 */
+	public interface ArrayAdapters
+	{
+		ArrayAdapter<List<RegClass>,?> REGCLASS_LIST_INSTANCE =
+			new ArrayAdapter<>(AsFlatList.of(AsFlatList::nullsIncludedCopy),
+				REGCLASS_INSTANCE);
+
+		ArrayAdapter<List<RegType>,?> REGTYPE_LIST_INSTANCE =
+			new ArrayAdapter<>(AsFlatList.of(AsFlatList::nullsIncludedCopy),
+				REGTYPE_INSTANCE);
+
+		/**
+		 * List of {@code Identifier.Simple} from an array of {@code TEXT}
+		 * that represents SQL identifiers.
+		 */
+		ArrayAdapter<List<Identifier.Simple>,?> TEXT_NAME_LIST_INSTANCE =
+			new ArrayAdapter<>(
+				/*
+				 * A custom array contract is an anonymous class, not just a
+				 * lambda, so the compiler will record the actual type arguments
+				 * with which it specializes the generic contract.
+				 */
+				new Adapter.Contract.Array<List<Identifier.Simple>,String>()
+				{
+					@Override
+					public List<Identifier.Simple> construct(
+						int nDims, int[] dimsAndBounds, As<String,?> adapter,
+						TupleTableSlot.Indexed slot)
+						throws SQLException
+					{
+						int n = slot.elements();
+						Identifier.Simple[] names = new Identifier.Simple[n];
+						for ( int i = 0; i < n; ++ i )
+							names[i] =
+								Identifier.Simple.fromCatalog(
+									slot.get(i, adapter));
+						return List.of(names);
+					}
+				},
+				TextAdapter.INSTANCE);
 	}
 
 	private static final StackWalker s_walker =

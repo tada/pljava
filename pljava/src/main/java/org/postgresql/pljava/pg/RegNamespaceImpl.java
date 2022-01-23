@@ -14,6 +14,7 @@ package org.postgresql.pljava.pg;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.ModelConstants.NAMESPACEOID; // syscache
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -22,4 +23,9 @@ implements
 	Nonshared<RegNamespace>, Named<Simple>, Owned,
 	AccessControlled<CatalogObject.Grant.OnNamespace>, RegNamespace
 {
+	@Override
+	int cacheId()
+	{
+		return NAMESPACEOID;
+	}
 }

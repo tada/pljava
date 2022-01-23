@@ -21,6 +21,7 @@ import org.postgresql.pljava.RolePrincipal;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.ModelConstants.AUTHOID; // syscache
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -35,6 +36,12 @@ implements
 	Shared<RegRole>, Named<Simple>,
 	AccessControlled<CatalogObject.Grant.OnRole>, RegRole.Grantee
 {
+	@Override
+	int cacheId()
+	{
+		return AUTHOID;
+	}
+
 	/* API methods */
 
 	@Override

@@ -16,6 +16,7 @@ import java.util.List;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.ModelConstants.RELOID; // syscache
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -33,6 +34,12 @@ implements
 	static class Known<T extends CatalogObject.Addressed<T>>
 	extends RegClassImpl implements RegClass.Known<T>
 	{
+	}
+
+	@Override
+	int cacheId()
+	{
+		return RELOID;
 	}
 
 	RegClassImpl()

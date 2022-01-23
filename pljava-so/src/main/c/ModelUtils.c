@@ -31,6 +31,7 @@
 #include "pljava/ModelUtils.h"
 #include "pljava/VarlenaWrapper.h"
 
+#include "org_postgresql_pljava_pg_CatalogObjectImpl_Addressed.h"
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
 #include "org_postgresql_pljava_pg_CharsetEncodingImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_DatumUtils.h"
@@ -186,6 +187,36 @@ void pljava_ModelUtils_initialize(void)
 {
 	jclass cls;
 
+	JNINativeMethod catalogObjectAddressedMethods[] =
+	{
+		{
+		"_lookupRowtypeTupdesc",
+		"(II)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1lookupRowtypeTupdesc
+		},
+		{
+		"_searchSysCacheCopy1",
+		"(II)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1searchSysCacheCopy1
+		},
+		{
+		"_searchSysCacheCopy2",
+		"(III)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1searchSysCacheCopy2
+		},
+		{
+		"_sysTableGetByOid",
+		"(IIIIJ)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOid
+		},
+		{
+		"_tupDescBootstrap",
+		"()Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod charsetMethods[] =
 	{
 		{
@@ -296,6 +327,10 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CatalogObjectImpl$Addressed");
+	PgObject_registerNatives2(cls, catalogObjectAddressedMethods);
+	JNI_deleteLocalRef(cls);
+
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CharsetEncodingImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, charsetMethods);
 	JNI_deleteLocalRef(cls);
@@ -353,6 +388,165 @@ void pljava_ModelUtils_initialize(void)
 		"(Ljava/nio/ByteBuffer;)Ljava/util/List;");
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _lookupRowtypeTupdesc
+ * Signature: (II)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1lookupRowtypeTupdesc(JNIEnv* env, jobject _cls, jint typeid, jint typmod)
+{
+	TupleDesc td;
+	jlong length;
+	jobject result = NULL;
+	BEGIN_NATIVE_AND_TRY
+	td = lookup_rowtype_tupdesc_noerror(typeid, typmod, true);
+	if ( NULL != td )
+	{
+		/*
+		 * Per contract, we return the tuple descriptor with its reference count
+		 * incremented, but not registered with a resource owner for descriptor
+		 * leak warnings. l_r_t_n() will have incremented already, but also
+		 * registered for warnings. The proper dance is a second pure increment
+		 * here, followed by a DecrTupleDescRefCount to undo what l_r_t_n() did.
+		 * And none of that, of course, if the descriptor is not refcounted.
+		 */
+		if ( td->tdrefcount >= 0 )
+		{
+			++ td->tdrefcount;
+			DecrTupleDescRefCount(td);
+		}
+		length = (jlong)TupleDescSize(td);
+		result = JNI_newDirectByteBuffer((void *)td, length);
+	}
+	END_NATIVE_AND_CATCH("_lookupRowtypeTupdesc")
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _searchSysCacheCopy1
+ * Signature: (II)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1searchSysCacheCopy1(JNIEnv *env, jclass cls, jint cacheId, jint key1)
+{
+	jobject result = NULL;
+	HeapTuple ht;
+	BEGIN_NATIVE_AND_TRY
+	ht = SearchSysCacheCopy1(cacheId, Int32GetDatum(key1));
+	if ( HeapTupleIsValid(ht) )
+	{
+		result = JNI_newDirectByteBuffer(ht, HEAPTUPLESIZE + ht->t_len);
+	}
+	END_NATIVE_AND_CATCH("_searchSysCacheCopy1")
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _searchSysCacheCopy2
+ * Signature: (III)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1searchSysCacheCopy2(JNIEnv *env, jclass cls, jint cacheId, jint key1, jint key2)
+{
+	jobject result = NULL;
+	HeapTuple ht;
+	BEGIN_NATIVE_AND_TRY
+	ht = SearchSysCacheCopy2(cacheId, Int32GetDatum(key1), Int32GetDatum(key2));
+	if ( HeapTupleIsValid(ht) )
+	{
+		result = JNI_newDirectByteBuffer(ht, HEAPTUPLESIZE + ht->t_len);
+	}
+	END_NATIVE_AND_CATCH("_searchSysCacheCopy2")
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _sysTableGetByOid
+ * Signature: (IIIIJ)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOid(JNIEnv *env, jclass cls, jint relOid, jint objOid, jint oidCol, jint indexOid, jlong tupleDesc)
+{
+	jobject result = NULL;
+	HeapTuple ht;
+	Relation rel;
+	SysScanDesc scandesc;
+	ScanKeyData entry[1];
+	Ptr2Long p2l;
+
+	p2l.longVal = tupleDesc;
+
+	BEGIN_NATIVE_AND_TRY
+	rel = relation_open((Oid)relOid, AccessShareLock);
+
+	ScanKeyInit(&entry[0], (AttrNumber)oidCol, BTEqualStrategyNumber, F_OIDEQ,
+		ObjectIdGetDatum((Oid)objOid));
+
+	scandesc = systable_beginscan(
+		rel, (Oid)indexOid, InvalidOid != indexOid, NULL, 1, entry);
+
+	ht = systable_getnext(scandesc);
+
+	/*
+	 * As in the extension.c code from which this is brazenly copied, we assume
+	 * there can be at most one matching tuple. (Oid ought to be the primary key
+	 * of a catalog table we care about, so it's not a daring assumption.)
+	 */
+	if ( HeapTupleIsValid(ht) )
+	{
+		/*
+		 * We wish to return a tuple satisfying the same conditions as if it had
+		 * been obtained from the syscache, including that it has no external
+		 * TOAST pointers. (Inline-compressed values, it could still have.)
+		 */
+		if ( HeapTupleHasExternal(ht) )
+			ht = toast_flatten_tuple(ht, p2l.ptrVal);
+		else
+			ht = heap_copytuple(ht);
+		result = JNI_newDirectByteBuffer(ht, HEAPTUPLESIZE + ht->t_len);
+	}
+
+	systable_endscan(scandesc);
+	relation_close(rel, AccessShareLock);
+	END_NATIVE_AND_CATCH("_sysTableGetByOid")
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _tupDescBootstrap
+ * Signature: ()Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap(JNIEnv* env, jobject _cls)
+{
+	Relation rel;
+	TupleDesc td;
+	jlong length;
+	jobject result = NULL;
+	BEGIN_NATIVE_AND_TRY
+	rel = relation_open(RelationRelationId, AccessShareLock);
+	td = RelationGetDescr(rel);
+	/*
+	 * Per contract, we return the tuple descriptor with its reference count
+	 * incremented, without registering it with a resource owner for descriptor
+	 * leak warnings.
+	 */
+	++ td->tdrefcount;
+	/*
+	 * Can close the relation now that the td reference count is bumped.
+	 */
+	relation_close(rel, AccessShareLock);
+	length = (jlong)TupleDescSize(td);
+	result = JNI_newDirectByteBuffer((void *)td, length);
+	END_NATIVE_AND_CATCH("_tupDescBootstrap")
+	return result;
 }
 
 /*

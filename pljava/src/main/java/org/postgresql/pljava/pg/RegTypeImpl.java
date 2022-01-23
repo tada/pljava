@@ -11,11 +11,14 @@
  */
 package org.postgresql.pljava.pg;
 
+import java.lang.invoke.MethodHandle;
+
 import java.sql.SQLType;
 
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -39,6 +42,28 @@ implements
 	AccessControlled<CatalogObject.USAGE>, RegType
 {
 	@Override
+	int cacheId()
+	{
+		return TYPEOID;
+	}
+
+	/**
+	 * Merely passes the supplied slots array to the superclass constructor; all
+	 * initialization of the slots will be the responsibility of the subclass.
+	 */
+	RegTypeImpl(MethodHandle[] slots)
+	{
+		super(slots);
+	}
+
+	/**
+	 * Temporary scaffolding.
+	 */
+	RegTypeImpl()
+	{
+	}
+
+	@Override
 	public TupleDescriptor.Interned tupleDescriptor()
 	{
 		throw notyet();
@@ -46,6 +71,12 @@ implements
 
 	@Override
 	public RegClass relation()
+	{
+		throw notyet();
+	}
+
+	@Override
+	public RegType element()
 	{
 		throw notyet();
 	}
@@ -100,6 +131,11 @@ implements
 			return (RegType)
 				CatalogObjectImpl.Factory.formMaybeModifiedType(oid(), typmod);
 		}
+
+		public RegType withoutModifier()
+		{
+			return this;
+		}
 	}
 
 	/**
@@ -115,7 +151,8 @@ implements
 
 		Modified(NoModifier base)
 		{
-			m_base = base;
+			super(base.m_slots);
+			m_base = base; // must keep it live, not only share its slots
 		}
 
 		@Override
@@ -124,6 +161,12 @@ implements
 			if ( modifier() == typmod )
 				return this;
 			return m_base.modifier(typmod);
+		}
+
+		@Override
+		public RegType withoutModifier()
+		{
+			return m_base;
 		}
 	}
 
@@ -138,11 +181,23 @@ implements
 	{
 		TupleDescriptor.Interned[] m_tupDescHolder;
 
+		Blessed()
+		{
+			super(((RegTypeImpl)RECORD).m_slots);
+			// RECORD is static final, no other effort needed to keep it live
+		}
+
 		@Override
 		public RegType modifier(int typmod)
 		{
 			throw new UnsupportedOperationException(
 				"may not alter the type modifier of an interned row type");
+		}
+
+		@Override
+		public RegType withoutModifier()
+		{
+			return RECORD;
 		}
 	}
 }
