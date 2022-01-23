@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -78,8 +78,7 @@ void pljava_ExecutionPlan_initialize(void)
 		"org/postgresql/pljava/internal/ExecutionPlan"));
 	s_ExecutionPlan_init = PgObject_getJavaMethod(s_ExecutionPlan_class,
 		"<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;J"
-		"Ljava/lang/Object;J)V");
+		"(Ljava/lang/Object;J)V");
 }
 
 static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
@@ -333,8 +332,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 #endif
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
-				/* (jlong)0 as resource owner: the saved plan isn't transient */
-				pljava_DualState_key(), (jlong)0, key, p2l.longVal);
+				key, p2l.longVal);
 		}
 	}
 	PG_CATCH();
