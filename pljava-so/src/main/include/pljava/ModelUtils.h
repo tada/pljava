@@ -24,6 +24,8 @@ extern "C" {
 
 extern void pljava_ModelUtils_initialize(void);
 
+extern void pljava_ResourceOwner_unregister(void);
+
 #ifdef __cplusplus
 }
 #endif

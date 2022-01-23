@@ -15,6 +15,7 @@ import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.As;
 
 import org.postgresql.pljava.internal.CacheMap;
+import org.postgresql.pljava.internal.Invocation;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
@@ -251,19 +252,19 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		protected ResourceOwner resourceOwner(int which)
 		{
-			throw notyet();
+			return ResourceOwnerImpl.known(which);
 		}
 
 		@Override
 		protected MemoryContext memoryContext(int which)
 		{
-			throw notyet();
+			return MemoryContextImpl.known(which);
 		}
 
 		@Override
 		protected MemoryContext upperMemoryContext()
 		{
-			throw notyet();
+			return Invocation.upperExecutorContext();
 		}
 
 		@SuppressWarnings("unchecked")

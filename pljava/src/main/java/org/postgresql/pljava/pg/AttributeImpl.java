@@ -34,6 +34,12 @@ implements
 		throw notyet();
 	}
 
+	@Override
+	public short length()
+	{
+		throw notyet();
+	}
+
 	boolean foundIn(TupleDescriptor td)
 	{
 		return this == td.attributes().get(subId() - 1);
