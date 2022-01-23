@@ -842,6 +842,14 @@ bool _Type_canReplaceType(Type self, Type other)
 	return self->typeClass == other->typeClass;
 }
 
+/*
+ * The Type_invoke implementation that is 'inherited' by all type classes
+ * except Coerce, Composite, and those corresponding to Java primitives.
+ * This implementation unconditionally switches to the "upper memory context"
+ * recorded in the Invocation before coercing the Java result to a Datum,
+ * in case SPI has been connected (which would have switched to a context that
+ * is reset too soon for the caller to use the result).
+ */
 Datum _Type_invoke(Type self, Function fn, PG_FUNCTION_ARGS)
 {
 	MemoryContext currCtx;
@@ -873,9 +881,24 @@ static jobject _Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
 	return 0;
 }
 
+/*
+ * The Type_datumFromSRF implementation that is 'inherited' by all type classes
+ * except Composite. This implementation makes no use of the rowCollector
+ * parameter, and unconditionally switches to the "upper memory context"
+ * recorded in the Invocation before coercing the Java result to a Datum, in
+ * case SPI has been connected (which would have switched to a context that is
+ * reset too soon for the caller to use the result).
+ */
 static Datum _Type_datumFromSRF(Type self, jobject row, jobject rowCollector)
 {
-	return Type_coerceObject(self, row);
+	MemoryContext currCtx;
+	Datum ret;
+
+	currCtx = Invocation_switchToUpperContext();
+	ret = Type_coerceObject(self, row);
+	MemoryContextSwitchTo(currCtx);
+
+	return ret;
 }
 
 jobject Type_getSRFCollector(Type self, PG_FUNCTION_ARGS)
