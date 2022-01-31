@@ -1115,7 +1115,7 @@ jobject Function_currentLoader(void)
 {
 	Function f;
 
-	if ( NULL == currentInvocation )
+	if ( ! HAS_INVOCATION )
 		return NULL;
 	f = currentInvocation->function;
 	if ( NULL == f )

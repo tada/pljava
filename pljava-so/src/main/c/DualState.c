@@ -350,7 +350,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 		 * does nothing if the current Invocation's errorOccurred flag is set,
 		 * or during an end-of-expression-context callback from the executor.
 		 */
-		if ( NULL != currentInvocation && ! currentInvocation->errorOccurred
+		if ( HAS_INVOCATION && ! currentInvocation->errorOccurred
 			&& ! currentInvocation->inExprContextCB )
 			SPI_cursor_close(p2l.ptrVal);
 	}

@@ -314,7 +314,7 @@ bool beginNativeNoErrCheck(JNIEnv* env)
 
 bool beginNative(JNIEnv* env)
 {
-	if ( 1 > currentInvocation->nestLevel )
+	if ( ! HAS_INVOCATION )
 	{
 		env = JNI_setEnv(env);
 		Exception_throw(ERRCODE_INTERNAL_ERROR,

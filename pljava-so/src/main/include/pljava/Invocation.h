@@ -122,6 +122,7 @@ struct Invocation_
 
 extern Invocation currentInvocation[];
 
+#define HAS_INVOCATION (0 < currentInvocation->nestLevel)
 
 extern void Invocation_assertConnect(void);
 
