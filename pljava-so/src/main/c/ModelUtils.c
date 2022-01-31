@@ -949,7 +949,7 @@ Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1store_1heaptuple(JNIEnv* env,
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1testmeSPI(JNIEnv* env, jobject _cls)
 {
-	jobject result;
+	jobject result = NULL;
 	BEGIN_NATIVE_AND_TRY
 	result = pljava_TupleTableSlot_fromSPI();
 	END_NATIVE_AND_CATCH("_testmeSPI")
