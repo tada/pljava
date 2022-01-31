@@ -176,6 +176,15 @@ static int32 constants[] = {
 
 static void dummy()
 {
+	/*
+	 * PostgreSQL's array.h defines ARR_DIMS in a way that rules out an easy
+	 * ARR_DIMS(0) on a compiler that treats pointer arithmetic on a null
+	 * pointer as an error. gcc is happy to do the needed arithmetic
+	 * on this symbol even when declared auto, but I am guessing clang will
+	 * insist it be static. Ah well, it's just a small waste of space.
+	 */
+	static ArrayType dummyArray;
+
 	StaticAssertStmt(SIZEOF_DATUM == SIZEOF_VOID_P,
 		"PostgreSQL SIZEOF_DATUM and SIZEOF_VOID_P no longer equivalent?");
 
@@ -376,8 +385,8 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 	CONFIRMVLOFFSET( ArrayType, elemtype );
 
 	CONFIRMEXPR( OFFSET_ArrayType_DIMS,
-		(((char*)ARR_DIMS(0)) - (char *)0) - VARHDRSZ );
-	CONFIRMEXPR( SIZEOF_ArrayType_DIM, sizeof *ARR_DIMS(0) );
+		(((char*)ARR_DIMS(&dummyArray)) - (char *)&dummyArray) - VARHDRSZ );
+	CONFIRMEXPR( SIZEOF_ArrayType_DIM, sizeof *ARR_DIMS(&dummyArray) );
 
 #undef CONFIRMSIZEOF
 #undef CONFIRMVLOFFSET
