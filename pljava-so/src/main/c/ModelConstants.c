@@ -384,8 +384,19 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 	CONFIRMVLOFFSET( ArrayType, dataoffset );
 	CONFIRMVLOFFSET( ArrayType, elemtype );
 
+#if 0
+	/*
+	 * Given the way ARR_DIMS is defined in PostgreSQL's array.h, there seems
+	 * to be no way to construct a static assertion for this offset acceptable
+	 * to a compiler that forbids "the conversions of a reinterpret_cast" in
+	 * a constant expression. This will have to be checked in an old-fashioned
+	 * runtime assertion in _initialize, losing the benefit of compile-time
+	 * detection.
+	 */
 	CONFIRMEXPR( OFFSET_ArrayType_DIMS,
 		(((char*)ARR_DIMS(&dummyArray)) - (char *)&dummyArray) - VARHDRSZ );
+#endif
+
 	CONFIRMEXPR( SIZEOF_ArrayType_DIM, sizeof *ARR_DIMS(&dummyArray) );
 
 #undef CONFIRMSIZEOF
@@ -434,6 +445,7 @@ StaticAssertStmt(offsetof(form,fld) == \
 
 void pljava_ModelConstants_initialize(void)
 {
+	ArrayType dummyArray;
 	jclass cls;
 
 	JNINativeMethod methods[] =
@@ -451,6 +463,14 @@ void pljava_ModelConstants_initialize(void)
 		"org/postgresql/pljava/pg/ModelConstants$Natives");
 	PgObject_registerNatives2(cls, methods);
 	JNI_deleteLocalRef(cls);
+
+	/*
+	 * Don't really use PostgreSQL Assert for this; it goes behind elog's back.
+	 */
+	if (org_postgresql_pljava_pg_ModelConstants_OFFSET_ArrayType_DIMS !=
+		(((char*)ARR_DIMS(&dummyArray)) - (char *)&dummyArray) - VARHDRSZ )
+		elog(ERROR,
+			"PL/Java built with mismatched value for OFFSET_ArrayType_DIMS");
 }
 
 /*
