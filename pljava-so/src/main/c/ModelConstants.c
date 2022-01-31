@@ -12,6 +12,9 @@
 
 #include <postgres.h>
 
+#if PG_VERSION_NUM < 140000
+#include <catalog/indexing.h>
+#endif
 #include <catalog/pg_type.h>
 #include <catalog/pg_attribute.h>
 #include <catalog/pg_proc.h>

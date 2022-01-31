@@ -5,55 +5,55 @@ environment:
   matrix:
 #   - SYS: MINGW
 #     JDK: 9
-#     PG: 12
+#     PG: 14
 #   - SYS: MINGW
 #     JDK: 10
-#     PG: 12
+#     PG: 14
     - SYS: MINGW
       JDK: 11
-      PG: 12
+      PG: 14
     - SYS: MINGW
       JDK: 12
-      PG: 12
+      PG: 14
     - SYS: MINGW
       JDK: 13
-      PG: 12
+      PG: 14
     - SYS: MINGW
       JDK: 14
-      PG: 12
+      PG: 14
     - SYS: MINGW
       JDK: 15
-      PG: 12
+      PG: 14
     - SYS: MSVC
       JDK: 15
-      PG: 12
-    - SYS: MSVC
-      JDK: 14
-      PG: 12
-    - SYS: MSVC
-      JDK: 13
-      PG: 12
-    - SYS: MSVC
-      JDK: 12
-      PG: 12
+      PG: 13
+#   - SYS: MSVC
+#     JDK: 14
+#     PG: 13
+#   - SYS: MSVC
+#     JDK: 13
+#     PG: 13
+#   - SYS: MSVC
+#     JDK: 12
+#     PG: 13
     - SYS: MSVC
       JDK: 11
-      PG: 12
+      PG: 13
 #   - SYS: MSVC
 #     JDK: 10
-#     PG: 12
+#     PG: 13
 #   - SYS: MSVC
 #     JDK: 9
 #     PG: 12
-    - SYS: MSVC
-      JDK: 14
-      PG: 11
-    - SYS: MSVC
-      JDK: 14
-      PG: 10
-    - SYS: MSVC
-      JDK: 14
-      PG: 9.6
+#   - SYS: MSVC
+#     JDK: 14
+#     PG: 11
+#   - SYS: MSVC
+#     JDK: 14
+#     PG: 10
+#   - SYS: MSVC
+#     JDK: 14
+#     PG: 9.6
 before_build:
   - ps: .appveyor/appveyor_download_java.ps1
   - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%
