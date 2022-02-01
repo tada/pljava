@@ -61,12 +61,20 @@ import static org.postgresql.pljava.pg.ModelConstants.MAXIMUM_ALIGNOF;
  */
 
 /**
- * PostgreSQL arrays represented as something or other.
+ * Ancestor of adapters that can map a PostgreSQL array to some representation
+ * <var>{@literal <T>}</var>.
+ * @param <T> Java type to represent the entire array.
  */
 public class ArrayAdapter<T> extends Adapter.Array<T>
 {
 	private static final Configuration s_config;
 
+	/**
+	 * An {@code ArrayAdapter} that maps any PostgreSQL array with element type
+	 * compatible with {@link TextAdapter TextAdapter} to flat (disregarding the
+	 * PostgreSQL array's dimensionality) {@code List} of {@code String},
+	 * with any null elements mapped to Java null.
+	 */
 	public static final
 		ArrayAdapter<List<String>> FLAT_STRING_LIST_INSTANCE;
 
@@ -86,7 +94,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a reference
 	 * type {@literal <E>} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public <E> ArrayAdapter(
 		Adapter.As<E,?> element, Contract.Array<T,E,Adapter.As<E,?>> contract)
@@ -97,7 +105,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code long} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsLong<?> element,
@@ -109,7 +117,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code double} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsDouble<?> element,
@@ -121,7 +129,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code int} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsInt<?> element,
@@ -133,7 +141,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code float} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsFloat<?> element,
@@ -145,7 +153,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code short} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsShort<?> element,
@@ -157,7 +165,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code char} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsChar<?> element,
@@ -169,7 +177,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code byte} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsByte<?> element,
@@ -181,7 +189,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	/**
 	 * Constructs an array adapter given an adapter that returns a primitive
 	 * {@code boolean} for the element type, and a corresponding array
-	 * contract.
+	 * contract producing <var>{@literal <T>}</var>.
 	 */
 	public ArrayAdapter(
 		Adapter.AsBoolean<?> element,
@@ -190,6 +198,13 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		super(contract, element, s_config);
 	}
 
+	/**
+	 * Whether this adapter can be applied to the given PostgreSQL type.
+	 *<p>
+	 * If not overridden, simply requires that <var>pgType</var> is an array
+	 * type and that its declared element type is acceptable to {@code canFetch}
+	 * of the configured element adapter.
+	 */
 	@Override
 	public boolean canFetch(RegType pgType)
 	{
@@ -197,6 +212,11 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		return elementType.isValid() && m_elementAdapter.canFetch(elementType);
 	}
 
+	/**
+	 * Returns the result of applying the configured element adapter and
+	 * {@link Contract.Array array contract} to the contents of the array
+	 * <var>in</var>.
+	 */
 	public T fetch(Attribute a, Datum.Input in)
 	throws SQLException, IOException
 	{
@@ -227,6 +247,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 			int dimsOffset = OFFSET_ArrayType_DIMS;
 			int dimsBoundsLength = 2 * nDims * SIZEOF_ArrayType_DIM;
 
+			assert 4 == SIZEOF_ArrayType_DIM : "ArrayType dim size change";
 			IntBuffer dimsAndBounds =
 				mapFixedLength(bb, dimsOffset, dimsBoundsLength).asIntBuffer();
 

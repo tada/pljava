@@ -94,8 +94,9 @@ import static org.postgresql.pljava.adt.spi.AbstractType.substitute;
  * {@code As} case, the top type is a reference type and is given by T directly.
  * In the primitive case, T is the boxed counterpart of the actual top type.
  *<p>
- * To preserve type safety, only classes that are permitted to instantiate
- * this class will be able to manipulate raw {@code Datum}s. An adapter class
+ * To preserve type safety, only recognized "leaf" adapters (those registered
+ * to {@link #configure configure} with a non-null {@link Via <var>via</var>})
+ * will be able to manipulate raw {@code Datum}s. An adapter class
  * should avoid leaking a {@code Datum} to other code.
  */
 public abstract class Adapter<T,U>
@@ -348,6 +349,10 @@ public abstract class Adapter<T,U>
 	 * The type returned could contain free type variables that may be given
 	 * concrete values when the instance {@link #topType() topType} method is
 	 * called on a particular instance of the class.
+	 *<p>
+	 * When <var>cls</var> is a subclass of {@code Primitive}, this method
+	 * returns the {@code Class} object for the actual primitive type,
+	 * not the boxed type.
 	 */
 	public static Type topType(Class<? extends Adapter> cls)
 	{
@@ -371,6 +376,11 @@ public abstract class Adapter<T,U>
 	 * by composition, returns the actual type obtained by unifying
 	 * the "under" adapter's top type with the top adapter's "under" type, then
 	 * making the indicated substitutions in the top adapter's "top" type.
+	 *<p>
+	 * Likewise, for an adapter constructed with an array contract and an
+	 * adapter for the element type, the element adapter's "top" type is unified
+	 * with the contract's element type, and this method returns the contract's
+	 * result type with the same substitutions made.
 	 */
 	public Type topType()
 	{
@@ -465,6 +475,9 @@ public abstract class Adapter<T,U>
 	 * subclass, producing a {@code Configuration} object that must be passed
 	 * to the constructor when creating an instance.
 	 *<p>
+	 * If the adapter class is in a named module, its containing package must be
+	 * exported to at least {@code org.postgresql.pljava}.
+	 *<p>
 	 * When a leaf adapter (one that does not compose over some other adapter,
 	 * but acts directly on PostgreSQL datums) is configured, the necessary
 	 * {@link Permission Permission} is checked.
@@ -483,13 +496,6 @@ public abstract class Adapter<T,U>
 		Type under = underType(cls);
 		Class<?> topErased = erase(top);
 		Class<?> underErased = erase(under);
-
-		if ( Primitive.class.isAssignableFrom(cls) )
-		{
-			MethodType mt = methodType(topErased);
-			assert mt.hasWrappers();
-			top = topErased = mt.unwrap().returnType();
-		}
 
 		MethodHandle underFetcher = null;
 		String fetchName;
