@@ -484,16 +484,7 @@ public abstract class AbstractType implements Type
 			Type oraw = p.getRawType();
 			assert oraw instanceof Class<?>;
 
-			boolean changed = false;
-			for ( int i = 0; i < as.length; ++ i )
-			{
-				Type oa = as[i];
-				Type na = substitute(b, oa);
-				if ( na == oa )
-					continue;
-				as[i] = na;
-				changed = true;
-			}
+			boolean changed = substituted(b, as);
 
 			if ( null != oown )
 			{
@@ -511,15 +502,15 @@ public abstract class AbstractType implements Type
 		}
 		else if ( t instanceof WildcardType )
 		{
-			throw new UnsupportedOperationException(
-				"substitute on a wildcard type");
-			/*
-			 * Probably just substitute all the lower and/or upper bounds, as
-			 * long as b is known to be the right set of bindings for the type
-			 * that contains the member declaration, but I'm not convinced
-			 * at present that wouldn't require more work keeping track
-			 * of bindings.
-			 */
+			WildcardType w = (WildcardType)t;
+			Type[] lbs = w.getLowerBounds();
+			Type[] ubs = w.getUpperBounds();
+
+			boolean changed = substituted(b, lbs) | substituted(b, ubs);
+
+			if ( changed )
+				return new Wildcard(lbs, ubs);
+			return t;
 		}
 		else if ( t instanceof TypeVariable<?> )
 		{
@@ -543,6 +534,25 @@ public abstract class AbstractType implements Type
 		else
 			throw new UnsupportedOperationException(
 				"substitute on unknown Type " + t.getClass());
+	}
+
+	/**
+	 * Applies substitutions in <var>b</var> to each type in <var>types</var>,
+	 * updating them in place, returning true if any change resulted.
+	 */
+	private static boolean substituted(Bindings b, Type[] types)
+	{
+		boolean changed = false;
+		for ( int i = 0; i < types.length; ++ i )
+		{
+			Type ot = types[i];
+			Type nt = substitute(b, ot);
+			if ( nt == ot )
+				continue;
+			types[i] = nt;
+			changed = true;
+		}
+		return changed;
 	}
 
 	static String toString(Type t)

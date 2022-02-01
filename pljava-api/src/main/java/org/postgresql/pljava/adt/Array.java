@@ -13,7 +13,6 @@ package org.postgresql.pljava.adt;
 
 import java.sql.SQLException;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.postgresql.pljava.Adapter;
@@ -31,8 +30,7 @@ public interface Array
 	 * with no attention to its specified dimensionality or index bounds.
 	 */
 	@FunctionalInterface
-	interface AsFlatList<E>
-	extends Contract.Array<List<E>,E>
+	interface AsFlatList<E> extends Contract.Array<List<E>,E,Adapter.As<E,?>>
 	{
 		/**
 		 * Shorthand for a cast of a suitable method reference to this
@@ -54,10 +52,10 @@ public interface Array
 			throws SQLException
 		{
 			int n = slot.elements();
-			List<E> result = new ArrayList<>(n);
+			E[] result = adapter.arrayOf(n);
 			for ( int i = 0; i < n; ++ i )
-				result.add(slot.get(i, adapter));
-			return result;
+				result[i] = slot.get(i, adapter);
+			return List.of(result);
 		}
 	}
 }

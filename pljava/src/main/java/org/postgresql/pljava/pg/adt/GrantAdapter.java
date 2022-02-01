@@ -39,7 +39,7 @@ public class GrantAdapter extends Adapter.As<Grant,Void>
 {
 	public static final GrantAdapter INSTANCE;
 
-	public static final ArrayAdapter<List<Grant>,?> LIST_INSTANCE;
+	public static final ArrayAdapter<List<Grant>> LIST_INSTANCE;
 
 	static
 	{
@@ -50,8 +50,8 @@ public class GrantAdapter extends Adapter.As<Grant,Void>
 
 		INSTANCE = new GrantAdapter(config);
 
-		LIST_INSTANCE = new ArrayAdapter<>(
-			AsFlatList.of(AsFlatList::nullsIncludedCopy), INSTANCE);
+		LIST_INSTANCE = new ArrayAdapter<>(INSTANCE,
+			AsFlatList.of(AsFlatList::nullsIncludedCopy));
 	}
 
 	private GrantAdapter(Configuration c)

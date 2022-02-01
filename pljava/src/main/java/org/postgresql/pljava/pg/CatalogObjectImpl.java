@@ -13,6 +13,7 @@ package org.postgresql.pljava.pg;
 
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.As;
+import org.postgresql.pljava.Adapter.AsByte;
 
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.CacheMap;
@@ -34,6 +35,7 @@ import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 import org.postgresql.pljava.pg.adt.ArrayAdapter;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
+import org.postgresql.pljava.pg.adt.Primitives;
 import org.postgresql.pljava.pg.adt.TextAdapter;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
@@ -988,26 +990,26 @@ public class CatalogObjectImpl implements CatalogObject
 	 */
 	public interface ArrayAdapters
 	{
-		ArrayAdapter<List<RegClass>,?> REGCLASS_LIST_INSTANCE =
-			new ArrayAdapter<>(AsFlatList.of(AsFlatList::nullsIncludedCopy),
-				REGCLASS_INSTANCE);
+		ArrayAdapter<List<RegClass>> REGCLASS_LIST_INSTANCE =
+			new ArrayAdapter<>(REGCLASS_INSTANCE,
+				AsFlatList.of(AsFlatList::nullsIncludedCopy));
 
-		ArrayAdapter<List<RegType>,?> REGTYPE_LIST_INSTANCE =
-			new ArrayAdapter<>(AsFlatList.of(AsFlatList::nullsIncludedCopy),
-				REGTYPE_INSTANCE);
+		ArrayAdapter<List<RegType>> REGTYPE_LIST_INSTANCE =
+			new ArrayAdapter<>(REGTYPE_INSTANCE,
+				AsFlatList.of(AsFlatList::nullsIncludedCopy));
 
 		/**
 		 * List of {@code Identifier.Simple} from an array of {@code TEXT}
 		 * that represents SQL identifiers.
 		 */
-		ArrayAdapter<List<Identifier.Simple>,?> TEXT_NAME_LIST_INSTANCE =
-			new ArrayAdapter<>(
+		ArrayAdapter<List<Identifier.Simple>> TEXT_NAME_LIST_INSTANCE =
+			new ArrayAdapter<>(TextAdapter.INSTANCE,
 				/*
 				 * A custom array contract is an anonymous class, not just a
 				 * lambda, so the compiler will record the actual type arguments
 				 * with which it specializes the generic contract.
 				 */
-				new Adapter.Contract.Array<List<Identifier.Simple>,String>()
+				new Adapter.Contract.Array<>()
 				{
 					@Override
 					public List<Identifier.Simple> construct(
@@ -1023,8 +1025,54 @@ public class CatalogObjectImpl implements CatalogObject
 									slot.get(i, adapter));
 						return List.of(names);
 					}
-				},
-				TextAdapter.INSTANCE);
+				});
+
+		/**
+		 * List of {@code RegProcedure.ArgMode} from an array of {@code "char"}.
+		 */
+		ArrayAdapter<List<RegProcedure.ArgMode>> ARGMODE_LIST_INSTANCE =
+			new ArrayAdapter<>(Primitives.INT1_INSTANCE,
+				new Adapter.Contract.Array<>()
+				{
+					@Override
+					public List<RegProcedure.ArgMode> construct(
+						int nDims, int[] dimsAndBounds, AsByte<?> adapter,
+						TupleTableSlot.Indexed slot)
+						throws SQLException
+					{
+						int n = slot.elements();
+						RegProcedure.ArgMode[] modes =
+							new RegProcedure.ArgMode[n];
+						for ( int i = 0; i < n; ++ i )
+						{
+							byte in = slot.get(i, adapter);
+							switch ( in )
+							{
+							case (byte)'i':
+								modes[i] = RegProcedure.ArgMode.IN;
+								break;
+							case (byte)'o':
+								modes[i] = RegProcedure.ArgMode.OUT;
+								break;
+							case (byte)'b':
+								modes[i] = RegProcedure.ArgMode.INOUT;
+								break;
+							case (byte)'v':
+								modes[i] = RegProcedure.ArgMode.VARIADIC;
+								break;
+							case (byte)'t':
+								modes[i] = RegProcedure.ArgMode.TABLE;
+								break;
+							default:
+								throw new UnsupportedOperationException(
+									String.format("Unrecognized " +
+										"procedure/function argument mode " +
+										"value %#x", in));
+							}
+						}
+						return List.of(modes);
+					}
+				});
 	}
 
 	private static final StackWalker s_walker =

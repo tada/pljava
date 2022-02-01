@@ -19,6 +19,7 @@ import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
+import static java.lang.reflect.Array.newInstance;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -84,7 +85,7 @@ import static org.postgresql.pljava.adt.spi.AbstractType.substitute;
  * counterpart as U.
  *<p>
  * For a primitive-typed adapter, the "top" type is implicit in the class name
- * {@code asLong}, {@code asInt}, and so on, and the "under" type follows as the
+ * {@code AsLong}, {@code AsInt}, and so on, and the "under" type follows as the
  * parameter U. For ease of reading, the type parameters of the two-parameter
  * classes like {@code As<T,U>} are also in that order, T first.
  *<p>
@@ -99,11 +100,26 @@ import static org.postgresql.pljava.adt.spi.AbstractType.substitute;
  */
 public abstract class Adapter<T,U>
 {
+	/**
+	 * The full generic type returned by this adapter, as refined at the time
+	 * of construction, making use of the type returned by an "under" adapter
+	 * or array contract, if used.
+	 */
 	final Type m_topType;
+
+	/**
+	 * The erasure of the type to be returned.
+	 */
+	final Class<T> m_topErased;
+
 	/**
 	 * The "under" adapter in the composed case; null in a leaf adapter.
 	 */
 	final Adapter<U,?> m_underAdapter;
+
+	/**
+	 * Method handle constructed for this adapter's fetch operation.
+	 */
 	final MethodHandle m_fetchHandle;
 
 	/**
@@ -112,12 +128,15 @@ public abstract class Adapter<T,U>
 	 *<p>
 	 * It can be invoked that way from {@code As} for array adapters; otherwise,
 	 * the subclass constructors all declare the parameter as {@code Class<T>}.
+	 *<p>
+	 * The adapter and contract here are raw types. The accessible subclass
+	 * constructors will constrain their type arguments to be compatible.
 	 */
-	private <A extends Adapter<U,?>, C extends Contract<T>> Adapter(
-		Configuration configuration, A over, C using, Type witness)
+	private Adapter(
+		Configuration configuration, Adapter over, Contract using, Type witness)
 	{
 		requireNonNull(configuration,
-			getClass() + " instantiated without a Configuration object");
+			() -> getClass() + " instantiated without a Configuration object");
 		if ( getClass() != configuration.m_class )
 			throw new IllegalArgumentException(
 				getClass() + " instantiated with a Configuration object " +
@@ -142,7 +161,10 @@ public abstract class Adapter<T,U>
 				top = specialization(using.getClass(), Contract.class)[0];
 
 			MethodHandle mh = leaf.m_fetch.bindTo(this);
-			Class<?> erased = erase(top);
+
+			@SuppressWarnings("unchecked")
+			Class<T> erased = (Class<T>)erase(top);
+
 			if ( null == witness )
 			{
 				if ( top instanceof TypeVariable<?>
@@ -159,6 +181,7 @@ public abstract class Adapter<T,U>
 				mh = mh.asType(mh.type().changeReturnType(erase(witness)));
 			}
 			m_topType = top;
+			m_topErased = erased;
 			m_underAdapter = null;
 			m_fetchHandle = mh;
 			return;
@@ -192,7 +215,20 @@ public abstract class Adapter<T,U>
 		}
 
 		m_topType = top;
-		m_underAdapter = over;
+
+		@SuppressWarnings("unchecked")
+		Class<T> erased = (Class<T>)erase(top);
+		m_topErased = erased;
+
+		/*
+		 * 'over' was declared as a raw type to make this constructor also
+		 * usable from the Array subclass constructor. Here, being an ordinary
+		 * composing adapter, we reassert that 'over' is parameterized <U,?>, as
+		 * the ordinary subclass constructor will have ensured.
+		 */
+		@SuppressWarnings("unchecked")
+		Adapter<U,?> underAdapter = over;
+		m_underAdapter = underAdapter;
 
 		MethodHandle producer = nonLeaf.m_adapt.bindTo(this);
 		MethodHandle fetcher  = over.m_fetchHandle;
@@ -271,15 +307,48 @@ public abstract class Adapter<T,U>
 			" to produce " + topType();
 	}
 
+	/**
+	 * Method that an {@code Adapter} must implement to indicate whether it
+	 * is capable of fetching a given PostgreSQL type.
+	 */
 	public abstract boolean canFetch(RegType pgType);
 
+	/**
+	 * Method that an {@code Adapter} may override to indicate whether it
+	 * is capable of fetching a given PostgreSQL attribute.
+	 *<p>
+	 * If not overridden, this implementation delegates to
+	 * {@link #canFetch(RegType) canFetch} for the attribute's declared
+	 * PostgreSQL type.
+	 */
 	public boolean canFetch(Attribute attr)
 	{
 		return canFetch(attr.type());
 	}
 
+	/**
+	 * Method that an {@code Adapter} must implement to indicate whether it
+	 * is capable of returning some usable representation of SQL null values.
+	 *<p>
+	 * An {@code Adapter} that cannot should only be used with values that
+	 * are known never to be null; it will throw an exception if asked to fetch
+	 * a value that is null.
+	 *<p>
+	 * An adapter usable with null values can be formed by composing, for
+	 * example, an adapter producing {@code Optional} over an adapter that
+	 * cannot fetch nulls.
+	 */
 	public abstract boolean canFetchNull();
 
+	/**
+	 * A static method to indicate the type returned by a given {@code Adapter}
+	 * subclass, based only on the type information recorded for it by the Java
+	 * compiler.
+	 *<p>
+	 * The type returned could contain free type variables that may be given
+	 * concrete values when the instance {@link #topType() topType} method is
+	 * called on a particular instance of the class.
+	 */
 	public static Type topType(Class<? extends Adapter> cls)
 	{
 		Type[] params = specialization(cls, Adapter.class);
@@ -308,6 +377,14 @@ public abstract class Adapter<T,U>
 		return m_topType;
 	}
 
+	/**
+	 * A static method to indicate the "under" type expected by a given
+	 * {@code Adapter} subclass that is intended for composition over another
+	 * adapter, based only on the type information recorded for it by the Java
+	 * compiler.
+	 *<p>
+	 * The type returned could contain free type variables.
+	 */
 	public static Type underType(Class<? extends Adapter> cls)
 	{
 		Type[] params = specialization(cls, Adapter.class);
@@ -317,6 +394,12 @@ public abstract class Adapter<T,U>
 		return params[1];
 	}
 
+	/**
+	 * A class that is returned by the {@link #configure configure} method,
+	 * intended for use during an {@code Adapter} subclass's static
+	 * initialization, and must be supplied to the constructor when instances
+	 * of the class are created.
+	 */
 	protected static abstract class Configuration
 	{
 		final Class<? extends Adapter> m_class;
@@ -377,6 +460,21 @@ public abstract class Adapter<T,U>
 		AccessController.checkPermission(Permission.INSTANCE);
 	}
 
+	/**
+	 * Method that must be called in static initialization of an {@code Adapter}
+	 * subclass, producing a {@code Configuration} object that must be passed
+	 * to the constructor when creating an instance.
+	 *<p>
+	 * When a leaf adapter (one that does not compose over some other adapter,
+	 * but acts directly on PostgreSQL datums) is configured, the necessary
+	 * {@link Permission Permission} is checked.
+	 * @param cls The Adapter subclass being configured.
+	 * @param via null for a composing (non-leaf) adapter; otherwise a value
+	 * of the {@link Via} enumeration, indicating how the underlying PostgreSQL
+	 * datum will be presented to the adapter.
+	 * @throws SecurityException if the class being configured represents a leaf
+	 * adapter and the necessary permission is not held.
+	 */
 	protected static Configuration configure(
 		Class<? extends Adapter> cls, Via via)
 	{
@@ -522,7 +620,7 @@ public abstract class Adapter<T,U>
 	 * composed over another adapter of primitive type, where boxed-class is the
 	 * boxed counterpart of the other adapter's primitive type.
 	 *<p>
-	 * If Java's reflection methods on generic types will be used to compute
+	 * When Java's reflection methods on generic types are used to compute
 	 * the (non-erased) result type of a stack of composed adapters, the type
 	 * variable U can be used in relating the input to the output type of each.
 	 */
@@ -541,7 +639,7 @@ public abstract class Adapter<T,U>
 		 * adapter will produce, if a Class object can specify that more
 		 * precisely than the default typing rules.
 		 */
-		protected <V> As(Configuration c, Adapter<U,V> over, Class<T> witness)
+		protected As(Configuration c, Adapter<U,?> over, Class<T> witness)
 		{
 			super(c, over, null, witness);
 
@@ -572,9 +670,13 @@ public abstract class Adapter<T,U>
 
 		/**
 		 * Used only by the {@code Array} subclass below.
+		 *<p>
+		 * The contract and element adapter here are raw types. The accessible
+		 * subclass constructors will permit only compatible combinations of
+		 * parameterized types.
 		 */
-		private <E,A extends As<E,?>> As(
-			Contract.Array<T,E> using, As<E,?> adapter, Class<T> witness,
+		private As(
+			Contract.Array using, Adapter adapter, Class<T> witness,
 			Configuration c)
 		{
 			super(c, null, using,
@@ -585,16 +687,34 @@ public abstract class Adapter<T,U>
 				mh.asType(mh.type().changeReturnType(Object.class));
 		}
 
-		private static <T,E> Type refinement(
-			Contract.Array<T,E> using, As<E,?> adapter)
+		/**
+		 * Returns the type that will be produced by the array contract
+		 * <var>using</var> when applied to the element-type adapter
+		 * <var>adapter</var>.
+		 *<p>
+		 * Determined by unifying the contract's element type with
+		 * the result type of <var>adapter</var>, then repeating any resulting
+		 * substitutions in the contract's result type.
+		 */
+		private static Type refinement(Contract.Array using, Adapter adapter)
 		{
 			Type[] unrefined =
 				specialization(using.getClass(), Contract.Array.class);
 			Type result = unrefined[0];
 			Type element = unrefined[1];
+			/*
+			 * A Contract that expects a primitive-typed adapter must already be
+			 * specialized to one primitive type, so there is nothing to refine.
+			 */
+			if ( adapter instanceof Primitive )
+				return result;
 			return refine(adapter.topType(), element, result)[1];
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> T fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -609,26 +729,76 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * A default implementation of {@code canFetchNull} that unconditionally
+		 * returns true.
+		 *<p>
+		 * An adapter that extends this class, if it does not override
+		 * {@link #fetchNull fetchNull}, will simply map any SQL null value
+		 * to a Java null.
+		 */
 		@Override
 		public boolean canFetchNull()
 		{
 			return true;
 		}
 
+		/**
+		 * Determines the value to which SQL null should be mapped.
+		 *<p>
+		 * If not overridden, this implementation returns Java null.
+		 */
 		public T fetchNull(Attribute a) throws SQLException
 		{
 			return null;
 		}
+
+		/**
+		 * Allocate an array of the given <var>length</var> with this adapter's
+		 * result type as its component type.
+		 */
+		@SuppressWarnings("unchecked")
+		public T[] arrayOf(int length)
+		{
+			return (T[])newInstance(m_topErased, length);
+		}
 	}
 
-	public abstract static class Array<T,E> extends As<T,Void>
+	/**
+	 * Abstract supertype of array adapters.
+	 *<p>
+	 * Instantiating an array adapter requires supplying an array contract
+	 * and a compatible adapter for the element type, to be stored in the
+	 * corresponding final fields here, which are declared with raw types.
+	 * The several accessible constructors enforce the various compatible
+	 * parameterizations for the two arguments.
+	 */
+	public abstract static class Array<T> extends As<T,Void>
 	{
-		protected final Contract.Array<T,E> m_contract;
-		protected final As<E,?> m_elementAdapter;
+		/**
+		 * The {@code Contract.Array} that this array adapter will use,
+		 * together with the supplied element-type adapter.
+		 *<p>
+		 * Declared here as the raw type. The accessible constructors enforce
+		 * the compatibility requirements between this and the supplied
+		 * element adapter.
+		 */
+		protected final Contract.Array m_contract;
+
+		/**
+		 * The {@code Adapter} that this array adapter will use for the array's
+		 * element type, together with the supplied contract.
+		 *<p>
+		 * Declared here as the raw type. The accessible constructors enforce
+		 * the compatibility requirements between this and the supplied
+		 * contract.
+		 */
+		protected final Adapter m_elementAdapter;
 
 		/**
 		 * Constructor for a leaf array {@code Adapter} that is based on
-		 * a {@code Contract.Array}.
+		 * a {@code Contract.Array} and a reference-returning {@code Adapter}
+		 * for the element type.
 		 * @param using the array Contract that will be used to produce
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
@@ -638,11 +808,163 @@ public abstract class Adapter<T,U>
 		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
-		protected Array(
-			Contract.Array<T,E> using, As<E,?> adapter, Class<T> witness,
-			Configuration c)
+		protected <E> Array(
+			Contract.Array<T,E,As<E,?>> using, As<E,?> adapter,
+			Class<T> witness, Configuration c)
 		{
 			super(using, adapter, witness, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a long-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Long,AsLong<?>> using, AsLong<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a double-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Double,AsDouble<?>> using, AsDouble<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and an int-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Integer,AsInt<?>> using, AsInt<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a float-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Float,AsFloat<?>> using, AsFloat<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a short-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Short,AsShort<?>> using, AsShort<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a char-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Character,AsChar<?>> using, AsChar<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a byte-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Byte,AsByte<?>> using, AsByte<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
+			m_contract = using;
+			m_elementAdapter = adapter;
+		}
+
+		/**
+		 * Constructor for a leaf array {@code Adapter} that is based on
+		 * a {@code Contract.Array} and a boolean-returning {@code Adapter}
+		 * for the element type.
+		 * @param using the array Contract that will be used to produce
+		 * the value returned
+		 * @param adapter an Adapter producing a representation of the array's
+		 * element type
+		 * @param c Configuration instance generated for this class
+		 */
+		protected Array(
+			Contract.Array<T,Boolean,AsBoolean<?>> using, AsBoolean<?> adapter,
+			Configuration c)
+		{
+			super(using, adapter, null, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -672,6 +994,11 @@ public abstract class Adapter<T,U>
 			super(c, over, null, null);
 		}
 
+		/**
+		 * Implementation of {@code canFetchNull} that unconditionally returns
+		 * false, as primitive adapters have no reliably distinguishable values
+		 * to which SQL null can be mapped.
+		 */
 		@Override
 		public boolean canFetchNull()
 		{
@@ -679,6 +1006,10 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of signed and unsigned primitive {@code long}
+	 * adapters.
+	 */
 	public abstract static class AsLong<U> extends Primitive<Long,U>
 	implements TwosComplement
 	{
@@ -687,6 +1018,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> long fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -701,12 +1036,22 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public long fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
 				"SQL NULL cannot be returned as Java long", "22002");
 		}
 
+		/**
+		 * Abstract superclass of signed primitive {@code long} adapters.
+		 */
 		public abstract static class Signed<U> extends AsLong<U>
 		implements TwosComplement.Signed
 		{
@@ -716,6 +1061,9 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Abstract superclass of unsigned primitive {@code long} adapters.
+		 */
 		public abstract static class Unsigned<U> extends AsLong<U>
 		implements TwosComplement.Unsigned
 		{
@@ -727,6 +1075,9 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of primitive {@code double} adapters.
+	 */
 	public abstract static class AsDouble<U> extends Primitive<Double,U>
 	{
 		protected <V,A extends Adapter<U,V>> AsDouble(Configuration c, A over)
@@ -734,6 +1085,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> double fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -748,6 +1103,13 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public double fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
@@ -755,6 +1117,10 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of signed and unsigned primitive {@code int}
+	 * adapters.
+	 */
 	public abstract static class AsInt<U> extends Primitive<Integer,U>
 	implements TwosComplement
 	{
@@ -763,6 +1129,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> int fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -777,12 +1147,22 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public int fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
 				"SQL NULL cannot be returned as Java int", "22002");
 		}
 
+		/**
+		 * Abstract superclass of signed primitive {@code int} adapters.
+		 */
 		public abstract static class Signed<U> extends AsInt<U>
 		implements TwosComplement.Signed
 		{
@@ -792,6 +1172,9 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Abstract superclass of unsigned primitive {@code int} adapters.
+		 */
 		public abstract static class Unsigned<U> extends AsInt<U>
 		implements TwosComplement.Unsigned
 		{
@@ -803,6 +1186,9 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of primitive {@code float} adapters.
+	 */
 	public abstract static class AsFloat<U> extends Primitive<Float,U>
 	{
 		protected <V,A extends Adapter<U,V>> AsFloat(Configuration c, A over)
@@ -810,6 +1196,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> float fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -824,6 +1214,13 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public float fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
@@ -831,6 +1228,10 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of signed and unsigned primitive {@code short}
+	 * adapters.
+	 */
 	public abstract static class AsShort<U> extends Primitive<Short,U>
 	implements TwosComplement
 	{
@@ -839,6 +1240,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> short fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -853,12 +1258,22 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public short fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
 				"SQL NULL cannot be returned as Java short", "22002");
 		}
 
+		/**
+		 * Abstract superclass of signed primitive {@code short} adapters.
+		 */
 		public abstract static class Signed<U> extends AsShort<U>
 		implements TwosComplement.Signed
 		{
@@ -868,6 +1283,9 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Abstract superclass of unsigned primitive {@code short} adapters.
+		 */
 		public abstract static class Unsigned<U> extends AsShort<U>
 		implements TwosComplement.Unsigned
 		{
@@ -879,6 +1297,9 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of primitive {@code char} adapters.
+	 */
 	public abstract static class AsChar<U> extends Primitive<Character,U>
 	{
 		protected <V,A extends Adapter<U,V>> AsChar(Configuration c, A over)
@@ -886,6 +1307,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> char fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -900,6 +1325,13 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public char fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
@@ -907,6 +1339,10 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of signed and unsigned primitive {@code byte}
+	 * adapters.
+	 */
 	public abstract static class AsByte<U> extends Primitive<Byte,U>
 	implements TwosComplement
 	{
@@ -915,6 +1351,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> byte fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -929,12 +1369,22 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public byte fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
 				"SQL NULL cannot be returned as Java byte", "22002");
 		}
 
+		/**
+		 * Abstract superclass of signed primitive {@code byte} adapters.
+		 */
 		public abstract static class Signed<U> extends AsByte<U>
 		implements TwosComplement.Signed
 		{
@@ -944,6 +1394,9 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Abstract superclass of unsigned primitive {@code byte} adapters.
+		 */
 		public abstract static class Unsigned<U> extends AsByte<U>
 		implements TwosComplement.Unsigned
 		{
@@ -955,6 +1408,9 @@ public abstract class Adapter<T,U>
 		}
 	}
 
+	/**
+	 * Abstract superclass of primitive {@code boolean} adapters.
+	 */
 	public abstract static class AsBoolean<U> extends Primitive<Boolean,U>
 	{
 		protected <V,A extends Adapter<U,V>> AsBoolean(Configuration c, A over)
@@ -962,6 +1418,10 @@ public abstract class Adapter<T,U>
 			super(c, over);
 		}
 
+		/**
+		 * Method invoked internally when this {@code Adapter} is used to fetch
+		 * a value; not intended for use in application code.
+		 */
 		public final <B> boolean fetch(
 			Datum.Accessor<B,?> acc, B buffer, int offset, Attribute a)
 		{
@@ -976,6 +1436,13 @@ public abstract class Adapter<T,U>
 			}
 		}
 
+		/**
+		 * Determines the mapping of SQL null.
+		 *<p>
+		 * If not overridden, this implementation throws an
+		 * {@code SQLDataException} with {@code SQLSTATE 22002},
+		 * {@code null_value_no_indicator_parameter}.
+		 */
 		public boolean fetchNull(Attribute a) throws SQLException
 		{
 			throw new SQLDataException(
@@ -1007,11 +1474,15 @@ public abstract class Adapter<T,U>
 		 * The distinguishing feature is an associated {@code Adapter} handling
 		 * the element type of the array-like type. This form of contract may
 		 * be useful for range and multirange types as well as for arrays.
-		 * @param <T> the type to be returned by an instance of the contract
+		 * @param <T> the type to be returned by an instance of the contract.
 		 * @param <E> the type returned by an associated {@code Adapter} for
-		 * the element type
+		 * the element type (or the boxed type, if the adapter returns
+		 * a primitive type).
+		 * @param <A> The subtype of {@code Adapter} that the contract requires;
+		 * reference-returning ({@code As}) and all of the primitive-returning
+		 * types must be distinguished.
 		 */
-		public interface Array<T,E> extends Contract<T>
+		public interface Array<T,E,A extends Adapter<E,?>> extends Contract<T>
 		{
 			/**
 			 * Constructs a representation <var>T</var> representing
@@ -1026,13 +1497,13 @@ public abstract class Adapter<T,U>
 			 * dimsAndBounds[4] is -2, then the array's second dimension uses
 			 * indices in [-2,4). The array is a copy and may be used freely.
 			 * @param adapter an Adapter producing a representation of
-			 * the array's element type
+			 * the array's element type.
 			 * @param slot A TupleTableSlot with multiple components accessible
 			 * by a (single, flat) index, all of the same type, described by
 			 * a one-element TupleDescriptor.
 			 */
 			T construct(
-				int nDims, int[] dimsAndBounds, As<E,?> adapter, Indexed slot)
+				int nDims, int[] dimsAndBounds, A adapter, Indexed slot)
 				throws SQLException;
 		}
 	}

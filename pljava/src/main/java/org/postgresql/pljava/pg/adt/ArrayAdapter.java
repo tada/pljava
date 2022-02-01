@@ -63,12 +63,12 @@ import static org.postgresql.pljava.pg.ModelConstants.MAXIMUM_ALIGNOF;
 /**
  * PostgreSQL arrays represented as something or other.
  */
-public class ArrayAdapter<T,E> extends Adapter.Array<T,E>
+public class ArrayAdapter<T> extends Adapter.Array<T>
 {
 	private static final Configuration s_config;
 
 	public static final
-		ArrayAdapter<List<String>,?> FLAT_STRING_LIST_INSTANCE;
+		ArrayAdapter<List<String>> FLAT_STRING_LIST_INSTANCE;
 
 	static
 	{
@@ -80,26 +80,114 @@ public class ArrayAdapter<T,E> extends Adapter.Array<T,E>
 		s_config = config;
 
 		FLAT_STRING_LIST_INSTANCE = new ArrayAdapter<>(
-			AsFlatList.of(AsFlatList::nullsIncludedCopy), TextAdapter.INSTANCE);
+			TextAdapter.INSTANCE, AsFlatList.of(AsFlatList::nullsIncludedCopy));
 	}
 
-	public static <T,E> ArrayAdapter<T,E>
-	arrayAdapter(Contract.Array<T,E> contract, Adapter.As<E,?> element)
-	{
-		try
-		{
-			return new ArrayAdapter<>(contract, element);
-		}
-		catch ( Throwable t )
-		{
-			t.printStackTrace();
-			throw t;
-		}
-	}
-
-	public ArrayAdapter(Contract.Array<T,E> contract, Adapter.As<E,?> element)
+	/**
+	 * Constructs an array adapter given an adapter that returns a reference
+	 * type {@literal <E>} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public <E> ArrayAdapter(
+		Adapter.As<E,?> element, Contract.Array<T,E,Adapter.As<E,?>> contract)
 	{
 		super(contract, element, null, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code long} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsLong<?> element,
+		Contract.Array<T,Long,Adapter.AsLong<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code double} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsDouble<?> element,
+		Contract.Array<T,Double,Adapter.AsDouble<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code int} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsInt<?> element,
+		Contract.Array<T,Integer,Adapter.AsInt<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code float} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsFloat<?> element,
+		Contract.Array<T,Float,Adapter.AsFloat<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code short} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsShort<?> element,
+		Contract.Array<T,Short,Adapter.AsShort<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code char} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsChar<?> element,
+		Contract.Array<T,Character,Adapter.AsChar<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code byte} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsByte<?> element,
+		Contract.Array<T,Byte,Adapter.AsByte<?>> contract)
+	{
+		super(contract, element, s_config);
+	}
+
+	/**
+	 * Constructs an array adapter given an adapter that returns a primitive
+	 * {@code boolean} for the element type, and a corresponding array
+	 * contract.
+	 */
+	public ArrayAdapter(
+		Adapter.AsBoolean<?> element,
+		Contract.Array<T,Boolean,Adapter.AsBoolean<?>> contract)
+	{
+		super(contract, element, s_config);
 	}
 
 	@Override
@@ -181,8 +269,17 @@ public class ArrayAdapter<T,E> extends Adapter.Array<T,E>
 			int[] dimsBoundsArray = new int [ dimsAndBounds.capacity() ];
 			dimsAndBounds.get(dimsBoundsArray);
 
-			return m_contract.construct(
+			/*
+			 * The accessible constructors ensured that m_elementAdapter and
+			 * m_contract have compatible parameterized types. They were stored
+			 * as raw types to avoid having extra type parameters on array
+			 * adapters that are of no interest to code that makes use of them.
+			 */
+			@SuppressWarnings("unchecked")
+			T result = (T)m_contract.construct(
 				nDims, dimsBoundsArray, m_elementAdapter, tti);
+
+			return result;
 		}
 		finally
 		{

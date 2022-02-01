@@ -35,7 +35,6 @@ import org.postgresql.pljava.model.*;
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID; // syscache
 
-import org.postgresql.pljava.pg.adt.ArgModeAdapter;
 import static org.postgresql.pljava.pg.adt.ArrayAdapter
 	.FLAT_STRING_LIST_INSTANCE;
 import org.postgresql.pljava.pg.adt.GrantAdapter;
@@ -342,7 +341,7 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		return
 			s.get(s.descriptor().get("proargmodes"),
-				ArgModeAdapter.LIST_INSTANCE);
+				ArrayAdapters.ARGMODE_LIST_INSTANCE);
 	}
 
 	private static List<Simple> argNames(RegProcedureImpl o) throws SQLException
