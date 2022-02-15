@@ -158,10 +158,31 @@ import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple.pgFold;
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
   "ddr.output"           // name of ddr file to write
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_9)
 public class DDRProcessor extends AbstractProcessor
 {
 	private DDRProcessorImpl impl;
+
+	@Override
+	public SourceVersion getSupportedSourceVersion()
+	{
+		/*
+		 * Because this must compile on Java versions back to 9, it must not
+		 * mention by name any SourceVersion constant later than RELEASE_9.
+		 *
+		 * Update latest_tested to be the latest Java release on which this
+		 * annotation processor has been tested without problems.
+		 */
+		int latest_tested = 17;
+		int ordinal_9 = SourceVersion.RELEASE_9.ordinal();
+		int ordinal_latest = latest_tested - 9 + ordinal_9;
+
+		SourceVersion latestSupported = SourceVersion.latestSupported();
+
+		if ( latestSupported.ordinal() <= ordinal_latest )
+			return latestSupported;
+
+		return SourceVersion.values()[ordinal_latest];
+	}
 	
 	@Override
 	public void init( ProcessingEnvironment processingEnv)
