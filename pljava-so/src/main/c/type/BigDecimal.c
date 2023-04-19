@@ -38,9 +38,9 @@ static Datum _BigDecimal_coerceObject(Type self, jobject value)
 	return ret;
 }
 
-static Type BigDecimal_obtain(Oid typeId)
+static StringPL BigDecimal_obtain(Oid typeId)
 {
-	return (Type)StringClass_obtain(s_BigDecimalClass, typeId);
+	return /*(Type)*/StringClass_obtain(s_BigDecimalClass, typeId);
 }
 
 /* Make this datatype available to the postgres system.

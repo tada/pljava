@@ -59,9 +59,9 @@ jvalue _String_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	char* tmp = DatumGetCString(FunctionCall3(
-					&((String)self)->textOutput,
+					&((StringPL)self)->textOutput,
 					arg,
-					ObjectIdGetDatum(((String)self)->elementType),
+					ObjectIdGetDatum(((StringPL)self)->elementType),
 					Int32GetDatum(-1)));
 	result.l = String_createJavaStringFromNTS(tmp);
 	pfree(tmp);
@@ -83,19 +83,19 @@ Datum _String_coerceObject(Type self, jobject jstr)
 	JNI_deleteLocalRef(jstr);
 
 	ret = FunctionCall3(
-					&((String)self)->textInput,
+					&((StringPL)self)->textInput,
 					CStringGetDatum(tmp),
-					ObjectIdGetDatum(((String)self)->elementType),
+					ObjectIdGetDatum(((StringPL)self)->elementType),
 					Int32GetDatum(-1));
 	pfree(tmp);
 	return ret;
 }
 
-static String String_create(TypeClass cls, Oid typeId)
+static StringPL String_create(TypeClass cls, Oid typeId)
 {
 	HeapTuple    typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
 	Form_pg_type pgType  = (Form_pg_type)GETSTRUCT(typeTup);
-	String self = (String)TypeClass_allocInstance(cls, typeId);
+	StringPL self = (StringPL)TypeClass_allocInstance(cls, typeId);
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	fmgr_info_cxt(pgType->typoutput, &self->textOutput, ctx);
 	fmgr_info_cxt(pgType->typinput,  &self->textInput,  ctx);
@@ -109,7 +109,7 @@ Type String_obtain(Oid typeId)
 	return (Type)StringClass_obtain(s_StringClass, typeId);
 }
 
-String StringClass_obtain(TypeClass self, Oid typeId)
+StringPL StringClass_obtain(TypeClass self, Oid typeId)
 {
 	return String_create(self, typeId);
 }
@@ -366,7 +366,7 @@ void String_initialize(void)
 	s_Object_toString = PgObject_getJavaMethod(s_Object_class, "toString", "()Ljava/lang/String;");
 	s_String_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("java/lang/String"));
 
-	s_StringClass = TypeClass_alloc2("type.String", sizeof(struct TypeClass_), sizeof(struct String_));
+	s_StringClass = TypeClass_alloc2("type.StringPL", sizeof(struct TypeClass_), sizeof(struct String_));
 	s_StringClass->JNISignature   = "Ljava/lang/String;";
 	s_StringClass->javaTypeName   = "java.lang.String";
 	s_StringClass->canReplaceType = _String_canReplaceType;
