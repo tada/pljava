@@ -52,7 +52,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
-
+import org.postgresql.pljava.internal.SPI;
 /**
  * Provides access to the current connection (session) the Java stored
  * procedure is running in.  It is returned from the driver manager
