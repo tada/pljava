@@ -54,7 +54,7 @@ public class SPI
 	public static final int OK_REL_UNREGISTER   = 16;
 	public static final int OK_TD_REGISTER      = 17;
 
-	/**
+		/**
 	 * Execute a command using the internal <code>SPI_exec</code> function.
 	 * @param command The command to execute.
 	 * @param rowCount The maximum number of tuples to create. A value
@@ -67,6 +67,14 @@ public class SPI
 	private static int exec(String command, int rowCount)
 	{
 		return doInPG(() -> _exec(command, rowCount));
+	}
+
+	public static void commit() {
+		doInPG(() -> _commit());
+	}
+
+	public static void rollback() {
+		doInPG(() -> _rollback());
 	}
 
 	public static void freeTupTable()
@@ -156,4 +164,10 @@ public class SPI
 	private native static int _getResult();
 	private native static void _freeTupTable();
 	private native static TupleTable _getTupTable(TupleDesc known);
+
+
+	// required by VisionR
+	private native static void _commit();
+	// required by VisionR
+	private native static void _rollback();
 }

@@ -662,6 +662,13 @@ static void initsequencer(enum initstage is, bool tolerant)
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
+		// VISION NEEDED OPENS 
+		JVMOptList_add(&optList, "--add-opens=java.base/java.nio=ALL-UNNAMED", 0, true);
+		JVMOptList_add(&optList, "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED", 0, true);
+		// DO NOT CREATE hs_err_pid in PGDATA directory ?
+		//JVMOptList_add(&optList, "-XX:+SuppressFatalErrorMessage", 0, true);
+		//-------------------------------------------------------------------------------
+
 		effectiveModulePath = getModulePath("--module-path=");
 		if(effectiveModulePath != 0)
 		{
@@ -1512,9 +1519,58 @@ static void JVMOptList_addModuleMain(JVMOptList* jol)
 static void addUserJVMOptions(JVMOptList* optList)
 {
 	const char* cp = vmoptions;
-	
+	//--------------------------------------------
+	// VisionR customization : use newline separator for options, because of problems parsing arguments with space (directory paths with -D<key>=<value>
+	//--------------------------------------------
+	const char* tcp = cp;
+	if (cp != NULL)  {
+		char c;
+		for (;;) {
+			c = *tcp++;
+			if (c == 0) {
+				tcp=NULL;
+				break;
+			}
+			if (c == '\n')
+				break;
+		}
+	}
+	//--------------------------------------------
+	// HAS NEWLINE IN VMOPTIONS ?
+	if(tcp != NULL) {
+		StringInfoData buf;
+		char quote = 0;
+		char c;
+		initStringInfo(&buf);
+		for(;;)
+		{
+			c = *cp++;
+			switch(c)
+			{
+				case 0:
+					break;
+				case '\n' :
+					if(buf.len > 0) {
+						JVMOptList_add(optList, buf.data, 0, true);
+						buf.len = 0;
+						buf.data[0] = 0;
+					}
+					continue;
+				default :
+					appendStringInfoChar(&buf, c);
+					continue;
+			}
+			break;
+		}
+		if(buf.len > 0)
+			JVMOptList_add(optList, buf.data, 0, true);
+		pfree(buf.data);
+	} else
+	//--------------------------------------------
+	// ORIGINAL CODE
+	//--------------------------------------------*/
 	if(cp != NULL)
-	{
+	{ 
 		StringInfoData buf;
 		char quote = 0;
 		char c;
@@ -1562,7 +1618,7 @@ static void addUserJVMOptions(JVMOptList* optList)
 						else if(buf.len > 0)
 						{
 							/* Whitespace followed by '-' triggers new
-							 * option declaration.
+							 * option declaration. 
 							 */
 							JVMOptList_add(optList, buf.data, 0, true);
 							buf.len = 0;

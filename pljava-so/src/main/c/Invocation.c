@@ -95,7 +95,11 @@ void Invocation_assertConnect(void)
 	int rslt;
 	if(!currentInvocation->hasConnected)
 	{
-		rslt = SPI_connect();
+		//rslt = SPI_connect();
+		// VISIONR requires SPI_commit, SPI_rollback
+		// https://www.postgresql.org/docs/current/spi-spi-connect.html
+		rslt = SPI_connect_ext(SPI_OPT_NONATOMIC);
+
 		if ( SPI_OK_CONNECT != rslt )
 			elog(ERROR, "SPI_connect returned %s",
 						SPI_result_code_string(rslt));

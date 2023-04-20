@@ -194,7 +194,9 @@ public class SPIConnection implements Connection
 	public void commit()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Connection.commit");
+		//throw new UnsupportedFeatureException("Connection.commit");
+		// required by VisionR
+		SPI.commit();
 	}
 
 	/**
@@ -205,7 +207,9 @@ public class SPIConnection implements Connection
 	public void rollback()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Connection.rollback");
+		// throw new UnsupportedFeatureException("Connection.rollback");
+		// required by VisionR
+		SPI.rollback();
 	}
 
 	/**
