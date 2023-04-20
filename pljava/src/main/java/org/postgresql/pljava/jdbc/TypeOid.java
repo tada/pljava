@@ -14,6 +14,8 @@ package org.postgresql.pljava.jdbc;
 
 import org.postgresql.pljava.internal.Oid;
 
+// https://github.com/postgres/postgres/blob/master/src/include/catalog/pg_type.dat
+	
 /**
  * Provides constants for well-known backend OIDs for the types we commonly
  * use.
@@ -42,7 +44,8 @@ public class TypeOid
 	public static final int VARCHAROID     = 1043;
 	public static final int OIDOID         = 26;
 	public static final int BPCHAROID      = 1042;
-
+	public static final int UNKNOWNOID 	   = 705;
+	
 	public static final Oid INVALID     = new Oid(InvalidOid);
 	public static final Oid INT2        = new Oid(INT2OID);
 	public static final Oid INT4        = new Oid(INT4OID);
@@ -60,6 +63,8 @@ public class TypeOid
 	public static final Oid VARCHAR     = new Oid(VARCHAROID);
 	public static final Oid OID         = new Oid(OIDOID);
 	public static final Oid BPCHAR      = new Oid(BPCHAROID);
+	public static final Oid UNKNOWN 	= new Oid(UNKNOWNOID);
+
 
 	/*
 	 * Added in 2019. The numeric constant will be used, but no need is foreseen

@@ -234,10 +234,14 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 		if ( null != vAlt )
 			id = new Oid(vAlt.defaultOid());
-		else if ( sqlType != Types.OTHER )
+		else if ( sqlType != Types.OTHER)
 			id = Oid.forSqlType(sqlType);
-		else
+		else if (value == null) { 
+			// VisionR fix : NULL value with TYPE OTHER > use PG typeoid UNKNOWN			
+			id = org.postgresql.pljava.jdbc.TypeOid.UNKNOWN;
+		} else {
 			id = Oid.forJavaObject(value);
+		}
 
 		// Default to String.
 		//
@@ -294,12 +298,16 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 
 	@Override
 	public void setObject(int columnIndex, Object value)
-	throws SQLException
-	{
-		if(value == null)
+	throws SQLException {
+		/*if(value == null)
 			throw new SQLException(
-				"Can't assign null unless the SQL type is known");
-
+				"Can't assign null unless the SQL type is known");*/
+		if (value ==  null) {
+			// VisionR fix null without type
+			setNull(columnIndex,Types.OTHER);
+			return;
+		}
+		
 		TypeBridge<?>.Holder vAlt = TypeBridge.wrap(value);
 
 		int sqlType;

@@ -112,8 +112,11 @@ Oid Oid_forSqlType(int sqlType)
 		case java_sql_Types_DATALINK:
 			typeId = TEXTOID;
 			break;
+		case java_sql_Types_OTHER:	/* visionr needs other for unknown type nulls */
+			typeId = UNKNOWNOID;
+			break;
 		case java_sql_Types_NULL:
-		case java_sql_Types_OTHER:
+		//case java_sql_Types_OTHER:
 		case java_sql_Types_JAVA_OBJECT:
 		case java_sql_Types_DISTINCT:
 		case java_sql_Types_STRUCT:
