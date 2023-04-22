@@ -68,7 +68,9 @@ void SPI_initialize(void)
 		},
 		{		// required by VisionR
 		"_checkForInterrupt",
-		"()V"
+		"()V",
+		Java_org_postgresql_pljava_internal_SPI__1checkForInterrupt
+		},
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
