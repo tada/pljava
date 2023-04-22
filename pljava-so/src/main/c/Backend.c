@@ -663,6 +663,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
 		// VISION NEEDED OPENS 
+		JVMOptList_add(&optList, "--enable-preview", 0, true);  // JDK 19 virtual threads
 		JVMOptList_add(&optList, "--add-opens=java.base/java.nio=ALL-UNNAMED", 0, true);
 		JVMOptList_add(&optList, "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED", 0, true);
 		// DO NOT CREATE hs_err_pid in PGDATA directory ?

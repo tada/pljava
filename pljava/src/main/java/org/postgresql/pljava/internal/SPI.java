@@ -77,6 +77,11 @@ public class SPI
 		doInPG(() -> _rollback());
 	}
 
+	public static void checkForInterrupt() {
+		doInPG(() -> _checkForInterrupt());
+	}
+
+
 	public static void freeTupTable()
 	{
 		doInPG(SPI::_freeTupTable);
@@ -170,4 +175,6 @@ public class SPI
 	private native static void _commit();
 	// required by VisionR
 	private native static void _rollback();
+	// required by VisionR 
+	private native static void _checkForInterrupt();
 }

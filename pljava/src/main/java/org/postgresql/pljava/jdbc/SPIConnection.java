@@ -1077,6 +1077,9 @@ public class SPIConnection implements Connection
 	public boolean isValid( int timeout )
 	throws SQLException
 	{
+		// VisionR fix : check for interrupt
+		SPI.checkForInterrupt();
+
 		return true; // The connection is always alive and
 			     // ready, right?
 	}

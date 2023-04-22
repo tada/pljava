@@ -56,19 +56,19 @@ void SPI_initialize(void)
 		"()V",
 		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
 		},
-
-{		// require by VisionR
+		{		// required by VisionR
 		"_commit",
 		"()V",
 		Java_org_postgresql_pljava_internal_SPI__1commit
 		},
-{		// require by VisionR
+		{		// required by VisionR
 		"_rollback",
 		"()V",
 		Java_org_postgresql_pljava_internal_SPI__1rollback
 		},
-
-
+		{		// required by VisionR
+		"_checkForInterrupt",
+		"()V"
 		{ 0, 0, 0 }};
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
@@ -261,6 +261,25 @@ Java_org_postgresql_pljava_internal_SPI__1rollback(JNIEnv* env, jclass cls)
 	PG_CATCH();
 	{
 		Exception_throw_ERROR("SPI_rollback");
+	}
+	PG_END_TRY();
+	STACK_BASE_POP()
+	END_NATIVE
+}
+
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_SPI__1checkForInterrupt(JNIEnv* env, jclass cls)
+{
+	BEGIN_NATIVE
+	STACK_BASE_VARS
+	STACK_BASE_PUSH(env)
+	PG_TRY();
+	{
+		CHECK_FOR_INTERRUPTS();
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR("SPI_interrupt");
 	}
 	PG_END_TRY();
 	STACK_BASE_POP()
