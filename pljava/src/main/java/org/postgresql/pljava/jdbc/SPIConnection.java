@@ -91,6 +91,9 @@ public class SPIConnection implements Connection
 	private static final HashMap<Class<?>,Integer> s_class2sqlType =
 		new HashMap<>(30);
 
+	/* if client info option SPIConnectionNonAtomic is true */
+	private boolean spiConnectionNonAtomic;
+	
 	static
 	{
 		addType(String.class, Types.VARCHAR);
@@ -194,9 +197,10 @@ public class SPIConnection implements Connection
 	public void commit()
 	throws SQLException
 	{
-		//throw new UnsupportedFeatureException("Connection.commit");
-		// required by VisionR
-		SPI.commit();
+		 if (spiConnectionNonAtomic)
+			 SPI.commit();
+		 else
+			 throw new UnsupportedFeatureException("Connection.commit");
 	}
 
 	/**
@@ -207,9 +211,10 @@ public class SPIConnection implements Connection
 	public void rollback()
 	throws SQLException
 	{
-		// throw new UnsupportedFeatureException("Connection.rollback");
-		// required by VisionR
-		SPI.rollback();
+		 if (spiConnectionNonAtomic)
+			 SPI.rollback();
+		 else
+			 throw new UnsupportedFeatureException("Connection.rollback");
 	}
 
 	/**
@@ -1115,8 +1120,13 @@ public class SPIConnection implements Connection
 		// supported properties
 		switch (name) {
 			case "SPIConnectionNonAtomic" : 
-				if ("true".equals(value.toString())) 
+				if ("true".equals(value.toString())) {
+					spiConnectionNonAtomic=true;
 					Invocation.setSPIConnectionNonAtomic();
+				}
+				try {
+					getClientInfo().put(name, value);
+				} catch (SQLException e) {}
 				return;
 		}
 		// unsupported
@@ -1153,6 +1163,7 @@ public class SPIConnection implements Connection
 		if (!failures.isEmpty())
 			throw new SQLClientInfoException(
 					"ClientInfo property not supported.", failures);
+		this._clientInfo=properties;
 	}
 
 	@Override
