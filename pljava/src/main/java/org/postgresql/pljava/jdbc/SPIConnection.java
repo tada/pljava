@@ -1077,11 +1077,9 @@ public class SPIConnection implements Connection
 	public boolean isValid( int timeout )
 	throws SQLException
 	{
-		// VisionR fix : check for interrupt
+		// The connection is always alive and ready if not interrupted
 		SPI.checkForInterrupt();
-
-		return true; // The connection is always alive and
-			     // ready, right?
+		return true; 
 	}
 
 	@Override
@@ -1114,12 +1112,19 @@ public class SPIConnection implements Connection
 	public void setClientInfo(String name, String value)
 	throws SQLClientInfoException
 	{
+		// supported properties
+		switch (name) {
+			case "SPIConnectionNonAtomic" : 
+				if ("true".equals(value.toString())) 
+					Invocation.setSPIConnectionNonAtomic();
+				return;
+		}
+		// unsupported
 		Map<String, ClientInfoStatus> failures = new HashMap<>();
 		failures.put(name, ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
 		throw new SQLClientInfoException(
 			"ClientInfo property not supported.", failures);
 	}
-
 
 	@Override
 	public void setClientInfo(Properties properties) 
@@ -1129,13 +1134,25 @@ public class SPIConnection implements Connection
 			return;
 
 		Map<String, ClientInfoStatus> failures = new HashMap<>();
-
 		Iterator<String> i = properties.stringPropertyNames().iterator();
 		while (i.hasNext()) {
-			failures.put(i.next(), ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
+			String key = i.next();
+			switch (key) {
+				// supported properties
+				case "SPIConnectionNonAtomic" : {
+					Object value = properties.get(key);
+					if ("true".equals(value.toString())) 
+						Invocation.setSPIConnectionNonAtomic();
+					break;
+				}
+				// unsupported
+				default :
+					failures.put(i.next(), ClientInfoStatus.REASON_UNKNOWN_PROPERTY);
+			}
 		}
-		throw new SQLClientInfoException(
-			"ClientInfo property not supported.", failures);
+		if (!failures.isEmpty())
+			throw new SQLClientInfoException(
+					"ClientInfo property not supported.", failures);
 	}
 
 	@Override

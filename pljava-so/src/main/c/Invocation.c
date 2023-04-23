@@ -26,6 +26,7 @@
 
 static jmethodID    s_Invocation_onExit;
 static unsigned int s_callLevel = 0;
+static bool connectionModeNonAtomic;
 
 Invocation* currentInvocation;
 
@@ -81,6 +82,11 @@ void Invocation_initialize(void)
 		"()V",
 		Java_org_postgresql_pljava_jdbc_Invocation__1register
 		},
+		{
+		"_setSPIConnectionNonAtomic",
+		"()V",
+		Java_org_postgresql_pljava_jdbc_Invocation__1setSPIConnectionNonAtomic
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -95,11 +101,7 @@ void Invocation_assertConnect(void)
 	int rslt;
 	if(!currentInvocation->hasConnected)
 	{
-		//rslt = SPI_connect();
-		// VISIONR requires SPI_commit, SPI_rollback
-		// https://www.postgresql.org/docs/current/spi-spi-connect.html
-		rslt = SPI_connect_ext(SPI_OPT_NONATOMIC);
-
+		rslt = SPI_connect_ext(connectionModeNonAtomic ? SPI_OPT_NONATOMIC : 0);
 		if ( SPI_OK_CONNECT != rslt )
 			elog(ERROR, "SPI_connect returned %s",
 						SPI_result_code_string(rslt));
@@ -307,3 +309,18 @@ Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this
 		"mismanaged PL/Java invocation stack");
 	END_NATIVE
 }
+
+/*
+ * Class:     org_postgresql_pljava_jdbc_Invocation
+ * Method:    setSPIConnectionNonAtomic
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_jdbc_Invocation__1setSPIConnectionNonAtomic(JNIEnv* env, jclass cls)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	connectionModeNonAtomic=true;
+	END_NATIVE
+}
+
+

@@ -211,6 +211,7 @@ static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 static char const moduleMainPrefix[] = "-Djdk.module.main=";
 static char const policyUrlsGUC[] = "pljava.policy_urls";
 
+
 /*
  * In a background worker, _PG_init may be called very early, before much of
  * the state needed during PL/Java initialization has even been set up. When
@@ -662,14 +663,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
 #endif
-		// VISION NEEDED OPENS 
-		JVMOptList_add(&optList, "--enable-preview", 0, true);  // JDK 19 virtual threads
-		JVMOptList_add(&optList, "--add-opens=java.base/java.nio=ALL-UNNAMED", 0, true);
-		JVMOptList_add(&optList, "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED", 0, true);
-		// DO NOT CREATE hs_err_pid in PGDATA directory ?
-		//JVMOptList_add(&optList, "-XX:+SuppressFatalErrorMessage", 0, true);
 		//-------------------------------------------------------------------------------
-
 		effectiveModulePath = getModulePath("--module-path=");
 		if(effectiveModulePath != 0)
 		{
@@ -1521,24 +1515,10 @@ static void addUserJVMOptions(JVMOptList* optList)
 {
 	const char* cp = vmoptions;
 	//--------------------------------------------
-	// VisionR customization : use newline separator for options, because of problems parsing arguments with space (directory paths with -D<key>=<value>
-	//--------------------------------------------
-	const char* tcp = cp;
-	if (cp != NULL)  {
-		char c;
-		for (;;) {
-			c = *tcp++;
-			if (c == 0) {
-				tcp=NULL;
-				break;
-			}
-			if (c == '\n')
-				break;
-		}
-	}
-	//--------------------------------------------
-	// HAS NEWLINE IN VMOPTIONS ?
-	if(tcp != NULL) {
+	// use newline separator for options if first char in options is newline
+	//--------------------------------------------*/
+	if(cp != NULL && *cp == '\n')
+	{
 		StringInfoData buf;
 		char quote = 0;
 		char c;
@@ -1568,7 +1548,7 @@ static void addUserJVMOptions(JVMOptList* optList)
 		pfree(buf.data);
 	} else
 	//--------------------------------------------
-	// ORIGINAL CODE
+	// original optimistic parsing
 	//--------------------------------------------*/
 	if(cp != NULL)
 	{ 

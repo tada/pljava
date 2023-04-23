@@ -102,6 +102,14 @@ public class Invocation
 		}
 	}
 
+	public static void setSPIConnectionNonAtomic() {
+		doInPG(() ->
+		{
+			_setSPIConnectionNonAtomic();	
+			return null;
+		});
+	}
+
 	/**
 	 * @return The current invocation
 	 */
@@ -164,4 +172,9 @@ public class Invocation
 	 * Clears the error condition set by elog(ERROR)
 	 */
 	private native static void  _clearErrorCondition();
+
+	/* set connection mode to non atomic 
+	 * https://www.postgresql.org/docs/current/spi-spi-connect.html */
+	private static native void _setSPIConnectionNonAtomic();
+
 }
