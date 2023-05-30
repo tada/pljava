@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,6 +9,7 @@
  * Contributors:
  *   Tada AB - Thomas Hallgren
  *   Chapman Flack
+ *   Francisco Miguel Biete Banon
  */
 #include "pljava/type/String_priv.h"
 #include "pljava/HashMap.h"
@@ -59,9 +60,9 @@ jvalue _String_coerceDatum(Type self, Datum arg)
 {
 	jvalue result;
 	char* tmp = DatumGetCString(FunctionCall3(
-					&((String)self)->textOutput,
+					&((PLJString)self)->textOutput,
 					arg,
-					ObjectIdGetDatum(((String)self)->elementType),
+					ObjectIdGetDatum(((PLJString)self)->elementType),
 					Int32GetDatum(-1)));
 	result.l = String_createJavaStringFromNTS(tmp);
 	pfree(tmp);
@@ -83,19 +84,19 @@ Datum _String_coerceObject(Type self, jobject jstr)
 	JNI_deleteLocalRef(jstr);
 
 	ret = FunctionCall3(
-					&((String)self)->textInput,
+					&((PLJString)self)->textInput,
 					CStringGetDatum(tmp),
-					ObjectIdGetDatum(((String)self)->elementType),
+					ObjectIdGetDatum(((PLJString)self)->elementType),
 					Int32GetDatum(-1));
 	pfree(tmp);
 	return ret;
 }
 
-static String String_create(TypeClass cls, Oid typeId)
+static PLJString String_create(TypeClass cls, Oid typeId)
 {
 	HeapTuple    typeTup = PgObject_getValidTuple(TYPEOID, typeId, "type");
 	Form_pg_type pgType  = (Form_pg_type)GETSTRUCT(typeTup);
-	String self = (String)TypeClass_allocInstance(cls, typeId);
+	PLJString self = (PLJString)TypeClass_allocInstance(cls, typeId);
 	MemoryContext ctx = GetMemoryChunkContext(self);
 	fmgr_info_cxt(pgType->typoutput, &self->textOutput, ctx);
 	fmgr_info_cxt(pgType->typinput,  &self->textInput,  ctx);
@@ -109,7 +110,7 @@ Type String_obtain(Oid typeId)
 	return (Type)StringClass_obtain(s_StringClass, typeId);
 }
 
-String StringClass_obtain(TypeClass self, Oid typeId)
+PLJString StringClass_obtain(TypeClass self, Oid typeId)
 {
 	return String_create(self, typeId);
 }
@@ -126,7 +127,7 @@ jstring String_createJavaString(text* t)
 		Size srcLen = VARSIZE(t) - VARHDRSZ;
 		if(srcLen == 0)
 			return s_the_empty_string;
-	
+
 		if ( s_two_step_conversion )
 		{
 			utf8 = (char*)pg_do_encoding_conversion((unsigned char*)src,
