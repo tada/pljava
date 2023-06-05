@@ -1839,7 +1839,7 @@ public class Function
 	 * Uncompiled pattern to recognize a Java identifier.
 	 */
 	private static final String javaIdentifier = String.format(
-		"\\p{%1$sStart}\\p{%1sPart}++", "javaJavaIdentifier"
+		"\\p{%1$sStart}\\p{%1sPart}*+", "javaJavaIdentifier"
 	);
 
 	/**
