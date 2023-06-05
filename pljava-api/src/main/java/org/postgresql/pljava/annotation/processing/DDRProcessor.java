@@ -2287,7 +2287,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			case  ONEOUT | OTHERTYPE:
 				msg( Kind.ERROR, func,
 					"no type= allowed here (the out parameter " +
-					"declares its own type");
+					"declares its own type)");
 				return;
 			case MOREOUT | RECORDTYPE:
 			case MOREOUT | OTHERTYPE:
