@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,6 +46,37 @@ import javax.tools.Diagnostic.Kind;
 public abstract class Lexicals
 {
 	private Lexicals() { } // do not instantiate
+
+	/**
+	 * Maps a capturing-group name to its group index, bypassing the buggy cache
+	 * introduced in Java 20 (PL/Java issue 435).
+	 */
+	private static int gi(Matcher m, String gn)
+	{
+		Integer i =
+			m.pattern().namedGroups().get(requireNonNull(gn, "group name"));
+		if ( null != i )
+			return i;
+		throw new IllegalArgumentException("No group with name <" + gn + ">");
+	}
+
+	/**
+	 * Returns the equivalent of {@code m.start(gn)} but bypassing the buggy
+	 * cache introduced in Java 20.
+	 */
+	private static int start(Matcher m, String gn)
+	{
+		return m.start(gi(m, gn));
+	}
+
+	/**
+	 * Returns the equivalent of {@code m.group(gn)} but bypassing the buggy
+	 * cache introduced in Java 20.
+	 */
+	private static String group(Matcher m, String gn)
+	{
+		return m.group(gi(m, gn));
+	}
 
 	/** Allowed as the first character of a regular identifier by ISO.
 	 */
@@ -342,9 +373,9 @@ public abstract class Lexicals
 				m.usePattern(SEPARATOR);
 				if ( ! m.lookingAt() )
 					return result; // leave matcher region alone
-				if ( significant  ||  -1 != m.start("nl") )
+				if ( significant  ||  -1 != start(m, "nl") )
 					result = true;
-				if ( -1 != m.start("nest") )
+				if ( -1 != start(m, "nest") )
 				{
 					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
 					m.usePattern(BRACKETED_COMMENT_INSIDE);
@@ -357,7 +388,7 @@ public abstract class Lexicals
 			case 1:
 				if ( ! m.lookingAt() )
 					throw new InputMismatchException("unclosed comment");
-				if ( -1 != m.start("nest") )
+				if ( -1 != start(m, "nest") )
 				{
 					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
 					++ level;
@@ -384,17 +415,17 @@ public abstract class Lexicals
 	 */
 	public static Identifier.Simple identifierFrom(Matcher m)
 	{
-		String s = m.group("i");
+		String s = group(m, "i");
 		if ( null != s )
 			return Identifier.Simple.from(s, false);
-		s = m.group("xd");
+		s = group(m, "xd");
 		if ( null != s )
 			return Identifier.Simple.from(s.replace("\"\"", "\""), true);
-		s = m.group("xui");
+		s = group(m, "xui");
 		if ( null == s )
 			return null; // XXX?
 		s = s.replace("\"\"", "\"");
-		String uec = m.group("uec");
+		String uec = group(m, "uec");
 		if ( null == uec )
 			uec = "\\";
 		int uecp = uec.codePointAt(0);
@@ -407,9 +438,9 @@ public abstract class Lexicals
 		{
 			replacer.appendReplacement(sb, "");
 			int cp;
-			String uev = replacer.group("u4d");
+			String uev = group(replacer, "u4d");
 			if ( null == uev )
-				uev = replacer.group("u6d");
+				uev = group(replacer, "u6d");
 			if ( null != uev )
 				cp = Integer.parseInt(uev, 16);
 			else
@@ -692,7 +723,7 @@ public abstract class Lexicals
 				if ( m.find() )
 				{
 					if ( 0 == m.start()  &&  s.length() == m.end() )
-						s = m.group("xd").replace("\"\"", "\"");
+						s = group(m, "xd").replace("\"\"", "\"");
 					else
 						warn = true;
 				}
