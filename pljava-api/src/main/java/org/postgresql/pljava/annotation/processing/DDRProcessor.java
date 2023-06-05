@@ -1089,16 +1089,29 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
 		{
-			if ( ElementKind.CLASS.equals( ee.getKind()) )
+			ElementKind ek = ee.getKind();
+			switch ( ek )
 			{
-				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
-					msg( Kind.ERROR, ee,
-						"A PL/Java function must not have a non-public " +
-						"enclosing class");
-				if ( ((TypeElement)ee).getNestingKind().equals(
-					NestingKind.TOP_LEVEL) )
-					break;
+			case CLASS:
+			case INTERFACE:
+				break;
+			default:
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have an enclosing " + ek);
+				return;
 			}
+
+			// It's a class or interface, represented by TypeElement
+			TypeElement te = (TypeElement)ee;
+			mods = ee.getModifiers();
+
+			if ( ! mods.contains( Modifier.PUBLIC) )
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have a non-public " +
+					"enclosing class");
+
+			if ( ! te.getNestingKind().isNested() )
+				break; // no need to look above top-level class
 		}
 
 		FunctionImpl f = getSnippet( e, FunctionImpl.class, () ->
@@ -2489,10 +2502,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! ( complexViaInOut || setof || trigger ) )
 				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
-			if ( ! e.getKind().equals( ElementKind.CLASS) )
-				msg( Kind.ERROR, func,
-					"Somehow this method got enclosed by something other " +
-					"than a class");
+			// e was earlier checked and ensured to be a class or interface
 			sb.append( e.toString()).append( '.');
 			sb.append( trigger ? func.getSimpleName() : func.toString());
 			return sb.toString();
