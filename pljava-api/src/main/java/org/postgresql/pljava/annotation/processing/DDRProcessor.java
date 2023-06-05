@@ -2503,7 +2503,7 @@ hunt:	for ( ExecutableElement ee : ees )
 				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
 			// e was earlier checked and ensured to be a class or interface
-			sb.append( e.toString()).append( '.');
+			sb.append( elmu.getBinaryName((TypeElement)e)).append( '.');
 			sb.append( trigger ? func.getSimpleName() : func.toString());
 			return sb.toString();
 		}
@@ -2833,7 +2833,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			return deployStrings(
 				qnameFrom(name(), schema()),
 				null, // parameter iterable unused in appendParams below
-				"UDT[" + te + "] " + id.name(),
+				"UDT[" + elmu.getBinaryName(te) + "] " + id.name(),
 				comment());
 		}
 
@@ -3053,7 +3053,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			al.add( "SELECT sqlj.add_type_mapping(" +
 				DDRWriter.eQuote( qname.toString()) + ", " +
-				DDRWriter.eQuote( tclass.toString()) + ')');
+				DDRWriter.eQuote( elmu.getBinaryName(tclass)) + ')');
 			addComment( al);
 			return al.toArray( new String [ al.size() ]);
 		}
