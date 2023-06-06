@@ -215,7 +215,7 @@ jobs:
 
         String javaHome = System.getProperty("java.home");
 
-        Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib")
+        Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib");
 
         Path libjvm = (
           "Mac OS X".equals(System.getProperty("os.name"))
@@ -227,6 +227,9 @@ jobs:
 
         String vmopts =
           "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
+
+        if ( 17 < Runtime.version().feature() )
+          vmopts += " -Djava.security.manager=allow";
 
         Node n1 = Node.get_new_node("TestNode1");
 

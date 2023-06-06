@@ -106,6 +106,9 @@ test_script:
 
       String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
+      if ( 17 < Runtime.version().feature() )
+        vmopts += " -Djava.security.manager=allow";
+
       Node n1 = Node.get_new_node("TestNode1");
 
       n1.use_pg_ctl(true);
