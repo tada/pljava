@@ -276,6 +276,42 @@ jobs:
           return true;
         }
 
+        /*
+         * Write a trial policy into a temporary file in n's data_dir,
+         * and set pljava.vmoptions accordingly over connection c.
+         * Returns the 'succeeding' flag from the state machine looking
+         * at the command results.
+         */
+        boolean useTrialPolicy(Node n, Connection c, List<String> contents)
+        throws Exception
+        {
+          Path trialPolicy =
+            createTempFile(n.data_dir().getParent(), "trial", "policy");
+
+          write(trialPolicy, contents);
+
+          PreparedStatement setVmOpts = c.prepareStatement(
+            "SELECT null::pg_catalog.void" +
+            " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
+          );
+
+          setVmOpts.setString(1, vmopts +
+            " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
+
+          return stateMachine(
+            "change pljava.vmoptions",
+            null,
+
+            q(setVmOpts, setVmOpts::execute)
+            .flatMap(Node::semiFlattenDiagnostics)
+            .peek(Node::peek),
+
+            (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+            (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+            (o,p,q) -> null == o
+          );
+        }
+
         try (
           AutoCloseable t1 = n1.initialized_cluster();
           AutoCloseable t2 = n1.started_server(Map.of(
@@ -351,36 +387,12 @@ jobs:
              */
             try ( Connection c2 = n1.connect() )
             {
-              Path trialPolicy =
-                createTempFile(n1.data_dir().getParent(), "trial", "policy");
-
-              write(trialPolicy, List.of(
+              succeeding &= useTrialPolicy(n1, c2, List.of(
                 "grant {",
                 "  permission",
                 "    org.postgresql.pljava.policy.TrialPolicy$Permission;",
                 "};"
               ));
-
-              PreparedStatement setVmOpts = c2.prepareStatement(
-                "SELECT null::pg_catalog.void" +
-                " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
-              );
-
-              setVmOpts.setString(1, vmopts +
-                " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
-
-              succeeding &= stateMachine(
-                "change pljava.vmoptions",
-                null,
-
-                q(setVmOpts, setVmOpts::execute)
-                .flatMap(Node::semiFlattenDiagnostics)
-                .peek(Node::peek),
-
-                (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
-                (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
-                (o,p,q) -> null == o
-              );
 
               PreparedStatement tryForbiddenRead = c2.prepareStatement(
                 "SELECT" +
@@ -476,6 +488,13 @@ jobs:
                   }
                 }
               );
+
+              succeeding &= useTrialPolicy(n1, c2, List.of(
+                "grant codebase \"${org.postgresql.pljava.codesource}\" {",
+                "  permission",
+                "    java.net.URLPermission \"http:*\", \"GET\";",
+                "};"
+              ));
 
               succeeding &= stateMachine(
                 "install a jar over http",
