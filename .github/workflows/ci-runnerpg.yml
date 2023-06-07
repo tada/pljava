@@ -440,6 +440,8 @@ jobs:
                 "SELECT javatest.logmessage('INFO'," +
                 " 'jar installed from http');\n" +
                 "END INSTALL\",\n\"BEGIN REMOVE\n" +
+                "BEGIN dummy\n" +
+                "END dummy;\n" +
                 "END REMOVE\"\n}\n"
               ).getBytes(UTF_8)
             );
