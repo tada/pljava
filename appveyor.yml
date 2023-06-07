@@ -1,3 +1,12 @@
+# These only_commits and branches settings ought to pretty much suppress
+# Appveyor, whose runs have all been failing lately because of Maven repository
+# connection resets that don't seem reproducible locally. This can be revisited
+# later to see if things might be working again.
+only_commits:
+  message: /appveyor/
+branches:
+  only:
+    - appveyor
 image: Visual Studio 2019
 environment:
   APPVEYOR_RDP_PASSWORD: MrRobot@2020
