@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1406,6 +1406,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 
 #if PG_VERSION_NUM >= 90300
 		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
+		enable_timeout_after(tid, 5000);
 #else
 		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
 		enable_sig_alarm(5000, false);
