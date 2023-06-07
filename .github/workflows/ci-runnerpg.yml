@@ -28,7 +28,7 @@ jobs:
 #           cc: msvc
 #         - os: windows-latest
 #           cc: mingw
-        java: [9, 11, 12, 13, 14, 15]
+        java: [9, 11, 12, 17, 18, 19]
 
     steps:
 
@@ -59,8 +59,9 @@ jobs:
     - name: Obtain PG development files (Ubuntu, PGDG)
       if: ${{ 'Linux' == runner.os }}
       run: |
-        curl https://www.postgresql.org/media/keys/ACCC4CF8.asc |
-        sudo apt-key add -
+        curl -s -S https://www.postgresql.org/media/keys/ACCC4CF8.asc |
+        gpg --dearmor |
+	sudo dd of=/etc/apt/trusted.gpg.d/apt.postgresql.org.gpg
         echo  \
           deb \
           http://apt.postgresql.org/pub/repos/apt \
@@ -217,7 +218,7 @@ jobs:
 
         String javaHome = System.getProperty("java.home");
 
-        Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib")
+        Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib");
 
         Path libjvm = (
           "Mac OS X".equals(System.getProperty("os.name"))
@@ -229,6 +230,9 @@ jobs:
 
         String vmopts =
           "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
+
+        if ( 17 < Runtime.version().feature() )
+          vmopts += " -Djava.security.manager=allow";
 
         Node n1 = Node.get_new_node("TestNode1");
 
