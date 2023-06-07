@@ -380,7 +380,8 @@ test_script:
             );
 
             hc.setAuthenticator(
-              new BasicAuthenticator("CI realm", UTF_8)
+              new BasicAuthenticator("CI realm")
+              // ("CI realm", UTF_8) only available in Java 14 or later
               {
                 @Override
                 public boolean checkCredentials(String c_id, String c_pw)
