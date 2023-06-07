@@ -192,7 +192,7 @@ jobs:
           -execution local \
           "-J--class-path=$packageJar$pathSep$jdbcJar" \
           "--class-path=$packageJar" \
-          "-J--add-modules=java.sql.rowset" \
+          "-J--add-modules=java.sql.rowset,jdk.httpserver" \
           "-J-Dpgconfig=$pgConfig" \
           "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
           "-J-DmavenRepo=$mavenRepo" \
@@ -212,6 +212,20 @@ jobs:
         import static org.postgresql.pljava.packaging.Node.stateMachine;
         import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
         import static org.postgresql.pljava.packaging.Node.s_isWindows;
+        /*
+         * Imports that will be needed to serve a jar file over http
+         * when the time comes for testing that.
+         */
+        import static java.nio.charset.StandardCharsets.UTF_8;
+        import java.util.jar.Attributes;
+        import java.util.jar.Manifest;
+        import java.util.jar.JarOutputStream;
+        import java.util.zip.ZipEntry;
+        import com.sun.net.httpserver.BasicAuthenticator;
+        import com.sun.net.httpserver.HttpContext;
+        import com.sun.net.httpserver.HttpExchange;
+        import com.sun.net.httpserver.HttpHandler;
+        import com.sun.net.httpserver.HttpServer;
 
         String javaHome = System.getProperty("java.home");
 
@@ -392,6 +406,91 @@ jobs:
                 (o,p,q) -> null == o
               );
               // done with connection c2
+            }
+
+            /*
+             * Spin up an http server with a little jar file to serve, and test
+             * that install_jar works with an http: url.
+             *
+             * First make a little jar empty but for a deployment descriptor.
+             */
+            String ddrName = "foo.ddr";
+            Attributes a = new Attributes();
+            a.putValue("SQLJDeploymentDescriptor", "TRUE");
+            Manifest m = new Manifest();
+            m.getEntries().put(ddrName, a);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            JarOutputStream jos = new JarOutputStream(baos, m);
+            jos.putNextEntry(new ZipEntry(ddrName));
+            jos.write(
+              (
+                "SQLActions[]={\n\"BEGIN INSTALL\n" +
+                "SELECT javatest.logmessage('INFO'," +
+                " 'jar installed from http');\n" +
+                "END INSTALL\",\n\"BEGIN REMOVE\n" +
+                "END REMOVE\"\n}\n"
+              ).getBytes(UTF_8)
+            );
+            jos.closeEntry();
+            jos.close();
+            byte[] jar = baos.toByteArray();
+
+            /*
+             * Now an http server.
+             */
+            HttpServer hs =
+              HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+
+            try (
+              Connection c2 = n1.connect();
+              AutoCloseable t = ((Supplier<AutoCloseable>)() ->
+                {
+                  hs.start();
+                  return () -> hs.stop(0);
+                }
+              ).get()
+            )
+            {
+              InetSocketAddress addr = hs.getAddress();
+              URL u = new URI(
+                "http", null, addr.getHostString(), addr.getPort(),
+                "/foo.jar", null, null
+              ).toURL();
+
+              HttpContext hc = hs.createContext(
+                u.getPath(),
+                new HttpHandler()
+                {
+                  @Override
+                  public void handle(HttpExchange t) throws IOException
+                  {
+                    try ( InputStream is = t.getRequestBody() ) {
+                      is.readAllBytes();
+                    }
+                    t.getResponseHeaders().add(
+                      "Content-Type", "application/java-archive");
+                    t.sendResponseHeaders(200, jar.length);
+                    try ( OutputStream os = t.getResponseBody() ) {
+                      os.write(jar);
+                    }
+                  }
+                }
+              );
+
+              succeeding &= stateMachine(
+                "install a jar over http",
+                null,
+
+                Node.installJar(c2, u.toString(), "foo", true)
+                .flatMap(Node::semiFlattenDiagnostics)
+                .peek(Node::peek),
+
+                (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 1 : -2,
+                (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+                (o,p,q) -> null == o
+              );
+
+              // done with connection c2 again, and the http server
             }
 
             /*
