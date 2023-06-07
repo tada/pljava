@@ -466,8 +466,11 @@ jobs:
             )
             {
               InetSocketAddress addr = hs.getAddress();
+
+              String id = "bar", pw = "baz";
+
               URL u = new URI(
-                "http", null, addr.getHostString(), addr.getPort(),
+                "http", id+':'+pw, addr.getHostString(), addr.getPort(),
                 "/foo.jar", null, null
               ).toURL();
 
@@ -487,6 +490,17 @@ jobs:
                     try ( OutputStream os = t.getResponseBody() ) {
                       os.write(jar);
                     }
+                  }
+                }
+              );
+
+              hc.setAuthenticator(
+                new BasicAuthenticator("CI realm", UTF_8)
+                {
+                  @Override
+                  public boolean checkCredentials(String c_id, String c_pw)
+                  {
+                      return id.equals(c_id) && pw.equals(c_pw);
                   }
                 }
               );
