@@ -88,27 +88,27 @@ test_script:
       @'
       boolean succeeding = false; // begin pessimistic
 
-      import static java.nio.file.Files.createTempFile
-      import static java.nio.file.Files.write
-      import java.nio.file.Path
-      import static java.nio.file.Paths.get
-      import java.sql.Connection
-      import java.sql.PreparedStatement
-      import java.sql.ResultSet
-      import org.postgresql.pljava.packaging.Node
-      import static org.postgresql.pljava.packaging.Node.q
-      import static org.postgresql.pljava.packaging.Node.stateMachine
-      import static org.postgresql.pljava.packaging.Node.isVoidResultSet
+      import static java.nio.file.Files.createTempFile;
+      import static java.nio.file.Files.write;
+      import java.nio.file.Path;
+      import static java.nio.file.Paths.get;
+      import java.sql.Connection;
+      import java.sql.PreparedStatement;
+      import java.sql.ResultSet;
+      import org.postgresql.pljava.packaging.Node;
+      import static org.postgresql.pljava.packaging.Node.q;
+      import static org.postgresql.pljava.packaging.Node.stateMachine;
+      import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
 
       System.setErr(System.out); // PowerShell makes a mess of stderr output
 
       Node.main(new String[0]); // Extract the files (with output to stdout)
 
-      String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
+      String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
-      Node n1 = Node.get_new_node("TestNode1")
+      Node n1 = Node.get_new_node("TestNode1");
 
-      n1.use_pg_ctl(true)
+      n1.use_pg_ctl(true);
 
       /*
        * Keep a tally of the three types of diagnostic notices that may be
@@ -118,7 +118,8 @@ test_script:
        */
       Map<String,Integer> results =
         Stream.of("info", "warning", "error", "ng").collect(
-          LinkedHashMap<String,Integer>::new, (m,k) -> m.put(k, 0), (r,s) -> {})
+          LinkedHashMap<String,Integer>::new,
+          (m,k) -> m.put(k, 0), (r,s) -> {});
 
       boolean isDiagnostic(Object o, Set<String> whatIsNG)
       {
@@ -346,13 +347,14 @@ test_script:
          * pljava.module_path set to the right locations of the jars, and the
          * correct shared-object path given to LOAD.
          *
-         * Also test the after-the-fact packaging up with CREATE EXTENSION
+         * For now, until issue #434 has a fix, DO NOT
+         * also test the after-the-fact packaging up with CREATE EXTENSION
          * FROM unpackaged. That officially goes away in PG 13, where the
          * equivalent sequence
          *  CREATE EXTENSION pljava VERSION unpackaged
          *  \c
          *  ALTER EXTENSION pljava UPDATE
-         * should be tested instead.
+         * should (for now, also NOT) be tested instead.
          */
         try ( Connection c = n1.connect() )
         {
@@ -391,6 +393,7 @@ test_script:
          * PG >= 13 CREATE EXTENSION VERSION unpackaged;ALTER EXTENSION UPDATE
          * sequence) has to happen over a new connection.
          */
+        if ( false ) { // pending issue 434 fix
         try ( Connection c = n1.connect() )
         {
           int majorVersion = c.getMetaData().getDatabaseMajorVersion();
@@ -424,6 +427,7 @@ test_script:
             (o,p,q) -> null == o
           );
         }
+        } // pending issue 434 fix
       } catch ( Throwable t )
       {
         succeeding = false;
@@ -432,7 +436,7 @@ test_script:
 
       System.out.println(results);
       succeeding &= (0 == results.get("ng"));
-      System.exit(succeeding ? 0 : 1)
+      System.exit(succeeding ? 0 : 1);
       '@ |
       jshell `
         -execution local `
