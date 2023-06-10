@@ -495,8 +495,8 @@ public class Commands
 		}
 		catch(IOException e)
 		{
-			throw new SQLException("I/O exception reading jar file: " +
-				e.getMessage());
+			throw new SQLException("reading jar file: " +
+				e.toString(), "58030", e);
 		}
 	}
 
@@ -602,8 +602,8 @@ public class Commands
 		}
 		catch(IOException e)
 		{
-			throw new SQLException("I/O exception reading jar file: "
-				+ e.getMessage(), "58030", e);
+			throw new SQLException("reading jar file: "
+				+ e.toString(), "58030", e);
 		}
 	}
 
