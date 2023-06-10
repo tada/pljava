@@ -34,6 +34,14 @@ Several [configuration variables](variables.html) can affect PL/Java's
 operation, including some common PostgreSQL variables as well as
 PL/Java's own.
 
+### Enabling additional Java modules
+
+By default, PL/Java code can see a small set of Java modules, including
+`java.base` and `java.sql` and a few others. To include others, use
+[`--add-modules` in `pljava.vmoptions`][addm].
+
+[addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules
+
 ## Special topics
 
 ### Configuring permissions
