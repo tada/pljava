@@ -47,35 +47,42 @@ public abstract class Lexicals
 {
 	private Lexicals() { } // do not instantiate
 
-	/**
-	 * Maps a capturing-group name to its group index, bypassing the buggy cache
-	 * introduced in Java 20 (PL/Java issue 435).
-	 */
-	private static int gi(Matcher m, String gn)
+	static
 	{
-		Integer i =
-			m.pattern().namedGroups().get(requireNonNull(gn, "group name"));
-		if ( null != i )
-			return i;
-		throw new IllegalArgumentException("No group with name <" + gn + ">");
-	}
+		/*
+		 * Reject a Java version affected by JDK-8309515 bug.
+		 */
+		Boolean hasBug = null;
+		Pattern p1 = Pattern.compile("(?<a>.)(?<b>.)");
+		Pattern p2 = Pattern.compile("(?<b>.)(?<a>.)");
+		Matcher m = p1.matcher("xy");
 
-	/**
-	 * Returns the equivalent of {@code m.start(gn)} but bypassing the buggy
-	 * cache introduced in Java 20.
-	 */
-	private static int start(Matcher m, String gn)
-	{
-		return m.start(gi(m, gn));
-	}
+		if ( m.matches() && 0 == m.start("a") )
+		{
+			m.usePattern(p2);
+			if ( m.matches() )
+			{
+				switch ( m.start("a") )
+				{
+				case 0:
+					hasBug = true;
+					break;
+				case 1:
+					hasBug = false;
+					break;
+				}
+			}
+		}
 
-	/**
-	 * Returns the equivalent of {@code m.group(gn)} but bypassing the buggy
-	 * cache introduced in Java 20.
-	 */
-	private static String group(Matcher m, String gn)
-	{
-		return m.group(gi(m, gn));
+		if ( null == hasBug )
+			throw new ExceptionInInitializerError(
+				"Unexpected result while testing for bug JDK-8309515");
+
+		if ( hasBug )
+			throw new ExceptionInInitializerError(
+				"Java bug JDK-8309515 affects this version of Java. PL/Java " +
+				"requires a Java version earlier than 20 (when the bug first " +
+				"appears) or recent enough to have had the bug fixed.");
 	}
 
 	/** Allowed as the first character of a regular identifier by ISO.
@@ -373,9 +380,9 @@ public abstract class Lexicals
 				m.usePattern(SEPARATOR);
 				if ( ! m.lookingAt() )
 					return result; // leave matcher region alone
-				if ( significant  ||  -1 != start(m, "nl") )
+				if ( significant  ||  -1 != m.start("nl") )
 					result = true;
-				if ( -1 != start(m, "nest") )
+				if ( -1 != m.start("nest") )
 				{
 					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
 					m.usePattern(BRACKETED_COMMENT_INSIDE);
@@ -388,7 +395,7 @@ public abstract class Lexicals
 			case 1:
 				if ( ! m.lookingAt() )
 					throw new InputMismatchException("unclosed comment");
-				if ( -1 != start(m, "nest") )
+				if ( -1 != m.start("nest") )
 				{
 					m.region(m.end(0) + 1, m.regionEnd()); // + 1 to eat the *
 					++ level;
@@ -415,17 +422,17 @@ public abstract class Lexicals
 	 */
 	public static Identifier.Simple identifierFrom(Matcher m)
 	{
-		String s = group(m, "i");
+		String s = m.group("i");
 		if ( null != s )
 			return Identifier.Simple.from(s, false);
-		s = group(m, "xd");
+		s = m.group("xd");
 		if ( null != s )
 			return Identifier.Simple.from(s.replace("\"\"", "\""), true);
-		s = group(m, "xui");
+		s = m.group("xui");
 		if ( null == s )
 			return null; // XXX?
 		s = s.replace("\"\"", "\"");
-		String uec = group(m, "uec");
+		String uec = m.group("uec");
 		if ( null == uec )
 			uec = "\\";
 		int uecp = uec.codePointAt(0);
@@ -438,9 +445,9 @@ public abstract class Lexicals
 		{
 			replacer.appendReplacement(sb, "");
 			int cp;
-			String uev = group(replacer, "u4d");
+			String uev = replacer.group("u4d");
 			if ( null == uev )
-				uev = group(replacer, "u6d");
+				uev = replacer.group("u6d");
 			if ( null != uev )
 				cp = Integer.parseInt(uev, 16);
 			else
@@ -723,7 +730,7 @@ public abstract class Lexicals
 				if ( m.find() )
 				{
 					if ( 0 == m.start()  &&  s.length() == m.end() )
-						s = group(m, "xd").replace("\"\"", "\"");
+						s = m.group("xd").replace("\"\"", "\"");
 					else
 						warn = true;
 				}
