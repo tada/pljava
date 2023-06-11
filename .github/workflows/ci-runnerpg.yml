@@ -477,14 +477,13 @@ jobs:
            * pljava.module_path set to the right locations of the jars, and the
            * correct shared-object path given to LOAD.
            *
-           * For now, until issue #434 has a fix, DO NOT
-           * also test the after-the-fact packaging up with CREATE EXTENSION
+           * Also test the after-the-fact packaging up with CREATE EXTENSION
            * FROM unpackaged. That officially goes away in PG 13, where the
            * equivalent sequence
            *  CREATE EXTENSION pljava VERSION unpackaged
            *  \c
            *  ALTER EXTENSION pljava UPDATE
-           * should (for now, also NOT) be tested instead.
+           * should be tested instead.
            */
           try ( Connection c = n1.connect() )
           {
@@ -523,7 +522,6 @@ jobs:
            * PG >= 13 CREATE EXTENSION VERSION unpackaged;ALTER EXTENSION UPDATE
            * sequence) has to happen over a new connection.
            */
-          if ( false ) { // pending issue 434 fix
           try ( Connection c = n1.connect() )
           {
             int majorVersion = c.getMetaData().getDatabaseMajorVersion();
@@ -557,7 +555,6 @@ jobs:
               (o,p,q) -> null == o
             );
           }
-          } // pending issue 434 fix
         } catch ( Throwable t )
         {
           succeeding = false;
