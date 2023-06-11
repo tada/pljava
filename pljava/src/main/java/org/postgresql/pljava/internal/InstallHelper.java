@@ -413,6 +413,9 @@ public class InstallHelper
 				throw new SQLNonTransientException(
 				"sqlj schema not empty for CREATE EXTENSION pljava", "55000");
 
+			if ( asExtension && ! exNihilo )
+				preAbsorb(c, s); // handle possible update from unpackaged
+
 			handlers(c, s, module_pathname);
 			languages(c, s);
 			deployment(c, s, sv);
@@ -429,6 +432,84 @@ public class InstallHelper
 				 * error if this code didn't execute.
 				 */
 				s.execute("DROP TABLE sqlj." + loadpath_tbl_quoted);
+		}
+	}
+
+	/**
+	 * Absorb a few key objects into the extension, if they exist, before the
+	 * operations that CREATE OR REPLACE them.
+	 *
+	 * Until postgres/postgres@b9b21ac, CREATE OR REPLACE would silently absorb
+	 * the object, if preexisting, into the extension being created. Since that
+	 * change, those CREATE OR REPLACE operations now fail if the object exists
+	 * but is not yet a member of the extension. Therefore, this method is
+	 * called first, to absorb those objects if they exist. Because this only
+	 * matters when the objects do not yet belong to the extension (the old
+	 * "FROM unpackaged" case), this method first checks and returns with no
+	 * effect if javau_call_handler is already an extension member.
+	 *
+	 * Because it's possible to be updating from an older PL/Java version
+	 * (for example, one without the validator functions), failure to add an
+	 * expected object to the extension because the object doesn't exist yet
+	 * is not treated here as an error.
+	 */
+	private static void preAbsorb( Connection c, Statement s)
+	throws SQLException
+	{
+		/*
+		 * Do nothing if javau_call_handler is already an extension member.
+		 */
+		try (
+			ResultSet rs = s.executeQuery(
+				"SELECT d.refobjid" +
+				" FROM" +
+				" pg_catalog.pg_namespace n" +
+				" JOIN pg_catalog.pg_proc p" +
+				"  ON pronamespace OPERATOR(pg_catalog.=) n.oid" +
+				" JOIN pg_catalog.pg_depend d" +
+				"  ON d.classid OPERATOR(pg_catalog.=) p.tableoid" +
+				"  AND d.objid OPERATOR(pg_catalog.=) p.oid" +
+				" WHERE" +
+				"  nspname OPERATOR(pg_catalog.=) 'sqlj'" +
+				"  AND proname OPERATOR(pg_catalog.=) 'javau_call_handler'" +
+				"  AND deptype OPERATOR(pg_catalog.=) 'e'"
+			)
+		)
+		{
+			if ( rs.next() )
+				return;
+		}
+
+		addExtensionUnless(c, s, "42883", "FUNCTION sqlj.java_call_handler()");
+		addExtensionUnless(c, s, "42883", "FUNCTION sqlj.javau_call_handler()");
+		addExtensionUnless(c, s, "42883",
+			"FUNCTION sqlj.java_validator(pg_catalog.oid)");
+		addExtensionUnless(c, s, "42883",
+			"FUNCTION sqlj.javau_validator(pg_catalog.oid)");
+		addExtensionUnless(c, s, "42704", "LANGUAGE java");
+		addExtensionUnless(c, s, "42704", "LANGUAGE javaU");
+	}
+
+	/**
+	 * Absorb obj into the pljava extension, unless it doesn't exist.
+	 * Pass the sqlState expected when an obj of that type doesn't exist.
+	 */
+	private static void addExtensionUnless(
+		Connection c, Statement s, String sqlState, String obj)
+	throws SQLException
+	{
+		Savepoint p = null;
+		try
+		{
+			p = c.setSavepoint();
+			s.execute("ALTER EXTENSION pljava ADD " + obj);
+			c.releaseSavepoint(p);
+		}
+		catch ( SQLException sqle )
+		{
+			c.rollback(p);
+			if ( ! sqlState.equals(sqle.getSQLState()) )
+				throw sqle;
 		}
 	}
 
@@ -796,8 +877,7 @@ public class InstallHelper
 						"FROM" +
 						" pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
 						"WHERE" +
-						" refclassid OPERATOR(pg_catalog.=)" +
-						"  'pg_catalog.pg_namespace'::regclass " +
+						" refclassid OPERATOR(pg_catalog.=) n.tableoid " +
 						" AND refobjid OPERATOR(pg_catalog.=) n.oid" +
 						" AND nspname OPERATOR(pg_catalog.=) 'sqlj' " +
 						" AND deptype OPERATOR(pg_catalog.=) 'n' " +
@@ -825,8 +905,7 @@ public class InstallHelper
 						 */
 						"    nspname OPERATOR(pg_catalog.=) 'sqlj'" +
 						"    AND relname OPERATOR(pg_catalog.=) ?" +
-						"    AND classid OPERATOR(pg_catalog.=)" +
-						"     'pg_catalog.pg_class'::regclass " +
+						"    AND classid OPERATOR(pg_catalog.=) sqc.tableoid" +
 						"    AND objid OPERATOR(pg_catalog.=) sqc.oid)");
 					ps.setString(1, loadpath_tbl);
 					return ps;
