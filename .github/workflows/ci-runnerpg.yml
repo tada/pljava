@@ -509,7 +509,7 @@ jobs:
               succeeding &= useTrialPolicy(n1, c2, List.of(
                 "grant codebase \"${org.postgresql.pljava.codesource}\" {",
                 "  permission",
-                "    java.net.URLPermission \"http:*\", \"GET\";",
+                "    java.net.URLPermission \"http:*\", \"GET:Accept\";",
                 "};"
               ));
 

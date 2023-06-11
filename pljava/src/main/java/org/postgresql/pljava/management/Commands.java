@@ -450,6 +450,12 @@ public class Commands
 		{
 			URL url = new URL(urlString);
 			URLConnection uc = url.openConnection();
+			uc.setRequestProperty("Accept",
+				"application/java-archive, " +
+				"application/jar;q=0.9, application/jar-archive;q=0.9, " +
+				"application/x-java-archive;q=0.9, " +
+				"application/*;q=0.3, */*;q=0.2"
+			);
 			long[] sz = new long[1];
 			Permission[] least = { uc.getPermission() };
 
@@ -465,7 +471,7 @@ public class Commands
 				 */
 				least = new Permission[] {
 					least[0],
-					new URLPermission(urlString, "GET")
+					new URLPermission(urlString, "GET:Accept")
 				};
 
 				/*
