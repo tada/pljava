@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -706,6 +706,23 @@ public class InstallHelper
 	}
 
 	/**
+	 * Query the database metadata for existence of a column in a table in the
+	 * {@code sqlj} schema. Pass null for the column to simply check the table's
+	 * existence.
+	 */
+	private static boolean hasColumn(
+		DatabaseMetaData md, String table, String column)
+	throws SQLException
+	{
+		try (
+			ResultSet rs = md.getColumns( null, "sqlj", table, column)
+		)
+		{
+			return rs.next();
+		}
+	}
+
+	/**
 	 * Detect an existing PL/Java sqlj schema. Tests for changes between schema
 	 * variants that have appeared in PL/Java's git history and will return a
 	 * correct result if the schema actually is any of those, but does no
@@ -723,97 +740,103 @@ public class InstallHelper
 	throws SQLException
 	{
 		DatabaseMetaData md = c.getMetaData();
-		ResultSet rs = md.getProcedures( null, "sqlj", "alias_java_language");
-		boolean seen = rs.next();
-		rs.close();
-		if ( seen )
-			return SchemaVariant.REL_1_6_0;
+		try (
+			ResultSet rs =
+				md.getProcedures( null, "sqlj", "alias_java_language")
+		)
+		{
+			if ( rs.next() )
+				return SchemaVariant.REL_1_6_0;
+		}
 
-		rs = md.getColumns( null, "sqlj", "jar_descriptor", null);
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_descriptor", null) )
 			return SchemaVariant.UNREL20130301b;
 
-		rs = md.getColumns( null, "sqlj", "jar_descriptors", null);
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_descriptors", null) )
 			return SchemaVariant.UNREL20130301a;
 
-		rs = md.getColumns( null, "sqlj", "jar_repository", "jarmanifest");
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_repository", "jarmanifest") )
 			return SchemaVariant.REL_1_3_0;
 
-		rs = md.getColumns( null, "sqlj", "typemap_entry", null);
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "typemap_entry", null) )
 			return SchemaVariant.UNREL20060212;
 
-		rs = md.getColumns( null, "sqlj", "jar_repository", "jarowner");
-		if ( rs.next() )
+		try (
+			ResultSet rs =
+				md.getColumns( null, "sqlj", "jar_repository", "jarowner")
+		)
 		{
-			int t = rs.getInt("DATA_TYPE");
-			rs.close();
-			if ( VARCHAR == t )
-				return SchemaVariant.UNREL20060125;
-			return SchemaVariant.REL_1_1_0;
+			if ( rs.next() )
+			{
+				if ( VARCHAR == rs.getInt("DATA_TYPE") )
+					return SchemaVariant.UNREL20060125;
+				return SchemaVariant.REL_1_1_0;
+			}
 		}
-		rs.close();
 
-		rs = md.getColumns( null, "sqlj", "jar_repository", "deploymentdesc");
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_repository", "deploymentdesc") )
 			return SchemaVariant.REL_1_0_0;
 
-		rs = md.getColumns( null, "sqlj", "jar_entry", null);
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_entry", null) )
 			return SchemaVariant.UNREL20040121;
 
-		rs = md.getColumns( null, "sqlj", "jar_repository", "jarimage");
-		seen = rs.next();
-		rs.close();
-		if ( seen )
+		if ( hasColumn( md, "jar_repository", "jarimage") )
 			return SchemaVariant.UNREL20040120;
 
-		PreparedStatement ps = c.prepareStatement( "SELECT count(*) " +
-			"FROM pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
-			"WHERE" +
-			" refclassid OPERATOR(pg_catalog.=)" +
-			"  'pg_catalog.pg_namespace'::regclass " +
-			" AND refobjid OPERATOR(pg_catalog.=) n.oid" +
-			" AND nspname OPERATOR(pg_catalog.=) 'sqlj' " +
-			" AND deptype OPERATOR(pg_catalog.=) 'n' " +
-			" AND NOT EXISTS ( " +
-			"  SELECT 1 FROM " +
-			"  pg_catalog.pg_class sqc JOIN pg_catalog.pg_namespace sqn " +
-			"  ON relnamespace OPERATOR(pg_catalog.=) sqn.oid " +
-			"  WHERE " +
-			"    nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
-			"    AND relname OPERATOR(pg_catalog.=) 'pg_extension' " +
-			"    AND classid OPERATOR(pg_catalog.=) sqc.oid " +
-			"	OR " +
-			"    nspname OPERATOR(pg_catalog.=) 'sqlj'" +
-			"    AND relname OPERATOR(pg_catalog.=) ?" +
-			"    AND classid OPERATOR(pg_catalog.=)" +
-			"     'pg_catalog.pg_class'::regclass " +
-			"    AND objid OPERATOR(pg_catalog.=) sqc.oid)");
-		ps.setString(1, loadpath_tbl);
-		rs = ps.executeQuery();
-		if ( rs.next() && 0 == rs.getInt(1) )
+		try (
+			PreparedStatement stmt = Checked.Supplier.use((() ->
+				{
+					PreparedStatement ps = c.prepareStatement(
+						/*
+						 * Is the sqlj schema 'empty'? Count the pg_depend
+						 * type 'n' dependency entries referring to the sqlj
+						 * namespace ...
+						 */
+						"SELECT count(*)" +
+						"FROM" +
+						" pg_catalog.pg_depend d, pg_catalog.pg_namespace n " +
+						"WHERE" +
+						" refclassid OPERATOR(pg_catalog.=)" +
+						"  'pg_catalog.pg_namespace'::regclass " +
+						" AND refobjid OPERATOR(pg_catalog.=) n.oid" +
+						" AND nspname OPERATOR(pg_catalog.=) 'sqlj' " +
+						" AND deptype OPERATOR(pg_catalog.=) 'n' " +
+						/*
+						 * ... but exclude from the count, if present:
+						 */
+						" AND NOT EXISTS ( " +
+						"  SELECT 1 FROM " +
+						"  pg_catalog.pg_class sqc" +
+						"  JOIN pg_catalog.pg_namespace sqn" +
+						"  ON relnamespace OPERATOR(pg_catalog.=) sqn.oid " +
+						"  WHERE " +
+						/*
+						 * (1) any dependency that is an extension (d.classid
+						 * identifies pg_catalog.pg_extension) ...
+						 */
+						"    nspname OPERATOR(pg_catalog.=) 'pg_catalog'" +
+						"    AND" +
+						"     relname OPERATOR(pg_catalog.=) 'pg_extension' " +
+						"    AND d.classid OPERATOR(pg_catalog.=) sqc.oid " +
+						"	OR " +
+						/*
+						 * (2) any dependency that is the loadpath_tbl table
+						 * we temporarily create in the extension script.
+						 */
+						"    nspname OPERATOR(pg_catalog.=) 'sqlj'" +
+						"    AND relname OPERATOR(pg_catalog.=) ?" +
+						"    AND classid OPERATOR(pg_catalog.=)" +
+						"     'pg_catalog.pg_class'::regclass " +
+						"    AND objid OPERATOR(pg_catalog.=) sqc.oid)");
+					ps.setString(1, loadpath_tbl);
+					return ps;
+				})).get();
+			ResultSet rs = stmt.executeQuery();
+		)
 		{
-			rs.close();
-			ps.close();
-			return SchemaVariant.EMPTY;
+			if ( rs.next() && 0 == rs.getInt(1) )
+				return SchemaVariant.EMPTY;
 		}
-		rs.close();
-		ps.close();
 
 		return null;
 	}
