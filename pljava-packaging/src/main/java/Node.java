@@ -1122,7 +1122,7 @@ public class Node extends JarX {
 			"  )" +
 			" )" +
 			"FROM" +
-			" (VALUES (?, ?)) AS p(schema, jar)," +
+			" (VALUES (?, CAST (? AS pg_catalog.text))) AS p(schema, jar)," +
 			" COALESCE(" +
 			"  pg_catalog.regexp_split_to_array(" +
 			"   sqlj.get_classpath(schema)," +
