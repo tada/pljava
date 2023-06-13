@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -46,6 +46,44 @@ import javax.tools.Diagnostic.Kind;
 public abstract class Lexicals
 {
 	private Lexicals() { } // do not instantiate
+
+	static
+	{
+		/*
+		 * Reject a Java version affected by JDK-8309515 bug.
+		 */
+		Boolean hasBug = null;
+		Pattern p1 = Pattern.compile("(?<a>.)(?<b>.)");
+		Pattern p2 = Pattern.compile("(?<b>.)(?<a>.)");
+		Matcher m = p1.matcher("xy");
+
+		if ( m.matches() && 0 == m.start("a") )
+		{
+			m.usePattern(p2);
+			if ( m.matches() )
+			{
+				switch ( m.start("a") )
+				{
+				case 0:
+					hasBug = true;
+					break;
+				case 1:
+					hasBug = false;
+					break;
+				}
+			}
+		}
+
+		if ( null == hasBug )
+			throw new ExceptionInInitializerError(
+				"Unexpected result while testing for bug JDK-8309515");
+
+		if ( hasBug )
+			throw new ExceptionInInitializerError(
+				"Java bug JDK-8309515 affects this version of Java. PL/Java " +
+				"requires a Java version earlier than 20 (when the bug first " +
+				"appears) or recent enough to have had the bug fixed.");
+	}
 
 	/** Allowed as the first character of a regular identifier by ISO.
 	 */

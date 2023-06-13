@@ -173,7 +173,7 @@ public class DDRProcessor extends AbstractProcessor
 		 * Update latest_tested to be the latest Java release on which this
 		 * annotation processor has been tested without problems.
 		 */
-		int latest_tested = 19;
+		int latest_tested = 20;
 		int ordinal_9 = SourceVersion.RELEASE_9.ordinal();
 		int ordinal_latest = latest_tested - 9 + ordinal_9;
 
@@ -1089,16 +1089,29 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
 		{
-			if ( ElementKind.CLASS.equals( ee.getKind()) )
+			ElementKind ek = ee.getKind();
+			switch ( ek )
 			{
-				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
-					msg( Kind.ERROR, ee,
-						"A PL/Java function must not have a non-public " +
-						"enclosing class");
-				if ( ((TypeElement)ee).getNestingKind().equals(
-					NestingKind.TOP_LEVEL) )
-					break;
+			case CLASS:
+			case INTERFACE:
+				break;
+			default:
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have an enclosing " + ek);
+				return;
 			}
+
+			// It's a class or interface, represented by TypeElement
+			TypeElement te = (TypeElement)ee;
+			mods = ee.getModifiers();
+
+			if ( ! mods.contains( Modifier.PUBLIC) )
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have a non-public " +
+					"enclosing class");
+
+			if ( ! te.getNestingKind().isNested() )
+				break; // no need to look above top-level class
 		}
 
 		FunctionImpl f = getSnippet( e, FunctionImpl.class, () ->
@@ -2287,7 +2300,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			case  ONEOUT | OTHERTYPE:
 				msg( Kind.ERROR, func,
 					"no type= allowed here (the out parameter " +
-					"declares its own type");
+					"declares its own type)");
 				return;
 			case MOREOUT | RECORDTYPE:
 			case MOREOUT | OTHERTYPE:
@@ -2489,11 +2502,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! ( complexViaInOut || setof || trigger ) )
 				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
-			if ( ! e.getKind().equals( ElementKind.CLASS) )
-				msg( Kind.ERROR, func,
-					"Somehow this method got enclosed by something other " +
-					"than a class");
-			sb.append( e.toString()).append( '.');
+			// e was earlier checked and ensured to be a class or interface
+			sb.append( elmu.getBinaryName((TypeElement)e)).append( '.');
 			sb.append( trigger ? func.getSimpleName() : func.toString());
 			return sb.toString();
 		}
@@ -2823,7 +2833,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			return deployStrings(
 				qnameFrom(name(), schema()),
 				null, // parameter iterable unused in appendParams below
-				"UDT[" + te + "] " + id.name(),
+				"UDT[" + elmu.getBinaryName(te) + "] " + id.name(),
 				comment());
 		}
 
@@ -3043,7 +3053,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			al.add( "SELECT sqlj.add_type_mapping(" +
 				DDRWriter.eQuote( qname.toString()) + ", " +
-				DDRWriter.eQuote( tclass.toString()) + ')');
+				DDRWriter.eQuote( elmu.getBinaryName(tclass)) + ')');
 			addComment( al);
 			return al.toArray( new String [ al.size() ]);
 		}

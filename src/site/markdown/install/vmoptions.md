@@ -7,6 +7,31 @@ options are likely to be worth setting.
 If using [the OpenJ9 JVM][hsj9], be sure to look also at the
 [VM options specific to OpenJ9][vmoptJ9].
 
+## Adding to the set of readable modules
+
+By default, a small set of Java modules (including `java.base`,
+`org.postgresql.pljava`, and `java.sql` and its transitive dependencies,
+which include `java.xml`) will be readable to any Java code installed with
+`install_jar`.
+
+While those modules may be enough for many uses, other modules are easily added
+using `--add-modules` within `pljava.vmoptions`. For example,
+`--add-modules=java.net.http,java.rmi` would make the HTTP Client and WebSocket
+APIs readable, along with the Remote Method Invocation API.
+
+For convenience, the module `java.se` simply transitively requires all the
+modules that make up the full Java SE API, so `--add-modules=java.se` will make
+that full API available to PL/Java code without further thought. The cost,
+however, may be that PL/Java uses more memory and starts more slowly than if
+only a few needed modules were named.
+
+Third-party modular code can be made available by adding the modular jars
+to `pljava.module_path` (see [configuration variables](../use/variables.html))
+and naming those modules in `--add-modules`. PL/Java currently treats all jars
+loaded with `install_jar` as unnamed-module, legacy classpath code.
+
+For more, see [PL/Java and the Java Platform Module System](../use/jpms.html).
+
 ## Byte order for PL/Java-implemented user-defined types
 
 PL/Java is free of byte-order issues except when using its features for building

@@ -101,6 +101,11 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     PL/Java API jar file and the PL/Java internals jar file. To determine the
     proper setting, see
     [finding the files produced by a PL/Java build](../install/locate.html).
+
+    If additional modular jars are added to the module path,
+    `--add-modules` in [`pljava.vmoptions`][addm] will make them readable by
+    PL/Java code.
+
     For more on PL/Java's "module path" and "class path", see
     [PL/Java and the Java Platform Module System](jpms.html).
 
@@ -181,3 +186,4 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [jou]: https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html
 [vmop]: ../install/vmoptions.html
 [sqlascii]: charsets.html#Using_PLJava_with_server_encoding_SQL_ASCII
+[addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules

@@ -423,6 +423,12 @@ static void String_initialize_codec()
 	jclass buffer_class = PgObject_getJavaClass("java/nio/Buffer");
 	jobject servercs;
 
+	/*
+	 * Records what the final state of s_two_step_conversion will be, but the
+	 * static is left at its initial value until all preparations are complete.
+	 */
+	bool two_step_when_ready = s_two_step_conversion;
+
 	s_server_encoding = GetDatabaseEncoding();
 
 	if ( PG_SQL_ASCII == s_server_encoding )
@@ -432,7 +438,7 @@ static void String_initialize_codec()
 				"forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
 		jstring sql_ascii = JNI_newStringUTF("X-PGSQL_ASCII");
 
-		s_two_step_conversion = false;
+		two_step_when_ready = false;
 
 		servercs = JNI_callStaticObjectMethodLocked(charset_class,
 			forname, sql_ascii);
@@ -444,7 +450,7 @@ static void String_initialize_codec()
 		jfieldID scharset_UTF_8 = PgObject_getStaticJavaField(scharset_class,
 			"UTF_8", "Ljava/nio/charset/Charset;");
 
-		s_two_step_conversion = PG_UTF8 != s_server_encoding;
+		two_step_when_ready = PG_UTF8 != s_server_encoding;
 
 		servercs = JNI_getStaticObjectField(scharset_class, scharset_UTF_8);
 	}
@@ -478,5 +484,6 @@ static void String_initialize_codec()
 	s_the_empty_string = JNI_newGlobalRef(
 		JNI_callObjectMethod(empty, string_intern));
 
+	s_two_step_conversion = two_step_when_ready;
 	uninitialized = false;
 }
