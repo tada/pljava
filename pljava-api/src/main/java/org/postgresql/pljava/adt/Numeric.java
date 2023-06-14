@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -42,6 +42,51 @@ import org.postgresql.pljava.Adapter.Contract;
 @FunctionalInterface
 public interface Numeric<T> extends Contract.Scalar<T>
 {
+	/**
+	 * The maximum precision that may be specified in a {@code numeric} type
+	 * modifier.
+	 *<p>
+	 * Without a modifier, the type is subject only to its implementation
+	 * limits, which are much larger.
+	 */
+	int NUMERIC_MAX_PRECISION = 1000;
+
+	/**
+	 * The minimum 'scale' that may be specified in a {@code numeric} type
+	 * modifier in PostgreSQL 15 or later.
+	 *<p>
+	 * Negative scale indicates rounding left of the decimal point. A scale of
+	 * -1000 indicates rounding to a multiple of 10<sup>1000</sup>.
+	 *<p>
+	 * Prior to PostgreSQL 15, a type modifier did not allow a negative
+	 * scale.
+	 *<p>
+	 * Without a modifier, the type is subject only to its implementation
+	 * limits.
+	 */
+	int NUMERIC_MIN_SCALE = -1000;
+
+	/**
+	 * The maximum 'scale' that may be specified in a {@code numeric} type
+	 * modifier in PostgreSQL 15 or later.
+	 *<p>
+	 * When scale is positive, the digits string represents a value smaller by
+	 * the indicated power of ten. When scale exceeds precision, the digits
+	 * string represents digits that appear following (scale - precision) zeros
+	 * to the right of the decimal point.
+	 *<p>
+	 * Prior to PostgreSQL 15, a type modifier did not allow a scale greater
+	 * than the specified precision.
+	 *<p>
+	 * Without a modifier, the type is subject only to its implementation
+	 * limits.
+	 */
+	int NUMERIC_MAX_SCALE = 1000;
+
+	/**
+	 * Label to distinguish positive, negative, and three kinds of special
+	 * values.
+	 */
 	enum Kind { POSITIVE, NEGATIVE, NAN, POSINFINITY, NEGINFINITY }
 
 	/**
