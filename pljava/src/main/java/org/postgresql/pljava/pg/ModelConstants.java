@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -192,6 +192,11 @@ public abstract class ModelConstants
 	@Native private static final int IDX_TYPEOID        = 58;
 
 	/*
+	 * N_ACL_RIGHTS was stable for a long time, but changes in PG 15 and in 16
+	 */
+	@Native private static final int IDX_N_ACL_RIGHTS   = 59;
+
+	/*
 	 * These public statics are the values of interest, set at class
 	 * initialization time by reading them from the buffer returned by _statics.
 	 */
@@ -272,6 +277,12 @@ public abstract class ModelConstants
 	public static final int TSCONFIGOID;     // RegConfigImpl
 	public static final int TSDICTOID;       // RegDictionaryImpl
 	public static final int TYPEOID;         // RegTypeImpl
+
+	/*
+	 * The number of meaningful rights bits in an ACL bitmask, imported by
+	 * AclItem.
+	 */
+	public static final int N_ACL_RIGHTS;
 
 	/**
 	 * Value supplied for one of these constants when built in a version of PG
@@ -370,6 +381,8 @@ public abstract class ModelConstants
 		TSCONFIGOID    = checked(b, IDX_TSCONFIGOID);
 		TSDICTOID      = checked(b, IDX_TSDICTOID);
 		TYPEOID        = checked(b, IDX_TYPEOID);
+
+		N_ACL_RIGHTS   = checked(b, IDX_N_ACL_RIGHTS);
 
 		if ( 0 != b.remaining() )
 			throw new ConstantsError();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -277,7 +277,8 @@ public interface CatalogObject
 		 * Subtype of {@code Grant} representing the privileges that may be
 		 * granted on a class (or relation, table, view).
 		 */
-		interface OnClass extends OnAttribute, DELETE, TRUNCATE, TRIGGER { }
+		interface OnClass
+		extends OnAttribute, DELETE, TRUNCATE, TRIGGER, MAINTAIN { }
 
 		/**
 		 * Subtype of {@code Grant} representing the privileges that may be
@@ -290,6 +291,12 @@ public interface CatalogObject
 		 * granted on a namespace (or schema).
 		 */
 		interface OnNamespace extends CREATE, USAGE { }
+
+		/**
+		 * Subtype of {@code Grant} representing the privileges that may be
+		 * granted on a configuration setting.
+		 */
+		interface OnSetting extends SET, ALTER_SYSTEM { }
 
 		/**
 		 * Subtype of {@code Grant} representing the grants (of membership in,
@@ -409,6 +416,33 @@ public interface CatalogObject
 	{
 		boolean connectGranted();
 		boolean connectGrantable();
+	}
+
+	/**
+	 * @hidden
+	 */
+	interface SET         extends Grant
+	{
+		boolean setGranted();
+		boolean setGrantable();
+	}
+
+	/**
+	 * @hidden
+	 */
+	interface ALTER_SYSTEM extends Grant
+	{
+		boolean alterSystemGranted();
+		boolean alterSystemGrantable();
+	}
+
+	/**
+	 * @hidden
+	 */
+	interface MAINTAIN    extends Grant
+	{
+		boolean maintainGranted();
+		boolean maintainGrantable();
 	}
 
 	/**

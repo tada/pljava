@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -26,8 +26,13 @@ import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static
 	org.postgresql.pljava.pg.CatalogObjectImpl.Factory.staticFormObjectId;
 
+import static org.postgresql.pljava.pg.ModelConstants.N_ACL_RIGHTS;
+
 public abstract class AclItem implements CatalogObject.Grant
 {
+	/*
+	 * PostgreSQL defines these in include/nodes/parsenodes.h
+	 */
 	@Native static final short ACL_INSERT	   = 1 <<  0;
 	@Native static final short ACL_SELECT	   = 1 <<  1;
 	@Native static final short ACL_UPDATE	   = 1 <<  2;
@@ -40,7 +45,14 @@ public abstract class AclItem implements CatalogObject.Grant
 	@Native static final short ACL_CREATE	   = 1 <<  9;
 	@Native static final short ACL_CREATE_TEMP = 1 << 10;
 	@Native static final short ACL_CONNECT     = 1 << 11;
+	// below appearing in PG 15
+	@Native static final short ACL_SET         = 1 << 12;
+	@Native static final short ACL_ALTER_SYSTEM= 1 << 13;
+	// below appearing in PG 16
+	@Native static final short ACL_MAINTAIN    = 1 << 14;
+
 	@Native static final   int N_ACL_RIGHTS    =	  12;
+
 	@Native static final   int ACL_ID_PUBLIC   =	   0;
 
 	@Native static final int OFFSET_ai_grantee  =  0;
@@ -56,13 +68,25 @@ public abstract class AclItem implements CatalogObject.Grant
 	 *<p>
 	 * Note that the order of the table in the documentation need not match
 	 * the order of the bits above. This string must be ordered like the bits.
+	 * It can also be found as {@code ACL_ALL_RIGHTS_STR} in
+	 * {@code include/utils/acl.h}.
 	 */
-	private static final String s_abbr = "arwdDxtXUCTc";
+	private static final String s_abbr = "arwdDxtXUCTcsAm";
 
 	static
 	{
-		assert N_ACL_RIGHTS == s_abbr.length() : "AclItem abbreviations";
-		assert N_ACL_RIGHTS == s_abbr.codePoints().count() : "AclItem abbr BMP";
+		/*
+		 * This is not a check for equality, because N_ACL_RIGHTS has grown
+		 * (between PG 14 and 15, and between 15 and 16). So the string should
+		 * include all the letters that might be used, and the assertion will
+		 * catch if a new PG version has grown the count again.
+		 *
+		 * For now, assume that, in older versions, unused bits will be zero
+		 * and we won't have to bother masking them off.
+		 */
+		assert N_ACL_RIGHTS <= s_abbr.length() : "AclItem abbreviations";
+		assert
+			s_abbr.length() == s_abbr.codePoints().count() : "AclItem abbr BMP";
 	}
 
 	private final RegRole.Grantee m_grantee;
@@ -94,7 +118,7 @@ public abstract class AclItem implements CatalogObject.Grant
 	 */
 	public static class NonRole extends AclItem
 	implements
-		OnClass, OnNamespace,
+		OnClass, OnNamespace, OnSetting,
 		CatalogObject.EXECUTE, CatalogObject.CREATE_TEMP, CatalogObject.CONNECT
 	{
 		private final short m_priv;
@@ -257,6 +281,36 @@ public abstract class AclItem implements CatalogObject.Grant
 		@Override public boolean connectGrantable()
 		{
 			return goption(ACL_CONNECT);
+		}
+
+		@Override public boolean setGranted()
+		{
+			return priv(ACL_SET);
+		}
+
+		@Override public boolean setGrantable()
+		{
+			return goption(ACL_SET);
+		}
+
+		@Override public boolean alterSystemGranted()
+		{
+			return priv(ACL_ALTER_SYSTEM);
+		}
+
+		@Override public boolean alterSystemGrantable()
+		{
+			return goption(ACL_ALTER_SYSTEM);
+		}
+
+		@Override public boolean maintainGranted()
+		{
+			return priv(ACL_MAINTAIN);
+		}
+
+		@Override public boolean maintainGrantable()
+		{
+			return goption(ACL_MAINTAIN);
 		}
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -169,6 +169,8 @@ static int32 constants[] = {
 	CONSTANT(TSCONFIGOID),
 	CONSTANT(TSDICTOID),
 	CONSTANT(TYPEOID),
+
+	CONSTANT(N_ACL_RIGHTS),
 };
 
 #undef CONSTANT
@@ -290,7 +292,13 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST( ACL_CREATE      );
 	CONFIRMCONST( ACL_CREATE_TEMP );
 	CONFIRMCONST( ACL_CONNECT     );
-	CONFIRMCONST( N_ACL_RIGHTS    );
+#if PG_VERSION_NUM >= 150000
+	CONFIRMCONST( ACL_SET         );
+	CONFIRMCONST( ACL_ALTER_SYSTEM);
+#endif
+#if PG_VERSION_NUM >= 160000
+	CONFIRMCONST( ACL_MAINTAIN    );
+#endif
 	CONFIRMCONST( ACL_ID_PUBLIC   );
 
 #define CONFIRMOFFSET(typ,fld) \
