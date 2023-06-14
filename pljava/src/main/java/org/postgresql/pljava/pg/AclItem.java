@@ -33,27 +33,27 @@ public abstract class AclItem implements CatalogObject.Grant
 	/*
 	 * PostgreSQL defines these in include/nodes/parsenodes.h
 	 */
-	@Native static final short ACL_INSERT	   = 1 <<  0;
-	@Native static final short ACL_SELECT	   = 1 <<  1;
-	@Native static final short ACL_UPDATE	   = 1 <<  2;
-	@Native static final short ACL_DELETE	   = 1 <<  3;
-	@Native static final short ACL_TRUNCATE    = 1 <<  4;
-	@Native static final short ACL_REFERENCES  = 1 <<  5;
-	@Native static final short ACL_TRIGGER     = 1 <<  6;
-	@Native static final short ACL_EXECUTE     = 1 <<  7;
-	@Native static final short ACL_USAGE	   = 1 <<  8;
-	@Native static final short ACL_CREATE	   = 1 <<  9;
-	@Native static final short ACL_CREATE_TEMP = 1 << 10;
-	@Native static final short ACL_CONNECT     = 1 << 11;
+	@Native static final short ACL_INSERT	    = 1 <<  0;
+	@Native static final short ACL_SELECT	    = 1 <<  1;
+	@Native static final short ACL_UPDATE	    = 1 <<  2;
+	@Native static final short ACL_DELETE	    = 1 <<  3;
+	@Native static final short ACL_TRUNCATE     = 1 <<  4;
+	@Native static final short ACL_REFERENCES   = 1 <<  5;
+	@Native static final short ACL_TRIGGER      = 1 <<  6;
+	@Native static final short ACL_EXECUTE      = 1 <<  7;
+	@Native static final short ACL_USAGE	    = 1 <<  8;
+	@Native static final short ACL_CREATE	    = 1 <<  9;
+	@Native static final short ACL_CREATE_TEMP  = 1 << 10;
+	@Native static final short ACL_CONNECT      = 1 << 11;
 	// below appearing in PG 15
-	@Native static final short ACL_SET         = 1 << 12;
-	@Native static final short ACL_ALTER_SYSTEM= 1 << 13;
+	@Native static final short ACL_SET          = 1 << 12;
+	@Native static final short ACL_ALTER_SYSTEM = 1 << 13;
 	// below appearing in PG 16
-	@Native static final short ACL_MAINTAIN    = 1 << 14;
+	@Native static final short ACL_MAINTAIN     = 1 << 14;
 
-	@Native static final   int N_ACL_RIGHTS    =	  12;
+	@Native static final   int N_ACL_RIGHTS     =      12;
 
-	@Native static final   int ACL_ID_PUBLIC   =	   0;
+	@Native static final   int ACL_ID_PUBLIC    =       0;
 
 	@Native static final int OFFSET_ai_grantee  =  0;
 	@Native static final int OFFSET_ai_grantor  =  4;

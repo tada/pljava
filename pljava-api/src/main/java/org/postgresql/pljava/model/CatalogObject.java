@@ -313,7 +313,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface INSERT      extends Grant
+	interface INSERT       extends Grant
 	{
 		boolean insertGranted();
 		boolean insertGrantable();
@@ -322,7 +322,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface SELECT      extends Grant
+	interface SELECT       extends Grant
 	{
 		boolean selectGranted();
 		boolean selectGrantable();
@@ -331,7 +331,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface UPDATE      extends Grant
+	interface UPDATE       extends Grant
 	{
 		boolean updateGranted();
 		boolean updateGrantable();
@@ -340,7 +340,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface DELETE      extends Grant
+	interface DELETE       extends Grant
 	{
 		boolean deleteGranted();
 		boolean deleteGrantable();
@@ -349,7 +349,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface TRUNCATE    extends Grant
+	interface TRUNCATE     extends Grant
 	{
 		boolean truncateGranted();
 		boolean truncateGrantable();
@@ -358,7 +358,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface REFERENCES  extends Grant
+	interface REFERENCES   extends Grant
 	{
 		boolean referencesGranted();
 		boolean referencesGrantable();
@@ -367,7 +367,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface TRIGGER     extends Grant
+	interface TRIGGER      extends Grant
 	{
 		boolean triggerGranted();
 		boolean triggerGrantable();
@@ -376,7 +376,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface EXECUTE     extends Grant
+	interface EXECUTE      extends Grant
 	{
 		boolean executeGranted();
 		boolean executeGrantable();
@@ -385,7 +385,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface USAGE       extends Grant
+	interface USAGE        extends Grant
 	{
 		boolean usageGranted();
 		boolean usageGrantable();
@@ -394,7 +394,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface CREATE      extends Grant
+	interface CREATE       extends Grant
 	{
 		boolean createGranted();
 		boolean createGrantable();
@@ -403,7 +403,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface CREATE_TEMP extends Grant
+	interface CREATE_TEMP  extends Grant
 	{
 		boolean create_tempGranted();
 		boolean create_tempGrantable();
@@ -412,7 +412,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface CONNECT     extends Grant
+	interface CONNECT      extends Grant
 	{
 		boolean connectGranted();
 		boolean connectGrantable();
@@ -421,7 +421,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface SET         extends Grant
+	interface SET          extends Grant
 	{
 		boolean setGranted();
 		boolean setGrantable();
@@ -439,7 +439,7 @@ public interface CatalogObject
 	/**
 	 * @hidden
 	 */
-	interface MAINTAIN    extends Grant
+	interface MAINTAIN     extends Grant
 	{
 		boolean maintainGranted();
 		boolean maintainGrantable();
