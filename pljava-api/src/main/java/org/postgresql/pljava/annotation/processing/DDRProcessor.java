@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,6 +9,7 @@
  * Contributors:
  *   Tada AB
  *   Purdue University
+ *   Chapman Flack
  */
 package org.postgresql.pljava.annotation.processing;
 
@@ -158,10 +159,31 @@ import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple.pgFold;
   "ddr.implementor",     // implementor when not annotated, default "PostgreSQL"
   "ddr.output"           // name of ddr file to write
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_9)
 public class DDRProcessor extends AbstractProcessor
 {
 	private DDRProcessorImpl impl;
+
+	@Override
+	public SourceVersion getSupportedSourceVersion()
+	{
+		/*
+		 * Because this must compile on Java versions back to 9, it must not
+		 * mention by name any SourceVersion constant later than RELEASE_9.
+		 *
+		 * Update latest_tested to be the latest Java release on which this
+		 * annotation processor has been tested without problems.
+		 */
+		int latest_tested = 20;
+		int ordinal_9 = SourceVersion.RELEASE_9.ordinal();
+		int ordinal_latest = latest_tested - 9 + ordinal_9;
+
+		SourceVersion latestSupported = SourceVersion.latestSupported();
+
+		if ( latestSupported.ordinal() <= ordinal_latest )
+			return latestSupported;
+
+		return SourceVersion.values()[ordinal_latest];
+	}
 	
 	@Override
 	public void init( ProcessingEnvironment processingEnv)
@@ -1067,16 +1089,29 @@ hunt:	for ( ExecutableElement ee : ees )
 
 		for ( Element ee = e; null != ( ee = ee.getEnclosingElement() ); )
 		{
-			if ( ElementKind.CLASS.equals( ee.getKind()) )
+			ElementKind ek = ee.getKind();
+			switch ( ek )
 			{
-				if ( ! ee.getModifiers().contains( Modifier.PUBLIC) )
-					msg( Kind.ERROR, ee,
-						"A PL/Java function must not have a non-public " +
-						"enclosing class");
-				if ( ((TypeElement)ee).getNestingKind().equals(
-					NestingKind.TOP_LEVEL) )
-					break;
+			case CLASS:
+			case INTERFACE:
+				break;
+			default:
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have an enclosing " + ek);
+				return;
 			}
+
+			// It's a class or interface, represented by TypeElement
+			TypeElement te = (TypeElement)ee;
+			mods = ee.getModifiers();
+
+			if ( ! mods.contains( Modifier.PUBLIC) )
+				msg( Kind.ERROR, ee,
+					"A PL/Java function must not have a non-public " +
+					"enclosing class");
+
+			if ( ! te.getNestingKind().isNested() )
+				break; // no need to look above top-level class
 		}
 
 		FunctionImpl f = getSnippet( e, FunctionImpl.class, () ->
@@ -2265,7 +2300,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			case  ONEOUT | OTHERTYPE:
 				msg( Kind.ERROR, func,
 					"no type= allowed here (the out parameter " +
-					"declares its own type");
+					"declares its own type)");
 				return;
 			case MOREOUT | RECORDTYPE:
 			case MOREOUT | OTHERTYPE:
@@ -2467,11 +2502,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			if ( ! ( complexViaInOut || setof || trigger ) )
 				sb.append( typu.erasure( func.getReturnType())).append( '=');
 			Element e = func.getEnclosingElement();
-			if ( ! e.getKind().equals( ElementKind.CLASS) )
-				msg( Kind.ERROR, func,
-					"Somehow this method got enclosed by something other " +
-					"than a class");
-			sb.append( e.toString()).append( '.');
+			// e was earlier checked and ensured to be a class or interface
+			sb.append( elmu.getBinaryName((TypeElement)e)).append( '.');
 			sb.append( trigger ? func.getSimpleName() : func.toString());
 			return sb.toString();
 		}
@@ -2801,7 +2833,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			return deployStrings(
 				qnameFrom(name(), schema()),
 				null, // parameter iterable unused in appendParams below
-				"UDT[" + te + "] " + id.name(),
+				"UDT[" + elmu.getBinaryName(te) + "] " + id.name(),
 				comment());
 		}
 
@@ -3021,7 +3053,7 @@ hunt:	for ( ExecutableElement ee : ees )
 			}
 			al.add( "SELECT sqlj.add_type_mapping(" +
 				DDRWriter.eQuote( qname.toString()) + ", " +
-				DDRWriter.eQuote( tclass.toString()) + ')');
+				DDRWriter.eQuote( elmu.getBinaryName(tclass)) + ')');
 			addComment( al);
 			return al.toArray( new String [ al.size() ]);
 		}

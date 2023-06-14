@@ -80,8 +80,9 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 	//
 	// There would be nothing wrong with restricting this permission to
 	// a specific directory, if all jar files to be loaded will be found there,
-	// or replacing it with a URLPermission if they will be hosted on a remote
-	// server, etc.
+	// or, if they will be hosted on a remote server, a permission like
+	// java.net.URLPermission "https://example.com/jars/*", "GET:Accept"
+	// etc.
 	//
 	permission java.io.FilePermission
 		"<<ALL FILES>>", "read";

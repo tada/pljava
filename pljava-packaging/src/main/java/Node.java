@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1103,6 +1103,42 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * Append a jar to a schema's class path if not already included.
+	 * @return a {@link #q(Statement,Callable) result stream} that includes, on
+	 * success, a one-column {@code void} result set with a single row if the
+	 * jar was added to the path, and no rows if the jar was already included.
+	 */
+	public static Stream<Object> appendClasspathIf(
+		Connection c, String schema, String jarName)
+	throws Exception
+	{
+		PreparedStatement ps = c.prepareStatement(
+			"SELECT" +
+			" sqlj.set_classpath(" +
+			"  schema," +
+			"  pg_catalog.concat_ws(" +
+			"   ':'," +
+			"   VARIADIC oldpath OPERATOR(pg_catalog.||) ARRAY[jar]" +
+			"  )" +
+			" )" +
+			"FROM" +
+			" (VALUES (?, CAST (? AS pg_catalog.text))) AS p(schema, jar)," +
+			" COALESCE(" +
+			"  pg_catalog.regexp_split_to_array(" +
+			"   sqlj.get_classpath(schema)," +
+			"  ':'" +
+			"  )," +
+			"  CAST (ARRAY[] AS pg_catalog.text[])" +
+			" ) AS t(oldpath)" +
+			"WHERE" +
+			" jar OPERATOR(pg_catalog.<>) ALL (oldpath)"
+		);
+		ps.setString(1, schema);
+		ps.setString(2, jarName);
+		return q(ps, ps::execute);
+	}
+
+	/**
 	 * Execute some arbitrary SQL
 	 * @return a {@link #q(Statement,Callable) result stream} from executing
 	 * the statement
@@ -1551,8 +1587,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install the examples jar, under the name {@code examples}, and place it
-	 * on the class path for schema {@code public}.
+	 * Install the examples jar, under the name {@code examples}, and append it
+	 * to the class path for schema {@code public}.
 	 *<p>
 	 * The return of a concatenated result stream from two consecutive
 	 * statements might be likely to fail in cases where the first
@@ -1567,7 +1603,7 @@ public class Node extends JarX {
 	throws Exception
 	{
 		Stream<Object> s1 = installExamples(c, deploy);
-		Stream<Object> s2 = setClasspath(c, "public", "examples");
+		Stream<Object> s2 = appendClasspathIf(c, "public", "examples");
 		return Stream.concat(s1, s2);
 	}
 
@@ -1589,7 +1625,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install a Saxon jar under the name {@code saxon}, and place it on the
+	 * Install a Saxon jar under the name {@code saxon}, and append it to the
 	 * class path for schema {@code public}.
 	 * @return a combined {@link #q(Statement,Callable) result stream} from
 	 * executing the statements
@@ -1599,7 +1635,7 @@ public class Node extends JarX {
 	throws Exception
 	{
 		Stream<Object> s1 = installSaxon(c, repo, version);
-		Stream<Object> s2 = setClasspath(c, "public", "saxon");
+		Stream<Object> s2 = appendClasspathIf(c, "public", "saxon");
 		return Stream.concat(s1, s2);
 	}
 
