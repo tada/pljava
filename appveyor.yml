@@ -1,3 +1,12 @@
+# These only_commits and branches settings ought to pretty much suppress
+# Appveyor, whose runs have all been failing lately because of Maven repository
+# connection resets that don't seem reproducible locally. This can be revisited
+# later to see if things might be working again.
+only_commits:
+  message: /appveyor/
+branches:
+  only:
+    - appveyor
 image: Visual Studio 2019
 environment:
   APPVEYOR_RDP_PASSWORD: MrRobot@2020
@@ -88,27 +97,44 @@ test_script:
       @'
       boolean succeeding = false; // begin pessimistic
 
-      import static java.nio.file.Files.createTempFile
-      import static java.nio.file.Files.write
-      import java.nio.file.Path
-      import static java.nio.file.Paths.get
-      import java.sql.Connection
-      import java.sql.PreparedStatement
-      import java.sql.ResultSet
-      import org.postgresql.pljava.packaging.Node
-      import static org.postgresql.pljava.packaging.Node.q
-      import static org.postgresql.pljava.packaging.Node.stateMachine
-      import static org.postgresql.pljava.packaging.Node.isVoidResultSet
+      import static java.nio.file.Files.createTempFile;
+      import static java.nio.file.Files.write;
+      import java.nio.file.Path;
+      import static java.nio.file.Paths.get;
+      import java.sql.Connection;
+      import java.sql.PreparedStatement;
+      import java.sql.ResultSet;
+      import org.postgresql.pljava.packaging.Node;
+      import static org.postgresql.pljava.packaging.Node.q;
+      import static org.postgresql.pljava.packaging.Node.stateMachine;
+      import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
+      /*
+       * Imports that will be needed to serve a jar file over http
+       * when the time comes for testing that.
+       */
+      import static java.nio.charset.StandardCharsets.UTF_8;
+      import java.util.jar.Attributes;
+      import java.util.jar.Manifest;
+      import java.util.jar.JarOutputStream;
+      import java.util.zip.ZipEntry;
+      import com.sun.net.httpserver.BasicAuthenticator;
+      import com.sun.net.httpserver.HttpContext;
+      import com.sun.net.httpserver.HttpExchange;
+      import com.sun.net.httpserver.HttpHandler;
+      import com.sun.net.httpserver.HttpServer;
 
       System.setErr(System.out); // PowerShell makes a mess of stderr output
 
       Node.main(new String[0]); // Extract the files (with output to stdout)
 
-      String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni"
+      String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
-      Node n1 = Node.get_new_node("TestNode1")
+      if ( 17 < Runtime.version().feature() )
+        vmopts += " -Djava.security.manager=allow";
 
-      n1.use_pg_ctl(true)
+      Node n1 = Node.get_new_node("TestNode1");
+
+      n1.use_pg_ctl(true);
 
       /*
        * Keep a tally of the three types of diagnostic notices that may be
@@ -118,7 +144,8 @@ test_script:
        */
       Map<String,Integer> results =
         Stream.of("info", "warning", "error", "ng").collect(
-          LinkedHashMap<String,Integer>::new, (m,k) -> m.put(k, 0), (r,s) -> {})
+          LinkedHashMap<String,Integer>::new,
+          (m,k) -> m.put(k, 0), (r,s) -> {});
 
       boolean isDiagnostic(Object o, Set<String> whatIsNG)
       {
@@ -132,6 +159,42 @@ test_script:
           if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
             results.compute("ng", (k,v) -> 1 + v);
         return true;
+      }
+
+      /*
+       * Write a trial policy into a temporary file in n's data_dir,
+       * and set pljava.vmoptions accordingly over connection c.
+       * Returns the 'succeeding' flag from the state machine looking
+       * at the command results.
+       */
+      boolean useTrialPolicy(Node n, Connection c, List<String> contents)
+      throws Exception
+      {
+        Path trialPolicy =
+          createTempFile(n.data_dir().getParent(), "trial", "policy");
+
+        write(trialPolicy, contents);
+
+        PreparedStatement setVmOpts = c.prepareStatement(
+          "SELECT null::pg_catalog.void" +
+          " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
+        );
+
+        setVmOpts.setString(1, vmopts +
+          " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
+
+        return stateMachine(
+          "change pljava.vmoptions",
+          null,
+
+          q(setVmOpts, setVmOpts::execute)
+          .flatMap(Node::semiFlattenDiagnostics)
+          .peek(Node::peek),
+
+          (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+          (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+          (o,p,q) -> null == o
+        );
       }
 
       try (
@@ -209,36 +272,12 @@ test_script:
            */
           try ( Connection c2 = n1.connect() )
           {
-            Path trialPolicy =
-              createTempFile(n1.data_dir().getParent(), "trial", "policy");
-
-            write(trialPolicy, List.of(
+            succeeding &= useTrialPolicy(n1, c2, List.of(
               "grant {",
               "  permission",
               "    org.postgresql.pljava.policy.TrialPolicy$Permission;",
               "};"
             ));
-
-            PreparedStatement setVmOpts = c2.prepareStatement(
-              "SELECT null::pg_catalog.void" +
-              " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
-            );
-
-            setVmOpts.setString(1, vmopts +
-              " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
-
-            succeeding &= stateMachine(
-              "change pljava.vmoptions",
-              null,
-
-              q(setVmOpts, setVmOpts::execute)
-              .flatMap(Node::semiFlattenDiagnostics)
-              .peek(Node::peek),
-
-              (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
-              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
-              (o,p,q) -> null == o
-            );
 
             PreparedStatement tryForbiddenRead = c2.prepareStatement(
               "SELECT" +
@@ -264,6 +303,115 @@ test_script:
               (o,p,q) -> null == o
             );
             // done with connection c2
+          }
+
+          /*
+           * Spin up an http server with a little jar file to serve, and test
+           * that install_jar works with an http: url.
+           *
+           * First make a little jar empty but for a deployment descriptor.
+           */
+          String ddrName = "foo.ddr";
+          Attributes a = new Attributes();
+          a.putValue("SQLJDeploymentDescriptor", "TRUE");
+          Manifest m = new Manifest();
+          m.getEntries().put(ddrName, a);
+          ByteArrayOutputStream baos = new ByteArrayOutputStream();
+          JarOutputStream jos = new JarOutputStream(baos, m);
+          jos.putNextEntry(new ZipEntry(ddrName));
+          jos.write(
+            (
+              "SQLActions[]={\n\"BEGIN INSTALL\n" +
+              "SELECT javatest.logmessage('INFO'," +
+              " 'jar installed from http');\n" +
+              "END INSTALL\",\n\"BEGIN REMOVE\n" +
+              "BEGIN dummy\n" +
+              "END dummy;\n" +
+              "END REMOVE\"\n}\n"
+            ).getBytes(UTF_8)
+          );
+          jos.closeEntry();
+          jos.close();
+          byte[] jar = baos.toByteArray();
+
+          /*
+           * Now an http server.
+           */
+          HttpServer hs =
+            HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+
+          try (
+            Connection c2 = n1.connect();
+            AutoCloseable t = ((Supplier<AutoCloseable>)() ->
+              {
+                hs.start();
+                return () -> hs.stop(0);
+              }
+            ).get()
+          )
+          {
+            InetSocketAddress addr = hs.getAddress();
+
+            String id = "bar", pw = "baz";
+
+            URL u = new URI(
+              "http", id+':'+pw, addr.getHostString(), addr.getPort(),
+              "/foo.jar", null, null
+            ).toURL();
+
+            HttpContext hc = hs.createContext(
+              u.getPath(),
+              new HttpHandler()
+              {
+                @Override
+                public void handle(HttpExchange t) throws IOException
+                {
+                  try ( InputStream is = t.getRequestBody() ) {
+                    is.readAllBytes();
+                  }
+                  t.getResponseHeaders().add(
+                    "Content-Type", "application/java-archive");
+                  t.sendResponseHeaders(200, jar.length);
+                  try ( OutputStream os = t.getResponseBody() ) {
+                    os.write(jar);
+                  }
+                }
+              }
+            );
+
+            hc.setAuthenticator(
+              new BasicAuthenticator("CI realm")
+              // ("CI realm", UTF_8) only available in Java 14 or later
+              {
+                @Override
+                public boolean checkCredentials(String c_id, String c_pw)
+                {
+                    return id.equals(c_id) && pw.equals(c_pw);
+                }
+              }
+            );
+
+            succeeding &= useTrialPolicy(n1, c2, List.of(
+              "grant codebase \"${org.postgresql.pljava.codesource}\" {",
+              "  permission",
+              "    java.net.URLPermission \"http:*\", \"GET:Accept\";",
+              "};"
+            ));
+
+            succeeding &= stateMachine(
+              "install a jar over http",
+              null,
+
+              Node.installJar(c2, u.toString(), "foo", true)
+              .flatMap(Node::semiFlattenDiagnostics)
+              .peek(Node::peek),
+
+              (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 1 : -2,
+              (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+              (o,p,q) -> null == o
+            );
+
+            // done with connection c2 again, and the http server
           }
 
           /*
@@ -432,13 +580,13 @@ test_script:
 
       System.out.println(results);
       succeeding &= (0 == results.get("ng"));
-      System.exit(succeeding ? 0 : 1)
+      System.exit(succeeding ? 0 : 1);
       '@ |
       jshell `
         -execution local `
         "-J--class-path=$packageJar;$jdbcJar" `
         "--class-path=$packageJar" `
-        "-J--add-modules=java.sql.rowset" `
+        "-J--add-modules=java.sql.rowset,jdk.httpserver" `
         "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" `
         "-J-Dpgconfig=$pgConfig" `
         "-J-DmavenRepo=$mavenRepo" `

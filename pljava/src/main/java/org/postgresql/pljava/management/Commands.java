@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,12 +18,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.Authenticator;
+import java.net.HttpURLConnection;
+import java.net.PasswordAuthentication;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.URLPermission;
 import java.nio.ByteBuffer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharacterCodingException;
+import java.security.Permission;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -36,6 +42,7 @@ import java.sql.SQLSyntaxErrorException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
+import static java.util.Arrays.fill;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -388,6 +395,48 @@ public class Commands
 		Identifier.Simple.fromCatalog("public");
 
 	/**
+	 * An {@link Authenticator} that will try the {@code userinfo} of the
+	 * requesting URL if present.
+	 *<p>
+	 * Beware that such URLs will appear in
+	 * {@code sqlj.jar_repository.jarorigin} if used to install a jar!
+	 */
+	private static class EmbeddedPwdAuthenticator extends Authenticator
+	{
+		private EmbeddedPwdAuthenticator() { }
+
+		static final EmbeddedPwdAuthenticator INSTANCE =
+			new EmbeddedPwdAuthenticator();
+
+		@Override
+		protected PasswordAuthentication getPasswordAuthentication()
+		{
+			String userinfo =
+				URI.create(getRequestingURL().toString()).getUserInfo();
+			if ( null == userinfo )
+				return null;
+			int len = userinfo.length();
+			int uend = userinfo.indexOf(':');
+			int pstart;
+			if ( -1 == uend )
+				uend = pstart = len;
+			else
+				pstart = 1 + uend;
+			String u = userinfo.substring(0, uend);
+			char[] p = new char[len - pstart];
+			try
+			{
+				userinfo.getChars(pstart, len, p, 0);
+				return new PasswordAuthentication(u, p);
+			}
+			finally
+			{
+				fill(p, '\245'); // PasswordAuthentication clones it
+			}
+		}
+	}
+
+	/**
 	 * Reads the jar found at the specified URL and stores the entries in the
 	 * jar_entry table.
 	 * 
@@ -401,7 +450,38 @@ public class Commands
 		{
 			URL url = new URL(urlString);
 			URLConnection uc = url.openConnection();
+			uc.setRequestProperty("Accept",
+				"application/java-archive, " +
+				"application/jar;q=0.9, application/jar-archive;q=0.9, " +
+				"application/x-java-archive;q=0.9, " +
+				"application/*;q=0.3, */*;q=0.2"
+			);
 			long[] sz = new long[1];
+			Permission[] least = { uc.getPermission() };
+
+			if ( uc instanceof HttpURLConnection )
+			{
+				/*
+				 * Augment what uc returned as the least privilege set needed
+				 * to connect. HttpURLConnection's getPermission method is older
+				 * than URLPermission, and it only returns a SocketPermission.
+				 * Set up 'least' to include both, so as not to end up with an
+				 * empty permission set when 'least' includes one and the policy
+				 * granted the other.
+				 */
+				least = new Permission[] {
+					least[0],
+					new URLPermission(urlString, "GET:Accept")
+				};
+
+				/*
+				 * In case authentication is needed, set an Authenticator that
+				 * will try userinfo from the URL if present. (Beware that jar
+				 * origin URLs are stored in sqlj.jar_repository.jarorigin!)
+				 */
+				((HttpURLConnection)uc).setAuthenticator(
+					EmbeddedPwdAuthenticator.INSTANCE);
+			}
 
 			/*
 			 * Do uc.connect() with PL/Java implementation's permissions, but
@@ -413,7 +493,7 @@ public class Commands
 					uc.connect();
 					sz[0] = uc.getContentLengthLong();
 					return uc.getInputStream();
-				}, null, uc.getPermission())
+				}, null, least)
 			)
 			{
 				addClassImages(jarId, urlStream, sz[0]);
@@ -421,8 +501,8 @@ public class Commands
 		}
 		catch(IOException e)
 		{
-			throw new SQLException("I/O exception reading jar file: " +
-				e.getMessage());
+			throw new SQLException("reading jar file: " +
+				e.toString(), "58030", e);
 		}
 	}
 
@@ -528,8 +608,8 @@ public class Commands
 		}
 		catch(IOException e)
 		{
-			throw new SQLException("I/O exception reading jar file: "
-				+ e.getMessage(), "58030", e);
+			throw new SQLException("reading jar file: "
+				+ e.toString(), "58030", e);
 		}
 	}
 

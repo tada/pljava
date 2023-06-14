@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -332,7 +332,7 @@ public class SQLDeploymentDescriptor
 			default:
 				if(inQuote == 0 && Character.isWhitespace((char)c))
 				{
-					// Change multiple whitespace into one singe space.
+					// Change multiple whitespace into one single space.
 					//
 					m_buffer.append(' ');
 					c = this.skipWhite();
@@ -345,7 +345,7 @@ public class SQLDeploymentDescriptor
 			}
 		}
 		if(inQuote != 0)
-			throw this.parseError("Untermintated " + (char)inQuote +
+			throw this.parseError("Unterminated " + (char)inQuote +
 					" starting at position " + startQuotePos);
 
 		throw this.parseError("Unexpected EOF. Expecting ';' to end command");

@@ -10,6 +10,104 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.5
+
+This is the fifth minor update in the PL/Java 1.6 series. It adds support
+for PostgreSQL 15 and fixes some bugs, with few other notable changes. Further
+information on the changes may be found below.
+
+$h3 Version compatibility
+
+PL/Java 1.6.5 can be built against recent PostgreSQL versions including 15, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+Some builds of Java 20 are affected by a bug, [JDK-8309515][]. PL/Java will
+report an error if detects it is affected by that bug, and the solution can be
+to use a Java version earlier than 20, or one recent enough to have the bug
+fixed.
+
+$h3 Changes
+
+$h4 Changes affecting administration
+
+$h5 Bugs affecting `install_jar` from http/https URLs fixed
+
+CI testing now makes sure that http URLs work and the appropriate
+`java.net.URLPermission` can be granted in `pljava.policy` where the comments
+indicate.
+
+$h4 Improvements to the annotation-driven SQL generator
+
+$h5 PL/Java functions can be declared on interfaces as well as classes
+
+The SQL/JRT specification has always only said 'class', but it could be
+debated whether 'class' was intended strictly or inclusively. As there is
+no technical obstacle to using static methods declared on an interface,
+and PL/Java's runtime already could do so, the SQL generator no longer
+disallows `@Function` annotations on them.
+
+$h5 SQL generator reports compatibility with a more recent Java source version
+
+Because PL/Java 1.6 retains compatibility for building on Java versions
+back to 9, the SQL generator previously reported 9 as the source version
+supported. This produced warnings building user code to target a later version
+of Java, which were only an issue for sites using a fail-on-warning policy.
+
+The SQL generator now reports its supported source version as the earlier of:
+the Java version being used, or the latest Java version on which it has been
+successfully tested. In this release, that is Java 20.
+
+$h4 Improvements to documentation
+
+$h5 Use of `--add-modules` to access Java modules not read by default, explained
+
+By default, PL/Java starts up with a fairly small set of Java modules readable.
+The documentation did not explain the use of `--add-modules` in
+`pljava.vmoptions` to expand that set when user code will refer to other
+modules. That is [now documented][addm].
+
+$h3 Enhancement requests addressed
+
+* [Allow functions from an interface](${ghbug}426)
+
+$h3 Bugs fixed
+
+* [Crash on startup with `SQL_ASCII` database and bad `vmoptions`](${ghbug}416)
+* [Installed by `LOAD` then packaged as extension broken in recent PostgreSQL updates](${ghbug}434)
+* [Java 20 breaks `LexicalsTest.testSeparator`](${ghbug}435)
+* [Not found JDK 11 `java.net.http.HttpClient`](${ghbug}419) (documentation added)
+* [`SocketPermission` on `install_jar`](${ghbug}425)
+* [The timer in `_destroyJavaVM` does not take effect](${ghbug}407)
+* PostgreSQL 15 support [410](${ghbug}410), [412](${ghbug}412)
+* [Cannot specify java release other than '9' for `maven-compiler-plugin`](${ghbug}403)
+* [Fail validation if function declares `TRANSFORM FOR TYPE`](${ghbug}402)
+* ["cannot parse AS string" for 1-letter identifiers](${ghbug}438)
+
+$h3 Credits
+
+Thanks in release 1.6.5 to Francisco Miguel Biete Banon, Christoph Berg, Frank
+Blanning, Stephen Frost, Casey Lai, Krzysztof Nienartowicz, Yuril Rashkovskii,
+Tim Van Holder, `aadrian`, `sincatter`, `tayalrun1`.
+
+[addm]: install/vmoptions.html#Adding_to_the_set_of_readable_modules
+[versions]: build/versions.html
+[JDK-8309515]: https://bugs.openjdk.org/browse/JDK-8309515
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.4
 
 This is the fourth minor update in the PL/Java 1.6 series. It is a minor
@@ -78,17 +176,6 @@ $h3 Bugs fixed
 * [`java.time.LocalDate` mismapping within 30 years of +/-infinity](${ghbug}390)
 
 [exoneout]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method.summary
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.3 (10 October 2021)
 

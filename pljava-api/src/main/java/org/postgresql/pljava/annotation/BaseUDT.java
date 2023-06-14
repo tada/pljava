@@ -56,13 +56,15 @@ import java.sql.SQLData; // referred to in javadoc
  *<p>
  * Other static methods in the class may be exported as SQL functions by
  * marking them with {@code @Function} in the usual way, and will not have any
- * special treatment on account of being in a UDT class. If those function
- * declarations will depend on the existence of this type, or the type must
+ * special treatment on account of being in a UDT class. Those function
+ * declarations will be correctly ordered before or after this type's, in common
+ * cases such as when this type appears in their signatures, or the type must
  * refer to the functions (as it must for
  * {@link #typeModifierInput typeModifierInput} or
- * {@link #typeModifierOutput typeModifierOutput} functions, for example),
- * appropriate {@link #provides provides}/{@link #requires requires} labels must
- * be used in their {@code @Function} annotations and this annotation, to make
+ * {@link #typeModifierOutput typeModifierOutput} functions, for example).
+ * In a case that the automatic ordering does not handle correctly,
+ * appropriate {@link #provides provides}/{@link #requires requires} labels can
+ * be used in the {@code @Function} annotations and this annotation, to make
  * the order come out right.
  */
 @Target(ElementType.TYPE) @Retention(RetentionPolicy.CLASS) @Documented
@@ -254,9 +256,8 @@ public @interface BaseUDT
 	 *<p>
 	 * Even if the method is defined on the UDT class marked by this annotation,
 	 * it is not automatically found or used. It will need its own
-	 * {@link Function} annotation giving it a name and a {@code provides}
-	 * label, and this annotation must refer to it by that name and include the
-	 * label in {@code requires} to ensure the SQL is generated in the right
+	 * {@link Function} annotation giving it a name, and this annotation must
+	 * refer to it by that name to ensure the SQL is generated in the right
 	 * order.
 	 */
 	String typeModifierInput() default "";
@@ -274,9 +275,8 @@ public @interface BaseUDT
 	 *<p>
 	 * Even if the method is defined on the UDT class marked by this annotation,
 	 * it is not automatically found or used. It will need its own
-	 * {@link Function} annotation giving it a name and a {@code provides}
-	 * label, and this annotation must refer to it by that name and include the
-	 * label in {@code requires} to ensure the SQL is generated in the right
+	 * {@link Function} annotation giving it a name, and this annotation must
+	 * refer to it by that name to ensure the SQL is generated in the right
 	 * order.
 	 */
 	String typeModifierOutput() default "";
@@ -288,6 +288,12 @@ public @interface BaseUDT
 	 * The details of the necessary API are in <a href=
 'http://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/include/commands/vacuum.h'
 >{@code vacuum.h}</a>.
+	 *<p>
+	 * Even if the method is defined on the UDT class marked by this annotation,
+	 * it is not automatically found or used. It will need its own
+	 * {@link Function} annotation giving it a name, and this annotation must
+	 * refer to it by that name to ensure the SQL is generated in the right
+	 * order.
 	 */
 	String analyze() default "";
 
