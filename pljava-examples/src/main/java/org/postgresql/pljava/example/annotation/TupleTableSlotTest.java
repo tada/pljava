@@ -82,6 +82,16 @@ public class TupleTableSlotTest
 			"TIMESTAMPTZ_INSTANCE");
 
 		/*
+		 * By default, the Adapters for primitive types can't fetch a null
+		 * value. There is no value in the primitive's value space that could
+		 * unambiguously represent null, and a DBMS should not go and change
+		 * your data if you haven't said to. But in a case where that is what
+		 * you want, it is simple to write an adapter with the wanted behavior
+		 * and compose it over the original one.
+		 */
+		float8 = new NullReplacingDouble(float8, Double.NaN);
+
+		/*
 		 * Once properly-typed adapters for component types are in hand,
 		 * getting properly-typed array adapters is straightforward.
 		 * (Java 10+ var can reduce verbosity here.)
@@ -101,7 +111,7 @@ public class TupleTableSlotTest
 			" '{{1},{2}}'::int4[], " +
 			" '{{{1,2,3}}}'::int2[], " +
 			" '{{{{1},{2},{3}}}}'::\"char\"[], " +
-			" '{{{{{1,2,3}}}}}'::float8[], " +
+			" '{{{{{1,null,3}}}}}'::float8[], " +
 			" '{{{{{{1},{2},{3}}}}}}'::float4[], " +
 			" '{{{{{t},{f},{t}}}}}'::boolean[], " +
 			" '{{{{''now''}}}}'::timestamptz[]";
@@ -131,6 +141,47 @@ public class TupleTableSlotTest
 		}
 
 		return result.iterator();
+	}
+
+	/**
+	 * An adapter to compose over another one, adding some wanted behavior.
+	 *
+	 * There should eventually be a built-in set of composing adapters like
+	 * this available for ready use, and automatically composed for you by an
+	 * adapter manager when you say "I want an adapter for this PG type to this
+	 * Java type and behaving this way."
+	 *
+	 * Until then, let this illustrate the simplicity of writing one.
+	 */
+	public static class NullReplacingDouble extends AsDouble<Double>
+	{
+		private final double replacement;
+
+		@Override
+		public boolean canFetchNull() { return true; }
+
+		@Override
+		public double fetchNull(Attribute a)
+		{
+			return replacement;
+		}
+
+		// It would be nice to let this method be omitted and this behavior
+		// assumed, in a composing adapter with the same type for return and
+		// parameter. Maybe someday.
+		public double adapt(Attribute a, double value)
+		{
+			return value;
+		}
+
+		private static final Adapter.Configuration config =
+			Adapter.configure(NullReplacingDouble.class, null);
+
+		NullReplacingDouble(AsDouble<?> over, double valueForNull)
+		{
+			super(config, over);
+			replacement = valueForNull;
+		}
 	}
 
 	/**

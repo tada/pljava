@@ -16,6 +16,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.dropArguments;
 import static java.lang.invoke.MethodHandles.lookup;
+import static java.lang.invoke.MethodHandles.permuteArguments;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
@@ -249,14 +250,20 @@ public abstract class Adapter<T,U> implements Visible
 
 		MethodType mt = producer
 			.type()
-			.changeReturnType(erase(top))
+			.changeReturnType(erased)
 			.changeParameterType(1, erase(under));
 
 		producer = producer.asType(mt);
 		fetcher  = fetcher.asType(
 			fetcher.type().changeReturnType(mt.parameterType(1)));
 
-		m_fetchHandle = collectArguments(producer, 1, fetcher);
+		mt = fetcher
+			.type() // this is the expected type of a fetcher, but it needs
+			.changeReturnType(erased); // new return type. After collect we will
+		fetcher = collectArguments(producer, 1, fetcher); // need 1st arg twice
+		fetcher = permuteArguments(fetcher, mt, 0, 0, 1, 2, 3, 4); // so do that
+
+		m_fetchHandle = fetcher;
 	}
 
 	/**
@@ -322,21 +329,34 @@ public abstract class Adapter<T,U> implements Visible
 	}
 
 	/**
-	 * Method that an {@code Adapter} must implement to indicate whether it
+	 * Method that a leaf {@code Adapter} must implement to indicate whether it
 	 * is capable of fetching a given PostgreSQL type.
+	 *<p>
+	 * In a composing adapter, this default implementation delegates to
+	 * the adapter beneath.
+	 * @throws UnsupportedOperationException if called in a leaf adapter
 	 */
-	public abstract boolean canFetch(RegType pgType);
+	public boolean canFetch(RegType pgType)
+	{
+		if ( null != m_underAdapter )
+			return m_underAdapter.canFetch(pgType);
+		throw new UnsupportedOperationException(
+			toString() + " is a leaf adapter and does not override canFetch");
+	}
 
 	/**
 	 * Method that an {@code Adapter} may override to indicate whether it
 	 * is capable of fetching a given PostgreSQL attribute.
 	 *<p>
-	 * If not overridden, this implementation delegates to
+	 * If not overridden, this implementation delegates to the adapter beneath,
+	 * if composed; in a leaf adapter, it delegates to
 	 * {@link #canFetch(RegType) canFetch} for the attribute's declared
 	 * PostgreSQL type.
 	 */
 	public boolean canFetch(Attribute attr)
 	{
+		if ( null != m_underAdapter )
+			return m_underAdapter.canFetch(attr);
 		return canFetch(attr.type());
 	}
 
@@ -535,7 +555,7 @@ public abstract class Adapter<T,U> implements Visible
 			if ( mt.hasWrappers() ) // Void, handled above, won't be seen here
 			{
 				Class<?> underOrig = underErased;
-				Class<?> underPrim = mt.unwrap().parameterType(0);
+				Class<?> underPrim = mt.unwrap().returnType();
 				fetchPredicate = m ->
 				{
 					if ( ! fn.equals(m.getName()) )
@@ -561,11 +581,11 @@ public abstract class Adapter<T,U> implements Visible
 				.filter(m -> ! m.isBridge()).toArray(Method[]::new);
 		if ( 1 != fetchCandidates.length )
 			throw new IllegalArgumentException(
-				cls + " lacks a " + fetchName + " method with the " +
+				cls + " lacks " + fetchName + " method with the " +
 				"expected signature");
 		if ( ! topErased.isAssignableFrom(fetchCandidates[0].getReturnType()) )
 			throw new IllegalArgumentException(
-				cls + " lacks a " + fetchName + " method with the " +
+				cls + " lacks " + fetchName + " method with the " +
 				"expected return type");
 
 		MethodHandle fetcher;
@@ -577,7 +597,7 @@ public abstract class Adapter<T,U> implements Visible
 		catch ( IllegalAccessException e )
 		{
 			throw new IllegalArgumentException(
-				cls + " has a " + fetchName + " method that is inaccessible",
+				cls + " has " + fetchName + " method that is inaccessible",
 				e);
 		}
 
@@ -594,7 +614,8 @@ public abstract class Adapter<T,U> implements Visible
 			return new Configuration.Leaf(cls, top, fetcher);
 		}
 
-		Class<?> asFound = fetcher.type().parameterType(1);
+		// unbound virtual handle's type includes receiver; 2nd param is index 2
+		Class<?> asFound = fetcher.type().parameterType(2);
 		if ( asFound.isPrimitive() )
 			under = underErased = asFound;
 
