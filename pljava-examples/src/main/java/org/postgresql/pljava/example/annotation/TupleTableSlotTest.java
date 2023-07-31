@@ -20,6 +20,7 @@ import java.util.Arrays;
 import static java.util.Arrays.deepToString;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 import java.time.OffsetDateTime;
 
@@ -92,6 +93,12 @@ public class TupleTableSlotTest
 		float8 = new NullReplacingDouble(float8, Double.NaN);
 
 		/*
+		 * Let's also compose AsOptional over the odt adapter, to get an adapter
+		 * producing Optional<OffsetDateTime> instead of possibly nulls.
+		 */
+		As<Optional<OffsetDateTime>,?> oodt = new AsOptional<>(odt);
+
+		/*
 		 * Once properly-typed adapters for component types are in hand,
 		 * getting properly-typed array adapters is straightforward.
 		 * (Java 10+ var can reduce verbosity here.)
@@ -103,18 +110,22 @@ public class TupleTableSlotTest
 		As<        double[][][][][]   ,?> f8x5 = float8.a4()     .a1().build();
 		As<         float[][][][][][] ,?> f4x6 = float4.a4().a2()     .build();
 		As<       boolean[][][][][]   ,?>  bx5 = bool  .a4()     .a1().build();
-		As<OffsetDateTime[][][][]     ,?> dtx4 = odt   .a4()          .build();
+		As<Optional<OffsetDateTime>[][][][],?> dtx4 = oodt.a4()       .build();
 
 		String query =
-			"SELECT" +
+			"VALUES (" +
 			" '{1,2}'::int8[], " +
 			" '{{1},{2}}'::int4[], " +
 			" '{{{1,2,3}}}'::int2[], " +
 			" '{{{{1},{2},{3}}}}'::\"char\"[], " +
-			" '{{{{{1,null,3}}}}}'::float8[], " +
+			" '{{{{{1,2,3}}}}}'::float8[], " +
 			" '{{{{{{1},{2},{3}}}}}}'::float4[], " +
 			" '{{{{{t},{f},{t}}}}}'::boolean[], " +
-			" '{{{{''now''}}}}'::timestamptz[]";
+			" '{{{{''now''}}}}'::timestamptz[]" +
+			"), (" +
+			" NULL, NULL, NULL, NULL, '{{{{{1,NULL,3}}}}}', NULL, NULL," +
+			" '{{{{NULL}}}}'" +
+			")";
 
 		List<TupleTableSlot> tups = t.test(query);
 
@@ -125,14 +136,14 @@ public class TupleTableSlotTest
 		 */
 		for ( TupleTableSlot tts : tups )
 		{
-			long           []           v0 = tts.get(0, i8x1);
-			int            [][]         v1 = tts.get(1, i4x2);
-			short          [][][]       v2 = tts.get(2, i2x3);
-			byte           [][][][]     v3 = tts.get(3, i1x4);
-			double         [][][][][]   v4 = tts.get(4, f8x5);
-			float          [][][][][][] v5 = tts.get(5, f4x6);
-			boolean        [][][][][]   v6 = tts.get(6,  bx5);
-			OffsetDateTime [][][][]     v7 = tts.get(7, dtx4);
+			long                     []           v0 = tts.get(0, i8x1);
+			int                      [][]         v1 = tts.get(1, i4x2);
+			short                    [][][]       v2 = tts.get(2, i2x3);
+			byte                     [][][][]     v3 = tts.get(3, i1x4);
+			double                   [][][][][]   v4 = tts.get(4, f8x5);
+			float                    [][][][][][] v5 = tts.get(5, f4x6);
+			boolean                  [][][][][]   v6 = tts.get(6,  bx5);
+			Optional<OffsetDateTime> [][][][]     v7 = tts.get(7, dtx4);
 
 			result.addAll(List.of(
 				Arrays.toString(v0), deepToString(v1), deepToString(v2),
@@ -181,6 +192,32 @@ public class TupleTableSlotTest
 		{
 			super(config, over);
 			replacement = valueForNull;
+		}
+	}
+
+	/**
+	 * Another example of a useful composing adapter that should eventually be
+	 * part of a built-in set.
+	 */
+	public static class AsOptional<T> extends As<Optional<T>,T>
+	{
+		@Override
+		public Optional<T> fetchNull(Attribute a)
+		{
+			return Optional.empty();
+		}
+
+		public Optional<T> adapt(Attribute a, T value)
+		{
+			return Optional.of(value);
+		}
+
+		private static final Adapter.Configuration config =
+			Adapter.configure(AsOptional.class, null);
+
+		AsOptional(As<T,?> over)
+		{
+			super(config, over, null);
 		}
 	}
 
