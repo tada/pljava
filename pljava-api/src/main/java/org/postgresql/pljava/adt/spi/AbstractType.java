@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -272,8 +272,8 @@ public abstract class AbstractType implements Type
 	 * a specialization of generic type {@code expected}.
 	 *<p>
 	 * For example, the Java type T of a particular adapter A that extends
-	 * {@code Adapter.As<?,T>} can be retrieved with
-	 * {@code specialization(A.class, As.class)[1]}.
+	 * {@code Adapter.As<T,?>} can be retrieved with
+	 * {@code specialization(A.class, As.class)[0]}.
 	 *<p>
 	 * More generally, this method can retrieve the generic type information
 	 * from any "super type token", as first proposed by Neal Gafter in 2006,
