@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,6 +55,8 @@ import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
 
+import java.lang.reflect.Field;
+import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.internal.SPI;
 import org.postgresql.pljava.model.SlotTester;
 import org.postgresql.pljava.model.TupleTableSlot;
@@ -77,16 +79,22 @@ import org.postgresql.pljava.pg.TupleTableSlotImpl;
  */
 public class SPIConnection implements Connection, SlotTester
 {
-	/**
-	 * A temporary test jig during TupleTableSlot development, not intended
-	 * to last.
-	 */
-	@Override
+	@Override // SlotTester
 	@SuppressWarnings("deprecation")
 	public List<TupleTableSlot> test(String query)
 	{
 		int result = SPI.exec(query, 0);
 		return TupleTableSlotImpl.testmeSPI();
+	}
+
+	@Override // SlotTester
+	public Adapter adapterPlease(String cname, String field)
+	throws ReflectiveOperationException
+	{
+		Class<? extends SlotTester.Visible> cls =
+			Class.forName(cname).asSubclass(SlotTester.Visible.class);
+		Field f = cls.getField(field);
+		return (Adapter)f.get(null);
 	}
 
 	/**

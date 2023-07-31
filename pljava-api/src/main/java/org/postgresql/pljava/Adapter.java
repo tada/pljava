@@ -54,6 +54,8 @@ import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.TupleTableSlot.Indexed;
 
+import org.postgresql.pljava.model.SlotTester.Visible; // temporary for test jig
+
 import static org.postgresql.pljava.adt.spi.AbstractType.erase;
 import static org.postgresql.pljava.adt.spi.AbstractType.isSubtype;
 import static org.postgresql.pljava.adt.spi.AbstractType.refine;
@@ -102,7 +104,7 @@ import static org.postgresql.pljava.adt.spi.AbstractType.substitute;
  * will be able to manipulate raw {@code Datum}s. An adapter class
  * should avoid leaking a {@code Datum} to other code.
  */
-public abstract class Adapter<T,U>
+public abstract class Adapter<T,U> implements Visible
 {
 	/**
 	 * The full generic type returned by this adapter, as refined at the time

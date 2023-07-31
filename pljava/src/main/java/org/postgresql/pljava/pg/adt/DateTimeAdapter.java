@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -33,6 +33,8 @@ import org.postgresql.pljava.adt.spi.Datum;
 import org.postgresql.pljava.model.Attribute;
 import static org.postgresql.pljava.model.RegNamespace.PG_CATALOG;
 import org.postgresql.pljava.model.RegType;
+
+import org.postgresql.pljava.model.SlotTester.Visible; // temporary for test jig
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -72,7 +74,7 @@ public abstract class DateTimeAdapter extends Adapter.Container
 	 *<p>
 	 * A holder interface so these won't be instantiated unless wanted.
 	 */
-	public interface JSR310
+	public interface JSR310 extends Visible
 	{
 		Date<LocalDate>             DATE_INSTANCE =
 			new Date<>(Datetime.Date.AsLocalDate.INSTANCE);

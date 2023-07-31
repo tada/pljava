@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -96,7 +96,7 @@ public class TupleTableSlotTest
 			if ( firstTime )
 			{
 				firstTime = false;
-				Adapter a = tts.adapterPlease(adpClass, adpInstance);
+				Adapter a = t.adapterPlease(adpClass, adpInstance);
 				if ( a instanceof As )
 					adpL = (As<?,?>)a;
 				else if ( a instanceof AsLong )

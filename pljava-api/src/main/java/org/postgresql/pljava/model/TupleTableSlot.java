@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,7 +13,6 @@ package org.postgresql.pljava.model;
 
 import java.sql.SQLException;
 
-import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.As;
 import org.postgresql.pljava.Adapter.AsLong;
 import org.postgresql.pljava.Adapter.AsDouble;
@@ -134,10 +133,4 @@ public interface TupleTableSlot
 		 */
 		int elements();
 	}
-
-	/**
-	 * XXX this method is scaffolding for development testing.
-	 */
-	Adapter adapterPlease(String clazz, String field)
-	throws ReflectiveOperationException;
 }

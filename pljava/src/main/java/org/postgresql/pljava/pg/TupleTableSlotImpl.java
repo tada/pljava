@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -69,8 +69,6 @@ import static
 	org.postgresql.pljava.pg.CatalogObjectImpl.Factory.staticFormObjectId;
 
 import static org.postgresql.pljava.pg.ModelConstants.*;
-
-import java.lang.reflect.Field;
 
 /*
  * bool always 1 byte (see c.h).
@@ -169,17 +167,6 @@ implements TupleTableSlot
 	@Native private static final int HEAP_HASNULL = 1; // lives in infomask
 	@Native private static final int HEAP_HASEXTERNAL = 4; // lives in infomask
 	@Native private static final int HEAP_NATTS_MASK = 0x07FF;  // infomask2
-
-	@Override // XXX testing
-	public Adapter adapterPlease(String cname, String field)
-	throws ReflectiveOperationException
-	{
-		@SuppressWarnings("unchecked")
-		Class<? extends Adapter> cls =
-			(Class<? extends Adapter>)Class.forName(cname);
-		Field f = cls.getField(field);
-		return (Adapter)f.get(null);
-	}
 
 	protected final ByteBuffer m_tts;
 	/* These can be final only because non-FIXED slots aren't supported yet. */
