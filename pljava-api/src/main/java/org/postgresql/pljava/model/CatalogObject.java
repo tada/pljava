@@ -12,6 +12,7 @@
 package org.postgresql.pljava.model;
 
 import java.util.List;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
@@ -455,8 +456,9 @@ public interface CatalogObject
 		static
 		{
 			INSTANCE = ServiceLoader
-				.load(Factory.class, Factory.class.getClassLoader())
-				.iterator().next();
+				.load(Factory.class.getModule().getLayer(), Factory.class)
+				.findFirst().orElseThrow(() -> new ServiceConfigurationError(
+					"could not load PL/Java CatalogObject.Factory"));
 		}
 
 		static <T extends Addressed<T>>

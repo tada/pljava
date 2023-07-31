@@ -39,6 +39,8 @@ import static java.util.Collections.enumeration;
 import java.util.Enumeration;
 import java.util.List;
 import static java.util.Objects.requireNonNull;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 
 import java.util.function.Predicate;
 
@@ -160,7 +162,15 @@ public abstract class Adapter<T,U>
 			 * type precomputed at configuration.
 			 */
 			if ( null != using )
-				top = specialization(using.getClass(), Contract.class)[0];
+			{
+				if ( witness instanceof TypeWrapper )
+				{
+					top = ((TypeWrapper)witness).wrapped;
+					witness = null;
+				}
+				else
+					top = specialization(using.getClass(), Contract.class)[0];
+			}
 
 			MethodHandle mh = leaf.m_fetch.bindTo(this);
 
@@ -1664,6 +1674,93 @@ public abstract class Adapter<T,U>
 	}
 
 	/**
+	 * Specification of a service supplied by the internals module for certain
+	 * operations, such as specially instantiating array adapters based on
+	 * {@code ArrayBuilder}s constructed here.
+	 */
+	public static abstract class Service
+	{
+		static final Service INSTANCE;
+
+		static
+		{
+			INSTANCE = ServiceLoader.load(
+				Service.class.getModule().getLayer(), Service.class)
+				.findFirst().orElseThrow(() -> new ServiceConfigurationError(
+					"could not load PL/Java Adapter.Service"));
+		}
+
+		static <TA,TI>
+			Array<TA> buildArrayAdapter(
+				ArrayBuilder<TA,TI> builder, TypeWrapper w)
+		{
+			return INSTANCE.buildArrayAdapterImpl(builder, w);
+		}
+
+		/**
+		 * Builds an array adapter, given an {@code ArrayBuilder} (which wraps
+		 * this {@code Adapter} and can describe the resulting array type), and
+		 * an {@code TypeWrapper}.
+		 *<p>
+		 * The {@code TypeWrapper} is a contrivance so that the computed array
+		 * type can be passed back up through the constructors in a non-racy
+		 * way.
+		 */
+		protected abstract <TA,TI>
+			Array<TA> buildArrayAdapterImpl(
+				ArrayBuilder<TA,TI> builder, TypeWrapper w);
+
+		/**
+		 * An upcall from the implementation layer to obtain the
+		 * {@code MultiArray} from an {@code ArrayBuilder} without cluttering
+		 * the latter's exposed API.
+		 */
+		protected MultiArray multiArray(ArrayBuilder<?,?> builder)
+		{
+			return builder.multiArray();
+		}
+
+		/**
+		 * An upcall from the implementation layer to obtain the
+		 * {@code Adapter} wrapped by an {@code ArrayBuilder} without cluttering
+		 * the latter's exposed API.
+		 */
+		protected Adapter<?,?> adapter(ArrayBuilder<?,?> builder)
+		{
+			return builder.m_adapter;
+		}
+	}
+
+	/**
+	 * A class that sneakily implements {@link Type} just so it can be passed
+	 * up through the <var>witness</var> parameter of existing constructors,
+	 * and carry the computed type of an array adapter to be constructed.
+	 *<p>
+	 * Can only be instantiated here, to limit the ability for arbitrary code
+	 * to supply computed (or miscomputed) types.
+	 *<p>
+	 * The implementation layer will call {@link #setWrappedType setWrappedType}
+	 * and then pass the wrapper to the appropriate adapter constructor.
+	 */
+	public static class TypeWrapper implements Type
+	{
+		@Override
+		public String getTypeName()
+		{
+			return "(a PL/Java TypeWrapper)";
+		}
+
+		private Type wrapped;
+
+		private TypeWrapper() { }
+
+		public void setWrappedType(Type t)
+		{
+			wrapped = t;
+		}
+	}
+
+	/**
 	 * Mixin allowing properly-typed array adapters of various dimensionalities
 	 * to be derived from an adapter for the array component type.
 	 *<p>
@@ -1728,6 +1825,16 @@ public abstract class Adapter<T,U>
 		{
 			m_adapter = (Adapter<?,?>)requireNonNull(adapter);
 			m_dimensions = dimensions;
+		}
+
+		/**
+		 * Returns an array adapter that will produce arrays with the chosen
+		 * number of dimensions, and this adapter's {@link #topType topType} as
+		 * the component type.
+		 */
+		public Array<TA> build()
+		{
+			return Service.buildArrayAdapter(this, new TypeWrapper());
 		}
 
 		MultiArray multiArray()
