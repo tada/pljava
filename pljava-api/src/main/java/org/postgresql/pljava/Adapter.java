@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -44,6 +44,7 @@ import java.util.function.Predicate;
 
 import org.postgresql.pljava.adt.spi.AbstractType;
 import org.postgresql.pljava.adt.spi.AbstractType.Bindings;
+import org.postgresql.pljava.adt.spi.AbstractType.MultiArray;
 import org.postgresql.pljava.adt.spi.Datum;
 import org.postgresql.pljava.adt.spi.TwosComplement;
 
@@ -630,7 +631,9 @@ public abstract class Adapter<T,U>
 	 * the (non-erased) result type of a stack of composed adapters, the type
 	 * variable U can be used in relating the input to the output type of each.
 	 */
-	public abstract static class As<T,U> extends Adapter<T,U>
+	public abstract static class As<T,U>
+	extends Adapter<T,U>
+	implements ArrayProto<T[]>
 	{
 		private final MethodHandle m_fetchHandleErased;
 
@@ -993,7 +996,9 @@ public abstract class Adapter<T,U>
 	 * (also an unsigned 16-bit type) should be determined based on whether
 	 * the resulting value is meant to have a UTF-16 character meaning.
 	 */
-	public abstract static class Primitive<T,U> extends Adapter<T,U>
+	public abstract static class Primitive<T,U,TA>
+	extends Adapter<T,U>
+	implements ArrayProto<TA>
 	{
 		private <V,A extends Adapter<U,V>> Primitive(Configuration c, A over)
 		{
@@ -1016,7 +1021,7 @@ public abstract class Adapter<T,U>
 	 * Abstract superclass of signed and unsigned primitive {@code long}
 	 * adapters.
 	 */
-	public abstract static class AsLong<U> extends Primitive<Long,U>
+	public abstract static class AsLong<U> extends Primitive<Long,U,long[]>
 	implements TwosComplement
 	{
 		private <V,A extends Adapter<U,V>> AsLong(Configuration c, A over)
@@ -1084,7 +1089,8 @@ public abstract class Adapter<T,U>
 	/**
 	 * Abstract superclass of primitive {@code double} adapters.
 	 */
-	public abstract static class AsDouble<U> extends Primitive<Double,U>
+	public abstract static class AsDouble<U>
+	extends Primitive<Double,U,double[]>
 	{
 		protected <V,A extends Adapter<U,V>> AsDouble(Configuration c, A over)
 		{
@@ -1127,7 +1133,7 @@ public abstract class Adapter<T,U>
 	 * Abstract superclass of signed and unsigned primitive {@code int}
 	 * adapters.
 	 */
-	public abstract static class AsInt<U> extends Primitive<Integer,U>
+	public abstract static class AsInt<U> extends Primitive<Integer,U,int[]>
 	implements TwosComplement
 	{
 		private <V,A extends Adapter<U,V>> AsInt(Configuration c, A over)
@@ -1195,7 +1201,7 @@ public abstract class Adapter<T,U>
 	/**
 	 * Abstract superclass of primitive {@code float} adapters.
 	 */
-	public abstract static class AsFloat<U> extends Primitive<Float,U>
+	public abstract static class AsFloat<U> extends Primitive<Float,U,float[]>
 	{
 		protected <V,A extends Adapter<U,V>> AsFloat(Configuration c, A over)
 		{
@@ -1238,7 +1244,7 @@ public abstract class Adapter<T,U>
 	 * Abstract superclass of signed and unsigned primitive {@code short}
 	 * adapters.
 	 */
-	public abstract static class AsShort<U> extends Primitive<Short,U>
+	public abstract static class AsShort<U> extends Primitive<Short,U,short[]>
 	implements TwosComplement
 	{
 		private <V,A extends Adapter<U,V>> AsShort(Configuration c, A over)
@@ -1306,7 +1312,7 @@ public abstract class Adapter<T,U>
 	/**
 	 * Abstract superclass of primitive {@code char} adapters.
 	 */
-	public abstract static class AsChar<U> extends Primitive<Character,U>
+	public abstract static class AsChar<U> extends Primitive<Character,U,char[]>
 	{
 		protected <V,A extends Adapter<U,V>> AsChar(Configuration c, A over)
 		{
@@ -1349,7 +1355,7 @@ public abstract class Adapter<T,U>
 	 * Abstract superclass of signed and unsigned primitive {@code byte}
 	 * adapters.
 	 */
-	public abstract static class AsByte<U> extends Primitive<Byte,U>
+	public abstract static class AsByte<U> extends Primitive<Byte,U,byte[]>
 	implements TwosComplement
 	{
 		private <V,A extends Adapter<U,V>> AsByte(Configuration c, A over)
@@ -1417,7 +1423,8 @@ public abstract class Adapter<T,U>
 	/**
 	 * Abstract superclass of primitive {@code boolean} adapters.
 	 */
-	public abstract static class AsBoolean<U> extends Primitive<Boolean,U>
+	public abstract static class AsBoolean<U>
+	extends Primitive<Boolean,U,boolean[]>
 	{
 		protected <V,A extends Adapter<U,V>> AsBoolean(Configuration c, A over)
 		{
@@ -1653,6 +1660,115 @@ public abstract class Adapter<T,U>
 					return emptyEnumeration();
 				return enumeration(List.of(the_permission));
 			}
+		}
+	}
+
+	/**
+	 * Mixin allowing properly-typed array adapters of various dimensionalities
+	 * to be derived from an adapter for the array component type.
+	 *<p>
+	 * If <var>a</var> is an adapter producing type <var>T</var>, then
+	 * {@code a.a4().a2()} is an {@code ArrayBuilder} that can build a
+	 * six-dimensional array adapter producing type <var>T[][][][][][]</var>.
+	 *
+	 * @param <TA> Type of a one-dimension array of the component type; the type
+	 * a builder obtained with a1() would build.
+	 */
+	public interface ArrayProto<TA>
+	{
+		/**
+		 * Returns a builder that will make an array adapter returning
+		 * a one-dimension Java array of this {@code Adapter}'s Java type.
+		 */
+		default ArrayBuilder<TA,TA> a1()
+		{
+			return new ArrayBuilder<TA,TA>(this, 1);
+		}
+
+		/**
+		 * Returns a builder that will make an array adapter returning
+		 * a two-dimension Java array of this {@code Adapter}'s Java type.
+		 */
+		default ArrayBuilder<TA[],TA> a2()
+		{
+			return new ArrayBuilder<TA[],TA>(this, 2);
+		}
+
+		/**
+		 * Returns a builder that will make an array adapter returning
+		 * a four-dimension Java array of this {@code Adapter}'s Java type.
+		 */
+		default ArrayBuilder<TA[][][],TA> a4()
+		{
+			return new ArrayBuilder<TA[][][],TA>(this, 4);
+		}
+	}
+
+	/**
+	 * Builder to derive properly-typed array adapters of various
+	 * dimensionalities, first obtained from an {@link ArrayProto}.
+	 *
+	 * @param <TA> The array type represented by this builder. a1() will produce
+	 * a builder for TA[], and so on.
+	 * @param <TI> The type of a one-dimension array of the original component
+	 * type; remains unchanged by increases to the dimensionality of TA.
+	 */
+	@SuppressWarnings("unchecked")
+	public static final class ArrayBuilder<TA,TI>
+	{
+		final Adapter<?,?> m_adapter;
+		private int m_dimensions;
+
+		/**
+		 * Records the adapter for the component type (necessarily an instance
+		 * of {@code Adapter} but here typed as {@code ArrayProto} to simplify
+		 * call sites), and the dimensionality of array to be built.
+		 */
+		ArrayBuilder(ArrayProto<TI> adapter, int dimensions)
+		{
+			m_adapter = (Adapter<?,?>)requireNonNull(adapter);
+			m_dimensions = dimensions;
+		}
+
+		MultiArray multiArray()
+		{
+			return new MultiArray(m_adapter.topType(), m_dimensions);
+		}
+
+		/**
+		 * Adds one to the result-array dimensions of the {@code Adapter} this
+		 * builder will build.
+		 * @return this builder, with dimensions increased, and a sneaky
+		 * unchecked cast to the corresponding generic type.
+		 */
+		public ArrayBuilder<TA[],TI> a1()
+		{
+			m_dimensions += 1;
+			return (ArrayBuilder<TA[],TI>)this;
+		}
+
+		/**
+		 * Adds two to the result-array dimensions of the {@code Adapter} this
+		 * builder will build.
+		 * @return this builder, with dimensions increased, and a sneaky
+		 * unchecked cast to the corresponding generic type.
+		 */
+		public ArrayBuilder<TA[][],TI> a2()
+		{
+			m_dimensions += 2;
+			return (ArrayBuilder<TA[][],TI>)this;
+		}
+
+		/**
+		 * Adds four to the result-array dimensions of the {@code Adapter} this
+		 * builder will build.
+		 * @return this builder, with dimensions increased, and a sneaky
+		 * unchecked cast to the corresponding generic type.
+		 */
+		public ArrayBuilder<TA[][][][],TI> a4()
+		{
+			m_dimensions += 4;
+			return (ArrayBuilder<TA[][][][],TI>)this;
 		}
 	}
 }
