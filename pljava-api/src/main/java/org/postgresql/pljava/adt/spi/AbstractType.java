@@ -25,9 +25,11 @@ import static java.util.Arrays.stream;
 import static java.util.Collections.addAll;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import static java.util.Objects.requireNonNull;
 
@@ -268,6 +270,14 @@ public abstract class AbstractType implements Type
 	}
 
 	/**
+	 * Equivalent to {@code specialization(candidate, expected, null)}.
+	 */
+	public static Type[] specialization(Type candidate, Class<?> expected)
+	{
+		return specialization(candidate, expected, null);
+	}
+
+	/**
 	 * Test whether the type {@code candidate} is, directly or indirectly,
 	 * a specialization of generic type {@code expected}.
 	 *<p>
@@ -287,6 +297,8 @@ public abstract class AbstractType implements Type
 	 * {@code specialization(foo.getClass(), TypeReference.class)}.
 	 * @param candidate a type to be checked
 	 * @param expected known (normally generic) type to check for
+	 * @param rtype array to receive (if non-null) the corresponding
+	 * (parameterized or raw) type if the result is non-null.
 	 * @return null if candidate does not extend expected,
 	 * otherwise the array of type arguments with which it specializes
 	 * expected
@@ -297,7 +309,8 @@ public abstract class AbstractType implements Type
 	 * expected but does not carry the needed parameter bindings (such as
 	 * when the raw expected Class itself is passed)
 	 */
-	public static Type[] specialization(Type candidate, Class<?> expected)
+	public static Type[] specialization(
+		Type candidate, Class<?> expected, Type[] rtype)
 	{
 		Type t = requireNonNull(candidate, "candidate is null");
 		requireNonNull(expected, "expected is null");
@@ -394,9 +407,15 @@ public abstract class AbstractType implements Type
 				pt = (ParameterizedType)
 					AbstractType.substitute(latestBindings, pt);
 			actualArgs = pt.getActualTypeArguments();
+			if ( null != rtype )
+				rtype[0] = pt;
 		}
 		else if ( rawTypeFound )
+		{
 			actualArgs = new Type[0];
+			if ( null != rtype )
+				rtype[0] = expected;
+		}
 
 		if ( null == actualArgs
 			|| actualArgs.length != expected.getTypeParameters().length )
@@ -800,6 +819,348 @@ public abstract class AbstractType implements Type
 				if ( typesEqual(formalTypeParams[i], v) )
 					return actualTypeArgs[i];
 			return v;
+		}
+	}
+
+	/**
+	 * A class dedicated to manipulating the types of multidimensional Java
+	 * arrays, and their instances, that conform to PostgreSQL array constraints
+	 * (non-'jagged', each dimension's arrays all equal size, no intermediate
+	 * nulls).
+	 *<p>
+	 * Construct a {@code MultiArray} by supplying a component {@link Type} and
+	 * a number of dimensions. The resulting {@code MultiArray} represents the
+	 * Java array type has a number of bracket pairs equal to the supplied
+	 * dimensions argument plus those of the component type if it is itself a
+	 * Java array. (There could be an {@code Adapter} for some PostgreSQL scalar
+	 * type that presents it as a Java array, and then there could be a
+	 * PostgreSQL array of that type.) So the type reported by
+	 * {@link #arrayType arrayType} may have more bracket pairs than the
+	 * {@code MultiArray}'s dimensions. Parentheses are used by
+	 * {@link #toString toString} to help see what's going on.
+	 *<p>
+	 * When converting a {@code MultiArray} toa {@link Sized}, only as many
+	 * sizes are supplied as the multiarray's dimensions, and when converting
+	 * that to an {@link Allocated}, only that much allocation is done.
+	 * Populating the arrays at that last allocated level with the converted
+	 * elements of the PostgreSQL array is the work left for the caller.
+	 */
+	public static class MultiArray
+	{
+		public final Type component;
+		public final int dimensions;
+
+		/**
+		 * Constructs a description of a multiarray with a given component type
+		 * and dimensions.
+		 * @param component the type of the component (which may itself be an
+		 * array)
+		 * @param dimensions dimensions of the multiarray (if the component type
+		 * is an array, the final resulting type will have the sum of its
+		 * dimensions and these)
+		 */
+		public MultiArray(Type component, int dimensions)
+		{
+			if ( 1 > dimensions )
+				throw new IllegalArgumentException(
+					"dimensions must be positive: " + dimensions);
+			this.component = component;
+			this.dimensions = dimensions;
+		}
+
+		/**
+		 * Returns a representation of the resulting Java array type, with
+		 * parentheses around the component type (which may itself be an array
+		 * type) and around the array brackets corresponding to this
+		 * multiarray's dimensions.
+		 */
+		@Override
+		public String toString()
+		{
+			return "MultiArray: (" + component + ")([])*" + dimensions;
+		}
+
+		/**
+		 * Returns the resulting Java array type (which, if the component type
+		 * is also an array, does not distinguish between its dimensions and
+		 * those of this multiarray).
+		 */
+		public Type arrayType()
+		{
+			Type t = component;
+
+			if ( t instanceof Class<?> )
+				t = Array.newInstance((Class<?>)t, new int[dimensions])
+					.getClass();
+			else
+				for ( int i = 0 ; i < dimensions ; ++ i )
+					t = new GenericArray(t);
+
+			return t;
+		}
+
+		/**
+		 * Returns a {@code MultiArray} representing an array type <var>t</var>
+		 * in a canonical form, with its ultimate non-array type as the
+		 * component type, and all of its array dimensions belonging to the
+		 * multiarray.
+		 */
+		public static MultiArray canonicalize(Type t)
+		{
+			Type t1 = requireNonNull(t);
+			int dims = 0;
+
+			for ( ;; )
+			{
+				t1 = toElementIfArray(t1);
+				if ( null == t1 )
+					break;
+				t = t1;
+				++ dims;
+			}
+
+			if ( 0 == dims )
+				throw new IllegalArgumentException("not an array type: " + t);
+
+			return new MultiArray(t, dims);
+		}
+
+		/**
+		 * Returns a new {@code MultiArray} with the same Java array type but
+		 * where {@link #component} is a non-array type and {@link #dimensions}
+		 * holds the total number of dimensions.
+		 */
+		public MultiArray canonicalize()
+		{
+			if ( null == toElementIfArray(component) )
+				return this;
+
+			MultiArray a = canonicalize(component);
+			return new MultiArray(a.component, dimensions + a.dimensions);
+		}
+
+		/**
+		 * Returns this {@code MultiArray} as a 'prefix' of <var>suffix</var>
+		 * (which must have the same ultimate non-array type but a smaller
+		 * number of dimensions).
+		 *<p>
+		 * The result will have the array type of <var>suffix</var> as its
+		 * component type, and the dimensions required to have the same overall
+		 * Java {@link #arrayType arrayType} as the receiver.
+		 */
+		public MultiArray asPrefixOf(MultiArray suffix)
+		{
+			MultiArray pfx = canonicalize();
+			MultiArray sfx = suffix.canonicalize();
+
+			if ( 1 + sfx.dimensions > pfx.dimensions )
+				throw new IllegalArgumentException(
+					"suffix too long: ("+ this +").asPrefixOf("+ suffix +")");
+
+			if ( ! typesEqual(pfx.component, sfx.component) )
+				throw new IllegalArgumentException(
+					"asPrefixOf with different component types: "
+					+ pfx.component + ", " + sfx.component);
+
+			Type c = sfx.arrayType();
+
+			return new MultiArray(c, pfx.dimensions - sfx.dimensions);
+		}
+
+		/**
+		 * Returns a new {@code MultiArray} with this one's type (possibly a
+		 * raw, or parameterized type) refined according to the known type of
+		 * <var>model</var>.
+		 */
+		public MultiArray refine(Type model)
+		{
+			int modelDims = 0;
+
+			if ( null != toElementIfArray(model) )
+			{
+				MultiArray cmodel = canonicalize(model);
+				modelDims = cmodel.dimensions;
+				model = cmodel.component;
+			}
+
+			MultiArray canon = canonicalize();
+
+			Type[] rtype = new Type[1];
+			if ( null == specialization(model, erase(canon.component), rtype) )
+				throw new IllegalArgumentException(
+					"refine: " + model + " does not specialize "
+					+ canon.component);
+
+			MultiArray result = new MultiArray(rtype[0], canon.dimensions);
+
+			if ( 0 < modelDims )
+			{
+				MultiArray suffix =	new MultiArray(rtype[0], modelDims);
+				result = result.asPrefixOf(suffix);
+			}
+
+			return result;
+		}
+
+		/**
+		 * Returns a {@link Sized} representing this {@code MultiArray} with
+		 * a size for each of its dimensions.
+		 */
+		public Sized size(int... dims)
+		{
+			return new Sized(dims);
+		}
+
+		/**
+		 * Represents a {@code MultiArray} for which sizes for its dimensions
+		 * have been specified, so that an instance can be allocated.
+		 */
+		public class Sized
+		{
+			private final int[] lengths;
+
+			private Sized(int[] dims)
+			{
+				if ( dims.length != dimensions )
+					throw new IllegalArgumentException(
+						"("+ this +").size(passed "
+						+ dims.length +" dimensions)");
+				lengths = dims.clone();
+			}
+
+			@Override
+			public String toString()
+			{
+				return MultiArray.this.toString();
+			}
+
+			/**
+			 * Returns an {@link Allocated} that wraps a freshly-allocated array
+			 * with the sizes recorded here.
+			 *<p>
+			 * The result is returned with wildcard types. If the caller code
+			 * has been written so as to have type variables with the proper
+			 * types at compile time, it may do an unchecked cast on the result,
+			 * which may make later operations more concise.
+			 */
+			public Allocated<?,?> allocate()
+			{
+				Class<?> c = erase(component);
+				Object a = Array.newInstance(c, lengths);
+
+				return new Allocated(a);
+			}
+
+			/**
+			 * Wraps an existing instance of the multiarray type in question.
+			 *
+			 * @param <TA> the overall Java type of the whole array, which
+			 * can be retrieved with array()
+			 * @param <TI> the type of the arrays at the final level
+			 * (one-dimensional arrays of the component type) that can be
+			 * iterated, in order, to be populated or read out. <TI> is always
+			 * an array type, but can be a reference array or any primitive
+			 * array type, and therefore not as convenient as it might be,
+			 * because the least upper bound of those types is {@code Object}.
+			 */
+			public class Allocated<TA,TI> implements Iterable<TI>
+			{
+				final Object array;
+
+				private Allocated(Object a)
+				{
+					array = requireNonNull(a);
+				}
+
+				/**
+				 * Returns the resulting array.
+				 */
+				public TA array()
+				{
+					@SuppressWarnings("unchecked")
+					TA result = (TA)array;
+					return result;
+				}
+
+				@Override
+				public String toString()
+				{
+					return MultiArray.this.toString();
+				}
+
+				/**
+				 * Returns an {@code Iterator} over the array(s) at the bottom
+				 * level of this multiarray, the ones that are one-dimensional
+				 * arrays of the component type.
+				 *<p>
+				 * They are returned in order, so that a simple loop to copy the
+				 * component values into or out of each array in turn will
+				 * amount to a row-major traversal (same as PostgreSQL's storage
+				 * order) of the whole array.
+				 */
+				@Override
+				public Iterator<TI> iterator()
+				{
+					final Object[][] arrays = new Object [ dimensions ] [];
+					final int[] indices = new int [ dimensions ];
+					final int rightmost = dimensions - 1;
+
+					arrays[0] = new Object[] { array };
+
+					for ( int i = 1; i < arrays.length; ++ i )
+					{
+						Object[] a = arrays[i-1];
+						if ( 0 == a.length )
+						{
+							++ indices[0];
+							break;
+						}
+						arrays[i] = (Object[])requireNonNull(a[0]);
+					}
+
+					return new Iterator<TI>()
+					{
+						@Override
+						public boolean hasNext()
+						{
+							return 0 == indices[0];
+						}
+
+						@Override
+						public TI next()
+						{
+							if ( 0 < indices[0] )
+								throw new NoSuchElementException();
+
+							@SuppressWarnings("unchecked")
+							TI o = (TI)arrays[rightmost][indices[rightmost]++];
+
+							if (indices[rightmost] >= arrays[rightmost].length)
+							{
+								int i = rightmost - 1;
+								while ( 0 <= i )
+								{
+									if ( ++ indices[i] < arrays[i].length )
+										break;
+									-- i;
+								}
+								if ( 0 <= i )
+								{
+									while ( i < rightmost )
+									{
+										Object a = arrays[i][indices[i]];
+										++ i;
+										arrays[i] = (Object[])requireNonNull(a);
+										indices[i] = 0;
+									}
+								}
+							}
+
+							return o;
+						}
+					};
+				}
+			}
 		}
 	}
 }
