@@ -695,7 +695,7 @@ public abstract class Adapter<T,U>
 		 * parameterized types.
 		 */
 		private As(
-			Contract.Array using, Adapter adapter, Class<T> witness,
+			Contract.Array using, Adapter adapter, Type witness,
 			Configuration c)
 		{
 			super(c, null, using,
@@ -823,13 +823,13 @@ public abstract class Adapter<T,U>
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
 		 * @param witness if not null, the top type the resulting
-		 * adapter will produce, if a Class object can specify that more
+		 * adapter will produce, if a Type object can specify that more
 		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected <E> Array(
 			Contract.Array<T,E,As<E,?>> using, As<E,?> adapter,
-			Class<T> witness, Configuration c)
+			Type witness, Configuration c)
 		{
 			super(using, adapter, witness, c);
 			m_contract = using;
@@ -844,13 +844,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Long,AsLong<?>> using, AsLong<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -863,13 +866,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Double,AsDouble<?>> using, AsDouble<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -882,13 +888,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Integer,AsInt<?>> using, AsInt<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -901,13 +910,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Float,AsFloat<?>> using, AsFloat<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -920,13 +932,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Short,AsShort<?>> using, AsShort<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -939,13 +954,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Character,AsChar<?>> using, AsChar<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -958,13 +976,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Byte,AsByte<?>> using, AsByte<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}
@@ -977,13 +998,16 @@ public abstract class Adapter<T,U>
 		 * the value returned
 		 * @param adapter an Adapter producing a representation of the array's
 		 * element type
+		 * @param witness if not null, the top type the resulting
+		 * adapter will produce, if a Type object can specify that more
+		 * precisely than the default typing rules.
 		 * @param c Configuration instance generated for this class
 		 */
 		protected Array(
 			Contract.Array<T,Boolean,AsBoolean<?>> using, AsBoolean<?> adapter,
-			Configuration c)
+			Type witness, Configuration c)
 		{
-			super(using, adapter, null, c);
+			super(using, adapter, witness, c);
 			m_contract = using;
 			m_elementAdapter = adapter;
 		}

@@ -13,6 +13,8 @@ package org.postgresql.pljava.pg.adt;
 
 import java.io.IOException;
 
+import java.lang.reflect.Type;
+
 import java.nio.ByteBuffer;
 import static java.nio.ByteOrder.nativeOrder;
 import java.nio.IntBuffer;
@@ -111,7 +113,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsLong<?> element,
 		Contract.Array<T,Long,Adapter.AsLong<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -123,7 +125,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsDouble<?> element,
 		Contract.Array<T,Double,Adapter.AsDouble<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -135,7 +137,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsInt<?> element,
 		Contract.Array<T,Integer,Adapter.AsInt<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -147,7 +149,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsFloat<?> element,
 		Contract.Array<T,Float,Adapter.AsFloat<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -159,7 +161,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsShort<?> element,
 		Contract.Array<T,Short,Adapter.AsShort<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -171,7 +173,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsChar<?> element,
 		Contract.Array<T,Character,Adapter.AsChar<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -183,7 +185,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsByte<?> element,
 		Contract.Array<T,Byte,Adapter.AsByte<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
 	}
 
 	/**
@@ -195,7 +197,70 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		Adapter.AsBoolean<?> element,
 		Contract.Array<T,Boolean,Adapter.AsBoolean<?>> contract)
 	{
-		super(contract, element, s_config);
+		super(contract, element, null, s_config);
+	}
+
+	<E> ArrayAdapter(
+		Adapter.As<E,?> element, Type witness,
+		Contract.Array<T,E,Adapter.As<E,?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsLong<?> element, Type witness,
+		Contract.Array<T,Long,Adapter.AsLong<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsDouble<?> element, Type witness,
+		Contract.Array<T,Double,Adapter.AsDouble<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsInt<?> element, Type witness,
+		Contract.Array<T,Integer,Adapter.AsInt<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsFloat<?> element, Type witness,
+		Contract.Array<T,Float,Adapter.AsFloat<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsShort<?> element, Type witness,
+		Contract.Array<T,Short,Adapter.AsShort<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsChar<?> element, Type witness,
+		Contract.Array<T,Character,Adapter.AsChar<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsByte<?> element, Type witness,
+		Contract.Array<T,Byte,Adapter.AsByte<?>> contract)
+	{
+		super(contract, element, witness, s_config);
+	}
+
+	ArrayAdapter(
+		Adapter.AsBoolean<?> element, Type witness,
+		Contract.Array<T,Boolean,Adapter.AsBoolean<?>> contract)
+	{
+		super(contract, element, witness, s_config);
 	}
 
 	/**
