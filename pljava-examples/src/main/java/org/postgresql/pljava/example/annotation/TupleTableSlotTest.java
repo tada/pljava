@@ -213,14 +213,7 @@ public class TupleTableSlotTest
 	 */
 	public static class AsOptional<T> extends As<Optional<T>,T>
 	{
-		/*
-		 * The default for a reference-typed leaf adapter is already true, but
-		 * in case this adapter gets composed over some adapter that has chosen
-		 * to return false for some reason, override here to say true. Clearly
-		 * an AsOptional adapter is meant to be allowed to fetch null.
-		 */
-		@Override
-		public boolean canFetchNull() { return true; }
+		// canFetchNull isn't needed; its default in As<?,?> is true.
 
 		@Override
 		public Optional<T> fetchNull(Attribute a)
