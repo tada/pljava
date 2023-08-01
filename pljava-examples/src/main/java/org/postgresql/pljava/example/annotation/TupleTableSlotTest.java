@@ -99,11 +99,23 @@ public class TupleTableSlotTest
 		As<Optional<OffsetDateTime>,?> oodt = new AsOptional<>(odt);
 
 		/*
+		 * A composing adapter expecting a reference type can also be composed
+		 * over one that produces a primitive type. It will see the values
+		 * automatically boxed.
+		 *
+		 * Corollary: should the desired behavior be not to produce Optional,
+		 * but simply to enable null handling for a primitive type by producing
+		 * its boxed form, just one absolutely trivial composing adapter could
+		 * add that behavior over any primitive adapter.
+		 */
+		As<Optional<Long>,?> oint8 = new AsOptional<>(int8);
+
+		/*
 		 * Once properly-typed adapters for component types are in hand,
 		 * getting properly-typed array adapters is straightforward.
 		 * (Java 10+ var can reduce verbosity here.)
 		 */
-		As<          long[]           ,?> i8x1 = int8            .a1().build();
+		As<Optional<Long>[]           ,?> i8x1 = oint8           .a1().build();
 		As<           int[][]         ,?> i4x2 = int4       .a2()     .build();
 		As<         short[][][]       ,?> i2x3 = int2       .a2().a1().build();
 		As<          byte[][][][]     ,?> i1x4 = int1  .a4()          .build();
@@ -136,7 +148,7 @@ public class TupleTableSlotTest
 		 */
 		for ( TupleTableSlot tts : tups )
 		{
-			long                     []           v0 = tts.get(0, i8x1);
+			Optional<Long>           []           v0 = tts.get(0, i8x1);
 			int                      [][]         v1 = tts.get(1, i4x2);
 			short                    [][][]       v2 = tts.get(2, i2x3);
 			byte                     [][][][]     v3 = tts.get(3, i1x4);
@@ -224,7 +236,13 @@ public class TupleTableSlotTest
 		private static final Adapter.Configuration config =
 			Adapter.configure(AsOptional.class, null);
 
-		AsOptional(As<T,?> over)
+		/*
+		 * This adapter may be composed over any Adapter<T,?>, including those
+		 * of primitive types as well as the reference-typed As<T,?>. When
+		 * constructed over a primitive-returning adapter, values will be boxed
+		 * when passed to adapt().
+		 */
+		AsOptional(Adapter<T,?> over)
 		{
 			super(config, over, null);
 		}
