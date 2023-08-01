@@ -126,14 +126,14 @@ public class TupleTableSlotTest
 
 		String query =
 			"VALUES (" +
-			" '{1,2}'::int8[], " +
-			" '{{1},{2}}'::int4[], " +
-			" '{{{1,2,3}}}'::int2[], " +
-			" '{{{{1},{2},{3}}}}'::\"char\"[], " +
-			" '{{{{{1,2,3}}}}}'::float8[], " +
-			" '{{{{{{1},{2},{3}}}}}}'::float4[], " +
-			" '{{{{{t},{f},{t}}}}}'::boolean[], " +
-			" '{{{{''now''}}}}'::timestamptz[]" +
+			" CAST ( '{1,2}'                 AS        int8 [] ), " +
+			" CAST ( '{{1},{2}}'             AS        int4 [] ), " +
+			" CAST ( '{{{1,2,3}}}'           AS        int2 [] ), " +
+			" CAST ( '{{{{1},{2},{3}}}}'     AS    \"char\" [] ), " + // ASCII
+			" CAST ( '{{{{{1,2,3}}}}}'       AS      float8 [] ), " +
+			" CAST ( '{{{{{{1},{2},{3}}}}}}' AS      float4 [] ), " +
+			" CAST ( '{{{{{t},{f},{t}}}}}'   AS     boolean [] ), " +
+			" CAST ( '{{{{''epoch''}}}}'     AS timestamptz [] )  " +
 			"), (" +
 			" NULL, NULL, NULL, NULL, '{{{{{1,NULL,3}}}}}', NULL, NULL," +
 			" '{{{{NULL}}}}'" +
