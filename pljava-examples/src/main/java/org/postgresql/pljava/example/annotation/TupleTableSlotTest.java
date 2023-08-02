@@ -135,7 +135,7 @@ public class TupleTableSlotTest
 			" CAST ( '{{{{{t},{f},{t}}}}}'   AS     boolean [] ), " +
 			" CAST ( '{{{{''epoch''}}}}'     AS timestamptz [] )  " +
 			"), (" +
-			" NULL, NULL, NULL, NULL, '{{{{{1,NULL,3}}}}}', NULL, NULL," +
+			" '{NULL}', NULL, NULL, NULL, '{{{{{1,NULL,3}}}}}', NULL, NULL," +
 			" '{{{{NULL}}}}'" +
 			")";
 
