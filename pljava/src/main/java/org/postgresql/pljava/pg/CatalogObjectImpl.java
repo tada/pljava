@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -30,6 +30,7 @@ import org.postgresql.pljava.model.*;
 import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
 
 import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
+import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
 import org.postgresql.pljava.pg.adt.ArrayAdapter;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.function.UnaryOperator;
 import java.util.function.Supplier;
 
@@ -240,9 +242,10 @@ public class CatalogObjectImpl implements CatalogObject
 
 		@Override
 		protected <T extends CatalogObject.Addressed<T>>
-		T formObjectIdImpl(RegClass.Known<T> classId, int objId)
+		T formObjectIdImpl(
+			RegClass.Known<T> classId, int objId, IntPredicate versionTest)
 		{
-			return staticFormObjectId(classId, objId);
+			return staticFormObjectId(classId, objId, versionTest);
 		}
 
 		@Override
@@ -308,11 +311,19 @@ public class CatalogObjectImpl implements CatalogObject
 			return (RegClass.Known<T>)form(RelationRelationId, classId, 0);
 		}
 
-		@SuppressWarnings("unchecked")
 		static <T extends CatalogObject.Addressed<T>>
 		T staticFormObjectId(RegClass.Known<T> classId, int objId)
 		{
-			return (T)form(classId.oid(), objId, 0);
+			return staticFormObjectId(classId, objId, v -> true);
+		}
+
+		@SuppressWarnings("unchecked")
+		static <T extends CatalogObject.Addressed<T>>
+		T staticFormObjectId(
+			RegClass.Known<T> classId, int objId, IntPredicate versionTest)
+		{
+			return (T)form(classId.oid(),
+				versionTest.test(PG_VERSION_NUM) ? objId : InvalidOid, 0);
 		}
 
 		@SuppressWarnings("unchecked")

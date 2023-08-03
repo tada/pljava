@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,6 +13,8 @@ package org.postgresql.pljava.pg.adt;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+
+import static java.util.Arrays.stream;
 
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.model.Attribute;
@@ -171,7 +173,8 @@ extends Adapter.As<T,Void>
 		{
 			super(c, witness);
 			m_classId = classId;
-			m_specificTypes = specificTypes;
+			m_specificTypes = stream(specificTypes)
+				.filter(RegType::isValid).toArray(RegType[]::new);
 		}
 
 		@Override

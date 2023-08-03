@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
+import java.util.function.IntPredicate;
+
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 /**
@@ -470,7 +472,14 @@ public interface CatalogObject
 		static <T extends Addressed<T>>
 			T formObjectId(RegClass.Known<T> classId, int objId)
 		{
-			return INSTANCE.formObjectIdImpl(classId, objId);
+			return INSTANCE.formObjectIdImpl(classId, objId, v -> true);
+		}
+
+		static <T extends Addressed<T>>
+			T formObjectId(
+				RegClass.Known<T> classId, int objId, IntPredicate versionTest)
+		{
+			return INSTANCE.formObjectIdImpl(classId, objId, versionTest);
 		}
 
 		static Database currentDatabase(RegClass.Known<Database> classId)
@@ -488,7 +497,8 @@ public interface CatalogObject
 				int classId, Class<? extends T> clazz);
 
 		protected abstract <T extends Addressed<T>>
-			T formObjectIdImpl(RegClass.Known<T> classId, int objId);
+			T formObjectIdImpl(
+				RegClass.Known<T> classId, int objId, IntPredicate versionTest);
 
 		protected abstract Database
 			currentDatabaseImpl(RegClass.Known<Database> classId);
