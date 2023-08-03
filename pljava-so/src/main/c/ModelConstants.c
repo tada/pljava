@@ -81,6 +81,8 @@
 	CONSTANTEXPR(OFFSET_##tag##_##fld, offsetof(type,fld))
 
 static int32 constants[] = {
+	CONSTANT(PG_VERSION_NUM),
+
 	CONSTANT(SIZEOF_DATUM),
 	CONSTANTEXPR(SIZEOF_SIZE, sizeof (Size)),
 
