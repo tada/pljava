@@ -78,6 +78,7 @@ public class TupleTableSlotTest
 		AsBoolean<?> bool = (AsBoolean<?>)t.adapterPlease(
 			"org.postgresql.pljava.pg.adt.Primitives", "BOOLEAN_INSTANCE");
 
+		@SuppressWarnings("unchecked")
 		As<OffsetDateTime,?> odt = (As<OffsetDateTime,?>)t.adapterPlease(
 			"org.postgresql.pljava.pg.adt.DateTimeAdapter$JSR310",
 			"TIMESTAMPTZ_INSTANCE");

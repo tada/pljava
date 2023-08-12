@@ -280,8 +280,11 @@ public final class Service extends Adapter.Service
 		}
 		else if ( componentAdapter instanceof As<?,?> )
 		{
+			@SuppressWarnings("unchecked")
+			As<Object,?> erasedComponent = (As<Object,?>)componentAdapter;
+
 			return new ArrayAdapter<TA>(
-				(As<Object,?>)componentAdapter, w,
+				erasedComponent, w,
 				(int nDims, int[] dimsAndBounds, As<Object,?> adapter,
 					Indexed slot) ->
 				{
