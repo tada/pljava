@@ -1788,6 +1788,7 @@ public abstract class Adapter<T,U> implements Visible
 	 *<p>
 	 * The implementation layer will call {@link #setWrappedType setWrappedType}
 	 * and then pass the wrapper to the appropriate adapter constructor.
+	 * @hidden
 	 */
 	public static class TypeWrapper implements Type
 	{
@@ -1876,8 +1877,8 @@ public abstract class Adapter<T,U> implements Visible
 
 		/**
 		 * Returns an array adapter that will produce arrays with the chosen
-		 * number of dimensions, and this adapter's {@link #topType topType} as
-		 * the component type.
+		 * number of dimensions, and the original adapter's
+		 * {@link #topType() topType} as the component type.
 		 */
 		public Array<TA> build()
 		{

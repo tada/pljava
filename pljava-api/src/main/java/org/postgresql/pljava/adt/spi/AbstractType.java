@@ -839,11 +839,12 @@ public abstract class AbstractType implements Type
 	 * {@code MultiArray}'s dimensions. Parentheses are used by
 	 * {@link #toString toString} to help see what's going on.
 	 *<p>
-	 * When converting a {@code MultiArray} toa {@link Sized}, only as many
-	 * sizes are supplied as the multiarray's dimensions, and when converting
-	 * that to an {@link Allocated}, only that much allocation is done.
-	 * Populating the arrays at that last allocated level with the converted
-	 * elements of the PostgreSQL array is the work left for the caller.
+	 * When converting a {@code MultiArray} to a {@link Sized Sized}, only as
+	 * many sizes are supplied as the multiarray's dimensions, and when
+	 * converting that to an {@link Sized.Allocated Allocated}, only that much
+	 * allocation is done. Populating the arrays at that last allocated level
+	 * with the converted elements of the PostgreSQL array is the work left
+	 * for the caller.
 	 */
 	public static class MultiArray
 	{
@@ -1003,8 +1004,8 @@ public abstract class AbstractType implements Type
 		}
 
 		/**
-		 * Returns a {@link Sized} representing this {@code MultiArray} with
-		 * a size for each of its dimensions.
+		 * Returns a {@link Sized Sized} representing this {@code MultiArray}
+		 * with a size for each of its dimensions.
 		 */
 		public Sized size(int... dims)
 		{
@@ -1035,8 +1036,8 @@ public abstract class AbstractType implements Type
 			}
 
 			/**
-			 * Returns an {@link Allocated} that wraps a freshly-allocated array
-			 * with the sizes recorded here.
+			 * Returns an {@link Allocated Allocated} that wraps a
+			 * freshly-allocated array having the sizes recorded here.
 			 *<p>
 			 * The result is returned with wildcard types. If the caller code
 			 * has been written so as to have type variables with the proper
@@ -1058,10 +1059,11 @@ public abstract class AbstractType implements Type
 			 * can be retrieved with array()
 			 * @param <TI> the type of the arrays at the final level
 			 * (one-dimensional arrays of the component type) that can be
-			 * iterated, in order, to be populated or read out. <TI> is always
-			 * an array type, but can be a reference array or any primitive
-			 * array type, and therefore not as convenient as it might be,
-			 * because the least upper bound of those types is {@code Object}.
+			 * iterated, in order, to be populated or read out. &lt;TI&gt; is
+			 * always an array type, but can be a reference array or any
+			 * primitive array type, and therefore not as convenient as it might
+			 * be, because the least upper bound of those types is
+			 * {@code Object}.
 			 */
 			public class Allocated<TA,TI> implements Iterable<TI>
 			{
