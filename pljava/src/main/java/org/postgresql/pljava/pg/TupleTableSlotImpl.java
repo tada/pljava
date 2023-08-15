@@ -786,7 +786,7 @@ implements TupleTableSlot
 		return m_values;
 	}
 
-	private void store_heaptuple(long ht, boolean shouldFree)
+	void store_heaptuple(long ht, boolean shouldFree)
 	{
 		doInPG(() -> _store_heaptuple(m_tts, ht, shouldFree));
 	}
@@ -1010,70 +1010,6 @@ implements TupleTableSlot
 
 		int off = toOffset(idx);
 		return adapter.fetch(accessor(idx), values(), off, att);
-	}
-
-	/*
-	 * Plan: factor the below out into a group (maybe a class or interface with
-	 * nested classes) of implementations that look like lists of TupleTableSlot
-	 * over different kinds of result:
-	 * - SPITupleTable (these: a tupdesc, and vals array of HeapTuple pointers)
-	 * - CatCList (n_members and a members array of CatCTup pointers, where each
-	 *   CatCTup has a HeapTupleData and HeapTupleHeader nearly but not quite
-	 *   adjacent), must find tupdesc
-	 * - Tuplestore ? (is this visible, or concealed behind SPI's cursors?)
-	 * - Tuplesort ? (")
-	 * - SFRM results? (Ah, SFRM_Materialize makes a Tuplestore.)
-	 * - will we ever see a "tuple table" ("which is a List of independent
-	 *   TupleTableSlots")?
-	 */
-
-	/**
-	 * A {@code List<TupleTableSlot>} built over something like 
-	 */
-	private class HeapTuples8 extends AbstractList<TupleTableSlot>
-	{
-		private final LongBuffer m_tuples;
-
-		HeapTuples8(ByteBuffer ht)
-		{
-			m_tuples = ht.asLongBuffer();
-		}
-
-		@Override
-		public TupleTableSlot get(int index)
-		{
-			store_heaptuple(m_tuples.get(index), false);
-			return TupleTableSlotImpl.this;
-		}
-
-		@Override
-		public int size()
-		{
-			return m_tuples.capacity();
-		}
-	}
-
-	private class HeapTuples4 extends AbstractList<TupleTableSlot>
-	{
-		private final IntBuffer m_tuples;
-
-		HeapTuples4(ByteBuffer ht)
-		{
-			m_tuples = ht.asIntBuffer();
-		}
-
-		@Override
-		public TupleTableSlot get(int index)
-		{
-			store_heaptuple(m_tuples.get(index), false);
-			return TupleTableSlotImpl.this;
-		}
-
-		@Override
-		public int size()
-		{
-			return m_tuples.capacity();
-		}
 	}
 
 	private static class HTChunkState

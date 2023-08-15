@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@
 #include "org_postgresql_pljava_internal_DualState_SingleHeapFreeTuple.h"
 #include "org_postgresql_pljava_internal_DualState_SingleFreeErrorData.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIfreeplan.h"
+#include "org_postgresql_pljava_internal_DualState_SingleSPIfreetuptable.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIcursorClose.h"
 #include "org_postgresql_pljava_internal_DualState_BBHeapFreeTuple.h"
 #include "pljava/DualState.h"
@@ -129,6 +130,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod singleSPIfreetuptableMethods[] =
+	{
+		{
+		"_spiFreeTupTable",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreetuptable__1spiFreeTupTable
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod singleSPIcursorCloseMethods[] =
 	{
 		{
@@ -182,6 +193,11 @@ void pljava_DualState_initialize(void)
 	clazz = (jclass)PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState$SingleSPIfreeplan");
 	PgObject_registerNatives2(clazz, singleSPIfreeplanMethods);
+	JNI_deleteLocalRef(clazz);
+
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleSPIfreetuptable");
+	PgObject_registerNatives2(clazz, singleSPIfreetuptableMethods);
 	JNI_deleteLocalRef(clazz);
 
 	clazz = (jclass)PgObject_getJavaClass(
@@ -318,6 +334,32 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePl
 	PG_TRY();
 	{
 		SPI_freeplan(p2l.ptrVal);
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR("SPI_freeplan");
+	}
+	PG_END_TRY();
+	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleSPIfreetuptable
+ * Method:    _spiFreeTupTable
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreetuptable__1spiFreeTupTable(
+	JNIEnv* env, jobject _this, jlong pointer)
+{
+	BEGIN_NATIVE_NO_ERRCHECK
+	Ptr2Long p2l;
+	p2l.longVal = pointer;
+	PG_TRY();
+	{
+		SPI_freetuptable(p2l.ptrVal);
 	}
 	PG_CATCH();
 	{

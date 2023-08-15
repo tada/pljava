@@ -2208,6 +2208,42 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code SPI_freetuptable} of a single pointer.
+	 */
+	public static abstract class SingleSPIfreetuptable<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleSPIfreetuptable(
+			T referent, Lifespan span, long fttTarget)
+		{
+			super(referent, span, fttTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s SPI_freetuptable(%x)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, an
+		 * {@code SPI_freetuptable}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_spiFreeTupTable(guardedLong());
+		}
+
+		private native void _spiFreeTupTable(long pointer);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code SPI_freeplan} of a single pointer.
 	 */
 	public static abstract class SingleSPIfreeplan<T>

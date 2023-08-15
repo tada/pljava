@@ -24,6 +24,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.model.TupleTableSlot;
 
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_DATUM;
+import org.postgresql.pljava.pg.TupleList;
 import org.postgresql.pljava.pg.TupleTableSlotImpl;
 
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
@@ -152,7 +153,7 @@ public class SPI
 	 * ensure that.
 	 * @return null if the global SPI_tuptable is null
 	 */
-	public static List<TupleTableSlot> getTuples(TupleTableSlotImpl ttsi)
+	public static TupleList getTuples(TupleTableSlotImpl ttsi)
 	{
 		return doInPG(() ->
 		{
@@ -162,13 +163,13 @@ public class SPI
 
 			long count = getProcessed();
 			if ( 0 == count )
-				return List.of();
+				return TupleList.EMPTY;
 
 			// An assertion in the C code checks SIZEOF_DATUM == SIZEOF_VOID_P
 			// XXX catch ArithmeticException, report a "program limit exceeded"
 			int sizeToMap = toIntExact(multiplyExact(count, SIZEOF_DATUM));
 
-			return null; /* XXX */
+			return _mapTupTable(ttsi, p, sizeToMap);
 		});
 	}
 
@@ -242,8 +243,10 @@ public class SPI
 	}
 
 	@Deprecated
-	private native static int _exec(String command, int rowCount);
+	private static native int _exec(String command, int rowCount);
 
-	private native static void _freeTupTable();
-	private native static TupleTable _getTupTable(TupleDesc known);
+	private static native void _freeTupTable();
+	private static native TupleTable _getTupTable(TupleDesc known);
+	private static native TupleList _mapTupTable(
+		TupleTableSlotImpl ttsi, long p, int sizeToMap);
 }

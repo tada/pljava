@@ -31,6 +31,9 @@
 StaticAssertStmt((c) == (org_postgresql_pljava_internal_##c), \
 	"Java/C value mismatch for " #c)
 
+static jclass s_TupleList_SPI_class;
+static jmethodID s_TupleList_SPI_init;
+
 extern void SPI_initialize(void);
 void SPI_initialize(void)
 {
@@ -46,6 +49,11 @@ void SPI_initialize(void)
 		Java_org_postgresql_pljava_internal_SPI__1getTupTable
 		},
 		{
+		"_mapTupTable",
+		"(Lorg/postgresql/pljava/pg/TupleTableSlotImpl;JI)Lorg/postgresql/pljava/pg/TupleList;",
+		Java_org_postgresql_pljava_internal_SPI__1mapTupTable
+		},
+		{
 		"_freeTupTable",
 		"()V",
 		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
@@ -56,6 +64,13 @@ void SPI_initialize(void)
 	 */
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
+
+	s_TupleList_SPI_class = JNI_newGlobalRef(
+		PgObject_getJavaClass("org/postgresql/pljava/pg/TupleList$SPI"));
+	s_TupleList_SPI_init = PgObject_getJavaMethod(s_TupleList_SPI_class, 
+		"<init>",
+		"(Lorg/postgresql/pljava/pg/TupleTableSlotImpl;JLjava/nio/ByteBuffer;)V"
+	);
 
 	/*
 	 * Statically assert that the Java code has the right values for these.
@@ -157,6 +172,33 @@ Java_org_postgresql_pljava_internal_SPI__1getTupTable(JNIEnv* env, jclass cls, j
 		END_NATIVE
 	}
 	return tupleTable;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPI
+ * Method:    _mapTupTable
+ * Signature: (Lorg/postgresql/pljava/pg/TupleTableSlotImpl;JI)Lorg/postgresql/pljava/pg/TupleList;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_SPI__1mapTupTable(JNIEnv* env, jclass cls, jobject ttsi, jlong p, jint sizeToMap)
+{
+	jobject tupleList = NULL;
+	Ptr2Long p2l;
+	SPITupleTable *tuptbl;
+	jobject bb;
+	if ( p != 0 )
+	{
+		BEGIN_NATIVE_AND_TRY
+		p2l.longVal = p;
+		tuptbl = (SPITupleTable *)p2l.ptrVal;
+		bb = JNI_newDirectByteBuffer(tuptbl->vals, sizeToMap);
+		tupleList = JNI_newObjectLocked(
+			s_TupleList_SPI_class, s_TupleList_SPI_init, ttsi, p, bb);
+		END_NATIVE_AND_CATCH("_mapTupleTable")
+	}
+	if ( 0 != tupleList  &&  SPI_tuptable == tuptbl )
+		SPI_tuptable = NULL; /* protect from legacy _freetuptable below */
+	return tupleList;
 }
 
 /*
