@@ -181,9 +181,13 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 
 			int n = src.size();
 
-			if ( names.length > n )
-				throw new IllegalArgumentException(String.format(
-					"project() more than %d attribute names supplied", n));
+			/*
+			 * An exception could be thrown here if names.length > n, but that
+			 * condition ensures the later exception for names left unmatched
+			 * will have to be thrown, and as long as that's going to happen
+			 * anyway, the extra work to see just what names didn't match
+			 * produces a more helpful message.
+			 */
 
 			BitSet pb = new BitSet(names.length);
 			pb.set(0, names.length);
@@ -355,9 +359,13 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 
 			int n = sup.m_map.length;
 
-			if ( names.length > n )
-				throw new IllegalArgumentException(String.format(
-					"project() more than %d attribute names supplied", n));
+			/*
+			 * An exception could be thrown here if names.length > n, but that
+			 * condition ensures the later exception for names left unmatched
+			 * will have to be thrown, and as long as that's going to happen
+			 * anyway, the extra work to see just what names didn't match
+			 * produces a more helpful message.
+			 */
 
 			BitSet pb = new BitSet(names.length);
 			pb.set(0, names.length);

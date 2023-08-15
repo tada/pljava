@@ -315,7 +315,6 @@ implements
 		static final Attribute TYPMODIN;
 		static final Attribute TYPMODOUT;
 		static final Attribute TYPANALYZE;
-		static final Attribute TYPSUBSCRIPT;
 		static final Attribute TYPALIGN;
 		static final Attribute TYPSTORAGE;
 		static final Attribute TYPNOTNULL;
@@ -323,10 +322,11 @@ implements
 		static final Attribute TYPCOLLATION;
 		static final Attribute TYPDEFAULT;
 		static final Attribute TYPDEFAULTBIN;
+		static final Attribute TYPSUBSCRIPT;
 
 		static
 		{
-			Projection p = CLASSID.tupleDescriptor().project(
+			AttNames itr = attNames(
 				"typbasetype",  // these two are wanted
 				"typtypmod",    // together, first, below
 				"typname",
@@ -350,7 +350,6 @@ implements
 				"typmodin",
 				"typmodout",
 				"typanalyze",
-				"typsubscript",
 				"typalign",
 				"typstorage",
 				"typnotnull",
@@ -358,11 +357,11 @@ implements
 				"typcollation",
 				"typdefault",
 				"typdefaultbin"
-			);
+			).andIf(PG_VERSION_NUM >= 140000,
+				"typsubscript"
+			).project(CLASSID.tupleDescriptor());
 
-			Iterator<Attribute> itr = p.iterator();
-
-			TYPBASETYPE_TYPTYPMOD = p.project(itr.next(), itr.next());
+			TYPBASETYPE_TYPTYPMOD = itr.project(itr.next(), itr.next());
 
 			TYPNAME        = itr.next();
 			TYPNAMESPACE   = itr.next();
@@ -385,7 +384,6 @@ implements
 			TYPMODIN       = itr.next();
 			TYPMODOUT      = itr.next();
 			TYPANALYZE     = itr.next();
-			TYPSUBSCRIPT   = itr.next();
 			TYPALIGN       = itr.next();
 			TYPSTORAGE     = itr.next();
 			TYPNOTNULL     = itr.next();
@@ -393,6 +391,7 @@ implements
 			TYPCOLLATION   = itr.next();
 			TYPDEFAULT     = itr.next();
 			TYPDEFAULTBIN  = itr.next();
+			TYPSUBSCRIPT   = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
@@ -622,11 +621,20 @@ implements
 	private static RegProcedure<TypeSubscript> subscript(RegTypeImpl o)
 	throws SQLException
 	{
-		TupleTableSlot t = o.cacheTuple();
+		RegProcedure<?> p;
+
+		if ( null == Att.TYPSUBSCRIPT ) // missing in this PG version
+			p = of(RegProcedure.CLASSID, InvalidOid);
+		else
+		{
+			TupleTableSlot t = o.cacheTuple();
+			p = t.get(Att.TYPSUBSCRIPT, REGPROCEDURE_INSTANCE);
+		}
+
 		@SuppressWarnings("unchecked") // XXX add memo magic here
-		RegProcedure<TypeSubscript> p = (RegProcedure<TypeSubscript>)
-			t.get(Att.TYPSUBSCRIPT, REGPROCEDURE_INSTANCE);
-		return p;
+		RegProcedure<TypeSubscript> narrowed = (RegProcedure<TypeSubscript>)p;
+
+		return narrowed;
 	}
 
 	private static Alignment alignment(RegTypeImpl o) throws SQLException

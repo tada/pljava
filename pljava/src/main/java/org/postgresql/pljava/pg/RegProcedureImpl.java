@@ -222,7 +222,7 @@ implements
 
 		static
 		{
-			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+			Iterator<Attribute> itr = attNames(
 				"proname",
 				"pronamespace",
 				"proowner",
@@ -248,9 +248,10 @@ implements
 				"prosrc",
 				"probin",
 				"proconfig",
-				"proargdefaults",
+				"proargdefaults"
+			).andIf(PG_VERSION_NUM >= 140000,
 				"prosqlbody"
-			).iterator();
+			).project(CLASSID.tupleDescriptor());
 
 			PRONAME        = itr.next();
 			PRONAMESPACE   = itr.next();
@@ -779,6 +780,9 @@ implements
 		 * candidate for caching. We will just fetch a new one from the cached
 		 * tuple as needed.
 		 */
+		if ( null == Att.PROSQLBODY ) // missing in this PG version
+			return null;
+
 		TupleTableSlot s = cacheTuple();
 		return s.get(Att.PROSQLBODY, SYNTHETIC_INSTANCE);
 	}
