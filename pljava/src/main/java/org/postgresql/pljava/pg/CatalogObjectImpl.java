@@ -32,6 +32,7 @@ import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
 
 import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
 import org.postgresql.pljava.pg.ModelConstants;
+import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
 import org.postgresql.pljava.pg.adt.ArrayAdapter;
@@ -76,8 +77,6 @@ import java.util.function.Supplier;
  */
 public class CatalogObjectImpl implements CatalogObject
 {
-	static final int PG_VERSION_NUM = ModelConstants.PG_VERSION_NUM;
-
 	/**
 	 * ByteBuffer representing the PostgreSQL object address: {@code classid},
 	 * {@code objid}, {@code objsubid}.
@@ -622,6 +621,16 @@ public class CatalogObjectImpl implements CatalogObject
 	extends CatalogObjectImpl implements CatalogObject.Addressed<T>
 	{
 		/**
+		 * Copy this constant here so it can be inherited without ceremony
+		 * by subclasses of Addressed, which may need it when initializing
+		 * attribute projections. Putting the copy up in CatalogObject itself
+		 * is a problem if another compilation unit does import static of both
+		 * CatalogObjectImpl.* and ModelConstants.* but there is little reason
+		 * anyone would import CatalogObjectImpl.Addressed.*.
+		 */
+		static final int PG_VERSION_NUM = ModelConstants.PG_VERSION_NUM;
+
+		/**
 		 * Invalidation {@code SwitchPoint} for catalog objects that do not have
 		 * their own selective invalidation callbacks.
 		 *<p>
@@ -880,6 +889,101 @@ public class CatalogObjectImpl implements CatalogObject
 			}
 			return prefix;
 		}
+
+		/**
+		 * Utility class to create a {@link Projection Projection} using
+		 * attribute names that may be conditional (on something like
+		 * {@code PG_VERSION_NUM}).
+		 *<p>
+		 * {@code andIf} adds strings to the list, if the condition is true, or
+		 * the same number of nulls of the condition is false.
+		 *<p>
+		 * {@code project} filters the list to only the non-null values, using
+		 * those to form a {@code Projection} and obtain its iterator of
+		 * attributes.
+		 *<p>
+		 * This class then implements its own iterator of attributes, iterating
+		 * for the length of the original name list, drawing from the
+		 * Projection's iterator where a non-null name was saved, or producing
+		 * null (and not incrementing the Projection's iterator) where a null
+		 * was saved.
+		 *<p>
+		 * The iterator can be used in a sequence of static final initializers,
+		 * such that the final fields will end up containing the wanted
+		 * Attribute instances where applicable, or null where not.
+		 */
+		static class AttNames implements Iterator<Attribute>
+		{
+			private ArrayList<String> strings = new ArrayList<>();
+
+			private Iterator<String> myItr;
+			private Projection it;
+			private Iterator<Attribute> itsItr;
+
+			AttNames andIf(boolean p, String... toAdd)
+			{
+				if ( p )
+					for ( String s : toAdd )
+						strings.add(s);
+				else
+					for ( String s : toAdd )
+						strings.add(null);
+				return this;
+			}
+
+			AttNames project(Projection p)
+			{
+				String[] filtered = strings
+					.stream().filter(Objects::nonNull).toArray(String[]::new);
+				it = p.project(filtered);
+				itsItr = it.iterator();
+				myItr = strings.iterator();
+				return this;
+			}
+
+			/**
+			 * Returns a further projection of the one derived from the names.
+			 *<p>
+			 * Caters to cases (so far only one in RegTypeImpl) where a
+			 * computation method will want a projection of multiple attributes,
+			 * instead of a single attribute.
+			 *<p>
+			 * In the expected usage, the attribute arguments will have been
+			 * supplied from the iterator, and will be null where the expected
+			 * attributes do not exist. In that case, null must be returned for
+			 * the projection.
+			 */
+			Projection project(Attribute... atts)
+			{
+				if ( Arrays.stream(atts).anyMatch(Objects::isNull) )
+					return null;
+				return it.project(atts);
+			}
+
+			@Override
+			public boolean hasNext()
+			{
+				return myItr.hasNext();
+			}
+
+			@Override
+			public Attribute next()
+			{
+				String myNext = myItr.next();
+				if ( null == myNext )
+					return null;
+				return itsItr.next();
+			}
+		}
+
+		/**
+		 * Constructs a new {@link AttNames AttNames} instance and begins
+		 * populating it, adding <var>names</var> unconditionally.
+		 */
+		static AttNames attNames(String... names)
+		{
+			return new AttNames().andIf(true, names);
+		}
 	}
 
 	/**
@@ -1129,97 +1233,5 @@ public class CatalogObjectImpl implements CatalogObject
 		h *= 0xc2b2ae35;
 		h ^= h >>> 16;
 		return h;
-	}
-
-	/**
-	 * Utility class to create a {@link Projection Projection} using attribute
-	 * names that may be conditional (on something like {@code PG_VERSION_NUM}).
-	 *<p>
-	 * {@code andIf} adds strings to the list, if the condition is true, or the
-	 * same number of nulls of the condition is false.
-	 *<p>
-	 * {@code project} filters the list to only the non-null values, using those
-	 * to form a {@code Projection} and obtain its iterator of attributes.
-	 *<p>
-	 * This class then implements its own iterator of attributes, iterating for
-	 * the length of the original name list, drawing from the Projection's
-	 * iterator where a non-null name was saved, or producing null (and not
-	 * incrementing the Projection's iterator) where a null was saved.
-	 *<p>
-	 * The iterator can be used in a sequence of static final initializers,
-	 * such that the final fields will end up containing the wanted Attribute
-	 * instances where applicable, or null where not.
-	 */
-	static class AttNames implements Iterator<Attribute>
-	{
-		private ArrayList<String> strings = new ArrayList<>();
-
-		private Iterator<String> myItr;
-		private Projection it;
-		private Iterator<Attribute> itsItr;
-
-		AttNames andIf(boolean p, String... toAdd)
-		{
-			if ( p )
-				for ( String s : toAdd )
-					strings.add(s);
-			else
-				for ( String s : toAdd )
-					strings.add(null);
-			return this;
-		}
-
-		AttNames project(Projection p)
-		{
-			String[] filtered = strings
-				.stream().filter(Objects::nonNull).toArray(String[]::new);
-			it = p.project(filtered);
-			itsItr = it.iterator();
-			myItr = strings.iterator();
-			return this;
-		}
-
-		/**
-		 * Returns a further projection of the one derived from the names.
-		 *<p>
-		 * Caters to cases (so far only one in RegTypeImpl) where a computation
-		 * method will want a projection of multiple attributes, instead of a
-		 * single attribute.
-		 *<p>
-		 * In the expected usage, the attribute arguments will have been
-		 * supplied from the iterator, and will be null where the expected
-		 * attributes do not exist. In that case, null must be returned for
-		 * the projection.
-		 */
-		Projection project(Attribute... atts)
-		{
-			if ( Arrays.stream(atts).anyMatch(Objects::isNull) )
-				return null;
-			return it.project(atts);
-		}
-
-		@Override
-		public boolean hasNext()
-		{
-			return myItr.hasNext();
-		}
-
-		@Override
-		public Attribute next()
-		{
-			String myNext = myItr.next();
-			if ( null == myNext )
-				return null;
-			return itsItr.next();
-		}
-	}
-
-	/**
-	 * Constructs a new {@link AttNames AttNames} instance and begins populating
-	 * it, adding <var>names</var> unconditionally.
-	 */
-	static AttNames attNames(String... names)
-	{
-		return new AttNames().andIf(true, names);
 	}
 }
