@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -52,14 +52,15 @@ extern jobject pljava_TupleDescriptor_create(TupleDesc tupdesc,  Oid reloid);
  *
  * reloid is simply passed along to pljava_TupleDescriptor_create, so may be
  * passed as InvalidOid with the same effects described there.
+ *
+ * If jtd is not NULL, it must be a JNI local reference to an existing Java
+ * TupleDescriptor that corresponds to the native tupdesc, and will be used
+ * instead of calling pljava_TupleDescriptor_create. On return, the local
+ * reference will have been deleted.
  */
 extern jobject pljava_TupleTableSlot_create(
-	TupleDesc tupdesc, const TupleTableSlotOps *tts_ops, Oid reloid);
-
-/*
- * Test scaffolding for the time being.
- */
-extern jobject pljava_TupleTableSlot_fromSPI(void);
+	TupleDesc tupdesc, jobject jtd,
+	const TupleTableSlotOps *tts_ops, Oid reloid);
 
 #ifdef __cplusplus
 }

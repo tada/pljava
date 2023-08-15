@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@ import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -67,20 +68,20 @@ implements
 	private static Simple name(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("datname"), SIMPLE_INSTANCE);
+		return t.get(Att.DATNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegRole owner(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("datdba"), REGROLE_INSTANCE);
+		return t.get(Att.DATDBA, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(DatabaseImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("datacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.DATACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of Database */
@@ -137,42 +138,82 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute DATNAME;
+		static final Attribute DATDBA;
+		static final Attribute DATACL;
+		static final Attribute ENCODING;
+		static final Attribute DATCOLLATE;
+		static final Attribute DATCTYPE;
+		static final Attribute DATISTEMPLATE;
+		static final Attribute DATALLOWCONN;
+		static final Attribute DATCONNLIMIT;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"datname",
+				"datdba",
+				"datacl",
+				"encoding",
+				"datcollate",
+				"datctype",
+				"datistemplate",
+				"datallowconn",
+				"datconnlimit"
+			).iterator();
+
+			DATNAME       = itr.next();
+			DATDBA        = itr.next();
+			DATACL        = itr.next();
+			ENCODING      = itr.next();
+			DATCOLLATE    = itr.next();
+			DATCTYPE      = itr.next();
+			DATISTEMPLATE = itr.next();
+			DATALLOWCONN  = itr.next();
+			DATCONNLIMIT  = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static CharsetEncoding encoding(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("encoding"), EncodingAdapter.INSTANCE);
+		return s.get(Att.ENCODING, EncodingAdapter.INSTANCE);
 	}
 
 	private static String collate(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("datcollate"), AS_STRING_INSTANCE);
+		return s.get(Att.DATCOLLATE, AS_STRING_INSTANCE);
 	}
 
 	private static String ctype(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("datctype"), AS_STRING_INSTANCE);
+		return s.get(Att.DATCTYPE, AS_STRING_INSTANCE);
 	}
 
 	private static boolean template(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("datistemplate"), BOOLEAN_INSTANCE);
+		return s.get(Att.DATISTEMPLATE, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean allowConnection(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("datallowconn"), BOOLEAN_INSTANCE);
+		return s.get(Att.DATALLOWCONN, BOOLEAN_INSTANCE);
 	}
 
 	private static int connectionLimit(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("datconnlimit"), INT4_INSTANCE);
+		return s.get(Att.DATCONNLIMIT, INT4_INSTANCE);
 	}
 
 	/* API methods */

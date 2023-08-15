@@ -13,7 +13,9 @@ package org.postgresql.pljava.example.annotation;
 
 import java.sql.Connection;
 import static java.sql.DriverManager.getConnection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,9 +24,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 import org.postgresql.pljava.Adapter;
+import org.postgresql.pljava.Adapter.AdapterException;//for now; not planned API
 import org.postgresql.pljava.Adapter.As;
 import org.postgresql.pljava.Adapter.AsLong;
 import org.postgresql.pljava.Adapter.AsDouble;
@@ -34,11 +37,18 @@ import org.postgresql.pljava.Adapter.AsShort;
 import org.postgresql.pljava.Adapter.AsChar;
 import org.postgresql.pljava.Adapter.AsByte;
 import org.postgresql.pljava.Adapter.AsBoolean;
+import org.postgresql.pljava.TargetList;
+import org.postgresql.pljava.TargetList.Cursor;
+import org.postgresql.pljava.TargetList.Projection;
 
 import org.postgresql.pljava.annotation.Function;
 
 import org.postgresql.pljava.model.Attribute;
+import org.postgresql.pljava.model.Portal;
+import static org.postgresql.pljava.model.Portal.ALL;
+import static org.postgresql.pljava.model.Portal.Direction.FORWARD;
 import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
 /**
@@ -47,6 +57,265 @@ import org.postgresql.pljava.model.TupleTableSlot;
  */
 public class TupleTableSlotTest
 {
+	/*
+	 * Collect some Adapter instances that are going to be useful in the code
+	 * below. Is it necessary they be static final? No, they can be obtained at
+	 * any time, but collecting these here will keep the example methods tidier
+	 * below.
+	 *
+	 * These are "leaf" adapters: they work from the PostgreSQL types directly.
+	 */
+	static final AsLong   <       ?> INT8;
+	static final AsInt    <       ?> INT4;
+	static final AsShort  <       ?> INT2;
+	static final AsByte   <       ?> INT1;
+	static final AsDouble <       ?> FLOAT8;
+	static final AsFloat  <       ?> FLOAT4;
+	static final AsBoolean<       ?> BOOL;
+
+	static final As<String       ,?> TEXT;
+	static final As<LocalDateTime,?> LDT;  // for the PostgreSQL TIMESTAMP type
+
+	/*
+	 * Now some adapters that can be derived from leaf adapters by composing
+	 * non-leaf adapters over them.
+	 *
+	 * By default, the Adapters for primitive types can't fetch a null
+	 * value. There is no value in the primitive's value space that could
+	 * unambiguously represent null, and a DBMS should not go and reuse an
+	 * otherwise-valid value to also mean null, if you haven't said to. But in
+	 * a case where that is what you want, it is simple to write an adapter with
+	 * the wanted behavior and compose it over the original one.
+	 */
+	static final AsDouble<?> F8_NaN; // primitive double using NaN for null
+
+	/*
+	 * Reference-typed adapters have no trouble with null values by default;
+	 * they'll just produce Java null. But suppose it is more convenient to get
+	 * an Optional<LocalDateTime> instead of a LocalDateTime that might be null.
+	 * An Adapter for that can be obtained by composition.
+	 */
+	static final As<Optional<LocalDateTime>,?> LDT_O;
+
+	/*
+	 * A composing adapter expecting a reference type can also be composed
+	 * over one that produces a primitive type. It will see the values
+	 * automatically boxed.
+	 *
+	 * Corollary: should the desired behavior be not to produce Optional,
+	 * but simply to enable null handling for a primitive type by producing
+	 * its boxed form or null, just one absolutely trivial composing adapter
+	 * could add that behavior over any primitive adapter.
+	 */
+	static final As<Optional<Long>         ,?> INT8_O;
+
+	/*
+	 * Once properly-typed adapters for component types are in hand,
+	 * getting properly-typed array adapters is straightforward. (In Java 10+,
+	 * a person might prefer to set these up at run time in local variables,
+	 * where var could be used instead of these longwinded declarations.)
+	 *
+	 * For fun, I8x1 will be built over INT8_O, so it will really produce
+	 * Optional<Long>[] instead of long[]. F8x5 will be built over F8_NaN, so it
+	 * will produce double[][][][][], but null elements won't be rejected,
+	 * and will appear as NaN. DTx2 will be built over LDT_O, so it will really
+	 * produce Optional<LocalDateTime>[][].
+	 */
+	static final As<Optional<Long>[]           ,?> I8x1;
+	static final As<           int[][]         ,?> I4x2;
+	static final As<         short[][][]       ,?> I2x3;
+	static final As<          byte[][][][]     ,?> I1x4;
+	static final As<        double[][][][][]   ,?> F8x5;
+	static final As<         float[][][][][][] ,?> F4x6;
+	static final As<       boolean[][][][][]   ,?>  Bx5;
+	static final As<Optional<LocalDateTime>[][],?> DTx2;
+
+	static
+	{
+		/*
+		 * This is the very untidy part, while the planned Adapter manager API
+		 * is not yet implemented. The extremely temporary adapterPlease method
+		 * can be used to grovel some adapters out of PL/Java's innards, as long
+		 * as the name of a class and a static final field is known.
+		 *
+		 * The adapter manager will have generic methods to obtain adapters with
+		 * specific compile-time types. The adapterPlease method, not so much.
+		 * It needs to be used with ugly casts.
+		 */
+		try
+		{
+			Connection conn = getConnection("jdbc:default:connection");
+			SlotTester t = conn.unwrap(SlotTester.class);
+
+			String cls = "org.postgresql.pljava.pg.adt.Primitives";
+			INT8   = (AsLong   <?>)t.adapterPlease(cls,    "INT8_INSTANCE");
+			INT4   = (AsInt    <?>)t.adapterPlease(cls,    "INT4_INSTANCE");
+			INT2   = (AsShort  <?>)t.adapterPlease(cls,    "INT2_INSTANCE");
+			INT1   = (AsByte   <?>)t.adapterPlease(cls,    "INT1_INSTANCE");
+			FLOAT8 = (AsDouble <?>)t.adapterPlease(cls,  "FLOAT8_INSTANCE");
+			FLOAT4 = (AsFloat  <?>)t.adapterPlease(cls,  "FLOAT4_INSTANCE");
+			BOOL   = (AsBoolean<?>)t.adapterPlease(cls, "BOOLEAN_INSTANCE");
+
+			cls = "org.postgresql.pljava.pg.adt.TextAdapter";
+
+			/*
+			 * SuppressWarnings must appear on a declaration, making it hard to
+			 * apply here, an initial assignment to a final field declared
+			 * earlier. But making this the declaration of a new local variable,
+			 * with the actual wanted assignment as a "side effect", works.
+			 * (The "unnamed variable" _ previewed in Java 21 would be ideal.)
+			 */
+					@SuppressWarnings("unchecked") Object _1 =
+			TEXT   = (As<String,?>)t.adapterPlease(cls, "INSTANCE");
+
+			cls = "org.postgresql.pljava.pg.adt.DateTimeAdapter$JSR310";
+
+					@SuppressWarnings("unchecked") Object _2 =
+			LDT    =
+				(As<LocalDateTime,?>)t.adapterPlease(cls, "TIMESTAMP_INSTANCE");
+		}
+		catch ( SQLException | ReflectiveOperationException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+
+		/*
+		 * Other than those stopgap uses of adapterPlease, the rest is
+		 * not so bad. Instantiate some composing adapters over the leaf
+		 * adapters already obtained:
+		 */
+
+		F8_NaN = new NullReplacingDouble(FLOAT8, Double.NaN);
+		 LDT_O = new AsOptional<>(LDT);
+		INT8_O = new AsOptional<>(INT8);
+
+		/*
+		 * (Those composing adapters should be provided by PL/Java and known
+		 * to the adapter manager so it can compose them for you. For now,
+		 * they are just defined in this example file, showing that client
+		 * code can easily supply its own.)
+		 *
+		 * Java array-of-array adapters of various dimensionalities are
+		 * easily built from the adapters chosen for their component types.
+		 */
+
+		I8x1 = INT8_O             .a1() .build(); // array of Optional<Long>
+		I4x2 =   INT4       .a2()       .build();
+		I2x3 =   INT2       .a2() .a1() .build();
+		I1x4 =   INT1 .a4()             .build();
+		F8x5 = F8_NaN .a4()       .a1() .build(); // 5D F8 array, null <-> NaN
+		F4x6 = FLOAT4 .a4() .a2()       .build();
+		 Bx5 =   BOOL .a4()       .a1() .build();
+		DTx2 =  LDT_O       .a2()       .build(); // 2D of optional LDT
+	}
+
+	/**
+	 * Test {@link TargetList} and its functional API for retrieving values.
+	 */
+	@Function(schema="javatest")
+	public static Iterator<String> targetListTest()
+	throws SQLException, ReflectiveOperationException
+	{
+		try (
+			Connection conn = getConnection("jdbc:default:connection");
+			Statement s = conn.createStatement();
+		)
+		{
+			SlotTester t = conn.unwrap(SlotTester.class);
+
+			String query =
+				"SELECT" +
+				"  to_char(stamp, 'DAY') AS day," +
+				"  stamp" +
+				" FROM" +
+				"  generate_series(" +
+				"   timestamp 'epoch', timestamp 'epoch' + interval 'P6D'," +
+				"   interval 'P1D'" +
+				"  ) AS s(stamp)";
+
+			try ( Portal p = t.unwrapAsPortal(s.executeQuery(query)) )
+			{
+				Projection proj = p.tupleDescriptor();
+
+				/*
+				 * A quick glance shows this project(...) to be unneeded, as the
+				 * query's TupleDescriptor already has exactly these columns in
+				 * this order, and could be used below directly. On the other
+				 * hand, this line will keep things working if someone later
+				 * changes the query, reordering these columns or adding
+				 * to them, and it may give a more explanatory exception if
+				 * a change to the query does away with an expected column.
+				 */
+				proj = proj.project("day", "stamp");
+
+				List<TupleTableSlot> fetched = p.fetch(FORWARD, ALL);
+
+				List<String> results = new ArrayList<>();
+
+				proj.applyOver(fetched, c ->
+				{
+					/*
+					 * This loop demonstrates a straightforward use of two
+					 * Adapters and a lambda with two parameters to go through
+					 * the retrieved rows.
+					 *
+					 * Note that applyOver does not, itself, iterate over the
+					 * rows; it supplies a Cursor object that can be iterated to
+					 * do that. This gives the lambda body of applyOver more
+					 * control over how that will happen.
+					 *
+					 * The Cursor object is mutated during iteration so the
+					 * same object represents each row in turn; the iteration
+					 * variable is simply the Cursor object itself, so does not
+					 * need to be used. Once the "unnamed variable" _ is more
+					 * widely available (Java 21 has it, with --enable-preview),
+					 * it will be the obvious choice for the iteration variable
+					 * here.
+					 *
+					 * Within the loop, the cursor represents the single current
+					 * row as far as its apply(...) methods are concerned.
+					 *
+					 * Other patterns, such as the streams API, can also be used
+					 * (starting with a stream of the cursor object itself,
+					 * again for each row), but can involve more fuss when
+					 * checked exceptions are involved.
+					 */
+					for ( Cursor __ : c )
+					{
+						c.apply(TEXT, LDT,         // the adapters
+							(     v0,  v1 ) ->     // the fetched values
+							results.add(v0 + " | " + v1.getDayOfWeek())
+						);
+					}
+
+					/*
+					 * This equivalent loop uses two lambdas in curried style
+					 * to do the same processing of the same two columns. That
+					 * serves no practical need in this example; a perfectly
+					 * good method signature for two reference columns was seen
+					 * above. This loop illustrates the technique for combining
+					 * the available methods when there isn't one that exactly
+					 * fits the number and types of the target columns.
+					 */
+					for ( Cursor __ : c )
+					{
+						c.apply(TEXT,
+								v0 ->
+							c.apply(LDT,
+									v1 ->
+								results.add(v0 + " | " + v1.getDayOfWeek())
+							)
+						);
+					}
+
+					return null;
+				});
+
+				return results.iterator();
+			}
+		}
+	}
+
 	/**
 	 * Test retrieval of a PostgreSQL array as a multidimensional Java array.
 	 */
@@ -54,115 +323,50 @@ public class TupleTableSlotTest
 	public static Iterator<String> javaMultiArrayTest()
 	throws SQLException, ReflectiveOperationException
 	{
-		Connection c = getConnection("jdbc:default:connection");
-		SlotTester t = c.unwrap(SlotTester.class);
-
-		/*
-		 * First obtain an Adapter for the component type. For now, the untyped
-		 * adapterPlease method is needed to grovel it out of PL/Java's innards
-		 * and then cast it. An adapter manager with proper generic typing will
-		 * handle that part some day.
-		 */
-		AsLong<?> int8 = (AsLong<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "INT8_INSTANCE");
-		AsInt<?> int4 = (AsInt<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "INT4_INSTANCE");
-		AsShort<?> int2 = (AsShort<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "INT2_INSTANCE");
-		AsByte<?> int1 = (AsByte<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "INT1_INSTANCE");
-		AsDouble<?> float8 = (AsDouble<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "FLOAT8_INSTANCE");
-		AsFloat<?> float4 = (AsFloat<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "FLOAT4_INSTANCE");
-		AsBoolean<?> bool = (AsBoolean<?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.Primitives", "BOOLEAN_INSTANCE");
-
-		@SuppressWarnings("unchecked")
-		As<OffsetDateTime,?> odt = (As<OffsetDateTime,?>)t.adapterPlease(
-			"org.postgresql.pljava.pg.adt.DateTimeAdapter$JSR310",
-			"TIMESTAMPTZ_INSTANCE");
-
-		/*
-		 * By default, the Adapters for primitive types can't fetch a null
-		 * value. There is no value in the primitive's value space that could
-		 * unambiguously represent null, and a DBMS should not go and change
-		 * your data if you haven't said to. But in a case where that is what
-		 * you want, it is simple to write an adapter with the wanted behavior
-		 * and compose it over the original one.
-		 */
-		float8 = new NullReplacingDouble(float8, Double.NaN);
-
-		/*
-		 * Let's also compose AsOptional over the odt adapter, to get an adapter
-		 * producing Optional<OffsetDateTime> instead of possibly nulls.
-		 */
-		As<Optional<OffsetDateTime>,?> oodt = new AsOptional<>(odt);
-
-		/*
-		 * A composing adapter expecting a reference type can also be composed
-		 * over one that produces a primitive type. It will see the values
-		 * automatically boxed.
-		 *
-		 * Corollary: should the desired behavior be not to produce Optional,
-		 * but simply to enable null handling for a primitive type by producing
-		 * its boxed form, just one absolutely trivial composing adapter could
-		 * add that behavior over any primitive adapter.
-		 */
-		As<Optional<Long>,?> oint8 = new AsOptional<>(int8);
-
-		/*
-		 * Once properly-typed adapters for component types are in hand,
-		 * getting properly-typed array adapters is straightforward.
-		 * (Java 10+ var can reduce verbosity here.)
-		 */
-		As<Optional<Long>[]           ,?> i8x1 = oint8           .a1().build();
-		As<           int[][]         ,?> i4x2 = int4       .a2()     .build();
-		As<         short[][][]       ,?> i2x3 = int2       .a2().a1().build();
-		As<          byte[][][][]     ,?> i1x4 = int1  .a4()          .build();
-		As<        double[][][][][]   ,?> f8x5 = float8.a4()     .a1().build();
-		As<         float[][][][][][] ,?> f4x6 = float4.a4().a2()     .build();
-		As<       boolean[][][][][]   ,?>  bx5 = bool  .a4()     .a1().build();
-		As<Optional<OffsetDateTime>[][][][],?> dtx4 = oodt.a4()       .build();
+		Connection conn = getConnection("jdbc:default:connection");
+		SlotTester t = conn.unwrap(SlotTester.class);
 
 		String query =
 			"VALUES (" +
-			" CAST ( '{1,2}'                 AS        int8 [] ), " +
-			" CAST ( '{{1},{2}}'             AS        int4 [] ), " +
-			" CAST ( '{{{1,2,3}}}'           AS        int2 [] ), " +
-			" CAST ( '{{{{1},{2},{3}}}}'     AS    \"char\" [] ), " + // ASCII
-			" CAST ( '{{{{{1,2,3}}}}}'       AS      float8 [] ), " +
-			" CAST ( '{{{{{{1},{2},{3}}}}}}' AS      float4 [] ), " +
-			" CAST ( '{{{{{t},{f},{t}}}}}'   AS     boolean [] ), " +
-			" CAST ( '{{{{''epoch''}}}}'     AS timestamptz [] )  " +
+			" CAST ( '{1,2}'                 AS      int8 [] ), " +
+			" CAST ( '{{1},{2}}'             AS      int4 [] ), " +
+			" CAST ( '{{{1,2,3}}}'           AS      int2 [] ), " +
+			" CAST ( '{{{{1},{2},{3}}}}'     AS  \"char\" [] ), " + // ASCII
+			" CAST ( '{{{{{1,2,3}}}}}'       AS    float8 [] ), " +
+			" CAST ( '{{{{{{1},{2},{3}}}}}}' AS    float4 [] ), " +
+			" CAST ( '{{{{{t},{f},{t}}}}}'   AS   boolean [] ), " +
+			" CAST ( '{{''epoch''}}'         AS timestamp [] )  " +
 			"), (" +
 			" '{NULL}', NULL, NULL, NULL, '{{{{{1,NULL,3}}}}}', NULL, NULL," +
-			" '{{{{NULL}}}}'" +
+			" '{{NULL}}'" +
 			")";
 
-		List<TupleTableSlot> tups = t.test(query);
+		Portal p = t.unwrapAsPortal(conn.createStatement().executeQuery(query));
+		Projection proj = p.tupleDescriptor();
+
+		List<TupleTableSlot> tups = p.fetch(FORWARD, ALL);
 
 		List<String> result = new ArrayList<>();
 
 		/*
-		 * Then just pass the right adapter to tts.get.
+		 * Then just use the right adapter for each column.
 		 */
-		for ( TupleTableSlot tts : tups )
+		proj.applyOver(tups, c ->
 		{
-			Optional<Long>           []           v0 = tts.get(0, i8x1);
-			int                      [][]         v1 = tts.get(1, i4x2);
-			short                    [][][]       v2 = tts.get(2, i2x3);
-			byte                     [][][][]     v3 = tts.get(3, i1x4);
-			double                   [][][][][]   v4 = tts.get(4, f8x5);
-			float                    [][][][][][] v5 = tts.get(5, f4x6);
-			boolean                  [][][][][]   v6 = tts.get(6,  bx5);
-			Optional<OffsetDateTime> [][][][]     v7 = tts.get(7, dtx4);
-
-			result.addAll(List.of(
-				Arrays.toString(v0), deepToString(v1), deepToString(v2),
-				   deepToString(v3), deepToString(v4), deepToString(v5),
-				   deepToString(v6), deepToString(v7)));
-		}
+			for ( Cursor __ : c )
+			{
+				c.apply(I8x1, I4x2, I2x3, I1x4, F8x5, F4x6, Bx5, DTx2,
+					(     v0,   v1,   v2,   v3,   v4,   v5,  v6,   v7 ) ->
+					result.addAll(List.of(
+						Arrays.toString(v0), deepToString(v1), deepToString(v2),
+						   deepToString(v3), deepToString(v4), deepToString(v5),
+						   deepToString(v6), deepToString(v7),
+						   v7[0][0].orElse(LocalDateTime.MAX).getMonth() + ""
+					))
+				);
+			}
+			return null;
+		});
 
 		return result.iterator();
 	}
@@ -270,7 +474,11 @@ public class TupleTableSlotTest
 		Connection c = getConnection("jdbc:default:connection");
 		SlotTester t = c.unwrap(SlotTester.class);
 
-		List<TupleTableSlot> tups = t.test(query);
+		ResultSet rs = c.createStatement().executeQuery(query);
+		Portal p = t.unwrapAsPortal(rs);
+		TupleDescriptor td = p.tupleDescriptor();
+
+		List<TupleTableSlot> tups = p.fetch(FORWARD, ALL);
 
 		int ntups = tups.size();
 
@@ -319,7 +527,7 @@ public class TupleTableSlotTest
 					adpZ = (AsBoolean<?>)a;
 			}
 
-			for ( Attribute att : tts.descriptor().attributes() )
+			for ( Attribute att : tts.descriptor() )
 			{
 				go = true;
 				while ( go )
@@ -340,7 +548,7 @@ public class TupleTableSlotTest
 						case 8: ll = tts.get(att, adpL); break;
 						}
 					}
-					catch ( SQLException e )
+					catch ( AdapterException e )
 					{
 						System.out.println(e);
 					}

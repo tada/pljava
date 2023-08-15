@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 import static java.util.Objects.requireNonNull;
 
@@ -167,7 +168,7 @@ implements
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("attacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.ATTACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of Attribute */
@@ -256,6 +257,49 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute ATTACL;
+		static final Attribute ATTNDIMS;
+		static final Attribute ATTSTORAGE;
+		static final Attribute ATTHASDEF;
+		static final Attribute ATTHASMISSING;
+		static final Attribute ATTIDENTITY;
+		static final Attribute ATTGENERATED;
+		static final Attribute ATTISLOCAL;
+		static final Attribute ATTINHCOUNT;
+		static final Attribute ATTCOLLATION;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASS.tupleDescriptor().project(
+				"attacl",
+				"attndims",
+				"attstorage",
+				"atthasdef",
+				"atthasmissing",
+				"attidentity",
+				"attgenerated",
+				"attislocal",
+				"attinhcount",
+				"attcollation"
+			).iterator();
+
+			ATTACL        = itr.next();
+			ATTNDIMS      = itr.next();
+			ATTSTORAGE    = itr.next();
+			ATTHASDEF     = itr.next();
+			ATTHASMISSING = itr.next();
+			ATTIDENTITY   = itr.next();
+			ATTGENERATED  = itr.next();
+			ATTISLOCAL    = itr.next();
+			ATTINHCOUNT   = itr.next();
+			ATTCOLLATION  = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	/**
@@ -313,7 +357,7 @@ implements
 	private static int dimensions(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("attndims"), INT4_INSTANCE);
+		return s.get(Att.ATTNDIMS, INT4_INSTANCE);
 	}
 
 	private static boolean byValue(AttributeImpl o)
@@ -335,7 +379,7 @@ implements
 		TupleTableSlot s = o.partialTuple();
 		return
 			storageFromCatalog(
-				s.get(s.descriptor().get("attstorage"), INT1_INSTANCE));
+				s.get(Att.ATTSTORAGE, INT1_INSTANCE));
 	}
 
 	private static boolean notNull(AttributeImpl o)
@@ -349,26 +393,26 @@ implements
 	private static boolean hasDefault(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("atthasdef"), BOOLEAN_INSTANCE);
+		return s.get(Att.ATTHASDEF, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean hasMissing(AttributeImpl o)  throws SQLException
 	{ // not 9.5
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("atthasmissing"), BOOLEAN_INSTANCE);
+		return s.get(Att.ATTHASMISSING, BOOLEAN_INSTANCE);
 	}
 
 	private static Identity identity(AttributeImpl o)  throws SQLException
 	{ // not 9.5
 		TupleTableSlot s = o.partialTuple();
-		byte v = s.get(s.descriptor().get("attidentity"), INT1_INSTANCE);
+		byte v = s.get(Att.ATTIDENTITY, INT1_INSTANCE);
 		return identityFromCatalog(v);
 	}
 
 	private static Generated generated(AttributeImpl o)  throws SQLException
 	{ // not 9.5
 		TupleTableSlot s = o.partialTuple();
-		byte v = s.get(s.descriptor().get("attgenerated"), INT1_INSTANCE);
+		byte v = s.get(Att.ATTGENERATED, INT1_INSTANCE);
 		return generatedFromCatalog(v);
 	}
 
@@ -384,19 +428,19 @@ implements
 	private static boolean local(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("attislocal"), BOOLEAN_INSTANCE);
+		return s.get(Att.ATTISLOCAL, BOOLEAN_INSTANCE);
 	}
 
 	private static int inheritanceCount(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("attinhcount"), INT4_INSTANCE);
+		return s.get(Att.ATTINHCOUNT, INT4_INSTANCE);
 	}
 
 	private static RegCollation collation(AttributeImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.partialTuple();
-		return s.get(s.descriptor().get("attcollation"), REGCOLLATION_INSTANCE);
+		return s.get(Att.ATTCOLLATION, REGCOLLATION_INSTANCE);
 	}
 
 	/* private methods using cache slots like API methods do */
@@ -660,7 +704,8 @@ implements
 
 	boolean foundIn(TupleDescriptor td)
 	{
-		return this == td.attributes().get(subId() - 1);
+		int idx = subId() - 1;
+		return ( idx < td.size() ) && ( this == td.get(idx) );
 	}
 
 	/**

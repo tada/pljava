@@ -202,7 +202,7 @@ implements TupleTableSlot
 		 * From the Heap constructor, it may be null.
 		 */
 		m_isnull = null == isnull ? null : asReadOnlyNativeOrder(isnull);
-		m_adapters = new Adapter<?,?> [ m_tupdesc.attributes().size() ];
+		m_adapters = new Adapter<?,?> [ m_tupdesc.size() ];
 
 		@SuppressWarnings("unchecked")
 		Object dummy =
@@ -306,7 +306,7 @@ implements TupleTableSlot
 
 		if ( 0 != ( infomask & HEAP_HASNULL ) )
 		{
-			int nlen = ( td.attributes().size() + 7 ) / 8;
+			int nlen = ( td.size() + 7 ) / 8;
 			if ( nlen + OFFSET_HeapTupleHeaderData_t_bits > hoff )
 			{
 				int attsReallyPresent = infomask2 & HEAP_NATTS_MASK;
@@ -371,7 +371,7 @@ implements TupleTableSlot
 	 */
 	protected Attribute fromIndex(int idx, Adapter<?,?> adp)
 	{
-		Attribute att = m_tupdesc.attributes().get(idx);
+		Attribute att = m_tupdesc.get(idx);
 		if ( m_adapters [ idx ] != requireNonNull(adp) )
 			memoize(idx, att, adp);
 		return att;
@@ -536,7 +536,7 @@ implements TupleTableSlot
 		protected int toOffset(int idx)
 		{
 			int offset = 0;
-			List<Attribute> atts = m_tupdesc.attributes();
+			List<Attribute> atts = m_tupdesc;
 			Attribute att;
 
 			/*
@@ -627,13 +627,13 @@ implements TupleTableSlot
 				TupleDescriptor td, int elements,
 				ByteBuffer nulls, ByteBuffer values)
 			{
-				super(td.attributes().get(0).relation(), td, values, nulls);
+				super(td.get(0).relation(), td, values, nulls);
 				assert elements >= 0 : "negative element count";
 				assert null == nulls || nulls.capacity() == (elements+7)/8
 					: "nulls length element count mismatch";
 				m_elements = elements;
 
-				Attribute att = td.attributes().get(0);
+				Attribute att = td.get(0);
 				int length = att.length();
 				int align = alignmentModulus(att.alignment());
 				assert 0 == values.alignmentOffset(0, align)
@@ -666,7 +666,7 @@ implements TupleTableSlot
 			protected Attribute fromIndex(int idx, Adapter<?,?> adp)
 			{
 				checkIndex(idx, m_elements);
-				Attribute att = m_tupdesc.attributes().get(0);
+				Attribute att = m_tupdesc.get(0);
 				if ( m_adapters [ 0 ] != requireNonNull(adp) )
 					memoize(0, att, adp);
 				return att;
@@ -786,15 +786,7 @@ implements TupleTableSlot
 		return m_values;
 	}
 
-	private List<TupleTableSlot> supplyHeapTuples(ByteBuffer htarray)
-	{
-		htarray = htarray.asReadOnlyBuffer().order(ByteOrder.nativeOrder());
-		if ( 8 == SIZEOF_DATUM )
-			return new HeapTuples8(htarray);
-		return new HeapTuples4(htarray);
-	}
-
-	private void store_heaptuple(long ht, boolean shouldFree)
+	void store_heaptuple(long ht, boolean shouldFree)
 	{
 		doInPG(() -> _store_heaptuple(m_tts, ht, shouldFree));
 	}
@@ -804,10 +796,8 @@ implements TupleTableSlot
 	private static native void _store_heaptuple(
 		ByteBuffer tts, long ht, boolean shouldFree);
 
-	private static native List<TupleTableSlot> _testmeSPI();
-
 	@Override
-	public <T> T get(Attribute att, As<T,?> adapter) throws SQLException
+	public <T> T get(Attribute att, As<T,?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -819,7 +809,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public long get(Attribute att, AsLong<?> adapter) throws SQLException
+	public long get(Attribute att, AsLong<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -831,7 +821,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public double get(Attribute att, AsDouble<?> adapter) throws SQLException
+	public double get(Attribute att, AsDouble<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -843,7 +833,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public int get(Attribute att, AsInt<?> adapter) throws SQLException
+	public int get(Attribute att, AsInt<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -855,7 +845,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public float get(Attribute att, AsFloat<?> adapter) throws SQLException
+	public float get(Attribute att, AsFloat<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -867,7 +857,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public short get(Attribute att, AsShort<?> adapter) throws SQLException
+	public short get(Attribute att, AsShort<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -879,7 +869,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public char get(Attribute att, AsChar<?> adapter) throws SQLException
+	public char get(Attribute att, AsChar<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -891,7 +881,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public byte get(Attribute att, AsByte<?> adapter) throws SQLException
+	public byte get(Attribute att, AsByte<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -903,7 +893,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public boolean get(Attribute att, AsBoolean<?> adapter) throws SQLException
+	public boolean get(Attribute att, AsBoolean<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -915,7 +905,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public <T> T get(int idx, As<T,?> adapter) throws SQLException
+	public <T> T get(int idx, As<T,?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -927,7 +917,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public long get(int idx, AsLong<?> adapter) throws SQLException
+	public long get(int idx, AsLong<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -939,7 +929,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public double get(int idx, AsDouble<?> adapter) throws SQLException
+	public double get(int idx, AsDouble<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -951,7 +941,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public int get(int idx, AsInt<?> adapter) throws SQLException
+	public int get(int idx, AsInt<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -963,7 +953,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public float get(int idx, AsFloat<?> adapter) throws SQLException
+	public float get(int idx, AsFloat<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -975,7 +965,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public short get(int idx, AsShort<?> adapter) throws SQLException
+	public short get(int idx, AsShort<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -987,7 +977,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public char get(int idx, AsChar<?> adapter) throws SQLException
+	public char get(int idx, AsChar<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -999,7 +989,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public byte get(int idx, AsByte<?> adapter) throws SQLException
+	public byte get(int idx, AsByte<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -1011,7 +1001,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public boolean get(int idx, AsBoolean<?> adapter) throws SQLException
+	public boolean get(int idx, AsBoolean<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -1020,78 +1010,6 @@ implements TupleTableSlot
 
 		int off = toOffset(idx);
 		return adapter.fetch(accessor(idx), values(), off, att);
-	}
-
-	/*
-	 * Plan: factor the below out into a group (maybe a class or interface with
-	 * nested classes) of implementations that look like lists of TupleTableSlot
-	 * over different kinds of result:
-	 * - SPITupleTable (these: a tupdesc, and vals array of HeapTuple pointers)
-	 * - CatCList (n_members and a members array of CatCTup pointers, where each
-	 *   CatCTup has a HeapTupleData and HeapTupleHeader nearly but not quite
-	 *   adjacent), must find tupdesc
-	 * - Tuplestore ? (is this visible, or concealed behind SPI's cursors?)
-	 * - Tuplesort ? (")
-	 * - SFRM results? (Ah, SFRM_Materialize makes a Tuplestore.)
-	 * - will we ever see a "tuple table" ("which is a List of independent
-	 *   TupleTableSlots")?
-	 */
-
-	/**
-	 * A {@code List<TupleTableSlot>} built over something like 
-	 */
-	private class HeapTuples8 extends AbstractList<TupleTableSlot>
-	{
-		private final LongBuffer m_tuples;
-
-		HeapTuples8(ByteBuffer ht)
-		{
-			m_tuples = ht.asLongBuffer();
-		}
-
-		@Override
-		public TupleTableSlot get(int index)
-		{
-			store_heaptuple(m_tuples.get(index), false);
-			return TupleTableSlotImpl.this;
-		}
-
-		@Override
-		public int size()
-		{
-			return m_tuples.capacity();
-		}
-	}
-
-	private class HeapTuples4 extends AbstractList<TupleTableSlot>
-	{
-		private final IntBuffer m_tuples;
-
-		HeapTuples4(ByteBuffer ht)
-		{
-			m_tuples = ht.asIntBuffer();
-		}
-
-		@Override
-		public TupleTableSlot get(int index)
-		{
-			store_heaptuple(m_tuples.get(index), false);
-			return TupleTableSlotImpl.this;
-		}
-
-		@Override
-		public int size()
-		{
-			return m_tuples.capacity();
-		}
-	}
-
-	/**
-	 * Temporary test jig during development.
-	 */
-	public static List<TupleTableSlot> testmeSPI()
-	{
-		return doInPG(() -> _testmeSPI());
 	}
 
 	private static class HTChunkState

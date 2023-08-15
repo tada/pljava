@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@ import java.nio.file.attribute.UserPrincipal;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import org.postgresql.pljava.RolePrincipal;
@@ -75,7 +76,7 @@ implements
 	private static Simple name(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("rolname"), SIMPLE_INSTANCE);
+		return t.get(Att.ROLNAME, SIMPLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant.OnRole> grants(RegRoleImpl o)
@@ -141,6 +142,46 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute ROLNAME;
+		static final Attribute ROLSUPER;
+		static final Attribute ROLINHERIT;
+		static final Attribute ROLCREATEROLE;
+		static final Attribute ROLCREATEDB;
+		static final Attribute ROLCANLOGIN;
+		static final Attribute ROLREPLICATION;
+		static final Attribute ROLBYPASSRLS;
+		static final Attribute ROLCONNLIMIT;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"rolname",
+				"rolsuper",
+				"rolinherit",
+				"rolcreaterole",
+				"rolcreatedb",
+				"rolcanlogin",
+				"rolreplication",
+				"rolbypassrls",
+				"rolconnlimit"
+			).iterator();
+
+			ROLNAME        = itr.next();
+			ROLSUPER       = itr.next();
+			ROLINHERIT     = itr.next();
+			ROLCREATEROLE  = itr.next();
+			ROLCREATEDB    = itr.next();
+			ROLCANLOGIN    = itr.next();
+			ROLREPLICATION = itr.next();
+			ROLBYPASSRLS   = itr.next();
+			ROLCONNLIMIT   = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static List<RegRole> memberOf(RegRoleImpl o)
@@ -151,49 +192,49 @@ implements
 	private static boolean superuser(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolsuper"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLSUPER, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean inherit(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolinherit"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLINHERIT, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean createRole(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolcreaterole"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLCREATEROLE, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean createDB(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolcreatedb"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLCREATEDB, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean canLogIn(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolcanlogin"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLCANLOGIN, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean replication(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolreplication"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLREPLICATION, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean bypassRLS(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolbypassrls"), BOOLEAN_INSTANCE);
+		return s.get(Att.ROLBYPASSRLS, BOOLEAN_INSTANCE);
 	}
 
 	private static int connectionLimit(RegRoleImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("rolconnlimit"), INT4_INSTANCE);
+		return s.get(Att.ROLCONNLIMIT, INT4_INSTANCE);
 	}
 
 	/* API methods */

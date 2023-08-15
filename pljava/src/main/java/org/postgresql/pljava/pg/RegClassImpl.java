@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@ import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -93,26 +94,26 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("relname"), NameAdapter.SIMPLE_INSTANCE);
+			t.get(Att.RELNAME, NameAdapter.SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("relnamespace"), REGNAMESPACE_INSTANCE);
+		return t.get(Att.RELNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("relowner"), REGROLE_INSTANCE);
+		return t.get(Att.RELOWNER, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(RegClassImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("relacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.RELACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of RegClass */
@@ -265,6 +266,73 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute RELNAME;
+		static final Attribute RELNAMESPACE;
+		static final Attribute RELOWNER;
+		static final Attribute RELACL;
+		static final Attribute RELOFTYPE;
+		static final Attribute RELTOASTRELID;
+		static final Attribute RELHASINDEX;
+		static final Attribute RELISSHARED;
+		static final Attribute RELNATTS;
+		static final Attribute RELCHECKS;
+		static final Attribute RELHASRULES;
+		static final Attribute RELHASTRIGGERS;
+		static final Attribute RELHASSUBCLASS;
+		static final Attribute RELROWSECURITY;
+		static final Attribute RELFORCEROWSECURITY;
+		static final Attribute RELISPOPULATED;
+		static final Attribute RELISPARTITION;
+		static final Attribute RELOPTIONS;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"relname",
+				"relnamespace",
+				"relowner",
+				"relacl",
+				"reloftype",
+				"reltoastrelid",
+				"relhasindex",
+				"relisshared",
+				"relnatts",
+				"relchecks",
+				"relhasrules",
+				"relhastriggers",
+				"relhassubclass",
+				"relrowsecurity",
+				"relforcerowsecurity",
+				"relispopulated",
+				"relispartition",
+				"reloptions"
+			).iterator();
+
+			RELNAME             = itr.next();
+			RELNAMESPACE        = itr.next();
+			RELOWNER            = itr.next();
+			RELACL              = itr.next();
+			RELOFTYPE           = itr.next();
+			RELTOASTRELID       = itr.next();
+			RELHASINDEX         = itr.next();
+			RELISSHARED         = itr.next();
+			RELNATTS            = itr.next();
+			RELCHECKS           = itr.next();
+			RELHASRULES         = itr.next();
+			RELHASTRIGGERS      = itr.next();
+			RELHASSUBCLASS      = itr.next();
+			RELROWSECURITY      = itr.next();
+			RELFORCEROWSECURITY = itr.next();
+			RELISPOPULATED      = itr.next();
+			RELISPARTITION      = itr.next();
+			RELOPTIONS          = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	/**
@@ -364,87 +432,87 @@ implements
 	private static RegType ofType(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("reloftype"), REGTYPE_INSTANCE);
+		return s.get(Att.RELOFTYPE, REGTYPE_INSTANCE);
 	}
 
 	private static RegClass toastRelation(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("reltoastrelid"), REGCLASS_INSTANCE);
+		return s.get(Att.RELTOASTRELID, REGCLASS_INSTANCE);
 	}
 
 	private static boolean hasIndex(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relhasindex"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELHASINDEX, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean isShared(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relisshared"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELISSHARED, BOOLEAN_INSTANCE);
 	}
 
 	private static short nAttributes(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relnatts"), INT2_INSTANCE);
+		return s.get(Att.RELNATTS, INT2_INSTANCE);
 	}
 
 	private static short checks(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relchecks"), INT2_INSTANCE);
+		return s.get(Att.RELCHECKS, INT2_INSTANCE);
 	}
 
 	private static boolean hasRules(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relhasrules"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELHASRULES, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean hasTriggers(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relhastriggers"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELHASTRIGGERS, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean hasSubclass(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relhassubclass"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELHASSUBCLASS, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean rowSecurity(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relrowsecurity"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELROWSECURITY, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean forceRowSecurity(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("relforcerowsecurity"), BOOLEAN_INSTANCE);
+			s.get(Att.RELFORCEROWSECURITY, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean isPopulated(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relispopulated"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELISPOPULATED, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean isPartition(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("relispartition"), BOOLEAN_INSTANCE);
+		return s.get(Att.RELISPARTITION, BOOLEAN_INSTANCE);
 	}
 
 	private static List<String> options(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("reloptions"), FLAT_STRING_LIST_INSTANCE);
+			s.get(Att.RELOPTIONS, FLAT_STRING_LIST_INSTANCE);
 	}
 
 	/* API methods */

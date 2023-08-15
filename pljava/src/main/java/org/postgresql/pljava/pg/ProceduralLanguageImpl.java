@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@ import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -69,20 +70,20 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("lanname"), SIMPLE_INSTANCE);
+			t.get(Att.LANNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegRole owner(ProceduralLanguageImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("lanowner"), REGROLE_INSTANCE);
+		return t.get(Att.LANOWNER, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(ProceduralLanguageImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("lanacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.LANACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of ProceduralLanguage */
@@ -135,13 +136,47 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute LANNAME;
+		static final Attribute LANOWNER;
+		static final Attribute LANACL;
+		static final Attribute LANPLTRUSTED;
+		static final Attribute LANPLCALLFOID;
+		static final Attribute LANINLINE;
+		static final Attribute LANVALIDATOR;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"lanname",
+				"lanowner",
+				"lanacl",
+				"lanpltrusted",
+				"lanplcallfoid",
+				"laninline",
+				"lanvalidator"
+			).iterator();
+
+			LANNAME       = itr.next();
+			LANOWNER      = itr.next();
+			LANACL        = itr.next();
+			LANPLTRUSTED  = itr.next();
+			LANPLCALLFOID = itr.next();
+			LANINLINE     = itr.next();
+			LANVALIDATOR  = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static PLPrincipal principal(ProceduralLanguageImpl o)
 	throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		if ( s.get(s.descriptor().get("lanpltrusted"), BOOLEAN_INSTANCE) )
+		if ( s.get(Att.LANPLTRUSTED, BOOLEAN_INSTANCE) )
 			return new PLPrincipal.Sandboxed(o.name());
 		return new PLPrincipal.Unsandboxed(o.name());
 	}
@@ -152,7 +187,7 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<Handler> p = (RegProcedure<Handler>)
-			s.get(s.descriptor().get("lanplcallfoid"), REGPROCEDURE_INSTANCE);
+			s.get(Att.LANPLCALLFOID, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -163,7 +198,7 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<InlineHandler> p = (RegProcedure<InlineHandler>)
-			s.get(s.descriptor().get("laninline"), REGPROCEDURE_INSTANCE);
+			s.get(Att.LANINLINE, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -173,7 +208,7 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<Validator> p = (RegProcedure<Validator>)
-			s.get(s.descriptor().get("lanvalidator"), REGPROCEDURE_INSTANCE);
+			s.get(Att.LANVALIDATOR, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 

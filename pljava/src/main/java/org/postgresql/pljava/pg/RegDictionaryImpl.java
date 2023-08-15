@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
+
+import java.util.Iterator;
 
 import java.util.function.UnaryOperator;
 
@@ -57,7 +59,7 @@ implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 	private static Simple name(RegDictionaryImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("dictname"), SIMPLE_INSTANCE);
+		return t.get(Att.DICTNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegDictionaryImpl o)
@@ -65,13 +67,13 @@ implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("dictnamespace"), REGNAMESPACE_INSTANCE);
+			t.get(Att.DICTNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegDictionaryImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("dictowner"), REGROLE_INSTANCE);
+		return t.get(Att.DICTOWNER, REGROLE_INSTANCE);
 	}
 
 	/* Implementation of RegDictionary */
@@ -105,5 +107,27 @@ implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 
 			.build()
 			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+	}
+
+	static class Att
+	{
+		static final Attribute DICTNAME;
+		static final Attribute DICTNAMESPACE;
+		static final Attribute DICTOWNER;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"dictname",
+				"dictnamespace",
+				"dictowner"
+			).iterator();
+
+			DICTNAME      = itr.next();
+			DICTNAMESPACE = itr.next();
+			DICTOWNER     = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
 	}
 }

@@ -11,6 +11,9 @@
  */
 package org.postgresql.pljava.model;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
 import java.util.List;
 
 import org.postgresql.pljava.Adapter;
@@ -20,6 +23,15 @@ import org.postgresql.pljava.Adapter;
  */
 public interface SlotTester
 {
+	/**
+	 * Unwrap a {@link ResultSet} instance from the legacy JDBC layer as a
+	 * {@link Portal} instance so results can be retrieved using new API.
+	 * @param rs a ResultSet, which can only be an SPIResultSet obtained from
+	 * the legacy JDBC implementation, not yet closed or used to fetch anything,
+	 * and will be closed.
+	 */
+	Portal unwrapAsPortal(ResultSet rs) throws SQLException;
+
 	/**
 	 * Execute <var>query</var>, returning its complete result as a {@code List}
 	 * of {@link TupleTableSlot}.

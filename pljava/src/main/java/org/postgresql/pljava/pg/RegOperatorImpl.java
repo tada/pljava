@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
+
+import java.util.Iterator;
 
 import java.util.function.UnaryOperator;
 
@@ -63,7 +65,7 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 	private static Operator name(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("oprname"), OPERATOR_INSTANCE);
+		return t.get(Att.OPRNAME, OPERATOR_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegOperatorImpl o)
@@ -71,13 +73,13 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("oprnamespace"), REGNAMESPACE_INSTANCE);
+			t.get(Att.OPRNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("oprowner"), REGROLE_INSTANCE);
+		return t.get(Att.OPROWNER, REGROLE_INSTANCE);
 	}
 
 	/* Implementation of RegOperator */
@@ -142,12 +144,67 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute OPRNAME;
+		static final Attribute OPRNAMESPACE;
+		static final Attribute OPROWNER;
+		static final Attribute OPRKIND;
+		static final Attribute OPRCANMERGE;
+		static final Attribute OPRCANHASH;
+		static final Attribute OPRLEFT;
+		static final Attribute OPRRIGHT;
+		static final Attribute OPRRESULT;
+		static final Attribute OPRCOM;
+		static final Attribute OPRNEGATE;
+		static final Attribute OPRCODE;
+		static final Attribute OPRREST;
+		static final Attribute OPRJOIN;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"oprname",
+				"oprnamespace",
+				"oprowner",
+				"oprkind",
+				"oprcanmerge",
+				"oprcanhash",
+				"oprleft",
+				"oprright",
+				"oprresult",
+				"oprcom",
+				"oprnegate",
+				"oprcode",
+				"oprrest",
+				"oprjoin"
+			).iterator();
+
+			OPRNAME      = itr.next();
+			OPRNAMESPACE = itr.next();
+			OPROWNER     = itr.next();
+			OPRKIND      = itr.next();
+			OPRCANMERGE  = itr.next();
+			OPRCANHASH   = itr.next();
+			OPRLEFT      = itr.next();
+			OPRRIGHT     = itr.next();
+			OPRRESULT    = itr.next();
+			OPRCOM       = itr.next();
+			OPRNEGATE    = itr.next();
+			OPRCODE      = itr.next();
+			OPRREST      = itr.next();
+			OPRJOIN      = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static Kind kind(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		byte b = s.get(s.descriptor().get("oprkind"), INT1_INSTANCE);
+		byte b = s.get(Att.OPRKIND, INT1_INSTANCE);
 		switch ( b )
 		{
 		case (byte)'b':
@@ -167,43 +224,43 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 	private static boolean canMerge(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprcanmerge"), BOOLEAN_INSTANCE);
+		return s.get(Att.OPRCANMERGE, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean canHash(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprcanhash"), BOOLEAN_INSTANCE);
+		return s.get(Att.OPRCANHASH, BOOLEAN_INSTANCE);
 	}
 
 	private static RegType leftOperand(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprleft"), REGTYPE_INSTANCE);
+		return s.get(Att.OPRLEFT, REGTYPE_INSTANCE);
 	}
 
 	private static RegType rightOperand(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprright"), REGTYPE_INSTANCE);
+		return s.get(Att.OPRRIGHT, REGTYPE_INSTANCE);
 	}
 
 	private static RegType result(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprresult"), REGTYPE_INSTANCE);
+		return s.get(Att.OPRRESULT, REGTYPE_INSTANCE);
 	}
 
 	private static RegOperator commutator(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprcom"), REGOPERATOR_INSTANCE);
+		return s.get(Att.OPRCOM, REGOPERATOR_INSTANCE);
 	}
 
 	private static RegOperator negator(RegOperatorImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("oprnegate"), REGOPERATOR_INSTANCE);
+		return s.get(Att.OPRNEGATE, REGOPERATOR_INSTANCE);
 	}
 
 	private static RegProcedure<Evaluator> evaluator(RegOperatorImpl o)
@@ -212,7 +269,7 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<Evaluator> p = (RegProcedure<Evaluator>)
-			s.get(s.descriptor().get("oprcode"), REGPROCEDURE_INSTANCE);
+			s.get(Att.OPRCODE, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -224,7 +281,7 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<RestrictionSelectivity> p =
 			(RegProcedure<RestrictionSelectivity>)
-			s.get(s.descriptor().get("oprrest"), REGPROCEDURE_INSTANCE);
+			s.get(Att.OPRREST, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -235,7 +292,7 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<JoinSelectivity> p = (RegProcedure<JoinSelectivity>)
-			s.get(s.descriptor().get("oprjoin"), REGPROCEDURE_INSTANCE);
+			s.get(Att.OPRJOIN, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 

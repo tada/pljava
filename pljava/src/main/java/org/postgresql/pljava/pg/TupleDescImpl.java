@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.DualState;
 
+import org.postgresql.pljava.pg.TargetListImpl.Projected;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
@@ -77,8 +78,57 @@ implements TupleDescriptor
 {
 	private final ByteBuffer m_td;
 	private final Attribute[] m_attrs;
-	private final Map<Simple,Attribute> m_byName;
 	private final State m_state;
+
+	/*
+	 * Implementation of Projection
+	 */
+
+	@Override // Projection
+	public Projection subList(int fromIndex, int toIndex)
+	{
+		return Projected.subList(this, fromIndex, toIndex);
+	}
+
+	@Override // Projection
+	public Projection project(Simple... names)
+	{
+		return Projected.project(this, names);
+	}
+
+	@Override // Projection
+	public Projection project(int... indices)
+	{
+		return Projected.project(this, indices);
+	}
+
+	@Override // Projection
+	public Projection sqlProject(int... indices)
+	{
+		return Projected.sqlProject(this, indices);
+	}
+
+	@Override // Projection
+	public Projection project(Attribute... attrs)
+	{
+		return Projected.project(this, attrs);
+	}
+
+	@Override // TargetList
+	public <R,X extends Throwable> R applyOver(
+		Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
+		throws X, SQLException
+	{
+		return TargetListImpl.applyOver(this, tuples, f);
+	}
+
+	@Override // TargetList
+	public <R,X extends Throwable> R applyOver(
+		TupleTableSlot tuple, Cursor.Function<R,X> f)
+		throws X, SQLException
+	{
+		return TargetListImpl.applyOver(this, tuple, f);
+	}
 
 	/**
 	 * A "getAndAdd" (with just plain memory effects, as it will only be used on
@@ -153,14 +203,6 @@ implements TupleDescriptor
 			attrs[i] = ctor.apply(this, 1 + i);
 
 		m_attrs = attrs;
-
-		/*
-		 * A stopgap. There is probably a lighter-weight API to be designed
-		 * that doesn't assume every TupleDescriptor has a HashMap. Application
-		 * code often knows what all the names are of the attributes it will be
-		 * interested in.
-		 */
-		m_byName = new ConcurrentHashMap<>(m_attrs.length);
 	}
 
 	/**
@@ -172,7 +214,6 @@ implements TupleDescriptor
 		m_state = null;
 		m_td = null;
 		m_attrs = new Attribute[] { new AttributeImpl.OfType(this, type) };
-		m_byName = new ConcurrentHashMap<>(m_attrs.length);
 	}
 
 	/**
@@ -285,46 +326,6 @@ implements TupleDescriptor
 		assert -1 == refcount : "can any ephemeral TupleDesc be refcounted?";
 		ByteBuffer copy = ByteBuffer.allocate(td.capacity()).put(td);
 		return new Ephemeral(copy);
-	}
-
-	@Override
-	public List<Attribute> attributes()
-	{
-		return this;
-	}
-
-	@Override
-	public Attribute get(Simple name) throws SQLException
-	{
-		/*
-		 * computeIfAbsent would be notationally simple here, but its guarantees
-		 * aren't needed (this isn't a place where uniqueness needs to be
-		 * enforced) and it's tricky to rule out that some name() call in the
-		 * update could recursively end up here. So the longer check, compute,
-		 * putIfAbsent is good enough.
-		 */
-		Attribute found = m_byName.get(name);
-		if ( null != found )
-			return found;
-
-		for ( int i = m_byName.size() ; i < m_attrs.length ; ++ i )
-		{
-			Attribute a = m_attrs[i];
-			Simple n = a.name();
-			Attribute other = m_byName.putIfAbsent(n, a);
-			assert null == other || found == other
-				: "TupleDescriptor name cache";
-			if ( ! name.equals(n) )
-				continue;
-			found = a;
-			break;
-		}
-
-		if ( null == found )
-			throw new SQLSyntaxErrorException(
-				"no such column: " + name, "42703");
-
-		return found;
 	}
 
 	@Override

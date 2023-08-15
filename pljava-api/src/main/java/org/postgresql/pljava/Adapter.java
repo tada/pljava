@@ -790,7 +790,7 @@ public abstract class Adapter<T,U> implements Visible
 		 *<p>
 		 * If not overridden, this implementation returns Java null.
 		 */
-		public T fetchNull(Attribute a) throws SQLException
+		public T fetchNull(Attribute a)
 		{
 			return null;
 		}
@@ -1111,10 +1111,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public long fetchNull(Attribute a) throws SQLException
+		public long fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java long", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java long", "22002"));
 		}
 
 		/**
@@ -1179,10 +1179,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public double fetchNull(Attribute a) throws SQLException
+		public double fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java double", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java double", "22002"));
 		}
 	}
 
@@ -1223,10 +1223,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public int fetchNull(Attribute a) throws SQLException
+		public int fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java int", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java int", "22002"));
 		}
 
 		/**
@@ -1290,10 +1290,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public float fetchNull(Attribute a) throws SQLException
+		public float fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java float", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java float", "22002"));
 		}
 	}
 
@@ -1334,10 +1334,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public short fetchNull(Attribute a) throws SQLException
+		public short fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java short", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java short", "22002"));
 		}
 
 		/**
@@ -1401,10 +1401,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public char fetchNull(Attribute a) throws SQLException
+		public char fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java char", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java char", "22002"));
 		}
 	}
 
@@ -1445,10 +1445,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public byte fetchNull(Attribute a) throws SQLException
+		public byte fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java byte", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java byte", "22002"));
 		}
 
 		/**
@@ -1513,10 +1513,10 @@ public abstract class Adapter<T,U> implements Visible
 		 * {@code SQLDataException} with {@code SQLSTATE 22002},
 		 * {@code null_value_no_indicator_parameter}.
 		 */
-		public boolean fetchNull(Attribute a) throws SQLException
+		public boolean fetchNull(Attribute a)
 		{
-			throw new SQLDataException(
-				"SQL NULL cannot be returned as Java boolean", "22002");
+			throw wrapped(new SQLDataException(
+				"SQL NULL cannot be returned as Java boolean", "22002"));
 		}
 	}
 
@@ -1609,11 +1609,31 @@ public abstract class Adapter<T,U> implements Visible
 		return new AdapterException(t.getMessage(), t);
 	}
 
+	/**
+	 * A lightweight unchecked exception used to wrap checked ones
+	 * (often {@link SQLException}) in settings where checked ones are a bother.
+	 *<p>
+	 * The idea may or may not be worth keeping, and either way, this particular
+	 * exception might not be part of any final API.
+	 */
 	public static class AdapterException extends RuntimeException
 	{
 		AdapterException(String message, Throwable cause)
 		{
 			super(message, cause, true, false);
+		}
+
+		/**
+		 * Unwraps this wrapper's cause and returns it, if it is an instance of
+		 * the exception type <var>declared</var>; otherwise, just throws this
+		 * wrapper again.
+		 */
+		public <X extends Throwable> X unwrap(Class<X> declared)
+		{
+			Throwable t = getCause();
+			if ( declared.isInstance(t) )
+				return declared.cast(t);
+			throw this;
 		}
 	}
 

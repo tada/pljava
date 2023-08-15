@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -941,6 +941,49 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * Obtains a pin on this state, returning an
+	 * {@link AutoCloseable AutoCloseable} instance that can be used in a
+	 * {@code try}-with resources statement to ensure it is unpinned.
+	 * @throws SQLException if the native state or the Java state has been
+	 * released.
+	 */
+	public final Pinned pinned() throws SQLException
+	{
+		pin();
+		return this::unpin;
+	}
+
+	/**
+	 * Obtains a pin on this state, returning an
+	 * {@link AutoCloseable AutoCloseable} instance that can be used in a
+	 * {@code try}-with resources statement to ensure it is unpinned.
+	 * @throws IllegalStateException for use where a checked exception is not
+	 * wanted, any resulting SQLException will be wrapped in
+	 * IllegalStateException
+	 */
+	public final Pinned pinnedNoChecked()
+	{
+		try
+		{
+			return pinned();
+		}
+		catch ( SQLException e )
+		{
+			throw new IllegalStateException(e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * A subinterface of {@link AutoCloseable AutoCloseable} whose {@code close}
+	 * method throws no checked exceptions.
+	 */
+	@FunctionalInterface
+	public interface Pinned extends AutoCloseable
+	{
+		public void close();
+	}
+
+	/**
 	 * Obtain a pin on this state, if it is still valid, blocking if necessary
 	 * until release of a lock.
 	 *<p>
@@ -958,6 +1001,27 @@ public abstract class DualState<T> extends WeakReference<T>
 	public final boolean pinUnlessReleased()
 	{
 		return !z(_pin());
+	}
+
+	/**
+	 * Runs <var>r</var> with this state pinned, unless the state has already
+	 * been released, completing normally without running <var>r</var> in that
+	 * case.
+	 */
+	public final <E extends Throwable> void unlessReleased(
+		Checked.Runnable<E> r)
+	throws E
+	{
+		if ( pinUnlessReleased() )
+			return;
+		try
+		{
+			r.run();
+		}
+		finally
+		{
+			unpin();
+		}
 	}
 
 	/**
@@ -2140,6 +2204,42 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		private native void _freeErrorData(long pointer);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code SPI_freetuptable} of a single pointer.
+	 */
+	public static abstract class SingleSPIfreetuptable<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleSPIfreetuptable(
+			T referent, Lifespan span, long fttTarget)
+		{
+			super(referent, span, fttTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s SPI_freetuptable(%x)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, an
+		 * {@code SPI_freetuptable}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_spiFreeTupTable(guardedLong());
+		}
+
+		private native void _spiFreeTupTable(long pointer);
 	}
 
 	/**
