@@ -76,7 +76,6 @@ static jmethodID s_TupleDescImpl_fromByteBuffer;
 
 static jclass s_TupleTableSlotImpl_class;
 static jmethodID s_TupleTableSlotImpl_newDeformed;
-static jmethodID s_TupleTableSlotImpl_supplyHeapTuples;
 
 static void relCacheCB(Datum arg, Oid relid);
 static void sysCacheCB(Datum arg, int cacheid, uint32 hash);
@@ -125,26 +124,6 @@ jobject pljava_TupleTableSlot_create(
 	JNI_deleteLocalRef(tts_b);
 
 	return jtts;
-}
-
-jobject pljava_TupleTableSlot_fromSPI()
-{
-	jobject tts = pljava_TupleTableSlot_create(
-		SPI_tuptable->tupdesc, NULL, &TTSOpsHeapTuple, InvalidOid);
-
-	/*
-	 * XXX handle possibility that SPI_processed is way too big.
-	 */
-	jobject vals = JNI_newDirectByteBuffer(
-		SPI_tuptable->vals, (jlong)(SPI_processed*sizeof *SPI_tuptable->vals));
-
-	jobject list = JNI_callObjectMethodLocked(tts,
-		s_TupleTableSlotImpl_supplyHeapTuples, vals);
-
-	JNI_deleteLocalRef(vals);
-	JNI_deleteLocalRef(tts);
-
-	return list;
 }
 
 static void memoryContextCallback(void *arg)
@@ -377,11 +356,6 @@ void pljava_ModelUtils_initialize(void)
 		"(Ljava/nio/ByteBuffer;JZ)V",
 		Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1store_1heaptuple
 		},
-		{
-		"_testmeSPI",
-		"()Ljava/util/List;",
-		Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1testmeSPI
-		},
 		{ 0, 0, 0 }
 	};
 
@@ -454,11 +428,6 @@ void pljava_ModelUtils_initialize(void)
 		"(Ljava/nio/ByteBuffer;Lorg/postgresql/pljava/model/TupleDescriptor;"
 		"Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)"
 		"Lorg/postgresql/pljava/pg/TupleTableSlotImpl$Deformed;");
-
-	s_TupleTableSlotImpl_supplyHeapTuples = PgObject_getJavaMethod(
-		s_TupleTableSlotImpl_class,
-		"supplyHeapTuples",
-		"(Ljava/nio/ByteBuffer;)Ljava/util/List;");
 
 	RegisterResourceReleaseCallback(resourceReleaseCB, NULL);
 
@@ -1000,19 +969,4 @@ Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1store_1heaptuple(JNIEnv* env,
 	htp = p2l.ptrVal;
 	ExecStoreHeapTuple(htp, tts, JNI_TRUE == shouldFree);
 	END_NATIVE_AND_CATCH("_store_heaptuple")
-}
-
-/*
- * Class:     org_postgresql_pljava_pg_TupleTableSlotImpl
- * Method:    _testmeSPI
- * Signature: ()Ljava/util/List;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1testmeSPI(JNIEnv* env, jobject _cls)
-{
-	jobject result = NULL;
-	BEGIN_NATIVE_AND_TRY
-	result = pljava_TupleTableSlot_fromSPI();
-	END_NATIVE_AND_CATCH("_testmeSPI")
-	return result;
 }

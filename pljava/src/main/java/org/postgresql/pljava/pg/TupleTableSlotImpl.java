@@ -786,15 +786,6 @@ implements TupleTableSlot
 		return m_values;
 	}
 
-	// public? or move SPI class into this package?
-	public List<TupleTableSlot> supplyHeapTuples(ByteBuffer htarray)
-	{
-		htarray = htarray.asReadOnlyBuffer().order(ByteOrder.nativeOrder());
-		if ( 8 == SIZEOF_DATUM )
-			return new HeapTuples8(htarray);
-		return new HeapTuples4(htarray);
-	}
-
 	private void store_heaptuple(long ht, boolean shouldFree)
 	{
 		doInPG(() -> _store_heaptuple(m_tts, ht, shouldFree));
@@ -804,8 +795,6 @@ implements TupleTableSlot
 
 	private static native void _store_heaptuple(
 		ByteBuffer tts, long ht, boolean shouldFree);
-
-	private static native List<TupleTableSlot> _testmeSPI();
 
 	@Override
 	public <T> T get(Attribute att, As<T,?> adapter)
@@ -1085,14 +1074,6 @@ implements TupleTableSlot
 		{
 			return m_tuples.capacity();
 		}
-	}
-
-	/**
-	 * Temporary test jig during development.
-	 */
-	public static List<TupleTableSlot> testmeSPI()
-	{
-		return doInPG(() -> _testmeSPI());
 	}
 
 	private static class HTChunkState

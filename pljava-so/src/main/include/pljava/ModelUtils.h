@@ -62,11 +62,6 @@ extern jobject pljava_TupleTableSlot_create(
 	TupleDesc tupdesc, jobject jtd,
 	const TupleTableSlotOps *tts_ops, Oid reloid);
 
-/*
- * Test scaffolding for the time being.
- */
-extern jobject pljava_TupleTableSlot_fromSPI(void);
-
 #ifdef __cplusplus
 }
 #endif

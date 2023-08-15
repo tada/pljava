@@ -58,7 +58,9 @@ import org.postgresql.pljava.internal.PgSavepoint;
 import java.lang.reflect.Field;
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.internal.SPI;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 import org.postgresql.pljava.model.Portal;
+import static org.postgresql.pljava.model.Portal.Direction.FORWARD;
 import org.postgresql.pljava.model.SlotTester;
 import org.postgresql.pljava.model.TupleTableSlot;
 import org.postgresql.pljava.pg.TupleTableSlotImpl;
@@ -90,8 +92,16 @@ public class SPIConnection implements Connection, SlotTester
 	@SuppressWarnings("deprecation")
 	public List<TupleTableSlot> test(String query)
 	{
-		int result = SPI.exec(query, 0);
-		return TupleTableSlotImpl.testmeSPI();
+		try ( Statement s = createStatement() )
+		{
+			ResultSet rs = s.executeQuery(query);
+			Portal p = unwrapAsPortal(rs);
+			return p.fetch(FORWARD, Portal.ALL);
+		}
+		catch ( SQLException e )
+		{
+			throw unchecked(e);
+		}
 	}
 
 	@Override // SlotTester
