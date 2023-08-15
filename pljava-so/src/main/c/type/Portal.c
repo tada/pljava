@@ -32,6 +32,10 @@
 #include <miscadmin.h>
 #endif
 
+#define CONFIRMCONST(c) \
+StaticAssertStmt((c) == (org_postgresql_pljava_internal_Portal_##c), \
+	"Java/C value mismatch for " #c)
+
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
 
@@ -64,6 +68,16 @@ void pljava_Portal_initialize(void)
 {
 	JNINativeMethod methods[] =
 	{
+		{
+		"_getTupleDescriptor",
+		"(J)Lorg/postgresql/pljava/model/TupleDescriptor;",
+		Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor
+		},
+		{
+		"_makeTupleTableSlot",
+		"(JLorg/postgresql/pljava/model/TupleDescriptor;)Lorg/postgresql/pljava/pg/TupleTableSlotImpl;",
+		Java_org_postgresql_pljava_internal_Portal__1makeTupleTableSlot
+		},
 		{
 		"_getName",
 		"(J)Ljava/lang/String;",
@@ -111,11 +125,64 @@ void pljava_Portal_initialize(void)
 	PgObject_registerNatives2(s_Portal_class, methods);
 	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>",
 		"(JJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
+
+	/*
+	 * Statically assert that the Java code has the right values for these.
+	 * I would rather have this at the top, but these count as statements and
+	 * would trigger a declaration-after-statment warning.
+	 */
+	CONFIRMCONST(FETCH_FORWARD);
+	CONFIRMCONST(FETCH_BACKWARD);
+	CONFIRMCONST(FETCH_ABSOLUTE);
+	CONFIRMCONST(FETCH_RELATIVE);
+	CONFIRMCONST(FETCH_ALL);
 }
 
 /****************************************
  * JNI methods
  ****************************************/
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    _getTupleDescriptor
+ * Signature: (J)Lorg/postgresql/pljava/model/TupleDescriptor;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor(JNIEnv* env, jclass clazz, jlong _this)
+{
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		result = pljava_TupleDescriptor_create(
+			((Portal)p2l.ptrVal)->tupDesc, InvalidOid);
+		END_NATIVE
+	}
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    _makeTupleTableSlot
+ * Signature: (JLorg/postgresql/pljava/model/TupleDescriptor;)Lorg/postgresql/pljava/pg/TupleTableSlotImpl;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal__1makeTupleTableSlot(JNIEnv* env, jclass clazz, jlong _this, jobject jtd)
+{
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		result = pljava_TupleTableSlot_create(
+			((Portal)p2l.ptrVal)->tupDesc, jtd, &TTSOpsHeapTuple, InvalidOid);
+		END_NATIVE
+	}
+	return result;
+}
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal
@@ -195,27 +262,6 @@ Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jclass clazz, 
 		Ptr2Long p2l;
 		p2l.longVal = _this;
 		result = String_createJavaStringFromNTS(((Portal)p2l.ptrVal)->name);
-		END_NATIVE
-	}
-	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_Portal
- * Method:    _getTupleDescriptor
- * Signature: (J)Lorg/postgresql/pljava/model/TupleDescriptor;
- */
-JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor(JNIEnv* env, jclass clazz, jlong _this)
-{
-	jobject result = 0;
-	if(_this != 0)
-	{
-		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = pljava_TupleDescriptor_create(
-			((Portal)p2l.ptrVal)->tupDesc, InvalidOid);
 		END_NATIVE
 	}
 	return result;

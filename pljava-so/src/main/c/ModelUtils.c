@@ -96,8 +96,14 @@ jobject pljava_TupleDescriptor_create(TupleDesc tupdesc, Oid reloid)
 	return result;
 }
 
+/*
+ * If NULL is passed for jtd, a Java TupleDescriptor will be created here from
+ * tupdesc. Otherwise, the passed jtd must be a JNI local reference to an
+ * existing Java TupleDescriptor corresponding to tupdesc, and on return, the
+ * JNI local reference will have been deleted.
+ */
 jobject pljava_TupleTableSlot_create(
-	TupleDesc tupdesc, const TupleTableSlotOps *tts_ops, Oid reloid)
+	TupleDesc tupdesc, jobject jtd, const TupleTableSlotOps *tts_ops, Oid reloid)
 {
 	int natts = tupdesc->natts;
 	TupleTableSlot *tts = MakeSingleTupleTableSlot(tupdesc, tts_ops);
@@ -105,9 +111,12 @@ jobject pljava_TupleTableSlot_create(
 	jobject vals_b = JNI_newDirectByteBuffer(tts->tts_values,
 		(jlong)(natts * sizeof *tts->tts_values));
 	jobject nuls_b = JNI_newDirectByteBuffer(tts->tts_isnull, (jlong)natts);
-	jobject jtd = pljava_TupleDescriptor_create(tupdesc, reloid);
+	jobject jtts;
 
-	jobject jtts = JNI_callStaticObjectMethodLocked(s_TupleTableSlotImpl_class,
+	if ( NULL == jtd )
+		jtd = pljava_TupleDescriptor_create(tupdesc, reloid);
+
+	jtts = JNI_callStaticObjectMethodLocked(s_TupleTableSlotImpl_class,
 		s_TupleTableSlotImpl_newDeformed, tts_b, jtd, vals_b, nuls_b);
 
 	JNI_deleteLocalRef(nuls_b);
@@ -121,7 +130,7 @@ jobject pljava_TupleTableSlot_create(
 jobject pljava_TupleTableSlot_fromSPI()
 {
 	jobject tts = pljava_TupleTableSlot_create(
-		SPI_tuptable->tupdesc, &TTSOpsHeapTuple, InvalidOid);
+		SPI_tuptable->tupdesc, NULL, &TTSOpsHeapTuple, InvalidOid);
 
 	/*
 	 * XXX handle possibility that SPI_processed is way too big.
