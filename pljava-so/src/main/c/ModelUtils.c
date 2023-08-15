@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -30,6 +30,9 @@
 #include "pljava/PgObject.h"
 #include "pljava/ModelUtils.h"
 #include "pljava/VarlenaWrapper.h"
+
+#include "org_postgresql_pljava_internal_SPI.h"
+#include "org_postgresql_pljava_internal_SPI_EarlyNatives.h"
 
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Addressed.h"
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
@@ -333,6 +336,16 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod spiMethods[] =
+	{
+		{
+		"_window",
+		"(Ljava/lang/Class;)[Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_SPI_00024EarlyNatives__1window
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod tdiMethods[] =
 	{
 		{
@@ -405,6 +418,10 @@ void pljava_ModelUtils_initialize(void)
 	JNI_deleteLocalRef(cls);
 	s_ResourceOwnerImpl_callback = PgObject_getStaticJavaMethod(
 		s_ResourceOwnerImpl_class, "callback", "(J)V");
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/SPI$EarlyNatives");
+	PgObject_registerNatives2(cls, spiMethods);
+	JNI_deleteLocalRef(cls);
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/TupleDescImpl");
 	s_TupleDescImpl_class = JNI_newGlobalRef(cls);
@@ -879,6 +896,41 @@ Java_org_postgresql_pljava_pg_ResourceOwnerImpl_00024EarlyNatives__1window(JNIEn
 	POPULATE(CurTransaction);
 	POPULATE(TopTransaction);
 	POPULATE(AuxProcess);
+
+#undef POPULATE
+
+	return r;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPI_EarlyNatives
+ * Method:    _window
+ * Signature: ()[Ljava/nio/ByteBuffer;
+ *
+ * Return an array of ByteBuffers constructed to window the PostgreSQL globals
+ * SPI_result, SPI_processed, and SPI_tuptable. The indices into the array are
+ * assigned arbitrarily in the internal class SPI, from which the native .h
+ * makes them visible here.
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_SPI_00024EarlyNatives__1window(JNIEnv* env, jobject _cls, jclass component)
+{
+	jobject r = (*env)->NewObjectArray(env, (jsize)3, component, NULL);
+	if ( NULL == r )
+		return NULL;
+
+#define POPULATE(tag) do {\
+	jobject b = (*env)->NewDirectByteBuffer(env, &tag, sizeof tag);\
+	if ( NULL == b )\
+		return NULL;\
+	(*env)->SetObjectArrayElement(env, r, \
+	(jsize)org_postgresql_pljava_internal_SPI_##tag, \
+	b);\
+} while (0)
+
+	POPULATE(SPI_result);
+	POPULATE(SPI_processed);
+	POPULATE(SPI_tuptable);
 
 #undef POPULATE
 

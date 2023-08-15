@@ -786,7 +786,8 @@ implements TupleTableSlot
 		return m_values;
 	}
 
-	private List<TupleTableSlot> supplyHeapTuples(ByteBuffer htarray)
+	// public? or move SPI class into this package?
+	public List<TupleTableSlot> supplyHeapTuples(ByteBuffer htarray)
 	{
 		htarray = htarray.asReadOnlyBuffer().order(ByteOrder.nativeOrder());
 		if ( 8 == SIZEOF_DATUM )

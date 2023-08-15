@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -23,6 +23,10 @@
 #include <miscadmin.h>
 #endif
 
+/*
+ * Yes, this macro works because the class's simple name happens to be SPI
+ * and it defines constants named without the SPI_ prefix the PG source uses.
+ */
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == (org_postgresql_pljava_internal_##c), \
 	"Java/C value mismatch for " #c)
@@ -37,16 +41,6 @@ void SPI_initialize(void)
 		Java_org_postgresql_pljava_internal_SPI__1exec
 		},
 		{
-		"_getProcessed",
-		"()J",
-		Java_org_postgresql_pljava_internal_SPI__1getProcessed
-		},
-		{
-		"_getResult",
-		"()I",
-		Java_org_postgresql_pljava_internal_SPI__1getResult
-		},
-		{
 		"_getTupTable",
 		"(Lorg/postgresql/pljava/internal/TupleDesc;)Lorg/postgresql/pljava/internal/TupleTable;",
 		Java_org_postgresql_pljava_internal_SPI__1getTupTable
@@ -57,6 +51,9 @@ void SPI_initialize(void)
 		Java_org_postgresql_pljava_internal_SPI__1freeTupTable
 		},
 		{ 0, 0, 0 }};
+	/*
+	 * See also ModelUtils.c for newer methods associated with SPI.EarlyNatives.
+	 */
 
 	PgObject_registerNatives("org/postgresql/pljava/internal/SPI", methods);
 
@@ -106,6 +103,7 @@ void SPI_initialize(void)
 
 /****************************************
  * JNI methods
+ * See also ModelUtils.c for newer methods associated with SPI.EarlyNatives.
  ****************************************/
 /*
  * Class:     org_postgresql_pljava_internal_SPI
@@ -141,28 +139,6 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 	}
 	END_NATIVE	
 	return result;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_SPI
- * Method:    _getProcessed
- * Signature: ()J
- */
-JNIEXPORT jlong JNICALL
-Java_org_postgresql_pljava_internal_SPI__1getProcessed(JNIEnv* env, jclass cls)
-{
-	return (jlong)SPI_processed;
-}
-
-/*
- * Class:     org_postgresql_pljava_internal_SPI
- * Method:    _getResult
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL
-Java_org_postgresql_pljava_internal_SPI__1getResult(JNIEnv* env, jclass cls)
-{
-	return (jint)SPI_result;
 }
 
 /*
