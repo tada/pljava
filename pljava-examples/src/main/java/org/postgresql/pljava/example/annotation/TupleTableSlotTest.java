@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.time.OffsetDateTime;
 
 import org.postgresql.pljava.Adapter;
+import org.postgresql.pljava.Adapter.AdapterException;//for now; not planned API
 import org.postgresql.pljava.Adapter.As;
 import org.postgresql.pljava.Adapter.AsLong;
 import org.postgresql.pljava.Adapter.AsDouble;
@@ -340,7 +341,7 @@ public class TupleTableSlotTest
 						case 8: ll = tts.get(att, adpL); break;
 						}
 					}
-					catch ( SQLException e )
+					catch ( AdapterException e )
 					{
 						System.out.println(e);
 					}

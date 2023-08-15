@@ -50,67 +50,74 @@ public interface TupleTableSlot
 	TupleDescriptor descriptor();
 	RegClass relation();
 
-	<T>  T  get(Attribute att, As<T,?>  	adapter) throws SQLException;
-	long	get(Attribute att, AsLong<?>	adapter) throws SQLException;
-	double  get(Attribute att, AsDouble<?>  adapter) throws SQLException;
-	int 	get(Attribute att, AsInt<?> 	adapter) throws SQLException;
-	float	get(Attribute att, AsFloat<?>	adapter) throws SQLException;
-	short	get(Attribute att, AsShort<?>	adapter) throws SQLException;
-	char	get(Attribute att, AsChar<?>	adapter) throws SQLException;
-	byte	get(Attribute att, AsByte<?>	adapter) throws SQLException;
-	boolean get(Attribute att, AsBoolean<?> adapter) throws SQLException;
+	/*
+	 * Idea: move these methods out of public API, as they aren't very
+	 * efficient. Make them invocable internally via TargetList. As an interim
+	 * measure, remove their "throws SQLException" clauses; the implementation
+	 * hasn't been throwing those anyway, but wrapping them in a runtime
+	 * version. (Which needs to get unwrapped eventually, somewhere suitable.)
+	 */
+	<T>  T  get(Attribute att, As<T,?>  	adapter);
+	long	get(Attribute att, AsLong<?>	adapter);
+	double  get(Attribute att, AsDouble<?>  adapter);
+	int 	get(Attribute att, AsInt<?> 	adapter);
+	float	get(Attribute att, AsFloat<?>	adapter);
+	short	get(Attribute att, AsShort<?>	adapter);
+	char	get(Attribute att, AsChar<?>	adapter);
+	byte	get(Attribute att, AsByte<?>	adapter);
+	boolean get(Attribute att, AsBoolean<?> adapter);
 
-	<T>  T  get(int idx, As<T,?>	  adapter) throws SQLException;
-	long	get(int idx, AsLong<?>    adapter) throws SQLException;
-	double  get(int idx, AsDouble<?>  adapter) throws SQLException;
-	int 	get(int idx, AsInt<?>	  adapter) throws SQLException;
-	float	get(int idx, AsFloat<?>   adapter) throws SQLException;
-	short	get(int idx, AsShort<?>   adapter) throws SQLException;
-	char	get(int idx, AsChar<?>    adapter) throws SQLException;
-	byte	get(int idx, AsByte<?>    adapter) throws SQLException;
-	boolean get(int idx, AsBoolean<?> adapter) throws SQLException;
+	<T>  T  get(int idx, As<T,?>	  adapter);
+	long	get(int idx, AsLong<?>    adapter);
+	double  get(int idx, AsDouble<?>  adapter);
+	int 	get(int idx, AsInt<?>	  adapter);
+	float	get(int idx, AsFloat<?>   adapter);
+	short	get(int idx, AsShort<?>   adapter);
+	char	get(int idx, AsChar<?>    adapter);
+	byte	get(int idx, AsByte<?>    adapter);
+	boolean get(int idx, AsBoolean<?> adapter);
 
-	default <T>  T  sqlGet(int idx, As<T,?> 	 adapter) throws SQLException
+	default <T>  T  sqlGet(int idx, As<T,?> 	 adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default long	sqlGet(int idx, AsLong<?>	 adapter) throws SQLException
+	default long	sqlGet(int idx, AsLong<?>	 adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default double  sqlGet(int idx, AsDouble<?>  adapter) throws SQLException
+	default double  sqlGet(int idx, AsDouble<?>  adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default int 	sqlGet(int idx, AsInt<?>	 adapter) throws SQLException
+	default int 	sqlGet(int idx, AsInt<?>	 adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default float	sqlGet(int idx, AsFloat<?>   adapter) throws SQLException
+	default float	sqlGet(int idx, AsFloat<?>   adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default short	sqlGet(int idx, AsShort<?>   adapter) throws SQLException
+	default short	sqlGet(int idx, AsShort<?>   adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default char	sqlGet(int idx, AsChar<?>	 adapter) throws SQLException
+	default char	sqlGet(int idx, AsChar<?>	 adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default byte	sqlGet(int idx, AsByte<?>	 adapter) throws SQLException
+	default byte	sqlGet(int idx, AsByte<?>	 adapter)
 	{
 		return get(idx - 1, adapter);
 	}
 
-	default boolean sqlGet(int idx, AsBoolean<?> adapter) throws SQLException
+	default boolean sqlGet(int idx, AsBoolean<?> adapter)
 	{
 		return get(idx - 1, adapter);
 	}

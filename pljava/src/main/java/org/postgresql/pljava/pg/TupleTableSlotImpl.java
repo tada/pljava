@@ -807,7 +807,7 @@ implements TupleTableSlot
 	private static native List<TupleTableSlot> _testmeSPI();
 
 	@Override
-	public <T> T get(Attribute att, As<T,?> adapter) throws SQLException
+	public <T> T get(Attribute att, As<T,?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -819,7 +819,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public long get(Attribute att, AsLong<?> adapter) throws SQLException
+	public long get(Attribute att, AsLong<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -831,7 +831,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public double get(Attribute att, AsDouble<?> adapter) throws SQLException
+	public double get(Attribute att, AsDouble<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -843,7 +843,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public int get(Attribute att, AsInt<?> adapter) throws SQLException
+	public int get(Attribute att, AsInt<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -855,7 +855,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public float get(Attribute att, AsFloat<?> adapter) throws SQLException
+	public float get(Attribute att, AsFloat<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -867,7 +867,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public short get(Attribute att, AsShort<?> adapter) throws SQLException
+	public short get(Attribute att, AsShort<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -879,7 +879,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public char get(Attribute att, AsChar<?> adapter) throws SQLException
+	public char get(Attribute att, AsChar<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -891,7 +891,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public byte get(Attribute att, AsByte<?> adapter) throws SQLException
+	public byte get(Attribute att, AsByte<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -903,7 +903,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public boolean get(Attribute att, AsBoolean<?> adapter) throws SQLException
+	public boolean get(Attribute att, AsBoolean<?> adapter)
 	{
 		int idx = toIndex(att, adapter);
 
@@ -915,7 +915,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public <T> T get(int idx, As<T,?> adapter) throws SQLException
+	public <T> T get(int idx, As<T,?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -927,7 +927,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public long get(int idx, AsLong<?> adapter) throws SQLException
+	public long get(int idx, AsLong<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -939,7 +939,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public double get(int idx, AsDouble<?> adapter) throws SQLException
+	public double get(int idx, AsDouble<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -951,7 +951,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public int get(int idx, AsInt<?> adapter) throws SQLException
+	public int get(int idx, AsInt<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -963,7 +963,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public float get(int idx, AsFloat<?> adapter) throws SQLException
+	public float get(int idx, AsFloat<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -975,7 +975,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public short get(int idx, AsShort<?> adapter) throws SQLException
+	public short get(int idx, AsShort<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -987,7 +987,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public char get(int idx, AsChar<?> adapter) throws SQLException
+	public char get(int idx, AsChar<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -999,7 +999,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public byte get(int idx, AsByte<?> adapter) throws SQLException
+	public byte get(int idx, AsByte<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
@@ -1011,7 +1011,7 @@ implements TupleTableSlot
 	}
 
 	@Override
-	public boolean get(int idx, AsBoolean<?> adapter) throws SQLException
+	public boolean get(int idx, AsBoolean<?> adapter)
 	{
 		Attribute att = fromIndex(idx, adapter);
 
