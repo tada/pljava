@@ -13,7 +13,9 @@ package org.postgresql.pljava.example.annotation;
 
 import java.sql.Connection;
 import static java.sql.DriverManager.getConnection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +41,9 @@ import org.postgresql.pljava.Adapter.AsBoolean;
 import org.postgresql.pljava.annotation.Function;
 
 import org.postgresql.pljava.model.Attribute;
+import org.postgresql.pljava.model.Portal;
 import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
 /**
@@ -271,7 +275,11 @@ public class TupleTableSlotTest
 		Connection c = getConnection("jdbc:default:connection");
 		SlotTester t = c.unwrap(SlotTester.class);
 
-		List<TupleTableSlot> tups = t.test(query);
+		ResultSet rs = c.createStatement().executeQuery(query);
+		Portal p = t.unwrapAsPortal(rs);
+		TupleDescriptor td = p.tupleDescriptor();
+
+		List<TupleTableSlot> tups = List.of();
 
 		int ntups = tups.size();
 

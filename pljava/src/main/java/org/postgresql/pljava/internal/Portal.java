@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,8 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 
 import org.postgresql.pljava.Lifespan;
 
+import org.postgresql.pljava.model.TupleDescriptor;
+
 import org.postgresql.pljava.pg.ResourceOwnerImpl;
 
 import java.sql.SQLException;
@@ -27,7 +29,7 @@ import java.sql.SQLException;
  *
  * @author Thomas Hallgren
  */
-public class Portal
+public class Portal implements org.postgresql.pljava.model.Portal
 {
 	/*
 	 * Hold a reference to the Java ExecutionPlan object as long as we might be
@@ -35,6 +37,8 @@ public class Portal
 	 * mop up its native plan state while the portal might still be using it.
 	 */
 	private ExecutionPlan m_plan;
+
+	private TupleDescriptor m_tupdesc;
 
 	private final State m_state;
 
@@ -92,6 +96,7 @@ public class Portal
 		{
 			m_state.releaseFromJava();
 			m_plan = null;
+			m_tupdesc = null;
 		});
 	}
 
@@ -118,6 +123,23 @@ public class Portal
 				"portal position too large to report " +
 				"in a Java signed long");
 		return pos;
+	}
+
+	/**
+	 * Returns the {@link TupleDescriptor} that describes the row tuples for
+	 * this {@code Portal}.
+	 * @throws SQLException if the handle to the native structure is stale.
+	 */
+	@Override
+	public TupleDescriptor tupleDescriptor()
+	throws SQLException
+	{
+		return doInPG(() ->
+		{
+			if ( null == m_tupdesc )
+				m_tupdesc = _getTupleDescriptor(m_state.getPortalPtr());
+			return m_tupdesc;
+		});
 	}
 
 	/**
@@ -197,6 +219,9 @@ public class Portal
 	throws SQLException;
 
 	private static native long _getPortalPos(long pointer)
+	throws SQLException;
+
+	private static native TupleDescriptor _getTupleDescriptor(long pointer)
 	throws SQLException;
 
 	private static native TupleDesc _getTupleDesc(long pointer)

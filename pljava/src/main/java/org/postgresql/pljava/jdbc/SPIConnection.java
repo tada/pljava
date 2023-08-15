@@ -58,6 +58,7 @@ import org.postgresql.pljava.internal.PgSavepoint;
 import java.lang.reflect.Field;
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.internal.SPI;
+import org.postgresql.pljava.model.Portal;
 import org.postgresql.pljava.model.SlotTester;
 import org.postgresql.pljava.model.TupleTableSlot;
 import org.postgresql.pljava.pg.TupleTableSlotImpl;
@@ -79,6 +80,12 @@ import org.postgresql.pljava.pg.TupleTableSlotImpl;
  */
 public class SPIConnection implements Connection, SlotTester
 {
+	@Override // SlotTester
+	public Portal unwrapAsPortal(ResultSet rs) throws SQLException
+	{
+		return ((SPIResultSet)rs).unwrapAsPortal();
+	}
+
 	@Override // SlotTester
 	@SuppressWarnings("deprecation")
 	public List<TupleTableSlot> test(String query)

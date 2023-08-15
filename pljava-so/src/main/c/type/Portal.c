@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -22,6 +22,7 @@
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/HashMap.h"
+#include "pljava/ModelUtils.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
@@ -72,6 +73,11 @@ void pljava_Portal_initialize(void)
 		"_getPortalPos",
 		"(J)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1getPortalPos
+		},
+		{
+		"_getTupleDescriptor",
+		"(J)Lorg/postgresql/pljava/model/TupleDescriptor;",
+		Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor
 		},
 		{
 		"_getTupleDesc",
@@ -189,6 +195,27 @@ Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jclass clazz, 
 		Ptr2Long p2l;
 		p2l.longVal = _this;
 		result = String_createJavaStringFromNTS(((Portal)p2l.ptrVal)->name);
+		END_NATIVE
+	}
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    _getTupleDescriptor
+ * Signature: (J)Lorg/postgresql/pljava/model/TupleDescriptor;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor(JNIEnv* env, jclass clazz, jlong _this)
+{
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		Ptr2Long p2l;
+		p2l.longVal = _this;
+		result = pljava_TupleDescriptor_create(
+			((Portal)p2l.ptrVal)->tupDesc, InvalidOid);
 		END_NATIVE
 	}
 	return result;
