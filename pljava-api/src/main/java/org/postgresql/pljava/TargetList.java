@@ -305,7 +305,13 @@ public interface TargetList extends List<Attribute>
 		 * instance repeatedly, and the instance is mutated, saving instances
 		 * will not have effects one might expect, and no more than one
 		 * stream should be in progress at a time. Naturally, this method does
-		 * not return a parallel {@code Stream}.
+		 * not return a parallel {@code Stream}. Do not call
+		 * {@link Stream#parallel() parallel()} on any pipeline built from this
+		 * stream.
+		 *<p>
+		 * <em>These restrictions do not satisfy all expectations of a
+		 * {@code Stream}, and may be topics for future work as this API is
+		 * refined.</em>
 		 *<p>
 		 * The {@code Iterator<Attribute>} that this {@code Cursor} represents
 		 * will be reset to the first attribute each time a new tuple is
