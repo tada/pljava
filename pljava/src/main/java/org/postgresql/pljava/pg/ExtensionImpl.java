@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -88,13 +89,13 @@ implements Nonshared<Extension>, Named<Simple>, Owned, Extension
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("extname"), SIMPLE_INSTANCE);
+			t.get(Att.EXTNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegRole owner(ExtensionImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("extowner"), REGROLE_INSTANCE);
+		return t.get(Att.EXTOWNER, REGROLE_INSTANCE);
 	}
 
 	/* Implementation of Extension */
@@ -156,31 +157,65 @@ implements Nonshared<Extension>, Named<Simple>, Owned, Extension
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute EXTNAME;
+		static final Attribute EXTOWNER;
+		static final Attribute EXTNAMESPACE;
+		static final Attribute EXTRELOCATABLE;
+		static final Attribute EXTVERSION;
+		static final Attribute EXTCONFIG;
+		static final Attribute EXTCONDITION;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"extname",
+				"extowner",
+				"extnamespace",
+				"extrelocatable",
+				"extversion",
+				"extconfig",
+				"extcondition"
+			).iterator();
+
+			EXTNAME        = itr.next();
+			EXTOWNER       = itr.next();
+			EXTNAMESPACE   = itr.next();
+			EXTRELOCATABLE = itr.next();
+			EXTVERSION     = itr.next();
+			EXTCONFIG      = itr.next();
+			EXTCONDITION   = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static RegNamespace namespace(ExtensionImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("extnamespace"), REGNAMESPACE_INSTANCE);
+		return s.get(Att.EXTNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static boolean relocatable(ExtensionImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("extrelocatable"), BOOLEAN_INSTANCE);
+		return s.get(Att.EXTRELOCATABLE, BOOLEAN_INSTANCE);
 	}
 
 	private static String version(ExtensionImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("extversion"), TextAdapter.INSTANCE);
+		return s.get(Att.EXTVERSION, TextAdapter.INSTANCE);
 	}
 
 	private static List<RegClass> config(ExtensionImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("extconfig"),
+			s.get(Att.EXTCONFIG,
 				ArrayAdapters.REGCLASS_LIST_INSTANCE);
 	}
 
@@ -188,7 +223,7 @@ implements Nonshared<Extension>, Named<Simple>, Owned, Extension
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("extcondition"),
+			s.get(Att.EXTCONDITION,
 				FLAT_STRING_LIST_INSTANCE);
 	}
 

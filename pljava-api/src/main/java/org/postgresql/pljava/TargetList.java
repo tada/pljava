@@ -153,6 +153,27 @@ public interface TargetList extends List<Attribute>
 	TargetList subList(int fromIndex, int toIndex);
 
 	/**
+	 * Like {@link #get(int) get} but following the SQL convention where the
+	 * first element has index 1.
+	 */
+	default Attribute sqlGet(int oneBasedIndex)
+	{
+		try
+		{
+			return get(oneBasedIndex - 1);
+		}
+		catch ( IndexOutOfBoundsException e )
+		{
+			throw (IndexOutOfBoundsException)
+				new IndexOutOfBoundsException(String.format(
+					"sqlGet() one-based index %d should be > 0 and <= %d",
+					oneBasedIndex, size()
+				))
+				.initCause(e);
+		}
+	}
+
+	/**
 	 * Executes the function <var>f</var>, once, supplying a
 	 * {@link Cursor Cursor} that can be iterated over the supplied
 	 * <var>tuples</var> and used to process each tuple.

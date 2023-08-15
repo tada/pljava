@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@ import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -62,20 +63,20 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("nspname"), NameAdapter.SIMPLE_INSTANCE);
+			t.get(Att.NSPNAME, NameAdapter.SIMPLE_INSTANCE);
 	}
 
 	private static RegRole owner(RegNamespaceImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("nspowner"), REGROLE_INSTANCE);
+		return t.get(Att.NSPOWNER, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(RegNamespaceImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("nspacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.NSPACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of RegNamespace */
@@ -112,5 +113,27 @@ implements
 			 * Add these slot initializers after what Addressed does.
 			 */
 			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+	}
+
+	static class Att
+	{
+		static final Attribute NSPNAME;
+		static final Attribute NSPOWNER;
+		static final Attribute NSPACL;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"nspname",
+				"nspowner",
+				"nspacl"
+			).iterator();
+
+			NSPNAME  = itr.next();
+			NSPOWNER = itr.next();
+			NSPACL   = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
 	}
 }

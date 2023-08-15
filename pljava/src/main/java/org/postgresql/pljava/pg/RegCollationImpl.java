@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
+
+import java.util.Iterator;
 
 import java.util.function.UnaryOperator;
 
@@ -63,7 +65,7 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 	private static Simple name(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("collname"), SIMPLE_INSTANCE);
+		return t.get(Att.COLLNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegCollationImpl o)
@@ -71,13 +73,13 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("collnamespace"), REGNAMESPACE_INSTANCE);
+			t.get(Att.COLLNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("collowner"), REGROLE_INSTANCE);
+		return t.get(Att.COLLOWNER, REGROLE_INSTANCE);
 	}
 
 	/* Implementation of RegCollation */
@@ -134,6 +136,46 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute COLLNAME;
+		static final Attribute COLLNAMESPACE;
+		static final Attribute COLLOWNER;
+		static final Attribute COLLENCODING;
+		static final Attribute COLLCOLLATE;
+		static final Attribute COLLCTYPE;
+		static final Attribute COLLPROVIDER;
+		static final Attribute COLLVERSION;
+		static final Attribute COLLISDETERMINISTIC;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"collname",
+				"collnamespace",
+				"collowner",
+				"collencoding",
+				"collcollate",
+				"collctype",
+				"collprovider",
+				"collversion",
+				"collisdeterministic"
+			).iterator();
+
+			COLLNAME            = itr.next();
+			COLLNAMESPACE       = itr.next();
+			COLLOWNER           = itr.next();
+			COLLENCODING        = itr.next();
+			COLLCOLLATE         = itr.next();
+			COLLCTYPE           = itr.next();
+			COLLPROVIDER        = itr.next();
+			COLLVERSION         = itr.next();
+			COLLISDETERMINISTIC = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static CharsetEncoding encoding(RegCollationImpl o)
@@ -141,25 +183,25 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("collencoding"), EncodingAdapter.INSTANCE);
+			s.get(Att.COLLENCODING, EncodingAdapter.INSTANCE);
 	}
 
 	private static String collate(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("collcollate"), AS_STRING_INSTANCE);
+		return s.get(Att.COLLCOLLATE, AS_STRING_INSTANCE);
 	}
 
 	private static String ctype(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("collctype"), AS_STRING_INSTANCE);
+		return s.get(Att.COLLCTYPE, AS_STRING_INSTANCE);
 	}
 
 	private static Provider provider(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		byte p = s.get(s.descriptor().get("collprovider"), INT1_INSTANCE);
+		byte p = s.get(Att.COLLPROVIDER, INT1_INSTANCE);
 		switch ( p )
 		{
 		case (byte)'d':
@@ -177,14 +219,14 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 	private static String version(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("collversion"), TextAdapter.INSTANCE);
+		return s.get(Att.COLLVERSION, TextAdapter.INSTANCE);
 	}
 
 	private static boolean deterministic(RegCollationImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("collisdeterministic"), BOOLEAN_INSTANCE);
+			s.get(Att.COLLISDETERMINISTIC, BOOLEAN_INSTANCE);
 	}
 
 	/* API methods */

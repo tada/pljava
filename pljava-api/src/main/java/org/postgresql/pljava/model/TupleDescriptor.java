@@ -39,8 +39,34 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
  */
 public interface TupleDescriptor extends Projection
 {
-	List<Attribute> attributes();
+	/**
+	 * @deprecated As a subinterface of {@link Projection Projection},
+	 * a {@code TupleDescriptor} already is a {@code List<Attribute>}, and there
+	 * is no need for this method to simply return its own receiver.
+	 */
+	@Deprecated(forRemoval=true)
+	default List<Attribute> attributes()
+	{
+		return this;
+	}
 
+	/**
+	 * If this tuple descriptor is not ephemeral, returns the PostgreSQL type
+	 * that identifies it.
+	 *<p>
+	 * If the descriptor is for a known composite type in the PostgreSQL
+	 * catalog, this method returns that type.
+	 *<p>
+	 * If the descriptor has been created programmatically and interned, this
+	 * method returns the type
+	 * {@link RegType#RECORD RECORD}.{@link RegType#modifier(int) modifier(n)}
+	 * where <var>n</var> was uniquely assigned by PostgreSQL when the
+	 * descriptor was interned.
+	 *<p>
+	 * For any ephemeral descriptor passed around in code without being
+	 * interned, this method returns plain {@link RegType#RECORD RECORD}, which
+	 * is useless for identifying the tuple structure.
+	 */
 	RegType rowType();
 
 	/**
@@ -49,9 +75,21 @@ public interface TupleDescriptor extends Projection
 	 * This API should be considered scaffolding or preliminary, until an API
 	 * can be designed that might offer a convenient usage idiom without
 	 * presupposing something like a name-to-attribute map in every decriptor.
+	 *<p>
+	 * This default implementation simply does {@code project(name).get(0)}.
+	 * Code that will do so repeatedly might be improved by doing so once and
+	 * retaining the result.
 	 * @throws SQLSyntaxErrorException 42703 if no attribute name matches
+	 * @deprecated A one-by-one lookup-by-name API forces the implementation to
+	 * cater to an inefficient usage pattern, when callers will often have a
+	 * number of named attributes to look up, which can be done more efficiently
+	 * in one go; see the methods of {@link Projection Projection}.
 	 */
-	Attribute get(Simple name) throws SQLException;
+	@Deprecated(forRemoval=true)
+	default Attribute get(Simple name) throws SQLException
+	{
+		return project(name).get(0);
+	}
 
 	/**
 	 * Equivalent to {@code get(Simple.fromJava(name))}.
@@ -60,20 +98,16 @@ public interface TupleDescriptor extends Projection
 	 * can be designed that might offer a convenient usage idiom without
 	 * presupposing something like a name-to-attribute map in every descriptor.
 	 * @throws SQLSyntaxErrorException 42703 if no attribute name matches
+	 * @deprecated A one-by-one lookup-by-name API forces the implementation to
+	 * cater to an inefficient usage pattern, when callers will often have a
+	 * number of named attributes to look up, which can be done more efficiently
+	 * in one go; see the methods of {@link Projection Projection}.
 	 */
+	@Deprecated(forRemoval=true)
 	default Attribute get(String name) throws SQLException
 	{
 		return get(Simple.fromJava(name));
 	}
-
-	/**
-	 * (Convenience method) Retrieve an attribute by its familiar (1-based)
-	 * SQL attribute number.
-	 *<p>
-	 * The Java {@link List#get List.get} API uses zero-based numbering, so this
-	 * convenience method is equivalent to {@code attributes().get(attrNum-1)}.
-	 */
-	Attribute sqlGet(int attrNum);
 
 	/**
 	 * Return this descriptor unchanged if it is already interned in

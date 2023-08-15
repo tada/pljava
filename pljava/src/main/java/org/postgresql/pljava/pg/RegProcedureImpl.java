@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,6 +18,7 @@ import java.lang.invoke.SwitchPoint;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
@@ -80,27 +81,27 @@ implements
 	private static Simple name(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("proname"), SIMPLE_INSTANCE);
+		return t.get(Att.PRONAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegProcedureImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("pronamespace"), REGNAMESPACE_INSTANCE);
+		return t.get(Att.PRONAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("proowner"), REGROLE_INSTANCE);
+		return t.get(Att.PROOWNER, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(RegProcedureImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("proacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.PROACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of RegProcedure */
@@ -189,31 +190,125 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Attribute PRONAME;
+		static final Attribute PRONAMESPACE;
+		static final Attribute PROOWNER;
+		static final Attribute PROACL;
+		static final Attribute PROLANG;
+		static final Attribute PROCOST;
+		static final Attribute PROROWS;
+		static final Attribute PROVARIADIC;
+		static final Attribute PROSUPPORT;
+		static final Attribute PROKIND;
+		static final Attribute PROSECDEF;
+		static final Attribute PROLEAKPROOF;
+		static final Attribute PROISSTRICT;
+		static final Attribute PRORETSET;
+		static final Attribute PROVOLATILE;
+		static final Attribute PROPARALLEL;
+		static final Attribute PRORETTYPE;
+		static final Attribute PROARGTYPES;
+		static final Attribute PROALLARGTYPES;
+		static final Attribute PROARGMODES;
+		static final Attribute PROARGNAMES;
+		static final Attribute PROTRFTYPES;
+		static final Attribute PROSRC;
+		static final Attribute PROBIN;
+		static final Attribute PROCONFIG;
+		static final Attribute PROARGDEFAULTS;
+		static final Attribute PROSQLBODY;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"proname",
+				"pronamespace",
+				"proowner",
+				"proacl",
+				"prolang",
+				"procost",
+				"prorows",
+				"provariadic",
+				"prosupport",
+				"prokind",
+				"prosecdef",
+				"proleakproof",
+				"proisstrict",
+				"proretset",
+				"provolatile",
+				"proparallel",
+				"prorettype",
+				"proargtypes",
+				"proallargtypes",
+				"proargmodes",
+				"proargnames",
+				"protrftypes",
+				"prosrc",
+				"probin",
+				"proconfig",
+				"proargdefaults",
+				"prosqlbody"
+			).iterator();
+
+			PRONAME        = itr.next();
+			PRONAMESPACE   = itr.next();
+			PROOWNER       = itr.next();
+			PROACL         = itr.next();
+			PROLANG        = itr.next();
+			PROCOST        = itr.next();
+			PROROWS        = itr.next();
+			PROVARIADIC    = itr.next();
+			PROSUPPORT     = itr.next();
+			PROKIND        = itr.next();
+			PROSECDEF      = itr.next();
+			PROLEAKPROOF   = itr.next();
+			PROISSTRICT    = itr.next();
+			PRORETSET      = itr.next();
+			PROVOLATILE    = itr.next();
+			PROPARALLEL    = itr.next();
+			PRORETTYPE     = itr.next();
+			PROARGTYPES    = itr.next();
+			PROALLARGTYPES = itr.next();
+			PROARGMODES    = itr.next();
+			PROARGNAMES    = itr.next();
+			PROTRFTYPES    = itr.next();
+			PROSRC         = itr.next();
+			PROBIN         = itr.next();
+			PROCONFIG      = itr.next();
+			PROARGDEFAULTS = itr.next();
+			PROSQLBODY     = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	private static ProceduralLanguage language(RegProcedureImpl o)
 	throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("prolang"), PLANG_INSTANCE);
+		return s.get(Att.PROLANG, PLANG_INSTANCE);
 	}
 
 	private static float cost(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("procost"), FLOAT4_INSTANCE);
+		return s.get(Att.PROCOST, FLOAT4_INSTANCE);
 	}
 
 	private static float rows(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("prorows"), FLOAT4_INSTANCE);
+		return s.get(Att.PROROWS, FLOAT4_INSTANCE);
 	}
 
 	private static RegType variadicType(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("provariadic"), REGTYPE_INSTANCE);
+		return s.get(Att.PROVARIADIC, REGTYPE_INSTANCE);
 	}
 
 	private static RegProcedure<PlannerSupport> support(RegProcedureImpl o)
@@ -222,14 +317,14 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<PlannerSupport> p = (RegProcedure<PlannerSupport>)
-			s.get(s.descriptor().get("prosupport"), REGPROCEDURE_INSTANCE);
+			s.get(Att.PROSUPPORT, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
 	private static Kind kind(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		byte b = s.get(s.descriptor().get("prokind"), INT1_INSTANCE);
+		byte b = s.get(Att.PROKIND, INT1_INSTANCE);
 		switch ( b )
 		{
 		case (byte)'f':
@@ -249,7 +344,7 @@ implements
 	private static Security security(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		if ( s.get(s.descriptor().get("prosecdef"), BOOLEAN_INSTANCE) )
+		if ( s.get(Att.PROSECDEF, BOOLEAN_INSTANCE) )
 			return Security.DEFINER;
 		return Security.INVOKER;
 	}
@@ -257,14 +352,14 @@ implements
 	private static boolean leakproof(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("proleakproof"), BOOLEAN_INSTANCE);
+		return s.get(Att.PROLEAKPROOF, BOOLEAN_INSTANCE);
 	}
 
 	private static OnNullInput onNullInput(RegProcedureImpl o)
 	throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		if ( s.get(s.descriptor().get("proisstrict"), BOOLEAN_INSTANCE) )
+		if ( s.get(Att.PROISSTRICT, BOOLEAN_INSTANCE) )
 			return OnNullInput.RETURNS_NULL;
 		return OnNullInput.CALLED;
 	}
@@ -272,13 +367,13 @@ implements
 	private static boolean returnsSet(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("proretset"), BOOLEAN_INSTANCE);
+		return s.get(Att.PRORETSET, BOOLEAN_INSTANCE);
 	}
 
 	private static Effects effects(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		byte b = s.get(s.descriptor().get("provolatile"), INT1_INSTANCE);
+		byte b = s.get(Att.PROVOLATILE, INT1_INSTANCE);
 		switch ( b )
 		{
 		case (byte)'i':
@@ -296,7 +391,7 @@ implements
 	private static Parallel parallel(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		byte b = s.get(s.descriptor().get("proparallel"), INT1_INSTANCE);
+		byte b = s.get(Att.PROPARALLEL, INT1_INSTANCE);
 		switch ( b )
 		{
 		case (byte)'s':
@@ -314,7 +409,7 @@ implements
 	private static RegType returnType(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("prorettype"), REGTYPE_INSTANCE);
+		return s.get(Att.PRORETTYPE, REGTYPE_INSTANCE);
 	}
 
 	private static List<RegType> argTypes(RegProcedureImpl o)
@@ -322,7 +417,7 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("proargtypes"),
+			s.get(Att.PROARGTYPES,
 				ArrayAdapters.REGTYPE_LIST_INSTANCE);
 	}
 
@@ -331,7 +426,7 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("proallargtypes"),
+			s.get(Att.PROALLARGTYPES,
 				ArrayAdapters.REGTYPE_LIST_INSTANCE);
 	}
 
@@ -340,7 +435,7 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("proargmodes"),
+			s.get(Att.PROARGMODES,
 				ArrayAdapters.ARGMODE_LIST_INSTANCE);
 	}
 
@@ -348,7 +443,7 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("proargnames"),
+			s.get(Att.PROARGNAMES,
 				ArrayAdapters.TEXT_NAME_LIST_INSTANCE);
 	}
 
@@ -357,27 +452,27 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("protrftypes"),
+			s.get(Att.PROTRFTYPES,
 				ArrayAdapters.REGTYPE_LIST_INSTANCE);
 	}
 
 	private static String src(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("prosrc"), TextAdapter.INSTANCE);
+		return s.get(Att.PROSRC, TextAdapter.INSTANCE);
 	}
 
 	private static String bin(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(s.descriptor().get("probin"), TextAdapter.INSTANCE);
+		return s.get(Att.PROBIN, TextAdapter.INSTANCE);
 	}
 
 	private static List<String> config(RegProcedureImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return
-			s.get(s.descriptor().get("proconfig"), FLAT_STRING_LIST_INSTANCE);
+			s.get(Att.PROCONFIG, FLAT_STRING_LIST_INSTANCE);
 	}
 
 	/* API methods */
@@ -630,16 +725,7 @@ implements
 		 * tuple as needed.
 		 */
 		TupleTableSlot s = cacheTuple();
-
-		try
-		{
-			return
-				s.get(s.descriptor().get("proargdefaults"), SYNTHETIC_INSTANCE);
-		}
-		catch ( SQLException e )
-		{
-			throw unchecked(e);
-		}
+		return s.get(Att.PROARGDEFAULTS, SYNTHETIC_INSTANCE);
 	}
 
 	@Override
@@ -694,16 +780,7 @@ implements
 		 * tuple as needed.
 		 */
 		TupleTableSlot s = cacheTuple();
-
-		try
-		{
-			return
-				s.get(s.descriptor().get("prosqlbody"), SYNTHETIC_INSTANCE);
-		}
-		catch ( SQLException e )
-		{
-			throw unchecked(e);
-		}
+		return s.get(Att.PROSQLBODY, SYNTHETIC_INSTANCE);
 	}
 
 	@Override

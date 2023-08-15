@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import static java.lang.invoke.MethodHandles.lookup;
 import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
+
+import java.util.Iterator;
 
 import java.util.function.UnaryOperator;
 
@@ -57,7 +59,7 @@ implements Nonshared<RegConfig>, Namespaced<Simple>, Owned, RegConfig
 	private static Simple name(RegConfigImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("cfgname"), SIMPLE_INSTANCE);
+		return t.get(Att.CFGNAME, SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegConfigImpl o)
@@ -65,13 +67,13 @@ implements Nonshared<RegConfig>, Namespaced<Simple>, Owned, RegConfig
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("cfgnamespace"), REGNAMESPACE_INSTANCE);
+			t.get(Att.CFGNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegConfigImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("cfgowner"), REGROLE_INSTANCE);
+		return t.get(Att.CFGOWNER, REGROLE_INSTANCE);
 	}
 
 	/* Implementation of RegConfig */
@@ -105,5 +107,27 @@ implements Nonshared<RegConfig>, Namespaced<Simple>, Owned, RegConfig
 
 			.build()
 			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+	}
+
+	static class Att
+	{
+		static final Attribute CFGNAME;
+		static final Attribute CFGNAMESPACE;
+		static final Attribute CFGOWNER;
+
+		static
+		{
+			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+				"cfgname",
+				"cfgnamespace",
+				"cfgowner"
+			).iterator();
+
+			CFGNAME      = itr.next();
+			CFGNAMESPACE = itr.next();
+			CFGOWNER     = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
 	}
 }

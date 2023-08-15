@@ -527,7 +527,7 @@ public class TupleTableSlotTest
 					adpZ = (AsBoolean<?>)a;
 			}
 
-			for ( Attribute att : tts.descriptor().attributes() )
+			for ( Attribute att : tts.descriptor() )
 			{
 				go = true;
 				while ( go )

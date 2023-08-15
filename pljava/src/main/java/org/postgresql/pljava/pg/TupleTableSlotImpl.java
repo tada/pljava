@@ -202,7 +202,7 @@ implements TupleTableSlot
 		 * From the Heap constructor, it may be null.
 		 */
 		m_isnull = null == isnull ? null : asReadOnlyNativeOrder(isnull);
-		m_adapters = new Adapter<?,?> [ m_tupdesc.attributes().size() ];
+		m_adapters = new Adapter<?,?> [ m_tupdesc.size() ];
 
 		@SuppressWarnings("unchecked")
 		Object dummy =
@@ -306,7 +306,7 @@ implements TupleTableSlot
 
 		if ( 0 != ( infomask & HEAP_HASNULL ) )
 		{
-			int nlen = ( td.attributes().size() + 7 ) / 8;
+			int nlen = ( td.size() + 7 ) / 8;
 			if ( nlen + OFFSET_HeapTupleHeaderData_t_bits > hoff )
 			{
 				int attsReallyPresent = infomask2 & HEAP_NATTS_MASK;
@@ -371,7 +371,7 @@ implements TupleTableSlot
 	 */
 	protected Attribute fromIndex(int idx, Adapter<?,?> adp)
 	{
-		Attribute att = m_tupdesc.attributes().get(idx);
+		Attribute att = m_tupdesc.get(idx);
 		if ( m_adapters [ idx ] != requireNonNull(adp) )
 			memoize(idx, att, adp);
 		return att;
@@ -536,7 +536,7 @@ implements TupleTableSlot
 		protected int toOffset(int idx)
 		{
 			int offset = 0;
-			List<Attribute> atts = m_tupdesc.attributes();
+			List<Attribute> atts = m_tupdesc;
 			Attribute att;
 
 			/*
@@ -627,13 +627,13 @@ implements TupleTableSlot
 				TupleDescriptor td, int elements,
 				ByteBuffer nulls, ByteBuffer values)
 			{
-				super(td.attributes().get(0).relation(), td, values, nulls);
+				super(td.get(0).relation(), td, values, nulls);
 				assert elements >= 0 : "negative element count";
 				assert null == nulls || nulls.capacity() == (elements+7)/8
 					: "nulls length element count mismatch";
 				m_elements = elements;
 
-				Attribute att = td.attributes().get(0);
+				Attribute att = td.get(0);
 				int length = att.length();
 				int align = alignmentModulus(att.alignment());
 				assert 0 == values.alignmentOffset(0, align)
@@ -666,7 +666,7 @@ implements TupleTableSlot
 			protected Attribute fromIndex(int idx, Adapter<?,?> adp)
 			{
 				checkIndex(idx, m_elements);
-				Attribute att = m_tupdesc.attributes().get(0);
+				Attribute att = m_tupdesc.get(0);
 				if ( m_adapters [ 0 ] != requireNonNull(adp) )
 					memoize(0, att, adp);
 				return att;

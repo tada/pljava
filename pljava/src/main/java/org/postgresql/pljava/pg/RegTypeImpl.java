@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -22,9 +22,12 @@ import java.sql.SQLType;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
+import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
+
+import org.postgresql.pljava.TargetList.Projection;
 
 import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
@@ -106,26 +109,26 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return
-			t.get(t.descriptor().get("typname"), NameAdapter.SIMPLE_INSTANCE);
+			t.get(Att.TYPNAME, NameAdapter.SIMPLE_INSTANCE);
 	}
 
 	private static RegNamespace namespace(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typnamespace"), REGNAMESPACE_INSTANCE);
+		return t.get(Att.TYPNAMESPACE, REGNAMESPACE_INSTANCE);
 	}
 
 	private static RegRole owner(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typowner"), REGROLE_INSTANCE);
+		return t.get(Att.TYPOWNER, REGROLE_INSTANCE);
 	}
 
 	private static List<CatalogObject.Grant> grants(RegTypeImpl o)
 	throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typacl"), GrantAdapter.LIST_INSTANCE);
+		return t.get(Att.TYPACL, GrantAdapter.LIST_INSTANCE);
 	}
 
 	/* Implementation of RegType */
@@ -287,6 +290,114 @@ implements
 		NSLOTS = i;
 	}
 
+	static class Att
+	{
+		static final Projection TYPBASETYPE_TYPTYPMOD;
+
+		static final Attribute TYPNAME;
+		static final Attribute TYPNAMESPACE;
+		static final Attribute TYPOWNER;
+		static final Attribute TYPACL;
+		static final Attribute TYPLEN;
+		static final Attribute TYPBYVAL;
+		static final Attribute TYPTYPE;
+		static final Attribute TYPCATEGORY;
+		static final Attribute TYPISPREFERRED;
+		static final Attribute TYPISDEFINED;
+		static final Attribute TYPDELIM;
+		static final Attribute TYPRELID;
+		static final Attribute TYPELEM;
+		static final Attribute TYPARRAY;
+		static final Attribute TYPINPUT;
+		static final Attribute TYPOUTPUT;
+		static final Attribute TYPRECEIVE;
+		static final Attribute TYPSEND;
+		static final Attribute TYPMODIN;
+		static final Attribute TYPMODOUT;
+		static final Attribute TYPANALYZE;
+		static final Attribute TYPSUBSCRIPT;
+		static final Attribute TYPALIGN;
+		static final Attribute TYPSTORAGE;
+		static final Attribute TYPNOTNULL;
+		static final Attribute TYPNDIMS;
+		static final Attribute TYPCOLLATION;
+		static final Attribute TYPDEFAULT;
+		static final Attribute TYPDEFAULTBIN;
+
+		static
+		{
+			Projection p = CLASSID.tupleDescriptor().project(
+				"typbasetype",  // these two are wanted
+				"typtypmod",    // together, first, below
+				"typname",
+				"typnamespace",
+				"typowner",
+				"typacl",
+				"typlen",
+				"typbyval",
+				"typtype",
+				"typcategory",
+				"typispreferred",
+				"typisdefined",
+				"typdelim",
+				"typrelid",
+				"typelem",
+				"typarray",
+				"typinput",
+				"typoutput",
+				"typreceive",
+				"typsend",
+				"typmodin",
+				"typmodout",
+				"typanalyze",
+				"typsubscript",
+				"typalign",
+				"typstorage",
+				"typnotnull",
+				"typndims",
+				"typcollation",
+				"typdefault",
+				"typdefaultbin"
+			);
+
+			Iterator<Attribute> itr = p.iterator();
+
+			TYPBASETYPE_TYPTYPMOD = p.project(itr.next(), itr.next());
+
+			TYPNAME        = itr.next();
+			TYPNAMESPACE   = itr.next();
+			TYPOWNER       = itr.next();
+			TYPACL         = itr.next();
+			TYPLEN         = itr.next();
+			TYPBYVAL       = itr.next();
+			TYPTYPE        = itr.next();
+			TYPCATEGORY    = itr.next();
+			TYPISPREFERRED = itr.next();
+			TYPISDEFINED   = itr.next();
+			TYPDELIM       = itr.next();
+			TYPRELID       = itr.next();
+			TYPELEM        = itr.next();
+			TYPARRAY       = itr.next();
+			TYPINPUT       = itr.next();
+			TYPOUTPUT      = itr.next();
+			TYPRECEIVE     = itr.next();
+			TYPSEND        = itr.next();
+			TYPMODIN       = itr.next();
+			TYPMODOUT      = itr.next();
+			TYPANALYZE     = itr.next();
+			TYPSUBSCRIPT   = itr.next();
+			TYPALIGN       = itr.next();
+			TYPSTORAGE     = itr.next();
+			TYPNOTNULL     = itr.next();
+			TYPNDIMS       = itr.next();
+			TYPCOLLATION   = itr.next();
+			TYPDEFAULT     = itr.next();
+			TYPDEFAULTBIN  = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
 	/* computation methods */
 
 	/**
@@ -361,45 +472,45 @@ implements
 	private static short length(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typlen"), INT2_INSTANCE);
+		return t.get(Att.TYPLEN, INT2_INSTANCE);
 	}
 
 	private static boolean byValue(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typbyval"), BOOLEAN_INSTANCE);
+		return t.get(Att.TYPBYVAL, BOOLEAN_INSTANCE);
 	}
 
 	private static Type type(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return typeFromCatalog(
-			t.get(t.descriptor().get("typtype"), INT1_INSTANCE));
+			t.get(Att.TYPTYPE, INT1_INSTANCE));
 	}
 
 	private static char category(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return (char)
-			(0xff & t.get(t.descriptor().get("typcategory"), INT1_INSTANCE));
+			(0xff & t.get(Att.TYPCATEGORY, INT1_INSTANCE));
 	}
 
 	private static boolean preferred(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typispreferred"), BOOLEAN_INSTANCE);
+		return t.get(Att.TYPISPREFERRED, BOOLEAN_INSTANCE);
 	}
 
 	private static boolean defined(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typisdefined"), BOOLEAN_INSTANCE);
+		return t.get(Att.TYPISDEFINED, BOOLEAN_INSTANCE);
 	}
 
 	private static byte delimiter(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typdelim"), INT1_INSTANCE);
+		return t.get(Att.TYPDELIM, INT1_INSTANCE);
 	}
 
 	private static RegClass relation(RegTypeImpl o) throws SQLException
@@ -419,7 +530,7 @@ implements
 		 * that may touch both objects, without complicating their code.
 		 */
 		TupleTableSlot t = o.cacheTuple();
-		RegClass c = t.get(t.descriptor().get("typrelid"), REGCLASS_INSTANCE);
+		RegClass c = t.get(Att.TYPRELID, REGCLASS_INSTANCE);
 
 		((RegClassImpl)c).dualHandshake(o);
 		return c;
@@ -428,13 +539,13 @@ implements
 	private static RegType element(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typelem"), REGTYPE_INSTANCE);
+		return t.get(Att.TYPELEM, REGTYPE_INSTANCE);
 	}
 
 	private static RegType array(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typarray"), REGTYPE_INSTANCE);
+		return t.get(Att.TYPARRAY, REGTYPE_INSTANCE);
 	}
 
 	private static RegProcedure<TypeInput> input(RegTypeImpl o)
@@ -443,7 +554,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeInput> p = (RegProcedure<TypeInput>)
-			t.get(t.descriptor().get("typinput"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPINPUT, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -453,7 +564,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeOutput> p = (RegProcedure<TypeOutput>)
-			t.get(t.descriptor().get("typoutput"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPOUTPUT, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -463,7 +574,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeReceive> p = (RegProcedure<TypeReceive>)
-			t.get(t.descriptor().get("typreceive"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPRECEIVE, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -473,7 +584,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeSend> p = (RegProcedure<TypeSend>)
-			t.get(t.descriptor().get("typsend"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPSEND, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -483,7 +594,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeModifierInput> p = (RegProcedure<TypeModifierInput>)
-			t.get(t.descriptor().get("typmodin"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPMODIN, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -494,7 +605,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeModifierOutput> p = (RegProcedure<TypeModifierOutput>)
-			t.get(t.descriptor().get("typmodout"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPMODOUT, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -504,7 +615,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeAnalyze> p = (RegProcedure<TypeAnalyze>)
-			t.get(t.descriptor().get("typanalyze"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPANALYZE, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -514,7 +625,7 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		@SuppressWarnings("unchecked") // XXX add memo magic here
 		RegProcedure<TypeSubscript> p = (RegProcedure<TypeSubscript>)
-			t.get(t.descriptor().get("typsubscript"), REGPROCEDURE_INSTANCE);
+			t.get(Att.TYPSUBSCRIPT, REGPROCEDURE_INSTANCE);
 		return p;
 	}
 
@@ -522,47 +633,48 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return alignmentFromCatalog(
-			t.get(t.descriptor().get("typalign"), INT1_INSTANCE));
+			t.get(Att.TYPALIGN, INT1_INSTANCE));
 	}
 
 	private static Storage storage(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return storageFromCatalog(
-			t.get(t.descriptor().get("typstorage"), INT1_INSTANCE));
+			t.get(Att.TYPSTORAGE, INT1_INSTANCE));
 	}
 
 	private static boolean notNull(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typnotnull"), BOOLEAN_INSTANCE);
+		return t.get(Att.TYPNOTNULL, BOOLEAN_INSTANCE);
 	}
 
 	private static RegType baseType(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		TupleDescriptor td = t.descriptor();
-		int oid = t.get(td.get("typbasetype"), OidAdapter.INT4_INSTANCE);
-		int mod = t.get(td.get("typtypmod"), INT4_INSTANCE);
-		return CatalogObjectImpl.Factory.formMaybeModifiedType(oid, mod);
+		return Att.TYPBASETYPE_TYPTYPMOD
+			.applyOver(t, c ->
+				c.apply(OidAdapter.INT4_INSTANCE, INT4_INSTANCE,
+					(              oid,           mod           ) ->
+					CatalogObjectImpl.Factory.formMaybeModifiedType(oid, mod)));
 	}
 
 	private static int dimensions(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typndims"), INT4_INSTANCE);
+		return t.get(Att.TYPNDIMS, INT4_INSTANCE);
 	}
 
 	private static RegCollation collation(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typcollation"), REGCOLLATION_INSTANCE);
+		return t.get(Att.TYPCOLLATION, REGCOLLATION_INSTANCE);
 	}
 
 	private static String defaultText(RegTypeImpl o) throws SQLException
 	{
 		TupleTableSlot t = o.cacheTuple();
-		return t.get(t.descriptor().get("typdefault"), TextAdapter.INSTANCE);
+		return t.get(Att.TYPDEFAULT, TextAdapter.INSTANCE);
 	}
 
 	/* API methods */
@@ -936,16 +1048,7 @@ implements
 		 * tuple as needed.
 		 */
 		TupleTableSlot s = cacheTuple();
-
-		try
-		{
-			return
-				s.get(s.descriptor().get("typdefaultbin"), SYNTHETIC_INSTANCE);
-		}
-		catch ( SQLException e )
-		{
-			throw unchecked(e);
-		}
+		return s.get(Att.TYPDEFAULTBIN, SYNTHETIC_INSTANCE);
 	}
 
 	@Override
