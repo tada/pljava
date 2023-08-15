@@ -1609,11 +1609,31 @@ public abstract class Adapter<T,U> implements Visible
 		return new AdapterException(t.getMessage(), t);
 	}
 
+	/**
+	 * A lightweight unchecked exception used to wrap checked ones
+	 * (often {@link SQLException}) in settings where checked ones are a bother.
+	 *<p>
+	 * The idea may or may not be worth keeping, and either way, this particular
+	 * exception might not be part of any final API.
+	 */
 	public static class AdapterException extends RuntimeException
 	{
 		AdapterException(String message, Throwable cause)
 		{
 			super(message, cause, true, false);
+		}
+
+		/**
+		 * Unwraps this wrapper's cause and returns it, if it is an instance of
+		 * the exception type <var>declared</var>; otherwise, just throws this
+		 * wrapper again.
+		 */
+		public <X extends Throwable> X unwrap(Class<X> declared)
+		{
+			Throwable t = getCause();
+			if ( declared.isInstance(t) )
+				return declared.cast(t);
+			throw this;
 		}
 	}
 

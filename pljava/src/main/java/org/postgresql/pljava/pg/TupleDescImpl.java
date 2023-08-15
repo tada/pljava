@@ -118,7 +118,7 @@ implements TupleDescriptor
 	@Override // TargetList
 	public <R,X extends Throwable> R applyOver(
 		Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
 		return TargetListImpl.applyOver(this, tuples, f);
 	}
@@ -126,7 +126,7 @@ implements TupleDescriptor
 	@Override // TargetList
 	public <R,X extends Throwable> R applyOver(
 		TupleTableSlot tuple, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
 		return TargetListImpl.applyOver(this, tuple, f);
 	}

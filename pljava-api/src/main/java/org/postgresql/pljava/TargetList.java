@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava;
 
+import java.sql.SQLException; // for javadoc
 import java.sql.SQLXML; // for javadoc
 
 import java.util.Arrays;
@@ -159,7 +160,7 @@ public interface TargetList extends List<Attribute>
 	 */
 	<R,X extends Throwable> R applyOver(
 		Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
-		throws X;
+		throws X, SQLException;
 
 	/**
 	 * Executes the function <var>f</var>, once, supplying a
@@ -174,7 +175,7 @@ public interface TargetList extends List<Attribute>
 	 */
 	<R,X extends Throwable> R applyOver(
 		TupleTableSlot tuple, Cursor.Function<R,X> f)
-		throws X;
+		throws X, SQLException;
 
 	/**
 	 * A {@code TargetList} that has been bound to a source of tuples and can

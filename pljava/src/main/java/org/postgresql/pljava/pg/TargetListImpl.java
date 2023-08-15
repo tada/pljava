@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.pg;
 
+import org.postgresql.pljava.Adapter.AdapterException;
 import org.postgresql.pljava.Adapter.As;
 import org.postgresql.pljava.Adapter.AsBoolean;
 import org.postgresql.pljava.Adapter.AsByte;
@@ -29,6 +30,8 @@ import org.postgresql.pljava.model.TupleTableSlot;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 import java.lang.ref.WeakReference;
+
+import java.sql.SQLException;
 
 import java.util.AbstractList;
 import java.util.Arrays;
@@ -94,7 +97,7 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 	@Override // TargetList
 	public <R,X extends Throwable> R applyOver(
 		Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
 		return TargetListImpl.applyOver(this, tuples, f);
 	}
@@ -102,7 +105,7 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 	@Override // TargetList
 	public <R,X extends Throwable> R applyOver(
 		TupleTableSlot tuple, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
 		return TargetListImpl.applyOver(this, tuple, f);
 	}
@@ -436,16 +439,30 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 
 	static <R,X extends Throwable> R applyOver(
 		TargetList tl, Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
-		return f.apply(new CursorImpl(tl, tuples));
+		try
+		{
+			return f.apply(new CursorImpl(tl, tuples));
+		}
+		catch ( AdapterException e )
+		{
+			throw e.unwrap(SQLException.class);
+		}
 	}
 
 	static <R,X extends Throwable> R applyOver(
 		TargetList tl, TupleTableSlot tuple, Cursor.Function<R,X> f)
-		throws X
+		throws X, SQLException
 	{
-		return f.apply(new CursorImpl(tl, tuple));
+		try
+		{
+			return f.apply(new CursorImpl(tl, tuple));
+		}
+		catch ( AdapterException e )
+		{
+			throw e.unwrap(SQLException.class);
+		}
 	}
 
 	static class CursorImpl implements TargetList.Cursor, AutoCloseable
