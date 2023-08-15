@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@ import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.DualState;
 
+import org.postgresql.pljava.pg.TargetListImpl.Projected;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
@@ -79,6 +80,56 @@ implements TupleDescriptor
 	private final Attribute[] m_attrs;
 	private final Map<Simple,Attribute> m_byName;
 	private final State m_state;
+
+	/*
+	 * Implementation of Projection
+	 */
+
+	@Override // Projection
+	public Projection subList(int fromIndex, int toIndex)
+	{
+		return Projected.subList(this, fromIndex, toIndex);
+	}
+
+	@Override // Projection
+	public Projection project(Simple... names)
+	{
+		return Projected.project(this, names);
+	}
+
+	@Override // Projection
+	public Projection project(int... indices)
+	{
+		return Projected.project(this, indices);
+	}
+
+	@Override // Projection
+	public Projection sqlProject(int... indices)
+	{
+		return Projected.sqlProject(this, indices);
+	}
+
+	@Override // Projection
+	public Projection project(Attribute... attrs)
+	{
+		return Projected.project(this, attrs);
+	}
+
+	@Override // TargetList
+	public <R,X extends Throwable> R applyOver(
+		Iterable<TupleTableSlot> tuples, Cursor.Function<R,X> f)
+		throws X
+	{
+		return TargetListImpl.applyOver(this, tuples, f);
+	}
+
+	@Override // TargetList
+	public <R,X extends Throwable> R applyOver(
+		TupleTableSlot tuple, Cursor.Function<R,X> f)
+		throws X
+	{
+		return TargetListImpl.applyOver(this, tuple, f);
+	}
 
 	/**
 	 * A "getAndAdd" (with just plain memory effects, as it will only be used on
