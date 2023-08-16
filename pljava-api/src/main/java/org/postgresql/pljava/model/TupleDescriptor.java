@@ -61,7 +61,8 @@ public interface TupleDescriptor extends Projection
 	 * method returns the type
 	 * {@link RegType#RECORD RECORD}.{@link RegType#modifier(int) modifier(n)}
 	 * where <var>n</var> was uniquely assigned by PostgreSQL when the
-	 * descriptor was interned.
+	 * descriptor was interned, and will reliably refer to this tuple descriptor
+	 * for the duration of the session.
 	 *<p>
 	 * For any ephemeral descriptor passed around in code without being
 	 * interned, this method returns plain {@link RegType#RECORD RECORD}, which
@@ -112,7 +113,8 @@ public interface TupleDescriptor extends Projection
 	/**
 	 * Return this descriptor unchanged if it is already interned in
 	 * PostgreSQL's type cache, otherwise an equivalent new descriptor with
-	 * a different {@link #rowType rowType} uniquely assigned to identify it.
+	 * a different {@link #rowType rowType} uniquely assigned to identify it
+	 * for the duration of the session.
 	 *<p>
 	 * PostgreSQL calls this operation "BlessTupleDesc", which updates the
 	 * descriptor in place; in PL/Java code, the descriptor returned by this
@@ -121,9 +123,10 @@ public interface TupleDescriptor extends Projection
 	Interned intern();
 
 	/**
-	 * A descriptor that either describes a known composite type in the catalogs
-	 * or has been interned in PostgreSQL's type cache, and has a distinct
-	 * {@link #rowType rowType} that can be used to identify it.
+	 * A descriptor that either describes a known composite type in the
+	 * catalogs, or has been interned in PostgreSQL's type cache, and has
+	 * a distinct {@link #rowType rowType} that can be used to identify it
+	 * for the duration of the session.
 	 *<p>
 	 * Some operations, such as constructing a composite value for a function
 	 * to return, require this.

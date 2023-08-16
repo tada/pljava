@@ -74,6 +74,10 @@ extends
 	RegType         XML = formObjectId(CLASSID,         XMLOID);
 	RegType      FLOAT4 = formObjectId(CLASSID,      FLOAT4OID);
 	RegType      FLOAT8 = formObjectId(CLASSID,      FLOAT8OID);
+	/**
+	 * "Blank-padded CHAR", the PostgreSQL type that corresponds to the SQL
+	 * standard {@code CHAR} (spelled without quotes) type.
+	 */
 	RegType      BPCHAR = formObjectId(CLASSID,      BPCHAROID);
 	RegType     VARCHAR = formObjectId(CLASSID,     VARCHAROID);
 	RegType        DATE = formObjectId(CLASSID,        DATEOID);
