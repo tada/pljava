@@ -16,8 +16,17 @@ import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 
 import java.util.AbstractList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.RandomAccess;
+import java.util.Spliterator;
+import static java.util.Spliterator.IMMUTABLE;
+import static java.util.Spliterator.NONNULL;
+import static java.util.Spliterator.ORDERED;
+import static java.util.Spliterator.SIZED;
+import java.util.Spliterators.AbstractSpliterator;
 
+import java.util.function.Consumer;
 import java.util.function.IntToLongFunction;
 
 import org.postgresql.pljava.internal.DualState;
@@ -80,6 +89,51 @@ public interface TupleList extends List<TupleTableSlot>, AutoCloseable
 	}
 
 	/**
+	 * Returns a {@code Spliterator} that never splits.
+	 *<p>
+	 * Because a {@code TupleList} is typically built on a single
+	 * {@code TupleTableSlot} holding each tuple in turn, there can be no
+	 * thought of parallel stream execution.
+	 *<p>
+	 * Also, because a {@code TupleList} iterator may return the same
+	 * {@code TupleTableSlot} repeatedly, stateful {@code Stream} operations
+	 * such as {@code distinct} or {@code sorted} will make no sense applied
+	 * to those objects.
+	 */
+	@Override
+	default public Spliterator<TupleTableSlot> spliterator()
+	{
+		return new IteratorNonSpliterator<>(iterator(), size(),
+			IMMUTABLE | NONNULL | ORDERED | SIZED);
+	}
+
+	static class IteratorNonSpliterator<T> extends AbstractSpliterator<T>
+	{
+		private Iterator<T> it;
+
+		IteratorNonSpliterator(Iterator<T> it, long est, int characteristics)
+		{
+			super(est, characteristics);
+			this.it = it;
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer<? super T> action)
+		{
+			if ( ! it.hasNext() )
+				return false;
+			action.accept(it.next());
+			return true;
+		}
+
+		@Override
+		public Spliterator<T> trySplit()
+		{
+			return null;
+		}
+	}
+
+	/**
 	 * A {@code TupleList} constructed atop a PostgreSQL {@code SPITupleTable}.
 	 *<p>
 	 * The native table is allocated in a {@link MemoryContext} that will be
@@ -87,7 +141,8 @@ public interface TupleList extends List<TupleTableSlot>, AutoCloseable
 	 * {@code Invocation}. This class merely maps the native tuple table in
 	 * place, and so will prevent later access.
 	 */
-	class SPI extends AbstractList<TupleTableSlot> implements TupleList
+	class SPI extends AbstractList<TupleTableSlot>
+	implements TupleList, RandomAccess
 	{
 		private final State state;
 		private final TupleTableSlotImpl ttSlot;

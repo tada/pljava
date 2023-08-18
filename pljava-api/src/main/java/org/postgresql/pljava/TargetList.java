@@ -304,10 +304,10 @@ public interface TargetList extends List<Attribute>
 		 * Because the {@code Stream} will produce the same {@code Cursor}
 		 * instance repeatedly, and the instance is mutated, saving instances
 		 * will not have effects one might expect, and no more than one
-		 * stream should be in progress at a time. Naturally, this method does
-		 * not return a parallel {@code Stream}. Do not call
-		 * {@link Stream#parallel() parallel()} on any pipeline built from this
-		 * stream.
+		 * stream should be in progress at a time. Stateful operations such as
+		 * {@code distinct} or {@code sorted} will make no sense applied to
+		 * these instances. Naturally, this method does not return a parallel
+		 * {@code Stream}.
 		 *<p>
 		 * <em>These restrictions do not satisfy all expectations of a
 		 * {@code Stream}, and may be topics for future work as this API is

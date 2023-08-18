@@ -48,6 +48,7 @@ import java.util.Spliterator;
 import static java.util.Spliterator.IMMUTABLE;
 import static java.util.Spliterator.NONNULL;
 import static java.util.Spliterator.ORDERED;
+import static java.util.Spliterator.SIZED;
 import java.util.Spliterators;
 import static java.util.Spliterators.spliteratorUnknownSize;
 
@@ -552,12 +553,15 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 			Iterator<Cursor> itr = iterator();
 			Spliterator<Cursor> spl;
 			int chr = IMMUTABLE | NONNULL | ORDERED;
+			long est = Long.MAX_VALUE;
 
 			if ( m_slots instanceof Collection )
-				spl = Spliterators
-					.spliterator(itr, ((Collection)m_slots).size(), chr);
-			else
-				spl = spliteratorUnknownSize(itr, chr);
+			{
+				est = ((Collection)m_slots).size();
+				chr |= SIZED;
+			}
+
+			spl = new TupleList.IteratorNonSpliterator<>(itr, est, chr);
 
 			return StreamSupport.stream(spl, false);
 		}
