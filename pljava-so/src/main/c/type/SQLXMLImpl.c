@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -203,19 +203,19 @@ void pljava_SQLXMLImpl_initialize(void)
 	s_SQLXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl"));
 	s_SQLXML_adopt = PgObject_getStaticJavaMethod(s_SQLXML_class, "adopt",
-		"(Ljava/sql/SQLXML;I)Lorg/postgresql/pljava/internal/VarlenaWrapper;");
+		"(Ljava/sql/SQLXML;I)Lorg/postgresql/pljava/adt/spi/Datum;");
 
 	s_SQLXML_Readable_PgXML_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable$PgXML"));
 	s_SQLXML_Readable_PgXML_init = PgObject_getJavaMethod(
 		s_SQLXML_Readable_PgXML_class,
-		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;I)V");
+		"<init>", "(Lorg/postgresql/pljava/adt/spi/Datum$Input;I)V");
 
 	s_SQLXML_Readable_Synthetic_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Readable$Synthetic"));
 	s_SQLXML_Readable_Synthetic_init = PgObject_getJavaMethod(
 		s_SQLXML_Readable_Synthetic_class,
-		"<init>", "(Lorg/postgresql/pljava/internal/VarlenaWrapper$Input;I)V");
+		"<init>", "(Lorg/postgresql/pljava/adt/spi/Datum$Input;I)V");
 
 	s_SQLXML_Writable_class = JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/jdbc/SQLXMLImpl$Writable"));

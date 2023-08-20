@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -79,8 +79,11 @@ do { \
 
 #define INITIALSIZE 1024
 
+static jclass s_DatumImpl_class;
+
+static jmethodID s_DatumImpl_adopt;
+
 static jclass s_VarlenaWrapper_class;
-static jmethodID s_VarlenaWrapper_adopt;
 
 static jclass s_VarlenaWrapper_Input_class;
 static jclass s_VarlenaWrapper_Output_class;
@@ -348,7 +351,7 @@ Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 	void *final_result;
 #endif
 
-	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt);
+	p2l.longVal = JNI_callLongMethodLocked(vlw, s_DatumImpl_adopt);
 #if PG_VERSION_NUM >= 90500
 	return PointerGetDatum(p2l.ptrVal);
 #else
@@ -443,6 +446,9 @@ void pljava_VarlenaWrapper_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	s_DatumImpl_class =
+		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+			"org/postgresql/pljava/pg/DatumImpl"));
 	s_VarlenaWrapper_class =
 		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper"));
@@ -461,8 +467,8 @@ void pljava_VarlenaWrapper_initialize(void)
 		s_VarlenaWrapper_Output_class, "<init>",
 		"(JJJLjava/nio/ByteBuffer;)V");
 
-	s_VarlenaWrapper_adopt = PgObject_getJavaMethod(
-		s_VarlenaWrapper_class, "adopt", "()J");
+	s_DatumImpl_adopt = PgObject_getJavaMethod(
+		s_DatumImpl_class, "adopt", "()J");
 
 	clazz = PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State");

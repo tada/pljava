@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -44,6 +44,7 @@ import org.postgresql.pljava.model.MemoryContext;
 import org.postgresql.pljava.model.ResourceOwner;
 
 import org.postgresql.pljava.pg.DatumImpl;
+import org.postgresql.pljava.pg.DatumImpl.IStream;
 import org.postgresql.pljava.pg.MemoryContextImpl;
 import org.postgresql.pljava.pg.ResourceOwnerImpl;
 
@@ -179,36 +180,6 @@ public interface VarlenaWrapper extends Closeable, DatumImpl
 			finally
 			{
 				m_state.unpin();
-			}
-		}
-
-		@Override @SuppressWarnings("unchecked")
-		public <T extends InputStream & Datum> T inputStream()
-		throws SQLException
-		{
-			return (T) new Stream(this);
-		}
-
-		public static class Stream
-		extends DatumImpl.Input.Stream<VarlenaWrapper.Input>
-		implements VarlenaWrapper
-		{
-			private Stream(VarlenaWrapper.Input datum) throws SQLException
-			{
-				super(datum);
-			}
-
-			@Override
-			public String toString()
-			{
-				return toString(this);
-			}
-
-			@Override
-			public String toString(Object o)
-			{
-				return String.format("%s %s",
-					m_datum.toString(o), m_open ? "open" : "closed");
 			}
 		}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -30,10 +30,22 @@ import org.postgresql.pljava.model.Attribute;
 public interface Datum extends Closeable
 {
 	/**
+	 * Use the given {@link Verifier} to confirm that the {@code Datum} content
+	 * is well-formed, throwing an exception if not.
+	 */
+	void verify(Verifier.OfBuffer v) throws SQLException;
+
+	/**
+	 * Use the given {@link Verifier} to confirm that the {@code Datum} content
+	 * is well-formed, throwing an exception if not.
+	 */
+	void verify(Verifier.OfStream v) throws SQLException;
+
+	/**
 	 * Interface through which PL/Java code reads the content of an existing
 	 * PostgreSQL datum.
 	 */
-	interface Input extends Datum
+	interface Input<T extends InputStream & Datum> extends Datum
 	{
 		default void pin() throws SQLException
 		{
@@ -48,9 +60,40 @@ public interface Datum extends Closeable
 		{
 		}
 
+		/**
+		 * Returns a read-only {@link ByteBuffer} covering the content of the
+		 * datum.
+		 *<p>
+		 * When the datum is a {@code varlena}, the "content" does not include
+		 * the four-byte header. When implementing an adapter for a varlena
+		 * datatype, note carefully whether offsets used in the PostgreSQL C
+		 * code are relative to the start of the content or the start of the
+		 * varlena overall. If the latter, they will need adjustment when
+		 * indexing into the {@code ByteBuffer}.
+		 *<p>
+		 * If the byte order of the buffer will matter, it should be explicitly
+		 * set.
+		 *<p>
+		 * The buffer may window native memory allocated by PostgreSQL, so
+		 * {@link #pin pin()} and {@link #unpin unpin()} should surround
+		 * accesses through it. Like {@code Datum} itself, the
+		 * {@code ByteBuffer} should be used only within an {@code Adapter}, and
+		 * not exposed to other code.
+		 */
 		ByteBuffer buffer() throws SQLException;
 
-		<T extends InputStream & Datum> T inputStream() throws SQLException;
+		/**
+		 * Returns an {@link InputStream} that presents the same bytes contained
+		 * in the buffer returned by {@link #buffer buffer()}.
+		 *<p>
+		 * When necessary, the {@code InputStream} will handle pinning the
+		 * buffer when reading, so the {@code InputStream} can safely be exposed
+		 * to other code, if it is a reasonable way to present the contents of
+		 * the datatype in question.
+		 *<p>
+		 * The stream supports {@code mark} and {@code reset}.
+		 */
+		T inputStream() throws SQLException;
 	}
 
 	/**
