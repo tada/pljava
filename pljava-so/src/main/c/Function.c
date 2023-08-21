@@ -34,6 +34,10 @@
 #include <funcapi.h>
 #include <utils/typcache.h>
 
+#if PG_VERSION_NUM >= 160000
+#define PG_FUNCNAME_MACRO __func__
+#endif
+
 #ifdef _MSC_VER
 #	define strcasecmp _stricmp
 #	define strncasecmp _strnicmp
