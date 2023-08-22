@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -21,6 +21,12 @@
 #include "pljava/type/Type_priv.h"
 #include "org_postgresql_pljava_internal_AclId.h"
 #include "pljava/Exception.h"
+
+#if PG_VERSION_NUM >= 160000
+#include <catalog/pg_namespace.h>
+#define pg_namespace_aclcheck(oid,rid,mode) \
+	object_aclcheck(NamespaceRelationId, (oid), (rid), (mode))
+#endif
 
 static jclass    s_AclId_class;
 static jmethodID s_AclId_init;
