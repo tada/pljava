@@ -19,7 +19,6 @@ import static java.util.Arrays.fill;
 
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.annotation.Function;
-import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**
@@ -29,17 +28,6 @@ import org.postgresql.pljava.annotation.SQLType;
  *<p>
  * Also tests the proper DDR generation of defaults for such parameters.
  */
-@SQLAction(
-	provides = "paramtypeinfo type", // created in Triggers.java
-	install = {
-		"CREATE TYPE javatest.paramtypeinfo AS (" +
-		" name text, pgtypename text, javaclass text, tostring text" +
-		")"
-	},
-	remove = {
-		"DROP TYPE javatest.paramtypeinfo"
-	}
-)
 public class RecordParameterDefaults implements ResultSetProvider
 {
 	/**
@@ -59,10 +47,11 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 *</pre>
 	 */
 	@Function(
-		requires = "paramtypeinfo type",
 		schema = "javatest",
-		type = "javatest.paramtypeinfo"
-		)
+		out = {
+			"name text", "pgtypename text", "javaclass text", "tostring text"
+		}
+	)
 	public static ResultSetProvider paramDefaultsRecord(
 		@SQLType(defaultValue={})ResultSet params)
 	throws SQLException

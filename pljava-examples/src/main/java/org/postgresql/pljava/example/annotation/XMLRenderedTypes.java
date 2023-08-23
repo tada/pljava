@@ -28,9 +28,22 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * Everything mentioning the type XML here needs a conditional implementor tag
  * in case of being loaded into a PostgreSQL instance built without that type.
  */
+@SQLAction(implementor="postgresql_xml", requires="pgNodeTreeAsXML", install=
+"WITH" +
+"  a(t) AS (SELECT adbin FROM pg_catalog.pg_attrdef LIMIT 1)" +
+" SELECT" +
+"   CASE WHEN pgNodeTreeAsXML(t) IS DOCUMENT" +
+"    THEN javatest.logmessage('INFO', 'pgNodeTreeAsXML ok')" +
+"    ELSE javatest.logmessage('WARNING', 'pgNodeTreeAsXML ng')" +
+"   END" +
+"  FROM a"
+)
 public class XMLRenderedTypes
 {
-	@Function(schema="javatest", implementor="postgresql_xml")
+	@Function(
+		schema="javatest", implementor="postgresql_xml",
+		provides="pgNodeTreeAsXML"
+	)
 	public static SQLXML pgNodeTreeAsXML(@SQLType("pg_node_tree") SQLXML pgt)
 	throws SQLException
 	{
