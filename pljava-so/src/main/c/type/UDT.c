@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,6 +15,7 @@
 #include <postgres.h>
 #include <catalog/pg_namespace.h>
 #include <utils/builtins.h>
+#include <utils/bytea.h>
 #include <utils/typcache.h>
 #include <libpq/pqformat.h>
 #include <funcapi.h>
@@ -28,10 +29,6 @@
 #include "pljava/SQLOutputToChunk.h"
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/SQLOutputToTuple.h"
-
-#if PG_VERSION_NUM >= 90000
-#include <utils/bytea.h>
-#endif
 
 /*
  * This code, as currently constituted, makes these assumptions that limit how
@@ -183,11 +180,7 @@ static Datum coerceScalarObject(UDT self, jobject value)
 		{
 			/* Assign the correct length.
 			 */
-#if PG_VERSION_NUM < 80300
-			VARATT_SIZEP(buffer.data) = buffer.len;
-#else
 			SET_VARSIZE(buffer.data, buffer.len);
-#endif
 		}
 		else if(dataLen != buffer.len)
 		{

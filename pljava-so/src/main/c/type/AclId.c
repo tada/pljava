@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -184,11 +184,7 @@ Java_org_postgresql_pljava_internal_AclId__1getName(JNIEnv* env, jobject aclId)
 	{
 		result = String_createJavaStringFromNTS(
 			GetUserNameFromId(
-#if PG_VERSION_NUM >= 90500
 				AclId_getAclId(aclId), /* noerr= */ false
-#else
-				AclId_getAclId(aclId)
-#endif
 			)
 		);
 	}

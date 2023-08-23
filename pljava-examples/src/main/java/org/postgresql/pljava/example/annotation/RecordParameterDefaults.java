@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -28,9 +28,6 @@ import org.postgresql.pljava.annotation.SQLType;
  * function.
  *<p>
  * Also tests the proper DDR generation of defaults for such parameters.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example.
  */
 @SQLAction(
 	provides = "paramtypeinfo type", // created in Triggers.java
@@ -64,7 +61,6 @@ public class RecordParameterDefaults implements ResultSetProvider
 	@Function(
 		requires = "paramtypeinfo type",
 		schema = "javatest",
-		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
 		type = "javatest.paramtypeinfo"
 		)
 	public static ResultSetProvider paramDefaultsRecord(
@@ -87,7 +83,6 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 */
 	@Function(
 		requires = "foobar tables", // created in Triggers.java
-		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
 		schema = "javatest"
 		)
 	public static String paramDefaultsNamedRow(

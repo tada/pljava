@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -35,11 +35,10 @@ import org.postgresql.pljava.annotation.Function;
  * if {@code matched} is false or the original and returned arrays or strings
  * do not match as seen in SQL.
  * <p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example, and also sets its own.
+ * This example sets an {@code implementor} tag based on a PostgreSQL condition,
+ * as further explained in the {@link ConditionalDDR} example.
  */
-@SQLAction(provides="postgresql_unicodetest",
-	implementor="postgresql_ge_90000", install=
+@SQLAction(provides="postgresql_unicodetest", install=
 	"SELECT CASE" +
 	" WHEN 'UTF8' = current_setting('server_encoding')" +
 	" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +

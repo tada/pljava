@@ -62,7 +62,7 @@ versions 4.3.0 or later are recommended in order to avoid a
 
 ## PostgreSQL
 
-The PL/Java 1.6 series does not commit to support PostgreSQL earlier than 9.5.
+The PL/Java 1.6 series does not support PostgreSQL earlier than 9.5.
 
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.

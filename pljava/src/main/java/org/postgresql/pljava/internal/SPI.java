@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -53,6 +53,9 @@ public class SPI
 	public static final int OK_REL_REGISTER     = 15;
 	public static final int OK_REL_UNREGISTER   = 16;
 	public static final int OK_TD_REGISTER      = 17;
+	public static final int OK_MERGE            = 18;
+
+	public static final int OPT_NONATOMIC       = 1 << 0;
 
 	/**
 	 * Execute a command using the internal <code>SPI_exec</code> function.
