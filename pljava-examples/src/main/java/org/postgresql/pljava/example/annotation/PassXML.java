@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -36,6 +36,7 @@ import java.io.Writer;
 
 import java.io.IOException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -65,6 +66,7 @@ import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
 import org.postgresql.pljava.Adjusting;
+import static org.postgresql.pljava.Adjusting.XML.setFirstSupported;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -518,33 +520,51 @@ public class PassXML implements SQLData
 			builtin
 			? TransformerFactory.newDefaultInstance()
 			: TransformerFactory.newInstance();
-		String exf =
-		  "http://www.oracle.com/xml/jaxp/properties/enableExtensionFunctions";
-		String ecl = "jdk.xml.transform.extensionClassLoader";
+
+		String legacy_pfx = "http://www.oracle.com/xml/jaxp/properties/";
+		String java17_pfx = "jdk.xml.";
+		String exf_sfx = "enableExtensionFunctions";
+
+		String ecl_legacy = "jdk.xml.transform.extensionClassLoader";
+		String ecl_java17 = "jdk.xml.extensionClassLoader";
+
 		Source src = sxToSource(source, how, adjust);
+
 		try
 		{
-			try
+			Exception e;
+
+			e = setFirstSupported(tf::setFeature, enableExtensionFunctions,
+				List.of(TransformerConfigurationException.class), null,
+				java17_pfx + exf_sfx, legacy_pfx + exf_sfx);
+
+			if ( null != e )
 			{
-				tf.setFeature(exf, enableExtensionFunctions);
-			}
-			catch ( TransformerConfigurationException e )
-			{
-				logMessage("WARNING",
-					"non-builtin transformer: ignoring " + e.getMessage());
+				if ( builtin )
+					throw new SQLException(
+						"Configuring XML transformation: " + e.getMessage(), e);
+				else
+					logMessage("WARNING",
+						"non-builtin transformer: ignoring " + e.getMessage());
 			}
 
 			if ( withJava )
 			{
-				try
+				e = setFirstSupported(tf::setAttribute,
+					Thread.currentThread().getContextClassLoader(),
+					List.of(IllegalArgumentException.class), null,
+					ecl_java17, ecl_legacy);
+
+				if ( null != e )
 				{
-					tf.setAttribute(ecl,
-						Thread.currentThread().getContextClassLoader());
-				}
-				catch ( IllegalArgumentException e )
-				{
-					logMessage("WARNING",
-					"non-builtin transformer: ignoring " + e.getMessage());
+					if ( builtin )
+						throw new SQLException(
+							"Configuring XML transformation: " + 
+								e.getMessage(), e);
+					else
+						logMessage("WARNING",
+							"non-builtin transformer: ignoring " + 
+								e.getMessage());
 				}
 			}
 
