@@ -809,7 +809,9 @@ public class PassXML implements SQLData
 		for ( int i = 1; i <= n; ++i )
 		{
 			String k = rsmd.getColumnLabel(i);
-			if ( "allowDTD".equalsIgnoreCase(k) )
+			if ( "lax".equalsIgnoreCase(k) )
+				axp.lax(adjust.getBoolean(i));
+			else if ( "allowDTD".equalsIgnoreCase(k) )
 				axp.allowDTD(adjust.getBoolean(i));
 			else if ( "externalGeneralEntities".equalsIgnoreCase(k) )
 				axp.externalGeneralEntities(adjust.getBoolean(i));
