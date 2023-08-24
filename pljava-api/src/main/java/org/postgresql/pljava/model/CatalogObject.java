@@ -280,8 +280,7 @@ public interface CatalogObject
 		 * Subtype of {@code Grant} representing the privileges that may be
 		 * granted on a class (or relation, table, view).
 		 */
-		interface OnClass
-		extends OnAttribute, DELETE, TRUNCATE, TRIGGER, MAINTAIN { }
+		interface OnClass extends OnAttribute, DELETE, TRUNCATE, TRIGGER { }
 
 		/**
 		 * Subtype of {@code Grant} representing the privileges that may be
@@ -437,15 +436,6 @@ public interface CatalogObject
 	{
 		boolean alterSystemGranted();
 		boolean alterSystemGrantable();
-	}
-
-	/**
-	 * @hidden
-	 */
-	interface MAINTAIN     extends Grant
-	{
-		boolean maintainGranted();
-		boolean maintainGrantable();
 	}
 
 	/**

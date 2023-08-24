@@ -27,38 +27,34 @@ import static
 	org.postgresql.pljava.pg.CatalogObjectImpl.Factory.staticFormObjectId;
 
 import static org.postgresql.pljava.pg.ModelConstants.N_ACL_RIGHTS;
+import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
 
 public abstract class AclItem implements CatalogObject.Grant
 {
 	/*
 	 * PostgreSQL defines these in include/nodes/parsenodes.h
 	 */
-	@Native static final short ACL_INSERT	    = 1 <<  0;
-	@Native static final short ACL_SELECT	    = 1 <<  1;
-	@Native static final short ACL_UPDATE	    = 1 <<  2;
-	@Native static final short ACL_DELETE	    = 1 <<  3;
+	@Native static final short ACL_INSERT       = 1 <<  0;
+	@Native static final short ACL_SELECT       = 1 <<  1;
+	@Native static final short ACL_UPDATE       = 1 <<  2;
+	@Native static final short ACL_DELETE       = 1 <<  3;
 	@Native static final short ACL_TRUNCATE     = 1 <<  4;
 	@Native static final short ACL_REFERENCES   = 1 <<  5;
 	@Native static final short ACL_TRIGGER      = 1 <<  6;
 	@Native static final short ACL_EXECUTE      = 1 <<  7;
-	@Native static final short ACL_USAGE	    = 1 <<  8;
-	@Native static final short ACL_CREATE	    = 1 <<  9;
+	@Native static final short ACL_USAGE        = 1 <<  8;
+	@Native static final short ACL_CREATE       = 1 <<  9;
 	@Native static final short ACL_CREATE_TEMP  = 1 << 10;
 	@Native static final short ACL_CONNECT      = 1 << 11;
 	// below appearing in PG 15
 	@Native static final short ACL_SET          = 1 << 12;
 	@Native static final short ACL_ALTER_SYSTEM = 1 << 13;
-	// below appearing in PG 16
-	@Native static final short ACL_MAINTAIN     = 1 << 14;
-
-	@Native static final   int N_ACL_RIGHTS     =      12;
 
 	@Native static final   int ACL_ID_PUBLIC    =       0;
 
 	@Native static final int OFFSET_ai_grantee  =  0;
 	@Native static final int OFFSET_ai_grantor  =  4;
-	@Native static final int OFFSET_ai_privs	=  8;
-	@Native static final int SIZEOF_AclItem 	= 12;
+	@Native static final int OFFSET_ai_privs    =  8;
 
 	/**
 	 * These one-letter abbreviations are to match the order of the bit masks
@@ -71,13 +67,13 @@ public abstract class AclItem implements CatalogObject.Grant
 	 * It can also be found as {@code ACL_ALL_RIGHTS_STR} in
 	 * {@code include/utils/acl.h}.
 	 */
-	private static final String s_abbr = "arwdDxtXUCTcsAm";
+	private static final String s_abbr = "arwdDxtXUCTcsA";
 
 	static
 	{
 		/*
 		 * This is not a check for equality, because N_ACL_RIGHTS has grown
-		 * (between PG 14 and 15, and between 15 and 16). So the string should
+		 * (between PG 14 and 15). So the string should
 		 * include all the letters that might be used, and the assertion will
 		 * catch if a new PG version has grown the count again.
 		 *
@@ -121,23 +117,34 @@ public abstract class AclItem implements CatalogObject.Grant
 		OnClass, OnNamespace, OnSetting,
 		CatalogObject.EXECUTE, CatalogObject.CREATE_TEMP, CatalogObject.CONNECT
 	{
-		private final short m_priv;
-		private final short m_goption;
+		private final int m_priv;
+		private final int m_goption;
 
 		public NonRole(ByteBuffer b)
 		{
 			super(b.getInt(OFFSET_ai_grantee), b.getInt(OFFSET_ai_grantor));
-			int privs = b.getInt(OFFSET_ai_privs);
-			m_priv    = (short)(privs & 0xffff);
-			m_goption = (short)(privs >>> 16);
+
+			if ( PG_VERSION_NUM < 160000 )
+			{
+				assert OFFSET_ai_privs + Integer.BYTES == b.limit();
+				int privs = b.getInt(OFFSET_ai_privs);
+				m_priv    = (privs & 0xffff);
+				m_goption = (privs >>> 16);
+				return;
+			}
+
+			assert OFFSET_ai_privs + Long.BYTES == b.limit();
+			long privs = b.getLong(OFFSET_ai_privs);
+			m_priv    = (int)(privs & 0xffffffff);
+			m_goption = (int)(privs >>> 32);
 		}
 
-		private boolean priv(short mask)
+		private boolean priv(int mask)
 		{
 			return 0 != (m_priv & mask);
 		}
 
-		private boolean goption(short mask)
+		private boolean goption(int mask)
 		{
 			return 0 != (m_goption & mask);
 		}
@@ -146,11 +153,16 @@ public abstract class AclItem implements CatalogObject.Grant
 		public String toString()
 		{
 			StringBuilder sb = new StringBuilder();
-			if ( to().isValid() )
+			/*
+			 * Should this not be sb.append(to().nameAsGrantee()) ? You'd think,
+			 * but to match the text representation from PostgreSQL itself, the
+			 * bare = is the right thing to show for public.
+			 */
+			if ( ! to().isPublic() )
 				sb.append(to().name());
 			sb.append('=');
-			int priv = Short.toUnsignedInt(m_priv);
-			int goption = Short.toUnsignedInt(m_goption);
+			int priv = m_priv;
+			int goption = m_goption;
 			while ( 0 != priv )
 			{
 				int bit = lowestOneBit(priv);
@@ -301,16 +313,6 @@ public abstract class AclItem implements CatalogObject.Grant
 		@Override public boolean alterSystemGrantable()
 		{
 			return goption(ACL_ALTER_SYSTEM);
-		}
-
-		@Override public boolean maintainGranted()
-		{
-			return priv(ACL_MAINTAIN);
-		}
-
-		@Override public boolean maintainGrantable()
-		{
-			return goption(ACL_MAINTAIN);
 		}
 	}
 }

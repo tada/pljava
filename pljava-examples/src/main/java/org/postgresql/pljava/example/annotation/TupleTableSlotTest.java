@@ -46,6 +46,7 @@ import org.postgresql.pljava.TargetList.Projection;
 import org.postgresql.pljava.annotation.Function;
 import static
 	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
+import org.postgresql.pljava.annotation.SQLAction;
 
 import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.Portal;
@@ -59,6 +60,37 @@ import org.postgresql.pljava.model.TupleTableSlot;
  * A temporary test jig during TupleTableSlot development; intended
  * to be used from a debugger.
  */
+@SQLAction(requires = "modelToJDBC", install =
+"WITH" +
+" result AS (" +
+"  SELECT" +
+"    * " +
+"   FROM" +
+"    javatest.modelToJDBC(" +
+"     'SELECT DISTINCT' ||" +
+"     '  CAST ( relacl AS pg_catalog.text ), relacl' ||" +
+"     ' FROM' ||" +
+"     '  pg_catalog.pg_class' ||" +
+"     ' WHERE' ||" +
+"     '  relacl IS NOT NULL'," +
+"     'org.postgresql.pljava.pg.adt.TextAdapter',  'INSTANCE'," +
+"     'org.postgresql.pljava.pg.adt.GrantAdapter', 'LIST_INSTANCE'" +
+"    ) AS r(raw text, cooked text)" +
+" )," +
+" conformed AS (" +
+"  SELECT" +
+"    raw, pg_catalog.translate(cooked, '[] ', '{}') AS cooked" +
+"   FROM" +
+"    result" +
+" )" +
+" SELECT" +
+"   CASE WHEN pg_catalog.every(raw = cooked )" +
+"   THEN javatest.logmessage('INFO', 'AclItem[] ok')" +
+"   ELSE javatest.logmessage('WARNING', 'AclItem[] ng')" +
+"   END" +
+"  FROM" +
+"   conformed"
+)
 public class TupleTableSlotTest
 {
 	/*
@@ -492,7 +524,7 @@ public class TupleTableSlotTest
 	 */
 	@Function(
 		schema = "javatest", type = "pg_catalog.record", variadic = true,
-		onNullInput = RETURNS_NULL
+		onNullInput = RETURNS_NULL, provides = "modelToJDBC"
 	)
 	public static ResultSetProvider modelToJDBC(String query, String[] adapters)
 	throws SQLException, ReflectiveOperationException

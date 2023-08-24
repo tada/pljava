@@ -298,9 +298,6 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST( ACL_SET          );
 	CONFIRMCONST( ACL_ALTER_SYSTEM);
 #endif
-#if PG_VERSION_NUM >= 160000
-	CONFIRMCONST( ACL_MAINTAIN     );
-#endif
 	CONFIRMCONST( ACL_ID_PUBLIC    );
 
 #define CONFIRMOFFSET(typ,fld) \
@@ -311,10 +308,6 @@ StaticAssertStmt(offsetof(typ,fld) == \
 	CONFIRMOFFSET( AclItem, ai_grantee );
 	CONFIRMOFFSET( AclItem, ai_grantor );
 	CONFIRMOFFSET( AclItem, ai_privs );
-
-	StaticAssertStmt(
-		sizeof(AclItem) == org_postgresql_pljava_pg_AclItem_SIZEOF_AclItem,
-		"Java/C size mismatch for AclItem");
 
 #undef CONFIRMCONST
 #undef CONFIRMOFFSET
