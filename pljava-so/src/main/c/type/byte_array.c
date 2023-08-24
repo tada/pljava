@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
@@ -40,11 +44,7 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 		int32  byteaSize = length + VARHDRSZ;
 
 		bytes = (bytea*)palloc(byteaSize);
-#if PG_VERSION_NUM < 80300
-		VARATT_SIZEP(bytes) = byteaSize;
-#else
 		SET_VARSIZE(bytes, byteaSize);
-#endif
 		JNI_getByteArrayRegion((jbyteArray)byteArray, 0, length, (jbyte*)VARDATA(bytes));
 	}
 	else if(JNI_isInstanceOf(byteArray, s_BlobValue_class))
@@ -55,11 +55,7 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 
 		byteaSize = (int32)(length + VARHDRSZ);
 		bytes = (bytea*)palloc(byteaSize);
-#if PG_VERSION_NUM < 80300
-		VARATT_SIZEP(bytes) = byteaSize;
-#else
 		SET_VARSIZE(bytes, byteaSize);
-#endif
 
 		byteBuffer = JNI_newDirectByteBuffer((void*)VARDATA(bytes), length);
 		if(byteBuffer != 0)

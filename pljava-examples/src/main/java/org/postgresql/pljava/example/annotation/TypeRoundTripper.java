@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -35,8 +35,6 @@ import java.util.Arrays;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
-
-import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
 
 /**
  * A class to simplify testing of PL/Java's mappings between PostgreSQL and
@@ -94,11 +92,8 @@ import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
  *  (VALUES (timestamptz '2017-08-21 18:25:29.900005Z')) AS p(orig),
  *  roundtrip(p) AS (roundtripped timestamptz);
  *</pre>
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(implementor = "postgresql_ge_90300", // funcs see earlier FROM items
+@SQLAction(
 	requires = {"TypeRoundTripper.roundTrip", "point mirror type"},
 	install = {
 	" SELECT" +
@@ -309,8 +304,7 @@ public class TypeRoundTripper
 	@Function(
 		schema = "javatest",
 		type = "RECORD",
-		provides = "TypeRoundTripper.roundTrip",
-		implementor = "postgresql_ge_80400" // supports function param DEFAULTs
+		provides = "TypeRoundTripper.roundTrip"
 		)
 	public static boolean roundTrip(
 		ResultSet in, @SQLType(defaultValue="") String classname,

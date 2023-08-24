@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -112,16 +112,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 	"END"
 )
 
-@SQLAction(implementor="postgresql_ge_80400",
-	provides="postgresql_xml_ge84",
-	install=
-	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-	" THEN set_config('pljava.implementors', 'postgresql_xml_ge84,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
-
-@SQLAction(implementor="postgresql_xml_ge84", requires="echoXMLParameter",
+@SQLAction(implementor="postgresql_xml", requires="echoXMLParameter",
 	install=
 	"WITH" +
 	" s(how) AS (SELECT generate_series(1, 7))," +
@@ -146,7 +137,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 	" r"
 )
 
-@SQLAction(implementor="postgresql_xml_ge84", requires="proxiedXMLEcho",
+@SQLAction(implementor="postgresql_xml", requires="proxiedXMLEcho",
 	install=
 	"WITH" +
 	" s(how) AS (SELECT unnest('{1,2,4,5,6,7}'::int[]))," +
@@ -170,7 +161,7 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 	" r"
 )
 
-@SQLAction(implementor="postgresql_xml_ge84", requires="lowLevelXMLEcho",
+@SQLAction(implementor="postgresql_xml", requires="lowLevelXMLEcho",
 	install={
 	"SELECT" +
 	" preparexmlschema('schematest', $$" +
@@ -702,7 +693,7 @@ public class PassXML implements SQLData
 	 * still be exercised by calling this method, explicitly passing
 	 * {@code adjust => NULL}.
 	 */
-	@Function(schema="javatest", implementor="postgresql_xml_ge84",
+	@Function(schema="javatest", implementor="postgresql_xml",
 		provides="lowLevelXMLEcho")
 	public static SQLXML lowLevelXMLEcho(
 		SQLXML sx, int how, @SQLType(defaultValue={}) ResultSet adjust)
@@ -1046,12 +1037,9 @@ public class PassXML implements SQLData
 
 	/**
 	 * Text-typed variant of lowLevelXMLEcho (does not require XML type).
-	 *<p>
-	 * It does declare a parameter default, limiting it to PostgreSQL 8.4 or
-	 * later.
 	 */
 	@Function(schema="javatest", name="lowLevelXMLEcho",
-		type="text", implementor="postgresql_ge_80400")
+		type="text")
 	public static SQLXML lowLevelXMLEcho_(@SQLType("text") SQLXML sx, int how,
 		@SQLType(defaultValue={}) ResultSet adjust)
 	throws SQLException

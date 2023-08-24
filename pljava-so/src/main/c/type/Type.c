@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -30,42 +30,11 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
-#if PG_VERSION_NUM < 80300
-typedef enum CoercionPathType
-{
-	COERCION_PATH_NONE, 		/* failed to find any coercion pathway */
-	COERCION_PATH_FUNC, 		/* apply the specified coercion function */
-	COERCION_PATH_RELABELTYPE,  /* binary-compatible cast, no function */
-	COERCION_PATH_ARRAYCOERCE,  /* need an ArrayCoerceExpr node */
-	COERCION_PATH_COERCEVIAIO	/* need a CoerceViaIO node */
-} CoercionPathType;
-
-static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
-							CoercionContext ccontext, Oid *funcid);
-static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
-							CoercionContext ccontext, Oid *funcid)
-{
-	if ( find_coercion_pathway(targetTypeId, sourceTypeId, ccontext, funcid) )
-		return *funcid != InvalidOid ?
-			COERCION_PATH_FUNC : COERCION_PATH_RELABELTYPE;
-	else
-		return COERCION_PATH_NONE;
-}
-#define find_coercion_pathway fcp
-#endif
-
-#if PG_VERSION_NUM < 90500
-#define DomainHasConstraints(x) true
-#endif
-
 #if PG_VERSION_NUM < 110000
 static Oid BOOLARRAYOID;
 static Oid CHARARRAYOID;
 static Oid FLOAT8ARRAYOID;
 static Oid INT8ARRAYOID;
-#if PG_VERSION_NUM < 80400
-static Oid INT2ARRAYOID;
-#endif
 #endif
 
 static HashMap s_typeByOid;
@@ -1055,9 +1024,6 @@ void Type_initialize(void)
 	CHARARRAYOID   = get_array_type(CHAROID);
 	FLOAT8ARRAYOID = get_array_type(FLOAT8OID);
 	INT8ARRAYOID   = get_array_type(INT8OID);
-#if PG_VERSION_NUM < 80400
-	INT2ARRAYOID   = get_array_type(INT2OID);
-#endif
 #endif
 
 	initializeTypeBridges();

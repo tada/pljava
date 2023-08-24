@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -19,7 +19,6 @@ import static java.util.Arrays.fill;
 
 import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.annotation.Function;
-import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**
@@ -28,21 +27,7 @@ import org.postgresql.pljava.annotation.SQLType;
  * function.
  *<p>
  * Also tests the proper DDR generation of defaults for such parameters.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(
-	provides = "paramtypeinfo type", // created in Triggers.java
-	install = {
-		"CREATE TYPE javatest.paramtypeinfo AS (" +
-		" name text, pgtypename text, javaclass text, tostring text" +
-		")"
-	},
-	remove = {
-		"DROP TYPE javatest.paramtypeinfo"
-	}
-)
 public class RecordParameterDefaults implements ResultSetProvider
 {
 	/**
@@ -62,11 +47,11 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 *</pre>
 	 */
 	@Function(
-		requires = "paramtypeinfo type",
 		schema = "javatest",
-		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
-		type = "javatest.paramtypeinfo"
-		)
+		out = {
+			"name text", "pgtypename text", "javaclass text", "tostring text"
+		}
+	)
 	public static ResultSetProvider paramDefaultsRecord(
 		@SQLType(defaultValue={})ResultSet params)
 	throws SQLException
@@ -87,7 +72,6 @@ public class RecordParameterDefaults implements ResultSetProvider
 	 */
 	@Function(
 		requires = "foobar tables", // created in Triggers.java
-		implementor = "postgresql_ge_80400", // supports function param DEFAULTs
 		schema = "javatest"
 		)
 	public static String paramDefaultsNamedRow(

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -38,8 +38,8 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  * also create a function and trigger that uses transition tables.
  *<p>
  * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example. Constraint triggers
- * appear in PG 9.1, transition tables in PG 10.
+ * version, set up in the {@link ConditionalDDR} example. Transition tables
+ * appear in PG 10.
  */
 @SQLAction(
 	provides = "foobar tables",
@@ -135,10 +135,8 @@ public class Triggers
 
 	/**
 	 * Throw exception if value to be inserted is 44.
-	 * Constraint triggers first became available in PostgreSQL 9.1.
 	 */
 	@Function(
-		implementor = "postgresql_ge_90100",
 		requires = "foobar tables",
 		provides = "constraint triggers",
 		schema = "javatest",
