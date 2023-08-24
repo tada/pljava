@@ -47,6 +47,7 @@ jobject pljava_Portal_create(Portal portal, jobject jplan)
 	jobject jportal;
 	Ptr2Long p2l;
 	Ptr2Long p2lro;
+	Ptr2Long p2lcxt;
 	if(portal == 0)
 		return NULL;
 
@@ -56,8 +57,11 @@ jobject pljava_Portal_create(Portal portal, jobject jplan)
 	p2lro.longVal = 0L;
 	p2lro.ptrVal = portal->resowner;
 
+	p2lcxt.longVal = 0L;
+	p2lcxt.ptrVal = portal->portalContext;
+
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
-		p2lro.longVal, p2l.longVal, jplan);
+		p2lro.longVal, p2lcxt.longVal, p2l.longVal, jplan);
 
 	return jportal;
 }
@@ -124,7 +128,7 @@ void pljava_Portal_initialize(void)
 	s_Portal_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Portal"));
 	PgObject_registerNatives2(s_Portal_class, methods);
 	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>",
-		"(JJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
+		"(JJJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
 
 	/*
 	 * Statically assert that the Java code has the right values for these.

@@ -18,9 +18,12 @@ import org.postgresql.pljava.internal.SPI;
 
 import org.postgresql.pljava.Lifespan;
 
+import org.postgresql.pljava.model.MemoryContext;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
+import org.postgresql.pljava.pg.MemoryContextImpl;
+import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
 import org.postgresql.pljava.pg.ResourceOwnerImpl;
 import org.postgresql.pljava.pg.TupleTableSlotImpl;
 
@@ -49,6 +52,8 @@ public class Portal implements org.postgresql.pljava.model.Portal
 
 	private final State m_state;
 
+	private final MemoryContext m_context;
+
 	private static final int  FETCH_FORWARD  = 0;
 	private static final int  FETCH_BACKWARD = 1;
 	private static final int  FETCH_ABSOLUTE = 2;
@@ -63,9 +68,10 @@ public class Portal implements org.postgresql.pljava.model.Portal
 		assert FETCH_RELATIVE == Direction.RELATIVE.ordinal();
 	}
 
-	Portal(long ro, long pointer, ExecutionPlan plan)
+	Portal(long ro, long cxt, long pointer, ExecutionPlan plan)
 	{
 		m_state = new State(this, ResourceOwnerImpl.fromAddress(ro), pointer);
+		m_context = MemoryContextImpl.fromAddress(cxt);
 		m_plan = plan;
 	}
 
@@ -143,8 +149,14 @@ public class Portal implements org.postgresql.pljava.model.Portal
 	{
 		assert threadMayEnterPG(); // only call slot() on PG thread
 		if ( null == m_slot )
-			m_slot = _makeTupleTableSlot(
-				m_state.getPortalPtr(), tupleDescriptor());
+		{
+			try ( Checked.AutoCloseable<RuntimeException> ac =
+				allocatingIn(m_context) )
+			{
+				m_slot = _makeTupleTableSlot(
+					m_state.getPortalPtr(), tupleDescriptor());
+			}
+		}
 		return m_slot;
 	}
 

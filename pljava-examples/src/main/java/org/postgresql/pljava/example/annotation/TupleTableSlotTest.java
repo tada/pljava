@@ -22,6 +22,7 @@ import java.util.Arrays;
 import static java.util.Arrays.deepToString;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import java.time.LocalDateTime;
@@ -37,11 +38,14 @@ import org.postgresql.pljava.Adapter.AsShort;
 import org.postgresql.pljava.Adapter.AsChar;
 import org.postgresql.pljava.Adapter.AsByte;
 import org.postgresql.pljava.Adapter.AsBoolean;
+import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.TargetList;
 import org.postgresql.pljava.TargetList.Cursor;
 import org.postgresql.pljava.TargetList.Projection;
 
 import org.postgresql.pljava.annotation.Function;
+import static
+	org.postgresql.pljava.annotation.Function.OnNullInput.RETURNS_NULL;
 
 import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.Portal;
@@ -444,6 +448,147 @@ public class TupleTableSlotTest
 		{
 			super(config, over, null);
 		}
+	}
+
+	/**
+	 * A surprisingly useful composing adapter that should eventually be
+	 * part of a built-in set.
+	 *<p>
+	 * Surprisingly useful, because although it "does" nothing, composing it
+	 * over any primitive adapter produces one that returns the boxed form, and
+	 * Java null for SQL null.
+	 */
+	public static class Identity<T> extends As<T,T>
+	{
+		// the inherited fetchNull returns null, which is just right
+
+		public T adapt(Attribute a, T value)
+		{
+			return value;
+		}
+
+		private static final Adapter.Configuration config =
+			Adapter.configure(Identity.class, null);
+
+		/*
+		 * Another choice could be to restrict 'over' to extend Primitive, as
+		 * there isn't much point composing this adapter over one of reference
+		 * type ... unless you want Java null for SQL null and the 'over'
+		 * adapter produces something else.
+		 */
+		Identity(Adapter<T,?> over)
+		{
+			super(config, over, null);
+		}
+	}
+
+	/**
+	 * Test retrieving results from a query using the PG-model API and returning
+	 * them to the caller using the legacy JDBC API.
+	 * @param query a query producing some number of columns
+	 * @param adapters an array of strings, twice the number of columns,
+	 * supplying a class name and static field name for the ugly temporary
+	 * {@code adapterPlease} method, one such pair for each result column
+	 */
+	@Function(
+		schema = "javatest", type = "pg_catalog.record", variadic = true,
+		onNullInput = RETURNS_NULL
+	)
+	public static ResultSetProvider modelToJDBC(String query, String[] adapters)
+	throws SQLException, ReflectiveOperationException
+	{
+		Connection conn = getConnection("jdbc:default:connection");
+		SlotTester t = conn.unwrap(SlotTester.class);
+		Portal p = t.unwrapAsPortal(conn.createStatement().executeQuery(query));
+		TupleDescriptor td = p.tupleDescriptor();
+
+		if ( adapters.length != 2 * td.size() )
+			throw new SQLException(String.format(
+				"query makes %d columns so 'adapters' should have %d " +
+				"elements, not %d", td.size(), 2*td.size(), adapters.length));
+
+		if ( Arrays.stream(adapters).anyMatch(Objects::isNull) )
+			throw new SQLException("adapters array has null element");
+
+		As<?,?>[] resolved = new As<?,?>[ td.size() ];
+
+		for ( int i = 0 ; i < resolved.length ; ++ i )
+		{
+			Adapter<?,?> a =
+				t.adapterPlease(adapters[i<<1], adapters[(i<<1) + 1]);
+			if ( a instanceof As<?,?> )
+				resolved[i] = (As<?,?>)a;
+			else
+				resolved[i] = new Identity(a);
+		}
+
+		return new ResultSetProvider.Large()
+		{
+			@Override
+			public boolean assignRowValues(ResultSet out, long currentRow)
+			throws SQLException
+			{
+				if ( 0 == currentRow )
+				{
+					int rcols = out.getMetaData().getColumnCount();
+					if ( td.size() != rcols )
+						throw new SQLException(String.format(
+							"query makes %d columns but result descriptor " +
+							"has %d", td.size(), rcols));
+				}
+
+				/*
+				 * This example will fetch one tuple at a time here in the
+				 * ResultSetProvider. This is a low-level interface to Postgres.
+				 * In the SFRM_ValuePerCall protocol that ResultSetProvider
+				 * supports, a fresh call from Postgres is made to retrieve each
+				 * row. The Portal lives in a memory context that persists
+				 * across the multiple calls, but the fetch result tups only
+				 * exist in a child of the SPI context set up for each call.
+				 * So here we only fetch as many tups as we can use to make one
+				 * result row.
+				 *
+				 * If the logic involved fetching a bunch of rows and processing
+				 * those into Java representations with no further dependence on
+				 * the native tuples, then of course that could be done all in
+				 * advance.
+				 */
+				List<TupleTableSlot> tups = p.fetch(FORWARD, 1);
+				if ( 0 == tups.size() )
+					return false;
+
+				TupleTableSlot tts = tups.get(0);
+
+				for ( int i = 0 ; i < resolved.length ; ++ i )
+				{
+					Object o = tts.get(i, resolved[i]);
+					try
+					{
+						out.updateObject(1 + i, o);
+					}
+					catch ( SQLException e )
+					{
+						try
+						{
+							out.updateObject(1 + i, o.toString());
+						}
+						catch ( SQLException e2 )
+						{
+							e.addSuppressed(e2);
+							throw e;
+						}
+					}
+				}
+
+				return true;
+			}
+
+			@Override
+			public void close()
+			{
+				p.close();
+			}
+		};
 	}
 
 	/**
