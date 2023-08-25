@@ -335,17 +335,16 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 	 * The source type can be used to detect efforts to store this value into
 	 * a destination of a different type, and apply a verifier for type safety.
 	 */
-	public static SQLXML newReadable(
-		Datum.Input datum, RegType pgType, boolean synthetic)
+	public static <T extends InputStream & Datum> SQLXML newReadable(
+		Datum.Input<T> datum, RegType pgType, boolean synthetic)
 	throws SQLException
 	{
-		Datum.Input di = (Datum.Input)datum;
 		int oid = pgType.oid();
 
 		if ( synthetic )
-			return new Readable.Synthetic(di, oid);
+			return new Readable.Synthetic(datum, oid);
 
-		return new Readable.PgXML(di, oid);
+		return new Readable.PgXML<>(datum, oid);
 	}
 
 	/**

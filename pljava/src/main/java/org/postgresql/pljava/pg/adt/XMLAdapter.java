@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.pg.adt;
 
+import java.io.InputStream;
 import java.io.IOException;
 
 import java.security.AccessController;
@@ -65,7 +66,8 @@ public class XMLAdapter extends Adapter.As<SQLXML,Void>
 			|| RegType.TEXT == pgType;
 	}
 
-	public SQLXML fetch(Attribute a, Datum.Input in)
+	public <T extends InputStream & Datum>
+		SQLXML fetch(Attribute a, Datum.Input<T> in)
 	throws SQLException, IOException
 	{
 		return SQLXMLImpl.newReadable(in, a.type(), false);
@@ -94,7 +96,8 @@ public class XMLAdapter extends Adapter.As<SQLXML,Void>
 		}
 
 		@Override
-		public SQLXML fetch(Attribute a, Datum.Input in)
+		public <T extends InputStream & Datum>
+			SQLXML fetch(Attribute a, Datum.Input<T> in)
 		throws SQLException, IOException
 		{
 			return SQLXMLImpl.newReadable(in, a.type(), true);
