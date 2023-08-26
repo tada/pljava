@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,6 +14,9 @@ package org.postgresql.pljava;
 import java.io.Reader;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import java.util.List;
+import static java.util.Objects.requireNonNull;
+import java.util.function.Consumer;
 import javax.xml.stream.XMLInputFactory; // for javadoc
 import javax.xml.stream.XMLResolver; // for javadoc
 import javax.xml.stream.XMLStreamReader;
@@ -127,15 +130,138 @@ public final class Adjusting
 		private XML() { } // no instances
 
 		/**
+		 * Attempts a given action (typically to set something) using a given
+		 * value, trying one or more supplied keys in order until the action
+		 * succeeds with no exception.
+		 *<p>
+		 * This logic is common to the
+		 * {@link Parsing#setFirstSupportedFeature setFirstSupportedFeature}
+		 * and
+		 * {@link Parsing#setFirstSupportedProperty setFirstSupportedProperty}
+		 * methods, and is exposed here because it may be useful for other
+		 * tasks in Java's XML APIs, such as configuring {@code Transformer}s.
+		 *<p>
+		 * If any attempt succeeds, null is returned. If no attempt
+		 * succeeds, the first exception caught is returned, with any
+		 * exceptions from the subsequent attempts retrievable from it with
+		 * {@link Exception#getSuppressed getSuppressed}. The return is
+		 * immediate, without any remaining names being tried, if an exception
+		 * is caught that is not assignable to a class in the
+		 * <var>expected</var> list. Such an exception will be passed to the
+		 * <var>onUnexpected</var> handler if that is non-null; otherwise,
+		 * it will be returned (or added to the suppressed list of the
+		 * exception to be returned) just as expected exceptions are.
+		 * @param setter typically a method reference for a method that
+		 * takes a string key and some value.
+		 * @param value the value to pass to the setter
+		 * @param expected a list of exception classes that can be foreseen
+		 * to indicate that a key was not recognized, and the operation
+		 * should be retried with the next possible key.
+		 * @param onUnexpected invoked, if non-null, on an {@code Exception}
+		 * that is caught and matches nothing in the expected list, instead
+		 * of returning it. If this parameter is null, such an exception is
+		 * returned (or added to the suppressed list of the exception to be
+		 * returned), just as for expected exceptions, but the return is
+		 * immediate, without trying remaining names, if any.
+		 * @param names one or more String keys to be tried in order until
+		 * the action succeeds.
+		 * @return null if any attempt succeeded, otherwise an exception,
+		 * which may have further exceptions in its suppressed list.
+		 */
+		public static <T, V extends T> Exception setFirstSupported(
+			SetMethod<? super T> setter, V value,
+			List<Class<? extends Exception>> expected,
+			Consumer<? super Exception> onUnexpected, String... names)
+		{
+			requireNonNull(expected);
+			Exception caught = null;
+			for ( String name : names )
+			{
+				try
+				{
+					setter.set(name, value);
+					return null;
+				}
+				catch ( Exception e )
+				{
+					boolean benign =
+						expected.stream().anyMatch(c -> c.isInstance(e));
+
+					if ( benign  ||  null == onUnexpected )
+					{
+						if ( null == caught )
+							caught = e;
+						else
+							caught.addSuppressed(e);
+					}
+					else
+						onUnexpected.accept(e);
+
+					if ( ! benign )
+						break;
+				}
+			}
+			return caught;
+		}
+
+		/**
+		 * A functional interface fitting various {@code setFeature} or
+		 * {@code setProperty} methods in Java XML APIs.
+		 *<p>
+		 * The XML APIs have a number of methods on various interfaces that can
+		 * be used to set some property or feature, and can generally be
+		 * assigned to this functional interface by bound method reference, and
+		 * used with {@link #setFirstSupported setFirstSupported}.
+		 */
+		@FunctionalInterface
+		public interface SetMethod<T>
+		{
+			void set(String key, T value) throws Exception;
+		}
+
+		/**
 		 * Interface with methods to adjust the restrictions on XML parsing
 		 * that are commonly considered when XML content might be from untrusted
 		 * sources.
 		 *<p>
-		 * The adjusting methods are best-effort and do not provide an
-		 * indication of whether the requested adjustment was made. Not all of
+		 * The adjusting methods are best-effort; not all of
 		 * the adjustments are available for all flavors of {@code Source} or
 		 * {@code Result} or for all parser implementations or versions the Java
-		 * runtime may supply.
+		 * runtime may supply. Cases where a requested adjustment has not been
+		 * made are handled as follows:
+		 *<p>
+		 * Any sequence of adjustment calls will ultimately be followed by a
+		 * {@code get}. During the sequence of adjustments, exceptions caught
+		 * are added to a signaling list or to a quiet list, where "added to"
+		 * means that if either list has a first exception, any caught later are
+		 * attached to that exception with
+		 * {@link Exception#addSuppressed addSuppressed}.
+		 *<p>
+		 * For each adjustment (and depending on the type of underlying
+		 * {@code Source} or {@code Result}), one or more exception types will
+		 * be 'expected' as indications that an identifying key or value for
+		 * that adjustment was not recognized. This implementation may continue
+		 * trying to apply the adjustment, using other keys that have at times
+		 * been used to identify it. Expected exceptions caught during these
+		 * attempts form a temporary list (a first exception and those attached
+		 * to it by {@code addSuppressed}). Once any such attempt succeeds, the
+		 * adjustment is considered made, and any temporary expected exceptions
+		 * list from the adjustment is discarded. If no attempt succeeded, the
+		 * temporary list is retained, by adding its head exception to the quiet
+		 * list.
+		 *<p>
+		 * Any exceptions caught that are not instances of any of the 'expected'
+		 * types are added to the signaling list.
+		 *<p>
+		 * When {@code get} is called, the head exception on the signaling list,
+		 * if any, is thrown. Otherwise, the head exception on the quiet list,
+		 * if any, is logged at [@code WARNING} level.
+		 *<p>
+		 * During a chain of adjustments, {@link #lax lax()} can be called to
+		 * tailor the handling of the quiet list. A {@code lax()} call applies
+		 * to whatever exceptions have been added to the quiet list up to that
+		 * point. To discard them, call {@code lax(true)}; to move them to the
+		 * signaling list, call {@code lax(false)}.
 		 */
 		public interface Parsing<T extends Parsing<T>>
 		{
@@ -173,14 +299,14 @@ public final class Adjusting
 
 			/**
 			 * For a feature that may have been identified by more than one URI
-			 * in different parsers or versions, try passing the supplied
+			 * in different parsers or versions, tries passing the supplied
 			 * <em>value</em> with each URI from <em>names</em> in order until
 			 * one is not rejected by the underlying parser.
 			 */
 			T setFirstSupportedFeature(boolean value, String... names);
 
 			/**
-			 * Make a best effort to apply the recommended, restrictive
+			 * Makes a best effort to apply the recommended, restrictive
 			 * defaults from the OWASP cheat sheet, to the extent they are
 			 * supported by the underlying parser, runtime, and version.
 			 *<p>
@@ -196,7 +322,7 @@ public final class Adjusting
 			/**
 			 * For a parser property (in DOM parlance, attribute) that may have
 			 * been identified by more than one URI in different parsers or
-			 * versions, try passing the supplied <em>value</em> with each URI
+			 * versions, tries passing the supplied <em>value</em> with each URI
 			 * from <em>names</em> in order until one is not rejected by the
 			 * underlying parser.
 			 *<p>
@@ -278,7 +404,7 @@ public final class Adjusting
 			T accessExternalSchema(String protocols);
 
 			/**
-			 * Set an {@link EntityResolver} of the type used by SAX and DOM
+			 * Sets an {@link EntityResolver} of the type used by SAX and DOM
 			 * <em>(optional operation)</em>.
 			 *<p>
 			 * This method only succeeds for a {@code SAXSource} or
@@ -297,7 +423,7 @@ public final class Adjusting
 			T entityResolver(EntityResolver resolver);
 
 			/**
-			 * Set a {@link Schema} to be applied during SAX or DOM parsing
+			 * Sets a {@link Schema} to be applied during SAX or DOM parsing
 			 *<em>(optional operation)</em>.
 			 *<p>
 			 * This method only succeeds for a {@code SAXSource} or
@@ -316,6 +442,31 @@ public final class Adjusting
 			 * already.
 			 */
 			T schema(Schema schema);
+
+			/**
+			 * Tailors the treatment of 'quiet' exceptions during a chain of
+			 * best-effort adjustments.
+			 *<p>
+			 * See {@link Parsing the class description} for an explanation of
+			 * the signaling and quiet lists.
+			 *<p>
+			 * This method applies to whatever exceptions may have been added to
+			 * the quiet list by best-effort adjustments made up to that point.
+			 * They can be moved to the signaling list with {@code lax(false)},
+			 * or simply discarded with {@code lax(true)}. In either case, the
+			 * quiet list is left empty when {@code lax} returns.
+			 *<p>
+			 * At the time a {@code get} method is later called, any exception
+			 * at the head of the signaling list will be thrown (possibly
+			 * wrapped in an exception permitted by {@code get}'s {@code throws}
+			 * clause), with any later exceptions on that list retrievable from
+			 * the head exception with
+			 * {@link Exception#getSuppressed getSuppressed}. Otherwise, any
+			 * exception at the head of the quiet list (again with any later
+			 * ones attached as its suppressed list) will be logged at
+			 * {@code WARNING} level.
+			 */
+			T lax(boolean discard);
 		}
 
 		/**
@@ -347,12 +498,17 @@ public final class Adjusting
 		extends Parsing<Source<T>>, javax.xml.transform.Source
 		{
 			/**
-			 * Return an object of the expected {@code Source} subtype
+			 * Returns an object of the expected {@code Source} subtype
 			 * reflecting any adjustments made with the other methods.
+			 *<p>
+			 * Refer to {@link Parsing the {@code Parsing} class description}
+			 * and the {@link Parsing#lax lax()} method for how any exceptions
+			 * caught while applying best-effort adjustments are handled.
 			 * @return an implementing object of the expected Source subtype
 			 * @throws SQLException for any reason that {@code getSource} might
 			 * have thrown when supplying the corresponding non-Adjusting
-			 * subtype of Source.
+			 * subtype of Source, or for reasons saved while applying
+			 * adjustments.
 			 */
 			T get() throws SQLException;
 		}
@@ -392,12 +548,16 @@ public final class Adjusting
 		extends Parsing<Result<T>>, javax.xml.transform.Result
 		{
 			/**
-			 * Return an object of the expected {@code Result} subtype
+			 * Returns an object of the expected {@code Result} subtype
 			 * reflecting any adjustments made with the other methods.
+			 * Refer to {@link Parsing the {@code Parsing} class description}
+			 * and the {@link Parsing#lax lax()} method for how any exceptions
+			 * caught while applying best-effort adjustments are handled.
 			 * @return an implementing object of the expected Result subtype
 			 * @throws SQLException for any reason that {@code getResult} might
 			 * have thrown when supplying the corresponding non-Adjusting
-			 * subtype of Result.
+			 * subtype of Result, or for reasons saved while applying
+			 * adjustments.
 			 */
 			T get() throws SQLException;
 		}
@@ -428,7 +588,7 @@ public final class Adjusting
 		public interface SourceResult extends Result<SourceResult>
 		{
 			/**
-			 * Supply the {@code Source} instance that is the source of the
+			 * Supplies the {@code Source} instance that is the source of the
 			 * content.
 			 *<p>
 			 * This method must be called before any of the inherited adjustment
@@ -484,7 +644,8 @@ public final class Adjusting
 			throws SQLException;
 
 			/**
-			 * Provide the content to be copied in the form of a {@code String}.
+			 * Provides the content to be copied in the form of a
+			 * {@code String}.
 			 *<p>
 			 * An exception from the pattern of {@code Source}-typed arguments,
 			 * this method simplifies retrofitting adjustments into code that
@@ -507,11 +668,14 @@ public final class Adjusting
 			throws SQLException;
 
 			/**
-			 * Return the result {@code SQLXML} instance ready for handing off
+			 * Returns the result {@code SQLXML} instance ready for handing off
 			 * to PostgreSQL.
 			 *<p>
-			 * This method must be called after any of the inherited adjustment
-			 * methods.
+			 * The handling/logging of exceptions normally handled in a
+			 * {@code get} method happens here for a {@code SourceResult}.
+			 *<p>
+			 * Any necessary calls of the inherited adjustment methods must be
+			 * made before this method is called.
 			 */
 			SQLXML getSQLXML() throws SQLException;
 		}
