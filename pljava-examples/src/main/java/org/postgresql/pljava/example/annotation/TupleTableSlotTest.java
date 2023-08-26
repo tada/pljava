@@ -68,9 +68,9 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "   FROM" +
 "    javatest.modelToJDBC(" +
 "     'SELECT DISTINCT' ||" +
-"     '  CAST ( relacl AS pg_catalog.text ), relacl' ||" +
+"     '  CAST ( relacl AS text ), relacl' ||" +
 "     ' FROM' ||" +
-"     '  pg_catalog.pg_class' ||" +
+"     '  pg_class' ||" +
 "     ' WHERE' ||" +
 "     '  relacl IS NOT NULL'," +
 "     'org.postgresql.pljava.pg.adt.TextAdapter',  'INSTANCE'," +
@@ -79,17 +79,43 @@ import org.postgresql.pljava.model.TupleTableSlot;
 " )," +
 " conformed AS (" +
 "  SELECT" +
-"    raw, pg_catalog.translate(cooked, '[] ', '{}') AS cooked" +
+"    raw, translate(cooked, '[] ', '{}') AS cooked" +
 "   FROM" +
 "    result" +
 " )" +
 " SELECT" +
-"   CASE WHEN pg_catalog.every(raw = cooked )" +
+"   CASE WHEN every(raw = cooked)" +
 "   THEN javatest.logmessage('INFO', 'AclItem[] ok')" +
 "   ELSE javatest.logmessage('WARNING', 'AclItem[] ng')" +
 "   END" +
 "  FROM" +
 "   conformed"
+)
+@SQLAction(requires = "modelToJDBC", install =
+"WITH" +
+" result AS (" +
+"  SELECT" +
+"    raw, cooked, CAST ( cooked AS numeric ) AS refried" +
+"   FROM" +
+"    javatest.modeltojdbc(" +
+"     'SELECT' ||" +
+"     '  CAST ( pow AS text ) AS txt, pow AS bin' ||" +
+"     ' FROM' ||" +
+"     '  generate_series(-20., 20., 1.) AS gs(p),' ||" +
+"     '  (VALUES (1e-16), (1e-65)) AS pf(f),' ||" +
+"     '  (VALUES (1.), (-1.)) AS sf(sgn),' ||" +
+"     '  LATERAL (SELECT sgn*(37.821637 ^ (p + f))) AS s(pow)'," +
+"     'org.postgresql.pljava.pg.adt.TextAdapter', 'INSTANCE'," +
+"     'org.postgresql.pljava.pg.adt.NumericAdapter', 'BIGDECIMAL_INSTANCE'" +
+"    ) AS j(raw text, cooked text)" +
+" )" +
+" SELECT" +
+"   CASE WHEN every(raw = cooked OR raw = CAST ( refried AS text ))" +
+"   THEN javatest.logmessage('INFO', 'NUMERIC ok')" +
+"   ELSE javatest.logmessage('WARNING', 'NUMERIC ng')" +
+"   END" +
+"  FROM" +
+"   result"
 )
 public class TupleTableSlotTest
 {

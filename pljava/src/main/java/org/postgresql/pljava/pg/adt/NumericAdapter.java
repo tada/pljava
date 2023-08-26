@@ -13,6 +13,8 @@ package org.postgresql.pljava.pg.adt;
 
 import java.io.IOException;
 
+import java.math.BigDecimal;
+
 import java.nio.ShortBuffer;
 import static java.nio.ByteOrder.nativeOrder;
 
@@ -24,6 +26,7 @@ import java.sql.SQLException;
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.adt.Numeric;
 import org.postgresql.pljava.adt.Numeric.Kind;
+import org.postgresql.pljava.adt.Numeric.AsBigDecimal;
 import org.postgresql.pljava.adt.spi.Datum;
 import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.RegType;
@@ -41,6 +44,9 @@ public class NumericAdapter<T> extends Adapter.As<T,Void>
 		AccessController.doPrivileged(
 			(PrivilegedAction<Configuration>)() ->
 				configure(NumericAdapter.class, Via.DATUM));
+
+	public static final NumericAdapter<BigDecimal> BIGDECIMAL_INSTANCE =
+		new NumericAdapter(AsBigDecimal.INSTANCE);
 
 	public NumericAdapter(Numeric<T> ctor)
 	{
