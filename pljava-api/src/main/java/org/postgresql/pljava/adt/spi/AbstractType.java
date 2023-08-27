@@ -830,7 +830,7 @@ public abstract class AbstractType implements Type
 	 *<p>
 	 * Construct a {@code MultiArray} by supplying a component {@link Type} and
 	 * a number of dimensions. The resulting {@code MultiArray} represents the
-	 * Java array type has a number of bracket pairs equal to the supplied
+	 * Java array type, and has a number of bracket pairs equal to the supplied
 	 * dimensions argument plus those of the component type if it is itself a
 	 * Java array. (There could be an {@code Adapter} for some PostgreSQL scalar
 	 * type that presents it as a Java array, and then there could be a

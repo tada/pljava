@@ -311,7 +311,7 @@ public interface Numeric<T> extends Contract.Scalar<T>
 			 * will always be a multiple of DEC_DIGITS (i.e. 4). It's also
 			 * the scale of the BigDecimal constructed so far, and represents
 			 * the position, right of the decimal point, of the least stored
-			 * digit. Because of that DEC-DIGITS granularity, thought, it may
+			 * digit. Because of that DEC-DIGITS granularity, though, it may
 			 * reflect up to three trailing zeros from the last element of
 			 * base10000Digits that are not really significant. When scale and
 			 * displayScale are positive (the value extends right of the decimal
