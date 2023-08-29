@@ -67,12 +67,12 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "    * " +
 "   FROM" +
 "    javatest.modelToJDBC(" +
-"     'SELECT DISTINCT' ||" +
-"     '  CAST ( relacl AS text ), relacl' ||" +
-"     ' FROM' ||" +
-"     '  pg_class' ||" +
-"     ' WHERE' ||" +
-"     '  relacl IS NOT NULL'," +
+"     'SELECT DISTINCT" +
+"       CAST ( relacl AS text ), relacl" +
+"      FROM" +
+"       pg_class" +
+"      WHERE" +
+"       relacl IS NOT NULL'," +
 "     'org.postgresql.pljava.pg.adt.TextAdapter',  'INSTANCE'," +
 "     'org.postgresql.pljava.pg.adt.GrantAdapter', 'LIST_INSTANCE'" +
 "    ) AS r(raw text, cooked text)" +
@@ -98,13 +98,13 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "    raw, cooked, CAST ( cooked AS numeric ) AS refried" +
 "   FROM" +
 "    javatest.modeltojdbc(" +
-"     'SELECT' ||" +
-"     '  CAST ( pow AS text ) AS txt, pow AS bin' ||" +
-"     ' FROM' ||" +
-"     '  generate_series(-20., 20., 1.) AS gs(p),' ||" +
-"     '  (VALUES (1e-16), (1e-65)) AS pf(f),' ||" +
-"     '  (VALUES (1.), (-1.)) AS sf(sgn),' ||" +
-"     '  LATERAL (SELECT sgn*(37.821637 ^ (p + f))) AS s(pow)'," +
+"     'SELECT" +
+"       CAST ( pow AS text ) AS txt, pow AS bin" +
+"      FROM" +
+"       generate_series(-20., 20., 1.) AS gs(p)," +
+"       (VALUES (1e-16), (1e-65)) AS pf(f)," +
+"       (VALUES (1.), (-1.)) AS sf(sgn)," +
+"       LATERAL (SELECT sgn*(37.821637 ^ (p + f))) AS s(pow)'," +
 "     'org.postgresql.pljava.pg.adt.TextAdapter', 'INSTANCE'," +
 "     'org.postgresql.pljava.pg.adt.NumericAdapter', 'BIGDECIMAL_INSTANCE'" +
 "    ) AS j(raw text, cooked text)" +
