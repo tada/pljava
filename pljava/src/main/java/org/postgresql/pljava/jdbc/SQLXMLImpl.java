@@ -4203,16 +4203,20 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			return e;
 		}
 
-		@Override
-		public T lax(boolean discard)
+		/**
+		 * Common factor of subclass {@link #lax() lax()} instance methods.
+		 *<p>
+		 * The work is done here, but the instance methods are implemented
+		 * per-subclass to avoid unchecked casting of 'this'.
+		 */
+		protected static void lax(AdjustingJAXPParser o, boolean discard)
 		{
-			if ( null != m_quiet )
+			if ( null != o.m_quiet )
 			{
 				if ( ! discard )
-					addSignaling(m_quiet);
-				m_quiet = null;
+					o.addSignaling(o.m_quiet);
+				o.m_quiet = null;
 			}
-			return (T)this;
 		}
 
 		@Override
@@ -5094,6 +5098,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public AdjustingSAXSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
+		}
+
+		@Override
 		public AdjustingSAXSource defaults()
 		{
 			m_hasCalledDefaults = true;
@@ -5216,6 +5227,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public AdjustingSAXResult lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
+		}
+
+		@Override
 		public AdjustingSAXResult xIncludeAware(boolean v)
 		{
 			return checkedNoOp();
@@ -5322,6 +5340,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw normalizedException(e);
 
 			return ss;
+		}
+
+		@Override
+		public AdjustingStAXSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
@@ -5455,6 +5480,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw normalizedException(e);
 
 			return ds;
+		}
+
+		@Override
+		public AdjustingDOMSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
