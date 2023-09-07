@@ -182,11 +182,15 @@ function executeReport(report, locale)
 		 * A special file manager that will rewrite the RELDOTS seen in
 		 * -linkoffline above. The options a file manager recognizes must be the
 		 * first ones in args; handleFirstOptions below returns at the first one
-		 * the file manager doesn't know what to do with.
+		 * the file manager doesn't know what to do with. Java 19 seems to have
+		 * learned to pass the args to the file manager without the fuss here.
 		 */
 		var rmgr = new org.postgresql.pljava.pgxs.RelativizingFileManager(
 			smgr, Charset.forName(report.outputEncoding));
-		rmgr.handleFirstOptions(args);
+
+		var v = java.lang.Runtime.version();
+		if ( 0 > v.compareTo(java.lang.Runtime.Version.parse("19-ea")) )
+			rmgr.handleFirstOptions(args);
 
 		var task = tool.getTask(null, rmgr, diagListener, null, args, null);
 		if (task.call())
