@@ -46,7 +46,7 @@ public class NumericAdapter<T> extends Adapter.As<T,Void>
 				configure(NumericAdapter.class, Via.DATUM));
 
 	public static final NumericAdapter<BigDecimal> BIGDECIMAL_INSTANCE =
-		new NumericAdapter(AsBigDecimal.INSTANCE);
+		new NumericAdapter<>(AsBigDecimal.INSTANCE);
 
 	public NumericAdapter(Numeric<T> ctor)
 	{
