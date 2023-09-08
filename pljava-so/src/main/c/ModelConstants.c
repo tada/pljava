@@ -93,10 +93,15 @@ static int32 constants[] = {
 
 	CONSTANT(NAMEDATALEN),
 
+
+
 	CONSTANTEXPR(SIZEOF_varatt_indirect, sizeof (varatt_indirect)),
 	CONSTANTEXPR(SIZEOF_varatt_expanded, sizeof (varatt_expanded)),
 	CONSTANTEXPR(SIZEOF_varatt_external, sizeof (varatt_external)),
 
+
+
+	CONSTANT(HEAPTUPLESIZE),
 	CONSTANTEXPR(OFFSET_TTS_NVALID, offsetof(TupleTableSlot, tts_nvalid)),
 	CONSTANTEXPR(SIZEOF_TTS_NVALID, sizeof ((TupleTableSlot *)0)->tts_nvalid),
 
@@ -121,10 +126,7 @@ static int32 constants[] = {
 	NOCONSTANT(OFFSET_TTS_TABLEOID),
 #endif /* 120000 */
 
-	CONSTANTEXPR(SIZEOF_FORM_PG_ATTRIBUTE, sizeof (FormData_pg_attribute)),
-	CONSTANT(ATTRIBUTE_FIXED_PART_SIZE),
-	CONSTANT(CLASS_TUPLE_SIZE),
-	CONSTANT(HEAPTUPLESIZE),
+
 
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
 	CONSTANTEXPR(OFFSET_TUPLEDESC_TDREFCOUNT,
@@ -136,6 +138,10 @@ static int32 constants[] = {
 	CONSTANTEXPR(OFFSET_TUPLEDESC_TDTYPMOD,
 		offsetof(struct TupleDescData, tdtypmod)),
 
+
+
+	CONSTANTEXPR(SIZEOF_FORM_PG_ATTRIBUTE, sizeof (FormData_pg_attribute)),
+	CONSTANT(ATTRIBUTE_FIXED_PART_SIZE),
 	FORMOFFSET( pg_attribute, atttypid ),
 	FORMOFFSET( pg_attribute, attlen ),
 	FORMOFFSET( pg_attribute, attcacheoff ),
@@ -145,7 +151,12 @@ static int32 constants[] = {
 	FORMOFFSET( pg_attribute, attnotnull ),
 	FORMOFFSET( pg_attribute, attisdropped ),
 
+
+
+	CONSTANT(CLASS_TUPLE_SIZE),
 	CONSTANT( Anum_pg_class_reltype ),
+
+
 
 	CONSTANTEXPR(SIZEOF_MCTX, sizeof (MemoryContextData)),
 	TYPEOFFSET(MemoryContextData, MCTX, isReset),
@@ -156,6 +167,12 @@ static int32 constants[] = {
 	TYPEOFFSET(MemoryContextData, MCTX, nextchild),
 	TYPEOFFSET(MemoryContextData, MCTX, name),
 	TYPEOFFSET(MemoryContextData, MCTX, ident),
+
+
+
+	CONSTANT(N_ACL_RIGHTS),
+
+
 
 	CONSTANT(ATTNUM),
 	CONSTANT(AUTHMEMMEMROLE),
@@ -172,7 +189,8 @@ static int32 constants[] = {
 	CONSTANT(TSDICTOID),
 	CONSTANT(TYPEOID),
 
-	CONSTANT(N_ACL_RIGHTS),
+
+
 };
 
 #undef CONSTANT

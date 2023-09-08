@@ -194,81 +194,98 @@ public abstract class ModelConstants
 
 	@Native private static final int IDX_NAMEDATALEN             = 7;
 
-	@Native private static final int IDX_SIZEOF_varatt_indirect  = 8;
-	@Native private static final int IDX_SIZEOF_varatt_expanded  = 9;
-	@Native private static final int IDX_SIZEOF_varatt_external  = 10;
 
-	@Native private static final int IDX_OFFSET_TTS_NVALID       = 11;
-	@Native private static final int IDX_SIZEOF_TTS_NVALID       = 12;
 
-	@Native private static final int IDX_TTS_FLAG_EMPTY          = 13;
-	@Native private static final int IDX_TTS_FLAG_FIXED          = 14;
-	@Native private static final int IDX_OFFSET_TTS_FLAGS        = 15;
+	@Native private static final int IDX_SIZEOF_varatt_indirect  = 10;
+	@Native private static final int IDX_SIZEOF_varatt_expanded  = 11;
+	@Native private static final int IDX_SIZEOF_varatt_external  = 12;
+
+
+
+	@Native private static final int IDX_HEAPTUPLESIZE           = 20;
+	@Native private static final int IDX_OFFSET_TTS_NVALID       = 21;
+	@Native private static final int IDX_SIZEOF_TTS_NVALID       = 22;
+
+	@Native private static final int IDX_TTS_FLAG_EMPTY          = 23;
+	@Native private static final int IDX_TTS_FLAG_FIXED          = 24;
+	@Native private static final int IDX_OFFSET_TTS_FLAGS        = 25;
 
 	/*
 	 * Before PG 12, TTS had no flags field with bit flags, but instead
 	 * distinct boolean (1-byte) fields.
 	 */
-	@Native private static final int IDX_OFFSET_TTS_EMPTY     = 16;
-	@Native private static final int IDX_OFFSET_TTS_FIXED     = 17;
-	@Native private static final int IDX_OFFSET_TTS_TABLEOID  = 18;
+	@Native private static final int IDX_OFFSET_TTS_EMPTY        = 26;
+	@Native private static final int IDX_OFFSET_TTS_FIXED        = 27;
+	@Native private static final int IDX_OFFSET_TTS_TABLEOID     = 28;
 
-	@Native private static final int IDX_SIZEOF_FORM_PG_ATTRIBUTE  = 19;
-	@Native private static final int IDX_ATTRIBUTE_FIXED_PART_SIZE = 20;
-	@Native private static final int IDX_CLASS_TUPLE_SIZE          = 21;
-	@Native private static final int IDX_HEAPTUPLESIZE             = 22;
 
-	@Native private static final int IDX_OFFSET_TUPLEDESC_ATTRS      = 23;
-	@Native private static final int IDX_OFFSET_TUPLEDESC_TDREFCOUNT = 24;
-	@Native private static final int IDX_SIZEOF_TUPLEDESC_TDREFCOUNT = 25;
-	@Native private static final int IDX_OFFSET_TUPLEDESC_TDTYPEID   = 26;
-	@Native private static final int IDX_OFFSET_TUPLEDESC_TDTYPMOD   = 27;
 
-	@Native private static final int IDX_OFFSET_pg_attribute_atttypid     = 28;
-	@Native private static final int IDX_OFFSET_pg_attribute_attlen       = 29;
-	@Native private static final int IDX_OFFSET_pg_attribute_attcacheoff  = 30;
-	@Native private static final int IDX_OFFSET_pg_attribute_atttypmod    = 31;
-	@Native private static final int IDX_OFFSET_pg_attribute_attbyval     = 32;
-	@Native private static final int IDX_OFFSET_pg_attribute_attalign     = 33;
-	@Native private static final int IDX_OFFSET_pg_attribute_attnotnull   = 34;
-	@Native private static final int IDX_OFFSET_pg_attribute_attisdropped = 35;
+	@Native private static final int IDX_OFFSET_TUPLEDESC_ATTRS      = 40;
+	@Native private static final int IDX_OFFSET_TUPLEDESC_TDREFCOUNT = 41;
+	@Native private static final int IDX_SIZEOF_TUPLEDESC_TDREFCOUNT = 42;
+	@Native private static final int IDX_OFFSET_TUPLEDESC_TDTYPEID   = 43;
+	@Native private static final int IDX_OFFSET_TUPLEDESC_TDTYPMOD   = 44;
 
-	@Native private static final int IDX_Anum_pg_class_reltype     = 36;
 
-	@Native private static final int IDX_SIZEOF_MCTX               = 37;
-	@Native private static final int IDX_OFFSET_MCTX_isReset       = 38;
-	@Native private static final int IDX_OFFSET_MCTX_mem_allocated = 39;
-	@Native private static final int IDX_OFFSET_MCTX_parent        = 40;
-	@Native private static final int IDX_OFFSET_MCTX_firstchild    = 41;
-	@Native private static final int IDX_OFFSET_MCTX_prevchild     = 42;
-	@Native private static final int IDX_OFFSET_MCTX_nextchild     = 43;
-	@Native private static final int IDX_OFFSET_MCTX_name          = 44;
-	@Native private static final int IDX_OFFSET_MCTX_ident         = 45;
+
+	@Native private static final int IDX_SIZEOF_FORM_PG_ATTRIBUTE         = 50;
+	@Native private static final int IDX_ATTRIBUTE_FIXED_PART_SIZE        = 51;
+	@Native private static final int IDX_OFFSET_pg_attribute_atttypid     = 52;
+	@Native private static final int IDX_OFFSET_pg_attribute_attlen       = 53;
+	@Native private static final int IDX_OFFSET_pg_attribute_attcacheoff  = 54;
+	@Native private static final int IDX_OFFSET_pg_attribute_atttypmod    = 55;
+	@Native private static final int IDX_OFFSET_pg_attribute_attbyval     = 56;
+	@Native private static final int IDX_OFFSET_pg_attribute_attalign     = 57;
+	@Native private static final int IDX_OFFSET_pg_attribute_attnotnull   = 58;
+	@Native private static final int IDX_OFFSET_pg_attribute_attisdropped = 59;
+
+
+
+	@Native private static final int IDX_CLASS_TUPLE_SIZE          = 70;
+	@Native private static final int IDX_Anum_pg_class_reltype     = 71;
+
+
+
+	@Native private static final int IDX_SIZEOF_MCTX               = 80;
+	@Native private static final int IDX_OFFSET_MCTX_isReset       = 81;
+	@Native private static final int IDX_OFFSET_MCTX_mem_allocated = 82;
+	@Native private static final int IDX_OFFSET_MCTX_parent        = 83;
+	@Native private static final int IDX_OFFSET_MCTX_firstchild    = 84;
+	@Native private static final int IDX_OFFSET_MCTX_prevchild     = 85;
+	@Native private static final int IDX_OFFSET_MCTX_nextchild     = 86;
+	@Native private static final int IDX_OFFSET_MCTX_name          = 87;
+	@Native private static final int IDX_OFFSET_MCTX_ident         = 88;
+
+
+
+	/*
+	 * N_ACL_RIGHTS was stable for a long time, but changes in PG 15 and in 16
+	 */
+	@Native private static final int IDX_N_ACL_RIGHTS              = 100;
+
+
 
 	/*
 	 * Identifiers of different caches in PG's syscache, utils/cache/syscache.c.
 	 * As upstream adds new caches, the enum is kept in alphabetical order, so
 	 * they belong in this section to have their effective values picked up.
 	 */
-	@Native private static final int IDX_ATTNUM         = 46;
-	@Native private static final int IDX_AUTHMEMMEMROLE = 47;
-	@Native private static final int IDX_AUTHMEMROLEMEM = 48;
-	@Native private static final int IDX_AUTHOID        = 49;
-	@Native private static final int IDX_COLLOID        = 50;
-	@Native private static final int IDX_DATABASEOID    = 51;
-	@Native private static final int IDX_LANGOID        = 52;
-	@Native private static final int IDX_NAMESPACEOID   = 53;
-	@Native private static final int IDX_OPEROID        = 54;
-	@Native private static final int IDX_PROCOID        = 55;
-	@Native private static final int IDX_RELOID         = 56;
-	@Native private static final int IDX_TSCONFIGOID    = 57;
-	@Native private static final int IDX_TSDICTOID      = 58;
-	@Native private static final int IDX_TYPEOID        = 59;
+	@Native private static final int IDX_ATTNUM         = 500;
+	@Native private static final int IDX_AUTHMEMMEMROLE = 501;
+	@Native private static final int IDX_AUTHMEMROLEMEM = 502;
+	@Native private static final int IDX_AUTHOID        = 503;
+	@Native private static final int IDX_COLLOID        = 504;
+	@Native private static final int IDX_DATABASEOID    = 505;
+	@Native private static final int IDX_LANGOID        = 506;
+	@Native private static final int IDX_NAMESPACEOID   = 507;
+	@Native private static final int IDX_OPEROID        = 508;
+	@Native private static final int IDX_PROCOID        = 509;
+	@Native private static final int IDX_RELOID         = 510;
+	@Native private static final int IDX_TSCONFIGOID    = 511;
+	@Native private static final int IDX_TSDICTOID      = 512;
+	@Native private static final int IDX_TYPEOID        = 513;
 
-	/*
-	 * N_ACL_RIGHTS was stable for a long time, but changes in PG 15 and in 16
-	 */
-	@Native private static final int IDX_N_ACL_RIGHTS   = 60;
+
 
 	/*
 	 * These public statics are the values of interest, set at class
@@ -290,10 +307,15 @@ public abstract class ModelConstants
 
 	public static final short NAMEDATALEN;
 
+
+
 	public static final int SIZEOF_varatt_indirect;
 	public static final int SIZEOF_varatt_expanded;
 	public static final int SIZEOF_varatt_external;
 
+
+
+	public static final int HEAPTUPLESIZE;
 	public static final int OFFSET_TTS_NVALID;
 	public static final int SIZEOF_TTS_NVALID; // int or int16 per pg version
 
@@ -306,10 +328,7 @@ public abstract class ModelConstants
 
 	public static final int OFFSET_TTS_TABLEOID; // NOCONSTANT unless PG >= 12
 
-	public static final int SIZEOF_FORM_PG_ATTRIBUTE;
-	public static final int ATTRIBUTE_FIXED_PART_SIZE;
-	public static final int CLASS_TUPLE_SIZE;
-	public static final int HEAPTUPLESIZE;
+
 
 	public static final int OFFSET_TUPLEDESC_ATTRS;
 	public static final int OFFSET_TUPLEDESC_TDREFCOUNT;
@@ -317,6 +336,10 @@ public abstract class ModelConstants
 	public static final int OFFSET_TUPLEDESC_TDTYPEID;
 	public static final int OFFSET_TUPLEDESC_TDTYPMOD;
 
+
+
+	public static final int SIZEOF_FORM_PG_ATTRIBUTE;
+	public static final int ATTRIBUTE_FIXED_PART_SIZE;
 	public static final int OFFSET_pg_attribute_atttypid;
 	public static final int OFFSET_pg_attribute_attlen;
 	public static final int OFFSET_pg_attribute_attcacheoff;
@@ -326,7 +349,12 @@ public abstract class ModelConstants
 	public static final int OFFSET_pg_attribute_attnotnull;
 	public static final int OFFSET_pg_attribute_attisdropped;
 
+
+
+	public static final int CLASS_TUPLE_SIZE;
 	public static final int Anum_pg_class_reltype;
+
+
 
 	public static final int SIZEOF_MCTX;
 	public static final int OFFSET_MCTX_isReset;
@@ -337,6 +365,16 @@ public abstract class ModelConstants
 	public static final int OFFSET_MCTX_nextchild;
 	public static final int OFFSET_MCTX_name;
 	public static final int OFFSET_MCTX_ident;         // since PG 11
+
+
+
+	/*
+	 * The number of meaningful rights bits in an ACL bitmask, imported by
+	 * AclItem.
+	 */
+	public static final int N_ACL_RIGHTS;
+
+
 
 	/*
 	 * These identify different caches in the PostgreSQL syscache.
@@ -357,11 +395,7 @@ public abstract class ModelConstants
 	public static final int TSDICTOID;       // RegDictionaryImpl
 	public static final int TYPEOID;         // RegTypeImpl
 
-	/*
-	 * The number of meaningful rights bits in an ACL bitmask, imported by
-	 * AclItem.
-	 */
-	public static final int N_ACL_RIGHTS;
+
 
 	/**
 	 * Value supplied for one of these constants when built in a version of PG
@@ -390,10 +424,17 @@ public abstract class ModelConstants
 			NAMEDATALEN       = (short)c;
 			assert c == NAMEDATALEN;
 
+
+
+			n.gap(IDX_SIZEOF_varatt_indirect);
 			SIZEOF_varatt_indirect = n.get(IDX_SIZEOF_varatt_indirect);
 			SIZEOF_varatt_expanded = n.get(IDX_SIZEOF_varatt_expanded);
 			SIZEOF_varatt_external = n.get(IDX_SIZEOF_varatt_external);
 
+
+
+			n.gap(IDX_HEAPTUPLESIZE);
+			HEAPTUPLESIZE     = n.get(IDX_HEAPTUPLESIZE);
 			OFFSET_TTS_NVALID = n.get(IDX_OFFSET_TTS_NVALID);
 			SIZEOF_TTS_NVALID = n.get(IDX_SIZEOF_TTS_NVALID);
 
@@ -406,17 +447,20 @@ public abstract class ModelConstants
 
 			OFFSET_TTS_TABLEOID = n.get(IDX_OFFSET_TTS_TABLEOID);
 
-			SIZEOF_FORM_PG_ATTRIBUTE   = n.get(IDX_SIZEOF_FORM_PG_ATTRIBUTE);
-			ATTRIBUTE_FIXED_PART_SIZE  = n.get(IDX_ATTRIBUTE_FIXED_PART_SIZE);
-			CLASS_TUPLE_SIZE           = n.get(IDX_CLASS_TUPLE_SIZE);
-			HEAPTUPLESIZE              = n.get(IDX_HEAPTUPLESIZE);
 
+
+			n.gap(IDX_OFFSET_TUPLEDESC_ATTRS);
 			OFFSET_TUPLEDESC_ATTRS     = n.get(IDX_OFFSET_TUPLEDESC_ATTRS);
 			OFFSET_TUPLEDESC_TDREFCOUNT= n.get(IDX_OFFSET_TUPLEDESC_TDREFCOUNT);
 			SIZEOF_TUPLEDESC_TDREFCOUNT= n.get(IDX_SIZEOF_TUPLEDESC_TDREFCOUNT);
 			OFFSET_TUPLEDESC_TDTYPEID  = n.get(IDX_OFFSET_TUPLEDESC_TDTYPEID);
 			OFFSET_TUPLEDESC_TDTYPMOD  = n.get(IDX_OFFSET_TUPLEDESC_TDTYPMOD);
 
+
+
+			n.gap(IDX_SIZEOF_FORM_PG_ATTRIBUTE);
+			SIZEOF_FORM_PG_ATTRIBUTE   = n.get(IDX_SIZEOF_FORM_PG_ATTRIBUTE);
+			ATTRIBUTE_FIXED_PART_SIZE  = n.get(IDX_ATTRIBUTE_FIXED_PART_SIZE);
 			OFFSET_pg_attribute_atttypid
 				= n.get(IDX_OFFSET_pg_attribute_atttypid);
 			OFFSET_pg_attribute_attlen
@@ -434,8 +478,15 @@ public abstract class ModelConstants
 			OFFSET_pg_attribute_attisdropped
 				= n.get(IDX_OFFSET_pg_attribute_attisdropped);
 
+
+
+			n.gap(IDX_CLASS_TUPLE_SIZE);
+			CLASS_TUPLE_SIZE          = n.get(IDX_CLASS_TUPLE_SIZE);
 			Anum_pg_class_reltype     = n.get(IDX_Anum_pg_class_reltype);
 
+
+
+			n.gap(IDX_SIZEOF_MCTX);
 			SIZEOF_MCTX               = n.get(IDX_SIZEOF_MCTX);
 			OFFSET_MCTX_isReset       = n.get(IDX_OFFSET_MCTX_isReset);
 			OFFSET_MCTX_mem_allocated = n.get(IDX_OFFSET_MCTX_mem_allocated);
@@ -446,6 +497,14 @@ public abstract class ModelConstants
 			OFFSET_MCTX_name          = n.get(IDX_OFFSET_MCTX_name);
 			OFFSET_MCTX_ident         = n.get(IDX_OFFSET_MCTX_ident);
 
+
+
+			n.gap(IDX_N_ACL_RIGHTS);
+			N_ACL_RIGHTS   = n.get(IDX_N_ACL_RIGHTS);
+
+
+
+			n.gap(IDX_ATTNUM);
 			ATTNUM         = n.get(IDX_ATTNUM);
 			AUTHMEMMEMROLE = n.get(IDX_AUTHMEMMEMROLE);
 			AUTHMEMROLEMEM = n.get(IDX_AUTHMEMROLEMEM);
@@ -461,7 +520,8 @@ public abstract class ModelConstants
 			TSDICTOID      = n.get(IDX_TSDICTOID);
 			TYPEOID        = n.get(IDX_TYPEOID);
 
-			N_ACL_RIGHTS   = n.get(IDX_N_ACL_RIGHTS);
+
+
 		}
 	}
 
