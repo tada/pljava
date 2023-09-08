@@ -31,8 +31,8 @@ public abstract class ModelConstants
 {
 	/*
 	 * C code will contain a static array of int initialized to the values
-	 * that are needed. This native method will return a ByteBuffer windowing
-	 * that static array.
+	 * that are needed. The native method in this class obtains a ByteBuffer
+	 * windowing that static array.
 	 *
 	 * To detect fat-finger mistakes, the array will include alternating indices
 	 * and values { IDX_SIZEOF_DATUM, SIZEOF_DATUM, ... }, so when windowed as
@@ -42,6 +42,13 @@ public abstract class ModelConstants
 	 * designated array initializers would offer a simpler, all-static approach,
 	 * but PostgreSQL strives for C89 compatibility before PostgreSQL 12.
 	 *
+	 * As a practical matter, the sequence of IDX_... values is allowed to have
+	 * gaps, so that new constants can be added as needed, coherently grouped,
+	 * without requiring extensive renumbering of otherwise unaffected lines.
+	 * The array cells remain consecutive, and this class simply tracks a gap
+	 * between the IDX_... value and the physical position. This, of course,
+	 * would complicate any move to C99 designated initializers.
+	 *
 	 * Starting with PostgreSQL 11, LLVM bitcode for the server might be found
 	 * in $pkglibdir/bitcode/postgres, and that could one day pose opportunities
 	 * for a PL/Java using an LLVM library, or depending on GraalVM, to access
@@ -50,9 +57,70 @@ public abstract class ModelConstants
 	 * GraalVM, and hope that the bootstrapping needed here does not become too
 	 * burdensome.
 	 */
-	private static class Natives
+	private static class Natives implements AutoCloseable
 	{
-		static native ByteBuffer _statics();
+		private IntBuffer b = _statics()
+			.asReadOnlyBuffer().order(nativeOrder()).asIntBuffer();
+		private int gap = 0;
+
+		/**
+		 * Returns the next constant from the windowed array.
+		 *<p>
+		 * The next constant is determined by the buffer's current position,
+		 * not by <var>index</var>, which is only used for sanity checking:
+		 * <ol>
+		 * <li>adjusted by the current "gap", it should be half the buffer's
+		 *     current position, and
+		 * <li>unadjusted, it should equal the {@code int} read at
+		 *     that position.
+		 * </ol>
+		 * The {@code int} read at the next consecutive position is returned.
+		 * @param index the expected index of the next constant to be read
+		 * @return the next constant
+		 * @throws ConstantsError if any sanity check fails
+		 */
+		int get(int index)
+		{
+			try
+			{
+				if ( b.position() != (index - gap) << 1  ||  index != b.get() )
+					throw new ConstantsError();
+				return b.get();
+			}
+			catch ( Exception e )
+			{
+				throw (ConstantsError)new ConstantsError().initCause(e);
+			}
+		}
+
+		/**
+		 * Conforms the internal sanity checking to a gap in assigned indices.
+		 *<p>
+		 * The supplied <var>index</var> must be greater than that implied by
+		 * the buffer's current position (and previously recorded gap, if any),
+		 * and the difference is remembered as the new gap.
+		 * @param index the assigned index of the next constant to be read
+		 * @throws ConstantsError if the newly-computed gap is not larger than
+		 * the remembered value
+		 */
+		void gap(int index)
+		{
+			int pos = b.position();
+			assert 0 == (pos & 1); // expected as get() always advances by two
+			index -= pos >>> 1;
+			if ( index <= gap )
+				throw new ConstantsError();
+			gap = index;
+		}
+
+		@Override
+		public void close()
+		{
+			if ( 0 < b.remaining() )
+				throw new ConstantsError();
+		}
+
+		private static native ByteBuffer _statics();
 	}
 
 	/*
@@ -105,10 +173,14 @@ public abstract class ModelConstants
 
 	/*
 	 * These constants (which will be included in a generated header available
-	 * to the C code) are the indices into the 'statics' array where the various
-	 * wanted values should be placed. Edits should keep them consecutive
-	 * distinct small array indices; the checked() function in the static
-	 * initializer will be checking for gaps or repeats.
+	 * to the C code) are (almost) indices into the 'statics' array where the
+	 * various wanted values should be placed. Edits should keep them distinct
+	 * consecutive small array indices within related groups; gaps are allowed
+	 * (and encouraged) between groups, so additions can be made without mass
+	 * renumbering. The get() method of Natives, used in the static initializer,
+	 * will be checking for gaps or repeats; the gap() method must be called
+	 * where each gap occurs, to advise what the next expected IDX_... value
+	 * is to be.
 	 */
 	@Native private static final int IDX_PG_VERSION_NUM          = 0;
 
@@ -200,7 +272,7 @@ public abstract class ModelConstants
 
 	/*
 	 * These public statics are the values of interest, set at class
-	 * initialization time by reading them from the buffer returned by _statics.
+	 * initialization time by reading them from the buffer managed by Natives.
 	 */
 
 	/**
@@ -302,112 +374,94 @@ public abstract class ModelConstants
 
 	static
 	{
-		IntBuffer b =
-			Natives._statics()
-				.asReadOnlyBuffer().order(nativeOrder()).asIntBuffer();
-
-		PG_VERSION_NUM    = checked(b, IDX_PG_VERSION_NUM);
-
-		SIZEOF_DATUM      = checked(b, IDX_SIZEOF_DATUM);
-		SIZEOF_SIZE       = checked(b, IDX_SIZEOF_SIZE);
-
-		ALIGNOF_SHORT     = checked(b, IDX_ALIGNOF_SHORT);
-		ALIGNOF_INT       = checked(b, IDX_ALIGNOF_INT);
-		ALIGNOF_DOUBLE    = checked(b, IDX_ALIGNOF_DOUBLE);
-		MAXIMUM_ALIGNOF   = checked(b, IDX_MAXIMUM_ALIGNOF);
-
-		int n             = checked(b, IDX_NAMEDATALEN);
-		NAMEDATALEN       = (short)n;
-		assert n == NAMEDATALEN;
-
-		SIZEOF_varatt_indirect = checked(b, IDX_SIZEOF_varatt_indirect);
-		SIZEOF_varatt_expanded = checked(b, IDX_SIZEOF_varatt_expanded);
-		SIZEOF_varatt_external = checked(b, IDX_SIZEOF_varatt_external);
-
-		OFFSET_TTS_NVALID = checked(b, IDX_OFFSET_TTS_NVALID);
-		SIZEOF_TTS_NVALID = checked(b, IDX_SIZEOF_TTS_NVALID);
-
-		TTS_FLAG_EMPTY    = checked(b, IDX_TTS_FLAG_EMPTY);
-		TTS_FLAG_FIXED    = checked(b, IDX_TTS_FLAG_FIXED);
-		OFFSET_TTS_FLAGS  = checked(b, IDX_OFFSET_TTS_FLAGS);
-
-		OFFSET_TTS_EMPTY  = checked(b, IDX_OFFSET_TTS_EMPTY);
-		OFFSET_TTS_FIXED  = checked(b, IDX_OFFSET_TTS_FIXED);
-
-		OFFSET_TTS_TABLEOID = checked(b, IDX_OFFSET_TTS_TABLEOID);
-
-		SIZEOF_FORM_PG_ATTRIBUTE   = checked(b, IDX_SIZEOF_FORM_PG_ATTRIBUTE);
-		ATTRIBUTE_FIXED_PART_SIZE  = checked(b, IDX_ATTRIBUTE_FIXED_PART_SIZE);
-		CLASS_TUPLE_SIZE           = checked(b, IDX_CLASS_TUPLE_SIZE);
-		HEAPTUPLESIZE              = checked(b, IDX_HEAPTUPLESIZE);
-
-		OFFSET_TUPLEDESC_ATTRS     = checked(b, IDX_OFFSET_TUPLEDESC_ATTRS);
-		OFFSET_TUPLEDESC_TDREFCOUNT= checked(b,IDX_OFFSET_TUPLEDESC_TDREFCOUNT);
-		SIZEOF_TUPLEDESC_TDREFCOUNT= checked(b,IDX_SIZEOF_TUPLEDESC_TDREFCOUNT);
-		OFFSET_TUPLEDESC_TDTYPEID  = checked(b, IDX_OFFSET_TUPLEDESC_TDTYPEID);
-		OFFSET_TUPLEDESC_TDTYPMOD  = checked(b, IDX_OFFSET_TUPLEDESC_TDTYPMOD);
-
-		OFFSET_pg_attribute_atttypid
-			= checked(b, IDX_OFFSET_pg_attribute_atttypid);
-		OFFSET_pg_attribute_attlen
-			= checked(b, IDX_OFFSET_pg_attribute_attlen);
-		OFFSET_pg_attribute_attcacheoff
-			= checked(b, IDX_OFFSET_pg_attribute_attcacheoff);
-		OFFSET_pg_attribute_atttypmod
-			= checked(b, IDX_OFFSET_pg_attribute_atttypmod);
-		OFFSET_pg_attribute_attbyval
-			= checked(b, IDX_OFFSET_pg_attribute_attbyval);
-		OFFSET_pg_attribute_attalign
-			= checked(b, IDX_OFFSET_pg_attribute_attalign);
-		OFFSET_pg_attribute_attnotnull
-			= checked(b, IDX_OFFSET_pg_attribute_attnotnull);
-		OFFSET_pg_attribute_attisdropped
-			= checked(b, IDX_OFFSET_pg_attribute_attisdropped);
-
-		Anum_pg_class_reltype     = checked(b, IDX_Anum_pg_class_reltype);
-
-		SIZEOF_MCTX               = checked(b, IDX_SIZEOF_MCTX);
-		OFFSET_MCTX_isReset       = checked(b, IDX_OFFSET_MCTX_isReset);
-		OFFSET_MCTX_mem_allocated = checked(b, IDX_OFFSET_MCTX_mem_allocated);
-		OFFSET_MCTX_parent        = checked(b, IDX_OFFSET_MCTX_parent);
-		OFFSET_MCTX_firstchild    = checked(b, IDX_OFFSET_MCTX_firstchild);
-		OFFSET_MCTX_prevchild     = checked(b, IDX_OFFSET_MCTX_prevchild);
-		OFFSET_MCTX_nextchild     = checked(b, IDX_OFFSET_MCTX_nextchild);
-		OFFSET_MCTX_name          = checked(b, IDX_OFFSET_MCTX_name);
-		OFFSET_MCTX_ident         = checked(b, IDX_OFFSET_MCTX_ident);
-
-		ATTNUM         = checked(b, IDX_ATTNUM);
-		AUTHMEMMEMROLE = checked(b, IDX_AUTHMEMMEMROLE);
-		AUTHMEMROLEMEM = checked(b, IDX_AUTHMEMROLEMEM);
-		AUTHOID        = checked(b, IDX_AUTHOID);
-		COLLOID        = checked(b, IDX_COLLOID);
-		DATABASEOID    = checked(b, IDX_DATABASEOID);
-		LANGOID        = checked(b, IDX_LANGOID);
-		NAMESPACEOID   = checked(b, IDX_NAMESPACEOID);
-		OPEROID        = checked(b, IDX_OPEROID);
-		PROCOID        = checked(b, IDX_PROCOID);
-		RELOID         = checked(b, IDX_RELOID);
-		TSCONFIGOID    = checked(b, IDX_TSCONFIGOID);
-		TSDICTOID      = checked(b, IDX_TSDICTOID);
-		TYPEOID        = checked(b, IDX_TYPEOID);
-
-		N_ACL_RIGHTS   = checked(b, IDX_N_ACL_RIGHTS);
-
-		if ( 0 != b.remaining() )
-			throw new ConstantsError();
-	}
-
-	private static int checked(IntBuffer b, int index)
-	{
-		try
+		try ( Natives n = new Natives() )
 		{
-			if ( b.position() != index << 1  ||  index != b.get() )
-				throw new ConstantsError();
-			return b.get();
-		}
-		catch ( Exception e )
-		{
-			throw (ConstantsError)new ConstantsError().initCause(e);
+			PG_VERSION_NUM    = n.get(IDX_PG_VERSION_NUM);
+
+			SIZEOF_DATUM      = n.get(IDX_SIZEOF_DATUM);
+			SIZEOF_SIZE       = n.get(IDX_SIZEOF_SIZE);
+
+			ALIGNOF_SHORT     = n.get(IDX_ALIGNOF_SHORT);
+			ALIGNOF_INT       = n.get(IDX_ALIGNOF_INT);
+			ALIGNOF_DOUBLE    = n.get(IDX_ALIGNOF_DOUBLE);
+			MAXIMUM_ALIGNOF   = n.get(IDX_MAXIMUM_ALIGNOF);
+
+			int c             = n.get(IDX_NAMEDATALEN);
+			NAMEDATALEN       = (short)c;
+			assert c == NAMEDATALEN;
+
+			SIZEOF_varatt_indirect = n.get(IDX_SIZEOF_varatt_indirect);
+			SIZEOF_varatt_expanded = n.get(IDX_SIZEOF_varatt_expanded);
+			SIZEOF_varatt_external = n.get(IDX_SIZEOF_varatt_external);
+
+			OFFSET_TTS_NVALID = n.get(IDX_OFFSET_TTS_NVALID);
+			SIZEOF_TTS_NVALID = n.get(IDX_SIZEOF_TTS_NVALID);
+
+			TTS_FLAG_EMPTY    = n.get(IDX_TTS_FLAG_EMPTY);
+			TTS_FLAG_FIXED    = n.get(IDX_TTS_FLAG_FIXED);
+			OFFSET_TTS_FLAGS  = n.get(IDX_OFFSET_TTS_FLAGS);
+
+			OFFSET_TTS_EMPTY  = n.get(IDX_OFFSET_TTS_EMPTY);
+			OFFSET_TTS_FIXED  = n.get(IDX_OFFSET_TTS_FIXED);
+
+			OFFSET_TTS_TABLEOID = n.get(IDX_OFFSET_TTS_TABLEOID);
+
+			SIZEOF_FORM_PG_ATTRIBUTE   = n.get(IDX_SIZEOF_FORM_PG_ATTRIBUTE);
+			ATTRIBUTE_FIXED_PART_SIZE  = n.get(IDX_ATTRIBUTE_FIXED_PART_SIZE);
+			CLASS_TUPLE_SIZE           = n.get(IDX_CLASS_TUPLE_SIZE);
+			HEAPTUPLESIZE              = n.get(IDX_HEAPTUPLESIZE);
+
+			OFFSET_TUPLEDESC_ATTRS     = n.get(IDX_OFFSET_TUPLEDESC_ATTRS);
+			OFFSET_TUPLEDESC_TDREFCOUNT= n.get(IDX_OFFSET_TUPLEDESC_TDREFCOUNT);
+			SIZEOF_TUPLEDESC_TDREFCOUNT= n.get(IDX_SIZEOF_TUPLEDESC_TDREFCOUNT);
+			OFFSET_TUPLEDESC_TDTYPEID  = n.get(IDX_OFFSET_TUPLEDESC_TDTYPEID);
+			OFFSET_TUPLEDESC_TDTYPMOD  = n.get(IDX_OFFSET_TUPLEDESC_TDTYPMOD);
+
+			OFFSET_pg_attribute_atttypid
+				= n.get(IDX_OFFSET_pg_attribute_atttypid);
+			OFFSET_pg_attribute_attlen
+				= n.get(IDX_OFFSET_pg_attribute_attlen);
+			OFFSET_pg_attribute_attcacheoff
+				= n.get(IDX_OFFSET_pg_attribute_attcacheoff);
+			OFFSET_pg_attribute_atttypmod
+				= n.get(IDX_OFFSET_pg_attribute_atttypmod);
+			OFFSET_pg_attribute_attbyval
+				= n.get(IDX_OFFSET_pg_attribute_attbyval);
+			OFFSET_pg_attribute_attalign
+				= n.get(IDX_OFFSET_pg_attribute_attalign);
+			OFFSET_pg_attribute_attnotnull
+				= n.get(IDX_OFFSET_pg_attribute_attnotnull);
+			OFFSET_pg_attribute_attisdropped
+				= n.get(IDX_OFFSET_pg_attribute_attisdropped);
+
+			Anum_pg_class_reltype     = n.get(IDX_Anum_pg_class_reltype);
+
+			SIZEOF_MCTX               = n.get(IDX_SIZEOF_MCTX);
+			OFFSET_MCTX_isReset       = n.get(IDX_OFFSET_MCTX_isReset);
+			OFFSET_MCTX_mem_allocated = n.get(IDX_OFFSET_MCTX_mem_allocated);
+			OFFSET_MCTX_parent        = n.get(IDX_OFFSET_MCTX_parent);
+			OFFSET_MCTX_firstchild    = n.get(IDX_OFFSET_MCTX_firstchild);
+			OFFSET_MCTX_prevchild     = n.get(IDX_OFFSET_MCTX_prevchild);
+			OFFSET_MCTX_nextchild     = n.get(IDX_OFFSET_MCTX_nextchild);
+			OFFSET_MCTX_name          = n.get(IDX_OFFSET_MCTX_name);
+			OFFSET_MCTX_ident         = n.get(IDX_OFFSET_MCTX_ident);
+
+			ATTNUM         = n.get(IDX_ATTNUM);
+			AUTHMEMMEMROLE = n.get(IDX_AUTHMEMMEMROLE);
+			AUTHMEMROLEMEM = n.get(IDX_AUTHMEMROLEMEM);
+			AUTHOID        = n.get(IDX_AUTHOID);
+			COLLOID        = n.get(IDX_COLLOID);
+			DATABASEOID    = n.get(IDX_DATABASEOID);
+			LANGOID        = n.get(IDX_LANGOID);
+			NAMESPACEOID   = n.get(IDX_NAMESPACEOID);
+			OPEROID        = n.get(IDX_OPEROID);
+			PROCOID        = n.get(IDX_PROCOID);
+			RELOID         = n.get(IDX_RELOID);
+			TSCONFIGOID    = n.get(IDX_TSCONFIGOID);
+			TSDICTOID      = n.get(IDX_TSDICTOID);
+			TYPEOID        = n.get(IDX_TYPEOID);
+
+			N_ACL_RIGHTS   = n.get(IDX_N_ACL_RIGHTS);
 		}
 	}
 

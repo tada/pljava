@@ -356,7 +356,7 @@ StaticAssertStmt((expr) == \
 	CONFIRMSIZEOF( pg_attribute, attnotnull );
 	CONFIRMSIZEOF( pg_attribute, attisdropped );
 
-	CONFIRMCONST( Anum_pg_extension_oid );
+	CONFIRMATTNUM( pg_extension, oid );
 	CONFIRMCONST( ExtensionOidIndexId );
 
 #undef CONFIRMSIZEOF
