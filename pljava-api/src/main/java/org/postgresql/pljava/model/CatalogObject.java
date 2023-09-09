@@ -574,7 +574,7 @@ public interface CatalogObject
 		protected static final int REGDICTIONARYOID = 3769;
 		protected static final int  REGNAMESPACEOID = 4089;
 		protected static final int       REGROLEOID = 4096;
-		protected static final int  REGCOLLATIONOID = 4191;
+		protected static final int  REGCOLLATIONOID = 4191; // v >= 130000
 
 		/*
 		 * The well-known, pinned procedural languages.

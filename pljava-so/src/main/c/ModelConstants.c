@@ -161,7 +161,11 @@ static int32 constants[] = {
 
 	CONSTANTEXPR(SIZEOF_MCTX, sizeof (MemoryContextData)),
 	TYPEOFFSET(MemoryContextData, MCTX, isReset),
+#if PG_VERSION_NUM >= 130000
 	TYPEOFFSET(MemoryContextData, MCTX, mem_allocated),
+#else
+	NOCONSTANT(OFFSET_MCTX_mem_allocated),
+#endif
 	TYPEOFFSET(MemoryContextData, MCTX, parent),
 	TYPEOFFSET(MemoryContextData, MCTX, firstchild),
 	TYPEOFFSET(MemoryContextData, MCTX, prevchild),
@@ -272,7 +276,9 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST( REGDICTIONARYOID );
 	CONFIRMCONST(  REGNAMESPACEOID );
 	CONFIRMCONST(       REGROLEOID );
+#if PG_VERSION_NUM >= 130000
 	CONFIRMCONST(  REGCOLLATIONOID );
+#endif
 
 	/*
 	 * The well-known, pinned procedural languages.

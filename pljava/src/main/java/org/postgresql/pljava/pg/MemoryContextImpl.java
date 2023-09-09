@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -41,6 +41,9 @@ import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_MCTX;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_MCTX_name;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_MCTX_ident;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_MCTX_firstchild;
+
+// be aware that this will be NOCONSTANT in PG < 13
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_MCTX_mem_allocated;
 
 /*
  * CurrentMemoryContext is declared in utils/palloc.h and defined in

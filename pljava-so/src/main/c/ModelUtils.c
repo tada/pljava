@@ -13,7 +13,11 @@
 #include <postgres.h>
 #include <miscadmin.h>
 #include <access/genam.h>
+#if PG_VERSION_NUM >= 130000
 #include <access/heaptoast.h>
+#else
+#include <access/tuptoaster.h>
+#endif
 #include <access/relation.h>
 #include <access/tupdesc.h>
 #include <executor/spi.h>
