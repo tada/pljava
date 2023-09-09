@@ -154,12 +154,12 @@ implements TupleTableSlot
 
 	@Native private static final int SIZEOF_HeapTupleData_t_len      = 4;
 	@Native private static final int SIZEOF_HeapTupleData_t_tableOid = 4;
-
+/* TBASE
 	@Native private static final int OFFSET_HeapTupleHeaderData_t_infomask2= 18;
 	@Native private static final int OFFSET_HeapTupleHeaderData_t_infomask = 20;
 	@Native private static final int OFFSET_HeapTupleHeaderData_t_hoff = 22;
 	@Native private static final int OFFSET_HeapTupleHeaderData_t_bits = 23;
-
+*/
 	@Native private static final int SIZEOF_HeapTupleHeaderData_t_infomask2 = 2;
 	@Native private static final int SIZEOF_HeapTupleHeaderData_t_infomask  = 2;
 	@Native private static final int SIZEOF_HeapTupleHeaderData_t_hoff = 1;

@@ -327,7 +327,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		jarOrigin   CHARACTER VARYING(500) NOT NULL," +
 "		jarOwner    pg_catalog.NAME NOT NULL," +
 "		jarManifest pg_catalog.TEXT" +
-"	)",
+"	) DISTRIBUTE BY REPLICATION",
 "	COMMENT ON TABLE sqlj.jar_repository IS" +
 "	'Information on jars loaded by PL/Java, one row per jar.'",
 "	GRANT SELECT ON sqlj.jar_repository TO public",
@@ -339,7 +339,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 "		entryImage  pg_catalog.BYTEA NOT NULL," +
 "		UNIQUE(jarId, entryName)" +
-"	)",
+"	) DISTRIBUTE BY REPLICATION",
 "	COMMENT ON TABLE sqlj.jar_entry IS" +
 "	'Name and content of each entry in every jar loaded by PL/Java.'",
 "	GRANT SELECT ON sqlj.jar_entry TO public",
@@ -349,7 +349,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		ordinal     pg_catalog.INT2," +
 "		PRIMARY KEY (jarId, ordinal)," +
 "		entryId     INT NOT NULL REFERENCES sqlj.jar_entry ON DELETE CASCADE" +
-"	)",
+"	) DISTRIBUTE BY REPLICATION",
 "	COMMENT ON TABLE sqlj.jar_descriptor IS" +
 "	'Associates each jar with zero-or-more deployment descriptors (a row " +
 	"for each), with ordinal indicating their order of mention in the " +
@@ -362,7 +362,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		jarId       INT NOT NULL" +
 "					REFERENCES sqlj.jar_repository ON DELETE CASCADE," +
 "		PRIMARY KEY(schemaName, ordinal)" +
-"	)",
+"	) DISTRIBUTE BY REPLICATION",
 "	COMMENT ON TABLE sqlj.classpath_entry IS" +
 "	'Associates each schema with zero-or-more jars (a row " +
 	"for each), with ordinal indicating their order of precedence in the " +
@@ -373,7 +373,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
 "		mapId       SERIAL PRIMARY KEY," +
 "		javaName    CHARACTER VARYING(200) NOT NULL," +
 "		sqlName     pg_catalog.NAME NOT NULL" +
-"	)",
+"	) DISTRIBUTE BY REPLICATION",
 "	COMMENT ON TABLE sqlj.typemap_entry IS" +
 "	'A row for each SQL type <-> Java type custom mapping.'",
 "	GRANT SELECT ON sqlj.typemap_entry TO public"

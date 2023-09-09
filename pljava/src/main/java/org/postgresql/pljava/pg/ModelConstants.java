@@ -288,6 +288,17 @@ public abstract class ModelConstants
 
 
 
+	@Native private static final int
+		IDX_OFFSET_HeapTupleHeaderData_t_infomask       = 1000;
+	@Native private static final int
+		IDX_OFFSET_HeapTupleHeaderData_t_infomask2      = 1001;
+	@Native private static final int
+		IDX_OFFSET_HeapTupleHeaderData_t_hoff           = 1002;
+	@Native private static final int
+		IDX_OFFSET_HeapTupleHeaderData_t_bits           = 1003;
+
+
+
 	/*
 	 * These public statics are the values of interest, set at class
 	 * initialization time by reading them from the buffer managed by Natives.
@@ -401,6 +412,14 @@ public abstract class ModelConstants
 	public static final int TSCONFIGOID;     // RegConfigImpl
 	public static final int TSDICTOID;       // RegDictionaryImpl
 	public static final int TYPEOID;         // RegTypeImpl
+
+
+
+	// TBASE
+	public static final int OFFSET_HeapTupleHeaderData_t_infomask;
+	public static final int OFFSET_HeapTupleHeaderData_t_infomask2;
+	public static final int OFFSET_HeapTupleHeaderData_t_hoff;
+	public static final int OFFSET_HeapTupleHeaderData_t_bits;
 
 
 
@@ -527,6 +546,18 @@ public abstract class ModelConstants
 			TSCONFIGOID    = n.get(IDX_TSCONFIGOID);
 			TSDICTOID      = n.get(IDX_TSDICTOID);
 			TYPEOID        = n.get(IDX_TYPEOID);
+
+
+
+			n.gap(IDX_OFFSET_HeapTupleHeaderData_t_infomask);
+			OFFSET_HeapTupleHeaderData_t_infomask =
+				n.get(IDX_OFFSET_HeapTupleHeaderData_t_infomask);
+			OFFSET_HeapTupleHeaderData_t_infomask2 =
+				n.get(IDX_OFFSET_HeapTupleHeaderData_t_infomask2);
+			OFFSET_HeapTupleHeaderData_t_hoff =
+				n.get(IDX_OFFSET_HeapTupleHeaderData_t_hoff);
+			OFFSET_HeapTupleHeaderData_t_bits =
+				n.get(IDX_OFFSET_HeapTupleHeaderData_t_bits);
 
 
 
