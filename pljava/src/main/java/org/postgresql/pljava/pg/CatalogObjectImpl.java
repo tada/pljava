@@ -895,7 +895,7 @@ public class CatalogObjectImpl implements CatalogObject
 		 * attribute names that may be conditional (on something like
 		 * {@code PG_VERSION_NUM}).
 		 *<p>
-		 * {@code andIf} adds strings to the list, if the condition is true, or
+		 * {@code alsoIf} adds strings to the list, if the condition is true, or
 		 * the same number of nulls of the condition is false.
 		 *<p>
 		 * {@code project} filters the list to only the non-null values, using
@@ -920,7 +920,7 @@ public class CatalogObjectImpl implements CatalogObject
 			private Projection it;
 			private Iterator<Attribute> itsItr;
 
-			AttNames andIf(boolean p, String... toAdd)
+			AttNames alsoIf(boolean p, String... toAdd)
 			{
 				if ( p )
 					for ( String s : toAdd )
@@ -982,7 +982,7 @@ public class CatalogObjectImpl implements CatalogObject
 		 */
 		static AttNames attNames(String... names)
 		{
-			return new AttNames().andIf(true, names);
+			return new AttNames().alsoIf(true, names);
 		}
 	}
 

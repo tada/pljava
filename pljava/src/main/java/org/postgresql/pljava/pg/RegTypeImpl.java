@@ -357,7 +357,7 @@ implements
 				"typcollation",
 				"typdefault",
 				"typdefaultbin"
-			).andIf(PG_VERSION_NUM >= 140000,
+			).alsoIf(PG_VERSION_NUM >= 140000,
 				"typsubscript"
 			).project(CLASSID.tupleDescriptor());
 

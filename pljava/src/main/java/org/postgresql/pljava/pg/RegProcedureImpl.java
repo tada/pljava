@@ -249,7 +249,7 @@ implements
 				"probin",
 				"proconfig",
 				"proargdefaults"
-			).andIf(PG_VERSION_NUM >= 140000,
+			).alsoIf(PG_VERSION_NUM >= 140000,
 				"prosqlbody"
 			).project(CLASSID.tupleDescriptor());
 
