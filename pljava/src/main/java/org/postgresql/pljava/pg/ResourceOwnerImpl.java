@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -63,13 +63,16 @@ implements ResourceOwner, LifespanImpl.Addressed
 		 * The rest are made native-ordered and read-only.
 		 */
 		for ( int i = 1; i < bs.length; ++ i )
-			bs[i] = asReadOnlyNativeOrder(bs[i]);
+			if ( null != bs[i] ) // older PG versions may not have every owner
+				bs[i] = asReadOnlyNativeOrder(bs[i]);
 		s_knownOwners = bs;
 	}
 
 	static ResourceOwner known(int which)
 	{
 		ByteBuffer global = s_knownOwners[which];
+		if ( null == global ) // older PG versions may not have every owner
+			return null;
 		return doInPG(() ->
 		{
 			long rso = fetchPointer(global, 0);

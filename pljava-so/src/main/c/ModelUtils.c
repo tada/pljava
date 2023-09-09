@@ -18,7 +18,11 @@
 #else
 #include <access/tuptoaster.h>
 #endif
+#if PG_VERSION_NUM >= 120000
 #include <access/relation.h>
+#else
+#include <access/heapam.h>
+#endif
 #include <access/tupdesc.h>
 #include <executor/spi.h>
 #include <executor/tuptable.h>
@@ -46,6 +50,17 @@
 #include "org_postgresql_pljava_pg_ResourceOwnerImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_TupleDescImpl.h"
 #include "org_postgresql_pljava_pg_TupleTableSlotImpl.h"
+
+#if PG_VERSION_NUM < 120000
+#include <access/sysattr.h> /* for ObjectIdAttributeNumber */
+#define MakeSingleTupleTableSlot(tupdesc, slotops) \
+	MakeSingleTupleTableSlot(tupdesc)
+struct TupleTableSlotOps { };
+const TupleTableSlotOps TTSOpsHeapTuple = { };
+#define slot_getsomeattrs_int slot_getsomeattrs
+#define ExecStoreHeapTuple(tuple, slot, shouldFree) \
+	ExecStoreTuple((tuple), (slot), 0, (shouldFree))
+#endif
 
 /*
  * A compilation unit collecting various native methods used in the pg model
@@ -535,8 +550,13 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOi
 	BEGIN_NATIVE_AND_TRY
 	rel = relation_open((Oid)relOid, AccessShareLock);
 
-	ScanKeyInit(&entry[0], (AttrNumber)oidCol, BTEqualStrategyNumber, F_OIDEQ,
-		ObjectIdGetDatum((Oid)objOid));
+	ScanKeyInit(&entry[0],
+#if PG_VERSION_NUM >= 120000
+		(AttrNumber)oidCol,
+#else
+		ObjectIdAttributeNumber,
+#endif
+		BTEqualStrategyNumber, F_OIDEQ, ObjectIdGetDatum((Oid)objOid));
 
 	scandesc = systable_beginscan(
 		rel, (Oid)indexOid, InvalidOid != indexOid, NULL, 1, entry);
@@ -877,7 +897,9 @@ Java_org_postgresql_pljava_pg_ResourceOwnerImpl_00024EarlyNatives__1window(JNIEn
 	POPULATE(Current);
 	POPULATE(CurTransaction);
 	POPULATE(TopTransaction);
+#if PG_VERSION_NO >= 120000
 	POPULATE(AuxProcess);
+#endif
 
 #undef POPULATE
 

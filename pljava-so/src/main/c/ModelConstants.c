@@ -46,6 +46,10 @@
 #include "pljava/PgObject.h"
 #include "pljava/ModelConstants.h"
 
+#if PG_VERSION_NUM < 120000
+#define TupleDescData tupleDesc
+#endif
+
 /*
  * A compilation unit collecting various machine- or PostgreSQL-related
  * constants that have to be known in Java code. Those that are expected to be
@@ -381,7 +385,9 @@ StaticAssertStmt((expr) == \
 	CONFIRMSIZEOF( pg_attribute, attnotnull );
 	CONFIRMSIZEOF( pg_attribute, attisdropped );
 
+#if PG_VERSION_NUM >= 120000
 	CONFIRMATTNUM( pg_extension, oid );
+#endif
 	CONFIRMCONST( ExtensionOidIndexId );
 
 #undef CONFIRMSIZEOF

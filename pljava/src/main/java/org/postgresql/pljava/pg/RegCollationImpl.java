@@ -150,7 +150,7 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 
 		static
 		{
-			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+			Iterator<Attribute> itr = attNames(
 				"collname",
 				"collnamespace",
 				"collowner",
@@ -158,9 +158,10 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 				"collcollate",
 				"collctype",
 				"collprovider",
-				"collversion",
+				"collversion"
+			).alsoIf(PG_VERSION_NUM >= 120000,
 				"collisdeterministic"
-			).iterator();
+			).project(CLASSID.tupleDescriptor());
 
 			COLLNAME            = itr.next();
 			COLLNAMESPACE       = itr.next();
@@ -224,6 +225,9 @@ implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 
 	private static boolean deterministic(RegCollationImpl o) throws SQLException
 	{
+		if ( null == Att.COLLISDETERMINISTIC )
+			return true; // before PG 12, there were only deterministic ones
+
 		TupleTableSlot s = o.cacheTuple();
 		return
 			s.get(Att.COLLISDETERMINISTIC, BOOLEAN_INSTANCE);

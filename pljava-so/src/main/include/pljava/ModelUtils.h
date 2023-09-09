@@ -18,6 +18,12 @@
 
 #include "pljava/pljava.h"
 
+#if PG_VERSION_NUM < 120000
+struct TupleTableSlotOps;
+typedef struct TupleTableSlotOps TupleTableSlotOps;
+extern const TupleTableSlotOps TTSOpsHeapTuple;
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
