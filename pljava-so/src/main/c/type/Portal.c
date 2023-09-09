@@ -58,7 +58,12 @@ jobject pljava_Portal_create(Portal portal, jobject jplan)
 	p2lro.ptrVal = portal->resowner;
 
 	p2lcxt.longVal = 0L;
-	p2lcxt.ptrVal = portal->portalContext;
+	p2lcxt.ptrVal =
+#if PG_VERSION_NUM >= 110000
+		portal->portalContext;
+#else
+		PortalGetHeapMemory(portal);
+#endif
 
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
 		p2lro.longVal, p2lcxt.longVal, p2l.longVal, jplan);

@@ -175,7 +175,11 @@ static int32 constants[] = {
 	TYPEOFFSET(MemoryContextData, MCTX, prevchild),
 	TYPEOFFSET(MemoryContextData, MCTX, nextchild),
 	TYPEOFFSET(MemoryContextData, MCTX, name),
+#if PG_VERSION_NUM >= 110000
 	TYPEOFFSET(MemoryContextData, MCTX, ident),
+#else
+	NOCONSTANT(OFFSET_MCTX_ident),
+#endif
 
 
 

@@ -229,6 +229,19 @@ implements TupleTableSlot
 			if ( 0 != m_tts.get(OFFSET_TTS_FIXED) )
 				return;
 		}
+		else if ( null != tupleDesc )
+			/*
+			 * This is an old PG version that lacks the flag to indicate that
+			 * a slot has a fixed tuple descriptor that won't change between
+			 * rows. The case of a non-fixed tuple descriptor has not been
+			 * implemented here. For now, though, simply *assume* that when a
+			 * descriptor has been passed to this constructor, it will be good
+			 * for all rows, that is, that the slot is effectively fixed, even
+			 * without the flag to say so. Cases where PostgreSQL could make a
+			 * non-fixed slot through the APIs we're likely to use are *assumed*
+			 * to be rare or even nonexistent.
+			 */
+			return; // hold my beer and watch this
 		else
 			throw new UnsupportedOperationException(
 				"Cannot construct non-fixed TupleTableSlot (PG < 11)");

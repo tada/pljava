@@ -62,6 +62,11 @@ const TupleTableSlotOps TTSOpsHeapTuple = { };
 	ExecStoreTuple((tuple), (slot), 0, (shouldFree))
 #endif
 
+#if PG_VERSION_NUM < 110000
+/* in older versions, the attribute area is allocated separately */
+#define TupleDescSize(src) sizeof(struct tupleDesc)
+#endif
+
 /*
  * A compilation unit collecting various native methods used in the pg model
  * implementation classes. This is something of a break with past PL/Java

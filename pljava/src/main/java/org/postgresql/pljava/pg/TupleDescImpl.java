@@ -25,6 +25,9 @@ import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
+import static org.postgresql.pljava.pg.DatumUtils.fetchPointer;
+import static org.postgresql.pljava.pg.DatumUtils.mapFixedLength;
+import static org.postgresql.pljava.pg.DatumUtils.storePointer;
 
 import java.nio.ByteBuffer;
 import static java.nio.ByteOrder.nativeOrder;
@@ -76,7 +79,14 @@ import java.util.function.ToIntBiFunction;
 abstract class TupleDescImpl extends AbstractList<Attribute>
 implements TupleDescriptor
 {
+	@FunctionalInterface
+	interface Slicer
+	{
+		ByteBuffer slice(TupleDescImpl o, int index);
+	}
+
 	private final ByteBuffer m_td;
+	private final Slicer m_slicer;
 	private final Attribute[] m_attrs;
 	private final State m_state;
 
@@ -178,13 +188,7 @@ implements TupleDescriptor
 	 */
 	ByteBuffer slice(int index)
 	{
-		int len = SIZEOF_FORM_PG_ATTRIBUTE;
-		int off = OFFSET_TUPLEDESC_ATTRS + len * index;
-		len = ATTRIBUTE_FIXED_PART_SIZE; // TupleDesc hasn't got the whole thing
-		// Java 13: m_td.slice(off, len).order(m_td.order())
-		ByteBuffer bnew = m_td.duplicate();
-		bnew.position(off).limit(off + len);
-		return bnew.slice().order(m_td.order());
+		return m_slicer.slice(this, index);
 	}
 
 	private TupleDescImpl(
@@ -195,9 +199,80 @@ implements TupleDescriptor
 
 		m_state = useState ? new State(this, td) : null;
 		m_td = asReadOnlyNativeOrder(td);
-		Attribute[] attrs =
-			new Attribute [ (m_td.capacity() - OFFSET_TUPLEDESC_ATTRS)
-							/ SIZEOF_FORM_PG_ATTRIBUTE ];
+
+		int natts;
+		Slicer slicer;
+
+		if ( PG_VERSION_NUM >= 110000 )
+		{
+			/*
+			 * In PG 11 and up, the attrs are allocated right at the end of
+			 * the tupledesc struct. Use a slicer that gets them from there.
+			 */
+			natts = (m_td.capacity() - OFFSET_TUPLEDESC_ATTRS)
+					/ SIZEOF_FORM_PG_ATTRIBUTE;
+
+			slicer = (o,i) ->
+			{
+				int len = SIZEOF_FORM_PG_ATTRIBUTE;
+				int off = OFFSET_TUPLEDESC_ATTRS + len * i;
+				len = ATTRIBUTE_FIXED_PART_SIZE;
+				ByteBuffer bnew = o.m_td.duplicate();
+				bnew.position(off).limit(off + len);
+				return bnew.slice().order(m_td.order());
+			};
+		}
+		else // < 110000
+		{
+			/*
+			 * In PG 10 and earlier, they were allocated separately, and the
+			 * attrs member pointed to an array of pointers to them. The
+			 * tupledesc struct had a fixed size, so we can't compute the
+			 * number of attributes from that, have to read the natts member.
+			 * Git shows it was always at offset 0 in historical versions, and
+			 * declared as int, so we don't need to clutter ModelConstants with
+			 * offset/sizeof for it specifically, but should check sizeof int.
+			 */
+			assert 4 == SIZEOF_INT : "sizeof int != 4 on this platform";
+			natts = m_td.getInt(0);
+
+			long p = fetchPointer(m_td, OFFSET_TUPLEDESC_ATTRS);
+			ByteBuffer pointers = mapFixedLength(p, natts * SIZEOF_DATUM);
+
+			slicer = (o,i) ->
+			{
+				long ap = fetchPointer(pointers, i * SIZEOF_DATUM);
+				return mapFixedLength(ap, ATTRIBUTE_FIXED_PART_SIZE);
+			};
+
+			if ( this instanceof Ephemeral )
+			{
+				/*
+				 * We need to copy them; fromByteBuffer only copied
+				 * the tupledesc struct itself.
+				 */
+				ByteBuffer copy =
+					ByteBuffer.allocate(natts * ATTRIBUTE_FIXED_PART_SIZE);
+
+				for ( int i = 0 ; i < natts ; ++ i )
+					copy.put(slicer.slice(this, i).rewind());
+
+				ByteBuffer bound = asReadOnlyNativeOrder(copy);
+
+				slicer = (o,i) ->
+				{
+					int len = ATTRIBUTE_FIXED_PART_SIZE;
+					int off = len * i;
+					ByteBuffer bnew = bound.duplicate();
+					bnew.position(off).limit(off + len);
+					return bnew.slice().order(bound.order());
+				};
+			}
+		}
+
+		m_slicer = slicer;
+
+		Attribute[] attrs = new Attribute [ natts ];
 
 		for ( int i = 0 ; i < attrs.length ; ++ i )
 			attrs[i] = ctor.apply(this, 1 + i);
@@ -213,6 +288,7 @@ implements TupleDescriptor
 	{
 		m_state = null;
 		m_td = null;
+		m_slicer = null;
 		m_attrs = new Attribute[] { new AttributeImpl.OfType(this, type) };
 	}
 
@@ -435,8 +511,64 @@ implements TupleDescriptor
 			{
 				TupleDescImpl sup = this; // its m_td is private
 
-				ByteBuffer direct = ByteBuffer.allocateDirect(
-					sup.m_td.capacity()).put(sup.m_td.rewind());
+				ByteBuffer direct;
+
+				if ( PG_VERSION_NUM >= 110000 )
+				{
+					direct = ByteBuffer.allocateDirect(
+						sup.m_td.capacity() + MAXIMUM_ALIGNOF - 1)
+						.alignedSlice(MAXIMUM_ALIGNOF).put(sup.m_td.rewind());
+				}
+				else // < 110000
+				{
+					/*
+					 * May as well just make one big allocation and copy all
+					 * the pieces into it; it's our job to free it, not PG's
+					 * (PG will simply take a copy in its accustomed way), so
+					 * PG needn't care how it was allocated. GC can have this
+					 * as soon as we're done interning it, so some extra space
+					 * for ensuring alignment is ok even if it could be figured
+					 * more precisely.
+					 */
+					assert 4 == SIZEOF_INT : "sizeof int != 4 on this platform";
+					int natts = sup.m_td.getInt(0);
+
+					int len =
+						sup.m_td.capacity()
+						+ natts * SIZEOF_DATUM             // the pointer array
+						+ natts * SIZEOF_FORM_PG_ATTRIBUTE // all the attrs
+						+ 3 * MAXIMUM_ALIGNOF - 3;         // some align gaps
+
+					direct = ByteBuffer.allocateDirect(len)
+						.alignedSlice(MAXIMUM_ALIGNOF)     // possible gap 1
+						.put(sup.m_td.rewind());           // tupledesc itself
+
+					int pos = direct.position();
+					int alignmask = MAXIMUM_ALIGNOF - 1;
+					int misalign = direct.alignmentOffset(pos, MAXIMUM_ALIGNOF);
+					pos += - misalign & alignmask;         // posible gap 2
+
+					int ptrs = pos;
+					long base = addressOf(direct);
+					direct.order(nativeOrder());
+					storePointer(direct, OFFSET_TUPLEDESC_ATTRS, base + ptrs);
+
+					pos += natts * SIZEOF_DATUM;           // skip pointer array
+					misalign = direct.alignmentOffset(pos, MAXIMUM_ALIGNOF);
+					pos += - misalign & alignmask;         // possible gap 3
+
+					int pad =
+						SIZEOF_FORM_PG_ATTRIBUTE - ATTRIBUTE_FIXED_PART_SIZE;
+
+					for ( int i = 0; i < natts ; ++ i )
+					{
+						storePointer(
+							direct, ptrs + i * SIZEOF_DATUM, base + pos);
+						direct.position(pos).put(
+							sup.m_slicer.slice(sup, i).rewind());
+						pos = direct.position() + pad;
+					}
+				}
 
 				int assigned = _assign_record_type_typmod(direct);
 

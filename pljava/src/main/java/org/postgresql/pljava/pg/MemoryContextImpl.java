@@ -36,6 +36,7 @@ import static org.postgresql.pljava.pg.DatumUtils.mapCString;
 import static org.postgresql.pljava.pg.DatumUtils.mapFixedLength;
 import static org.postgresql.pljava.pg.DatumUtils.storePointer;
 
+import static org.postgresql.pljava.pg.ModelConstants.NOCONSTANT;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_DATUM;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_MCTX;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_MCTX_name;
@@ -319,7 +320,9 @@ implements MemoryContext, LifespanImpl.Addressed
 		m_context = mapFixedLength(context, SIZEOF_MCTX);
 		String s;
 
-		long p = fetchPointer(m_context, OFFSET_MCTX_ident);
+		long p = (NOCONSTANT != OFFSET_MCTX_ident)
+			? fetchPointer(m_context, OFFSET_MCTX_ident)
+			: 0;
 
 		try
 		{
