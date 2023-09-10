@@ -62,7 +62,9 @@ static CoercionPathType fcp(Oid targetTypeId, Oid sourceTypeId,
 static Oid BOOLARRAYOID;
 static Oid CHARARRAYOID;
 static Oid FLOAT8ARRAYOID;
+#ifndef __TBASE__
 static Oid INT8ARRAYOID;
+#endif
 #if PG_VERSION_NUM < 80400
 static Oid INT2ARRAYOID;
 #endif
@@ -1036,7 +1038,9 @@ void Type_initialize(void)
 	BOOLARRAYOID   = get_array_type(BOOLOID);
 	CHARARRAYOID   = get_array_type(CHAROID);
 	FLOAT8ARRAYOID = get_array_type(FLOAT8OID);
+#ifndef __TBASE__
 	INT8ARRAYOID   = get_array_type(INT8OID);
+#endif
 #if PG_VERSION_NUM < 80400
 	INT2ARRAYOID   = get_array_type(INT2OID);
 #endif

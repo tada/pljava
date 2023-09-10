@@ -91,6 +91,10 @@
 			compile : function(cc, files, output_dir, includes, defines, flags) {
 				includes.add(java_include.resolve("linux").toString());
 				defines.put("Linux", null);
+				defines.put("PGXC", null);
+				defines.put("XCP", null);
+				defines.put("XZ", null);
+				defines.put("__TBASE__", null);
 				flags.add("-c");
 				if(isDebugEnabled)
 					flags.add("-g");
@@ -321,6 +325,7 @@ function execute()
 		compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags));
 		compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cppflags));
 		compile_flags.addAll(pgxs.getPgConfigPropertyAsList(cflags_sl));
+		compile_flags.remove('-dFRONTEND');
 		var exitCode = pgxs.compile(
 			cc, files, target_path, base_includes, base_defines, compile_flags);
 		if (exitCode != 0)
