@@ -1029,6 +1029,31 @@ void Type_initialize(void)
 	initializeTypeBridges();
 }
 
+static Type unimplementedTypeObtainer(Oid typeId);
+static jvalue unimplementedDatumCoercer(Type, Datum);
+static Datum unimplementedObjectCoercer(Type, jobject);
+
+static Type unimplementedTypeObtainer(Oid typeId)
+{
+	ereport(ERROR,
+		(errmsg("no type obtainer registered for type oid %ud", typeId)));
+	pg_unreachable();
+}
+
+static jvalue unimplementedDatumCoercer(Type t, Datum d)
+{
+	ereport(ERROR,
+		(errmsg("no datum coercer registered for type oid %ud", t->typeId)));
+	pg_unreachable();
+}
+
+static Datum unimplementedObjectCoercer(Type t, jobject o)
+{
+	ereport(ERROR,
+		(errmsg("no object coercer registered for type oid %ud", t->typeId)));
+	pg_unreachable();
+}
+
 /*
  * Abstract Type constructor
  */
@@ -1047,8 +1072,8 @@ TypeClass TypeClass_alloc2(
 	self->javaTypeName    = "";
 	self->javaClass       = 0;
 	self->canReplaceType  = _Type_canReplaceType;
-	self->coerceDatum     = (DatumCoercer)_PgObject_pureVirtualCalled;
-	self->coerceObject    = (ObjectCoercer)_PgObject_pureVirtualCalled;
+	self->coerceDatum     = unimplementedDatumCoercer;
+	self->coerceObject    = unimplementedObjectCoercer;
 	self->createArrayType = _Type_createArrayType;
 	self->invoke          = _Type_invoke;
 	self->getSRFCollector = _Type_getSRFCollector;
@@ -1137,9 +1162,7 @@ static void _registerType(
 
 void Type_registerType(const char* javaTypeName, Type type)
 {
-	_registerType(
-		type->typeId, javaTypeName, type,
-		(TypeObtainer)_PgObject_pureVirtualCalled);
+	_registerType(type->typeId, javaTypeName, type, unimplementedTypeObtainer);
 }
 
 void Type_registerType2(
