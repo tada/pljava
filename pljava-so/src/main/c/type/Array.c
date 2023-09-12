@@ -158,7 +158,7 @@ static bool _Array_canReplaceType(Type self, Type other)
 		return false;
 	return Type_canReplaceType(Type_getElementType(self), oe)
 		|| Type_getObjectType(self) == other
-		|| Type_getElementType(self) == other;
+		|| Type_getElementType(Type_getElementType(self)) == oe;
 }
 
 Type Array_fromOid(Oid typeId, Type elementType)
