@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -144,6 +144,17 @@ static Datum _Array_coerceObject(Type self, jobject objArray)
 }
 
 /*
+ * PG array types are inherently multidimensional. What if the array type for an
+ * array type were simply itself?
+ *
+ * Disadvantages: unlikely to work well for the PG -> Java direction. :(
+ */
+static Type _Array_createArrayType(Type self, Oid arrayTypeId)
+{
+	return self;
+}
+
+/*
  * For an array, canReplaceType can be computed a bit more generously.
  * The primitive types are coded so that a boxed scalar can replace its
  * corresponding primitive but not vice versa. For primitive arrays, we can also
@@ -188,6 +199,7 @@ Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, Obje
 	arrayClass->javaTypeName = tmp;
 	arrayClass->coerceDatum  = coerceDatum;
 	arrayClass->coerceObject = coerceObject;
+	arrayClass->createArrayType = _Array_createArrayType;
 	arrayClass->canReplaceType = _Array_canReplaceType;
 	self = TypeClass_allocInstance(arrayClass, typeId);
 	MemoryContextSwitchTo(currCtx);
