@@ -22,6 +22,12 @@
 #include "org_postgresql_pljava_internal_AclId.h"
 #include "pljava/Exception.h"
 
+#if PG_VERSION_NUM >= 160000
+#include <catalog/pg_namespace.h>
+#define pg_namespace_aclcheck(oid,rid,mode) \
+	object_aclcheck(NamespaceRelationId, (oid), (rid), (mode))
+#endif
+
 static jclass    s_AclId_class;
 static jmethodID s_AclId_init;
 static jfieldID  s_AclId_m_native;

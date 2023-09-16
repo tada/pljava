@@ -29,7 +29,7 @@
 #include <catalog/pg_type.h>
 
 #if PG_VERSION_NUM >= 120000
- #ifdef HAVE_DLOPEN
+ #if defined(HAVE_DLOPEN)  ||  PG_VERSION_NUM >= 160000 && ! defined(WIN32)
  #include <dlfcn.h>
  #endif
  #define pg_dlopen(f) dlopen((f), RTLD_NOW | RTLD_GLOBAL)
