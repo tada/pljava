@@ -99,6 +99,7 @@ import static java.util.Spliterator.IMMUTABLE;
 import static java.util.Spliterator.NONNULL;
 import static java.util.Spliterator.ORDERED;
 import static java.util.Spliterators.spliteratorUnknownSize;
+import java.util.WeakHashMap;
 
 import java.util.concurrent.Callable; // like a Supplier but allows exceptions!
 import java.util.concurrent.CancellationException;
@@ -517,6 +518,26 @@ public class Node extends JarX {
 	private boolean m_usePostgres = true;
 
 	/**
+	 * A weakly-held collection of {@link Connection}s, so that any remaining
+	 * unclosed when {@link #stop(UnaryOperator) stop} is called can be closed
+	 * then.
+	 *<p>
+	 * Java takes care of removing {@code Connection}s from this map as they
+	 * become unreachable. In case any become unreachable before being closed,
+	 * both supported JDBC drivers have cleaner actions that will eventually
+	 * close them.
+	 */
+	private final WeakHashMap<Connection,Void> m_connections;
+
+	/**
+	 * True during a {@link #stop(UnaryOperator) stop} call.
+	 *<p>
+	 * Used to prevent any new unclosed {@code Connection} being added to
+	 * {@link m_connections m_connections} undetected.
+	 */
+	private boolean m_stopping = false;
+
+	/**
 	 * Identifying information for a "node" instance, or for the singleton
 	 * extractor instance.
 	 */
@@ -540,6 +561,7 @@ public class Node extends JarX {
 		m_port = port;
 		m_basedir = basedir;
 		m_password = password;
+		m_connections = null == nodeName ? null : new WeakHashMap<>();
 	}
 
 	/**
@@ -1045,21 +1067,53 @@ public class Node extends JarX {
 	{
 		if ( null == ( m_usePostgres ? m_server : m_serverHandle ) )
 			return;
-		if ( ! m_usePostgres )
+
+		try
 		{
-			stopViaPgCtl(tweaks);
-			return;
-		}
-		if ( m_server.isAlive() )
-		{
-			m_server.destroy();
-			m_server.waitFor();
+			Connection[] connections;
+
+			synchronized ( this )
+			{
+				m_stopping = true;
+				connections = // Java >= 10: use a List and List.copyOf
+					m_connections.keySet().stream().toArray(Connection[]::new);
+				m_connections.clear();
+			}
+
+			for ( Connection c : connections )
+			{
+				try
+				{
+					c.close();
+				}
+				catch ( Exception e )
+				{
+				}
+			}
+
+			if ( ! m_usePostgres )
+			{
+				stopViaPgCtl(tweaks);
+				return;
+			}
+			if ( m_server.isAlive() )
+			{
+				m_server.destroy();
+				m_server.waitFor();
+				m_server = null;
+				return;
+			}
+			System.err.println("Server had already exited with status " +
+				m_server.exitValue());
 			m_server = null;
-			return;
 		}
-		System.err.println("Server had already exited with status " +
-			m_server.exitValue());
-		m_server = null;
+		finally
+		{
+			synchronized ( this )
+			{
+				m_stopping = false;
+			}
+		}
 	}
 
 	private void stopViaPgCtl(UnaryOperator<ProcessBuilder> tweaks)
@@ -1191,7 +1245,25 @@ public class Node extends JarX {
 			url += encode(p.getProperty(dbNameKey), "UTF-8");
 		}
 
-		return getConnection(url, p);
+		Connection c = getConnection(url, p);
+
+		synchronized ( this )
+		{
+			if ( m_stopping )
+			{
+				try
+				{
+					throw new IllegalStateException(
+						"Node " + m_name + " is being stopped");
+				}
+				finally
+				{
+					c.close(); // add any exception as 'suppressed' to above
+				}
+			}
+			m_connections.put(c, null);
+			return c;
+		}
 	}
 
 	/**
