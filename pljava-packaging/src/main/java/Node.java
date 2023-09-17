@@ -32,7 +32,15 @@ import static java.util.regex.Pattern.compile;
 
 import static java.lang.ProcessBuilder.Redirect.INHERIT;
 import java.lang.reflect.InvocationHandler; // flexible SAM allowing exceptions
+import java.lang.reflect.UndeclaredThrowableException;
 import static java.lang.Thread.interrupted;
+
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles.Lookup;
+import static java.lang.invoke.MethodHandles.explicitCastArguments;
+import static java.lang.invoke.MethodHandles.filterReturnValue;
+import static java.lang.invoke.MethodHandles.publicLookup;
+import static java.lang.invoke.MethodType.methodType;
 
 import static java.net.InetAddress.getLoopbackAddress;
 import static java.net.URLEncoder.encode;
@@ -59,6 +67,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 
 import java.sql.Connection;
+import static java.sql.DriverManager.drivers;
 import static java.sql.DriverManager.getConnection;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
@@ -288,6 +297,143 @@ public class Node extends JarX {
 	 */
 	public static final boolean s_isWindows =
 		getProperty("os.name").startsWith("Windows");
+
+	/**
+	 * The first form of PostgreSQL JDBC driver connection URL found to be
+	 * recognized by an available driver, or {@code URL_FORM_NONE}.
+	 */
+	public static final int s_urlForm;
+
+	/**
+	 * Value of {@link #s_urlForm s_urlForm} indicating no available JDBC driver
+	 * was found to accept any of the supported connection URL forms.
+	 */
+	public static final int URL_FORM_NONE = -1;
+
+	/**
+	 * Value of {@link #s_urlForm s_urlForm} indicating an available JDBC driver
+	 * reported accepting a connection URL in the PGJDBC form starting with
+	 * {@code "jdbc:postgresql:"}.
+	 */
+	public static final int URL_FORM_PGJDBC = 0;
+
+	/**
+	 * Value of {@link #s_urlForm s_urlForm} indicating an available JDBC driver
+	 * reported accepting a connection URL in the pgjdbc-ng form starting with
+	 * {@code "jdbc:pgsql:"}.
+	 */
+	public static final int URL_FORM_PGJDBCNG = 1;
+
+	/**
+	 * A function to map an {@code SQLWarning} to a rough classification
+	 * (info, warning) of its severity.
+	 *<p>
+	 * If the PGJDBC {@code PSQLWarning} class is available for access to the
+	 * severity tag from the backend, "warning" will be returned if that tag is
+	 * {@code WARNING}, and "info" will be returned in any other case. (The next
+	 * more severe backup level is {@code ERROR}, which would not appear here as
+	 * an {@code SQLWarning}.)
+	 *<p>
+	 * If the severity tag is not available, "info" will be returned if the
+	 * class (leftmost two positions of SQLState) is 00, otherwise "warning".
+	 */
+	private static final Function<SQLWarning,String> s_toSeverity;
+
+	private static String s_WARNING_localized = "WARNING";
+
+	/**
+	 * Changes the severity string used to recognize when the backend is sending
+	 * a {@code WARNING}.
+	 *<p>
+	 * When the driver is PGJDBC, the classification done here of
+	 * {@code SQLWarning} instances into actual warning messages or informative
+	 * ones depends on a tag ("WARNING" in English) that the backend delivers
+	 * in the local language. For the classification to happen correctly when
+	 * a different language is selected, use this method to supply the string
+	 * (for example, "PERINGATAN" in Indonesian) that the backend uses for
+	 * warnings in that language.
+	 */
+	public static void set_WARNING_localized(String s)
+	{
+		s_WARNING_localized = requireNonNull(s);
+	}
+
+	static
+	{
+		String[] candidateURLs = { "jdbc:postgresql:", "jdbc:pgsql:x" };
+		s_urlForm =
+			IntStream.range(0, candidateURLs.length)
+				.filter(i ->
+					drivers().anyMatch(d ->
+					{
+						try
+						{
+							return d.acceptsURL(candidateURLs[i]);
+						}
+						catch ( SQLException e )
+						{
+							throw new ExceptionInInitializerError(e);
+						}
+					}))
+				.findFirst()
+				.orElse(URL_FORM_NONE);
+
+		Function<SQLWarning,String> toSeverity = Node::toSeverityFallback;
+
+		try
+		{
+			Class<?> psqlWarning =
+				Class.forName("org.postgresql.util.PSQLWarning");
+			Class<?> sErrMessage =
+				Class.forName("org.postgresql.util.ServerErrorMessage");
+
+			Lookup pub = publicLookup();
+
+			MethodHandle getserrm =
+				pub.findVirtual(psqlWarning, "getServerErrorMessage",
+					methodType(sErrMessage));
+			MethodHandle getSev =
+				pub.findVirtual(sErrMessage, "getSeverity",
+					methodType(String.class));
+
+			MethodHandle h = explicitCastArguments(
+				filterReturnValue(getserrm, getSev),
+				methodType(String.class, Object.class));
+
+			toSeverity = w ->
+			{
+				if ( psqlWarning.isInstance(w) )
+				{
+					try
+					{
+						String s = (String)h.invokeExact(psqlWarning.cast(w));
+						if ( null == s  ||  s_WARNING_localized.equals(s) )
+							return "warning";
+						return "info";
+					}
+					catch ( Throwable t )
+					{
+						throw new UndeclaredThrowableException(t, t.getMessage());
+					}
+				}
+
+				return toSeverityFallback(w);
+			};
+		}
+		catch ( ReflectiveOperationException e )
+		{
+		}
+
+		s_toSeverity = toSeverity;
+	}
+
+	private static String toSeverityFallback(SQLWarning w)
+	{
+		if ( w.getSQLState().startsWith("00") )
+			return "info";
+		else
+			return "warning";
+	}
 
 	/**
 	 * Name of a "Node"; null for an ordinary Node instance.
@@ -985,18 +1131,43 @@ public class Node extends JarX {
 	 */
 	public Connection connect(Properties p) throws Exception
 	{
-		String url = "jdbc:pgsql://localhost:" + m_port + '/';
+		String url;
+		String dbNameKey;
+		String appNameKey;
+
+		switch ( s_urlForm )
+		{
+		case URL_FORM_PGJDBC:
+			url = "jdbc:postgresql://localhost:" + m_port + '/';
+			dbNameKey = "PGDBNAME";
+			appNameKey = "ApplicationName";
+			break;
+		case URL_FORM_PGJDBCNG:
+			url = "jdbc:pgsql://localhost:" + m_port + '/';
+			dbNameKey = "database.name";
+			appNameKey = "application.name";
+			break;
+		default:
+			throw new UnsupportedOperationException(
+				"no recognized JDBC driver found to connect to the node");
+		}
+
 		p = (Properties)p.clone();
-		p.putIfAbsent("database.name", "postgres");
+		p.putIfAbsent(dbNameKey, "postgres");
 		p.putIfAbsent("user", "postgres");
 		p.putIfAbsent("password", m_password);
-		p.computeIfAbsent("application.name", o -> "Conn" + (m_connCount++));
-		/*
-		 * Contrary to its documentation, pgjdbc-ng does *not* accept a URL with
-		 * the database name omitted. It is no use having it in the properties
-		 * here; it must be appended to the URL.
-		 */
-		url += encode(p.getProperty("database.name"), "UTF-8");
+		p.computeIfAbsent(appNameKey, o -> "Conn" + (m_connCount++));
+
+		if ( URL_FORM_PGJDBCNG == s_urlForm )
+		{
+			/*
+			 * Contrary to its documentation, pgjdbc-ng does *not* accept a URL
+			 * with the database name omitted. It is no use having it in the
+			 * properties here; it must be appended to the URL.
+			 */
+			url += encode(p.getProperty(dbNameKey), "UTF-8");
+		}
+
 		return getConnection(url, p);
 	}
 
@@ -1783,7 +1954,7 @@ public class Node extends JarX {
 	{
 		try
 		{
-			int[] dims = voidResultSetDims(o);
+			int[] dims = voidResultSetDims(o, true); // only peek
 
 			if ( null != dims )
 			{
@@ -1967,6 +2138,12 @@ public class Node extends JarX {
 	 *<p>
 	 * The third string will be as returned by {@code getMessage}, and may be
 	 * null if the throwable was not constructed with a message.
+	 *<p>
+	 * If an {@code SQLWarning} is of the PGJDBC driver's {@code PSQLWarning}
+	 * class and the backend's severity tag is available, it will be used to
+	 * determine the first string, in place of the "starts with 00" rule. A tag
+	 * of "WARNING" (or null) produces "warning", while any other tag produces
+	 * "info".
 	 */
 	public static String[] classify(Throwable t)
 	{
@@ -1978,14 +2155,9 @@ public class Node extends JarX {
 			sqlState = ((SQLException)t).getSQLState();
 			if ( t instanceof SQLWarning )
 			{
-				if ( sqlState.startsWith("00") )
-				{
-					element = "info";
-					if ( "00000".equals(sqlState) )
+				element = s_toSeverity.apply((SQLWarning)t);
+				if ( "info".equals(element) && "00000".equals(sqlState) )
 						sqlState = null;
-				}
-				else
-					element = "warning";
 			}
 		}
 		return new String[] { element, sqlState, msg };
@@ -2038,9 +2210,13 @@ public class Node extends JarX {
 	 * If this method returns non-null, the result set is left positioned on its
 	 * last row.
 	 * @param o Object to check
+	 * @param peek whether to avoid moving the row cursor. If true, and all of
+	 * the columns are indeed void, the result array will have the column count
+	 * at index 1 and -1 at index 0.
 	 * @return null or a two-element int[], as described above
 	 */
-	public static int[] voidResultSetDims(Object o) throws Exception
+	public static int[] voidResultSetDims(Object o, boolean peek)
+	throws Exception
 	{
 		if ( ! (o instanceof ResultSet) )
 			return null;
@@ -2048,14 +2224,36 @@ public class Node extends JarX {
 		ResultSet rs = (ResultSet)o;
 		ResultSetMetaData md = rs.getMetaData();
 		int cols = md.getColumnCount();
+		int rows = 0;
 
 		for ( int c = 1; c <= cols; ++c )
 			if ( Types.OTHER != md.getColumnType(c)
 				||  ! "void".equals(md.getColumnTypeName(c)) )
 				return null;
 
-		rs.last(); // last(), getRow() appears to work, in pgjdbc-ng
-		return new int[] { rs.getRow(), cols };
+		if ( peek )
+			rows = -1;
+		else if ( URL_FORM_PGJDBCNG == s_urlForm )
+		{
+			rs.last(); // last(), getRow() appears to work, in pgjdbc-ng
+			rows = rs.getRow();
+		}
+		else
+		{
+			while ( rs.next() ) // PGJDBC requires this unless rs is scrollable
+				++ rows;
+		}
+
+		return new int[] { rows, cols };
+	}
+
+	/**
+	 * Equivalent to
+	 * {@link #voidResultSetDims(Object,boolean) voidResultSetDims(o,false)};
+	 */
+	public static int[] voidResultSetDims(Object o)	throws Exception
+	{
+		return voidResultSetDims(o, false);
 	}
 
 	/**
