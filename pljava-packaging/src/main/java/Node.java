@@ -119,7 +119,7 @@ import java.util.stream.Stream;
 import static java.util.stream.StreamSupport.stream;
 
 /**
- * Subclass the JarX extraction tool to provide a {@code resolve} method that
+ * Extends the JarX extraction tool to provide a {@code resolve} method that
  * replaces prefixes {@code pljava/foo/} in path names stored in the archive
  * with the result of {@code pg_config --foo}.
  *<p>
@@ -128,16 +128,17 @@ import static java.util.stream.StreamSupport.stream;
  * useful for tasks related to installation and testing. The idea is not to go
  * overboard, but supply a few methods largely modeled on the most basic ones of
  * PostgreSQL's {@code PostgresNode.pm}, with the idea that they can be invoked
- * from {@code jshell} if its classpath includes the installer jar (and
- * pgjdbc-ng).
+ * from {@code jshell} if its classpath includes the installer jar (and one of
+ * the PostgreSQL JDBC drivers).
  *<p>
  * An
  * <a href="../../../../../../develop/node.html">introduction with examples</a>
  * is available.
  *<p>
  * Unlike the many capabilities of {@code PostgresNode.pm}, this only deals in
- * TCP sockets bound to {@code localhost} (Java doesn't have Unix sockets out of
- * the box yet) and only a few of the most basic operations.
+ * TCP sockets bound to {@code localhost} ({@code StandardProtocolFamily.UNIX}
+ * finally arrived in Java 16 but this class does not support it yet) and only
+ * a few of the most basic operations.
  *<p>
  * As in JarX itself, some liberties with coding style may be taken here to keep
  * this one extra {@code .class} file from proliferating into a bunch of them.
@@ -161,7 +162,7 @@ public class Node extends JarX {
 	private static String s_sharedObject;
 
 	/**
-	 * Perform an ordinary installation, using {@code pg_config} or the
+	 * Performs an ordinary installation, using {@code pg_config} or the
 	 * corresponding system properties to learn where the files belong, and
 	 * unpacking the files (not including this class or its ancestors) there.
 	 */
@@ -177,7 +178,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Extract the jar contents, just as done in the normal case of running
+	 * Extracts the jar contents, just as done in the normal case of running
 	 * this class with {@code java -jar}.
 	 *<p>
 	 * Only to be called on the singleton instance {@code s_jarxHelper}.
@@ -194,7 +195,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Prepare the resolver, ignoring the passed string (ordinarily a script or
+	 * Prepares the resolver, ignoring the passed string (ordinarily a script or
 	 * rules); this resolver's rules are hardcoded.
 	 */
 	@Override
@@ -550,7 +551,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Construct an instance; all nulls for the parameters are passed by the
+	 * Constructs an instance; all nulls for the parameters are passed by the
 	 * static initializer to make the singleton extractor instance, and any
 	 * other instance is constructed by {@code get_new_node} for controlling
 	 * a PostgreSQL instance.
@@ -565,7 +566,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return a new {@code Node} that can be used to initialize and start a
+	 * Returns a new {@code Node} that can be used to initialize and start a
 	 * PostgreSQL instance.
 	 *<p>
 	 * Establishes a VM shutdown hook that will stop the server (if started)
@@ -598,7 +599,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return a TCP port on the loopback interface that is free at the moment
+	 * Returns a TCP port on the loopback interface that is free at the moment
 	 * this method is called.
 	 */
 	public static int get_free_port() throws Exception
@@ -610,7 +611,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Recursively remove the <em>basedir</em> and its descendants.
+	 * Recursively removes the <em>basedir</em> and its descendants.
 	 */
 	public void clean_node() throws Exception
 	{
@@ -618,7 +619,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Recursively remove the <em>basedir</em> and its descendants.
+	 * Recursively removes the <em>basedir</em> (unless <var>keepRoot</var>)
+	 * and its descendants.
 	 * @param keepRoot if true, the descendants are removed, but not the basedir
 	 * itself.
 	 */
@@ -657,7 +659,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Process the jar without really extracting, to compute the path mappings.
+	 * Processes the jar without really extracting, to compute
+	 * the path mappings.
 	 */
 	private static void dryExtract() throws Exception
 	{
@@ -678,7 +681,7 @@ public class Node extends JarX {
 	 * Given a path from the archive, or any path <em>resembling</em> one in
 	 * the archive (that is, always {@code /} as the separator, and starting
 	 * with {@code pljava/}<em>key</em> where {@code --}<em>key</em> is known
-	 * to {@code pg_config}, return the platform-specific path where it would
+	 * to {@code pg_config}, returns the platform-specific path where it would
 	 * be installed.
 	 */
 	private static String resolve(String archivePath) throws Exception
@@ -688,7 +691,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return the directory name to be used as the PostgreSQL data directory
+	 * Returns the directory name to be used as the PostgreSQL data directory
 	 * for this node.
 	 */
 	public Path data_dir()
@@ -721,7 +724,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * Like {@link #init(Map,UnaryOperator) init()} but returns
+	 * an {@code AutoCloseable} that will
 	 * recursively remove the files and directories under the <em>basedir</em>
 	 * (but not the <em>basedir</em> itself) on the exit of a calling
 	 * try-with-resources scope.
@@ -734,7 +738,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Like {@code init()} but returns an {@code AutoCloseable} that will
+	 * Like {@link #init(Map,UnaryOperator) init()} but returns
+	 * an {@code AutoCloseable} that will
 	 * recursively remove the files and directories under the <em>basedir</em>
 	 * (but not the <em>basedir</em> itself) on the exit of a calling
 	 * try-with-resources scope.
@@ -752,7 +757,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke {@code initdb} for the node, passing default options appropriate
+	 * Invokes {@code initdb} for the node, passing default options appropriate
 	 * for this setting.
 	 */
 	public void init() throws Exception
@@ -761,7 +766,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke {@code initdb} for the node, with <em>suppliedOptions</em>
+	 * Invokes {@code initdb} for the node, with <em>suppliedOptions</em>
 	 * overriding or supplementing the ones that would be passed by default.
 	 */
 	public void init(Map<String,String> suppliedOptions) throws Exception
@@ -770,9 +775,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke {@code initdb} for the node, passing default options appropriate
-	 * for this setting, and tweaks to be applied to the
-	 * {@code ProcessBuilder} before it is started.
+	 * Invokes {@code initdb} for the node, passing default options appropriate
+	 * for this setting, and {@linkplain #init(Map,UnaryOperator) tweaks} to be
+	 * applied to the {@code ProcessBuilder} before it is started.
 	 */
 	public void init(UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
@@ -780,7 +785,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke {@code initdb} for the node, with <em>suppliedOptions</em>
+	 * Invokes {@code initdb} for the node, with <em>suppliedOptions</em>
 	 * overriding or supplementing the ones that would be passed by default,
 	 * and <em>tweaks</em> to be applied to the {@code ProcessBuilder}
 	 * before it is started.
@@ -796,7 +801,9 @@ public class Node extends JarX {
 	 * @param suppliedOptions a Map where each key is an option to initdb
 	 * (for example, --encoding), and the value corresponds.
 	 * @param tweaks a lambda applicable to the {@code ProcessBuilder} to
-	 * further configure it.
+	 * further configure it. On Windows, the tweaks will be applied ahead of
+	 * transformation of the arguments by
+	 * {@link #forWindowsCRuntime forWindowsCRuntime}.
 	 */
 	public void init(
 		Map<String,String> suppliedOptions,
@@ -890,8 +897,13 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * Like {@link #start(Map,UnaryOperator) start()} but returns
+	 * an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
+	 *<p>
+	 * Supplied <em>tweaks</em> will be applied to the {@code ProcessBuilder}
+	 * used to start the server; if {@code pg_ctl} is being used, they will also
+	 * be applied when running {@code pg_ctl stop} to stop it.
 	 */
 	public AutoCloseable started_server(UnaryOperator<ProcessBuilder> tweaks)
 	throws Exception
@@ -900,7 +912,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Like {@code start()} but returns an {@code AutoCloseable} that will
+	 * Like {@link #start(Map,UnaryOperator) start()} but returns
+	 * an {@code AutoCloseable} that will
 	 * stop the server on the exit of a calling try-with-resources scope.
 	 *<p>
 	 * Supplied <em>tweaks</em> will be applied to the {@code ProcessBuilder}
@@ -920,7 +933,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Start a PostgreSQL server for the node with default options appropriate
+	 * Starts a PostgreSQL server for the node with default options appropriate
 	 * for this setting.
 	 */
 	public void start() throws Exception
@@ -929,7 +942,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Start a PostgreSQL server for the node, with <em>suppliedOptions</em>
+	 * Starts a PostgreSQL server for the node, with <em>suppliedOptions</em>
 	 * overriding or supplementing the ones that would be passed by default.
 	 */
 	public void start(Map<String,String> suppliedOptions) throws Exception
@@ -938,8 +951,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Start a PostgreSQL server for the node, passing default options
-	 * appropriate for this setting, and tweaks to be
+	 * Starts a PostgreSQL server for the node, passing default options
+	 * appropriate for this setting, and
+	 * {@linkplain #start(Map,UnaryOperator) tweaks} to be
 	 * applied to the {@code ProcessBuilder} before it is started.
 	 */
 	public void start(UnaryOperator<ProcessBuilder> tweaks) throws Exception
@@ -948,7 +962,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Start a PostgreSQL server for the node, with <em>suppliedOptions</em>
+	 * Starts a PostgreSQL server for the node, with <em>suppliedOptions</em>
 	 * overriding or supplementing the ones that would be passed by default, and
 	 * <em>tweaks</em> to be applied to the {@code ProcessBuilder} before it
 	 * is started.
@@ -970,7 +984,11 @@ public class Node extends JarX {
 	 * name as seen in {@code postgresql.conf} or passed to the server with
 	 * {@code -c} and the value corresponds.
 	 * @param tweaks a lambda applicable to the {@code ProcessBuilder} to
-	 * further configure it.
+	 * further configure it. Under {@link #use_pg_ctl use_pg_ctl(true)}, the
+	 * tweaks are applied after the arguments have been transformed by
+	 * {@link #asPgCtlInvocation asPgCtlInvocation}. On Windows, they are
+	 * applied ahead of transformation of the arguments by
+	 * {@link #forWindowsCRuntime forWindowsCRuntime}.
 	 */
 	public void start(
 		Map<String,String> suppliedOptions,
@@ -1044,7 +1062,7 @@ public class Node extends JarX {
 
 
 	/**
-	 * Stop the server instance associated with this Node.
+	 * Stops the server instance associated with this Node.
 	 *<p>
 	 * Has the effect of {@link #stop(UnaryOperator) stop(tweaks)} without
 	 * any tweaks.
@@ -1055,13 +1073,15 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Stop the server instance associated with this Node.
+	 * Stops the server instance associated with this Node.
 	 *<p>
 	 * No effect if it has not been started or has already been stopped, but
 	 * a message to standard error is logged if the server had been started and
 	 * the process is found to have exited unexpectedly.
-	 * @param tweaks tweaks to apply to a ProcessBuilder; unused unless pg_ctl
-	 * will be used to stop the server
+	 * @param tweaks tweaks to apply to a ProcessBuilder; unused unless
+	 * {@code pg_ctl} will be used to stop the server. When used, they are
+	 * applied ahead of the transformation of the arguments by
+	 * {@link #forWindowsCRuntime forWindowsCRuntime} used on Windows.
 	 */
 	public void stop(UnaryOperator<ProcessBuilder> tweaks) throws Exception
 	{
@@ -1132,6 +1152,10 @@ public class Node extends JarX {
 			.redirectOutput(INHERIT)
 			.redirectError(INHERIT);
 		pb = tweaks.apply(pb);
+
+		if ( s_isWindows )
+			pb = forWindowsCRuntime(pb);
+
 		Process p = pb.start();
 		p.getOutputStream().close();
 
@@ -1158,7 +1182,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Indicate whether to use {@code pg_ctl} to start and stop the server
+	 * Sets whether to use {@code pg_ctl} to start and stop the server
 	 * (if true), or start {@code postgres} and stop it directly (if false,
 	 * the default).
 	 *<p>
@@ -1175,7 +1199,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return a {@code Connection} to the server associated with this Node,
+	 * Returns a {@code Connection} to the server associated with this Node,
 	 * using default properties appropriate for this setting.
 	 */
 	public Connection connect() throws Exception
@@ -1184,7 +1208,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return a {@code Connection} to the server associated with this Node,
+	 * Returns a {@code Connection} to the server associated with this Node,
 	 * with <em>suppliedProperties</em> overriding or supplementing the ones
 	 * that would be passed by default.
 	 */
@@ -1197,7 +1221,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return a {@code Connection} to the server associated with this Node,
+	 * Returns a {@code Connection} to the server associated with this Node,
 	 * with supplied properties <em>p</em> overriding or supplementing the ones
 	 * that would be passed by default.
 	 *<p>
@@ -1267,12 +1291,12 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Set a configuration variable on the server.
+	 * Sets a configuration variable on the server.
 	 *<p>
 	 * This deserves a convenience method because the most familiar PostgreSQL
 	 * syntax for SET doesn't lend itself to parameterization.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> setConfig(
 		Connection c, String settingName, String newValue, boolean isLocal)
@@ -1287,7 +1311,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Load PL/Java (with a {@code LOAD} command, not {@code CREATE EXTENSION}).
+	 * Loads PL/Java (with a {@code LOAD} command,
+	 * not {@code CREATE EXTENSION}).
 	 *<p>
 	 * This was standard procedure in PostgreSQL versions that pre-dated the
 	 * extension support. It is largely obsolete with the advent of
@@ -1299,8 +1324,12 @@ public class Node extends JarX {
 	 * that {@code pljava.module_path} is set correctly to locate the jar files,
 	 * and give the correct shared-object path to {@code LOAD} (which this
 	 * method does).
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 *<p>
+	 * It is also useful to see better diagnostics if something is going wrong,
+	 * as PostgreSQL severely suppresses diagnostic messages during
+	 * {@code CREATE EXTENSION}.
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> loadPLJava(Connection c) throws Exception
 	{
@@ -1320,9 +1349,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install a jar.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * Installs a jar.
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> installJar(
 		Connection c, String uri, String jarName, boolean deploy)
@@ -1337,9 +1366,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Remove a jar.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * Removes a jar.
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> removeJar(
 		Connection c, String jarName, boolean undeploy)
@@ -1353,9 +1382,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Set the class path for a schema.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * Sets the class path for a schema.
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> setClasspath(
 		Connection c, String schema, String... jarNames)
@@ -1369,10 +1398,11 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Append a jar to a schema's class path if not already included.
-	 * @return a {@link #q(Statement,Callable) result stream} that includes, on
-	 * success, a one-column {@code void} result set with a single row if the
-	 * jar was added to the path, and no rows if the jar was already included.
+	 * Appends a jar to a schema's class path if not already included.
+	 * @return a {@linkplain #q(Statement,Callable) result stream} that
+	 * includes, on success, a one-column {@code void} result set with a single
+	 * row if the jar was added to the path, and no rows if the jar was already
+	 * included.
 	 */
 	public static Stream<Object> appendClasspathIf(
 		Connection c, String schema, String jarName)
@@ -1405,9 +1435,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Execute some arbitrary SQL
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * Executes some arbitrary SQL
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> q(Connection c, String sql) throws Exception
 	{
@@ -1788,8 +1818,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Execute some arbitrary SQL and pass
-	 * the {@link #q(Statement,Callable) result stream}
+	 * Executes some arbitrary SQL and passes
+	 * the {@linkplain #q(Statement,Callable) result stream}
 	 * to {@link #qp(Stream)} for printing to standard output.
 	 */
 	public static void qp(Connection c, String sql) throws Exception
@@ -1798,8 +1828,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Invoke some {@code execute} method on a {@code Statement} and pass
-	 * the {@link #q(Statement,Callable) result stream}
+	 * Invokes some {@code execute} method on a {@code Statement} and passes
+	 * the {@linkplain #q(Statement,Callable) result stream}
 	 * to {@link #qp(Stream)} for printing to standard output.
 	 *<p>
 	 * This is how, for example, to prepare, then print the results of, a
@@ -1818,7 +1848,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return true if the examples jar includes the
+	 * Returns true if the examples jar includes the
 	 * {@code org.postgresql.pljava.example.saxon.S9} class (meaning the
 	 * appropriate Saxon jar must be installed and on the classpath first before
 	 * the examples jar can be deployed, unless {@code check_function_bodies}
@@ -1836,12 +1866,12 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install the examples jar, under the name {@code examples}.
+	 * Installs the examples jar, under the name {@code examples}.
 	 *<p>
 	 * The jar is specified by a {@code file:} URI and the path is the one where
 	 * this installer installed (or would have installed) it.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> installExamples(Connection c, boolean deploy)
 	throws Exception
@@ -1853,15 +1883,15 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install the examples jar, under the name {@code examples}, and append it
-	 * to the class path for schema {@code public}.
+	 * Installs the examples jar, under the name {@code examples}, and appends
+	 * it to the class path for schema {@code public}.
 	 *<p>
 	 * The return of a concatenated result stream from two consecutive
 	 * statements might be likely to fail in cases where the first
-	 * statement has any appreciable data to return, but pgjdbc-ng seems to
+	 * statement has any appreciable data to return, but the drivers seem to
 	 * handle it at least in this case where each statement just returns one
 	 * row / one column of {@code void}. And it is convenient.
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * @return a combined {@linkplain #q(Statement,Callable) result stream} from
 	 * executing the statements
 	 */
 	public static Stream<Object> installExamplesAndPath(
@@ -1874,11 +1904,11 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install a Saxon jar under the name {@code saxon}, given the path to a
+	 * Installs a Saxon jar under the name {@code saxon}, given the path to a
 	 * local Maven repo and the needed version of Saxon, assuming the jar has
 	 * been downloaded there already.
-	 * @return a {@link #q(Statement,Callable) result stream} from executing
-	 * the statement
+	 * @return a {@linkplain #q(Statement,Callable) result stream} from
+	 * executing the statement
 	 */
 	public static Stream<Object> installSaxon(
 		Connection c, String repo, String version)
@@ -1891,9 +1921,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Install a Saxon jar under the name {@code saxon}, and append it to the
+	 * Installs a Saxon jar under the name {@code saxon}, and appends it to the
 	 * class path for schema {@code public}.
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * @return a combined {@linkplain #q(Statement,Callable) result stream} from
 	 * executing the statements
 	 */
 	public static Stream<Object> installSaxonAndPath(
@@ -1906,13 +1936,13 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * A four-fer: install Saxon, add it to the class path, then install the
-	 * examples jar, and update the classpath to include both.
+	 * A four-fer: installs Saxon, adds it to the class path, then installs the
+	 * examples jar, and updates the classpath to include both.
 	 * @param repo the base directory of a local Maven repository into which the
 	 * Saxon jar has been downloaded
 	 * @param version the needed version of Saxon
 	 * @param deploy whether to run the example jar's deployment code
-	 * @return a combined {@link #q(Statement,Callable) result stream} from
+	 * @return a combined {@linkplain #q(Statement,Callable) result stream} from
 	 * executing the statements
 	 */
 	public static Stream<Object> installSaxonAndExamplesAndPath(
@@ -1975,7 +2005,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Print streamed results of a {@code Statement} in (somewhat) readable
+	 * Prints streamed results of a {@code Statement} in (somewhat) readable
 	 * fashion.
 	 *<p>
 	 * Uses {@code writeXml} of {@code WebRowSet}, which is very verbose, but
@@ -1993,7 +2023,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Print streamed results of a {@code Statement} in (somewhat) readable
+	 * Prints streamed results of a {@code Statement} in (somewhat) readable
 	 * fashion, with a choice of flattener for diagnostics.
 	 *<p>
 	 * For <em>flattener</em>, see {@link flattenDiagnostics flattenDiagnostics}
@@ -2190,14 +2220,14 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Print a {@code Throwable} retrieved from a result stream, with
+	 * Prints a {@code Throwable} retrieved from a result stream, with
 	 * special handling for {@code SQLException} and {@code SQLWarning}.
 	 *<p>
 	 * In keeping with the XMLish vibe established by
 	 * {@link #qp(Stream) qp} for other items in a result
 	 * stream, this will render a {@code Throwable} as an {@code error},
 	 * {@code warning}, or {@code info} element (PostgreSQL's finer
-	 * distinctions of severity are not exposed by pgjdbc-ng's API.)
+	 * distinctions of severity are not exposed by every JDBC driver's API.)
 	 *<p>
 	 * An element will have a {@code message} attribute if it has a message.
 	 * It will have a {@code code} attribute containing the SQLState, if it is
@@ -2219,8 +2249,8 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Return an array of three {@code String}s, element, sqlState, and message,
-	 * as would be printed by {@link #qp(Throwable)}.
+	 * Returns an array of three {@code String}s, element, sqlState,
+	 * and message, as would be printed by {@link #qp(Throwable)}.
 	 *<p>
 	 * The first string will be: (1) if the throwable is an {@code SQLWarning},
 	 * "info" if its class (leftmost two positions of SQLState) is 00, otherwise
@@ -2259,11 +2289,11 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Escape a string as an XML attribute.
+	 * Escapes a string as an XML attribute.
 	 *<p>
 	 * Right on the borderline of trivial enough to implement here rather than
-	 * forcing the beleaguered user to add yet one more --add-modules for
-	 * {@code java.xml} just to run this in {@code jshell}.
+	 * using `java.xml` APIs (even though those are available in `jshell` too,
+	 * transitively supplied by our reliance on `java.sql`).
 	 */
 	private static String asAttribute(String s)
 	{
@@ -2352,7 +2382,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Predicate testing that an object is a {@code ResultSet} that has only
+	 * A predicate testing that an object is a {@code ResultSet} that has only
 	 * columns of {@code void} type, and the expected number of rows
 	 * and columns.
 	 *<p>
@@ -2371,7 +2401,7 @@ public class Node extends JarX {
 	/**
 	 * Executes a state machine specified in the form of
 	 * a list of lambdas representing its states, to verify that a
-	 * {@link #q(Statement,Callable) result stream} is as expected.
+	 * {@linkplain #q(Statement,Callable) result stream} is as expected.
 	 *<p>
 	 * Treats the list of lambdas as a set of consecutively-numbered states
 	 * (the first in the list is state number 1, and is the initial state).
@@ -2431,7 +2461,7 @@ public class Node extends JarX {
 	 * @param name A name for this state machine, used only in exception
 	 * messages if it fails to match all the input
 	 * @param reporter a Consumer to accept a diagnostic string if the machine
-	 * fails to match, defaulting if null to System.err::println
+	 * fails to match, defaulting if null to {@code System.err::println}
 	 * @param input A Stream of input items, of which none may be null
 	 * @param states Lambdas representing states of the machine
 	 * @return true if an accepting state was reached coinciding with the end
@@ -2590,7 +2620,7 @@ public class Node extends JarX {
 	private static final String PM_STATUS_READY = "ready   ";
 
 	/**
-	 * Wait for the {@code postmaster.pid} file to have the right contents
+	 * Waits for the {@code postmaster.pid} file to have the right contents
 	 * (the right pid for process <em>p</em>, and ready status for PG 10+).
 	 *<p>
 	 * The {code PostgresNode.pm} version of this is also used when shutting
@@ -2772,9 +2802,9 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Check whether the server being started is earlier than PG 10 and, if so,
-	 * sleep for a period expected to be adequate for it to become ready to
-	 * accept connections, then return true.
+	 * Checks whether the server being started is earlier than PG 10 and, if so,
+	 * sleeps for a period expected to be adequate for it to become ready to
+	 * accept connections, then returns true.
 	 *<p>
 	 * This is called from the generic {@code wait_for_pid_file}, only if the
 	 * file has already appeared and has all entries but {@code PM_STATUS}. That
@@ -2824,7 +2854,7 @@ public class Node extends JarX {
 	 * changes there if desirable.
 	 */
 	/**
-	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
+	 * Adjusts the command arguments of a {@code ProcessBuilder} so that they
 	 * will be recovered correctly on Windows by a target C/C++ program using
 	 * the argument parsing algorithm of the usual C run-time code, when it is
 	 * known that the command will not be handled first by {@code cmd}.
@@ -3004,7 +3034,7 @@ public class Node extends JarX {
 	}
 
 	/**
-	 * Adjust the command arguments of a {@code ProcessBuilder} that would
+	 * Adjusts the command arguments of a {@code ProcessBuilder} that would
 	 * directly invoke {@code postgres} to start a server, so that it will
 	 * instead start {@code postgres} via {@code pg_ctl}.
 	 *<p>
