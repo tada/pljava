@@ -436,6 +436,29 @@ public class Node extends JarX {
 	}
 
 	/**
+	 * A state (see {@link #stateMachine stateMachine}) that expects nothing
+	 * (if the driver is pgjdbc-ng) or a zero row count (if the driver is
+	 * PGJDBC).
+	 *<p>
+	 * For some utility statements (such as {@code CREATE EXTENSION}) with no
+	 * result, the pgjdbc-ng driver will produce no result, while the PGJDBC
+	 * driver produces a zero count, as it would for a DML statement that did
+	 * not affect any rows. This state handles either case.
+	 *<p>
+	 * When {@code URL_FORM_PGJDBCNG == s_urlForm}, this state consumes nothing
+	 * and moves to the numerically next state. Otherwise (JDBC), it checks
+	 * that the current object is a zero row count, consuming it and moving to
+	 * the numerically next state if it is, returning false otherwise.
+	 */
+	public static final InvocationHandler NOTHING_OR_PGJDBC_ZERO_COUNT=(o,p,q)->
+	{
+		int myStateNum = (int)q[0];
+		if ( URL_FORM_PGJDBCNG == s_urlForm )
+			return -(1 + myStateNum);
+		return 0 == as(Long.class, o) ? 1 + myStateNum : false;
+	};
+
+	/**
 	 * Name of a "Node"; null for an ordinary Node instance.
 	 */
 	private final String m_name;
@@ -2312,9 +2335,10 @@ public class Node extends JarX {
 	 * by {@link InvocationHandler}, an existing functional interface with a
 	 * versatile argument list and permissive {@code throws} clause. Each state
 	 * must be represented as a lambda with three parameters (the convention
-	 * {@code (o,p,q)} is suggested), of which only the first is used. If Java
-	 * ever completes the transition to {@code _} as an unused-parameter marker,
-	 * the suggested convention will be {@code (o,_,_)}.
+	 * {@code (o,p,q)} is suggested), of which only the first is normally used.
+	 * If Java ever completes the transition to {@code _} as an unused-parameter
+	 * marker, the suggested convention will be {@code (o,_,_)}, unless the
+	 * third (<var>q</var>) is also needed for special purposes (more below).
 	 *<p>
 	 * As the input item passed to each state is typed {@code Object}, and as
 	 * null can only represent the end of input, it may be common for a state to
@@ -2324,6 +2348,14 @@ public class Node extends JarX {
 	 * throw a specific instance of {@code ClassCastException}, which will be
 	 * treated, when caught by {@code stateMachine}, just as if the state
 	 * had returned {@code false}.
+	 *<p>
+	 * The third parameter to an {@code InvocationHandler} is an {@code Object}
+	 * array, and is here used to pass additional information that may at times
+	 * be of use in a state. The first element of the array holds the boxed form
+	 * of the current (1-based) state number. As a state must indicate the next
+	 * state by returning an absolute state number, having the state's own
+	 * number available opens the possibility of reusable presupplied state
+	 * implementations that do not depend on their absolute position.
 	 * @param name A name for this state machine, used only in exception
 	 * messages if it fails to match all the input
 	 * @param reporter a Consumer to accept a diagnostic string if the machine
@@ -2367,7 +2399,8 @@ public class Node extends JarX {
 					hasCurrent = true;
 				}
 
-				result = invoke(states[currentState], currentInput);
+				result =
+					invoke(states[currentState], currentState, currentInput);
 
 				if ( result instanceof Boolean )
 				{
@@ -2397,7 +2430,7 @@ public class Node extends JarX {
 			for ( ;; )
 			{
 				++ stepCount;
-				result = invoke(states[currentState], null);
+				result = invoke(states[currentState], currentState, null);
 				if ( result instanceof Boolean  &&  (Boolean)result )
 					return true;
 				else if ( result instanceof Integer  &&  0 > (Integer)result )
@@ -2435,12 +2468,21 @@ public class Node extends JarX {
 	private static final ClassCastException failedAsException =
 		new ClassCastException();
 
-	private static Object invoke(InvocationHandler h, Object o)
+	/**
+	 * Invokes the state handler <var>h</var>, passing it the current object
+	 * <var>o</var> and, for special purposes, the state index (adjusted to
+	 * be 1-based).
+	 *<p>
+	 * Conforming to the existing {@code InvocationHandler} interface, the
+	 * state index is passed in boxed form as element zero of an {@code Object}
+	 * array passed as the third argument.
+	 */
+	private static Object invoke(InvocationHandler h, int stateIdx, Object o)
 	throws Exception
 	{
 		try
 		{
-			return h.invoke(o, null, null);
+			return h.invoke(o, null, new Object[] { 1 + stateIdx });
 		}
 		catch ( ClassCastException e )
 		{
