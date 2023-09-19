@@ -160,9 +160,13 @@ import org.xml.sax.ext.LexicalHandler;
 /* ... for Adjusting API for Source / Result */
 
 import java.io.StringReader;
+import java.util.List;
+import static javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD;
+import static javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.validation.Schema;
 import org.postgresql.pljava.Adjusting;
+import static org.postgresql.pljava.Adjusting.XML.setFirstSupported;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
@@ -4197,14 +4201,76 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 	AdjustingJAXPParser<T extends Adjusting.XML.Parsing<T>>
 	implements Adjusting.XML.Parsing<T>
 	{
-		private static final String LIMIT =
-			"http://www.oracle.com/xml/jaxp/properties/";
+		static final Logger s_logger =
+			Logger.getLogger("org.postgresql.pljava.jdbc");
 
-		/*
-		 * Can get these from javax.xml.XMLConstants once assuming Java >= 7.
+		private static final String JDK17 = "jdk.xml.";
+		private static final String LIMIT =
+			"http://www.oracle.com/xml/jaxp/properties/"; // "legacy" since 17
+
+		private Exception m_signaling;
+		private Exception m_quiet;
+
+		protected void addSignaling(Exception e)
+		{
+			if ( null == e )
+				return;
+			if ( null == m_signaling )
+				m_signaling = e;
+			else
+				m_signaling.addSuppressed(e);
+		}
+
+		protected void addQuiet(Exception e)
+		{
+			if ( null == e )
+				return;
+			if ( null == m_quiet )
+				m_quiet = e;
+			else
+				m_quiet.addSuppressed(e);
+		}
+
+		protected boolean anySignaling()
+		{
+			return null != m_signaling;
+		}
+
+		/**
+		 * Returns whatever is on the signaling list, while logging (at
+		 * {@code WARNING} level) whatever is on the quiet list.
+		 *<p>
+		 * Both lists are left cleared.
+		 * @return the head exception on the signaling list, or null if none
 		 */
-		private static final String ACCESS =
-			"http://javax.xml.XMLConstants/property/accessExternal";
+		protected Exception exceptions()
+		{
+			Exception e = m_quiet;
+			m_quiet = null;
+			if ( null != e )
+				s_logger.log(WARNING,
+					"some XML processing limits were not successfully adjusted",
+					e);
+			e = m_signaling;
+			m_signaling = null;
+			return e;
+		}
+
+		/**
+		 * Common factor of subclass {@link #lax() lax()} instance methods.
+		 *<p>
+		 * The work is done here, but the instance methods are implemented
+		 * per-subclass to avoid unchecked casting of 'this'.
+		 */
+		protected static void lax(AdjustingJAXPParser o, boolean discard)
+		{
+			if ( null != o.m_quiet )
+			{
+				if ( ! discard )
+					o.addSignaling(o.m_quiet);
+				o.m_quiet = null;
+			}
+		}
 
 		@Override
 		public T defaults()
@@ -4218,6 +4284,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T elementAttributeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "elementAttributeLimit",
 				LIMIT + "elementAttributeLimit");
 		}
 
@@ -4225,6 +4292,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T entityExpansionLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "entityExpansionLimit",
 				LIMIT + "entityExpansionLimit");
 		}
 
@@ -4232,6 +4300,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T entityReplacementLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "entityReplacementLimit",
 				LIMIT + "entityReplacementLimit");
 		}
 
@@ -4239,6 +4308,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T maxElementDepth(int depth)
 		{
 			return setFirstSupportedProperty(depth,
+				JDK17 + "maxElementDepth",
 				LIMIT + "maxElementDepth");
 		}
 
@@ -4246,6 +4316,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T maxGeneralEntitySizeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "maxGeneralEntitySizeLimit",
 				LIMIT + "maxGeneralEntitySizeLimit");
 		}
 
@@ -4253,6 +4324,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T maxParameterEntitySizeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "maxParameterEntitySizeLimit",
 				LIMIT + "maxParameterEntitySizeLimit");
 		}
 
@@ -4260,6 +4332,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T maxXMLNameLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "maxXMLNameLimit",
 				LIMIT + "maxXMLNameLimit");
 		}
 
@@ -4267,19 +4340,20 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public T totalEntitySizeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,
+				JDK17 + "totalEntitySizeLimit",
 				LIMIT + "totalEntitySizeLimit");
 		}
 
 		@Override
 		public T accessExternalDTD(String protocols)
 		{
-			return setFirstSupportedProperty(protocols, ACCESS + "DTD");
+			return setFirstSupportedProperty(protocols, ACCESS_EXTERNAL_DTD);
 		}
 
 		@Override
 		public T accessExternalSchema(String protocols)
 		{
-			return setFirstSupportedProperty(protocols, ACCESS + "Schema");
+			return setFirstSupportedProperty(protocols, ACCESS_EXTERNAL_SCHEMA);
 		}
 
 		@Override
@@ -4367,7 +4441,6 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		 */
 		static final Pattern s_wrapelement = Pattern.compile(
 			"^cvc-elt\\.1(?:\\.a)?+:.*pljava-content-wrap");
-		final Logger m_logger = Logger.getLogger("org.postgresql.pljava.jdbc");
 		private int m_wrapCount;
 
 		static SAXDOMErrorHandler instance(boolean wrapped)
@@ -4417,7 +4490,8 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		@Override
 		public void warning(SAXParseException exception) throws SAXException
 		{
-			m_logger.log(WARNING, exception.getMessage(), exception);
+			AdjustingJAXPParser.s_logger
+				.log(WARNING, exception.getMessage(), exception);
 		}
 	}
 
@@ -4580,6 +4654,19 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		}
 
 		@Override
+		public AdjustingSourceResult get() throws SQLException
+		{
+			return this; // for this class, get is a noop
+		}
+
+		@Override
+		public AdjustingSourceResult lax(boolean discard)
+		{
+			theAdjustable().lax(discard);
+			return this;
+		}
+
+		@Override
 		public SQLXML getSQLXML() throws SQLException
 		{
 			if ( null == m_result )
@@ -4588,6 +4675,10 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			if ( null == m_copier )
 				throw new IllegalStateException(
 					"AdjustingSourceResult getSQLXML called before set");
+
+			// Exception handling/logging for adjustments will happen in
+			// theAdjustable().get(), during finish() here.
+
 			Writable result = null;
 			try
 			{
@@ -4629,12 +4720,6 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingSourceResult too early or late to adjust");
 			return m_copier.getAdjustable();
-		}
-
-		@Override
-		public AdjustingSourceResult get() throws SQLException
-		{
-			return this; // for this class, get is a noop
 		}
 
 		@Override
@@ -4801,8 +4886,11 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingStreamResult get() called more than once");
 
+			// Exception handling/logging for theVerifierSource happens here
 			XMLReader xr = theVerifierSource().get().getXMLReader();
+
 			OutputStream os;
+
 			try
 			{
 				m_vwo.setVerifier(new Verifier(xr));
@@ -4812,16 +4900,27 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			{
 				throw normalizedException(e);
 			}
+
 			StreamResult sr;
+
 			if ( m_preferWriter )
 				sr = new StreamResult(
 					new OutputStreamWriter(os, m_serverCS.newEncoder()));
 			else
 				sr = new StreamResult(os);
+
 			m_vwo = null;
 			m_verifierSource = null;
 			m_serverCS = null;
+
 			return sr;
+		}
+
+		@Override
+		public AdjustingStreamResult lax(boolean discard)
+		{
+			theVerifierSource().lax(discard);
+			return this;
 		}
 
 		@Override
@@ -4913,7 +5012,6 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		private XMLReader m_xr;
 		private InputSource m_is;
 		private boolean m_wrapped;
-		private SAXException m_except;
 		private boolean m_hasCalledDefaults;
 
 		static class Dummy extends AdjustingSAXSource
@@ -4993,7 +5091,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 
 		private XMLReader theReader()
 		{
-			if ( null != m_except )
+			if ( anySignaling() )
 				return null;
 
 			if ( null != m_spf )
@@ -5002,16 +5100,12 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				{
 					m_xr = m_spf.newSAXParser().getXMLReader();
 				}
-				catch ( SAXException e )
+				catch ( SAXException | ParserConfigurationException e )
 				{
-					m_except = e;
+					addSignaling(e);
 					return null;
 				}
-				catch ( ParserConfigurationException e )
-				{
-					m_except = new SAXException(e.getMessage(), e);
-					return null;
-				}
+
 				m_spf = null;
 				if ( m_wrapped )
 					m_xr = new SAXUnwrapFilter(m_xr);
@@ -5044,14 +5138,23 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				throw new IllegalStateException(
 					"AdjustingSAXSource get() called more than once");
 
-			XMLReader xr;
-			if ( null != m_except  ||  null == (xr = theReader()) )
-				throw normalizedException(m_except);
+			XMLReader xr = theReader();
+
+			Exception e = exceptions();
+			if ( null != e )
+				throw normalizedException(e);
 
 			SAXSource ss = new SAXSource(xr, m_is);
 			m_xr = null;
 			m_is = null;
 			return ss;
+		}
+
+		@Override
+		public AdjustingSAXSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
@@ -5084,18 +5187,11 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			if ( null == r ) // pending exception, nothing to be done
 				return this;
 
-			for ( String name : names )
-			{
-				try
-				{
-					r.setFeature(name, value);
-					break;
-				}
-				catch ( SAXNotRecognizedException | SAXNotSupportedException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(r::setFeature, value,
+				List.of(SAXNotRecognizedException.class,
+					SAXNotSupportedException.class),
+				this::addSignaling, names));
+
 			return this;
 		}
 
@@ -5107,22 +5203,11 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			if ( null == r ) // pending exception, nothing to be done
 				return this;
 
-			for ( String name : names )
-			{
-				try
-				{
-					r.setProperty(name, value);
-					break;
-				}
-				catch ( SAXNotRecognizedException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-				catch ( SAXNotSupportedException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(r::setProperty, value,
+				List.of(SAXNotRecognizedException.class,
+					SAXNotSupportedException.class),
+				this::addSignaling, names));
+
 			return this;
 		}
 
@@ -5192,6 +5277,13 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			SAXResult sr = m_sr;
 			m_sr = null;
 			return sr;
+		}
+
+		@Override
+		public AdjustingSAXResult lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
@@ -5280,6 +5372,8 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			if ( null == m_xif )
 				throw new IllegalStateException(
 					"AdjustingStAXSource get() called more than once");
+
+			StAXSource ss = null;
 			try
 			{
 				XMLStreamReader xsr = m_xif.createXMLStreamReader(
@@ -5287,12 +5381,25 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				if ( m_wrapped )
 					xsr = new StAXUnwrapFilter(xsr);
 				m_xif = null; // too late for any more adjustments
-				return new StAXSource(xsr);
+				ss = new StAXSource(xsr);
 			}
 			catch ( Exception e )
 			{
-				throw normalizedException(e);
+				addSignaling(e);
 			}
+
+			Exception e = exceptions();
+			if ( null != e )
+				throw normalizedException(e);
+
+			return ss;
+		}
+
+		@Override
+		public AdjustingStAXSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
@@ -5339,18 +5446,9 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			boolean value, String... names)
 		{
 			XMLInputFactory xif = theFactory();
-			for ( String name : names )
-			{
-				try
-				{
-					xif.setProperty(name, value);
-					break;
-				}
-				catch ( IllegalArgumentException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(xif::setProperty, value,
+				List.of(IllegalArgumentException.class),
+				this::addSignaling, names));
 			return this;
 		}
 
@@ -5359,18 +5457,9 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			Object value, String... names)
 		{
 			XMLInputFactory xif = theFactory();
-			for ( String name : names )
-			{
-				try
-				{
-					xif.setProperty(name, value);
-					break;
-				}
-				catch ( IllegalArgumentException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(xif::setProperty, value,
+				List.of(IllegalArgumentException.class),
+				this::addSignaling, names));
 			return this;
 		}
 	}
@@ -5420,23 +5509,37 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			if ( null == m_dbf )
 				throw new IllegalStateException(
 					"AdjustingDOMSource get() called more than once");
+
+			DOMSource ds = null;
 			try
 			{
 				DocumentBuilder db = m_dbf.newDocumentBuilder();
 				db.setErrorHandler(SAXDOMErrorHandler.instance(m_wrapped));
 				if ( null != m_resolver )
 					db.setEntityResolver(m_resolver);
-				DOMSource ds = new DOMSource(db.parse(m_is));
+				ds = new DOMSource(db.parse(m_is));
 				if ( m_wrapped )
 					domUnwrap(ds);
 				m_dbf = null;
 				m_is = null;
-				return ds;
 			}
 			catch ( Exception e )
 			{
-				throw normalizedException(e);
+				addSignaling(e);
 			}
+
+			Exception e = exceptions();
+			if ( null != e )
+				throw normalizedException(e);
+
+			return ds;
+		}
+
+		@Override
+		public AdjustingDOMSource lax(boolean discard)
+		{
+			lax(this, discard);
+			return this;
 		}
 
 		@Override
@@ -5458,18 +5561,9 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			boolean value, String... names)
 		{
 			DocumentBuilderFactory dbf = theFactory();
-			for ( String name : names )
-			{
-				try
-				{
-					dbf.setFeature(name, value);
-					break;
-				}
-				catch ( ParserConfigurationException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(dbf::setFeature, value,
+				List.of(ParserConfigurationException.class),
+				this::addSignaling, names));
 			return this;
 		}
 
@@ -5478,18 +5572,9 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			Object value, String... names)
 		{
 			DocumentBuilderFactory dbf = theFactory();
-			for ( String name : names )
-			{
-				try
-				{
-					dbf.setAttribute(name, value);
-					break;
-				}
-				catch ( IllegalArgumentException e )
-				{
-					e.printStackTrace(); // XXX
-				}
-			}
+			addQuiet(setFirstSupported(dbf::setAttribute, value,
+				List.of(IllegalArgumentException.class),
+				this::addSignaling, names));
 			return this;
 		}
 

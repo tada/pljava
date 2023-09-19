@@ -51,7 +51,7 @@ installer jar on its classpath, and you have an interactive, scriptable version
 of Java, with the methods of `Node.class` available in it.
 
 The ones that correspond to the Perl example above have the same names, for
-consistency (right down to the Perlish spelling with underscores rather than
+familiarity (right down to the Perlish spelling with underscores rather than
 Javaish camelCase):
 
 ```java
@@ -67,7 +67,8 @@ n1.clean_node()
 `jshell` has to be run with a rather lengthy command line to get to this point;
 more on that later. But once started, it presents a familiar `PostgresNode`-like
 environment. As the example shows, `jshell` is lenient about statement-ending
-semicolons.
+semicolons. (It is still advisable to use them, though; that leniency has fiddly
+exceptions, such as not applying to pasted text.)
 
 ## `Node.class` in detail
 
@@ -102,19 +103,16 @@ The full set of `Node` methods available can be seen
 
 Running `initdb` and starting a server are all well and good, but sooner or
 later a test may need to connect to it. That requires a JDBC driver to be on the
-classpath also: specifically `pgjdbc-ng` (at least, that is the one that's been
-tested and whose URL syntax is built in to `Node`). The older `pgjdbc` punts on
-the correct handling of warning/notice responses from the server, which seems
-rather disqualifying for a testing environment. In `pgjdbc-ng`, notices and
-warnings (any PostgreSQL severity less than `ERROR` and at or above the
-`client_min_messages` setting) are chained together as `SQLWarning` instances,
-as JDBC provides.
+classpath also; either `PGJDBC` or `pgjdbc-ng` will work, with a few minor
+differences.
 
-A new profile has been added to PL/Java's Maven build, and can be activated with
-`-Ppgjdbc-ng` on the `mvn` command line. It has no effect but to declare an
-extra dependency on the `pgjdbc-ng` dependencies-included jar. It is not used in
-the build, but Maven will have downloaded it to the local repository, and that
-location can be added to `jshell`'s classpath to make the driver available.
+New profiles have been added to PL/Java's Maven build, and can be activated with
+`-Ppgjdbc` or `-Ppgjdbc-ng` on the `mvn` command line. They have no effect but
+to declare an extra dependency on the corresponding dependencies-included driver
+jar. It is not used in the build, but Maven will have downloaded it to the local
+repository, and that location can be added to `jshell`'s classpath to make the
+driver available. (In the case of `PGJDBC`, adding the jar to the module path
+also works.)
 
 That addition leads to the final long unwieldy command line needed to start
 `jshell`, which can be seen in all its glory toward the end of this page.
@@ -122,12 +120,12 @@ Once that is copied and pasted into a terminal and any local paths changed, the
 rest is easy:
 
 ```java
-import org.postgresql.pljava.packaging.Node
-Node n1 = Node.get_new_node("TestNode1")
-n1.init()
-n1.start()
-import java.sql.Connection
-Connection c1 = n1.connect()
+import org.postgresql.pljava.packaging.Node;
+Node n1 = Node.get_new_node("TestNode1");
+n1.init();
+n1.start();
+import java.sql.Connection;
+Connection c1 = n1.connect();
 ```
 
 Once you have an open connection (or several), the convenience methods `Node`
@@ -138,11 +136,11 @@ parameter.
 
 ```java
 import static org.postgresql.pljava.packaging.Node.qp; // query-print
-qp(c1, "create table foo (bar int, baz text)")
-qp(c1, "insert into foo (values (1, 'Howdy!'))")
-qp(c1, "select 1/0")
-qp(c1, "select pg_sleep(1.5)")
-qp(c1, "select * from foo")
+qp(c1, "CREATE TABLE foo (bar int, baz text)");
+qp(c1, "INSERT INTO foo (VALUES (1, 'Howdy!'))");
+qp(c1, "SELECT 1/0");
+qp(c1, "SELECT pg_sleep(1.5)");
+qp(c1, "SELECT * FROM foo");
 ```
 
 This example shows `qp` used several different ways: with a DDL statement that
@@ -152,18 +150,18 @@ produces a one-row result with one column typed `void` and always null), and one
 that returns a general query result. What it prints:
 
 ```
-jshell> qp(c1, "create table foo (bar int, baz text)")
+jshell> qp(c1, "CREATE TABLE foo (bar int, baz text)");
 
-jshell> qp(c1, "insert into foo (values (1, 'Howdy!'))")
+jshell> qp(c1, "INSERT INTO foo (VALUES (1, 'Howdy!'))");
 <success rows='1'/>
 
-jshell> qp(c1, "select 1/0")
+jshell> qp(c1, "SELECT 1/0");
 <error code='22012' message='division by zero'/>
 
-jshell> qp(c1, "select pg_sleep(1.5)")
+jshell> qp(c1, "SELECT pg_sleep(1.5)");
 <void rows='1' cols='1'/>
 
-jshell> qp(c1, "select * from foo")
+jshell> qp(c1, "SELECT * FROM foo");
       ...
       <column-type-name>text</column-type-name>
     </column-definition>
@@ -192,6 +190,16 @@ the output format consistent. The `void` output is special treatment for
 the common case of a result set with only the `void` column type, to spare the
 effort of generating a whole `WebRowSet` XML that only shows nothing is there.
 
+The results shown above were obtained with `pgjdbc-ng`. If using `PGJDBC`, you
+will notice these minor differences:
+
+* For the first case shown, DDL with no result, `PGJDBC` will present a zero-row
+    success result, the same as for DML that did not affect any rows. This has
+    to be taken into account if writing a state machine to check results, as
+    discussed further below.
+* The `message` attribute produced for an error will have a prefix of `ERROR: `
+    (or the corresponding word in the PostgreSQL server's configured language).
+
 #### `qp` dissected
 
 `qp` is for interactive, exploratory use, generating printed output. For
@@ -206,7 +214,8 @@ update count), or throwables (caught exceptions, or `SQLWarning` instances). The
 JDBC `Statement` is polled for new `SQLWarning`s before checking for each next
 result (`ResultSet` or update count). An error or exception that is thrown and
 caught will be placed on the stream when caught (and will be the last thing on
-the stream).
+the stream, though it may carry chains of cause, suppressed, or next exceptions
+that may follow it if `flattenDiagnostics` is used on the stream).
 
 All 'notices' from PostgreSQL (severity below `ERROR` but at or above
 `client_min_messages`) are turned into `SQLWarning` instances by `pgjdbc-ng`,
@@ -214,6 +223,16 @@ which does not provide any API to get the original PostgreSQL severity, or any
 of the details other than the message and SQLState code. `Node` classifies them
 as `info` if the SQLState 'class' (leftmost two positions) is `00`, otherwise as
 `warning`. Exceptions of any other kind are classified as `error`.
+
+`PGJDBC` also turns notices below `ERROR` into `SQLWarning` instances, but
+provides access to the severity tag from the server, so `Node` uses that to
+classify them as `warning` or `info`, instead of the class `00` rule. If the
+severity is `WARNING` (or happens to be null for some reason), `Node` will
+classify the notice as `warning`; any other severity will be classified as
+`info`. (Note, however, that this scheme will not work if the server is
+configured for a language that uses a different word for `WARNING`. To make it
+work in that case, you can call `Node.set_WARNING_localized` in advance, passing
+the word that PostgreSQL uses for `WARNING` in your language.)
 
 As it happens, there is also an overload of `qp` with just one `Stream<Object>`
 parameter. If you have already run a query with `q` and have the result stream,
@@ -240,15 +259,15 @@ will install it from there, given a path to the repository root and the desired
 version of Saxon-HE. Not to be outdone, `installSaxonAndExamplesAndPath`
 combines the steps in correct order to install the Saxon jar, place it on the
 classpath, install and deploy the examples jar, and set a final classpath that
-installs both.
+includes both.
 
 ```java
-import static java.nio.file.Paths.get
-import java.sql.Connection
-import org.postgresql.pljava.packaging.Node
-import static org.postgresql.pljava.packaging.Node.qp
+import static java.nio.file.Paths.get;
+import java.sql.Connection;
+import org.postgresql.pljava.packaging.Node;
+import static org.postgresql.pljava.packaging.Node.qp;
 
-Node n1 = Node.get_new_node("TestNode1")
+Node n1 = Node.get_new_node("TestNode1");
 
 try (
   AutoCloseable t1 = n1.initialized_cluster();
@@ -273,8 +292,8 @@ try (
   {
     qp(Node.installSaxonAndExamplesAndPath(c,
       get(System.getProperty("user.home"), ".m2", "repository").toString(),
-      "10.2",
-      true))
+      "10.9",
+      true));
   }
 }
 /exit
@@ -289,6 +308,8 @@ would expect of a test.
 
 Worked-out examples that do the rest of that can be seen in the project
 repository in the configuration files for the CI testing services.
+
+#### `stateMachine` for checking results
 
 One last `Node` method most useful for checking returned results
 programmatically is `stateMachine` (full description in
@@ -353,6 +374,36 @@ The `isDiagnostic` method shown above isn't part of the `Node` class; in the
 actual test configurations in the repository, it is trivially defined in
 `jshell` a few lines earlier. Not everything needs to be built in.
 
+The difference in treatment of no-result DDL statements between drivers (where
+`pgjdbc-ng` really has no result, and `PGJDBC` has a zero-row update count as
+it would for a DML statement) can complicate writing a state machine that works
+with both drivers. `Node` predefines a state function
+`NOTHING_OR_PGJDBC_ZERO_COUNT` that consults the `s_urlForm` static field to
+determine which driver is in use, and then moves to the numerically next state,
+after consuming
+
+* nothing, if the driver is `pgjdbc-ng`, or
+* a single zero row count (rejecting any other input), if the driver
+    is `PGJDBC`.
+
+```java
+succeeding &= stateMachine(
+  "descriptive string for this state machine",
+  null,
+
+  q(c, "CREATE TABLE foo (bar int, baz text)")
+  .flatMap(Node::semiFlattenDiagnostics)
+  .peek(Node::peek), // so they also appear in the log
+
+  (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+
+  Node.NOTHING_OR_PGJDBC_ZERO_COUNT,
+
+  (o,p,q) -> null == o
+);
+
+```
+
 ## Invoking `jshell` to use `Node.class`
 
 As hinted above, the command needed to get `jshell` started so all the foregoing
@@ -369,7 +420,8 @@ jshell \
 ```
 
 where _$packageJar_ is a PL/Java self-installer jar, _$jdbcJar_ should point
-to a `pgjdbc-ng` "fat jar" (`pgjdbc-ng-all`), and _$pgConfig_ should point to
+to a "fat jar" for the JDBC driver of choice (`postgresql-`_version_`.jar` or
+`pgjdbc-ng-all-`_version_`.jar`), and _$pgConfig_ should point to
 the `pg_config` executable for the PostgreSQL installation that should be used.
 (If there is only one PostgreSQL installation or the right `pg_config` will be
 found on the search path, it doesn't have to be specified.)
@@ -379,13 +431,19 @@ The `-J--add-modules` is needed because even though `jshell` treats
 (because of `--execution local`) wouldn't know that without being told.
 
 The path given to `jshell` itself (`--class-path` without the `-J`) does not
-need to mention the `pgjdbc-ng` jar, because it can be a provider of the
+need to mention _$jdbcJar_, because that can be a provider of the
 `java.sql.Driver` service without having to be visible. If the script will
-want to use `pgjdbc-ng`-specific classes, then the jar does have to be
+want to use driver-specific extension classes, then the jar does have to be
 on `jshell`'s class path too.
 
-The `noUnsafe` setting silences a complaint from the `netty` library
-about Java (correctly!) denying it access to private internals.
+When the driver is `PGJDBC`, it can be placed on the class path or on the module
+path (in which case it becomes the named module `org.postgresql.jdbc`). Again,
+it does not need to be on `jshell`'s module path also---the one without
+`-J`---unless the script will be referring to driver-specific classes.
+
+The `noUnsafe` setting, needed only when the driver is `pgjdbc-ng`, silences
+a complaint from the `netty` library about Java (correctly!) denying it access
+to private internals.
 
 [jshell]: https://docs.oracle.com/en/java/javase/15/jshell/introduction-jshell.html
 [nodeapi]: ../pljava-packaging/apidocs/org/postgresql/pljava/packaging/Node.html#method.summary

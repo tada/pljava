@@ -30,6 +30,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static
 	org.postgresql.pljava.sqlgen.Lexicals.ISO_AND_PG_IDENTIFIER_CAPTURING;
 import static
+	org.postgresql.pljava.sqlgen.Lexicals.NEWLINE;
+import static
 	org.postgresql.pljava.sqlgen.Lexicals.SEPARATOR;
 import static
 	org.postgresql.pljava.sqlgen.Lexicals.PG_OPERATOR;
@@ -44,6 +46,22 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 public class LexicalsTest extends TestCase
 {
 	public LexicalsTest(String name) { super(name); }
+
+	public void testNewline() throws Exception
+	{
+		Matcher m = NEWLINE.matcher("abcd\nefgh");
+		m.region(4, 9);
+		assertTrue("newline 0", m.lookingAt());
+		assertTrue("newline 1", m.lookingAt());
+
+		m.reset("abcd\r\nefgh").region(4, 10);
+		assertTrue("newline 2", m.lookingAt());
+		assertEquals("\r\n", m.group());
+
+		m.reset("abcd\n\refgh").region(4, 10);
+		assertTrue("newline 3", m.lookingAt());
+		assertEquals("\n", m.group());
+	}
 
 	public void testSeparator() throws Exception
 	{

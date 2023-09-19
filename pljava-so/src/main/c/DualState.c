@@ -45,10 +45,6 @@ extern void pljava_ExecutionPlan_initialize(void);
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/VarlenaWrapper.h"
 
-#if PG_VERSION_NUM < 80400
-#include <access/heapam.h> /* heap_freetuple was there then */
-#endif
-
 static jclass s_DualState_class;
 
 static jmethodID s_DualState_cleanEnqueuedInstances;

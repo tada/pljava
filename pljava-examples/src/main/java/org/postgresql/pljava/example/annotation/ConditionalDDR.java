@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -64,7 +64,7 @@ import org.postgresql.pljava.annotation.SQLAction;
  * local, so it is reverted when the transaction completes.
  * <p>
  * In addition to the goodness-of-life examples, this file also generates
- * several statements setting PostgreSQL-version-based implementor tags that
+ * one or more statements setting PostgreSQL-version-based implementor tags that
  * are relied on by various other examples in this directory.
  */
 @SQLAction(provides={"LifeIsGood","LifeIsNotGood"}, install=
@@ -78,51 +78,12 @@ import org.postgresql.pljava.annotation.SQLAction;
 )
 
 @SQLAction(implementor="LifeIsGood", install=
-	"SELECT javatest.logmessage('INFO', 'Looking good!')"
+	"SELECT javatest.logmessage('INFO', 'ConditionalDDR looking good!')"
 )
 
 @SQLAction(implementor="LifeIsNotGood", install=
-	"SELECT javatest.logmessage('WARNING', 'This should not be executed')"
-)
-
-@SQLAction(provides="postgresql_ge_80300", install=
-	"SELECT CASE WHEN" +
-	" 80300 <= CAST(current_setting('server_version_num') AS integer)" +
-	" THEN set_config('pljava.implementors', 'postgresql_ge_80300,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
-
-@SQLAction(provides="postgresql_ge_80400", install=
-	"SELECT CASE WHEN" +
-	" 80400 <= CAST(current_setting('server_version_num') AS integer)" +
-	" THEN set_config('pljava.implementors', 'postgresql_ge_80400,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
-
-@SQLAction(provides="postgresql_ge_90000", install=
-	"SELECT CASE WHEN" +
-	" 90000 <= CAST(current_setting('server_version_num') AS integer)" +
-	" THEN set_config('pljava.implementors', 'postgresql_ge_90000,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
-
-@SQLAction(provides="postgresql_ge_90100", install=
-	"SELECT CASE WHEN" +
-	" 90100 <= CAST(current_setting('server_version_num') AS integer)" +
-	" THEN set_config('pljava.implementors', 'postgresql_ge_90100,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
-)
-
-@SQLAction(provides="postgresql_ge_90300", install=
-	"SELECT CASE WHEN" +
-	" 90300 <= CAST(current_setting('server_version_num') AS integer)" +
-	" THEN set_config('pljava.implementors', 'postgresql_ge_90300,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
+	"SELECT javatest.logmessage('WARNING', " +
+	" 'ConditionalDDR: This should not be executed')"
 )
 
 @SQLAction(provides="postgresql_ge_100000", install=

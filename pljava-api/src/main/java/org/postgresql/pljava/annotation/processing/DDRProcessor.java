@@ -173,7 +173,7 @@ public class DDRProcessor extends AbstractProcessor
 		 * Update latest_tested to be the latest Java release on which this
 		 * annotation processor has been tested without problems.
 		 */
-		int latest_tested = 20;
+		int latest_tested = 21;
 		int ordinal_9 = SourceVersion.RELEASE_9.ordinal();
 		int ordinal_latest = latest_tested - 9 + ordinal_9;
 

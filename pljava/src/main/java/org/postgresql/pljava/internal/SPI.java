@@ -69,6 +69,9 @@ public class SPI
 	public static final int OK_REL_REGISTER     = 15;
 	public static final int OK_REL_UNREGISTER   = 16;
 	public static final int OK_TD_REGISTER      = 17;
+	public static final int OK_MERGE            = 18;
+
+	public static final int OPT_NONATOMIC       = 1 << 0;
 
 	/*
 	 * Indices into window array.

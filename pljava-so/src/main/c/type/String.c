@@ -226,11 +226,7 @@ text* String_createText(jstring javaString)
 		/* Allocate and initialize the text structure.
 		 */
 		result = (text*)palloc(varSize);
-#if PG_VERSION_NUM < 80300
-		VARATT_SIZEP(result) = varSize;	/* Total size of structure, not just data */
-#else
 		SET_VARSIZE(result, varSize);	/* Total size of structure, not just data */
-#endif
 		memcpy(VARDATA(result), denc, dencLen);
 
 		if(denc != sid.data)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -277,9 +277,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass clazz, jobject key, jstring jcmd, jobjectArray paramTypes)
 {
 	jobject result = 0;
-#if PG_VERSION_NUM >= 90200
 	int spi_ret;
-#endif
 	BEGIN_NATIVE
 	STACK_BASE_VARS
 	STACK_BASE_PUSH(env)
@@ -320,16 +318,12 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 			/* Make the plan durable
 			 */
 			p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-#if PG_VERSION_NUM >= 90200
 			spi_ret = SPI_keepplan(ePlan);
 			if ( 0 == spi_ret )
 				p2l.ptrVal = ePlan;
 			else
 				Exception_throwSPI("keepplan", spi_ret);
-#else
-			p2l.ptrVal = SPI_saveplan(ePlan);
-			SPI_freeplan(ePlan); /* Get rid of original, nobody can see it */
-#endif
+
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
 				key, p2l.longVal);
