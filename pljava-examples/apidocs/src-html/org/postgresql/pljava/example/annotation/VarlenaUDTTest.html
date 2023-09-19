@@ -9,7 +9,7 @@
 <main role="main">
 <div class="sourceContainer">
 <pre><span class="sourceLineNo">001</span><a id="line.1">/*</a>
-<span class="sourceLineNo">002</span><a id="line.2"> * Copyright (c) 2015- Tada AB and other contributors, as listed below.</a>
+<span class="sourceLineNo">002</span><a id="line.2"> * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.</a>
 <span class="sourceLineNo">003</span><a id="line.3"> *</a>
 <span class="sourceLineNo">004</span><a id="line.4"> * All rights reserved. This program and the accompanying materials</a>
 <span class="sourceLineNo">005</span><a id="line.5"> * are made available under the terms of the The BSD 3-Clause License</a>
@@ -39,65 +39,63 @@
 <span class="sourceLineNo">029</span><a id="line.29"> * characters. That makes it easy to test how big a value gets correctly stored</a>
 <span class="sourceLineNo">030</span><a id="line.30"> * and retrieved. It should be about a GB, but in issue 52 was failing at 32768</a>
 <span class="sourceLineNo">031</span><a id="line.31"> * because of a narrowing assignment in the native code.</a>
-<span class="sourceLineNo">032</span><a id="line.32"> *&lt;p&gt;</a>
-<span class="sourceLineNo">033</span><a id="line.33"> * This example relies on {@code implementor} tags reflecting the PostgreSQL</a>
-<span class="sourceLineNo">034</span><a id="line.34"> * version, set up in the {@link ConditionalDDR} example.</a>
-<span class="sourceLineNo">035</span><a id="line.35"> */</a>
-<span class="sourceLineNo">036</span><a id="line.36">@SQLAction(requires="varlena UDT", implementor="postgresql_ge_80300", install=</a>
-<span class="sourceLineNo">037</span><a id="line.37">"  SELECT CASE v::text = v::javatest.VarlenaUDTTest::text " +</a>
-<span class="sourceLineNo">038</span><a id="line.38">"   WHEN true THEN javatest.logmessage('INFO', 'works for ' || v) " +</a>
-<span class="sourceLineNo">039</span><a id="line.39">"   ELSE javatest.logmessage('WARNING', 'fails for ' || v) " +</a>
-<span class="sourceLineNo">040</span><a id="line.40">"   END " +</a>
-<span class="sourceLineNo">041</span><a id="line.41">"   FROM (VALUES (('32767')), (('32768')), (('65536')), (('1048576'))) " +</a>
-<span class="sourceLineNo">042</span><a id="line.42">"   AS t ( v )"</a>
-<span class="sourceLineNo">043</span><a id="line.43">)</a>
-<span class="sourceLineNo">044</span><a id="line.44">@BaseUDT(schema="javatest", provides="varlena UDT")</a>
-<span class="sourceLineNo">045</span><a id="line.45">public class VarlenaUDTTest implements SQLData {</a>
-<span class="sourceLineNo">046</span><a id="line.46">    int apop;</a>
-<span class="sourceLineNo">047</span><a id="line.47">    String typname;</a>
+<span class="sourceLineNo">032</span><a id="line.32"> */</a>
+<span class="sourceLineNo">033</span><a id="line.33">@SQLAction(requires="varlena UDT", install=</a>
+<span class="sourceLineNo">034</span><a id="line.34">"  SELECT CASE v::text = v::javatest.VarlenaUDTTest::text " +</a>
+<span class="sourceLineNo">035</span><a id="line.35">"   WHEN true " +</a>
+<span class="sourceLineNo">036</span><a id="line.36">"   THEN javatest.logmessage('INFO', 'VarlenaUDTTest works for ' || v) " +</a>
+<span class="sourceLineNo">037</span><a id="line.37">"   ELSE javatest.logmessage('WARNING', 'VarlenaUDTTest fails for ' || v) " +</a>
+<span class="sourceLineNo">038</span><a id="line.38">"   END " +</a>
+<span class="sourceLineNo">039</span><a id="line.39">"   FROM (VALUES (('32767')), (('32768')), (('65536')), (('1048576'))) " +</a>
+<span class="sourceLineNo">040</span><a id="line.40">"   AS t ( v )"</a>
+<span class="sourceLineNo">041</span><a id="line.41">)</a>
+<span class="sourceLineNo">042</span><a id="line.42">@BaseUDT(schema="javatest", provides="varlena UDT")</a>
+<span class="sourceLineNo">043</span><a id="line.43">public class VarlenaUDTTest implements SQLData {</a>
+<span class="sourceLineNo">044</span><a id="line.44">    int apop;</a>
+<span class="sourceLineNo">045</span><a id="line.45">    String typname;</a>
+<span class="sourceLineNo">046</span><a id="line.46"></a>
+<span class="sourceLineNo">047</span><a id="line.47">    public VarlenaUDTTest() { }</a>
 <span class="sourceLineNo">048</span><a id="line.48"></a>
-<span class="sourceLineNo">049</span><a id="line.49">    public VarlenaUDTTest() { }</a>
-<span class="sourceLineNo">050</span><a id="line.50"></a>
-<span class="sourceLineNo">051</span><a id="line.51">    @Function(effects=IMMUTABLE)</a>
-<span class="sourceLineNo">052</span><a id="line.52">    public static VarlenaUDTTest parse( String s, String typname) {</a>
-<span class="sourceLineNo">053</span><a id="line.53">        int i = Integer.parseInt( s);</a>
-<span class="sourceLineNo">054</span><a id="line.54">        VarlenaUDTTest u = new VarlenaUDTTest();</a>
-<span class="sourceLineNo">055</span><a id="line.55">        u.apop = i;</a>
-<span class="sourceLineNo">056</span><a id="line.56">        u.typname = typname;</a>
-<span class="sourceLineNo">057</span><a id="line.57">        return u;</a>
-<span class="sourceLineNo">058</span><a id="line.58">    }</a>
-<span class="sourceLineNo">059</span><a id="line.59"></a>
-<span class="sourceLineNo">060</span><a id="line.60">    @Function(effects=IMMUTABLE)</a>
-<span class="sourceLineNo">061</span><a id="line.61">    public String toString() {</a>
-<span class="sourceLineNo">062</span><a id="line.62">        return String.valueOf( apop);</a>
-<span class="sourceLineNo">063</span><a id="line.63">    }</a>
-<span class="sourceLineNo">064</span><a id="line.64"></a>
-<span class="sourceLineNo">065</span><a id="line.65">    public String getSQLTypeName() {</a>
-<span class="sourceLineNo">066</span><a id="line.66">        return typname;</a>
-<span class="sourceLineNo">067</span><a id="line.67">    }</a>
-<span class="sourceLineNo">068</span><a id="line.68"></a>
-<span class="sourceLineNo">069</span><a id="line.69">    @Function(effects=IMMUTABLE)</a>
-<span class="sourceLineNo">070</span><a id="line.70">    public void writeSQL( SQLOutput stream) throws SQLException {</a>
-<span class="sourceLineNo">071</span><a id="line.71">        for ( int i = 0 ; i &lt; apop ; ++ i )</a>
-<span class="sourceLineNo">072</span><a id="line.72">            stream.writeByte( (byte)'a');</a>
-<span class="sourceLineNo">073</span><a id="line.73">    }</a>
-<span class="sourceLineNo">074</span><a id="line.74"></a>
-<span class="sourceLineNo">075</span><a id="line.75">    @Function(effects=IMMUTABLE)</a>
-<span class="sourceLineNo">076</span><a id="line.76">    public void readSQL( SQLInput stream, String typname) throws SQLException {</a>
-<span class="sourceLineNo">077</span><a id="line.77">        this.typname = typname;</a>
-<span class="sourceLineNo">078</span><a id="line.78">        int i = 0;</a>
-<span class="sourceLineNo">079</span><a id="line.79">        for ( ;; ++i )</a>
-<span class="sourceLineNo">080</span><a id="line.80">            try {</a>
-<span class="sourceLineNo">081</span><a id="line.81">                stream.readByte();</a>
-<span class="sourceLineNo">082</span><a id="line.82">            }</a>
-<span class="sourceLineNo">083</span><a id="line.83">            catch ( SQLException sqle ) {</a>
-<span class="sourceLineNo">084</span><a id="line.84">                if ( "22P03".equals( sqle.getSQLState()) )</a>
-<span class="sourceLineNo">085</span><a id="line.85">                    break;</a>
-<span class="sourceLineNo">086</span><a id="line.86">                throw sqle;</a>
-<span class="sourceLineNo">087</span><a id="line.87">            }</a>
-<span class="sourceLineNo">088</span><a id="line.88">        apop = i;</a>
-<span class="sourceLineNo">089</span><a id="line.89">    }</a>
-<span class="sourceLineNo">090</span><a id="line.90">}</a>
+<span class="sourceLineNo">049</span><a id="line.49">    @Function(effects=IMMUTABLE)</a>
+<span class="sourceLineNo">050</span><a id="line.50">    public static VarlenaUDTTest parse( String s, String typname) {</a>
+<span class="sourceLineNo">051</span><a id="line.51">        int i = Integer.parseInt( s);</a>
+<span class="sourceLineNo">052</span><a id="line.52">        VarlenaUDTTest u = new VarlenaUDTTest();</a>
+<span class="sourceLineNo">053</span><a id="line.53">        u.apop = i;</a>
+<span class="sourceLineNo">054</span><a id="line.54">        u.typname = typname;</a>
+<span class="sourceLineNo">055</span><a id="line.55">        return u;</a>
+<span class="sourceLineNo">056</span><a id="line.56">    }</a>
+<span class="sourceLineNo">057</span><a id="line.57"></a>
+<span class="sourceLineNo">058</span><a id="line.58">    @Function(effects=IMMUTABLE)</a>
+<span class="sourceLineNo">059</span><a id="line.59">    public String toString() {</a>
+<span class="sourceLineNo">060</span><a id="line.60">        return String.valueOf( apop);</a>
+<span class="sourceLineNo">061</span><a id="line.61">    }</a>
+<span class="sourceLineNo">062</span><a id="line.62"></a>
+<span class="sourceLineNo">063</span><a id="line.63">    public String getSQLTypeName() {</a>
+<span class="sourceLineNo">064</span><a id="line.64">        return typname;</a>
+<span class="sourceLineNo">065</span><a id="line.65">    }</a>
+<span class="sourceLineNo">066</span><a id="line.66"></a>
+<span class="sourceLineNo">067</span><a id="line.67">    @Function(effects=IMMUTABLE)</a>
+<span class="sourceLineNo">068</span><a id="line.68">    public void writeSQL( SQLOutput stream) throws SQLException {</a>
+<span class="sourceLineNo">069</span><a id="line.69">        for ( int i = 0 ; i &lt; apop ; ++ i )</a>
+<span class="sourceLineNo">070</span><a id="line.70">            stream.writeByte( (byte)'a');</a>
+<span class="sourceLineNo">071</span><a id="line.71">    }</a>
+<span class="sourceLineNo">072</span><a id="line.72"></a>
+<span class="sourceLineNo">073</span><a id="line.73">    @Function(effects=IMMUTABLE)</a>
+<span class="sourceLineNo">074</span><a id="line.74">    public void readSQL( SQLInput stream, String typname) throws SQLException {</a>
+<span class="sourceLineNo">075</span><a id="line.75">        this.typname = typname;</a>
+<span class="sourceLineNo">076</span><a id="line.76">        int i = 0;</a>
+<span class="sourceLineNo">077</span><a id="line.77">        for ( ;; ++i )</a>
+<span class="sourceLineNo">078</span><a id="line.78">            try {</a>
+<span class="sourceLineNo">079</span><a id="line.79">                stream.readByte();</a>
+<span class="sourceLineNo">080</span><a id="line.80">            }</a>
+<span class="sourceLineNo">081</span><a id="line.81">            catch ( SQLException sqle ) {</a>
+<span class="sourceLineNo">082</span><a id="line.82">                if ( "22P03".equals( sqle.getSQLState()) )</a>
+<span class="sourceLineNo">083</span><a id="line.83">                    break;</a>
+<span class="sourceLineNo">084</span><a id="line.84">                throw sqle;</a>
+<span class="sourceLineNo">085</span><a id="line.85">            }</a>
+<span class="sourceLineNo">086</span><a id="line.86">        apop = i;</a>
+<span class="sourceLineNo">087</span><a id="line.87">    }</a>
+<span class="sourceLineNo">088</span><a id="line.88">}</a>
 
 
 

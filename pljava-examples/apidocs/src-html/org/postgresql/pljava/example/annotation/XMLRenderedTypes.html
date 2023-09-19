@@ -9,7 +9,7 @@
 <main role="main">
 <div class="sourceContainer">
 <pre><span class="sourceLineNo">001</span><a id="line.1">/*</a>
-<span class="sourceLineNo">002</span><a id="line.2"> * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.</a>
+<span class="sourceLineNo">002</span><a id="line.2"> * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.</a>
 <span class="sourceLineNo">003</span><a id="line.3"> *</a>
 <span class="sourceLineNo">004</span><a id="line.4"> * All rights reserved. This program and the accompanying materials</a>
 <span class="sourceLineNo">005</span><a id="line.5"> * are made available under the terms of the The BSD 3-Clause License</a>
@@ -37,25 +37,29 @@
 <span class="sourceLineNo">027</span><a id="line.27"> *&lt;p&gt;</a>
 <span class="sourceLineNo">028</span><a id="line.28"> * Everything mentioning the type XML here needs a conditional implementor tag</a>
 <span class="sourceLineNo">029</span><a id="line.29"> * in case of being loaded into a PostgreSQL instance built without that type.</a>
-<span class="sourceLineNo">030</span><a id="line.30"> * The {@code pg_node_tree} type appears in 9.1.</a>
-<span class="sourceLineNo">031</span><a id="line.31"> */</a>
-<span class="sourceLineNo">032</span><a id="line.32">@SQLAction(implementor="postgresql_ge_90100",</a>
-<span class="sourceLineNo">033</span><a id="line.33">    provides="postgresql_xml_ge91",</a>
-<span class="sourceLineNo">034</span><a id="line.34">    install=</a>
-<span class="sourceLineNo">035</span><a id="line.35">    "SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +</a>
-<span class="sourceLineNo">036</span><a id="line.36">    " THEN set_config('pljava.implementors', 'postgresql_xml_ge91,' || " +</a>
-<span class="sourceLineNo">037</span><a id="line.37">    " current_setting('pljava.implementors'), true) " +</a>
-<span class="sourceLineNo">038</span><a id="line.38">    "END"</a>
-<span class="sourceLineNo">039</span><a id="line.39">)</a>
-<span class="sourceLineNo">040</span><a id="line.40">public class XMLRenderedTypes</a>
-<span class="sourceLineNo">041</span><a id="line.41">{</a>
-<span class="sourceLineNo">042</span><a id="line.42">    @Function(schema="javatest", implementor="postgresql_xml_ge91")</a>
-<span class="sourceLineNo">043</span><a id="line.43">    public static SQLXML pgNodeTreeAsXML(@SQLType("pg_node_tree") SQLXML pgt)</a>
-<span class="sourceLineNo">044</span><a id="line.44">    throws SQLException</a>
-<span class="sourceLineNo">045</span><a id="line.45">    {</a>
-<span class="sourceLineNo">046</span><a id="line.46">        return pgt;</a>
-<span class="sourceLineNo">047</span><a id="line.47">    }</a>
-<span class="sourceLineNo">048</span><a id="line.48">}</a>
+<span class="sourceLineNo">030</span><a id="line.30"> */</a>
+<span class="sourceLineNo">031</span><a id="line.31">@SQLAction(implementor="postgresql_xml", requires="pgNodeTreeAsXML", install=</a>
+<span class="sourceLineNo">032</span><a id="line.32">"WITH" +</a>
+<span class="sourceLineNo">033</span><a id="line.33">"  a(t) AS (SELECT adbin FROM pg_catalog.pg_attrdef LIMIT 1)" +</a>
+<span class="sourceLineNo">034</span><a id="line.34">" SELECT" +</a>
+<span class="sourceLineNo">035</span><a id="line.35">"   CASE WHEN pgNodeTreeAsXML(t) IS DOCUMENT" +</a>
+<span class="sourceLineNo">036</span><a id="line.36">"    THEN javatest.logmessage('INFO', 'pgNodeTreeAsXML ok')" +</a>
+<span class="sourceLineNo">037</span><a id="line.37">"    ELSE javatest.logmessage('WARNING', 'pgNodeTreeAsXML ng')" +</a>
+<span class="sourceLineNo">038</span><a id="line.38">"   END" +</a>
+<span class="sourceLineNo">039</span><a id="line.39">"  FROM a"</a>
+<span class="sourceLineNo">040</span><a id="line.40">)</a>
+<span class="sourceLineNo">041</span><a id="line.41">public class XMLRenderedTypes</a>
+<span class="sourceLineNo">042</span><a id="line.42">{</a>
+<span class="sourceLineNo">043</span><a id="line.43">    @Function(</a>
+<span class="sourceLineNo">044</span><a id="line.44">        schema="javatest", implementor="postgresql_xml",</a>
+<span class="sourceLineNo">045</span><a id="line.45">        provides="pgNodeTreeAsXML"</a>
+<span class="sourceLineNo">046</span><a id="line.46">    )</a>
+<span class="sourceLineNo">047</span><a id="line.47">    public static SQLXML pgNodeTreeAsXML(@SQLType("pg_node_tree") SQLXML pgt)</a>
+<span class="sourceLineNo">048</span><a id="line.48">    throws SQLException</a>
+<span class="sourceLineNo">049</span><a id="line.49">    {</a>
+<span class="sourceLineNo">050</span><a id="line.50">        return pgt;</a>
+<span class="sourceLineNo">051</span><a id="line.51">    }</a>
+<span class="sourceLineNo">052</span><a id="line.52">}</a>
 
 
 
